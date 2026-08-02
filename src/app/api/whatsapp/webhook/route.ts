@@ -59,6 +59,19 @@ interface WhatsAppMessage {
   }
   /** Present when the customer swipe-replies to one of our messages. */
   context?: { id: string }
+  /** Shared contact cards (vCard). Meta sends them on type='contacts'. */
+  contacts?: Array<{
+    name?: {
+      formatted_name: string
+      first_name?: string
+      last_name?: string
+    }
+    phones?: Array<{
+      phone?: string
+      wa_id?: string
+      type?: string
+    }>
+  }>
 }
 
 interface WhatsAppWebhookEntry {
@@ -961,6 +974,19 @@ async function parseMessageContent(
         }
       }
       return { ...empty, contentText: '[Interactive reply]' }
+    }
+
+    case 'contacts': {
+      const partes = (message.contacts ?? []).map((c) => {
+        const nombre = c?.name?.formatted_name ?? ''
+        const tel = c?.phones?.[0]?.wa_id ?? c?.phones?.[0]?.phone ?? ''
+        return `[Contacto] ${nombre} ${tel}`.trim()
+      }).filter((t) => t !== '[Contacto]')
+
+      const contentText = partes.length
+        ? partes.join('\n')
+        : '[Unsupported message type: contacts]'
+      return { ...empty, contentText }
     }
 
     default:

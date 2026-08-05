@@ -33,6 +33,17 @@ function supabaseAdmin() {
   return _adminClient
 }
 
+function extFromMime(mime: string): string {
+  const m = (mime || '').split(';')[0].trim().toLowerCase()
+  const map: Record<string, string> = {
+    'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',
+    'image/gif': 'gif', 'audio/ogg': 'ogg', 'audio/mpeg': 'mp3',
+    'audio/mp4': 'm4a', 'audio/amr': 'amr', 'video/mp4': 'mp4',
+    'video/3gpp': '3gp', 'application/pdf': 'pdf',
+  }
+  return map[m] || 'bin'
+}
+
 interface WhatsAppMessage {
   id: string
   from: string
@@ -626,7 +637,7 @@ async function processMessage(
 
   // Parse message content based on type
   const { contentText, mediaUrl, mediaType, interactiveReplyId } =
-    await parseMessageContent(message, accessToken)
+    await parseMessageContent(message, accessToken, accountId)
 
   // Resolve swipe-reply context if present. A missing parent is fine —
   // we just store NULL and the UI renders the message without a quote.
@@ -841,7 +852,8 @@ async function processMessage(
 
 async function parseMessageContent(
   message: WhatsAppMessage,
-  accessToken: string
+  accessToken: string,
+  accountId: string
 ): Promise<{
   contentText: string | null
   mediaUrl: string | null
@@ -855,22 +867,41 @@ async function parseMessageContent(
    */
   interactiveReplyId: string | null
 }> {
-  // getMediaUrl signature is (mediaId, accessToken) — earlier code had
-  // the args swapped, so every verification hit an invalid Meta URL and
-  // fell through to the catch block, leaving mediaUrl as null. That's
-  // why images showed up as empty bubbles in the inbox.
-  const verifyAndBuildUrl = async (
-    mediaId: string
-  ): Promise<string | null> => {
+  const persistMedia = async (mediaId: string): Promise<string | null> => {
+    // Si algo falla, caemos a la ruta proxy de siempre: el peor caso es
+    // el comportamiento actual, nunca una burbuja vacia.
+    const proxyUrl = `/api/whatsapp/media/${mediaId}`
     try {
-      await getMediaUrl({ mediaId, accessToken })
-      return `/api/whatsapp/media/${mediaId}`
+      const { url, mimeType } = await getMediaUrl({ mediaId, accessToken })
+      const { buffer, contentType } = await downloadMedia({
+        downloadUrl: url,
+        accessToken,
+      })
+      if (buffer.byteLength > 16 * 1024 * 1024) {
+        console.warn(`[whatsapp] media ${mediaId} supera el tope del bucket`)
+        return proxyUrl
+      }
+      const type = contentType || mimeType
+      const path =
+        `account-${accountId}/${Date.now()}-wa-${mediaId}.${extFromMime(type)}`
+      const { error } = await supabaseAdmin()
+        .storage.from('chat-media')
+        .upload(path, buffer, {
+          contentType: type,
+          cacheControl: '31536000',
+          upsert: false,
+        })
+      if (error) throw error
+      const { data } = supabaseAdmin()
+        .storage.from('chat-media')
+        .getPublicUrl(path)
+      return data.publicUrl
     } catch (error) {
       console.error(
-        `Failed to verify media ${mediaId} with Meta:`,
+        `[whatsapp] no se pudo persistir media ${mediaId}:`,
         error instanceof Error ? error.message : error
       )
-      return null
+      return proxyUrl
     }
   }
 
@@ -892,7 +923,7 @@ async function parseMessageContent(
         return {
           ...empty,
           contentText: message.image.caption || null,
-          mediaUrl: await verifyAndBuildUrl(message.image.id),
+          mediaUrl: await persistMedia(message.image.id),
           mediaType: message.image.mime_type,
         }
       }
@@ -903,7 +934,7 @@ async function parseMessageContent(
         return {
           ...empty,
           contentText: message.video.caption || null,
-          mediaUrl: await verifyAndBuildUrl(message.video.id),
+          mediaUrl: await persistMedia(message.video.id),
           mediaType: message.video.mime_type,
         }
       }
@@ -915,7 +946,7 @@ async function parseMessageContent(
           ...empty,
           contentText:
             message.document.caption || message.document.filename || null,
-          mediaUrl: await verifyAndBuildUrl(message.document.id),
+          mediaUrl: await persistMedia(message.document.id),
           mediaType: message.document.mime_type,
         }
       }
@@ -925,7 +956,7 @@ async function parseMessageContent(
       if (message.audio?.id) {
         return {
           ...empty,
-          mediaUrl: await verifyAndBuildUrl(message.audio.id),
+          mediaUrl: await persistMedia(message.audio.id),
           mediaType: message.audio.mime_type,
         }
       }
@@ -938,7 +969,7 @@ async function parseMessageContent(
       if (message.sticker?.id) {
         return {
           ...empty,
-          mediaUrl: await verifyAndBuildUrl(message.sticker.id),
+          mediaUrl: await persistMedia(message.sticker.id),
           mediaType: message.sticker.mime_type,
         }
       }

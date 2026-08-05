@@ -214,6 +214,27 @@ export default function PipelinesPage() {
     setDeals(await loadDeals(selectedPipelineId));
   }, [loadDeals, selectedPipelineId]);
 
+  // Live updates: deals can be created/moved by external actors (the n8n
+  // flow, another agent) — reload whenever the table changes so the board
+  // reflects reality without a manual page refresh. RLS scopes the
+  // realtime events to this account, same as the inbox.
+  useEffect(() => {
+    if (!selectedPipelineId) return;
+    const channel = supabase
+      .channel(`pipeline-deals-${selectedPipelineId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "deals" },
+        () => {
+          refreshDeals();
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedPipelineId, supabase, refreshDeals]);
+
   const handleDealMoved = useCallback(
     async (dealId: string, newStageId: string) => {
       // Optimistic update — board already animated; just persist.

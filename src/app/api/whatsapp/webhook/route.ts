@@ -1020,11 +1020,25 @@ async function parseMessageContent(
       return { ...empty, contentText }
     }
 
-    default:
+    default: {
+      // Meta manda un array errors cuando no puede entregar el mensaje.
+      // Sin esto no hay forma de saber por que se perdio.
+      const err = (message as any).errors?.[0]
+      const motivo = err
+        ? ` - ${err.title ?? err.code ?? ''}${err.error_data?.details ? ': ' + err.error_data.details : ''}`
+        : ''
+      if (err) {
+        console.warn('[whatsapp] mensaje no soportado', JSON.stringify({
+          type: message.type,
+          id: message.id,
+          errors: (message as any).errors,
+        }))
+      }
       return {
         ...empty,
-        contentText: `[Unsupported message type: ${message.type}]`,
+        contentText: `[Unsupported message type: ${message.type}${motivo}]`,
       }
+    }
   }
 }
 

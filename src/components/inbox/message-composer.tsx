@@ -418,6 +418,25 @@ export function MessageComposer({
     [stageUpload],
   );
 
+  // Pegar desde el portapapeles (Ctrl+V). Reutiliza el mismo camino que el
+  // menu de adjuntar: handlePicked -> stageUpload -> previsualizacion.
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      if (readOnly || sessionExpired || busy || draft) return;
+      const file = Array.from(e.clipboardData?.files ?? [])[0];
+      // Sin fichero es texto normal: dejar el pegado nativo intacto.
+      if (!file) return;
+      e.preventDefault();
+      const kind = file.type.startsWith("image/")
+        ? "image"
+        : file.type.startsWith("video/")
+          ? "video"
+          : "document";
+      handlePicked(kind, file);
+    },
+    [readOnly, sessionExpired, busy, draft, handlePicked],
+  );
+
   // ---- Voice recording (client-side Ogg/Opus, no server transcode) ---
 
   // The encoded Ogg/Opus file from opus-recorder → upload as an audio
@@ -731,6 +750,7 @@ export function MessageComposer({
             value={text}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder={
               readOnly
                 ? t("readOnlyPlaceholder")

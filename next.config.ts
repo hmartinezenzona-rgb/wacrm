@@ -64,9 +64,9 @@ const SECURITY_HEADERS = [
 ] as const;
 
 const nextConfig: NextConfig = {
-  // Build only — VPS has 1 GB RAM, TypeScript type-checking OOM-kills it.
-  // Types are validated in CI / locally; skip here so the build completes.
-  typescript: { ignoreBuildErrors: true },
+  // Artefacto autocontenido para el despliegue desde CI (issue #1):
+  // el VPS solo recibe y reinicia, no compila.
+  output: "standalone",
 
   /**
    * Cache-Control policy.

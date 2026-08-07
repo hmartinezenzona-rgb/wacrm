@@ -83,6 +83,15 @@ interface WhatsAppMessage {
       type?: string
     }>
   }>
+  /**
+   * Present when Meta could not deliver a message: it sends the original
+   * payload with an `errors` array explaining why (e.g. media expired).
+   */
+  errors?: Array<{
+    code?: number
+    title?: string
+    error_data?: { details?: string }
+  }>
 }
 
 interface WhatsAppWebhookEntry {
@@ -1026,7 +1035,7 @@ async function parseMessageContent(
     default: {
       // Meta manda un array errors cuando no puede entregar el mensaje.
       // Sin esto no hay forma de saber por que se perdio.
-      const err = (message as any).errors?.[0]
+      const err = message.errors?.[0]
       const motivo = err
         ? ` - ${err.title ?? err.code ?? ''}${err.error_data?.details ? ': ' + err.error_data.details : ''}`
         : ''
@@ -1034,7 +1043,7 @@ async function parseMessageContent(
         console.warn('[whatsapp] mensaje no soportado', JSON.stringify({
           type: message.type,
           id: message.id,
-          errors: (message as any).errors,
+          errors: message.errors,
         }))
       }
       return {

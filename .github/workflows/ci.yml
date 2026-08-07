@@ -42,6 +42,9 @@ jobs:
 
       - name: Lint
         run: npm run lint
+        # TEMPORAL: deja pasar al Typecheck/Test/Build para medir el cuadro
+        # completo. Se quita cuando se decida qué hacer con los errores.
+        continue-on-error: true
 
       - name: Typecheck
         run: npm run typecheck

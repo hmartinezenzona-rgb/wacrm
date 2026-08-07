@@ -582,7 +582,7 @@ function ConversationItem({
                   <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleUnpin(conversation.id);
+                      onUnpin(conversation.id);
                     }}
                   >
                     Desfijar
@@ -591,7 +591,7 @@ function ConversationItem({
                   <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation();
-                      handlePin(conversation.id);
+                      onPin(conversation.id);
                     }}
                   >
                     Fijar
@@ -600,7 +600,7 @@ function ConversationItem({
                 <DropdownMenuItem
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleDelete(conversation.id, displayName);
+                    onDelete(conversation.id, displayName);
                   }}
                 >
                   Borrar

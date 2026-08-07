@@ -18,7 +18,7 @@
 //     route's duration budget without a real durability guarantee.
 // ============================================================
 
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -111,6 +111,22 @@ async function deliverOne(
   }
 
   try {
+    // Firma del Cerebro (n8n) — migración a HMAC en cabeceras. Durante la
+    // transición el Cerebro acepta ambas formas, así que se mantiene el
+    // ?secret= de la URL y se añaden las cabeceras X-Cerebro-*.
+    // El secreto compartido es el mismo que ya viaja en el query string
+    // (el que n8n valida hoy); CEREBRO_WEBHOOK_SECRET (env var) tiene
+    // prioridad si está definida.
+    let cerebroSignature: string | undefined;
+    if (row.url.includes('wacrm-cerebro')) {
+      const querySecret = new URL(row.url).searchParams.get('secret');
+      const cerebroSecret =
+        process.env.CEREBRO_WEBHOOK_SECRET ?? querySecret ?? secret;
+      cerebroSignature = createHmac('sha256', cerebroSecret)
+        .update(`${tsSeconds}.${payload}`)
+        .digest('hex');
+    }
+
     const res = await fetch(row.url, {
       method: 'POST',
       headers: {
@@ -118,6 +134,12 @@ async function deliverOne(
         'X-Wacrm-Event': event,
         'X-Wacrm-Webhook-Id': row.id,
         'X-Wacrm-Signature': buildSignatureHeader(payload, secret, tsSeconds),
+        ...(cerebroSignature
+          ? {
+              'X-Cerebro-Timestamp': String(tsSeconds),
+              'X-Cerebro-Signature': `sha256=${cerebroSignature}`,
+            }
+          : {}),
       },
       body: payload,
       // Do NOT follow redirects — a public URL could 3xx-bounce to an

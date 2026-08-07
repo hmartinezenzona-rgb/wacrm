@@ -719,6 +719,9 @@ async function processMessage(
       last_message_at: new Date().toISOString(),
       unread_count: (conversation.unread_count || 0) + 1,
       updated_at: new Date().toISOString(),
+      // Un chat oculto (deleted_at) reaparece al recibir mensaje nuevo:
+      // el cliente volvio a escribir, el operador debe verlo otra vez.
+      deleted_at: null,
     })
     .eq('id', conversation.id)
 

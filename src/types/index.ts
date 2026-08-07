@@ -168,6 +168,9 @@ export interface Conversation {
   unread_count: number;
   created_at: string;
   updated_at: string;
+  /** Borrado suave (oculto de la lista) / fijado arriba. NUNCA se borra la fila. */
+  deleted_at?: string | null;
+  pinned_at?: string | null;
   contact?: Contact;
   /**
    * AI auto-reply state for this thread (migration 029 + 033):

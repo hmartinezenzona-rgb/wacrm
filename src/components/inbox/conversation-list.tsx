@@ -9,7 +9,8 @@ import {
 } from "@/lib/inbox/conversations";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus, Tag } from "@/types";
-import { Search, ChevronDown, X } from "lucide-react";
+import { Search, ChevronDown, X, Pin, MoreVertical } from "lucide-react";
+import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
@@ -90,31 +91,35 @@ export function ConversationList({
     onConversationsLoadedRef.current = onConversationsLoaded;
   });
 
-  useEffect(() => {
+  const fetchConversations = useCallback(async (): Promise<Conversation[] | null> => {
     const supabase = createClient();
+    const { data, error } = await supabase
+      .from("conversations")
+      .select(CONVERSATION_SELECT)
+      .is("deleted_at", null)
+      .order("pinned_at", { ascending: false, nullsFirst: false })
+      .order("last_message_at", { ascending: false });
+
+    if (error) {
+      // Supabase errors have non-enumerable properties — log fields explicitly
+      console.error("Failed to fetch conversations:", {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      });
+      return null;
+    }
+    return normalizeConversations(data ?? []);
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
 
     (async () => {
-      const { data, error } = await supabase
-        .from("conversations")
-        .select(CONVERSATION_SELECT)
-        .order("last_message_at", { ascending: false });
-
+      const convs = await fetchConversations();
       if (cancelled) return;
-
-      if (error) {
-        // Supabase errors have non-enumerable properties — log fields explicitly
-        console.error("Failed to fetch conversations:", {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code,
-        });
-        setLoading(false);
-        return;
-      }
-
-      onConversationsLoadedRef.current(normalizeConversations(data ?? []));
+      if (convs) onConversationsLoadedRef.current(convs);
       setLoading(false);
     })();
 
@@ -124,7 +129,72 @@ export function ConversationList({
     // `resyncToken` is included so the parent can force a refetch when
     // the realtime channel reconnects or the tab regains focus — catches
     // up on any events sent while the WS was disconnected or throttled.
-  }, [resyncToken]);
+  }, [fetchConversations, resyncToken]);
+
+  /** Aplica pinned_at/deleted_at y refresca la lista. Nunca borra la fila. */
+  const applyConversationUpdate = useCallback(
+    async (
+      id: string,
+      patch: { pinned_at?: string | null; deleted_at?: string | null },
+    ) => {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("conversations")
+        .update(patch)
+        .eq("id", id);
+      if (error) {
+        console.error("Failed to update conversation:", {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+        });
+        return false;
+      }
+      const convs = await fetchConversations();
+      if (convs) onConversationsLoadedRef.current(convs);
+      return true;
+    },
+    [fetchConversations],
+  );
+
+  const handlePin = useCallback(
+    (id: string) =>
+      void applyConversationUpdate(id, { pinned_at: new Date().toISOString() }),
+    [applyConversationUpdate],
+  );
+
+  const handleUnpin = useCallback(
+    (id: string) => void applyConversationUpdate(id, { pinned_at: null }),
+    [applyConversationUpdate],
+  );
+
+  const handleDelete = useCallback(
+    (id: string, name: string) => {
+      if (
+        !window.confirm(
+          `¿Ocultar el chat con ${name}? El historial se conserva y el chat reaparecerá si el cliente escribe.`,
+        )
+      )
+        return;
+      void (async () => {
+        const ok = await applyConversationUpdate(id, {
+          deleted_at: new Date().toISOString(),
+        });
+        if (ok) {
+          toast("Chat oculto", {
+            description: `El chat con ${name} se ocultó de la lista.`,
+            action: {
+              label: "Deshacer",
+              onClick: () =>
+                void applyConversationUpdate(id, { deleted_at: null }),
+            },
+          });
+        }
+      })();
+    },
+    [applyConversationUpdate],
+  );
 
   // Tag definitions for the filter picker — loaded once so labels/colours
   // stay stable regardless of which conversations happen to be loaded.
@@ -413,6 +483,9 @@ export function ConversationList({
                 conversation={conv}
                 isActive={conv.id === activeConversationId}
                 onSelect={handleSelect}
+                onPin={handlePin}
+                onUnpin={handleUnpin}
+                onDelete={handleDelete}
                 t={t}
               />
             ))}
@@ -427,6 +500,9 @@ interface ConversationItemProps {
   conversation: Conversation;
   isActive: boolean;
   onSelect: (conversation: Conversation) => void;
+  onPin: (id: string) => void;
+  onUnpin: (id: string) => void;
+  onDelete: (id: string, name: string) => void;
   t: ReturnType<typeof useTranslations>;
 }
 
@@ -434,6 +510,9 @@ function ConversationItem({
   conversation,
   isActive,
   onSelect,
+  onPin,
+  onUnpin,
+  onDelete,
   t,
 }: ConversationItemProps) {
   const contact = conversation.contact;
@@ -451,10 +530,18 @@ function ConversationItem({
     : "";
 
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={handleClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          handleClick();
+        }
+      }}
       className={cn(
-        "flex w-full items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/50",
+        "flex w-full cursor-pointer items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/50",
         isActive && "border-l-2 border-primary bg-muted/70"
       )}
     >
@@ -474,10 +561,56 @@ function ConversationItem({
       {/* Content */}
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="truncate text-sm font-medium text-foreground">
-            {displayName}
+          <span className="flex min-w-0 items-center gap-1.5">
+            {conversation.pinned_at && (
+              <Pin className="h-3 w-3 shrink-0 text-primary" />
+            )}
+            <span className="truncate text-sm font-medium text-foreground">
+              {displayName}
+            </span>
           </span>
-          <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo}</span>
+          <span className="flex shrink-0 items-center gap-1">
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                onClick={(e) => e.stopPropagation()}
+                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <MoreVertical className="h-3.5 w-3.5" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="border-border bg-popover">
+                {conversation.pinned_at ? (
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleUnpin(conversation.id);
+                    }}
+                  >
+                    Desfijar
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePin(conversation.id);
+                    }}
+                  >
+                    Fijar
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete(conversation.id, displayName);
+                  }}
+                >
+                  Borrar
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <span className="shrink-0 text-[10px] text-muted-foreground">
+              {timeAgo}
+            </span>
+          </span>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">
           <p className="truncate text-xs text-muted-foreground">
@@ -501,6 +634,6 @@ function ConversationItem({
           </div>
         </div>
       </div>
-    </button>
+    </div>
   );
 }

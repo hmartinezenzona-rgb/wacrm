@@ -84,6 +84,12 @@ export interface SendMessageParams {
   /** Structured payload for `messageType === 'interactive'`. */
   interactivePayload?: InteractiveMessagePayload | null;
   replyToMessageId?: string | null;
+  /**
+   * Marks the message as AI-generated (sender is an automation, not a
+   * human agent). The public API (`/api/v1/messages`) sets it true; the
+   * dashboard send (human) leaves it false.
+   */
+  aiGenerated?: boolean;
 }
 
 export interface SendMessageResult {
@@ -197,6 +203,7 @@ export async function sendMessageToConversation(
     templateMessageParams,
     interactivePayload,
     replyToMessageId,
+    aiGenerated,
   } = params;
 
   if (!conversationId) {
@@ -462,6 +469,7 @@ export async function sendMessageToConversation(
       message_id: waMessageId,
       status: 'sent',
       reply_to_message_id: replyToMessageId || null,
+      ai_generated: aiGenerated ?? false,
     })
     .select()
     .single();

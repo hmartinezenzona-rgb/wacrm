@@ -47,6 +47,31 @@ const STATUS_COLORS: Record<ConversationStatus, string> = {
 
 type InboxFilter = ConversationStatus | "all" | "unread";
 
+/**
+ * Replica el ORDER BY de la consulta (pinned_at DESC NULLS LAST,
+ * last_message_at DESC) en el punto donde se pinta. Un solo lugar:
+ * la lista se reordena en cada render aunque el array se haya mutado
+ * en vivo sin refetch.
+ */
+function ordenarConversaciones(a: Conversation, b: Conversation) {
+  // Fijados siempre primero
+  const fa = !!a.pinned_at,
+    fb = !!b.pinned_at;
+  if (fa !== fb) return fa ? -1 : 1;
+
+  // Entre fijados, el fijado más recientemente arriba
+  if (fa && fb) {
+    const d =
+      new Date(b.pinned_at!).getTime() - new Date(a.pinned_at!).getTime();
+    if (d !== 0) return d;
+  }
+
+  // El resto, por último mensaje descendente. Sin fecha, al final.
+  const ta = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+  const tb = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+  return tb - ta;
+}
+
 export function ConversationList({
   activeConversationId,
   onSelect,
@@ -257,7 +282,7 @@ export function ConversationList({
       });
     }
 
-    return result;
+    return result.slice().sort(ordenarConversaciones);
   }, [conversations, filter, search, selectedTagIds, selectedCompany]);
 
   const toggleTag = useCallback((id: string) => {

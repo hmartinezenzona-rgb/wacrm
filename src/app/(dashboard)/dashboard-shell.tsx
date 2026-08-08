@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { PresenceHeartbeat } from "@/components/presence/presence-heartbeat";
+import { useNotificationAlerts } from "@/hooks/use-notification-alerts";
 
 // Auth-gated dashboard shell. Extracted from the layout so the layout
 // itself can stay a server component and export metadata (noindex) —
@@ -19,6 +20,11 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   // always visible and this stays at `false` (ignored by the component).
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
+
+  // Sound + desktop alert on new notifications (incidencias, failed
+  // messages). Headless — mounts once here, in the shell that wraps
+  // every dashboard page. Must never throw (see hook docblock).
+  useNotificationAlerts();
 
   useEffect(() => {
     if (!loading && !user) {

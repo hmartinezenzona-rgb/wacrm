@@ -79,6 +79,38 @@ export default function NotificationsPage() {
     load();
   }, [load]);
 
+  // Promoción Etecsa pendiente de confirmar (si la hay). RPC sin
+  // parámetros; la consulta decide si mostrar el botón y qué texto.
+  // Reutilizable: se llama al montar y cada vez que entra una
+  // notificación promo_etecsa por realtime (el caso real: el operador
+  // tiene el CRM abierto todo el día). Todo en try/catch — esta página
+  // cuelga del shell del dashboard y un fallo aquí no puede tumbar nada.
+  const loadPromoPendiente = useCallback(async () => {
+    try {
+      const supabase = createClient();
+      const { data, error: rpcErr } = await supabase.rpc(
+        "cerebro_promo_pendiente",
+      );
+      if (rpcErr) {
+        console.warn("[notifications] promo pendiente:", rpcErr.message);
+      } else {
+        const rows = (data ?? []) as PromoPendiente[];
+        setPromoPendiente(rows[0] ?? null);
+      }
+    } catch (err) {
+      console.warn(
+        "[notifications] promo pendiente:",
+        err instanceof Error ? err.message : err,
+      );
+    } finally {
+      setPromoChecked(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadPromoPendiente();
+  }, [loadPromoPendiente]);
+
   // Realtime — new assignments appear without a refresh, and a
   // "mark all read" fired from another tab/device stays in sync here.
   useEffect(() => {
@@ -96,6 +128,12 @@ export default function NotificationsPage() {
               if (prev.some((n) => n.id === row.id)) return prev;
               return [row, ...prev];
             });
+            // Entró una promo nueva: recargar la RPC para que la franja
+            // del botón aparezca sin recargar la página (el caso real:
+            // el operador tiene el CRM abierto todo el día).
+            if (row.type === "promo_etecsa") {
+              void loadPromoPendiente();
+            }
           } else if (payload.eventType === "UPDATE") {
             const row = payload.new as Notification;
             setNotifications((prev) =>
@@ -115,7 +153,7 @@ export default function NotificationsPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [loadPromoPendiente]);
 
   const markRead = useCallback(
     async (id: string) => {
@@ -173,39 +211,6 @@ export default function NotificationsPage() {
       load();
     }
   }, [unreadIds.length, load]);
-
-  // Promoción Etecsa pendiente de confirmar (si la hay). RPC sin
-  // parámetros; la consulta decide si mostrar el botón y qué texto.
-  // Todo en try/catch: esta página cuelga del shell del dashboard y un
-  // fallo aquí no puede tumbar nada.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const supabase = createClient();
-        const { data, error: rpcErr } = await supabase.rpc(
-          "cerebro_promo_pendiente",
-        );
-        if (cancelled) return;
-        if (rpcErr) {
-          console.warn("[notifications] promo pendiente:", rpcErr.message);
-        } else {
-          const rows = (data ?? []) as PromoPendiente[];
-          setPromoPendiente(rows[0] ?? null);
-        }
-      } catch (err) {
-        console.warn(
-          "[notifications] promo pendiente:",
-          err instanceof Error ? err.message : err,
-        );
-      } finally {
-        if (!cancelled) setPromoChecked(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const confirmPromo = useCallback(async () => {
     if (confirmingPromo) return;
@@ -372,9 +377,12 @@ export default function NotificationsPage() {
                             {promoPendiente.resumen}
                           </p>
                           {!promoPendiente.hay_precio && (
-                            <p className="mt-0.5 text-[11px] text-destructive">
-                              Falta poner el precio en el negocio: confirmar
-                              no servirá hasta que esté definido.
+                            <p className="mt-0.5 flex items-start gap-1 text-xs font-medium text-destructive">
+                              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+                              <span>
+                                Falta poner el precio en el negocio: confirmar
+                                no servirá hasta que esté definido.
+                              </span>
                             </p>
                           )}
                         </div>

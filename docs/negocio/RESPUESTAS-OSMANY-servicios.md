@@ -158,10 +158,32 @@ Aplica a **todos** los servicios, no solo a la traducción.
 |---|---|---|
 | **Recargas** | ✅ **hecho el 9-ago** | nada — el bot cotiza desde el 13 |
 | **Traducción** | ✅ hecho | nada |
-| **Visa** | 🟠 **el de más valor** | que el bot mande los 4 pasos posteriores |
+| **Visa** | ✅ **hecho el 9-ago** (`054`) | solo el precio nuevo cuando Osmany dé fecha |
 | **México** | 🟡 datos completos | registrar la operación (hoy deriva) |
 | **Combos** | 🟡 datos completos | pipeline y flujo de pedido |
 
-**Por dónde empezaría: visa.** Es el que más tiempo le quita a Osmany, los datos
-están completos, el texto de los pasos ya existe escrito, y el bot ya puede
-cerrarlo sin persona.
+### Visa — hecho el 9-ago (migración `054`)
+
+El bot ya manda **los cuatro pasos posteriores** con los dos enlaces de Google
+Maps, que era lo único que faltaba: el resto del texto ya estaba en la tabla.
+
+Probado con el agente real: *"ya pagué y me llegó el PDF, ¿qué hago ahora?"* →
+respondió los cuatro pasos completos con enlaces. **Es literalmente el mensaje
+que Osmany escribe a mano cada vez**, y es el servicio que más tiempo le quita.
+
+Y la **regla de rebajas** se extendió a los cinco servicios (solo estaba en
+traducción). Probado: *"¿no me haces un descuento? soy cliente de siempre"* →
+*"la tarifa es fija en 4,000 GYD y no manejamos descuentos. Cualquier
+negociación la ve una persona del equipo."*
+
+**No se tocó el prompt ni el workflow.** Solo datos.
+
+### Lo que queda, por orden de valor
+
+1. **México** — datos completos; falta que registre la operación en vez de
+   derivar. Ahora hay `service_type` para colgarlo.
+2. **Combos** — es el más grande: necesita pipeline propio, cotización a medida
+   y los pasos posteriores al pago.
+3. **El coste del CUP** para calcular la ganancia de las remesas. Es la única
+   pregunta que sigue sin respuesta, y no se hizo porque el cuestionario era de
+   servicios que *no* son remesas.

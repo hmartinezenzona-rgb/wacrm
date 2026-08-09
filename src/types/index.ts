@@ -193,7 +193,8 @@ export interface Conversation {
 export type NotificationType =
   | 'conversation_assigned'
   | 'deal_incidencia'
-  | 'mensaje_fallido';
+  | 'mensaje_fallido'
+  | 'promo_etecsa';
 
 export interface Notification {
   id: string;

@@ -11,6 +11,7 @@ import {
   CheckCheck,
   Loader2,
   MessageSquareX,
+  Percent,
   UserPlus,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -24,7 +25,23 @@ const TYPE_ICON: Record<Notification["type"], typeof Bell> = {
   conversation_assigned: UserPlus,
   deal_incidencia: AlertTriangle,
   mensaje_fallido: MessageSquareX,
+  promo_etecsa: Percent,
 };
+
+/** Fila de `cerebro_promo_pendiente` (RPC, sin parámetros). */
+interface PromoPendiente {
+  id: string;
+  min_cup: number;
+  max_cup: number;
+  multiplicador: number;
+  precio_gyd: number | null;
+  vigente_desde: string;
+  vigente_hasta: string;
+  /** Texto ya formateado para pintar tal cual. */
+  resumen: string;
+  /** Si false, confirmar no sirve: falta poner precio al negocio. */
+  hay_precio: boolean;
+}
 
 export default function NotificationsPage() {
   const router = useRouter();
@@ -34,6 +51,12 @@ export default function NotificationsPage() {
   );
   const [error, setError] = useState<string | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
+  const [promoPendiente, setPromoPendiente] = useState<PromoPendiente | null>(
+    null,
+  );
+  // Distingue "ya cargó y no hay" de "aún cargando" (evita parpadeos).
+  const [promoChecked, setPromoChecked] = useState(false);
+  const [confirmingPromo, setConfirmingPromo] = useState(false);
 
   const load = useCallback(async () => {
     if (!accountId) return;
@@ -151,6 +174,70 @@ export default function NotificationsPage() {
     }
   }, [unreadIds.length, load]);
 
+  // Promoción Etecsa pendiente de confirmar (si la hay). RPC sin
+  // parámetros; la consulta decide si mostrar el botón y qué texto.
+  // Todo en try/catch: esta página cuelga del shell del dashboard y un
+  // fallo aquí no puede tumbar nada.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const supabase = createClient();
+        const { data, error: rpcErr } = await supabase.rpc(
+          "cerebro_promo_pendiente",
+        );
+        if (cancelled) return;
+        if (rpcErr) {
+          console.warn("[notifications] promo pendiente:", rpcErr.message);
+        } else {
+          const rows = (data ?? []) as PromoPendiente[];
+          setPromoPendiente(rows[0] ?? null);
+        }
+      } catch (err) {
+        console.warn(
+          "[notifications] promo pendiente:",
+          err instanceof Error ? err.message : err,
+        );
+      } finally {
+        if (!cancelled) setPromoChecked(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const confirmPromo = useCallback(async () => {
+    if (confirmingPromo) return;
+    setConfirmingPromo(true);
+    try {
+      const supabase = createClient();
+      const { data, error: rpcErr } = await supabase.rpc(
+        "cerebro_promo_confirmar_pendiente",
+        { p_quien: "crm" },
+      );
+      if (rpcErr) throw new Error(rpcErr.message);
+      // Las tres respuestas posibles vienen formateadas para enseñarlas
+      // tal cual: "confirmada: …", "no hay ninguna …", "hay 2 …".
+      const texto = typeof data === "string" ? data : "Promoción confirmada";
+      if (texto.startsWith("confirmada")) {
+        toast.success(texto);
+      } else {
+        toast.info(texto);
+      }
+      setPromoPendiente(null);
+      setPromoChecked(true);
+    } catch (err) {
+      console.error(
+        "[notifications] confirmar promo:",
+        err instanceof Error ? err.message : err,
+      );
+      toast.error("No se pudo confirmar la promoción");
+    } finally {
+      setConfirmingPromo(false);
+    }
+  }, [confirmingPromo]);
+
   if (error) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-2">
@@ -214,59 +301,99 @@ export default function NotificationsPage() {
             const isUnread = !n.read_at;
             return (
               <li key={n.id}>
-                <button
-                  type="button"
-                  onClick={() => handleClick(n)}
+                <div
                   className={cn(
-                    "flex w-full items-start gap-3 rounded-xl border p-4 text-left transition-colors",
+                    "rounded-xl border transition-colors",
                     isUnread
                       ? "border-primary/30 bg-primary/5 hover:border-primary/50"
                       : "border-border bg-card hover:border-border/70",
                   )}
                 >
-                  <div
-                    className={cn(
-                      "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg",
-                      isUnread ? "bg-primary/15" : "bg-muted",
-                    )}
-                    aria-hidden
+                  {/* Zona clicable: toda la tarjeta, como antes. El botón
+                      de acción de promo_etecsa va FUERA de aquí (un botón
+                      dentro de otro botón no es HTML válido). */}
+                  <button
+                    type="button"
+                    onClick={() => handleClick(n)}
+                    className="flex w-full items-start gap-3 p-4 text-left"
                   >
-                    <Icon
+                    <div
                       className={cn(
-                        "h-5 w-5",
-                        isUnread ? "text-primary" : "text-muted-foreground",
+                        "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg",
+                        isUnread ? "bg-primary/15" : "bg-muted",
                       )}
-                    />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span
+                      aria-hidden
+                    >
+                      <Icon
                         className={cn(
-                          "truncate text-sm font-semibold",
-                          isUnread ? "text-foreground" : "text-muted-foreground",
+                          "h-5 w-5",
+                          isUnread ? "text-primary" : "text-muted-foreground",
                         )}
-                      >
-                        {n.title}
-                      </span>
-                      {isUnread && (
-                        <span
-                          aria-label="Unread"
-                          className="h-2 w-2 flex-shrink-0 rounded-full bg-primary"
-                        />
-                      )}
+                      />
                     </div>
-                    {n.body && (
-                      <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                        {n.body}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            "truncate text-sm font-semibold",
+                            isUnread
+                              ? "text-foreground"
+                              : "text-muted-foreground",
+                          )}
+                        >
+                          {n.title}
+                        </span>
+                        {isUnread && (
+                          <span
+                            aria-label="Unread"
+                            className="h-2 w-2 flex-shrink-0 rounded-full bg-primary"
+                          />
+                        )}
+                      </div>
+                      {n.body && (
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                          {n.body}
+                        </p>
+                      )}
+                      <p className="mt-1 text-[11px] text-muted-foreground/70">
+                        {formatDistanceToNow(new Date(n.created_at), {
+                          addSuffix: true,
+                        })}
                       </p>
+                    </div>
+                  </button>
+                  {/* Acción para la promoción Etecsa pendiente. */}
+                  {n.type === "promo_etecsa" &&
+                    promoChecked &&
+                    promoPendiente && (
+                      <div className="flex items-center justify-between gap-3 border-t border-border/60 px-4 py-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-medium text-foreground">
+                            {promoPendiente.resumen}
+                          </p>
+                          {!promoPendiente.hay_precio && (
+                            <p className="mt-0.5 text-[11px] text-destructive">
+                              Falta poner el precio en el negocio: confirmar
+                              no servirá hasta que esté definido.
+                            </p>
+                          )}
+                        </div>
+                        {promoPendiente.hay_precio && (
+                          <Button
+                            size="sm"
+                            disabled={confirmingPromo}
+                            onClick={confirmPromo}
+                          >
+                            {confirmingPromo ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              "Confirmar promoción"
+                            )}
+                          </Button>
+                        )}
+                      </div>
                     )}
-                    <p className="mt-1 text-[11px] text-muted-foreground/70">
-                      {formatDistanceToNow(new Date(n.created_at), {
-                        addSuffix: true,
-                      })}
-                    </p>
-                  </div>
-                </button>
+                </div>
               </li>
             );
           })}

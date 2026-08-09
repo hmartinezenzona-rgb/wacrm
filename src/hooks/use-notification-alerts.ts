@@ -39,20 +39,26 @@ export function useNotificationAlerts() {
 
       // Unlock audio on the first user gesture (autoplay policy). Also
       // ask for notification permission from that same gesture.
+      // EN SILENCIO: el navegador solo exige que la reproducción ocurra
+      // tras un gesto, no que se oiga. muted=true evita el pitido falso
+      // en el primer clic tras cada recarga (el play() sonaría un
+      // fragmento antes de que el pause() llegara).
       const onFirstGesture = () => {
         try {
           if (audio) {
+            audio.muted = true;
             void audio
               .play()
               .then(() => {
                 try {
                   audio?.pause();
-                } catch {
-                  /* noop */
+                  if (audio) audio.currentTime = 0;
+                } finally {
+                  if (audio) audio.muted = false; // IMPRESCINDIBLE
                 }
               })
               .catch(() => {
-                /* blocked — sound stays muted, fine */
+                if (audio) audio.muted = false; // TAMBIÉN AQUÍ
               });
           }
           if (

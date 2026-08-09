@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
 import type { Notification } from "@/types";
 
 const SOUND_URL = "/sounds/incidencia.mp3";
@@ -106,28 +105,28 @@ export function useNotificationAlerts() {
         }
       };
 
-      const supabase = createClient();
-      const channel = supabase
-        .channel("notifications-alerts")
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "notifications" },
-          (payload) => {
-            try {
-              const row = payload.new as Notification;
-              playSound();
-              showDesktopNotification(row);
-            } catch {
-              /* never throw from the realtime callback */
-            }
-          },
-        )
-        .subscribe();
+      // No abre canal de realtime: el INSERT ya lo recibe el contador
+      // (use-unread-notifications) y lo anuncia con este evento. Dos
+      // canales sobre la misma tabla = solo uno recibe, el otro calla
+      // sin error — por eso este hook solo escucha.
+      const onNotification = (e: Event) => {
+        try {
+          const row = (e as CustomEvent<Notification>).detail;
+          playSound();
+          showDesktopNotification(row);
+        } catch {
+          /* never throw from the event callback */
+        }
+      };
+      window.addEventListener("wacrm:notification-insert", onNotification);
 
       return () => {
         try {
           window.removeEventListener("pointerdown", onFirstGesture);
-          supabase.removeChannel(channel);
+          window.removeEventListener(
+            "wacrm:notification-insert",
+            onNotification,
+          );
         } catch {
           /* noop */
         }

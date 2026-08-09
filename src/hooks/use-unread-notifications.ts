@@ -39,6 +39,19 @@ export function useUnreadNotifications(): number {
           if (payload.eventType === "INSERT") {
             const row = payload.new as Notification;
             if (!row.read_at) setCount((n) => n + 1);
+            // Se anuncia dentro de la página para que otros hooks
+            // reaccionen SIN abrir un segundo canal de realtime sobre la
+            // misma tabla: cuando hay dos, solo uno recibe y el otro
+            // calla sin dar error.
+            try {
+              window.dispatchEvent(
+                new CustomEvent("wacrm:notification-insert", {
+                  detail: row,
+                }),
+              );
+            } catch {
+              /* noop */
+            }
           } else if (payload.eventType === "UPDATE") {
             // Updates here only ever set read_at (marking a notification
             // read). Derive purely from the new row so we don't rely on
@@ -51,7 +64,15 @@ export function useUnreadNotifications(): number {
           }
         },
       )
-      .subscribe();
+      .subscribe((status) => {
+        // Este canal es el único que recibe INSERT de notifications (dos
+        // canales sobre la misma tabla = solo uno recibe). Si no conecta,
+        // ni el contador ni el aviso de sonido funcionan, y falla en
+        // silencio — deja rastro.
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.warn("[notifications] realtime no conectó:", status);
+        }
+      });
 
     return () => {
       cancelled = true;

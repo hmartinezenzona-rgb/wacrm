@@ -3,7 +3,10 @@
 import { useEffect } from "react";
 import type { Notification } from "@/types";
 
-const SOUND_URL = "/sounds/incidencia.mp3";
+// v2: mismo tono, nivel corregido (el v1 era casi inaudible). Nombre
+// nuevo a propósito: /sounds/* se sirve con caché (s-maxage + SWR), y
+// con el mismo nombre el borde podía seguir sirviendo el viejo.
+const SOUND_URL = "/sounds/incidencia-v2.mp3";
 
 /**
  * Alerts when a notification row is inserted: plays a sound and shows a

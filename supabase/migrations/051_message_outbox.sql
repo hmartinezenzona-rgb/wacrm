@@ -80,27 +80,42 @@ CREATE INDEX IF NOT EXISTS outbox_conv_idx
 -- Si el ancla llegara vacia se cae a `execution_id`, que es peor pero
 -- mejor que nada — y se deja constancia en `last_error` para que se vea.
 
+-- El ancla NO se pasa desde n8n: la deriva la propia funcion desde los
+-- `session_events` que esa ejecucion tiene reclamados. Asi la clave
+-- depende de QUE EVENTOS se procesaron, no de quien los procesa — que es
+-- justo lo que la hace estable entre reintentos. Y de paso es un
+-- parametro menos que resolver con expresiones en el workflow.
+
 CREATE OR REPLACE FUNCTION cerebro_outbox_encolar(
   p_conversation_id uuid,
   p_telefono        text,
   p_texto           text,
   p_operation_id    uuid,
-  p_execution_id    text,
-  p_wamid_ancla     text
+  p_execution_id    text
 ) RETURNS TABLE (encolado boolean, motivo text, outbox_id uuid)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   v_clave text;
   v_id uuid;
-  v_sin_ancla boolean := (NULLIF(trim(coalesce(p_wamid_ancla,'')),'') IS NULL);
+  v_ancla text;
+  v_sin_ancla boolean;
 BEGIN
   IF NULLIF(trim(coalesce(p_texto,'')),'') IS NULL THEN
     RETURN QUERY SELECT false, 'texto vacio: no se encola nada'::text, NULL::uuid;
     RETURN;
   END IF;
 
+  -- Los eventos del lote, tal y como los dejo `cerebro_reclamar_lote`.
+  -- En un reintento son LOS MISMOS, luego este max() es el mismo valor.
+  SELECT max(se.whatsapp_message_id) INTO v_ancla
+    FROM session_events se
+   WHERE se.processing_execution_id = p_execution_id
+     AND se.whatsapp_message_id IS NOT NULL;
+
+  v_sin_ancla := (NULLIF(trim(coalesce(v_ancla,'')),'') IS NULL);
+
   v_clave := p_conversation_id::text || ':' ||
-             coalesce(NULLIF(trim(p_wamid_ancla),''), 'exec-' || p_execution_id);
+             coalesce(NULLIF(trim(v_ancla),''), 'exec-' || p_execution_id);
 
   INSERT INTO message_outbox (conversation_id, operation_id, telefono_e164,
                               message_type, payload, idempotency_key,

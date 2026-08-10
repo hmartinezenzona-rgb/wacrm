@@ -141,6 +141,53 @@ de 24 h estaba cerrada** — el problema conocido de siempre.
 
 ---
 
+## Cómo se prueba de verdad un cambio del `Decisor`
+
+Salió de esta misma sesión, y de una pregunta de Humberto: *«¿lo probaste con
+una simulación de la conversación real en la que falló?»*. La respuesta era
+**no**.
+
+Se había comprobado que el cambio no rompía nada, mandando un mensaje a la
+conversación de pruebas. Pero esa conversación **no tenía depósito**, así que
+`via_deposito_ya_usada` salía vacío y **la rama nueva no llegó a ejecutarse
+nunca**. Verde, y sin haber probado lo que importaba.
+
+**El `Decisor` no se puede montar aislado en n8n** —depende de una docena de
+nodos previos—, así que la prueba buena es otra: **reconstruir el estado en la
+conversación de pruebas y reproducir el mensaje que falló**.
+
+```sql
+-- 1. dejar la conversacion de pruebas en el mismo estado que la que fallo
+INSERT INTO deals (..., conversation_id, notes)
+VALUES (..., '<conv de pruebas>',
+        E'DEPOSITO: 39,000 GYD - EXITOSA\nVia: Agente MMG;\n...');
+```
+
+```bash
+# 2. mandar POR EL WEBHOOK FIRMADO el mensaje exacto que provoco el fallo
+#    (aqui: dar la cuenta Zelle DESPUES de haber depositado)
+```
+
+Y después mirar **las tres cosas**, no solo la respuesta:
+
+1. que el contexto trae el dato nuevo (`via_deposito_ya_usada = 'Agente MMG'`),
+2. que el `Decisor` emitió la nota nueva,
+3. **y qué le llegó al cliente**.
+
+Resultado de esa prueba:
+
+| | |
+|---|---|
+| Antes | *«Anotado. La cuenta Zelle queda así… **¿Desde dónde va a depositar, desde la app o con un agente?**»* |
+| Después | *«Anotado. La cuenta Zelle queda así… **Su depósito ya lo tenemos registrado, apenas lo verifiquemos le hacemos el envío.**»* |
+
+> **La regla:** una prueba que no ejercita la rama nueva no es una prueba, es una
+> comprobación de que no se rompió nada. Son cosas distintas y hay que decirlo
+> por separado. Y al terminar, borrar el deal, la operación, el beneficiario y
+> la memoria que dejó la prueba.
+
+---
+
 ## Lo que enseñan las dos juntas
 
 **Un sistema que no da señal cuando se cae no está vigilado, está en silencio.**

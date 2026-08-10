@@ -162,12 +162,11 @@ transferir"— pero conviene saberlo. Los valores reales de `resultado` son:
 lo depositado"*, que es una confirmación encubierta. Emitirla junto a un
 "todavía no está verificado" sería contradictorio.
 
-**3. LA RAMA DE DUPLICADOS SIGUE SIN CONSULTAR EL CRUCE. Pendiente.** Si el
-cliente reenvía la **misma imagen**, `Dedup comprobantes` la para antes y el
-bloque nuevo ni se ejecuta: entra la rama de duplicados, que ordena *"acusa
-recibo de su comprobante"* sin preguntarle a nadie. Resultado observado:
-*"Recibimos su depósito de 39,000 GYD"* sobre un depósito ya consumido. Es menos
-grave —el deal ya existía, no se mueve dinero— pero es la misma enfermedad.
+**3. La rama de duplicados va por otro camino.** Si el cliente reenvía la
+**misma imagen**, `Dedup comprobantes` la para antes y **el bloque del veredicto
+ni se ejecuta**: entra la rama de duplicados, que mira `dup_etapa` en vez del
+cruce. Están arregladas las dos, pero son código distinto: **tocar una no toca
+la otra**. Ver «Cuarta capa», más arriba.
 
 ---
 
@@ -226,19 +225,55 @@ Ninguna toca datos.
 | El contexto sale del veredicto | `Decisor` | `ROLLBACK-v2-antes-contexto-comprobante.json` |
 | Guarda de la referencia | `Parsear vision` | `ROLLBACK-v2-antes-guarda-comprobante.json` |
 | Imagen no reconocida | `Decisor` | `ROLLBACK-v2-antes-imagen-no-comprobante.json` |
+| El mismo comprobante otra vez | `Contexto conversacion` + `Decisor` | `ROLLBACK-v2-antes-duplicado-consulta-estado.json` |
 
 ---
 
-## Lo que sigue sin cubrir
+## Cuarta capa: el mismo comprobante otra vez
 
-**La rama de duplicados no consulta el cruce.** Si el cliente reenvía la
-**misma imagen**, `Dedup comprobantes` la para antes de llegar al cruce y entra
-una rama del `Decisor` que ordena *«acusa recibo de su comprobante»* sin
-preguntarle a nadie. Observado el 10-ago: *«Recibimos su depósito de 39.000
-GYD»* sobre un depósito consumido hacía una hora. Menos grave —el deal ya
-existía, no se mueve dinero— pero es la misma enfermedad.
+Si el cliente reenvía la **misma imagen**, `Dedup comprobantes` la para antes de
+llegar al cruce y entra una rama distinta del `Decisor`. Hasta el 10-ago esa
+rama **no preguntaba nada**: ordenaba siempre *«acusa recibo y dile que lo están
+revisando»*, aunque el envío ya estuviera entregado o el depósito ya se hubiera
+usado en otro envío. Observado: *«Recibimos su depósito de 39.000 GYD»* sobre un
+depósito consumido hacía una hora.
 
-**Y el límite de fondo:** todo esto son **instrucciones, no controles**. El
+**No mueve dinero** —no se registra nada dos veces, el importe no se duplica—
+pero crea una **expectativa falsa**: el cliente entiende que va a llegar una
+segunda transferencia.
+
+`Contexto conversacion` trae ahora `dup_etapa` y `dup_valor`, buscando por
+`comp_id` **en todas las conversaciones** a propósito: una imagen reenviada
+puede venir del chat de otra persona.
+
+| Estado real del envío | Antes | Ahora |
+|---|---|---|
+| **Entregada** | *«lo estamos revisando»* | *«ese envío ya fue entregado»* |
+| **Lista para transferir** | *«lo estamos revisando»* | *«ya está verificado, la transferencia en breve»* |
+| **Incidencia** | *«lo estamos revisando»* | *«una persona lo está revisando»* |
+| Por verificar / Solicitada | *«lo estamos revisando»* | igual — aquí sí era correcto |
+
+Lo que **no** cambia: nunca se le echa la culpa al cliente, nunca se le pide otra
+foto y nunca se le dice que la imagen está duplicada.
+
+> **Cuidado: este cambio pasó el número de parámetros de `Contexto conversacion`
+> de 1 a 2.** n8n los pasa por posición, así que la consulta y el
+> `queryReplacement` se tocan SIEMPRE juntos. Y ese nodo lo atraviesa **todo**
+> mensaje: si se rompe, se rompen todas las conversaciones. Se validó con
+> `PREPARE` de la consulta **completa** (firma `{text,text}`) y se comprobó el
+> tráfico real inmediatamente después de subir.
+
+**Verificado end-to-end** con dos envíos seguidos de la misma foto (ejecución
+`27165`): `duplicado: true`, el registro y el cruce **no corrieron**,
+`dup_etapa = Incidencia`, `dup_valor = 39000.00`, y el bot respondió *«Recibimos
+su comprobante. Una persona del equipo lo está revisando»* — sin mencionar
+ninguna cifra.
+
+Copia: `ROLLBACK-v2-antes-duplicado-consulta-estado.json`.
+
+---
+
+## El límite de fondo todo esto son **instrucciones, no controles**. El
 modelo puede saltárselas, como se saltó *«consultar_servicio se llama en CADA
 turno»*. Han funcionado en las pruebas porque prohibir algo explícitamente es
 más fácil de obedecer que contradecir una orden previa. Si algún día vuelve a

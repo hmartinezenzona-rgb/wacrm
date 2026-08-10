@@ -430,6 +430,7 @@ lo único que lo mantiene utilizable.
 | `14-lo-que-se-le-dice-al-cliente-sale-del-sql.md` | **Leer antes de tocar el `Decisor`.** El bot no confirma lo que el SQL no confirmó |
 | `15-la-via-de-deposito-por-defecto.md` | Las dos cuentas de depósito. Si el cliente no elige, es **Agente 6762167** |
 | `16-fugas-de-razonamiento-y-bucles.md` | El filtro que impide que el razonamiento del modelo llegue al cliente, y el cortacircuitos de bucles |
+| `17-no-prometer-la-transferencia-sin-beneficiario.md` | **Leer antes de tocar el notificador por etapa.** Y cómo se leen las conversaciones: con su fecha delante |
 | `040`…`044` | Fase 2: operaciones, escritura dual, beneficiarios, log de tools |
 | `045_purga_de_logs.sql` | Purga semanal con `pg_cron` |
 | `046_pipeline_servicios.sql` | Pipeline `Servicios` y `service_type` |
@@ -527,6 +528,12 @@ instrumento.
 **Probar con datos reales, no inventados.** El normalizador de formato rompió
 mensajes con cifras **dos veces** antes de funcionar, y las dos se vieron
 pasándole mensajes de verdad. Con textos de ejemplo habría pasado la revisión.
+
+**Leer las conversaciones con su fecha delante.** No se empata una conversación
+de hace tres días con una de hoy: el sistema cambia varias veces al día. Filtrar
+por `created_at::date` y leerla entera y en orden. El 10-ago esto evitó culpar al
+bot de fallos que no cometió — los beneficiarios «creados el 09-08 a las
+17:51:55» son el backfill de la `042`, no datos reales de ese momento.
 
 **Verificar antes de afirmar.** Varias veces se dio algo por bueno y estaba mal:
 "nadie referencia ese manejador" (era falso, había dos), "las 37 preguntas están

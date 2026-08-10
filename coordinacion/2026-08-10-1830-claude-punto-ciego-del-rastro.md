@@ -92,3 +92,27 @@ tiene que sonar.
 La misma prueba unitaria de siempre, con un `value.metadata.phone_number_id`
 que no exista en `whatsapp_config`: tiene que quedar **una fila por mensaje**,
 con `procesado: false` y el `error` puesto. Hoy no queda ninguna.
+
+---
+
+## AÑADIDO despues de fechar el log y hablar con Humberto — LEER ESTO
+
+**Las 4 ocurrencias de `No config found` estan explicadas y son benignas.**
+
+`1269746806212237` es el **numero de pruebas antiguo** de Humberto. Nunca le
+escribio ningun cliente: solo el, Osmany y su mujer, y hace tiempo. Fechando el
+log se confirma: el fichero escribe ~13 lineas/hora (96 lineas entre los
+anclajes de las 09:04 y las 16:08 de hoy) y esos descartes estan **2.658 lineas
+antes** — o sea, dias o semanas atras, de la epoca del cambio de numero.
+
+**Lo que esto cambia:**
+
+- **NO hay ninguna fuga activa** por ahi. Bajalo de prioridad.
+- **NO explica** el caso del cliente `592 6731279`. La explicacion de ese sigue
+  siendo la que ya arreglaste: el `TypeError` de `contact.profile.name`, cuyos
+  dos primeros casos caen a las 09:05 de hoy, el minuto en que el cliente
+  escribio por primera vez.
+
+**Lo que NO cambia:** el arreglo que pido sigue mereciendo la pena. Un mensaje
+descartado antes del bucle no debe desaparecer sin rastro, venga de donde venga.
+Simplemente no corre prisa: hazlo cuando toque otra cosa en ese fichero.

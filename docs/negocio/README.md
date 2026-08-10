@@ -28,6 +28,7 @@ es el que manda**, porque sobrevive a la máquina y a las sesiones.
 | `16-fugas-de-razonamiento-y-bucles.md` | tocar `Normalizar formato` o `Control de abuso` |
 | `17-no-prometer-la-transferencia-sin-beneficiario.md` | tocar el **notificador por etapa** o lo que se promete al cliente |
 | `18-dos-caidas-silenciosas.md` | **tocar cualquier consulta de un workflow**, y para entender qué NO vigila el sistema |
+| `19-que-se-le-pide-al-cliente.md` | **tocar el `Decisor`** o lo que el bot pide y promete |
 | `10-vision-doble-lectura.md` | tocar la lectura de comprobantes (cuatro giros) |
 | `13-normalizador-de-formato.md` | tocar el formato de las respuestas |
 

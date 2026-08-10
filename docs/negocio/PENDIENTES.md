@@ -1,6 +1,6 @@
 # Pendientes — Remesas Ya
 
-Estado al **9 de agosto de 2026**, cierre de la jornada. Ordenado por lo que más
+Estado al **10 de agosto de 2026**, cierre de la jornada. Ordenado por lo que más
 duele si no se toca.
 
 > ## Lo que queda abierto, en una pantalla
@@ -8,6 +8,9 @@ duele si no se toca.
 > | | Qué | Depende de |
 > |---|---|---|
 > | 🔴 | **Rotar la API key de n8n y el PAT de GitHub** | de nosotros — es lo único rojo |
+> | 🟠 | **La visión da por comprobante CUALQUIER imagen** | de nosotros — ver 10-ago |
+> | 🟠 | **La rama de duplicados no consulta el cruce** | de nosotros — ver 10-ago |
+> | 🟠 | **Migración 058:** borrar un deal deja la operación huérfana | de nosotros — la conciliación ya no da 0 |
 > | 🟠 | **2E fases 2 y 3** (outbox) | plantillas de Meta, en revisión |
 > | 🟠 | **Plantillas de Meta** | Meta (hasta 24 h) |
 > | 🟠 | El agente no re-consulta un servicio en conversación viva | sin decidir |
@@ -42,6 +45,220 @@ servicios y los 76 USD de México verificados; sonido de incidencias cerrado;
 promociones de Etecsa detectadas, confirmadas y anunciadas por el bot; pipeline
 de Servicios; purga automática de logs; y n8n organizado en carpetas y
 etiquetas. Migraciones **036 a 051** versionadas en el repo de WaCRM.
+
+**Y del 10-ago (primer lunes con tráfico real):** una asignación de chat ya no
+silencia al bot para siempre — migración **056**— y hay un vigilante que avisa
+del cliente que se queda esperando — migración **057**. Por la tarde, dos
+cambios en el Cerebro: **cuatro giros de visión** y **el contexto del
+comprobante ya sale del veredicto del SQL**. Todo abajo.
+
+---
+
+## ✅ Cuatro giros de visión, y lo que le decimos al cliente (10-ago tarde)
+
+Dos cambios en el Cerebro, los dos desplegados y verificados de punta a punta.
+Detalle completo en `10-vision-doble-lectura.md` y
+`14-lo-que-se-le-dice-al-cliente-sale-del-sql.md`.
+
+### Los cuatro giros
+
+Hasta hoy la imagen se leía dos veces, tal cual y girada 180. Ese conjunto
+**depende de cómo venga la foto**: si el cliente la manda girada 90 grados, las
+dos lecturas caen de lado y ninguna queda derecha. `{0, 90, 180, 270}` es el
+mismo mire como mire la foto.
+
+**Medido antes de construirlo**, 9 comprobantes reales con la referencia
+confirmada en el libro:
+
+| Cómo llega la foto | Dos lecturas | Cuatro lecturas |
+|---|---|---|
+| Derecha | 8/9 | 8/9 |
+| **De lado** | **6/9** | **8/9** |
+
+Con la foto derecha **no mejora nada**: todo el beneficio está en el caso de
+lado. Cuesta **+6 s** por mensaje con imagen (3,5 s por llamada de visión).
+
+De las lecturas equivocadas que producen los giros extra, **ninguna existía en
+el libro** y las correctas sí: el árbitro filtra los candidatos malos.
+
+> **Sorpresa útil:** la visión **sí** sabe leer texto de lado. El problema nunca
+> fue que no supiera; era que con dos lecturas no se le daba la oportunidad de
+> caer en una orientación buena.
+
+Copia: `ROLLBACK-v2-antes-cuatro-rotaciones.json`.
+
+### El contexto del comprobante
+
+Por la mañana, un cliente mandó **una captura de un chat de WhatsApp** —no un
+comprobante— y la visión leyó el número de cuenta `6762167` que aparecía en la
+pantalla **como si fuera el importe**. El SQL lo marcó *"importe no está claro"*
+y mandó el deal a Incidencia. **Y el bot le dijo igualmente al cliente
+*"Recibimos su depósito de 6.762.167 GYD"*.**
+
+La causa: el `Decisor` ordenaba **siempre** *"solo confirmalo al cliente"*,
+pasara lo que pasara con la verificación, aunque el veredicto ya estuviera
+calculado. Ahora la instrucción depende de `cerebro_cruzar_deposito`:
+`verificado` confirma (texto idéntico al de antes), y `ya_reclamado`,
+`deposito_antiguo` o cualquier otro acusan recibo **sin confirmar**. Si el
+importe vino dudoso, **no se menciona ninguna cifra**.
+
+Copia: `ROLLBACK-v2-antes-contexto-comprobante.json`.
+
+---
+
+## 🟠 La visión da por comprobante CUALQUIER imagen
+
+**Lo de arriba tapó la herida, no la cerró.** El bot ya no le anuncia una cifra
+falsa al cliente, pero **el deal fantasma se sigue creando**: la captura de chat
+del 10-ago generó un deal de 6.762.167 GYD que sigue abierto e inflando el
+panel de negocios abiertos.
+
+El prompt de visión ya tiene un `CASO 4 - Cualquier otra imagen`, pero la
+captura traía `6762167` y `Osmany Pozo`, que son literalmente el número y el
+titular válidos del negocio, así que el modelo la clasificó como comprobante.
+
+Por dónde iría: **un comprobante sin referencia no debería crear deal.** Si
+`referencia = N/A` y el estado no es claro, lo honesto es no registrar nada y
+derivar. Hay que mirar antes cuántos comprobantes legítimos llegan sin
+referencia, no sea que se rompa un caso real.
+
+---
+
+## 🟠 La rama de duplicados no consulta el cruce
+
+Salió probando lo anterior. Si el cliente reenvía la **misma imagen**,
+`Dedup comprobantes` la para antes de llegar al cruce, y entra una rama del
+`Decisor` que ordena *"acusa recibo de su comprobante"* **sin preguntarle a
+nadie**. Observado: *"Recibimos su depósito de 39.000 GYD"* sobre un depósito
+que llevaba consumido desde hacía una hora.
+
+Es menos grave que lo anterior —el deal ya existía, no se mueve dinero— pero es
+la misma enfermedad en un sitio donde no habíamos mirado.
+
+> **Y de aquí sale un aviso para cualquier prueba futura:** reenviar una imagen
+> idéntica **no ejercita el cruce**. Para probar esa parte hace falta una foto
+> distinta, con otro hash.
+
+---
+
+## 🟠 Migración 058 — borrar un deal deja la operación huérfana
+
+`cerebro_conciliacion_operaciones` **debía dar 0 filas siempre** y el 10-ago
+llegó a **7**. Ninguna es un trigger roto: son deals borrados a mano desde el
+CRM. `trg_sync_operacion_desde_deal` es `AFTER INSERT OR UPDATE`, **sin rama
+`DELETE`**, así que la operación espejo se queda colgada.
+
+Existe `trg_liberar_depositos_al_borrar_deal` (BEFORE DELETE), que sí libera los
+depósitos — el hueco es solo la operación.
+
+**Lo que hay que hacer:** rama `DELETE` que pase la operación a `cancelled` en
+vez de borrarla, para conservar la auditoría, y una limpieza única de las que ya
+están huérfanas.
+
+**Por qué corre prisa aunque no rompa nada:** mientras la conciliación dé ruido,
+**la red que avisa de fallos silenciosos de la Fase 2 no sirve**. Si mañana un
+trigger falla de verdad, nadie lo va a notar entre las huérfanas.
+
+> Relacionado con la **deuda 13** ("un deal desapareció el 7-ago"). Ya no es un
+> caso aislado: el 10-ago se borraron varios a lo largo del día. Es
+> comportamiento normal de operador limpiando el tablero, no algo automático.
+
+---
+
+## ✅ El bot mudo en los chats asignados (10-ago)
+
+Lo encontró Humberto: al cliente **5926082754** el bot no le contestó nada en
+toda la mañana. No falló nada — **20 ejecuciones seguidas** terminaron en
+`{"ruta":"silencio","motivo":"chat asignado a humano"}`. El chat llevaba días
+asignado a un operador y **una asignación no caducaba nunca**. Había **8 chats
+más** igual de mudos, hasta de 4 días atrás, y nadie se enteró: un chat asignado
+**no genera ninguna alerta**.
+
+Arreglado con la migración **056** más la query del nodo `Contexto conversacion`:
+pasados **10 minutos** sin actividad humana, la asignación **manual** se libera
+sola. Se libera de verdad (no se ignora) para que dispare
+`trg_limpiar_memoria_al_liberar`, que le deja al bot la marca *ATENCION HUMANA
+YA TERMINADA*. El plazo se toca sin desplegar nada:
+
+```sql
+UPDATE cerebro_config SET valor = '15' WHERE clave = 'asignacion_caduca_minutos';
+```
+
+Dos trampas que costaron el rato y por las que el arreglo no es de una línea:
+
+- **`conversations.updated_at` NO sirve de reloj**: se toca en cada mensaje,
+  también en los del cliente. Con un cliente escribiendo, la asignación no
+  caducaría jamás. De ahí la columna nueva `assigned_at`.
+- **Las derivaciones del propio bot** (`derivar_humano` y el control de abuso)
+  **no caducan**. Si el bot derivó fue porque no sabía seguir; retomar a los 10
+  minutos sería peor que el problema que arreglamos.
+
+Probado de punta a punta contra la conversación de pruebas (ejecución `26656`):
+`asignado: false`, ruta `agente`, el bot cotizó y **no mencionó la derivación**.
+
+Copia previa en `ROLLBACK-v2-antes-caducar-asignacion.json`.
+
+---
+
+## ✅ Vigilante de chats atascados (10-ago)
+
+La 056 no cerraba el agujero entero, y esto es lo que más importa entender:
+**la caducidad solo actúa cuando llega un mensaje nuevo**, porque quien libera
+es una query del Cerebro. Un cliente que ya escribió y está esperando **no se
+rescata solo**. Y las derivaciones del propio bot no caducan nunca, a propósito.
+
+Migración **057**: workflow `Vigilante - chats asignados sin respuesta`
+(`0nEQnuPE15UgRudW`), cada 5 minutos, un nodo Postgres llamando a
+`cerebro_avisar_chats_atascados()`. Avisa **en el CRM** —nunca por WhatsApp, que
+se realimentaría— cuando en un chat asignado el último mensaje es del cliente y
+lleva más de 15 minutos sin respuesta de nadie. Solo en horario de atención: un
+aviso a las 23:00 no lo lee nadie y entrena al equipo a ignorar la campana.
+
+```sql
+UPDATE cerebro_config SET valor = '20'  WHERE clave = 'chat_atascado_minutos';
+UPDATE cerebro_config SET valor = '120' WHERE clave = 'chat_atascado_repetir_min';
+```
+
+**Avisa a todo el equipo, no al operador asignado**, y no por gusto: 
+`notifications.user_id` tiene FK a `auth.users`, y las derivaciones del bot
+escriben ahí un `profiles.id`. Insertarlo reventaría justo en el caso que más
+importa vigilar. El responsable va en el cuerpo del aviso.
+
+**Lo que encontró en la primera pasada** (ejecución `26727`, 3 atascados):
+**Yunior llevaba 90 h esperando y Odessa 43 h**, sin que nadie les contestara
+nunca. No sembré la tabla de deduplicación como en la 039 justamente por eso —
+silenciarlos habría sido esconder el hallazgo. Segunda pasada: 0, el throttle
+corta. Humberto liberó los dos a mano el mismo día.
+
+**Y una corrección el mismo día, tras verlo fallar.** El tercer aviso era Lesa,
+y era un falso positivo: Osmany le respondió y ella cerró con un `Okay` once
+segundos después. No había nada que responder, y aun así el aviso se habría
+repetido cada hora para siempre — justo lo que entrena al equipo a ignorar la
+campana. Ahora **no avisa de un acuse puro** (`ok`, `gracias`, `thank you`, un
+👍 suelto) cuando el mensaje anterior era de una persona.
+
+> La guarda que sostiene todo eso es `content_type = 'text'`: una imagen o un
+> audio **nunca** cuentan como acuse. Un comprobante sin respuesta tiene que
+> seguir avisando. Verificado sobre datos reales con los tres casos —acuse puro
+> 0 avisos, comprobante 1, pregunta de verdad 1— en un bloque que se revierte
+> solo.
+
+> **Para Hermes:** el tipo de notificación `chat_atascado` es nuevo. Si la UI
+> pone icono o sonido por tipo, este no lo tiene. Es de la familia de
+> `deal_incidencia`: alguien tiene que ir a mirarlo.
+
+---
+
+## 🟡 `derivar_humano` escribe un ID que la UI no resuelve
+
+Salió mirando lo anterior. `derivar_humano` y el control de abuso escriben en
+`conversations.assigned_agent_id` el valor `377b0c8c-…`, que es un **`profiles.id`**,
+mientras que WaCRM escribe ahí el **`auth.users.id`**. Los chats derivados por el
+bot quedan asignados a un usuario que la interfaz no sabe resolver.
+
+Hoy nos viene bien —es lo que distingue las dos clases de asignación en la 056—
+pero es una incoherencia real. Si se arregla, hay que cambiar a la vez el
+discriminante de la 056.
 
 ---
 

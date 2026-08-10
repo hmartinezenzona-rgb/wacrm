@@ -149,6 +149,7 @@ n8n
   Vigilante msgs rechazados ..... rNN0LdHGTYUDOTfB   cada 5 min
   Vigilante promos de Etecsa .... vk6aEa4bOZtl5xSz   cada 12 h
   Vigilante ingesta de MMG ...... NiibUBRtOlOppmY4   cada 10 min
+  Vigilante depositos sin cruzar  bTwsEJsmoAzsuOxm   cada 10 min
 
 Credenciales de DeepSeek (OJO, son dos y parecidas):
   deepseekApi  2joB4BwDAiyuSMcC  "deekpseek comunidad"  <- LA QUE SE USA

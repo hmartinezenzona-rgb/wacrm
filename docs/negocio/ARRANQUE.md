@@ -432,6 +432,7 @@ lo único que lo mantiene utilizable.
 | `16-fugas-de-razonamiento-y-bucles.md` | El filtro que impide que el razonamiento del modelo llegue al cliente, y el cortacircuitos de bucles |
 | `17-no-prometer-la-transferencia-sin-beneficiario.md` | **Leer antes de tocar el notificador por etapa.** Y cómo se leen las conversaciones: con su fecha delante |
 | `18-dos-caidas-silenciosas.md` | **Leer antes de tocar una consulta de un workflow.** La ingesta caída 4 h y el Cerebro roto 27 min |
+| `19-que-se-le-pide-al-cliente.md` | **Leer antes de tocar el `Decisor`.** Qué se le pide y qué NO se le promete, y cómo se prueban las ramas de verdad |
 | `040`…`044` | Fase 2: operaciones, escritura dual, beneficiarios, log de tools |
 | `045_purga_de_logs.sql` | Purga semanal con `pg_cron` |
 | `046_pipeline_servicios.sql` | Pipeline `Servicios` y `service_type` |
@@ -507,6 +508,12 @@ lo abierto y de qué depende cada cosa.
 ## Cómo se trabaja aquí — lo que ha funcionado
 
 Esto no es relleno: es lo que ha evitado la mayoría de los sustos.
+
+**Una rama que no se ha visto producir un mensaje real no está probada.** Un
+dry-run demuestra qué orden le llega al modelo, nunca qué escribe. El 10-ago
+tres fallos pasaron todas las comprobaciones previas y solo aparecieron
+mandando un mensaje de verdad — uno de ellos era una rama de código
+**inalcanzable** que parecía correcta. Ver `19-que-se-le-pide-al-cliente.md`.
 
 **Una consulta de un workflow se valida DENTRO de n8n.** `PREPARE` valida SQL,
 pero el nodo hace cosas con el texto antes de enviarlo (y el JSON del workflow

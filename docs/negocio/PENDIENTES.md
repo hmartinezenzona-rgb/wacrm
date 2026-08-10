@@ -8,7 +8,7 @@ duele si no se toca.
 > | | Qué | Depende de |
 > |---|---|---|
 > | 🔴 | **Rotar la API key de n8n y el PAT de GitHub** | de nosotros — es lo único rojo |
-> | 🟠 | **Migración 058:** borrar un deal deja la operación huérfana | de nosotros — la conciliación ya no da 0 |
+> | 🟠 | **Migración 059:** borrar un deal deja la operación huérfana | de nosotros — la conciliación ya no da 0 |
 > | 🟠 | **2E fases 2 y 3** (outbox) | plantillas de Meta, en revisión |
 > | 🟠 | **Plantillas de Meta** | Meta (hasta 24 h) |
 > | 🟠 | El agente no re-consulta un servicio en conversación viva | sin decidir |
@@ -255,28 +255,47 @@ ninguna cifra partida y ningún bloque de datos roto. Detalle en
 
 ---
 
-## 🔴 No hay vigilante de la ingesta de depósitos
+## ✅ Vigilante de la ingesta de depósitos (10-ago)
 
-El **10-ago la ingesta de correos de MMG estuvo 4 horas parada** —credencial de
-Gmail caducada— y **ninguna alarma saltó**. El Gmail Trigger no genera
-ejecuciones cuando falla el sondeo: el workflow sigue activo y sin errores,
-simplemente deja de encontrar correos. Desde fuera es idéntico a «hoy no ha
-depositado nadie».
+`Vigilante - ingesta de depositos MMG` (**`NiibUBRtOlOppmY4`**), cada 10 minutos:
+**prueba la credencial de cada buzón** y avisa en el CRM si no se puede leer.
 
-Nueve depósitos seguidos sin verificar y tres clientes con **194.200 GYD**
-esperando. Se descubrió mirando otra cosa.
+**No vigila el volumen de depósitos, y eso se decidió midiendo:** los huecos
+legítimos en horario de negocio llegan a **4 h 05** (7-ago) y **3 h 50**
+(5-ago). Con umbral de 3 h habría dado dos falsas alarmas en 5 días y el 10-ago
+habría avisado solo 42 minutos antes. Además, el buzón de la app murió a las
+00:23 y el de agente siguió alimentando el libro: un vigilante por volumen
+global **no lo habría visto**.
 
-**Lo que falta:** un cron que avise en el CRM si no entra ningún depósito en N
-horas de horario de negocio.
+Probado en sus tres caras, incluida la de fallo con una credencial rota a
+propósito — que destapó que faltaba el tipo de aviso (**migración `058`**).
 
-```sql
-SELECT round(EXTRACT(epoch FROM (now()-max(recibido_en)))/60) AS hace_minutos
-  FROM depositos_mmg;
-```
+Detalle en `21-vigilante-de-la-ingesta.md`.
 
-Detalle completo en `18-dos-caidas-silenciosas.md`.
+> **Lo que NO cubre:** que MMG deje de mandar correos, que se rompa el filtro
+> del asunto, o que la visión lea mal la referencia. Para eso falta el segundo
+> vigilante, el de la consecuencia — ver abajo.
 
 ---
+
+## 🟠 Falta el vigilante de «cliente esperando sin cruzar»
+
+Un deal en «Por verificar» cuyo TransID **no está en el libro** pasados N
+minutos significa literalmente *«hay un cliente esperando y no puedo cruzar su
+depósito»*. El 10-ago habría saltado sobre las **10:50**, casi tres horas antes
+de que se descubriera la caída, **viniera el fallo de donde viniera**.
+
+Cubre lo que el de la credencial no ve: MMG dejando de mandar correos, el filtro
+del asunto roto, un fallo de parseo, o una referencia mal leída — como la de las
+12:48 del 10-ago, donde el TransID leído `20397544023399` nunca cuadró porque el
+correo decía `20397544023299`, **un dígito**.
+
+**Antes de montarlo hay que medir** cuánto tarda normalmente un depósito
+legítimo en aparecer en el libro, para no avisar de algo que se resuelve solo en
+dos minutos.
+
+---
+
 
 ## ✅ No preguntar la vía si el cliente ya depositó (10-ago)
 
@@ -295,7 +314,7 @@ al agente **por qué vía entró**, para que pueda responder si el cliente pregu
 
 ---
 
-## 🟠 Migración 058 — borrar un deal deja la operación huérfana
+## 🟠 Migración 059 — borrar un deal deja la operación huérfana
 
 `cerebro_conciliacion_operaciones` **debía dar 0 filas siempre** y el 10-ago
 llegó a **7**. Ninguna es un trigger roto: son deals borrados a mano desde el
@@ -305,7 +324,7 @@ CRM. `trg_sync_operacion_desde_deal` es `AFTER INSERT OR UPDATE`, **sin rama
 Existe `trg_liberar_depositos_al_borrar_deal` (BEFORE DELETE), que sí libera los
 depósitos — el hueco es solo la operación.
 
-**Lo que hay que hacer:** rama `DELETE` que pase la operación a `cancelled` en
+**Lo que hay que hacer** (migración `059`): rama `DELETE` que pase la operación a `cancelled` en
 vez de borrarla, para conservar la auditoría, y una limpieza única de las que ya
 están huérfanas.
 

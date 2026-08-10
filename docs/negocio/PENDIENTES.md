@@ -204,6 +204,31 @@ Detalle, pruebas y reversión en
 
 ---
 
+## ✅ Qué se le pide al cliente y qué no se le promete (10-ago)
+
+Cuatro cambios más en el `Decisor`, salidos de leer conversaciones reales y
+**probados los cuatro mandando mensajes de verdad**:
+
+1. **No preguntar la vía de depósito si ya depositó.** Medido: 14 mensajes así a
+   8 clientes en 5 días; se suprimen esos y **ninguno de los 31 legítimos**.
+2. **Dos notas del contexto se contradecían** — una prohibía prometer la
+   transferencia y otra decía *"sale enseguida"*. El modelo obedecía a la
+   equivocada.
+3. **Pedir los datos en genérico** hasta saber la vía. De 9 comprobantes reales
+   donde el beneficiario llegó después, **5 fueron tarjeta y 4 Zelle**: pedir
+   *"la tarjeta y el celular"* fallaba en 4 de 9.
+4. **Para Zelle hacen falta nombre Y cuenta.** La rama de "Zelle a medias" era
+   **código muerto**: `s.datos_zelle` a secas daba el destino por sabido.
+
+Detalle, cómo se siembra el estado para probar cada rama y los resultados
+reales en `19-que-se-le-pide-al-cliente.md`.
+
+> **La regla que sale de aquí:** una rama que no se ha visto producir un mensaje
+> real **no está probada**. Tres fallos del 10-ago pasaron todas las
+> comprobaciones previas y solo aparecieron mandando un mensaje.
+
+---
+
 ## 🔴 No hay vigilante de la ingesta de depósitos
 
 El **10-ago la ingesta de correos de MMG estuvo 4 horas parada** —credencial de

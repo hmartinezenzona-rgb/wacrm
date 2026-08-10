@@ -7,8 +7,9 @@ duele si no se toca.
 >
 > | | Qué | Depende de |
 > |---|---|---|
-> | 🔴 | **Rotar la API key de n8n y el PAT de GitHub** | de nosotros — es lo único rojo |
-> | 🟠 | **Migración 060:** borrar un deal deja la operación huérfana | de nosotros — la conciliación ya no da 0 |
+> | 🟠 | **Rastro de webhooks**: falta que WaCRM escriba en `whatsapp_webhook_log` | **Hermes** — el fix del webhook ya está desplegado |
+> | ✅ | ~~**Rotar la API key de n8n y el PAT de GitHub**~~ | **hechas el 10-ago**, las viejas revocadas |
+> | ✅ | ~~**Migración 060:** borrar un deal deja la operación huérfana~~ | **hecha el 10-ago**, 8 divergencias cerradas |
 > | 🟠 | **2E fases 2 y 3** (outbox) | plantillas de Meta, en revisión |
 > | 🟠 | **Plantillas de Meta** | Meta (hasta 24 h) |
 > | 🟠 | El agente no re-consulta un servicio en conversación viva | sin decidir |
@@ -442,17 +443,17 @@ discriminante de la 056.
 | | Qué | Estado |
 |---|---|---|
 | 1 | ~~Token de GitHub de **Hermes** expuesto en Telegram~~ | ✅ **Revocado el 7-ago.** Sustituido por una **deploy key SSH** generada en el VPS: la privada no sale de la máquina y solo escribe en `wacrm`, no en toda la cuenta |
-| 2 | **Revocar la API key de n8n** usada durante la Fase 1. Quedó escrita en la conversación | pendiente |
-| 3 | **Rotar el PAT de GitHub de `~/.github-token`.** También quedó escrito en una conversación. **Sigue vivo y en uso** — con él se empujó al repo el 8-ago | pendiente |
+| 2 | ~~**Revocar la API key de n8n** usada durante la Fase 1~~ | ✅ **Rotada y revocada el 10-ago.** La nueva se verificó antes de borrar la vieja |
+| 3 | ~~**Rotar el PAT de GitHub de `~/.github-token`**~~ | ✅ **Rotado y revocado el 10-ago.** Scope `repo`, caducidad 08-nov-2026. Se comprobó la escritura *sin escribir nada* (permiso `push` del repo) antes de revocar |
 
-Sobre el punto 2: revocarla me quita la capacidad de modificar workflows de
-n8n. Para el siguiente cambio del Cerebro (el bot callado en chats ocultos)
-haría falta una nueva. Se puede revocar ya y regenerar en ese momento —es un
-minuto— o dejarla viva hasta entonces. Lo primero es más seguro.
+**Cómo se hicieron el 10-ago, por si hay que repetirlo.** Humberto generó las
+dos claves nuevas y escribió él mismo los ficheros —así el valor no pasa por la
+conversación, que era justo el problema— y solo después se revocaron las viejas.
+El orden importa: rotar corta el acceso, y el de GitHub es por donde va el buzón
+de Hermes. Con la vieja aún viva, un fichero mal pegado se arregla en un minuto.
 
-Lo mismo vale para el 3: rotarlo corta mi acceso de escritura al repo, que es
-por donde va el buzón de Hermes. Rotar y volver a escribir el fichero es un
-minuto, pero hay que hacerlo a la vez.
+Comprobado tras rotar: GitHub con scope `repo` y `push: true`, n8n con los 100
+workflows y los cuatro vigilantes activos.
 
 **Criterio, ya aplicado tres veces:** los secretos se generan donde se van a
 usar y solo viaja lo que no es secreto — la ruta de un fichero o una clave

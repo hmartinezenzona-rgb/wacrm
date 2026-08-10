@@ -8,7 +8,6 @@ duele si no se toca.
 > | | Qué | Depende de |
 > |---|---|---|
 > | 🔴 | **Rotar la API key de n8n y el PAT de GitHub** | de nosotros — es lo único rojo |
-> | 🟠 | **La rama de duplicados no consulta el cruce** | de nosotros — ver 10-ago |
 > | 🟠 | **Migración 058:** borrar un deal deja la operación huérfana | de nosotros — la conciliación ya no da 0 |
 > | 🟠 | **2E fases 2 y 3** (outbox) | plantillas de Meta, en revisión |
 > | 🟠 | **Plantillas de Meta** | Meta (hasta 24 h) |
@@ -158,22 +157,28 @@ Detalle, pruebas y vigilancia en `16-fugas-de-razonamiento-y-bucles.md`.
 
 ---
 
-## 🟠 La rama de duplicados no consulta el cruce
+## ✅ La rama de duplicados ya consulta el estado (10-ago)
 
-Salió probando lo anterior. Si el cliente reenvía la **misma imagen**,
-`Dedup comprobantes` la para antes de llegar al cruce, y entra una rama del
-`Decisor` que ordena *"acusa recibo de su comprobante"* **sin preguntarle a
-nadie**. Observado: *"Recibimos su depósito de 39.000 GYD"* sobre un depósito
-que llevaba consumido desde hacía una hora.
+Si el cliente reenviaba la **misma imagen**, `Dedup comprobantes` la paraba antes
+del cruce y el `Decisor` le decía siempre lo mismo — *"recibimos su depósito,
+lo estamos revisando"*— aunque el envío ya estuviera **entregado** o el depósito
+ya se hubiera usado en otro envío. No movía dinero, pero creaba una
+**expectativa falsa** de una segunda transferencia.
 
-Es menos grave que lo anterior —el deal ya existía, no se mueve dinero— pero es
-la misma enfermedad en un sitio donde no habíamos mirado.
+Ahora `Contexto conversacion` devuelve `dup_etapa` y `dup_valor` buscando por
+`comp_id`, y el mensaje depende del estado real: *ya entregado*, *ya verificado*,
+*en revisión por una persona*, o *en verificación*. Detalle en
+`14-lo-que-se-le-dice-al-cliente-sale-del-sql.md`.
 
-> **Y de aquí sale un aviso para cualquier prueba futura:** reenviar una imagen
-> idéntica **no ejercita el cruce**. Para probar esa parte hace falta una foto
-> distinta, con otro hash.
+> **Ese cambio pasó `Contexto conversacion` de 1 a 2 parámetros**, y por ese nodo
+> pasa TODO mensaje. Consulta y `queryReplacement` van siempre juntos.
+
+> **Para probar duplicados hace falta enviar la MISMA foto dos veces.** Un solo
+> envío no ejercita esa rama, y una foto distinta tampoco: el hash es lo que
+> dispara el dedup.
 
 ---
+
 
 ## 🟠 Migración 058 — borrar un deal deja la operación huérfana
 

@@ -75,6 +75,79 @@ acusa recibo sin confirmar. Antes, ese mismo caso confirmaba.
 
 ---
 
+## Segunda capa: la guarda de «¿esto es de verdad un comprobante?»
+
+Lo anterior tapó la herida —el cliente ya no oye una cifra falsa— pero **el deal
+fantasma se seguía creando**. El de 6.762.167 GYD estuvo horas abierto inflando
+el panel de negocios abiertos.
+
+**La guarda vive en `Parsear vision`:** si la referencia elegida no llega a 10
+dígitos, el importe se pone a **0**, el estado pasa a `DESCONOCIDO` y se añade
+una alerta. No se descarta la imagen.
+
+**Por qué la referencia es el discriminante.** Un comprobante de MMG siempre
+trae Transaction ID, en los tres formatos. Medido sobre los 26 comprobantes
+registrados hasta el 10-ago:
+
+| Referencia leída | Deals |
+|---|---|
+| 14 dígitos | 25 |
+| 10–13 dígitos | 1 |
+| **Ninguna (`N/A`)** | **0** |
+
+**Ningún comprobante legítimo ha llegado nunca sin referencia.** El único
+`Ref: N/A` de la historia fue aquella captura de chat. El umbral está en 10 y no
+en 14 para no tocar el caso real de 12 dígitos.
+
+**Por qué 0 y no descartar la imagen.** Con importe 0 y alerta, el deal se crea
+igual y cae en **Incidencia**, así que una persona lo ve. Si alguna vez fuera un
+comprobante de verdad mal fotografiado, no se pierde. Lo que desaparece es la
+cifra inventada. Verificado en un bloque revertido:
+
+```
+registrar -> deal creado | deal.value=0.00 incidencia=t status=open
+cruce     -> no_aplica   (no consume ningun deposito)
+```
+
+---
+
+## Tercera capa: la imagen que no es un comprobante
+
+Y aun así faltaba una. **El 10-ago el agente se invento una cifra de la nada.**
+
+El cliente reenvió la misma captura de chat. Esta vez la visión la clasificó
+**bien** (`tipo: otro` en tres de los cuatro giros), no se creó ningún deal, no
+corrió el registro ni el cruce, y **en ningún punto del sistema existió ninguna
+cifra**. El contexto que recibió el agente decía, literalmente:
+
+```
+(el cliente envio solo imagenes, sin texto)
+- Alerta: Imagen no reconocida: Captura de chat de WhatsApp sobre
+  transferencia con nombre y numero de destinatario.
+```
+
+Y contestó: *«Recibimos su depósito de **8,000 GYD**, en breve lo verificamos y
+le confirmamos.»*
+
+**La lección, que es distinta de las anteriores:** no basta con quitarle una
+orden equivocada. **Donde no hay instrucción, el modelo rellena el hueco con lo
+más frecuente del negocio**, que aquí es confirmar un depósito. El silencio del
+sistema no es neutral.
+
+Ahora, cuando llega una imagen no reconocida y no hay comprobante en el lote, el
+`Decisor` emite una orden explícita: qué se ve en la imagen (la descripción que
+dio la visión), prohibido decir que se recibió un depósito, prohibido decir
+ninguna cifra, y **prohibido pedirle el comprobante**.
+
+> **Ese último «prohibido» costó una segunda pasada.** La primera redacción
+> terminaba con *«pídele que mande la captura del comprobante de MMG»*, y estaba
+> mal: en la conversación real el cliente **no había depositado nada** —había
+> dicho *«en unas horas lo transfiero»*— y mandaba la captura como **prueba en
+> una discusión sobre qué cuenta usar**. Pedirle un comprobante ahí es absurdo.
+> **Antes de escribir la instrucción, hay que leer para qué mandó la imagen.**
+
+---
+
 ## Tres cosas que hay que saber para no meter la pata
 
 **1. El cruce aproximado también devuelve `verificado`.** Lo de "aproximado" va
@@ -144,6 +217,32 @@ hacía falta un comprobante fresco que nadie tenía. Queda cubierto por los paso
 
 ## Reversión
 
-`ROLLBACK-v2-antes-contexto-comprobante.json`. Es un cambio de parámetros, no
-estructural: se aplica solo, sin ciclo de desactivar/activar, y revertirlo es
-restaurar el `jsCode` del `Decisor`. No toca datos.
+Las tres capas se revierten por separado, todas cambios de parámetros —no
+estructurales—, así que se aplican solas y no hace falta desactivar/activar.
+Ninguna toca datos.
+
+| Capa | Nodo | Copia |
+|---|---|---|
+| El contexto sale del veredicto | `Decisor` | `ROLLBACK-v2-antes-contexto-comprobante.json` |
+| Guarda de la referencia | `Parsear vision` | `ROLLBACK-v2-antes-guarda-comprobante.json` |
+| Imagen no reconocida | `Decisor` | `ROLLBACK-v2-antes-imagen-no-comprobante.json` |
+
+---
+
+## Lo que sigue sin cubrir
+
+**La rama de duplicados no consulta el cruce.** Si el cliente reenvía la
+**misma imagen**, `Dedup comprobantes` la para antes de llegar al cruce y entra
+una rama del `Decisor` que ordena *«acusa recibo de su comprobante»* sin
+preguntarle a nadie. Observado el 10-ago: *«Recibimos su depósito de 39.000
+GYD»* sobre un depósito consumido hacía una hora. Menos grave —el deal ya
+existía, no se mueve dinero— pero es la misma enfermedad.
+
+**Y el límite de fondo:** todo esto son **instrucciones, no controles**. El
+modelo puede saltárselas, como se saltó *«consultar_servicio se llama en CADA
+turno»*. Han funcionado en las pruebas porque prohibir algo explícitamente es
+más fácil de obedecer que contradecir una orden previa. Si algún día vuelve a
+inventarse una cifra, el siguiente paso **no es redactar mejor**: es un filtro
+determinista antes de enviar —si en el lote no hubo comprobante y la respuesta
+dice haber recibido un depósito, no sale y se deriva—. Hay que diseñarlo con
+cuidado para no bloquear respuestas legítimas sobre depósitos anteriores.

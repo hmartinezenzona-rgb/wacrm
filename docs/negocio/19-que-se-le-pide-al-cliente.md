@@ -159,6 +159,47 @@ equivocado.
 
 ---
 
+## El turno siguiente: por dónde pasan de verdad los clientes
+
+Al probar las ramas se usó un atajo: mandar el comprobante y el dato de Zelle
+**dentro de los 12 s del debounce**, para que cayeran en el mismo lote. Humberto
+lo cuestionó: *«el comportamiento de los clientes rara vez será así»*.
+
+**Y tenía razón.** Medido sobre los mensajes con imagen del 10-ago, cuándo llega
+el dato siguiente del cliente:
+
+| | Casos |
+|---|---|
+| **Dentro de 12 s (mismo lote)** | **1** |
+| Entre 12 s y 2 min (lote nuevo) | 15 |
+| Más de 2 min (lote nuevo) | 23 |
+| No manda más datos | 12 |
+
+**1 de 39.** El 97% de las veces el dato llega en un **lote nuevo**, sin
+comprobante. Y ahí **la guarda del comprobante NO dispara**, porque su condición
+es `s.comprobante && !sabeDestino`.
+
+**Lo que cubre esos turnos es la nota de estado corregida**, que se emite en
+todos los turnos mientras haya un envío abierto y sí depende de `sabeDestino`:
+
+```
+ESTADO REAL DEL ENVIO EN CURSO: el deposito YA FUE VERIFICADO...
+OJO: TODAVIA NO SE SABE A QUIEN TRANSFERIRLE, asi que PROHIBIDO decir que la
+transferencia sale enseguida...
+```
+
+Probado con la secuencia real —comprobante, respuesta del bot, y el número de
+Zelle **en un lote aparte**—: el bot contestó *«Anotado el celular +1 (317)
+903-7295 para la cuenta Zelle. ¿A nombre de quién está esa cuenta?»*, **sin
+prometer la transferencia**.
+
+> **Ojo al mantener esto:** la protección del caso mayoritario **no** es la
+> guarda del comprobante, es el `if (est && !sabeDestino)` de la nota de estado.
+> Si alguien lo quita pensando que es redundante, abre el agujero en el **97%**
+> de los turnos.
+
+---
+
 ## La regla que sale de aquí
 
 **Una rama que no se ha visto producir un mensaje real no está probada.**

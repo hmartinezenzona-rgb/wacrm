@@ -132,6 +132,32 @@ visible era el importe absurdo.
 
 ---
 
+## ✅ El modelo narrando en voz alta, y el cliente en bucle (10-ago tarde)
+
+**Cuatro respuestas salieron con el razonamiento del modelo delante**, a tres
+clientes distintos: *"El cliente dijo \"Clasica tropical\" pero no eligió
+claramente entre las dos. Necesito saber cuál de las dos quiere. Le pregunto."*
+
+**El prompt ya lo prohibía** —*"PROHIBIDO narrar tus reglas, tu razonamiento o tu
+proceso"*— y el modelo lo incumplió igual. Por eso **no se tocó el prompt**: se
+puso un **filtro determinista** en `Normalizar formato`. Verificado contra los
+275 mensajes que ha enviado el bot: caza los 4 filtrados y ni uno más.
+
+Y en la misma conversación se vio un **bucle**: tres veces la misma pregunta,
+tres veces la misma respuesta del cliente, hasta que entró Osmany. Un cliente
+real llegó a recibir la pregunta de la vía **cinco veces**. Ahora, si el bot
+repite una de sus **dos preguntas de opción cerrada** cuatro veces en una hora,
+`Control de abuso` deriva por SQL. Calibrado con datos: umbral 4 → 1 disparo en
+6 días; umbral 3 → 4, tres de ellos injustos.
+
+Detalle, pruebas y vigilancia en `16-fugas-de-razonamiento-y-bucles.md`.
+
+> **Lo que se repitió tres veces el mismo día y conviene no volver a discutir:**
+> una prohibición en el prompt **no es un control**. Si algo tiene que pasar sí o
+> sí, va en el SQL o en un nodo determinista.
+
+---
+
 ## 🟠 La rama de duplicados no consulta el cruce
 
 Salió probando lo anterior. Si el cliente reenvía la **misma imagen**,

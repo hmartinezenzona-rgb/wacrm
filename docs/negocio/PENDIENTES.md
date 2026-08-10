@@ -8,7 +8,6 @@ duele si no se toca.
 > | | Qué | Depende de |
 > |---|---|---|
 > | 🔴 | **Rotar la API key de n8n y el PAT de GitHub** | de nosotros — es lo único rojo |
-> | 🟠 | **La visión da por comprobante CUALQUIER imagen** | de nosotros — ver 10-ago |
 > | 🟠 | **La rama de duplicados no consulta el cruce** | de nosotros — ver 10-ago |
 > | 🟠 | **Migración 058:** borrar un deal deja la operación huérfana | de nosotros — la conciliación ya no da 0 |
 > | 🟠 | **2E fases 2 y 3** (outbox) | plantillas de Meta, en revisión |
@@ -106,21 +105,30 @@ Copia: `ROLLBACK-v2-antes-contexto-comprobante.json`.
 
 ---
 
-## 🟠 La visión da por comprobante CUALQUIER imagen
+## ✅ La cadena entera del incidente del 10-ago — los cuatro eslabones
 
-**Lo de arriba tapó la herida, no la cerró.** El bot ya no le anuncia una cifra
-falsa al cliente, pero **el deal fantasma se sigue creando**: la captura de chat
-del 10-ago generó un deal de 6.762.167 GYD que sigue abierto e inflando el
-panel de negocios abiertos.
+El susto de los 6.762.167 GYD no tenía una causa, tenía cuatro. Se cerraron
+todos el mismo día. Detalle en `15-la-via-de-deposito-por-defecto.md`,
+`10-vision-doble-lectura.md` y `14-lo-que-se-le-dice-al-cliente-sale-del-sql.md`.
 
-El prompt de visión ya tiene un `CASO 4 - Cualquier otra imagen`, pero la
-captura traía `6762167` y `Osmany Pozo`, que son literalmente el número y el
-titular válidos del negocio, así que el modelo la clasificó como comprobante.
+| # | Fallo | Arreglo | Verificado |
+|---|---|---|---|
+| 1 | El bot dio la cuenta de Pay Merchant sin que el cliente la eligiera | **Agente `6762167` por defecto**, mapeo plano en el prompt | *"me mandas la cuenta"* → `6762167` |
+| 2 | Solo dos orientaciones de lectura | **Cuatro giros** | de lado: 6/9 → 8/9 |
+| 3 | Un importe sin referencia entraba como depósito real | **Guarda:** sin TransID → importe 0, a Incidencia | bloque revertido + en seco |
+| 4 | El agente confirmaba —y llegó a **inventarse** una cifra— | El contexto sale del veredicto del SQL, y la imagen no reconocida tiene su propia orden | end-to-end |
 
-Por dónde iría: **un comprobante sin referencia no debería crear deal.** Si
-`referencia = N/A` y el estado no es claro, lo honesto es no registrar nada y
-derivar. Hay que mirar antes cuántos comprobantes legítimos llegan sin
-referencia, no sea que se rompa un caso real.
+**El orden importa para entenderlo:** sin el eslabón 1 no hay captura de
+pantalla, y sin captura no hay deal fantasma. El fallo de visión fue el
+**último** eslabón, no el primero. Costó media sesión verlo, porque el síntoma
+visible era el importe absurdo.
+
+> **Lo que más enseña de todo el día:** el eslabón 4 aparecio **dos veces y de
+> formas distintas**. Primero el sistema le *ordenaba* confirmar el depósito
+> pasara lo que pasara. Al quitar esa orden, el agente **se inventó 8.000 GYD de
+> la nada** ante una imagen que el sistema había clasificado correctamente como
+> «no reconocida». **Donde no hay instrucción, el modelo rellena el hueco con lo
+> más frecuente del negocio.** El silencio del sistema no es neutral.
 
 ---
 

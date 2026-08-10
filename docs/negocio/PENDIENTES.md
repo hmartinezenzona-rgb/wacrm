@@ -7,7 +7,7 @@ duele si no se toca.
 >
 > | | Qué | Depende de |
 > |---|---|---|
-> | 🟠 | **Rastro de webhooks**: falta que WaCRM escriba en `whatsapp_webhook_log` | **Hermes** — el fix del webhook ya está desplegado |
+> | ✅ | ~~**Rastro de webhooks** y su punto ciego~~ | **cerrado el 10-ago**, probado con mensaje real |
 > | ✅ | ~~**Rotar la API key de n8n y el PAT de GitHub**~~ | **hechas el 10-ago**, las viejas revocadas |
 > | ✅ | ~~**Migración 060:** borrar un deal deja la operación huérfana~~ | **hecha el 10-ago**, 8 divergencias cerradas |
 > | 🟠 | **2E fases 2 y 3** (outbox) | plantillas de Meta, en revisión |
@@ -317,7 +317,7 @@ al agente **por qué vía entró**, para que pueda responder si el cliente pregu
 
 ---
 
-## 🟠 Migración 060 — borrar un deal deja la operación huérfana
+## ✅ Migración 060 — borrar un deal deja la operación huérfana (RESUELTA el 10-ago)
 
 `cerebro_conciliacion_operaciones` **debía dar 0 filas siempre** y el 10-ago
 llegó a **7**. Ninguna es un trigger roto: son deals borrados a mano desde el
@@ -438,7 +438,7 @@ discriminante de la 056.
 
 ---
 
-## 🔴 Seguridad
+## ✅ Seguridad — sin secretos expuestos desde el 10-ago
 
 | | Qué | Estado |
 |---|---|---|

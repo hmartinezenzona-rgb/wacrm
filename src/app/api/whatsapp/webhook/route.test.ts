@@ -11,9 +11,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { encrypt } from "@/lib/whatsapp/encryption";
 
 // --- Registro de llamadas al cliente fake -------------------------------
-// `inserts[tabla]` acumula los payloads insertados; los tests lo leen
-// para comprobar qué se guardó (y qué no).
+// `inserts[tabla]` acumula los payloads insertados; `updates[tabla]`
+// acumula { payload, eqs } de los .update(). Los tests lo leen para
+// comprobar qué se guardó (y qué no) y el contrato del log.
 const inserts: Record<string, unknown[]> = {};
+const updates: Record<string, { payload: unknown; eqs: string[] }[]> = {};
+let logSeq = 0;
 
 const CONFIG_ROW = {
   id: "cfg1",
@@ -52,7 +55,8 @@ vi.mock("@/lib/contacts/dedupe", () => ({
 }));
 
 vi.mock("@/lib/flows/engine", () => ({
-  dispatchInboundToFlows: vi.fn(async () => undefined),
+  // Contrato real: siempre { consumed: boolean } — nunca undefined.
+  dispatchInboundToFlows: vi.fn(async () => ({ consumed: false })),
 }));
 vi.mock("@/lib/ai/auto-reply", () => ({
   dispatchInboundToAiReply: vi.fn(async () => undefined),
@@ -77,7 +81,12 @@ function makeBuilder(table: string) {
   const builder: Record<string, unknown> = {};
   builder.__table = table;
   builder.select = vi.fn(() => builder);
-  builder.eq = vi.fn(() => builder);
+  builder.eq = vi.fn((_col: string, val: unknown) => {
+    // Correlacionar updates con su filtro (p.ej. eq('id', logId)).
+    const last = updates[table]?.[updates[table].length - 1];
+    if (last) last.eqs.push(String(val));
+    return builder;
+  });
   builder.order = vi.fn(() => builder);
   builder.limit = vi.fn(() => builder);
   builder.onConflict = vi.fn(() => builder);
@@ -94,8 +103,15 @@ function makeBuilder(table: string) {
     Promise.resolve({ data: result.data, error: result.error }),
   );
   builder.insert = vi.fn((payload: unknown) => {
-    inserts[table] = [...(inserts[table] ?? []), payload];
-    result.data = Array.isArray(payload) ? payload : [payload];
+    let row = payload;
+    if (table === "whatsapp_webhook_log") {
+      // La tabla del log devuelve su id — el contrato depende de él.
+      row = Array.isArray(payload)
+        ? payload.map((p) => ({ ...(p as object), id: `log-${++logSeq}` }))
+        : { ...(payload as object), id: `log-${++logSeq}` };
+    }
+    inserts[table] = [...(inserts[table] ?? []), row];
+    result.data = Array.isArray(row) ? row : [row];
     return builder;
   });
   builder.upsert = vi.fn((payload: unknown) => {
@@ -103,7 +119,10 @@ function makeBuilder(table: string) {
     result.data = Array.isArray(payload) ? payload : [payload];
     return builder;
   });
-  builder.update = vi.fn(() => builder);
+  builder.update = vi.fn((payload: unknown) => {
+    updates[table] = [...(updates[table] ?? []), { payload, eqs: [] }];
+    return builder;
+  });
   builder.then = (resolve: (v: unknown) => unknown) =>
     Promise.resolve({ data: result.data, error: result.error }).then(resolve);
   return builder;
@@ -182,6 +201,8 @@ describe("webhook route — mensajes sin perfil de remitente", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     Object.keys(inserts).forEach((k) => delete inserts[k]);
+    Object.keys(updates).forEach((k) => delete updates[k]);
+    logSeq = 0;
   });
 
   it("1. contacts vacio: crea el contacto con el telefono como nombre y guarda el mensaje", async () => {
@@ -239,5 +260,30 @@ describe("webhook route — mensajes sin perfil de remitente", () => {
     expect(msgInserts[0]).toMatchObject({ message_id: "wamid.GOOD" });
     expect(insertPayloads("contacts")).toHaveLength(1);
     expect(insertPayloads("contacts")[0]).toMatchObject({ phone: "5921111111" });
+
+    // Contrato de whatsapp_webhook_log:
+    // - fila ANTES de procesar para AMBOS mensajes (el malo también)…
+    const logInserts = insertPayloads("whatsapp_webhook_log");
+    expect(logInserts).toHaveLength(2);
+    expect(logInserts[0]).toMatchObject({ wamid: "wamid.BAD" });
+    expect(logInserts[1]).toMatchObject({ wamid: "wamid.GOOD" });
+    // …el malo con el motivo y SIN procesado…
+    const logUpdates = updates["whatsapp_webhook_log"] ?? [];
+    const badUpdate = logUpdates.find((u) => "error" in (u.payload as object));
+    expect(badUpdate).toBeTruthy();
+    expect(badUpdate!.payload).toMatchObject({
+      error: "boom: telefono malformado",
+    });
+    expect(
+      logUpdates.some((u) => (u.payload as { procesado?: boolean }).procesado === true),
+    ).toBe(true); // …y el bueno con procesado=true.
+    // El malo nunca se marca procesado.
+    const badRow = logInserts[0] as { id?: string };
+    const badMarked = logUpdates.find(
+      (u) =>
+        (u.payload as { procesado?: boolean }).procesado === true &&
+        u.eqs.includes(String(badRow.id)),
+    );
+    expect(badMarked).toBeUndefined();
   });
 });

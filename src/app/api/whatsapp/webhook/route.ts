@@ -324,12 +324,45 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
         const message = value.messages[i]
         const contact = value.contacts?.[i] ?? value.contacts?.[0]
 
+        // whatsapp_webhook_log — rastro ANTES de procesar (contrato de
+        // la tabla: si se escribiera al final, un fallo a mitad no
+        // dejaría fila y la pérdida volvería a ser invisible). Si este
+        // INSERT falla, el mensaje se procesa igual: solo se pierde la
+        // traza, nunca el mensaje.
+        let logId: string | null = null
+        try {
+          const { data: logRow, error: logErr } = await supabaseAdmin()
+            .from('whatsapp_webhook_log')
+            .insert({
+              phone_number_id: phoneNumberId,
+              wamid: message.id,
+              remitente: message.from,
+              tipo: message.type,
+              payload: message,
+            })
+            .select('id')
+            .single()
+          if (logErr) {
+            console.warn(
+              '[webhook] no se pudo registrar en whatsapp_webhook_log:',
+              logErr.message
+            )
+          } else {
+            logId = logRow?.id ?? null
+          }
+        } catch (logErr) {
+          console.warn(
+            '[webhook] no se pudo registrar en whatsapp_webhook_log:',
+            logErr instanceof Error ? logErr.message : String(logErr)
+          )
+        }
+
         // Un mensaje malo no puede tumbar al lote: se aísla y se
         // descarta con rastro (wamid/from/type) para que el resto se
         // procese igual. Protege también del próximo campo inesperado
         // que traiga Meta.
         try {
-          await processMessage(
+          const guardado = await processMessage(
             message,
             contact,
             // Tenancy — drives every contact / conversation lookup
@@ -341,7 +374,24 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
             config.user_id,
             decryptedAccessToken
           )
+          // procesado=true SOLO cuando el mensaje quedó guardado en
+          // `messages` (o se manejó deliberadamente, p.ej. reacción).
+          // Nunca al entrar al try — si processMessage lanza, este
+          // update no se ejecuta, que es exactamente lo que queremos.
+          if (logId && guardado) {
+            await supabaseAdmin()
+              .from('whatsapp_webhook_log')
+              .update({ procesado: true })
+              .eq('id', logId)
+          }
         } catch (err) {
+          // Dejar el motivo en la fila del log, además del rastro.
+          if (logId) {
+            await supabaseAdmin()
+              .from('whatsapp_webhook_log')
+              .update({ error: err instanceof Error ? err.message : String(err) })
+              .eq('id', logId)
+          }
           console.error(
             '[webhook] mensaje descartado',
             JSON.stringify({
@@ -619,7 +669,11 @@ async function processMessage(
   // WhatsApp config; the choice is arbitrary post-017 but stable.
   configOwnerUserId: string,
   accessToken: string
-) {
+): Promise<boolean> {
+  // Devuelve true SOLO si el mensaje quedó guardado en `messages` (o
+  // se manejó deliberadamente, como una reacción). El false alimenta
+  // el contrato de whatsapp_webhook_log: procesado=true únicamente
+  // cuando esto es true — nunca antes del INSERT de messages.
   const senderPhone = normalizePhone(message.from)
   // El nombre es prescindible: si el remitente llega sin perfil, el
   // teléfono hace de nombre (findOrCreateContact ya hace name || phone).
@@ -632,7 +686,7 @@ async function processMessage(
     senderPhone,
     contactName
   )
-  if (!contactOutcome) return
+  if (!contactOutcome) return false
   const contactRecord = contactOutcome.contact
 
   // Find or create conversation
@@ -641,7 +695,7 @@ async function processMessage(
     configOwnerUserId,
     contactRecord.id
   )
-  if (!convResult) return
+  if (!convResult) return false
   const conversation = convResult.conversation
 
   // Emit conversation.created as soon as the thread is opened — BEFORE
@@ -660,7 +714,9 @@ async function processMessage(
   // Done before parseMessageContent so the media-URL fetch is skipped.
   if (message.type === 'reaction') {
     await handleReaction(message, conversation.id, contactRecord.id)
-    return
+    // Deliberado: la reacción no es un mensaje, se manejó y se
+    // registró como reacción. Para el contrato del log, procesado.
+    return true
   }
 
   // Parse message content based on type
@@ -736,7 +792,7 @@ async function processMessage(
 
   if (msgError) {
     console.error('Error inserting message:', msgError)
-    return
+    return false
   }
 
   // Update conversation
@@ -879,6 +935,8 @@ async function processMessage(
     content_type: contentType,
     text: contentText,
   })
+  // El mensaje está guardado en `messages` — el único true legítimo.
+  return true
 }
 
 async function parseMessageContent(

@@ -426,13 +426,14 @@ lo único que lo mantiene utilizable.
 | `PLAN-2E-outbox.md` | **Leer antes de tocar el outbox.** Las 3 fases y sus riesgos |
 | `RESPUESTAS-OSMANY-servicios.md` | **Cómo funciona el negocio, en sus palabras.** Precios, costes y reglas |
 | `PEDIR-A-OSMANY-contabilidad.md` | Lo que falta preguntarle para cerrar la contabilidad |
-| `13-normalizador-de-formato.md` | Separa en párrafos lo que el agente manda de un tirón |
+| `13-normalizador-de-formato.md` | Separa en párrafos lo que el agente manda de un tirón (ver también el `20-`) |
 | `14-lo-que-se-le-dice-al-cliente-sale-del-sql.md` | **Leer antes de tocar el `Decisor`.** El bot no confirma lo que el SQL no confirmó |
 | `15-la-via-de-deposito-por-defecto.md` | Las dos cuentas de depósito. Si el cliente no elige, es **Agente 6762167** |
 | `16-fugas-de-razonamiento-y-bucles.md` | El filtro que impide que el razonamiento del modelo llegue al cliente, y el cortacircuitos de bucles |
 | `17-no-prometer-la-transferencia-sin-beneficiario.md` | **Leer antes de tocar el notificador por etapa.** Y cómo se leen las conversaciones: con su fecha delante |
 | `18-dos-caidas-silenciosas.md` | **Leer antes de tocar una consulta de un workflow.** La ingesta caída 4 h y el Cerebro roto 27 min |
 | `19-que-se-le-pide-al-cliente.md` | **Leer antes de tocar el `Decisor`.** Qué se le pide y qué NO se le promete, y cómo se prueban las ramas de verdad |
+| `20-el-normalizador-y-sus-dos-huecos.md` | El formato de las respuestas. **El notificador por etapa NO pasa por el normalizador** |
 | `040`…`044` | Fase 2: operaciones, escritura dual, beneficiarios, log de tools |
 | `045_purga_de_logs.sql` | Purga semanal con `pg_cron` |
 | `046_pipeline_servicios.sql` | Pipeline `Servicios` y `service_type` |

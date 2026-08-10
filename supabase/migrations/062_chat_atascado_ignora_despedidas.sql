@@ -140,3 +140,38 @@ BEGIN
   RETURN QUERY SELECT v_n, v_avisos;
 END;
 $function$;
+
+-- ---------------------------------------------------------------------------
+-- FLECO CONOCIDO, MEDIDO Y DESCARTADO A PROPOSITO (10-ago)
+--
+-- La excepcion exige que el mensaje ANTERIOR sea del agente (`a.sender_type =
+-- 'agent'`). Si el cliente manda DOS CIERRES SEGUIDOS, el segundo se escapa.
+--
+-- MEDIDO sobre todo el historico: de 135 mensajes de cierre del cliente, 118
+-- van justo detras del agente (cubiertos). De los 16 que van detras de otro
+-- mensaje del propio cliente, solo 7 venian tras otro cierre:
+--
+--   Clarita            "Ok"                    -> "Gracias"
+--   Clarita            "Gracias"               -> "Saludos y bendiciones"
+--   Josefa             "Thanks"                -> "Si"
+--   AISHA LRG          "Vale"                  -> "Gracias"
+--   sanzjuanpastor     "Ok"                    -> "Gracias"
+--   Yoanis Coba Cedre  "Ok"                    -> "Gracias"
+--   KIRENIA SAnchez    "Ok"                    -> "Gracias"
+--
+-- POR QUE NO SE ARREGLA
+-- NINGUNO de los siete es el ultimo mensaje de su chat: en los siete contesto
+-- el agente despues o el cliente siguio escribiendo. Y el vigilante SOLO mira
+-- el ultimo mensaje. O sea: el fleco nunca ha producido un aviso falso. Cero.
+--
+-- Y el caso que lo hizo anotar NI SIQUIERA ES UN CASO DE ESTO: Yunior fue
+-- "Si claro Hermano gracias" -> "Asi mismo", y "Asi mismo" no lleva ninguna
+-- formula de cortesia, asi que la regla general tampoco lo atraparia. Cubrirlo
+-- exigiria ir metiendo expresiones sueltas en una lista, que no tiene final.
+--
+-- QUE LO CAMBIARIA
+-- Que aparezca un aviso `chat_atascado` cuyo ULTIMO mensaje sea un cierre.
+-- Entonces si toca, y la regla ya esta pensada: en vez de mirar solo el mensaje
+-- anterior, exigir que TODOS los mensajes del cliente posteriores al ultimo del
+-- agente sean cierres. Se hace buscando el rn del ultimo mensaje del agente y
+-- comprobando con NOT EXISTS que no hay nada mas nuevo que no sea un cierre.

@@ -24,6 +24,7 @@ es el que manda**, porque sobrevive a la máquina y a las sesiones.
 | `11-lenguaje-deliberativo-rompe-deepseek.md` | **tocar el prompt** |
 | `PLAN-2E-outbox.md` | **tocar el outbox** (fases 2 y 3) |
 | `14-lo-que-se-le-dice-al-cliente-sale-del-sql.md` | **tocar el `Decisor`** o lo que el bot confirma al cliente |
+| `15-la-via-de-deposito-por-defecto.md` | tocar las cuentas de depósito o la vía |
 | `10-vision-doble-lectura.md` | tocar la lectura de comprobantes (cuatro giros) |
 | `13-normalizador-de-formato.md` | tocar el formato de las respuestas |
 

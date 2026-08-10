@@ -8,7 +8,7 @@ duele si no se toca.
 > | | Qué | Depende de |
 > |---|---|---|
 > | 🔴 | **Rotar la API key de n8n y el PAT de GitHub** | de nosotros — es lo único rojo |
-> | 🟠 | **Migración 059:** borrar un deal deja la operación huérfana | de nosotros — la conciliación ya no da 0 |
+> | 🟠 | **Migración 060:** borrar un deal deja la operación huérfana | de nosotros — la conciliación ya no da 0 |
 > | 🟠 | **2E fases 2 y 3** (outbox) | plantillas de Meta, en revisión |
 > | 🟠 | **Plantillas de Meta** | Meta (hasta 24 h) |
 > | 🟠 | El agente no re-consulta un servicio en conversación viva | sin decidir |
@@ -278,23 +278,25 @@ Detalle en `21-vigilante-de-la-ingesta.md`.
 
 ---
 
-## 🟠 Falta el vigilante de «cliente esperando sin cruzar»
+## ✅ Vigilante de «cliente esperando sin cruzar» (10-ago)
 
-Un deal en «Por verificar» cuyo TransID **no está en el libro** pasados N
-minutos significa literalmente *«hay un cliente esperando y no puedo cruzar su
-depósito»*. El 10-ago habría saltado sobre las **10:50**, casi tres horas antes
-de que se descubriera la caída, **viniera el fallo de donde viniera**.
+`Vigilante - depositos sin cruzar` (**`bTwsEJsmoAzsuOxm`**), cada 10 minutos.
+Un deal en «Por verificar» cuyo TransID **no está en el libro** pasados 15
+minutos = hay un cliente esperando. Avisa en el CRM, solo en horario de
+atención, y repite cada 2 h como mucho.
 
-Cubre lo que el de la credencial no ve: MMG dejando de mandar correos, el filtro
-del asunto roto, un fallo de parseo, o una referencia mal leída — como la de las
-12:48 del 10-ago, donde el TransID leído `20397544023399` nunca cuadró porque el
+Cubre lo que el de la credencial no ve: que MMG deje de mandar correos, que se
+rompa el filtro del asunto, un fallo de parseo, o **una referencia mal leída** —
+como la del 10-ago a las 12:48, donde la visión leyó `20397544023399` y el
 correo decía `20397544023299`, **un dígito**.
 
-**Antes de montarlo hay que medir** cuánto tarda normalmente un depósito
-legítimo en aparecer en el libro, para no avisar de algo que se resuelve solo en
-dos minutos.
+**Calibrado midiendo:** el correo llega casi siempre antes que el comprobante
+(−1 a −17 min en 23 casos). Con umbral de 15 min habría avisado de los 9
+depósitos de la caída y de 3 referencias mal leídas del 8-ago, todas legítimas.
+Migración **`059`**. Detalle en `21-vigilante-de-la-ingesta.md`.
 
 ---
+
 
 
 ## ✅ No preguntar la vía si el cliente ya depositó (10-ago)
@@ -314,7 +316,7 @@ al agente **por qué vía entró**, para que pueda responder si el cliente pregu
 
 ---
 
-## 🟠 Migración 059 — borrar un deal deja la operación huérfana
+## 🟠 Migración 060 — borrar un deal deja la operación huérfana
 
 `cerebro_conciliacion_operaciones` **debía dar 0 filas siempre** y el 10-ago
 llegó a **7**. Ninguna es un trigger roto: son deals borrados a mano desde el
@@ -324,7 +326,7 @@ CRM. `trg_sync_operacion_desde_deal` es `AFTER INSERT OR UPDATE`, **sin rama
 Existe `trg_liberar_depositos_al_borrar_deal` (BEFORE DELETE), que sí libera los
 depósitos — el hueco es solo la operación.
 
-**Lo que hay que hacer** (migración `059`): rama `DELETE` que pase la operación a `cancelled` en
+**Lo que hay que hacer** (migración `060`): rama `DELETE` que pase la operación a `cancelled` en
 vez de borrarla, para conservar la auditoría, y una limpieza única de las que ya
 están huérfanas.
 

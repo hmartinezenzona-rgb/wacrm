@@ -431,6 +431,7 @@ lo único que lo mantiene utilizable.
 | `15-la-via-de-deposito-por-defecto.md` | Las dos cuentas de depósito. Si el cliente no elige, es **Agente 6762167** |
 | `16-fugas-de-razonamiento-y-bucles.md` | El filtro que impide que el razonamiento del modelo llegue al cliente, y el cortacircuitos de bucles |
 | `17-no-prometer-la-transferencia-sin-beneficiario.md` | **Leer antes de tocar el notificador por etapa.** Y cómo se leen las conversaciones: con su fecha delante |
+| `18-dos-caidas-silenciosas.md` | **Leer antes de tocar una consulta de un workflow.** La ingesta caída 4 h y el Cerebro roto 27 min |
 | `040`…`044` | Fase 2: operaciones, escritura dual, beneficiarios, log de tools |
 | `045_purga_de_logs.sql` | Purga semanal con `pg_cron` |
 | `046_pipeline_servicios.sql` | Pipeline `Servicios` y `service_type` |
@@ -506,6 +507,12 @@ lo abierto y de qué depende cada cosa.
 ## Cómo se trabaja aquí — lo que ha funcionado
 
 Esto no es relleno: es lo que ha evitado la mayoría de los sustos.
+
+**Una consulta de un workflow se valida DENTRO de n8n.** `PREPARE` valida SQL,
+pero el nodo hace cosas con el texto antes de enviarlo (y el JSON del workflow
+deforma las barras invertidas). Monta un banco aparte con la consulta **copiada
+del JSON por programa**, y antes de subir compara que lo desplegado es lo
+validado. El 10-ago me salté esto y tumbé el Cerebro 27 minutos.
 
 **Medir antes de decidir.** Casi todas las decisiones buenas del proyecto
 salieron de una consulta, no de una intuición: que el cruce fallaba 1 de 13, que

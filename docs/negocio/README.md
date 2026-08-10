@@ -23,7 +23,8 @@ es el que manda**, porque sobrevive a la máquina y a las sesiones.
 | `12-el-modelo-no-debe-pensar.md` | **tocar el modelo del agente** |
 | `11-lenguaje-deliberativo-rompe-deepseek.md` | **tocar el prompt** |
 | `PLAN-2E-outbox.md` | **tocar el outbox** (fases 2 y 3) |
-| `10-vision-doble-lectura.md` | tocar la lectura de comprobantes |
+| `14-lo-que-se-le-dice-al-cliente-sale-del-sql.md` | **tocar el `Decisor`** o lo que el bot confirma al cliente |
+| `10-vision-doble-lectura.md` | tocar la lectura de comprobantes (cuatro giros) |
 | `13-normalizador-de-formato.md` | tocar el formato de las respuestas |
 
 ## Cómo funciona el negocio
@@ -61,6 +62,9 @@ probaron y cómo se revierten**, y están marcadas «ya aplicada, no la ejecutes
 | `053` | Vistas de volumen e historial |
 | `054` | Visa: pasos posteriores y regla de rebajas |
 | `055` | RPC del dashboard (`/resumen` del CRM) |
+| `056` | La asignación manual de un chat caduca sola a los 10 min |
+| `057` | Vigilante de chats asignados sin respuesta |
+| `058` | **PENDIENTE** — borrar un deal debe cancelar su operación |
 
 ## Las copias de seguridad
 

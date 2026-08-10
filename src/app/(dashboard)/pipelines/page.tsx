@@ -99,10 +99,24 @@ export default function PipelinesPage() {
 
   const loadDeals = useCallback(
     async (pipelineId: string) => {
+      // Filtro de vista: mostrar lo abierto + lo entregado (won) de los
+      // últimos 7 días. La columna "Entregada" acumulaba TODO el
+      // histórico (~150 tarjetas/mes); los datos no se mueven ni se
+      // borran, el histórico completo se consulta desde la pantalla de
+      // resumen. `status.is.null` cubre los deals sin status (pipeline
+      // genérico, nunca tocados por el trigger de remesas).
+      const since = new Date(
+        Date.now() - 7 * 24 * 60 * 60 * 1000,
+      ).toISOString();
       const { data } = await supabase
         .from("deals")
-        .select("*, contact:contacts(*), assignee:profiles!deals_assigned_to_fkey(*)")
+        .select(
+          "*, contact:contacts(*), assignee:profiles!deals_assigned_to_fkey(*)",
+        )
         .eq("pipeline_id", pipelineId)
+        .or(
+          `status.is.null,status.eq.open,and(status.eq.won,updated_at.gte.${since})`,
+        )
         .order("created_at", { ascending: false });
       return (data ?? []) as Deal[];
     },

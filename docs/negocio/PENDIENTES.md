@@ -180,6 +180,30 @@ Ahora `Contexto conversacion` devuelve `dup_etapa` y `dup_valor` buscando por
 ---
 
 
+## ✅ No prometer la transferencia sin saber a quién (10-ago)
+
+El **10-ago** el bot le dijo a un cliente *"en breve le hacemos la
+transferencia"* **30 segundos después** de que Osmany le pidiera por el mismo
+chat los datos de quien recibe, que aún no había dado.
+
+**Eran dos sitios, y uno no es el Cerebro:** el notificador por etapa
+(`wGud0KGR6eMqqfMQ`) disparaba una plantilla fija al mover un deal a "Lista para
+transferir" a mano. Por eso ningún arreglo del `Decisor` lo tocaba.
+
+Ahora hacen falta **siempre los dos datos** —tarjeta y celular, o cuenta Zelle y
+nombre— y el bot pide **exactamente el que falta**. Medido antes de exigirlo: de
+9 beneficiarios de tarjeta cubana los 9 tenían ambos, y de 14 de Zelle los 14
+tenían cuenta y nombre. No bloquea ningún caso legítimo.
+
+Detalle, pruebas y reversión en
+`17-no-prometer-la-transferencia-sin-beneficiario.md`.
+
+> **La pista que lo delató fue la ortografía:** *"Su deposito"* sin tilde, igual
+> que en un mensaje de dos días antes. Eso no es prosa del agente, es una
+> plantilla — y buscar el patrón repetido ahorró mirar el prompt en balde.
+
+---
+
 ## 🟠 Migración 058 — borrar un deal deja la operación huérfana
 
 `cerebro_conciliacion_operaciones` **debía dar 0 filas siempre** y el 10-ago
@@ -1417,7 +1441,7 @@ nuevo el 8-ago**, porque las anteriores se habían quedado viejas.
 | | Hallazgo |
 |---|---|
 | 10 | **12 deals en "Entregada" siguen con `status='open'`**, de 14 en el pipeline. Nadie los cierra. Hoy no rompe nada porque las consultas filtran por etapa, pero significa que `status` **no es fiable** como señal |
-| 11 | **2 deals entregados no tienen beneficiario registrado.** Se entregó dinero y el sistema no sabe a quién. Se resolvió por fuera |
+| 11 | **8 de 28 deals entregados no tienen beneficiario registrado** (eran 2 el 8-ago). Se entregó dinero y el sistema no sabe a quién. Se resolvió por fuera. El arreglo del 10-ago evita que siga creciendo, pero no reconstruye los que ya están |
 | 12 | ~~86 de 332 depósitos MMG sin consumir~~ ✅ **Resuelto el 8-ago.** Eran **76 de antes del arranque** (la ingesta arrastró el buzón desde abril; el sistema no existe hasta el 5-ago) y **11 pendientes de verdad**. Los 76 llevan ahora `descartado_en` con su motivo — marca honesta, no marcados como "consumidos", para no repetir el error de la deuda 15. Ver `09-descartar-depositos-previos.sql` |
 | 15 | **228 depósitos figuran como consumidos sin ningún envío asociado**, desde el 4 de julio. Los dejó así el flujo viejo, que marcaba el depósito como usado sin registrar a qué operación pertenecía. **De 334 depósitos, solo 12 tienen el rastro completo** hasta su envío, y son todos del 5-ago en adelante. No afecta a nadie hoy, pero ese es el límite si alguna vez hay que auditar de dónde salió un pago antiguo |
 | 16 | ~~Dos depósitos de 367.500 GYD sin identificar~~ ✅ **Cerrado sin acción, y con un cambio de criterio.** No se pueden distinguir: los 334 depósitos llevan el mismo asunto (`CASH_IN_TO_AGENT_OK_RECEIVER`) y la misma frase *"to your wallet"*, venga de un cliente o del propio Osmany recargando saldo. Y el importe tampoco sirve — el mayor de la tabla, 925.000 GYD, sí fue una remesa real. **Criterio de Humberto, y es el correcto: un depósito solo cuenta cuando alguien lo reclama con su comprobante; hasta entonces solo existe.** Así que no hay nada que marcar ni que perseguir |

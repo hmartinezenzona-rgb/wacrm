@@ -229,6 +229,32 @@ reales en `19-que-se-le-pide-al-cliente.md`.
 
 ---
 
+## ✅ Los dos huecos del normalizador de formato (10-ago)
+
+Humberto notó que algunas respuestas salían apelotonadas. Eran **dos causas
+distintas**:
+
+1. **El notificador por etapa no pasa por el normalizador.** Es otro workflow
+   (`wGud0KGR6eMqqfMQ`) y manda sus mensajes directamente. Dos del 10-ago
+   salieron de 152 y 138 caracteres **en una sola línea**. Ahora el salto de
+   párrafo va escrito en el propio texto.
+2. **El normalizador se retiraba ante un salto simple.** Daba por hecho que
+   cualquier salto significaba formato bueno; ahora solo se retira si hay
+   **párrafos de verdad** (`\n\n`).
+
+**Verificado sobre los 349 mensajes del histórico:** 26 mejoran, **0 empeoran**,
+ninguna cifra partida y ningún bloque de datos roto. Detalle en
+`20-el-normalizador-y-sus-dos-huecos.md`.
+
+> **Al añadir un mensaje al notificador por etapa hay que formatearlo a mano.**
+> No hay red que lo recoja.
+
+> **Pendiente y distinto:** el formato ya se lee bien, pero **la redacción** de
+> algunas respuestas sigue siendo mejorable. Eso toca prompt y es otra
+> conversación.
+
+---
+
 ## 🔴 No hay vigilante de la ingesta de depósitos
 
 El **10-ago la ingesta de correos de MMG estuvo 4 horas parada** —credencial de

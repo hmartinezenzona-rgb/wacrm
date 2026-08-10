@@ -1,4 +1,4 @@
-# Vigilante de la ingesta de depósitos
+# Los dos vigilantes de la ingesta
 
 Desplegado el **10 de agosto de 2026**, después de que la ingesta estuviera
 **4 horas parada sin que saltara ninguna alarma**. Ver
@@ -92,19 +92,60 @@ Prueba que **se puede leer el buzón**. No cubre:
   TransID leído `20397544023399` nunca cuadró porque el correo decía
   `20397544023299` — **un dígito**.
 
-Para eso hace falta el otro vigilante, el que mira **la consecuencia**: un deal
-en «Por verificar» cuyo TransID no está en el libro pasados N minutos. Eso
+Para eso está **el segundo vigilante**, `Vigilante - depositos sin cruzar`
+(**`bTwsEJsmoAzsuOxm`**), también cada 10 minutos: mira **la consecuencia**. Un
+deal en «Por verificar» cuyo TransID no está en el libro pasados 15 minutos
 significa literalmente *«hay un cliente esperando y no puedo cruzar su
-depósito»*, y habría saltado el 10-ago sobre las **10:50** —casi tres horas
-antes—, viniera el fallo de donde viniera.
+depósito»*. El 10-ago habría saltado sobre las **10:50**, casi tres horas antes,
+viniera el fallo de donde viniera.
 
-**Queda pendiente**, y necesita medir cuánto tarda normalmente un depósito
-legítimo en aparecer en el libro, para no avisar de algo que se resuelve solo en
-dos minutos.
+**Calibrado midiendo:** el correo de MMG llega casi siempre **antes** que el
+comprobante del cliente —desfases de −1 a −17 minutos sobre 23 casos del 8 al
+10-ago—, y solo uno llegó después. Por eso 15 minutos es una anomalía real y no
+un retraso normal. Con ese umbral, en el histórico habría avisado de los 9
+depósitos de la caída y de **3 referencias mal leídas** del 8-ago: todas
+legítimas.
+
+Los umbrales se tocan sin desplegar nada:
+
+```sql
+UPDATE cerebro_config SET valor='20'  WHERE clave='sin_cruzar_minutos';
+UPDATE cerebro_config SET valor='180' WHERE clave='sin_cruzar_repetir_min';
+```
+
+Como en la `057`, **solo avisa en horario de atención**: un aviso a las 23:00 no
+lo lee nadie y entrena al equipo a ignorar la campana.
+
+**Probado en sus dos caras**, con un deal fabricado dentro de un bloque que se
+revierte: sin candidatos no avisa; con un cliente esperando 40 minutos crea los
+3 avisos y el título dice quién y cuánto lleva.
 
 ---
 
 ## Reversión
 
-Desactivar el workflow `NiibUBRtOlOppmY4`. No toca datos ni depende nada de él.
-La migración `058` puede quedarse: un tipo de aviso de más no molesta.
+Desactivar el workflow que toque. Ninguno de los dos escribe nada salvo avisos,
+y nada depende de ellos.
+
+| Vigilante | Workflow | Migración |
+|---|---|---|
+| Credencial de los buzones | `NiibUBRtOlOppmY4` | `058` |
+| Depósitos sin cruzar | `bTwsEJsmoAzsuOxm` | `059` |
+
+Las migraciones pueden quedarse: un tipo de aviso de más no molesta.
+
+---
+
+## Por qué hacen falta los dos
+
+Miran cosas distintas y ninguno sustituye al otro:
+
+| | Detecta | Cuándo avisa |
+|---|---|---|
+| **Credencial** | la **causa** más probable | en 10 minutos, antes de que nadie espere |
+| **Sin cruzar** | la **consecuencia**, venga de donde venga | a los 15 min de que un cliente espere |
+
+El primero habría convertido las 4 horas del 10-ago en 10 minutos. El segundo
+habría avisado igual aunque la causa hubiera sido otra —MMG sin mandar correos,
+o un dígito mal leído— y es el único que se entera de que **hay dinero de un
+cliente parado**.

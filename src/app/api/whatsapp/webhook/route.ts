@@ -275,8 +275,9 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
         }
       }
 
-      // Handle incoming messages
-      if (!value.messages || !value.contacts) continue
+      // Handle incoming messages. `contacts` es opcional: el teléfono
+      // sale de message.from; el array vacío no puede tumbar el lote.
+      if (!value.messages) continue
 
       const phoneNumberId = value.metadata.phone_number_id
 
@@ -321,20 +322,36 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
 
       for (let i = 0; i < value.messages.length; i++) {
         const message = value.messages[i]
-        const contact = value.contacts[i] || value.contacts[0]
+        const contact = value.contacts?.[i] ?? value.contacts?.[0]
 
-        await processMessage(
-          message,
-          contact,
-          // Tenancy — drives every contact / conversation lookup
-          // and the engines' active-row dispatch.
-          config.account_id,
-          // Audit / sender-of-record — used as the user_id on row
-          // inserts that need it for NOT NULL FK compliance. Always
-          // the admin who saved the WhatsApp config.
-          config.user_id,
-          decryptedAccessToken
-        )
+        // Un mensaje malo no puede tumbar al lote: se aísla y se
+        // descarta con rastro (wamid/from/type) para que el resto se
+        // procese igual. Protege también del próximo campo inesperado
+        // que traiga Meta.
+        try {
+          await processMessage(
+            message,
+            contact,
+            // Tenancy — drives every contact / conversation lookup
+            // and the engines' active-row dispatch.
+            config.account_id,
+            // Audit / sender-of-record — used as the user_id on row
+            // inserts that need it for NOT NULL FK compliance. Always
+            // the admin who saved the WhatsApp config.
+            config.user_id,
+            decryptedAccessToken
+          )
+        } catch (err) {
+          console.error(
+            '[webhook] mensaje descartado',
+            JSON.stringify({
+              wamid: message?.id,
+              from: message?.from,
+              type: message?.type,
+              error: err instanceof Error ? err.message : String(err),
+            })
+          )
+        }
       }
     }
   }
@@ -592,7 +609,7 @@ async function handleReaction(
 
 async function processMessage(
   message: WhatsAppMessage,
-  contact: { profile: { name: string }; wa_id: string },
+  contact: { profile?: { name?: string }; wa_id?: string } | undefined,
   // Tenancy. Resolved from the matched whatsapp_config row; every
   // contact / conversation / message row created downstream is
   // stamped with this so any member of the account can see it.
@@ -604,7 +621,9 @@ async function processMessage(
   accessToken: string
 ) {
   const senderPhone = normalizePhone(message.from)
-  const contactName = contact.profile.name
+  // El nombre es prescindible: si el remitente llega sin perfil, el
+  // teléfono hace de nombre (findOrCreateContact ya hace name || phone).
+  const contactName = contact?.profile?.name || senderPhone
 
   // Find or create contact
   const contactOutcome = await findOrCreateContact(

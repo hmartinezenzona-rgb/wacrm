@@ -183,3 +183,42 @@ END $function$;
 --
 -- REVERSION
 --   Desactivar HVNAIc8otXHejsw4. La tabla y el tipo de aviso pueden quedarse.
+
+-- ---------------------------------------------------------------------------
+-- 061d — PERMISOS DE TABLA PARA service_role  (anadido el mismo dia, tras
+--        fallar en produccion con un mensaje real)
+--
+-- EL FALLO
+-- La tabla se creo con RLS y sin politicas, copiando el patron de
+-- depositos_mmg. Pero depositos_mmg solo la toca n8n, que entra por conexion
+-- Postgres directa; WaCRM entra por PostgREST con la clave de service_role.
+--
+-- Y `service_role` SE SALTA EL RLS, PERO NO LOS PERMISOS DE TABLA:
+--
+--   [webhook] no se pudo registrar en whatsapp_webhook_log:
+--     permission denied for table whatsapp_webhook_log
+--
+-- El mensaje del cliente se guardo bien —el INSERT del log lleva su propio
+-- try/catch a proposito— pero la fila del rastro nunca se escribio: el
+-- vigilante habria quedado CIEGO sin que nada lo indicara. Justo el fallo que
+-- este vigilante existe para evitar.
+--
+-- POR QUE NO LO VIO NINGUNA PRUEBA
+-- Las siete pruebas en SQL corren como `postgres`, que tiene todos los
+-- permisos. Solo aparecio al mandar un mensaje de WhatsApp de verdad. Es
+-- exactamente la regla de 19-que-se-le-pide-al-cliente.md: una rama que no se
+-- ha visto producir un mensaje real no esta probada.
+--
+-- SOLO service_role. Ni anon ni authenticated: el payload lleva mensajes de
+-- clientes y no tiene por que ser accesible desde el navegador. El RLS sigue
+-- puesto y sin politicas como segunda barrera.
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.whatsapp_webhook_log TO service_role;
+
+-- COMPROBACION
+--   SELECT grantee, string_agg(privilege_type, ',' ORDER BY privilege_type)
+--     FROM information_schema.role_table_grants
+--    WHERE table_schema='public' AND table_name='whatsapp_webhook_log'
+--    GROUP BY grantee;
+--   -> service_role con DELETE,INSERT,SELECT,UPDATE; anon y authenticated sin
+--      acceso a datos.

@@ -40,10 +40,14 @@ Ninguna credencial se pide por el chat: todas viven en ficheros del disco.
 | **Telegram** | `curl` + `~/.telegram-token` y `~/.telegram-chat-id` | Solo de ida: puedo escribirle a Hermes, sus mensajes no me llegan |
 | **Firma del webhook** | `~/.cerebro-secret` | Para mandar mensajes de prueba al Cerebro |
 
-**Dos están pendientes de rotar** porque se escribieron en una conversación y
-**siguen vivas y en uso**: la **API key de n8n** y el **PAT de GitHub**. Es el
-único 🔴 que queda. Hay que rotarlas **a la vez** y reescribir los ficheros en el
-momento, porque rotar corta el acceso hasta regenerarlas. Ver `PENDIENTES.md`.
+**Todas rotadas.** La **API key de n8n** y el **PAT de GitHub** se rotaron el
+**10-ago** y las viejas quedaron revocadas: eran las dos últimas que se habían
+escrito en una conversación. Ya no queda ningún secreto expuesto.
+
+> **Si hay que volver a rotar:** genera la nueva primero, escribe el fichero, y
+> **revoca la vieja solo cuando esté verificado**. Rotar corta el acceso —el de
+> GitHub es por donde va el buzón de Hermes— y con la vieja aún viva un fallo se
+> arregla en un minuto; sin ella, hay que regenerar a ciegas.
 
 ---
 
@@ -150,6 +154,8 @@ n8n
   Vigilante promos de Etecsa .... vk6aEa4bOZtl5xSz   cada 12 h
   Vigilante ingesta de MMG ...... NiibUBRtOlOppmY4   cada 10 min
   Vigilante depositos sin cruzar  bTwsEJsmoAzsuOxm   cada 10 min
+  Vigilante chats atascados ..... 0nEQnuPE15UgRudW   cada 5 min
+  Vigilante mensajes perdidos ... HVNAIc8otXHejsw4   cada 10 min
 
 Credenciales de DeepSeek (OJO, son dos y parecidas):
   deepseekApi  2joB4BwDAiyuSMcC  "deekpseek comunidad"  <- LA QUE SE USA
@@ -457,6 +463,9 @@ lo único que lo mantiene utilizable.
 | `12-el-modelo-no-debe-pensar.md` | **Leer antes de tocar el modelo** |
 | `ROLLBACK-*.json` | Copias de los workflows antes de cada cambio |
 | `GUIA-HERMES-*.md` | Guías que se le pasaron a Hermes |
+| `GUIA-HERMES-webhook-tira-mensajes.md` | 🔴 **Mensajes de clientes que nunca llegan al CRM** |
+| `PLAN-vigilante-mensajes-perdidos.md` | Tercer vigilante — **especificado, espera la tabla de Hermes** |
+| `PEDIR-A-OSMANY-depositos-sin-dueno.md` | Ocho depósitos que hay que triangular con Osmany |
 
 Las tres migraciones numeradas están **aplicadas en producción** y copiadas al
 repo de WaCRM. Cada una lleva dentro cómo se probó y cómo se revierte.

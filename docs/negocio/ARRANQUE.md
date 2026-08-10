@@ -170,6 +170,10 @@ Pipeline de remesas ............. 78220927-0745-45a8-ba08-a1b33734dbf1
 Pipeline de SERVICIOS (vacío) ... 37f91872-6eb6-40d4-b8e6-1017053b9bf0
   Solicitado / Pagado / En proceso / Entregado / Incidencia
 
+Cuentas de deposito (OJO, son dos y NO son intercambiables):
+  Agente MMG ..... Osmany Pozo ...... 6762167   <- LA POR DEFECTO (26 de 27 depositos)
+  Pay Merchant ... Osmany Services ... 6990225   solo si el cliente dice 'app'
+
 Cuenta (account_id) ............. 465fb4ce-33b6-4473-ad2c-42818772f587
 Agente al que se asigna .......... 377b0c8c-c025-46ff-8088-7a929080831e
 Los 3 usuarios que reciben avisos:
@@ -424,6 +428,7 @@ lo único que lo mantiene utilizable.
 | `PEDIR-A-OSMANY-contabilidad.md` | Lo que falta preguntarle para cerrar la contabilidad |
 | `13-normalizador-de-formato.md` | Separa en párrafos lo que el agente manda de un tirón |
 | `14-lo-que-se-le-dice-al-cliente-sale-del-sql.md` | **Leer antes de tocar el `Decisor`.** El bot no confirma lo que el SQL no confirmó |
+| `15-la-via-de-deposito-por-defecto.md` | Las dos cuentas de depósito. Si el cliente no elige, es **Agente 6762167** |
 | `040`…`044` | Fase 2: operaciones, escritura dual, beneficiarios, log de tools |
 | `045_purga_de_logs.sql` | Purga semanal con `pg_cron` |
 | `046_pipeline_servicios.sql` | Pipeline `Servicios` y `service_type` |

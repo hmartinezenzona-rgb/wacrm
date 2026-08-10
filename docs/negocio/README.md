@@ -31,6 +31,7 @@ es el que manda**, porque sobrevive a la máquina y a las sesiones.
 | `19-que-se-le-pide-al-cliente.md` | **tocar el `Decisor`** o lo que el bot pide y promete |
 | `10-vision-doble-lectura.md` | tocar la lectura de comprobantes (cuatro giros) |
 | `13-normalizador-de-formato.md` | tocar el formato de las respuestas |
+| `20-el-normalizador-y-sus-dos-huecos.md` | **añadir un mensaje al notificador por etapa** o tocar `Normalizar formato` |
 
 ## Cómo funciona el negocio
 

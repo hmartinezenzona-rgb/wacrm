@@ -26,6 +26,7 @@ es el que manda**, porque sobrevive a la máquina y a las sesiones.
 | `14-lo-que-se-le-dice-al-cliente-sale-del-sql.md` | **tocar el `Decisor`** o lo que el bot confirma al cliente |
 | `15-la-via-de-deposito-por-defecto.md` | tocar las cuentas de depósito o la vía |
 | `16-fugas-de-razonamiento-y-bucles.md` | tocar `Normalizar formato` o `Control de abuso` |
+| `17-no-prometer-la-transferencia-sin-beneficiario.md` | tocar el **notificador por etapa** o lo que se promete al cliente |
 | `10-vision-doble-lectura.md` | tocar la lectura de comprobantes (cuatro giros) |
 | `13-normalizador-de-formato.md` | tocar el formato de las respuestas |
 

@@ -81,10 +81,15 @@ function makeBuilder(table: string) {
   const builder: Record<string, unknown> = {};
   builder.__table = table;
   builder.select = vi.fn(() => builder);
-  builder.eq = vi.fn((_col: string, val: unknown) => {
+  builder.eq = vi.fn((col: string, val: unknown) => {
     // Correlacionar updates con su filtro (p.ej. eq('id', logId)).
     const last = updates[table]?.[updates[table].length - 1];
     if (last) last.eqs.push(String(val));
+    // whatsapp_config responde SOLO al phone_number_id configurado —
+    // el test del "No config found" depende de que el eq filtre.
+    if (table === "whatsapp_config" && col === "phone_number_id") {
+      result.data = val === CONFIG_ROW.phone_number_id ? [CONFIG_ROW] : null;
+    }
     return builder;
   });
   builder.order = vi.fn(() => builder);
@@ -110,7 +115,13 @@ function makeBuilder(table: string) {
         ? payload.map((p) => ({ ...(p as object), id: `log-${++logSeq}` }))
         : { ...(payload as object), id: `log-${++logSeq}` };
     }
-    inserts[table] = [...(inserts[table] ?? []), row];
+    // Los inserts en lote se aplana[n]: cada fila entra por separado en
+    // `inserts[table]`, como si fueran inserts individuales.
+    if (Array.isArray(row)) {
+      inserts[table] = [...(inserts[table] ?? []), ...row];
+    } else {
+      inserts[table] = [...(inserts[table] ?? []), row];
+    }
     result.data = Array.isArray(row) ? row : [row];
     return builder;
   });
@@ -119,6 +130,7 @@ function makeBuilder(table: string) {
     result.data = Array.isArray(payload) ? payload : [payload];
     return builder;
   });
+  builder.in = vi.fn(() => builder);
   builder.update = vi.fn((payload: unknown) => {
     updates[table] = [...(updates[table] ?? []), { payload, eqs: [] }];
     return builder;
@@ -285,5 +297,39 @@ describe("webhook route — mensajes sin perfil de remitente", () => {
         u.eqs.includes(String(badRow.id)),
     );
     expect(badMarked).toBeUndefined();
+  });
+
+  it("4. sin config para el phone_number_id: una fila por mensaje, con error y sin procesado", async () => {
+    const res = await post(
+      // phone_number_id inexistente en whatsapp_config → el flujo sale
+      // por "No config found" antes del bucle.
+      webhookBody(
+        [textMessage("5926731279", "wamid.NOCONFIG")],
+        [],
+      ).replace("1244814475383839", "1269746806212237"),
+    );
+
+    expect(res.status).toBe(200);
+    // Nada se guardó (no hay config → no hay contacto ni mensaje).
+    expect(insertPayloads("contacts")).toHaveLength(0);
+    expect(insertPayloads("messages")).toHaveLength(0);
+    // Pero el rastro SÍ quedó: una fila por mensaje, con el motivo…
+    const logInserts = insertPayloads("whatsapp_webhook_log");
+    expect(logInserts).toHaveLength(1);
+    expect(logInserts[0]).toMatchObject({
+      wamid: "wamid.NOCONFIG",
+      phone_number_id: "1269746806212237",
+    });
+    const logUpdates = updates["whatsapp_webhook_log"] ?? [];
+    const errUpdate = logUpdates.find((u) =>
+      String((u.payload as { error?: string }).error).includes("sin config"),
+    );
+    expect(errUpdate).toBeTruthy();
+    // …y NUNCA procesado: un mensaje perdido tiene que sonar.
+    expect(
+      logUpdates.some(
+        (u) => (u.payload as { procesado?: boolean }).procesado === true,
+      ),
+    ).toBe(false);
   });
 });

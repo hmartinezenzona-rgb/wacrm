@@ -281,6 +281,46 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
 
       const phoneNumberId = value.metadata.phone_number_id
 
+      // whatsapp_webhook_log — rastro ANTES de cualquier resolución.
+      // Cubre también los descartes por config (configError / sin
+      // config / múltiples configs), que antes se perdían sin fila.
+      // Nada de esto necesita la config: phone_number_id sale de
+      // metadata, el resto del propio mensaje. Una sola escritura por
+      // lote. wamid no es único globalmente, pero sí dentro del lote,
+      // así que el Map es seguro.
+      const logIds = new Map<string, string>()
+      try {
+        const { data: logRows } = await supabaseAdmin()
+          .from('whatsapp_webhook_log')
+          .insert(
+            value.messages.map((m) => ({
+              phone_number_id: phoneNumberId,
+              wamid: m.id,
+              remitente: m.from,
+              tipo: m.type,
+              payload: m,
+            }))
+          )
+          .select('id, wamid')
+        for (const r of logRows ?? []) logIds.set(r.wamid, r.id)
+      } catch (e) {
+        console.warn(
+          '[webhook] no se pudo registrar en whatsapp_webhook_log:',
+          e instanceof Error ? e.message : String(e)
+        )
+      }
+
+      // Marca las filas del lote con el motivo del descarte. Un mensaje
+      // descartado por config ES un mensaje perdido: error puesto, y
+      // NUNCA procesado — tiene que sonar en el vigilante.
+      const marcarErrorLote = async (motivo: string) => {
+        if (logIds.size === 0) return
+        await supabaseAdmin()
+          .from('whatsapp_webhook_log')
+          .update({ error: motivo })
+          .in('id', [...logIds.values()])
+      }
+
       // Find user's config by phone_number_id. `.single()` returns
       // PGRST116 for both 0 rows AND ≥2 rows — distinguish them so
       // operators see the real cause in logs. ≥2 rows shouldn't happen
@@ -297,11 +337,17 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
           phoneNumberId,
           configError
         )
+        await marcarErrorLote(
+          'error al buscar config para phone_number_id ' + phoneNumberId
+        )
         continue
       }
 
       if (!configRows || configRows.length === 0) {
         console.error('No config found for phone_number_id:', phoneNumberId)
+        await marcarErrorLote(
+          'sin config para phone_number_id ' + phoneNumberId
+        )
         continue
       }
 
@@ -312,6 +358,9 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
           '— inbound message dropped. Resolve duplicates so each number maps to a single account.',
           'Account owners:',
           configRows.map((r: { account_id: string; user_id: string }) => `${r.account_id} (admin ${r.user_id})`)
+        )
+        await marcarErrorLote(
+          'multiples configs para phone_number_id ' + phoneNumberId
         )
         continue
       }
@@ -324,38 +373,10 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
         const message = value.messages[i]
         const contact = value.contacts?.[i] ?? value.contacts?.[0]
 
-        // whatsapp_webhook_log — rastro ANTES de procesar (contrato de
-        // la tabla: si se escribiera al final, un fallo a mitad no
-        // dejaría fila y la pérdida volvería a ser invisible). Si este
-        // INSERT falla, el mensaje se procesa igual: solo se pierde la
-        // traza, nunca el mensaje.
-        let logId: string | null = null
-        try {
-          const { data: logRow, error: logErr } = await supabaseAdmin()
-            .from('whatsapp_webhook_log')
-            .insert({
-              phone_number_id: phoneNumberId,
-              wamid: message.id,
-              remitente: message.from,
-              tipo: message.type,
-              payload: message,
-            })
-            .select('id')
-            .single()
-          if (logErr) {
-            console.warn(
-              '[webhook] no se pudo registrar en whatsapp_webhook_log:',
-              logErr.message
-            )
-          } else {
-            logId = logRow?.id ?? null
-          }
-        } catch (logErr) {
-          console.warn(
-            '[webhook] no se pudo registrar en whatsapp_webhook_log:',
-            logErr instanceof Error ? logErr.message : String(logErr)
-          )
-        }
+        // La fila del log ya se escribió ANTES (en lote, con las del
+        // resto del webhook). Aquí solo se recupera su id; si el lote
+        // falló, logId queda null y el mensaje se procesa igual.
+        const logId = logIds.get(message.id) ?? null
 
         // Un mensaje malo no puede tumbar al lote: se aísla y se
         // descarta con rastro (wamid/from/type) para que el resto se

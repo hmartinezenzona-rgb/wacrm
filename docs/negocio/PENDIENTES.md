@@ -204,6 +204,46 @@ Detalle, pruebas y reversión en
 
 ---
 
+## 🔴 No hay vigilante de la ingesta de depósitos
+
+El **10-ago la ingesta de correos de MMG estuvo 4 horas parada** —credencial de
+Gmail caducada— y **ninguna alarma saltó**. El Gmail Trigger no genera
+ejecuciones cuando falla el sondeo: el workflow sigue activo y sin errores,
+simplemente deja de encontrar correos. Desde fuera es idéntico a «hoy no ha
+depositado nadie».
+
+Nueve depósitos seguidos sin verificar y tres clientes con **194.200 GYD**
+esperando. Se descubrió mirando otra cosa.
+
+**Lo que falta:** un cron que avise en el CRM si no entra ningún depósito en N
+horas de horario de negocio.
+
+```sql
+SELECT round(EXTRACT(epoch FROM (now()-max(recibido_en)))/60) AS hace_minutos
+  FROM depositos_mmg;
+```
+
+Detalle completo en `18-dos-caidas-silenciosas.md`.
+
+---
+
+## ✅ No preguntar la vía si el cliente ya depositó (10-ago)
+
+El bot preguntaba *"¿desde dónde va a depositar, app o agente?"* a clientes que
+**ya habían depositado**. A uno se lo preguntó **tres veces** teniendo el
+depósito verificado desde hacía una hora; contestó *"esos mensajes me
+confunden"*. Medido: **14 mensajes así a 8 clientes distintos en 5 días**.
+
+`Contexto conversacion` devuelve ahora `via_deposito_ya_usada`, atada al **envío
+en curso** (un cliente puede abrir una segunda remesa y ahí la pregunta vuelve a
+ser legítima). Si hay depósito, el `Decisor` prohíbe la pregunta y además le dice
+al agente **por qué vía entró**, para que pueda responder si el cliente pregunta.
+
+> **Este cambio tumbó el Cerebro 27 minutos al primer intento.** Ver
+> `18-dos-caidas-silenciosas.md`: se validó una consulta y se desplegó otra.
+
+---
+
 ## 🟠 Migración 058 — borrar un deal deja la operación huérfana
 
 `cerebro_conciliacion_operaciones` **debía dar 0 filas siempre** y el 10-ago

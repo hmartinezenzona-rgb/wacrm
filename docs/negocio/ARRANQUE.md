@@ -429,6 +429,7 @@ lo único que lo mantiene utilizable.
 | `13-normalizador-de-formato.md` | Separa en párrafos lo que el agente manda de un tirón |
 | `14-lo-que-se-le-dice-al-cliente-sale-del-sql.md` | **Leer antes de tocar el `Decisor`.** El bot no confirma lo que el SQL no confirmó |
 | `15-la-via-de-deposito-por-defecto.md` | Las dos cuentas de depósito. Si el cliente no elige, es **Agente 6762167** |
+| `16-fugas-de-razonamiento-y-bucles.md` | El filtro que impide que el razonamiento del modelo llegue al cliente, y el cortacircuitos de bucles |
 | `040`…`044` | Fase 2: operaciones, escritura dual, beneficiarios, log de tools |
 | `045_purga_de_logs.sql` | Purga semanal con `pg_cron` |
 | `046_pipeline_servicios.sql` | Pipeline `Servicios` y `service_type` |

@@ -32,6 +32,7 @@ es el que manda**, porque sobrevive a la máquina y a las sesiones.
 | `10-vision-doble-lectura.md` | tocar la lectura de comprobantes (cuatro giros) |
 | `13-normalizador-de-formato.md` | tocar el formato de las respuestas |
 | `20-el-normalizador-y-sus-dos-huecos.md` | **añadir un mensaje al notificador por etapa** o tocar `Normalizar formato` |
+| `21-vigilante-de-la-ingesta.md` | tocar la ingesta de correos o añadir un vigilante |
 
 ## Cómo funciona el negocio
 
@@ -70,7 +71,8 @@ probaron y cómo se revierten**, y están marcadas «ya aplicada, no la ejecutes
 | `055` | RPC del dashboard (`/resumen` del CRM) |
 | `056` | La asignación manual de un chat caduca sola a los 10 min |
 | `057` | Vigilante de chats asignados sin respuesta |
-| `058` | **PENDIENTE** — borrar un deal debe cancelar su operación |
+| `058` | Tipo de aviso `ingesta_caida` para el vigilante de la ingesta |
+| `059` | **PENDIENTE** — borrar un deal debe cancelar su operación |
 
 ## Las copias de seguridad
 

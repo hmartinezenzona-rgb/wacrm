@@ -230,6 +230,11 @@ responde en el buzón o vía Humberto.
 subirlo con `PUT`. **Siempre guardar una copia antes** — hay varios
 `ROLLBACK-v2-antes-*.json` de ejemplo.
 
+> **El MCP de GitHub NO puede escribir** (`403 Resource not accessible by
+> integration`). Para subir un fichero al repo hay que ir por la API con el PAT
+> de `~/.github-token`, que es lo que hace `PUT /repos/.../contents/<ruta>`
+> mandando el contenido en base64 y, si el fichero ya existe, su `sha`.
+
 **Las migraciones de base de datos** se aplican con el MCP de Supabase y
 **además** se guardan como fichero: las mías numeradas van al repo de WaCRM en
 `supabase/migrations/` (037, 038, 039…), para que el repo refleje la realidad.
@@ -418,6 +423,7 @@ lo único que lo mantiene utilizable.
 | `RESPUESTAS-OSMANY-servicios.md` | **Cómo funciona el negocio, en sus palabras.** Precios, costes y reglas |
 | `PEDIR-A-OSMANY-contabilidad.md` | Lo que falta preguntarle para cerrar la contabilidad |
 | `13-normalizador-de-formato.md` | Separa en párrafos lo que el agente manda de un tirón |
+| `14-lo-que-se-le-dice-al-cliente-sale-del-sql.md` | **Leer antes de tocar el `Decisor`.** El bot no confirma lo que el SQL no confirmó |
 | `040`…`044` | Fase 2: operaciones, escritura dual, beneficiarios, log de tools |
 | `045_purga_de_logs.sql` | Purga semanal con `pg_cron` |
 | `046_pipeline_servicios.sql` | Pipeline `Servicios` y `service_type` |
@@ -433,7 +439,7 @@ lo único que lo mantiene utilizable.
 | `038_notificacion_deal_incidencia.sql` | Aviso en el CRM al caer en Incidencia |
 | `039_vigilante_mensajes_fallidos.sql` | Cron de mensajes que WhatsApp rechaza |
 | `05-vigilancia-diaria.sql` | Consultas de salud |
-| `10-vision-doble-lectura.md` | Fotos giradas: dos lecturas y un árbitro |
+| `10-vision-doble-lectura.md` | Fotos giradas: **cuatro** lecturas y un árbitro |
 | `11-lenguaje-deliberativo-rompe-deepseek.md` | **Leer antes de tocar el prompt** |
 | `12-el-modelo-no-debe-pensar.md` | **Leer antes de tocar el modelo** |
 | `ROLLBACK-*.json` | Copias de los workflows antes de cada cambio |

@@ -72,7 +72,8 @@ probaron y cómo se revierten**, y están marcadas «ya aplicada, no la ejecutes
 | `056` | La asignación manual de un chat caduca sola a los 10 min |
 | `057` | Vigilante de chats asignados sin respuesta |
 | `058` | Tipo de aviso `ingesta_caida` para el vigilante de la ingesta |
-| `059` | **PENDIENTE** — borrar un deal debe cancelar su operación |
+| `059` | Aviso `deposito_sin_cruzar` y sus umbrales |
+| `060` | **PENDIENTE** — borrar un deal debe cancelar su operación |
 
 ## Las copias de seguridad
 

@@ -1,8 +1,14 @@
 # Plan — Tercer vigilante: mensajes de clientes que se pierden
 
-**Estado: especificado, sin montar.** Depende de que Hermes cree la tabla
-`whatsapp_webhook_log` (ver `GUIA-HERMES-webhook-tira-mensajes.md`, sección 4).
-En cuanto exista, esto se despliega en una tarde.
+> **Estado al cierre del 10-ago: MONTADO Y ACTIVO, a la espera de que WaCRM
+> escriba en la tabla.** La migración `061` creó `whatsapp_webhook_log` y la
+> función `cerebro_avisar_mensajes_perdidos()`, y el workflow
+> **`HVNAIc8otXHejsw4`** corre cada 10 minutos. Falta **solo** que Hermes añada
+> las dos escrituras en `route.ts` (buzón `2026-08-10-1810-claude-tabla-lista.md`).
+> Mientras tanto la tabla está vacía: **no molesta, pero tampoco protege**.
+>
+> El reparto cambió sobre lo escrito abajo: la tabla la hice yo, porque la base
+> de datos es mi lado. A Hermes le queda el código, y nada más.
 
 Escrito el **10 de agosto de 2026**, después del incidente del cliente
 `592 6731279`: escribió cinco veces con doble tick y **ninguno de sus mensajes

@@ -16,7 +16,13 @@ uno nuevo.
     coordinacion/2026-08-07-1430-hermes-consulta-standalone.md
     coordinacion/2026-08-07-1512-claude-respuesta-standalone.md
 
-**Nombre:** `AAAA-MM-DD-HHMM-quien-asunto-corto.md`
+**Nombre:** `AAAA-MM-DD-HHMM-quien-asunto-corto.md`, **con la hora en UTC**.
+
+> **La zona horaria no es un detalle: el buzón se lee por orden de nombre.**
+> El 10-ago dos notas se nombraron en hora de Guyana (UTC−4) y quedaron
+> ordenadas *antes* de la última de Hermes, así que para él el buzón «terminaba»
+> en su propio mensaje y las dio por inexistentes. Estuvieron horas sin leer.
+> En Linux: `date -u '+%Y-%m-%d-%H%M'`.
 
 La fecha delante evita colisiones si los dos escribimos a la vez, y ordena
 la conversación sola al listar el directorio.

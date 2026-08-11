@@ -1,0 +1,16 @@
+-- ============================================================
+-- 070 — El aviso 'bot_no_recibio' (069) tambien se apaga si respondio el BOT
+-- ============================================================
+-- YA APLICADA EN PRODUCCION el 11-ago-2026 (15:35 UTC). NO LA EJECUTES.
+--
+-- La 069 suprimia el aviso solo si un HUMANO contestaba despues del mensaje
+-- perdido. Caso real que lo destapo: los 2 mensajes de Osmany
+-- (5218445335572) perdidos en el incidente del HMAC se avisarian cada 2 h
+-- hasta caducar la ventana de 24 h, aunque el reenvio ya tuviera el
+-- veredicto del bot como respuesta. Ahora cualquier mensaje 'agent'
+-- posterior (humano O bot) cuenta como atencion: si el bot respondio, el
+-- canal esta vivo y el caso esta en curso.
+--
+-- Unica diferencia con la 069: en el supresor del segundo bucle desaparece
+-- la condicion `COALESCE(h.ai_generated,false) = false`. El resto de la
+-- funcion es identico (la fuente de verdad es pg_get_functiondef).

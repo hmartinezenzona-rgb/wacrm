@@ -1,0 +1,62 @@
+[
+  {
+    "nombre": "razonamiento + SKIP: tiene que quedar solo SKIP para que el IF lo calle",
+    "entrada": "El cliente está repitiendo los datos que ya confirmé. No hay nada nuevo que responder.\n\nSKIP",
+    "esperado": "SKIP"
+  },
+  {
+    "nombre": "SKIP a secas: no se toca",
+    "entrada": "SKIP",
+    "esperado": "SKIP"
+  },
+  {
+    "nombre": "razonamiento + respuesta: se queda solo la respuesta",
+    "entrada": "El cliente dijo \"Clasica tropical\" pero no eligió entre las dos. Le pregunto.\n\nPerfecto. ¿En cuál de las dos: Clásica o Tropical?",
+    "esperado": "Perfecto. ¿En cuál de las dos: Clásica o Tropical?"
+  },
+  {
+    "nombre": "razonamiento SIN respuesta detrás: NO se toca (mejor raro que mudo)",
+    "entrada": "El cliente pide la cuenta de depósito, pero aún no me ha dicho desde dónde va a depositar.",
+    "esperado": "El cliente pide la cuenta de depósito, pero aún no me ha dicho desde dónde va a depositar."
+  },
+  {
+    "nombre": "cifra + pregunta final: la pregunta va aparte aunque el mensaje sea corto",
+    "entrada": "Por *30,000 GYD* llegan *90,000 CUP* a Cuba. ¿Desde dónde va a depositar, desde la app o con un agente?",
+    "esperado": "Por *30,000 GYD* llegan *90,000 CUP* a Cuba.\n\n¿Desde dónde va a depositar, desde la app o con un agente?"
+  },
+  {
+    "nombre": "pregunta con muy poco delante: se deja pegada, partirla queda peor",
+    "entrada": "Perfecto. ¿Clásica o Tropical?",
+    "esperado": "Perfecto. ¿Clásica o Tropical?"
+  },
+  {
+    "nombre": "mensaje corto sin pregunta: intacto",
+    "entrada": "Sí, dale.",
+    "esperado": "Sí, dale."
+  },
+  {
+    "nombre": "salto simple entre idea y pregunta: se convierte en párrafo",
+    "entrada": "Su depósito de *30,000 GYD* ha sido verificado.\n¿Me pasa la tarjeta y el celular de quien recibe en Cuba?",
+    "esperado": "Su depósito de *30,000 GYD* ha sido verificado.\n\n¿Me pasa la tarjeta y el celular de quien recibe en Cuba?"
+  },
+  {
+    "nombre": "ya trae párrafos de verdad: no se toca",
+    "entrada": "Recibimos su depósito.\n\nApenas lo verifiquemos le hacemos la transferencia.",
+    "esperado": "Recibimos su depósito.\n\nApenas lo verifiquemos le hacemos la transferencia."
+  },
+  {
+    "nombre": "bloque de datos con saltos simples a propósito: NO se toca",
+    "entrada": "Deposite con el agente a:\n*Titular:* Osmany Pozo\n*Cuenta MMG:* 6762167\n\n¿Me confirma cuando lo haga?",
+    "esperado": "Deposite con el agente a:\n*Titular:* Osmany Pozo\n*Cuenta MMG:* 6762167\n\n¿Me confirma cuando lo haga?"
+  },
+  {
+    "nombre": "una cifra decimal NUNCA puede partirse",
+    "entrada": "La tasa de hoy es 2.8 CUP por cada GYD que usted deposita con nosotros hoy mismo. Para 10,000 GYD serían 28,000 CUP en total. ¿Le sirve?",
+    "prohibido_partir": ["2.8", "10,000", "28,000"]
+  },
+  {
+    "nombre": "vacío: no revienta",
+    "entrada": "",
+    "esperado": ""
+  }
+]

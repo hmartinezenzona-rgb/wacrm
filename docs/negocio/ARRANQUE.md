@@ -28,6 +28,31 @@ y **Supabase** como base de datos.
 
 ---
 
+## Estado al cierre del 10 de agosto de 2026
+
+**No queda nada en rojo.** Lo que se cerró ese día:
+
+| | |
+|---|---|
+| **Cadena del webhook de WhatsApp** | un `TypeError` tiraba lotes enteros de mensajes de clientes **sin dejar rastro**. Arreglado, con tabla de rastro (`whatsapp_webhook_log`) y vigilante propio |
+| **Migración 060** | borrar un deal ya no deja la operación huérfana; 8 divergencias cerradas |
+| **Migración 062** | el vigilante de chats atascados dejó de avisar por despedidas; 42 avisos falsos borrados |
+| **Claves** | API key de n8n y PAT de GitHub **rotadas**, las viejas revocadas |
+| **Plantillas de Meta** | sincronizan: un **punto al final del `waba_id`** las tuvo rotas desde el 5-ago |
+| **Banco de pruebas** | `pruebas/banco.py` — los nodos Code del Cerebro ya no se despliegan a mano |
+
+**Los cuatro vigilantes están activos**, pero **el rastro de webhooks y la `062`
+no han visto una jornada completa de clientes**: se desplegaron con el negocio
+cerrado. Es lo primero que hay que mirar al abrir.
+
+> **El hilo que recorre todo el día:** cosas que se perdían en silencio y de las
+> que nadie se enteraba — el mensaje de un cliente, un depósito sin dueño, el
+> punto del `waba_id`, y hasta una nota mía en el buzón de Hermes mal fechada.
+> En todos los casos el arreglo de fondo fue el mismo: **que la pérdida deje
+> rastro, o que no pueda ocurrir**.
+
+---
+
 ## Accesos — dónde está cada cosa
 
 Ninguna credencial se pide por el chat: todas viven en ficheros del disco.
@@ -213,8 +238,13 @@ Yo llevo el Cerebro (n8n) y la base de datos. Ninguno toca lo del otro.
 **El buzón** — `coordinacion/` en el repo. Un fichero por mensaje:
 
 ```
-coordinacion/AAAA-MM-DD-HHMM-quien-asunto.md
+coordinacion/AAAA-MM-DD-HHMM-quien-asunto.md      # HHMM en UTC: date -u
 ```
+
+> **La hora va en UTC, y no es un detalle.** El buzón se lee por orden de
+> nombre. El 10-ago dos notas se nombraron en hora de Guyana (UTC−4) y quedaron
+> ordenadas *antes* de la última de Hermes: para él el buzón «terminaba» en su
+> propio mensaje y las dio por inexistentes. Estuvieron horas sin leer.
 
 Con cabecera `De:`, `Para:`, `Asunto:`, `Responde-a:`, `Estado:`. Nadie edita el
 fichero de otro: se contesta creando uno nuevo. La convención está en

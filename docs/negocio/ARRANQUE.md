@@ -453,7 +453,7 @@ lo único que lo mantiene utilizable.
 | `17-no-prometer-la-transferencia-sin-beneficiario.md` | **Leer antes de tocar el notificador por etapa.** Y cómo se leen las conversaciones: con su fecha delante |
 | `18-dos-caidas-silenciosas.md` | **Leer antes de tocar una consulta de un workflow.** La ingesta caída 4 h y el Cerebro roto 27 min |
 | `19-que-se-le-pide-al-cliente.md` | **Leer antes de tocar el `Decisor`.** Qué se le pide y qué NO se le promete, y cómo se prueban las ramas de verdad |
-| `20-el-normalizador-y-sus-dos-huecos.md` | El formato de las respuestas. **El notificador por etapa NO pasa por el normalizador** |
+| `20-el-normalizador-y-sus-tres-huecos.md` | El formato de las respuestas. **El notificador por etapa NO pasa por el normalizador** |
 | `21-vigilante-de-la-ingesta.md` | Por qué vigila la credencial y no el volumen de depósitos |
 | `040`…`044` | Fase 2: operaciones, escritura dual, beneficiarios, log de tools |
 | `045_purga_de_logs.sql` | Purga semanal con `pg_cron` |

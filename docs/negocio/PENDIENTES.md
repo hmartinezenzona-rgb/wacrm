@@ -245,7 +245,7 @@ distintas**:
 
 **Verificado sobre los 349 mensajes del histórico:** 26 mejoran, **0 empeoran**,
 ninguna cifra partida y ningún bloque de datos roto. Detalle en
-`20-el-normalizador-y-sus-dos-huecos.md`.
+`20-el-normalizador-y-sus-tres-huecos.md`.
 
 > **Al añadir un mensaje al notificador por etapa hay que formatearlo a mano.**
 > No hay red que lo recoja.

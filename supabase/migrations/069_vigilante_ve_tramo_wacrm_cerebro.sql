@@ -1,0 +1,29 @@
+-- ============================================================
+-- 069 — El vigilante de mensajes perdidos ve el tramo WaCRM -> Cerebro
+-- ============================================================
+-- YA APLICADA EN PRODUCCION el 11-ago-2026 (13:27 UTC) via MCP
+-- apply_migration. NO LA EJECUTES: este fichero es el registro.
+--
+-- Nace del incidente del 11-ago (ver PENDIENTES.md): tras la rotacion
+-- del HMAC, WaCRM firmo con la clave vieja durante 11 horas (la nueva
+-- se habia escrito en /home/ubuntu/wacrm y el proceso corre desde
+-- /home/ubuntu/wacrm-deploy). El Cerebro rechazo todo, 15 mensajes de
+-- clientes se quedaron sin bot, y NINGUN vigilante grito: el de
+-- mensajes perdidos (061) solo miraba whatsapp_webhook_log.procesado=false
+-- (perdidas WhatsApp->WaCRM) y aqui WaCRM proceso perfecto.
+--
+-- Deteccion nueva (segundo bucle en cerebro_avisar_mensajes_perdidos):
+-- mensaje de cliente en `messages` (m.message_id = wamid) SIN su
+-- session_event (se.whatsapp_message_id) pasados N minutos -> aviso
+-- type='mensaje_perdido' con clave 'bot_no_recibio:<telefono>' y
+-- throttle propio. Se suprime si una persona ya contesto despues del
+-- mensaje (el chat ya esta atendido). Ventana: 24 h. Mismos horarios
+-- de aviso que el resto (L-S 9-17 Guyana; la retencion corre siempre).
+--
+-- Primera pasada real (13:28 UTC): 4 clientes detectados (los del
+-- incidente sin atender), 12 avisos (4 x 3 miembros del equipo).
+--
+-- La definicion completa aplicada esta en la migracion registrada en
+-- Supabase (list_migrations / pg_get_functiondef de
+-- cerebro_avisar_mensajes_perdidos); es la de la 061 mas el segundo
+-- bucle descrito, sin ningun otro cambio.

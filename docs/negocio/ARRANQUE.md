@@ -238,8 +238,20 @@ responde en el buzón o vía Humberto.
 
 ## Cómo se despliega
 
-**El Cerebro (n8n):** bajar el workflow con `curl`, parchearlo con Python,
-subirlo con `PUT`. **Siempre guardar una copia antes** — hay varios
+**El Cerebro (n8n):** para los **nodos Code** ya NO se despliega a mano —
+se pasa por el banco, que baja el nodo de producción, lo compara con el
+candidato sobre los 371 mensajes reales y solo entonces sube:
+
+```bash
+cd ~/cerebro-fase1/pruebas
+python3 banco.py --nodo "Normalizar formato" \
+                 --candidato candidato-normalizar-formato.js \
+                 --casos casos-normalizar-formato.json [--desplegar]
+```
+
+Ver `23-el-banco-de-pruebas.md`. Para lo demás (conexiones, prompt, nodos que
+no son Code): bajar el workflow con `curl`, parchearlo con Python, subirlo con
+`PUT`, **guardando siempre una copia antes** — hay varios
 `ROLLBACK-v2-antes-*.json` de ejemplo.
 
 > **El MCP de GitHub NO puede escribir** (`403 Resource not accessible by
@@ -461,6 +473,9 @@ lo único que lo mantiene utilizable.
 | `10-vision-doble-lectura.md` | Fotos giradas: **cuatro** lecturas y un árbitro |
 | `11-lenguaje-deliberativo-rompe-deepseek.md` | **Leer antes de tocar el prompt** |
 | `12-el-modelo-no-debe-pensar.md` | **Leer antes de tocar el modelo** |
+| `20-el-normalizador-y-sus-tres-huecos.md` | Por qué las respuestas se leen como se leen |
+| `22-el-skip-y-el-orden-de-la-tuberia.md` | **El orden de los nodos decide, no solo el código** |
+| `23-el-banco-de-pruebas.md` | 🧪 **`pruebas/banco.py` — nada se despliega a mano** |
 | `ROLLBACK-*.json` | Copias de los workflows antes de cada cambio |
 | `GUIA-HERMES-*.md` | Guías que se le pasaron a Hermes |
 | `GUIA-HERMES-webhook-tira-mensajes.md` | 🔴 **Mensajes de clientes que nunca llegan al CRM** |

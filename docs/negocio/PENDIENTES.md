@@ -1,7 +1,22 @@
 # Pendientes — Remesas Ya
 
-Estado al **10 de agosto de 2026**, cierre de la jornada. Ordenado por lo que más
-duele si no se toca.
+Estado al **10 de agosto de 2026, 20:45 de Guyana** — cierre de la jornada.
+Ordenado por lo que más duele si no se toca.
+
+> **Lo primero al abrir mañana, antes de tocar nada:** cuatro cosas se
+> desplegaron con el negocio ya cerrado y **no han visto tráfico real de
+> clientes**. Hay que mirarlas con la jornada en marcha:
+>
+> | Qué | Cómo se comprueba |
+> |---|---|
+> | **Rastro de webhooks** | `SELECT count(*), count(*) FILTER (WHERE NOT procesado) FROM whatsapp_webhook_log;` — debe llenarse y quedar casi todo `procesado` |
+> | **Migración 062** | que no vuelvan avisos `chat_atascado` por despedidas |
+> | **Normalizador (hueco 3)** | que las respuestas cortas con pregunta salgan en dos párrafos |
+> | **Orden de la tubería** | que no salga ningún `SKIP` ni razonamiento al cliente |
+>
+> La lección del día, repetida tres veces: **hasta que algo no produce un efecto
+> real, no está probado.** Dos vigilantes y una tabla pasaron todas las pruebas
+> y estaban rotos (`notifications_type_check`, `permission denied`).
 
 > ## Lo que queda abierto, en una pantalla
 >
@@ -15,6 +30,9 @@ duele si no se toca.
 > | 🟠 | El agente no re-consulta un servicio en conversación viva | sin decidir |
 > | 🟡 | **2F** — cortar `deals.notes` como fuente de verdad | sin prisa |
 > | 🟡 | **Contabilidad y ganancias** — volumen ya hecho, falta el coste | **la hoja de Osmany** (`PEDIR-A-OSMANY-contabilidad.md`) |
+> | 🟠 | **Sanear el `waba_id` al guardarlo** | **Hermes** — buzón `2026-08-11-0046` |
+> | 🟠 | **Ocho depósitos sin dueño** — los del sábado (4.000 y 77.000 GYD) pueden tener a un cliente esperando | **Osmany** (`PEDIR-A-OSMANY-depositos-sin-dueno.md`) |
+> | 🟡 | **Redacción** de las respuestas — el formato ya está, lo que *dice* no | toca prompt, sin banco posible |
 > | 🟡 | Limpiar el Kanban y pantalla de historial | Hermes |
 > | 🟡 | Combos, recargas automáticas y México completos | **37 preguntas a Osmany** |
 > | 🔵 | Deuda de datos (10-16) y detalles menores | nada urgente |
@@ -22,9 +40,8 @@ duele si no se toca.
 > **Con fecha:** el **13-ago** empieza la promoción de Etecsa y el bot cotizará
 > recargas solo por primera vez.
 >
-> **Nada de lo desplegado el 9-ago ha visto tráfico real de clientes** — era
-> domingo. El lunes es la primera prueba de verdad; consultas de vigilancia al
-> final de este documento.
+> **El 2E está desbloqueado:** las plantillas `remesa_completada` y
+> `alerta_operativa` están APROBADAS y sincronizadas en el CRM desde el 10-ago.
 
 **Cómo leerlo:** las secciones con 🔴 🟠 🟡 🔵 son lo que falta. Las que empiezan
 con ✅ son cosas ya resueltas que se dejan escritas porque explican por qué el

@@ -1181,8 +1181,16 @@ async function findOrCreateContact(
   )
 
   if (existingContact) {
-    // Update name if it changed
-    if (name && name !== existingContact.name) {
+    // El nombre del perfil de WhatsApp SOLO rellena lo que nadie ha tocado.
+    // Si una persona lo edito en el CRM (name_source='manual'), no se pisa:
+    // hasta el 13-ago-2026 Osmany renombraba un contacto y el siguiente
+    // mensaje de ese cliente lo devolvia a su nombre de WhatsApp. 29 de 84
+    // contactos habian sido reescritos asi. Migracion 080.
+    if (
+      name &&
+      name !== existingContact.name &&
+      existingContact.name_source !== 'manual'
+    ) {
       await supabaseAdmin()
         .from('contacts')
         .update({ name, updated_at: new Date().toISOString() })

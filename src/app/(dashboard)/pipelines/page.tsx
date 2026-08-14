@@ -99,7 +99,8 @@ export default function PipelinesPage() {
 
   const loadDeals = useCallback(
     async (pipelineId: string) => {
-      // Filtro de vista: mostrar lo abierto + lo entregado (won) DE HOY. La columna "Entregada" acumulaba TODO el histórico
+      // Filtro de vista: mostrar lo abierto + lo entregado (won) DE HOY.
+      // La columna "Entregada" acumulaba TODO el histórico
       // (~150 tarjetas/mes); con 7 días seguía juntando ~50 tarjetas y
       // Osmany pedía verla al día. Los datos NO se mueven ni se borran:
       // el histórico completo vive en la pantalla de resumen, que se

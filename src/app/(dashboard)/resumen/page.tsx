@@ -36,6 +36,8 @@ interface HistorialFila {
   /** Ya viene enmascarada (9205****9412) a propósito. */
   tarjeta: string;
   operation_id: string;
+  /** Filas que hay en TODO el filtro, no en esta página (088). */
+  total: number;
 }
 
 // El RPC devuelve los periodos en orden fijo (1..5): hoy, ayer, esta
@@ -70,6 +72,22 @@ const SERVICIO_LABEL: Record<string, string> = {
   mexico: "México",
 };
 
+// El historial se pide por páginas: crece ~16 filas al día y antes se
+// pedían 200 de un tiro, así que a finales de agosto la tabla habría
+// empezado a cortar en silencio (la 088 lo cuenta entero).
+const TAMANOS_PAGINA = [25, 50, 100] as const;
+
+// En castellano y aquí dentro, como SERVICIO_LABEL y el "Retry" de más
+// abajo: son cuatro etiquetas y no compensa mover messages/en.json
+// entero por ellas.
+const PAG_TXT = {
+  porPagina: "Por página",
+  anterior: "Anterior",
+  siguiente: "Siguiente",
+  mostrando: (desde: number, hasta: number, total: number) =>
+    `Mostrando ${desde}–${hasta} de ${total}`,
+};
+
 function fmtGyd(n: number | null | undefined): string {
   return `${(n ?? 0).toLocaleString("en-US")} GYD`;
 }
@@ -82,6 +100,10 @@ export default function ResumenPage() {
   const [servicio, setServicio] = useState("");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
+  const [pagina, setPagina] = useState(0);
+  const [porPagina, setPorPagina] = useState<number>(TAMANOS_PAGINA[0]);
+  const [total, setTotal] = useState(0);
+  const [cargando, setCargando] = useState(false);
 
   const loadResumen = useCallback(async () => {
     try {
@@ -98,7 +120,8 @@ export default function ResumenPage() {
   }, []);
 
   const loadHistorial = useCallback(
-    async (svc: string, dsd: string, hst: string) => {
+    async (svc: string, dsd: string, hst: string, pag: number, tam: number) => {
+      setCargando(true);
       try {
         const supabase = createClient();
         const { data, error: rpcErr } = await supabase.rpc(
@@ -107,14 +130,20 @@ export default function ResumenPage() {
             p_desde: dsd || null,
             p_hasta: hst || null,
             p_servicio: svc || null,
-            p_limite: 200,
+            p_limite: tam,
+            p_desde_fila: pag * tam,
           },
         );
         if (rpcErr) throw new Error(rpcErr.message);
-        setHistorial((data ?? []) as HistorialFila[]);
+        const filas = (data ?? []) as HistorialFila[];
+        setHistorial(filas);
+        // `total` viene repetido en cada fila; sin filas, no hay nada.
+        setTotal(filas[0]?.total ?? 0);
       } catch (err) {
         console.error("[resumen] historial:", err);
         setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setCargando(false);
       }
     },
     [],
@@ -122,12 +151,29 @@ export default function ResumenPage() {
 
   useEffect(() => {
     void loadResumen();
-    void loadHistorial("", "", "");
-  }, [loadResumen, loadHistorial]);
+  }, [loadResumen]);
+
+  // Una sola puerta de entrada al historial: cualquier cambio de página o
+  // de tamaño recarga por aquí. Los filtros NO están en las dependencias
+  // a propósito — solo entran cuando se pulsa Aplicar.
+  useEffect(() => {
+    void loadHistorial(servicio, desde, hasta, pagina, porPagina);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadHistorial, pagina, porPagina]);
 
   const aplicar = useCallback(() => {
-    void loadHistorial(servicio, desde, hasta);
-  }, [loadHistorial, servicio, desde, hasta]);
+    // Volver a la primera página: quedarse en la 4 con un filtro nuevo
+    // que devuelve 12 filas dejaría la tabla vacía sin explicación.
+    if (pagina === 0) {
+      void loadHistorial(servicio, desde, hasta, 0, porPagina);
+    } else {
+      setPagina(0);
+    }
+  }, [loadHistorial, servicio, desde, hasta, pagina, porPagina]);
+
+  const primeraFila = total === 0 ? 0 : pagina * porPagina + 1;
+  const ultimaFila = Math.min((pagina + 1) * porPagina, total);
+  const haySiguiente = (pagina + 1) * porPagina < total;
 
   if (error) {
     return (
@@ -236,9 +282,28 @@ export default function ResumenPage() {
               className="h-9 rounded-md border border-border bg-background px-2 text-sm"
             />
           </label>
-          <Button size="sm" onClick={aplicar}>
-            {t("filtros.aplicar")}
+          <Button size="sm" onClick={aplicar} disabled={cargando}>
+            {cargando ? t("filtros.cargando") : t("filtros.aplicar")}
           </Button>
+          <label className="space-y-1">
+            <span className="text-xs text-muted-foreground">
+              {PAG_TXT.porPagina}
+            </span>
+            <select
+              value={porPagina}
+              onChange={(e) => {
+                setPorPagina(Number(e.target.value));
+                setPagina(0);
+              }}
+              className="h-9 rounded-md border border-border bg-background px-2 text-sm"
+            >
+              {TAMANOS_PAGINA.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
 
         {historial.length === 0 ? (
@@ -248,7 +313,11 @@ export default function ResumenPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-border">
+          <div
+            className={`overflow-x-auto rounded-xl border border-border ${
+              cargando ? "opacity-60" : ""
+            }`}
+          >
             <Table>
               <TableHeader>
                 <TableRow>
@@ -287,6 +356,32 @@ export default function ResumenPage() {
                 ))}
               </TableBody>
             </Table>
+          </div>
+        )}
+
+        {total > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              {PAG_TXT.mostrando(primeraFila, ultimaFila, total)}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={pagina === 0 || cargando}
+                onClick={() => setPagina((p) => Math.max(p - 1, 0))}
+              >
+                {PAG_TXT.anterior}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!haySiguiente || cargando}
+                onClick={() => setPagina((p) => p + 1)}
+              >
+                {PAG_TXT.siguiente}
+              </Button>
+            </div>
           </div>
         )}
       </section>

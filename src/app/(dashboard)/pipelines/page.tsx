@@ -117,6 +117,12 @@ export default function PipelinesPage() {
       // ventana móvil de 24 h porque esa arrastraba la tarde de ayer:
       // a las 9:00 aún enseñaba las entregas de ayer desde las 9:00.
       // Así la columna empieza limpia cada mañana.
+      //
+      // Y se filtra por `entregado_en`, NO por `updated_at` (migración 083).
+      // `updated_at` lo mueve un trigger en CUALQUIER edición, así que
+      // tocar las notas de una remesa vieja la resucitaba en la columna de
+      // hoy: pasó el 14-ago con una corrección en masa de 14 deals.
+      // `entregado_en` solo se escribe al ENTRAR en la etapa Entregada.
       const gy = new Date(Date.now() - 4 * 60 * 60 * 1000);
       const since = new Date(
         Date.UTC(gy.getUTCFullYear(), gy.getUTCMonth(), gy.getUTCDate(), 4, 0, 0),
@@ -128,7 +134,7 @@ export default function PipelinesPage() {
         )
         .eq("pipeline_id", pipelineId)
         .or(
-          `status.is.null,status.eq.open,and(status.eq.won,updated_at.gte.${since})`,
+          `status.is.null,status.eq.open,and(status.eq.won,entregado_en.gte.${since})`,
         )
         .order("created_at", { ascending: false });
       return (data ?? []) as Deal[];

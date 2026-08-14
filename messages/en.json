@@ -263,7 +263,15 @@
       "deals": "Deals",
       "noTags": "No tags",
       "noDeals": "No deals",
-      "addNotePlaceholder": "Add a note..."
+      "addNotePlaceholder": "Add a note...",
+      "bot": "Bot",
+      "pauseBot": "Pause bot",
+      "resumeBot": "Resume bot",
+      "botActiveHint": "The bot is answering this chat. Pause it to take over yourself.",
+      "botPausedHint": "The bot is paused on this chat. It won't answer until you resume it.",
+      "botPaused": "Bot paused on this chat",
+      "botResumed": "Bot back on this chat",
+      "botError": "Couldn't change the bot state"
     },
     "aiBanner": {
       "pausedTitle": "AI assistant is paused here",

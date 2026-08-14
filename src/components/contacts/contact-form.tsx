@@ -156,6 +156,8 @@ export function ContactForm({
             phone: phone.trim(),
             email: email.trim() || null,
             company: company.trim() || null,
+            // Lo escribio una persona: el webhook ya no puede pisarlo (080).
+            name_source: 'manual',
             updated_at: new Date().toISOString(),
           })
           .eq('id', contactId);
@@ -170,6 +172,8 @@ export function ContactForm({
             phone: phone.trim(),
             email: email.trim() || null,
             company: company.trim() || null,
+            // Lo escribio una persona: el webhook ya no puede pisarlo (080).
+            name_source: 'manual',
           })
           .select('id')
           .single();

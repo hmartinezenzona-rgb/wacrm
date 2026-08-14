@@ -99,8 +99,7 @@ export default function PipelinesPage() {
 
   const loadDeals = useCallback(
     async (pipelineId: string) => {
-      // Filtro de vista: mostrar lo abierto + lo entregado (won) de las
-      // últimas 24 h. La columna "Entregada" acumulaba TODO el histórico
+      // Filtro de vista: mostrar lo abierto + lo entregado (won) DE HOY. La columna "Entregada" acumulaba TODO el histórico
       // (~150 tarjetas/mes); con 7 días seguía juntando ~50 tarjetas y
       // Osmany pedía verla al día. Los datos NO se mueven ni se borran:
       // el histórico completo vive en la pantalla de resumen, que se
@@ -112,8 +111,14 @@ export default function PipelinesPage() {
       // perdería qué depósito pagó qué remesa.
       // `status.is.null` cubre los deals sin status (pipeline genérico,
       // nunca tocados por el trigger de remesas).
+      // Medianoche de HOY en Guyana (UTC-4 todo el año, sin horario de
+      // verano) expresada en UTC. Se hace por día natural y no con una
+      // ventana móvil de 24 h porque esa arrastraba la tarde de ayer:
+      // a las 9:00 aún enseñaba las entregas de ayer desde las 9:00.
+      // Así la columna empieza limpia cada mañana.
+      const gy = new Date(Date.now() - 4 * 60 * 60 * 1000);
       const since = new Date(
-        Date.now() - 24 * 60 * 60 * 1000,
+        Date.UTC(gy.getUTCFullYear(), gy.getUTCMonth(), gy.getUTCDate(), 4, 0, 0),
       ).toISOString();
       const { data } = await supabase
         .from("deals")

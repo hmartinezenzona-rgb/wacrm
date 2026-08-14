@@ -1,7 +1,84 @@
 # Pendientes — Remesas Ya
 
-Estado al **10 de agosto de 2026, 20:45 de Guyana** — cierre de la jornada.
+Estado al **14 de agosto de 2026, 00:45 de Guyana**.
 Ordenado por lo que más duele si no se toca.
+
+> ## LO PRIMERO AL ABRIR HOY
+>
+> Se desplegaron **once cosas** entre la tarde del 13 y la madrugada del 14, y
+> **solo una está probada con un cliente real** (la pausa del bot). Lo demás
+> pasó su banco, que demuestra que no se rompió nada — no que funcione. Lo que
+> hay que mirar con la jornada en marcha:
+>
+> | Qué mirar | Cuándo se ve |
+> |---|---|
+> | El nombre de un contacto ya no se revierte | renombrar uno y que esa persona escriba |
+> | El aviso de «próximo a cerrar» | **entre las 16:30 y las 17:00** |
+> | El mínimo de Zelle (13.000) | que alguien pregunte el mínimo |
+> | El MLC: se deriva y llega el aviso | que alguien pregunte por MLC |
+> | Zelle normalizado a 10 dígitos | con el primer beneficiario Zelle |
+> | `incident` en el resolver | un envío en Incidencia que reciba beneficiario |
+> | El bot cierra el agradecimiento | un «gracias» en un chat derivado |
+> | Referencia imposible → Incidencia | una captura que la visión lea mal |
+>
+> **Y una que puede tener a un cliente esperando:** diez depósitos sin dueño —
+> los ocho del sábado más los dos del 13-ago (5.000 y 10.000 GYD).
+
+> ## Lo del 13-ago y su madrugada, en seis líneas
+>
+> 1. **El día salió bien en dinero: 8 envíos, 447.800 GYD, 0 perdidos.** La
+>    ingesta de MMG no se cayó ni un minuto y cruzó 7 de 9 depósitos en menos
+>    de 90 s. El libro cierra cuadrado: 8 depósitos cruzados = 447.800 GYD.
+> 2. **Lo que falló fue el RUIDO y lo INVISIBLE**, no el dinero. De 58 avisos,
+>    **33 eran falsos**: 24 por un «Gracia» y 9 por un depósito fantasma.
+> 3. **Atacado por los dos lados.** El ruido: raíz `gra[cs]ias?`, repetición
+>    según el estado del cliente, y **el bot cerrando el agradecimiento**, que
+>    es la idea de Osmany y quita la causa en vez de filtrarla. El fantasma:
+>    una referencia que no puede ser un TransID ya no se registra.
+> 4. **MMG dejó de mandar un correo** — primer `sin_correo` real, comprobado
+>    leyendo el buzón. El libro se cuadró a mano.
+> 5. **Dos sustos que enseñaron más que los aciertos:** una corrección en masa
+>    movió `updated_at` y resucitó 14 deals viejos en el tablero; y el corte a
+>    medianoche vació la columna «Entregada» a las 00:13 y **pareció que se
+>    habían borrado los envíos**. Nada se perdió en ninguno de los dos, pero un
+>    tablero que parece haber perdido datos es un tablero roto.
+> 6. **Herramientas nuevas:** `pruebas/banco-sql.py` (los nodos Postgres ya
+>    tienen red, con `--workflow` y `--revertir`) y `pruebas/traer-sql.py`
+>    (parchear funciones de la base sin retecleatlas).
+
+> ## Lo del 13-ago, en cinco líneas
+>
+> 1. **El día salió bien en dinero: 8 envíos reales, 447.800 GYD, 0 perdidos.**
+>    321.200 entregados y 126.600 esperando transferencia al cierre. La ingesta
+>    de MMG no se cayó ni un minuto y cruzó 7 de 9 depósitos en menos de 90 s.
+> 2. **Lo que falló no fue el dinero, fue el RUIDO y lo INVISIBLE.** De 58 avisos
+>    del día, **24 (41%) eran un «Gracia»** de una clienta ya atendida, y otros 9
+>    eran un depósito fantasma que el bot se inventó de una captura.
+> 3. **Tres deals estuvieron ocultos del tablero a la vez** por `status='lost'`,
+>    entre ellos uno con 39.000 GYD de un cliente esperando. El botón «Marcar
+>    como perdida» los esconde y el de reabrir vive dentro de la ficha
+>    escondida. Ver el 🔴 correspondiente.
+> 4. **MMG dejó de mandar un correo.** Primer `sin_correo` real: el depósito de
+>    39.000 de Yari existe (comprobante bueno, TransID coherente) pero su aviso
+>    NO está en el buzón, ni en spam ni en papelera. Comprobado leyendo el buzón,
+>    no deducido. El libro de depósitos cuadra corto por esos 39.000.
+> 5. **Desplegado hoy:** `incident` en `cerebro_resolver_operacion` (los seis
+>    nodos), para que un envío en Incidencia deje de partirse en dos. Con banco
+>    nuevo: `pruebas/banco-sql.py`, el hermano de `banco.py` para nodos Postgres.
+
+> ## Lo de la madrugada del 12-ago, en cuatro líneas
+>
+> 1. **La ráfaga de varios comprobantes YA SE SUMA** y se cruza todo-o-nada.
+>    El caso de Melih está resuelto. Ver `26-…md`.
+> 2. **El saldo del envío está ENCENDIDO** para la vía Zelle/USD: el cliente dice
+>    cuánto va a mandar, `calcular_usd` lo apunta al cotizar, y un depósito corto
+>    ya no se da por bueno — se le dice cuánto falta y el envío espera.
+> 3. **Con su red puesta:** `Vigilante - envios incompletos` (`O1TqpAJXgRfKCiW6`),
+>    cada 10 min, avisa en el CRM si un envío lleva 4 h sin completar.
+> 4. **El DSML está entendido y acotado, pero sin arreglo de fondo.** Es del
+>    proveedor y ninguna palanca nuestra lo cambia — se midieron siete. La tasa
+>    va de 0% a 100% en minutos, y en racha mala reintentar no salva. Ahora hay
+>    un banco que lo reproduce a voluntad. Ver `27-el-dsml-entendido.md`.
 
 > **Lo primero al abrir mañana, antes de tocar nada:** cuatro cosas se
 > desplegaron con el negocio ya cerrado y **no han visto tráfico real de
@@ -22,20 +99,97 @@ Ordenado por lo que más duele si no se toca.
 >
 > | | Qué | Depende de |
 > |---|---|---|
+> | ✅ | ~~**El nombre de un contacto se revierte solo**~~ — **CERRADO el 14-ago 00:45 UTC, dado por bueno por Humberto.** Desplegado (`4f731ee3`) y **probado con mensajes reales**: renombró dos contactos y le escribieron **18 y 12 segundos después**; los nombres aguantaron y —la señal que más pesa— **`updated_at` NO se movió** (el `UPDATE` del webhook lo escribe explícitamente, así que no llegó a correr). Quedan dos huecos conocidos y aceptados: **(a)** no se pudo leer el nombre que traía el perfil, porque el rastro de webhooks guarda solo el objeto del mensaje y no el bloque `contacts[].profile` del sobre — arreglarlo son dos líneas y haría trivial esta comprobación; **(b)** el **control al revés sigue sin verse**: un contacto con `name_source='whatsapp'` recibiendo nombre de perfil (el `5358741800` no vale, se creó, no se actualizó). Y el **test automático no existe** |
+> | 🟢 | **Un deal viejo resucitaba en la columna al editarlo — CERRADO DE RAÍZ** (migración **083** + commit `d0da73ea`, CI en verde; **falta que Humberto dispare el Deploy**). Lo destapó Osmany: entró a WaCRM y vio remesas del 6 al 12 de agosto en «Entregada». **Causa: mía.** Al normalizar las cuentas Zelle toqué las notas de 14 deals, y el trigger `set_updated_at` mueve `updated_at` en CUALQUIER edición — que era justo el campo por el que filtraba la columna. Reparado al momento devolviéndoles su fecha desde `remittance_operations.completed_at` (con el trigger desactivado dentro de un bloque `DO` atómico). Y cerrado de raíz: **`deals.entregado_en`**, que solo escribe `cerebro_cerrar_deal_entregado` al ENTRAR en la etapa y borra al salir, y el tablero ya filtra por él. Los 60 ganados sellados, 0 sin sello, y el filtro nuevo da hoy lo mismo que el viejo (7). Probado en bloque revertido: editar notas de un entregado del 6-ago deja el sello **intacto** aunque `updated_at` se mueva; sacarlo de Entregada lo borra; devolverlo lo vuelve a sellar | lección anotada en memoria: **respaldar la fila entera**, no los campos que crees que cambias |
+> | 🟢 | **EL CORTE A MEDIANOCHE ASUSTÓ, Y CON RAZÓN — corregido y desplegado** (14-ago 00:13 de Guyana). Osmany entró al CRM y la columna «Entregada» estaba vacía: *«borraste los deals de entregados»*. **No se borró nada** —65 deals, 60 entregados con su sello, 2.178.110 GYD intactos, comprobado— era el filtro: el día natural acababa de cambiar. Pero la elección del corte era mía y estaba mal pensada para un negocio que abre a las 9:00: dejaba la columna vacía toda la madrugada **y toda la mañana** hasta la primera entrega, que es justo cuando se abre el CRM a repasar lo de ayer. **Corregido** (commit `e6bb8dfa`, CI en verde, **falta el Deploy**): el corte pasa a la **hora de abrir**, las 9:00 de Guyana. Entre las 00:00 y las 9:00 no se entrega nada, así que hasta que el negocio abre se sigue viendo el día anterior y la columna cambia justo al empezar la jornada. Probado con node en los cinco momentos que importan; con el corte nuevo, a las 00:20 se ven las 7 entregas del 13-ago | **la lección:** un tablero que *parece* haber perdido los datos es un tablero roto, aunque los datos estén. Al elegir una ventana, pensar en qué se ve a las 3 de la mañana y a las 9 menos cuarto |
+> | 🟢 | **La columna «Entregada» se llenaba — RESUELTO SIN BORRAR NADA** (14-ago, commit final **`b28f070c`**, CI en verde, **falta que Humberto dispare el Deploy**). La columna muestra los abiertos **+ lo entregado HOY**, cortando por **medianoche de Guyana** (UTC-4, sin horario de verano) — no por ventana móvil de 24 h, que arrastraba la tarde de ayer hasta la misma hora del día siguiente. Como entre las 00:00 y las 9:00 no se entrega nada, en la práctica se ve «lo entregado desde que abrimos», pero el corte es la medianoche. Pedía borrar los deals completados a diario. **No hace falta y sale caro:** el histórico YA no depende de `deals` — `cerebro_historial_operaciones` y `cerebro_volumen_diario` se construyen sobre `remittance_operations` + `contacts` + `remittance_beneficiaries`, y el importe cae a `quoted_source_amount` con **0 descuadres sobre 62 operaciones** (2.212.677 GYD idéntico con y sin deals). Probado en vivo con dos operaciones cuyo deal ya estaba borrado: salen enteras en el resumen. **Lo que sí se perdería al borrar:** `depositos_mmg.deal_id` es `ON DELETE SET NULL` y hay **47 depósitos atados a un deal entregado** — se iría qué depósito pagó qué remesa, más el texto de las notas. Así que se acortó la ventana del tablero de 7 días a 24 h: la columna pasa de **59 tarjetas a 7** y los 4 abiertos no se tocan | si aun así quieres borrarlos de verdad, antes hay que preservar el enlace depósito↔remesa (una columna `operation_id` en `depositos_mmg`) |
+> | 🟢 | **Pausar el bot en una conversación — DESPLEGADO el 14-ago 02:5x UTC**, sin ver tráfico real todavía. **El botón NO se veía, y me equivoqué al decir que sí.** Lo corrigió Osmany: el `AiThreadBanner` existe en el código pero hace `if (!autoReplyOn) return null`, y esa bandera es la **IA propia de WaCRM**, apagada aquí porque el bot es el Cerebro en n8n. Así que hubo que **crear el control**: va en la **barra lateral derecha, debajo de Notas** (commits `ab94ae9c`, `289c53fe`, `3888b320`, CI en verde, **falta el Deploy**), reusa `POST /api/ai/autoreply/[id]` **omitiendo `assign_to_me`** —pausar no debe apropiarse del chat— y al reanudar el endpoint libera cualquier asignación, que hace falta porque el Cerebro también se calla con el chat asignado. La otra mitad, la del Cerebro, ya está activa: **no miraba `conversations.ai_autoreply_disabled`**: se callaba solo porque ese mismo botón ASIGNA el chat. Y eso no bastaba — las asignaciones manuales **caducan solas** (CTE `caducar`), así que pasados los minutos sin actividad humana el chat se liberaba y **el bot volvía a hablar con la pausa todavía puesta**. Ahora `Contexto conversacion` sirve `bot_pausado` y el `Decisor` corta antes que nada, incluso antes de la asignación. Banco: batería 2/2 (con pausa no sale NADA; sin pausa sale el contexto de siempre, que es el control) y matriz de 6 combinaciones con **0 cambios**. Rollbacks: `ROLLBACK-v2-antes-bot-pausado.json` y `-antes-decisor.json` | **PROBADO EN PRODUCCIÓN el 14-ago 03:04 UTC** (23:04 de Guyana) por Osmany, y por el motivo correcto — ejecución `37336`: `Contexto conversacion` devolvió `bot_pausado: True` con **`asignado: False`, `humano_reciente: False` y `oculta: False`**, o sea que ninguno de los tres silencios viejos estaba activo, y el `Decisor` cortó con `ruta: silencio, motivo: "bot pausado a mano en esta conversacion"`. Cadena completa demostrada: botón → endpoint → columna → SQL → Decisor. La pausa **NO caduca** a propósito — dura hasta que se pulse «reanudar». La red contra olvidarla puesta es el vigilante de chats atascados, que avisa igual |
+> | 🟢 | **Aviso de «próximo a cerrar» — DESPLEGADO el 14-ago 01:1x UTC, sin ver tráfico real todavía.** Umbral en **30 min** (`cierre_aviso_minutos` en `cerebro_config`; `0` lo apaga, se mueve sin desplegar). Tres piezas: **(1)** `Contexto conversacion` sirve el booleano `por_cerrar`, calculado en SQL con el reloj de la BASE — validado con `banco-sql.py` y **ejecutado contra una conversación real**; límites comprobados (16:29 no, 16:30 sí, 16:59 sí, 17:00 no). **(2)** el `Decisor` empuja la nota `PROXIMO A CERRAR` — `banco.py --perfil contexto`, batería 4/4 y **0 regresiones**: de 6 combinaciones cambian solo las 3 de `por_cerrar`. **(3)** el prompt ajusta la promesa de la transferencia, probado con node en sus 4 ramas incluida la de contexto inalcanzable. Rollbacks: `ROLLBACK-v2-antes-por-cerrar.json`, `-antes-decisor.json`, `-antes-prompt-por-cerrar.json` | **falta verlo entre las 16:30 y las 17:00 de un día laborable** — es la única prueba que vale. Y decidir si 30 min bastan: los datos decían que la caída empieza a las 15:00 |
+> | ⛔ | **Borrar mensajes del bot o de un admin — DESCARTADO el 14-ago**, no volver a proponerlo. La idea era que **el cliente** no viera un mensaje incoherente, y eso **no se puede**: la Cloud API de Meta no tiene endpoint para revocar lo ya enviado (su webhook `revoke` es al revés, avisa cuando el cliente borra algo suyo). Sin eso solo se limpiaba el CRM, y Humberto lo canceló entero. Migración 081 aplicada y **revertida por la 082** (su índice parcial indexaba `messages` entera). Lo que sí quedó, medido y que vale más que la función: **la memoria del modelo es `cerebro_memoria`, no `messages`**, sin enlace entre ambas — casar por texto acierta 526 de 702 (75%), 38 ambiguos y 158 fallan porque el normalizador reescribe lo enviado. Y de los 6 nodos que leen `messages`, solo `Ultima cotizacion` mira el contenido | cerrado |
+> | 🟢 | **El bot cotizaba MLC como si fuera dólar — DESPLEGADO el 14-ago 03:2x UTC**, sin ver tráfico real todavía. **El MLC no existe en el sistema**: no está en `cerebro_servicios` ni tiene tasa en `tasas`, así que preguntado por él el modelo caía en la del USD. Dos veces con Yoandy cruz (5926597626): *«El MLC se deposita en la tarjeta en dolares, el calculo es el mismo: para 13 USD necesita depositar 3,380 GYD»* (12-ago) y *«Para los 40 MLC necesita depositar 10,400 GYD»* (13-ago), las dos a **260 GYD por unidad**. Decisión de Osmany: esa tasa fluctúa, lo atiende una persona — **no se le pone tasa al bot, se le quita el tema**. Migración **084**: `cerebro_pide_mlc` (la detección, en UN solo sitio) y `cerebro_avisar_mlc` (aviso en la campana del CRM, uno por admin, throttle de 6 h). Cableado en tres nodos: `Control de abuso` avisa **en SQL antes del modelo** —así el admin se entera aunque el modelo desobedezca—, `Contexto conversacion` sirve `pide_mlc` y el `Decisor` mete la prohibición **como última nota**, que es la que gana en una colisión. Banco 2/2 y matriz de 6 combinaciones con 0 cambios; detección probada contra 10 frases (caza «MLC?» y «Mlc», no se confunde con «el amlcen»); aviso probado entero en bloque revertido: 3 notificaciones y la segunda llamada bloqueada por el throttle **Y SE DERIVA EL CHAT, no solo se avisa** (segunda vuelta, a petición de Osmany: *«la tasa del MLC varía mucho y por eso se debe derivar a un admin»*). Avisar no bastaba: sin derivar, el bot seguía llevando la conversación y en el mensaje siguiente podía volver a cotizar. El CTE `derivar_mlc` de `Contexto conversacion` lo pasa al perfil de derivaciones del bot, que **no caduca**. Y el orden juega a favor: como el `SELECT` lee la instantánea anterior al `UPDATE`, **este turno el bot todavía habla** —para decir que le atiende un compañero— y a partir del siguiente ya se calla solo. Probado en bloque revertido: sin asignar → asignado al perfil de derivaciones | **falta el primer cliente real que pregunte por MLC.** Y queda una decisión de fondo: si algún día se quiere cotizar MLC, hace falta una tasa que alguien mantenga, como la del USD |
+> | 🟢 | **El bot no sabía el mínimo de Zelle — DESPLEGADO el 14-ago 03:4x UTC**, sin tráfico real todavía. El único mínimo que conocía era el de las recargas, así que ante un «¿cuánto es lo mínimo?» o ante alguien pidiendo menos de la cuenta se lo inventaba o lo omitía. Ahora `cerebro_config.zelle_minimo_gyd` = **13.000** (Osmany) y `Ultima cotizacion` sirve la frase ya montada: *«MINIMO PARA ZELLE / envios en USD: 13,000 GYD (50 USD). Por debajo de eso NO se hace el envio…»*. **El equivalente en USD lo calcula el SQL con la tasa viva**, así que no se queda viejo. El `Decisor` la inyecta **solo si el mensaje viene a cuento** (`zelle|usd|dolar|minimo`), igual que las recargas, para no engordar el contexto. Banco 2/2 —aparece al preguntar el mínimo, NO aparece en una remesa en CUP— y matriz de 6 con 0 cambios | se cambia con un `UPDATE` en `cerebro_config`, sin desplegar. Ojo: el servicio de México documenta el mismo número por su cuenta en `cerebro_servicios`; si cambia uno hay que mirar el otro |
+> | 🟢 | **El ruido de los avisos — ATACADO el 14-ago, migración 085.** De los 58 avisos del 13-ago, 24 eran `chat_atascado`, y **los 11 de toda la historia son la misma clienta**: 2 legítimos (con operación abierta) y 9 de ruido, un «Gracia» repetido cada hora durante 8 horas. **Dos capas, y ninguna puede callar el PRIMER aviso de nadie.** (1) La lista de palabras pasa a la **raíz** `gra[cs]ias?` — Osmany tenía razón en que añadir la `s` era el juego del topo, pero la raíz cubre gracia/gracias/grasia/grasias sin dejar de ser estricta. (2) El **intervalo de repetición mira el estado**: 60 min con operación abierta, **360 sin ella** (`chat_atascado_repetir_sin_operacion_min`). Esto NO decide a quién se avisa, solo cada cuánto se insiste, así que el punto ciego que daba miedo —cliente nuevo, cero operaciones, ignorado— sigue generando su aviso. **Aplicada sin reescribir la función**: la migración lee su propia definición viva, hace reemplazos exactos y aborta si un ancla no aparece (hacía falta, porque la función viva **no coincidía** con el fichero 062: 4.704 caracteres normalizados frente a 4.191). Probado 11/11 contra frases reales, y demostrado el antes/después sobre el caso de Inelvis: `callaba_antes = false`, `calla_ahora = true`. El vigilante ahora devuelve **0 chats atascados** **Y LA IDEA BUENA, CONSTRUIDA TAMBIÉN** (migración 086 + `Contexto conversacion` + `Decisor`): **el bot cierra el agradecimiento**. En un chat que lleva una persona el bot callaba SIEMPRE; ahora, y solo si la ráfaga entera es cortesía pura, devuelve la cortesía en una línea y cierra. Eso quita la causa en vez de filtrar el síntoma: si nadie deja el mensaje sin responder, no hay chat atascado, en cualquier redacción y cualquier idioma. **Lo contesta el modelo, no un texto fijo** — decisión de Osmany, y es más rápido: no hay que recablear el workflow y además responde en el idioma del cliente (hay clientes en inglés). El riesgo de que diga de más está acotado por `cerebro_es_cortesia`, que exige sin pregunta, sin cifras y sin nada pendiente: el modelo no tiene números que equivocar. Va **después** de la ventana de silencio, así que si una persona acaba de escribir manda ella, y **corta antes de armar contexto**: en un chat ajeno el modelo no recibe depósitos, beneficiarios ni tools. La regla vive en **una sola función** que usan el vigilante y el bot, para que no puedan discrepar. Banco: 3/3 en sus tres caras (asignado+cortesía → contesta; asignado+no cortesía → callado; humano reciente → callado aunque sea cortesía) y matriz de 6 con 0 cambios | **falta verlo con tráfico**: que un cliente dé las gracias en un chat derivado y el bot cierre con una línea |
+> | 🟢 | **El bot se inventaba un depósito de una captura — ATACADO el 14-ago, migración 087.** Al abrir la imagen resultó **peor de lo que parecía**: no era «una captura cualquiera», era una **captura de OTRA conversación de WhatsApp que dentro tenía la FOTO de un comprobante** — un recibo dentro de una foto dentro de una captura. Y la visión **se inventó las dos cifras**: registró 5.000 GYD con ref `10319372234891` cuando el comprobante de la imagen decía **26.000 y 10395727229361**. **La señal que sí sirve:** el TransID de MMG es un contador que **solo crece**. Los 724 recibidos van de `10378363543358` (31-dic-2025) a `21396936623433`. Un número por debajo del suelo histórico **no puede existir**. Medido: los **724 reales pasan**, el inventado **no**, y el de la foto **sí**. No se fija la longitud a propósito — el propio proyecto tiene escrito que el TransID pasó de 10 a 14 dígitos, así que se compara por VALOR. **Dos mitades:** el SQL (`cerebro_registrar_deposito`) manda ese deal a **Incidencia** en vez de a «Por verificar», con el motivo en las notas; y el `Decisor` **prohíbe confirmar el depósito y repetir el importe**, y pide el comprobante original — sin eso el cliente seguía oyendo «recibimos su depósito de 5,000 GYD», que era falso. Probado de punta a punta en bloque revertido (ref inventada → Incidencia, ref buena → Por verificar) y banco 2/2 con matriz de 6 y 0 cambios | **lo que esto NO es:** no valida que el depósito exista —de eso ya se encarga el cruce— ni caza un dígito mal leído como el `20397544023399` del 10-ago, que sigue pasando el filtro **y es correcto**. Aquí solo se para lo que no puede ser un TransID. Falta verlo con un cliente real |
+> | 🔴 | **Marcar «perdida» ESCONDE el deal de todo el tablero.** `loadDeals` (`src/app/(dashboard)/pipelines/page.tsx`) carga `status.is.null`, `open` y `won` de 7 días: **`lost` no entra en ninguna columna**. Hoy escondió tres a la vez, uno con 39.000 GYD de un cliente esperando. Y el botón de reabrir está DENTRO de la ficha que ya no se puede abrir: solo se sale por SQL | **WaCRM → Hermes.** O el filtro carga las perdidas recientes, o hace falta un interruptor «ver perdidas» |
+> | 🟢 | **El vigilante avisaba de un deal ya descartado — ARREGLADO el 14-ago 04:0x UTC.** La consulta (que vive en el workflow `bTwsEJsmoAzsuOxm`, no en una función) filtraba por **etapa** pero nunca por **estado**, así que un deal marcado como perdido seguía cumpliendo la condición hasta que pasaban 24 h. Ahora exige `COALESCE(d.status,'open') = 'open'`: `lost` es «esto se descarta» y `won` es «ya se entregó», y de ninguno hay nadie esperando. Antes/después sobre el caso real: el deal fantasma de sanzjuanpastor llevaba **758 minutos** dando positivo y habría avisado unas seis veces más esta noche; ahora no aparece. Validado con `banco-sql.py` —que de paso ganó `--workflow`, porque los vigilantes viven fuera del Cerebro— y visto correr en producción a las 04:10: 0 avisos creados. Rollback: `ROLLBACK-v2-antes-sin-cruzar-solo-vivos.json` | ojo al leer la prueba de las 04:10: a esa hora el negocio está cerrado y la consulta ya tiene su guarda de horario, así que **lo que demuestra es que corre limpia**, no que el filtro sea lo único que la calla. Eso lo demuestra la consulta de antes/después |
+> | 🟠 | **MMG no mandó el correo de un depósito real** — primer `sin_correo` de verdad. Yari (5926716394), 39.000 GYD, TransID `10397797355547` a las 10:45. El comprobante es bueno (pantalla Agent Cashin, destino 6762167, ID coherente con la secuencia de MMG) y el correo **no existe en el buzón del agente, ni en spam ni en papelera** — comprobado leyendo el buzón. La ingesta estaba viva (correos a las 10:50 y 11:32). La remesa se entregó igual | **libro ya cuadrado el 13-ago**: la fila se dio de alta a mano por indicación de Osmany, con `asunto = 'ALTA MANUAL - MMG NUNCA ENVIO EL CORREO'`, `gmail_message_id` NULL, atada al deal `ef442220` y con la comprobación entera escrita en `crudo`. El día cierra con **8 depósitos cruzados = 447.800 GYD**, que es exactamente el total de los envíos reales. **Lo que queda abierto es la causa**: MMG puede volver a no mandar un correo y hoy solo lo detecta el vigilante de depósitos sin cruzar |
+> | 🟠 | **El objetivo se fija con la lectura equivocada y nadie lo corrige.** James Barrow escribió «$250,000.00», el bot lo leyó como USD y fijó objetivo de **65.000.000 GYD**. El cliente aclaró «Guyana Dollars» un minuto después y el objetivo se quedó, colgando el envío en «FALTAN 64.750.000». Cerrado a mano hoy | que una aclaración del cliente pueda **rehacer** el objetivo, no solo fijarlo |
+> | 🟢 | **Número de Zelle normalizado en los DOS nodos — DESPLEGADO el 14-ago 02:0x UTC**, sin ver tráfico real todavía. Un CTE `cuenta` en `registrar_beneficiario_zelle` y en `Registrar zelle auto` deja el número de EEUU en **10 dígitos pelados** venga como venga (`+1 (469) 512-1137`, `469 512 1137`, `14695121137`). Al modelo se le sigue pidiendo que copie LITERAL —lo que importa es que no invente— y el formato se arregla en SQL, que es la vía que sí se sostiene. **Lo que NO se toca, y es lo que costó una segunda vuelta:** los correos; **cualquier prefijo internacional que no sea +1** (un `+53` cubano en una cuenta Zelle es un error del cliente y tiene que cantar: normalizarlo lo dejaba en `5358741800`, con pinta de número de EEUU); los 10 dígitos que empiezan por 0 o 1, que no son área válida; y lo que no se reconozca. **Y una segunda vuelta, por una pregunta de Humberto:** «¿y si un cliente de CUP manda su número sin +53?». Un depósito en CUP no pasa por aquí —los datos cubanos van por `gestionar_beneficiario` / `Registrar beneficiario auto`, que normalizan a los últimos 8 dígitos, y el `normUS` del `Snapshot final` ya rechaza 8 dígitos, 16 dígitos y 10 que empiecen por 5—, **pero mi guarda SQL aceptaba el 5 inicial y la de JavaScript no**: si el modelo pasaba un cubano como cuenta Zelle, quedaba en `5358741800` con pinta de EEUU. Alineado con el JS (`<> '5'`). Coste asumido, el mismo que ya asumía el JS: un número de EEUU con área 5xx escrito sin `+1` se guarda tal cual en vez de normalizarse — nunca se estropea, solo no se limpia. Validado con `banco-sql.py` (2/2, firma intacta, byte a byte) y la lógica probada contra 10 formas reales, cubanas incluidas. Rollback: `ROLLBACK-v2-antes-zelle-normalizada.json` | **falta el primer cliente real**. Y queda aparte **limpiar los 13 históricos** (Richel Moreno Ramos está dos veces): hay que reescribir `deals.notes`, que es la fuente, no la tabla derivada |
+> | 🟠 | **Dos depósitos del 13-ago sin dueño**: `20397791629217` de 5.000 (13:10) y `10397804934619` de 10.000 (16:51). Nadie los ha reclamado | **Osmany**, junto con los ocho del sábado |
+> | 🟡 | **Cuatro envíos quedaron en «Lista para transferir» al cierre**: 72.000 (desde las 09:55 de Guyana), 15.600, 24.700 y 14.300 — **126.600 GYD**. El de 72.000 lleva casi 6 h | mirar si es normal o si se olvidaron |
+> | ✅ | ~~**El beneficiario se iba a OTRO deal cuando el envío estaba en Incidencia**~~ — el dinero en un deal y el beneficiario en otro; quien transfiere ve uno de los dos. Caso real: Yari, 13-ago | **desplegado el 13-ago 16:58 UTC**: `'incident'` añadido a `cerebro_resolver_operacion` en los **seis** nodos que la llaman. Por `pruebas/banco-sql.py` (nuevo, para nodos Postgres): 6/6 compilan con `PREPARE` y ninguna firma de parámetros cambia; efecto medido en bloque `DO` revertido (`ninguna`→`unica`). Probado con mensaje real 18 s después (`Registrar zelle auto`, deal 725a1786, sin error). Rollback: `ROLLBACK-v2-antes-incident-en-resolver.json`, o `banco-sql.py --revertir`. **OJO al efecto secundario:** una incidencia vieja que conviva con un envío nuevo ahora da `ambigua` y deriva a una persona |
+> | ✅ | ~~**El PAT de GitHub estaba MUERTO (401)**~~ — la misma trampa silenciosa que la clave de n8n esa madrugada | **rotado por Humberto el 13-ago ~15:40 UTC**: verificado (200, scope `repo`), la 079 ya está copiada al repo. **OJO: el nuevo CADUCA el 11-nov-2026, el mismo día que la clave de n8n** — ese día mueren los dos a la vez |
+> | ✅ | ~~**Las recargas entraban como «Remesa» y el bot pedía TARJETA**~~ (Yilian +5926595697, 13-ago, promo de Etecsa) | **hecho el 13-ago a mediodía (079)**: detección doble —`cerebro_registrar_deposito` titula `Recarga +tel` y marca `service_type='recarga'`; `recarga_en_curso` en `Contexto conversacion`— y el `Decisor` en modo recarga pide SOLO el número, nunca tarjeta, y dice «recarga» en vez de «transferencia». Banco 6/6 + 36 combinaciones 0 regresiones; DO-rollback sobre las conversaciones reales; 1 positivo de 30 conversaciones en 3 días (exactamente Yilian); dos mensajes reales en pruebas (la recarga confirma número sin pedir tarjeta, la remesa sigue idéntica). **Falta verlo con el próximo cliente real de recarga.** Detalle: final de `19-…md`. Rollbacks: `ROLLBACK-v2-antes-decisor.json` y `ROLLBACK-v2-antes-recarga-contexto.json`. OJO: el **notificador por etapa** aún dirá «remesa» al entregar una recarga |
+> | ✅ | ~~**Arreglos 1 y 2 del `Decisor`**~~ | **hechos el 11-ago de noche**: pedir en genérico también antes del depósito, y callar la petición cuando el cliente dice que espera datos de un tercero. Banco 5/5 + 24 combinaciones. **El banco paró una versión que habría tumbado el `Decisor`** (uso de `const` antes de inicializar). Falta probarlos con tráfico real |
+> | ✅ | ~~**Fallo 3 — la cifra falsa de la ráfaga múltiple**~~ | **hecho el 11-ago de noche**: con varios comprobantes en la ráfaga, **PROHIBIDO decir ninguna cifra**. Banco 4/4, 12 de 24 combinaciones cambian (las 12 de ráfaga múltiple), 0 regresiones |
+> | ✅ | ~~**Ráfaga con varios comprobantes: el segundo se PIERDE**~~ | **hecho la madrugada del 12-ago**: `Snapshot final` publica la ráfaga entera, `cerebro_cruzar_depositos` (071) la cruza **todo o nada**, el deal vale la suma con un `DEPOSITO:` por comprobante, y el `Decisor` confirma **el TOTAL**. Banco 11/11 y 10/10, 256 combinaciones, 0 regresiones. **Ninguna de las 18 combinaciones de comprobante único se mueve.** Falta tráfico real. Ver `26-la-rafaga-sumada-y-el-saldo-del-envio.md` |
+> | ✅ | ~~**El saldo del envío**~~ | **encendido la madrugada del 12-ago** para la vía Zelle/USD. `calcular_usd` apunta el objetivo al cotizar (sin tool-call nuevo: se probó una tool aparte y **el modelo no la llama**, 0 de 2). Probado con mensajes reales: 240 USD → 62.400, luego 315 USD → 81.900 **sustituyendo** al anterior. Migraciones 072-075 |
+> | ✅ | ~~**Vigilante del envío que no completa**~~ | **hecho**: `Vigilante - envios incompletos` (`O1TqpAJXgRfKCiW6`), cada 10 min, migración **076**. Probado entero —incluido que el aviso SE CREA— abriendo la ventana horaria dentro de un bloque que se revierte. **Falta arrastrarlo a la carpeta `vigilante` a mano** (las carpetas solo se mueven desde el navegador) |
+> | 🟡 | **Las otras tres tools de cálculo no apuntan objetivo** — solo `calcular_usd`. Un envío cotizado en GYD (`calcular_envio`, `calcular_inverso`, `calcular_usd_desde_gyd`) se comporta como siempre: sin objetivo, sin saldo. Cómo hacerles lo mismo está al final de `pruebas/candidato-calcular-usd-apunta-objetivo.js` | decidir si hace falta tras ver el Zelle funcionando |
+> | ✅ | ~~**Plan de la auditoría del 11-ago**~~ | **completo el 11-ago** (063, 064, 065, variables): conciliación en 0, REVOKE total verificado, advisors 28→16 deliberados. Queda solo vigilar 24 h los `mensaje_fallido`; Hermes revisa la 065 al despertar |
 > | ✅ | ~~**Rastro de webhooks** y su punto ciego~~ | **cerrado el 10-ago**, probado con mensaje real |
 > | ✅ | ~~**Rotar la API key de n8n y el PAT de GitHub**~~ | **hechas el 10-ago**, las viejas revocadas |
 > | ✅ | ~~**Migración 060:** borrar un deal deja la operación huérfana~~ | **hecha el 10-ago**, 8 divergencias cerradas |
-> | 🟠 | **2E fases 2 y 3** (outbox) | plantillas de Meta, en revisión |
-> | 🟠 | **Plantillas de Meta** | Meta (hasta 24 h) |
+> | ✅ | ~~**2E / ventana de 24 h**~~ | **cerrado lo que dolía el 11-ago**: alertas admin y «remesa completada» van por plantilla (probadas `delivered`); fase 3 del outbox **decidida NO por ahora** (Humberto) — construida y apagada por si cambia el cálculo |
+> | ✅ | ~~**Plantillas de Meta**~~ | **aprobadas, PROBADAS y CABLEADAS el 11-ago**: `remesa_completada` entregada real por el enviador; `alerta_operativa` ya es el formato de las alertas del manejador — atraviesa la ventana de 24 h, **3/3 admins delivered** (el tercero por primera vez; era su contacto con teléfono pelado, corregido) |
+> | ✅ | ~~**Colisión de instrucciones en el `Decisor`**~~ | **cerrada y PROBADA CON MENSAJE REAL el 11-ago 17:50**: la orden sale la última y el modelo la obedece. Banco 5/5 + 24 combinaciones. Beneficiario del envío de 13.000 GYD ya puesto. Ver `25-la-colision-de-instrucciones-en-el-decisor.md` |
+> | 🟠 | **La tasa ya va en el contexto** (12-ago) — red contra el fallo de arriba: `Ultima cotizacion` devuelve la tasa vigente y el `Decisor` la dice, así que si el modelo calcula lo hace con la de hoy y no con una recordada. Banco 13/13, 432 combinaciones, 0 regresiones. **Falta la prueba buena: cambiar la tasa y ver si cotiza con la nueva — fuera de horario.** El SQL está en `27-…md` | probar esta noche |
+> | 🔴 | **DSML — ENTENDIDO A FONDO, sin arreglo de fondo todavía.** Es un bug del proveedor: DeepSeek V4 emite una **variante degradada** de su propio marcado (`<｜｜DSML｜｜` con DOS barras; el canónico lleva UNA) que su parser no reconoce y cae en `content`. Reportado en NVIDIA, Microsoft Foundry y Cherry Studio. **No hay palanca nuestra**: se midió modelo (solo existen V4), nodo (1.4.8 es la última y no menciona DSML), memoria (0 filas), nº de tools, streaming, maxIterations y tamaño de prompt — ninguna lo cambia. **La tasa oscila 0–100% en minutos**, y en racha mala reintentar no sirve (10/10, 8/8). El parser está escrito y probado (`pruebas/candidato-parsear-dsml.js`); falta la tubería que ejecute la herramienta y vuelva al modelo | **Decidir si se construye.** Ver `27-el-dsml-entendido.md`. Hay banco que lo reproduce a voluntad: `pruebas/dsml.py` |
 > | 🟠 | El agente no re-consulta un servicio en conversación viva | sin decidir |
+> | 🟠 | **Fuga de razonamiento REAL al cliente** (12-ago, encontrada por las evals): el 10-ago 16:00 UTC un cliente recibió y **leyó** «El cliente dijo… Necesito saber… Le pregunto.» — `quitarRazonamiento` no caza razonamiento+respuesta en el mismo bloque sin marcador. Y NO es cosa vieja: el replay del 12-ago la reprodujo en vivo dos veces (reg-32635). Caso de oro listo para el banco del normalizador | **decidir si se arregla** (candidato por escribir; banco: doc 23) |
+> | 🟠 | **Tandas de prompt 1 y 2-B DESPLEGADAS la noche del 12-ago.** Tanda 1: cotización dual, preguntar ante «Clasica tropical» y ante «pesos» ambiguo. Tanda 2-B: responder en el idioma del cliente (inglés probado real) y mapeos de «me mandas la cuenta». Todo por el banco (baterías completas, mejor-de-3, controles contra producción); mensajes reales de libro en español e inglés. Prompt 34.806→38.581 chars. Rollbacks: `ROLLBACK-v2-antes-prompt-tanda1.json` y `-tanda2B.json` (granulares) | **NO ha visto tráfico real** — mirar el 13-ago en marcha: pregunta común (tasa+monto), envíos USD, clientes en inglés |
+> | 🔴 | **Tanda 2-C DIFERIDA con causa** (reglas 4, 6, 7 del arbitraje): el banco detectó que esa redacción **suprime a veces `registrar_beneficiario_zelle`** (caso 29922: 100% estable en producción, ~50% con el candidato). Rediseñar con otra redacción y probar con n≥5 en la familia Zelle. La redacción descartada queda en `pruebas/evals/candidato-prompt-tanda2.txt` como registro | rediseño, sin fecha |
+> | 🟢 | ~~**Arbitrar los 70 casos de evals**~~ — **hecho por Humberto y procesado el 12-ago de noche**: 43 a oro tal cual, 6 corregidos (fallos reales que ahora se vigilan), 3 descartados, 18 pendientes de contexto/historial. Sus comentarios dejaron **10 reglas de negocio no escritas**: `REGLAS-DEL-ARBITRAJE-12ago.md` | quedan las **dudas devueltas** (final de ese doc) y reconstruir el historial de los condicionales |
+> | 🟡 | **Plantillas de cambio de precio + broadcast** — texto cerrado con Osmany, `cambio_precio_mejora` y `cambio_precio_sube` **enviadas a Meta el 11-ago, en revisión** | esperar aprobación → sincronizar → mirar la `category` con que vuelven. Ficha: `PLANTILLAS-META-cambio-de-precio.md` |
 > | 🟡 | **2F** — cortar `deals.notes` como fuente de verdad | sin prisa |
 > | 🟡 | **Contabilidad y ganancias** — volumen ya hecho, falta el coste | **la hoja de Osmany** (`PEDIR-A-OSMANY-contabilidad.md`) |
 > | 🟠 | **Sanear el `waba_id` al guardarlo** | **Hermes** — buzón `2026-08-11-0046` |
 > | 🟠 | **Ocho depósitos sin dueño** — los del sábado (4.000 y 77.000 GYD) pueden tener a un cliente esperando | **Osmany** (`PEDIR-A-OSMANY-depositos-sin-dueno.md`) |
-> | 🟡 | **Redacción** de las respuestas — el formato ya está, lo que *dice* no | toca prompt, sin banco posible |
+> | 🟡 | **Redacción** de las respuestas — el formato ya está, lo que *dice* no | toca prompt — **desde el 12-ago SÍ hay banco**: `pruebas/evals/evaluar.py` corre el prompt vivo contra la batería sin tocar producción (`PLAN-EVALS-conversaciones.md`). El mensaje real sigue siendo la puerta final |
 > | 🟡 | Limpiar el Kanban y pantalla de historial | Hermes |
 > | 🟡 | Combos, recargas automáticas y México completos | **37 preguntas a Osmany** |
 > | 🔵 | Deuda de datos (10-16) y detalles menores | nada urgente |
+>
+> **Lo primero al abrir el 12-ago**, además de lo de arriba: el `Decisor` se
+> desplegó anoche con el negocio cerrado y **no ha visto tráfico real**. La
+> comprobación es una consulta que debe dar **0 filas**:
+>
+> ```sql
+> SELECT o.id, o.status, o.quoted_source_amount
+>   FROM remittance_operations o
+>   LEFT JOIN remittance_beneficiaries b ON b.operation_id = o.id
+>  WHERE o.status IN ('ready_to_transfer','deposit_verification')
+>    AND b.operation_id IS NULL
+>    -- Aisha (5926838966, 6.200 GYD): parada A PROPOSITO hasta el 13-ago, no
+>    -- debe cruzarse. Sin esta linea la consulta canta todos los dias y se
+>    -- aprende a ignorarla. QUITAR LA EXCLUSION cuando se cierre su recarga.
+>    AND o.id <> '5a163c3d-8727-48bd-b919-16de32668756';
+> ```
+>
+> **Al cierre del 11-ago da 0 filas.** El envío de 13.000 GYD ya tiene su
+> beneficiario (`EMILIO MCNEIL`, aplicado a mano el 11-ago 21:21 UTC).
+>
+> **Y lo desplegado esta madrugada, que tampoco ha visto tráfico real.** La
+> ráfaga múltiple es rara —una o dos veces por semana—, así que no basta con
+> esperar a verla: hay que mirar que **el caso normal de UN comprobante siga
+> igual que siempre**, que es lo que pasa cien veces al día.
+>
+> ```sql
+> -- Los depositos de hoy y como quedo su envio. Con UN comprobante todo tiene
+> -- que verse exactamente como ayer: un DEPOSITO por deal y sin linea de SALDO.
+> SELECT d.title, d.value, s.name AS etapa,
+>        (SELECT count(*) FROM depositos_mmg m WHERE m.deal_id = d.id) AS depositos,
+>        (COALESCE(d.notes,'') LIKE '%TOTAL VERIFICADO%') AS fue_rafaga,
+>        (COALESCE(d.notes,'') LIKE '%SALDO:%')           AS quedo_esperando
+>   FROM deals d JOIN stages s ON s.id = d.stage_id
+>  WHERE d.pipeline_id = '78220927-0745-45a8-ba08-a1b33734dbf1'
+>    AND d.created_at > current_date
+>  ORDER BY d.created_at DESC;
+> ```
+>
+> **`quedo_esperando` tiene que dar `false` en todas.** El saldo está apagado
+> —no hay ningún objetivo fijado—, así que si aparece un `true` es que algo
+> encendió la fase B sin querer y hay que mirarlo antes de seguir.
 >
 > **Con fecha:** el **13-ago** empieza la promoción de Etecsa y el bot cotizará
 > recargas solo por primera vez.
@@ -358,7 +512,19 @@ trigger falla de verdad, nadie lo va a notar entre las huérfanas.
 
 ---
 
-## ✅ El bot mudo en los chats asignados (10-ago)
+## ✅ El bot mudo en los chats asignados (10-ago; rematado el 11-ago con la 068)
+
+> **Remate del 11-ago (migración `068`):** Humberto vio chats que seguían
+> «pegados» asignados horas después de que el admin los dejara, y tenía razón
+> a medias: la 056 era **perezosa** — liberaba solo cuando ese cliente volvía
+> a escribir (y en esa pasada el bot respondía; se verificó con datos que
+> ningún cliente llegó a quedarse sin respuesta por esto). Pero en el CRM
+> había 11 chats asignados, alguno desde el día 5, incluidos 7 de antes de la
+> 056 con `assigned_at` NULL. Ahora el vigilante de chats atascados **libera
+> proactivamente** cada 5 min las asignaciones manuales caducadas (misma
+> condición del CTE de la 056; las derivaciones del bot siguen sin caducar).
+> Primera pasada real: 11 liberados, quedaron solo las 3 del bot. Rollback:
+> `ROLLBACK-068-avisar-chats-atascados-antes.sql`.
 
 Lo encontró Humberto: al cliente **5926082754** el bot no le contestó nada en
 toda la mañana. No falló nada — **20 ejecuciones seguidas** terminaron en
@@ -455,6 +621,289 @@ discriminante de la 056.
 
 ---
 
+## ✅ Osmany como admin verificador de depósitos (11-ago 14:15 UTC, pedido «para ya»)
+
+Osmany (`5218445335572`) reenvía comprobantes al número del negocio para
+verificarlos cuando el bot no lo hizo. Hasta hoy lo hacía **disfrazado de
+cliente** (el bot le contestaba con el guion de cliente y le creaba deals en
+su conversación). Ahora:
+
+- Su contacto lleva la etiqueta **`admin`** (`contact_tags`).
+- La rama admin del `Decisor` tiene el comando nuevo **`verificar`**: si el
+  lote trae comprobante, responde **el veredicto del SQL en seco y sin
+  modelo** — VERIFICADO (TransID, importe, método, «queda consumido») /
+  YA RECLAMADO / DEPOSITO ANTIGUO / SIN CRUCE (ref e importe leídos). Va por
+  la ruta `comando` existente (`Liberar chat` → `Confirmar al admin`), sin
+  nodos ni conexiones nuevas: solo el jsCode del Decisor y una rama
+  `WHEN $2='verificar' THEN $1` en el CASE del SQL.
+- Sus textos que no son comandos → silencio (como los demás admins); sus
+  comandos disponibles: `liberar <numero>`, `tasa <moneda> <valor>`, `tasas`.
+- **Segunda pasada el mismo día (14:30 UTC):** comprobante REPETIDO → el
+  admin recibe «YA REGISTRADO: ese comprobante ya tiene su deal (etapa,
+  importe). No se creó nada nuevo» — antes le respondía silencio. El dedup
+  río arriba ya evitaba el deal duplicado; solo faltaba informar.
+
+**ESPECIFICACIÓN DE HUMBERTO para la noche (11-ago, decidida — ya NO es
+pregunta abierta):** el flujo manual de Osmany debe quedar así:
+1. Comprobante limpio (casa con el correo, sin consumir, sin deal) →
+   **crear el deal** (como hoy) + consumir + veredicto. Él lo mueve luego a
+   donde pertenezca. ✅ ya funciona.
+2. Ya consumido → decírselo **y añadir QUIÉN lo consumió** (deal/cliente) —
+   hoy solo dice «ya reclamado»; ampliar `cerebro_cruzar_deposito` o
+   consulta aparte para traer el deal consumidor. 🌙
+3. Ya tiene deal (comprobante repetido) → informar sin crear. ✅ hecho 14:30.
+4. **Incidencia (no casa / dudoso / antiguo) → NO crear deal en el flujo
+   manual** — solo el informe. Hoy sí lo crea y lo manda a Incidencia como
+   a un cliente. Toca `cerebro_registrar_deposito`/`cruzar` (funciones
+   compartidas del camino del dinero) → SOLO fuera de horario, con el
+   truco del bloque auto-revertido y regresión completa. 🌙
+El objetivo declarado: registrar los depósitos de clientes que el bot no
+verificó, sin basura de incidencias en el tablero del admin.
+
+Regresión de cliente tras el cambio: verificada con mensaje real (15.000 →
+45.000 CUP). Copia previa: `ROLLBACK-v2-antes-admin-verificar.json`.
+Los tres funcionan igual si algún día se etiquetan más números admin.
+
+## ✅ El notificador ya no avisa dos veces ni pierde alertas (11-ago 15:00 UTC)
+
+Dos cambios en `WaCRM - Notificar cliente por etapa del deal`, pedidos y
+verificados el mismo día (copias: `ROLLBACK-notificador-antes-incidencia-callada.json`
+y el estado con plantilla de admin queda dentro del historial del workflow):
+
+1. **Incidencia → Entregada = silencio al cliente** (criterio de Humberto):
+   una incidencia la atendió una persona y el cierre se lo dio esa persona
+   (captura incluida); mover el deal después es contabilidad, no noticia.
+   Probado con deals reales: camino normal → plantilla entregada y leída ✓;
+   camino Incidencia→Entregada → nada al cliente ✓.
+2. **Los avisos de ADMIN del notificador van como plantilla `alerta_operativa`**
+   (incidencia, derivación, límite, cruce aproximado). Se descubrió en la
+   propia prueba: el aviso «deal en INCIDENCIA» salió como texto y murió por
+   ventana de 24 h delante de nosotros. Con plantilla: **delivered** el mismo
+   aviso 2 minutos después. (Mismo patrón que el manejador de la madrugada.)
+
+## 🟠 DSML — el modelo escupe sus tool-calls como TEXTO (11-ago tarde, contenido pero VIGILAR)
+
+**Qué pasa:** desde las ~14:30 UTC del 11-ago, DeepSeek devuelve a veces sus
+tokens de tool-call (`<｜｜DSML｜｜tool_calls>…`) como texto del mensaje en vez
+de ejecutar la herramienta. Intermitente (~4 de 5 fallando en la peor racha):
+huele a formato nuevo desplegándose por porcentaje del lado del proveedor. El
+nodo comunidad va en su última versión (1.4.8, sin hotfix aún). Histórico
+completo: 2 casos previos (9-ago y este), 4 el 11-ago — **todos en la
+conversación de pruebas, cero clientes reales tocados**.
+
+**Las dos redes puestas el mismo día (11-ago 14:31 y 14:45 UTC):**
+1. `Respuesta valida?` tiene condición nueva: output con `DSML` **jamás se
+   envía** (id `dsml-guard-11ago`).
+2. `Normalizar formato` **lanza error** si ve DSML → el manejador libera el
+   lote → el cron lo reintenta (hasta 3) → si persiste, deriva a humano con
+   aviso. Cliente: respuesta al reintento o atención humana, nunca basura ni
+   silencio. Desplegado con el banco: 413 mensajes históricos, cero
+   regresiones (`ROLLBACK-v2-antes-normalizar-formato.json`).
+   **Trampa que casi lo anula:** el nodo llevaba `onError:
+   continueRegularOutput` (herencia de «el formato jamás tumba un envío») y
+   el throw se convertía en un item con `error` que acababa en SKIP
+   silencioso. Se le quitó el `onError` — **un throw solo sirve si el nodo
+   puede fallar de verdad.**
+   **Verificado punta a punta a las 14:45 UTC:** fallo del modelo →
+   ejecución error (29667) → manejador libera y avisa (29669, 16 s después)
+   → reintento del cron → respuesta correcta entregada («40.000 → 120.000
+   CUP») **33 segundos después del fallo**.
+
+**Falsa pista que costó un rato:** el ciclo desactivar/activar pareció
+curarlo (una prueba pasó a las 14:37) y era suerte — la siguiente volvió a
+fallar. No es estado de n8n; es el proveedor.
+
+**Vigilancia:** si la tasa de fallo sube a permanente, ni 3 reintentos
+salvan y todo acabará derivado a humanos — ese día: mirar si salió hotfix
+del nodo (`npm view n8n-nodes-deepseek-chat-model version` > 1.4.8) o si
+DeepSeek documentó el formato nuevo. Los avisos del manejador (plantilla
+`alerta_operativa`) harán de termómetro: cada racha de reintentos agotados
+avisa sola.
+
+### 11-ago 21:50 — ese día llegó: los 3 reintentos se agotaron
+
+Durante la prueba de la colisión del Decisor (ver
+`25-la-colision-de-instrucciones-en-el-decisor.md`) el modelo devolvió DSML
+**tres veces seguidas** — `30539`, `30548`, `30551` — y el cliente **no
+recibió nada**. A las 14:45 el reintento salvó la papeleta; a las 21:50 no.
+
+Y hay un agravante nuevo: **cuando el contexto ordena explícitamente llamar
+una tool, el modelo intenta el tool-call y por tanto entra más veces en la
+zona donde el DSML aparece.** El arreglo del Decisor de esa noche hace que
+esto se dispare en un caso más — el de Zelle con comprobante — que antes
+simplemente no llamaba a nada.
+
+**No se pudo comprobar si la derivación a humano funciona al agotarse**: el
+depósito de la prueba se restauró con reintentos aún en vuelo y se contaminó
+el final. Pendiente de verlo en el próximo caso real.
+
+**Dos caminos, no excluyentes, para cuando se decida:**
+1. **La causa:** que la guarda, en vez de tirar el lote, **parsee el DSML y
+   ejecute la herramienta**. El texto trae `name`, `nombre` y `cuenta`
+   perfectamente legibles — es XML feo, pero es parseable.
+2. **La consecuencia:** que al agotar los reintentos el cliente reciba algo
+   en lugar de silencio.
+
+`pruebas/candidato-normalizar-dsml.js` **es byte a byte lo que ya corre en
+producción** (5.709 caracteres, comparados el 11-ago): ahí no hay nada
+pendiente de desplegar.
+
+## 🟠→✅ Los fallos del Decisor del 11-ago — 1 y 2 HECHOS esa noche, queda el 3
+
+> **Desplegado el 11-ago con el negocio cerrado**, por el banco (`--perfil
+> contexto`), 5/5 en batería y 24 combinaciones sin regresión.
+>
+> - **Fallo 1 (pedir en genérico también antes del depósito):** la regla del
+>   doc 19 vivía dentro de `if (s.comprobante ...)`, así que solo actuaba con el
+>   comprobante en la mano. Ahora hay una rama pre-depósito
+>   (`viaSinDefinir && (abiertos > 0 || esPregunta)`).
+> - **Fallo 2 (el cliente espera datos de un tercero):** `esperaTercero` sobre el
+>   texto. Y **no se añade una nota que contradiga la petición: se SUPRIME la
+>   petición** — la lección de esa misma noche. En la matriz se ve: donde antes
+>   salía «FALTAN DATOS» o «NO SABEMOS A QUIEN», ahora sale la de esperar.
+>
+> **El banco evitó un incidente.** La primera versión definía `esperaTercero`
+> junto a `esPregunta` (línea 300) pero la usaba en la 237: zona muerta temporal.
+> Habría tumbado el `Decisor` **en todo mensaje con comprobante y destino
+> desconocido**. Salió en rojo con `Cannot access 'esperaTercero' before
+> initialization` y no llegó a producción. Es exactamente para lo que se montó.
+>
+> Copias: `ROLLBACK-v2-antes-decisor.json` (estado previo a esto) y
+> `ROLLBACK-v2-antes-decisor-colision-11ago.json` (previo al arreglo de la
+> colisión, preservado a mano porque el banco reutiliza el nombre).
+>
+> **El fallo 3, la mitad que dolía, también quedó hecho esa noche.** Con varios
+> comprobantes en la misma ráfaga el `Decisor` ya **no dice ninguna cifra**: la
+> que sobrevive al colapso de `Snapshot final` no es el depósito, es un trozo, y
+> decirla es peor que callarla. Banco 4/4; cambian las 12 combinaciones de
+> ráfaga múltiple y ninguna de comprobante único.
+>
+> **Reproducido el turno real de Melih (11:38:45) contra el código ya
+> desplegado:** ahora sale la nota *«PROHIBIDO pedirle "la tarjeta y el
+> celular"… pídeselos EN GENÉRICO»*. Ese turno era el `Ok` de la clienta, un
+> lote **sin comprobante** — exactamente el hueco del fallo 1.
+>
+> **Lo que sigue abierto:** el comprobante que se pierde. De los 27.000 de Melih
+> no queda registro en ninguna parte; el cliente ya no recibe una cifra falsa,
+> pero los depósitos hay que sumarlos a mano. Eso es `Snapshot final`.
+>
+> **Y falta la prueba con tráfico real** de los tres.
+
+## Los fallos del Decisor vistos el 11-ago (texto original del diagnóstico)
+
+Salieron de leer entera la conversación con **5926299943**
+(`f09bec52-3f25-46fb-bcc2-882307b11e3f`, 11-ago 13:28–13:38 UTC). El depósito
+acabó bien (18,200 GYD, VERIFICADO contra el correo, TransID exacto) y la
+confirmación fue con veredicto del SQL — lo roto es de conversación, no de dinero:
+
+1. **Pidió «tarjeta y celular de quien recibe en Cuba» sin saber la vía de
+   entrega** (13:31:41 y 13:32:43) y el cliente tuvo que corregir: «Es por
+   zell». El criterio del doc 19 (pedir EN GENÉRICO hasta saber la vía; 4 de
+   9 beneficiarios reales eran Zelle) se aplicó en el flujo del comprobante
+   pero **la rama Zelle/servicios pre-depósito quedó fuera**. Arreglo: mapeo
+   plano en el `Decisor` para esa rama.
+2. **No escuchó «estoy esperando que me manden la cuenta» (×3)** y pidió los
+   datos del que recibe **4 veces en 5 minutos** (13:33:28, 13:34:24,
+   13:35:15, 13:38:30 — la última justo después de «Si en cuánto me lo
+   envíen»). Arreglo: instrucción plana «si el cliente dice que espera los
+   datos de un tercero → acusar recibo y esperar, sin repetir la petición».
+   Nota: el cortacircuitos de bucles NO cubre esta pregunta (vigila las dos
+   de opción cerrada); si reincide tras el arreglo, valorar añadirla.
+
+3. **Ráfaga con VARIOS comprobantes** (caso Melih 5926131647, 11-ago 15:32):
+   mandó 2 comprobantes juntos (27.000 + 300 = sus 105 Zelle); la visión leyó
+   AMBOS perfectos pero `Snapshot final` colapsa a UN comprobante y el de
+   27.000 se descartó en silencio. La red funcionó a medias: deal a
+   Incidencia con la alerta «mandó MÁS de un comprobante», nada consumido,
+   admins avisados — pero el 27.000 leído se tiró. Arreglo: o procesar
+   todos, o responder «recibimos sus N comprobantes, los revisa una
+   persona» SIN cifras. Y de propina: **el Decisor citó "300 GYD" con el
+   importe marcado dudoso** — viola el doc 14; candado a esa rama.
+4. ~~Un «SKIP» literal llegó a un cliente~~ — **FALSA ALARMA del 11-ago,
+   resuelta al releer el doc 22**: es el caso ÚNICO ya documentado y
+   arreglado el 10-ago mismo (18:05 Guyana = 22:05 UTC, de ahí la
+   confusión). El arreglo (orden invertido de la tubería + guarda de
+   última línea) está desplegado y verificado en el grafo vivo; cero
+   fugas desde entonces. Lección para el que audite: **el doc 22 se relee
+   ANTES de declarar una fuga de SKIP como nueva** — y las horas de los
+   docs van en Guyana, las de la base en UTC.
+
+**Cómo hacerlo sin romper nada** (doctrina completa): fuera de horario;
+releer `11-lenguaje-deliberativo-rompe-deepseek.md` antes (mapeo plano, cero
+prosa deliberativa); copia `ROLLBACK-v2-antes-*` del Cerebro; probar la rama
+Zelle sembrando el estado + **regresión de remesas completa** (la prueba que
+nunca se salta); y verificar con mensajes reales, no en seco.
+
+**Contexto del diagnóstico (11-ago, tras leer TODAS las conversaciones del
+día):** la sensación de «errático» de Humberto es real pero localizada — los
+fallos de hoy son TODOS de la misma familia (gestión conversacional de los
+datos del beneficiario en la rama Zelle/servicios, la menos cubierta, que
+hoy concentró el tráfico). El núcleo del dinero estuvo perfecto en las 4
+conversaciones con bot: cotizaciones exactas (200→52.000, 220→57.200),
+confirmaciones atadas al SQL, cruce verificado con TransID exacto. Nada del
+Decisor/prompt/modelo cambió desde el 10-ago por la tarde.
+
+## 🔴→✅ INCIDENTE 11-ago: el bot mudo 11 horas por la rotación del HMAC
+
+**Lo que pasó:** la rotación de `CEREBRO_WEBHOOK_SECRET` de la madrugada dejó
+las dos puntas desparejas: n8n validaba la clave NUEVA desde las 02:20, pero
+WaCRM siguió firmando con la VIEJA — la clave nueva se escribió en
+`/home/ubuntu/wacrm/.env.local` y **el proceso corre desde
+`/home/ubuntu/wacrm-deploy`** (el `cwd` del pm2). El Cerebro rechazó TODA la
+entrada de clientes de 02:20 a 13:15 UTC: **15 mensajes de 7 conversaciones,
+2 con comprobante**, sin bot y sin una sola alarma. Lo destapó Humberto
+preguntando por un cliente concreto (5927100574).
+
+**Por qué la verificación de la madrugada no lo cazó:** la prueba firmada fue
+directa al webhook del Cerebro — ejercitó la validación de n8n, **no la firma
+de WaCRM**. La regla del proyecto aplicada en contra: una prueba que no
+produce el efecto real de punta a punta no prueba nada. La prueba buena era
+un WhatsApp real, y no se hizo hasta la mañana.
+
+**Por qué el vigilante no gritó:** `cerebro_avisar_mensajes_perdidos` (061)
+solo miraba `whatsapp_webhook_log.procesado=false` — pérdidas
+WhatsApp→WaCRM. Aquí WaCRM procesó perfecto; lo que faltó fue el
+`session_event`. Punto ciego.
+
+**Arreglos, todos el mismo día 11-ago (13:15–13:30 UTC):**
+1. Clave nueva en `wacrm-deploy/.env.local` (verificada por hash) + pm2
+   restart → cadena confirmada con WhatsApp real de Humberto: lote
+   `completed` y respuesta del bot en 20 s.
+2. **Migración `069`**: el vigilante de mensajes perdidos ya ve el tramo
+   WaCRM→Cerebro (mensaje de cliente sin `session_event` a los 10 min →
+   aviso `bot_no_recibio`, suprimido si un humano ya contestó). Su primera
+   pasada real avisó de los 4 clientes sin atender (12 notificaciones).
+3. Carpeta trampa marcada: `wacrm/.env.local` ya no lleva el secreto y
+   avisa en un comentario de que el vivo es `wacrm-deploy`. ARRANQUE
+   actualizado con cómo comprobar host y carpeta antes de tocar un env.
+
+**Afectados que necesitaron atención a mano:** Norma (5926800266, comprobante,
+3 h esperando), Luis Peres (5927317368, comprobante), Melih (5926131647),
+JoseM (5927674896); Alidannis y Yoandrys ya los cubría Osmany.
+
+## ✅ Seguridad — HMAC rotado el 11-ago tras exposición
+
+**El 11-ago Humberto pegó `CEREBRO_WEBHOOK_SECRET` en el chat** (junto al
+entorno de Easypanel) → se rotó esa misma madrugada, con el criterio de
+siempre: Humberto generó el valor en un fichero local, y el valor viajó por
+tuberías (nunca por la conversación) a los dos lados — `.env.local` de WaCRM
+en **oracle** (`/home/ubuntu/wacrm/`, pm2 restart) y `CEREBRO_WEBHOOK_SECRET`
+de n8n en Easypanel (lo pegó Humberto, restart 02:20 UTC). Verificado con
+mensaje firmado con la clave nueva: ejecución 28294 `success`, lote
+`completed`, respuesta correcta. 0 webhooks de clientes en el hueco.
+
+Dos cosas que salieron de ahí y conviene no olvidar:
+
+- **WaCRM vive en `oracle` (129.159.93.221), no en el VPS de Hermes.** En
+  `hermes-vps` (193.106.248.46, el host de Easypanel/n8n) hay un
+  `/root/wacrm/.env.local` que es una **copia muerta** — a punto estuvo de
+  comerse la rotación. `dig wacrm.onlinefreedom.site` antes de tocar nada.
+- 🟡 **El `?secret=` de la URL del webhook conserva el valor viejo (quemado).**
+  Al v2 le da igual (valida la cabecera HMAC y el env var tiene precedencia en
+  el código de WaCRM), y el v1 está apagado. Pero **si algún día se activa el
+  rollback al v1, hay que rotar ese `?secret=` también** — está en la config
+  del endpoint en la base de WaCRM.
+
 ## ✅ Seguridad — sin secretos expuestos desde el 10-ago
 
 | | Qué | Estado |
@@ -549,6 +998,59 @@ una letra. No afecta a los datos.
 la confirmación es SQL y **Osmany no ejecuta SQL**, así que la lanza Humberto.
 Nota en el buzón (`2026-08-09-1930`).
 
+### 🔴 13-ago, primer día de la promo: el DSML se comió la cotización
+
+La promo se activó sola y bien. `cerebro_servicio_get('recargas')` devolvía
+`PROMOCION VIGENTE HOY: 600 CUP x6, 6200 GYD, valida hasta el 16/08` con
+`requiere_humano = false`. **La pieza nueva funcionó.**
+
+Lo que falló fue aguas arriba. Yilian Barbara Hernandez (`5926595697`), 08:51:
+
+| | |
+|---|---|
+| Lo que había en la base | 600 CUP ×6 → **6.200 GYD** |
+| Lo que sabía la clienta | *"siempre pongo es de 6200"* — **correcto** |
+| Lo que dijo el bot | *"500 CUP por **2.500 GYD**"*, y luego *"serían **6.200 CUP**"* |
+
+Siete ejecuciones en esa conversación (`35550`–`35583`), **ninguna llamó a una
+sola herramienta**. Las dos primeras murieron por DSML; los reintentos
+contestaron de memoria. El precio salió de la imaginación del modelo con la
+respuesta correcta a una llamada de distancia.
+
+**Lo que esto enseña, y no es sobre recargas:** una respuesta inventada no se
+distingue de una buena. El error de DSML se da por resuelto en cuanto hay
+*alguna* respuesta, y nadie mira si llevaba datos detrás. Mientras el modelo
+decida si llama o no, cualquier dato que dependa de una tool es opinable.
+Es el argumento de Humberto —*lo que usa determinismo no falla*— aplicado a
+cotizar.
+
+**No se tocó nada.** Queda para verlo con calma.
+
+---
+
+## 🟡 Un comprobante duplicado no levanta la mano (13-ago)
+
+`5926731279` mandó dos veces el mismo fichero (hash `68be412d…`) el 12-ago a las
+18:11 y 18:13. Los dos salieron por duplicados, y con razón: **ese comprobante
+ya lo había procesado Osmany el 10-ago a las 14:43** desde su número de admin
+(`5218445335572`), y el depósito `10397460289689` (20.000 GYD, del libro del
+09-ago) ya estaba consumido.
+
+El sistema decidió bien. El problema es lo que vino después:
+
+```sql
+SELECT count(*) FROM notifications
+ WHERE conversation_id = '148ecdc4-ef08-4a66-b638-c45100f1cdea';  -- 0
+```
+
+Al cliente se le dijo *"lo estamos revisando y en breve le confirmamos"* y **no
+se le dijo a nadie**. El deal sigue en «Solicitada» con valor 0 y el cliente
+esperando. Si la rama de duplicados promete que una persona lo mira, tiene que
+haber una persona a la que se le avise — como ya hace el vigilante de depósitos
+sin cruzar.
+
+**No se tocó nada.** Queda para verlo con calma.
+
 ---
 
 ## ✅ La traducción ya cuesta 5.000 GYD/hoja — aplicado el 9-ago
@@ -578,6 +1080,52 @@ Al probar el precio nuevo, el agente siguió cotizando 4.000. No era la tabla:
 **no volvió a llamar a la herramienta**. Detalle en la sección siguiente.
 
 ---
+
+## ✅ Cierre contable del libro anterior al CRM (11-ago noche)
+
+**354 depósitos anteriores al 3-ago-2026 marcados como consumidos**, decisión de
+Humberto: *«el CRM lo iniciamos el día 3, lo anterior se puede dar por consumido
+sin problema»*. Iban del 31-dic-2025 al 2-ago-2026 y sumaban **54.017.132 GYD**.
+
+`depositos_mmg` pasa de **428 sueltos a 74**, el más antiguo del 3-ago. Todos
+llevan **el mismo `consumido_en` al segundo**, así que se distinguen de un
+vistazo de los consumos reales:
+
+```sql
+-- los del cierre en bloque
+SELECT count(*), consumido_en FROM depositos_mmg
+ WHERE deal_id IS NULL AND consumido_en IS NOT NULL
+ GROUP BY consumido_en HAVING count(*) > 100;
+```
+
+**Efecto secundario, menor pero real:** si algún día llega un comprobante de uno
+de esos 354, el cruce dirá `ya_reclamado` («ese depósito ya se usó en otro
+envío») en vez de `deposito_antiguo`. Los dos mandan el deal a Incidencia, así
+que el resultado no cambia — solo el texto que ve el cliente.
+
+### Lo que queda libre, y la pregunta que sustituye a «los ocho sin dueño»
+
+| Día | Libres | Suma GYD |
+|---|---|---|
+| 03-08 | 25 | 1.333.520 |
+| 04-08 | 11 | 848.980 |
+| 05-08 | 3 | 147.760 |
+| 06-08 | 6 | 545.999 |
+| 07-08 | 2 | 372.500 |
+| 08-08 | 4 | 119.000 |
+| 09-08 | 4 | 886.520 |
+| **10-08** | **14** | 474.100 |
+| **11-08** | **5** | 1.154.130 |
+
+Los **25 del día 3** son casi seguro de la misma naturaleza que los 354 (el CRM
+abrió ese día); Humberto decidió **dejarlos por ahora**.
+
+**Los 19 de los días 10 y 11 son los que merecen mirada**: son de días con el
+Cerebro ya funcionando, así que o el cliente no mandó comprobante, o el sistema
+los perdió. Y de un mecanismo que los pierde ya sabemos: la ráfaga múltiple —
+los dos de Melih venían justo de ahí. Eso convierte la pregunta abierta con
+Osmany en algo concreto: **19 depósitos con fecha e importe**, en vez de una
+lista suelta de ocho.
 
 ## 🟡 Contabilidad: el volumen ya está, falta el coste
 
@@ -885,7 +1433,41 @@ Son 260 GYD por envío y solo afecta a México.
 
 ---
 
-## 🟠 La ventana de 24 h de WhatsApp
+## ✅ La ventana de 24 h — cerrada para lo que dolía (11-ago de madrugada)
+
+**Las dos fugas reales quedaron tapadas con plantillas, probadas con envíos
+de verdad:**
+
+1. **Alertas al admin** → el manejador manda `alerta_operativa`: 3/3 admins
+   `delivered`, incluido el número que moría por ventana y el tercero que
+   jamás había recibido una (su contacto en WaCRM tenía el teléfono pelado;
+   corregido). Copia: `ROLLBACK-manejador-antes-plantilla-alerta.json`.
+2. **«Su remesa fue completada» al cliente** (el fallo del 10-ago con un
+   cliente real) → el notificador por etapa manda la plantilla
+   `remesa_completada` con el importe como parámetro. Probado con un deal
+   real movido a Entregada: `delivered`. Copia:
+   `ROLLBACK-notificador-antes-plantilla-completada.json`.
+
+**Por qué con esto basta:** las respuestas del bot son siempre *respuestas* —
+el cliente acaba de escribir, la ventana está abierta por definición. Los
+únicos envíos fuera de ventana eran justo esos dos.
+
+**Riesgo residual, pequeño y aceptado:** el aviso «depósito verificado» de
+verificación manual sigue en texto (no hay plantilla para él). Solo fallaría
+si la verificación manual llega >24 h después del último mensaje del cliente,
+que casi nunca pasa (el comprobante es reciente por definición). Si algún día
+duele: aprobar una plantilla `deposito_verificado` y calcarle el patrón.
+
+**La fase 3 del outbox (el corte) se decidió NO hacerla por ahora** — decisión
+de Humberto, 11-ago: añade hasta 30 s de latencia a cada respuesta y crea un
+modo de fallo silencioso (enviador parado = nadie envía y nada grita), a cambio
+de proteger contra un caso raro. Todo queda construido y probado por si cambia
+el cálculo: enviador `K4ijL3NzmY1VX7XI` apagado, interruptor `outbox_activo`,
+migraciones 066/067, plan del recableado en `24-plan-arreglos-auditoria.md`.
+**Si un cliente llega a recibir una respuesta doble, ese día se enciende** —
+con su vigilante de filas atascadas, que es el requisito que le falta.
+
+### (histórico) 🟠 La ventana de 24 h de WhatsApp
 
 > Lo urgente de esto **se cerró el 8-ago por la tarde**: ya no falla en
 > silencio. Lo que sigue abierto es el riesgo de fondo, que afecta a clientes.

@@ -116,9 +116,10 @@ confirmado en vivo con un mensaje real. Ver `20-el-normalizador-y-sus-tres-hueco
 
 ## Lo que NO cubre
 
-- **Solo nodos Code.** El `Decisor` sí entra; el `Agente Remesas` (prompt) y los
-  nodos Postgres, no. Para el prompt no hay banco posible: lo que valida un
-  cambio de prompt es **mandar un mensaje real**.
+- **Solo nodos Code.** El `Decisor` sí entra; el `Agente Remesas` (prompt), no.
+  Para el prompt no hay banco posible: lo que valida un cambio de prompt es
+  **mandar un mensaje real**. Los **nodos Postgres** tienen desde el 13-ago su
+  propio banco, `banco-sql.py` — ver abajo.
 - **No prueba la tubería entera.** Que un nodo esté bien no dice que esté
   conectado donde toca — el `SKIP` es justo eso: cada nodo hacía su trabajo
   correctamente y el orden estaba mal. Para eso, un mensaje al número de
@@ -127,3 +128,56 @@ confirmado en vivo con un mensaje real. Ver `20-el-normalizador-y-sus-tres-hueco
 > **La regla sigue en pie:** el banco en verde **no** es una prueba de que
 > funciona. Es una prueba de que no has roto lo que ya funcionaba. Lo demás lo
 > demuestra un mensaje de verdad.
+
+---
+
+## `banco-sql.py` — el hermano para los nodos Postgres
+
+**13 de agosto de 2026.** Los nodos Code tenían red desde el 10-ago; los
+Postgres, que son los que mueven el dinero, no. Este los cubre.
+
+```bash
+cd ~/cerebro-fase1/pruebas
+
+python3 banco-sql.py --buscar "<texto exacto>" --reemplazar "<texto nuevo>"
+
+# solo si sale VERDE:
+python3 banco-sql.py --buscar ... --reemplazar ... \
+                     --etiqueta <nombre> --desplegar
+```
+
+Aplica un **reemplazo de texto exacto** sobre las queries, bajadas del JSON de
+producción por API y parcheadas **por programa** — nunca retecleadas, que es lo
+que costó 27 minutos el 10-ago.
+
+**Cómo valida:** monta un workflow temporal en n8n (se borra solo, `finally`) con
+un nodo Postgres por query, y ejecuta:
+
+```sql
+DEALLOCATE ALL;
+PREPARE prod_vN AS <query de produccion>;
+PREPARE cand_vN AS <query candidata>;
+SELECT ... FROM pg_prepared_statements ...
+```
+
+`PREPARE` compila, planifica y comprueba tipos **sin ejecutar el cuerpo**: ni un
+`INSERT`, ni un `UPDATE`. Y compara `parameter_types` de las dos versiones,
+porque n8n pasa los parámetros **por posición**: si la firma cambia, la tool se
+rompe aunque el SQL sea válido.
+
+Verde = **todas** las queries compilan **y** ninguna firma cambia. En rojo no
+despliega. `--desplegar` guarda `ROLLBACK-v2-antes-<etiqueta>.json`, sube, hace
+el ciclo desactivar/activar y **relee lo desplegado para compararlo byte a byte
+con lo validado**.
+
+> **Ojo con el filtro de nodos, que ya falló una vez:** las tools del agente son
+> `n8n-nodes-base.postgresTool`, no `n8n-nodes-base.postgres`. En su primera
+> ejecución el banco encontró **2 de 6** nodos y habría validado dos mientras se
+> desplegaban seis. Están los dos tipos en `TIPOS_PG`.
+
+**Lo que sigue sin cubrir:** `PREPARE` dice que la query es válida, no que haga
+lo correcto. Para eso, un bloque `DO` que fabrica el caso, lo mide y termina en
+`RAISE EXCEPTION` para revertirlo — así se comprobó que meter `incident` en
+`cerebro_resolver_operacion` arregla el caso de la incidencia sola (`ninguna` →
+`unica`) y convierte en `ambigua` la incidencia vieja que convive con un envío
+nuevo. Y después, la regla de siempre: **un mensaje real**.

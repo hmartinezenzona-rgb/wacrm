@@ -23,6 +23,17 @@ export interface ExistingContact {
   id: string;
   phone: string;
   name?: string | null;
+  /**
+   * De donde viene `name`: 'whatsapp' (vino del perfil del cliente y el
+   * webhook puede refrescarlo) o 'manual' (lo escribio una persona en el
+   * CRM y NADIE lo pisa). Migracion 080.
+   *
+   * Declararlo NO es cosmetico: con el index signature de abajo, sin esta
+   * linea `existingContact.name_source` compila igual como `unknown` y la
+   * comparacion del webhook pasa de largo — y aqui el build no valida
+   * tipos, asi que nadie avisaria.
+   */
+  name_source?: string | null;
   [key: string]: unknown;
 }
 

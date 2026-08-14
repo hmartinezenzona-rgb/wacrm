@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
-import type { Contact, Deal, ContactNote, Tag } from "@/types";
+import type { Contact, Conversation, Deal, ContactNote, Tag } from "@/types";
 import {
   Phone,
   Mail,
@@ -15,17 +15,23 @@ import {
   DollarSign,
   StickyNote,
   Plus,
+  Bot,
+  Pause,
+  Play,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
+import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 
 interface ContactSidebarProps {
   contact: Contact | null;
+  /** Hilo abierto. Hace falta para pausar el bot, que es por conversacion. */
+  conversation?: Conversation | null;
 }
 
-export function ContactSidebar({ contact }: ContactSidebarProps) {
+export function ContactSidebar({ contact, conversation }: ContactSidebarProps) {
   const tSidebar = useTranslations("Inbox.sidebar");
   const tThread = useTranslations("Inbox.messageThread");
 
@@ -36,6 +42,42 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
   const [tags, setTags] = useState<(Tag & { contact_tag_id: string })[]>([]);
   const [newNote, setNewNote] = useState("");
   const [addingNote, setAddingNote] = useState(false);
+  // Pausa del bot en ESTE hilo (`conversations.ai_autoreply_disabled`).
+  // Espejo local optimista para que el boton responda al instante; se
+  // re-siembra al cambiar de conversacion o cuando llega el valor del
+  // servidor por realtime.
+  const [botPaused, setBotPaused] = useState(false);
+  const [botBusy, setBotBusy] = useState(false);
+  useEffect(() => {
+    setBotPaused(conversation?.ai_autoreply_disabled ?? false);
+  }, [conversation?.id, conversation?.ai_autoreply_disabled]);
+
+  const toggleBot = useCallback(async () => {
+    if (!conversation) return;
+    const next = !botPaused;
+    setBotBusy(true);
+    try {
+      // Se reusa el endpoint que ya existia. `assign_to_me` se OMITE a
+      // proposito: pausar no debe apropiarse del chat. Al reanudar, el
+      // endpoint libera cualquier asignacion, que hace falta porque el
+      // Cerebro tambien se calla con el chat asignado.
+      const res = await fetch(`/api/ai/autoreply/${conversation.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paused: next }),
+      });
+      if (!res.ok) {
+        toast.error(tSidebar("botError"));
+        return;
+      }
+      setBotPaused(next);
+      toast.success(next ? tSidebar("botPaused") : tSidebar("botResumed"));
+    } catch {
+      toast.error(tSidebar("botError"));
+    } finally {
+      setBotBusy(false);
+    }
+  }, [conversation, botPaused, tSidebar]);
 
   const fetchContactData = useCallback(async () => {
     if (!contact) return;
@@ -296,6 +338,41 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
               </div>
             </div>
           </div>
+
+          {/* Bot — pausar / reanudar en este hilo. Existe aparte del banner
+              de IA de WaCRM (`AiThreadBanner`) a proposito: aquel solo se
+              dibuja si esta encendida la IA PROPIA de WaCRM, y aqui el bot
+              es el Cerebro en n8n, asi que nunca aparecia. */}
+          {conversation && (
+            <>
+              <div className="my-4 border-t border-border" />
+              <div>
+                <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <Bot className="h-3 w-3" />
+                  {tSidebar("bot")}
+                </div>
+                <div className="mt-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={toggleBot}
+                    disabled={botBusy}
+                    className="w-full justify-start border-border bg-transparent text-xs text-foreground hover:bg-muted"
+                  >
+                    {botPaused ? (
+                      <Play className="mr-2 h-3 w-3 text-primary" />
+                    ) : (
+                      <Pause className="mr-2 h-3 w-3 text-muted-foreground" />
+                    )}
+                    {botPaused ? tSidebar("resumeBot") : tSidebar("pauseBot")}
+                  </Button>
+                  <p className="mt-1.5 px-1 text-[10px] leading-snug text-muted-foreground">
+                    {botPaused ? tSidebar("botPausedHint") : tSidebar("botActiveHint")}
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </ScrollArea>
     </div>

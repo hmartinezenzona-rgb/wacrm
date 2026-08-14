@@ -112,21 +112,36 @@ export default function PipelinesPage() {
       // perdería qué depósito pagó qué remesa.
       // `status.is.null` cubre los deals sin status (pipeline genérico,
       // nunca tocados por el trigger de remesas).
-      // Medianoche de HOY en Guyana (UTC-4 todo el año, sin horario de
-      // verano) expresada en UTC. Se hace por día natural y no con una
-      // ventana móvil de 24 h porque esa arrastraba la tarde de ayer:
-      // a las 9:00 aún enseñaba las entregas de ayer desde las 9:00.
-      // Así la columna empieza limpia cada mañana.
+      // Inicio del DÍA DE NEGOCIO en Guyana (UTC-4 todo el año, sin
+      // horario de verano), expresado en UTC.
+      //
+      // NO se corta a medianoche, y esto costó un susto: con el corte a las
+      // 00:00, a las 00:13 la columna «Entregada» se vaciaba de golpe y
+      // parecía que se hubieran borrado los envíos. Peor aún, seguía vacía
+      // toda la mañana hasta la primera entrega del día — justo cuando uno
+      // abre el CRM a repasar lo de ayer. Nada se borraba: era solo el
+      // filtro. Pero un tablero que parece haber perdido los datos es un
+      // tablero roto.
+      //
+      // Se corta a la hora de ABRIR (9:00). Entre las 00:00 y las 9:00 no se
+      // entrega nada, así que hasta que el negocio abre se sigue viendo el
+      // día anterior, y la columna cambia justo cuando empieza la jornada.
       //
       // Y se filtra por `entregado_en`, NO por `updated_at` (migración 083).
       // `updated_at` lo mueve un trigger en CUALQUIER edición, así que
       // tocar las notas de una remesa vieja la resucitaba en la columna de
       // hoy: pasó el 14-ago con una corrección en masa de 14 deals.
       // `entregado_en` solo se escribe al ENTRAR en la etapa Entregada.
+      const APERTURA_GY = 9; // hora de Guyana a la que abre el negocio
       const gy = new Date(Date.now() - 4 * 60 * 60 * 1000);
-      const since = new Date(
-        Date.UTC(gy.getUTCFullYear(), gy.getUTCMonth(), gy.getUTCDate(), 4, 0, 0),
-      ).toISOString();
+      const inicio = new Date(
+        Date.UTC(gy.getUTCFullYear(), gy.getUTCMonth(), gy.getUTCDate(),
+                 APERTURA_GY + 4, 0, 0),
+      );
+      if (gy.getUTCHours() < APERTURA_GY) {
+        inicio.setUTCDate(inicio.getUTCDate() - 1);
+      }
+      const since = inicio.toISOString();
       const { data } = await supabase
         .from("deals")
         .select(

@@ -99,14 +99,21 @@ export default function PipelinesPage() {
 
   const loadDeals = useCallback(
     async (pipelineId: string) => {
-      // Filtro de vista: mostrar lo abierto + lo entregado (won) de los
-      // últimos 7 días. La columna "Entregada" acumulaba TODO el
-      // histórico (~150 tarjetas/mes); los datos no se mueven ni se
-      // borran, el histórico completo se consulta desde la pantalla de
-      // resumen. `status.is.null` cubre los deals sin status (pipeline
-      // genérico, nunca tocados por el trigger de remesas).
+      // Filtro de vista: mostrar lo abierto + lo entregado (won) de las
+      // últimas 24 h. La columna "Entregada" acumulaba TODO el histórico
+      // (~150 tarjetas/mes); con 7 días seguía juntando ~50 tarjetas y
+      // Osmany pedía verla al día. Los datos NO se mueven ni se borran:
+      // el histórico completo vive en la pantalla de resumen, que se
+      // construye sobre `remittance_operations` + `remittance_beneficiaries`
+      // y NO depende de `deals` — comprobado el 14-ago-2026 con dos
+      // operaciones cuyo deal ya estaba borrado: siguen saliendo enteras.
+      // Por eso aquí se acorta la ventana en vez de borrar deals: borrarlos
+      // pondría a NULL `depositos_mmg.deal_id` (47 depósitos hoy) y se
+      // perdería qué depósito pagó qué remesa.
+      // `status.is.null` cubre los deals sin status (pipeline genérico,
+      // nunca tocados por el trigger de remesas).
       const since = new Date(
-        Date.now() - 7 * 24 * 60 * 60 * 1000,
+        Date.now() - 24 * 60 * 60 * 1000,
       ).toISOString();
       const { data } = await supabase
         .from("deals")

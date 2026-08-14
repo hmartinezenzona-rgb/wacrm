@@ -152,10 +152,17 @@ SELECT name, phone, name_source, updated_at
 contacto con `name_source='whatsapp'` (hoy solo hay 2, los que se llaman como su
 número) **sí** debe recibir el nombre del perfil en su próximo mensaje.
 
-Para el test automático, `src/app/api/whatsapp/webhook/route.test.ts` ya tiene el
-andamiaje: un caso con `findExistingContact` devolviendo
-`{ id, phone, name: 'Fran Guyana', name_source: 'manual' }` y perfil «Fran» no
-debe producir ningún `update` sobre `contacts`.
+**El test automático NO existe todavía y hay que escribirlo.** Lo cazó Hermes
+comprobándolo contra master en vez de fiarse de esta guía, que en su primera
+versión daba a entender lo contrario: `src/app/api/whatsapp/webhook/route.test.ts`
+tiene el **andamiaje** (los mocks de `findExistingContact`, el cliente Supabase
+falso que registra `updates`), pero **ningún caso de `name_source`**.
+
+El caso que falta: `findExistingContact` devolviendo
+`{ id, phone, name: 'Fran Guyana', name_source: 'manual' }` con perfil «Fran» no
+debe producir ningún `update` sobre `contacts`. Y su control: el mismo caso con
+`name_source: 'whatsapp'` **sí** debe producirlo. Sin el segundo, el test pasaría
+igual con la comparación rota en cualquier sitio.
 
 ---
 

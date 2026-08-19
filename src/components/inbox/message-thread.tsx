@@ -28,7 +28,7 @@ import {
   PanelRightOpen,
   PanelRightClose,
 } from "lucide-react";
-import { format, isToday, isYesterday, differenceInHours } from "date-fns";
+import { format, isToday, isYesterday } from "date-fns";
 import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -47,6 +47,10 @@ import {
   type SendMediaPayload,
 } from "./message-composer";
 import { deleteAccountMedia } from "@/lib/storage/upload-media";
+import {
+  lastCustomerMessageAt,
+  sessionWindowFromMessages,
+} from "@/lib/inbox/session-window";
 import { TemplatePicker } from "./template-picker";
 import { AiThreadBanner } from "./ai-thread-banner";
 import { buildReplyPreview } from "./reply-quote";
@@ -226,31 +230,30 @@ export function MessageThread({
     };
   }, []);
 
-  // 24-hour session timer
+  // 24-hour session timer. The arithmetic lives in
+  // `@/lib/inbox/session-window` — the pipelines board asks the same
+  // question before offering to send a delivery proof, and two
+  // implementations of "24 hours" would eventually disagree.
   const sessionInfo = useMemo(() => {
-    if (!messages.length) return { expired: false, remaining: "" };
+    const window = sessionWindowFromMessages(messages);
 
-    // Find last customer message
-    const lastCustomerMsg = [...messages]
-      .reverse()
-      .find((m) => m.sender_type === "customer");
-
-    if (!lastCustomerMsg) return { expired: true, remaining: "No customer messages" };
-
-    const hoursSince = differenceInHours(new Date(), new Date(lastCustomerMsg.created_at));
-    const expired = hoursSince >= 24;
-
-    if (expired) {
-      return { expired: true, remaining: tTimer("expired") };
+    if (window.state === "unknown") return { expired: false, remaining: "" };
+    if (window.state === "expired") {
+      // A thread with no customer message at all has never had a
+      // window, which reads differently from one that ran out.
+      const everWrote = lastCustomerMessageAt(messages) !== null;
+      return {
+        expired: true,
+        remaining: everWrote ? tTimer("expired") : "No customer messages",
+      };
     }
 
-    const hoursLeft = 24 - hoursSince;
     const remaining =
-      hoursLeft >= 1
-        ? tTimer("xhRemaining", { hours: Math.floor(hoursLeft) })
-        : tTimer("xmRemaining", { minutes: Math.floor(hoursLeft * 60) });
+      window.hoursLeft >= 1
+        ? tTimer("xhRemaining", { hours: window.hoursLeft })
+        : tTimer("xmRemaining", { minutes: Math.floor(window.hoursLeft * 60) });
 
-    return { expired, remaining };
+    return { expired: false, remaining };
   }, [messages, tTimer]);
 
   // Store latest callback in a ref so fetchMessages doesn't need to

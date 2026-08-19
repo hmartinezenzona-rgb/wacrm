@@ -512,7 +512,8 @@
     "card": {
       "noContact": "No contact",
       "won": "Won",
-      "lost": "Lost"
+      "lost": "Lost",
+      "proofPrepared": "Prueba de entrega preparada"
     },
     "form": {
       "editDeal": "Edit Deal",
@@ -594,6 +595,58 @@
       "lostThisMonth": "Lost This Month",
       "lostThisMonthTooltip": "Deals marked as Lost since the first day of the current month.",
       "howCalculated": "How {label} is calculated"
+    },
+    "deliveryProof": {
+      "title": "Prueba de entrega",
+      "dropPaste": "Pega una captura aquí con Ctrl+V",
+      "dropOr": "o arrástrala / elige un archivo",
+      "dropFormats": "PNG · JPG · WEBP · máx. {mb} MB",
+      "fileLabel": "captura · {size}",
+      "change": "Cambiar",
+      "remove": "Eliminar",
+      "removeAria": "Quitar la prueba de entrega",
+      "previewAlt": "Prueba de entrega preparada",
+      "noteLabel": "Nota opcional",
+      "notePlaceholder": "Nombre del remitente: Juan Pérez",
+      "noteHint": "Se enviará como texto de la imagen (caption).",
+      "willSend": "La captura se enviará al cliente cuando muevas el deal a Entregada.",
+      "windowOpen": "Se puede enviar la captura por WhatsApp",
+      "windowOpenHours": "Se puede enviar la captura por WhatsApp · quedan {hours} h",
+      "windowClosed": "La ventana de WhatsApp está cerrada. La captura no puede enviarse como mensaje libre. Al entregar, podrás continuar sin enviar la prueba.",
+      "noPermission": "Tu rol no permite enviar mensajes, así que no puedes adjuntar una prueba de entrega.",
+      "cardTooltip": "Prueba de entrega preparada",
+      "rejectEmpty": "El archivo está vacío.",
+      "rejectMime": "Formato no admitido. Usa PNG, JPG o WEBP.",
+      "rejectSize": "La imagen pesa más de {mb} MB.",
+      "rejectSignature": "Archivo no válido: el contenido no coincide con el formato."
+    },
+    "deliveryConfirm": {
+      "title": "Enviar prueba y marcar entregada",
+      "body": "Se enviará la captura al cliente y después la remesa se marcará como Entregada.",
+      "cancel": "Cancelar",
+      "confirm": "Enviar y marcar entregada",
+      "sending": "Enviando…",
+      "closedTitle": "La ventana de WhatsApp está cerrada",
+      "closedBody": "No se puede enviar la captura porque han pasado más de 24 h desde el último mensaje del cliente.\n\nLa notificación final de remesa completada sí puede enviarse porque usa una plantilla de WhatsApp.",
+      "closedConfirm": "Marcar entregada sin enviar captura",
+      "okWithProof": "Prueba enviada y remesa marcada como entregada.",
+      "okWithoutProof": "Remesa marcada como entregada.",
+      "failUpload": "No se pudo subir la captura: {reason}",
+      "failSend": "No se pudo enviar la captura: {reason}",
+      "failStage": "El comprobante se envió, pero no se pudo marcar la remesa como Entregada.",
+      "retryStage": "Reintentar cambio de etapa",
+      "blockedPermission": "Tu rol no permite enviar mensajes.",
+      "blockedNoConversation": "Este deal no tiene conversación, no hay a quién enviar la captura.",
+      "blockedInvalidFile": "La captura ya no es válida. Vuelve a adjuntarla.",
+      "blockedMismatch": "La prueba preparada pertenece a otro deal.",
+      "busy": "Ya hay un envío en curso para este deal.",
+      "sentNotRecordedTitle": "La captura se envió, pero no se guardó",
+      "sentNotRecordedBody": "La captura se envió al cliente, pero WaCRM no pudo guardar el mensaje.\n\nNo la vuelvas a enviar.",
+      "unconfirmedTitle": "No se pudo confirmar el envío",
+      "unconfirmedBody": "No se pudo confirmar el resultado del envío.\n\nAntes de reintentar, revisa la conversación.",
+      "retryStageOnly": "Reintentar solo marcar Entregada",
+      "staleStage": "Este deal ya cambió de etapa en otra sesión.",
+      "retrySend": "Revisé el chat, reintentar envío"
     }
   },
   "Broadcasts": {

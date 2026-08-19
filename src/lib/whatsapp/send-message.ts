@@ -61,11 +61,31 @@ export const VALID_MESSAGE_TYPES = [
 export class SendMessageError extends Error {
   readonly code: string;
   readonly status: number;
-  constructor(code: string, message: string, status: number) {
+  /**
+   * Set only when the message ALREADY REACHED Meta and the failure
+   * happened afterwards — today that means `db_error`, where the
+   * customer has the message but the `messages` row did not save.
+   *
+   * Without it, "Meta refused" and "Meta accepted, we failed to
+   * record it" are indistinguishable to the caller, and a caller that
+   * retries the second one sends the customer the same thing twice.
+   * Its presence is the signal NOT to retry the send.
+   *
+   * Absent for every failure before or during the Meta call
+   * (`bad_request`, `not_found`, `meta_error`, …).
+   */
+  readonly whatsappMessageId?: string;
+  constructor(
+    code: string,
+    message: string,
+    status: number,
+    whatsappMessageId?: string,
+  ) {
     super(message);
     this.name = 'SendMessageError';
     this.code = code;
     this.status = status;
+    this.whatsappMessageId = whatsappMessageId;
   }
 }
 
@@ -476,10 +496,15 @@ export async function sendMessageToConversation(
 
   if (msgError) {
     console.error('[send-message] error inserting sent message:', msgError);
+    // The customer HAS this message. Carry the wamid out with the
+    // error so the caller can tell "never sent" from "sent but not
+    // recorded" — the two need opposite recovery, and guessing wrong
+    // means sending it a second time.
     throw new SendMessageError(
       'db_error',
       `Message sent to Meta but failed to save to DB: ${msgError.message}`,
-      500
+      500,
+      waMessageId
     );
   }
 

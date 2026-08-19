@@ -1,7 +1,7 @@
 "use client";
 
 import type { Deal, PipelineStage } from "@/types";
-import { Calendar, Check, X } from "lucide-react";
+import { Calendar, Check, Paperclip, X } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
 import { useTranslations } from "next-intl";
 
@@ -9,6 +9,12 @@ interface DealCardProps {
   deal: Deal;
   stage: PipelineStage | null;
   onEdit: (deal: Deal) => void;
+  /**
+   * A delivery proof is prepared for this deal but not yet sent. It
+   * lives in session memory only, so this is a transient hint — after
+   * a reload the clip is gone because the draft is.
+   */
+  hasProof?: boolean;
   isOverlay?: boolean;
 }
 
@@ -26,7 +32,13 @@ function initials(name?: string, fallback?: string) {
   return source.charAt(0).toUpperCase();
 }
 
-export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
+export function DealCard({
+  deal,
+  stage,
+  onEdit,
+  hasProof,
+  isOverlay,
+}: DealCardProps) {
   const t = useTranslations("Pipelines.card");
   const contactLabel = deal.contact?.name || deal.contact?.phone || t("noContact");
   const assigneeLabel = deal.assignee?.full_name || null;
@@ -58,6 +70,15 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
         <h4 className="flex-1 text-sm font-semibold leading-snug text-foreground break-words">
           {deal.title}
         </h4>
+        {hasProof && (
+          <span
+            title={t("proofPrepared")}
+            aria-label={t("proofPrepared")}
+            className="inline-flex shrink-0 items-center rounded-full bg-primary/15 p-1 text-primary"
+          >
+            <Paperclip className="h-3 w-3" />
+          </span>
+        )}
         {deal.status === "won" && (
           <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
             <Check className="h-3 w-3" />

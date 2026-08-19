@@ -18,6 +18,15 @@ let contactRow: Record<string, unknown> | null = null
 // the shared send core re-loads the conversation (with its contact) from
 // just the id, so the mock must model insert-then-select-by-id.
 let createdConversation: Record<string, unknown> | null = null
+// The caller's profile row. The route now reads `account_role` as well
+// as `account_id` — sending is agent-or-above, enforced server-side.
+let profileRow: Record<string, unknown> | null = {
+  account_id: 'acct-1',
+  account_role: 'agent',
+}
+// When set, the `messages` INSERT fails — the SEND-01 path where Meta
+// already accepted the message and only the persistence broke.
+let messageInsertError: { message: string } | null = null
 
 const CONTACT = {
   id: 'contact-1',
@@ -35,7 +44,7 @@ function makeSupabaseMock() {
     const selectResult = () => {
       switch (table) {
         case 'profiles':
-          return { data: { account_id: 'acct-1' }, error: null }
+          return { data: profileRow, error: null }
         case 'contacts':
           return { data: contactRow, error: null }
         case 'conversations':
@@ -72,7 +81,9 @@ function makeSupabaseMock() {
             error: null,
           }
         case 'messages':
-          return { data: { id: 'msg-1' }, error: null }
+          return messageInsertError
+            ? { data: null, error: messageInsertError }
+            : { data: { id: 'msg-1' }, error: null }
         default:
           return { data: null, error: null }
       }
@@ -179,6 +190,8 @@ describe('POST /api/whatsapp/send — contact_id template path', () => {
     existingConversation = null
     createdConversation = null
     contactRow = CONTACT
+    profileRow = { account_id: 'acct-1', account_role: 'agent' }
+    messageInsertError = null
     supabaseMock = makeSupabaseMock()
     sendTemplateMessage.mockClear()
   })
@@ -257,5 +270,235 @@ describe('POST /api/whatsapp/send — contact_id template path', () => {
       }),
     )
     expect(res.status).toBe(400)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// SEC-01 — sending is authorized server-side, not just in the UI.
+//
+// The dashboard gates the composer with `useCan("send-messages")`, but a
+// UI gate is a convenience, not a boundary: anyone can POST here directly.
+// RLS covers the rows this route reads and writes — it does not cover Meta,
+// which is where the irreversible part happens. So the role is checked here,
+// before anything can reach a customer.
+// ---------------------------------------------------------------------------
+
+describe('POST /api/whatsapp/send — role authorization', () => {
+  beforeEach(() => {
+    conversationInserts.length = 0
+    messageInserts.length = 0
+    existingConversation = {
+      id: 'conv-1',
+      account_id: 'acct-1',
+      contact_id: 'contact-1',
+      contact: CONTACT,
+    }
+    createdConversation = null
+    contactRow = CONTACT
+    profileRow = { account_id: 'acct-1', account_role: 'agent' }
+    messageInsertError = null
+    supabaseMock = makeSupabaseMock()
+    sendTemplateMessage.mockClear()
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  function postFromConversation() {
+    return POST(
+      new Request('http://localhost/api/whatsapp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversation_id: 'conv-1',
+          message_type: 'template',
+          template_name: 'order_update',
+          template_language: 'en_US',
+          template_params: ['Acme'],
+        }),
+      }),
+    )
+  }
+
+  // SEC-01A
+  it('403s a viewer, and nothing reaches Meta or the messages table', async () => {
+    profileRow = { account_id: 'acct-1', account_role: 'viewer' }
+
+    const res = await postFromConversation()
+    const json = await res.json()
+
+    expect(res.status).toBe(403)
+    expect(json.error).toMatch(/role/i)
+    expect(sendTemplateMessage).not.toHaveBeenCalled()
+    expect(messageInserts).toHaveLength(0)
+  })
+
+  // SEC-01B / C / D
+  it.each(['agent', 'admin', 'owner'])('allows %s', async (role) => {
+    profileRow = { account_id: 'acct-1', account_role: role }
+
+    const res = await postFromConversation()
+
+    expect(res.status).toBe(200)
+    expect(sendTemplateMessage).toHaveBeenCalledTimes(1)
+  })
+
+  // SEC-01E — fail closed.
+  it.each([
+    ['a missing role', { account_id: 'acct-1' }],
+    ['a null role', { account_id: 'acct-1', account_role: null }],
+    ['an unknown role', { account_id: 'acct-1', account_role: 'superuser' }],
+    ['an empty role', { account_id: 'acct-1', account_role: '' }],
+  ])('403s on %s rather than waving it through', async (_label, row) => {
+    profileRow = row
+
+    const res = await postFromConversation()
+
+    expect(res.status).toBe(403)
+    expect(sendTemplateMessage).not.toHaveBeenCalled()
+    expect(messageInserts).toHaveLength(0)
+  })
+
+  it('still 403s the unlinked-profile case with its own message', async () => {
+    profileRow = null
+
+    const res = await postFromConversation()
+    const json = await res.json()
+
+    expect(res.status).toBe(403)
+    expect(json.error).toMatch(/not linked to an account/i)
+    expect(sendTemplateMessage).not.toHaveBeenCalled()
+  })
+
+  it('refuses a viewer on the contact_id path too', async () => {
+    profileRow = { account_id: 'acct-1', account_role: 'viewer' }
+
+    const res = await POST(
+      new Request('http://localhost/api/whatsapp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contact_id: 'contact-1',
+          message_type: 'text',
+          content_text: 'hola',
+        }),
+      }),
+    )
+
+    expect(res.status).toBe(403)
+    // No conversation was opened on the way to being refused.
+    expect(conversationInserts).toHaveLength(0)
+    expect(sendTemplateMessage).not.toHaveBeenCalled()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// SEND-01 — "Meta refused" and "Meta accepted, we failed to record it" are
+// different failures and must not look alike on the wire.
+//
+// The core sends to Meta first and inserts the `messages` row after. When
+// that insert fails, the customer already has the message and the endpoint
+// still answers 500. A caller that reads that as "the send failed" and
+// retries delivers the same thing twice — which for a delivery proof means
+// the customer gets the transfer screenshot again.
+// ---------------------------------------------------------------------------
+
+describe('POST /api/whatsapp/send — distinguishing post-Meta failures', () => {
+  beforeEach(() => {
+    conversationInserts.length = 0
+    messageInserts.length = 0
+    existingConversation = {
+      id: 'conv-1',
+      account_id: 'acct-1',
+      contact_id: 'contact-1',
+      contact: CONTACT,
+    }
+    createdConversation = null
+    contactRow = CONTACT
+    profileRow = { account_id: 'acct-1', account_role: 'agent' }
+    messageInsertError = null
+    supabaseMock = makeSupabaseMock()
+    sendTemplateMessage.mockClear()
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  function postImage() {
+    return POST(
+      new Request('http://localhost/api/whatsapp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversation_id: 'conv-1',
+          message_type: 'template',
+          template_name: 'order_update',
+          template_language: 'en_US',
+          template_params: ['Acme'],
+        }),
+      }),
+    )
+  }
+
+  // SEND-01A
+  it('reports meta_error with NO wamid when Meta refuses', async () => {
+    sendTemplateMessage.mockRejectedValueOnce(
+      new Error('(#131047) Re-engagement message'),
+    )
+
+    const res = await postImage()
+    const json = await res.json()
+
+    expect(res.status).toBe(502)
+    expect(json.code).toBe('meta_error')
+    // Nothing was delivered, so there must be no id suggesting otherwise.
+    expect(json).not.toHaveProperty('whatsapp_message_id')
+  })
+
+  // SEND-01B / SEND-01C
+  it('reports db_error WITH the wamid when Meta accepted but the insert failed', async () => {
+    messageInsertError = { message: 'timeout' }
+
+    const res = await postImage()
+    const json = await res.json()
+
+    expect(res.status).toBe(500)
+    expect(json.code).toBe('db_error')
+    // The proof of delivery. Its presence is what tells the caller
+    // "do not send this again".
+    expect(json.whatsapp_message_id).toBe('wamid-1')
+    // And the old shape still works for anything that only reads `error`.
+    expect(json.error).toMatch(/sent to Meta but failed to save/i)
+  })
+
+  it('carries the machine code on validation failures too', async () => {
+    const res = await POST(
+      new Request('http://localhost/api/whatsapp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversation_id: 'conv-1',
+          message_type: 'image',
+          // no media_url
+        }),
+      }),
+    )
+    const json = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(json.code).toBe('bad_request')
+    expect(json).not.toHaveProperty('whatsapp_message_id')
+  })
+
+  it('a successful send is unchanged', async () => {
+    const res = await postImage()
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json.success).toBe(true)
+    expect(json.whatsapp_message_id).toBe('wamid-1')
+    expect(json).not.toHaveProperty('code')
   })
 })

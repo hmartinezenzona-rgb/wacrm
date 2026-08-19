@@ -10,6 +10,24 @@ import {
   validateSendMessageParams,
   SendMessageError,
 } from '@/lib/whatsapp/send-message'
+import { canSendMessages, isAccountRole } from '@/lib/auth/roles'
+
+/**
+ * Map a `SendMessageError` onto the dashboard's `{ error }` shape.
+ *
+ * `code` is now always included so the caller can branch on the
+ * failure instead of pattern-matching prose. `whatsapp_message_id`
+ * appears ONLY when the message already reached Meta (`db_error`),
+ * and its presence means one thing: do not send this again.
+ *
+ * Consumers that only read `error` keep working — both fields are
+ * additive.
+ */
+function sendErrorResponse(err: SendMessageError) {
+  const body: Record<string, unknown> = { error: err.message, code: err.code }
+  if (err.whatsappMessageId) body.whatsapp_message_id = err.whatsappMessageId
+  return NextResponse.json(body, { status: err.status })
+}
 
 // The dashboard's outbound-send endpoint. It owns auth, per-user rate
 // limiting, and the two ways the UI targets a thread — an existing
@@ -43,19 +61,37 @@ export async function POST(request: Request) {
       return rateLimitResponse(limit)
     }
 
-    // Resolve the caller's account_id. Every downstream lookup
-    // (conversation, whatsapp_config, message_templates) is account-
-    // scoped post-multi-user, so the previous `user_id` filters
-    // returned nothing for teammates who didn't author the row.
+    // Resolve the caller's account_id AND role in the same round trip.
+    // Every downstream lookup (conversation, whatsapp_config,
+    // message_templates) is account-scoped post-multi-user, so the
+    // previous `user_id` filters returned nothing for teammates who
+    // didn't author the row.
     const { data: profile } = await supabase
       .from('profiles')
-      .select('account_id')
+      .select('account_id, account_role')
       .eq('user_id', user.id)
       .maybeSingle()
     const accountId = profile?.account_id as string | undefined
     if (!accountId) {
       return NextResponse.json(
         { error: 'Your profile is not linked to an account.' },
+        { status: 403 },
+      )
+    }
+
+    // Sending is agent-or-above. RLS covers the rows this route reads
+    // and writes, but Meta is not behind RLS: without this check a
+    // viewer could POST here directly and put a message in front of a
+    // customer, and the `messages` INSERT that follows runs under
+    // policies that allow any account member to read. The UI gate
+    // (`useCan("send-messages")`) is a convenience, not the boundary.
+    //
+    // Fails closed: a missing role, or one this build doesn't know,
+    // is refused rather than waved through.
+    const role = profile?.account_role
+    if (!isAccountRole(role) || !canSendMessages(role)) {
+      return NextResponse.json(
+        { error: 'Your role does not allow sending messages.' },
         { status: 403 },
       )
     }
@@ -102,7 +138,7 @@ export async function POST(request: Request) {
       })
     } catch (err) {
       if (err instanceof SendMessageError) {
-        return NextResponse.json({ error: err.message }, { status: err.status })
+        return sendErrorResponse(err)
       }
       throw err
     }
@@ -193,10 +229,7 @@ export async function POST(request: Request) {
       })
     } catch (err) {
       if (err instanceof SendMessageError) {
-        return NextResponse.json(
-          { error: err.message },
-          { status: err.status }
-        )
+        return sendErrorResponse(err)
       }
       throw err
     }

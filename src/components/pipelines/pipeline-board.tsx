@@ -28,6 +28,12 @@ interface PipelineBoardProps {
   onDealMoved: (dealId: string, newStageId: string) => void;
   onAddDeal: (stageId: string) => void;
   onEditDeal: (deal: Deal) => void;
+  /**
+   * Deals with a delivery proof prepared but not yet sent. Drafts live
+   * in the page's session memory, so the board is told rather than
+   * reading it off the deal row — there is nothing on the row to read.
+   */
+  dealsWithProof?: ReadonlySet<string>;
 }
 
 export function PipelineBoard({
@@ -36,6 +42,7 @@ export function PipelineBoard({
   onDealMoved,
   onAddDeal,
   onEditDeal,
+  dealsWithProof,
 }: PipelineBoardProps) {
   const { defaultCurrency } = useAuth();
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
@@ -119,6 +126,7 @@ export function PipelineBoard({
               currency={defaultCurrency}
               onAddDeal={onAddDeal}
               onEditDeal={onEditDeal}
+              dealsWithProof={dealsWithProof}
             />
           );
         })}
@@ -138,6 +146,7 @@ export function PipelineBoard({
                 sortedStages.find((s) => s.id === activeDeal.stage_id) ?? null
               }
               onEdit={() => {}}
+              hasProof={dealsWithProof?.has(activeDeal.id)}
               isOverlay
             />
           </div>
@@ -193,6 +202,7 @@ function StageColumn({
   currency,
   onAddDeal,
   onEditDeal,
+  dealsWithProof,
 }: {
   stage: PipelineStage;
   deals: Deal[];
@@ -200,6 +210,7 @@ function StageColumn({
   currency: string;
   onAddDeal: (stageId: string) => void;
   onEditDeal: (deal: Deal) => void;
+  dealsWithProof?: ReadonlySet<string>;
 }) {
   const t = useTranslations("Pipelines.board");
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
@@ -248,6 +259,7 @@ function StageColumn({
               deal={deal}
               stage={stage}
               onEdit={onEditDeal}
+              hasProof={dealsWithProof?.has(deal.id)}
             />
           ))
         )}
@@ -270,10 +282,12 @@ function DraggableDealCard({
   deal,
   stage,
   onEdit,
+  hasProof,
 }: {
   deal: Deal;
   stage: PipelineStage;
   onEdit: (deal: Deal) => void;
+  hasProof?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: deal.id,
@@ -286,7 +300,7 @@ function DraggableDealCard({
       {...attributes}
       style={{ opacity: isDragging ? 0.3 : 1, touchAction: "none" }}
     >
-      <DealCard deal={deal} stage={stage} onEdit={onEdit} />
+      <DealCard deal={deal} stage={stage} onEdit={onEdit} hasProof={hasProof} />
     </div>
   );
 }

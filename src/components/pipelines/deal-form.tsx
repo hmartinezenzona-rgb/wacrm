@@ -33,6 +33,18 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
+import { DeliveryProofPanel } from "./delivery-proof";
+import { acceptsDeliveryProof } from "@/lib/pipelines/delivery-stages";
+import type {
+  DeliveryProofDraft,
+  ProofImageKind,
+  ProofRejection,
+} from "@/lib/pipelines/delivery-proof";
+import {
+  sessionWindowFrom,
+  type SessionWindow,
+} from "@/lib/inbox/session-window";
+import { fetchLastCustomerMessageAt } from "@/lib/inbox/last-customer-message";
 
 interface DealFormProps {
   open: boolean;
@@ -42,6 +54,22 @@ interface DealFormProps {
   stages: PipelineStage[];
   defaultStageId?: string;
   onSaved: () => void;
+  /**
+   * Delivery proof, all owned by the board.
+   *
+   * The draft outlives this sheet — an operator prepares the proof,
+   * closes the deal, then drags the card — so it cannot live in local
+   * state here. The form only renders it and reports edits back.
+   */
+  proofDraft?: DeliveryProofDraft | null;
+  onProofFileAccepted?: (dealId: string, file: File, kind: ProofImageKind) => void;
+  onProofRejected?: (reason: ProofRejection) => void;
+  onProofCaptionChange?: (dealId: string, caption: string) => void;
+  onProofClear?: (dealId: string) => void;
+  /** Whether the current user may send WhatsApp messages at all. */
+  canSendMessages?: boolean;
+  /** True while this deal's delivery is in flight. */
+  proofBusy?: boolean;
 }
 
 export function DealForm({
@@ -52,6 +80,13 @@ export function DealForm({
   stages,
   defaultStageId,
   onSaved,
+  proofDraft = null,
+  onProofFileAccepted,
+  onProofRejected,
+  onProofCaptionChange,
+  onProofClear,
+  canSendMessages = true,
+  proofBusy = false,
 }: DealFormProps) {
   const t = useTranslations("Pipelines.form");
   const supabase = createClient();
@@ -75,6 +110,13 @@ export function DealForm({
   const [statusAction, setStatusAction] = useState<DealStatus | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [proofWindow, setProofWindow] = useState<SessionWindow | null>(null);
+
+  // The proof panel belongs to "Lista para transferir" only. Reading
+  // `stageId` (the select) rather than `deal.stage_id` means the panel
+  // follows the operator's edit before it is saved.
+  const showProofPanel =
+    !!deal && acceptsDeliveryProof(stageId) && !!deal.conversation_id;
 
   // Reset the form fields every time the sheet opens or its input
   // props change. This is a legitimate prop-driven sync; the rule is
@@ -151,6 +193,29 @@ export function DealForm({
       cancelled = true;
     };
   }, [open, contactId, supabase]);
+
+  // The 24-hour window for this deal's own conversation. Shown while
+  // the proof is being prepared so the operator learns the image can't
+  // be sent BEFORE dragging, not after. The board re-checks it at
+  // confirm time — this copy is only for display and can go stale
+  // while the sheet sits open.
+  useEffect(() => {
+    if (!open || !showProofPanel || !deal?.conversation_id) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setProofWindow(null);
+      return;
+    }
+    let cancelled = false;
+    const conversationId = deal.conversation_id;
+    (async () => {
+      const at = await fetchLastCustomerMessageAt(supabase, conversationId);
+      if (cancelled) return;
+      setProofWindow(sessionWindowFrom(at));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, showProofPanel, deal?.conversation_id, supabase]);
 
   async function handleSave() {
     if (!title.trim() || !contactId || !stageId) {
@@ -376,6 +441,28 @@ export function DealForm({
                 className="min-h-[100px] border-border bg-muted text-foreground"
               />
             </div>
+
+            {/* Delivery proof. Note that its caption is NOT part of
+                `notes` and never reaches `handleSave`: writing to
+                `deals.notes` fires `trg_sync_z_benef_desde_deal`, which
+                re-parses the beneficiary block. The caption travels
+                with the image and nowhere else. */}
+            {showProofPanel && deal && (
+              <DeliveryProofPanel
+                file={proofDraft?.file ?? null}
+                previewUrl={proofDraft?.previewUrl ?? null}
+                caption={proofDraft?.caption ?? ""}
+                onFileAccepted={(file, kind) =>
+                  onProofFileAccepted?.(deal.id, file, kind)
+                }
+                onFileRejected={(reason) => onProofRejected?.(reason)}
+                onCaptionChange={(next) => onProofCaptionChange?.(deal.id, next)}
+                onClear={() => onProofClear?.(deal.id)}
+                window={proofWindow}
+                busy={proofBusy}
+                canSend={canSendMessages}
+              />
+            )}
 
             {deal && (
               <div className="space-y-2 rounded-lg border border-border bg-muted/50 p-3">

@@ -140,10 +140,24 @@ export async function GET() {
     )
   }
 
+  // `live` answers ONE question: will Meta deliver events to us? That is
+  // decided by Meta's own state — the number resolves, and the WABA is
+  // subscribed to our app. `locally_marked_registered` is not part of it.
+  //
+  // It used to be, and it made the badge lie. `registered_at` is set only
+  // when WaCRM itself runs /register, and /register needs the two-step
+  // PIN. Meta TEST numbers have no PIN and ship pre-registered, so their
+  // `registered_at` stays NULL forever: the badge read "Meta will not
+  // deliver events" while Meta was, in fact, delivering them. Measured in
+  // staging on 20-ago-2026 — phone_metadata_ok and waba_subscribed_to_app
+  // both true, errors empty, and a real inbound message landed anyway.
+  // The same false alarm hits any number subscribed outside this app.
+  //
+  // The local mark is still reported in `checks` and still drives the
+  // "enter the PIN" hint, which is the honest place for it: it says
+  // whether WE registered the number, not whether Meta will deliver.
   const live =
-    checks.phone_metadata_ok &&
-    (checks.waba_subscribed_to_app ?? false) &&
-    checks.locally_marked_registered
+    checks.phone_metadata_ok && (checks.waba_subscribed_to_app ?? false)
 
   return NextResponse.json({
     live,

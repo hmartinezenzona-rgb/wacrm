@@ -70,11 +70,22 @@ export function WhatsAppConfig() {
   const [pin, setPin] = useState('');
   const [tokenEdited, setTokenEdited] = useState(false);
 
-  // True once /register has succeeded on Meta's side (timestamp set
-  // in the row). When false, the saved config is metadata-only and
-  // Meta will silently drop every inbound event — that's the
-  // multi-number bug that prompted this work.
-  const isRegistered = Boolean(config?.registered_at);
+  // True once the WABA is subscribed to our app — the thing that
+  // actually decides whether Meta delivers inbound events, and the fix
+  // for the multi-number bug that prompted this work.
+  //
+  // This used to read `registered_at`, which is set only when WaCRM
+  // itself runs /register — and /register requires the two-step PIN.
+  // Meta TEST numbers have no PIN and ship pre-registered, so the badge
+  // sat on "Meta will not deliver events" while messages were arriving
+  // normally (staging, 20-ago-2026: inbound landed, an automation
+  // replied, and the badge still cried wolf). The same false alarm hits
+  // any number subscribed from outside this app.
+  //
+  // `registered_at` still drives the PIN hint below, which is its
+  // honest meaning: whether WE registered the number — not whether
+  // Meta will deliver.
+  const isRegistered = Boolean(config?.subscribed_apps_at);
   const lastRegistrationError = config?.last_registration_error ?? null;
 
   const [verifyingRegistration, setVerifyingRegistration] = useState(false);

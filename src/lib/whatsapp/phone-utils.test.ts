@@ -134,6 +134,33 @@ describe("phoneVariants", () => {
     // 1-char input is shorter than all ccLen values; both loops skip.
     expect(phoneVariants("1")).toEqual(["1"]);
   });
+
+  it("drops Mexico's mobile 1, which no trunk-0 variant can remove", () => {
+    // The real 20-ago-2026 failure: inbound arrived as 5219622896918,
+    // Meta's allowed list held 529622896918, and every send was
+    // rejected with #131030. Removing a `1` is not removing a `0`, so
+    // before this variant existed the right number was unreachable.
+    const out = phoneVariants("5219622896918");
+    expect(out).toContain("529622896918");
+    expect(out[0]).toBe("5219622896918");
+  });
+
+  it("drops Argentina's mobile 9, the same quirk on +54", () => {
+    expect(phoneVariants("5491123456789")).toContain("541123456789");
+  });
+
+  it("leaves a Mexican number alone when it has no mobile 1", () => {
+    // Already in send format: nothing to strip, and no variant may
+    // invent a shorter number by chopping a real subscriber digit.
+    expect(phoneVariants("529622896918")).not.toContain("52622896918");
+  });
+
+  it("does not strip the marker when the remaining length is wrong", () => {
+    // Guards a number that merely starts with 521 without being a
+    // Mexican mobile. Chopping here would fabricate someone else's
+    // number, so the length check has to hold.
+    expect(phoneVariants("5211234")).not.toContain("52234");
+  });
 });
 
 describe("isRecipientNotAllowedError", () => {

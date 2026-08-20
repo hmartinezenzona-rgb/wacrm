@@ -50,13 +50,26 @@ export function isValidE164(phone: string): boolean {
  * But some sandboxes register the number with the trunk 0 included,
  * causing sends to the correct international format to fail.
  *
- * This helper yields up to 3 variants:
+ * This helper yields:
  *   1. The original sanitized number (first attempt)
  *   2. With a trunk 0 inserted after the country code
  *   3. With a trunk 0 removed after the country code
+ *   4. Mexico / Argentina without their WhatsApp mobile marker
  *
  * Country-code lengths of 1, 2, and 3 digits are tried because we
  * don't know the user's country ahead of time.
+ *
+ * Case 4 is NOT a trunk 0. Mexico (+52) and Argentina (+54) carry an
+ * extra mobile marker — a `1` and a `9` respectively — that WhatsApp
+ * SENDS on inbound messages but REJECTS on outbound.
+ *
+ * Measured 20-ago-2026: a customer wrote in from `5219622896918`, the
+ * same number sat in Meta's allowed list as `529622896918`, and every
+ * send failed with `(#131030) Recipient phone number not in allowed
+ * list`. None of the trunk-0 variants can produce it, because removing
+ * a `1` is not removing a `0`. The effect was that the CRM could not
+ * answer ANY Mexican customer — it only surfaced in a sandbox because
+ * there the rejection is loud; on a live number the send just fails.
  *
  * @param sanitized - digits-only phone number (from sanitizePhoneForMeta)
  * @returns deduplicated list of variants, original first
@@ -87,6 +100,22 @@ export function phoneVariants(sanitized: string): string[] {
     const cc = sanitized.slice(0, ccLen)
     const rest = sanitized.slice(ccLen)
     if (rest.startsWith('0')) {
+      push(cc + rest.slice(1))
+    }
+  }
+
+  // 4. Drop the WhatsApp mobile marker for the two country codes that
+  //    use one: Mexico's `1` and Argentina's `9`. Scoped to those exact
+  //    prefixes on purpose — a blanket "strip the 4th digit" rule would
+  //    mangle numbers from every other country.
+  //    The length guard keeps this from firing on a number that merely
+  //    starts with those digits: a real Mexican mobile is 52 + 1 + 10.
+  for (const [cc, marker] of [
+    ['52', '1'],
+    ['54', '9'],
+  ] as const) {
+    const rest = sanitized.startsWith(cc) ? sanitized.slice(cc.length) : null
+    if (rest && rest.startsWith(marker) && rest.length === 11) {
       push(cc + rest.slice(1))
     }
   }

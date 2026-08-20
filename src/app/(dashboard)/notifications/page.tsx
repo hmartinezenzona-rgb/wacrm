@@ -340,7 +340,7 @@ export default function NotificationsPage() {
                       <div className="flex items-center gap-2">
                         <span
                           className={cn(
-                            "truncate text-sm font-semibold",
+                            "break-words text-sm font-semibold",
                             isUnread
                               ? "text-foreground"
                               : "text-muted-foreground",
@@ -356,7 +356,7 @@ export default function NotificationsPage() {
                         )}
                       </div>
                       {n.body && (
-                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                        <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-muted-foreground">
                           {n.body}
                         </p>
                       )}

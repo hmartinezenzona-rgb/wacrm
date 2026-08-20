@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildSendComponents } from './template-send-builder';
+import { buildSendComponents, renderTemplateBody } from './template-send-builder';
 import type { MessageTemplate } from '@/types';
 
 function row(overrides: Partial<MessageTemplate> = {}): MessageTemplate {
@@ -14,6 +14,23 @@ function row(overrides: Partial<MessageTemplate> = {}): MessageTemplate {
     ...overrides,
   };
 }
+
+describe('renderTemplateBody — inbox preview', () => {
+  it('renders the same resolved body that the customer receives', () => {
+    expect(
+      renderTemplateBody('Hola {{1}}, tu referencia es {{2}}.', [
+        'Ana',
+        'R-42',
+      ]),
+    ).toBe('Hola Ana, tu referencia es R-42.');
+  });
+
+  it('keeps an unresolved placeholder visible instead of hiding the template', () => {
+    expect(renderTemplateBody('Hola {{1}} {{2}}.', ['Ana'])).toBe(
+      'Hola Ana {{2}}.',
+    );
+  });
+});
 
 describe('buildSendComponents — body', () => {
   it('returns [] for a fully-static template (no vars, no media header)', () => {

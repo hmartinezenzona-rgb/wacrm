@@ -16,6 +16,11 @@ import { ContactSidebar } from "@/components/inbox/contact-sidebar";
 import { toast } from "sonner";
 import { WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
 // Remembers the agent's show/hide choice for the desktop contact panel
 // across reloads and sessions (device-scoped, like the theme prefs).
@@ -58,6 +63,7 @@ export default function InboxPage() {
    * below reconciles to the stored value right after mount instead.
    */
   const [contactPanelOpen, setContactPanelOpen] = useState(true);
+  const [mobileContactPanelOpen, setMobileContactPanelOpen] = useState(false);
   useEffect(() => {
     try {
       const stored = localStorage.getItem(CONTACT_PANEL_STORAGE_KEY);
@@ -412,9 +418,10 @@ export default function InboxPage() {
         // conversationId didn't change, MessageThread wouldn't
         // refetch. The thread would read "No messages yet" until a
         // full page reload rehydrated state from scratch.
-        if (activeConversation?.id === deepLinkConvId) return;
+      if (activeConversation?.id === deepLinkConvId) return;
         const match = loaded.find((c) => c.id === deepLinkConvId);
         if (match) {
+          setMobileContactPanelOpen(false);
           setActiveConversation(match);
           setActiveContact(match.contact ?? null);
           setMessages([]);
@@ -442,6 +449,7 @@ export default function InboxPage() {
       // when conversationId changes — so messages would stay empty until
       // the user navigated away and back. Bail out early instead.
       if (activeConversation?.id === conv.id) return;
+      setMobileContactPanelOpen(false);
       setActiveConversation(conv);
       setActiveContact(conv.contact ?? null);
       setMessages([]);
@@ -481,6 +489,7 @@ export default function InboxPage() {
   // back. Also clears the ?c= param so a refresh lands on the list
   // instead of re-opening the thread the user just backed out of.
   const handleCloseConversation = useCallback(() => {
+    setMobileContactPanelOpen(false);
     setActiveConversation(null);
     setActiveContact(null);
     setMessages([]);
@@ -612,6 +621,7 @@ export default function InboxPage() {
             onRefresh={handleManualRefresh}
             contactPanelOpen={contactPanelOpen}
             onToggleContactPanel={handleToggleContactPanel}
+            onOpenMobileContactPanel={() => setMobileContactPanelOpen(true)}
           />
         </div>
 
@@ -627,6 +637,28 @@ export default function InboxPage() {
             />
           </div>
         )}
+
+        {/* Mobile equivalent of the desktop contact sidebar. It reuses the
+            exact same component and state, but gives it a full-height drawer
+            that can be opened from the thread header. */}
+        <Sheet
+          open={mobileContactPanelOpen}
+          onOpenChange={setMobileContactPanelOpen}
+        >
+          <SheetContent
+            side="right"
+            className="w-[min(92vw,24rem)] max-w-none gap-0 p-0 lg:hidden"
+          >
+            <SheetTitle className="sr-only">
+              {activeContact?.name || activeContact?.phone || t("contactDetails")}
+            </SheetTitle>
+            <ContactSidebar
+              contact={activeContact}
+              conversation={activeConversation}
+              className="w-full border-l-0"
+            />
+          </SheetContent>
+        </Sheet>
       </div>
     </div>
   );

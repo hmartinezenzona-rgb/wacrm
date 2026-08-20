@@ -29,9 +29,11 @@ interface ContactSidebarProps {
   contact: Contact | null;
   /** Hilo abierto. Hace falta para pausar el bot, que es por conversacion. */
   conversation?: Conversation | null;
+  /** Permite reutilizar el mismo panel dentro del drawer móvil. */
+  className?: string;
 }
 
-export function ContactSidebar({ contact, conversation }: ContactSidebarProps) {
+export function ContactSidebar({ contact, conversation, className }: ContactSidebarProps) {
   const tSidebar = useTranslations("Inbox.sidebar");
   const tThread = useTranslations("Inbox.messageThread");
 
@@ -163,7 +165,7 @@ export function ContactSidebar({ contact, conversation }: ContactSidebarProps) {
 
   if (!contact) {
     return (
-      <div className="flex h-full w-70 items-center justify-center border-l border-border bg-card">
+      <div className={cn("flex h-full w-70 items-center justify-center border-l border-border bg-card", className)}>
         <p className="text-sm text-muted-foreground">{tThread("selectConversation")}</p>
       </div>
     );
@@ -173,7 +175,7 @@ export function ContactSidebar({ contact, conversation }: ContactSidebarProps) {
   const initials = displayName.charAt(0).toUpperCase();
 
   return (
-    <div className="flex h-full w-70 flex-col border-l border-border bg-card">
+    <div className={cn("flex h-full w-70 flex-col border-l border-border bg-card", className)}>
       <ScrollArea className="flex-1">
         <div className="p-4">
           {/* Contact Info */}

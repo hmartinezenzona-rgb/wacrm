@@ -51,6 +51,25 @@ export interface SendTimeParams {
   buttonParams?: Record<number, string>;
 }
 
+/**
+ * Render the body that operators should see in the inbox after a template is
+ * sent. Meta receives the template name plus components, but the local
+ * `messages` row also needs the resolved human-readable text; otherwise the
+ * customer sees the template while the shared inbox shows only its badge.
+ */
+export function renderTemplateBody(
+  body: string,
+  params: readonly unknown[] = [],
+): string {
+  return body.replace(/\{\{(\d+)\}\}/g, (_, raw: string) => {
+    const index = Number(raw) - 1;
+    const value = params[index];
+    return value === undefined || value === null || value === ''
+      ? `{{${raw}}}`
+      : String(value);
+  });
+}
+
 export type MetaSendComponent =
   | { type: 'header'; parameters: MetaSendParameter[] }
   | { type: 'body'; parameters: MetaSendParameter[] }

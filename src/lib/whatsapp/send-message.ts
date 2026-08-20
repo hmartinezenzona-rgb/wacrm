@@ -44,6 +44,7 @@ import {
 } from '@/lib/whatsapp/phone-utils';
 import type { MessageTemplate } from '@/types';
 import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard';
+import { renderTemplateBody } from '@/lib/whatsapp/template-send-builder';
 
 export const MEDIA_KINDS = ['image', 'video', 'document', 'audio'] as const;
 export const VALID_MESSAGE_TYPES = [
@@ -336,6 +337,22 @@ export async function sendMessageToConversation(
     templateRow = data ?? null;
   }
 
+  // The Meta template delivery contains only the template name/components.
+  // Persist the resolved body locally as well, so operators can read exactly
+  // what the customer received in the shared inbox. Dashboard sends already
+  // pass contentText, while API/automation sends commonly do not.
+  const templateBodyParams =
+    templateMessageParams &&
+    typeof templateMessageParams === 'object' &&
+    !Array.isArray(templateMessageParams) &&
+    Array.isArray((templateMessageParams as { body?: unknown }).body)
+      ? ((templateMessageParams as { body: unknown[] }).body)
+      : (templateParams ?? []);
+  const persistedContentText =
+    messageType === 'template' && templateRow
+      ? renderTemplateBody(templateRow.body_text, templateBodyParams)
+      : contentText ?? null;
+
   const attempt = async (phone: string): Promise<string> => {
     if (messageType === 'template') {
       const result = await sendTemplateMessage({
@@ -461,7 +478,7 @@ export async function sendMessageToConversation(
       conversation_id: conversationId,
       sender_type: 'agent',
       content_type: messageType,
-      content_text: interactiveBody ?? contentText ?? null,
+      content_text: interactiveBody ?? persistedContentText,
       media_url: mediaUrl || null,
       template_name: templateName || null,
       interactive_payload:
@@ -486,7 +503,7 @@ export async function sendMessageToConversation(
   const lastMessageText =
     messageType === 'interactive'
       ? interactivePayloadPreviewText(interactivePayload!)
-      : contentText || `[${messageType}]`;
+      : persistedContentText || `[${messageType}]`;
 
   await db
     .from('conversations')

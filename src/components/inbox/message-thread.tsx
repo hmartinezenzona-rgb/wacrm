@@ -107,6 +107,8 @@ interface MessageThreadProps {
    */
   contactPanelOpen?: boolean;
   onToggleContactPanel?: () => void;
+  /** Abre el mismo panel de contacto como drawer en pantallas móviles. */
+  onOpenMobileContactPanel?: () => void;
 }
 
 function formatDateSeparator(dateStr: string, t: ReturnType<typeof useTranslations>): string {
@@ -165,6 +167,7 @@ export function MessageThread({
   onRefresh,
   contactPanelOpen,
   onToggleContactPanel,
+  onOpenMobileContactPanel,
 }: MessageThreadProps) {
   const t = useTranslations("Inbox.messageThread");
   const tTimer = useTranslations("Inbox.sessionTimer");
@@ -913,6 +916,20 @@ export function MessageThread({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* En móvil el panel vive en un drawer para conservar tags, deals,
+              notas y el control del bot sin quitar espacio al chat. */}
+          {onOpenMobileContactPanel && (
+            <button
+              type="button"
+              onClick={onOpenMobileContactPanel}
+              aria-label={t("showContactPanel")}
+              title={t("showContact")}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:hidden"
+            >
+              <PanelRightOpen className="h-4 w-4" />
+            </button>
+          )}
+
           {/* Contact-panel toggle — desktop only. The contact sidebar
               eats a chunk of horizontal width that crowds the thread on
               smaller laptops; this lets agents reclaim it when they just

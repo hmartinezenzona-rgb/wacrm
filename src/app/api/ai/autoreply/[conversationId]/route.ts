@@ -81,6 +81,11 @@ export async function POST(request: Request, { params }: Params) {
       // a human choosing to re-engage the assistant.
       update.ai_reply_count = 0
       update.ai_handoff_summary = null
+      // 093 — limpiar también la causa técnica del handoff. Si queda
+      // persistida, el siguiente ciclo de diagnóstico puede confundir una
+      // conversación ya devuelta al bot con una derivación vigente.
+      update.ai_handoff_reason = null
+      update.ai_handoff_at = null
     }
 
     const { error: upErr } = await supabase

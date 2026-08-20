@@ -184,6 +184,9 @@ export interface Conversation {
   ai_autoreply_disabled?: boolean;
   ai_reply_count?: number;
   ai_handoff_summary?: string | null;
+  /** Internal source/timestamp for an automatic Cerebro handoff (093). */
+  ai_handoff_reason?: string | null;
+  ai_handoff_at?: string | null;
 }
 
 // ============================================================

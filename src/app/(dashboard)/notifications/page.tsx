@@ -12,6 +12,7 @@ import {
   Loader2,
   MessageSquareX,
   Percent,
+  XCircle,
   UserPlus,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -28,12 +29,12 @@ const TYPE_ICON: Record<Notification["type"], typeof Bell> = {
   promo_etecsa: Percent,
 };
 
-/** Fila de `cerebro_promo_pendiente` (RPC, sin parámetros). */
+/** Fila de la ruta autenticada de promociones Etecsa. */
 interface PromoPendiente {
   id: string;
   min_cup: number;
-  max_cup: number;
-  multiplicador: number;
+  max_cup: number | null;
+  multiplicador: number | null;
   precio_gyd: number | null;
   vigente_desde: string;
   vigente_hasta: string;
@@ -56,7 +57,9 @@ export default function NotificationsPage() {
   );
   // Distingue "ya cargó y no hay" de "aún cargando" (evita parpadeos).
   const [promoChecked, setPromoChecked] = useState(false);
-  const [confirmingPromo, setConfirmingPromo] = useState(false);
+  const [promoAction, setPromoAction] = useState<"confirm" | "discard" | null>(
+    null,
+  );
 
   const load = useCallback(async () => {
     if (!accountId) return;
@@ -75,28 +78,25 @@ export default function NotificationsPage() {
   }, [accountId]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
 
-  // Promoción Etecsa pendiente de confirmar (si la hay). RPC sin
-  // parámetros; la consulta decide si mostrar el botón y qué texto.
-  // Reutilizable: se llama al montar y cada vez que entra una
-  // notificación promo_etecsa por realtime (el caso real: el operador
-  // tiene el CRM abierto todo el día). Todo en try/catch — esta página
-  // cuelga del shell del dashboard y un fallo aquí no puede tumbar nada.
+  // Promoción Etecsa pendiente de decidir (si la hay). La ruta autentica
+  // la sesión y usa el cliente de servidor, con fallback para instalaciones
+  // donde el grant/RPC de PostgREST aún no se haya refrescado.
   const loadPromoPendiente = useCallback(async () => {
     try {
-      const supabase = createClient();
-      const { data, error: rpcErr } = await supabase.rpc(
-        "cerebro_promo_pendiente",
-      );
-      if (rpcErr) {
-        console.warn("[notifications] promo pendiente:", rpcErr.message);
-      } else {
-        const rows = (data ?? []) as PromoPendiente[];
-        setPromoPendiente(rows[0] ?? null);
+      const response = await fetch("/api/promotions/etecsa", {
+        cache: "no-store",
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        promo?: PromoPendiente | null;
+        error?: string;
+      } | null;
+      if (!response.ok) {
+        throw new Error(payload?.error || "No se pudo cargar la promoción");
       }
+      setPromoPendiente(payload?.promo ?? null);
     } catch (err) {
       console.warn(
         "[notifications] promo pendiente:",
@@ -212,36 +212,53 @@ export default function NotificationsPage() {
     }
   }, [unreadIds.length, load]);
 
-  const confirmPromo = useCallback(async () => {
-    if (confirmingPromo) return;
-    setConfirmingPromo(true);
-    try {
-      const supabase = createClient();
-      const { data, error: rpcErr } = await supabase.rpc(
-        "cerebro_promo_confirmar_pendiente",
-        { p_quien: "crm" },
-      );
-      if (rpcErr) throw new Error(rpcErr.message);
-      // Las tres respuestas posibles vienen formateadas para enseñarlas
-      // tal cual: "confirmada: …", "no hay ninguna …", "hay 2 …".
-      const texto = typeof data === "string" ? data : "Promoción confirmada";
-      if (texto.startsWith("confirmada")) {
-        toast.success(texto);
-      } else {
-        toast.info(texto);
+  const runPromoAction = useCallback(
+    async (action: "confirm" | "discard") => {
+      if (promoAction || !promoPendiente) return;
+      setPromoAction(action);
+      try {
+        const response = await fetch("/api/promotions/etecsa", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action, id: promoPendiente.id }),
+        });
+        const payload = (await response.json().catch(() => null)) as {
+          result?: "confirmada" | "descartada";
+          error?: string;
+        } | null;
+        if (!response.ok) {
+          throw new Error(payload?.error || "No se pudo actualizar la promoción");
+        }
+        toast.success(
+          payload?.result === "confirmada"
+            ? "Promoción confirmada para el bot"
+            : "Promoción descartada; el bot no la usará",
+        );
+        await loadPromoPendiente();
+      } catch (err) {
+        console.error(
+          `[notifications] ${action} promo:`,
+          err instanceof Error ? err.message : err,
+        );
+        toast.error(
+          action === "confirm"
+            ? "No se pudo confirmar la promoción"
+            : "No se pudo descartar la promoción",
+        );
+      } finally {
+        setPromoAction(null);
       }
-      setPromoPendiente(null);
-      setPromoChecked(true);
-    } catch (err) {
-      console.error(
-        "[notifications] confirmar promo:",
-        err instanceof Error ? err.message : err,
-      );
-      toast.error("No se pudo confirmar la promoción");
-    } finally {
-      setConfirmingPromo(false);
-    }
-  }, [confirmingPromo]);
+    },
+    [loadPromoPendiente, promoAction, promoPendiente],
+  );
+
+  const confirmPromo = useCallback(() => {
+    void runPromoAction("confirm");
+  }, [runPromoAction]);
+
+  const discardPromo = useCallback(() => {
+    void runPromoAction("discard");
+  }, [runPromoAction]);
 
   if (error) {
     return (
@@ -386,19 +403,40 @@ export default function NotificationsPage() {
                             </p>
                           )}
                         </div>
-                        {promoPendiente.hay_precio && (
+                        <div className="flex shrink-0 items-center gap-2">
                           <Button
                             size="sm"
-                            disabled={confirmingPromo}
+                            disabled={promoAction !== null || !promoPendiente.hay_precio}
                             onClick={confirmPromo}
+                            title={
+                              promoPendiente.hay_precio
+                                ? "Permitir que el bot use esta promoción"
+                                : "Define primero el precio de esta recarga"
+                            }
                           >
-                            {confirmingPromo ? (
+                            {promoAction === "confirm" ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
                               "Confirmar promoción"
                             )}
                           </Button>
-                        )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={promoAction !== null}
+                            onClick={discardPromo}
+                            title="No permitir que el bot use esta promoción"
+                          >
+                            {promoAction === "discard" ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <>
+                                <XCircle className="mr-1.5 h-4 w-4" />
+                                Descartar
+                              </>
+                            )}
+                          </Button>
+                        </div>
                       </div>
                     )}
                 </div>

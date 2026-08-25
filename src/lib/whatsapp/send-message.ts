@@ -27,6 +27,7 @@ import {
   sendMediaMessage,
   sendInteractiveButtons,
   sendInteractiveList,
+  uploadMediaToMeta,
   type MediaKind,
 } from '@/lib/whatsapp/meta-api';
 import {
@@ -207,6 +208,89 @@ export function validateSendMessageParams(params: {
   }
 }
 
+/**
+ * Ceiling for what we will pull into memory to re-upload. Meta's own
+ * limits are lower for everything except documents (100 MB), so this
+ * is a guard on the server, not a policy: anything bigger goes out as
+ * a `link` exactly as before rather than being buffered here.
+ */
+const MAX_META_UPLOAD_BYTES = 16 * 1024 * 1024;
+
+/**
+ * Fetch the media we are about to send and hand the bytes to Meta,
+ * returning the `media_id`. Returns `undefined` when that could not be
+ * done — the caller then falls back to sending the public link.
+ *
+ * Never throws: a failure here must degrade to today's behaviour, not
+ * take down a send. Every give-up path logs, so a systematic failure
+ * shows up in the pm2 log instead of silently costing us the upload.
+ *
+ * Exported as a test seam — the fallback is the whole reason this can
+ * be deployed onto a live business, so it is worth pinning directly.
+ */
+export async function uploadMediaForSend(
+  mediaUrl: string,
+  phoneNumberId: string,
+  accessToken: string,
+  filename?: string,
+): Promise<string | undefined> {
+  try {
+    const res = await fetch(mediaUrl);
+    if (!res.ok) {
+      console.error(
+        `[send-message] could not fetch media to upload (${res.status}); sending as link`
+      );
+      return undefined;
+    }
+
+    // Trust the declared length first so an oversized object is not
+    // buffered at all; re-check after reading, since it may be absent.
+    const declared = Number(res.headers.get('content-length') ?? '');
+    if (Number.isFinite(declared) && declared > MAX_META_UPLOAD_BYTES) {
+      console.warn(
+        `[send-message] media is ${declared} bytes, over the upload cap; sending as link`
+      );
+      return undefined;
+    }
+
+    // Meta rejects a generic content-type, and guessing one from the
+    // extension is how you send a .png labelled as a .jpeg. If the
+    // object cannot tell us what it is, the link path can still work.
+    const mimeType = (res.headers.get('content-type') ?? '')
+      .split(';')[0]
+      .trim();
+    if (!mimeType || mimeType === 'application/octet-stream') {
+      console.warn(
+        `[send-message] media has no usable content-type ("${mimeType}"); sending as link`
+      );
+      return undefined;
+    }
+
+    const bytes = await res.arrayBuffer();
+    if (bytes.byteLength > MAX_META_UPLOAD_BYTES) {
+      console.warn(
+        `[send-message] media is ${bytes.byteLength} bytes, over the upload cap; sending as link`
+      );
+      return undefined;
+    }
+
+    const { mediaId } = await uploadMediaToMeta({
+      phoneNumberId,
+      accessToken,
+      bytes,
+      mimeType,
+      fileName: filename || mediaUrl.split('/').pop() || 'file',
+    });
+    return mediaId;
+  } catch (err) {
+    console.error(
+      '[send-message] media upload to Meta failed; sending as link:',
+      err instanceof Error ? err.message : err
+    );
+    return undefined;
+  }
+}
+
 export async function sendMessageToConversation(
   db: SupabaseClient,
   accountId: string,
@@ -373,6 +457,31 @@ export async function sendMessageToConversation(
       ? renderTemplateBody(templateRow.body_text, templateBodyParams)
       : contentText ?? null;
 
+  // ------------------------------------------------------------
+  // Media: hand Meta the bytes, not a link.
+  //
+  // Uploading first turns "Meta accepted it and failed to fetch the
+  // file ten minutes later" into a plain error we get right here,
+  // before anything is persisted or any deal is closed on the strength
+  // of a fake success (the 24-ago-2026 failure — see uploadMediaToMeta).
+  //
+  // Done ONCE, outside `attempt`: that runs per phone-number variant,
+  // and re-uploading the same file on every variant would be wasteful.
+  //
+  // Deliberately best-effort. If the upload cannot be done — the object
+  // is unreachable, too big, an unusable content-type, Meta refuses —
+  // we fall back to `link`, which is exactly today's behaviour. This
+  // change must not be able to break a send that works today.
+  let metaMediaId: string | undefined;
+  if (isMediaKind && mediaUrl) {
+    metaMediaId = await uploadMediaForSend(
+      mediaUrl,
+      config.phone_number_id,
+      accessToken,
+      filename || undefined,
+    );
+  }
+
   const attempt = async (phone: string): Promise<string> => {
     if (messageType === 'template') {
       const result = await sendTemplateMessage({
@@ -395,6 +504,7 @@ export async function sendMessageToConversation(
         to: phone,
         kind: messageType as MediaKind,
         link: mediaUrl!,
+        mediaId: metaMediaId,
         caption: contentText || undefined,
         filename: filename || undefined,
         contextMessageId,

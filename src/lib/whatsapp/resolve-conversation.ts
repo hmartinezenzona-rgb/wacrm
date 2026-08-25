@@ -21,6 +21,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe';
+import { findConversationForContact } from '@/lib/whatsapp/find-conversation';
 import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils';
 import { SendMessageError } from '@/lib/whatsapp/send-message';
 import { resolveAuditUserId, ContactError } from '@/lib/api/v1/contacts';
@@ -138,16 +139,12 @@ export async function resolveConversationByPhone(
 
   // ---- conversation -------------------------------------------
   // One conversation per (account, contact) — same convention as the
-  // webhook.
-  const { data: conv } = await db
-    .from('conversations')
-    .select('id')
-    .eq('account_id', accountId)
-    .eq('contact_id', contactId)
-    .maybeSingle();
+  // webhook, y desde el 25-ago-2026 con un indice unico que la sostiene
+  // (migracion 094) en vez de dejarla solo en manos del codigo.
+  const conv = await findConversationForContact(db, accountId, contactId);
 
   if (conv?.id) {
-    return { conversationId: conv.id, contactId, contactCreated };
+    return { conversationId: conv.id as string, contactId, contactCreated };
   }
 
   const { data: newConv, error: convErr } = await db
@@ -161,6 +158,15 @@ export async function resolveConversationByPhone(
     .single();
 
   if (convErr || !newConv) {
+    // Lost a race contra una entrega entrante concurrente — el indice
+    // unico rechazo la duplicada. Re-resolvemos, igual que arriba con
+    // el contacto, en vez de tumbar el envio.
+    if (isUniqueViolation(convErr)) {
+      const raced = await findConversationForContact(db, accountId, contactId);
+      if (raced?.id) {
+        return { conversationId: raced.id as string, contactId, contactCreated };
+      }
+    }
     console.error('[resolve-conversation] conversation create error:', convErr);
     throw new SendMessageError(
       'db_error',

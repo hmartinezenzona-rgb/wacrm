@@ -4,6 +4,7 @@ import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
 import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
 import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe'
+import { findConversationForContact } from '@/lib/whatsapp/find-conversation'
 import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
@@ -1235,15 +1236,15 @@ async function findOrCreateConversation(
   configOwnerUserId: string,
   contactId: string,
 ) {
-  // Look for existing conversation in this account
-  const { data: existing, error: findError } = await supabaseAdmin()
-    .from('conversations')
-    .select('*')
-    .eq('account_id', accountId)
-    .eq('contact_id', contactId)
-    .single()
+  // Look for existing conversation in this account. El helper usa
+  // `.limit(1)` y no `.single()` a proposito — ver find-conversation.ts.
+  const existing = await findConversationForContact(
+    supabaseAdmin(),
+    accountId,
+    contactId,
+  )
 
-  if (!findError && existing) {
+  if (existing) {
     return { conversation: existing, created: false }
   }
 
@@ -1260,6 +1261,18 @@ async function findOrCreateConversation(
     .single()
 
   if (createError) {
+    // Lost a race: otra entrega concurrente creo la conversacion entre
+    // nuestro lookup y el insert, y el indice unico (migracion 094) la
+    // rechazo. Re-resolvemos en vez de tirar el mensaje — exactamente
+    // como hace findOrCreateContact arriba.
+    if (isUniqueViolation(createError)) {
+      const raced = await findConversationForContact(
+        supabaseAdmin(),
+        accountId,
+        contactId,
+      )
+      if (raced) return { conversation: raced, created: false }
+    }
     console.error('Error creating conversation:', createError)
     return null
   }

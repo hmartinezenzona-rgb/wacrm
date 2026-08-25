@@ -20,13 +20,26 @@ interface Script {
   insertedContactId?: string; // contacts insert -> single
   insertContactError?: { code?: string } | null;
   existingConversation?: { id: string } | null; // conversations select.maybeSingle
+  /** Per-call conversation lookups — para el camino de carrera perdida. */
+  existingConversationByCall?: ({ id: string } | null)[];
   insertedConversationId?: string; // conversations insert -> single
+  insertConversationError?: { code?: string } | null;
 }
 
-function makeDb(script: Script): SupabaseClient {
+/**
+ * @param spy si se pasa, recibe los metodos encadenados sobre
+ *            `conversations` en un select — para afirmar que la busqueda
+ *            usa `.limit(1)` y nunca vuelve a `.single()`.
+ */
+function makeDb(script: Script, spy?: string[]): SupabaseClient {
   let table = '';
   let mode: 'select' | 'insert' | 'update' = 'select';
   let likeCalls = 0;
+  let convLookups = 0;
+
+  const note = (m: string) => {
+    if (spy && table === 'conversations' && mode === 'select') spy.push(m);
+  };
 
   const builder: Record<string, unknown> = {
     select: () => builder,
@@ -39,6 +52,14 @@ function makeDb(script: Script): SupabaseClient {
       return builder;
     },
     eq: () => builder,
+    order: () => {
+      note('order');
+      return builder;
+    },
+    limit: (n: number) => {
+      note(`limit(${n})`);
+      return builder;
+    },
     like: () => {
       const data = script.contactCandidatesByCall
         ? (script.contactCandidatesByCall[likeCalls] ?? [])
@@ -49,11 +70,14 @@ function makeDb(script: Script): SupabaseClient {
     maybeSingle: () => {
       if (table === 'whatsapp_config')
         return Promise.resolve({ data: script.config ?? null, error: null });
-      if (table === 'conversations' && mode === 'select')
-        return Promise.resolve({
-          data: script.existingConversation ?? null,
-          error: null,
-        });
+      if (table === 'conversations' && mode === 'select') {
+        note('maybeSingle');
+        const data = script.existingConversationByCall
+          ? (script.existingConversationByCall[convLookups] ?? null)
+          : (script.existingConversation ?? null);
+        convLookups++;
+        return Promise.resolve({ data, error: null });
+      }
       return Promise.resolve({ data: null, error: null });
     },
     single: () => {
@@ -68,11 +92,17 @@ function makeDb(script: Script): SupabaseClient {
           error: null,
         });
       }
-      if (table === 'conversations' && mode === 'insert')
+      if (table === 'conversations' && mode === 'insert') {
+        if (script.insertConversationError)
+          return Promise.resolve({
+            data: null,
+            error: script.insertConversationError,
+          });
         return Promise.resolve({
           data: { id: script.insertedConversationId },
           error: null,
         });
+      }
       return Promise.resolve({ data: null, error: null });
     },
     // Thenable: `await db.from().update().eq()` lands here.
@@ -167,5 +197,61 @@ describe('resolveConversationByPhone', () => {
     expect(res.contactId).toBe('c-raced');
     expect(res.contactCreated).toBe(false);
     expect(res.conversationId).toBe('cv-raced');
+  });
+
+  // ----------------------------------------------------------
+  // El fallo del 24-ago-2026: la busqueda de conversacion usaba
+  // `.single()`, que da error cuando hay MAS de una fila. El codigo
+  // leia ese error como "no existe" y creaba otra, asi que en cuanto
+  // habia dos, cada mensaje creaba una mas — 29 chats en una tarde.
+  // ----------------------------------------------------------
+  it('busca la conversacion con limit(1), nunca con single()', async () => {
+    const spy: string[] = [];
+    const db = makeDb(
+      {
+        config: { user_id: 'owner-1' },
+        contactCandidates: [{ id: 'c-1', phone: '14155550123' }],
+        existingConversation: { id: 'cv-1' },
+      },
+      spy,
+    );
+
+    await resolveConversationByPhone(db, 'acct', '+14155550123');
+
+    expect(spy).toContain('limit(1)');
+    expect(spy).toContain('order');
+    // `single()` reventaria con duplicados; ese era exactamente el bug.
+    expect(spy).not.toContain('single');
+  });
+
+  it('re-resuelve la conversacion cuando el insert pierde la carrera', async () => {
+    // Con el indice unico de la migracion 094, dos entregas concurrentes
+    // para un contacto nuevo hacen que una de las dos choque con 23505.
+    // Debe quedarse con la conversacion que creo la otra, no tumbar el
+    // envio ni tirar el mensaje.
+    const db = makeDb({
+      config: { user_id: 'owner-1' },
+      contactCandidates: [{ id: 'c-1', phone: '14155550123' }],
+      existingConversationByCall: [null, { id: 'cv-ganadora' }],
+      insertConversationError: { code: '23505' },
+    });
+
+    const res = await resolveConversationByPhone(db, 'acct', '+14155550123');
+
+    expect(res.conversationId).toBe('cv-ganadora');
+    expect(res.contactId).toBe('c-1');
+  });
+
+  it('sigue fallando si el insert de conversacion muere por otra causa', async () => {
+    const db = makeDb({
+      config: { user_id: 'owner-1' },
+      contactCandidates: [{ id: 'c-1', phone: '14155550123' }],
+      existingConversationByCall: [null, null],
+      insertConversationError: { code: '42501' },
+    });
+
+    await expect(
+      resolveConversationByPhone(db, 'acct', '+14155550123'),
+    ).rejects.toBeInstanceOf(SendMessageError);
   });
 });

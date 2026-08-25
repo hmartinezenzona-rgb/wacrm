@@ -261,13 +261,69 @@ export async function sendTextMessage(
 
 export type MediaKind = 'image' | 'video' | 'document' | 'audio'
 
+export interface UploadMediaArgs {
+  phoneNumberId: string
+  accessToken: string
+  /** File bytes. Read fully into memory — cap the size before calling. */
+  bytes: ArrayBuffer
+  /** Concrete MIME type, e.g. `image/png`. Meta rejects octet-stream. */
+  mimeType: string
+  fileName: string
+}
+
+/**
+ * Upload a file to Meta and get back a `media_id` to send it with.
+ *
+ * The alternative — handing Meta a public `link` and letting it fetch
+ * the file at send time — is what broke on 24-ago-2026: Meta ACCEPTED
+ * the message (returned a wamid), failed to download the image, and
+ * only then marked it `failed`, minutes after the deal had already
+ * been closed as delivered on the strength of that acceptance. With a
+ * `media_id` the bytes are already at Meta before the send, so that
+ * class of failure cannot happen, and anything that does go wrong goes
+ * wrong HERE — synchronously, while the operator is still watching.
+ *
+ * Note the deliberate absence of a Content-Type header: `FormData`
+ * sets it, with the multipart boundary. Setting it by hand breaks the
+ * upload.
+ */
+export async function uploadMediaToMeta(
+  args: UploadMediaArgs,
+): Promise<{ mediaId: string }> {
+  const { phoneNumberId, accessToken, bytes, mimeType, fileName } = args
+
+  const form = new FormData()
+  form.append('messaging_product', 'whatsapp')
+  form.append('type', mimeType)
+  form.append('file', new Blob([bytes], { type: mimeType }), fileName)
+
+  const response = await fetch(`${META_API_BASE}/${phoneNumberId}/media`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: form,
+  })
+  if (!response.ok) {
+    await throwMetaError(response, `Meta media upload failed: ${response.status}`)
+  }
+  const data = (await response.json()) as { id?: string }
+  if (!data.id) {
+    throw new Error('Meta media upload did not return an id.')
+  }
+  return { mediaId: data.id }
+}
+
 export interface SendMediaMessageArgs {
   phoneNumberId: string
   accessToken: string
   to: string
   kind: MediaKind
-  /** Public URL Meta fetches at send time. */
-  link: string
+  /**
+   * Public URL Meta fetches at send time. Used only when `mediaId` is
+   * absent — see `uploadMediaToMeta` for why the id is preferred.
+   */
+  link?: string
+  /** Media already uploaded to Meta. Takes precedence over `link`. */
+  mediaId?: string
   /** Optional caption — Meta caps at 1024 chars. Documents + images + videos accept it; audio does NOT. */
   caption?: string
   /** Document-only. Shown in the recipient's chat as the file name. Ignored for image/video/audio. */
@@ -290,14 +346,19 @@ export interface SendMediaMessageArgs {
 export async function sendMediaMessage(
   args: SendMediaMessageArgs,
 ): Promise<MetaSendResult> {
-  const { phoneNumberId, accessToken, to, kind, link, caption, filename, contextMessageId } = args
-  if (!link) throw new Error('sendMediaMessage requires a link.')
+  const { phoneNumberId, accessToken, to, kind, link, mediaId, caption, filename, contextMessageId } = args
+  if (!link && !mediaId) {
+    throw new Error('sendMediaMessage requires a link or a mediaId.')
+  }
   const url = `${META_API_BASE}/${phoneNumberId}/messages`
 
   // Audio accepts neither caption nor filename per Meta's spec — adding
   // either yields a 400. image/video/document accept a caption; only
   // document accepts a filename.
-  const media: Record<string, unknown> = { link }
+  //
+  // `id` when we uploaded the bytes ourselves, `link` as the fallback
+  // that keeps working when the upload could not be done.
+  const media: Record<string, unknown> = mediaId ? { id: mediaId } : { link }
   if (caption && kind !== 'audio') media.caption = caption
   if (kind === 'document' && filename) media.filename = filename
 

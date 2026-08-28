@@ -118,6 +118,11 @@ export default function PipelinesPage() {
   // `deliverDeal` itself, this is the UI reflection of it.
   const [deliveringId, setDeliveringId] = useState<string | null>(null);
   // The dialog shown when a deal WITH a proof is dropped on Entregada.
+  // La referencia de la transferencia. Vive en el dialogo y muere con el:
+  // no es un borrador ni se guarda en el deal. El Core la exige para
+  // completar, y `wamid` NO sirve — son cosas distintas (R6 §12).
+  const [transferReference, setTransferReference] = useState("");
+
   const [prompt, setPrompt] = useState<{
     deal: Deal;
     mode:
@@ -666,6 +671,10 @@ export default function PipelinesPage() {
   const runDelivery = useCallback(
     async (deal: Deal, skipProof: boolean, expectsProof: boolean) => {
       const draft = proofDrafts.get(deal.id) ?? null;
+      const referenciaDeEstaEntrega = transferReference.trim();
+      // Si la captura ya se envio en un intento anterior, su wamid viaja al
+      // servicio para que quede en su log — nunca al Core como referencia.
+      const wamidDeEstaEntrega = draft?.sentWamid;
       setDeliveringId(deal.id);
 
       const deps: DeliveryDeps = {
@@ -689,6 +698,9 @@ export default function PipelinesPage() {
               message_type: "image",
               media_url: mediaUrl,
               content_text: caption || undefined,
+              // Sin respaldo por `link`: para una prueba de pago, un exito
+              // falso es peor que un fallo visible (incidente del 24-ago).
+              require_media_id: true,
             }),
           });
           const body = await res.json().catch(() => ({}));
@@ -713,21 +725,59 @@ export default function PipelinesPage() {
           return { ok: false, outcome: "not-sent", message };
         },
         readStage: async (dealId) => {
-          const { data, error } = await supabase
-            .from("deals")
-            .select("stage_id")
-            .eq("id", dealId)
-            .maybeSingle();
-          // A failed read is treated as "don't know" and aborts the
-          // send: better a retry than an image sent into a deal
-          // somebody else already closed.
-          if (error || !data) return null;
-          return (data as { stage_id: string }).stage_id;
+          // La ultima puerta antes de mandar la imagen pregunta al CORE, no
+          // al tablero. El `stage_id` que ve este navegador puede tener
+          // minutos, y alguien pudo mover la tarjeta a mano — pero mover una
+          // tarjeta no mueve dinero, asi que lo unico que decide es si la
+          // operacion sigue en `ready_to_transfer`.
+          //
+          // Se devuelve el id de etapa que el modulo espera para no tener que
+          // tocarlo: "sigue en Lista" pasa a significar "el Core sigue
+          // diciendo que esta lista".
+          try {
+            const r = await fetch(
+              `/api/remesas/deliver?deal_id=${encodeURIComponent(dealId)}`,
+              { cache: "no-store" },
+            );
+            if (!r.ok) return null;
+            const d = await r.json();
+            return d?.ready === true ? DELIVERY_PROOF_STAGE_ID : "core-no-lista";
+          } catch {
+            // No saber es abortar. Mejor un reintento que una captura
+            // enviada a una remesa que otro ya cerro.
+            return null;
+          }
         },
         discardUpload: async (path) => {
           await deleteAccountMedia(CHAT_MEDIA_BUCKET, path);
         },
-        moveToDelivered: (id) => persistStage(id, DELIVERED_STAGE_ID),
+        // NO se escribe la etapa. Se le pide al Core que complete, y el
+        // proyector movera la tarjeta cuando el Core diga `completed`.
+        //
+        // Esta es la diferencia con produccion, donde escribir la etapa ES
+        // la transicion financiera (`deals_stage_notify` -> n8n -> plantilla)
+        // y arrastrar una tarjeta manda el mensaje al cliente aunque no se
+        // haya pagado nada.
+        moveToDelivered: async (id) => {
+          try {
+            const r = await fetch("/api/remesas/deliver", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                deal_id: id,
+                transfer_reference: referenciaDeEstaEntrega,
+                proof_wamid: wamidDeEstaEntrega,
+              }),
+            });
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok) {
+              return { ok: false as const, message: d?.error || `HTTP ${r.status}` };
+            }
+            return { ok: true as const };
+          } catch (err) {
+            return { ok: false as const, message: (err as Error).message };
+          }
+        },
       };
 
       let result: DeliveryResult;
@@ -761,6 +811,12 @@ export default function PipelinesPage() {
       isWindowOpen,
       persistStage,
       handleDeliveryResult,
+      // Sin esto el callback se queda con la referencia de cuando se
+      // memorizo — o sea, vacia — y la entrega falla DESPUES de haber
+      // mandado la captura al cliente. Paso en la primera prueba real: la
+      // imagen salio, el Core la rechazo por falta de referencia, y hubo que
+      // completar por detras para no mandarsela dos veces.
+      transferReference,
     ],
   );
 
@@ -1050,7 +1106,12 @@ export default function PipelinesPage() {
         onOpenChange={(next) => {
           // Never dismissable mid-send: closing would strand the
           // operator without the retry for a proof already delivered.
-          if (!next && !deliveringId) setPrompt(null);
+          if (!next && !deliveringId) {
+            setPrompt(null);
+            // Y la referencia no sobrevive al dialogo: la de una remesa no
+            // puede aparecer prerellenada en la siguiente.
+            setTransferReference("");
+          }
         }}
       >
         <DialogContent className="sm:max-w-md bg-popover border-border">
@@ -1100,6 +1161,33 @@ export default function PipelinesPage() {
                 </>
               )}
 
+              {/* La referencia de la transferencia. Obligatoria: es lo que
+                  permitira cuadrar este envio con el extracto del banco. */}
+              {(prompt.mode === "confirm" ||
+                prompt.mode === "window-closed" ||
+                prompt.mode === "stage-failed" ||
+                prompt.mode === "sent-not-recorded") && (
+                <div className="space-y-1">
+                  <label
+                    htmlFor="transfer-reference"
+                    className="text-xs font-medium text-foreground"
+                  >
+                    Referencia de la transferencia
+                  </label>
+                  <Input
+                    id="transfer-reference"
+                    value={transferReference}
+                    onChange={(e) => setTransferReference(e.target.value)}
+                    placeholder="p. ej. STG-DELIVERY-CUP-001"
+                    autoComplete="off"
+                    maxLength={64}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    La guarda Remesas Core. No es el mensaje de WhatsApp.
+                  </p>
+                </div>
+              )}
+
               {prompt.mode === "window-closed" && (
                 <p className="whitespace-pre-line text-xs leading-relaxed text-muted-foreground">
                   {tConfirm("closedBody")}
@@ -1136,7 +1224,7 @@ export default function PipelinesPage() {
               {tConfirm("cancel")}
             </Button>
             <Button
-              disabled={!!deliveringId}
+              disabled={!!deliveringId || !transferReference.trim()}
               onClick={() => {
                 if (!prompt) return;
                 void runDelivery(

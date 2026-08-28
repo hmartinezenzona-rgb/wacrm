@@ -112,6 +112,18 @@ export interface SendMessageParams {
    * dashboard send (human) leaves it false.
    */
   aiGenerated?: boolean;
+  /**
+   * Refuse the `link` fallback when the media could not be uploaded to
+   * Meta. Off by default, so every send that works today keeps working.
+   *
+   * The delivery proof turns it ON. A proof is the evidence that a
+   * remittance was paid, and the 24-ago-2026 incident is exactly how
+   * `link` fails: Meta ACCEPTS the message, returns a wamid, and only
+   * later fails to download the image — after the deal was closed on the
+   * strength of that acceptance. For a financial proof a false success is
+   * worse than a visible failure the operator can retry.
+   */
+  requireMediaId?: boolean;
 }
 
 export interface SendMessageResult {
@@ -309,6 +321,7 @@ export async function sendMessageToConversation(
     interactivePayload,
     replyToMessageId,
     aiGenerated,
+    requireMediaId,
   } = params;
 
   if (!conversationId) {
@@ -480,6 +493,16 @@ export async function sendMessageToConversation(
       accessToken,
       filename || undefined,
     );
+    // The caller asked for media_id or nothing. Fail HERE, synchronously,
+    // while the operator is still looking at the screen — which is the
+    // whole reason media_id is preferred over link.
+    if (!metaMediaId && requireMediaId) {
+      throw new SendMessageError(
+        'media_upload_failed',
+        'No se pudo subir la imagen a WhatsApp. No se envio nada: puedes reintentar o completar sin captura.',
+        502,
+      );
+    }
   }
 
   const attempt = async (phone: string): Promise<string> => {

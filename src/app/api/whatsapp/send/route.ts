@@ -220,6 +220,8 @@ export async function POST(request: Request) {
         templateMessageParams: template_message_params,
         interactivePayload: interactive_payload,
         replyToMessageId: reply_to_message_id,
+        // La prueba de entrega no acepta el respaldo por `link`.
+        requireMediaId: body?.require_media_id === true,
       })
 
       return NextResponse.json({

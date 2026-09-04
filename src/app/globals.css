@@ -2,13 +2,19 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+/* El modo se aplica con `data-mode` en <html> (ver el boot script de
+ * layout.tsx), no con una clase `.dark`. La definicion anterior
+ * (`&:is(.dark *)`) no casaba nunca, asi que TODAS las utilidades
+ * `dark:` del codigo eran inertes — incluidas las que corrigen
+ * contraste: emerald-600 sobre --card da 3.95:1, por debajo del
+ * minimo AA de 4.5:1, y el `dark:text-emerald-300` que lo subia a
+ * 9.77:1 nunca llegaba a aplicarse. */
+@custom-variant dark (&:where([data-mode="dark"], [data-mode="dark"] *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -48,6 +54,7 @@
   --color-primary-hover: var(--primary-hover);
   --color-primary-soft: var(--primary-soft);
   --color-primary-soft-2: var(--primary-soft-2);
+  --color-primary-on-surface: var(--primary-on-surface);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -88,6 +95,10 @@
 
 :root,
 html[data-mode="dark"] {
+  /* Sin esto Chrome pinta los controles nativos (el selector de fecha
+   * de <input type="date">, las barras de desplazamiento) con la
+   * paleta clara aunque la app este en oscuro. */
+  color-scheme: dark;
   --background: oklch(0.13 0.01 260);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.18 0.01 260);
@@ -117,7 +128,12 @@ html[data-mode="dark"] {
 }
 
 html[data-mode="light"] {
-  --background: oklch(0.99 0.002 260);
+  color-scheme: light;
+  /* El lienzo claro NO es blanco. Estaba en 0.99 con las tarjetas en 1.0:
+   * un 1% de diferencia que ningun ojo separa, y por eso el modo claro se
+   * veia plano —todo era la misma hoja con rayas de borde. Bajarlo a 0.968
+   * deja al blanco de la tarjeta hacer de tarjeta sin necesidad de sombra. */
+  --background: oklch(0.968 0.004 260);
   --foreground: oklch(0.21 0.01 260);
   --card: oklch(1 0 0);
   --card-2: oklch(0.985 0.002 260);
@@ -138,20 +154,47 @@ html[data-mode="light"] {
   --chart-4: oklch(0.8 0.04 260);
   --chart-5: oklch(0.87 0.03 260);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0.002 260);
+  --sidebar: oklch(1 0 0);
   --sidebar-foreground: oklch(0.21 0.01 260);
   --sidebar-accent: oklch(0.96 0.004 260);
   --sidebar-accent-foreground: oklch(0.25 0.01 260);
   --sidebar-border: oklch(0.922 0.004 260);
 }
 
-/* ---- ACCENT: primary color ---- */
+/* ---- ACENTO: color primario ----
+ *
+ * REGLA DE CONTRASTE. `--primary` es fondo de texto en 60 ficheros (todo boton
+ * primario: "Add Deal", "Save changes", "Sign in"), asi que el par
+ * primary/primary-foreground tiene que llegar a 4.5:1 — el texto es de 14px y
+ * peso 500, que no cuenta como texto grande.
+ *
+ * Medido en el navegador el 2-sep-2026, antes de este cambio:
+ *
+ *     amber    8.02  OK      emerald  5.86  OK      violet  5.82  OK
+ *     cobalt   4.06  NO      rose     3.53  NO
+ *
+ * Los dos que fallaban se corrigen abajo por caminos distintos, y el criterio
+ * es el mismo que ya seguian amber y emerald: un acento claro lleva texto
+ * oscuro, uno oscuro lleva texto blanco. Cobalt estaba a medio camino —
+ * demasiado claro para el blanco— y rose directamente del lado equivocado.
+ *
+ * `--primary-hover` casi no se usa (un solo componente): el hover normal es
+ * `hover:bg-primary/90`, que al componerse sobre una superficie oscura
+ * OSCURECE el boton y sube el contraste. Por eso solo se ajusta donde el token
+ * se pinta de verdad.
+ */
 
 :root,
 html[data-theme="violet"] {
   --primary: oklch(0.526 0.247 293);
+  /* El acento como TEXTO sobre superficie oscura necesita ser claro; como
+     FONDO con texto blanco necesita ser oscuro. Medido: no hay un solo
+     valor que cumpla las dos cosas — en el cruce (~0.58) fallan ambas.
+     Asi que el relleno se queda en 0.526 y el texto usa esta variante.
+     Violet como texto daba 3.09; con 0.70 sube a 6.47. */
+  --primary-on-surface: oklch(0.7 0.19 293);
   --primary-foreground: oklch(0.985 0 0);
-  --primary-hover: oklch(0.6 0.22 293);
+  --primary-hover: oklch(0.47 0.22 293);  /* 4.15 -> 7.36 */
   --primary-soft: oklch(0.526 0.247 293 / 0.12);
   --primary-soft-2: oklch(0.526 0.247 293 / 0.2);
   --ring: oklch(0.526 0.247 293);
@@ -163,6 +206,8 @@ html[data-theme="violet"] {
 
 html[data-theme="emerald"] {
   --primary: oklch(0.62 0.16 162);
+  /* Ya legible como texto sobre oscuro (5.69 / 8.01 / 5.73). */
+  --primary-on-surface: var(--primary);
   --primary-foreground: oklch(0.16 0.02 162);
   --primary-hover: oklch(0.68 0.15 162);
   --primary-soft: oklch(0.62 0.16 162 / 0.12);
@@ -176,9 +221,10 @@ html[data-theme="emerald"] {
 }
 
 html[data-theme="cobalt"] {
-  --primary: oklch(0.585 0.2 254);
+  --primary: oklch(0.555 0.2 254);  /* 4.06 -> 4.59 */
+  --primary-on-surface: oklch(0.7 0.16 254);  /* como texto: 3.92 -> 6.99 */
   --primary-foreground: oklch(0.985 0 0);
-  --primary-hover: oklch(0.66 0.18 254);
+  --primary-hover: oklch(0.5 0.18 254);  /* 3.00 -> 5.78 */
   --primary-soft: oklch(0.585 0.2 254 / 0.12);
   --primary-soft-2: oklch(0.585 0.2 254 / 0.22);
   --ring: oklch(0.585 0.2 254);
@@ -191,6 +237,8 @@ html[data-theme="cobalt"] {
 
 html[data-theme="amber"] {
   --primary: oklch(0.745 0.16 65);
+  /* Ya legible como texto sobre oscuro (5.69 / 8.01 / 5.73). */
+  --primary-on-surface: var(--primary);
   --primary-foreground: oklch(0.18 0.03 65);
   --primary-hover: oklch(0.8 0.15 65);
   --primary-soft: oklch(0.745 0.16 65 / 0.12);
@@ -204,17 +252,166 @@ html[data-theme="amber"] {
 }
 
 html[data-theme="rose"] {
-  --primary: oklch(0.645 0.22 16);
-  --primary-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.68 0.22 16);
+  /* Ya legible como texto sobre oscuro (5.69 / 8.01 / 5.73). */
+  --primary-on-surface: var(--primary);
+  /* Texto oscuro, no blanco: el rosa es un acento claro, igual que amber y
+     emerald. Y una pizca mas claro (0.645 -> 0.68) porque el hover normal
+     es `bg-primary/90`, que compuesto sobre una superficie oscura OSCURECE
+     el boton — y con texto oscuro eso baja el contraste en vez de subirlo.
+     Normal 3.53 -> 5.77, hover 2.80 -> 4.86. */
+  --primary-foreground: oklch(0.18 0.03 16);
   --primary-hover: oklch(0.71 0.2 16);
-  --primary-soft: oklch(0.645 0.22 16 / 0.12);
-  --primary-soft-2: oklch(0.645 0.22 16 / 0.22);
-  --ring: oklch(0.645 0.22 16);
-  --chart-1: oklch(0.645 0.22 16);
+  --primary-soft: oklch(0.68 0.22 16 / 0.12);
+  --primary-soft-2: oklch(0.68 0.22 16 / 0.22);
+  --ring: oklch(0.68 0.22 16);
+  --chart-1: oklch(0.68 0.22 16);
   --chart-2: oklch(0.7 0.18 340);
-  --sidebar-primary: oklch(0.645 0.22 16);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-ring: oklch(0.645 0.22 16);
+  --sidebar-primary: oklch(0.68 0.22 16);
+  --sidebar-primary-foreground: oklch(0.18 0.03 16);  /* igual que primary */
+  --sidebar-ring: oklch(0.68 0.22 16);
+}
+
+/* ============================================================
+ * Reduced motion.
+ *
+ * The app ships ten infinite animations — the `animate-ping` haloes on
+ * the sidebar's unread dot, the automations "active" indicator and the
+ * broadcast sending pill among them — and had no
+ * `prefers-reduced-motion` handling anywhere in the codebase. For a
+ * user who has asked their OS to cut motion, that's a permanently
+ * pulsing interface they can't turn off.
+ *
+ * The near-zero durations (rather than `none`) keep transition and
+ * animation *end* events firing, so anything that waits on one to
+ * settle state still completes instead of hanging.
+ * ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---- El acento como TEXTO en modo claro ----
+ *
+ * `--primary-on-surface` se definio arriba para superficie OSCURA: una
+ * variante clara del acento. En modo claro el mismo texto cae sobre blanco y
+ * pasa lo contrario — violet daba 2.90 y cobalt 2.69, ilegibles.
+ *
+ * Aqui se invierte. Violet y cobalt ya contrastan bien con su `--primary`
+ * (6.08 y 4.79 sobre blanco), asi que vuelven a el. Emerald, amber y rose son
+ * acentos claros y ni siquiera su `--primary` llega — fallaban en claro desde
+ * antes de existir este token (3.30, 2.34 y 3.28) — asi que reciben una
+ * variante oscurecida.
+ *
+ * Va DESPUES de los bloques de acento a proposito: `html[data-mode="light"]`
+ * tiene la misma especificidad que `html[data-theme="..."]`, asi que manda el
+ * orden. Las reglas con los dos atributos ganan por especificidad.
+ */
+html[data-mode="light"] {
+  --primary-on-surface: var(--primary);
+}
+/* Estos tres se miden sobre el TINTE (`bg-primary/10` de avatares y pildoras),
+ * no sobre blanco puro: ahi el fondo sube y el contraste baja ~0.6 puntos.
+ * Cobalt daba 4.19 y emerald 3.71 con su `--primary`. */
+html[data-mode="light"][data-theme="cobalt"] {
+  --primary-on-surface: oklch(0.52 0.2 254); /* 4.19 -> 4.79 */
+}
+html[data-mode="light"][data-theme="emerald"] {
+  --primary-on-surface: oklch(0.5 0.16 162); /* 3.71 -> 4.55 */
+}
+html[data-mode="light"][data-theme="amber"] {
+  --primary-on-surface: oklch(0.54 0.16 65); /* 2.34 -> ~5.2 */
+}
+html[data-mode="light"][data-theme="rose"] {
+  --primary-on-surface: oklch(0.55 0.22 16); /* 3.28 -> 5.25 */
+}
+
+:root {
+  /* Claro: contacto corto + una caida larga y muy diluida. */
+  --elev-card:
+    0 1px 2px oklch(0.25 0.02 260 / 0.06),
+    0 8px 24px -16px oklch(0.25 0.02 260 / 0.25);
+}
+html[data-mode="dark"] {
+  /* Oscuro: apenas un asentamiento. El contraste ya lo da --card (0.18)
+   * contra --background (0.13). */
+  --elev-card: 0 1px 3px oklch(0 0 0 / 0.45);
+}
+
+/* ============================================================
+ * COLORES QUE VIENEN DE LA BASE
+ *
+ * Las etapas (`pipeline_stages.color`) y las etiquetas (`tags.color`) llevan
+ * un color que elige el usuario, asi que aqui llega un hex arbitrario. Tiene
+ * que leerse sobre fondo claro Y sobre fondo oscuro, y un hex no puede
+ * hacer las dos cosas: `#eab308` (amarillo) sobre blanco es ilegible, y
+ * `#3b82f6` (azul) sobre negro se apaga.
+ *
+ * Antes se pintaba `background: <hex>20; color: <hex>` — el hex crudo como
+ * texto sobre un tinte del 12%. Es el mismo error de doble papel que tenia
+ * `--primary`, y falla en un modo o en el otro segun el tono.
+ *
+ * La solucion es no fijar colores sino la FORMULA: el componente pone
+ * `--stage: <hex>` y estas variables dicen cuanto mezclar y con que. Al
+ * cambiar de modo cambian las proporciones, no los componentes.
+ * ============================================================ */
+:root {
+  /* Claro: tinte palido sobre blanco, texto oscurecido. */
+  --tono-fondo-pct: 14%;
+  --tono-fondo-base: #ffffff;
+  /* 62%, no 74%: mezclar el 74% de un color CLARO con negro no lo oscurece
+   * bastante. Con 74% el amarillo (#eab308) daba 3.84:1 y el verde 4.37:1,
+   * los dos por debajo del 4.5 que pide AA. Con 62% el peor de los cinco
+   * queda en 5.7:1 y el tono sigue reconociendose. */
+  --tono-texto-pct: 62%;
+  --tono-texto-base: #000000;
+  --tono-borde-pct: 30%;
+}
+html[data-mode="dark"] {
+  /* Oscuro: el tinte va translucido para posarse sobre la tarjeta que
+   * toque, y el texto se aclara. */
+  --tono-fondo-pct: 18%;
+  --tono-fondo-base: transparent;
+  --tono-texto-pct: 68%;
+  --tono-texto-base: #ffffff;
+  --tono-borde-pct: 42%;
+}
+
+@layer utilities {
+  /* Solo para superficies de primer nivel. Una tarjeta dentro de otra NO
+   * la lleva: dos sombras anidadas borran la jerarquia en vez de crearla. */
+  .tarjeta-elevada {
+    box-shadow: var(--elev-card);
+  }
+
+  /* Uso: <span class="pastilla-color" style={{ "--tono": hex }}> */
+  .pastilla-color {
+    background: color-mix(in oklab, var(--tono, #64748b) var(--tono-fondo-pct), var(--tono-fondo-base));
+    color: color-mix(in oklab, var(--tono, #64748b) var(--tono-texto-pct), var(--tono-texto-base));
+    border-color: color-mix(in oklab, var(--tono, #64748b) var(--tono-borde-pct), transparent);
+  }
+}
+
+@layer utilities {
+  /* `text-primary` y `bg-primary` compartian token, y el token no puede
+   * servir a los dos: 227 usos de `text-primary` en 78 ficheros pintan el
+   * acento SOBRE superficie oscura, donde hace falta claro; los rellenos lo
+   * usan DEBAJO de texto blanco, donde hace falta oscuro.
+   *
+   * Redefinir aqui la utilidad arregla los 227 de una vez sin tocar un solo
+   * componente, y deja `bg-primary` intacto. `--primary-on-surface` cae en
+   * `--primary` para los acentos que ya eran legibles, asi que anadir un
+   * tema nuevo sin definirlo no rompe nada.
+   */
+  .text-primary {
+    color: var(--primary-on-surface, var(--primary));
+  }
 }
 
 @layer base {

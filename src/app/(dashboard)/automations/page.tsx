@@ -3,20 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import {
-  Zap,
-  Plus,
-  MoreVertical,
-  Copy,
-  Pencil,
-  Trash2,
-  FileText,
-  MessageCircle,
-  Clock,
-  Users,
-  PhoneCall,
-  Loader2,
-} from "lucide-react"
+import { ArrowRight, Clock, Copy, FileText, Loader2, MessageCircle, MoreVertical, Pencil, PhoneCall, Plus, Trash2, Users, Zap } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/client"
 import { useCan } from "@/hooks/use-can"
@@ -43,6 +30,7 @@ import {
 import { AUTOMATION_TEMPLATES, type TemplateSlug } from "@/lib/automations/templates"
 import { triggerMeta, formatRelative } from "@/lib/automations/trigger-meta"
 import { cn } from "@/lib/utils"
+import { PageHeader, PageShell } from "@/components/layout/page-header"
 
 const TEMPLATE_ORDER: TemplateSlug[] = [
   "welcome_message",
@@ -159,43 +147,49 @@ export default function AutomationsPage() {
   const showTemplates = automations.length < 3
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t("subtitle")}
-          </p>
-        </div>
-        <GatedButton
-          canAct={canCreate}
-          gateReason="create automations"
-          onClick={() => router.push("/automations/new")}
-          className="bg-primary text-primary-foreground hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" />
-          {t("create")}
-        </GatedButton>
-      </div>
+    <PageShell>
+      <PageHeader
+        title={t("title")}
+        description={t("subtitle")}
+        actions={
+          <GatedButton
+            canAct={canCreate}
+            gateReason="create automations"
+            onClick={() => router.push("/automations/new")}
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
+          >
+            <Plus className="h-4 w-4" />
+            {t("create")}
+          </GatedButton>
+        }
+      />
 
       {showTemplates && (
         <section>
           <h2 className="mb-3 text-sm font-semibold text-muted-foreground">{t("templatesTitle")}</h2>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
             {TEMPLATE_ORDER.map((slug) => {
-              const t = AUTOMATION_TEMPLATES[slug]
+              const tpl = AUTOMATION_TEMPLATES[slug]
               const Icon = TEMPLATE_ICON[slug]
               return (
                 <button
                   key={slug}
                   onClick={() => startFromTemplate(slug)}
-                  className="group flex flex-col items-start rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-primary/50 hover:bg-card/80"
+                  className="group flex cursor-pointer flex-col items-start rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-primary/50 hover:bg-card/80"
                 >
                   <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary/15">
                     <Icon className="h-5 w-5" />
                   </div>
-                  <div className="text-sm font-semibold text-foreground">{t.name}</div>
-                  <p className="mt-1 text-xs text-muted-foreground">{t.description}</p>
+                  <div className="text-sm font-semibold text-foreground">{tpl.name}</div>
+                  <p className="mt-1 text-xs text-muted-foreground">{tpl.description}</p>
+                  {/* Estas tarjetas crean una automatizacion al pulsarlas, pero
+                      nada lo decia: mismo peso visual que las tarjetas de metrica
+                      del dashboard, que no hacen nada. Y <button> no lleva
+                      cursor:pointer por defecto en el navegador. */}
+                  <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                    {t("useTemplate")}
+                    <ArrowRight className="size-3.5" aria-hidden />
+                  </span>
                 </button>
               )
             })}
@@ -257,7 +251,7 @@ export default function AutomationsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   )
 }
 
@@ -299,9 +293,13 @@ function AutomationCard({
               {automation.name}
             </span>
             {automation.is_active && (
-              <span className="relative flex h-2 w-2" aria-label="active">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+              // Antes: un punto violeta de 8px con un `aria-label="active"`
+              // en ingles fijo. El estado viajaba solo en el color — sin
+              // texto no habia forma de leerlo — y el halo `animate-ping`
+              // latia sin fin para anunciar algo que no cambia.
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-emerald-600 uppercase dark:text-emerald-300">
+                <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden />
+                {t("activeChip")}
               </span>
             )}
           </div>

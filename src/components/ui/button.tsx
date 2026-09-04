@@ -8,7 +8,12 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
+        // `/80` dejaba el hover en 4.14 (emerald) y 4.04 (rose), por debajo del
+        // minimo AA: con un acento claro y texto oscuro, componer el primario
+        // sobre una superficie oscura lo oscurece y baja el contraste. `/90`
+        // los sube a 4.97 y 4.86, y de paso iguala este boton con los 43
+        // sitios del codigo que ya usaban esa opacidad.
+        default: "bg-primary text-primary-foreground [a]:hover:bg-primary/90",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { toast } from 'sonner';
 import { Loader2, Plus, Tag as TagIcon, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -173,12 +174,8 @@ export function TagManager() {
                 {tags.map((tag) => (
                   <span
                     key={tag.id}
-                    className="group inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors"
-                    style={{
-                      backgroundColor: `${tag.color}20`,
-                      color: tag.color,
-                      border: `1px solid ${tag.color}40`,
-                    }}
+                    className="pastilla-color group inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors"
+                    style={{ "--tono": tag.color } as CSSProperties}
                   >
                     <span
                       className="size-2 rounded-full"

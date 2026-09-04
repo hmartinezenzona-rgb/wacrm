@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag } from '@/types';
 import { Button } from '@/components/ui/button';
+import { PageHeader, PageShell } from '@/components/layout/page-header';
+import { formatPhoneForDisplay } from '@/lib/whatsapp/phone-utils';
 import { Input } from '@/components/ui/input';
 import {
   Table,
@@ -340,17 +342,15 @@ export default function ContactsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {totalCount > 0 ? t('subtitle', { count: totalCount }) : t('subtitleZero')}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {canEditSettings && (
+    <PageShell>
+      <PageHeader
+        title={t('title')}
+        description={
+          totalCount > 0 ? t('subtitle', { count: totalCount }) : t('subtitleZero')
+        }
+        actions={
+          <>
+            {canEditSettings && (
             <Button
               variant="outline"
               onClick={() => setCustomFieldsOpen(true)}
@@ -376,11 +376,12 @@ export default function ContactsPage() {
             onClick={openAddForm}
             className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
-            <Plus className="size-4" />
-            {t('addContactBtn')}
-          </GatedButton>
-        </div>
-      </div>
+              <Plus className="size-4" />
+              {t('addContactBtn')}
+            </GatedButton>
+          </>
+        }
+      />
 
       {/* Search + tag filter */}
       <div className="space-y-2">
@@ -603,8 +604,10 @@ export default function ContactsPage() {
                   <TableCell className="text-foreground font-medium">
                     {contact.name || <span className="text-muted-foreground italic">{t('unnamed')}</span>}
                   </TableCell>
-                  <TableCell className="text-muted-foreground font-mono text-xs">
-                    {contact.phone}
+                  {/* tabular-nums para que las columnas de digitos queden
+                      alineadas fila a fila en vez de bailar. */}
+                  <TableCell className="text-muted-foreground font-mono text-xs tabular-nums">
+                    {formatPhoneForDisplay(contact.phone)}
                   </TableCell>
                   <TableCell className="text-muted-foreground hidden md:table-cell text-sm">
                     {contact.email || <span className="text-muted-foreground">-</span>}
@@ -827,6 +830,6 @@ export default function ContactsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

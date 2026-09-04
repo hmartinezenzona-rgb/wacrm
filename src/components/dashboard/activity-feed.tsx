@@ -57,7 +57,7 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
     i === 0 || totalLoaded > PAGE_SIZES[i - 1]
 
   return (
-    <section className="rounded-xl border border-border bg-card">
+    <section className="rounded-xl border border-border bg-card tarjeta-elevada">
       <header className="flex items-center justify-between border-b border-border px-5 py-4">
         <h2 className="text-sm font-semibold text-foreground">{t('title')}</h2>
         <Link
@@ -102,10 +102,15 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
                   >
                     <Icon className="h-3.5 w-3.5" />
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                  {/* `flex-1` estiraba el texto hasta el borde y empujaba la
+                      fecha al extremo opuesto de la tarjeta: en pantalla ancha,
+                      mil pixeles de vacio entre lo que pasó y cuándo pasó. Con
+                      un tope de medida el par queda junto y legible de un
+                      vistazo, y `mr-auto` conserva el resto del espacio. */}
+                  <span className="min-w-0 max-w-prose flex-1 truncate text-sm text-foreground">
                     {it.text}
                   </span>
-                  <span className="flex-shrink-0 text-xs text-muted-foreground tabular-nums">
+                  <span className="mr-auto flex-shrink-0 pl-4 text-xs text-muted-foreground tabular-nums">
                     {relativeTime(it.at, t)}
                   </span>
                 </div>

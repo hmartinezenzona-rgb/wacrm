@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import type { CSSProperties } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { formatCurrency } from "@/lib/currency";
+import { StageBadge } from "@/components/pipelines/stage-badge";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
@@ -33,6 +36,19 @@ interface ContactSidebarProps {
   className?: string;
 }
 
+/**
+ * Tope de deals que se traen para el panel del chat.
+ *
+ * La consulta no tenia ninguno: pedia todas las remesas que ese contacto
+ * hubiera hecho jamas. Un cliente veterano de staging ya acumula 127, y ese
+ * numero solo sube. 50 cubre de sobra lo que un operador mira, y el total
+ * real se sigue sabiendo por el `count` de la misma llamada.
+ */
+const DEALS_MAXIMO = 50;
+
+/** Cuantos se ven sin desplegar. El resto queda tras "ver todas". */
+const DEALS_VISIBLES = 4;
+
 export function ContactSidebar({ contact, conversation, className }: ContactSidebarProps) {
   const tSidebar = useTranslations("Inbox.sidebar");
   const tThread = useTranslations("Inbox.messageThread");
@@ -40,6 +56,11 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
   const { accountId } = useAuth();
   const [copied, setCopied] = useState(false);
   const [deals, setDeals] = useState<Deal[]>([]);
+  /** Cuantos tiene en total, aunque solo se hayan traido DEALS_MAXIMO. */
+  const [dealsTotal, setDealsTotal] = useState(0);
+  /** Abiertos de verdad, no solo entre los descargados. */
+  const [dealsAbiertosTotal, setDealsAbiertosTotal] = useState(0);
+  const [verTodosLosDeals, setVerTodosLosDeals] = useState(false);
   const [notes, setNotes] = useState<ContactNote[]>([]);
   const [tags, setTags] = useState<(Tag & { contact_tag_id: string })[]>([]);
   const [newNote, setNewNote] = useState("");
@@ -88,11 +109,16 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
 
     // Fetch deals, notes, and tags in parallel
     const [dealsRes, notesRes, tagsRes] = await Promise.all([
+      // Con tope: la lista crecia con la antiguedad del cliente y se traia
+      // cada remesa que hubiera hecho nunca. `count: 'exact'` devuelve el
+      // total real en la misma llamada, para poder decir cuantas hay sin
+      // descargarlas todas.
       supabase
         .from("deals")
-        .select("*, stage:pipeline_stages(*)")
+        .select("*, stage:pipeline_stages(*)", { count: "exact" })
         .eq("contact_id", contact.id)
-        .order("created_at", { ascending: false }),
+        .order("created_at", { ascending: false })
+        .limit(DEALS_MAXIMO),
       supabase
         .from("contact_notes")
         .select("*")
@@ -105,6 +131,17 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
     ]);
 
     if (dealsRes.data) setDeals(dealsRes.data);
+    setDealsTotal(dealsRes.count ?? dealsRes.data?.length ?? 0);
+    // El numero de abiertos se pide aparte y con `head`, sin traer filas.
+    // Contarlos sobre los DEALS_MAXIMO descargados daria una cifra menor que
+    // la real —"27 abiertas" cuando hay 67— y un recuento que se queda corto
+    // en un panel de dinero es peor que no ensenar ninguno.
+    const abiertosRes = await supabase
+      .from("deals")
+      .select("id", { count: "exact", head: true })
+      .eq("contact_id", contact.id)
+      .eq("status", "open");
+    setDealsAbiertosTotal(abiertosRes.count ?? 0);
     if (notesRes.data) setNotes(notesRes.data);
     if (tagsRes.data) {
       const mapped = tagsRes.data
@@ -174,9 +211,27 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
   const displayName = contact.name || contact.phone;
   const initials = displayName.charAt(0).toUpperCase();
 
+  // Lo abierto primero: es lo unico que puede pedir una accion ahora mismo.
+  // Lo entregado o perdido es historia y se va detras. Dentro de cada grupo
+  // se conserva el orden de la consulta (mas reciente primero).
+  const dealsAbiertos = deals.filter((d) => d.status === "open");
+  const dealsCerrados = deals.filter((d) => d.status !== "open");
+  const dealsOrdenados = [...dealsAbiertos, ...dealsCerrados];
+  const dealsVisibles = verTodosLosDeals
+    ? dealsOrdenados
+    : dealsOrdenados.slice(0, DEALS_VISIBLES);
+  const dealsOcultos = dealsOrdenados.length - DEALS_VISIBLES;
+
   return (
     <div className={cn("flex h-full w-70 flex-col border-l border-border bg-card", className)}>
-      <ScrollArea className="flex-1">
+      {/* `min-h-0` es imprescindible, no decorativo: sin el, este hijo flex
+          conserva `min-height: auto` y se niega a encoger por debajo de su
+          contenido. Con un cliente veterano (127 deals = 11.387px) el visor
+          crecia hasta el tamano de la lista en vez de recortarla, y el area
+          dejaba de tener scroll: el boton de pausar el bot quedaba a 11.000px
+          del borde, inalcanzable incluso desplazando. Mismo fallo que el
+          `min-w-0` del eje horizontal en inbox/page.tsx (#165). */}
+      <ScrollArea className="min-h-0 flex-1">
         <div className="p-4">
           {/* Contact Info */}
           <div className="flex flex-col items-center text-center">
@@ -198,6 +253,47 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
               <p className="text-xs text-muted-foreground">{contact.company}</p>
             )}
           </div>
+
+          {/* Bot — PRIMERO a proposito. Estaba al final, detras de deals y
+              notas, dos listas que crecen sin tope: con un cliente veterano
+              el boton quedaba a 11.000px del borde. Un control que corta la
+              respuesta automatica no puede depender de cuantas remesas lleve
+              hechas esa persona.
+
+              Existe aparte del banner Existe aparte del banner
+              de IA de WaCRM (`AiThreadBanner`) a proposito: aquel solo se
+              dibuja si esta encendida la IA PROPIA de WaCRM, y aqui el bot
+              es el Cerebro en n8n, asi que nunca aparecia. */}
+          {conversation && (
+            <>
+              <div className="my-4 border-t border-border" />
+              <div>
+                <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <Bot className="h-3 w-3" />
+                  {tSidebar("bot")}
+                </div>
+                <div className="mt-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={toggleBot}
+                    disabled={botBusy}
+                    className="w-full justify-start border-border bg-transparent text-xs text-foreground hover:bg-muted"
+                  >
+                    {botPaused ? (
+                      <Play className="mr-2 h-3 w-3 text-primary" />
+                    ) : (
+                      <Pause className="mr-2 h-3 w-3 text-muted-foreground" />
+                    )}
+                    {botPaused ? tSidebar("resumeBot") : tSidebar("pauseBot")}
+                  </Button>
+                  <p className="mt-1.5 px-1 text-[10px] leading-snug text-muted-foreground">
+                    {botPaused ? tSidebar("botPausedHint") : tSidebar("botActiveHint")}
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
 
           {/* Phone */}
           <div className="mt-4 space-y-2">
@@ -238,11 +334,8 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
                 tags.map((tag) => (
                   <span
                     key={tag.contact_tag_id}
-                    className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                    style={{
-                      backgroundColor: `${tag.color}20`,
-                      color: tag.color,
-                    }}
+                    className="pastilla-color rounded-full px-2 py-0.5 text-[10px] font-medium"
+                    style={{ "--tono": tag.color } as CSSProperties}
                   >
                     {tag.name}
                   </span>
@@ -259,38 +352,65 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
             <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               <DollarSign className="h-3 w-3" />
               {tSidebar("deals")}
+              {dealsTotal > 0 && (
+                <span className="ml-auto tracking-normal normal-case">
+                  {tSidebar("dealsSummary", {
+                    open: dealsAbiertosTotal,
+                    total: dealsTotal,
+                  })}
+                </span>
+              )}
             </div>
             <div className="mt-2 space-y-2">
               {deals.length === 0 ? (
                 <p className="px-1 text-xs text-muted-foreground">{tSidebar("noDeals")}</p>
               ) : (
-                deals.map((deal) => (
-                  <div
-                    key={deal.id}
-                    className="rounded-lg bg-muted px-3 py-2"
-                  >
-                    <p className="text-sm font-medium text-foreground">
-                      {deal.title}
+                <>
+                  {dealsVisibles.map((deal) => {
+                    return (
+                      <div key={deal.id} className="rounded-lg bg-muted px-3 py-2">
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {deal.title}
+                        </p>
+                        <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                          {/* Antes: `{deal.currency ?? "$"}{deal.value.toLocaleString()}`,
+                              que pegaba codigo y numero sin espacio — "GYD25,000". */}
+                          <span className="tabular-nums">
+                            {formatCurrency(deal.value, deal.currency)}
+                          </span>
+                          {deal.stage && (
+                            <StageBadge
+                              name={deal.stage.name}
+                              color={deal.stage.color}
+                              className="px-1.5 text-[10px]"
+                            />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {dealsOcultos > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setVerTodosLosDeals((v) => !v)}
+                      className="w-full cursor-pointer rounded-lg px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-muted"
+                    >
+                      {verTodosLosDeals
+                        ? tSidebar("dealsShowLess")
+                        : tSidebar("dealsShowAll", { count: dealsOcultos })}
+                    </button>
+                  )}
+                  {verTodosLosDeals && dealsTotal > deals.length && (
+                    // Desplegar no ensena "todos": ensena los descargados. Sin
+                    // esta linea, un cliente con 127 remesas parece tener 50.
+                    <p className="px-3 text-[10px] text-muted-foreground">
+                      {tSidebar("dealsTruncated", {
+                        shown: deals.length,
+                        total: dealsTotal,
+                      })}
                     </p>
-                    <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-                      <span>
-                        {deal.currency ?? "$"}
-                        {deal.value.toLocaleString()}
-                      </span>
-                      {deal.stage && (
-                        <span
-                          className="rounded-full px-1.5 py-0.5 text-[10px]"
-                          style={{
-                            backgroundColor: `${deal.stage.color}20`,
-                            color: deal.stage.color,
-                          }}
-                        >
-                          {deal.stage.name}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -341,40 +461,6 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
             </div>
           </div>
 
-          {/* Bot — pausar / reanudar en este hilo. Existe aparte del banner
-              de IA de WaCRM (`AiThreadBanner`) a proposito: aquel solo se
-              dibuja si esta encendida la IA PROPIA de WaCRM, y aqui el bot
-              es el Cerebro en n8n, asi que nunca aparecia. */}
-          {conversation && (
-            <>
-              <div className="my-4 border-t border-border" />
-              <div>
-                <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  <Bot className="h-3 w-3" />
-                  {tSidebar("bot")}
-                </div>
-                <div className="mt-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={toggleBot}
-                    disabled={botBusy}
-                    className="w-full justify-start border-border bg-transparent text-xs text-foreground hover:bg-muted"
-                  >
-                    {botPaused ? (
-                      <Play className="mr-2 h-3 w-3 text-primary" />
-                    ) : (
-                      <Pause className="mr-2 h-3 w-3 text-muted-foreground" />
-                    )}
-                    {botPaused ? tSidebar("resumeBot") : tSidebar("pauseBot")}
-                  </Button>
-                  <p className="mt-1.5 px-1 text-[10px] leading-snug text-muted-foreground">
-                    {botPaused ? tSidebar("botPausedHint") : tSidebar("botActiveHint")}
-                  </p>
-                </div>
-              </div>
-            </>
-          )}
         </div>
       </ScrollArea>
     </div>

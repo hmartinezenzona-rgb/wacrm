@@ -628,8 +628,16 @@ export default function InboxPage() {
         {/* Right panel: Contact sidebar — desktop only, and only when the
             agent hasn't collapsed it via the thread-header toggle (#258).
             On mobile it's always hidden (the `lg:block` below), so the
-            toggle — which is itself desktop-only — never affects it. */}
-        {contactPanelOpen && (
+            toggle — which is itself desktop-only — never affects it.
+
+            Also gated on there being a conversation at all. With none
+            selected the panel had nothing to show, so it fell back to
+            its own "Select a conversation" placeholder — the same
+            sentence the empty thread was already showing 550px to its
+            left, twice on one screen. Hiding it also lets the empty
+            state sit in the true centre of the space instead of being
+            pushed off it by a 280px column of nothing. */}
+        {contactPanelOpen && hasActiveConv && (
           <div className="hidden lg:block">
             <ContactSidebar
               contact={activeContact}

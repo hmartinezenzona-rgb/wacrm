@@ -62,6 +62,7 @@ import {
 } from "@/lib/pipelines/proof-drafts";
 import { sessionWindowFrom } from "@/lib/inbox/session-window";
 import { fetchLastCustomerMessageAt } from "@/lib/inbox/last-customer-message";
+import { PageHeader } from "@/components/layout/page-header";
 
 // Pipeline creation is admin-class (settings-tier write under
 // the new RLS); deal creation is operational and only requires
@@ -858,8 +859,14 @@ export default function PipelinesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="space-y-5">
+      {/* Esta pantalla no tenia encabezado propio: su unico titulo era el
+          que imprimia la barra superior, asi que al quitarlo de alli
+          necesitaba un <h1> de verdad. Sin PageShell: el tablero se
+          desplaza en horizontal y quiere todo el ancho. */}
+      <PageHeader title={t("title")} description={t("subtitle")} />
+
+      {/* Selector de pipeline + acciones del tablero */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           {/* Pipeline selector dropdown */}

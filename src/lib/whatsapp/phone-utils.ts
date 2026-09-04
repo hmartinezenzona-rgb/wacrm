@@ -102,3 +102,22 @@ export function phoneVariants(sanitized: string): string[] {
 export function isRecipientNotAllowedError(message: string): boolean {
   return /131030|not in allowed list|not in the allowed list/i.test(message)
 }
+
+/**
+ * Phone number as a person should read it.
+ *
+ * Numbers are stored E.164-like but bare — "529622896918" — and the
+ * contacts table printed exactly that: a twelve-digit run with no
+ * country marker and no grouping, which reads as an id, not a phone.
+ *
+ * Grouping rules are per-country and this app carries no phone-number
+ * library, so guessing where the breaks go would invent structure that
+ * may be wrong. The honest improvement is the marker: a leading "+" so
+ * the string reads as an international number. Anything already
+ * punctuated is left exactly as the user typed it.
+ */
+export function formatPhoneForDisplay(phone: string | null | undefined): string {
+  const raw = (phone ?? '').trim()
+  if (!raw) return ''
+  return /^\d{7,15}$/.test(raw) ? `+${raw}` : raw
+}

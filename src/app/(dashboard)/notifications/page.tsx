@@ -19,6 +19,8 @@ import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { PageHeader, PageShell } from "@/components/layout/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // Icon per notification type. Only one type existed at first
 // (conversation_assigned) but this keeps future types a one-line add.
@@ -280,42 +282,33 @@ export default function NotificationsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Notifications</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Conversations other teammates assign to you show up here.
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={unreadIds.length === 0 || markingAll}
-          onClick={markAllRead}
-        >
-          {markingAll ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <CheckCheck className="h-4 w-4" />
-          )}
-          Mark all as read
-        </Button>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Notifications"
+        description="Conversations other teammates assign to you show up here."
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={unreadIds.length === 0 || markingAll}
+            onClick={markAllRead}
+          >
+            {markingAll ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <CheckCheck className="h-4 w-4" />
+            )}
+            Mark all as read
+          </Button>
+        }
+      />
 
       {notifications.length === 0 ? (
-        <div className="flex h-48 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/40">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-            <Bell className="h-6 w-6 text-primary" />
-          </div>
-          <p className="mt-3 text-sm font-medium text-foreground">
-            No notifications yet
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            You&apos;ll see an alert here when someone assigns you a
-            conversation.
-          </p>
-        </div>
+        <EmptyState
+          icon={Bell}
+          title="No notifications yet"
+          description="You'll see an alert here when someone assigns you a conversation."
+        />
       ) : (
         <ul className="space-y-2">
           {notifications.map((n) => {
@@ -445,6 +438,6 @@ export default function NotificationsPage() {
           })}
         </ul>
       )}
-    </div>
+    </PageShell>
   );
 }

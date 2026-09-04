@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
 import { formatCurrency } from '@/lib/currency'
+import { PageHeader, PageShell } from '@/components/layout/page-header'
 import {
   MessageSquare,
   UserPlus,
@@ -122,14 +123,8 @@ export default function DashboardPage() {
   )
 
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {t('description')}
-        </p>
-      </div>
+    <PageShell className="space-y-5">
+      <PageHeader title={t('title')} description={t('description')} />
 
       {/* Metric cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -221,7 +216,7 @@ export default function DashboardPage() {
 
       {/* Activity feed */}
       <ActivityFeed items={activity} loading={activityLoading} />
-    </div>
+    </PageShell>
   )
 }
 

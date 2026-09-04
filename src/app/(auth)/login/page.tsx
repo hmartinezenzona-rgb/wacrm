@@ -15,7 +15,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { MessageSquare, UsersRound } from "lucide-react";
+import { UsersRound } from "lucide-react";
+import { BrandMark } from "@/components/layout/brand-mark";
 
 // `useSearchParams` opts the component out of static prerendering
 // unless it sits under a Suspense boundary. We split the form into
@@ -72,13 +73,16 @@ function LoginPageInner() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md border-border bg-card">
         <CardHeader className="items-center text-center">
-          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-            {inviteToken ? (
+          {/* Con invitacion se mantiene el icono de personas: ahi el dibujo
+              dice algo ("te han invitado a una cuenta"). Sin ella, es la
+              marca del negocio. */}
+          {inviteToken ? (
+            <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
               <UsersRound className="h-6 w-6 text-primary" />
-            ) : (
-              <MessageSquare className="h-6 w-6 text-primary" />
-            )}
-          </div>
+            </div>
+          ) : (
+            <BrandMark size={48} className="mb-2 rounded-xl" />
+          )}
           <CardTitle className="text-xl text-foreground">
             {inviteToken ? t('titleAccept') : t('titleWelcome')}
           </CardTitle>

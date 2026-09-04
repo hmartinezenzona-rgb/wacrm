@@ -57,7 +57,10 @@
     "menuProfile": "Profile",
     "menuSettings": "Settings",
     "menuSignOut": "Sign out",
-    "resumen": "Resumen"
+    "resumen": "Resumen",
+    "breadcrumb": "Breadcrumb",
+    "flows": "Flows",
+    "aiAgents": "AI Agents"
   },
   "ModeToggle": {
     "switchMode": "Switch to {mode} mode"
@@ -272,7 +275,11 @@
       "botPausedHint": "The bot is paused on this chat. It won't answer until you resume it.",
       "botPaused": "Bot paused on this chat",
       "botResumed": "Bot back on this chat",
-      "botError": "Couldn't change the bot state"
+      "botError": "Couldn't change the bot state",
+      "dealsSummary": "{open} open · {total} total",
+      "dealsShowAll": "Show {count} more",
+      "dealsShowLess": "Show less",
+      "dealsTruncated": "Showing the {shown} most recent of {total}."
     },
     "aiBanner": {
       "pausedTitle": "AI assistant is paused here",
@@ -504,7 +511,9 @@
       "toastFailedMoveDeal": "Failed to move deal",
       "toastFailedCreatePipeline": "Failed to create pipeline",
       "toastPipelineCreated": "Pipeline created",
-      "toastNotLinkedToAccount": "Your profile is not linked to an account."
+      "toastNotLinkedToAccount": "Your profile is not linked to an account.",
+      "title": "Pipelines",
+      "subtitle": "Every deal on the board, by stage."
     },
     "board": {
       "dropDealHere": "Drop a deal here",
@@ -860,7 +869,9 @@
         "updateError": "Failed to update",
         "duplicateError": "Failed to duplicate",
         "deleteError": "Failed to delete"
-      }
+      },
+      "activeChip": "Active",
+      "useTemplate": "Use template"
     },
     "edit": {
       "loading": "Loading...",
@@ -1558,7 +1569,8 @@
       "fields": "Fields & tags",
       "deals": "Deals & currency",
       "members": "Team members",
-      "api": "API keys"
+      "api": "API keys",
+      "quick-replies": "Quick replies"
     },
     "groups": {
       "account": "Account",
@@ -1630,7 +1642,7 @@
     },
     "apiKeys": {
       "title": "API keys",
-      "description": "Keys authenticate the public REST API (<apiCode>/api/v1</apiCode>) so you can build your own automations. Send them as <headerCode>Authorization: Bearer &lt;key&gt;</headerCode>.",
+      "description": "Keys authenticate the public REST API (<apiCode>/api/v1</apiCode>) so you can build your own automations. Send them as <headerCode>Authorization: Bearer YOUR_KEY</headerCode>.",
       "newApiKey": "New API key",
       "noApiKeys": "No API keys yet.",
       "createOneHint": "Click <bold>New API key</bold> to create one.",
@@ -1664,7 +1676,11 @@
       "newKeyTitle": "New API key",
       "newKeyDesc": "Name it after the integration that will use it, and grant only the scopes it needs.",
       "done": "Done",
-      "networkError": "Could not reach the server"
+      "networkError": "Could not reach the server",
+      "revokeConfirm": "Confirm revoke",
+      "revokedSectionShow": "Show revoked ({count})",
+      "revokedSectionHide": "Hide revoked",
+      "noActiveKeys": "No active keys."
     },
     "deals": {
       "title": "Deals & currency",

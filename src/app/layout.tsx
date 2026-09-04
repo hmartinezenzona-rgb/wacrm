@@ -30,9 +30,11 @@ export const metadata: Metadata = {
     index: false,
     follow: false,
   },
-  icons: {
-    icon: [{ url: "/icon" }],
-  },
+  // Sin `icons` a mano: la convencion de fichero de Next detecta
+  // `src/app/icon.png` y emite el <link> sola. Antes habia aqui un
+  // `{ url: "/icon" }` fijo que apuntaba al icono generado por codigo
+  // (`icon.tsx`); al sustituirlo por la marca del negocio, esa ruta
+  // dejo de existir y el <head> seguia pidiendo un 404.
   formatDetection: {
     email: false,
     address: false,

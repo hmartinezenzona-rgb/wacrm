@@ -352,7 +352,11 @@ export function DealForm({
 
               {linkedConversation && (
                 <Link
-                  href="/inbox"
+                  // Iba a `/inbox` a secas: te dejaba en la bandeja, sin abrir
+                  // nada, y con un cliente veterano eso significa buscar el hilo
+                  // a mano. El inbox ya sabe leer `?c=<id>` (`deepLinkConvId`),
+                  // asi que el enlace solo tenia que decirle cual.
+                  href={`/inbox?c=${linkedConversation.id}`}
                   className="mt-1 inline-flex items-center gap-1.5 self-start rounded-md bg-primary/10 px-2 py-1 text-xs text-primary hover:bg-primary/20"
                 >
                   <MessageSquare className="h-3 w-3" />

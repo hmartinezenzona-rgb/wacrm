@@ -237,46 +237,42 @@ export function RemittanceOperationCard({
                     openForm?.kind === "beneficiary" && openForm.beneficiaryId === beneficiary.id;
                   const isMovingBeneficiary =
                     openForm?.kind === "reassign" && openForm.beneficiaryId === beneficiary.id;
-                  const hasMove = editable && otherOpenOperations.length > 0;
-                  const trailingWidth: "w-6" | "w-12" = hasMove ? "w-12" : "w-6";
 
                   return (
                     <li key={beneficiary.id} className="space-y-1 rounded-md bg-muted/60 px-1.5 py-2 text-xs">
-                      {(beneficiaryAmount !== null || editable) && (
+                      {editable && (
+                        <div className="flex justify-end">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-xs"
+                            aria-label={t("editBeneficiary")}
+                            title={t("editBeneficiary")}
+                            onClick={() => toggleForm({ kind: "beneficiary", beneficiaryId: beneficiary.id })}
+                          >
+                            <Pencil aria-hidden="true" />
+                          </Button>
+                          {otherOpenOperations.length > 0 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-xs"
+                              aria-label={t("moveBeneficiary")}
+                              title={t("moveBeneficiary")}
+                              onClick={() => toggleForm({ kind: "reassign", beneficiaryId: beneficiary.id })}
+                            >
+                              <ArrowRightLeft aria-hidden="true" />
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                      {beneficiaryAmount !== null && (
                         <DataRow
                           icon={<Banknote className="size-3.5" aria-hidden="true" />}
                           label={t("amount")}
-                          display={beneficiaryAmount ?? "—"}
+                          display={beneficiaryAmount}
                           valueClassName="whitespace-nowrap font-semibold tabular-nums"
-                          trailingWidth={trailingWidth}
-                          trailing={
-                            editable ? (
-                              <span className="flex gap-0">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon-xs"
-                                  aria-label={t("editBeneficiary")}
-                                  title={t("editBeneficiary")}
-                                  onClick={() => toggleForm({ kind: "beneficiary", beneficiaryId: beneficiary.id })}
-                                >
-                                  <Pencil aria-hidden="true" />
-                                </Button>
-                                {otherOpenOperations.length > 0 && (
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon-xs"
-                                    aria-label={t("moveBeneficiary")}
-                                    title={t("moveBeneficiary")}
-                                    onClick={() => toggleForm({ kind: "reassign", beneficiaryId: beneficiary.id })}
-                                  >
-                                    <ArrowRightLeft aria-hidden="true" />
-                                  </Button>
-                                )}
-                              </span>
-                            ) : null
-                          }
+                          trailing={null}
                         />
                       )}
 
@@ -286,7 +282,6 @@ export function RemittanceOperationCard({
                             icon={<UserRound className="size-3.5" aria-hidden="true" />}
                             label={t("name")}
                             display={beneficiary.name ?? t("beneficiaryNameUnavailable")}
-                            trailingWidth={trailingWidth}
                             trailing={
                               beneficiary.name ? (
                                 <CopyButton value={beneficiary.name} ariaLabel={`${t("copy")} ${t("name")}`} />
@@ -298,7 +293,6 @@ export function RemittanceOperationCard({
                               icon={<AtSign className="size-3.5" aria-hidden="true" />}
                               label={t("zelleAccount")}
                               display={beneficiary.zelleAccount}
-                              trailingWidth={trailingWidth}
                               trailing={
                                 <CopyButton
                                   value={beneficiary.zelleAccount}
@@ -316,7 +310,6 @@ export function RemittanceOperationCard({
                               label={t("card")}
                               display={formatCardNumber(beneficiary.cardNumber)}
                               valueClassName="whitespace-nowrap tabular-nums"
-                              trailingWidth={trailingWidth}
                               trailing={
                                 <CopyButton value={beneficiary.cardNumber} ariaLabel={`${t("copy")} ${t("card")}`} />
                               }
@@ -328,7 +321,6 @@ export function RemittanceOperationCard({
                               label={t("phone")}
                               display={beneficiary.phone}
                               valueClassName="whitespace-nowrap tabular-nums"
-                              trailingWidth={trailingWidth}
                               trailing={
                                 <CopyButton value={beneficiary.phone} ariaLabel={`${t("copy")} ${t("phone")}`} />
                               }
@@ -369,23 +361,21 @@ export function RemittanceOperationCard({
 }
 
 /** One beneficiary data row: the field icon flush left, the value flush
- *  right, and a trailing slot (copy button, or edit/move actions for the
- *  amount row) at a fixed width so every row's value lines up on the same
- *  right edge regardless of which row has the widest trailing content. */
+ *  right, and a fixed one-button trailing column (the copy button, or empty)
+ *  that lines up with the move button in the actions row above, so every
+ *  value ends on the same right edge. */
 function DataRow({
   icon,
   label,
   display,
   valueClassName,
   trailing,
-  trailingWidth,
 }: {
   icon: ReactNode;
   label: string;
   display: string;
   valueClassName?: string;
   trailing: ReactNode;
-  trailingWidth: "w-6" | "w-12";
 }) {
   return (
     <div className="flex items-center gap-1.5">
@@ -396,7 +386,7 @@ function DataRow({
       <span className={`ml-auto min-w-0 text-right font-medium text-foreground ${valueClassName ?? "break-words"}`}>
         {display}
       </span>
-      <span className={`flex shrink-0 items-center ${trailingWidth}`}>{trailing}</span>
+      <span className="flex w-6 shrink-0 items-center justify-center">{trailing}</span>
     </div>
   );
 }

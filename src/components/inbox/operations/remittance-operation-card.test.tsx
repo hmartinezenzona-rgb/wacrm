@@ -468,7 +468,7 @@ describe("RemittanceOperationCard", () => {
     await act(async () => root.unmount());
   });
 
-  it("renders the beneficiary amount row with edit and move actions", async () => {
+  it("renders the beneficiary edit and move actions in their own row above the amount", async () => {
     const { node, root } = await render(
       operation({
         beneficiaries: [
@@ -490,8 +490,17 @@ describe("RemittanceOperationCard", () => {
     );
 
     expect(node.textContent).toContain("60,000 CUP");
-    expect(button(node, en.Inbox.operationsPanel.editBeneficiary)).not.toBeNull();
-    expect(button(node, en.Inbox.operationsPanel.moveBeneficiary)).not.toBeNull();
+    const edit = button(node, en.Inbox.operationsPanel.editBeneficiary)!;
+    const move = button(node, en.Inbox.operationsPanel.moveBeneficiary)!;
+    expect(edit).not.toBeNull();
+    expect(move).not.toBeNull();
+    // The actions live in the beneficiary block's first row, and that row
+    // holds no data (the amount row comes after it).
+    const item = edit.closest("li")!;
+    const actionsRow = item.firstElementChild!;
+    expect(actionsRow.contains(edit)).toBe(true);
+    expect(actionsRow.contains(move)).toBe(true);
+    expect(actionsRow.textContent).not.toContain("60,000 CUP");
     await act(async () => root.unmount());
   });
 

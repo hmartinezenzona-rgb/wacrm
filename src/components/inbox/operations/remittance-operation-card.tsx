@@ -393,7 +393,7 @@ function DataRow({
         {icon}
       </span>
       <span className="sr-only">{label}: </span>
-      <span className={`ml-auto min-w-0 text-right font-medium text-foreground ${valueClassName ?? "break-all"}`}>
+      <span className={`ml-auto min-w-0 text-right font-medium text-foreground ${valueClassName ?? "break-words"}`}>
         {display}
       </span>
       <span className={`flex shrink-0 items-center ${trailingWidth}`}>{trailing}</span>

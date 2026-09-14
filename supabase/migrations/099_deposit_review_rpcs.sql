@@ -251,12 +251,16 @@ DECLARE
   v_amount      numeric;
   v_refs        text[] := ARRAY[]::text[];
   v_montos      numeric[] := ARRAY[]::numeric[];
+  v_locked_deal uuid;
 BEGIN
-  SELECT account_id, status, deal_id
-    INTO v_account_id, v_status_before, v_deal_id
+  -- Lock order is deal -> operation, the same order automation uses
+  -- (UPDATE deals fires trg_sync_operacion_desde_deal, which then updates
+  -- remittance_operations). Locking the operation first could deadlock
+  -- against a concurrent n8n deposit write and abort it.
+  SELECT account_id, deal_id
+    INTO v_account_id, v_deal_id
     FROM remittance_operations
-   WHERE id = p_operation_id
-     FOR UPDATE;
+   WHERE id = p_operation_id;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'operation not found' USING ERRCODE = 'P0002';
@@ -266,15 +270,26 @@ BEGIN
     RAISE EXCEPTION 'not authorized to verify deposits on this operation' USING ERRCODE = '42501';
   END IF;
 
-  IF v_status_before NOT IN ('deposit_verification', 'incident') THEN
-    RAISE EXCEPTION 'operation is not awaiting deposit verification' USING ERRCODE = '22023';
-  END IF;
-
   IF v_deal_id IS NULL THEN
     RAISE EXCEPTION 'operation has no linked deal' USING ERRCODE = '22023';
   END IF;
 
   SELECT stage_id INTO v_stage FROM deals WHERE id = v_deal_id FOR UPDATE;
+
+  SELECT status, deal_id
+    INTO v_status_before, v_locked_deal
+    FROM remittance_operations
+   WHERE id = p_operation_id
+     FOR UPDATE;
+
+  IF v_locked_deal IS DISTINCT FROM v_deal_id THEN
+    RAISE EXCEPTION 'operation changed concurrently, retry' USING ERRCODE = '40001';
+  END IF;
+
+  IF v_status_before NOT IN ('deposit_verification', 'incident') THEN
+    RAISE EXCEPTION 'operation is not awaiting deposit verification' USING ERRCODE = '22023';
+  END IF;
+
   IF v_stage IS NULL OR v_stage NOT IN (v_por_verificar, v_incidencia) THEN
     RAISE EXCEPTION 'deal is not awaiting deposit verification' USING ERRCODE = '22023';
   END IF;
@@ -393,12 +408,13 @@ DECLARE
   v_deal_id        uuid;
   v_stage          uuid;
   v_reason         text;
+  v_locked_deal    uuid;
 BEGIN
-  SELECT account_id, status, deal_id
-    INTO v_account_id, v_status_before, v_deal_id
+  -- Lock order deal -> operation, matching automation (see crm_verificar_deposito).
+  SELECT account_id, deal_id
+    INTO v_account_id, v_deal_id
     FROM remittance_operations
-   WHERE id = p_operation_id
-     FOR UPDATE;
+   WHERE id = p_operation_id;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'operation not found' USING ERRCODE = 'P0002';
@@ -413,15 +429,26 @@ BEGIN
     RAISE EXCEPTION 'reason must be at least 5 characters' USING ERRCODE = '22023';
   END IF;
 
-  IF v_status_before NOT IN ('deposit_verification', 'incident') THEN
-    RAISE EXCEPTION 'operation is not awaiting deposit verification' USING ERRCODE = '22023';
-  END IF;
-
   IF v_deal_id IS NULL THEN
     RAISE EXCEPTION 'operation has no linked deal' USING ERRCODE = '22023';
   END IF;
 
   SELECT stage_id INTO v_stage FROM deals WHERE id = v_deal_id FOR UPDATE;
+
+  SELECT status, deal_id
+    INTO v_status_before, v_locked_deal
+    FROM remittance_operations
+   WHERE id = p_operation_id
+     FOR UPDATE;
+
+  IF v_locked_deal IS DISTINCT FROM v_deal_id THEN
+    RAISE EXCEPTION 'operation changed concurrently, retry' USING ERRCODE = '40001';
+  END IF;
+
+  IF v_status_before NOT IN ('deposit_verification', 'incident') THEN
+    RAISE EXCEPTION 'operation is not awaiting deposit verification' USING ERRCODE = '22023';
+  END IF;
+
   IF v_stage IS NULL OR v_stage NOT IN (v_por_verificar, v_incidencia) THEN
     RAISE EXCEPTION 'deal is not awaiting deposit verification' USING ERRCODE = '22023';
   END IF;

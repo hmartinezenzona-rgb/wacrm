@@ -16,34 +16,12 @@ function toNullableNumber(value: number | string | null): number | null {
 }
 
 /**
- * Same convention as the /resumen legacy view (migration
- * 053_vistas_de_volumen.sql:127-128): first 4 digits + "****" + last 4
- * digits. Falls back to a flat mask of the same length for anything
- * shorter than 8 characters rather than reveal more than half of a short
- * value.
- */
-export function maskCardNumber(cardNumber: string | null): string | null {
-  if (!cardNumber) return null;
-  if (cardNumber.length < 8) return "*".repeat(cardNumber.length);
-  return `${cardNumber.slice(0, 4)}****${cardNumber.slice(-4)}`;
-}
-
-/**
- * No existing masking precedent for phone in this codebase (the /resumen
- * view leaves `celular_beneficiario` unmasked) — this panel masks it
- * anyway per product direction, keeping only the last 4 digits visible.
- */
-export function maskPhone(phone: string | null): string | null {
-  if (!phone) return null;
-  if (phone.length <= 4) return "*".repeat(phone.length);
-  return `${"*".repeat(phone.length - 4)}${phone.slice(-4)}`;
-}
-
-/**
  * Groups the RPC's flat (operation, beneficiary) rows into the panel's
- * nested read model, applying the masking helpers above. `rows` may be
- * empty (no session, defensive) or contain exactly one resolver-only row
- * (`resolverState === "ninguna"`, `operations: []`).
+ * nested read model. `card_number`/`phone` are passed through raw
+ * (unmasked) — product decision: operators need to copy them, and the
+ * same values already appear in the conversation thread on this screen.
+ * `rows` may be empty (no session, defensive) or contain exactly one
+ * resolver-only row (`resolverState === "ninguna"`, `operations: []`).
  */
 export function mapRemittanceOperationsRows(
   rows: RemittanceOperationsRpcRow[],
@@ -88,8 +66,8 @@ export function mapRemittanceOperationsRows(
         id: row.beneficiary_id,
         beneficiaryType: row.beneficiary_type ?? "cuban_card",
         name: row.beneficiary_name,
-        cardNumberMasked: maskCardNumber(row.beneficiary_card_number),
-        phoneMasked: maskPhone(row.beneficiary_phone),
+        cardNumber: row.beneficiary_card_number,
+        phone: row.beneficiary_phone,
         zelleAccount: row.beneficiary_zelle_account,
         deliveryMethod: row.beneficiary_delivery_method,
         amount: toNullableNumber(row.beneficiary_amount),

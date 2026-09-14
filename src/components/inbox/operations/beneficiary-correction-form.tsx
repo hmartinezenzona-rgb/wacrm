@@ -28,10 +28,16 @@ const BENEFICIARY_TYPES: BeneficiaryType[] = [
 
 /**
  * Inline correction form for one beneficiary. `cardNumber`/`phone` never
- * re-display the raw value (the read model only ever gives us the masked
- * form) — they start empty, with the masked value as a placeholder, and
- * are only sent when the agent actually types a new one. Every other
- * field is prefilled and only sent when non-empty and changed.
+ * prefill their input value (only shown as a placeholder) — they start
+ * empty and are only sent when the agent actually types a new one. Every
+ * other field is prefilled and only sent when non-empty and changed.
+ *
+ * Cuba beneficiary types (every type except "zelle") have no name, only
+ * card + phone; "zelle" always has a name + Zelle account and no
+ * card/phone. Both which fields render and which changes get submitted
+ * follow the live `beneficiaryType` select, not the beneficiary's
+ * original type — so switching the type in the form immediately swaps
+ * the visible fields, and a field hidden by that swap is never sent.
  */
 export function BeneficiaryCorrectionForm({ beneficiary, onDone, onCancel }: BeneficiaryCorrectionFormProps) {
   const t = useTranslations("Inbox.operationsPanel");
@@ -54,34 +60,38 @@ export function BeneficiaryCorrectionForm({ beneficiary, onDone, onCancel }: Ben
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const isZelle = beneficiaryType === "zelle";
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
 
     const changes: Record<string, unknown> = {};
 
-    if (name !== initialName && name.trim() !== "") {
-      changes.name = name.trim();
-    }
-
-    if (cardNumber.trim() !== "") {
-      if (!CARD_NUMBER_PATTERN.test(cardNumber.trim())) {
-        setError(t("invalidCard"));
-        return;
+    if (isZelle) {
+      if (name !== initialName && name.trim() !== "") {
+        changes.name = name.trim();
       }
-      changes.card_number = cardNumber.trim();
-    }
 
-    if (phone.trim() !== "") {
-      if (!PHONE_PATTERN.test(phone.trim())) {
-        setError(t("invalidPhone"));
-        return;
+      if (zelleAccount !== initialZelleAccount && zelleAccount.trim() !== "") {
+        changes.zelle_account = zelleAccount.trim();
       }
-      changes.phone = phone.trim();
-    }
+    } else {
+      if (cardNumber.trim() !== "") {
+        if (!CARD_NUMBER_PATTERN.test(cardNumber.trim())) {
+          setError(t("invalidCard"));
+          return;
+        }
+        changes.card_number = cardNumber.trim();
+      }
 
-    if (zelleAccount !== initialZelleAccount && zelleAccount.trim() !== "") {
-      changes.zelle_account = zelleAccount.trim();
+      if (phone.trim() !== "") {
+        if (!PHONE_PATTERN.test(phone.trim())) {
+          setError(t("invalidPhone"));
+          return;
+        }
+        changes.phone = phone.trim();
+      }
     }
 
     if (deliveryMethod !== initialDeliveryMethod && deliveryMethod.trim() !== "") {
@@ -128,36 +138,44 @@ export function BeneficiaryCorrectionForm({ beneficiary, onDone, onCancel }: Ben
 
   return (
     <form onSubmit={handleSubmit} className="space-y-2 rounded-md border border-border bg-muted/40 p-2">
-      <div className="space-y-1">
-        <Label htmlFor="beneficiary-name">{t("name")}</Label>
-        <Input id="beneficiary-name" value={name} onChange={(event) => setName(event.target.value)} />
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor="beneficiary-card-number">{t("cardNumber")}</Label>
-        <Input
-          id="beneficiary-card-number"
-          value={cardNumber}
-          placeholder={beneficiary.cardNumberMasked ?? undefined}
-          onChange={(event) => setCardNumber(event.target.value)}
-        />
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor="beneficiary-phone">{t("phone")}</Label>
-        <Input
-          id="beneficiary-phone"
-          value={phone}
-          placeholder={beneficiary.phoneMasked ?? undefined}
-          onChange={(event) => setPhone(event.target.value)}
-        />
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor="beneficiary-zelle-account">{t("zelleAccount")}</Label>
-        <Input
-          id="beneficiary-zelle-account"
-          value={zelleAccount}
-          onChange={(event) => setZelleAccount(event.target.value)}
-        />
-      </div>
+      {isZelle && (
+        <div className="space-y-1">
+          <Label htmlFor="beneficiary-name">{t("name")}</Label>
+          <Input id="beneficiary-name" value={name} onChange={(event) => setName(event.target.value)} />
+        </div>
+      )}
+      {!isZelle && (
+        <div className="space-y-1">
+          <Label htmlFor="beneficiary-card-number">{t("cardNumber")}</Label>
+          <Input
+            id="beneficiary-card-number"
+            value={cardNumber}
+            placeholder={beneficiary.cardNumber ?? undefined}
+            onChange={(event) => setCardNumber(event.target.value)}
+          />
+        </div>
+      )}
+      {!isZelle && (
+        <div className="space-y-1">
+          <Label htmlFor="beneficiary-phone">{t("phone")}</Label>
+          <Input
+            id="beneficiary-phone"
+            value={phone}
+            placeholder={beneficiary.phone ?? undefined}
+            onChange={(event) => setPhone(event.target.value)}
+          />
+        </div>
+      )}
+      {isZelle && (
+        <div className="space-y-1">
+          <Label htmlFor="beneficiary-zelle-account">{t("zelleAccount")}</Label>
+          <Input
+            id="beneficiary-zelle-account"
+            value={zelleAccount}
+            onChange={(event) => setZelleAccount(event.target.value)}
+          />
+        </div>
+      )}
       <div className="space-y-1">
         <Label htmlFor="beneficiary-delivery-method">{t("deliveryMethod")}</Label>
         <Input

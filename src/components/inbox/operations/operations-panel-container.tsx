@@ -43,11 +43,20 @@ function otherOpenOperationsFor(
  * `onChanged` (refetch) so Slice 6's correction/reassignment UI can act.
  * Mounted only behind `profiles.beta_features` containing
  * 'operations_panel' (design decision 8; see `contact-sidebar.tsx`).
+ *
+ * Also owns the panel's accordion state (`expandedId`): only one
+ * operation's details are shown at a time. It defaults to the single
+ * operation when there's exactly one, otherwise starts collapsed, and
+ * stays on the previously-expanded operation across a refetch when it's
+ * still present (e.g. after a correction) — a new conversation's data
+ * never contains the previous id, so switching conversations naturally
+ * resets to collapsed/auto-expanded.
  */
 export function OperationsPanelContainer({ conversationId }: OperationsPanelContainerProps) {
   const t = useTranslations("Inbox.operationsPanel");
   const canEdit = useCan("send-messages");
   const [state, setState] = useState<PanelState>({ status: "idle" });
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const load = useCallback(async (id: string) => {
     setState({ status: "loading" });
@@ -62,6 +71,13 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
       }
       const data = (await response.json()) as ConversationOperationsRead;
       setState({ status: "loaded", data });
+      setExpandedId((previous) =>
+        data.operations.some((op) => op.id === previous)
+          ? previous
+          : data.operations.length === 1
+            ? data.operations[0].id
+            : null,
+      );
     } catch {
       setState({ status: "error" });
     }
@@ -111,6 +127,8 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
             canEdit={canEdit}
             otherOpenOperations={otherOpenOperationsFor(operation, data.operations)}
             onChanged={() => load(conversationId)}
+            expanded={expandedId === operation.id}
+            onToggle={() => setExpandedId((current) => (current === operation.id ? null : operation.id))}
           />
         ))}
       </div>

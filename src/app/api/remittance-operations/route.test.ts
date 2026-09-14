@@ -120,7 +120,7 @@ describe("GET /api/remittance-operations", () => {
         beneficiary_id: "ben-1",
         beneficiary_type: "cuban_card",
         beneficiary_name: "Solo Beneficiario",
-        beneficiary_card_number: "1111222233334444",
+        beneficiary_card_number: "9205123412349412",
         beneficiary_phone: null,
         beneficiary_zelle_account: null,
         beneficiary_delivery_method: null,
@@ -141,8 +141,9 @@ describe("GET /api/remittance-operations", () => {
     });
     expect(body.resolverState).toBe("unica");
     expect(body.operations).toHaveLength(1);
-    expect(body.operations[0].beneficiaries[0].cardNumberMasked).toBe("1111****4444");
-    // Raw card number must never leave the server.
-    expect(JSON.stringify(body)).not.toContain("1111222233334444");
+    // Full card number is intentionally sent to the client (product
+    // decision: operators need to copy it, and it already appears in the
+    // conversation thread on this screen).
+    expect(body.operations[0].beneficiaries[0].cardNumber).toBe("9205123412349412");
   });
 });

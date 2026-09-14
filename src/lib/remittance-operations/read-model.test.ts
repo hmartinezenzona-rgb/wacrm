@@ -1,10 +1,12 @@
 // Unit tests for the pure RPC-row -> panel read model mapping.
 // Spec: chat-remesa-operations-panel ("List All Open Remesas Per
 // Conversation", "Resolver State Handling"). Design decisions 2 (locks,
-// read-through), masking convention from 053_vistas_de_volumen.sql.
+// read-through). Card/phone are passed through raw (unmasked) — product
+// decision: operators need to copy them, and the same values already
+// appear in the conversation thread on this screen.
 
 import { describe, expect, it } from "vitest";
-import { mapRemittanceOperationsRows, maskCardNumber, maskPhone } from "./read-model";
+import { mapRemittanceOperationsRows } from "./read-model";
 import type { RemittanceOperationsRpcRow } from "./types";
 
 function row(overrides: Partial<RemittanceOperationsRpcRow>): RemittanceOperationsRpcRow {
@@ -37,34 +39,6 @@ function row(overrides: Partial<RemittanceOperationsRpcRow>): RemittanceOperatio
     ...overrides,
   };
 }
-
-describe("maskCardNumber", () => {
-  it("masks a normal card number as first4****last4 (resumen convention)", () => {
-    expect(maskCardNumber("9205123412340009412")).toBe("9205****9412");
-  });
-
-  it("returns null for a null card number", () => {
-    expect(maskCardNumber(null)).toBeNull();
-  });
-
-  it("fully masks a card number shorter than 8 characters", () => {
-    expect(maskCardNumber("1234")).toBe("****");
-  });
-});
-
-describe("maskPhone", () => {
-  it("keeps only the last 4 digits visible", () => {
-    expect(maskPhone("15550001111")).toBe("*******1111");
-  });
-
-  it("returns null for a null phone", () => {
-    expect(maskPhone(null)).toBeNull();
-  });
-
-  it("fully masks a phone with 4 or fewer digits", () => {
-    expect(maskPhone("123")).toBe("***");
-  });
-});
 
 describe("mapRemittanceOperationsRows", () => {
   it("maps a conversation with two open remesas, one with two beneficiaries", () => {
@@ -128,8 +102,8 @@ describe("mapRemittanceOperationsRows", () => {
     const op2 = result.operations.find((operation) => operation.id === "op-2");
     expect(op1?.beneficiaries).toHaveLength(2);
     expect(op1?.beneficiaries.map((b) => b.id)).toEqual(["ben-1", "ben-2"]);
-    expect(op1?.beneficiaries[0].cardNumberMasked).toBe("9205****9412");
-    expect(op1?.beneficiaries[0].phoneMasked).toBe("*******1111");
+    expect(op1?.beneficiaries[0].cardNumber).toBe("9205123412340009412");
+    expect(op1?.beneficiaries[0].phone).toBe("15550001111");
     expect(op1?.beneficiaries[1].zelleAccount).toBe("yaima@example.invalid");
     expect(op1?.quotedSourceAmount).toBe(10000);
     expect(op1?.quotedDestinationAmount).toBe(9800.5);

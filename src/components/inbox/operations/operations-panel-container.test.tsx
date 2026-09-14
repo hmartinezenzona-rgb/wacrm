@@ -2,8 +2,10 @@
 // Spec: chat-remesa-operations-panel. Covers the container's fetch + state
 // machine: loads on conversationId, lists every open remesa (ninguna shows
 // nothing / no fabrication, ambigua shows the banner + still lists every
-// operation instead of picking one), and that a card reporting a change
-// (via `onChanged`) makes the container refetch.
+// operation instead of picking one), that a card reporting a change (via
+// `onChanged`) makes the container refetch, and the accordion behavior:
+// only one card is expanded at a time (owned here as `expandedId`),
+// defaulting to the single operation when there's exactly one.
 
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
@@ -72,9 +74,9 @@ const OP1 = {
     {
       id: "ben-1",
       beneficiaryType: "cuban_card" as const,
-      name: "Yaima Perez",
-      cardNumberMasked: "9205****9412",
-      phoneMasked: null,
+      name: null,
+      cardNumber: "9205123412349412",
+      phone: null,
       zelleAccount: null,
       deliveryMethod: null,
       amount: null,
@@ -106,6 +108,10 @@ function setValue(input: HTMLInputElement, value: string) {
   input.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
+function toggleButtons(node: Element) {
+  return Array.from(node.querySelectorAll<HTMLButtonElement>("button[aria-expanded]"));
+}
+
 describe("OperationsPanelContainer", () => {
   it("renders nothing when there is no active conversation", async () => {
     vi.stubGlobal("fetch", vi.fn());
@@ -116,7 +122,7 @@ describe("OperationsPanelContainer", () => {
     await act(async () => root.unmount());
   });
 
-  it("fetches the conversation's operations and lists every open remesa", async () => {
+  it("fetches the conversation's operations and lists every open remesa, auto-expanded when there's exactly one", async () => {
     const data: ConversationOperationsRead = {
       resolverState: "unica",
       resolverOperationId: "op-1",
@@ -133,8 +139,8 @@ describe("OperationsPanelContainer", () => {
       "/api/remittance-operations?conversationId=conv-1",
       expect.objectContaining({ cache: "no-store" }),
     );
-    expect(node.textContent).toContain("Yaima Perez");
-    expect(node.textContent).toContain("9205****9412");
+    expect(node.textContent).toContain("9205 1234 1234 9412");
+    expect(toggleButtons(node)[0].getAttribute("aria-expanded")).toBe("true");
     await act(async () => root.unmount());
   });
 
@@ -151,11 +157,11 @@ describe("OperationsPanelContainer", () => {
     await flush();
 
     expect(node.textContent).toContain("No open remittance operations for this conversation.");
-    expect(node.textContent).not.toContain("Yaima Perez");
+    expect(node.textContent).not.toContain("9205 1234 1234 9412");
     await act(async () => root.unmount());
   });
 
-  it("shows the ambiguous banner AND still lists every open remesa (no auto-select)", async () => {
+  it("shows the ambiguous banner AND still lists every open remesa, both collapsed (no auto-select)", async () => {
     const data: ConversationOperationsRead = {
       resolverState: "ambigua",
       resolverOperationId: null,
@@ -171,6 +177,38 @@ describe("OperationsPanelContainer", () => {
     // Both operations render — "no guessing" means not hiding data, not
     // picking a winner (spec: "List All Open Remesas Per Conversation").
     expect(node.querySelectorAll("article")).toHaveLength(2);
+    const buttons = toggleButtons(node);
+    expect(buttons).toHaveLength(2);
+    expect(buttons.every((btn) => btn.getAttribute("aria-expanded") === "false")).toBe(true);
+    await act(async () => root.unmount());
+  });
+
+  it("expands a card on click and collapses the previously expanded one", async () => {
+    const data: ConversationOperationsRead = {
+      resolverState: "ambigua",
+      resolverOperationId: null,
+      resolverCandidateCount: 2,
+      operations: [OP1, OP2],
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(data)));
+
+    const { node, root } = await renderContainer("conv-3b");
+    await flush();
+
+    let buttons = toggleButtons(node);
+    await act(async () => {
+      buttons[0].dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+    buttons = toggleButtons(node);
+    expect(buttons[0].getAttribute("aria-expanded")).toBe("true");
+    expect(buttons[1].getAttribute("aria-expanded")).toBe("false");
+
+    await act(async () => {
+      buttons[1].dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+    buttons = toggleButtons(node);
+    expect(buttons[0].getAttribute("aria-expanded")).toBe("false");
+    expect(buttons[1].getAttribute("aria-expanded")).toBe("true");
     await act(async () => root.unmount());
   });
 
@@ -185,11 +223,27 @@ describe("OperationsPanelContainer", () => {
   });
 
   it("refetches when a card reports a change via onChanged", async () => {
+    // The shared name field only renders for a "zelle" beneficiary
+    // (cuban_card beneficiaries have no name) — this test needs
+    // `#beneficiary-name`, so it uses a zelle variant of OP1's
+    // beneficiary while every other test keeps OP1's cuban_card shape.
+    const zelleBeneficiary = {
+      id: "ben-1",
+      beneficiaryType: "zelle" as const,
+      name: "Yaima Perez",
+      cardNumber: null,
+      phone: null,
+      zelleAccount: "yaima@example.invalid",
+      deliveryMethod: null,
+      amount: null,
+      currency: null,
+      position: 1,
+    };
     const data: ConversationOperationsRead = {
       resolverState: "unica",
       resolverOperationId: "op-1",
       resolverCandidateCount: 1,
-      operations: [OP1],
+      operations: [{ ...OP1, beneficiaries: [zelleBeneficiary] }],
     };
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(data));
     vi.stubGlobal("fetch", fetchMock);

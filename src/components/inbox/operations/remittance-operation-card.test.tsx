@@ -4,7 +4,12 @@
 // affordances gate on `canEdit` and non-terminal status, and
 // `adminLockedFields` renders a lock indicator next to the locked field
 // (or the beneficiaries heading). Edit/move affordances are icon-only
-// buttons identified by `aria-label`, not visible text.
+// buttons identified by `aria-label`, not visible text. The card is a
+// collapsible accordion header (owned by the panel container via
+// `expanded`/`onToggle`): only the details (chips, beneficiaries) show
+// when expanded. Cuba beneficiary types (every type except "zelle") have
+// no name, only card + phone (shown in full, with a copy button); "zelle"
+// always has a name + Zelle account and no card/phone.
 
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
@@ -55,6 +60,8 @@ interface RenderOptions {
   canEdit?: boolean;
   otherOpenOperations?: { id: string; label: string }[];
   onChanged?: () => void;
+  expanded?: boolean;
+  onToggle?: () => void;
 }
 
 async function render(op: RemittanceOperationRead, options: RenderOptions = {}) {
@@ -63,6 +70,7 @@ async function render(op: RemittanceOperationRead, options: RenderOptions = {}) 
   document.body.appendChild(node);
   const root = createRoot(node);
   const onChanged = options.onChanged ?? vi.fn();
+  const onToggle = options.onToggle ?? vi.fn();
   await act(async () =>
     root.render(
       <RemittanceOperationCard
@@ -70,10 +78,12 @@ async function render(op: RemittanceOperationRead, options: RenderOptions = {}) 
         canEdit={options.canEdit ?? true}
         otherOpenOperations={options.otherOpenOperations ?? []}
         onChanged={onChanged}
+        expanded={options.expanded ?? true}
+        onToggle={onToggle}
       />,
     ),
   );
-  return { node, root, onChanged };
+  return { node, root, onChanged, onToggle };
 }
 
 function button(node: Element, label: string) {
@@ -91,16 +101,16 @@ describe("RemittanceOperationCard", () => {
     await act(async () => root.unmount());
   });
 
-  it("renders every beneficiary of a multi-beneficiary remesa with masked card/phone", async () => {
+  it("renders every beneficiary: cuban_card has no name and shows full card/phone; zelle has name + account and no card/phone", async () => {
     const { node, root } = await render(
       operation({
         beneficiaries: [
           {
             id: "ben-1",
             beneficiaryType: "cuban_card",
-            name: "Yaima Perez",
-            cardNumberMasked: "9205****9412",
-            phoneMasked: "*******1111",
+            name: "Yaima Cuba Card",
+            cardNumber: "9205123412349412",
+            phone: "5355551111",
             zelleAccount: null,
             deliveryMethod: null,
             amount: null,
@@ -110,9 +120,9 @@ describe("RemittanceOperationCard", () => {
           {
             id: "ben-2",
             beneficiaryType: "zelle",
-            name: "Yaima Perez Zelle",
-            cardNumberMasked: null,
-            phoneMasked: null,
+            name: "Yaima Zelle Account",
+            cardNumber: null,
+            phone: null,
             zelleAccount: "yaima@example.invalid",
             deliveryMethod: null,
             amount: null,
@@ -123,13 +133,13 @@ describe("RemittanceOperationCard", () => {
       }),
     );
 
-    expect(node.textContent).toContain("Yaima Perez");
-    expect(node.textContent).toContain("9205****9412");
-    expect(node.textContent).toContain("*******1111");
-    expect(node.textContent).toContain("Yaima Perez Zelle");
+    // Cuba beneficiary types (every type except zelle) have no name.
+    expect(node.textContent).not.toContain("Yaima Cuba Card");
+    expect(node.textContent).toContain("9205 1234 1234 9412");
+    expect(node.textContent).toContain("5355551111");
+    // Zelle beneficiaries always have a name + Zelle account, no card/phone.
+    expect(node.textContent).toContain("Yaima Zelle Account");
     expect(node.textContent).toContain("yaima@example.invalid");
-    // Never a raw card/phone value, only the masked form.
-    expect(node.textContent).not.toContain("92051234");
     await act(async () => root.unmount());
   });
 
@@ -147,9 +157,9 @@ describe("RemittanceOperationCard", () => {
           {
             id: "ben-1",
             beneficiaryType: "cuban_card",
-            name: "Yaima Perez",
-            cardNumberMasked: "9205****9412",
-            phoneMasked: null,
+            name: null,
+            cardNumber: "9205123412349412",
+            phone: null,
             zelleAccount: null,
             deliveryMethod: null,
             amount: null,
@@ -184,9 +194,9 @@ describe("RemittanceOperationCard", () => {
           {
             id: "ben-1",
             beneficiaryType: "cuban_card",
-            name: "Yaima Perez",
-            cardNumberMasked: "9205****9412",
-            phoneMasked: null,
+            name: null,
+            cardNumber: "9205123412349412",
+            phone: null,
             zelleAccount: null,
             deliveryMethod: null,
             amount: null,
@@ -210,9 +220,9 @@ describe("RemittanceOperationCard", () => {
           {
             id: "ben-1",
             beneficiaryType: "cuban_card",
-            name: "Yaima Perez",
-            cardNumberMasked: "9205****9412",
-            phoneMasked: null,
+            name: null,
+            cardNumber: "9205123412349412",
+            phone: null,
             zelleAccount: null,
             deliveryMethod: null,
             amount: null,
@@ -265,9 +275,9 @@ describe("RemittanceOperationCard", () => {
           {
             id: "ben-1",
             beneficiaryType: "cuban_card",
-            name: "Yaima Perez",
-            cardNumberMasked: "9205****9412",
-            phoneMasked: "*******1111",
+            name: null,
+            cardNumber: "9205123412349412",
+            phone: "5355551111",
             zelleAccount: null,
             deliveryMethod: null,
             amount: null,
@@ -278,8 +288,8 @@ describe("RemittanceOperationCard", () => {
             id: "ben-2",
             beneficiaryType: "zelle",
             name: "Yaima Perez Zelle",
-            cardNumberMasked: null,
-            phoneMasked: null,
+            cardNumber: null,
+            phone: null,
             zelleAccount: "yaima@example.invalid",
             deliveryMethod: null,
             amount: null,
@@ -320,6 +330,89 @@ describe("RemittanceOperationCard", () => {
 
     const heading = node.querySelector("h4");
     expect(heading?.querySelector(`[aria-label="${en.Inbox.operationsPanel.lockedByOperator}"]`)).not.toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("collapsed: shows amount and status but hides chips, beneficiaries and the edit-operation button", async () => {
+    const { node, root } = await render(
+      operation({
+        deliveryMethod: "cuban_card",
+        beneficiaries: [
+          {
+            id: "ben-1",
+            beneficiaryType: "cuban_card",
+            name: null,
+            cardNumber: "9205123412349412",
+            phone: "5355551111",
+            zelleAccount: null,
+            deliveryMethod: null,
+            amount: null,
+            currency: null,
+            position: 1,
+          },
+        ],
+      }),
+      { expanded: false },
+    );
+
+    expect(node.textContent).toContain("10,000 GYD");
+    expect(node.textContent).toContain("Deposit verification");
+    const toggleButton = node.querySelector("button[aria-expanded]")!;
+    expect(toggleButton.getAttribute("aria-expanded")).toBe("false");
+    expect(node.querySelector("h4")).toBeNull();
+    expect(node.textContent).not.toContain("Cuban card");
+    expect(node.textContent).not.toContain("9205 1234 1234 9412");
+    expect(button(node, en.Inbox.operationsPanel.editOperation)).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("calls onToggle once when the header button is clicked", async () => {
+    const { node, onToggle } = await render(operation(), { expanded: false });
+
+    const toggleButton = node.querySelector("button[aria-expanded]")!;
+    await act(async () => {
+      toggleButton.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows copy buttons with the expected aria-labels for card/phone and name/zelle account", async () => {
+    const { node, root } = await render(
+      operation({
+        beneficiaries: [
+          {
+            id: "ben-1",
+            beneficiaryType: "cuban_card",
+            name: null,
+            cardNumber: "9205123412349412",
+            phone: "5355551111",
+            zelleAccount: null,
+            deliveryMethod: null,
+            amount: null,
+            currency: null,
+            position: 1,
+          },
+          {
+            id: "ben-2",
+            beneficiaryType: "zelle",
+            name: "Yaima Perez Zelle",
+            cardNumber: null,
+            phone: null,
+            zelleAccount: "yaima@example.invalid",
+            deliveryMethod: null,
+            amount: null,
+            currency: null,
+            position: 2,
+          },
+        ],
+      }),
+    );
+
+    expect(button(node, "Copy Card")).not.toBeNull();
+    expect(button(node, "Copy Phone")).not.toBeNull();
+    expect(button(node, "Copy Name")).not.toBeNull();
+    expect(button(node, "Copy Zelle account")).not.toBeNull();
     await act(async () => root.unmount());
   });
 });

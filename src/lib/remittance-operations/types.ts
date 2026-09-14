@@ -63,14 +63,13 @@ export interface RemittanceBeneficiaryRead {
   id: string;
   beneficiaryType: BeneficiaryType;
   name: string | null;
-  /** Masked the same way the /resumen legacy view masks cards (migration
-   *  053:127-128: first 4 digits + "****" + last 4 digits). The raw
-   *  `card_number` from the RPC is never kept past `read-model.ts`. */
-  cardNumberMasked: string | null;
-  /** Masked to only the last 4 digits visible. No existing masking
-   *  precedent for phone in this codebase (/resumen leaves it unmasked);
-   *  this panel masks it anyway per product direction. */
-  phoneMasked: string | null;
+  /** Full (unmasked) card number, shown so operators can copy it — the
+   *  same value already appears in the conversation thread on this
+   *  screen, so masking it here bought no privacy. */
+  cardNumber: string | null;
+  /** Full (unmasked) phone number, shown so operators can copy it — same
+   *  rationale as `cardNumber`. */
+  phone: string | null;
   zelleAccount: string | null;
   deliveryMethod: string | null;
   amount: number | null;
@@ -112,7 +111,9 @@ export interface ConversationOperationsRead {
  * NULL, and a conversation with no live remesa yields exactly one row
  * with every `operation_*`/`beneficiary_*` column NULL (resolver columns
  * only). Never read directly outside `read-model.ts` — `card_number` and
- * `phone` here are RAW, unmasked values from the database.
+ * `phone` here are RAW values from the database, passed through unmasked
+ * into `RemittanceBeneficiaryRead` (product decision: operators need to
+ * copy them, and they already appear in the conversation thread).
  */
 export interface RemittanceOperationsRpcRow {
   resolver_resultado: ResolverState;

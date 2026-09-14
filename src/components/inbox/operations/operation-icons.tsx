@@ -48,29 +48,8 @@ const METHOD_STYLE: Record<Exclude<MethodKind, "zelle">, { className: string; Ic
   unknown: { className: "bg-muted text-muted-foreground", Icon: CircleHelp },
 };
 
-const MEDIUM = {
-  wrap: "size-7",
-  icon: "size-4",
-  letter: "text-base",
-};
-
-const SMALL = {
-  wrap: "size-5",
-  icon: "size-3",
-  letter: "text-[11px]",
-};
-
-export function MethodIcon({
-  method,
-  label,
-  size = "md",
-}: {
-  method: string | null;
-  label: string;
-  size?: "sm" | "md";
-}) {
+export function MethodIcon({ method, label }: { method: string | null; label: string }) {
   const kind = methodKind(method);
-  const dims = size === "sm" ? SMALL : MEDIUM;
 
   if (kind === "zelle") {
     return (
@@ -78,9 +57,9 @@ export function MethodIcon({
         role="img"
         aria-label={label}
         title={label}
-        className={`inline-flex shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white ${dims.wrap}`}
+        className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white"
       >
-        <span className={`font-black leading-none ${dims.letter}`}>Z</span>
+        <span className="text-[11px] font-black leading-none">Z</span>
       </span>
     );
   }
@@ -91,9 +70,9 @@ export function MethodIcon({
       role="img"
       aria-label={label}
       title={label}
-      className={`inline-flex shrink-0 items-center justify-center rounded-full ${className} ${dims.wrap}`}
+      className={`inline-flex size-5 shrink-0 items-center justify-center rounded-full ${className}`}
     >
-      <Icon className={dims.icon} aria-hidden="true" />
+      <Icon className="size-3" aria-hidden="true" />
     </span>
   );
 }

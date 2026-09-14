@@ -330,6 +330,7 @@
       "editOperation": "Edit operation",
       "editBeneficiary": "Edit",
       "moveBeneficiary": "Move",
+      "copy": "Copy",
       "save": "Save",
       "cancel": "Cancel",
       "confirmMove": "Confirm move",

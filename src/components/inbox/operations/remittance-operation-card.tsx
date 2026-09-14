@@ -150,35 +150,49 @@ export function RemittanceOperationCard({
   const lock = <Lock className="size-3 shrink-0" aria-label={t("lockedByOperator")} />;
 
   return (
-    <article className="rounded-lg border border-border bg-card p-2.5">
-      <button
-        type="button"
-        aria-expanded={expanded}
-        onClick={onToggle}
-        className="flex w-full items-center gap-2 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1 text-sm font-semibold tabular-nums text-foreground">
-          <span className="inline-flex items-center gap-1">
-            {source ?? t("amountUnavailable")}
-            {isLocked("quoted_source_amount") && lock}
+    <article className="rounded-lg border border-border bg-card px-2 py-2.5">
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          aria-expanded={expanded}
+          onClick={onToggle}
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1 text-sm font-semibold tabular-nums text-foreground">
+            <span className="inline-flex items-center gap-1">
+              {source ?? t("amountUnavailable")}
+              {isLocked("quoted_source_amount") && lock}
+            </span>
+            {destLabel && (
+              <>
+                <span aria-hidden="true" className="text-muted-foreground">
+                  →
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  {destLabel}
+                  {destLocked && lock}
+                </span>
+              </>
+            )}
           </span>
-          {destLabel && (
-            <>
-              <span aria-hidden="true" className="text-muted-foreground">
-                →
-              </span>
-              <span className="inline-flex items-center gap-1">
-                {destLabel}
-                {destLocked && lock}
-              </span>
-            </>
-          )}
-        </span>
-        <ChevronDown
-          className={`size-4 shrink-0 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`}
-          aria-hidden="true"
-        />
-      </button>
+          <ChevronDown
+            className={`size-4 shrink-0 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`}
+            aria-hidden="true"
+          />
+        </button>
+        {expanded && editable && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            aria-label={t("editOperation")}
+            title={t("editOperation")}
+            onClick={() => toggleForm({ kind: "operation" })}
+          >
+            <Pencil aria-hidden="true" />
+          </Button>
+        )}
+      </div>
 
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
         <StatusChip status={operation.status} label={t(`status.${operation.status}`)} />
@@ -198,19 +212,6 @@ export function RemittanceOperationCard({
             <Users className="size-3.5" aria-hidden="true" />
             {operation.beneficiaries.length}
           </span>
-        )}
-        {expanded && editable && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            aria-label={t("editOperation")}
-            title={t("editOperation")}
-            onClick={() => toggleForm({ kind: "operation" })}
-            className="ml-auto"
-          >
-            <Pencil aria-hidden="true" />
-          </Button>
         )}
       </div>
 
@@ -240,13 +241,13 @@ export function RemittanceOperationCard({
                   const trailingWidth: "w-6" | "w-12" = hasMove ? "w-12" : "w-6";
 
                   return (
-                    <li key={beneficiary.id} className="space-y-1 rounded-md bg-muted/60 p-2 text-xs">
+                    <li key={beneficiary.id} className="space-y-1 rounded-md bg-muted/60 px-1.5 py-2 text-xs">
                       {(beneficiaryAmount !== null || editable) && (
                         <DataRow
                           icon={<Banknote className="size-3.5" aria-hidden="true" />}
                           label={t("amount")}
                           display={beneficiaryAmount ?? "—"}
-                          valueClassName="font-semibold tabular-nums"
+                          valueClassName="whitespace-nowrap font-semibold tabular-nums"
                           trailingWidth={trailingWidth}
                           trailing={
                             editable ? (
@@ -314,7 +315,7 @@ export function RemittanceOperationCard({
                               icon={<CreditCard className="size-3.5" aria-hidden="true" />}
                               label={t("card")}
                               display={formatCardNumber(beneficiary.cardNumber)}
-                              valueClassName="tabular-nums"
+                              valueClassName="whitespace-nowrap tabular-nums"
                               trailingWidth={trailingWidth}
                               trailing={
                                 <CopyButton value={beneficiary.cardNumber} ariaLabel={`${t("copy")} ${t("card")}`} />
@@ -326,7 +327,7 @@ export function RemittanceOperationCard({
                               icon={<Phone className="size-3.5" aria-hidden="true" />}
                               label={t("phone")}
                               display={beneficiary.phone}
-                              valueClassName="tabular-nums"
+                              valueClassName="whitespace-nowrap tabular-nums"
                               trailingWidth={trailingWidth}
                               trailing={
                                 <CopyButton value={beneficiary.phone} ariaLabel={`${t("copy")} ${t("phone")}`} />
@@ -387,12 +388,12 @@ function DataRow({
   trailingWidth: "w-6" | "w-12";
 }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1.5">
       <span className="flex w-5 shrink-0 justify-center text-muted-foreground" title={label}>
         {icon}
       </span>
       <span className="sr-only">{label}: </span>
-      <span className={`ml-auto min-w-0 break-all text-right font-medium text-foreground ${valueClassName ?? ""}`}>
+      <span className={`ml-auto min-w-0 text-right font-medium text-foreground ${valueClassName ?? "break-all"}`}>
         {display}
       </span>
       <span className={`flex shrink-0 items-center ${trailingWidth}`}>{trailing}</span>

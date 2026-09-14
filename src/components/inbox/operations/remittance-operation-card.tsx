@@ -5,13 +5,13 @@ import { useTranslations } from "next-intl";
 import {
   ArrowRightLeft,
   AtSign,
+  Banknote,
   ChevronDown,
-  ChevronRight,
-  Coins,
   CreditCard,
   Lock,
   Pencil,
   Phone,
+  UserRound,
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -38,9 +38,9 @@ interface RemittanceOperationCardProps {
   /** Called after a correction or reassignment succeeds, so the panel
    *  container can refetch. */
   onChanged: () => void;
-  /** Whether this card's details (chips + beneficiaries) are shown. The
-   *  panel is an accordion — expansion is owned by the container, not
-   *  local state, so only one card is open at a time. */
+  /** Whether this card's details (correction form + beneficiaries) are
+   *  shown. The panel is an accordion — expansion is owned by the
+   *  container, not local state, so only one card is open at a time. */
   expanded: boolean;
   /** Toggles this card's expanded state; called when the header is
    *  clicked. */
@@ -75,20 +75,46 @@ function formatCardNumber(value: string): string {
   return groups.join(" ");
 }
 
+/** Human label for a known beneficiary/delivery type, the deposit method
+ *  "mmg" special case, or the raw value as a last resort. */
+function knownMethodLabel(method: string, t: (key: string) => string): string {
+  return KNOWN_BENEFICIARY_TYPES.includes(method)
+    ? t(`beneficiaryType.${method}`)
+    : method === "mmg"
+      ? t("depositMethodValue.mmg")
+      : method;
+}
+
+/** What the header shows to the right of the arrow: the delivery method's
+ *  human label for the fixed Zelle/Classic/Tropical rails, otherwise the
+ *  destination currency (operation-level, then the first beneficiary's),
+ *  otherwise the delivery method's label as a last resort. Never the
+ *  destination amount — that's not shown anywhere in the card. */
+function destinationLabel(operation: RemittanceOperationRead, t: (key: string) => string): string | null {
+  const { deliveryMethod, destinationCurrency, beneficiaries } = operation;
+
+  if (deliveryMethod === "zelle" || deliveryMethod === "clasica" || deliveryMethod === "tropical") {
+    return t(`beneficiaryType.${deliveryMethod}`);
+  }
+  if (destinationCurrency) return destinationCurrency;
+  const firstCurrency = beneficiaries[0]?.currency;
+  if (firstCurrency) return firstCurrency;
+  if (deliveryMethod) return knownMethodLabel(deliveryMethod, t);
+  return null;
+}
+
 /**
- * Presentational: one open remesa operation, amount(s), delivery method,
- * status, every current ('vigente') beneficiary with its full (unmasked)
- * card/phone/name plus a copy button, admin-lock indicators, and — when
- * `canEdit` and the operation isn't terminal — inline correction and
- * reassignment affordances (Slice 6). Methods, statuses, and beneficiary
- * types render as icons plus human labels instead of raw enum values;
- * edit/move affordances are icon-only buttons. Cuba beneficiary types
- * (every type except "zelle") have no name, only card + phone; "zelle"
- * always has a name + Zelle account and no card/phone.
- *
- * Collapsible: the header (amount + status) is always visible; chips and
- * beneficiaries only render when `expanded` (owned by the panel container
- * so only one card is open at a time).
+ * Presentational: one open remesa operation. Header is minimal — the
+ * source amount, an arrow, and the destination name (rail label,
+ * destination currency, or delivery method), each with a lock indicator
+ * when admin-locked; the destination amount is never rendered. Below the
+ * header, always visible, a status chip and (when present) a deposit
+ * method chip. When `expanded` (owned by the panel container so only one
+ * card is open at a time): an edit-operation affordance, the operation
+ * correction form, and every current ('vigente') beneficiary as compact
+ * rows — an amount row (with inline edit/move actions when `canEdit`),
+ * then either a name + Zelle account (type "zelle") or a card + phone
+ * (every other type), each with a copy button. No beneficiary type badge.
  */
 export function RemittanceOperationCard({
   operation,
@@ -116,104 +142,63 @@ export function RemittanceOperationCard({
   }
 
   const source = money(operation.quotedSourceAmount, operation.sourceCurrency);
-  const destination = money(operation.quotedDestinationAmount, operation.destinationCurrency);
+  const destLabel = destinationLabel(operation, t as (key: string) => string);
+  const destLocked = isLocked("delivery_method") || isLocked("destination_currency") || isLocked("quoted_destination_amount");
 
-  const methodLabel = (method: string): string =>
-    KNOWN_BENEFICIARY_TYPES.includes(method)
-      ? t(`beneficiaryType.${method}`)
-      : method === "mmg"
-        ? t("depositMethodValue.mmg")
-        : method;
+  const methodLabel = (method: string): string => knownMethodLabel(method, t as (key: string) => string);
 
   const lock = <Lock className="size-3 shrink-0" aria-label={t("lockedByOperator")} />;
 
-  const chips: { key: string; fieldKey: string; label: string; icon: React.ReactNode; text: string }[] = [];
-
-  if (operation.deliveryMethod !== null || isLocked("delivery_method")) {
-    const value = operation.deliveryMethod;
-    chips.push({
-      key: "delivery",
-      fieldKey: "delivery_method",
-      label: t("deliveryMethod"),
-      icon: <MethodIcon method={value} label={t("deliveryMethod")} />,
-      text: value ? methodLabel(value) : "—",
-    });
-  }
-
-  if (operation.depositMethod !== null || isLocked("deposit_method")) {
-    const value = operation.depositMethod;
-    chips.push({
-      key: "deposit",
-      fieldKey: "deposit_method",
-      label: t("depositMethod"),
-      icon: <MethodIcon method={value} label={t("depositMethod")} />,
-      text: value ? methodLabel(value) : "—",
-    });
-  }
-
-  if (operation.destinationCurrency !== null || isLocked("destination_currency")) {
-    const value = operation.destinationCurrency;
-    chips.push({
-      key: "currency",
-      fieldKey: "destination_currency",
-      label: t("destinationCurrency"),
-      icon: <Coins className="size-3.5 text-muted-foreground" aria-hidden="true" />,
-      text: value ?? "—",
-    });
-  }
-
-  const firstBeneficiary = operation.beneficiaries[0];
-
   return (
     <article className="rounded-lg border border-border bg-card p-2.5">
-      <div className="flex items-start gap-1.5">
-        <button
-          type="button"
-          aria-expanded={expanded}
-          onClick={onToggle}
-          className="flex min-w-0 flex-1 items-start gap-1.5 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          {expanded ? (
-            <ChevronDown className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          ) : (
-            <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          )}
-          <span className="min-w-0 flex-1 space-y-1">
-            <span className="flex flex-wrap items-center gap-x-1 text-sm font-semibold tabular-nums text-foreground">
-              <span className="inline-flex items-center gap-1">
-                {source ?? t("amountUnavailable")}
-                {isLocked("quoted_source_amount") && lock}
-              </span>
-              {destination && (
-                <>
-                  <span aria-hidden="true" className="text-muted-foreground">
-                    →
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    {destination}
-                    {isLocked("quoted_destination_amount") && lock}
-                  </span>
-                </>
-              )}
-            </span>
-            <span className="flex flex-wrap items-center gap-1.5">
-              <StatusChip status={operation.status} label={t(`status.${operation.status}`)} />
-              {!expanded && firstBeneficiary && (
-                <span
-                  className="inline-flex items-center gap-1 text-xs text-muted-foreground"
-                  title={t("beneficiaries")}
-                >
-                  <MethodIcon
-                    method={firstBeneficiary.beneficiaryType}
-                    label={t(`beneficiaryType.${firstBeneficiary.beneficiaryType}`)}
-                  />
-                  <Users className="size-3.5" aria-hidden="true" />
-                  {operation.beneficiaries.length}
-                </span>
-              )}
-            </span>
+      <button
+        type="button"
+        aria-expanded={expanded}
+        onClick={onToggle}
+        className="flex w-full items-center gap-2 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1 text-sm font-semibold tabular-nums text-foreground">
+          <span className="inline-flex items-center gap-1">
+            {source ?? t("amountUnavailable")}
+            {isLocked("quoted_source_amount") && lock}
           </span>
-        </button>
+          {destLabel && (
+            <>
+              <span aria-hidden="true" className="text-muted-foreground">
+                →
+              </span>
+              <span className="inline-flex items-center gap-1">
+                {destLabel}
+                {destLocked && lock}
+              </span>
+            </>
+          )}
+        </span>
+        <ChevronDown
+          className={`size-4 shrink-0 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`}
+          aria-hidden="true"
+        />
+      </button>
+
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        <StatusChip status={operation.status} label={t(`status.${operation.status}`)} />
+        {(operation.depositMethod !== null || isLocked("deposit_method")) && (
+          <span
+            className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 py-0.5 pl-0.5 pr-2 text-[11px] font-medium text-foreground"
+            title={t("depositMethod")}
+          >
+            <MethodIcon method={operation.depositMethod} label={t("depositMethod")} />
+            <span className="sr-only">{t("depositMethod")}: </span>
+            {operation.depositMethod ? methodLabel(operation.depositMethod) : "—"}
+            {isLocked("deposit_method") && lock}
+          </span>
+        )}
+        {!expanded && operation.beneficiaries.length > 1 && (
+          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title={t("beneficiaries")}>
+            <Users className="size-3.5" aria-hidden="true" />
+            {operation.beneficiaries.length}
+          </span>
+        )}
         {expanded && editable && (
           <Button
             type="button"
@@ -222,6 +207,7 @@ export function RemittanceOperationCard({
             aria-label={t("editOperation")}
             title={t("editOperation")}
             onClick={() => toggleForm({ kind: "operation" })}
+            className="ml-auto"
           >
             <Pencil aria-hidden="true" />
           </Button>
@@ -230,23 +216,6 @@ export function RemittanceOperationCard({
 
       {expanded && (
         <div className="mt-2.5 space-y-2.5">
-          {chips.length > 0 && (
-            <ul className="flex flex-wrap gap-1.5">
-              {chips.map((chip) => (
-                <li
-                  key={chip.key}
-                  className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 py-0.5 pl-0.5 pr-2 text-xs font-medium text-foreground"
-                  title={chip.label}
-                >
-                  {chip.icon}
-                  <span className="sr-only">{chip.label}: </span>
-                  {chip.text}
-                  {isLocked(chip.fieldKey) && lock}
-                </li>
-              ))}
-            </ul>
-          )}
-
           {openForm?.kind === "operation" && (
             <OperationCorrectionForm operation={operation} onDone={handleChanged} onCancel={() => setOpenForm(null)} />
           )}
@@ -267,87 +236,104 @@ export function RemittanceOperationCard({
                     openForm?.kind === "beneficiary" && openForm.beneficiaryId === beneficiary.id;
                   const isMovingBeneficiary =
                     openForm?.kind === "reassign" && openForm.beneficiaryId === beneficiary.id;
+                  const hasMove = editable && otherOpenOperations.length > 0;
+                  const trailingWidth: "w-6" | "w-12" = hasMove ? "w-12" : "w-6";
 
                   return (
                     <li key={beneficiary.id} className="space-y-1 rounded-md bg-muted/60 p-2 text-xs">
-                      <div className="flex items-center gap-2">
-                        <MethodIcon
-                          method={beneficiary.beneficiaryType}
-                          label={t(`beneficiaryType.${beneficiary.beneficiaryType}`)}
+                      {(beneficiaryAmount !== null || editable) && (
+                        <DataRow
+                          icon={<Banknote className="size-3.5" aria-hidden="true" />}
+                          label={t("amount")}
+                          display={beneficiaryAmount ?? "—"}
+                          valueClassName="font-semibold tabular-nums"
+                          trailingWidth={trailingWidth}
+                          trailing={
+                            editable ? (
+                              <span className="flex gap-0">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-xs"
+                                  aria-label={t("editBeneficiary")}
+                                  title={t("editBeneficiary")}
+                                  onClick={() => toggleForm({ kind: "beneficiary", beneficiaryId: beneficiary.id })}
+                                >
+                                  <Pencil aria-hidden="true" />
+                                </Button>
+                                {otherOpenOperations.length > 0 && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon-xs"
+                                    aria-label={t("moveBeneficiary")}
+                                    title={t("moveBeneficiary")}
+                                    onClick={() => toggleForm({ kind: "reassign", beneficiaryId: beneficiary.id })}
+                                  >
+                                    <ArrowRightLeft aria-hidden="true" />
+                                  </Button>
+                                )}
+                              </span>
+                            ) : null
+                          }
                         />
-                        {isZelle ? (
-                          <span className="flex min-w-0 flex-1 items-center gap-1">
-                            <span className="truncate text-sm font-medium text-foreground">
-                              {beneficiary.name ?? t("beneficiaryNameUnavailable")}
-                            </span>
-                            {beneficiary.name && (
-                              <CopyButton value={beneficiary.name} ariaLabel={`${t("copy")} ${t("name")}`} />
-                            )}
-                          </span>
-                        ) : (
-                          <span className="flex-1" />
-                        )}
-                        {beneficiaryAmount && (
-                          <span className="shrink-0 font-semibold tabular-nums text-foreground">
-                            {beneficiaryAmount}
-                          </span>
-                        )}
-                        {editable && (
-                          <div className="flex shrink-0 gap-0.5">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon-xs"
-                              aria-label={t("editBeneficiary")}
-                              title={t("editBeneficiary")}
-                              onClick={() => toggleForm({ kind: "beneficiary", beneficiaryId: beneficiary.id })}
-                            >
-                              <Pencil aria-hidden="true" />
-                            </Button>
-                            {otherOpenOperations.length > 0 && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon-xs"
-                                aria-label={t("moveBeneficiary")}
-                                title={t("moveBeneficiary")}
-                                onClick={() => toggleForm({ kind: "reassign", beneficiaryId: beneficiary.id })}
-                              >
-                                <ArrowRightLeft aria-hidden="true" />
-                              </Button>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                      )}
 
-                      {!isZelle && beneficiary.cardNumber && (
-                        <DataRow
-                          icon={<CreditCard className="size-3.5" aria-hidden="true" />}
-                          label={t("card")}
-                          display={formatCardNumber(beneficiary.cardNumber)}
-                          value={beneficiary.cardNumber}
-                          copyLabel={`${t("copy")} ${t("card")}`}
-                          numeric
-                        />
-                      )}
-                      {!isZelle && beneficiary.phone && (
-                        <DataRow
-                          icon={<Phone className="size-3.5" aria-hidden="true" />}
-                          label={t("phone")}
-                          display={beneficiary.phone}
-                          value={beneficiary.phone}
-                          copyLabel={`${t("copy")} ${t("phone")}`}
-                          numeric
-                        />
-                      )}
-                      {isZelle && beneficiary.zelleAccount && (
-                        <DataRow
-                          icon={<AtSign className="size-3.5" aria-hidden="true" />}
-                          label={t("zelleAccount")}
-                          display={beneficiary.zelleAccount}
-                          value={beneficiary.zelleAccount}
-                          copyLabel={`${t("copy")} ${t("zelleAccount")}`}
-                        />
+                      {isZelle ? (
+                        <>
+                          <DataRow
+                            icon={<UserRound className="size-3.5" aria-hidden="true" />}
+                            label={t("name")}
+                            display={beneficiary.name ?? t("beneficiaryNameUnavailable")}
+                            trailingWidth={trailingWidth}
+                            trailing={
+                              beneficiary.name ? (
+                                <CopyButton value={beneficiary.name} ariaLabel={`${t("copy")} ${t("name")}`} />
+                              ) : null
+                            }
+                          />
+                          {beneficiary.zelleAccount && (
+                            <DataRow
+                              icon={<AtSign className="size-3.5" aria-hidden="true" />}
+                              label={t("zelleAccount")}
+                              display={beneficiary.zelleAccount}
+                              trailingWidth={trailingWidth}
+                              trailing={
+                                <CopyButton
+                                  value={beneficiary.zelleAccount}
+                                  ariaLabel={`${t("copy")} ${t("zelleAccount")}`}
+                                />
+                              }
+                            />
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {beneficiary.cardNumber && (
+                            <DataRow
+                              icon={<CreditCard className="size-3.5" aria-hidden="true" />}
+                              label={t("card")}
+                              display={formatCardNumber(beneficiary.cardNumber)}
+                              valueClassName="tabular-nums"
+                              trailingWidth={trailingWidth}
+                              trailing={
+                                <CopyButton value={beneficiary.cardNumber} ariaLabel={`${t("copy")} ${t("card")}`} />
+                              }
+                            />
+                          )}
+                          {beneficiary.phone && (
+                            <DataRow
+                              icon={<Phone className="size-3.5" aria-hidden="true" />}
+                              label={t("phone")}
+                              display={beneficiary.phone}
+                              valueClassName="tabular-nums"
+                              trailingWidth={trailingWidth}
+                              trailing={
+                                <CopyButton value={beneficiary.phone} ariaLabel={`${t("copy")} ${t("phone")}`} />
+                              }
+                            />
+                          )}
+                        </>
                       )}
 
                       {isEditingBeneficiary && (
@@ -381,23 +367,24 @@ export function RemittanceOperationCard({
   );
 }
 
-/** One copyable beneficiary field: the field icon flush left (same column
- *  as the beneficiary type badge), the value flush right with its copy
- *  button at the edge. */
+/** One beneficiary data row: the field icon flush left, the value flush
+ *  right, and a trailing slot (copy button, or edit/move actions for the
+ *  amount row) at a fixed width so every row's value lines up on the same
+ *  right edge regardless of which row has the widest trailing content. */
 function DataRow({
   icon,
   label,
   display,
-  value,
-  copyLabel,
-  numeric = false,
+  valueClassName,
+  trailing,
+  trailingWidth,
 }: {
   icon: ReactNode;
   label: string;
   display: string;
-  value: string;
-  copyLabel: string;
-  numeric?: boolean;
+  valueClassName?: string;
+  trailing: ReactNode;
+  trailingWidth: "w-6" | "w-12";
 }) {
   return (
     <div className="flex items-center gap-2">
@@ -405,12 +392,10 @@ function DataRow({
         {icon}
       </span>
       <span className="sr-only">{label}: </span>
-      <span
-        className={`ml-auto min-w-0 break-all text-right font-medium text-foreground ${numeric ? "tabular-nums" : ""}`}
-      >
+      <span className={`ml-auto min-w-0 break-all text-right font-medium text-foreground ${valueClassName ?? ""}`}>
         {display}
       </span>
-      <CopyButton value={value} ariaLabel={copyLabel} />
+      <span className={`flex shrink-0 items-center ${trailingWidth}`}>{trailing}</span>
     </div>
   );
 }

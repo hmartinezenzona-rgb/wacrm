@@ -253,11 +253,67 @@ describe("RemittanceOperationCard", () => {
       operation({ deliveryMethod: "cuban_card", depositMethod: "mmg", destinationCurrency: "CUP" }),
     );
 
-    expect(node.textContent).toContain("Cuban card");
-    expect(node.textContent).toContain("MMG");
     expect(node.textContent).toContain("CUP");
+    expect(node.textContent).toContain("MMG");
     expect(node.textContent).not.toContain("cuban_card");
     expect(node.textContent).not.toContain("mmg");
+    expect(node.textContent).not.toContain("Cuban card");
+    await act(async () => root.unmount());
+  });
+
+  it("shows only the deposited amount and the destination name in the header", async () => {
+    let result = await render(
+      operation({
+        quotedSourceAmount: 26000,
+        sourceCurrency: "GYD",
+        deliveryMethod: "zelle",
+        destinationCurrency: "USD",
+        quotedDestinationAmount: 100,
+      }),
+    );
+    let toggleButton = result.node.querySelector("button[aria-expanded]")!;
+    expect(toggleButton.textContent).toContain("26,000 GYD");
+    expect(toggleButton.textContent).toContain("Zelle");
+    expect(toggleButton.textContent).not.toContain("USD");
+    expect(toggleButton.textContent).not.toContain("100");
+    await act(async () => result.root.unmount());
+
+    result = await render(operation({ deliveryMethod: "clasica" }));
+    toggleButton = result.node.querySelector("button[aria-expanded]")!;
+    expect(toggleButton.textContent).toContain("Classic");
+    await act(async () => result.root.unmount());
+
+    result = await render(
+      operation({
+        deliveryMethod: "cuban_card",
+        destinationCurrency: null,
+        beneficiaries: [
+          {
+            id: "ben-1",
+            beneficiaryType: "cuban_card",
+            name: null,
+            cardNumber: "9205123412349412",
+            phone: null,
+            zelleAccount: null,
+            deliveryMethod: null,
+            amount: null,
+            currency: "MLC",
+            position: 1,
+          },
+        ],
+      }),
+    );
+    toggleButton = result.node.querySelector("button[aria-expanded]")!;
+    expect(toggleButton.textContent).toContain("MLC");
+    await act(async () => result.root.unmount());
+  });
+
+  it("does not render the destination amount anywhere", async () => {
+    const { node, root } = await render(
+      operation({ quotedDestinationAmount: 150000, destinationCurrency: "CUP" }),
+    );
+
+    expect(node.textContent).not.toContain("150,000");
     await act(async () => root.unmount());
   });
 
@@ -268,13 +324,13 @@ describe("RemittanceOperationCard", () => {
     await act(async () => root.unmount());
   });
 
-  it("renders a method badge per beneficiary type", async () => {
+  it("does not render beneficiary type badges", async () => {
     const { node, root } = await render(
       operation({
         beneficiaries: [
           {
             id: "ben-1",
-            beneficiaryType: "cuban_card",
+            beneficiaryType: "multiple_distribution",
             name: null,
             cardNumber: "9205123412349412",
             phone: "5355551111",
@@ -300,11 +356,8 @@ describe("RemittanceOperationCard", () => {
       }),
     );
 
-    const cubanCardBadge = node.querySelector('[aria-label="Cuban card"]');
-    const zelleBadge = node.querySelector('[aria-label="Zelle"]');
-    expect(cubanCardBadge).not.toBeNull();
-    expect(zelleBadge).not.toBeNull();
-    expect(zelleBadge!.textContent).toBe("Z");
+    expect(node.querySelector('[aria-label="Multiple distribution"]')).toBeNull();
+    expect(node.querySelector('[aria-label="Zelle"]')).toBeNull();
     await act(async () => root.unmount());
   });
 
@@ -360,7 +413,6 @@ describe("RemittanceOperationCard", () => {
     const toggleButton = node.querySelector("button[aria-expanded]")!;
     expect(toggleButton.getAttribute("aria-expanded")).toBe("false");
     expect(node.querySelector("h4")).toBeNull();
-    expect(node.textContent).not.toContain("Cuban card");
     expect(node.textContent).not.toContain("9205 1234 1234 9412");
     expect(button(node, en.Inbox.operationsPanel.editOperation)).toBeNull();
     await act(async () => root.unmount());
@@ -413,6 +465,42 @@ describe("RemittanceOperationCard", () => {
     expect(button(node, "Copy Phone")).not.toBeNull();
     expect(button(node, "Copy Name")).not.toBeNull();
     expect(button(node, "Copy Zelle account")).not.toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("renders the beneficiary amount row with edit and move actions", async () => {
+    const { node, root } = await render(
+      operation({
+        beneficiaries: [
+          {
+            id: "ben-1",
+            beneficiaryType: "cuban_card",
+            name: null,
+            cardNumber: "9205123412349412",
+            phone: "5355551111",
+            zelleAccount: null,
+            deliveryMethod: null,
+            amount: 60000,
+            currency: "CUP",
+            position: 1,
+          },
+        ],
+      }),
+      { canEdit: true, otherOpenOperations: [{ id: "op-2", label: "x" }] },
+    );
+
+    expect(node.textContent).toContain("60,000 CUP");
+    expect(button(node, en.Inbox.operationsPanel.editBeneficiary)).not.toBeNull();
+    expect(button(node, en.Inbox.operationsPanel.moveBeneficiary)).not.toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("status chip row is outside the toggle button", async () => {
+    const { node, root } = await render(operation({ status: "deposit_verification" }));
+
+    const toggleButton = node.querySelector("button[aria-expanded]")!;
+    expect(toggleButton.textContent).not.toContain(en.Inbox.operationsPanel.status.deposit_verification);
+    expect(node.textContent).toContain(en.Inbox.operationsPanel.status.deposit_verification);
     await act(async () => root.unmount());
   });
 });

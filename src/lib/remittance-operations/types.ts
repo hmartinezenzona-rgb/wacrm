@@ -216,3 +216,39 @@ export interface OperationReceiptsRpcPayload {
   receipts: DepositReceiptRpcRow[] | null;
   consumed_deposits: MatchedDepositRpcRow[] | null;
 }
+
+/** One `{ref, amount}` line item sent to `crm_verificar_deposito`. */
+export interface VerifyDepositItem {
+  ref: string;
+  amount: number;
+}
+
+export interface VerifyDepositResult {
+  resultado: string;
+  metodo: string | null;
+  todosVerificados: boolean;
+  totalVerificado: number | null;
+  nComprobantes: number | null;
+  detalle: unknown;
+  objetivo: number | null;
+  depositado: number | null;
+  saldo: number | null;
+  stageChanged: boolean;
+  newStatus: string;
+}
+
+/** Raw payload returned by `crm_verificar_deposito(p_operation_id,
+ *  p_items)`. Never read directly outside `receipts-read-model.ts`. */
+export interface VerifyDepositRpcPayload {
+  resultado: string;
+  metodo: string | null;
+  todos_verificados: boolean;
+  total_verificado: number | string | null;
+  n_comprobantes: number | string | null;
+  detalle: unknown;
+  objetivo: number | string | null;
+  depositado: number | string | null;
+  saldo: number | string | null;
+  stage_changed: boolean;
+  new_status: string;
+}

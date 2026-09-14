@@ -11,6 +11,8 @@ import type {
   MatchedDepositRpcRow,
   OperationReceiptsRead,
   OperationReceiptsRpcPayload,
+  VerifyDepositResult,
+  VerifyDepositRpcPayload,
 } from "./types";
 
 function toNullableNumber(
@@ -65,5 +67,27 @@ export function mapOperationReceiptsPayload(
     moneda: raw.moneda,
     receipts: (raw.receipts ?? []).map(mapReceipt),
     consumedDeposits: (raw.consumed_deposits ?? []).map(mapMatchedDeposit),
+  };
+}
+
+/**
+ * Maps `crm_verificar_deposito`'s raw payload into the panel's
+ * `VerifyDepositResult` shape.
+ */
+export function mapVerifyDepositPayload(
+  raw: VerifyDepositRpcPayload,
+): VerifyDepositResult {
+  return {
+    resultado: raw.resultado,
+    metodo: raw.metodo,
+    todosVerificados: Boolean(raw.todos_verificados),
+    totalVerificado: toNullableNumber(raw.total_verificado),
+    nComprobantes: toNullableNumber(raw.n_comprobantes),
+    detalle: raw.detalle,
+    objetivo: toNullableNumber(raw.objetivo),
+    depositado: toNullableNumber(raw.depositado),
+    saldo: toNullableNumber(raw.saldo),
+    stageChanged: Boolean(raw.stage_changed),
+    newStatus: raw.new_status,
   };
 }

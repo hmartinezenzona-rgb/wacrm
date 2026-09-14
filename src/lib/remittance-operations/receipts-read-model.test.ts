@@ -4,8 +4,14 @@
 // null matched_deposit staying null.
 
 import { describe, expect, it } from "vitest";
-import { mapOperationReceiptsPayload } from "./receipts-read-model";
-import type { OperationReceiptsRpcPayload } from "./types";
+import {
+  mapOperationReceiptsPayload,
+  mapVerifyDepositPayload,
+} from "./receipts-read-model";
+import type {
+  OperationReceiptsRpcPayload,
+  VerifyDepositRpcPayload,
+} from "./types";
 
 const OPERATION_ID = "11111111-1111-1111-1111-111111111111";
 const DEAL_ID = "22222222-2222-2222-2222-222222222222";
@@ -166,5 +172,66 @@ describe("mapOperationReceiptsPayload", () => {
     const result = mapOperationReceiptsPayload(raw);
 
     expect(result.receipts[0].matchedDeposit).toBeNull();
+  });
+});
+
+function verifyPayload(
+  overrides: Partial<VerifyDepositRpcPayload>,
+): VerifyDepositRpcPayload {
+  return {
+    resultado: "verificado",
+    metodo: "manual",
+    todos_verificados: true,
+    total_verificado: 25000,
+    n_comprobantes: 1,
+    detalle: { items: [] },
+    objetivo: 25000,
+    depositado: 25000,
+    saldo: 0,
+    stage_changed: true,
+    new_status: "ready_to_transfer",
+    ...overrides,
+  };
+}
+
+describe("mapVerifyDepositPayload", () => {
+  it("maps a full verify-deposit payload", () => {
+    const raw = verifyPayload({});
+
+    const result = mapVerifyDepositPayload(raw);
+
+    expect(result).toEqual({
+      resultado: "verificado",
+      metodo: "manual",
+      todosVerificados: true,
+      totalVerificado: 25000,
+      nComprobantes: 1,
+      detalle: { items: [] },
+      objetivo: 25000,
+      depositado: 25000,
+      saldo: 0,
+      stageChanged: true,
+      newStatus: "ready_to_transfer",
+    });
+  });
+
+  it("coerces numeric strings to numbers and preserves nulls", () => {
+    const raw = verifyPayload({
+      metodo: null,
+      total_verificado: "25000",
+      n_comprobantes: "1",
+      objetivo: null,
+      depositado: null,
+      saldo: null,
+    });
+
+    const result = mapVerifyDepositPayload(raw);
+
+    expect(result.metodo).toBeNull();
+    expect(result.totalVerificado).toBe(25000);
+    expect(result.nComprobantes).toBe(1);
+    expect(result.objetivo).toBeNull();
+    expect(result.depositado).toBeNull();
+    expect(result.saldo).toBeNull();
   });
 });

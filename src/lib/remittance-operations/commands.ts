@@ -5,7 +5,11 @@
 // result type for the UI to render.
 // ============================================================
 
-import type { OperationReceiptsRead } from "./types";
+import type {
+  OperationReceiptsRead,
+  VerifyDepositItem,
+  VerifyDepositResult,
+} from "./types";
 
 export type CommandResult =
   | { ok: true; id?: string }
@@ -38,6 +42,37 @@ async function getJson(
 
   const data = await response.json();
   return { ok: true, data };
+}
+
+async function postJsonResult<T>(
+  url: string,
+  method: "PATCH" | "POST",
+  body: unknown,
+): Promise<FetchResult<T>> {
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    return { ok: false, status: 0, error: "Network error" };
+  }
+
+  if (!response.ok) {
+    let message = "Request failed";
+    try {
+      const errorBody = await response.json();
+      message = errorBody?.error ?? message;
+    } catch {
+      // Response body wasn't JSON; keep the default message.
+    }
+    return { ok: false, status: response.status, error: message };
+  }
+
+  const data = await response.json();
+  return { ok: true, data: data as T };
 }
 
 async function postJson(
@@ -113,4 +148,38 @@ export async function fetchOperationReceipts(
     ok: true,
     data: (result.data as { receipts: OperationReceiptsRead }).receipts,
   };
+}
+
+export type VerifyDepositCommandResult =
+  | { ok: true; result: VerifyDepositResult }
+  | { ok: false; status: number; error: string };
+
+export async function verifyDeposit(
+  operationId: string,
+  items: VerifyDepositItem[],
+): Promise<VerifyDepositCommandResult> {
+  const response = await postJsonResult<{ result: VerifyDepositResult }>(
+    `/api/remittance-operations/${operationId}/verify`,
+    "POST",
+    { items },
+  );
+  if (!response.ok) return response;
+  return { ok: true, result: response.data.result };
+}
+
+export type ForceVerifyDepositCommandResult =
+  | { ok: true; newStatus: string }
+  | { ok: false; status: number; error: string };
+
+export async function forceVerifyDeposit(
+  operationId: string,
+  reason: string,
+): Promise<ForceVerifyDepositCommandResult> {
+  const response = await postJsonResult<{ newStatus: string }>(
+    `/api/remittance-operations/${operationId}/force-verify`,
+    "POST",
+    { reason },
+  );
+  if (!response.ok) return response;
+  return { ok: true, newStatus: response.data.newStatus };
 }

@@ -8,6 +8,8 @@ import {
   corregirBeneficiario,
   reasignarBeneficiario,
   fetchOperationReceipts,
+  verifyDeposit,
+  forceVerifyDeposit,
 } from "./commands";
 
 const OPERATION_ID = "11111111-1111-1111-1111-111111111111";
@@ -178,5 +180,92 @@ describe("fetchOperationReceipts", () => {
     const result = await fetchOperationReceipts(OPERATION_ID);
 
     expect(result).toEqual({ ok: false, status: 0, error: "Network error" });
+  });
+});
+
+describe("verifyDeposit", () => {
+  it("POSTs the items to the verify endpoint and unwraps the result", async () => {
+    const result = {
+      resultado: "verificado",
+      metodo: "manual",
+      todosVerificados: true,
+      totalVerificado: 25000,
+      nComprobantes: 1,
+      detalle: { items: [] },
+      objetivo: 25000,
+      depositado: 25000,
+      saldo: 0,
+      stageChanged: true,
+      newStatus: "ready_to_transfer",
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ok: true, result }));
+
+    const items = [{ ref: "TX-1", amount: 25000 }];
+    const response = await verifyDeposit(OPERATION_ID, items);
+
+    expect(fetch).toHaveBeenCalledWith(
+      `/api/remittance-operations/${OPERATION_ID}/verify`,
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items }),
+      }),
+    );
+    expect(response).toEqual({ ok: true, result });
+  });
+
+  it("maps a non-2xx response to ok:false with status and error message", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse({ error: "operation is closed" }, 400),
+    );
+
+    const response = await verifyDeposit(OPERATION_ID, [{ ref: "TX-1", amount: 1 }]);
+
+    expect(response).toEqual({ ok: false, status: 400, error: "operation is closed" });
+  });
+
+  it("maps a network failure to ok:false status 0", async () => {
+    vi.mocked(fetch).mockRejectedValueOnce(new Error("offline"));
+
+    const response = await verifyDeposit(OPERATION_ID, [{ ref: "TX-1", amount: 1 }]);
+
+    expect(response).toEqual({ ok: false, status: 0, error: "Network error" });
+  });
+});
+
+describe("forceVerifyDeposit", () => {
+  it("POSTs the reason to the force-verify endpoint and unwraps newStatus", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse({ ok: true, newStatus: "ready_to_transfer" }),
+    );
+
+    const reason = "Confirmed by phone with the sender";
+    const response = await forceVerifyDeposit(OPERATION_ID, reason);
+
+    expect(fetch).toHaveBeenCalledWith(
+      `/api/remittance-operations/${OPERATION_ID}/force-verify`,
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      }),
+    );
+    expect(response).toEqual({ ok: true, newStatus: "ready_to_transfer" });
+  });
+
+  it("maps a non-2xx response to ok:false with status and error message", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ error: "Forbidden" }, 403));
+
+    const response = await forceVerifyDeposit(OPERATION_ID, "short reason enough");
+
+    expect(response).toEqual({ ok: false, status: 403, error: "Forbidden" });
+  });
+
+  it("maps a network failure to ok:false status 0", async () => {
+    vi.mocked(fetch).mockRejectedValueOnce(new Error("offline"));
+
+    const response = await forceVerifyDeposit(OPERATION_ID, "short reason enough");
+
+    expect(response).toEqual({ ok: false, status: 0, error: "Network error" });
   });
 });

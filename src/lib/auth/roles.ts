@@ -98,6 +98,14 @@ export function canViewOnly(role: AccountRole): boolean {
   return role === "viewer";
 }
 
+/**
+ * Owner / admin: force a deposit-verification stage transition without
+ * a matched deposit (the "forced verify" escalation path).
+ */
+export function canForceVerify(role: AccountRole): boolean {
+  return hasMinRole(role, "admin");
+}
+
 /** Owner only: irreversible destructive operations. */
 export function canDeleteAccount(role: AccountRole): boolean {
   return role === "owner";

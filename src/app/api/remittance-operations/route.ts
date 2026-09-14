@@ -17,10 +17,11 @@ import { NextResponse } from "next/server";
 import { requireRole, toErrorResponse } from "@/lib/auth/account";
 import { mapRemittanceOperationsRows } from "@/lib/remittance-operations/read-model";
 import type { RemittanceOperationsRpcRow } from "@/lib/remittance-operations/types";
-
-const BETA_FEATURE = "operations_panel";
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import {
+  UUID_RE,
+  isOperationsPanelEnabled,
+  rpcErrorResponse,
+} from "@/lib/remittance-operations/route-helpers";
 
 export async function GET(request: Request) {
   try {
@@ -35,17 +36,8 @@ export async function GET(request: Request) {
       );
     }
 
-    const { data: profile, error: profileError } = await ctx.supabase
-      .from("profiles")
-      .select("beta_features")
-      .eq("user_id", ctx.userId)
-      .maybeSingle();
-    if (profileError) {
-      console.error("[remittance-operations GET] profile read error:", profileError);
-      throw new Error("profile read failed");
-    }
-    const betaFeatures = (profile?.beta_features as string[] | null) ?? [];
-    if (!betaFeatures.includes(BETA_FEATURE)) {
+    const enabled = await isOperationsPanelEnabled(ctx.supabase, ctx.userId);
+    if (!enabled) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
@@ -54,9 +46,8 @@ export async function GET(request: Request) {
       { p_conversation_id: conversationId },
     );
     if (error) {
-      if (error.code === "42501") {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-      }
+      const errorResponse = rpcErrorResponse(error);
+      if (errorResponse) return errorResponse;
       console.error("[remittance-operations GET] RPC error:", error);
       throw new Error("remittance operations read failed");
     }

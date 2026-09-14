@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
-import type { Contact, Conversation, Deal, ContactNote, Tag } from "@/types";
+import type { Contact, Conversation, ContactNote, Tag } from "@/types";
 import {
   Phone,
   Mail,
@@ -12,7 +12,6 @@ import {
   Check,
   User,
   Tag as TagIcon,
-  DollarSign,
   StickyNote,
   Plus,
   Bot,
@@ -45,7 +44,6 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
   // absent), so this is a UI convenience, not the security boundary.
   const operationsPanelEnabled = profile?.beta_features?.includes("operations_panel") ?? false;
   const [copied, setCopied] = useState(false);
-  const [deals, setDeals] = useState<Deal[]>([]);
   const [notes, setNotes] = useState<ContactNote[]>([]);
   const [tags, setTags] = useState<(Tag & { contact_tag_id: string })[]>([]);
   const [newNote, setNewNote] = useState("");
@@ -92,13 +90,8 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
 
     const supabase = createClient();
 
-    // Fetch deals, notes, and tags in parallel
-    const [dealsRes, notesRes, tagsRes] = await Promise.all([
-      supabase
-        .from("deals")
-        .select("*, stage:pipeline_stages(*)")
-        .eq("contact_id", contact.id)
-        .order("created_at", { ascending: false }),
+    // Fetch notes and tags in parallel
+    const [notesRes, tagsRes] = await Promise.all([
       supabase
         .from("contact_notes")
         .select("*")
@@ -110,7 +103,6 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
         .eq("contact_id", contact.id),
     ]);
 
-    if (dealsRes.data) setDeals(dealsRes.data);
     if (notesRes.data) setNotes(notesRes.data);
     if (tagsRes.data) {
       const mapped = tagsRes.data
@@ -228,6 +220,40 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
             )}
           </div>
 
+          {/* Bot — pausar / reanudar en este hilo. Existe aparte del banner
+              de IA de WaCRM (`AiThreadBanner`) a proposito: aquel solo se
+              dibuja si esta encendida la IA PROPIA de WaCRM, y aqui el bot
+              es el Cerebro en n8n, asi que nunca aparecia. */}
+          {conversation && (
+            <>
+              <div className="my-4 border-t border-border" />
+              <div>
+                <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <Bot className="h-3 w-3" />
+                  {tSidebar("bot")}
+                </div>
+                <div className="mt-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={toggleBot}
+                    disabled={botBusy}
+                    className="w-full justify-start border-border bg-transparent text-xs text-foreground hover:bg-muted"
+                  >
+                    {botPaused ? (
+                      <Play className="mr-2 h-3 w-3 text-primary" />
+                    ) : (
+                      <Pause className="mr-2 h-3 w-3 text-muted-foreground" />
+                    )}
+                    {botPaused ? tSidebar("resumeBot") : tSidebar("pauseBot")}
+                  </Button>
+                  <p className="mt-1.5 px-1 text-[10px] leading-snug text-muted-foreground">
+                    {botPaused ? tSidebar("botPausedHint") : tSidebar("botActiveHint")}
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
           {/* Divider */}
           <div className="my-4 border-t border-border" />
 
@@ -252,50 +278,6 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
                   >
                     {tag.name}
                   </span>
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="my-4 border-t border-border" />
-
-          {/* Active Deals */}
-          <div>
-            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              <DollarSign className="h-3 w-3" />
-              {tSidebar("deals")}
-            </div>
-            <div className="mt-2 space-y-2">
-              {deals.length === 0 ? (
-                <p className="px-1 text-xs text-muted-foreground">{tSidebar("noDeals")}</p>
-              ) : (
-                deals.map((deal) => (
-                  <div
-                    key={deal.id}
-                    className="rounded-lg bg-muted px-3 py-2"
-                  >
-                    <p className="text-sm font-medium text-foreground">
-                      {deal.title}
-                    </p>
-                    <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-                      <span>
-                        {deal.currency ?? "$"}
-                        {deal.value.toLocaleString()}
-                      </span>
-                      {deal.stage && (
-                        <span
-                          className="rounded-full px-1.5 py-0.5 text-[10px]"
-                          style={{
-                            backgroundColor: `${deal.stage.color}20`,
-                            color: deal.stage.color,
-                          }}
-                        >
-                          {deal.stage.name}
-                        </span>
-                      )}
-                    </div>
-                  </div>
                 ))
               )}
             </div>
@@ -357,40 +339,6 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
             </div>
           </div>
 
-          {/* Bot — pausar / reanudar en este hilo. Existe aparte del banner
-              de IA de WaCRM (`AiThreadBanner`) a proposito: aquel solo se
-              dibuja si esta encendida la IA PROPIA de WaCRM, y aqui el bot
-              es el Cerebro en n8n, asi que nunca aparecia. */}
-          {conversation && (
-            <>
-              <div className="my-4 border-t border-border" />
-              <div>
-                <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  <Bot className="h-3 w-3" />
-                  {tSidebar("bot")}
-                </div>
-                <div className="mt-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={toggleBot}
-                    disabled={botBusy}
-                    className="w-full justify-start border-border bg-transparent text-xs text-foreground hover:bg-muted"
-                  >
-                    {botPaused ? (
-                      <Play className="mr-2 h-3 w-3 text-primary" />
-                    ) : (
-                      <Pause className="mr-2 h-3 w-3 text-muted-foreground" />
-                    )}
-                    {botPaused ? tSidebar("resumeBot") : tSidebar("pauseBot")}
-                  </Button>
-                  <p className="mt-1.5 px-1 text-[10px] leading-snug text-muted-foreground">
-                    {botPaused ? tSidebar("botPausedHint") : tSidebar("botActiveHint")}
-                  </p>
-                </div>
-              </div>
-            </>
-          )}
         </div>
       </ScrollArea>
     </div>

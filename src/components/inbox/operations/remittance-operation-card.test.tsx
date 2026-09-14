@@ -32,6 +32,16 @@ vi.mock("@/lib/remittance-operations/commands", () => ({
   reasignarBeneficiario: vi.fn(),
 }));
 
+// The deposit review container fetches on mount and owns its own network
+// calls (covered by deposit-review-container.test.tsx) — mocked here to a
+// plain, textless marker so this file's card-only tests stay isolated
+// from that fetch and every existing textContent assertion below.
+vi.mock("./deposit-review-container", () => ({
+  DepositReviewContainer: ({ operationId }: { operationId: string }) => (
+    <div data-testid="deposit-review-stub" data-operation-id={operationId} />
+  ),
+}));
+
 afterEach(() => {
   document.body.replaceChildren();
   vi.restoreAllMocks();
@@ -58,6 +68,7 @@ function operation(overrides: Partial<RemittanceOperationRead> = {}): Remittance
 
 interface RenderOptions {
   canEdit?: boolean;
+  role?: "owner" | "admin" | "agent" | "viewer" | null;
   otherOpenOperations?: { id: string; label: string }[];
   onChanged?: () => void;
   expanded?: boolean;
@@ -76,6 +87,7 @@ async function render(op: RemittanceOperationRead, options: RenderOptions = {}) 
       <RemittanceOperationCard
         operation={op}
         canEdit={options.canEdit ?? true}
+        role={options.role ?? "agent"}
         otherOpenOperations={options.otherOpenOperations ?? []}
         onChanged={onChanged}
         expanded={options.expanded ?? true}
@@ -548,6 +560,35 @@ describe("RemittanceOperationCard", () => {
     const toggleButton = node.querySelector("button[aria-expanded]")!;
     expect(toggleButton.textContent).not.toContain(en.Inbox.operationsPanel.status.deposit_verification);
     expect(node.textContent).toContain(en.Inbox.operationsPanel.status.deposit_verification);
+    await act(async () => root.unmount());
+  });
+
+  it("renders the deposit review section above the beneficiaries section when expanded", async () => {
+    const { node, root } = await render(
+      operation({
+        beneficiaries: [
+          {
+            id: "ben-1",
+            beneficiaryType: "cuban_card",
+            name: null,
+            cardNumber: "9205123412349412",
+            phone: "5355551111",
+            zelleAccount: null,
+            deliveryMethod: null,
+            amount: null,
+            currency: null,
+            position: 1,
+          },
+        ],
+      }),
+    );
+
+    const stub = node.querySelector('[data-testid="deposit-review-stub"]');
+    const heading = node.querySelector("h4");
+    expect(stub).not.toBeNull();
+    expect(stub!.getAttribute("data-operation-id")).toBe("op-1");
+    expect(heading).not.toBeNull();
+    expect(stub!.compareDocumentPosition(heading!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     await act(async () => root.unmount());
   });
 });

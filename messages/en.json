@@ -340,7 +340,39 @@
       "invalidCurrency": "Currency must be a 3-letter code (e.g. USD)",
       "invalidCard": "Card number must be exactly 16 digits",
       "invalidPhone": "Phone number must be 8 to 15 digits",
-      "lockedByOperator": "Locked by an operator correction"
+      "lockedByOperator": "Locked by an operator correction",
+      "depositReview": {
+        "title": "Receipts ({count})",
+        "notMatched": "Not matched",
+        "matched": "Matched {transId}",
+        "verify": "Verify deposit",
+        "force": "Force verification…",
+        "forceReason": "Reason",
+        "forceConfirm": "Force",
+        "cancel": "Cancel",
+        "save": "Save",
+        "edit": "Edit receipt data",
+        "ref": "Reference",
+        "amount": "Amount",
+        "loading": "Loading receipts…",
+        "loadError": "Could not load receipts",
+        "conflict": "The operation changed, try again",
+        "forced": "Verification forced · ready to transfer",
+        "enlarge": "Open receipt image",
+        "results": {
+          "verificado": "Verified · ready to transfer",
+          "verificado_incompleto": "Verified · still waiting for the rest",
+          "verificado_de_mas": "Deposit exceeds the target · moved to incident",
+          "monto_no_coincide": "The amount does not match MMG",
+          "ya_reclamado": "This TransID was already used in another transfer",
+          "deposito_antiguo": "The deposit is too old to verify automatically",
+          "deposito_anulado": "The deposit is voided in MMG",
+          "sin_correo": "No MMG email found for this reference",
+          "sin_referencia": "Missing reference",
+          "no_aplica": "The operation is not awaiting verification",
+          "other": "Could not verify ({code})"
+        }
+      }
     }
   },
   "Contacts": {

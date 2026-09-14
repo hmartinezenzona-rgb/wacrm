@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { useAuth } from "@/hooks/use-auth";
 import { useCan } from "@/hooks/use-can";
 import type { ConversationOperationsRead, RemittanceOperationRead } from "@/lib/remittance-operations/types";
 import { RemittanceOperationCard } from "./remittance-operation-card";
@@ -55,6 +56,11 @@ function otherOpenOperationsFor(
 export function OperationsPanelContainer({ conversationId }: OperationsPanelContainerProps) {
   const t = useTranslations("Inbox.operationsPanel");
   const canEdit = useCan("send-messages");
+  // `useCan` already composes with `useAuth` internally (see use-can.ts) —
+  // read straight from it here too so the deposit review container can
+  // gate its force-verify escalation (`canForceVerify`, owner/admin only)
+  // without new plumbing from contact-sidebar/profile.
+  const { accountRole } = useAuth();
   const [state, setState] = useState<PanelState>({ status: "idle" });
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -125,6 +131,7 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
             key={operation.id}
             operation={operation}
             canEdit={canEdit}
+            role={accountRole}
             otherOpenOperations={otherOpenOperationsFor(operation, data.operations)}
             onChanged={() => load(conversationId)}
             expanded={expandedId === operation.id}

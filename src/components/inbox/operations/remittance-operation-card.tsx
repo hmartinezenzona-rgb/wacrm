@@ -15,11 +15,13 @@ import {
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import type { AccountRole } from "@/lib/auth/roles";
 import type { RemittanceOperationRead } from "@/lib/remittance-operations/types";
 import { OperationCorrectionForm } from "./operation-correction-form";
 import { BeneficiaryCorrectionForm } from "./beneficiary-correction-form";
 import { BeneficiaryReassignControl } from "./beneficiary-reassign-control";
 import { CopyButton } from "./copy-button";
+import { DepositReviewContainer } from "./deposit-review-container";
 import { KNOWN_BENEFICIARY_TYPES, MethodIcon, StatusChip } from "./operation-icons";
 
 interface ReassignTarget {
@@ -31,6 +33,10 @@ interface RemittanceOperationCardProps {
   operation: RemittanceOperationRead;
   /** Current user can correct/reassign (role agent or higher). */
   canEdit: boolean;
+  /** Current user's account role, or `null` while unknown/unauthenticated
+   *  — forwarded to the deposit review container so it can gate the
+   *  force-verify escalation (`canForceVerify`, owner/admin only). */
+  role: AccountRole | null;
   /** Other open (non-terminal) remesa operations of the same
    *  conversation, offered as reassignment targets for this card's
    *  beneficiaries. */
@@ -119,6 +125,7 @@ function destinationLabel(operation: RemittanceOperationRead, t: (key: string) =
 export function RemittanceOperationCard({
   operation,
   canEdit,
+  role,
   otherOpenOperations,
   onChanged,
   expanded,
@@ -220,6 +227,8 @@ export function RemittanceOperationCard({
           {openForm?.kind === "operation" && (
             <OperationCorrectionForm operation={operation} onDone={handleChanged} onCancel={() => setOpenForm(null)} />
           )}
+
+          <DepositReviewContainer operationId={operation.id} canEdit={editable} role={role} onChanged={onChanged} />
 
           <div>
             <h4 className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">

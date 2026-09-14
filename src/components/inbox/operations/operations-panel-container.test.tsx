@@ -40,6 +40,15 @@ vi.mock("@/lib/remittance-operations/commands", () => ({
   reasignarBeneficiario: vi.fn(),
 }));
 
+// Deposit review has its own fetch/network flow, covered by
+// deposit-review-container.test.tsx — mocked here to a null-rendering
+// stub so this file's accordion/resolver-state tests stay isolated from
+// it (this container is rendered by the real, unmocked
+// RemittanceOperationCard whenever a card is expanded).
+vi.mock("./deposit-review-container", () => ({
+  DepositReviewContainer: () => null,
+}));
+
 function flush() {
   return act(async () => {
     await Promise.resolve();

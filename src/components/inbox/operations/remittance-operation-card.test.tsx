@@ -308,6 +308,44 @@ describe("RemittanceOperationCard", () => {
     await act(async () => result.root.unmount());
   });
 
+  it("labels a Zelle beneficiary amount as Zelle instead of its currency", async () => {
+    const { node, root } = await render(
+      operation({
+        beneficiaries: [
+          {
+            id: "ben-zelle",
+            beneficiaryType: "zelle",
+            name: "Maria Lopez",
+            cardNumber: null,
+            phone: null,
+            zelleAccount: "maria@example.invalid",
+            deliveryMethod: null,
+            amount: 100,
+            currency: "USD",
+            position: 1,
+          },
+          {
+            id: "ben-cup",
+            beneficiaryType: "cuban_card",
+            name: null,
+            cardNumber: "9205123412349412",
+            phone: "5355551111",
+            zelleAccount: null,
+            deliveryMethod: null,
+            amount: 60000,
+            currency: "CUP",
+            position: 2,
+          },
+        ],
+      }),
+    );
+
+    expect(node.textContent).toContain("100 Zelle");
+    expect(node.textContent).not.toContain("100 USD");
+    expect(node.textContent).toContain("60,000 CUP");
+    await act(async () => root.unmount());
+  });
+
   it("does not render the destination amount anywhere", async () => {
     const { node, root } = await render(
       operation({ quotedDestinationAmount: 150000, destinationCurrency: "CUP" }),

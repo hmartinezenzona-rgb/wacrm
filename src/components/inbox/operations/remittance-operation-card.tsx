@@ -231,8 +231,12 @@ export function RemittanceOperationCard({
             ) : (
               <ul className="mt-1.5 space-y-1.5">
                 {operation.beneficiaries.map((beneficiary) => {
-                  const beneficiaryAmount = money(beneficiary.amount, beneficiary.currency);
                   const isZelle = beneficiary.beneficiaryType === "zelle";
+                  // A Zelle payout is tracked as "Zelle", not by its currency.
+                  const beneficiaryAmount = money(
+                    beneficiary.amount,
+                    isZelle ? t("beneficiaryType.zelle") : beneficiary.currency,
+                  );
                   const isEditingBeneficiary =
                     openForm?.kind === "beneficiary" && openForm.beneficiaryId === beneficiary.id;
                   const isMovingBeneficiary =

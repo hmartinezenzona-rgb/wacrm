@@ -1,0 +1,73 @@
+:global(.legacyCalc) {
+  --legacy-bg: #f4f6f9;
+  --legacy-text: #1a1a1a;
+  --legacy-card: #ffffff;
+  --legacy-accent: #00577D;
+  --legacy-border: #dcdcdc;
+  min-height: 100vh;
+  background: var(--legacy-bg);
+  color: var(--legacy-text);
+  padding: 15px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+:global(.legacyCalc.dark) { --legacy-bg: #121212; --legacy-text: #e0e0e0; --legacy-card: #1e1e1e; --legacy-border: #333; }
+:global(.legacyCalc *) { box-sizing: border-box; }
+:global(.legacyCalc h1), :global(.legacyCalc h2), :global(.legacyCalc h3) { color: var(--legacy-text); margin-top: 0; }
+:global(.legacyCalc .legacyContainer) { max-width: 1100px; margin: auto; }
+:global(.legacyCalc .legacyCard) { background: var(--legacy-card); padding: 18px; margin-bottom: 15px; border-radius: 10px; border: 1px solid var(--legacy-border); box-shadow: 0 4px 6px rgba(0,0,0,0.04); position: relative; }
+:global(.legacyCalc label) { display: block; font-weight: bold; font-size: 13px; margin-bottom: 5px; }
+:global(.legacyCalc input), :global(.legacyCalc textarea), :global(.legacyCalc select) { width: 100%; padding: 12px; background: var(--legacy-card); color: var(--legacy-text); border: 1px solid var(--legacy-border); border-radius: 6px; box-sizing: border-box; font-family: inherit; font-size: 15px; outline: none; }
+:global(.legacyCalc input:focus), :global(.legacyCalc textarea:focus), :global(.legacyCalc select:focus) { border-color: #777; }
+:global(.legacyCalc textarea) { height: 260px; font-family: monospace; line-height: 1.5; resize: vertical; }
+:global(.legacyCalc button) { width: 100%; padding: 12px 15px; background: var(--legacy-accent); color: #fff; border: none; cursor: pointer; border-radius: 6px; font-weight: bold; font-size: 14px; min-height: 44px; }
+:global(.legacyCalc button:hover) { opacity: .9; }
+:global(.legacyCalc button.legacySecondary) { background: #6c757d; }
+:global(.legacyCalc .legacyFlex) { display: flex; gap: 12px; flex-wrap: wrap; }
+:global(.legacyCalc .legacyFlex > div) { flex: 1; min-width: 150px; }
+:global(.legacyCalc .legacyTotals) { display: flex; gap: 12px; margin-bottom: 15px; flex-wrap: wrap; }
+:global(.legacyCalc .legacyTotalBox) { flex: 1; min-width: 140px; background: var(--legacy-card); padding: 12px; border-radius: 10px; text-align: center; border: 1px solid var(--legacy-border); }
+:global(.legacyCalc .legacyTopBar) { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; gap: 12px; }
+:global(.legacyCalc .legacySmall) { font-size: 12px; opacity: .75; display: block; margin-bottom: 8px; }
+:global(.legacyCalc .legacyParsedTable) { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+:global(.legacyCalc .legacyParsedTable th), :global(.legacyCalc .legacyParsedTable td) { border: 1px solid var(--legacy-border); padding: 8px; text-align: left; }
+:global(.legacyCalc .legacyParsedTable th) { background: rgba(0,0,0,.03); }
+:global(.legacyCalc.dark .legacyParsedTable th) { background: rgba(255,255,255,.05); }
+:global(.legacyCalc .legacyBadge) { background: #e9ecef; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 11px; color: #333; display: inline-block; }
+:global(.legacyCalc.dark .legacyBadge) { background: #333; color: #fff; }
+:global(.legacyCalc .legacyDayHeader) { background: var(--legacy-accent); color: #fff; padding: 8px 12px; font-weight: bold; border-radius: 4px; margin-top: 15px; font-size: 13px; }
+:global(.legacyCalc details) { background: var(--legacy-card); border: 1px solid var(--legacy-border); border-radius: 8px; padding: 10px 14px; margin-bottom: 15px; font-size: 13px; }
+:global(.legacyCalc summary) { font-weight: bold; cursor: pointer; color: var(--legacy-accent); user-select: none; }
+:global(.legacyCalc.dark summary) { color: #58a6ff; }
+:global(.legacyCalc .legacyHelpTable) { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+:global(.legacyCalc .legacyHelpTable th), :global(.legacyCalc .legacyHelpTable td) { border: 1px solid var(--legacy-border); padding: 6px 8px; text-align: left; }
+:global(.legacyCalc .legacyHelpTable th) { background: rgba(0,0,0,.04); }
+:global(.legacyCalc.dark .legacyHelpTable th) { background: rgba(255,255,255,.08); }
+:global(.legacyCalc code) { background: rgba(0,0,0,.06); padding: 2px 5px; border-radius: 4px; }
+:global(.legacyCalc.dark code) { background: rgba(255,255,255,.1); color: #e0e0e0; }
+:global(.legacyCalc .legacyBlockRow) { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+:global(.legacyCalc .legacyBulletButton) { position: absolute; right: 25px; bottom: 25px; background: var(--legacy-accent); color: #fff; border: none; border-radius: 20px; padding: 6px 14px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,.2); z-index: 10; min-height: auto; width: auto; }
+:global(.legacyCalc .legacyFullscreen) { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 999999 !important; margin: 0 !important; border-radius: 0 !important; display: flex !important; flex-direction: column !important; padding: 20px !important; }
+:global(.legacyCalc .legacyFullscreen textarea) { flex: 1 !important; height: 100% !important; resize: none !important; }
+:global(.legacyCalc .legacyError) { color: #b42318; background: #fef3f2; border: 1px solid #fecdca; border-radius: 6px; padding: 10px; margin-bottom: 15px; font-size: 13px; }
+:global(.legacyCalc.dark .legacyError) { color: #ffb4ab; background: #3b1717; border-color: #702020; }
+
+@media (max-width: 650px) {
+  :global(.legacyCalc) { padding: 10px; }
+  :global(.legacyCalc h1) { font-size: 1.4em; }
+  :global(.legacyCalc .legacyFlex > div) { min-width: 100%; }
+  :global(.legacyCalc .legacyTotals) { flex-direction: column; gap: 10px; }
+  :global(.legacyCalc .legacyTotalBox) { min-width: 100%; padding: 10px; }
+  :global(.legacyCalc .legacyTopBar) { align-items: flex-start; }
+  :global(.legacyCalc .legacyHelpTable), :global(.legacyCalc .legacyHelpTable thead), :global(.legacyCalc .legacyHelpTable tbody), :global(.legacyCalc .legacyHelpTable th), :global(.legacyCalc .legacyHelpTable td), :global(.legacyCalc .legacyHelpTable tr) { display: block; }
+  :global(.legacyCalc .legacyHelpTable thead) { display: none; }
+  :global(.legacyCalc .legacyHelpTable tr) { margin-bottom: 10px; border-bottom: 2px solid var(--legacy-border); padding-bottom: 8px; }
+  :global(.legacyCalc .legacyHelpTable td) { border: none; padding: 4px 0; }
+  :global(.legacyCalc .legacyParsedTable), :global(.legacyCalc .legacyParsedTable thead), :global(.legacyCalc .legacyParsedTable tbody), :global(.legacyCalc .legacyParsedTable th), :global(.legacyCalc .legacyParsedTable td), :global(.legacyCalc .legacyParsedTable tr) { display: block; }
+  :global(.legacyCalc .legacyParsedTable thead) { display: none; }
+  :global(.legacyCalc .legacyParsedTable tr) { margin-bottom: 12px; background: rgba(0,0,0,.02); border: 1px solid var(--legacy-border); border-radius: 6px; padding: 10px; }
+  :global(.legacyCalc.dark .legacyParsedTable tr) { background: rgba(255,255,255,.02); }
+  :global(.legacyCalc .legacyParsedTable td) { border: none; padding: 3px 0; display: flex; justify-content: space-between; align-items: center; }
+  :global(.legacyCalc .legacyParsedTable td[data-label]::before) { content: attr(data-label); font-weight: bold; opacity: .75; margin-right: 10px; }
+  :global(.legacyCalc .legacyBlockRow) { flex-direction: column; align-items: flex-start; }
+}

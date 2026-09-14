@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import type { ConversationOperationsRead } from "@/lib/remittance-operations/types";
+import { useCan } from "@/hooks/use-can";
+import type { ConversationOperationsRead, RemittanceOperationRead } from "@/lib/remittance-operations/types";
 import { RemittanceOperationCard } from "./remittance-operation-card";
 import { ResolverStateBanner } from "./resolver-state-banner";
 
@@ -17,15 +18,35 @@ type PanelState =
   | { status: "error" }
   | { status: "loaded"; data: ConversationOperationsRead };
 
+/** The RPC never returns these (see types.ts) — same defensive exclusion
+ *  as `remittance-operation-card.tsx`. */
+const TERMINAL_STATUSES: ReadonlyArray<string> = ["completed", "cancelled"];
+
+/** Other open operations of the same conversation, offered as
+ *  reassignment targets for `operation`'s beneficiaries. */
+function otherOpenOperationsFor(
+  operation: RemittanceOperationRead,
+  operations: RemittanceOperationRead[],
+): { id: string; label: string }[] {
+  return operations
+    .filter((candidate) => candidate.id !== operation.id && !TERMINAL_STATUSES.includes(candidate.status))
+    .map((candidate) => ({
+      id: candidate.id,
+      label: `${candidate.quotedSourceAmount ?? "?"} ${candidate.sourceCurrency ?? ""} → ${candidate.destinationCurrency ?? ""}`,
+    }));
+}
+
 /**
  * Container: fetches `GET /api/remittance-operations` for the active
- * conversation and owns loading/error/empty state. Read-only (Slice 5) —
- * no correction, verify, or delivery actions. Mounted only behind
- * `profiles.beta_features` containing 'operations_panel' (design
- * decision 8; see `contact-sidebar.tsx`).
+ * conversation and owns loading/error/empty state. Passes each card
+ * `canEdit` (role agent or higher), its reassignment targets, and
+ * `onChanged` (refetch) so Slice 6's correction/reassignment UI can act.
+ * Mounted only behind `profiles.beta_features` containing
+ * 'operations_panel' (design decision 8; see `contact-sidebar.tsx`).
  */
 export function OperationsPanelContainer({ conversationId }: OperationsPanelContainerProps) {
   const t = useTranslations("Inbox.operationsPanel");
+  const canEdit = useCan("send-messages");
   const [state, setState] = useState<PanelState>({ status: "idle" });
 
   const load = useCallback(async (id: string) => {
@@ -84,7 +105,13 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
       )}
       <div className="space-y-2">
         {data.operations.map((operation) => (
-          <RemittanceOperationCard key={operation.id} operation={operation} />
+          <RemittanceOperationCard
+            key={operation.id}
+            operation={operation}
+            canEdit={canEdit}
+            otherOpenOperations={otherOpenOperationsFor(operation, data.operations)}
+            onChanged={() => load(conversationId)}
+          />
         ))}
       </div>
     </div>

@@ -308,7 +308,35 @@
         "ready_to_transfer": "Ready to transfer",
         "transferring": "Transferring",
         "incident": "Incident"
-      }
+      },
+      "destinationCurrency": "Destination currency",
+      "depositMethod": "Deposit method",
+      "quotedSourceAmount": "Quoted source amount",
+      "quotedDestinationAmount": "Quoted destination amount",
+      "name": "Name",
+      "cardNumber": "Card number",
+      "currency": "Currency",
+      "beneficiaryTypeField": "Beneficiary type",
+      "beneficiaryType": {
+        "cuban_card": "Cuban card",
+        "zelle": "Zelle",
+        "clasica": "Classic",
+        "tropical": "Tropical",
+        "multiple_distribution": "Multiple distribution"
+      },
+      "editOperation": "Edit operation",
+      "editBeneficiary": "Edit",
+      "moveBeneficiary": "Move",
+      "save": "Save",
+      "cancel": "Cancel",
+      "confirmMove": "Confirm move",
+      "selectTarget": "Select target operation",
+      "noChanges": "No changes to save",
+      "invalidAmount": "Amount must be greater than 0",
+      "invalidCurrency": "Currency must be a 3-letter code (e.g. USD)",
+      "invalidCard": "Card number must be exactly 16 digits",
+      "invalidPhone": "Phone number must be 8 to 15 digits",
+      "lockedByOperator": "Locked by an operator correction"
     }
   },
   "Contacts": {

@@ -2,7 +2,8 @@
 // Spec: chat-remesa-operations-panel. Covers the container's fetch + state
 // machine: loads on conversationId, lists every open remesa (ninguna shows
 // nothing / no fabrication, ambigua shows the banner + still lists every
-// operation instead of picking one).
+// operation instead of picking one), and that a card reporting a change
+// (via `onChanged`) makes the container refetch.
 
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
@@ -21,6 +22,20 @@ vi.mock("next-intl", () => ({
       return Object.entries(params).reduce((acc, [k, v]) => acc.replace(`{${k}}`, String(v)), raw);
     };
   },
+}));
+
+// canEdit gate: `useCan` composes with `useAuth`, which needs a provider
+// this test doesn't set up. Mocked directly so the container's own
+// canEdit-computation logic is what's under test, not the auth context.
+vi.mock("@/hooks/use-can", () => ({
+  useCan: () => true,
+}));
+
+const corregirBeneficiario = vi.fn();
+vi.mock("@/lib/remittance-operations/commands", () => ({
+  corregirOperacion: vi.fn(),
+  corregirBeneficiario: (...args: unknown[]) => corregirBeneficiario(...args),
+  reasignarBeneficiario: vi.fn(),
 }));
 
 function flush() {
@@ -83,6 +98,12 @@ async function renderContainer(conversationId: string | null) {
   const root = createRoot(node);
   await act(async () => root.render(<OperationsPanelContainer conversationId={conversationId} />));
   return { node, root };
+}
+
+function setValue(input: HTMLInputElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")!.set!;
+  setter.call(input, value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 describe("OperationsPanelContainer", () => {
@@ -160,6 +181,42 @@ describe("OperationsPanelContainer", () => {
     await flush();
 
     expect(node.textContent).toContain("Couldn't load remittance operations.");
+    await act(async () => root.unmount());
+  });
+
+  it("refetches when a card reports a change via onChanged", async () => {
+    const data: ConversationOperationsRead = {
+      resolverState: "unica",
+      resolverOperationId: "op-1",
+      resolverCandidateCount: 1,
+      operations: [OP1],
+    };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(data));
+    vi.stubGlobal("fetch", fetchMock);
+    corregirBeneficiario.mockResolvedValue({ ok: true, id: "ben-1" });
+
+    const { node, root } = await renderContainer("conv-5");
+    await flush();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const editButton = Array.from(node.querySelectorAll("button")).find(
+      (btn) => btn.textContent === en.Inbox.operationsPanel.editBeneficiary,
+    ) as HTMLButtonElement;
+    await act(async () => {
+      editButton.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+
+    const nameInput = node.querySelector<HTMLInputElement>("#beneficiary-name")!;
+    await act(async () => setValue(nameInput, "Yaima Perez Updated"));
+
+    const form = node.querySelector("form")!;
+    await act(async () => {
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    await flush();
+
+    expect(corregirBeneficiario).toHaveBeenCalledWith("ben-1", { name: "Yaima Perez Updated" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     await act(async () => root.unmount());
   });
 });

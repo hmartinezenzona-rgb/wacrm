@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
 // Spec: chat-remesa-operations-panel ("List All Open Remesas Per
-// Conversation" — lists ALL beneficiaries per remesa, supports multiple
-// beneficiaries). Read-only: no correction/verify/deliver affordances
-// (those are Slices 6-8, out of scope here).
+// Conversation") plus the correction/reassignment UI: edit/move
+// affordances gate on `canEdit` and non-terminal status, and
+// `adminLockedFields` renders a lock indicator next to the locked field
+// (or the beneficiaries heading).
 
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import en from "../../../../messages/en.json";
-import type { RemittanceOperationRead } from "@/lib/remittance-operations/types";
+import type { RemittanceOperationRead, RemittanceOperationStatus } from "@/lib/remittance-operations/types";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -19,12 +20,18 @@ vi.mock("next-intl", () => ({
   },
 }));
 
+vi.mock("@/lib/remittance-operations/commands", () => ({
+  corregirOperacion: vi.fn(),
+  corregirBeneficiario: vi.fn(),
+  reasignarBeneficiario: vi.fn(),
+}));
+
 afterEach(() => {
   document.body.replaceChildren();
   vi.restoreAllMocks();
 });
 
-function operation(overrides: Partial<RemittanceOperationRead>): RemittanceOperationRead {
+function operation(overrides: Partial<RemittanceOperationRead> = {}): RemittanceOperationRead {
   return {
     id: "op-1",
     status: "deposit_verification",
@@ -43,13 +50,29 @@ function operation(overrides: Partial<RemittanceOperationRead>): RemittanceOpera
   };
 }
 
-async function render(op: RemittanceOperationRead) {
+interface RenderOptions {
+  canEdit?: boolean;
+  otherOpenOperations?: { id: string; label: string }[];
+  onChanged?: () => void;
+}
+
+async function render(op: RemittanceOperationRead, options: RenderOptions = {}) {
   const { RemittanceOperationCard } = await import("./remittance-operation-card");
   const node = document.createElement("div");
   document.body.appendChild(node);
   const root = createRoot(node);
-  await act(async () => root.render(<RemittanceOperationCard operation={op} />));
-  return { node, root };
+  const onChanged = options.onChanged ?? vi.fn();
+  await act(async () =>
+    root.render(
+      <RemittanceOperationCard
+        operation={op}
+        canEdit={options.canEdit ?? true}
+        otherOpenOperations={options.otherOpenOperations ?? []}
+        onChanged={onChanged}
+      />,
+    ),
+  );
+  return { node, root, onChanged };
 }
 
 describe("RemittanceOperationCard", () => {
@@ -109,6 +132,94 @@ describe("RemittanceOperationCard", () => {
     const { node, root } = await render(operation({ beneficiaries: [] }));
 
     expect(node.textContent).toContain("No beneficiaries recorded yet");
+    await act(async () => root.unmount());
+  });
+
+  it("hides edit/move affordances when canEdit is false", async () => {
+    const { node, root } = await render(
+      operation({
+        beneficiaries: [
+          {
+            id: "ben-1",
+            beneficiaryType: "cuban_card",
+            name: "Yaima Perez",
+            cardNumberMasked: "9205****9412",
+            phoneMasked: null,
+            zelleAccount: null,
+            deliveryMethod: null,
+            amount: null,
+            currency: null,
+            position: 1,
+          },
+        ],
+      }),
+      { canEdit: false, otherOpenOperations: [{ id: "op-2", label: "5,000 GYD → USD" }] },
+    );
+
+    expect(node.textContent).not.toContain(en.Inbox.operationsPanel.editOperation);
+    expect(node.textContent).not.toContain(en.Inbox.operationsPanel.editBeneficiary);
+    expect(node.textContent).not.toContain(en.Inbox.operationsPanel.moveBeneficiary);
+    await act(async () => root.unmount());
+  });
+
+  it("hides edit/move affordances when the operation status is terminal", async () => {
+    const { node, root } = await render(
+      operation({ status: "completed" as RemittanceOperationStatus }),
+      { canEdit: true, otherOpenOperations: [{ id: "op-2", label: "5,000 GYD → USD" }] },
+    );
+
+    expect(node.textContent).not.toContain(en.Inbox.operationsPanel.editOperation);
+    await act(async () => root.unmount());
+  });
+
+  it("hides the move button when there are no other open operations", async () => {
+    const { node, root } = await render(
+      operation({
+        beneficiaries: [
+          {
+            id: "ben-1",
+            beneficiaryType: "cuban_card",
+            name: "Yaima Perez",
+            cardNumberMasked: "9205****9412",
+            phoneMasked: null,
+            zelleAccount: null,
+            deliveryMethod: null,
+            amount: null,
+            currency: null,
+            position: 1,
+          },
+        ],
+      }),
+      { canEdit: true, otherOpenOperations: [] },
+    );
+
+    expect(node.textContent).toContain(en.Inbox.operationsPanel.editBeneficiary);
+    expect(node.textContent).not.toContain(en.Inbox.operationsPanel.moveBeneficiary);
+    await act(async () => root.unmount());
+  });
+
+  it("renders a lock icon next to a field present in adminLockedFields", async () => {
+    const { node, root } = await render(
+      operation({
+        destinationCurrency: "USD",
+        adminLockedFields: { destination_currency: { by: "admin-1", at: "2026-09-10T00:00:00Z" } },
+      }),
+    );
+
+    const lockedEl = node.querySelector(`[aria-label="${en.Inbox.operationsPanel.lockedByOperator}"]`);
+    expect(lockedEl).not.toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("renders a lock icon next to the beneficiaries heading when adminLockedFields.beneficiaries exists", async () => {
+    const { node, root } = await render(
+      operation({
+        adminLockedFields: { beneficiaries: { by: "admin-1", at: "2026-09-10T00:00:00Z" } },
+      }),
+    );
+
+    const heading = node.querySelector("h4");
+    expect(heading?.querySelector(`[aria-label="${en.Inbox.operationsPanel.lockedByOperator}"]`)).not.toBeNull();
     await act(async () => root.unmount());
   });
 });

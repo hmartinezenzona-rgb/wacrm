@@ -311,6 +311,9 @@
       },
       "destinationCurrency": "Destination currency",
       "depositMethod": "Deposit method",
+      "depositMethodValue": {
+        "mmg": "MMG"
+      },
       "quotedSourceAmount": "Quoted source amount",
       "quotedDestinationAmount": "Quoted destination amount",
       "name": "Name",

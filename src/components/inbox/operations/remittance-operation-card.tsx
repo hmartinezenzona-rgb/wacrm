@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Lock } from "lucide-react";
+import { ArrowRightLeft, AtSign, Coins, CreditCard, Lock, Pencil, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { RemittanceOperationRead } from "@/lib/remittance-operations/types";
 import { OperationCorrectionForm } from "./operation-correction-form";
 import { BeneficiaryCorrectionForm } from "./beneficiary-correction-form";
 import { BeneficiaryReassignControl } from "./beneficiary-reassign-control";
+import { KNOWN_BENEFICIARY_TYPES, MethodIcon, StatusChip } from "./operation-icons";
 
 interface ReassignTarget {
   id: string;
@@ -49,6 +50,9 @@ function money(amount: number | null, currency: string | null): string | null {
  * status, every current ('vigente') beneficiary with masked card/phone,
  * admin-lock indicators, and — when `canEdit` and the operation isn't
  * terminal — inline correction and reassignment affordances (Slice 6).
+ * Methods, statuses, and beneficiary types render as icons plus human
+ * labels instead of raw enum values; edit/move affordances are icon-only
+ * buttons.
  */
 export function RemittanceOperationCard({
   operation,
@@ -76,60 +80,102 @@ export function RemittanceOperationCard({
   const source = money(operation.quotedSourceAmount, operation.sourceCurrency);
   const destination = money(operation.quotedDestinationAmount, operation.destinationCurrency);
 
+  const methodLabel = (method: string): string =>
+    KNOWN_BENEFICIARY_TYPES.includes(method)
+      ? t(`beneficiaryType.${method}`)
+      : method === "mmg"
+        ? t("depositMethodValue.mmg")
+        : method;
+
+  const lock = <Lock className="size-3 shrink-0" aria-label={t("lockedByOperator")} />;
+
+  const chips: { key: string; fieldKey: string; label: string; icon: React.ReactNode; text: string }[] = [];
+
+  if (operation.deliveryMethod !== null || isLocked("delivery_method")) {
+    const value = operation.deliveryMethod;
+    chips.push({
+      key: "delivery",
+      fieldKey: "delivery_method",
+      label: t("deliveryMethod"),
+      icon: <MethodIcon size="sm" method={value} label={t("deliveryMethod")} />,
+      text: value ? methodLabel(value) : "—",
+    });
+  }
+
+  if (operation.depositMethod !== null || isLocked("deposit_method")) {
+    const value = operation.depositMethod;
+    chips.push({
+      key: "deposit",
+      fieldKey: "deposit_method",
+      label: t("depositMethod"),
+      icon: <MethodIcon size="sm" method={value} label={t("depositMethod")} />,
+      text: value ? methodLabel(value) : "—",
+    });
+  }
+
+  if (operation.destinationCurrency !== null || isLocked("destination_currency")) {
+    const value = operation.destinationCurrency;
+    chips.push({
+      key: "currency",
+      fieldKey: "destination_currency",
+      label: t("destinationCurrency"),
+      icon: <Coins className="size-3.5 text-muted-foreground" aria-hidden="true" />,
+      text: value ?? "—",
+    });
+  }
+
   return (
-    <article className="space-y-2 rounded-lg border border-border bg-card p-3">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-semibold tabular-nums text-foreground">
-          {source ?? t("amountUnavailable")}
+    <article className="space-y-3 rounded-lg border border-border bg-card p-3">
+      <div className="flex items-start justify-between gap-2">
+        <p className="flex flex-wrap items-center gap-x-1 text-base font-semibold leading-tight tabular-nums text-foreground">
+          <span className="inline-flex items-center gap-1">
+            {source ?? t("amountUnavailable")}
+            {isLocked("quoted_source_amount") && lock}
+          </span>
           {destination && (
             <>
-              {" "}
-              <span className="text-muted-foreground">→</span> {destination}
+              <span aria-hidden="true" className="text-muted-foreground">
+                →
+              </span>
+              <span className="inline-flex items-center gap-1">
+                {destination}
+                {isLocked("quoted_destination_amount") && lock}
+              </span>
             </>
           )}
         </p>
-        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-          {t(`status.${operation.status}`)}
-        </span>
+        <div className="flex shrink-0 items-center gap-1">
+          <StatusChip status={operation.status} label={t(`status.${operation.status}`)} />
+          {editable && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              aria-label={t("editOperation")}
+              title={t("editOperation")}
+              onClick={() => toggle({ kind: "operation" })}
+            >
+              <Pencil aria-hidden="true" />
+            </Button>
+          )}
+        </div>
       </div>
 
-      <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs text-muted-foreground">
-        <FieldRow
-          label={t("destinationCurrency")}
-          value={operation.destinationCurrency}
-          locked={isLocked("destination_currency")}
-          lockLabel={t("lockedByOperator")}
-        />
-        <FieldRow
-          label={t("deliveryMethod")}
-          value={operation.deliveryMethod}
-          locked={isLocked("delivery_method")}
-          lockLabel={t("lockedByOperator")}
-        />
-        <FieldRow
-          label={t("depositMethod")}
-          value={operation.depositMethod}
-          locked={isLocked("deposit_method")}
-          lockLabel={t("lockedByOperator")}
-        />
-        <FieldRow
-          label={t("quotedSourceAmount")}
-          value={source}
-          locked={isLocked("quoted_source_amount")}
-          lockLabel={t("lockedByOperator")}
-        />
-        <FieldRow
-          label={t("quotedDestinationAmount")}
-          value={destination}
-          locked={isLocked("quoted_destination_amount")}
-          lockLabel={t("lockedByOperator")}
-        />
-      </dl>
-
-      {editable && (
-        <Button type="button" variant="outline" size="sm" onClick={() => toggle({ kind: "operation" })}>
-          {t("editOperation")}
-        </Button>
+      {chips.length > 0 && (
+        <ul className="flex flex-wrap gap-1.5">
+          {chips.map((chip) => (
+            <li
+              key={chip.key}
+              className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 py-0.5 pl-0.5 pr-2 text-xs font-medium text-foreground"
+              title={chip.label}
+            >
+              {chip.icon}
+              <span className="sr-only">{chip.label}: </span>
+              {chip.text}
+              {isLocked(chip.fieldKey) && lock}
+            </li>
+          ))}
+        </ul>
       )}
 
       {openForm?.kind === "operation" && (
@@ -144,7 +190,7 @@ export function RemittanceOperationCard({
         {operation.beneficiaries.length === 0 ? (
           <p className="mt-1 text-xs text-muted-foreground">{t("noBeneficiaries")}</p>
         ) : (
-          <ul className="mt-1 space-y-1.5">
+          <ul className="mt-1.5 space-y-1.5">
             {operation.beneficiaries.map((beneficiary) => {
               const beneficiaryAmount = money(beneficiary.amount, beneficiary.currency);
               const isEditingBeneficiary =
@@ -153,64 +199,72 @@ export function RemittanceOperationCard({
                 openForm?.kind === "reassign" && openForm.beneficiaryId === beneficiary.id;
 
               return (
-                <li key={beneficiary.id} className="rounded-md bg-muted px-2 py-1.5 text-xs">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-medium text-foreground">
-                      {beneficiary.name ?? t("beneficiaryNameUnavailable")}
-                    </p>
+                <li key={beneficiary.id} className="rounded-md bg-muted/60 p-2 text-xs">
+                  <div className="flex items-start gap-2">
+                    <MethodIcon
+                      method={beneficiary.beneficiaryType}
+                      label={t(`beneficiaryType.${beneficiary.beneficiaryType}`)}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {beneficiary.name ?? t("beneficiaryNameUnavailable")}
+                        </p>
+                        {beneficiaryAmount && (
+                          <p className="shrink-0 font-semibold tabular-nums text-foreground">{beneficiaryAmount}</p>
+                        )}
+                      </div>
+                      <ul className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-muted-foreground">
+                        {beneficiary.cardNumberMasked && (
+                          <li className="inline-flex items-center gap-1" title={t("card")}>
+                            <CreditCard className="size-3.5" aria-hidden="true" />
+                            <span className="sr-only">{t("card")}: </span>
+                            <span className="tabular-nums text-foreground">{beneficiary.cardNumberMasked}</span>
+                          </li>
+                        )}
+                        {beneficiary.phoneMasked && (
+                          <li className="inline-flex items-center gap-1" title={t("phone")}>
+                            <Phone className="size-3.5" aria-hidden="true" />
+                            <span className="sr-only">{t("phone")}: </span>
+                            <span className="tabular-nums text-foreground">{beneficiary.phoneMasked}</span>
+                          </li>
+                        )}
+                        {beneficiary.zelleAccount && (
+                          <li className="inline-flex items-center gap-1" title={t("zelleAccount")}>
+                            <AtSign className="size-3.5" aria-hidden="true" />
+                            <span className="sr-only">{t("zelleAccount")}: </span>
+                            <span className="break-all text-foreground">{beneficiary.zelleAccount}</span>
+                          </li>
+                        )}
+                      </ul>
+                    </div>
                     {editable && (
-                      <div className="flex shrink-0 gap-1">
+                      <div className="flex shrink-0 gap-0.5">
                         <Button
                           type="button"
                           variant="ghost"
-                          size="xs"
+                          size="icon-xs"
+                          aria-label={t("editBeneficiary")}
+                          title={t("editBeneficiary")}
                           onClick={() => toggle({ kind: "beneficiary", beneficiaryId: beneficiary.id })}
                         >
-                          {t("editBeneficiary")}
+                          <Pencil aria-hidden="true" />
                         </Button>
                         {otherOpenOperations.length > 0 && (
                           <Button
                             type="button"
                             variant="ghost"
-                            size="xs"
+                            size="icon-xs"
+                            aria-label={t("moveBeneficiary")}
+                            title={t("moveBeneficiary")}
                             onClick={() => toggle({ kind: "reassign", beneficiaryId: beneficiary.id })}
                           >
-                            {t("moveBeneficiary")}
+                            <ArrowRightLeft aria-hidden="true" />
                           </Button>
                         )}
                       </div>
                     )}
                   </div>
-                  <dl className="mt-0.5 space-y-0.5 text-muted-foreground">
-                    {beneficiary.cardNumberMasked && (
-                      <div className="flex justify-between gap-2">
-                        <dt>{t("card")}</dt>
-                        <dd className="font-medium tabular-nums text-foreground">
-                          {beneficiary.cardNumberMasked}
-                        </dd>
-                      </div>
-                    )}
-                    {beneficiary.phoneMasked && (
-                      <div className="flex justify-between gap-2">
-                        <dt>{t("phone")}</dt>
-                        <dd className="font-medium tabular-nums text-foreground">
-                          {beneficiary.phoneMasked}
-                        </dd>
-                      </div>
-                    )}
-                    {beneficiary.zelleAccount && (
-                      <div className="flex justify-between gap-2">
-                        <dt>{t("zelleAccount")}</dt>
-                        <dd className="font-medium text-foreground">{beneficiary.zelleAccount}</dd>
-                      </div>
-                    )}
-                    {beneficiaryAmount && (
-                      <div className="flex justify-between gap-2">
-                        <dt>{t("amount")}</dt>
-                        <dd className="font-medium tabular-nums text-foreground">{beneficiaryAmount}</dd>
-                      </div>
-                    )}
-                  </dl>
                   {isEditingBeneficiary && (
                     <div className="mt-1.5">
                       <BeneficiaryCorrectionForm
@@ -237,25 +291,5 @@ export function RemittanceOperationCard({
         )}
       </div>
     </article>
-  );
-}
-
-function FieldRow({
-  label,
-  value,
-  locked,
-  lockLabel,
-}: {
-  label: string;
-  value: string | null;
-  locked: boolean;
-  lockLabel: string;
-}) {
-  return (
-    <div className="flex items-center gap-1">
-      <dt>{label}:</dt>
-      <dd className="font-medium text-foreground">{value ?? "—"}</dd>
-      {locked && <Lock size={12} aria-label={lockLabel} />}
-    </div>
   );
 }

@@ -200,7 +200,7 @@ describe("OperationsPanelContainer", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     const editButton = Array.from(node.querySelectorAll("button")).find(
-      (btn) => btn.textContent === en.Inbox.operationsPanel.editBeneficiary,
+      (btn) => btn.getAttribute("aria-label") === en.Inbox.operationsPanel.editBeneficiary,
     ) as HTMLButtonElement;
     await act(async () => {
       editButton.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import {
   ArrowRightLeft,
@@ -321,52 +321,33 @@ export function RemittanceOperationCard({
                       </div>
 
                       {!isZelle && beneficiary.cardNumber && (
-                        <div className="flex items-center gap-1">
-                          <span className="sr-only">{t("card")}: </span>
-                          <span className="min-w-0 break-all font-medium tabular-nums text-foreground">
-                            {formatCardNumber(beneficiary.cardNumber)}
-                          </span>
-                          <CopyButton value={beneficiary.cardNumber} ariaLabel={`${t("copy")} ${t("card")}`} />
-                          <span
-                            className="ml-auto flex w-5 shrink-0 justify-center text-muted-foreground"
-                            title={t("card")}
-                          >
-                            <CreditCard className="size-3.5" aria-hidden="true" />
-                          </span>
-                        </div>
+                        <DataRow
+                          icon={<CreditCard className="size-3.5" aria-hidden="true" />}
+                          label={t("card")}
+                          display={formatCardNumber(beneficiary.cardNumber)}
+                          value={beneficiary.cardNumber}
+                          copyLabel={`${t("copy")} ${t("card")}`}
+                          numeric
+                        />
                       )}
                       {!isZelle && beneficiary.phone && (
-                        <div className="flex items-center gap-1">
-                          <span className="sr-only">{t("phone")}: </span>
-                          <span className="min-w-0 break-all font-medium tabular-nums text-foreground">
-                            {beneficiary.phone}
-                          </span>
-                          <CopyButton value={beneficiary.phone} ariaLabel={`${t("copy")} ${t("phone")}`} />
-                          <span
-                            className="ml-auto flex w-5 shrink-0 justify-center text-muted-foreground"
-                            title={t("phone")}
-                          >
-                            <Phone className="size-3.5" aria-hidden="true" />
-                          </span>
-                        </div>
+                        <DataRow
+                          icon={<Phone className="size-3.5" aria-hidden="true" />}
+                          label={t("phone")}
+                          display={beneficiary.phone}
+                          value={beneficiary.phone}
+                          copyLabel={`${t("copy")} ${t("phone")}`}
+                          numeric
+                        />
                       )}
                       {isZelle && beneficiary.zelleAccount && (
-                        <div className="flex items-center gap-1">
-                          <span className="sr-only">{t("zelleAccount")}: </span>
-                          <span className="min-w-0 break-all font-medium text-foreground">
-                            {beneficiary.zelleAccount}
-                          </span>
-                          <CopyButton
-                            value={beneficiary.zelleAccount}
-                            ariaLabel={`${t("copy")} ${t("zelleAccount")}`}
-                          />
-                          <span
-                            className="ml-auto flex w-5 shrink-0 justify-center text-muted-foreground"
-                            title={t("zelleAccount")}
-                          >
-                            <AtSign className="size-3.5" aria-hidden="true" />
-                          </span>
-                        </div>
+                        <DataRow
+                          icon={<AtSign className="size-3.5" aria-hidden="true" />}
+                          label={t("zelleAccount")}
+                          display={beneficiary.zelleAccount}
+                          value={beneficiary.zelleAccount}
+                          copyLabel={`${t("copy")} ${t("zelleAccount")}`}
+                        />
                       )}
 
                       {isEditingBeneficiary && (
@@ -397,5 +378,39 @@ export function RemittanceOperationCard({
         </div>
       )}
     </article>
+  );
+}
+
+/** One copyable beneficiary field: the field icon flush left (same column
+ *  as the beneficiary type badge), the value flush right with its copy
+ *  button at the edge. */
+function DataRow({
+  icon,
+  label,
+  display,
+  value,
+  copyLabel,
+  numeric = false,
+}: {
+  icon: ReactNode;
+  label: string;
+  display: string;
+  value: string;
+  copyLabel: string;
+  numeric?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="flex w-5 shrink-0 justify-center text-muted-foreground" title={label}>
+        {icon}
+      </span>
+      <span className="sr-only">{label}: </span>
+      <span
+        className={`ml-auto min-w-0 break-all text-right font-medium text-foreground ${numeric ? "tabular-nums" : ""}`}
+      >
+        {display}
+      </span>
+      <CopyButton value={value} ariaLabel={copyLabel} />
+    </div>
   );
 }

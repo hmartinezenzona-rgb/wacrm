@@ -5,9 +5,40 @@
 // result type for the UI to render.
 // ============================================================
 
+import type { OperationReceiptsRead } from "./types";
+
 export type CommandResult =
   | { ok: true; id?: string }
   | { ok: false; status: number; error: string };
+
+export type FetchResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; status: number; error: string };
+
+async function getJson(
+  url: string,
+): Promise<FetchResult<unknown>> {
+  let response: Response;
+  try {
+    response = await fetch(url);
+  } catch {
+    return { ok: false, status: 0, error: "Network error" };
+  }
+
+  if (!response.ok) {
+    let message = "Request failed";
+    try {
+      const errorBody = await response.json();
+      message = errorBody?.error ?? message;
+    } catch {
+      // Response body wasn't JSON; keep the default message.
+    }
+    return { ok: false, status: response.status, error: message };
+  }
+
+  const data = await response.json();
+  return { ok: true, data };
+}
 
 async function postJson(
   url: string,
@@ -69,4 +100,17 @@ export function reasignarBeneficiario(
     "POST",
     { targetOperationId },
   );
+}
+
+export async function fetchOperationReceipts(
+  operationId: string,
+): Promise<FetchResult<OperationReceiptsRead>> {
+  const result = await getJson(
+    `/api/remittance-operations/${operationId}/receipts`,
+  );
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    data: (result.data as { receipts: OperationReceiptsRead }).receipts,
+  };
 }

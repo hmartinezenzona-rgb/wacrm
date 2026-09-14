@@ -7,6 +7,7 @@ import {
   corregirOperacion,
   corregirBeneficiario,
   reasignarBeneficiario,
+  fetchOperationReceipts,
 } from "./commands";
 
 const OPERATION_ID = "11111111-1111-1111-1111-111111111111";
@@ -134,6 +135,47 @@ describe("reasignarBeneficiario", () => {
     vi.mocked(fetch).mockRejectedValueOnce(new Error("offline"));
 
     const result = await reasignarBeneficiario(BENEFICIARY_ID, TARGET_OPERATION_ID);
+
+    expect(result).toEqual({ ok: false, status: 0, error: "Network error" });
+  });
+});
+
+describe("fetchOperationReceipts", () => {
+  it("GETs the receipts endpoint and unwraps the receipts field", async () => {
+    const receipts = {
+      operationId: OPERATION_ID,
+      status: "deposit_verification",
+      dealId: null,
+      canVerify: true,
+      objetivo: 25000,
+      depositado: 25000,
+      saldo: 0,
+      moneda: "GYD",
+      receipts: [],
+      consumedDeposits: [],
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ receipts }));
+
+    const result = await fetchOperationReceipts(OPERATION_ID);
+
+    expect(fetch).toHaveBeenCalledWith(
+      `/api/remittance-operations/${OPERATION_ID}/receipts`,
+    );
+    expect(result).toEqual({ ok: true, data: receipts });
+  });
+
+  it("maps a non-2xx response to ok:false with status and error message", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ error: "Not found" }, 404));
+
+    const result = await fetchOperationReceipts(OPERATION_ID);
+
+    expect(result).toEqual({ ok: false, status: 404, error: "Not found" });
+  });
+
+  it("maps a network failure to ok:false status 0", async () => {
+    vi.mocked(fetch).mockRejectedValueOnce(new Error("offline"));
+
+    const result = await fetchOperationReceipts(OPERATION_ID);
 
     expect(result).toEqual({ ok: false, status: 0, error: "Network error" });
   });

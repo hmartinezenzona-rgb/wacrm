@@ -48,6 +48,12 @@ export function rpcErrorResponse(error: {
   if (error.code === "P0002") {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+  if (error.code === "40001") {
+    return NextResponse.json(
+      { error: "Operation changed concurrently, retry" },
+      { status: 409 },
+    );
+  }
   return null;
 }
 

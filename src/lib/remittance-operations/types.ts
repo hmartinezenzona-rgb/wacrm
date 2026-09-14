@@ -142,3 +142,77 @@ export interface RemittanceOperationsRpcRow {
   beneficiary_currency: string | null;
   beneficiary_position: number | null;
 }
+
+// ============================================================
+// Deposit review (migration 099) — `crm_comprobantes_de_operacion`,
+// `crm_verificar_deposito`, `crm_forzar_verificacion`. Panels 14/15.
+// ============================================================
+
+export interface MatchedDeposit {
+  transId: string;
+  amount: number | null;
+  currency: string | null;
+  receivedAt: string | null;
+  consumedAt: string | null;
+}
+
+export interface DepositReceipt {
+  compId: string;
+  messageId: string | null;
+  mediaUrl: string | null;
+  receivedAt: string | null;
+  declaredAmount: number | null;
+  declaredCurrency: string | null;
+  declaredRef: string | null;
+  matchedDeposit: MatchedDeposit | null;
+}
+
+export interface OperationReceiptsRead {
+  operationId: string;
+  status: string;
+  dealId: string | null;
+  canVerify: boolean;
+  objetivo: number | null;
+  depositado: number | null;
+  saldo: number | null;
+  moneda: string | null;
+  receipts: DepositReceipt[];
+  consumedDeposits: MatchedDeposit[];
+}
+
+/** Raw row shape nested inside `crm_comprobantes_de_operacion`'s
+ *  `receipts[].matched_deposit` and `consumed_deposits[]`. */
+export interface MatchedDepositRpcRow {
+  trans_id: string;
+  amount: number | string | null;
+  currency: string | null;
+  received_at: string | null;
+  consumed_at: string | null;
+}
+
+/** Raw row shape inside `crm_comprobantes_de_operacion`'s `receipts[]`. */
+export interface DepositReceiptRpcRow {
+  comp_id: string;
+  message_id: string | null;
+  media_url: string | null;
+  received_at: string | null;
+  declared_amount: number | string | null;
+  declared_currency: string | null;
+  declared_ref: string | null;
+  matched_deposit: MatchedDepositRpcRow | null;
+}
+
+/** Raw payload returned by `crm_comprobantes_de_operacion(p_operation_id)`.
+ *  Never read directly outside `receipts-read-model.ts`. */
+export interface OperationReceiptsRpcPayload {
+  operation_id: string;
+  status: string;
+  deal_id: string | null;
+  can_verify: boolean;
+  objetivo: number | string | null;
+  depositado: number | string | null;
+  saldo: number | string | null;
+  moneda: string | null;
+  receipts: DepositReceiptRpcRow[] | null;
+  consumed_deposits: MatchedDepositRpcRow[] | null;
+}

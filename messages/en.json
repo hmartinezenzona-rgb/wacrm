@@ -284,6 +284,31 @@
       "resumed": "AI resumed.",
       "updateError": "Couldn’t update the AI assistant.",
       "networkError": "Couldn’t reach the server."
+    },
+    "operationsPanel": {
+      "title": "Remittance operations",
+      "loading": "Loading remittance operations…",
+      "loadError": "Couldn't load remittance operations.",
+      "noOpenOperations": "No open remittance operations for this conversation.",
+      "ambiguousState": "{count} open operations for this conversation — resolve which one before acting.",
+      "amountUnavailable": "Amount unavailable",
+      "deliveryMethod": "Delivery method",
+      "beneficiaries": "Beneficiaries",
+      "noBeneficiaries": "No beneficiaries recorded yet",
+      "beneficiaryNameUnavailable": "Name unavailable",
+      "card": "Card",
+      "phone": "Phone",
+      "zelleAccount": "Zelle account",
+      "amount": "Amount",
+      "status": {
+        "collecting_information": "Collecting information",
+        "awaiting_deposit": "Awaiting deposit",
+        "deposit_received": "Deposit received",
+        "deposit_verification": "Deposit verification",
+        "ready_to_transfer": "Ready to transfer",
+        "transferring": "Transferring",
+        "incident": "Incident"
+      }
     }
   },
   "Contacts": {

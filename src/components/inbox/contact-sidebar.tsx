@@ -24,6 +24,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
+import { OperationsPanelContainer } from "@/components/inbox/operations/operations-panel-container";
 
 interface ContactSidebarProps {
   contact: Contact | null;
@@ -37,7 +38,12 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
   const tSidebar = useTranslations("Inbox.sidebar");
   const tThread = useTranslations("Inbox.messageThread");
 
-  const { accountId } = useAuth();
+  const { accountId, profile } = useAuth();
+  // Design decision 8 (port-chat-operations-calculator): the read-only
+  // remesa operations panel (Slice 5) is visible ONLY behind this beta
+  // flag; the API route enforces the same gate server-side (404 when
+  // absent), so this is a UI convenience, not the security boundary.
+  const operationsPanelEnabled = profile?.beta_features?.includes("operations_panel") ?? false;
   const [copied, setCopied] = useState(false);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [notes, setNotes] = useState<ContactNote[]>([]);
@@ -294,6 +300,16 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
               )}
             </div>
           </div>
+
+          {/* Remittance operations panel (Slice 5, read-only) — beta flag
+              gated (design decision 8). `conversation` must be present:
+              the panel reads per-conversation, not per-contact. */}
+          {operationsPanelEnabled && conversation && (
+            <>
+              <div className="my-4 border-t border-border" />
+              <OperationsPanelContainer conversationId={conversation.id} />
+            </>
+          )}
 
           {/* Divider */}
           <div className="my-4 border-t border-border" />

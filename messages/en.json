@@ -39,7 +39,8 @@
     "menuProfile": "Profile",
     "menuSettings": "Settings",
     "menuSignOut": "Sign out",
-    "resumen": "Resumen"
+    "resumen": "Resumen",
+    "calculadora": "Calculadora"
   },
   "Header": {
     "dashboard": "Dashboard",

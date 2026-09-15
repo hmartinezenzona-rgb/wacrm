@@ -297,7 +297,7 @@ export function RemittanceOperationCard({
       </div>
 
       {expanded && (
-        <div className="mt-2.5 space-y-2.5">
+        <div className="mt-[22px] space-y-2.5">
           {openForm?.kind === "operation" && (
             <OperationCorrectionForm operation={operation} onDone={handleChanged} onCancel={() => setOpenForm(null)} />
           )}

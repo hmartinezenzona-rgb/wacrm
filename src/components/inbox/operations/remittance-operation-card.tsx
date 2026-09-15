@@ -267,7 +267,7 @@ export function RemittanceOperationCard({
             {operation.beneficiaries.length === 0 ? (
               <p className="mt-1 text-xs text-muted-foreground">{t("noBeneficiaries")}</p>
             ) : (
-              <ul className="mt-1.5 space-y-1.5">
+              <ul className="mt-1.5 space-y-4">
                 {operation.beneficiaries.map((beneficiary) => {
                   const isZelle = beneficiary.beneficiaryType === "zelle";
                   const amount = resolveBeneficiaryAmount(beneficiary, operation);
@@ -313,7 +313,7 @@ export function RemittanceOperationCard({
                   );
 
                   return (
-                    <li key={beneficiary.id} className="space-y-1.5 rounded-md bg-muted/60 px-1.5 py-2 text-xs">
+                    <li key={beneficiary.id} className="space-y-1.5 text-xs">
                       {isZelle ? (
                         <div className="flex items-center gap-1">
                           <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">

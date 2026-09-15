@@ -23,6 +23,8 @@ function row(overrides: Partial<RemittanceOperationsRpcRow>): RemittanceOperatio
     operation_deposit_method: null,
     operation_quoted_source_amount: null,
     operation_quoted_destination_amount: null,
+    operation_quoted_destination_rate: null,
+    operation_quoted_destination_origin: null,
     operation_admin_locked_fields: null,
     operation_created_at: null,
     operation_completed_at: null,
@@ -34,6 +36,7 @@ function row(overrides: Partial<RemittanceOperationsRpcRow>): RemittanceOperatio
     beneficiary_zelle_account: null,
     beneficiary_delivery_method: null,
     beneficiary_amount: null,
+    beneficiary_amount_origin: null,
     beneficiary_currency: null,
     beneficiary_position: null,
     ...overrides,
@@ -54,6 +57,8 @@ describe("mapRemittanceOperationsRows", () => {
         operation_destination_currency: "CUP",
         operation_quoted_source_amount: 10000,
         operation_quoted_destination_amount: "9800.50",
+        operation_quoted_destination_rate: "1.02",
+        operation_quoted_destination_origin: "calculated",
         operation_admin_locked_fields: {},
         operation_created_at: "2026-09-13T10:00:00Z",
         beneficiary_id: "ben-1",
@@ -61,6 +66,7 @@ describe("mapRemittanceOperationsRows", () => {
         beneficiary_name: "Yaima Perez",
         beneficiary_card_number: "9205123412340009412",
         beneficiary_phone: "15550001111",
+        beneficiary_amount_origin: "manual",
         beneficiary_position: 1,
       }),
       row({
@@ -107,7 +113,31 @@ describe("mapRemittanceOperationsRows", () => {
     expect(op1?.beneficiaries[1].zelleAccount).toBe("yaima@example.invalid");
     expect(op1?.quotedSourceAmount).toBe(10000);
     expect(op1?.quotedDestinationAmount).toBe(9800.5);
+    expect(op1?.quotedDestinationRate).toBe(1.02);
+    expect(op1?.quotedDestinationOrigin).toBe("calculated");
+    expect(op1?.beneficiaries[0].amountOrigin).toBe("manual");
     expect(op2?.beneficiaries).toEqual([]);
+  });
+
+  it("defaults quotedDestinationRate/quotedDestinationOrigin/amountOrigin to null when the RPC omits them", () => {
+    const rows: RemittanceOperationsRpcRow[] = [
+      row({
+        operation_id: "op-1",
+        operation_status: "collecting_information",
+        operation_service_type: "remesa",
+        operation_created_at: "2026-09-13T10:00:00Z",
+        beneficiary_id: "ben-1",
+        beneficiary_type: "cuban_card",
+        beneficiary_position: 1,
+      }),
+    ];
+
+    const result = mapRemittanceOperationsRows(rows);
+
+    const op1 = result.operations[0];
+    expect(op1.quotedDestinationRate).toBeNull();
+    expect(op1.quotedDestinationOrigin).toBeNull();
+    expect(op1.beneficiaries[0].amountOrigin).toBeNull();
   });
 
   it("surfaces ambigua explicitly without picking a winner operation", () => {

@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
-// Spec: chat-remesa-operations-panel / deposit-verification-review (panel
-// 16). Presentational "Receipts" block rendered above the beneficiaries
-// list inside an expanded operation card: lists each declared deposit
-// receipt with its thumbnail, amount, reference and match state, lets an
-// agent correct the declared ref/amount locally before submitting a verify
-// attempt, and (for admins) force-verify with a reason. No fetch here —
-// the container owns data loading and the verify/force network calls;
-// this component only keeps local UI/draft state and calls back.
+// Spec: panel-19 operation-card redesign, deposit block. Presentational —
+// no fetch here, the container owns data loading and the verify/force
+// network calls. Two business states, both driven by
+// `data.canVerify`/`data.status` (the operation's own state, independent
+// of who's viewing): verified (a confirmation line + ref chip, no image)
+// and awaiting verification (the first unmatched receipt's viewer + a
+// directly-bound "Amount deposited"/"TransID" draft, gated on the
+// `canVerify` prop for whether those are interactive or read-only). Every
+// other state renders nothing.
 
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
@@ -105,10 +106,6 @@ function setValue(input: HTMLInputElement, value: string) {
   input.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-function iconButton(node: Element, label: string) {
-  return node.querySelector(`button[aria-label="${label}"]`) as HTMLButtonElement | null;
-}
-
 function textButton(node: Element, text: string) {
   return Array.from(node.querySelectorAll("button")).find((b) => b.textContent?.trim() === text) as
     | HTMLButtonElement
@@ -116,165 +113,197 @@ function textButton(node: Element, text: string) {
 }
 
 describe("DepositReviewSection", () => {
-  it("renders the title with the receipt count, the formatted amount and the reference with a copy button", async () => {
-    const { node, root } = await render();
+  describe("verified state (data.canVerify false, status ready_to_transfer/transferring)", () => {
+    it("shows the verified line and a ref chip from the matched deposit, with no image", async () => {
+      const { node, root } = await render({
+        data: readModel({
+          status: "ready_to_transfer",
+          canVerify: false,
+          receipts: [
+            receipt({
+              matchedDeposit: { transId: "TX-99", amount: 25000, currency: "GYD", receivedAt: null, consumedAt: null },
+            }),
+          ],
+        }),
+      });
 
-    expect(node.textContent).toContain("Receipts (1)");
-    expect(node.textContent).toContain("25,000 GYD");
-    expect(node.textContent).toContain("10412345678901");
-    expect(iconButton(node, `${en.Inbox.operationsPanel.copy} ${T.ref}`)).not.toBeNull();
-    await act(async () => root.unmount());
-  });
-
-  it("shows 'Not matched' for a receipt with no matched deposit", async () => {
-    const { node, root } = await render();
-    expect(node.textContent).toContain(T.notMatched);
-    await act(async () => root.unmount());
-  });
-
-  it("shows 'Matched <transId>' for a receipt with a matched deposit", async () => {
-    const { node, root } = await render({
-      data: readModel({
-        receipts: [
-          receipt({
-            matchedDeposit: { transId: "TX-99", amount: 25000, currency: "GYD", receivedAt: null, consumedAt: null },
-          }),
-        ],
-      }),
-    });
-    expect(node.textContent).toContain("Matched TX-99");
-    await act(async () => root.unmount());
-  });
-
-  it("hides the verify button and the force link when canVerify is false, but still shows receipts read-only", async () => {
-    const { node, root } = await render({ canVerify: false });
-    expect(textButton(node, T.verify)).toBeUndefined();
-    expect(node.textContent).not.toContain(T.force);
-    expect(node.textContent).toContain("10412345678901");
-    await act(async () => root.unmount());
-  });
-
-  it("hides the force link when canForce is false", async () => {
-    const { node, root } = await render({ canForce: false });
-    expect(textButton(node, T.verify)).not.toBeUndefined();
-    expect(node.textContent).not.toContain(T.force);
-    await act(async () => root.unmount());
-  });
-
-  it("edits a receipt's ref/amount, saves the draft, and sends the edited values on verify", async () => {
-    const { node, onVerify } = await render();
-
-    const editButton = iconButton(node, T.edit)!;
-    await act(async () => editButton.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-
-    const refInput = node.querySelector<HTMLInputElement>("#deposit-review-ref-comp-1")!;
-    const amountInput = node.querySelector<HTMLInputElement>("#deposit-review-amount-comp-1")!;
-    await act(async () => setValue(refInput, "NEWREF123"));
-    await act(async () => setValue(amountInput, "30000"));
-
-    const saveButton = textButton(node, T.save)!;
-    await act(async () => saveButton.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-
-    const verifyButton = textButton(node, T.verify)!;
-    await act(async () => verifyButton.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-
-    expect(onVerify).toHaveBeenCalledWith([{ ref: "NEWREF123", amount: 30000 }]);
-  });
-
-  it("does not submit unsaved edits (Cancel discards the pending edit)", async () => {
-    const { node, onVerify } = await render();
-
-    const editButton = iconButton(node, T.edit)!;
-    await act(async () => editButton.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-    const refInput = node.querySelector<HTMLInputElement>("#deposit-review-ref-comp-1")!;
-    await act(async () => setValue(refInput, "DISCARDED"));
-
-    const cancelButton = textButton(node, T.cancel)!;
-    await act(async () => cancelButton.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-
-    const verifyButton = textButton(node, T.verify)!;
-    await act(async () => verifyButton.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-
-    expect(onVerify).toHaveBeenCalledWith([{ ref: "10412345678901", amount: 25000 }]);
-  });
-
-  it("excludes matched receipts from the verify items", async () => {
-    const { node, onVerify } = await render({
-      data: readModel({
-        receipts: [
-          receipt({ compId: "comp-1", declaredRef: "ref-1", declaredAmount: 1000 }),
-          receipt({
-            compId: "comp-2",
-            declaredRef: "ref-2",
-            declaredAmount: 2000,
-            matchedDeposit: { transId: "TX-1", amount: 2000, currency: "GYD", receivedAt: null, consumedAt: null },
-          }),
-        ],
-      }),
+      expect(node.textContent).toContain(T.verified);
+      expect(node.textContent).toContain("TX-99");
+      expect(node.querySelector("img")).toBeNull();
+      await act(async () => root.unmount());
     });
 
-    const verifyButton = textButton(node, T.verify)!;
-    await act(async () => verifyButton.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    it("falls back to the declared ref when there is no matched deposit", async () => {
+      const { node, root } = await render({
+        data: readModel({ status: "transferring", canVerify: false, receipts: [receipt({ declaredRef: "REF-1" })] }),
+      });
 
-    expect(onVerify).toHaveBeenCalledWith([{ ref: "ref-1", amount: 1000 }]);
+      expect(node.textContent).toContain("REF-1");
+      await act(async () => root.unmount());
+    });
+
+    it("shows no ref chip when no receipt has a ref", async () => {
+      const { node, root } = await render({
+        data: readModel({
+          status: "ready_to_transfer",
+          canVerify: false,
+          receipts: [receipt({ declaredRef: null, matchedDeposit: null })],
+        }),
+      });
+
+      expect(node.textContent).toContain(T.verified);
+      expect(node.querySelector("button")).toBeNull();
+      await act(async () => root.unmount());
+    });
   });
 
-  it("disables the verify button when there is no eligible receipt", async () => {
+  describe("awaiting verification (data.canVerify true)", () => {
+    it("shows the not-verified line and the viewer for the first unmatched receipt", async () => {
+      const { node, root } = await render({ data: readModel() });
+
+      expect(node.textContent).toContain(T.notVerified);
+      expect(node.querySelector("img")).not.toBeNull();
+      await act(async () => root.unmount());
+    });
+
+    it("shows the last verify result's reason message below the not-verified line", async () => {
+      const { node, root } = await render({ result: { kind: "error", message: T.results.monto_no_coincide } });
+
+      expect(node.textContent).toContain(T.notVerified);
+      expect(node.textContent).toContain(T.results.monto_no_coincide);
+      await act(async () => root.unmount());
+    });
+
+    it("prefills Amount deposited/TransID from the receipt's declared values and submits edits on verify", async () => {
+      const { node, onVerify } = await render();
+
+      const amountInput = node.querySelector<HTMLInputElement>("#deposit-review-amount-comp-1")!;
+      const refInput = node.querySelector<HTMLInputElement>("#deposit-review-ref-comp-1")!;
+      expect(amountInput.value).toBe("25000");
+      expect(refInput.value).toBe("10412345678901");
+
+      await act(async () => setValue(amountInput, "30000"));
+      await act(async () => setValue(refInput, "NEWREF123"));
+
+      const verifyButton = textButton(node, T.verify)!;
+      await act(async () => verifyButton.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+      expect(onVerify).toHaveBeenCalledWith([{ ref: "NEWREF123", amount: 30000 }]);
+    });
+
+    it("excludes matched receipts from the verify items", async () => {
+      const { node, onVerify } = await render({
+        data: readModel({
+          receipts: [
+            receipt({ compId: "comp-1", declaredRef: "ref-1", declaredAmount: 1000 }),
+            receipt({
+              compId: "comp-2",
+              declaredRef: "ref-2",
+              declaredAmount: 2000,
+              matchedDeposit: { transId: "TX-1", amount: 2000, currency: "GYD", receivedAt: null, consumedAt: null },
+            }),
+          ],
+        }),
+      });
+
+      const verifyButton = textButton(node, T.verify)!;
+      await act(async () => verifyButton.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+      expect(onVerify).toHaveBeenCalledWith([{ ref: "ref-1", amount: 1000 }]);
+    });
+
+    it("disables the verify button when there is no eligible receipt", async () => {
+      const { node } = await render({
+        data: readModel({
+          receipts: [
+            receipt({
+              matchedDeposit: { transId: "TX-1", amount: 25000, currency: "GYD", receivedAt: null, consumedAt: null },
+            }),
+          ],
+        }),
+      });
+
+      // No unmatched receipt at all: no verify button is rendered.
+      expect(textButton(node, T.verify)).toBeUndefined();
+    });
+
+    it("disables the verify button while busy", async () => {
+      const { node } = await render({ busy: true });
+      const verifyButton = textButton(node, T.verify)!;
+      expect(verifyButton.disabled).toBe(true);
+    });
+
+    it("shows '1/2' and switches between multiple unmatched receipts, keeping other drafts for verify", async () => {
+      const { node, onVerify } = await render({
+        data: readModel({
+          receipts: [
+            receipt({ compId: "comp-1", declaredRef: "ref-1", declaredAmount: 1000 }),
+            receipt({ compId: "comp-2", declaredRef: "ref-2", declaredAmount: 2000 }),
+          ],
+        }),
+      });
+
+      expect(node.textContent).toContain("1/2");
+      expect(node.querySelector<HTMLInputElement>("#deposit-review-ref-comp-1")!.value).toBe("ref-1");
+
+      const next = Array.from(node.querySelectorAll("button")).find((b) => b.textContent?.trim() === "›")!;
+      await act(async () => next.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+      expect(node.textContent).toContain("2/2");
+      expect(node.querySelector<HTMLInputElement>("#deposit-review-ref-comp-2")!.value).toBe("ref-2");
+
+      const verifyButton = textButton(node, T.verify)!;
+      await act(async () => verifyButton.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+      expect(onVerify).toHaveBeenCalledWith([
+        { ref: "ref-1", amount: 1000 },
+        { ref: "ref-2", amount: 2000 },
+      ]);
+    });
+
+    it("read-only when canVerify is false: shows values as text, no inputs, no verify/force", async () => {
+      const { node } = await render({ canVerify: false });
+
+      expect(node.querySelector("input")).toBeNull();
+      expect(node.textContent).toContain("25000");
+      expect(node.textContent).toContain("10412345678901");
+      expect(textButton(node, T.verify)).toBeUndefined();
+      expect(node.textContent).not.toContain(T.force);
+      expect(node.querySelector("img")).not.toBeNull();
+    });
+
+    it("hides the force link when canForce is false", async () => {
+      const { node } = await render({ canForce: false });
+      expect(textButton(node, T.verify)).not.toBeUndefined();
+      expect(node.textContent).not.toContain(T.force);
+    });
+
+    it("keeps the force confirm button disabled until the reason is at least 5 trimmed characters, then calls onForce with the trimmed reason", async () => {
+      const { node, onForce } = await render();
+
+      const forceToggle = textButton(node, T.force)!;
+      await act(async () => forceToggle.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+      const reasonInput = node.querySelector<HTMLInputElement>("#deposit-review-force-reason")!;
+      expect(textButton(node, T.forceConfirm)!.disabled).toBe(true);
+
+      await act(async () => setValue(reasonInput, "1234"));
+      expect(textButton(node, T.forceConfirm)!.disabled).toBe(true);
+
+      await act(async () => setValue(reasonInput, "  valid reason  "));
+      expect(textButton(node, T.forceConfirm)!.disabled).toBe(false);
+
+      await act(async () => textButton(node, T.forceConfirm)!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+      expect(onForce).toHaveBeenCalledWith("valid reason");
+    });
+  });
+
+  it("renders nothing for any other state", async () => {
     const { node } = await render({
-      data: readModel({
-        receipts: [
-          receipt({
-            matchedDeposit: { transId: "TX-1", amount: 25000, currency: "GYD", receivedAt: null, consumedAt: null },
-          }),
-        ],
-      }),
+      data: readModel({ status: "incident", canVerify: false }),
+      canVerify: false,
     });
 
-    const verifyButton = textButton(node, T.verify)!;
-    expect(verifyButton.disabled).toBe(true);
-  });
-
-  it("disables the verify button while busy", async () => {
-    const { node } = await render({ busy: true });
-    const verifyButton = textButton(node, T.verify)!;
-    expect(verifyButton.disabled).toBe(true);
-  });
-
-  it("keeps the force confirm button disabled until the reason is at least 5 trimmed characters, then calls onForce with the trimmed reason", async () => {
-    const { node, onForce } = await render();
-
-    const forceToggle = textButton(node, T.force)!;
-    await act(async () => forceToggle.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-
-    const reasonInput = node.querySelector<HTMLInputElement>("#deposit-review-force-reason")!;
-    expect(textButton(node, T.forceConfirm)!.disabled).toBe(true);
-
-    await act(async () => setValue(reasonInput, "1234"));
-    expect(textButton(node, T.forceConfirm)!.disabled).toBe(true);
-
-    await act(async () => setValue(reasonInput, "  valid reason  "));
-    expect(textButton(node, T.forceConfirm)!.disabled).toBe(false);
-
-    await act(async () => textButton(node, T.forceConfirm)!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-    expect(onForce).toHaveBeenCalledWith("valid reason");
-  });
-
-  it("opens a dialog with the full receipt image on thumbnail click", async () => {
-    const { node } = await render();
-
-    expect(document.body.querySelector('[data-slot="dialog-content"]')).toBeNull();
-    const thumbnail = iconButton(node, T.enlarge)!;
-    await act(async () => thumbnail.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-
-    const dialogImg = document.body.querySelector<HTMLImageElement>('[data-slot="dialog-content"] img');
-    expect(dialogImg).not.toBeNull();
-    expect(dialogImg!.getAttribute("src")).toBe("https://example.test/comp-1.jpg");
-  });
-
-  it("renders the result line with role=status", async () => {
-    const { node } = await render({ result: { kind: "success", message: "Verified · ready to transfer" } });
-    const status = node.querySelector('[role="status"]');
-    expect(status).not.toBeNull();
-    expect(status!.textContent).toContain("Verified · ready to transfer");
+    expect(node.textContent).toBe("");
   });
 });

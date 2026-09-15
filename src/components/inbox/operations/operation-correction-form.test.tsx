@@ -39,6 +39,8 @@ function operation(overrides: Partial<RemittanceOperationRead> = {}): Remittance
     depositMethod: "bank",
     quotedSourceAmount: 10000,
     quotedDestinationAmount: 50,
+    quotedDestinationRate: null,
+    quotedDestinationOrigin: null,
     adminLockedFields: {},
     createdAt: "2026-09-14T00:00:00Z",
     completedAt: null,

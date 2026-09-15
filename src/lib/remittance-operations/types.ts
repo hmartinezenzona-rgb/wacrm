@@ -49,6 +49,11 @@ export type BeneficiaryType =
   | "tropical"
   | "multiple_distribution";
 
+/** Whether a quoted destination amount / beneficiary amount was
+ *  auto-calculated (single-beneficiary remittances, migration 100) or set
+ *  by hand. */
+export type AmountOrigin = "calculated" | "manual";
+
 export interface AdminLockedFieldEntry {
   by: string | null;
   at: string;
@@ -73,6 +78,9 @@ export interface RemittanceBeneficiaryRead {
   zelleAccount: string | null;
   deliveryMethod: string | null;
   amount: number | null;
+  /** Whether `amount` was auto-calculated or set manually (migration 100);
+   *  `null` when the beneficiary predates that column. */
+  amountOrigin: AmountOrigin | null;
   currency: string | null;
   position: number;
 }
@@ -87,6 +95,12 @@ export interface RemittanceOperationRead {
   depositMethod: string | null;
   quotedSourceAmount: number | null;
   quotedDestinationAmount: number | null;
+  /** Exchange rate used to auto-calculate `quotedDestinationAmount`
+   *  (migration 100); `null` when not calculated or not recorded. */
+  quotedDestinationRate: number | null;
+  /** Whether `quotedDestinationAmount` was auto-calculated or set
+   *  manually; `null` when the operation predates that column. */
+  quotedDestinationOrigin: AmountOrigin | null;
   adminLockedFields: AdminLockedFields;
   createdAt: string;
   completedAt: string | null;
@@ -128,6 +142,8 @@ export interface RemittanceOperationsRpcRow {
   operation_deposit_method: string | null;
   operation_quoted_source_amount: number | string | null;
   operation_quoted_destination_amount: number | string | null;
+  operation_quoted_destination_rate: number | string | null;
+  operation_quoted_destination_origin: AmountOrigin | null;
   operation_admin_locked_fields: AdminLockedFields | null;
   operation_created_at: string | null;
   operation_completed_at: string | null;
@@ -139,6 +155,7 @@ export interface RemittanceOperationsRpcRow {
   beneficiary_zelle_account: string | null;
   beneficiary_delivery_method: string | null;
   beneficiary_amount: number | string | null;
+  beneficiary_amount_origin: AmountOrigin | null;
   beneficiary_currency: string | null;
   beneficiary_position: number | null;
 }

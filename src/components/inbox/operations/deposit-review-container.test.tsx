@@ -143,8 +143,8 @@ describe("DepositReviewContainer", () => {
     await flush();
 
     expect(fetchOperationReceipts).toHaveBeenCalledWith("op-1");
-    expect(node.textContent).toContain("Receipts (1)");
-    expect(node.textContent).toContain("10412345678901");
+    expect(node.textContent).toContain(T.notVerified);
+    expect(node.querySelector<HTMLInputElement>("#deposit-review-ref-comp-1")!.value).toBe("10412345678901");
   });
 
   it("shows a load error when the fetch fails", async () => {

@@ -52,6 +52,8 @@ export function mapRemittanceOperationsRows(
         depositMethod: row.operation_deposit_method,
         quotedSourceAmount: toNullableNumber(row.operation_quoted_source_amount),
         quotedDestinationAmount: toNullableNumber(row.operation_quoted_destination_amount),
+        quotedDestinationRate: toNullableNumber(row.operation_quoted_destination_rate),
+        quotedDestinationOrigin: row.operation_quoted_destination_origin ?? null,
         adminLockedFields: row.operation_admin_locked_fields ?? {},
         createdAt: row.operation_created_at ?? new Date(0).toISOString(),
         completedAt: row.operation_completed_at,
@@ -71,6 +73,7 @@ export function mapRemittanceOperationsRows(
         zelleAccount: row.beneficiary_zelle_account,
         deliveryMethod: row.beneficiary_delivery_method,
         amount: toNullableNumber(row.beneficiary_amount),
+        amountOrigin: row.beneficiary_amount_origin ?? null,
         currency: row.beneficiary_currency,
         position: row.beneficiary_position ?? 1,
       });

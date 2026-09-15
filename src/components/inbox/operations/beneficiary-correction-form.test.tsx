@@ -43,6 +43,7 @@ function beneficiary(overrides: Partial<RemittanceBeneficiaryRead> = {}): Remitt
     zelleAccount: null,
     deliveryMethod: "home",
     amount: 100,
+    amountOrigin: null,
     currency: "USD",
     position: 1,
     ...overrides,

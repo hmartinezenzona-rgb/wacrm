@@ -52,6 +52,14 @@ export interface DeliveryProofPanelProps {
   busy?: boolean;
   /** False for roles that cannot send messages. */
   canSend?: boolean;
+  /**
+   * Whether the optional note/caption field renders at all. Defaults to
+   * `true` — the pipelines board always wants it. The operations panel's
+   * "Complete transfer" section (panel-23) passes `false` for every
+   * delivery method except Zelle, where the note is the only place the
+   * recipient's name reaches the customer.
+   */
+  showCaption?: boolean;
 }
 
 const MAX_MB = Math.round(PROOF_MAX_BYTES / 1024 / 1024);
@@ -73,6 +81,7 @@ export function DeliveryProofPanel({
   window: sessionWindow,
   busy = false,
   canSend = true,
+  showCaption = true,
 }: DeliveryProofPanelProps) {
   const t = useTranslations("Pipelines.deliveryProof");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -237,7 +246,7 @@ export function DeliveryProofPanel({
         }}
       />
 
-      {file && (
+      {file && showCaption && (
         <div className="grid gap-1.5">
           <Label className="text-muted-foreground">{t("noteLabel")}</Label>
           <Textarea

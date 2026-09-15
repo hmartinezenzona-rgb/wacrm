@@ -9,6 +9,7 @@ import { corregirBeneficiario } from "@/lib/remittance-operations/commands";
 import type { RemittanceBeneficiaryRead, RemittanceOperationRead } from "@/lib/remittance-operations/types";
 import { OperationCorrectionForm } from "./operation-correction-form";
 import { BeneficiaryReassignControl } from "./beneficiary-reassign-control";
+import { CompleteTransferContainer } from "./complete-transfer-container";
 import { CopyChip } from "./copy-chip";
 import { DepositReviewContainer } from "./deposit-review-container";
 import type { SummaryAmount } from "./deposit-review-section";
@@ -45,17 +46,17 @@ interface RemittanceOperationCardProps {
   /** Toggles this card's expanded state; called when the header is
    *  clicked. */
   onToggle: () => void;
-  /** When given, and the operation is `ready_to_transfer` and editable, a
-   *  full-width "Complete transfer" button renders at the bottom of the
-   *  expanded card. Nobody passes this yet — it's wired in a later slice. */
-  onCompleteTransfer?: () => void;
+  /** The conversation this operation belongs to — forwarded to the
+   *  "Complete transfer" section, which needs it to send the delivery
+   *  proof and to check the 24-hour window. */
+  conversationId: string;
 }
 
 /** The RPC never returns these (see types.ts), but the correction API can
  *  still move an operation into one of them — defensive, not dead code. */
 const TERMINAL_STATUSES: ReadonlyArray<string> = ["completed", "cancelled"];
 
-type OpenFormKind = "operation" | "beneficiary" | "reassign";
+type OpenFormKind = "operation" | "beneficiary" | "reassign" | "complete";
 
 interface OpenFormState {
   kind: OpenFormKind;
@@ -149,6 +150,15 @@ function computeSummaryAmount(
   return null;
 }
 
+/** Whether the "Complete transfer" section shows the delivery-proof note
+ *  field: only for Zelle, where the recipient's name is the one thing the
+ *  screenshot itself never carries. Mirrors `destinationLabel`'s Zelle
+ *  check (operation-level rail) plus the single-beneficiary case. */
+function isZelleOperation(operation: RemittanceOperationRead): boolean {
+  if (operation.deliveryMethod === "zelle") return true;
+  return operation.beneficiaries.length === 1 && operation.beneficiaries[0]!.beneficiaryType === "zelle";
+}
+
 /**
  * Presentational: one open remesa operation. Header is minimal — the
  * source amount, an arrow, and the destination name (rail label,
@@ -176,7 +186,7 @@ export function RemittanceOperationCard({
   onChanged,
   expanded,
   onToggle,
-  onCompleteTransfer,
+  conversationId,
 }: RemittanceOperationCardProps) {
   const t = useTranslations("Inbox.operationsPanel");
   const [openForm, setOpenForm] = useState<OpenFormState | null>(null);
@@ -203,7 +213,7 @@ export function RemittanceOperationCard({
 
   const lock = <Lock className="size-3 shrink-0" aria-label={t("lockedByOperator")} />;
 
-  const showCompleteTransfer = Boolean(onCompleteTransfer) && operation.status === "ready_to_transfer" && editable;
+  const showCompleteTransfer = operation.status === "ready_to_transfer" && editable;
   const summaryAmount = computeSummaryAmount(operation, t as (key: string) => string);
 
   const beneficiaryActions = (
@@ -434,11 +444,25 @@ export function RemittanceOperationCard({
             )}
           </div>
 
-          {showCompleteTransfer && (
-            <Button type="button" size="lg" className="w-full" onClick={onCompleteTransfer}>
-              {t("completeTransfer")}
-            </Button>
-          )}
+          {showCompleteTransfer &&
+            (openForm?.kind === "complete" ? (
+              <CompleteTransferContainer
+                operationId={operation.id}
+                conversationId={conversationId}
+                isZelle={isZelleOperation(operation)}
+                onDone={handleChanged}
+                onCancel={() => setOpenForm(null)}
+              />
+            ) : (
+              <Button
+                type="button"
+                size="lg"
+                className="w-full"
+                onClick={() => toggleForm({ kind: "complete" })}
+              >
+                {t("completeTransfer.button")}
+              </Button>
+            ))}
         </div>
       )}
     </article>

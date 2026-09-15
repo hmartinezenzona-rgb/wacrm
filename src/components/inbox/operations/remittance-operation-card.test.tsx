@@ -50,6 +50,22 @@ vi.mock("@/lib/remittance-operations/commands", () => ({
 // `onAddAmount`) via a data attribute and a test-only button, so this
 // file's card-only tests stay isolated from that fetch while still being
 // able to assert on what the card passes down.
+const CompleteTransferContainer = vi.fn(
+  ({ onDone, onCancel }: { operationId: string; conversationId: string; isZelle: boolean; onDone: () => void; onCancel: () => void }) => (
+    <div data-testid="complete-transfer-stub">
+      <button type="button" data-testid="complete-transfer-done" onClick={onDone}>
+        done
+      </button>
+      <button type="button" data-testid="complete-transfer-cancel" onClick={onCancel}>
+        cancel
+      </button>
+    </div>
+  ),
+);
+vi.mock("./complete-transfer-container", () => ({
+  CompleteTransferContainer: (props: unknown) => CompleteTransferContainer(props as never),
+}));
+
 vi.mock("./deposit-review-container", () => ({
   DepositReviewContainer: ({
     operationId,
@@ -124,7 +140,7 @@ interface RenderOptions {
   onChanged?: () => void;
   expanded?: boolean;
   onToggle?: () => void;
-  onCompleteTransfer?: () => void;
+  conversationId?: string;
 }
 
 async function render(op: RemittanceOperationRead, options: RenderOptions = {}) {
@@ -144,7 +160,7 @@ async function render(op: RemittanceOperationRead, options: RenderOptions = {}) 
         onChanged={onChanged}
         expanded={options.expanded ?? true}
         onToggle={onToggle}
-        onCompleteTransfer={options.onCompleteTransfer}
+        conversationId={options.conversationId ?? "conv-1"}
       />,
     ),
   );
@@ -624,41 +640,97 @@ describe("RemittanceOperationCard", () => {
   });
 
   describe("Complete transfer button", () => {
+    const T = en.Inbox.operationsPanel.completeTransfer;
+
     function readyOperation(overrides: Partial<RemittanceOperationRead> = {}) {
-      return operation({ status: "ready_to_transfer", ...overrides });
+      return operation({ id: "op-1", status: "ready_to_transfer", ...overrides });
     }
 
-    it("is absent when onCompleteTransfer is not provided", async () => {
-      const { node, root } = await render(readyOperation());
-      expect(node.textContent).not.toContain(en.Inbox.operationsPanel.completeTransfer);
-      await act(async () => root.unmount());
-    });
-
-    it("renders full-width and calls onCompleteTransfer when provided, ready_to_transfer and editable", async () => {
-      const onCompleteTransfer = vi.fn();
-      const { node, root } = await render(readyOperation(), { onCompleteTransfer, canEdit: true });
-
-      const completeButton = Array.from(node.querySelectorAll("button")).find(
-        (b) => b.textContent?.trim() === en.Inbox.operationsPanel.completeTransfer,
-      ) as HTMLButtonElement;
-      expect(completeButton).not.toBeUndefined();
-
-      await act(async () => completeButton.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-      expect(onCompleteTransfer).toHaveBeenCalledTimes(1);
-      await act(async () => root.unmount());
-    });
+    function findCompleteButton(node: Element): HTMLButtonElement | undefined {
+      return Array.from(node.querySelectorAll("button")).find(
+        (b) => b.textContent?.trim() === T.button,
+      ) as HTMLButtonElement | undefined;
+    }
 
     it("is absent when the status is not ready_to_transfer", async () => {
-      const onCompleteTransfer = vi.fn();
-      const { node, root } = await render(operation({ status: "deposit_verification" }), { onCompleteTransfer });
-      expect(node.textContent).not.toContain(en.Inbox.operationsPanel.completeTransfer);
+      const { node, root } = await render(operation({ status: "deposit_verification" }));
+      expect(node.textContent).not.toContain(T.button);
       await act(async () => root.unmount());
     });
 
     it("is absent when the card is not editable", async () => {
-      const onCompleteTransfer = vi.fn();
-      const { node, root } = await render(readyOperation(), { onCompleteTransfer, canEdit: false });
-      expect(node.textContent).not.toContain(en.Inbox.operationsPanel.completeTransfer);
+      const { node, root } = await render(readyOperation(), { canEdit: false });
+      expect(node.textContent).not.toContain(T.button);
+      await act(async () => root.unmount());
+    });
+
+    it("renders full-width when ready_to_transfer and editable", async () => {
+      const { node, root } = await render(readyOperation(), { canEdit: true });
+      expect(findCompleteButton(node)).not.toBeUndefined();
+      await act(async () => root.unmount());
+    });
+
+    it("clicking it opens the complete-transfer section, passing operationId/conversationId/isZelle, hiding the button", async () => {
+      const { node, root } = await render(readyOperation({ deliveryMethod: "zelle" }), {
+        conversationId: "conv-42",
+      });
+
+      const button = findCompleteButton(node)!;
+      await act(async () => button.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+      expect(node.querySelector('[data-testid="complete-transfer-stub"]')).not.toBeNull();
+      expect(findCompleteButton(node)).toBeUndefined();
+      expect(CompleteTransferContainer).toHaveBeenCalledWith(
+        expect.objectContaining({ operationId: "op-1", conversationId: "conv-42", isZelle: true }),
+      );
+      await act(async () => root.unmount());
+    });
+
+    it("passes isZelle:false for a non-Zelle operation", async () => {
+      const { node, root } = await render(readyOperation({ deliveryMethod: "cuban_card" }));
+
+      await act(async () =>
+        findCompleteButton(node)!.dispatchEvent(new MouseEvent("click", { bubbles: true })),
+      );
+
+      expect(CompleteTransferContainer).toHaveBeenCalledWith(
+        expect.objectContaining({ isZelle: false }),
+      );
+      await act(async () => root.unmount());
+    });
+
+    it("onCancel from the section restores the button", async () => {
+      const { node, root } = await render(readyOperation());
+
+      await act(async () =>
+        findCompleteButton(node)!.dispatchEvent(new MouseEvent("click", { bubbles: true })),
+      );
+      await act(async () =>
+        node
+          .querySelector('[data-testid="complete-transfer-cancel"]')!
+          .dispatchEvent(new MouseEvent("click", { bubbles: true })),
+      );
+
+      expect(findCompleteButton(node)).not.toBeUndefined();
+      expect(node.querySelector('[data-testid="complete-transfer-stub"]')).toBeNull();
+      await act(async () => root.unmount());
+    });
+
+    it("onDone from the section refetches (onChanged) and restores the button", async () => {
+      const onChanged = vi.fn();
+      const { node, root } = await render(readyOperation(), { onChanged });
+
+      await act(async () =>
+        findCompleteButton(node)!.dispatchEvent(new MouseEvent("click", { bubbles: true })),
+      );
+      await act(async () =>
+        node
+          .querySelector('[data-testid="complete-transfer-done"]')!
+          .dispatchEvent(new MouseEvent("click", { bubbles: true })),
+      );
+
+      expect(onChanged).toHaveBeenCalledTimes(1);
+      expect(findCompleteButton(node)).not.toBeUndefined();
       await act(async () => root.unmount());
     });
   });

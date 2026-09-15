@@ -136,6 +136,7 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
             onChanged={() => load(conversationId)}
             expanded={expandedId === operation.id}
             onToggle={() => setExpandedId((current) => (current === operation.id ? null : operation.id))}
+            conversationId={conversationId}
           />
         ))}
       </div>

@@ -683,6 +683,9 @@ describe("RemittanceOperationCard", () => {
       const accountInput = node.querySelector<HTMLInputElement>("#inline-zelle-account-ben-1")!;
       expect(nameInput.value).toBe("Yaima Perez");
       expect(accountInput.value).toBe("yaima@example.invalid");
+      // The first field takes focus so it is obvious the data is now editable.
+      expect(document.activeElement).toBe(nameInput);
+      expect(nameInput.parentElement!.className).toContain("border-input");
       expect(button(node, "Copy Name")).toBeNull();
       expect(button(node, "Copy Zelle account")).toBeNull();
       expect(node.querySelector("select")).toBeNull();

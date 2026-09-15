@@ -588,6 +588,7 @@ function BeneficiaryEditFields({ beneficiary, amount, showAmountField, t, onCanc
           ariaLabel={t("amount")}
           disabled={pending}
           inputMode="decimal"
+          autoFocus
         />
       )}
 
@@ -602,6 +603,7 @@ function BeneficiaryEditFields({ beneficiary, amount, showAmountField, t, onCanc
             ariaLabel={t("name")}
             disabled={pending}
             variant="name"
+            autoFocus={!showAmountField}
           />
           <InlineEditField
             id={`inline-zelle-account-${beneficiary.id}`}
@@ -624,6 +626,7 @@ function BeneficiaryEditFields({ beneficiary, amount, showAmountField, t, onCanc
             ariaLabel={t("card")}
             disabled={pending}
             inputMode="numeric"
+            autoFocus={!showAmountField}
           />
           <InlineEditField
             id={`inline-phone-${beneficiary.id}`}

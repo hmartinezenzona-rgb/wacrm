@@ -55,6 +55,11 @@ interface RemittanceOperationCardProps {
    *  "Complete transfer" section, which needs it to send the delivery
    *  proof and to check the 24-hour window. */
   conversationId: string;
+  /** Bumped by the panel container after a silent refetch (realtime
+   *  `deals` change, or another card's `onChanged`) — forwarded to
+   *  `DepositReviewContainer` so it silently refetches its own receipts
+   *  too, without a loading flash. */
+  refreshToken?: number;
 }
 
 /** The RPC never returns these (see types.ts), but the correction API can
@@ -212,6 +217,7 @@ export function RemittanceOperationCard({
   expanded,
   onToggle,
   conversationId,
+  refreshToken,
 }: RemittanceOperationCardProps) {
   const t = useTranslations("Inbox.operationsPanel");
   const [openForm, setOpenForm] = useState<OpenFormState | null>(null);
@@ -365,6 +371,7 @@ export function RemittanceOperationCard({
             onChanged={onChanged}
             summaryAmount={summaryAmount}
             onAddAmount={editable ? () => toggleForm({ kind: "operation" }) : undefined}
+            refreshToken={refreshToken}
           />
 
           <div className="pt-3">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { canForceVerify, type AccountRole } from "@/lib/auth/roles";
 import { fetchOperationReceipts, forceVerifyDeposit, verifyDeposit } from "@/lib/remittance-operations/commands";
@@ -21,6 +21,11 @@ interface DepositReviewContainerProps {
    *  these, this container has no opinion on them. */
   summaryAmount?: SummaryAmount | null;
   onAddAmount?: () => void;
+  /** Bumped by the panel container after a silent refetch (realtime
+   *  `deals` change). A change after mount triggers a silent receipts
+   *  refetch here too — no loading flash, existing section state is kept
+   *  as-is aside from the replaced data. */
+  refreshToken?: number;
 }
 
 type ResultBanner = { kind: "success" | "error"; message: string } | null;
@@ -67,6 +72,7 @@ export function DepositReviewContainer({
   onChanged,
   summaryAmount,
   onAddAmount,
+  refreshToken,
 }: DepositReviewContainerProps) {
   const t = useTranslations("Inbox.operationsPanel");
   const [state, setState] = useState<FetchState>({ status: "loading" });
@@ -86,6 +92,27 @@ export function DepositReviewContainer({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
+
+  // Silent refresh: a `refreshToken` bump after mount (never the initial
+  // mount itself, which the effect above already handles) means the panel
+  // container saw a `deals` change and wants receipts re-fetched — without
+  // switching to the loading state or wiping the section on failure.
+  const didMountRef = useRef(false);
+
+  const refetchSilently = useCallback(async () => {
+    const response = await fetchOperationReceipts(operationId);
+    if (!response.ok) return;
+    setState({ status: "loaded", data: response.data });
+  }, [operationId]);
+
+  useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    refetchSilently();
+  }, [refreshToken, refetchSilently]);
 
   function messageForResultado(resultado: string): { kind: "success" | "error"; message: string } {
     const isSuccess = SUCCESS_RESULTS.includes(resultado);

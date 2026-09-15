@@ -304,4 +304,46 @@ describe("DepositReviewContainer", () => {
     await act(async () => warningButton.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     expect(onAddAmount).toHaveBeenCalledTimes(1);
   });
+
+  it("refetches receipts silently when refreshToken changes, without showing the loading text", async () => {
+    const { DepositReviewContainer } = await import("./deposit-review-container");
+    const node = document.createElement("div");
+    document.body.appendChild(node);
+    const root = createRoot(node);
+
+    fetchOperationReceipts
+      .mockResolvedValueOnce({ ok: true, data: readModel() })
+      .mockResolvedValueOnce({ ok: true, data: readModel({ objetivo: 30000 }) });
+
+    await act(async () =>
+      root.render(
+        <DepositReviewContainer
+          operationId="op-1"
+          canEdit={true}
+          role="admin"
+          onChanged={vi.fn()}
+          refreshToken={0}
+        />,
+      ),
+    );
+    await flush();
+    expect(fetchOperationReceipts).toHaveBeenCalledTimes(1);
+
+    await act(async () =>
+      root.render(
+        <DepositReviewContainer
+          operationId="op-1"
+          canEdit={true}
+          role="admin"
+          onChanged={vi.fn()}
+          refreshToken={1}
+        />,
+      ),
+    );
+    await flush();
+
+    expect(fetchOperationReceipts).toHaveBeenCalledTimes(2);
+    expect(node.textContent).not.toContain(T.loading);
+    await act(async () => root.unmount());
+  });
 });

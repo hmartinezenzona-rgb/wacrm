@@ -4,9 +4,16 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/hooks/use-auth";
 import { useCan } from "@/hooks/use-can";
+import { createClient } from "@/lib/supabase/client";
 import type { ConversationOperationsRead, RemittanceOperationRead } from "@/lib/remittance-operations/types";
 import { RemittanceOperationCard } from "./remittance-operation-card";
 import { ResolverStateBanner } from "./resolver-state-banner";
+
+/** How long to wait after a `deals` change before refetching — n8n's sync
+ *  triggers can fire several UPDATEs on the same deal in quick succession
+ *  (one per field group), so a short debounce coalesces a burst into one
+ *  fetch instead of refetching per event. */
+const REALTIME_REFRESH_DEBOUNCE_MS = 800;
 
 interface OperationsPanelContainerProps {
   /** Active conversation id, or `null` when no conversation is selected. */
@@ -63,36 +70,71 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
   const { accountRole } = useAuth();
   const [state, setState] = useState<PanelState>({ status: "idle" });
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Bumped after every silent refetch (realtime-triggered or from a card's
+  // own `onChanged`) and forwarded down to `DepositReviewContainer` so it
+  // re-fetches its receipts too, without either side flashing a loading
+  // state.
+  const [refreshToken, setRefreshToken] = useState(0);
 
-  const load = useCallback(async (id: string) => {
-    setState({ status: "loading" });
-    try {
-      const response = await fetch(
-        `/api/remittance-operations?conversationId=${id}`,
-        { cache: "no-store" },
-      );
-      if (!response.ok) {
-        setState({ status: "error" });
-        return;
-      }
-      const data = (await response.json()) as ConversationOperationsRead;
-      setState({ status: "loaded", data });
-      // Auto-expand only ever considers OPEN operations — a lone history
-      // row must never auto-open (design: "History card ... COLLAPSED by
-      // default"). Staying on a previously-expanded id (open or history)
-      // across a refetch is unaffected by that scoping.
-      const openOperations = data.operations.filter((op) => !op.isHistory);
-      setExpandedId((previous) =>
-        data.operations.some((op) => op.id === previous)
-          ? previous
-          : openOperations.length === 1
-            ? openOperations[0].id
-            : null,
-      );
-    } catch {
-      setState({ status: "error" });
-    }
+  const applyLoadedData = useCallback((data: ConversationOperationsRead) => {
+    setState({ status: "loaded", data });
+    // Auto-expand only ever considers OPEN operations — a lone history
+    // row must never auto-open (design: "History card ... COLLAPSED by
+    // default"). Staying on a previously-expanded id (open or history)
+    // across a refetch is unaffected by that scoping.
+    const openOperations = data.operations.filter((op) => !op.isHistory);
+    setExpandedId((previous) =>
+      data.operations.some((op) => op.id === previous)
+        ? previous
+        : openOperations.length === 1
+          ? openOperations[0].id
+          : null,
+    );
   }, []);
+
+  const load = useCallback(
+    async (id: string) => {
+      setState({ status: "loading" });
+      try {
+        const response = await fetch(
+          `/api/remittance-operations?conversationId=${id}`,
+          { cache: "no-store" },
+        );
+        if (!response.ok) {
+          setState({ status: "error" });
+          return;
+        }
+        const data = (await response.json()) as ConversationOperationsRead;
+        applyLoadedData(data);
+      } catch {
+        setState({ status: "error" });
+      }
+    },
+    [applyLoadedData],
+  );
+
+  // Same fetch as `load`, but never switches the UI to the loading state
+  // and never shows an error screen on failure — used for background
+  // refreshes (realtime `deals` changes, a card's own `onChanged`) where
+  // flashing "Loading…" or wiping the panel on a transient failure would
+  // be worse than briefly showing stale data.
+  const silentLoad = useCallback(
+    async (id: string) => {
+      try {
+        const response = await fetch(
+          `/api/remittance-operations?conversationId=${id}`,
+          { cache: "no-store" },
+        );
+        if (!response.ok) return;
+        const data = (await response.json()) as ConversationOperationsRead;
+        applyLoadedData(data);
+        setRefreshToken((token) => token + 1);
+      } catch {
+        // Keep whatever is currently rendered.
+      }
+    },
+    [applyLoadedData],
+  );
 
   useEffect(() => {
     // No direct setState here on the `!conversationId` path — deselecting
@@ -105,6 +147,41 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
       load(conversationId);
     }
   }, [conversationId, load]);
+
+  // Live refresh: every automation write to remittance_operations/
+  // remittance_beneficiaries (n8n) happens inside the same transaction as
+  // an UPDATE/INSERT on `deals` (sync triggers) — `deals` is in the
+  // `supabase_realtime` publication, the remittance_* tables aren't. So we
+  // subscribe to `deals` changes for this conversation and treat any of
+  // them as "something here may have changed", debounced so a burst of
+  // per-field UPDATEs from one sync only refetches once.
+  useEffect(() => {
+    if (!conversationId) return;
+    const supabase = createClient();
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleSilentRefetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null;
+        silentLoad(conversationId);
+      }, REALTIME_REFRESH_DEBOUNCE_MS);
+    };
+
+    const channel = supabase
+      .channel(`operations-panel-${conversationId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "deals", filter: `conversation_id=eq.${conversationId}` },
+        scheduleSilentRefetch,
+      )
+      .subscribe();
+
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
+  }, [conversationId, silentLoad]);
 
   if (!conversationId) return null;
 
@@ -146,10 +223,11 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
                 canEdit={canEdit}
                 role={accountRole}
                 otherOpenOperations={otherOpenOperationsFor(operation, openOperations)}
-                onChanged={() => load(conversationId)}
+                onChanged={() => silentLoad(conversationId)}
                 expanded={expandedId === operation.id}
                 onToggle={toggleHandlerFor(operation.id)}
                 conversationId={conversationId}
+                refreshToken={refreshToken}
               />
             ))}
           </div>
@@ -172,10 +250,11 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
                 canEdit={false}
                 role={null}
                 otherOpenOperations={[]}
-                onChanged={() => load(conversationId)}
+                onChanged={() => silentLoad(conversationId)}
                 expanded={expandedId === operation.id}
                 onToggle={toggleHandlerFor(operation.id)}
                 conversationId={conversationId}
+                refreshToken={refreshToken}
               />
             ))}
           </div>

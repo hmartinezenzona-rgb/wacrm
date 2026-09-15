@@ -11,7 +11,7 @@ import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import en from "../../../../messages/en.json";
-import type { ConversationOperationsRead } from "@/lib/remittance-operations/types";
+import type { ConversationOperationsRead, RemittanceOperationRead } from "@/lib/remittance-operations/types";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -49,6 +49,61 @@ vi.mock("./deposit-review-container", () => ({
   DepositReviewContainer: () => null,
 }));
 
+// Chainable `supabase.channel(...).on(...).subscribe()` mock that records
+// every channel created (name, the `on()` args, subscribe calls) so tests
+// can capture the realtime handler and assert on cleanup, without pulling
+// in the real `@supabase/ssr` client.
+const mockRealtime = vi.hoisted(() => {
+  interface MockChannel {
+    name: string;
+    handler: ((payload?: unknown) => void) | null;
+    onCalls: Array<[string, unknown]>;
+    subscribeCalls: number;
+    on: (event: string, filter: unknown, handler: (payload?: unknown) => void) => MockChannel;
+    subscribe: () => MockChannel;
+  }
+  const channels: MockChannel[] = [];
+  const channelCalls: string[] = [];
+  const removeChannelCalls: unknown[] = [];
+
+  function channel(name: string): MockChannel {
+    channelCalls.push(name);
+    const chan: MockChannel = {
+      name,
+      handler: null,
+      onCalls: [],
+      subscribeCalls: 0,
+      on(event, filter, handler) {
+        chan.onCalls.push([event, filter]);
+        chan.handler = handler;
+        return chan;
+      },
+      subscribe() {
+        chan.subscribeCalls += 1;
+        return chan;
+      },
+    };
+    channels.push(chan);
+    return chan;
+  }
+
+  function removeChannel(ch: unknown) {
+    removeChannelCalls.push(ch);
+  }
+
+  function reset() {
+    channels.length = 0;
+    channelCalls.length = 0;
+    removeChannelCalls.length = 0;
+  }
+
+  return { channels, channelCalls, removeChannelCalls, channel, removeChannel, reset };
+});
+
+vi.mock("@/lib/supabase/client", () => ({
+  createClient: () => ({ channel: mockRealtime.channel, removeChannel: mockRealtime.removeChannel }),
+}));
+
 function flush() {
   return act(async () => {
     await Promise.resolve();
@@ -60,6 +115,8 @@ afterEach(() => {
   document.body.replaceChildren();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
+  mockRealtime.reset();
 });
 
 function jsonResponse(body: unknown, status = 200) {
@@ -406,6 +463,126 @@ describe("OperationsPanelContainer", () => {
         historyArticle.querySelector(`button[aria-label="${en.Inbox.operationsPanel.editOperation}"]`),
       ).toBeNull();
       expect(historyArticle.textContent).not.toContain(en.Inbox.operationsPanel.completeTransfer.button);
+      await act(async () => root.unmount());
+    });
+  });
+
+  describe("live refresh (realtime)", () => {
+    // beneficiariesComplete:false demotes ready_to_transfer to
+    // awaiting_beneficiary (effectiveStatus) — label "Waiting for
+    // beneficiary". Flipping it to true (simulating the n8n-driven sync
+    // trigger on `deals`) promotes it back to "Ready to transfer".
+    const WAITING_OP = { ...OP1, status: "ready_to_transfer" as const, beneficiariesComplete: false };
+    const READY_OP = { ...WAITING_OP, beneficiariesComplete: true };
+
+    function dataWith(operation: RemittanceOperationRead) {
+      return {
+        resolverState: "unica" as const,
+        resolverOperationId: operation.id,
+        resolverCandidateCount: 1,
+        operations: [operation],
+      };
+    }
+
+    it("subscribes to deals changes filtered by conversation and removes the channel on unmount", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(dataWith(WAITING_OP))));
+
+      const { root } = await renderContainer("conv-rt-1");
+      await flush();
+
+      expect(mockRealtime.channelCalls).toEqual(["operations-panel-conv-rt-1"]);
+      const chan = mockRealtime.channels[0]!;
+      expect(chan.onCalls).toHaveLength(1);
+      expect(chan.onCalls[0]![0]).toBe("postgres_changes");
+      expect(chan.onCalls[0]![1]).toEqual({
+        event: "*",
+        schema: "public",
+        table: "deals",
+        filter: "conversation_id=eq.conv-rt-1",
+      });
+      expect(chan.subscribeCalls).toBe(1);
+
+      await act(async () => root.unmount());
+      expect(mockRealtime.removeChannelCalls).toEqual([chan]);
+    });
+
+    it("coalesces two quick events into exactly one silent fetch after 800ms, with no loading flash and fresh data", async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse(dataWith(WAITING_OP)))
+        .mockResolvedValueOnce(jsonResponse(dataWith(READY_OP)));
+      vi.stubGlobal("fetch", fetchMock);
+
+      vi.useFakeTimers();
+      const { node } = await renderContainer("conv-rt-2");
+      await flush();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(node.textContent).toContain(en.Inbox.operationsPanel.status.awaiting_beneficiary);
+
+      const chan = mockRealtime.channels[0]!;
+      await act(async () => {
+        chan.handler!();
+        chan.handler!();
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(800);
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(node.textContent).not.toContain(en.Inbox.operationsPanel.loading);
+      expect(node.textContent).toContain(en.Inbox.operationsPanel.status.ready_to_transfer);
+      expect(node.textContent).not.toContain(en.Inbox.operationsPanel.status.awaiting_beneficiary);
+    });
+
+    it("keeps the previous content when the silent refetch fails", async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse(dataWith(WAITING_OP)))
+        .mockResolvedValueOnce(jsonResponse({ error: "boom" }, 500));
+      vi.stubGlobal("fetch", fetchMock);
+
+      vi.useFakeTimers();
+      const { node } = await renderContainer("conv-rt-3");
+      await flush();
+
+      const chan = mockRealtime.channels[0]!;
+      await act(async () => {
+        chan.handler!();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(800);
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(node.textContent).toContain(en.Inbox.operationsPanel.status.awaiting_beneficiary);
+      expect(node.textContent).not.toContain(en.Inbox.operationsPanel.loadError);
+    });
+
+    it("unsubscribes the old channel and subscribes a new one when conversationId changes", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(jsonResponse(dataWith(WAITING_OP))),
+      );
+
+      const { OperationsPanelContainer } = await import("./operations-panel-container");
+      const node = document.createElement("div");
+      document.body.appendChild(node);
+      const root = createRoot(node);
+      await act(async () => root.render(<OperationsPanelContainer conversationId="conv-rt-a" />));
+      await flush();
+
+      expect(mockRealtime.channels).toHaveLength(1);
+      const firstChannel = mockRealtime.channels[0]!;
+
+      await act(async () => root.render(<OperationsPanelContainer conversationId="conv-rt-b" />));
+      await flush();
+
+      expect(mockRealtime.removeChannelCalls).toContain(firstChannel);
+      expect(mockRealtime.channels).toHaveLength(2);
+      expect(mockRealtime.channels[1]!.name).toBe("operations-panel-conv-rt-b");
+
       await act(async () => root.unmount());
     });
   });

@@ -296,8 +296,10 @@ describe("RemittanceOperationCard", () => {
     await act(async () => root.unmount());
   });
 
-  describe("Zelle beneficiary: name line with pencil/reassign on the same line", () => {
-    it("shows the name, edit pencil and no card/phone chips", async () => {
+  describe("Zelle beneficiary: name and account chips, actions on the Deliver to line", () => {
+    it("shows the name as a copy chip, with pencil/move on the Deliver to line and no card/phone chips", async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      stubClipboard(writeText);
       const { node, root } = await render(
         operation({
           beneficiaries: [beneficiary({ beneficiaryType: "zelle", name: "Yaima Perez", zelleAccount: "yaima@example.invalid" })],
@@ -305,15 +307,20 @@ describe("RemittanceOperationCard", () => {
         { otherOpenOperations: [{ id: "op-2", label: "x" }] },
       );
 
-      expect(node.textContent).toContain("Yaima Perez");
+      const nameChip = button(node, "Copy Name")!;
+      expect(nameChip).not.toBeNull();
+      expect(nameChip.textContent).toContain("Yaima Perez");
+      expect(nameChip.querySelector("svg")).not.toBeNull();
+      await act(async () => nameChip.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+      expect(writeText).toHaveBeenCalledWith("Yaima Perez");
+
       const edit = button(node, en.Inbox.operationsPanel.editBeneficiary)!;
       const move = button(node, en.Inbox.operationsPanel.moveBeneficiary)!;
-      expect(edit).not.toBeNull();
-      expect(move).not.toBeNull();
-      const nameLine = node.querySelector("li > div")!;
-      expect(nameLine.textContent).toContain("Yaima Perez");
-      expect(nameLine.contains(edit)).toBe(true);
-      expect(nameLine.contains(move)).toBe(true);
+      const deliverToLine = node.querySelector("h4")!;
+      expect(deliverToLine.textContent).toContain(en.Inbox.operationsPanel.deliverTo);
+      expect(deliverToLine.parentElement!.contains(edit)).toBe(true);
+      expect(deliverToLine.parentElement!.contains(move)).toBe(true);
+      expect(node.querySelector("li")!.contains(edit)).toBe(false);
       expect(node.textContent).not.toContain("9205");
       await act(async () => root.unmount());
     });
@@ -379,7 +386,7 @@ describe("RemittanceOperationCard", () => {
       await act(async () => root.unmount());
     });
 
-    it("puts the pencil/move on their own slim line above the chips when editable", async () => {
+    it("puts a single beneficiary's pencil/move on the Deliver to line", async () => {
       const { node, root } = await render(
         operation({ beneficiaries: [beneficiary({ cardNumber: "9205123412349412", amount: 60000, currency: "CUP" })] }),
         { otherOpenOperations: [{ id: "op-2", label: "x" }] },
@@ -387,6 +394,26 @@ describe("RemittanceOperationCard", () => {
 
       const edit = button(node, en.Inbox.operationsPanel.editBeneficiary)!;
       const move = button(node, en.Inbox.operationsPanel.moveBeneficiary)!;
+      const deliverToLine = node.querySelector("h4")!.parentElement!;
+      expect(deliverToLine.contains(edit)).toBe(true);
+      expect(deliverToLine.contains(move)).toBe(true);
+      expect(edit.closest("li")).toBeNull();
+      await act(async () => root.unmount());
+    });
+
+    it("puts each beneficiary's pencil/move on its own slim line when there are several", async () => {
+      const { node, root } = await render(
+        operation({
+          beneficiaries: [
+            beneficiary({ id: "b-1", cardNumber: "9205123412349412", amount: 30000, currency: "CUP" }),
+            beneficiary({ id: "b-2", cardNumber: "9205999912349412", amount: 30000, currency: "CUP" }),
+          ],
+        }),
+        { otherOpenOperations: [{ id: "op-2", label: "x" }] },
+      );
+
+      const edit = node.querySelectorAll(`button[aria-label="${en.Inbox.operationsPanel.editBeneficiary}"]`)[0] as HTMLButtonElement;
+      const move = node.querySelectorAll(`button[aria-label="${en.Inbox.operationsPanel.moveBeneficiary}"]`)[0] as HTMLButtonElement;
       const item = edit.closest("li")!;
       const actionLine = item.firstElementChild!;
       expect(actionLine.contains(edit)).toBe(true);

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowRightLeft, AtSign, Banknote, ChevronDown, CreditCard, Lock, Pencil, Phone, Users } from "lucide-react";
+import { ArrowRightLeft, AtSign, Banknote, ChevronDown, CreditCard, Lock, Pencil, Phone, UserRound, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { AccountRole } from "@/lib/auth/roles";
 import type { RemittanceBeneficiaryRead, RemittanceOperationRead } from "@/lib/remittance-operations/types";
@@ -202,6 +202,34 @@ export function RemittanceOperationCard({
   const showCompleteTransfer = Boolean(onCompleteTransfer) && operation.status === "ready_to_transfer" && editable;
   const summaryAmount = computeSummaryAmount(operation, t as (key: string) => string);
 
+  const beneficiaryActions = (beneficiary: RemittanceOperationRead["beneficiaries"][number]) =>
+    editable && (
+      <>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          aria-label={t("editBeneficiary")}
+          title={t("editBeneficiary")}
+          onClick={() => toggleForm({ kind: "beneficiary", beneficiaryId: beneficiary.id })}
+        >
+          <Pencil aria-hidden="true" />
+        </Button>
+        {otherOpenOperations.length > 0 && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            aria-label={t("moveBeneficiary")}
+            title={t("moveBeneficiary")}
+            onClick={() => toggleForm({ kind: "reassign", beneficiaryId: beneficiary.id })}
+          >
+            <ArrowRightLeft aria-hidden="true" />
+          </Button>
+        )}
+      </>
+    );
+
   return (
     <article className="rounded-lg border border-border bg-card px-2 py-2.5">
       <div className="flex items-center gap-1">
@@ -283,11 +311,14 @@ export function RemittanceOperationCard({
             onAddAmount={editable ? () => toggleForm({ kind: "operation" }) : undefined}
           />
 
-          <div>
-            <h4 className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              {t("deliverTo")}
-              {isLocked("beneficiaries") && <Lock size={12} aria-label={t("lockedByOperator")} />}
-            </h4>
+          <div className="pt-3">
+            <div className="flex min-h-6 items-center gap-1">
+              <h4 className="flex flex-1 items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                {t("deliverTo")}
+                {isLocked("beneficiaries") && <Lock size={12} aria-label={t("lockedByOperator")} />}
+              </h4>
+              {operation.beneficiaries.length === 1 && beneficiaryActions(operation.beneficiaries[0])}
+            </div>
             {operation.beneficiaries.length === 0 ? (
               <p className="mt-1 text-xs text-muted-foreground">{t("noBeneficiaries")}</p>
             ) : (
@@ -305,44 +336,10 @@ export function RemittanceOperationCard({
                   const isMovingBeneficiary =
                     openForm?.kind === "reassign" && openForm.beneficiaryId === beneficiary.id;
 
-                  const actions = editable && (
-                    <>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label={t("editBeneficiary")}
-                        title={t("editBeneficiary")}
-                        onClick={() => toggleForm({ kind: "beneficiary", beneficiaryId: beneficiary.id })}
-                      >
-                        <Pencil aria-hidden="true" />
-                      </Button>
-                      {otherOpenOperations.length > 0 && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-xs"
-                          aria-label={t("moveBeneficiary")}
-                          title={t("moveBeneficiary")}
-                          onClick={() => toggleForm({ kind: "reassign", beneficiaryId: beneficiary.id })}
-                        >
-                          <ArrowRightLeft aria-hidden="true" />
-                        </Button>
-                      )}
-                    </>
-                  );
-
                   return (
                     <li key={beneficiary.id} className="space-y-1.5 text-xs">
-                      {isZelle ? (
-                        <div className="flex items-center gap-1">
-                          <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-                            {beneficiary.name ?? t("beneficiaryNameUnavailable")}
-                          </span>
-                          {actions}
-                        </div>
-                      ) : (
-                        editable && <div className="flex justify-end gap-1">{actions}</div>
+                      {operation.beneficiaries.length >= 2 && editable && (
+                        <div className="flex justify-end gap-1">{beneficiaryActions(beneficiary)}</div>
                       )}
 
                       <div className="space-y-1.5">
@@ -355,6 +352,21 @@ export function RemittanceOperationCard({
                           </div>
                         )}
 
+                        {isZelle && (
+                          beneficiary.name ? (
+                            <CopyChip
+                              value={beneficiary.name}
+                              display={<span className="font-sans text-sm font-medium">{beneficiary.name}</span>}
+                              icon={<UserRound className="size-3.5" aria-hidden="true" />}
+                              ariaLabel={t("copyValue", { label: t("name") })}
+                            />
+                          ) : (
+                            <p className="flex items-center gap-2 px-2 text-xs text-muted-foreground">
+                              <UserRound className="size-3.5" aria-hidden="true" />
+                              {t("beneficiaryNameUnavailable")}
+                            </p>
+                          )
+                        )}
                         {isZelle && beneficiary.zelleAccount && (
                           <CopyChip
                             value={beneficiary.zelleAccount}

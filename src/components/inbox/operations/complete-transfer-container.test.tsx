@@ -159,6 +159,22 @@ function actionButton(node: Element, label: string): HTMLButtonElement | undefin
     | undefined;
 }
 
+function pasteEventWithImage(file: File): Event {
+  const event = new Event("paste", { bubbles: true, cancelable: true });
+  Object.defineProperty(event, "clipboardData", {
+    value: { files: [file], items: [{ kind: "file", type: file.type }] },
+  });
+  return event;
+}
+
+function pasteEventWithText(text: string): Event {
+  const event = new Event("paste", { bubbles: true, cancelable: true });
+  Object.defineProperty(event, "clipboardData", {
+    value: { files: [], items: [{ kind: "string", type: "text/plain" }], getData: () => text },
+  });
+  return event;
+}
+
 async function pickFile(node: Element, file: File) {
   const input = node.querySelector<HTMLInputElement>('input[type="file"]')!;
   Object.defineProperty(input, "files", { value: [file], configurable: true });
@@ -311,6 +327,35 @@ describe("CompleteTransferContainer", () => {
       mode: "proof_sent",
       wamid: "wamid.ABC",
     });
+    await act(async () => root.unmount());
+  });
+
+  it("document paste of an image file attaches it without clicking the picker", async () => {
+    const { node, root } = await renderContainer();
+
+    await act(async () => {
+      document.dispatchEvent(pasteEventWithImage(pngFile()));
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(node.querySelector("img")).not.toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("paste into the caption textarea with plain text does not attach or replace the file", async () => {
+    const { node, root } = await renderContainer({ isZelle: true });
+    await pickFile(node, pngFile());
+    expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
+
+    const textarea = node.querySelector("textarea")!;
+    await act(async () => {
+      textarea.dispatchEvent(pasteEventWithText("hello"));
+      await Promise.resolve();
+    });
+
+    expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
     await act(async () => root.unmount());
   });
 

@@ -10,7 +10,9 @@
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { DeliveryProofPanel } from "@/components/pipelines/delivery-proof";
-import type { ProofImageKind, ProofRejection } from "@/lib/pipelines/delivery-proof";
+import { PROOF_MAX_BYTES, type ProofImageKind, type ProofRejection } from "@/lib/pipelines/delivery-proof";
+
+const MAX_MB = Math.round(PROOF_MAX_BYTES / 1024 / 1024);
 
 /**
  * One result line, shown below the checkbox. `"warning"` is the
@@ -82,6 +84,12 @@ export function CompleteTransferSection({
         busy={busy}
         canSend={canSend}
         showCaption={showCaption}
+        variant="compact"
+        labels={{
+          dropHint: t("proof.dropHint"),
+          dropFormats: t("proof.dropFormats", { mb: MAX_MB }),
+          removeAria: t("proof.removeAria"),
+        }}
       />
 
       <label className="flex items-center gap-2 text-xs text-foreground">

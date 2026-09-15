@@ -287,6 +287,7 @@
     },
     "operationsPanel": {
       "title": "Remittance operations",
+      "historyTitle": "History",
       "loading": "Loading remittance operations…",
       "loadError": "Couldn't load remittance operations.",
       "noOpenOperations": "No open remittance operations for this conversation.",
@@ -307,7 +308,9 @@
         "deposit_verification": "Deposit verification",
         "ready_to_transfer": "Ready to transfer",
         "transferring": "Transferring",
-        "incident": "Incident"
+        "incident": "Incident",
+        "awaiting_beneficiary": "Waiting for beneficiary",
+        "completed": "Completed"
       },
       "destinationCurrency": "Destination currency",
       "depositMethod": "Deposit method",
@@ -345,6 +348,12 @@
       "lockedByOperator": "Locked by an operator correction",
       "deliverTo": "Deliver to",
       "amountMissing": "Amount missing · add",
+      "history": {
+        "completedAt": "Completed {date}",
+        "proofSent": "with screenshot",
+        "noProof": "without screenshot",
+        "skipProof": "window closed, no screenshot"
+      },
       "completeTransfer": {
         "title": "Complete transfer",
         "button": "Complete transfer",
@@ -360,7 +369,13 @@
         "stageFailed": "The screenshot was sent but the operation could not be completed. Retry to finish.",
         "unconfirmed": "Could not confirm the screenshot was sent. Check the conversation before retrying.",
         "stale": "This operation changed. Reload the panel.",
-        "blocked": "This action isn't available right now."
+        "blocked": "This action isn't available right now.",
+        "proof": {
+          "dropHint": "Paste (Ctrl+V), drop or choose a screenshot",
+          "dropFormats": "PNG · JPG · WEBP · max {mb} MB",
+          "removeAria": "Remove screenshot",
+          "previewAlt": "Attached screenshot"
+        }
       },
       "viewer": {
         "zoomOut": "Zoom out",

@@ -44,6 +44,10 @@ function operation(overrides: Partial<RemittanceOperationRead> = {}): Remittance
     adminLockedFields: {},
     createdAt: "2026-09-14T00:00:00Z",
     completedAt: null,
+    isHistory: false,
+    beneficiariesComplete: false,
+    deliveryMode: null,
+    deliveredAt: null,
     beneficiaries: [],
     ...overrides,
   };

@@ -30,8 +30,9 @@
  */
 export type ResolverState = "unica" | "ninguna" | "ambigua";
 
-/** `remittance_operations.status`, non-terminal only — the RPC never
- *  returns `completed` or `cancelled` rows. */
+/** `remittance_operations.status`. The RPC never returns `cancelled` rows;
+ *  `completed` is returned only for history rows (migration 102) — see
+ *  `operation_is_history` on `RemittanceOperationsRpcRow`. */
 export type RemittanceOperationStatus =
   | "collecting_information"
   | "awaiting_deposit"
@@ -39,7 +40,14 @@ export type RemittanceOperationStatus =
   | "deposit_verification"
   | "ready_to_transfer"
   | "transferring"
-  | "incident";
+  | "incident"
+  | "completed";
+
+/** `remittance_operations.delivery_mode` (migrations 101/102) — how a
+ *  completed operation's delivery proof was handled. `legacy_pipeline`
+ *  covers operations completed before the delivery RPC existed (the old
+ *  Kanban drag-to-Entregada path), which never set this column. */
+export type OperationDeliveryMode = "proof_sent" | "no_proof" | "skip_proof" | "legacy_pipeline";
 
 /** `remittance_beneficiaries.beneficiary_type` (migration 042). */
 export type BeneficiaryType =
@@ -104,6 +112,19 @@ export interface RemittanceOperationRead {
   adminLockedFields: AdminLockedFields;
   createdAt: string;
   completedAt: string | null;
+  /** Whether this row is one of the (at most 10) read-only completed
+   *  history rows the RPC appends after the open operations (migration
+   *  102), rather than a live/open operation. */
+  isHistory: boolean;
+  /** `crm_beneficiarios_completos(operation_id)` (migration 102): every
+   *  `vigente` beneficiary has the fields its type requires, and there is
+   *  at least one. Drives `effectiveStatus` and the delivery gate. */
+  beneficiariesComplete: boolean;
+  /** How this operation's delivery proof was handled; `null` while the
+   *  operation isn't completed yet. */
+  deliveryMode: OperationDeliveryMode | null;
+  /** When this operation was delivered; `null` for open operations. */
+  deliveredAt: string | null;
   beneficiaries: RemittanceBeneficiaryRead[];
 }
 
@@ -158,6 +179,10 @@ export interface RemittanceOperationsRpcRow {
   beneficiary_amount_origin: AmountOrigin | null;
   beneficiary_currency: string | null;
   beneficiary_position: number | null;
+  operation_is_history: boolean | null;
+  operation_beneficiaries_complete: boolean | null;
+  operation_delivery_mode: OperationDeliveryMode | null;
+  operation_delivered_at: string | null;
 }
 
 // ============================================================

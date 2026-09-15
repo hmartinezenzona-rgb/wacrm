@@ -31,6 +31,21 @@ import {
 } from "@/lib/pipelines/delivery-proof";
 import type { SessionWindow } from "@/lib/inbox/session-window";
 
+/** English-copy overrides for the `"compact"` variant (panel-26). Every
+ *  field is optional — anything omitted falls back to the (Spanish)
+ *  `Pipelines.deliveryProof` translation, though the operations panel's
+ *  `CompleteTransferSection` always supplies all three it needs. */
+export interface DeliveryProofPanelLabels {
+  /** Replaces the default variant's two separate lines (`dropPaste` +
+   *  `dropOr`) with a single combined hint. */
+  dropHint: string;
+  /** Replaces `dropFormats` (still takes the `{mb}` value pre-substituted —
+   *  the caller already knows `PROOF_MAX_BYTES`). */
+  dropFormats: string;
+  /** Replaces `removeAria` on the compact thumbnail's round remove button. */
+  removeAria: string;
+}
+
 export interface DeliveryProofPanelProps {
   /** The file currently prepared, or null for the empty state. */
   file: File | null;
@@ -60,6 +75,16 @@ export interface DeliveryProofPanelProps {
    * recipient's name reaches the customer.
    */
   showCaption?: boolean;
+  /**
+   * `"default"` (omitted) is the pipelines board's panel, unchanged.
+   * `"compact"` is the denser shape the operations panel's "Complete
+   * transfer" section uses: no outer bordered box, a full-width drop zone,
+   * and a single round remove button on the thumbnail instead of
+   * "Change"/"Remove" text buttons.
+   */
+  variant?: "default" | "compact";
+  /** English-copy overrides for `variant="compact"`; ignored otherwise. */
+  labels?: DeliveryProofPanelLabels;
 }
 
 const MAX_MB = Math.round(PROOF_MAX_BYTES / 1024 / 1024);
@@ -82,11 +107,14 @@ export function DeliveryProofPanel({
   busy = false,
   canSend = true,
   showCaption = true,
+  variant = "default",
+  labels,
 }: DeliveryProofPanelProps) {
   const t = useTranslations("Pipelines.deliveryProof");
   const inputRef = useRef<HTMLInputElement>(null);
   const [checking, setChecking] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const compact = variant === "compact";
 
   const locked = busy || !canSend;
 
@@ -133,6 +161,100 @@ export function DeliveryProofPanel({
   );
 
   const windowClosed = sessionWindow?.expired === true;
+
+  if (compact) {
+    const dropHint = labels?.dropHint ?? `${t("dropPaste")} ${t("dropOr")}`;
+    const dropFormats = labels?.dropFormats ?? t("dropFormats", { mb: MAX_MB });
+    const removeAria = labels?.removeAria ?? t("removeAria");
+
+    return (
+      <div className="grid gap-2">
+        {!file ? (
+          <div
+            role="button"
+            tabIndex={locked ? -1 : 0}
+            aria-disabled={locked}
+            onPaste={handlePaste}
+            onClick={() => !locked && inputRef.current?.click()}
+            onKeyDown={(e) => {
+              if (locked) return;
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                inputRef.current?.click();
+              }
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              if (!locked) setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={handleDrop}
+            className={`flex w-full min-h-[72px] flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed px-3 py-4 text-center text-xs transition-colors ${
+              locked
+                ? "cursor-not-allowed border-border/50 text-muted-foreground/50"
+                : dragOver
+                  ? "cursor-pointer border-primary bg-primary/5 text-foreground"
+                  : "cursor-pointer border-border text-muted-foreground hover:border-primary/50 hover:bg-muted"
+            }`}
+          >
+            {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageUp className="h-4 w-4" />}
+            <span>{dropHint}</span>
+            <span className="text-[11px] text-muted-foreground/70">{dropFormats}</span>
+          </div>
+        ) : (
+          <div className="relative w-full overflow-hidden rounded-md">
+            {previewUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={previewUrl}
+                alt={t("previewAlt")}
+                className="max-h-40 w-full rounded-md border border-border object-contain"
+              />
+            ) : (
+              <div className="flex h-40 w-full items-center justify-center rounded-md border border-border bg-muted">
+                <ImageUp className="h-4 w-4 text-muted-foreground" />
+              </div>
+            )}
+            <button
+              type="button"
+              disabled={locked}
+              onClick={onClear}
+              aria-label={removeAria}
+              className="absolute right-1.5 top-1.5 inline-flex size-6 items-center justify-center rounded-full bg-background/90 text-foreground shadow hover:bg-background disabled:opacity-50"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+
+        <input
+          ref={inputRef}
+          type="file"
+          accept={PROOF_ACCEPTED_MIME.join(",")}
+          className="hidden"
+          onChange={(e) => {
+            void accept(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
+
+        {file && showCaption && (
+          <div className="grid gap-1.5">
+            <Label className="text-muted-foreground">{t("noteLabel")}</Label>
+            <Textarea
+              value={caption}
+              disabled={locked}
+              onChange={(e) => onCaptionChange(e.target.value)}
+              onPaste={handlePaste}
+              placeholder={t("notePlaceholder")}
+              className="min-h-[60px] border-border bg-muted text-foreground"
+            />
+            <p className="text-[11px] text-muted-foreground">{t("noteHint")}</p>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="grid gap-2 rounded-lg border border-border bg-muted/40 p-3">

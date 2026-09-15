@@ -100,8 +100,8 @@ describe("StatusChip", () => {
     }
   });
 
-  it("uses the amber tone for deposit_verification, deposit_received and awaiting_deposit", async () => {
-    for (const status of ["deposit_verification", "deposit_received", "awaiting_deposit"]) {
+  it("uses the amber tone for deposit_verification, deposit_received, awaiting_deposit and awaiting_beneficiary", async () => {
+    for (const status of ["deposit_verification", "deposit_received", "awaiting_deposit", "awaiting_beneficiary"]) {
       const { node, root } = await renderNode(<StatusChip status={status} label={status} />);
       const chip = node.firstElementChild as HTMLElement;
       expect(chip.className).toContain("text-amber-600");
@@ -116,8 +116,8 @@ describe("StatusChip", () => {
     await act(async () => root.unmount());
   });
 
-  it("uses the muted tone for collecting_information and any other/unknown status", async () => {
-    for (const status of ["collecting_information", "some_unknown_status"]) {
+  it("uses the muted tone for collecting_information, completed, and any other/unknown status", async () => {
+    for (const status of ["collecting_information", "completed", "some_unknown_status"]) {
       const { node, root } = await renderNode(<StatusChip status={status} label={status} />);
       const chip = node.firstElementChild as HTMLElement;
       expect(chip.className).toContain("text-muted-foreground");

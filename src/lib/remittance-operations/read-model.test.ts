@@ -39,6 +39,10 @@ function row(overrides: Partial<RemittanceOperationsRpcRow>): RemittanceOperatio
     beneficiary_amount_origin: null,
     beneficiary_currency: null,
     beneficiary_position: null,
+    operation_is_history: null,
+    operation_beneficiaries_complete: null,
+    operation_delivery_mode: null,
+    operation_delivered_at: null,
     ...overrides,
   };
 }
@@ -117,6 +121,49 @@ describe("mapRemittanceOperationsRows", () => {
     expect(op1?.quotedDestinationOrigin).toBe("calculated");
     expect(op1?.beneficiaries[0].amountOrigin).toBe("manual");
     expect(op2?.beneficiaries).toEqual([]);
+  });
+
+  it("maps history/readiness/delivery columns (migration 102)", () => {
+    const rows: RemittanceOperationsRpcRow[] = [
+      row({
+        operation_id: "op-1",
+        operation_status: "completed",
+        operation_service_type: "remesa",
+        operation_created_at: "2026-09-10T10:00:00Z",
+        operation_completed_at: "2026-09-14T12:30:00Z",
+        operation_is_history: true,
+        operation_beneficiaries_complete: true,
+        operation_delivery_mode: "proof_sent",
+        operation_delivered_at: "2026-09-14T12:30:00Z",
+      }),
+    ];
+
+    const result = mapRemittanceOperationsRows(rows);
+
+    const op1 = result.operations[0];
+    expect(op1.isHistory).toBe(true);
+    expect(op1.beneficiariesComplete).toBe(true);
+    expect(op1.deliveryMode).toBe("proof_sent");
+    expect(op1.deliveredAt).toBe("2026-09-14T12:30:00Z");
+  });
+
+  it("defaults isHistory/beneficiariesComplete/deliveryMode/deliveredAt when the RPC omits them", () => {
+    const rows: RemittanceOperationsRpcRow[] = [
+      row({
+        operation_id: "op-1",
+        operation_status: "collecting_information",
+        operation_service_type: "remesa",
+        operation_created_at: "2026-09-13T10:00:00Z",
+      }),
+    ];
+
+    const result = mapRemittanceOperationsRows(rows);
+
+    const op1 = result.operations[0];
+    expect(op1.isHistory).toBe(false);
+    expect(op1.beneficiariesComplete).toBe(false);
+    expect(op1.deliveryMode).toBeNull();
+    expect(op1.deliveredAt).toBeNull();
   });
 
   it("defaults quotedDestinationRate/quotedDestinationOrigin/amountOrigin to null when the RPC omits them", () => {

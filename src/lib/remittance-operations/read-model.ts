@@ -57,6 +57,10 @@ export function mapRemittanceOperationsRows(
         adminLockedFields: row.operation_admin_locked_fields ?? {},
         createdAt: row.operation_created_at ?? new Date(0).toISOString(),
         completedAt: row.operation_completed_at,
+        isHistory: row.operation_is_history ?? false,
+        beneficiariesComplete: row.operation_beneficiaries_complete ?? false,
+        deliveryMode: row.operation_delivery_mode ?? null,
+        deliveredAt: row.operation_delivered_at ?? null,
         beneficiaries: [],
       };
       operationsById.set(row.operation_id, operation);

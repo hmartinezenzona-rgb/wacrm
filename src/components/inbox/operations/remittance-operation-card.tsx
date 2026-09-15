@@ -6,7 +6,12 @@ import { ArrowRightLeft, AtSign, Banknote, ChevronDown, CreditCard, Lock, Pencil
 import { Button } from "@/components/ui/button";
 import type { AccountRole } from "@/lib/auth/roles";
 import { corregirBeneficiario } from "@/lib/remittance-operations/commands";
-import type { RemittanceBeneficiaryRead, RemittanceOperationRead } from "@/lib/remittance-operations/types";
+import { effectiveStatus } from "@/lib/remittance-operations/effective-status";
+import type {
+  OperationDeliveryMode,
+  RemittanceBeneficiaryRead,
+  RemittanceOperationRead,
+} from "@/lib/remittance-operations/types";
 import { OperationCorrectionForm } from "./operation-correction-form";
 import { BeneficiaryReassignControl } from "./beneficiary-reassign-control";
 import { CompleteTransferContainer } from "./complete-transfer-container";
@@ -159,6 +164,26 @@ function isZelleOperation(operation: RemittanceOperationRead): boolean {
   return operation.beneficiaries.length === 1 && operation.beneficiaries[0]!.beneficiaryType === "zelle";
 }
 
+/** Short, locale-aware date + time for the history card's "Completed …"
+ *  line — deliberately NOT pinned to "en-US" like `money()`: this is a
+ *  timestamp for the viewing operator, not a financial figure that must
+ *  read identically for everyone. */
+function formatCompletedAt(iso: string | null): string {
+  if (!iso) return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
+}
+
+/** `history.proofSent`/`noProof`/`skipProof` — only these three delivery
+ *  modes get a suffix; `legacy_pipeline` (and any future value) shows the
+ *  completed date alone. */
+const DELIVERY_MODE_HISTORY_KEY: Partial<Record<OperationDeliveryMode, string>> = {
+  proof_sent: "history.proofSent",
+  no_proof: "history.noProof",
+  skip_proof: "history.skipProof",
+};
+
 /**
  * Presentational: one open remesa operation. Header is minimal — the
  * source amount, an arrow, and the destination name (rail label,
@@ -191,8 +216,11 @@ export function RemittanceOperationCard({
   const t = useTranslations("Inbox.operationsPanel");
   const [openForm, setOpenForm] = useState<OpenFormState | null>(null);
 
-  const editable = canEdit && !TERMINAL_STATUSES.includes(operation.status);
+  // A history row is always read-only, on top of (and regardless of) the
+  // terminal-status check below — see the type's `isHistory` doc comment.
+  const editable = canEdit && !operation.isHistory && !TERMINAL_STATUSES.includes(operation.status);
   const isLocked = (key: string) => key in operation.adminLockedFields;
+  const status = effectiveStatus(operation);
 
   function toggleForm(next: OpenFormState) {
     setOpenForm((current) =>
@@ -213,7 +241,7 @@ export function RemittanceOperationCard({
 
   const lock = <Lock className="size-3 shrink-0" aria-label={t("lockedByOperator")} />;
 
-  const showCompleteTransfer = operation.status === "ready_to_transfer" && editable;
+  const showCompleteTransfer = status === "ready_to_transfer" && editable;
   const summaryAmount = computeSummaryAmount(operation, t as (key: string) => string);
 
   const beneficiaryActions = (
@@ -295,7 +323,7 @@ export function RemittanceOperationCard({
       </div>
 
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-        <StatusChip status={operation.status} label={t(`status.${operation.status}`)} />
+        <StatusChip status={status} label={t(`status.${status}`)} />
         {(operation.depositMethod !== null || isLocked("deposit_method")) && (
           <span
             className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 py-0.5 pl-0.5 pr-2 text-[11px] font-medium text-foreground"
@@ -315,6 +343,15 @@ export function RemittanceOperationCard({
         )}
       </div>
 
+      {operation.isHistory && (
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          {t("history.completedAt", { date: formatCompletedAt(operation.deliveredAt ?? operation.completedAt) })}
+          {operation.deliveryMode &&
+            DELIVERY_MODE_HISTORY_KEY[operation.deliveryMode] &&
+            ` · ${t(DELIVERY_MODE_HISTORY_KEY[operation.deliveryMode]!)}`}
+        </p>
+      )}
+
       {expanded && (
         <div className="mt-[22px] space-y-2.5">
           {openForm?.kind === "operation" && (
@@ -324,7 +361,7 @@ export function RemittanceOperationCard({
           <DepositReviewContainer
             operationId={operation.id}
             canEdit={editable}
-            role={role}
+            role={operation.isHistory ? null : role}
             onChanged={onChanged}
             summaryAmount={summaryAmount}
             onAddAmount={editable ? () => toggleForm({ kind: "operation" }) : undefined}

@@ -71,8 +71,10 @@ const STATUS_TONE: Record<string, string> = {
   deposit_verification: "text-amber-600 dark:text-amber-400",
   deposit_received: "text-amber-600 dark:text-amber-400",
   awaiting_deposit: "text-amber-600 dark:text-amber-400",
+  awaiting_beneficiary: "text-amber-600 dark:text-amber-400",
   incident: "text-red-600 dark:text-red-400",
   collecting_information: "text-muted-foreground",
+  completed: "text-muted-foreground",
 };
 
 const STATUS_TONE_FALLBACK = "text-muted-foreground";

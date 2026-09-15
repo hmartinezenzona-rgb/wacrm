@@ -81,6 +81,10 @@ const OP1 = {
   adminLockedFields: {},
   createdAt: "2026-09-14T00:00:00Z",
   completedAt: null,
+  isHistory: false,
+  beneficiariesComplete: true,
+  deliveryMode: null,
+  deliveredAt: null,
   beneficiaries: [
     {
       id: "ben-1",
@@ -102,6 +106,18 @@ const OP2 = {
   ...OP1,
   id: "op-2",
   status: "awaiting_deposit" as const,
+  beneficiaries: [],
+};
+
+const HISTORY_OP = {
+  ...OP1,
+  id: "op-hist-1",
+  status: "completed" as const,
+  isHistory: true,
+  beneficiariesComplete: true,
+  deliveryMode: "proof_sent" as const,
+  completedAt: "2026-09-10T00:00:00Z",
+  deliveredAt: "2026-09-10T00:00:00Z",
   beneficiaries: [],
 };
 
@@ -287,5 +303,110 @@ describe("OperationsPanelContainer", () => {
     expect(corregirBeneficiario).toHaveBeenCalledWith("ben-1", { name: "Yaima Perez Updated" });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     await act(async () => root.unmount());
+  });
+
+  describe("history (migration 102)", () => {
+    it("renders history operations, collapsed, below a History label, after the open operations", async () => {
+      const data: ConversationOperationsRead = {
+        resolverState: "unica",
+        resolverOperationId: "op-1",
+        resolverCandidateCount: 1,
+        operations: [OP1, HISTORY_OP],
+      };
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(data)));
+
+      const { node, root } = await renderContainer("conv-hist-1");
+      await flush();
+
+      expect(node.textContent).toContain("History");
+      expect(node.querySelectorAll("article")).toHaveLength(2);
+      const buttons = toggleButtons(node);
+      expect(buttons).toHaveLength(2);
+      // The single open op auto-expands; the history card stays collapsed.
+      expect(buttons[0].getAttribute("aria-expanded")).toBe("true");
+      expect(buttons[1].getAttribute("aria-expanded")).toBe("false");
+      await act(async () => root.unmount());
+    });
+
+    it("does not render a History section when there are no completed operations", async () => {
+      const data: ConversationOperationsRead = {
+        resolverState: "unica",
+        resolverOperationId: "op-1",
+        resolverCandidateCount: 1,
+        operations: [OP1],
+      };
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(data)));
+
+      const { node, root } = await renderContainer("conv-hist-2");
+      await flush();
+
+      expect(node.textContent).not.toContain("History");
+      await act(async () => root.unmount());
+    });
+
+    it("auto-expands the single open operation even with two history operations present (auto-expand only counts open ops)", async () => {
+      const data: ConversationOperationsRead = {
+        resolverState: "unica",
+        resolverOperationId: "op-1",
+        resolverCandidateCount: 1,
+        operations: [OP1, HISTORY_OP, { ...HISTORY_OP, id: "op-hist-2" }],
+      };
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(data)));
+
+      const { node, root } = await renderContainer("conv-hist-3");
+      await flush();
+
+      const buttons = toggleButtons(node);
+      expect(buttons).toHaveLength(3);
+      expect(buttons[0].getAttribute("aria-expanded")).toBe("true");
+      expect(buttons[1].getAttribute("aria-expanded")).toBe("false");
+      expect(buttons[2].getAttribute("aria-expanded")).toBe("false");
+      await act(async () => root.unmount());
+    });
+
+    it("still shows the no-open-operations message AND a collapsed History section when the resolver reports ninguna", async () => {
+      const data: ConversationOperationsRead = {
+        resolverState: "ninguna",
+        resolverOperationId: null,
+        resolverCandidateCount: 0,
+        operations: [HISTORY_OP],
+      };
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(data)));
+
+      const { node, root } = await renderContainer("conv-hist-4");
+      await flush();
+
+      expect(node.textContent).toContain("No open remittance operations for this conversation.");
+      expect(node.textContent).toContain("History");
+      expect(node.querySelectorAll("article")).toHaveLength(1);
+      const buttons = toggleButtons(node);
+      expect(buttons[0].getAttribute("aria-expanded")).toBe("false");
+      await act(async () => root.unmount());
+    });
+
+    it("renders a history card fully read-only: no edit-operation pencil and no Complete transfer button, even though canEdit is true", async () => {
+      const data: ConversationOperationsRead = {
+        resolverState: "unica",
+        resolverOperationId: "op-1",
+        resolverCandidateCount: 1,
+        operations: [OP1, HISTORY_OP],
+      };
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(data)));
+
+      const { node, root } = await renderContainer("conv-hist-5");
+      await flush();
+
+      const buttons = toggleButtons(node);
+      await act(async () => {
+        buttons[1].dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      });
+
+      const historyArticle = node.querySelectorAll("article")[1];
+      expect(
+        historyArticle.querySelector(`button[aria-label="${en.Inbox.operationsPanel.editOperation}"]`),
+      ).toBeNull();
+      expect(historyArticle.textContent).not.toContain(en.Inbox.operationsPanel.completeTransfer.button);
+      await act(async () => root.unmount());
+    });
   });
 });

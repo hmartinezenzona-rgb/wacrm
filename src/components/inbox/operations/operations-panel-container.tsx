@@ -77,11 +77,16 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
       }
       const data = (await response.json()) as ConversationOperationsRead;
       setState({ status: "loaded", data });
+      // Auto-expand only ever considers OPEN operations — a lone history
+      // row must never auto-open (design: "History card ... COLLAPSED by
+      // default"). Staying on a previously-expanded id (open or history)
+      // across a refetch is unaffected by that scoping.
+      const openOperations = data.operations.filter((op) => !op.isHistory);
       setExpandedId((previous) =>
         data.operations.some((op) => op.id === previous)
           ? previous
-          : data.operations.length === 1
-            ? data.operations[0].id
+          : openOperations.length === 1
+            ? openOperations[0].id
             : null,
       );
     } catch {
@@ -113,33 +118,69 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
 
   const { data } = state;
 
-  if (data.resolverState === "ninguna") {
-    return <p className="px-1 py-2 text-xs text-muted-foreground">{t("noOpenOperations")}</p>;
-  }
+  // History rows (migration 102) never affect the resolver banner or the
+  // single-open-op auto-expand rule — both stay scoped to open operations.
+  const openOperations = data.operations.filter((operation) => !operation.isHistory);
+  const historyOperations = data.operations.filter((operation) => operation.isHistory);
+
+  const toggleHandlerFor = (operationId: string) => () =>
+    setExpandedId((current) => (current === operationId ? null : operationId));
 
   return (
     <div className="space-y-2">
-      <h3 className="px-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-        {t("title")}
-      </h3>
-      {data.resolverState === "ambigua" && (
-        <ResolverStateBanner candidateCount={data.resolverCandidateCount} />
+      {data.resolverState === "ninguna" ? (
+        <p className="px-1 py-2 text-xs text-muted-foreground">{t("noOpenOperations")}</p>
+      ) : (
+        <>
+          <h3 className="px-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            {t("title")}
+          </h3>
+          {data.resolverState === "ambigua" && (
+            <ResolverStateBanner candidateCount={data.resolverCandidateCount} />
+          )}
+          <div className="space-y-2">
+            {openOperations.map((operation) => (
+              <RemittanceOperationCard
+                key={operation.id}
+                operation={operation}
+                canEdit={canEdit}
+                role={accountRole}
+                otherOpenOperations={otherOpenOperationsFor(operation, openOperations)}
+                onChanged={() => load(conversationId)}
+                expanded={expandedId === operation.id}
+                onToggle={toggleHandlerFor(operation.id)}
+                conversationId={conversationId}
+              />
+            ))}
+          </div>
+        </>
       )}
-      <div className="space-y-2">
-        {data.operations.map((operation) => (
-          <RemittanceOperationCard
-            key={operation.id}
-            operation={operation}
-            canEdit={canEdit}
-            role={accountRole}
-            otherOpenOperations={otherOpenOperationsFor(operation, data.operations)}
-            onChanged={() => load(conversationId)}
-            expanded={expandedId === operation.id}
-            onToggle={() => setExpandedId((current) => (current === operation.id ? null : operation.id))}
-            conversationId={conversationId}
-          />
-        ))}
-      </div>
+
+      {historyOperations.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="px-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            {t("historyTitle")}
+          </h3>
+          <div className="space-y-2">
+            {historyOperations.map((operation) => (
+              <RemittanceOperationCard
+                key={operation.id}
+                operation={operation}
+                // A history op must never be passed editable/canForce —
+                // the card itself also guards on `operation.isHistory`,
+                // this is the same invariant enforced at the boundary too.
+                canEdit={false}
+                role={null}
+                otherOpenOperations={[]}
+                onChanged={() => load(conversationId)}
+                expanded={expandedId === operation.id}
+                onToggle={toggleHandlerFor(operation.id)}
+                conversationId={conversationId}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

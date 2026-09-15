@@ -82,3 +82,85 @@ describe("DeliveryProofPanel showCaption", () => {
     await act(async () => root.unmount());
   });
 });
+
+// panel-26: the operations panel's "Complete transfer" section reuses this
+// same panel in a denser, English-labeled shape — no outer bordered box, a
+// full-width drop zone, and a single round remove button on the thumbnail
+// instead of "Change"/"Remove" text buttons. The default (pipelines board)
+// variant/markup must stay exactly as tested above.
+describe("DeliveryProofPanel compact variant", () => {
+  const LABELS = {
+    dropHint: "Paste (Ctrl+V), drop or choose a screenshot",
+    dropFormats: "PNG · JPG · WEBP · max 5 MB",
+    removeAria: "Remove screenshot",
+  };
+
+  interface CompactRenderOptions {
+    file?: File | null;
+    previewUrl?: string | null;
+    onClear?: () => void;
+  }
+
+  async function renderCompact(options: CompactRenderOptions = {}) {
+    const node = document.createElement("div");
+    document.body.appendChild(node);
+    const root = createRoot(node);
+    const onClear = options.onClear ?? vi.fn();
+    await act(async () =>
+      root.render(
+        <DeliveryProofPanel
+          file={options.file === undefined ? pngFile() : options.file}
+          previewUrl={options.previewUrl === undefined ? "blob:test" : options.previewUrl}
+          caption=""
+          onFileAccepted={vi.fn()}
+          onFileRejected={vi.fn()}
+          onCaptionChange={vi.fn()}
+          onClear={onClear}
+          window={null}
+          variant="compact"
+          labels={LABELS}
+        />,
+      ),
+    );
+    return { node, root, onClear };
+  }
+
+  it("shows the overridden English hint instead of the default two-line Spanish copy", async () => {
+    const { node, root } = await renderCompact({ file: null, previewUrl: null });
+
+    expect(node.textContent).toContain(LABELS.dropHint);
+    expect(node.textContent).toContain(LABELS.dropFormats);
+    expect(node.textContent).not.toContain(en.Pipelines.deliveryProof.dropPaste);
+    expect(node.textContent).not.toContain(en.Pipelines.deliveryProof.dropOr);
+    await act(async () => root.unmount());
+  });
+
+  it("does not render the outer bordered box", async () => {
+    const { node, root } = await renderCompact({ file: null, previewUrl: null });
+
+    const outer = node.firstElementChild as HTMLElement;
+    expect(outer.className).not.toContain("border");
+    await act(async () => root.unmount());
+  });
+
+  it("renders a single round remove button (no Change/Remove text buttons) when a file is attached", async () => {
+    const { node, root } = await renderCompact();
+
+    const removeButton = node.querySelector(`button[aria-label="${LABELS.removeAria}"]`);
+    expect(removeButton).not.toBeNull();
+    expect(node.textContent).not.toContain(en.Pipelines.deliveryProof.change);
+    expect(node.textContent).not.toContain(en.Pipelines.deliveryProof.remove);
+    await act(async () => root.unmount());
+  });
+
+  it("the remove button calls onClear", async () => {
+    const onClear = vi.fn();
+    const { node, root } = await renderCompact({ onClear });
+
+    const removeButton = node.querySelector(`button[aria-label="${LABELS.removeAria}"]`) as HTMLButtonElement;
+    await act(async () => removeButton.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+    expect(onClear).toHaveBeenCalledTimes(1);
+    await act(async () => root.unmount());
+  });
+});

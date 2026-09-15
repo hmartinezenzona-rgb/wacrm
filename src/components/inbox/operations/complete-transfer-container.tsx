@@ -19,7 +19,7 @@
 // `CompleteTransferSection`.
 // ============================================================
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -29,6 +29,9 @@ import { CHAT_MEDIA_BUCKET } from "@/components/inbox/message-composer";
 import { fetchLastCustomerMessageAt } from "@/lib/inbox/last-customer-message";
 import { sessionWindowFrom } from "@/lib/inbox/session-window";
 import {
+  pickPastedImage,
+  validateProofFile,
+  type ClipboardLike,
   type DeliveryProofDraft,
   type ProofImageKind,
   type ProofRejection,
@@ -130,6 +133,39 @@ export function CompleteTransferContainer({
     },
     [t],
   );
+
+  // The same accept path `DeliveryProofPanel` runs internally
+  // (validate-then-accept/reject), exposed here so the document-level
+  // paste listener below can drive it too.
+  const acceptPastedImage = useCallback(
+    async (file: File) => {
+      const result = await validateProofFile(file);
+      if (result.ok) handleFileAccepted(file, result.kind);
+      else handleFileRejected(result.reason);
+    },
+    [handleFileAccepted, handleFileRejected],
+  );
+
+  // Paste without clicking first: works anywhere on the page while this
+  // section is mounted, not just when the drop zone or caption textarea
+  // happens to have focus. `event.defaultPrevented` skips a paste the
+  // panel's own onPaste already handled (it calls preventDefault only when
+  // it found an image) — without that guard, a paste over the drop zone
+  // would attach the same file twice as the native event bubbles here. A
+  // paste carrying no image (e.g. plain text into the caption) is left
+  // alone either way, same contract as the panel's own handler.
+  useEffect(() => {
+    function handleDocumentPaste(event: ClipboardEvent) {
+      if (event.defaultPrevented) return;
+      const image = pickPastedImage(event.clipboardData as unknown as ClipboardLike);
+      if (!image) return;
+      event.preventDefault();
+      void acceptPastedImage(image);
+    }
+
+    document.addEventListener("paste", handleDocumentPaste);
+    return () => document.removeEventListener("paste", handleDocumentPaste);
+  }, [acceptPastedImage]);
 
   const handleCaptionChange = useCallback(
     (caption: string) => {

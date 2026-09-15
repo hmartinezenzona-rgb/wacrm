@@ -69,16 +69,22 @@ vi.mock("./complete-transfer-container", () => ({
 vi.mock("./deposit-review-container", () => ({
   DepositReviewContainer: ({
     operationId,
+    canEdit,
+    role,
     summaryAmount,
     onAddAmount,
   }: {
     operationId: string;
+    canEdit: boolean;
+    role: string | null;
     summaryAmount?: { kind: "amount"; display: string } | { kind: "missing" } | null;
     onAddAmount?: () => void;
   }) => (
     <div
       data-testid="deposit-review-stub"
       data-operation-id={operationId}
+      data-can-edit={String(canEdit)}
+      data-role={role ?? ""}
       data-summary-amount={JSON.stringify(summaryAmount ?? null)}
     >
       {onAddAmount && (
@@ -111,6 +117,15 @@ function operation(overrides: Partial<RemittanceOperationRead> = {}): Remittance
     adminLockedFields: {},
     createdAt: "2026-09-14T00:00:00Z",
     completedAt: null,
+    isHistory: false,
+    // Defaults to complete so the many status/editability-focused tests in
+    // this file (which don't care about readiness) don't also have to
+    // opt in — `effectiveStatus` demotes ready_to_transfer/transferring to
+    // awaiting_beneficiary otherwise. Tests for that demotion set it
+    // explicitly.
+    beneficiariesComplete: true,
+    deliveryMode: null,
+    deliveredAt: null,
     beneficiaries: [],
     ...overrides,
   };
@@ -990,6 +1005,125 @@ describe("RemittanceOperationCard", () => {
 
       expect(button(node, en.Inbox.operationsPanel.editBeneficiary)).toBeNull();
       expect(node.querySelector("#inline-name-ben-1")).toBeNull();
+      await act(async () => root.unmount());
+    });
+  });
+
+  describe("effective status (migration 102 readiness)", () => {
+    it("shows awaiting_beneficiary and hides Complete transfer when ready_to_transfer but beneficiaries are incomplete", async () => {
+      const { node, root } = await render(
+        operation({ status: "ready_to_transfer", beneficiariesComplete: false }),
+        { canEdit: true },
+      );
+
+      expect(node.textContent).toContain(en.Inbox.operationsPanel.status.awaiting_beneficiary);
+      expect(node.textContent).not.toContain(en.Inbox.operationsPanel.completeTransfer.button);
+      await act(async () => root.unmount());
+    });
+
+    it("shows awaiting_deposit when collecting_information but beneficiaries are complete", async () => {
+      const { node, root } = await render(
+        operation({ status: "collecting_information", beneficiariesComplete: true }),
+      );
+
+      expect(node.textContent).toContain(en.Inbox.operationsPanel.status.awaiting_deposit);
+      await act(async () => root.unmount());
+    });
+
+    it("leaves deposit_verification's label unchanged regardless of beneficiariesComplete", async () => {
+      const { node, root } = await render(
+        operation({ status: "deposit_verification", beneficiariesComplete: false }),
+      );
+
+      expect(node.textContent).toContain(en.Inbox.operationsPanel.status.deposit_verification);
+      await act(async () => root.unmount());
+    });
+  });
+
+  describe("History (completed) card", () => {
+    function historyOperation(overrides: Partial<RemittanceOperationRead> = {}) {
+      return operation({
+        status: "completed",
+        isHistory: true,
+        beneficiariesComplete: true,
+        completedAt: "2026-09-14T18:30:00Z",
+        deliveredAt: "2026-09-14T18:30:00Z",
+        deliveryMode: "proof_sent",
+        beneficiaries: [beneficiary({ cardNumber: "9205123412349412", phone: "5355551111" })],
+        ...overrides,
+      });
+    }
+
+    it("shows the status chip as Completed", async () => {
+      const { node, root } = await render(historyOperation());
+
+      expect(node.textContent).toContain(en.Inbox.operationsPanel.status.completed);
+      await act(async () => root.unmount());
+    });
+
+    it("hides the edit-operation pencil even when canEdit is true", async () => {
+      const { node, root } = await render(historyOperation(), { canEdit: true });
+
+      expect(button(node, en.Inbox.operationsPanel.editOperation)).toBeNull();
+      await act(async () => root.unmount());
+    });
+
+    it("hides beneficiary edit/move pencils even when canEdit is true and other operations exist", async () => {
+      const { node, root } = await render(historyOperation(), {
+        canEdit: true,
+        otherOpenOperations: [{ id: "op-2", label: "x" }],
+      });
+
+      expect(button(node, en.Inbox.operationsPanel.editBeneficiary)).toBeNull();
+      expect(button(node, en.Inbox.operationsPanel.moveBeneficiary)).toBeNull();
+      await act(async () => root.unmount());
+    });
+
+    it("never shows the Complete transfer button, even when canEdit is true", async () => {
+      const { node, root } = await render(historyOperation(), { canEdit: true });
+
+      expect(node.textContent).not.toContain(en.Inbox.operationsPanel.completeTransfer.button);
+      await act(async () => root.unmount());
+    });
+
+    it("passes canEdit:false and role:null to the deposit review block regardless of the card's own canEdit/role", async () => {
+      const { node, root } = await render(historyOperation(), { canEdit: true, role: "owner" });
+
+      const stub = node.querySelector('[data-testid="deposit-review-stub"]')!;
+      expect(stub.getAttribute("data-can-edit")).toBe("false");
+      expect(stub.getAttribute("data-role")).toBe("");
+      await act(async () => root.unmount());
+    });
+
+    it("still lets a beneficiary chip be copied", async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      stubClipboard(writeText);
+      const { node, root } = await render(historyOperation());
+
+      await act(async () => button(node, "Copy Card")!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+      expect(writeText).toHaveBeenCalledWith("9205123412349412");
+      await act(async () => root.unmount());
+    });
+
+    it("shows a muted 'Completed <date>' line with the with-screenshot suffix for proof_sent", async () => {
+      const { node, root } = await render(historyOperation({ deliveryMode: "proof_sent" }));
+
+      expect(node.textContent).toContain("2026");
+      expect(node.textContent).toContain("with screenshot");
+      await act(async () => root.unmount());
+    });
+
+    it("shows the without-screenshot suffix for no_proof", async () => {
+      const { node, root } = await render(historyOperation({ deliveryMode: "no_proof" }));
+
+      expect(node.textContent).toContain("without screenshot");
+      await act(async () => root.unmount());
+    });
+
+    it("shows the window-closed suffix for skip_proof", async () => {
+      const { node, root } = await render(historyOperation({ deliveryMode: "skip_proof" }));
+
+      expect(node.textContent).toContain("window closed, no screenshot");
       await act(async () => root.unmount());
     });
   });

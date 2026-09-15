@@ -1,18 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
 import { ArrowRightLeft, AtSign, Banknote, ChevronDown, CreditCard, Lock, Pencil, Phone, UserRound, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { AccountRole } from "@/lib/auth/roles";
+import { corregirBeneficiario } from "@/lib/remittance-operations/commands";
 import type { RemittanceBeneficiaryRead, RemittanceOperationRead } from "@/lib/remittance-operations/types";
 import { OperationCorrectionForm } from "./operation-correction-form";
-import { BeneficiaryCorrectionForm } from "./beneficiary-correction-form";
 import { BeneficiaryReassignControl } from "./beneficiary-reassign-control";
 import { CopyChip } from "./copy-chip";
 import { DepositReviewContainer } from "./deposit-review-container";
 import type { SummaryAmount } from "./deposit-review-section";
+import { InlineEditField } from "./inline-edit-field";
 import { KNOWN_BENEFICIARY_TYPES, MethodIcon, StatusChip } from "./operation-icons";
+
+const CARD_NUMBER_PATTERN = /^\d{16}$/;
+const PHONE_PATTERN = /^\d{8,15}$/;
 
 interface ReassignTarget {
   id: string;
@@ -202,19 +206,24 @@ export function RemittanceOperationCard({
   const showCompleteTransfer = Boolean(onCompleteTransfer) && operation.status === "ready_to_transfer" && editable;
   const summaryAmount = computeSummaryAmount(operation, t as (key: string) => string);
 
-  const beneficiaryActions = (beneficiary: RemittanceOperationRead["beneficiaries"][number]) =>
+  const beneficiaryActions = (
+    beneficiary: RemittanceOperationRead["beneficiaries"][number],
+    hideEdit = false,
+  ) =>
     editable && (
       <>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label={t("editBeneficiary")}
-          title={t("editBeneficiary")}
-          onClick={() => toggleForm({ kind: "beneficiary", beneficiaryId: beneficiary.id })}
-        >
-          <Pencil aria-hidden="true" />
-        </Button>
+        {!hideEdit && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            aria-label={t("editBeneficiary")}
+            title={t("editBeneficiary")}
+            onClick={() => toggleForm({ kind: "beneficiary", beneficiaryId: beneficiary.id })}
+          >
+            <Pencil aria-hidden="true" />
+          </Button>
+        )}
         {otherOpenOperations.length > 0 && (
           <Button
             type="button"
@@ -317,7 +326,11 @@ export function RemittanceOperationCard({
                 {t("deliverTo")}
                 {isLocked("beneficiaries") && <Lock size={12} aria-label={t("lockedByOperator")} />}
               </h4>
-              {operation.beneficiaries.length === 1 && beneficiaryActions(operation.beneficiaries[0])}
+              {operation.beneficiaries.length === 1 &&
+                beneficiaryActions(
+                  operation.beneficiaries[0],
+                  openForm?.kind === "beneficiary" && openForm.beneficiaryId === operation.beneficiaries[0]!.id,
+                )}
             </div>
             {operation.beneficiaries.length === 0 ? (
               <p className="mt-1 text-xs text-muted-foreground">{t("noBeneficiaries")}</p>
@@ -339,67 +352,71 @@ export function RemittanceOperationCard({
                   return (
                     <li key={beneficiary.id} className="space-y-1.5 text-xs">
                       {operation.beneficiaries.length >= 2 && editable && (
-                        <div className="flex justify-end gap-1">{beneficiaryActions(beneficiary)}</div>
-                      )}
-
-                      <div className="space-y-1.5">
-                        {operation.beneficiaries.length >= 2 && amount !== null && (
-                          <div className="flex items-center gap-2 text-sm leading-5">
-                            <span className="flex w-4 shrink-0 items-center justify-center">
-                              <Banknote className="size-3.5 text-muted-foreground" aria-hidden="true" />
-                            </span>
-                            <span className="font-medium tabular-nums">{amountDisplay}</span>
-                          </div>
-                        )}
-
-                        {isZelle && (
-                          beneficiary.name ? (
-                            <CopyChip
-                              value={beneficiary.name}
-                              display={<span className="font-sans text-sm font-medium">{beneficiary.name}</span>}
-                              icon={<UserRound className="size-3.5" aria-hidden="true" />}
-                              ariaLabel={t("copyValue", { label: t("name") })}
-                            />
-                          ) : (
-                            <p className="flex items-center gap-2 px-2 text-xs text-muted-foreground">
-                              <UserRound className="size-3.5" aria-hidden="true" />
-                              {t("beneficiaryNameUnavailable")}
-                            </p>
-                          )
-                        )}
-                        {isZelle && beneficiary.zelleAccount && (
-                          <CopyChip
-                            value={beneficiary.zelleAccount}
-                            icon={<AtSign className="size-3.5" aria-hidden="true" />}
-                            ariaLabel={t("copyValue", { label: t("zelleAccount") })}
-                          />
-                        )}
-                        {!isZelle && beneficiary.cardNumber && (
-                          <CopyChip
-                            value={beneficiary.cardNumber}
-                            display={formatCardNumber(beneficiary.cardNumber)}
-                            icon={<CreditCard className="size-3.5" aria-hidden="true" />}
-                            ariaLabel={t("copyValue", { label: t("card") })}
-                          />
-                        )}
-                        {!isZelle && beneficiary.phone && (
-                          <CopyChip
-                            value={beneficiary.phone}
-                            icon={<Phone className="size-3.5" aria-hidden="true" />}
-                            ariaLabel={t("copyValue", { label: t("phone") })}
-                          />
-                        )}
-                      </div>
-
-                      {isEditingBeneficiary && (
-                        <div className="mt-1.5">
-                          <BeneficiaryCorrectionForm
-                            beneficiary={beneficiary}
-                            onDone={handleChanged}
-                            onCancel={() => setOpenForm(null)}
-                          />
+                        <div className="flex justify-end gap-1">
+                          {beneficiaryActions(beneficiary, isEditingBeneficiary)}
                         </div>
                       )}
+
+                      {isEditingBeneficiary ? (
+                        <BeneficiaryEditFields
+                          beneficiary={beneficiary}
+                          amount={amount}
+                          showAmountField={operation.beneficiaries.length >= 2 && amount !== null}
+                          t={t as (key: string) => string}
+                          onCancel={() => setOpenForm(null)}
+                          onSaved={handleChanged}
+                        />
+                      ) : (
+                        <div className="space-y-1.5">
+                          {operation.beneficiaries.length >= 2 && amount !== null && (
+                            <div className="flex items-center gap-2 text-sm leading-5">
+                              <span className="flex w-4 shrink-0 items-center justify-center">
+                                <Banknote className="size-3.5 text-muted-foreground" aria-hidden="true" />
+                              </span>
+                              <span className="font-medium tabular-nums">{amountDisplay}</span>
+                            </div>
+                          )}
+
+                          {isZelle && (
+                            beneficiary.name ? (
+                              <CopyChip
+                                value={beneficiary.name}
+                                display={<span className="font-sans text-sm font-medium">{beneficiary.name}</span>}
+                                icon={<UserRound className="size-3.5" aria-hidden="true" />}
+                                ariaLabel={t("copyValue", { label: t("name") })}
+                              />
+                            ) : (
+                              <p className="flex items-center gap-2 px-2 text-xs text-muted-foreground">
+                                <UserRound className="size-3.5" aria-hidden="true" />
+                                {t("beneficiaryNameUnavailable")}
+                              </p>
+                            )
+                          )}
+                          {isZelle && beneficiary.zelleAccount && (
+                            <CopyChip
+                              value={beneficiary.zelleAccount}
+                              icon={<AtSign className="size-3.5" aria-hidden="true" />}
+                              ariaLabel={t("copyValue", { label: t("zelleAccount") })}
+                            />
+                          )}
+                          {!isZelle && beneficiary.cardNumber && (
+                            <CopyChip
+                              value={beneficiary.cardNumber}
+                              display={formatCardNumber(beneficiary.cardNumber)}
+                              icon={<CreditCard className="size-3.5" aria-hidden="true" />}
+                              ariaLabel={t("copyValue", { label: t("card") })}
+                            />
+                          )}
+                          {!isZelle && beneficiary.phone && (
+                            <CopyChip
+                              value={beneficiary.phone}
+                              icon={<Phone className="size-3.5" aria-hidden="true" />}
+                              ariaLabel={t("copyValue", { label: t("phone") })}
+                            />
+                          )}
+                        </div>
+                      )}
+
                       {isMovingBeneficiary && (
                         <div className="mt-1.5">
                           <BeneficiaryReassignControl
@@ -425,5 +442,216 @@ export function RemittanceOperationCard({
         </div>
       )}
     </article>
+  );
+}
+
+interface BeneficiaryEditFieldsProps {
+  beneficiary: RemittanceBeneficiaryRead;
+  /** The resolved amount shown by the read-only view (see
+   *  `resolveBeneficiaryAmount`); only editable via `showAmountField`. */
+  amount: number | null;
+  /** Whether the read-only view was showing a per-beneficiary amount row
+   *  (two or more beneficiaries, and `amount` is set) — the only case the
+   *  amount becomes an input here. */
+  showAmountField: boolean;
+  t: (key: string) => string;
+  onCancel: () => void;
+  onSaved: () => void;
+}
+
+/**
+ * Replaces one beneficiary's data chips in place with editable inputs
+ * (same icons, same visual slot), plus a right-aligned Cancel/Save row.
+ * Zelle edits name + Zelle account; every other type edits card + phone.
+ * Beneficiary type, delivery method and currency are not editable here —
+ * that stays on the (now-removed) stacked correction form's territory.
+ */
+function BeneficiaryEditFields({ beneficiary, amount, showAmountField, t, onCancel, onSaved }: BeneficiaryEditFieldsProps) {
+  const isZelle = beneficiary.beneficiaryType === "zelle";
+  const initialName = beneficiary.name ?? "";
+  const initialZelleAccount = beneficiary.zelleAccount ?? "";
+  const initialCardDigits = (beneficiary.cardNumber ?? "").replace(/\D/g, "");
+  const initialPhoneDigits = (beneficiary.phone ?? "").replace(/\D/g, "");
+  const initialAmount = amount === null ? "" : String(amount);
+
+  const [name, setName] = useState(initialName);
+  const [zelleAccount, setZelleAccount] = useState(initialZelleAccount);
+  const [cardNumber, setCardNumber] = useState(beneficiary.cardNumber ?? "");
+  const [phone, setPhone] = useState(beneficiary.phone ?? "");
+  const [amountValue, setAmountValue] = useState(initialAmount);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave() {
+    setError(null);
+    const changes: Record<string, unknown> = {};
+
+    if (isZelle) {
+      const trimmedName = name.trim();
+      if (trimmedName !== initialName) {
+        if (initialName !== "" && trimmedName === "") {
+          setError(t("cannotBeEmpty"));
+          return;
+        }
+        if (trimmedName !== "") changes.name = trimmedName;
+      }
+
+      const trimmedZelleAccount = zelleAccount.trim();
+      if (trimmedZelleAccount !== initialZelleAccount) {
+        if (initialZelleAccount !== "" && trimmedZelleAccount === "") {
+          setError(t("cannotBeEmpty"));
+          return;
+        }
+        if (trimmedZelleAccount !== "") changes.zelle_account = trimmedZelleAccount;
+      }
+    } else {
+      const digitsCard = cardNumber.replace(/\D/g, "");
+      if (digitsCard !== initialCardDigits) {
+        if (digitsCard === "" && initialCardDigits !== "") {
+          setError(t("cannotBeEmpty"));
+          return;
+        }
+        if (digitsCard !== "") {
+          if (!CARD_NUMBER_PATTERN.test(digitsCard)) {
+            setError(t("invalidCard"));
+            return;
+          }
+          changes.card_number = digitsCard;
+        }
+      }
+
+      const digitsPhone = phone.replace(/\D/g, "");
+      if (digitsPhone !== initialPhoneDigits) {
+        if (digitsPhone === "" && initialPhoneDigits !== "") {
+          setError(t("cannotBeEmpty"));
+          return;
+        }
+        if (digitsPhone !== "") {
+          if (!PHONE_PATTERN.test(digitsPhone)) {
+            setError(t("invalidPhone"));
+            return;
+          }
+          changes.phone = digitsPhone;
+        }
+      }
+    }
+
+    if (showAmountField) {
+      const trimmedAmount = amountValue.trim();
+      if (trimmedAmount !== initialAmount) {
+        const parsed = Number(trimmedAmount);
+        if (!(parsed > 0)) {
+          setError(t("invalidAmount"));
+          return;
+        }
+        changes.amount = parsed;
+      }
+    }
+
+    if (Object.keys(changes).length === 0) {
+      onCancel();
+      return;
+    }
+
+    setPending(true);
+    const result = await corregirBeneficiario(beneficiary.id, changes);
+    setPending(false);
+
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+
+    onSaved();
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (pending) return;
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void handleSave();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      onCancel();
+    }
+  }
+
+  return (
+    <div className="space-y-1.5" onKeyDown={handleKeyDown}>
+      {showAmountField && (
+        <InlineEditField
+          id={`inline-amount-${beneficiary.id}`}
+          icon={<Banknote className="size-3.5" aria-hidden="true" />}
+          value={amountValue}
+          onChange={setAmountValue}
+          placeholder={t("amount")}
+          ariaLabel={t("amount")}
+          disabled={pending}
+          inputMode="decimal"
+        />
+      )}
+
+      {isZelle ? (
+        <>
+          <InlineEditField
+            id={`inline-name-${beneficiary.id}`}
+            icon={<UserRound className="size-3.5" aria-hidden="true" />}
+            value={name}
+            onChange={setName}
+            placeholder={t("name")}
+            ariaLabel={t("name")}
+            disabled={pending}
+            variant="name"
+          />
+          <InlineEditField
+            id={`inline-zelle-account-${beneficiary.id}`}
+            icon={<AtSign className="size-3.5" aria-hidden="true" />}
+            value={zelleAccount}
+            onChange={setZelleAccount}
+            placeholder={t("zelleAccount")}
+            ariaLabel={t("zelleAccount")}
+            disabled={pending}
+          />
+        </>
+      ) : (
+        <>
+          <InlineEditField
+            id={`inline-card-${beneficiary.id}`}
+            icon={<CreditCard className="size-3.5" aria-hidden="true" />}
+            value={cardNumber}
+            onChange={setCardNumber}
+            placeholder={t("card")}
+            ariaLabel={t("card")}
+            disabled={pending}
+            inputMode="numeric"
+          />
+          <InlineEditField
+            id={`inline-phone-${beneficiary.id}`}
+            icon={<Phone className="size-3.5" aria-hidden="true" />}
+            value={phone}
+            onChange={setPhone}
+            placeholder={t("phone")}
+            ariaLabel={t("phone")}
+            disabled={pending}
+            inputMode="numeric"
+          />
+        </>
+      )}
+
+      {error && (
+        <p role="alert" className="text-xs text-destructive">
+          {error}
+        </p>
+      )}
+
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={pending}>
+          {t("cancel")}
+        </Button>
+        <Button type="button" size="sm" onClick={() => void handleSave()} disabled={pending}>
+          {pending ? t("saving") : t("save")}
+        </Button>
+      </div>
+    </div>
   );
 }

@@ -235,9 +235,9 @@ describe("OperationsPanelContainer", () => {
   });
 
   it("refetches when a card reports a change via onChanged", async () => {
-    // The shared name field only renders for a "zelle" beneficiary
+    // The inline name field only renders for a "zelle" beneficiary
     // (cuban_card beneficiaries have no name) — this test needs
-    // `#beneficiary-name`, so it uses a zelle variant of OP1's
+    // `#inline-name-ben-1`, so it uses a zelle variant of OP1's
     // beneficiary while every other test keeps OP1's cuban_card shape.
     const zelleBeneficiary = {
       id: "ben-1",
@@ -273,12 +273,14 @@ describe("OperationsPanelContainer", () => {
       editButton.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     });
 
-    const nameInput = node.querySelector<HTMLInputElement>("#beneficiary-name")!;
+    const nameInput = node.querySelector<HTMLInputElement>("#inline-name-ben-1")!;
     await act(async () => setValue(nameInput, "Yaima Perez Updated"));
 
-    const form = node.querySelector("form")!;
+    const saveButton = Array.from(node.querySelectorAll("button")).find(
+      (btn) => btn.textContent?.trim() === en.Inbox.operationsPanel.save,
+    ) as HTMLButtonElement;
     await act(async () => {
-      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      saveButton.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     });
     await flush();
 

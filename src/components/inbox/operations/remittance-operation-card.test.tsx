@@ -37,9 +37,10 @@ vi.mock("next-intl", () => ({
   },
 }));
 
+const corregirBeneficiario = vi.fn();
 vi.mock("@/lib/remittance-operations/commands", () => ({
   corregirOperacion: vi.fn(),
-  corregirBeneficiario: vi.fn(),
+  corregirBeneficiario: (...args: unknown[]) => corregirBeneficiario(...args),
   reasignarBeneficiario: vi.fn(),
 }));
 
@@ -159,6 +160,16 @@ function stubClipboard(writeText: (value: string) => Promise<void>) {
     value: { writeText },
     configurable: true,
   });
+}
+
+function setValue(input: HTMLInputElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")!.set!;
+  setter.call(input, value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+function buttonByText(node: Element, text: string): HTMLButtonElement {
+  return Array.from(node.querySelectorAll("button")).find((b) => b.textContent?.trim() === text) as HTMLButtonElement;
 }
 
 describe("RemittanceOperationCard", () => {
@@ -648,6 +659,262 @@ describe("RemittanceOperationCard", () => {
       const onCompleteTransfer = vi.fn();
       const { node, root } = await render(readyOperation(), { onCompleteTransfer, canEdit: false });
       expect(node.textContent).not.toContain(en.Inbox.operationsPanel.completeTransfer);
+      await act(async () => root.unmount());
+    });
+  });
+
+  describe("Beneficiary inline edit", () => {
+    it("zelle: pencil shows prefilled Name + Zelle account inputs, hides their chips, shows Save/Cancel and no select", async () => {
+      const { node, root } = await render(
+        operation({
+          beneficiaries: [
+            beneficiary({ beneficiaryType: "zelle", name: "Yaima Perez", zelleAccount: "yaima@example.invalid" }),
+          ],
+        }),
+      );
+
+      await act(async () =>
+        button(node, en.Inbox.operationsPanel.editBeneficiary)!.dispatchEvent(
+          new MouseEvent("click", { bubbles: true }),
+        ),
+      );
+
+      const nameInput = node.querySelector<HTMLInputElement>("#inline-name-ben-1")!;
+      const accountInput = node.querySelector<HTMLInputElement>("#inline-zelle-account-ben-1")!;
+      expect(nameInput.value).toBe("Yaima Perez");
+      expect(accountInput.value).toBe("yaima@example.invalid");
+      expect(button(node, "Copy Name")).toBeNull();
+      expect(button(node, "Copy Zelle account")).toBeNull();
+      expect(node.querySelector("select")).toBeNull();
+      expect(buttonByText(node, en.Inbox.operationsPanel.save)).not.toBeUndefined();
+      expect(buttonByText(node, en.Inbox.operationsPanel.cancel)).not.toBeUndefined();
+
+      await act(async () => root.unmount());
+    });
+
+    it("change name → Save calls corregirBeneficiario with only the name key, exits edit mode, calls onChanged", async () => {
+      corregirBeneficiario.mockResolvedValue({ ok: true, id: "ben-1" });
+      const onChanged = vi.fn();
+      const { node, root } = await render(
+        operation({
+          beneficiaries: [
+            beneficiary({ beneficiaryType: "zelle", name: "Yaima Perez", zelleAccount: "yaima@example.invalid" }),
+          ],
+        }),
+        { onChanged },
+      );
+
+      await act(async () =>
+        button(node, en.Inbox.operationsPanel.editBeneficiary)!.dispatchEvent(
+          new MouseEvent("click", { bubbles: true }),
+        ),
+      );
+      const nameInput = node.querySelector<HTMLInputElement>("#inline-name-ben-1")!;
+      await act(async () => setValue(nameInput, "New Name"));
+      await act(async () =>
+        buttonByText(node, en.Inbox.operationsPanel.save).dispatchEvent(new MouseEvent("click", { bubbles: true })),
+      );
+
+      expect(corregirBeneficiario).toHaveBeenCalledWith("ben-1", { name: "New Name" });
+      expect(onChanged).toHaveBeenCalled();
+      expect(node.querySelector("#inline-name-ben-1")).toBeNull();
+      await act(async () => root.unmount());
+    });
+
+    it("no change → Save exits edit mode without calling the API", async () => {
+      const { node, root } = await render(
+        operation({
+          beneficiaries: [
+            beneficiary({ beneficiaryType: "zelle", name: "Yaima Perez", zelleAccount: "yaima@example.invalid" }),
+          ],
+        }),
+      );
+
+      await act(async () =>
+        button(node, en.Inbox.operationsPanel.editBeneficiary)!.dispatchEvent(
+          new MouseEvent("click", { bubbles: true }),
+        ),
+      );
+      await act(async () =>
+        buttonByText(node, en.Inbox.operationsPanel.save).dispatchEvent(new MouseEvent("click", { bubbles: true })),
+      );
+
+      expect(corregirBeneficiario).not.toHaveBeenCalled();
+      expect(node.querySelector("#inline-name-ben-1")).toBeNull();
+      await act(async () => root.unmount());
+    });
+
+    it("Cancel restores the chips without calling the API", async () => {
+      const { node, root } = await render(
+        operation({
+          beneficiaries: [
+            beneficiary({ beneficiaryType: "zelle", name: "Yaima Perez", zelleAccount: "yaima@example.invalid" }),
+          ],
+        }),
+      );
+
+      await act(async () =>
+        button(node, en.Inbox.operationsPanel.editBeneficiary)!.dispatchEvent(
+          new MouseEvent("click", { bubbles: true }),
+        ),
+      );
+      const nameInput = node.querySelector<HTMLInputElement>("#inline-name-ben-1")!;
+      await act(async () => setValue(nameInput, "Changed Name"));
+      await act(async () =>
+        buttonByText(node, en.Inbox.operationsPanel.cancel).dispatchEvent(new MouseEvent("click", { bubbles: true })),
+      );
+
+      expect(corregirBeneficiario).not.toHaveBeenCalled();
+      expect(node.querySelector("#inline-name-ben-1")).toBeNull();
+      expect(button(node, "Copy Name")!.textContent).toContain("Yaima Perez");
+      await act(async () => root.unmount());
+    });
+
+    it("Escape restores the chips without calling the API", async () => {
+      const { node, root } = await render(
+        operation({
+          beneficiaries: [
+            beneficiary({ beneficiaryType: "zelle", name: "Yaima Perez", zelleAccount: "yaima@example.invalid" }),
+          ],
+        }),
+      );
+
+      await act(async () =>
+        button(node, en.Inbox.operationsPanel.editBeneficiary)!.dispatchEvent(
+          new MouseEvent("click", { bubbles: true }),
+        ),
+      );
+      const nameInput = node.querySelector<HTMLInputElement>("#inline-name-ben-1")!;
+      await act(async () =>
+        nameInput.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })),
+      );
+
+      expect(corregirBeneficiario).not.toHaveBeenCalled();
+      expect(node.querySelector("#inline-name-ben-1")).toBeNull();
+      await act(async () => root.unmount());
+    });
+
+    it("cuba: a 15-digit card shows an alert and does not call the API", async () => {
+      const { node, root } = await render(
+        operation({ beneficiaries: [beneficiary({ cardNumber: "9205123412349412", phone: "5355551111" })] }),
+      );
+
+      await act(async () =>
+        button(node, en.Inbox.operationsPanel.editBeneficiary)!.dispatchEvent(
+          new MouseEvent("click", { bubbles: true }),
+        ),
+      );
+      const cardInput = node.querySelector<HTMLInputElement>("#inline-card-ben-1")!;
+      await act(async () => setValue(cardInput, "123456789012345"));
+      await act(async () =>
+        buttonByText(node, en.Inbox.operationsPanel.save).dispatchEvent(new MouseEvent("click", { bubbles: true })),
+      );
+
+      expect(corregirBeneficiario).not.toHaveBeenCalled();
+      expect(node.querySelector('[role="alert"]')?.textContent).toBe(en.Inbox.operationsPanel.invalidCard);
+      await act(async () => root.unmount());
+    });
+
+    it("cuba: a valid card change sends digits-only card_number", async () => {
+      corregirBeneficiario.mockResolvedValue({ ok: true, id: "ben-1" });
+      const { node, root } = await render(
+        operation({ beneficiaries: [beneficiary({ cardNumber: "9205123412349412", phone: "5355551111" })] }),
+      );
+
+      await act(async () =>
+        button(node, en.Inbox.operationsPanel.editBeneficiary)!.dispatchEvent(
+          new MouseEvent("click", { bubbles: true }),
+        ),
+      );
+      const cardInput = node.querySelector<HTMLInputElement>("#inline-card-ben-1")!;
+      await act(async () => setValue(cardInput, "1111 2222 3333 4444"));
+      await act(async () =>
+        buttonByText(node, en.Inbox.operationsPanel.save).dispatchEvent(new MouseEvent("click", { bubbles: true })),
+      );
+
+      expect(corregirBeneficiario).toHaveBeenCalledWith("ben-1", { card_number: "1111222233334444" });
+      await act(async () => root.unmount());
+    });
+
+    it("shows the API error and stays in edit mode on failure", async () => {
+      corregirBeneficiario.mockResolvedValue({ ok: false, status: 409, error: "Beneficiary locked" });
+      const { node, root } = await render(
+        operation({
+          beneficiaries: [
+            beneficiary({ beneficiaryType: "zelle", name: "Yaima Perez", zelleAccount: "yaima@example.invalid" }),
+          ],
+        }),
+      );
+
+      await act(async () =>
+        button(node, en.Inbox.operationsPanel.editBeneficiary)!.dispatchEvent(
+          new MouseEvent("click", { bubbles: true }),
+        ),
+      );
+      const nameInput = node.querySelector<HTMLInputElement>("#inline-name-ben-1")!;
+      await act(async () => setValue(nameInput, "New Name"));
+      await act(async () =>
+        buttonByText(node, en.Inbox.operationsPanel.save).dispatchEvent(new MouseEvent("click", { bubbles: true })),
+      );
+
+      expect(node.querySelector('[role="alert"]')?.textContent).toBe("Beneficiary locked");
+      expect(node.querySelector("#inline-name-ben-1")).not.toBeNull();
+      await act(async () => root.unmount());
+    });
+
+    it("editing one beneficiary of two leaves the other block's chips intact", async () => {
+      const { node, root } = await render(
+        operation({
+          beneficiaries: [
+            beneficiary({ id: "b-1", cardNumber: "9205123412349412", amount: 30000, currency: "CUP" }),
+            beneficiary({ id: "b-2", cardNumber: "9205999912349412", amount: 30000, currency: "CUP" }),
+          ],
+        }),
+        { otherOpenOperations: [{ id: "op-2", label: "x" }] },
+      );
+
+      const edits = node.querySelectorAll(`button[aria-label="${en.Inbox.operationsPanel.editBeneficiary}"]`);
+      await act(async () => edits[0]!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+      expect(node.querySelector("#inline-card-b-1")).not.toBeNull();
+      expect(button(node, "Copy Card")).not.toBeNull();
+      expect(node.textContent).toContain("9205 9999 1234 9412");
+      await act(async () => root.unmount());
+    });
+
+    it("2+ beneficiaries: editing a block with an amount row shows an Amount input and sends only the amount when changed", async () => {
+      corregirBeneficiario.mockResolvedValue({ ok: true, id: "b-1" });
+      const { node, root } = await render(
+        operation({
+          beneficiaries: [
+            beneficiary({ id: "b-1", cardNumber: "9205123412349412", amount: 30000, currency: "CUP" }),
+            beneficiary({ id: "b-2", cardNumber: "9205999912349412", amount: 30000, currency: "CUP" }),
+          ],
+        }),
+      );
+
+      const edits = node.querySelectorAll(`button[aria-label="${en.Inbox.operationsPanel.editBeneficiary}"]`);
+      await act(async () => edits[0]!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+      const amountInput = node.querySelector<HTMLInputElement>("#inline-amount-b-1")!;
+      expect(amountInput.value).toBe("30000");
+      await act(async () => setValue(amountInput, "45000"));
+      await act(async () =>
+        buttonByText(node, en.Inbox.operationsPanel.save).dispatchEvent(new MouseEvent("click", { bubbles: true })),
+      );
+
+      expect(corregirBeneficiario).toHaveBeenCalledWith("b-1", { amount: 45000 });
+      await act(async () => root.unmount());
+    });
+
+    it("canEdit false: no pencil and no way to open inline edit", async () => {
+      const { node, root } = await render(
+        operation({ beneficiaries: [beneficiary({ beneficiaryType: "zelle", name: "Yaima Perez" })] }),
+        { canEdit: false },
+      );
+
+      expect(button(node, en.Inbox.operationsPanel.editBeneficiary)).toBeNull();
+      expect(node.querySelector("#inline-name-ben-1")).toBeNull();
       await act(async () => root.unmount());
     });
   });

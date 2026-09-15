@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowRightLeft, AtSign, ChevronDown, CreditCard, Lock, Pencil, Phone, Users } from "lucide-react";
+import { AlertTriangle, ArrowRightLeft, AtSign, Banknote, ChevronDown, CreditCard, Lock, Pencil, Phone, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { AccountRole } from "@/lib/auth/roles";
 import type {
@@ -330,6 +330,7 @@ export function RemittanceOperationCard({
                           <CopyChip
                             value=""
                             display={t("amountMissing")}
+                            icon={<AlertTriangle className="size-3.5" aria-hidden="true" />}
                             ariaLabel={t("amountMissing")}
                             tone="warning"
                             disabled={!editable}
@@ -339,6 +340,7 @@ export function RemittanceOperationCard({
                           <CopyChip
                             value={String(amount)}
                             display={amountDisplay}
+                            icon={<Banknote className="size-3.5" aria-hidden="true" />}
                             ariaLabel={t("copyValue", { label: t("amount") })}
                             hint={
                               showLockHint ? (

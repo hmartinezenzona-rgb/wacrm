@@ -140,7 +140,7 @@ export function DepositReviewSection({
         {ref && (
           <CopyChip
             value={ref}
-            display={`# ${ref}`}
+            display={ref}
             icon={<Hash aria-hidden="true" />}
             ariaLabel={t("copyValue", { label: t("depositReview.transId") })}
           />

@@ -129,6 +129,8 @@ describe("DepositReviewSection", () => {
 
       expect(node.textContent).toContain(T.verified);
       expect(node.textContent).toContain("TX-99");
+      // The chip already carries a hash icon; the text must not repeat it.
+      expect(node.textContent).not.toContain("# TX-99");
       expect(node.querySelector("img")).toBeNull();
       await act(async () => root.unmount());
     });

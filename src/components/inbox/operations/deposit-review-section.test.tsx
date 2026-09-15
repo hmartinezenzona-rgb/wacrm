@@ -141,6 +141,24 @@ describe("DepositReviewSection", () => {
       await act(async () => root.unmount());
     });
 
+    it("also shows the verified rows for a completed (history) operation", async () => {
+      const { node, root } = await render({
+        data: readModel({
+          status: "completed",
+          canVerify: false,
+          receipts: [
+            receipt({
+              matchedDeposit: { transId: "TX-77", amount: 26000, currency: "GYD", receivedAt: null, consumedAt: null },
+            }),
+          ],
+        }),
+      });
+
+      expect(node.textContent).toContain(T.verified);
+      expect(node.textContent).toContain("TX-77");
+      await act(async () => root.unmount());
+    });
+
     it("falls back to the declared ref when there is no matched deposit", async () => {
       const { node, root } = await render({
         data: readModel({ status: "transferring", canVerify: false, receipts: [receipt({ declaredRef: "REF-1" })] }),

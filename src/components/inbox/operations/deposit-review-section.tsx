@@ -44,7 +44,7 @@ interface Draft {
 }
 
 const MIN_FORCE_REASON_LENGTH = 5;
-const VERIFIED_STATUSES: ReadonlyArray<string> = ["ready_to_transfer", "transferring"];
+const VERIFIED_STATUSES: ReadonlyArray<string> = ["ready_to_transfer", "transferring", "completed"];
 
 function draftsFrom(receipts: DepositReceipt[]): Record<string, Draft> {
   const map: Record<string, Draft> = {};

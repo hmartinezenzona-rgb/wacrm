@@ -1110,6 +1110,8 @@ describe("RemittanceOperationCard", () => {
 
       expect(node.textContent).toContain("2026");
       expect(node.textContent).toContain("with screenshot");
+      // The status line already says "Completed"; the date line must not repeat it.
+      expect(node.textContent!.match(/Completed/g)?.length).toBe(1);
       await act(async () => root.unmount());
     });
 

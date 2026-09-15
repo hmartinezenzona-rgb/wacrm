@@ -349,7 +349,7 @@
       "deliverTo": "Deliver to",
       "amountMissing": "Amount missing · add",
       "history": {
-        "completedAt": "Completed {date}",
+        "completedAt": "{date}",
         "proofSent": "with screenshot",
         "noProof": "without screenshot",
         "skipProof": "window closed, no screenshot"

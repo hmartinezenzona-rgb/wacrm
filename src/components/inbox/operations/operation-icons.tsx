@@ -1,19 +1,4 @@
-import {
-  ArrowDownToLine,
-  Banknote,
-  Circle,
-  CircleCheck,
-  CircleHelp,
-  ClipboardList,
-  Clock,
-  CreditCard,
-  FileSearch,
-  Send,
-  Smartphone,
-  TriangleAlert,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
+import { Banknote, CircleHelp, CreditCard, Smartphone, Users, type LucideIcon } from "lucide-react";
 
 /** Delivery/deposit method values are free-form strings from the RPC layer;
  *  this normalizes the known ones into a small set of visual kinds. */
@@ -77,46 +62,26 @@ export function MethodIcon({ method, label }: { method: string | null; label: st
   );
 }
 
-const STATUS_STYLE: Record<string, { className: string; Icon: LucideIcon }> = {
-  collecting_information: {
-    className: "bg-slate-100 text-slate-700 dark:bg-slate-500/15 dark:text-slate-300",
-    Icon: ClipboardList,
-  },
-  awaiting_deposit: {
-    className: "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300",
-    Icon: Clock,
-  },
-  deposit_received: {
-    className: "bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300",
-    Icon: ArrowDownToLine,
-  },
-  deposit_verification: {
-    className: "bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300",
-    Icon: FileSearch,
-  },
-  ready_to_transfer: {
-    className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300",
-    Icon: CircleCheck,
-  },
-  transferring: {
-    className: "bg-indigo-100 text-indigo-800 dark:bg-indigo-500/15 dark:text-indigo-300",
-    Icon: Send,
-  },
-  incident: {
-    className: "bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300",
-    Icon: TriangleAlert,
-  },
+/** Tone (text color, reused by the dot via `currentColor`) grouped by
+ *  status: ready/transferring green, the deposit-pending trio amber,
+ *  incident red, everything else (including unrecognized statuses) muted. */
+const STATUS_TONE: Record<string, string> = {
+  ready_to_transfer: "text-emerald-600 dark:text-emerald-400",
+  transferring: "text-emerald-600 dark:text-emerald-400",
+  deposit_verification: "text-amber-600 dark:text-amber-400",
+  deposit_received: "text-amber-600 dark:text-amber-400",
+  awaiting_deposit: "text-amber-600 dark:text-amber-400",
+  incident: "text-red-600 dark:text-red-400",
+  collecting_information: "text-muted-foreground",
 };
 
-const STATUS_FALLBACK = { className: "bg-muted text-muted-foreground", Icon: Circle };
+const STATUS_TONE_FALLBACK = "text-muted-foreground";
 
 export function StatusChip({ status, label }: { status: string; label: string }) {
-  const { className, Icon } = STATUS_STYLE[status] ?? STATUS_FALLBACK;
+  const tone = STATUS_TONE[status] ?? STATUS_TONE_FALLBACK;
   return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${className}`}
-    >
-      <Icon className="size-3" aria-hidden="true" />
+    <span className={`inline-flex items-center gap-1.5 text-xs font-medium whitespace-nowrap ${tone}`}>
+      <span className="size-1.5 shrink-0 rounded-full bg-current" aria-hidden="true" />
       {label}
     </span>
   );

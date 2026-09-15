@@ -2,13 +2,18 @@
 
 import { useState, type ChangeEvent } from "react";
 import { useTranslations } from "next-intl";
-import { CircleCheck, Hash, TriangleAlert } from "lucide-react";
+import { AlertTriangle, Banknote, CircleCheck, Hash, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CopyChip } from "./copy-chip";
 import { ReceiptReviewViewer } from "./receipt-review-viewer";
 import type { DepositReceipt, OperationReceiptsRead, VerifyDepositItem } from "@/lib/remittance-operations/types";
+
+/** The verified state's destination-amount row: a resolved amount to
+ *  display, or a "missing" state rendered as an amber warning. `null`
+ *  (the prop itself) means "no data for this operation" and omits the
+ *  row entirely — see `DepositReviewSectionProps.summaryAmount`. */
+export type SummaryAmount = { kind: "amount"; display: string } | { kind: "missing" };
 
 interface DepositReviewSectionProps {
   data: OperationReceiptsRead;
@@ -23,6 +28,14 @@ interface DepositReviewSectionProps {
   result: { kind: "success" | "error"; message: string } | null;
   onVerify: (items: VerifyDepositItem[]) => void;
   onForce: (reason: string) => void;
+  /** Destination amount row shown in the verified state, computed by the
+   *  card from the operation's beneficiaries. `undefined`/`null` omits
+   *  the row (multiple beneficiaries, or none known). */
+  summaryAmount?: SummaryAmount | null;
+  /** Opens the operation correction form (only passed when the card is
+   *  editable); renders the missing-amount row as a button when given,
+   *  plain amber text otherwise. */
+  onAddAmount?: () => void;
 }
 
 interface Draft {
@@ -69,11 +82,13 @@ function verifiedRef(receipts: DepositReceipt[]): string | null {
  * operation card. No fetch here — the container owns data loading and the
  * verify/force network calls. Two business states, both driven by
  * `data.canVerify`/`data.status` (the operation's own state, independent
- * of who's viewing): verified (a confirmation line + ref chip, no image)
- * and awaiting verification (the first unmatched receipt's viewer plus a
- * directly-bound "Amount deposited"/"TransID" draft, gated on the
- * `canVerify` prop for whether those are interactive or read-only). Every
- * other state renders nothing.
+ * of who's viewing): verified (a confirmation line, the `summaryAmount`
+ * row — plain text, or an amber "amount missing" row that's a button only
+ * when `onAddAmount` is given — and a plain TransID line, no image, rows
+ * omitted when their data is null) and awaiting verification (the first
+ * unmatched receipt's viewer plus a directly-bound "Amount
+ * deposited"/"TransID" draft, gated on the `canVerify` prop for whether
+ * those are interactive or read-only). Every other state renders nothing.
  */
 export function DepositReviewSection({
   data,
@@ -83,6 +98,8 @@ export function DepositReviewSection({
   result,
   onVerify,
   onForce,
+  summaryAmount,
+  onAddAmount,
 }: DepositReviewSectionProps) {
   const t = useTranslations("Inbox.operationsPanel");
   const [drafts, setDrafts] = useState<Record<string, Draft>>(() => draftsFrom(data.receipts));
@@ -132,18 +149,51 @@ export function DepositReviewSection({
   if (!data.canVerify && VERIFIED_STATUSES.includes(data.status)) {
     const ref = verifiedRef(data.receipts);
     return (
-      <div className="space-y-1.5">
-        <p className="flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-          <CircleCheck className="size-3.5 shrink-0" aria-hidden="true" />
+      <div className="space-y-1">
+        <div className="flex items-center gap-2 text-sm leading-5 text-foreground">
+          <span className="flex w-4 shrink-0 items-center justify-center">
+            <CircleCheck className="size-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+          </span>
           {t("depositReview.verified")}
-        </p>
+        </div>
+
+        {summaryAmount?.kind === "amount" && (
+          <div className="flex items-center gap-2 text-sm leading-5">
+            <span className="flex w-4 shrink-0 items-center justify-center">
+              <Banknote className="size-3.5 text-muted-foreground" aria-hidden="true" />
+            </span>
+            <span className="font-medium tabular-nums">{summaryAmount.display}</span>
+          </div>
+        )}
+
+        {summaryAmount?.kind === "missing" &&
+          (onAddAmount ? (
+            <button
+              type="button"
+              onClick={onAddAmount}
+              className="flex items-center gap-2 text-sm leading-5 text-amber-700 dark:text-amber-400"
+            >
+              <span className="flex w-4 shrink-0 items-center justify-center">
+                <AlertTriangle className="size-3.5" aria-hidden="true" />
+              </span>
+              {t("amountMissing")}
+            </button>
+          ) : (
+            <p className="flex items-center gap-2 text-sm leading-5 text-amber-700 dark:text-amber-400">
+              <span className="flex w-4 shrink-0 items-center justify-center">
+                <AlertTriangle className="size-3.5" aria-hidden="true" />
+              </span>
+              {t("amountMissing")}
+            </p>
+          ))}
+
         {ref && (
-          <CopyChip
-            value={ref}
-            display={ref}
-            icon={<Hash aria-hidden="true" />}
-            ariaLabel={t("copyValue", { label: t("depositReview.transId") })}
-          />
+          <div className="flex items-center gap-2 text-sm leading-5 font-mono">
+            <span className="flex w-4 shrink-0 items-center justify-center">
+              <Hash className="size-3.5 text-muted-foreground" aria-hidden="true" />
+            </span>
+            {ref}
+          </div>
         )}
       </div>
     );

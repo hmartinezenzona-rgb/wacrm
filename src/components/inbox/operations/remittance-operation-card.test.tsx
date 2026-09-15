@@ -45,11 +45,31 @@ vi.mock("@/lib/remittance-operations/commands", () => ({
 
 // The deposit review container fetches on mount and owns its own network
 // calls (covered by deposit-review-container.test.tsx) — mocked here to a
-// plain, textless marker so this file's card-only tests stay isolated
-// from that fetch and every existing textContent assertion below.
+// stub that surfaces the props the card computes for it (`summaryAmount`,
+// `onAddAmount`) via a data attribute and a test-only button, so this
+// file's card-only tests stay isolated from that fetch while still being
+// able to assert on what the card passes down.
 vi.mock("./deposit-review-container", () => ({
-  DepositReviewContainer: ({ operationId }: { operationId: string }) => (
-    <div data-testid="deposit-review-stub" data-operation-id={operationId} />
+  DepositReviewContainer: ({
+    operationId,
+    summaryAmount,
+    onAddAmount,
+  }: {
+    operationId: string;
+    summaryAmount?: { kind: "amount"; display: string } | { kind: "missing" } | null;
+    onAddAmount?: () => void;
+  }) => (
+    <div
+      data-testid="deposit-review-stub"
+      data-operation-id={operationId}
+      data-summary-amount={JSON.stringify(summaryAmount ?? null)}
+    >
+      {onAddAmount && (
+        <button type="button" data-testid="deposit-review-add-amount" onClick={onAddAmount}>
+          add amount
+        </button>
+      )}
+    </div>
   ),
 }));
 
@@ -415,35 +435,30 @@ describe("RemittanceOperationCard", () => {
     });
   });
 
-  describe("amount chip", () => {
-    it("labels a Zelle beneficiary amount as Zelle instead of its currency, and copies the raw number", async () => {
-      const writeText = vi.fn().mockResolvedValue(undefined);
-      stubClipboard(writeText);
+  describe("deposit block summary amount", () => {
+    function summaryAmountFromStub(node: Element): unknown {
+      const stub = node.querySelector('[data-testid="deposit-review-stub"]')!;
+      return JSON.parse(stub.getAttribute("data-summary-amount")!);
+    }
+
+    it("passes a Zelle-labeled amount for a single Zelle beneficiary, not inside the beneficiary block", async () => {
       const { node, root } = await render(
         operation({
-          beneficiaries: [
-            beneficiary({ beneficiaryType: "zelle", name: "Maria", amount: 100, currency: "USD" }),
-          ],
+          beneficiaries: [beneficiary({ beneficiaryType: "zelle", name: "Maria", amount: 100, currency: "USD" })],
         }),
       );
 
-      expect(node.textContent).toContain("100 Zelle");
-      expect(node.textContent).not.toContain("100 USD");
-      await act(async () => button(node, "Copy Amount")!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-      expect(writeText).toHaveBeenCalledWith("100");
+      expect(summaryAmountFromStub(node)).toEqual({ kind: "amount", display: "100 Zelle" });
+      const list = node.querySelector("ul")!;
+      expect(list.textContent).not.toContain("100");
+      expect(button(node, "Copy Amount")).toBeNull();
       await act(async () => root.unmount());
     });
 
-    it("shows a non-Zelle amount formatted with its currency and copies the unformatted number", async () => {
-      const writeText = vi.fn().mockResolvedValue(undefined);
-      stubClipboard(writeText);
-      const { node, root } = await render(
-        operation({ beneficiaries: [beneficiary({ amount: 60000, currency: "CUP" })] }),
-      );
+    it("passes a currency-labeled amount for a single non-Zelle beneficiary", async () => {
+      const { node, root } = await render(operation({ beneficiaries: [beneficiary({ amount: 60000, currency: "CUP" })] }));
 
-      expect(node.textContent).toContain("60,000 CUP");
-      await act(async () => button(node, "Copy Amount")!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-      expect(writeText).toHaveBeenCalledWith("60000");
+      expect(summaryAmountFromStub(node)).toEqual({ kind: "amount", display: "60,000 CUP" });
       await act(async () => root.unmount());
     });
 
@@ -456,59 +471,72 @@ describe("RemittanceOperationCard", () => {
         }),
       );
 
-      expect(node.textContent).toContain("9,800.5 CUP");
+      expect(summaryAmountFromStub(node)).toEqual({ kind: "amount", display: "9,800.5 CUP" });
       await act(async () => root.unmount());
     });
 
-    it("shows the amount-missing warning chip (not the operation fallback) when there are multiple beneficiaries", async () => {
+    it("passes a missing amount for the single beneficiary when neither it nor the operation has one", async () => {
+      const { node, root } = await render(operation({ beneficiaries: [beneficiary({ amount: null })] }));
+
+      expect(summaryAmountFromStub(node)).toEqual({ kind: "missing" });
+      await act(async () => root.unmount());
+    });
+
+    it("passes the operation-level amount when there are no beneficiaries", async () => {
+      const { node, root } = await render(
+        operation({ beneficiaries: [], quotedDestinationAmount: 150000, destinationCurrency: "CUP" }),
+      );
+
+      expect(summaryAmountFromStub(node)).toEqual({ kind: "amount", display: "150,000 CUP" });
+      await act(async () => root.unmount());
+    });
+
+    it("passes null (no top row) when there are no beneficiaries and no operation amount", async () => {
+      const { node, root } = await render(operation({ beneficiaries: [] }));
+
+      expect(summaryAmountFromStub(node)).toBeNull();
+      await act(async () => root.unmount());
+    });
+
+    it("passes null (no top row) for two or more beneficiaries, even with amounts", async () => {
       const { node, root } = await render(
         operation({
           quotedDestinationAmount: 9800.5,
           destinationCurrency: "CUP",
           beneficiaries: [
-            beneficiary({ id: "ben-1", amount: null }),
-            beneficiary({ id: "ben-2", amount: 500, currency: "CUP" }),
+            beneficiary({ id: "ben-1", amount: 500, currency: "CUP" }),
+            beneficiary({ id: "ben-2", amount: 700, currency: "CUP" }),
           ],
         }),
       );
 
-      expect(node.textContent).not.toContain("9,800.5");
-      const warnings = Array.from(node.querySelectorAll("button")).filter(
-        (b) => b.textContent?.trim() === en.Inbox.operationsPanel.amountMissing,
-      );
-      expect(warnings).toHaveLength(1);
+      expect(summaryAmountFromStub(node)).toBeNull();
       await act(async () => root.unmount());
     });
 
-    it("opens the operation correction form when the amount-missing chip is tapped and the card is editable", async () => {
-      const { node, root } = await render(
-        operation({ beneficiaries: [beneficiary({ amount: null })] }),
-        { canEdit: true },
-      );
+    it("wires onAddAmount to open the operation correction form when editable", async () => {
+      const { node, root } = await render(operation({ beneficiaries: [beneficiary({ amount: null })] }), {
+        canEdit: true,
+      });
 
-      const warning = Array.from(node.querySelectorAll("button")).find(
-        (b) => b.textContent?.trim() === en.Inbox.operationsPanel.amountMissing,
-      )!;
-      await act(async () => warning.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+      const addAmount = node.querySelector('[data-testid="deposit-review-add-amount"]') as HTMLButtonElement;
+      expect(addAmount).not.toBeNull();
+      await act(async () => addAmount.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 
       expect(node.querySelector("#operation-quoted-source-amount")).not.toBeNull();
       await act(async () => root.unmount());
     });
 
-    it("makes the amount-missing chip inert (disabled) for a read-only card", async () => {
-      const { node, root } = await render(
-        operation({ beneficiaries: [beneficiary({ amount: null })] }),
-        { canEdit: false },
-      );
+    it("does not pass onAddAmount when the card is not editable", async () => {
+      const { node, root } = await render(operation({ beneficiaries: [beneficiary({ amount: null })] }), {
+        canEdit: false,
+      });
 
-      const warning = Array.from(node.querySelectorAll("button")).find(
-        (b) => b.textContent?.trim() === en.Inbox.operationsPanel.amountMissing,
-      ) as HTMLButtonElement;
-      expect(warning.disabled).toBe(true);
+      expect(node.querySelector('[data-testid="deposit-review-add-amount"]')).toBeNull();
       await act(async () => root.unmount());
     });
 
-    it("shows the calculated-divide hint for a non-CUP calculated amount", async () => {
+    it("never shows 'calculated' text anywhere", async () => {
       const { node, root } = await render(
         operation({
           quotedDestinationAmount: 100,
@@ -519,47 +547,40 @@ describe("RemittanceOperationCard", () => {
         }),
       );
 
-      expect(node.textContent).toContain("calculated ÷120");
+      expect(node.textContent).not.toContain("calculated");
       await act(async () => root.unmount());
     });
+  });
 
-    it("shows the calculated-multiply hint for a CUP calculated amount", async () => {
+  describe("per-beneficiary amount row (2+ beneficiaries)", () => {
+    it("shows each beneficiary's own amount as a plain, non-copyable row above its chips", async () => {
       const { node, root } = await render(
         operation({
-          quotedDestinationAmount: 24000,
-          quotedDestinationRate: 240,
-          quotedDestinationOrigin: "calculated",
-          destinationCurrency: "CUP",
-          beneficiaries: [beneficiary({ amount: null, currency: null })],
+          beneficiaries: [
+            beneficiary({ id: "ben-1", cardNumber: "9205123412349412", amount: 500, currency: "CUP" }),
+            beneficiary({ id: "ben-2", cardNumber: "1111222233334444", amount: 700, currency: "CUP" }),
+          ],
         }),
       );
 
-      expect(node.textContent).toContain("calculated ×240");
+      expect(node.textContent).toContain("500 CUP");
+      expect(node.textContent).toContain("700 CUP");
+      expect(button(node, "Copy Amount")).toBeNull();
       await act(async () => root.unmount());
     });
 
-    it("shows a lock icon instead of the calculated hint when the origin is manual", async () => {
-      const { node, root } = await render(
-        operation({ beneficiaries: [beneficiary({ amount: 500, amountOrigin: "manual", currency: "CUP" })] }),
-      );
-
-      expect(node.textContent).not.toContain("calculated");
-      expect(node.querySelector(`[aria-label="${en.Inbox.operationsPanel.manualAmount}"]`)).not.toBeNull();
-      await act(async () => root.unmount());
-    });
-
-    it("shows a lock icon when the operation admin-locks quoted_destination_amount, even if origin is calculated", async () => {
+    it("shows no amount row and no missing-amount warning for a beneficiary without an amount", async () => {
       const { node, root } = await render(
         operation({
-          quotedDestinationRate: 120,
-          quotedDestinationOrigin: "calculated",
-          adminLockedFields: { quoted_destination_amount: { by: "admin-1", at: "2026-09-10T00:00:00Z" } },
-          beneficiaries: [beneficiary({ amount: 500, currency: "USD" })],
+          beneficiaries: [
+            beneficiary({ id: "ben-1", cardNumber: "9205123412349412", amount: null }),
+            beneficiary({ id: "ben-2", cardNumber: "1111222233334444", amount: 700, currency: "CUP" }),
+          ],
         }),
       );
 
-      expect(node.textContent).not.toContain("calculated");
-      expect(node.querySelector(`[aria-label="${en.Inbox.operationsPanel.manualAmount}"]`)).not.toBeNull();
+      expect(node.textContent).not.toContain(en.Inbox.operationsPanel.amountMissing);
+      expect(node.textContent).toContain("700 CUP");
       await act(async () => root.unmount());
     });
   });

@@ -77,11 +77,51 @@ describe("MethodIcon", () => {
 });
 
 describe("StatusChip", () => {
-  it("renders the label and an icon for incident", async () => {
+  it("renders the label with a status dot, and no pill/border/background styling", async () => {
     const { node, root } = await renderNode(<StatusChip status="incident" label="Incident" />);
 
     expect(node.textContent).toBe("Incident");
-    expect(node.querySelector("svg")).not.toBeNull();
+    const chip = node.firstElementChild as HTMLElement;
+    expect(chip.className).not.toContain("border");
+    expect(chip.className).not.toContain("rounded-full");
+    expect(chip.className).not.toContain("px-2");
+    expect(chip.querySelector("svg")).toBeNull();
+    const dot = chip.firstElementChild as HTMLElement;
+    expect(dot.className).toContain("rounded-full");
     await act(async () => root.unmount());
+  });
+
+  it("uses the emerald tone for ready_to_transfer and transferring", async () => {
+    for (const status of ["ready_to_transfer", "transferring"]) {
+      const { node, root } = await renderNode(<StatusChip status={status} label={status} />);
+      const chip = node.firstElementChild as HTMLElement;
+      expect(chip.className).toContain("text-emerald-600");
+      await act(async () => root.unmount());
+    }
+  });
+
+  it("uses the amber tone for deposit_verification, deposit_received and awaiting_deposit", async () => {
+    for (const status of ["deposit_verification", "deposit_received", "awaiting_deposit"]) {
+      const { node, root } = await renderNode(<StatusChip status={status} label={status} />);
+      const chip = node.firstElementChild as HTMLElement;
+      expect(chip.className).toContain("text-amber-600");
+      await act(async () => root.unmount());
+    }
+  });
+
+  it("uses the red tone for incident", async () => {
+    const { node, root } = await renderNode(<StatusChip status="incident" label="Incident" />);
+    const chip = node.firstElementChild as HTMLElement;
+    expect(chip.className).toContain("text-red-600");
+    await act(async () => root.unmount());
+  });
+
+  it("uses the muted tone for collecting_information and any other/unknown status", async () => {
+    for (const status of ["collecting_information", "some_unknown_status"]) {
+      const { node, root } = await renderNode(<StatusChip status={status} label={status} />);
+      const chip = node.firstElementChild as HTMLElement;
+      expect(chip.className).toContain("text-muted-foreground");
+      await act(async () => root.unmount());
+    }
   });
 });

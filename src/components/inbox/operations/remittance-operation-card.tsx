@@ -2,19 +2,16 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { AlertTriangle, ArrowRightLeft, AtSign, Banknote, ChevronDown, CreditCard, Lock, Pencil, Phone, Users } from "lucide-react";
+import { ArrowRightLeft, AtSign, Banknote, ChevronDown, CreditCard, Lock, Pencil, Phone, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { AccountRole } from "@/lib/auth/roles";
-import type {
-  AmountOrigin,
-  RemittanceBeneficiaryRead,
-  RemittanceOperationRead,
-} from "@/lib/remittance-operations/types";
+import type { RemittanceBeneficiaryRead, RemittanceOperationRead } from "@/lib/remittance-operations/types";
 import { OperationCorrectionForm } from "./operation-correction-form";
 import { BeneficiaryCorrectionForm } from "./beneficiary-correction-form";
 import { BeneficiaryReassignControl } from "./beneficiary-reassign-control";
 import { CopyChip } from "./copy-chip";
 import { DepositReviewContainer } from "./deposit-review-container";
+import type { SummaryAmount } from "./deposit-review-section";
 import { KNOWN_BENEFICIARY_TYPES, MethodIcon, StatusChip } from "./operation-icons";
 
 interface ReassignTarget {
@@ -118,18 +115,34 @@ function resolveBeneficiaryAmount(
   return operation.beneficiaries.length === 1 ? operation.quotedDestinationAmount : null;
 }
 
-function resolveAmountOrigin(
-  beneficiary: RemittanceBeneficiaryRead,
+/** What the deposit block shows as the destination amount: the (single)
+ *  vigente beneficiary's own amount (falling back to the operation's
+ *  auto-calculated one, same as `resolveBeneficiaryAmount`), an
+ *  "amount missing" state when that's null, or — for zero beneficiaries —
+ *  the operation-level amount when known. Two or more beneficiaries never
+ *  render here; each shows its own amount instead, in the beneficiary
+ *  list below. */
+function computeSummaryAmount(
   operation: RemittanceOperationRead,
-): AmountOrigin | null {
-  return beneficiary.amountOrigin ?? operation.quotedDestinationOrigin;
-}
+  t: (key: string) => string,
+): SummaryAmount | null {
+  if (operation.beneficiaries.length === 1) {
+    const beneficiary = operation.beneficiaries[0]!;
+    const amount = resolveBeneficiaryAmount(beneficiary, operation);
+    if (amount === null) return { kind: "missing" };
+    const isZelle = beneficiary.beneficiaryType === "zelle";
+    const currencyLabel = isZelle ? t("beneficiaryType.zelle") : (beneficiary.currency ?? operation.destinationCurrency);
+    return { kind: "amount", display: money(amount, currencyLabel)! };
+  }
 
-/** CUP amounts are derived by multiplying the source amount by the rate;
- *  every other destination (USD, Zelle) divides — see the "calculated"
- *  hint copy under the amount chip. */
-function calculatedHintKey(currencyLabel: string | null): "calculatedDivide" | "calculatedMultiply" {
-  return currencyLabel === "CUP" ? "calculatedMultiply" : "calculatedDivide";
+  if (operation.beneficiaries.length === 0) {
+    if (operation.quotedDestinationAmount === null) return null;
+    const isZelle = operation.deliveryMethod === "zelle";
+    const currencyLabel = isZelle ? t("beneficiaryType.zelle") : operation.destinationCurrency;
+    return { kind: "amount", display: money(operation.quotedDestinationAmount, currencyLabel)! };
+  }
+
+  return null;
 }
 
 /**
@@ -137,15 +150,19 @@ function calculatedHintKey(currencyLabel: string | null): "calculatedDivide" | "
  * source amount, an arrow, and the destination name (rail label,
  * destination currency, or delivery method), each with a lock indicator
  * when admin-locked; the destination amount is never rendered there. Below
- * the header, always visible, a status chip and (when present) a deposit
- * method chip. When `expanded` (owned by the panel container so only one
- * card is open at a time): the deposit review block, an edit-operation
- * affordance + correction form, and a "Deliver to" block listing every
- * current ('vigente') beneficiary as a name/action line (Zelle) or a slim
- * action line (every other type, which has no name) followed by a stack of
- * tap-to-copy chips (amount, then account or card/phone). A
- * `onCompleteTransfer` button renders at the bottom once the operation is
- * `ready_to_transfer` and editable.
+ * the header, always visible, a status chip (dot + tone-colored label,
+ * no pill) and (when present) a deposit method chip. When `expanded`
+ * (owned by the panel container so only one card is open at a time): the
+ * deposit review block — which, once verified, also shows the destination
+ * amount computed by `computeSummaryAmount` (single beneficiary or none;
+ * two or more never show a top row) — an edit-operation affordance +
+ * correction form, and a "Deliver to" block listing every current
+ * ('vigente') beneficiary as a name/action line (Zelle) or a slim action
+ * line (every other type, which has no name), its own plain (non-copyable)
+ * amount row when there are two or more beneficiaries, followed by a stack
+ * of tap-to-copy chips (account, then card/phone). A `onCompleteTransfer`
+ * button renders at the bottom once the operation is `ready_to_transfer`
+ * and editable.
  */
 export function RemittanceOperationCard({
   operation,
@@ -181,9 +198,9 @@ export function RemittanceOperationCard({
   const methodLabel = (method: string): string => knownMethodLabel(method, t as (key: string) => string);
 
   const lock = <Lock className="size-3 shrink-0" aria-label={t("lockedByOperator")} />;
-  const amountLocked = isLocked("quoted_destination_amount") || isLocked("beneficiaries");
 
   const showCompleteTransfer = Boolean(onCompleteTransfer) && operation.status === "ready_to_transfer" && editable;
+  const summaryAmount = computeSummaryAmount(operation, t as (key: string) => string);
 
   return (
     <article className="rounded-lg border border-border bg-card px-2 py-2.5">
@@ -257,7 +274,14 @@ export function RemittanceOperationCard({
             <OperationCorrectionForm operation={operation} onDone={handleChanged} onCancel={() => setOpenForm(null)} />
           )}
 
-          <DepositReviewContainer operationId={operation.id} canEdit={editable} role={role} onChanged={onChanged} />
+          <DepositReviewContainer
+            operationId={operation.id}
+            canEdit={editable}
+            role={role}
+            onChanged={onChanged}
+            summaryAmount={summaryAmount}
+            onAddAmount={editable ? () => toggleForm({ kind: "operation" }) : undefined}
+          />
 
           <div>
             <h4 className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
@@ -271,14 +295,10 @@ export function RemittanceOperationCard({
                 {operation.beneficiaries.map((beneficiary) => {
                   const isZelle = beneficiary.beneficiaryType === "zelle";
                   const amount = resolveBeneficiaryAmount(beneficiary, operation);
-                  const origin = resolveAmountOrigin(beneficiary, operation);
                   const currencyLabel = isZelle
                     ? t("beneficiaryType.zelle")
                     : (beneficiary.currency ?? operation.destinationCurrency);
                   const amountDisplay = amount === null ? null : money(amount, currencyLabel);
-                  const showLockHint = origin === "manual" || amountLocked;
-                  const rate = operation.quotedDestinationRate;
-                  const showCalculatedHint = !showLockHint && origin === "calculated" && rate !== null;
 
                   const isEditingBeneficiary =
                     openForm?.kind === "beneficiary" && openForm.beneficiaryId === beneficiary.id;
@@ -326,30 +346,13 @@ export function RemittanceOperationCard({
                       )}
 
                       <div className="space-y-1.5">
-                        {amount === null ? (
-                          <CopyChip
-                            value=""
-                            display={t("amountMissing")}
-                            icon={<AlertTriangle className="size-3.5" aria-hidden="true" />}
-                            ariaLabel={t("amountMissing")}
-                            tone="warning"
-                            disabled={!editable}
-                            onActivate={editable ? () => toggleForm({ kind: "operation" }) : undefined}
-                          />
-                        ) : (
-                          <CopyChip
-                            value={String(amount)}
-                            display={amountDisplay}
-                            icon={<Banknote className="size-3.5" aria-hidden="true" />}
-                            ariaLabel={t("copyValue", { label: t("amount") })}
-                            hint={
-                              showLockHint ? (
-                                <Lock className="size-3" aria-label={t("manualAmount")} />
-                              ) : showCalculatedHint ? (
-                                t(calculatedHintKey(currencyLabel), { rate })
-                              ) : undefined
-                            }
-                          />
+                        {operation.beneficiaries.length >= 2 && amount !== null && (
+                          <div className="flex items-center gap-2 text-sm leading-5">
+                            <span className="flex w-4 shrink-0 items-center justify-center">
+                              <Banknote className="size-3.5 text-muted-foreground" aria-hidden="true" />
+                            </span>
+                            <span className="font-medium tabular-nums">{amountDisplay}</span>
+                          </div>
                         )}
 
                         {isZelle && beneficiary.zelleAccount && (

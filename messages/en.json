@@ -345,9 +345,6 @@
       "lockedByOperator": "Locked by an operator correction",
       "deliverTo": "Deliver to",
       "amountMissing": "Amount missing · add",
-      "calculatedDivide": "calculated ÷{rate}",
-      "calculatedMultiply": "calculated ×{rate}",
-      "manualAmount": "Set manually",
       "completeTransfer": "Complete transfer",
       "viewer": {
         "zoomOut": "Zoom out",

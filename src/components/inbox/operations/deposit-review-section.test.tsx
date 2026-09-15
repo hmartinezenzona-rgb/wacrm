@@ -14,6 +14,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import en from "../../../../messages/en.json";
 import type { DepositReceipt, OperationReceiptsRead, VerifyDepositItem } from "@/lib/remittance-operations/types";
+import type { SummaryAmount } from "./deposit-review-section";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -36,6 +37,7 @@ afterEach(() => {
 });
 
 const T = en.Inbox.operationsPanel.depositReview;
+const AMOUNT_MISSING = en.Inbox.operationsPanel.amountMissing;
 
 function receipt(overrides: Partial<DepositReceipt> = {}): DepositReceipt {
   return {
@@ -75,6 +77,8 @@ interface RenderOptions {
   result?: { kind: "success" | "error"; message: string } | null;
   onVerify?: (items: VerifyDepositItem[]) => void;
   onForce?: (reason: string) => void;
+  summaryAmount?: SummaryAmount | null;
+  onAddAmount?: () => void;
 }
 
 async function render(options: RenderOptions = {}) {
@@ -94,6 +98,8 @@ async function render(options: RenderOptions = {}) {
         result={options.result ?? null}
         onVerify={onVerify}
         onForce={onForce}
+        summaryAmount={options.summaryAmount}
+        onAddAmount={options.onAddAmount}
       />,
     ),
   );
@@ -155,6 +161,96 @@ describe("DepositReviewSection", () => {
 
       expect(node.textContent).toContain(T.verified);
       expect(node.querySelector("button")).toBeNull();
+      await act(async () => root.unmount());
+    });
+
+    it("renders the three rows in order: verified, amount, transId", async () => {
+      const { node, root } = await render({
+        data: readModel({
+          status: "ready_to_transfer",
+          canVerify: false,
+          receipts: [
+            receipt({
+              matchedDeposit: { transId: "TX-99", amount: 25000, currency: "GYD", receivedAt: null, consumedAt: null },
+            }),
+          ],
+        }),
+        summaryAmount: { kind: "amount", display: "100 Zelle" },
+      });
+
+      const text = node.textContent!;
+      const verifiedIdx = text.indexOf(T.verified);
+      const amountIdx = text.indexOf("100 Zelle");
+      const transIdIdx = text.indexOf("TX-99");
+      expect(verifiedIdx).toBeGreaterThanOrEqual(0);
+      expect(amountIdx).toBeGreaterThan(verifiedIdx);
+      expect(transIdIdx).toBeGreaterThan(amountIdx);
+      await act(async () => root.unmount());
+    });
+
+    it("renders the TransID row as plain text, never a button", async () => {
+      const { node, root } = await render({
+        data: readModel({
+          status: "ready_to_transfer",
+          canVerify: false,
+          receipts: [
+            receipt({
+              matchedDeposit: { transId: "TX-99", amount: 25000, currency: "GYD", receivedAt: null, consumedAt: null },
+            }),
+          ],
+        }),
+        summaryAmount: { kind: "amount", display: "100 Zelle" },
+      });
+
+      expect(node.textContent).toContain("TX-99");
+      expect(node.querySelector("button")).toBeNull();
+      await act(async () => root.unmount());
+    });
+
+    it("renders the amber missing-amount row as a button that calls onAddAmount when provided", async () => {
+      const onAddAmount = vi.fn();
+      const { node, root } = await render({
+        data: readModel({
+          status: "transferring",
+          canVerify: false,
+          receipts: [receipt({ declaredRef: null, matchedDeposit: null })],
+        }),
+        summaryAmount: { kind: "missing" },
+        onAddAmount,
+      });
+
+      const warningButton = textButton(node, AMOUNT_MISSING)!;
+      expect(warningButton).not.toBeUndefined();
+      await act(async () => warningButton.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+      expect(onAddAmount).toHaveBeenCalledTimes(1);
+      await act(async () => root.unmount());
+    });
+
+    it("renders the missing-amount row as plain amber text (no button) when onAddAmount is not provided", async () => {
+      const { node, root } = await render({
+        data: readModel({
+          status: "transferring",
+          canVerify: false,
+          receipts: [receipt({ declaredRef: null, matchedDeposit: null })],
+        }),
+        summaryAmount: { kind: "missing" },
+      });
+
+      expect(node.textContent).toContain(AMOUNT_MISSING);
+      expect(node.querySelector("button")).toBeNull();
+      await act(async () => root.unmount());
+    });
+
+    it("omits the amount row entirely when summaryAmount is not provided", async () => {
+      const { node, root } = await render({
+        data: readModel({
+          status: "transferring",
+          canVerify: false,
+          receipts: [receipt({ declaredRef: null, matchedDeposit: null })],
+        }),
+      });
+
+      expect(node.textContent).not.toContain(AMOUNT_MISSING);
       await act(async () => root.unmount());
     });
   });

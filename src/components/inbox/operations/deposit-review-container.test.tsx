@@ -15,6 +15,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import en from "../../../../messages/en.json";
 import type { OperationReceiptsRead, VerifyDepositResult } from "@/lib/remittance-operations/types";
+import type { SummaryAmount } from "./deposit-review-section";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -102,6 +103,8 @@ interface RenderOptions {
   canEdit?: boolean;
   role?: "owner" | "admin" | "agent" | "viewer" | null;
   onChanged?: () => void;
+  summaryAmount?: SummaryAmount | null;
+  onAddAmount?: () => void;
 }
 
 async function renderContainer(options: RenderOptions = {}) {
@@ -117,6 +120,8 @@ async function renderContainer(options: RenderOptions = {}) {
         canEdit={options.canEdit ?? true}
         role={options.role ?? "admin"}
         onChanged={onChanged}
+        summaryAmount={options.summaryAmount}
+        onAddAmount={options.onAddAmount}
       />,
     ),
   );
@@ -270,5 +275,33 @@ describe("DepositReviewContainer", () => {
     await flush();
 
     expect(node.textContent).toBe("");
+  });
+
+  it("forwards summaryAmount through to the rendered section", async () => {
+    fetchOperationReceipts.mockResolvedValue({
+      ok: true,
+      data: readModel({ status: "ready_to_transfer", canVerify: false }),
+    });
+
+    const { node } = await renderContainer({ summaryAmount: { kind: "amount", display: "100 Zelle" } });
+    await flush();
+
+    expect(node.textContent).toContain("100 Zelle");
+  });
+
+  it("forwards a missing summaryAmount and onAddAmount through to the rendered section", async () => {
+    fetchOperationReceipts.mockResolvedValue({
+      ok: true,
+      data: readModel({ status: "ready_to_transfer", canVerify: false }),
+    });
+    const onAddAmount = vi.fn();
+
+    const { node } = await renderContainer({ summaryAmount: { kind: "missing" }, onAddAmount });
+    await flush();
+
+    const warningButton = textButton(node, en.Inbox.operationsPanel.amountMissing)!;
+    expect(warningButton).not.toBeUndefined();
+    await act(async () => warningButton.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(onAddAmount).toHaveBeenCalledTimes(1);
   });
 });

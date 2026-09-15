@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { canForceVerify, type AccountRole } from "@/lib/auth/roles";
 import { fetchOperationReceipts, forceVerifyDeposit, verifyDeposit } from "@/lib/remittance-operations/commands";
 import type { OperationReceiptsRead, VerifyDepositItem } from "@/lib/remittance-operations/types";
-import { DepositReviewSection } from "./deposit-review-section";
+import { DepositReviewSection, type SummaryAmount } from "./deposit-review-section";
 
 interface DepositReviewContainerProps {
   operationId: string;
@@ -17,6 +17,10 @@ interface DepositReviewContainerProps {
   /** Called after a verify/force attempt actually changes the operation's
    *  stage, so the panel container refetches the operation list/status. */
   onChanged: () => void;
+  /** Passed straight through to `DepositReviewSection` — the card computes
+   *  these, this container has no opinion on them. */
+  summaryAmount?: SummaryAmount | null;
+  onAddAmount?: () => void;
 }
 
 type ResultBanner = { kind: "success" | "error"; message: string } | null;
@@ -56,7 +60,14 @@ const KNOWN_RESULTS: ReadonlyArray<string> = [
  * receipts and verification isn't offered, so most cards (not in deposit
  * review) never show this block at all.
  */
-export function DepositReviewContainer({ operationId, canEdit, role, onChanged }: DepositReviewContainerProps) {
+export function DepositReviewContainer({
+  operationId,
+  canEdit,
+  role,
+  onChanged,
+  summaryAmount,
+  onAddAmount,
+}: DepositReviewContainerProps) {
   const t = useTranslations("Inbox.operationsPanel");
   const [state, setState] = useState<FetchState>({ status: "loading" });
   const [busy, setBusy] = useState(false);
@@ -141,6 +152,8 @@ export function DepositReviewContainer({ operationId, canEdit, role, onChanged }
       result={result}
       onVerify={handleVerify}
       onForce={handleForce}
+      summaryAmount={summaryAmount}
+      onAddAmount={onAddAmount}
     />
   );
 }

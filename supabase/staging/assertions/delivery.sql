@@ -97,6 +97,10 @@ BEGIN
   IF v_op_1_id IS NULL THEN
     RAISE EXCEPTION 'delivery: fixture setup failed — no operation created for deal %', v_deal_1_id;
   END IF;
+  -- 102 requires complete beneficiary data before crm_entregar_operacion
+  -- will deliver — a complete vigente zelle beneficiary satisfies it.
+  INSERT INTO remittance_beneficiaries (id, operation_id, beneficiary_type, name, zelle_account, position, block_index, status)
+  VALUES (gen_random_uuid(), v_op_1_id, 'zelle', 'Delivery Fixture 1 Beneficiary', 'delivery1-ok@example.invalid', 1, 1, 'vigente');
 
   -- deal 2: LISTA — used for case 2 (owner delivers with no_proof).
   INSERT INTO deals (id, user_id, pipeline_id, stage_id, title, account_id, conversation_id, contact_id, value, currency)
@@ -106,6 +110,8 @@ BEGIN
   IF v_op_2_id IS NULL THEN
     RAISE EXCEPTION 'delivery: fixture setup failed — no operation created for deal %', v_deal_2_id;
   END IF;
+  INSERT INTO remittance_beneficiaries (id, operation_id, beneficiary_type, name, zelle_account, position, block_index, status)
+  VALUES (gen_random_uuid(), v_op_2_id, 'zelle', 'Delivery Fixture 2 Beneficiary', 'delivery2-ok@example.invalid', 1, 1, 'vigente');
 
   -- deal 3: LISTA — used for case 3 (skip_proof).
   INSERT INTO deals (id, user_id, pipeline_id, stage_id, title, account_id, conversation_id, contact_id, value, currency)
@@ -115,6 +121,8 @@ BEGIN
   IF v_op_3_id IS NULL THEN
     RAISE EXCEPTION 'delivery: fixture setup failed — no operation created for deal %', v_deal_3_id;
   END IF;
+  INSERT INTO remittance_beneficiaries (id, operation_id, beneficiary_type, name, zelle_account, position, block_index, status)
+  VALUES (gen_random_uuid(), v_op_3_id, 'zelle', 'Delivery Fixture 3 Beneficiary', 'delivery3-ok@example.invalid', 1, 1, 'vigente');
 
   -- deal pv: POR_VERIFICAR — its operation is deposit_verification, never
   -- ready_to_transfer. Used for case 5a.

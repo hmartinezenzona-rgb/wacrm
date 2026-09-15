@@ -10,6 +10,7 @@ import type {
   VerifyDepositItem,
   VerifyDepositResult,
 } from "./types";
+import type { DeliveryEvidenceRpc } from "./delivery";
 
 export type CommandResult =
   | { ok: true; id?: string }
@@ -182,4 +183,21 @@ export async function forceVerifyDeposit(
   );
   if (!response.ok) return response;
   return { ok: true, newStatus: response.data.newStatus };
+}
+
+export type DeliverOperationCommandResult =
+  | { ok: true; newStatus: string; completedAt: string | null }
+  | { ok: false; status: number; error: string };
+
+export async function deliverOperation(
+  operationId: string,
+  evidence: DeliveryEvidenceRpc,
+): Promise<DeliverOperationCommandResult> {
+  const response = await postJsonResult<{ newStatus: string; completedAt: string | null }>(
+    `/api/remittance-operations/${operationId}/deliver`,
+    "POST",
+    { evidence },
+  );
+  if (!response.ok) return response;
+  return { ok: true, newStatus: response.data.newStatus, completedAt: response.data.completedAt };
 }

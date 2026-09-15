@@ -46,6 +46,7 @@ import {
   type DeliveryDeps,
   type DeliveryResult,
 } from "@/lib/pipelines/deliver-with-proof";
+import { sendProofImage } from "@/lib/pipelines/send-proof-image";
 import {
   DELIVERED_STAGE_ID,
   DELIVERY_PROOF_STAGE_ID,
@@ -680,38 +681,7 @@ export default function PipelinesPage() {
             CHAT_MEDIA_BUCKET,
             new File([file], uploadName, { type: file.type }),
           ),
-        sendProof: async ({ conversationId, mediaUrl, caption }) => {
-          const res = await fetch("/api/whatsapp/send", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              conversation_id: conversationId,
-              message_type: "image",
-              media_url: mediaUrl,
-              content_text: caption || undefined,
-            }),
-          });
-          const body = await res.json().catch(() => ({}));
-
-          if (res.ok) {
-            return { ok: true, wamid: body?.whatsapp_message_id };
-          }
-
-          const message = body?.error || `HTTP ${res.status}`;
-          // `db_error` with a wamid means Meta ACCEPTED the image and
-          // WaCRM then failed to save the row. An HTTP error that is
-          // really a delivered message — the one case where "it
-          // failed, try again" would send the customer a duplicate.
-          if (body?.code === "db_error" && body?.whatsapp_message_id) {
-            return {
-              ok: false,
-              outcome: "sent-not-recorded",
-              message,
-              wamid: body.whatsapp_message_id as string,
-            };
-          }
-          return { ok: false, outcome: "not-sent", message };
-        },
+        sendProof: sendProofImage,
         readStage: async (dealId) => {
           const { data, error } = await supabase
             .from("deals")

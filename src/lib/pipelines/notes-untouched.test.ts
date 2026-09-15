@@ -37,6 +37,10 @@ const board = readFileSync(
   join(root, "src/app/(dashboard)/pipelines/page.tsx"),
   "utf8",
 );
+const sendProofImage = readFileSync(
+  join(root, "src/lib/pipelines/send-proof-image.ts"),
+  "utf8",
+);
 
 /** The object literal assigned to `payload` in `handleSave`. */
 function savePayload(source: string): string {
@@ -89,8 +93,13 @@ describe("the delivery path's write", () => {
   it("never posts a note to the messages API as its own message", () => {
     // The note travels as the image caption (`content_text` on the
     // image send), not as a separate text message: one fewer send
-    // that can fail on its own.
-    const sends = board.match(/message_type: "(\w+)"/g) ?? [];
-    expect(sends).toEqual(['message_type: "image"']);
+    // that can fail on its own. The send itself moved out of the board
+    // into `send-proof-image.ts` (panel-22) — the board must carry no
+    // send of its own, and the extracted module must carry exactly the
+    // one image send.
+    const boardSends = board.match(/message_type: "(\w+)"/g) ?? [];
+    const proofSends = sendProofImage.match(/message_type: "(\w+)"/g) ?? [];
+    expect(boardSends).toEqual([]);
+    expect(proofSends).toEqual(['message_type: "image"']);
   });
 });

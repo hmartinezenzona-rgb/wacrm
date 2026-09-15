@@ -10,6 +10,7 @@ import {
   fetchOperationReceipts,
   verifyDeposit,
   forceVerifyDeposit,
+  deliverOperation,
 } from "./commands";
 
 const OPERATION_ID = "11111111-1111-1111-1111-111111111111";
@@ -265,6 +266,53 @@ describe("forceVerifyDeposit", () => {
     vi.mocked(fetch).mockRejectedValueOnce(new Error("offline"));
 
     const response = await forceVerifyDeposit(OPERATION_ID, "short reason enough");
+
+    expect(response).toEqual({ ok: false, status: 0, error: "Network error" });
+  });
+});
+
+describe("deliverOperation", () => {
+  it("POSTs the evidence to the deliver endpoint and unwraps newStatus/completedAt", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse({ ok: true, newStatus: "completed", completedAt: "2026-09-15T12:00:00Z" }),
+    );
+
+    const evidence = { mode: "proof_sent" as const, wamid: "wamid.ABC", path: "account-1/x.png" };
+    const response = await deliverOperation(OPERATION_ID, evidence);
+
+    expect(fetch).toHaveBeenCalledWith(
+      `/api/remittance-operations/${OPERATION_ID}/deliver`,
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ evidence }),
+      }),
+    );
+    expect(response).toEqual({
+      ok: true,
+      newStatus: "completed",
+      completedAt: "2026-09-15T12:00:00Z",
+    });
+  });
+
+  it("maps a non-2xx response to ok:false with status and error message", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse({ error: "operation is not ready to transfer" }, 400),
+    );
+
+    const response = await deliverOperation(OPERATION_ID, { mode: "no_proof" });
+
+    expect(response).toEqual({
+      ok: false,
+      status: 400,
+      error: "operation is not ready to transfer",
+    });
+  });
+
+  it("maps a network failure to ok:false status 0", async () => {
+    vi.mocked(fetch).mockRejectedValueOnce(new Error("offline"));
+
+    const response = await deliverOperation(OPERATION_ID, { mode: "no_proof" });
 
     expect(response).toEqual({ ok: false, status: 0, error: "Network error" });
   });

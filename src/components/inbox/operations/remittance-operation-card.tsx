@@ -137,6 +137,20 @@ function resolveBeneficiaryAmount(
  *  the operation-level amount when known. Two or more beneficiaries never
  *  render here; each shows its own amount instead, in the beneficiary
  *  list below. */
+/** Services whose amount reads as the service itself ("100 Zelle", "40
+ *  Classic") instead of a currency code — the unit the operator and the
+ *  client talk in. Everything else shows its currency. */
+const SERVICE_UNIT_TYPES: ReadonlyArray<string> = ["zelle", "clasica", "tropical"];
+
+function unitLabel(
+  service: string | null,
+  currency: string | null,
+  t: (key: string) => string,
+): string | null {
+  if (service && SERVICE_UNIT_TYPES.includes(service)) return t(`beneficiaryType.${service}`);
+  return currency;
+}
+
 function computeSummaryAmount(
   operation: RemittanceOperationRead,
   t: (key: string) => string,
@@ -145,15 +159,17 @@ function computeSummaryAmount(
     const beneficiary = operation.beneficiaries[0]!;
     const amount = resolveBeneficiaryAmount(beneficiary, operation);
     if (amount === null) return { kind: "missing" };
-    const isZelle = beneficiary.beneficiaryType === "zelle";
-    const currencyLabel = isZelle ? t("beneficiaryType.zelle") : (beneficiary.currency ?? operation.destinationCurrency);
+    const currencyLabel = unitLabel(
+      beneficiary.beneficiaryType,
+      beneficiary.currency ?? operation.destinationCurrency,
+      t,
+    );
     return { kind: "amount", display: money(amount, currencyLabel)! };
   }
 
   if (operation.beneficiaries.length === 0) {
     if (operation.quotedDestinationAmount === null) return null;
-    const isZelle = operation.deliveryMethod === "zelle";
-    const currencyLabel = isZelle ? t("beneficiaryType.zelle") : operation.destinationCurrency;
+    const currencyLabel = unitLabel(operation.deliveryMethod, operation.destinationCurrency, t);
     return { kind: "amount", display: money(operation.quotedDestinationAmount, currencyLabel)! };
   }
 
@@ -393,9 +409,11 @@ export function RemittanceOperationCard({
                 {operation.beneficiaries.map((beneficiary) => {
                   const isZelle = beneficiary.beneficiaryType === "zelle";
                   const amount = resolveBeneficiaryAmount(beneficiary, operation);
-                  const currencyLabel = isZelle
-                    ? t("beneficiaryType.zelle")
-                    : (beneficiary.currency ?? operation.destinationCurrency);
+                  const currencyLabel = unitLabel(
+                    beneficiary.beneficiaryType,
+                    beneficiary.currency ?? operation.destinationCurrency,
+                    t,
+                  );
                   const amountDisplay = amount === null ? null : money(amount, currencyLabel);
 
                   const isEditingBeneficiary =

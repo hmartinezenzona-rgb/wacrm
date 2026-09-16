@@ -101,7 +101,7 @@ function knownMethodLabel(method: string, t: (key: string) => string): string {
 }
 
 /** What the header shows to the right of the arrow: the delivery method's
- *  human label for the fixed Zelle/Classic/Tropical rails, otherwise the
+ *  human label for the fixed Zelle/Clásica/Tropical rails, otherwise the
  *  destination currency (operation-level, then the first beneficiary's),
  *  otherwise the delivery method's label as a last resort. Never the
  *  destination amount — that's not shown anywhere in the header. */
@@ -138,7 +138,7 @@ function resolveBeneficiaryAmount(
  *  render here; each shows its own amount instead, in the beneficiary
  *  list below. */
 /** Services whose amount reads as the service itself ("100 Zelle", "40
- *  Classic") instead of a currency code — the unit the operator and the
+ *  Clásica") instead of a currency code — the unit the operator and the
  *  client talk in. Everything else shows its currency. */
 const SERVICE_UNIT_TYPES: ReadonlyArray<string> = ["zelle", "clasica", "tropical"];
 

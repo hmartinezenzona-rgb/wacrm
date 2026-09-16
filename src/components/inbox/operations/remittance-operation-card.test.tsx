@@ -524,8 +524,8 @@ describe("RemittanceOperationCard", () => {
       await act(async () => root.unmount());
     });
 
-    it("labels Classic and Tropical amounts by service, not by currency", async () => {
-      for (const [type, label] of [["clasica", "Classic"], ["tropical", "Tropical"]] as const) {
+    it("labels Clásica and Tropical amounts by service, not by currency", async () => {
+      for (const [type, label] of [["clasica", "Clásica"], ["tropical", "Tropical"]] as const) {
         const { node, root } = await render(
           operation({ beneficiaries: [beneficiary({ beneficiaryType: type, amount: 40, currency: "USD" })] }),
         );
@@ -535,12 +535,12 @@ describe("RemittanceOperationCard", () => {
       }
     });
 
-    it("labels a Classic amount by service when the operation has no beneficiaries yet", async () => {
+    it("labels a Clásica amount by service when the operation has no beneficiaries yet", async () => {
       const { node, root } = await render(
         operation({ beneficiaries: [], deliveryMethod: "clasica", quotedDestinationAmount: 40, destinationCurrency: "USD" }),
       );
 
-      expect(summaryAmountFromStub(node)).toEqual({ kind: "amount", display: "40 Classic" });
+      expect(summaryAmountFromStub(node)).toEqual({ kind: "amount", display: "40 Clásica" });
       await act(async () => root.unmount());
     });
 

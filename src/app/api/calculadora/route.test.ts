@@ -56,6 +56,12 @@ function db(
       if (table === "calculator_rate_versions") return rateBuilder;
       return documentBuilder;
     }),
+    rpc: vi.fn(() =>
+      Promise.resolve({
+        data: { raw_text: "texto", period_label: "sem 1" },
+        error: null,
+      }),
+    ),
     documentBuilder,
     rateBuilder,
     chatEntriesBuilder,
@@ -66,6 +72,14 @@ const supabaseAdmin = vi.fn();
 vi.mock("@/lib/flows/admin-client", () => ({ supabaseAdmin: () => supabaseAdmin() }));
 
 const ACCOUNT = { accountId: "account-a", userId: "user-a", role: "agent" };
+
+/** Migration 106: this route runs on the CALLER'S session client, so the
+ *  client under test is handed over through the account context rather
+ *  than through the admin-client factory. */
+function useClient<T>(client: T): T {
+  getCurrentAccount.mockResolvedValue({ ...ACCOUNT, supabase: client });
+  return client;
+}
 
 function jsonRequest(body: unknown) {
   return new Request("http://local/api/calculadora", {
@@ -79,6 +93,36 @@ beforeEach(() => {
   vi.clearAllMocks();
   getCurrentAccount.mockResolvedValue(ACCOUNT);
   canSendMessages.mockImplementation(() => true);
+});
+
+describe("session client only (migration 106)", () => {
+  it("GET reads through the caller's session client, never the admin client", async () => {
+    const { GET } = await import("./route");
+    const client = db();
+    getCurrentAccount.mockResolvedValue({ ...ACCOUNT, supabase: client });
+
+    await GET();
+
+    expect(client.from).toHaveBeenCalled();
+    expect(supabaseAdmin).not.toHaveBeenCalled();
+  });
+
+  it("POST saves the document through crm_guardar_documento_calculadora, not a direct upsert", async () => {
+    const { POST } = await import("./route");
+    const client = db();
+    getCurrentAccount.mockResolvedValue({ ...ACCOUNT, supabase: client });
+
+    const response = await POST(jsonRequest({ rawText: "texto", periodo: "sem 1" }));
+
+    expect(response.status).toBe(200);
+    expect(client.rpc).toHaveBeenCalledWith("crm_guardar_documento_calculadora", {
+      p_account_id: ACCOUNT.accountId,
+      p_raw_text: "texto",
+      p_period_label: "sem 1",
+    });
+    expect(client.documentBuilder.upsert).not.toHaveBeenCalled();
+    expect(supabaseAdmin).not.toHaveBeenCalled();
+  });
 });
 
 describe("GET /api/calculadora", () => {
@@ -102,7 +146,7 @@ describe("GET /api/calculadora", () => {
 
   it("no document and no rate version yet -> empty text, null rates (no default)", async () => {
     const { GET } = await import("./route");
-    supabaseAdmin.mockReturnValue(db());
+    useClient(db());
 
     const response = await GET();
 
@@ -124,7 +168,7 @@ describe("GET /api/calculadora", () => {
       data: { raw_text: "• Fran 50k CUP (235/980)", period_label: "SEMANA 1" },
       error: null,
     });
-    supabaseAdmin.mockReturnValue(database);
+    useClient(database);
 
     const response = await GET();
 
@@ -157,7 +201,7 @@ describe("GET /api/calculadora", () => {
         error: null,
       },
     );
-    supabaseAdmin.mockReturnValue(database);
+    useClient(database);
 
     const response = await GET();
 
@@ -191,7 +235,7 @@ describe("GET /api/calculadora", () => {
         error: null,
       },
     );
-    supabaseAdmin.mockReturnValue(database);
+    useClient(database);
 
     const response = await GET();
 
@@ -205,7 +249,7 @@ describe("GET /api/calculadora", () => {
 
   it("document read failure maps to 500", async () => {
     const { GET } = await import("./route");
-    supabaseAdmin.mockReturnValue(db({ data: null, error: { message: "boom" } }));
+    useClient(db({ data: null, error: { message: "boom" } }));
 
     const response = await GET();
 
@@ -214,7 +258,7 @@ describe("GET /api/calculadora", () => {
 
   it("rate version read failure maps to 500", async () => {
     const { GET } = await import("./route");
-    supabaseAdmin.mockReturnValue(
+    useClient(
       db({ data: null, error: null }, { data: null, error: { message: "boom" } }),
     );
 
@@ -225,7 +269,7 @@ describe("GET /api/calculadora", () => {
 
   it("chat entries read failure maps to 500", async () => {
     const { GET } = await import("./route");
-    supabaseAdmin.mockReturnValue(
+    useClient(
       db({ data: null, error: null }, { data: null, error: null }, { data: null, error: { message: "boom" } }),
     );
 
@@ -287,7 +331,7 @@ describe("GET /api/calculadora", () => {
         error: null,
       },
     );
-    supabaseAdmin.mockReturnValue(database);
+    useClient(database);
 
     const response = await GET();
     const body = await response.json();
@@ -301,7 +345,7 @@ describe("GET /api/calculadora", () => {
   it("excludes void entries from chatOperations by filtering the query", async () => {
     const { GET } = await import("./route");
     const database = db();
-    supabaseAdmin.mockReturnValue(database);
+    useClient(database);
 
     await GET();
 
@@ -311,13 +355,6 @@ describe("GET /api/calculadora", () => {
 });
 
 describe("POST /api/calculadora", () => {
-  function okBuilder() {
-    return queryBuilder({
-      data: { raw_text: "text", period_label: "SEMANA 1" },
-      error: null,
-    });
-  }
-
   it("unauthenticated request -> 401", async () => {
     const { POST } = await import("./route");
     getCurrentAccount.mockRejectedValueOnce({ message: "Unauthorized", status: 401 });
@@ -344,10 +381,10 @@ describe("POST /api/calculadora", () => {
     expect(response.status).toBe(400);
   });
 
-  it("persists only raw_text, period_label, updated_by, updated_at -- never the rate columns", async () => {
+  it("sends only the text and the period to the RPC -- never a rate, whatever the client posts", async () => {
     const { POST } = await import("./route");
-    const builder = okBuilder();
-    supabaseAdmin.mockReturnValue({ from: vi.fn(() => builder) });
+    const client = db();
+    useClient(client);
 
     const response = await POST(jsonRequest({
       rawText: "text",
@@ -361,21 +398,21 @@ describe("POST /api/calculadora", () => {
     }));
 
     expect(response.status).toBe(200);
-    const [[payload]] = builder.upsert.mock.calls as unknown as [[Record<string, unknown>]];
-    expect(payload).toEqual({
-      account_id: "account-a",
-      raw_text: "text",
-      period_label: "SEMANA 1",
-      updated_by: "user-a",
-      updated_at: expect.any(String),
+    // The RPC takes three arguments and none of them is a rate, so a stale
+    // client posting rates cannot reach the rate columns through this route.
+    expect(client.rpc).toHaveBeenCalledWith("crm_guardar_documento_calculadora", {
+      p_account_id: "account-a",
+      p_raw_text: "text",
+      p_period_label: "SEMANA 1",
     });
-    expect(await response.json()).toEqual({ rawText: "text", periodo: "SEMANA 1" });
   });
 
   it("save failure maps to 500", async () => {
     const { POST } = await import("./route");
-    const builder = queryBuilder({ data: null, error: { message: "boom" } });
-    supabaseAdmin.mockReturnValue({ from: vi.fn(() => builder) });
+    useClient({
+      from: vi.fn(() => queryBuilder({ data: null, error: null })),
+      rpc: vi.fn(() => Promise.resolve({ data: null, error: { message: "boom" } })),
+    });
 
     const response = await POST(jsonRequest({ rawText: "", periodo: "" }));
 

@@ -1,8 +1,24 @@
+// ============================================================
+// GET/POST /api/calculadora
+//
+// The manual calculator document (free text + period label) plus the
+// account's current rates and its chat-fed ledger entries.
+//
+// Reads and writes run on the CALLER'S OWN session client, never a
+// service-role client. Migration 106 is what makes that possible: before
+// it, 095's two tables had RLS on with no policies and grants only to
+// `service_role`, so a logged-in user could not read a single row and this
+// route had no choice but to hold an admin client. Keeping an unrestricted
+// master key on a web server to read a rate and a block of text turned
+// every bug in this process into a total compromise; now the database
+// enforces the boundary itself and no such key is needed anywhere.
+// ============================================================
+
 import { NextResponse } from "next/server";
 import { getCurrentAccount, toErrorResponse } from "@/lib/auth/account";
 import { canSendMessages } from "@/lib/auth/roles";
-import { supabaseAdmin } from "@/lib/flows/admin-client";
 import { mapRateVersion, type RateVersionRow } from "@/lib/calculator/ledger-read-model";
+import { rpcErrorResponse } from "@/lib/remittance-operations/route-helpers";
 
 const RATE_VERSION_COLUMNS =
   "id, account_id, cup_global_rate, usdt_buy_gyd, usdt_sell_gyd, usdt_sell_cup, set_by, effective_at";
@@ -70,7 +86,7 @@ export async function GET() {
   try {
     const account = await getCurrentAccount();
     if (!canSendMessages(account.role)) return NextResponse.json({ error: "Insufficient role" }, { status: 403 });
-    const db = supabaseAdmin();
+    const db = account.supabase;
     const [{ data, error }, { data: rateRow, error: rateError }, { data: chatRows, error: chatError }] =
       await Promise.all([
         db
@@ -140,24 +156,23 @@ export async function POST(request: Request) {
     }
 
     // Rates are written only through POST /api/calculator/rates -- this
-    // route persists the manual textarea document alone.
-    const { data, error } = await supabaseAdmin()
-      .from("remittance_calculator_documents")
-      .upsert(
-        {
-          account_id: account.accountId,
-          raw_text: body.rawText,
-          period_label: body.periodo,
-          updated_by: account.userId,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "account_id" },
-      )
-      .select("raw_text,period_label")
-      .single();
-    if (error) throw new Error("calculator document save failed");
+    // route persists the manual textarea document alone, through the one
+    // function authorized to touch that table (agent+, migration 106).
+    const { data, error } = await account.supabase.rpc("crm_guardar_documento_calculadora", {
+      p_account_id: account.accountId,
+      p_raw_text: body.rawText,
+      p_period_label: body.periodo,
+    });
+    if (error) {
+      const errorResponse = rpcErrorResponse(error);
+      if (errorResponse) return errorResponse;
+      console.error("[calculadora POST] RPC error:", error);
+      throw new Error("calculator document save failed");
+    }
+
+    const saved = data as { raw_text: string; period_label: string };
     return NextResponse.json(
-      { rawText: data.raw_text, periodo: data.period_label },
+      { rawText: saved.raw_text, periodo: saved.period_label },
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (error) {

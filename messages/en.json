@@ -321,6 +321,7 @@
       "quotedDestinationAmount": "Quoted destination amount",
       "name": "Name",
       "currency": "Currency",
+      "mixedDestination": "Mixed",
       "beneficiaryType": {
         "cuban_card": "Cuban card",
         "zelle": "Zelle",

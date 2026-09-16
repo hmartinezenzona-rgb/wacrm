@@ -100,20 +100,28 @@ function knownMethodLabel(method: string, t: (key: string) => string): string {
       : method;
 }
 
-/** What the header shows to the right of the arrow: the delivery method's
- *  human label for the fixed Zelle/Clásica/Tropical rails, otherwise the
- *  destination currency (operation-level, then the first beneficiary's),
- *  otherwise the delivery method's label as a last resort. Never the
- *  destination amount — that's not shown anywhere in the header. */
+/** What the header shows to the right of the arrow: "Mixed" as soon as the
+ *  beneficiaries land on more than one unit (a CUP + Zelle split has no single
+ *  destination to name), otherwise the delivery method's human label for the
+ *  fixed Zelle/Clásica/Tropical rails, otherwise the destination currency
+ *  (operation-level, then the first beneficiary's), otherwise the delivery
+ *  method's label as a last resort. Never the destination amount — that's not
+ *  shown anywhere in the header. */
 function destinationLabel(operation: RemittanceOperationRead, t: (key: string) => string): string | null {
   const { deliveryMethod, destinationCurrency, beneficiaries } = operation;
+
+  const units = new Set(
+    beneficiaries
+      .map((b) => unitLabel(b.beneficiaryType, b.currency ?? destinationCurrency, t))
+      .filter((unit): unit is string => unit !== null),
+  );
+  if (units.size > 1) return t("mixedDestination");
+  if (units.size === 1) return [...units][0]!;
 
   if (deliveryMethod === "zelle" || deliveryMethod === "clasica" || deliveryMethod === "tropical") {
     return t(`beneficiaryType.${deliveryMethod}`);
   }
   if (destinationCurrency) return destinationCurrency;
-  const firstCurrency = beneficiaries[0]?.currency;
-  if (firstCurrency) return firstCurrency;
   if (deliveryMethod) return knownMethodLabel(deliveryMethod, t);
   return null;
 }

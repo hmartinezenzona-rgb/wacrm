@@ -238,6 +238,52 @@ describe("RemittanceOperationCard", () => {
     await act(async () => root.unmount());
   });
 
+  describe("header destination label", () => {
+    it("reads Mixed when the split spans more than one destination unit", async () => {
+      const { node, root } = await render(
+        operation({
+          deliveryMethod: "cuban_card",
+          destinationCurrency: "CUP",
+          beneficiaries: [
+            beneficiary({ id: "b1", beneficiaryType: "cuban_card", amount: 120000, currency: "CUP" }),
+            beneficiary({ id: "b2", beneficiaryType: "zelle", amount: 200, currency: "USD" }),
+            beneficiary({ id: "b3", beneficiaryType: "clasica", amount: 40, currency: "USD" }),
+          ],
+        }),
+      );
+
+      expect(node.textContent).toContain(en.Inbox.operationsPanel.mixedDestination);
+      await act(async () => root.unmount());
+    });
+
+    it("keeps the single unit when every beneficiary lands on the same one", async () => {
+      const { node, root } = await render(
+        operation({
+          deliveryMethod: "cuban_card",
+          destinationCurrency: "CUP",
+          beneficiaries: [
+            beneficiary({ id: "b1", beneficiaryType: "cuban_card", amount: 135000, currency: "CUP" }),
+            beneficiary({ id: "b2", beneficiaryType: "cuban_card", amount: 90000, currency: "CUP" }),
+          ],
+        }),
+      );
+
+      expect(node.textContent).toContain("CUP");
+      expect(node.textContent).not.toContain(en.Inbox.operationsPanel.mixedDestination);
+      await act(async () => root.unmount());
+    });
+
+    it("keeps the operation-level label when there are no beneficiaries yet", async () => {
+      const { node, root } = await render(
+        operation({ deliveryMethod: "cuban_card", destinationCurrency: "CUP", beneficiaries: [] }),
+      );
+
+      expect(node.textContent).toContain("CUP");
+      expect(node.textContent).not.toContain(en.Inbox.operationsPanel.mixedDestination);
+      await act(async () => root.unmount());
+    });
+  });
+
   it("renders human labels instead of raw method values", async () => {
     const { node, root } = await render(
       operation({ deliveryMethod: "cuban_card", depositMethod: "mmg", destinationCurrency: "CUP" }),

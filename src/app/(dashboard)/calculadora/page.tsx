@@ -2,23 +2,13 @@
 
 import { useEffect, useMemo, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { procesarTexto, type WebCalculatorErrorLine, type WebCalculatorParsedLine } from "@/lib/calculator/web-calculator";
+import type { CalculatorRates } from "@/lib/calculator/ledger-read-model";
 import "./calculadora.module.css";
 
-const DEFAULT_TARIFF = "3.0";
 const STORAGE_KEYS = {
   raw: "remesas_rawText",
   period: "remesas_periodo",
-  tariff: "remesas_tarifa",
-  buyUsdtGyd: "remesas_compraUsdtGyd",
-  sellUsdtGyd: "remesas_ventaUsdtGyd",
-  sellUsdtCup: "remesas_ventaUsdtCup",
 } as const;
-
-function toRateOrNull(value: string): number | null {
-  if (value.trim() === "") return null;
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : null;
-}
 
 function isErrorLine(operation: WebCalculatorParsedLine): operation is WebCalculatorErrorLine {
   return "error" in operation;
@@ -81,10 +71,14 @@ function renderOperationGroups(operations: WebCalculatorParsedLine[]) {
 export default function CalculadoraPage() {
   const [rawText, setRawText] = useState("");
   const [periodo, setPeriodo] = useState("");
-  const [tarifa, setTarifa] = useState(DEFAULT_TARIFF);
+  const [tarifa, setTarifa] = useState("");
   const [compraUsdtGyd, setCompraUsdtGyd] = useState("");
   const [ventaUsdtGyd, setVentaUsdtGyd] = useState("");
   const [ventaUsdtCup, setVentaUsdtCup] = useState("");
+  const [rateVersionId, setRateVersionId] = useState<string | null>(null);
+  const [ratesLocked, setRatesLocked] = useState(false);
+  const [ratesSaving, setRatesSaving] = useState(false);
+  const [ratesMessage, setRatesMessage] = useState<string | null>(null);
   const [chatEntries, setChatEntries] = useState<ChatCalculatorEntry[]>([]);
   const [dark, setDark] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
@@ -111,46 +105,54 @@ export default function CalculadoraPage() {
     }
     return [...byService.values()];
   }, [chatEntries, parsed.services]);
+  const pendingEntries = useMemo(
+    () => chatEntries.filter((entry) => entry.status === "verified_pending"),
+    [chatEntries],
+  );
+
+  function applyRates(rates: CalculatorRates | null) {
+    setRateVersionId(rates?.id ?? null);
+    setTarifa(rates?.cupGlobalRate == null ? "" : String(rates.cupGlobalRate));
+    setCompraUsdtGyd(rates?.usdtBuyGyd == null ? "" : String(rates.usdtBuyGyd));
+    setVentaUsdtGyd(rates?.usdtSellGyd == null ? "" : String(rates.usdtSellGyd));
+    setVentaUsdtCup(rates?.usdtSellCup == null ? "" : String(rates.usdtSellCup));
+  }
 
   useEffect(() => {
     let active = true;
-    void fetch(`/api/calculadora?t=${Date.now()}`, { cache: "no-store" })
-      .then(async (response) => {
+    Promise.all([
+      fetch(`/api/calculadora?t=${Date.now()}`, { cache: "no-store" }).then((response) => {
         if (!response.ok) throw new Error("calculator document read failed");
         return response.json() as Promise<{
           rawText?: string;
           periodo?: string;
-          tarifa?: number;
-          compraUsdtGyd?: number | null;
-          ventaUsdtGyd?: number | null;
-          ventaUsdtCup?: number | null;
           chatOperations?: { entries?: ChatCalculatorEntry[] };
         }>;
-      })
-      .then((data) => {
+      }),
+      // Rates are read from their own endpoint (the same one Guardar tasas
+      // writes to) so the page always has the current version id to send
+      // back as expectedVersionId. A failure here is non-fatal: the rate
+      // inputs just stay empty rather than blocking the whole page.
+      fetch("/api/calculator/rates", { cache: "no-store" })
+        .then((response) => {
+          if (!response.ok) throw new Error("calculator rates read failed");
+          return response.json() as Promise<{ rates: CalculatorRates | null }>;
+        })
+        .catch(() => ({ rates: null })),
+    ])
+      .then(([data, ratesData]) => {
         if (!active) return;
         setRawText(data.rawText ?? "");
         setPeriodo(data.periodo ?? "");
-        setTarifa(String(data.tarifa ?? DEFAULT_TARIFF));
-        setCompraUsdtGyd(data.compraUsdtGyd == null ? "" : String(data.compraUsdtGyd));
-        setVentaUsdtGyd(data.ventaUsdtGyd == null ? "" : String(data.ventaUsdtGyd));
-        setVentaUsdtCup(data.ventaUsdtCup == null ? "" : String(data.ventaUsdtCup));
         setChatEntries(data.chatOperations?.entries ?? []);
+        applyRates(ratesData.rates);
         localStorage.setItem(STORAGE_KEYS.raw, data.rawText ?? "");
         localStorage.setItem(STORAGE_KEYS.period, data.periodo ?? "");
-        localStorage.setItem(STORAGE_KEYS.tariff, String(data.tarifa ?? DEFAULT_TARIFF));
-        localStorage.setItem(STORAGE_KEYS.buyUsdtGyd, data.compraUsdtGyd == null ? "" : String(data.compraUsdtGyd));
-        localStorage.setItem(STORAGE_KEYS.sellUsdtGyd, data.ventaUsdtGyd == null ? "" : String(data.ventaUsdtGyd));
-        localStorage.setItem(STORAGE_KEYS.sellUsdtCup, data.ventaUsdtCup == null ? "" : String(data.ventaUsdtCup));
       })
       .catch(() => {
         if (!active) return;
         setRawText(localStorage.getItem(STORAGE_KEYS.raw) ?? "");
         setPeriodo(localStorage.getItem(STORAGE_KEYS.period) ?? "");
-        setTarifa(localStorage.getItem(STORAGE_KEYS.tariff) || DEFAULT_TARIFF);
-        setCompraUsdtGyd(localStorage.getItem(STORAGE_KEYS.buyUsdtGyd) ?? "");
-        setVentaUsdtGyd(localStorage.getItem(STORAGE_KEYS.sellUsdtGyd) ?? "");
-        setVentaUsdtCup(localStorage.getItem(STORAGE_KEYS.sellUsdtCup) ?? "");
         setChatEntries([]);
       })
       .finally(() => { if (active) setHydrated(true); });
@@ -161,29 +163,54 @@ export default function CalculadoraPage() {
     if (!hydrated) return;
     localStorage.setItem(STORAGE_KEYS.raw, rawText);
     localStorage.setItem(STORAGE_KEYS.period, periodo);
-    localStorage.setItem(STORAGE_KEYS.tariff, tarifa);
-    localStorage.setItem(STORAGE_KEYS.buyUsdtGyd, compraUsdtGyd);
-    localStorage.setItem(STORAGE_KEYS.sellUsdtGyd, ventaUsdtGyd);
-    localStorage.setItem(STORAGE_KEYS.sellUsdtCup, ventaUsdtCup);
     const timer = window.setTimeout(() => {
       void fetch("/api/calculadora", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          rawText,
-          periodo,
-          tarifa: Number(tarifa),
-          compraUsdtGyd: toRateOrNull(compraUsdtGyd),
-          ventaUsdtGyd: toRateOrNull(ventaUsdtGyd),
-          ventaUsdtCup: toRateOrNull(ventaUsdtCup),
-        }),
+        body: JSON.stringify({ rawText, periodo }),
       }).then((response) => {
         if (!response.ok) throw new Error("calculator document save failed");
         setSaveError(null);
       }).catch(() => setSaveError("No se pudo guardar en el servidor; los datos siguen guardados localmente."));
     }, 600);
     return () => window.clearTimeout(timer);
-  }, [hydrated, rawText, periodo, tarifa, compraUsdtGyd, ventaUsdtGyd, ventaUsdtCup]);
+  }, [hydrated, rawText, periodo]);
+
+  async function guardarTasas() {
+    setRatesSaving(true);
+    setRatesMessage(null);
+    const rates: Record<string, number> = {};
+    if (tarifa.trim() !== "") rates.cup_global_rate = Number(tarifa);
+    if (compraUsdtGyd.trim() !== "") rates.usdt_buy_gyd = Number(compraUsdtGyd);
+    if (ventaUsdtGyd.trim() !== "") rates.usdt_sell_gyd = Number(ventaUsdtGyd);
+    if (ventaUsdtCup.trim() !== "") rates.usdt_sell_cup = Number(ventaUsdtCup);
+    try {
+      const response = await fetch("/api/calculator/rates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rates, ...(rateVersionId ? { expectedVersionId: rateVersionId } : {}) }),
+      });
+      if (response.status === 403) {
+        setRatesLocked(true);
+        setRatesMessage("Solo un administrador puede modificar las tasas.");
+        return;
+      }
+      if (response.status === 409) {
+        setRatesMessage("Las tasas se modificaron en otro lugar; recarga la página.");
+        return;
+      }
+      if (!response.ok) {
+        setRatesMessage("No se pudieron guardar las tasas.");
+        return;
+      }
+      const data = await response.json() as { rates: CalculatorRates };
+      applyRates(data.rates);
+    } catch {
+      setRatesMessage("No se pudieron guardar las tasas.");
+    } finally {
+      setRatesSaving(false);
+    }
+  }
 
   function handleTextChange(event: ChangeEvent<HTMLTextAreaElement>) {
     const textarea = event.currentTarget;
@@ -235,18 +262,12 @@ export default function CalculadoraPage() {
 
   function clearAll() {
     if (!window.confirm("¿Seguro que deseas borrar el registro de esta semana?")) return;
+    // The global rates are DB-managed (calculator_rate_versions), shared
+    // across weeks -- clearing this week's manual log must not touch them.
     setRawText("");
     setPeriodo("");
-    setTarifa(DEFAULT_TARIFF);
-    setCompraUsdtGyd("");
-    setVentaUsdtGyd("");
-    setVentaUsdtCup("");
     localStorage.removeItem(STORAGE_KEYS.raw);
     localStorage.removeItem(STORAGE_KEYS.period);
-    localStorage.removeItem(STORAGE_KEYS.tariff);
-    localStorage.removeItem(STORAGE_KEYS.buyUsdtGyd);
-    localStorage.removeItem(STORAGE_KEYS.sellUsdtGyd);
-    localStorage.removeItem(STORAGE_KEYS.sellUsdtCup);
   }
 
   function exportar() {
@@ -287,12 +308,33 @@ export default function CalculadoraPage() {
         <div className="legacyCard">
           <h2>💱 Tarifas Globales</h2>
           <div className="legacyFlex">
-            <div><label htmlFor="tarifaCupGlobal">Tarifa CUP global</label><input id="tarifaCupGlobal" type="number" step="0.1" value={tarifa} onChange={(event) => setTarifa(event.target.value)} /></div>
-            <div><label htmlFor="compraUsdtGyd">Compra USDT (GYD)</label><input id="compraUsdtGyd" type="number" step="0.01" value={compraUsdtGyd} onChange={(event) => setCompraUsdtGyd(event.target.value)} /></div>
-            <div><label htmlFor="ventaUsdtGyd">Venta USDT/Zelle (GYD)</label><input id="ventaUsdtGyd" type="number" step="0.01" value={ventaUsdtGyd} onChange={(event) => setVentaUsdtGyd(event.target.value)} /></div>
-            <div><label htmlFor="ventaUsdtCup">Venta USDT (CUP)</label><input id="ventaUsdtCup" type="number" step="0.01" value={ventaUsdtCup} onChange={(event) => setVentaUsdtCup(event.target.value)} /></div>
+            <div><label htmlFor="tarifaCupGlobal">Tarifa CUP global</label><input id="tarifaCupGlobal" type="number" step="0.1" value={tarifa} onChange={(event) => setTarifa(event.target.value)} disabled={ratesLocked} /></div>
+            <div><label htmlFor="compraUsdtGyd">Compra USDT (GYD)</label><input id="compraUsdtGyd" type="number" step="0.01" value={compraUsdtGyd} onChange={(event) => setCompraUsdtGyd(event.target.value)} disabled={ratesLocked} /></div>
+            <div><label htmlFor="ventaUsdtGyd">Venta USDT/Zelle (GYD)</label><input id="ventaUsdtGyd" type="number" step="0.01" value={ventaUsdtGyd} onChange={(event) => setVentaUsdtGyd(event.target.value)} disabled={ratesLocked} /></div>
+            <div><label htmlFor="ventaUsdtCup">Venta USDT (CUP)</label><input id="ventaUsdtCup" type="number" step="0.01" value={ventaUsdtCup} onChange={(event) => setVentaUsdtCup(event.target.value)} disabled={ratesLocked} /></div>
           </div>
+          <div className="legacyFlex" style={{ marginTop: 10, alignItems: "center" }}>
+            <button type="button" id="guardarTasas" onClick={() => void guardarTasas()} disabled={ratesLocked || ratesSaving} style={{ width: "auto" }}>
+              {ratesSaving ? "Guardando…" : "Guardar tasas"}
+            </button>
+          </div>
+          {ratesMessage && <div className="legacyError">{ratesMessage}</div>}
         </div>
+
+        {pendingEntries.length > 0 && (
+          <div className="legacyWarning" id="pendingBanner">
+            <p style={{ margin: "0 0 6px 0", fontWeight: "bold" }}>
+              {pendingEntries.length} operación{pendingEntries.length === 1 ? "" : "es"} del chat en espera de tasas para completarse:
+            </p>
+            <ul style={{ margin: 0, paddingLeft: 18 }}>
+              {pendingEntries.map((entry) => (
+                <li key={entry.id}>
+                  {entry.customerName || "Sin nombre"} ({entry.service}): {entry.missingRates.length ? entry.missingRates.join(", ") : "tasas pendientes"}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className={`legacyCard${fullscreen ? " legacyFullscreen" : ""}`} id="cardRegistros">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 10 }}>

@@ -2,28 +2,13 @@ import { NextResponse } from "next/server";
 import { getCurrentAccount, toErrorResponse } from "@/lib/auth/account";
 import { canSendMessages } from "@/lib/auth/roles";
 import { supabaseAdmin } from "@/lib/flows/admin-client";
-import {
-  missingDocumentRates,
-  type CalculatorAutoCompletionService,
-  type CalculatorDocumentRates,
-} from "@/lib/calculator/document-rates";
+import { mapRateVersion, type RateVersionRow } from "@/lib/calculator/ledger-read-model";
 
-const DEFAULT_RATE = 3;
-
-const AUTO_COMPLETION_SERVICES = new Set<CalculatorAutoCompletionService>([
-  "CUP",
-  "ZELLE",
-  "CLASICA",
-  "TROPICAL",
-  "USDT",
-]);
-
-function isAutoCompletionService(service: string): service is CalculatorAutoCompletionService {
-  return AUTO_COMPLETION_SERVICES.has(service as CalculatorAutoCompletionService);
-}
+const RATE_VERSION_COLUMNS =
+  "id, account_id, cup_global_rate, usdt_buy_gyd, usdt_sell_gyd, usdt_sell_cup, set_by, effective_at";
 
 const CHAT_OPERATION_COLUMNS =
-  "id,operation_id,status,service,customer_name,amount,amount_currency,entry_date,facturado_gyd,invertido_gyd,retorno_gyd";
+  "id,operation_id,status,service,customer_name,amount,amount_currency,entry_date,facturado_gyd,invertido_gyd,retorno_gyd,missing_inputs";
 
 interface ChatOperationRow {
   id: string;
@@ -37,13 +22,16 @@ interface ChatOperationRow {
   facturado_gyd: number | string | null;
   invertido_gyd: number | string | null;
   retorno_gyd: number | string | null;
+  missing_inputs: string[] | null;
 }
 
-function chatOperationPayload(row: ChatOperationRow, documentRates: CalculatorDocumentRates) {
-  const missingRates =
-    row.status === "verified_pending" && isAutoCompletionService(row.service)
-      ? missingDocumentRates(row.service, documentRates)
-      : [];
+function toNullableNumber(value: number | string | null): number | null {
+  if (value === null || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function chatOperationPayload(row: ChatOperationRow) {
   return {
     id: row.id,
     operationId: row.operation_id,
@@ -56,50 +44,25 @@ function chatOperationPayload(row: ChatOperationRow, documentRates: CalculatorDo
     facturadoGyd: toNullableNumber(row.facturado_gyd),
     invertidoGyd: toNullableNumber(row.invertido_gyd),
     retornoGyd: toNullableNumber(row.retorno_gyd),
-    // Only ever explains why a *pending* row has no snapshot yet — never a
-    // recomputation. A completed row's snapshot is immutable and this list
-    // is always empty for it (AGENTS.md #11: no recalcular historia).
-    missingRates,
+    // Read straight off the stored `missing_inputs` column -- a pending
+    // entry's missing rates are what was missing when it was fed into the
+    // ledger (historical fact), never recomputed against today's rates.
+    missingRates: row.missing_inputs ?? [],
   };
 }
 
-const RATE_FIELDS = [
-  { key: "compraUsdtGyd", column: "usdt_buy_gyd", label: "Compra USDT (GYD)" },
-  { key: "ventaUsdtGyd", column: "usdt_sell_gyd", label: "Venta USDT/Zelle (GYD)" },
-  { key: "ventaUsdtCup", column: "usdt_sell_cup", label: "Venta USDT (CUP)" },
-] as const;
-
-const INVALID_RATE = Symbol("invalid-rate");
-
-function toNullableNumber(value: number | string | null): number | null {
-  if (value === null || value === "") return null;
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
-}
-
-function parseOptionalRate(value: unknown): number | null | typeof INVALID_RATE {
-  if (value === undefined || value === null) return null;
-  if (typeof value === "string" && value.trim() === "") return null;
-  const numeric = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(numeric) || numeric <= 0) return INVALID_RATE;
-  return numeric;
-}
-
-function documentPayload(row: {
-  raw_text: string;
-  period_label: string;
-  cup_global_rate: number | string;
-  usdt_buy_gyd: number | string | null;
-  usdt_sell_gyd: number | string | null;
-  usdt_sell_cup: number | string | null;
-}) {
+function documentFieldsPayload(
+  document: { raw_text: string; period_label: string } | null,
+  rateRow: RateVersionRow | null,
+) {
+  const rates = rateRow ? mapRateVersion(rateRow) : null;
   return {
-    rawText: row.raw_text,
-    periodo: row.period_label,
-    tarifa: Number(row.cup_global_rate),
-    compraUsdtGyd: toNullableNumber(row.usdt_buy_gyd),
-    ventaUsdtGyd: toNullableNumber(row.usdt_sell_gyd),
-    ventaUsdtCup: toNullableNumber(row.usdt_sell_cup),
+    rawText: document?.raw_text ?? "",
+    periodo: document?.period_label ?? "",
+    tarifa: rates?.cupGlobalRate ?? null,
+    compraUsdtGyd: rates?.usdtBuyGyd ?? null,
+    ventaUsdtGyd: rates?.usdtSellGyd ?? null,
+    ventaUsdtCup: rates?.usdtSellCup ?? null,
   };
 }
 
@@ -108,37 +71,41 @@ export async function GET() {
     const account = await getCurrentAccount();
     if (!canSendMessages(account.role)) return NextResponse.json({ error: "Insufficient role" }, { status: 403 });
     const db = supabaseAdmin();
-    const [{ data, error }, { data: chatRows, error: chatError }] = await Promise.all([
-      db
-        .from("remittance_calculator_documents")
-        .select("raw_text,period_label,cup_global_rate,usdt_buy_gyd,usdt_sell_gyd,usdt_sell_cup")
-        .eq("account_id", account.accountId)
-        .maybeSingle(),
-      db
-        .from("remittance_calculator_entries")
-        .select(CHAT_OPERATION_COLUMNS)
-        .eq("account_id", account.accountId)
-        .eq("source", "completed_operation")
-        .order("entry_date", { ascending: false })
-        .order("created_at", { ascending: false }),
-    ]);
+    const [{ data, error }, { data: rateRow, error: rateError }, { data: chatRows, error: chatError }] =
+      await Promise.all([
+        db
+          .from("remittance_calculator_documents")
+          .select("raw_text,period_label")
+          .eq("account_id", account.accountId)
+          .maybeSingle(),
+        db
+          .from("calculator_rate_versions")
+          .select(RATE_VERSION_COLUMNS)
+          .eq("account_id", account.accountId)
+          .order("effective_at", { ascending: false })
+          .order("id", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        db
+          .from("remittance_calculator_entries")
+          .select(CHAT_OPERATION_COLUMNS)
+          .eq("account_id", account.accountId)
+          .eq("source", "completed_operation")
+          .neq("status", "void")
+          .order("entry_date", { ascending: false })
+          .order("created_at", { ascending: false }),
+      ]);
     if (error) throw new Error("calculator document read failed");
+    if (rateError) throw new Error("calculator rates read failed");
     if (chatError) throw new Error("calculator chat operations read failed");
 
-    const documentFields = data
-      ? documentPayload(data)
-      : { rawText: "", periodo: "", tarifa: DEFAULT_RATE, compraUsdtGyd: null, ventaUsdtGyd: null, ventaUsdtCup: null };
-    const documentRates: CalculatorDocumentRates = {
-      cupGlobalRate: documentFields.tarifa,
-      usdtBuyGyd: documentFields.compraUsdtGyd,
-      usdtSellGyd: documentFields.ventaUsdtGyd,
-      usdtSellCup: documentFields.ventaUsdtCup,
-    };
-
-    const chatEntries = ((chatRows ?? []) as ChatOperationRow[]).map((row) =>
-      chatOperationPayload(row, documentRates),
+    const documentFields = documentFieldsPayload(
+      data as { raw_text: string; period_label: string } | null,
+      rateRow as RateVersionRow | null,
     );
-    // Only `completed` rows ever count — a verified_pending row (missing
+
+    const chatEntries = ((chatRows ?? []) as ChatOperationRow[]).map(chatOperationPayload);
+    // Only `completed` rows ever count -- a verified_pending row (missing
     // rates, or an operation that hasn't reached completed yet) always
     // contributes zero, per AGENTS.md #11.
     const chatTotals = chatEntries.reduce(
@@ -171,19 +138,9 @@ export async function POST(request: Request) {
     if (!body || typeof body.rawText !== "string" || typeof body.periodo !== "string") {
       return NextResponse.json({ error: "Invalid calculator document" }, { status: 400 });
     }
-    const tarifa = typeof body.tarifa === "number" ? body.tarifa : Number(body.tarifa ?? DEFAULT_RATE);
-    if (!Number.isFinite(tarifa) || tarifa <= 0) return NextResponse.json({ error: "La tarifa CUP global debe ser mayor que cero" }, { status: 400 });
 
-    const rateColumns: Record<string, number | null> = {};
-    for (const field of RATE_FIELDS) {
-      if (!Object.prototype.hasOwnProperty.call(body, field.key)) continue;
-      const parsed = parseOptionalRate(body[field.key]);
-      if (parsed === INVALID_RATE) {
-        return NextResponse.json({ error: `${field.label} debe ser mayor que cero` }, { status: 400 });
-      }
-      rateColumns[field.column] = parsed;
-    }
-
+    // Rates are written only through POST /api/calculator/rates -- this
+    // route persists the manual textarea document alone.
     const { data, error } = await supabaseAdmin()
       .from("remittance_calculator_documents")
       .upsert(
@@ -191,17 +148,18 @@ export async function POST(request: Request) {
           account_id: account.accountId,
           raw_text: body.rawText,
           period_label: body.periodo,
-          cup_global_rate: tarifa,
-          ...rateColumns,
           updated_by: account.userId,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "account_id" },
       )
-      .select("raw_text,period_label,cup_global_rate,usdt_buy_gyd,usdt_sell_gyd,usdt_sell_cup")
+      .select("raw_text,period_label")
       .single();
     if (error) throw new Error("calculator document save failed");
-    return NextResponse.json(documentPayload(data), { headers: { "Cache-Control": "private, no-store" } });
+    return NextResponse.json(
+      { rawText: data.raw_text, periodo: data.period_label },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
   } catch (error) {
     return toErrorResponse(error);
   }

@@ -51,6 +51,8 @@
 :global(.legacyCalc .legacyFullscreen textarea) { flex: 1 !important; height: 100% !important; resize: none !important; }
 :global(.legacyCalc .legacyError) { color: #b42318; background: #fef3f2; border: 1px solid #fecdca; border-radius: 6px; padding: 10px; margin-bottom: 15px; font-size: 13px; }
 :global(.legacyCalc.dark .legacyError) { color: #ffb4ab; background: #3b1717; border-color: #702020; }
+:global(.legacyCalc .legacyWarning) { color: #7a5b00; background: #fff8e1; border: 1px solid #ffe0a3; border-radius: 6px; padding: 10px 14px; margin-bottom: 15px; font-size: 13px; }
+:global(.legacyCalc.dark .legacyWarning) { color: #ffd580; background: #3a2e0a; border-color: #6b5417; }
 
 @media (max-width: 650px) {
   :global(.legacyCalc) { padding: 10px; }

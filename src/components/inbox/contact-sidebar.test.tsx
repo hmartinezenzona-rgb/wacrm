@@ -8,6 +8,14 @@ import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import en from "../../../messages/en.json";
 import type { Contact, Conversation } from "@/types";
+// Imported statically, not with `await import()` inside the test body.
+// This module pulls in date-fns, the lucide icon set and several UI
+// components; loading and transforming that tree costs ~1.7s, and inside
+// a test it is charged to that test's 5s budget. Under full-suite
+// parallelism it crossed the limit and the FIRST test here timed out
+// intermittently while the second (module already cached) ran in 15ms.
+// vitest hoists `vi.mock` above imports, so the mocks below still apply.
+import { ContactSidebar } from "./contact-sidebar";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -65,7 +73,6 @@ const contact = {
 const conversation = { id: "conv-1", ai_autoreply_disabled: false } as Conversation;
 
 async function render() {
-  const { ContactSidebar } = await import("./contact-sidebar");
   const node = document.createElement("div");
   document.body.appendChild(node);
   const root = createRoot(node);

@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useCan } from "@/hooks/use-can";
 import { createClient } from "@/lib/supabase/client";
 import { Skeleton } from "@/components/dashboard/skeleton";
+import { readPrefetchedConversationOperations } from "@/lib/remittance-operations/panel-prefetch";
 import type { ConversationOperationsRead, RemittanceOperationRead } from "@/lib/remittance-operations/types";
 import { RemittanceOperationCard } from "./remittance-operation-card";
 import { ResolverStateBanner } from "./resolver-state-banner";
@@ -69,7 +70,20 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
   // gate its force-verify escalation (`canForceVerify`, owner/admin only)
   // without new plumbing from contact-sidebar/profile.
   const { accountRole } = useAuth();
-  const [state, setState] = useState<PanelState>({ status: "idle" });
+  // Lazy initializer (not a plain object) so a hover/focus prefetch that
+  // already landed for `conversationId` (panel-26: conversation-list.tsx
+  // fires it on mouseenter/focus) is read during THIS render, before
+  // React commits anything — the loading skeleton never paints for a
+  // hit. It only covers the very first mount of this component instance;
+  // switching `conversationId` on an already-mounted instance is handled
+  // by the effect below, which re-checks the cache on every change.
+  const [state, setState] = useState<PanelState>(() => {
+    if (conversationId) {
+      const cached = readPrefetchedConversationOperations(conversationId);
+      if (cached) return { status: "loaded", data: cached };
+    }
+    return { status: "idle" };
+  });
   const [expandedId, setExpandedId] = useState<string | null>(null);
   // Bumped after every silent refetch (realtime-triggered or from a card's
   // own `onChanged`) and forwarded down to `DepositReviewContainer` so it
@@ -141,13 +155,25 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
     // No direct setState here on the `!conversationId` path — deselecting
     // the active conversation leaves `state` stale on purpose. The render
     // below gates on `conversationId` first, so stale data is never shown.
-    // `load` sets state inside an async callback, same as
+    if (!conversationId) return;
+    // Same prefetch-cache check the lazy initializer above does, run
+    // again here so switching between two already-loaded conversations
+    // (this component stays mounted across a selection change — see
+    // contact-sidebar.tsx) ALSO skips the loading skeleton on a hit. A
+    // hit paints straight from the cache, then revalidates silently
+    // (existing `silentLoad`, no loading flash) so a cache that's stale
+    // by a few seconds self-corrects. A miss keeps the exact prior
+    // behaviour: `load` sets state inside an async callback, same as
     // `fetchContactData()` in contact-sidebar.tsx just above this file.
-    if (conversationId) {
+    const cached = readPrefetchedConversationOperations(conversationId);
+    if (cached) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
+      applyLoadedData(cached);
+      silentLoad(conversationId);
+    } else {
       load(conversationId);
     }
-  }, [conversationId, load]);
+  }, [conversationId, load, silentLoad, applyLoadedData]);
 
   // Live refresh: every automation write to remittance_operations/
   // remittance_beneficiaries (n8n) happens inside the same transaction as

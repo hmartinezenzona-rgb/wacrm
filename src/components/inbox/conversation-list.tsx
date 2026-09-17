@@ -7,6 +7,7 @@ import {
   matchesContactFilters,
   normalizeConversations,
 } from "@/lib/inbox/conversations";
+import { prefetchConversationOperations } from "@/lib/remittance-operations/panel-prefetch";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus, Tag } from "@/types";
 import { Search, ChevronDown, X, Pin, MoreVertical } from "lucide-react";
@@ -548,6 +549,15 @@ function ConversationItem({
     onSelect(conversation);
   }, [onSelect, conversation]);
 
+  // Fired on hover AND focus — keyboard users arrow through this list
+  // and never trigger mouseenter (panel-26). The operations panel's
+  // single round trip can't get faster, only earlier; this starts it
+  // the moment a row becomes the likely next click, so it's often
+  // already in hand by the time onSelect fires above.
+  const handlePrefetch = useCallback(() => {
+    prefetchConversationOperations(conversation.id);
+  }, [conversation.id]);
+
   const timeAgo = conversation.last_message_at
     ? formatDistanceToNow(new Date(conversation.last_message_at), {
         addSuffix: false,
@@ -559,6 +569,8 @@ function ConversationItem({
       role="button"
       tabIndex={0}
       onClick={handleClick}
+      onMouseEnter={handlePrefetch}
+      onFocus={handlePrefetch}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();

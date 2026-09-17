@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useAuth } from "@/hooks/use-auth";
 import { useCan } from "@/hooks/use-can";
 import { createClient } from "@/lib/supabase/client";
+import { Skeleton } from "@/components/dashboard/skeleton";
 import type { ConversationOperationsRead, RemittanceOperationRead } from "@/lib/remittance-operations/types";
 import { RemittanceOperationCard } from "./remittance-operation-card";
 import { ResolverStateBanner } from "./resolver-state-banner";
@@ -186,7 +187,31 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
   if (!conversationId) return null;
 
   if (state.status === "idle" || state.status === "loading") {
-    return <p className="px-1 py-2 text-xs text-muted-foreground">{t("loading")}</p>;
+    // A skeleton in the panel's own shape, not a line of text. The text
+    // was one small paragraph that the loaded panel then replaced with a
+    // heading and full-width cards, so the sidebar visibly reflowed a
+    // moment after the chat opened and the panel read as arriving late.
+    // Occupying the final layout from the first paint removes the jump;
+    // the data still takes as long as it takes.
+    //
+    // The message itself stays for screen readers, which had it before
+    // and get nothing from a pulsing rectangle.
+    return (
+      <div className="space-y-2" role="status" aria-busy="true">
+        <span className="sr-only">{t("loading")}</span>
+        <Skeleton className="mx-1 h-3 w-28" />
+        <div className="rounded-lg border border-border bg-card px-2 py-2.5">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-4 flex-1" />
+            <Skeleton className="size-4 shrink-0 rounded-full" />
+          </div>
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <Skeleton className="h-4 w-20 rounded-full" />
+            <Skeleton className="h-4 w-24 rounded-full" />
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (state.status === "error") {

@@ -207,6 +207,21 @@ describe("OperationsPanelContainer", () => {
     await act(async () => root.unmount());
   });
 
+  it("holds the panel's shape while loading instead of a line of text the loaded panel then reflows", async () => {
+    // A fetch that never settles parks the container in `loading`.
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
+    const { node, root } = await renderContainer("conv-1");
+
+    // The frame is a busy region with card-shaped blocks, so the sidebar
+    // does not visibly rearrange when the data lands a moment later.
+    expect(node.querySelector('[role="status"][aria-busy="true"]')).not.toBeNull();
+    expect(node.querySelectorAll(".animate-pulse").length).toBeGreaterThan(1);
+    // And the message a screen reader had before is still announced.
+    expect(node.textContent).toContain(en.Inbox.operationsPanel.loading);
+
+    await act(async () => root.unmount());
+  });
+
   it("fetches the conversation's operations and lists every open remesa, auto-expanded when there's exactly one", async () => {
     const data: ConversationOperationsRead = {
       resolverState: "unica",

@@ -156,22 +156,31 @@ describe("computeAutoCompletionSnapshot", () => {
 });
 
 describe("deposit-based automatic calculation", () => {
-  it("rounds a 24000 GYD deposit at 260 up to 93 ZELLE and calculates from that amount", () => {
+  it("rounds a 24000 GYD deposit at 260 down to 92 ZELLE and calculates from that amount", () => {
     const result = computeAutoCompletionSnapshotFromDeposit("ZELLE", 24_000, doc());
-    expect(result?.amount).toBe(93);
+    expect(result?.amount).toBe(92);
     expect(result?.financials).toEqual({
-      facturadoGyd: 24_180,
-      invertidoGyd: 22_320,
-      retornoGyd: 1_860,
+      facturadoGyd: 23_920,
+      invertidoGyd: 22_080,
+      retornoGyd: 1_840,
     });
   });
 
   it.each(["CLASICA", "TROPICAL"] as const)(
     "uses the same deposit-to-whole-unit rule for %s",
     (service) => {
-      expect(deriveAmountFromDeposit(service, 24_000, doc())).toBe(93);
+      expect(deriveAmountFromDeposit(service, 24_000, doc())).toBe(92);
     },
   );
+
+  // Pinned business case (owner-confirmed): 75,000 GYD at 260 GYD/USD is
+  // 288.46 USD. Delivering 289 would hand over 289 x 260 = 75,140 GYD of
+  // value against a 75,000 GYD deposit -- 140 GYD out of the business's
+  // pocket on every remittance. The rounding must favour the business:
+  // floor, never ceil.
+  it("floors 75000 GYD at rate 260 to 288, not 289 (owner-confirmed business case)", () => {
+    expect(deriveAmountFromDeposit("ZELLE", 75_000, doc({ usdtSellGyd: 260 }))).toBe(288);
+  });
 
   it("converts a GYD deposit to CUP before applying the CUP formula", () => {
     const result = computeAutoCompletionSnapshotFromDeposit("CUP", 5_000, doc());

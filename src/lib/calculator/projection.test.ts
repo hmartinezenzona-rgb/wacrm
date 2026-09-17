@@ -73,16 +73,16 @@ describe("structured operation calculator projection", () => {
     });
   });
 
-  it("finalizes ZELLE from the GYD deposit (ceil(source/sale)) instead of the stored destination amount", () => {
+  it("finalizes ZELLE from the GYD deposit (floor(source/sale)) instead of the stored destination amount", () => {
     const result = projectStructuredOperation(
       source({ deliveryMethod: "zelle", destinationCurrency: "USD", destinationAmount: 999, sourceAmount: 24_000, sourceCurrency: "GYD" }),
     );
     if (result.kind !== "candidate") throw new Error("expected candidate");
     const entry = materializeProjectedOperation(result.candidate, { costGyd: 240, saleGyd: 260 });
-    expect(entry.amount).toBe(93);
-    expect(entry.facturadoGyd).toBeCloseTo(24_180, 6);
-    expect(entry.invertidoGyd).toBeCloseTo(22_320, 6);
-    expect(entry.retornoGyd).toBeCloseTo(1_860, 6);
+    expect(entry.amount).toBe(92);
+    expect(entry.facturadoGyd).toBeCloseTo(23_920, 6);
+    expect(entry.invertidoGyd).toBeCloseTo(22_080, 6);
+    expect(entry.retornoGyd).toBeCloseTo(1_840, 6);
   });
 
   it("finalizes CUP from the GYD deposit (source * cupGlobalRate) instead of the stored destination amount", () => {

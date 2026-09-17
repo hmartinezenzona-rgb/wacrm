@@ -10,8 +10,8 @@
 --
 -- Fixture rates leave usdt_sell_gyd unset, so a completed ZELLE remesa of
 -- 26000 GYD parks as pending with usdt_buy_gyd = 250 already snapshotted.
--- Resolving it with usdt_sell_gyd = 265 must give amount 99 (ceil 98.11),
--- facturado 26235, invertido 24750, retorno 1485.
+-- Resolving it with usdt_sell_gyd = 265 must give amount 98 (floor 98.11),
+-- facturado 25970, invertido 24500, retorno 1470.
 --
 -- MUST run inside an already-open transaction that ends in ROLLBACK. Never
 -- COMMIT. Never run against production. Builds its own fixtures.
@@ -171,13 +171,13 @@ BEGIN
   PERFORM set_config('request.jwt.claims', '', true);
 
   SELECT * INTO v_e FROM remittance_calculator_entries WHERE id = v_entry_id;
-  IF v_e.status IS DISTINCT FROM 'completed' OR v_e.amount IS DISTINCT FROM 99
-     OR v_e.facturado_gyd IS DISTINCT FROM 26235 OR v_e.invertido_gyd IS DISTINCT FROM 24750
-     OR v_e.retorno_gyd IS DISTINCT FROM 1485 OR v_e.usdt_buy_gyd IS DISTINCT FROM 250
+  IF v_e.status IS DISTINCT FROM 'completed' OR v_e.amount IS DISTINCT FROM 98
+     OR v_e.facturado_gyd IS DISTINCT FROM 25970 OR v_e.invertido_gyd IS DISTINCT FROM 24500
+     OR v_e.retorno_gyd IS DISTINCT FROM 1470 OR v_e.usdt_buy_gyd IS DISTINCT FROM 250
      OR v_e.usdt_sell_gyd IS DISTINCT FROM 265 OR v_e.missing_inputs IS NOT NULL
   THEN
     v_fail_count := v_fail_count + 1;
-    RAISE WARNING 'FAIL [case 6] expected completed 99 / 26235 / 24750 / 1485 with buy kept at 250; got status=% amount=% f=% i=% r=% buy=% sell=% missing=%',
+    RAISE WARNING 'FAIL [case 6] expected completed 98 / 25970 / 24500 / 1470 with buy kept at 250; got status=% amount=% f=% i=% r=% buy=% sell=% missing=%',
       v_e.status, v_e.amount, v_e.facturado_gyd, v_e.invertido_gyd, v_e.retorno_gyd, v_e.usdt_buy_gyd, v_e.usdt_sell_gyd, v_e.missing_inputs;
   ELSE
     RAISE NOTICE 'PASS [case 6] the entry is repriced from the deposit, and the rate it already had is not overwritten';

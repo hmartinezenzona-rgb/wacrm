@@ -14,8 +14,12 @@
  * from `quoted_destination_amount` — that field can be a poorly-derived
  * AI/vision estimate and is not a trustworthy calculation basis. See
  * `deriveAmountFromDeposit` for the exact per-service derivation. ZELLE,
- * CLASICA and TROPICAL always move up to the next whole unit (ceil), never
- * to the mathematically nearest lower unit.
+ * CLASICA and TROPICAL always round DOWN to the whole unit (floor), never
+ * up. Rounding is done in the business's favour: a 75,000 GYD deposit at
+ * 260 GYD/USD is 288.46 USD, and delivering 289 would hand over
+ * 289 x 260 = 75,140 GYD of value against a 75,000 GYD deposit — 140 GYD
+ * out of the business's pocket on every remittance. This mirrors the n8n
+ * bot, which has always floored for the same reason.
  *
  * This module does NOT write to the database; the DB-side trigger that
  * performs the actual atomic snapshot write at delivery is a later slice's
@@ -145,8 +149,9 @@ export function computeAutoCompletionSnapshot(
 /**
  * Derives the number of service units from the customer's GYD deposit.
  * ZELLE/CLASICA/TROPICAL are sold in whole units at the global GYD sale rate;
- * the quotient is always rounded upward to the next unit; CUP is first
- * converted with the global GYD->CUP rate.
+ * the quotient is always rounded DOWN to the whole unit (floor), in the
+ * business's favour — never up, which would deliver more value than was
+ * deposited. CUP is first converted with the global GYD->CUP rate.
  *
  * An invalid/non-positive deposit amount returns `null` (not a rate
  * problem). A missing conversion rate throws CalculatorValidationError —
@@ -175,7 +180,7 @@ export function deriveAmountFromDeposit(
         "usdtSellGyd",
       );
     }
-    const amount = Math.ceil(sourceAmountGyd / doc.usdtSellGyd);
+    const amount = Math.floor(sourceAmountGyd / doc.usdtSellGyd);
     return Number.isFinite(amount) && amount > 0 ? amount : null;
   }
   return null;

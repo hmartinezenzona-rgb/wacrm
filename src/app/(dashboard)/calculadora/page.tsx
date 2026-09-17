@@ -80,7 +80,11 @@ export default function CalculadoraPage() {
   const [ratesSaving, setRatesSaving] = useState(false);
   const [ratesMessage, setRatesMessage] = useState<string | null>(null);
   const [chatEntries, setChatEntries] = useState<ChatCalculatorEntry[]>([]);
-  const [dark, setDark] = useState(false);
+  // No local theme state: the page reads the CRM's design tokens, so it
+  // follows whatever mode and accent the operator picked in Appearance.
+  // The old `dark` boolean and its "🌗 Tema" button were a second switch
+  // that only knew light/dark, which is how this screen ended up white on
+  // a dark CRM.
   const [fullscreen, setFullscreen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -282,11 +286,10 @@ export default function CalculadoraPage() {
   }
 
   return (
-    <main className={`legacyCalc${dark ? " dark" : ""}`}>
+    <main className="legacyCalc">
       <div className="legacyContainer">
         <div className="legacyTopBar">
           <h1>📊 Cierre Semanal PRO</h1>
-          <button type="button" onClick={() => setDark((value) => !value)} style={{ width: "auto", margin: 0 }}>🌗 Tema</button>
         </div>
 
         <details>

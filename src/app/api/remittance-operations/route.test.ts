@@ -147,3 +147,190 @@ describe("GET /api/remittance-operations", () => {
     expect(body.operations[0].beneficiaries[0].cardNumber).toBe("9205123412349412");
   });
 });
+
+// Slice: panel-26 (readiness). The route now composes a second reader on
+// top of `mapRemittanceOperationsRows` — one `crm_comprobantes_de_operacion`
+// call per operation, issued in parallel, so the client paints the deposit
+// block in the same round trip instead of a second waterfall step.
+
+function operationRow(id: string, overrides: Record<string, unknown> = {}) {
+  return {
+    resolver_resultado: "unica",
+    resolver_operation_id: id,
+    resolver_candidatas: 1,
+    operation_id: id,
+    operation_status: "deposit_verification",
+    operation_service_type: "remesa",
+    operation_source_currency: "GYD",
+    operation_destination_currency: null,
+    operation_delivery_method: null,
+    operation_deposit_method: null,
+    operation_quoted_source_amount: 5000,
+    operation_quoted_destination_amount: null,
+    operation_admin_locked_fields: {},
+    operation_created_at: "2026-09-14T00:00:00Z",
+    operation_completed_at: null,
+    beneficiary_id: null,
+    beneficiary_type: null,
+    beneficiary_name: null,
+    beneficiary_card_number: null,
+    beneficiary_phone: null,
+    beneficiary_zelle_account: null,
+    beneficiary_delivery_method: null,
+    beneficiary_amount: null,
+    beneficiary_currency: null,
+    beneficiary_position: null,
+    ...overrides,
+  };
+}
+
+function receiptsPayload(operationId: string, overrides: Record<string, unknown> = {}) {
+  return {
+    operation_id: operationId,
+    status: "deposit_verification",
+    deal_id: `deal-${operationId}`,
+    can_verify: true,
+    objetivo: 25000,
+    depositado: 0,
+    saldo: 25000,
+    moneda: "GYD",
+    receipts: [],
+    consumed_deposits: [],
+    ...overrides,
+  };
+}
+
+function multiRpcCtx(
+  profileResult: { data: unknown; error: unknown },
+  rows: unknown[],
+  receiptsImpl: (operationId: string) => Promise<{ data: unknown; error: unknown }>,
+) {
+  const rpc = vi.fn((name: string, args: Record<string, unknown>) => {
+    if (name === "crm_operaciones_de_conversacion") {
+      return Promise.resolve({ data: rows, error: null });
+    }
+    if (name === "crm_comprobantes_de_operacion") {
+      return receiptsImpl(args.p_operation_id as string);
+    }
+    throw new Error(`unexpected rpc: ${name}`);
+  });
+  const from = vi.fn(() => profileBuilder(profileResult));
+  return { supabase: { from, rpc }, userId: USER_ID, accountId: "account-a", role: "viewer" as const, account: { id: "account-a", name: "A" } };
+}
+
+describe("GET /api/remittance-operations — receipts prefetch", () => {
+  it("also fetches each operation's receipts and includes them keyed by operation id", async () => {
+    const { GET } = await import("./route");
+    const rows = [operationRow("op-1"), operationRow("op-2")];
+    const callCtx = multiRpcCtx(
+      { data: { beta_features: ["operations_panel"] }, error: null },
+      rows,
+      (operationId) => Promise.resolve({ data: receiptsPayload(operationId), error: null }),
+    );
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await GET(request(CONVERSATION_ID));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.operations).toHaveLength(2);
+    expect(body.receiptsByOperationId["op-1"].dealId).toBe("deal-op-1");
+    expect(body.receiptsByOperationId["op-2"].dealId).toBe("deal-op-2");
+    expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_comprobantes_de_operacion", {
+      p_operation_id: "op-1",
+    });
+    expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_comprobantes_de_operacion", {
+      p_operation_id: "op-2",
+    });
+  });
+
+  it("a receipts RPC that rejects for one operation still returns 200 with the other operation's receipts present and that one absent", async () => {
+    const { GET } = await import("./route");
+    const rows = [operationRow("op-1"), operationRow("op-2")];
+    const callCtx = multiRpcCtx(
+      { data: { beta_features: ["operations_panel"] }, error: null },
+      rows,
+      (operationId) =>
+        operationId === "op-1"
+          ? Promise.resolve({ data: null, error: { code: "XX000", message: "boom" } })
+          : Promise.resolve({ data: receiptsPayload(operationId), error: null }),
+    );
+    requireRole.mockResolvedValueOnce(callCtx);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await GET(request(CONVERSATION_ID));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.receiptsByOperationId["op-1"]).toBeUndefined();
+    expect(body.receiptsByOperationId["op-2"]).toBeDefined();
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("a receipts RPC that THROWS for one operation still returns 200, same as one that returns an error", async () => {
+    // The case above covers an `{ error }` return, which is how Supabase
+    // reports a query failure. A transport failure rejects instead, and an
+    // unhandled rejection here would take the whole panel down with it —
+    // the one thing the prefetch must never do, since it is a convenience
+    // and the client can still fetch receipts itself.
+    const { GET } = await import("./route");
+    const rows = [operationRow("op-1"), operationRow("op-2")];
+    const callCtx = multiRpcCtx(
+      { data: { beta_features: ["operations_panel"] }, error: null },
+      rows,
+      (operationId) =>
+        operationId === "op-1"
+          ? Promise.reject(new Error("network down"))
+          : Promise.resolve({ data: receiptsPayload(operationId), error: null }),
+    );
+    requireRole.mockResolvedValueOnce(callCtx);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await GET(request(CONVERSATION_ID));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.receiptsByOperationId["op-1"]).toBeUndefined();
+    expect(body.receiptsByOperationId["op-2"]).toBeDefined();
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("issues every operation's receipts RPC call before any of them resolves (parallel, not sequential)", async () => {
+    const { GET } = await import("./route");
+    const rows = [operationRow("op-1"), operationRow("op-2")];
+    const issued: string[] = [];
+    const resolvers: Record<string, (value: { data: unknown; error: unknown }) => void> = {};
+    const callCtx = multiRpcCtx(
+      { data: { beta_features: ["operations_panel"] }, error: null },
+      rows,
+      (operationId) => {
+        issued.push(operationId);
+        return new Promise((resolve) => {
+          resolvers[operationId] = resolve;
+        });
+      },
+    );
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const responsePromise = GET(request(CONVERSATION_ID));
+    // Let the microtask queue drain enough for both RPC calls to be
+    // issued, without letting either of their promises resolve yet —
+    // several awaits (requireRole, the profile read, the operations RPC)
+    // sit ahead of the receipts calls in route.ts, each needing its own
+    // microtask tick, so this drains generously rather than guessing an
+    // exact count.
+    for (let i = 0; i < 20 && issued.length < 2; i++) {
+      await Promise.resolve();
+    }
+
+    expect(issued.sort()).toEqual(["op-1", "op-2"]);
+
+    resolvers["op-1"]!({ data: receiptsPayload("op-1"), error: null });
+    resolvers["op-2"]!({ data: receiptsPayload("op-2"), error: null });
+
+    const response = await responsePromise;
+    expect(response.status).toBe(200);
+  });
+});

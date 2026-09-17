@@ -253,6 +253,7 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
                 onToggle={toggleHandlerFor(operation.id)}
                 conversationId={conversationId}
                 refreshToken={refreshToken}
+                initialReceipts={data.receiptsByOperationId?.[operation.id]}
               />
             ))}
           </div>
@@ -280,6 +281,7 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
                 onToggle={toggleHandlerFor(operation.id)}
                 conversationId={conversationId}
                 refreshToken={refreshToken}
+                initialReceipts={data.receiptsByOperationId?.[operation.id]}
               />
             ))}
           </div>

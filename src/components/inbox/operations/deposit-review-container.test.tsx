@@ -346,4 +346,107 @@ describe("DepositReviewContainer", () => {
     expect(node.textContent).not.toContain(T.loading);
     await act(async () => root.unmount());
   });
+
+  // Slice: panel-26 (readiness). `initialData` lets the panel container
+  // hand this container an already-fetched receipts read model (from the
+  // route's prefetch) so the deposit block paints in the same pass as the
+  // rest of the card instead of a second round trip.
+  it("given initialData, renders the section immediately and performs no initial fetch", async () => {
+    const { DepositReviewContainer } = await import("./deposit-review-container");
+    const node = document.createElement("div");
+    document.body.appendChild(node);
+    const root = createRoot(node);
+
+    await act(async () =>
+      root.render(
+        <DepositReviewContainer
+          operationId="op-1"
+          canEdit={true}
+          role="admin"
+          onChanged={vi.fn()}
+          initialData={readModel()}
+        />,
+      ),
+    );
+    await flush();
+
+    expect(fetchOperationReceipts).not.toHaveBeenCalled();
+    expect(node.textContent).toContain(T.notVerified);
+    expect(node.querySelector<HTMLInputElement>("#deposit-review-ref-comp-1")!.value).toBe("10412345678901");
+    await act(async () => root.unmount());
+  });
+
+  it("shows a loading skeleton (not a text line) while the initial fetch is pending, keeping the message for screen readers", async () => {
+    fetchOperationReceipts.mockReturnValue(new Promise(() => {}));
+
+    const { node } = await renderContainer();
+
+    expect(node.querySelector('[role="status"][aria-busy="true"]')).not.toBeNull();
+    expect(node.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
+    expect(node.textContent).toContain(T.loading);
+  });
+
+  it("does not show the loading skeleton when initialData is provided", async () => {
+    const { DepositReviewContainer } = await import("./deposit-review-container");
+    const node = document.createElement("div");
+    document.body.appendChild(node);
+    const root = createRoot(node);
+
+    await act(async () =>
+      root.render(
+        <DepositReviewContainer
+          operationId="op-1"
+          canEdit={true}
+          role="admin"
+          onChanged={vi.fn()}
+          initialData={readModel()}
+        />,
+      ),
+    );
+
+    expect(node.querySelector('[role="status"][aria-busy="true"]')).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("refetches silently on a refreshToken bump after mount even when initialData skipped the initial fetch — exactly one refetch, no missed or duplicated call", async () => {
+    const { DepositReviewContainer } = await import("./deposit-review-container");
+    const node = document.createElement("div");
+    document.body.appendChild(node);
+    const root = createRoot(node);
+
+    fetchOperationReceipts.mockResolvedValue({ ok: true, data: readModel({ objetivo: 30000 }) });
+
+    await act(async () =>
+      root.render(
+        <DepositReviewContainer
+          operationId="op-1"
+          canEdit={true}
+          role="admin"
+          onChanged={vi.fn()}
+          initialData={readModel()}
+          refreshToken={0}
+        />,
+      ),
+    );
+    await flush();
+    expect(fetchOperationReceipts).not.toHaveBeenCalled();
+
+    await act(async () =>
+      root.render(
+        <DepositReviewContainer
+          operationId="op-1"
+          canEdit={true}
+          role="admin"
+          onChanged={vi.fn()}
+          initialData={readModel()}
+          refreshToken={1}
+        />,
+      ),
+    );
+    await flush();
+
+    expect(fetchOperationReceipts).toHaveBeenCalledTimes(1);
+    expect(node.textContent).not.toContain(T.loading);
+    await act(async () => root.unmount());
+  });
 });

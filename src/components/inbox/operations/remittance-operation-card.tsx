@@ -9,6 +9,7 @@ import { corregirBeneficiario } from "@/lib/remittance-operations/commands";
 import { effectiveStatus } from "@/lib/remittance-operations/effective-status";
 import type {
   OperationDeliveryMode,
+  OperationReceiptsRead,
   RemittanceBeneficiaryRead,
   RemittanceOperationRead,
 } from "@/lib/remittance-operations/types";
@@ -60,6 +61,13 @@ interface RemittanceOperationCardProps {
    *  `DepositReviewContainer` so it silently refetches its own receipts
    *  too, without a loading flash. */
   refreshToken?: number;
+  /** This operation's receipts, prefetched by the panel container's own
+   *  request (panel-26's `receiptsByOperationId`) — forwarded straight
+   *  through to `DepositReviewContainer` as `initialData` so the deposit
+   *  block paints in the same round trip. `undefined` when the prefetch
+   *  failed for this operation or wasn't composed; the container falls
+   *  back to fetching it itself. */
+  initialReceipts?: OperationReceiptsRead;
 }
 
 /** The RPC never returns these (see types.ts), but the correction API can
@@ -242,6 +250,7 @@ export function RemittanceOperationCard({
   onToggle,
   conversationId,
   refreshToken,
+  initialReceipts,
 }: RemittanceOperationCardProps) {
   const t = useTranslations("Inbox.operationsPanel");
   const [openForm, setOpenForm] = useState<OpenFormState | null>(null);
@@ -396,6 +405,7 @@ export function RemittanceOperationCard({
             summaryAmount={summaryAmount}
             onAddAmount={editable ? () => toggleForm({ kind: "operation" }) : undefined}
             refreshToken={refreshToken}
+            initialData={initialReceipts}
           />
 
           <div className="pt-3">

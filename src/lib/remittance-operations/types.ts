@@ -137,6 +137,22 @@ export interface ConversationOperationsRead {
    *  `resolverState === "ninguna"` — the panel must never fabricate an
    *  operation (spec: "No open operation"). */
   operations: RemittanceOperationRead[];
+  /**
+   * Convenience prefetch (panel-26): each operation's `crm_comprobantes_
+   * de_operacion` read, keyed by operation id, composed by the route
+   * alongside `operations` so the deposit review block can paint in the
+   * SAME round trip instead of waiting for its own follow-up fetch.
+   * `mapRemittanceOperationsRows` itself never sets this field — it's pure
+   * and only maps the operations RPC — so it's optional here and only the
+   * route adds it.
+   *
+   * A missing entry for a given operation id is NORMAL, not an error: that
+   * operation's receipts RPC call failed (logged, not fatal to the
+   * request), or the map simply wasn't composed. The client MUST treat a
+   * missing entry as "fetch it myself" (the existing receipts route),
+   * never as "this operation has no receipts."
+   */
+  receiptsByOperationId?: Record<string, OperationReceiptsRead>;
 }
 
 /**

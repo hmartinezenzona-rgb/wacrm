@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { canForceVerify, type AccountRole } from "@/lib/auth/roles";
 import { fetchOperationReceipts, forceVerifyDeposit, verifyDeposit } from "@/lib/remittance-operations/commands";
 import type { OperationReceiptsRead, VerifyDepositItem } from "@/lib/remittance-operations/types";
+import { Skeleton } from "@/components/dashboard/skeleton";
 import { DepositReviewSection, type SummaryAmount } from "./deposit-review-section";
 
 interface DepositReviewContainerProps {
@@ -26,6 +27,17 @@ interface DepositReviewContainerProps {
    *  refetch here too — no loading flash, existing section state is kept
    *  as-is aside from the replaced data. */
   refreshToken?: number;
+  /** Receipts already fetched by the panel's own request (panel-26's
+   *  `receiptsByOperationId` prefetch), forwarded down through the card.
+   *  When present, this container starts already `loaded` from it and
+   *  skips its own initial fetch entirely — the whole point being that
+   *  the deposit block paints in the SAME round trip as the rest of the
+   *  card instead of a second one. Every other fetch this container does
+   *  (the `refreshToken` silent refetch, the post-verify/force `load()`)
+   *  is unaffected — only the very first fetch is skipped. Absent (the
+   *  prefetch failed for this operation, or wasn't composed) falls back
+   *  to fetching here exactly as before. */
+  initialData?: OperationReceiptsRead;
 }
 
 type ResultBanner = { kind: "success" | "error"; message: string } | null;
@@ -73,9 +85,12 @@ export function DepositReviewContainer({
   summaryAmount,
   onAddAmount,
   refreshToken,
+  initialData,
 }: DepositReviewContainerProps) {
   const t = useTranslations("Inbox.operationsPanel");
-  const [state, setState] = useState<FetchState>({ status: "loading" });
+  const [state, setState] = useState<FetchState>(() =>
+    initialData ? { status: "loaded", data: initialData } : { status: "loading" },
+  );
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ResultBanner>(null);
 
@@ -88,7 +103,16 @@ export function DepositReviewContainer({
     setState({ status: "loaded", data: response.data });
   }, [operationId]);
 
+  // Whether this container STARTED with prefetched data — captured once in
+  // a ref rather than read from the `initialData` prop directly, so a
+  // later prop change (the panel container re-rendering after its own
+  // silent refetch) can never retrigger the initial-fetch effect below.
+  // Only the very first render's `initialData` matters here; everything
+  // after mount goes through `refreshToken`/`load()` instead.
+  const hasInitialDataRef = useRef(initialData !== undefined);
+
   useEffect(() => {
+    if (hasInitialDataRef.current) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
@@ -157,7 +181,31 @@ export function DepositReviewContainer({
   }
 
   if (state.status === "loading") {
-    return <p className="px-1 py-1 text-xs text-muted-foreground">{t("depositReview.loading")}</p>;
+    // A skeleton in the block's own shape — same fix as the panel
+    // container's own loading state (operations-panel-container.tsx):
+    // this only renders when `initialData` wasn't given (no prefetch, or
+    // the prefetch failed for this operation), so a text line here would
+    // otherwise be the LAST thing to paint in the card, right after
+    // everything else has already settled. The translated message stays
+    // for screen readers, which had it before and get nothing from a
+    // pulsing block.
+    return (
+      <div className="space-y-1" role="status" aria-busy="true">
+        <span className="sr-only">{t("depositReview.loading")}</span>
+        <div className="flex items-center gap-2">
+          <Skeleton className="size-3.5 shrink-0 rounded-full" />
+          <Skeleton className="h-4 w-32" />
+        </div>
+        <div className="flex items-center gap-2">
+          <Skeleton className="size-3.5 shrink-0 rounded-full" />
+          <Skeleton className="h-4 w-24" />
+        </div>
+        <div className="flex items-center gap-2">
+          <Skeleton className="size-3.5 shrink-0 rounded-full" />
+          <Skeleton className="h-4 w-40" />
+        </div>
+      </div>
+    );
   }
 
   if (state.status === "error") {

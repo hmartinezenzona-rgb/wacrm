@@ -11,6 +11,7 @@ import {
   SendMessageError,
 } from '@/lib/whatsapp/send-message'
 import { canSendMessages, isAccountRole } from '@/lib/auth/roles'
+import { pauseAiOnAgentSend } from '@/lib/inbox/pause-ai-on-agent-send'
 
 /**
  * Map a `SendMessageError` onto the dashboard's `{ error }` shape.
@@ -221,6 +222,16 @@ export async function POST(request: Request) {
         interactivePayload: interactive_payload,
         replyToMessageId: reply_to_message_id,
       })
+
+      // Una persona ha escrito: el bot se calla en este hilo.
+      //
+      // Va DESPUÉS del envío y no antes: si el envío fallara, pausar el bot
+      // dejaría la conversación sin nadie. Y es best-effort — el mensaje del
+      // operador ya salió, así que un fallo aquí no puede devolverle un error.
+      //
+      // Sólo por esta ruta. `/api/v1/messages` es el bot y no debe pausarse a
+      // sí mismo; la diferencia es el tipo de autenticación, no el contenido.
+      await pauseAiOnAgentSend(supabase, conversationId)
 
       return NextResponse.json({
         success: true,

@@ -72,11 +72,11 @@
       "description": "Live analytics across conversations, contacts, deals, broadcasts, and automations.",
       "activeConversations": "Active Conversations",
       "newContactsToday": "New Contacts Today",
-      "openDealsValue": "Open Deals Value",
+      "operationsInProgress": "Operations In Progress",
       "messagesSentToday": "Messages Sent Today",
       "newTodayVsYesterday": "new today vs yesterday",
       "vsYesterday": "vs yesterday",
-      "openDeals": "{count} open {count, plural, =1 {deal} other {deals}}",
+      "operationsInProgressCount": "{count} {count, plural, =1 {operation} other {operations}} in progress",
       "noChange": "No change {suffix}"
     },
     "quickActions": {

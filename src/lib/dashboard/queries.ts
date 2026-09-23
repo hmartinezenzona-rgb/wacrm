@@ -41,7 +41,7 @@ export async function loadMetrics(db: DB): Promise<MetricsBundle> {
     newConvYesterday,
     newContactsToday,
     newContactsYesterday,
-    openDeals,
+    operationsInProgress,
     messagesToday,
     messagesYesterday,
   ] = await Promise.all([
@@ -63,7 +63,7 @@ export async function loadMetrics(db: DB): Promise<MetricsBundle> {
       .select('id', { count: 'exact', head: true })
       .gte('created_at', yesterdayStart)
       .lt('created_at', todayStart),
-    db.from('deals').select('value, status').eq('status', 'open'),
+    db.rpc('cerebro_dashboard_operaciones_en_curso'),
     db
       .from('messages')
       .select('id', { count: 'exact', head: true })
@@ -77,8 +77,11 @@ export async function loadMetrics(db: DB): Promise<MetricsBundle> {
       .lt('created_at', todayStart),
   ])
 
-  const openDealsRows = (openDeals.data ?? []) as { value: number | null }[]
-  const openDealsValue = openDealsRows.reduce((sum, d) => sum + (d.value ?? 0), 0)
+  const operationsInProgressRow = (
+    (operationsInProgress.data ?? [])[0] as
+      | { operaciones: number; volumen_gyd: number }
+      | undefined
+  )
 
   return {
     activeConversations: {
@@ -92,8 +95,8 @@ export async function loadMetrics(db: DB): Promise<MetricsBundle> {
       current: newContactsToday.count ?? 0,
       previous: newContactsYesterday.count ?? 0,
     },
-    openDealsValue,
-    openDealsCount: openDealsRows.length,
+    operationsInProgressValue: operationsInProgressRow?.volumen_gyd ?? 0,
+    operationsInProgressCount: operationsInProgressRow?.operaciones ?? 0,
     messagesSentToday: {
       current: messagesToday.count ?? 0,
       previous: messagesYesterday.count ?? 0,

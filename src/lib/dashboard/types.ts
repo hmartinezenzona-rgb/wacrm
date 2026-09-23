@@ -10,8 +10,11 @@ export interface MetricDelta {
 export interface MetricsBundle {
   activeConversations: MetricDelta
   newContactsToday: MetricDelta
-  openDealsValue: number
-  openDealsCount: number
+  /** Sum of quoted_source_amount for remittance_operations not yet
+   *  completed or cancelled — the successor to the retired
+   *  deals/pipeline "open value" metric. */
+  operationsInProgressValue: number
+  operationsInProgressCount: number
   messagesSentToday: MetricDelta
 }
 

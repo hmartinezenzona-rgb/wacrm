@@ -160,10 +160,10 @@ export default function DashboardPage() {
               }}
             />
             <MetricCard
-              title={t('openDealsValue')}
-              value={formatCurrency(metrics.openDealsValue, defaultCurrency)}
+              title={t('operationsInProgress')}
+              value={formatCurrency(metrics.operationsInProgressValue, defaultCurrency)}
               icon={DollarSign}
-              subtitle={t('openDeals', { count: metrics.openDealsCount })}
+              subtitle={t('operationsInProgressCount', { count: metrics.operationsInProgressCount })}
             />
             <MetricCard
               title={t('messagesSentToday')}

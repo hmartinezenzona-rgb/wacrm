@@ -15,10 +15,9 @@ import {
   StickyNote,
   Plus,
   Bot,
-  Pause,
-  Play,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -228,29 +227,21 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
             <>
               <div className="my-4 border-t border-border" />
               <div>
-                <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  <Bot className="h-3 w-3" />
-                  {tSidebar("bot")}
-                </div>
-                <div className="mt-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={toggleBot}
+                <div className="flex items-center justify-between gap-2 px-1">
+                  <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    <Bot className="h-3 w-3" />
+                    {tSidebar("bot")}
+                  </div>
+                  <Switch
+                    checked={!botPaused}
+                    onCheckedChange={toggleBot}
                     disabled={botBusy}
-                    className="w-full justify-start border-border bg-transparent text-xs text-foreground hover:bg-muted"
-                  >
-                    {botPaused ? (
-                      <Play className="mr-2 h-3 w-3 text-primary" />
-                    ) : (
-                      <Pause className="mr-2 h-3 w-3 text-muted-foreground" />
-                    )}
-                    {botPaused ? tSidebar("resumeBot") : tSidebar("pauseBot")}
-                  </Button>
-                  <p className="mt-1.5 px-1 text-[10px] leading-snug text-muted-foreground">
-                    {botPaused ? tSidebar("botPausedHint") : tSidebar("botActiveHint")}
-                  </p>
+                    aria-label={botPaused ? tSidebar("resumeBot") : tSidebar("pauseBot")}
+                  />
                 </div>
+                <p className="mt-1.5 px-1 text-[10px] leading-snug text-muted-foreground">
+                  {botPaused ? tSidebar("botPausedHint") : tSidebar("botActiveHint")}
+                </p>
               </div>
             </>
           )}

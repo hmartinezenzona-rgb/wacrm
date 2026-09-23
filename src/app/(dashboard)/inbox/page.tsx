@@ -499,6 +499,21 @@ export default function InboxPage() {
     router.replace("/inbox", { scroll: false });
   }, [router]);
 
+  /**
+   * Se dispara cuando quitar-del-inbox (en bloque o individual) se lleva la
+   * conversación que estaba abierta. Sin esto el panel de la derecha se
+   * quedaría enseñando un hilo que ya no está en la lista. Mismo patrón que
+   * `handleCloseConversation`, incluida la limpieza del `?c=` — si no, un
+   * refresh intentaría reabrir un hilo que ya no aparece.
+   */
+  const handleConversationsHidden = useCallback(() => {
+    setMobileContactPanelOpen(false);
+    setActiveConversation(null);
+    setActiveContact(null);
+    setMessages([]);
+    autoSelectedForDeepLinkRef.current = null;
+    router.replace("/inbox", { scroll: false });
+  }, [router]);
 
   const handleMessagesLoaded = useCallback((loaded: Message[]) => {
     setMessages(loaded);
@@ -588,6 +603,7 @@ export default function InboxPage() {
             conversations={conversations}
             onConversationsLoaded={handleConversationsLoaded}
             resyncToken={resyncToken}
+            onConversationsHidden={handleConversationsHidden}
           />
         </div>
 

@@ -10,7 +10,7 @@ import {
 import { prefetchConversationOperations } from "@/lib/remittance-operations/panel-prefetch";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus, Tag } from "@/types";
-import { Search, ChevronDown, X, Pin, Check } from "lucide-react";
+import { Search, ChevronDown, X, Pin } from "lucide-react";
 import { OwnershipIcon } from "./ownership-icon";
 import {
   resolveConversationOwnership,
@@ -28,6 +28,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  alternarSeleccion,
+  etiquetaSeleccion,
+  laAbiertaSeVa,
+  parcheOcultar,
+  parcheRestaurar,
+  reconciliarSeleccion,
+  textoConfirmacion,
+  textoQuitadas,
+} from "@/lib/inbox/selection";
 
 interface ConversationListProps {
   activeConversationId: string | null;
@@ -41,6 +52,12 @@ interface ConversationListProps {
    * or the tab was throttled. Optional so existing callers keep working.
    */
   resyncToken?: number;
+  /**
+   * Se avisa cuando el usuario quita conversaciones del inbox. El padre lo
+   * necesita para soltar la que tuviera abierta: si no, el panel de la derecha
+   * se queda enseñando un hilo que ya no está en la lista.
+   */
+  onConversationsHidden?: (ids: string[]) => void;
 }
 
 const STATUS_COLORS: Record<ConversationStatus, string> = {
@@ -94,6 +111,7 @@ export function ConversationList({
   conversations,
   onConversationsLoaded,
   resyncToken = 0,
+  onConversationsHidden,
 }: ConversationListProps) {
   const t = useTranslations("Inbox.conversationList");
   
@@ -119,6 +137,10 @@ export function ConversationList({
   >(new Map());
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Explícito y no derivado de `selectedIds.size > 0`: así el modo se queda
+  // activo (casillas visibles en toda la lista) aunque el usuario destilde la
+  // última fila a mano, y sólo se sale con «Cancelar» o al quitar del inbox.
+  const [modoSeleccion, setModoSeleccion] = useState(false);
   // Contact-based filters (issue #272). Tags use OR logic (a conversation
   // matches if its contact carries any selected tag), consistent with
   // Broadcast audience filtering. Company is an exact match on the field.
@@ -263,6 +285,12 @@ export function ConversationList({
           deleted_at: new Date().toISOString(),
         });
         if (ok) {
+          // Si era justo la conversación abierta, el padre debe soltarla:
+          // si no, el panel de la derecha se queda enseñando un hilo que ya
+          // no está en la lista.
+          if (laAbiertaSeVa(activeConversationId, [id])) {
+            onConversationsHidden?.([id]);
+          }
           toast("Chat oculto", {
             description: `El chat con ${name} se ocultó de la lista.`,
             action: {
@@ -274,39 +302,56 @@ export function ConversationList({
         }
       })();
     },
-    [applyConversationUpdate],
+    [applyConversationUpdate, activeConversationId, onConversationsHidden],
   );
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      const next = alternarSeleccion(prev, id);
+      // Entra en modo selección al marcar la primera fila. Nunca lo apaga
+      // aquí: destildar la última se queda en modo hasta «Cancelar», igual
+      // que la entrada por pulsación larga.
+      if (next.size > 0) setModoSeleccion(true);
       return next;
     });
   }, []);
 
-  const handleBatchArchive = useCallback(() => {
-    const count = selectedIds.size;
-    if (count === 0) return;
-    if (!window.confirm(`¿Ocultar ${count} chats?`)) return;
-    void (async () => {
-      const names: string[] = [];
-      for (const id of selectedIds) {
-        const conv = conversations.find((c) => c.id === id);
-        if (conv) names.push(conv.contact?.name || conv.contact?.phone || "");
-        await applyConversationUpdate(id, {
-          deleted_at: new Date().toISOString(),
+  /** Entrada táctil: pulsación larga sobre una fila, sin necesidad de hover. */
+  const handleLongPress = useCallback(
+    (id: string) => {
+      setModoSeleccion(true);
+      toggleSelect(id);
+    },
+    [toggleSelect],
+  );
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+    setModoSeleccion(false);
+  }, []);
+
+  /** Deshace un «quitar del inbox» en bloque: UNA sola escritura, no N. */
+  const restaurarSeleccionadas = useCallback(
+    async (ids: string[]) => {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("conversations")
+        .update(parcheRestaurar())
+        .in("id", ids);
+      if (error) {
+        console.error("No se pudieron restaurar las conversaciones:", {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
         });
+        return;
       }
-      setSelectedIds(new Set());
-      toast("Chats ocultos", {
-        description: `${count} chats se ocultaron de la lista.${
-          names.length > 0 ? ` (${names.join(", ")})` : ""
-        }`,
-      });
-    })();
-  }, [selectedIds, applyConversationUpdate, conversations]);
+      const convs = await fetchConversations();
+      if (convs) onConversationsLoadedRef.current(convs);
+    },
+    [fetchConversations],
+  );
 
   // Tag definitions for the filter picker — loaded once so labels/colours
   // stay stable regardless of which conversations happen to be loaded.
@@ -377,6 +422,66 @@ export function ConversationList({
 
     return result.slice().sort(ordenarConversaciones);
   }, [conversations, filter, filtroPropiedad, search, selectedTagIds, selectedCompany]);
+
+  /**
+   * La selección que de verdad cuenta: lo guardado menos lo que ya no está
+   * visible. Se deriva en el render y no en un efecto —la lista se refresca
+   * sola (realtime, o el propio refetch tras ocultar), y una conversación
+   * seleccionada puede desaparecer por debajo; derivarlo evita además el
+   * setState-en-efecto que este proyecto no admite (react-hooks/set-state-in-effect).
+   */
+  const selectedVisibleIds = useMemo(
+    () => reconciliarSeleccion(selectedIds, filtered.map((c) => c.id)),
+    [selectedIds, filtered],
+  );
+
+  /**
+   * Quita del inbox en UNA sola escritura (`.in()`), no N peticiones
+   * secuenciales. No borra: escribe `deleted_at`, lo mismo que ya hacía el
+   * quitado individual. Actúa sobre lo VISIBLE seleccionado, no sobre el
+   * crudo: si algo seleccionado ya desapareció de la lista, no se toca.
+   */
+  const handleQuitarSeleccionadas = useCallback(() => {
+    const ids = [...selectedVisibleIds];
+    if (ids.length === 0) return;
+    if (!window.confirm(textoConfirmacion(ids.length))) return;
+    void (async () => {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("conversations")
+        .update(parcheOcultar())
+        .in("id", ids);
+      if (error) {
+        console.error("No se pudieron quitar las conversaciones:", {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+        });
+        return;
+      }
+      if (laAbiertaSeVa(activeConversationId, ids)) {
+        onConversationsHidden?.(ids);
+      }
+      const convs = await fetchConversations();
+      if (convs) onConversationsLoadedRef.current(convs);
+      clearSelection();
+      toast(textoQuitadas(ids.length), {
+        description: "El historial se conserva.",
+        action: {
+          label: "Deshacer",
+          onClick: () => void restaurarSeleccionadas(ids),
+        },
+      });
+    })();
+  }, [
+    selectedVisibleIds,
+    activeConversationId,
+    onConversationsHidden,
+    fetchConversations,
+    clearSelection,
+    restaurarSeleccionadas,
+  ]);
 
   const toggleTag = useCallback((id: string) => {
     setSelectedTagIds((prev) =>
@@ -597,23 +702,23 @@ export function ConversationList({
         )}
       </div>
 
-      {selectedIds.size > 0 && (
+      {selectedVisibleIds.size > 0 && (
         <div className="flex items-center justify-between border-b border-border px-3 py-2">
           <span className="text-sm text-muted-foreground">
-            {selectedIds.size} seleccionad{selectedIds.size === 1 ? "o" : "os"}
+            {etiquetaSeleccion(selectedVisibleIds.size)}
           </span>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setSelectedIds(new Set())}
+              onClick={clearSelection}
               className="text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
-              Limpiar
+              Cancelar
             </button>
             <button
-              onClick={handleBatchArchive}
+              onClick={handleQuitarSeleccionadas}
               className="text-xs font-medium text-primary hover:text-primary/80 transition-colors"
             >
-              Archivar {selectedIds.size}
+              Quitar del inbox
             </button>
           </div>
         </div>
@@ -647,8 +752,10 @@ export function ConversationList({
                 onDelete={handleDelete}
                 nombresPorAgente={nombresPorAgente}
                 t={t}
-                isSelected={selectedIds.has(conv.id)}
+                isSelected={selectedVisibleIds.has(conv.id)}
+                modoSeleccion={modoSeleccion}
                 onToggleSelect={toggleSelect}
+                onLongPress={handleLongPress}
               />
             ))}
           </div>
@@ -669,7 +776,11 @@ interface ConversationItemProps {
   nombresPorAgente?: ReadonlyMap<string, string>;
   t: ReturnType<typeof useTranslations>;
   isSelected: boolean;
+  /** Modo selección activo para toda la lista, no sólo esta fila. */
+  modoSeleccion: boolean;
   onToggleSelect: (id: string) => void;
+  /** Pulsación larga (táctil): entra en modo selección sin necesitar hover. */
+  onLongPress: (id: string) => void;
 }
 
 function ConversationItem({
@@ -682,7 +793,9 @@ function ConversationItem({
   nombresPorAgente,
   t,
   isSelected,
+  modoSeleccion,
   onToggleSelect,
+  onLongPress,
 }: ConversationItemProps) {
   // El nombre sólo existe cuando hay alguien ASIGNADO. Si la propiedad viene de
   // «una persona respondió a mano», no hay a quién nombrar: el CRM no guarda
@@ -725,18 +838,29 @@ function ConversationItem({
           handleClick();
         }
       }}
+      onContextMenu={(e) => {
+        // En táctil la pulsación larga dispara `contextmenu`. Es el mismo
+        // patrón que ya usa MessageActions para su barra: no se inventa una
+        // interacción nueva sólo para el Inbox.
+        e.preventDefault();
+        if (!modoSeleccion) onLongPress(conversation.id);
+      }}
       className={cn(
         "group flex w-full cursor-pointer items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/50",
         isActive && "border-l-2 border-primary bg-muted/70"
       )}
     >
-      {/* Avatar with checkbox overlay on hover */}
-      <div className="relative flex h-10 w-10 shrink-0 items-center justify-center">
+      {/* Avatar, que en hover y en modo selección se convierte en casilla.
+          Los dos ocupan la MISMA caja de 10×10 y se superponen: así el nombre
+          y el resto de la fila no se mueven ni un píxel al cambiar. */}
+      <div className="relative h-10 w-10 shrink-0">
         <div
+          aria-hidden={modoSeleccion || isSelected}
           className={cn(
-            "flex h-full w-full items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground transition-all",
-            isSelected && "opacity-40",
-            !isSelected && "group-hover:opacity-0"
+            "flex h-10 w-10 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground transition-opacity",
+            modoSeleccion || isSelected
+              ? "opacity-0"
+              : "group-hover:opacity-0 group-focus-within:opacity-0"
           )}
         >
           {contact?.avatar_url ? (
@@ -749,32 +873,32 @@ function ConversationItem({
             initials
           )}
         </div>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleSelect(conversation.id);
-          }}
+        <div
           className={cn(
-            "absolute inset-0 flex items-center justify-center rounded-full transition-all",
-            "opacity-0 group-hover:opacity-100",
-            isSelected && "opacity-100"
+            "absolute inset-0 flex items-center justify-center transition-opacity",
+            modoSeleccion || isSelected
+              ? "opacity-100"
+              : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
           )}
         >
-          <div
-            className="flex h-full w-full items-center justify-center rounded-full bg-muted transition-colors"
+          {/* El stopPropagation va en un envoltorio y no en la casilla: el
+              primitivo no reenvía onClick a su raíz, así que el clic subía a
+              la fila y abría la conversación además de marcarla. */}
+          {/* `inline-flex` es obligatorio: el primitivo se pinta como <span>
+              en línea, y en un elemento en línea el `size-4` no aplica. Sin
+              esto la casilla salía de 2 px de ancho y no se podía pulsar. */}
+          <span
+            className="inline-flex"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
           >
-            <div
-              className={cn(
-                "flex h-5 w-5 items-center justify-center rounded-sm border-2 transition-colors",
-                isSelected
-                  ? "border-primary bg-primary"
-                  : "border-muted-foreground bg-background"
-              )}
-            >
-              {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
-            </div>
-          </div>
-        </button>
+            <Checkbox
+              checked={isSelected}
+              aria-label={`Seleccionar conversación con ${displayName}`}
+              onCheckedChange={() => onToggleSelect(conversation.id)}
+            />
+          </span>
+        </div>
       </div>
 
       {/* Content */}
@@ -790,6 +914,13 @@ function ConversationItem({
               {timeAgo}
             </span>
             <button
+              type="button"
+              aria-label={
+                conversation.pinned_at ? "Desfijar conversación" : "Fijar conversación"
+              }
+              aria-pressed={!!conversation.pinned_at}
+              title={conversation.pinned_at ? "Desfijar" : "Fijar"}
+              disabled={modoSeleccion}
               onClick={(e) => {
                 e.stopPropagation();
                 if (conversation.pinned_at) {
@@ -802,11 +933,21 @@ function ConversationItem({
                 "rounded p-0.5 transition-all",
                 conversation.pinned_at
                   ? "text-primary opacity-100"
-                  : "text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground"
+                  : "text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground",
+                // En modo selección manda la casilla: ningún pin responde,
+                // para que un clic despistado no cambie nada. Pero el de una
+                // fila FIJADA se queda a la vista: si se atenuara también, se
+                // perdería de un plumazo saber cuáles estaban fijadas.
+                modoSeleccion && "pointer-events-none",
+                modoSeleccion && !conversation.pinned_at && "opacity-30"
               )}
-              title={conversation.pinned_at ? "Desfijar" : "Fijar"}
             >
-              <Pin className={cn("h-3 w-3", conversation.pinned_at && "fill-primary")} />
+              <Pin
+                className={cn(
+                  "h-3.5 w-3.5",
+                  conversation.pinned_at && "fill-current"
+                )}
+              />
             </button>
           </span>
         </div>

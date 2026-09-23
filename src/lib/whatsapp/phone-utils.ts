@@ -91,6 +91,30 @@ export function phoneVariants(sanitized: string): string[] {
     }
   }
 
+  // 4. Trunk digits that are not 0, for the countries that use one.
+  //
+  // Mexico (+52) and Argentina (+54) sit a mobile trunk digit between the
+  // country code and a 10-digit subscriber number — 1 and 9 respectively.
+  // The WhatsApp webhook reports the number WITH it (+52 1 962 289 6918)
+  // while Meta's allowed list usually holds it WITHOUT (+52 962 289 6918),
+  // or the reverse, so both directions are worth an attempt.
+  //
+  // Deliberately scoped to those two country codes, and to the exact
+  // subscriber length. Elsewhere 1 and 9 are ordinary first digits, so
+  // stripping one blindly would build a different person's real number —
+  // and in a sandbox that number could itself be on the allowed list,
+  // turning a failed send into a send to the wrong person. A message that
+  // does not arrive is recoverable; one that reaches a stranger is not.
+  for (const [cc, trunk] of [['52', '1'], ['54', '9']] as const) {
+    if (!sanitized.startsWith(cc)) continue
+    const rest = sanitized.slice(cc.length)
+    if (rest.startsWith(trunk) && rest.length === 11) {
+      push(cc + rest.slice(1))
+    } else if (!rest.startsWith(trunk) && rest.length === 10) {
+      push(cc + trunk + rest)
+    }
+  }
+
   return [...seen]
 }
 

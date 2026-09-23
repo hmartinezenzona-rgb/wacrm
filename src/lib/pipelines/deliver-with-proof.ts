@@ -110,6 +110,27 @@ export type SendProofOutcome =
   | { ok: false; outcome: "sent-not-recorded"; message: string; wamid: string }
   | { ok: false; outcome: "unconfirmed"; message: string };
 
+/**
+ * What backed a delivery, passed to `moveToDelivered` alongside the deal
+ * id so the caller can persist it (panel-22: `crm_entregar_operacion`'s
+ * `p_evidence`, mirrored server-side).
+ *
+ *   proofSent   the screenshot reached the customer (this run, or a
+ *               previous one recorded on `draft.sentWamid`).
+ *   skipProof   the operator explicitly delivered without one — the
+ *               closed-window escape hatch. Mutually exclusive with
+ *               `proofSent` in practice (`deliverDeal` never sets both),
+ *               but the type does not enforce that itself.
+ *   wamid/path  present only when a proof was actually sent — omitted,
+ *               never empty-stringed, when there is nothing to record.
+ */
+export interface DeliveryEvidence {
+  proofSent: boolean;
+  skipProof: boolean;
+  wamid?: string;
+  path?: string;
+}
+
 export interface DeliveryDeps {
   /** `useCan("send-messages")`. Checked before anything leaves the browser. */
   canSend(): boolean;
@@ -133,7 +154,10 @@ export interface DeliveryDeps {
   /** Best-effort GC of an object whose send failed. Never throws. */
   discardUpload(path: string): Promise<void>;
   /** The one write this module makes: `deals.stage_id = Entregada`. */
-  moveToDelivered(dealId: string): Promise<{ ok: true } | { ok: false; message: string }>;
+  moveToDelivered(
+    dealId: string,
+    evidence: DeliveryEvidence,
+  ): Promise<{ ok: true } | { ok: false; message: string }>;
 }
 
 export interface DeliveryRequest {
@@ -230,7 +254,10 @@ async function execute(
   // must produce one call — the stage update — exactly as it did
   // before this feature existed.
   if (!draft || skipProof) {
-    const moved = await deps.moveToDelivered(dealId);
+    const moved = await deps.moveToDelivered(dealId, {
+      proofSent: false,
+      skipProof: !!skipProof,
+    });
     return moved.ok
       ? { status: "delivered", proofSent: false }
       : { status: "stage-failed", message: moved.message, proofSent: false };
@@ -249,7 +276,11 @@ async function execute(
   // to persist the stage. Re-sending would give the customer the same
   // screenshot twice.
   if (draft.sentWamid) {
-    const moved = await deps.moveToDelivered(dealId);
+    const moved = await deps.moveToDelivered(dealId, {
+      proofSent: true,
+      skipProof: false,
+      wamid: draft.sentWamid,
+    });
     return moved.ok
       ? { status: "delivered", proofSent: true, wamid: draft.sentWamid }
       : {
@@ -344,7 +375,12 @@ async function execute(
   // Past this line the customer has the proof. A failure here is
   // recoverable but must NOT re-send: the caller records `wamid` on
   // the draft and offers a stage-only retry.
-  const moved = await deps.moveToDelivered(dealId);
+  const moved = await deps.moveToDelivered(dealId, {
+    proofSent: true,
+    skipProof: false,
+    wamid: sent.wamid,
+    path: uploaded.path,
+  });
   if (!moved.ok) {
     return {
       status: "stage-failed",

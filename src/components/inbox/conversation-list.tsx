@@ -10,7 +10,7 @@ import {
 import { prefetchConversationOperations } from "@/lib/remittance-operations/panel-prefetch";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus, Tag } from "@/types";
-import { Search, ChevronDown, X, Pin, MoreVertical } from "lucide-react";
+import { Search, ChevronDown, X, Pin, Check } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { useTranslations } from "next-intl";
@@ -93,6 +93,7 @@ export function ConversationList({
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<InboxFilter>("all");
   const [loading, setLoading] = useState(true);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // Contact-based filters (issue #272). Tags use OR logic (a conversation
   // matches if its contact carries any selected tag), consistent with
   // Broadcast audience filtering. Company is an exact match on the field.
@@ -221,6 +222,37 @@ export function ConversationList({
     },
     [applyConversationUpdate],
   );
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleBatchArchive = useCallback(() => {
+    const count = selectedIds.size;
+    if (count === 0) return;
+    if (!window.confirm(`¿Ocultar ${count} chats?`)) return;
+    void (async () => {
+      const names: string[] = [];
+      for (const id of selectedIds) {
+        const conv = conversations.find((c) => c.id === id);
+        if (conv) names.push(conv.contact?.name || conv.contact?.phone || "");
+        await applyConversationUpdate(id, {
+          deleted_at: new Date().toISOString(),
+        });
+      }
+      setSelectedIds(new Set());
+      toast("Chats ocultos", {
+        description: `${count} chats se ocultaron de la lista.${
+          names.length > 0 ? ` (${names.join(", ")})` : ""
+        }`,
+      });
+    })();
+  }, [selectedIds, applyConversationUpdate, conversations]);
 
   // Tag definitions for the filter picker — loaded once so labels/colours
   // stay stable regardless of which conversations happen to be loaded.
@@ -486,6 +518,28 @@ export function ConversationList({
         )}
       </div>
 
+      {selectedIds.size > 0 && (
+        <div className="flex items-center justify-between border-b border-border px-3 py-2">
+          <span className="text-sm text-muted-foreground">
+            {selectedIds.size} seleccionad{selectedIds.size === 1 ? "o" : "os"}
+          </span>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Limpiar
+            </button>
+            <button
+              onClick={handleBatchArchive}
+              className="text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+            >
+              Archivar {selectedIds.size}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Conversation Items.
           `min-h-0` is load-bearing: a flex child defaults to
           min-height:auto, so without it this ScrollArea grows to fit
@@ -513,6 +567,8 @@ export function ConversationList({
                 onUnpin={handleUnpin}
                 onDelete={handleDelete}
                 t={t}
+                isSelected={selectedIds.has(conv.id)}
+                onToggleSelect={toggleSelect}
               />
             ))}
           </div>
@@ -530,6 +586,8 @@ interface ConversationItemProps {
   onUnpin: (id: string) => void;
   onDelete: (id: string, name: string) => void;
   t: ReturnType<typeof useTranslations>;
+  isSelected: boolean;
+  onToggleSelect: (id: string) => void;
 }
 
 function ConversationItem({
@@ -540,6 +598,8 @@ function ConversationItem({
   onUnpin,
   onDelete,
   t,
+  isSelected,
+  onToggleSelect,
 }: ConversationItemProps) {
   const contact = conversation.contact;
   const displayName = contact?.name || contact?.phone || t("unknown");
@@ -578,75 +638,88 @@ function ConversationItem({
         }
       }}
       className={cn(
-        "flex w-full cursor-pointer items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/50",
+        "group flex w-full cursor-pointer items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/50",
         isActive && "border-l-2 border-primary bg-muted/70"
       )}
     >
-      {/* Avatar */}
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
-        {contact?.avatar_url ? (
-          <img
-            src={contact.avatar_url}
-            alt={displayName}
-            className="h-10 w-10 rounded-full object-cover"
-          />
-        ) : (
-          initials
-        )}
+      {/* Avatar with checkbox overlay on hover */}
+      <div className="relative flex h-10 w-10 shrink-0 items-center justify-center">
+        <div
+          className={cn(
+            "flex h-full w-full items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground transition-all",
+            isSelected && "opacity-40",
+            !isSelected && "group-hover:opacity-0"
+          )}
+        >
+          {contact?.avatar_url ? (
+            <img
+              src={contact.avatar_url}
+              alt={displayName}
+              className="h-10 w-10 rounded-full object-cover"
+            />
+          ) : (
+            initials
+          )}
+        </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect(conversation.id);
+          }}
+          className={cn(
+            "absolute inset-0 flex items-center justify-center rounded-full transition-all",
+            "opacity-0 group-hover:opacity-100",
+            isSelected && "opacity-100"
+          )}
+        >
+          <div
+            className="flex h-full w-full items-center justify-center rounded-full bg-muted transition-colors"
+          >
+            <div
+              className={cn(
+                "flex h-5 w-5 items-center justify-center rounded-sm border-2 transition-colors",
+                isSelected
+                  ? "border-primary bg-primary"
+                  : "border-muted-foreground bg-background"
+              )}
+            >
+              {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+            </div>
+          </div>
+        </button>
       </div>
 
       {/* Content */}
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <span className="flex min-w-0 items-center gap-1.5">
-            {conversation.pinned_at && (
-              <Pin className="h-3 w-3 shrink-0 text-primary" />
-            )}
             <span className="truncate text-sm font-medium text-foreground">
               {displayName}
             </span>
           </span>
           <span className="flex shrink-0 items-center gap-1">
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                onClick={(e) => e.stopPropagation()}
-                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                <MoreVertical className="h-3.5 w-3.5" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="border-border bg-popover">
-                {conversation.pinned_at ? (
-                  <DropdownMenuItem
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onUnpin(conversation.id);
-                    }}
-                  >
-                    Desfijar
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onPin(conversation.id);
-                    }}
-                  >
-                    Fijar
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete(conversation.id, displayName);
-                  }}
-                >
-                  Borrar
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
             <span className="shrink-0 text-[10px] text-muted-foreground">
               {timeAgo}
             </span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (conversation.pinned_at) {
+                  onUnpin(conversation.id);
+                } else {
+                  onPin(conversation.id);
+                }
+              }}
+              className={cn(
+                "rounded p-0.5 transition-all",
+                conversation.pinned_at
+                  ? "text-primary opacity-100"
+                  : "text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground"
+              )}
+              title={conversation.pinned_at ? "Desfijar" : "Fijar"}
+            >
+              <Pin className={cn("h-3 w-3", conversation.pinned_at && "fill-primary")} />
+            </button>
           </span>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">

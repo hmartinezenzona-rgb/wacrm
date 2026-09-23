@@ -50,7 +50,10 @@
     "pipelines": "Pipelines",
     "broadcasts": "Broadcasts",
     "automations": "Automations",
+    "flows": "Flows",
+    "aiAgents": "AI Agents",
     "settings": "Settings",
+    "breadcrumb": "Breadcrumb",
     "openMenu": "Open menu",
     "openAccountMenu": "Open account menu",
     "defaultUser": "User",
@@ -983,6 +986,8 @@
       "cancel": "Cancel",
       "deleteTitle": "Delete automation",
       "deleteDesc": "This permanently removes {name} and its execution history. This cannot be undone.",
+      "activeChip": "Active",
+      "useTemplate": "Use template",
       "toasts": {
         "activated": "Automation activated",
         "paused": "Automation paused",
@@ -1761,7 +1766,7 @@
     },
     "apiKeys": {
       "title": "API keys",
-      "description": "Keys authenticate the public REST API (<apiCode>/api/v1</apiCode>) so you can build your own automations. Send them as <headerCode>Authorization: Bearer &lt;key&gt;</headerCode>.",
+      "description": "Keys authenticate the public REST API (<apiCode>/api/v1</apiCode>) so you can build your own automations. Send them as <headerCode>Authorization: Bearer YOUR_KEY</headerCode>.",
       "newApiKey": "New API key",
       "noApiKeys": "No API keys yet.",
       "createOneHint": "Click <bold>New API key</bold> to create one.",
@@ -1795,7 +1800,11 @@
       "newKeyTitle": "New API key",
       "newKeyDesc": "Name it after the integration that will use it, and grant only the scopes it needs.",
       "done": "Done",
-      "networkError": "Could not reach the server"
+      "networkError": "Could not reach the server",
+      "revokeConfirm": "Confirm revoke",
+      "revokedSectionShow": "Show revoked ({count})",
+      "revokedSectionHide": "Hide revoked",
+      "noActiveKeys": "No active keys."
     },
     "deals": {
       "title": "Deals & currency",

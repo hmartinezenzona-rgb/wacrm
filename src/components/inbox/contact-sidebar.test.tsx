@@ -94,12 +94,19 @@ describe("ContactSidebar", () => {
     const { node, root } = await render();
 
     const text = node.textContent ?? "";
-    const botIndex = text.indexOf(en.Inbox.sidebar.pauseBot);
+    const botIndex = text.indexOf(en.Inbox.sidebar.bot);
     const tagsIndex = text.indexOf(en.Inbox.sidebar.tags);
     expect(botIndex).toBeGreaterThan(-1);
     expect(tagsIndex).toBeGreaterThan(-1);
     expect(botIndex).toBeLessThan(tagsIndex);
     expect(text.indexOf(contact.phone)).toBeLessThan(botIndex);
+
+    // The button became a Switch — the on/off state now lives in the
+    // accessible name, not visible text (see the removed longform
+    // "Pause bot"/"Resume bot" button this replaced).
+    const toggle = node.querySelector('[role="switch"]');
+    expect(toggle).not.toBeNull();
+    expect(toggle?.getAttribute("aria-label")).toBe(en.Inbox.sidebar.pauseBot);
     await act(async () => root.unmount());
   });
 });

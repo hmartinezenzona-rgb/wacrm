@@ -15,6 +15,8 @@ import type {
   PipelineStageSlice,
   ResponseTimeBucket,
   ResponseTimeSummary,
+  ServiceVolumeData,
+  ServiceVolumeSlice,
 } from './types'
 
 // ------------------------------------------------------------
@@ -164,6 +166,49 @@ export async function loadPipelineDonut(db: DB): Promise<PipelineDonutData> {
   return {
     stages: slices,
     totalValue: slices.reduce((sum, s) => sum + s.totalValue, 0),
+  }
+}
+
+// --- 3b. Service volume donut -------------------------------------------
+
+// The 6 real `service_type` values (migration 046's CHECK constraint) mapped
+// onto the design system's 5 theme-aware categorical tokens. `mexico` and
+// `traduccion` are the two most tangential to the core remittance business
+// (a corridor variant and a translation add-on, respectively), so they
+// share --chart-5; `traduccion`'s slice is rendered at reduced opacity in
+// the component to stay visually distinguishable from `mexico`.
+const SERVICE_TYPE_COLORS: Record<string, string> = {
+  remesa: 'var(--chart-1)',
+  combo: 'var(--chart-2)',
+  recarga: 'var(--chart-3)',
+  visa: 'var(--chart-4)',
+  mexico: 'var(--chart-5)',
+  traduccion: 'var(--chart-5)',
+}
+const DEFAULT_SERVICE_COLOR = 'var(--chart-5)'
+
+export async function loadServiceVolume(db: DB): Promise<ServiceVolumeData> {
+  const { data, error } = await db.rpc('cerebro_dashboard_volumen_por_servicio')
+  if (error) throw error
+
+  const rows = (data ?? []) as {
+    service_type: string
+    operaciones: number
+    volumen_gyd: number
+    ticket_medio_gyd: number
+  }[]
+
+  const services: ServiceVolumeSlice[] = rows.map((r) => ({
+    serviceType: r.service_type,
+    color: SERVICE_TYPE_COLORS[r.service_type] ?? DEFAULT_SERVICE_COLOR,
+    operationCount: r.operaciones,
+    volumeGyd: r.volumen_gyd,
+    averageTicketGyd: r.ticket_medio_gyd,
+  }))
+
+  return {
+    services,
+    totalVolumeGyd: services.reduce((sum, s) => sum + s.volumeGyd, 0),
   }
 }
 

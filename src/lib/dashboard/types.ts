@@ -34,6 +34,19 @@ export interface PipelineDonutData {
   totalValue: number
 }
 
+export interface ServiceVolumeSlice {
+  serviceType: string
+  color: string
+  operationCount: number
+  volumeGyd: number
+  averageTicketGyd: number
+}
+
+export interface ServiceVolumeData {
+  services: ServiceVolumeSlice[]
+  totalVolumeGyd: number
+}
+
 export interface ResponseTimeBucket {
   /** 0 = Mon … 6 = Sun (Monday-first). */
   dow: number

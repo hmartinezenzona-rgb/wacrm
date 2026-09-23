@@ -118,6 +118,23 @@
       "total": "Total",
       "ariaLabel": "Pipeline value by stage"
     },
+    "serviceVolumeDonut": {
+      "title": "Remittance Volume",
+      "description": "Today's volume by service",
+      "noOperationsToday": "No operations yet today",
+      "noOperationsTodayHint": "Completed remittance operations will show up here as they happen.",
+      "operationCount": "{count} {count, plural, =1 {op} other {ops}}",
+      "total": "Total",
+      "ariaLabel": "Remittance volume by service, today",
+      "serviceType": {
+        "remesa": "Remittance",
+        "combo": "Combo",
+        "recarga": "Top-up",
+        "visa": "Visa",
+        "traduccion": "Translation",
+        "mexico": "Mexico"
+      }
+    },
     "responseTimeChart": {
       "title": "Average First Response Time",
       "description": "Minutes to reply to a customer's first unreplied message, by weekday",

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
@@ -18,6 +18,7 @@ import { FieldsAndTagsPanel } from '@/components/settings/fields-and-tags-panel'
 import { DealsSettings } from '@/components/settings/deals-settings';
 import { MembersTab } from '@/components/settings/members-tab';
 import { ApiKeysSettings } from '@/components/settings/api-keys-settings';
+import { PageHeader, PageShell } from '@/components/layout/page-header';
 import {
   resolveSection,
   type SettingsSection,
@@ -30,13 +31,44 @@ export default function SettingsPage() {
   const { mode } = useTheme();
   const t = useTranslations('Settings');
 
-  // The URL (`?tab=`) is the single source of truth for the active
-  // section — deep-linkable, and it keeps the existing links in the
-  // app sidebar/header working. Legacy tab values (tags, custom-fields)
-  // resolve onto their new home; unknown/empty → the Overview landing.
-  const section = resolveSection(searchParams.get('tab'));
+  // `?tab=` stays the deep link — the sidebar and the account menu both
+  // point at `/settings?tab=...` and bookmarks must keep working — but it
+  // is no longer what the UI *reads*.
+  //
+  // Why: this route is prerendered (`○ /settings` in the build output) and
+  // reads its state through `useSearchParams()`. On a prerendered route a
+  // `router.replace()` that changes only the query did not come back
+  // through that hook, so `section` never moved: land on
+  // `/settings?tab=deals` and every item in the rail stopped working —
+  // no error, no spinner, just a dead menu. Arriving with a `?tab=` in
+  // the URL is the normal case, not an edge one: both entries in the
+  // account menu link that way, and so does any reload.
+  //
+  // It only reproduces in a production build. Next's own docs note that
+  // "in development, routes are rendered on-demand, so `useSearchParams`
+  // doesn't suspend and things may appear to work without `Suspense`" —
+  // which is exactly why `next dev` looked fine while the deployed site
+  // did not.
+  //
+  // The fix is to stop depending on the router echoing the change back.
+  // `override` holds a locally-chosen section and stays in force only
+  // while the URL is the one it was chosen from; the moment the URL
+  // really changes — back/forward, an account-menu link, a fresh load —
+  // it stops applying and the URL wins again. No effect, no clobbering,
+  // and correct whether or not the hook updates.
+  const urlTab = searchParams.get('tab');
+  const [override, setOverride] = useState<{
+    from: string | null;
+    section: SettingsSection;
+  } | null>(null);
+
+  const section =
+    override && override.from === urlTab
+      ? override.section
+      : resolveSection(urlTab);
 
   const go = (next: SettingsSection) => {
+    setOverride({ from: urlTab, section: next });
     const params = new URLSearchParams(searchParams.toString());
     params.set('tab', next);
     router.replace(`/settings?${params.toString()}`, { scroll: false });
@@ -68,20 +100,13 @@ export default function SettingsPage() {
   };
 
   return (
-    <div>
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          {t('pageTitle')}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {t('pageDesc')}
-        </p>
-      </div>
+    <PageShell>
+      <PageHeader title={t('pageTitle')} description={t('pageDesc')} />
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[236px_minmax(0,1fr)] lg:items-start">
+      <div className="grid gap-6 lg:grid-cols-[236px_minmax(0,1fr)] lg:items-start">
         <SettingsRail active={section} onSelect={go} hints={hints} />
         <div className="min-w-0">{panel[section]}</div>
       </div>
-    </div>
+    </PageShell>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import type { CSSProperties } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { formatCurrency } from '@/lib/currency';
@@ -562,15 +563,12 @@ export function ContactDetailView({
                             key={tag.id}
                             onClick={() => toggleTag(tag.id)}
                             disabled={savingTags}
-                            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition-all cursor-pointer ${
+                            className={`pastilla-color inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition-all cursor-pointer ${
                               selected
                                 ? 'ring-2 ring-primary ring-offset-1 ring-offset-border'
                                 : 'opacity-50 hover:opacity-80'
                             }`}
-                            style={{
-                              backgroundColor: tag.color + '20',
-                              color: tag.color,
-                            }}
+                            style={{ '--tono': tag.color } as CSSProperties}
                           >
                             {selected && <Check className="size-3 mr-1" />}
                             {tag.name}

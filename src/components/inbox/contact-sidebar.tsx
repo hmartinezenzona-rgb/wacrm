@@ -233,7 +233,7 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
                     {tSidebar("bot")}
                   </div>
                   <Switch
-                    checked={!botPaused}
+                    checked={botPaused}
                     onCheckedChange={toggleBot}
                     disabled={botBusy}
                     aria-label={botPaused ? tSidebar("resumeBot") : tSidebar("pauseBot")}

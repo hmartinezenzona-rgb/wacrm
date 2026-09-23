@@ -18,6 +18,16 @@ import type { Conversation, Contact } from "@/types";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+// jsdom has no PointerEvent constructor. The shadcn/base-ui Checkbox's click
+// handler re-dispatches a PointerEvent at its hidden native input — without
+// this shim that throw is uncaught and the checkbox never toggles in tests.
+if (typeof globalThis.PointerEvent === "undefined") {
+  class PointerEventPolyfill extends MouseEvent {}
+  // @ts-expect-error jsdom lacks PointerEvent; a MouseEvent subclass is
+  // enough for the library's click re-dispatch to work in tests.
+  globalThis.PointerEvent = PointerEventPolyfill;
+}
+
 vi.mock("next-intl", () => ({
   useTranslations: (namespace: string) => {
     const node = namespace
@@ -31,6 +41,11 @@ vi.mock("next-intl", () => ({
 // to prefetch-on-hover, which is exercised through the `conversations`
 // prop instead (as a real parent would hold that state). Resolves both
 // tables to empty so the mount effects settle without error.
+//
+// `update`/`in` are here too: pin/unpin and the batch "quitar del inbox"
+// action (Slice B) call them, and without a stub the resulting unhandled
+// promise rejection pollutes unrelated test output even though the
+// assertions themselves still pass.
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
     from: () => {
@@ -39,6 +54,8 @@ vi.mock("@/lib/supabase/client", () => ({
         eq: () => builder,
         is: () => builder,
         order: () => builder,
+        update: () => builder,
+        in: () => builder,
         then: (resolve: (value: { data: unknown[]; error: null }) => unknown) =>
           resolve({ data: [], error: null }),
       };
@@ -202,6 +219,162 @@ describe("ConversationList — prefetch on hover/focus", () => {
     });
 
     expect(onSelect).toHaveBeenCalledWith(convs[0]);
+    await act(async () => root.unmount());
+  });
+});
+
+// Slice B: re-merge of the batch-selection + pin feature against production's
+// independently rebuilt version (pure logic in src/lib/inbox/selection.ts,
+// shared shadcn Checkbox, long-press entry for touch). Ported and adapted
+// from production's conversation-list.test.tsx, which tests an exported
+// `ConversationItem` with @testing-library/react — neither exists on this
+// branch, so these render the full `ConversationList` through the same
+// createRoot harness the prefetch tests above already use.
+describe("ConversationList — selección múltiple y pin", () => {
+  it("marcar la casilla selecciona sin abrir la conversación", async () => {
+    const convs = [conversation({ id: "conv-1", contact: contact({ name: "Ada Lovelace" }) })];
+    const { node, root, onSelect } = await renderList(convs);
+
+    const row = rowFor(node, "Ada Lovelace");
+    const casilla = row.querySelector('[role="checkbox"]') as HTMLElement;
+    expect(casilla).toBeTruthy();
+    expect(casilla.getAttribute("aria-label")).toBe(
+      "Seleccionar conversación con Ada Lovelace",
+    );
+
+    await act(async () => {
+      casilla.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(row.querySelector('[role="checkbox"]')?.getAttribute("aria-checked")).toBe(
+      "true",
+    );
+    expect(node.textContent).toContain("1 seleccionada");
+    expect(node.textContent).toContain("Quitar del inbox");
+    expect(node.textContent).toContain("Cancelar");
+
+    await act(async () => root.unmount());
+  });
+
+  it("pulsación larga (contextmenu) entra en modo selección sin abrir la conversación", async () => {
+    const convs = [conversation({ id: "conv-1", contact: contact({ name: "Ada Lovelace" }) })];
+    const { node, root, onSelect } = await renderList(convs);
+
+    const row = rowFor(node, "Ada Lovelace");
+    await act(async () => {
+      row.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    });
+
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(row.querySelector('[role="checkbox"]')?.getAttribute("aria-checked")).toBe(
+      "true",
+    );
+    expect(node.textContent).toContain("1 seleccionada");
+
+    await act(async () => root.unmount());
+  });
+
+  it("«Cancelar» limpia la selección y sale del modo selección", async () => {
+    const convs = [conversation({ id: "conv-1", contact: contact({ name: "Ada Lovelace" }) })];
+    const { node, root } = await renderList(convs);
+
+    const row = rowFor(node, "Ada Lovelace");
+    await act(async () => {
+      row.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    });
+    expect(node.textContent).toContain("Cancelar");
+
+    const cancelar = Array.from(node.querySelectorAll("button")).find(
+      (b) => b.textContent === "Cancelar",
+    ) as HTMLButtonElement;
+    await act(async () => {
+      cancelar.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+
+    expect(node.textContent).not.toContain("Quitar del inbox");
+    expect(row.querySelector('[role="checkbox"]')?.getAttribute("aria-checked")).toBe(
+      "false",
+    );
+
+    await act(async () => root.unmount());
+  });
+
+  it("clic normal sigue abriendo la conversación cuando no hay selección", async () => {
+    const convs = [conversation({ id: "conv-1", contact: contact({ name: "Ada Lovelace" }) })];
+    const { node, root, onSelect } = await renderList(convs);
+
+    await act(async () => {
+      rowFor(node, "Ada Lovelace").dispatchEvent(
+        new MouseEvent("click", { bubbles: true, cancelable: true }),
+      );
+    });
+
+    expect(onSelect).toHaveBeenCalledWith(convs[0]);
+    await act(async () => root.unmount());
+  });
+});
+
+describe("ConversationList — pin", () => {
+  it("no fijado: botón accesible, sin aria-pressed activo", async () => {
+    const convs = [conversation({ id: "conv-1", contact: contact({ name: "Ada Lovelace" }) })];
+    const { node, root } = await renderList(convs);
+
+    const row = rowFor(node, "Ada Lovelace");
+    const boton = row.querySelector('[aria-label="Fijar conversación"]') as HTMLButtonElement;
+    expect(boton).toBeTruthy();
+    expect(boton.getAttribute("aria-pressed")).toBe("false");
+    expect(boton.disabled).toBe(false);
+
+    await act(async () => root.unmount());
+  });
+
+  it("fijado: aria-label y aria-pressed reflejan el estado", async () => {
+    const convs = [
+      conversation({
+        id: "conv-1",
+        pinned_at: new Date().toISOString(),
+        contact: contact({ name: "Ada Lovelace" }),
+      }),
+    ];
+    const { node, root } = await renderList(convs);
+
+    const row = rowFor(node, "Ada Lovelace");
+    const boton = row.querySelector(
+      '[aria-label="Desfijar conversación"]',
+    ) as HTMLButtonElement;
+    expect(boton).toBeTruthy();
+    expect(boton.getAttribute("aria-pressed")).toBe("true");
+
+    await act(async () => root.unmount());
+  });
+
+  it("fijar/desfijar no abre la conversación", async () => {
+    const convs = [conversation({ id: "conv-1", contact: contact({ name: "Ada Lovelace" }) })];
+    const { node, root, onSelect } = await renderList(convs);
+
+    const row = rowFor(node, "Ada Lovelace");
+    const boton = row.querySelector('[aria-label="Fijar conversación"]') as HTMLButtonElement;
+    await act(async () => {
+      boton.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+
+    expect(onSelect).not.toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
+
+  it("se deshabilita en modo selección", async () => {
+    const convs = [conversation({ id: "conv-1", contact: contact({ name: "Ada Lovelace" }) })];
+    const { node, root } = await renderList(convs);
+
+    const row = rowFor(node, "Ada Lovelace");
+    await act(async () => {
+      row.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    });
+
+    const boton = row.querySelector('[aria-label="Fijar conversación"]') as HTMLButtonElement;
+    expect(boton.disabled).toBe(true);
+
     await act(async () => root.unmount());
   });
 });

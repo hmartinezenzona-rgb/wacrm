@@ -11,6 +11,11 @@ import { prefetchConversationOperations } from "@/lib/remittance-operations/pane
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus, Tag } from "@/types";
 import { Search, ChevronDown, X, Pin, Check } from "lucide-react";
+import { OwnershipIcon } from "./ownership-icon";
+import {
+  resolveConversationOwnership,
+  type ConversationOwnership,
+} from "@/lib/inbox/conversation-ownership";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { useTranslations } from "next-intl";
@@ -47,6 +52,16 @@ const STATUS_COLORS: Record<ConversationStatus, string> = {
 
 
 type InboxFilter = ConversationStatus | "all" | "unread";
+
+/** Filtro por quién lleva el hilo. `todos` no filtra nada. */
+type FiltroPropiedad = "todos" | ConversationOwnership;
+
+const FILTROS_PROPIEDAD: { valor: FiltroPropiedad; etiqueta: string }[] = [
+  { valor: "todos", etiqueta: "Todos" },
+  { valor: "bot", etiqueta: "Bot" },
+  { valor: "human", etiqueta: "Humano" },
+  { valor: "paused", etiqueta: "IA pausada" },
+];
 
 /**
  * Replica el ORDER BY de la consulta (pinned_at DESC NULLS LAST,
@@ -92,6 +107,16 @@ export function ConversationList({
 
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<InboxFilter>("all");
+  // Quién lleva el hilo. Se resuelve del estado ya cargado: sin consultas.
+  const [filtroPropiedad, setFiltroPropiedad] = useState<FiltroPropiedad>("todos");
+  /**
+   * userId -> nombre, para el tooltip del icono humano. UNA consulta para todo
+   * el equipo, no una por conversación. `assigned_agent_id` no tiene clave
+   * foránea, así que PostgREST no puede traerlo embebido en el select.
+   */
+  const [nombresPorAgente, setNombresPorAgente] = useState<
+    ReadonlyMap<string, string>
+  >(new Map());
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // Contact-based filters (issue #272). Tags use OR logic (a conversation
@@ -138,6 +163,35 @@ export function ConversationList({
       return null;
     }
     return normalizeConversations(data ?? []);
+  }, []);
+
+  useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("user_id, full_name");
+      if (cancelado) return;
+      if (error) {
+        // Sin nombres el icono sigue funcionando: dirá «una persona».
+        console.error("No se pudieron cargar los nombres del equipo:", {
+          message: error.message,
+          code: error.code,
+        });
+        return;
+      }
+      const m = new Map<string, string>();
+      for (const p of data ?? []) {
+        const id = (p as { user_id?: string }).user_id;
+        const nombre = (p as { full_name?: string | null }).full_name;
+        if (id && nombre) m.set(id, nombre);
+      }
+      setNombresPorAgente(m);
+    })();
+    return () => {
+      cancelado = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -295,6 +349,12 @@ export function ConversationList({
       result = result.filter((c) => c.status === filter);
     }
 
+    if (filtroPropiedad !== "todos") {
+      result = result.filter(
+        (c) => resolveConversationOwnership(c).ownership === filtroPropiedad,
+      );
+    }
+
     // Contact-based filters (tags via OR logic, exact company match).
     if (selectedTagIds.length > 0 || selectedCompany !== null) {
       result = result.filter((c) =>
@@ -316,7 +376,7 @@ export function ConversationList({
     }
 
     return result.slice().sort(ordenarConversaciones);
-  }, [conversations, filter, search, selectedTagIds, selectedCompany]);
+  }, [conversations, filter, filtroPropiedad, search, selectedTagIds, selectedCompany]);
 
   const toggleTag = useCallback((id: string) => {
     setSelectedTagIds((prev) =>
@@ -390,6 +450,25 @@ export function ConversationList({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Quién atiende: se lee del estado de cada hilo, no del historial. */}
+          <div className="flex items-center gap-1">
+            {FILTROS_PROPIEDAD.map((f) => (
+              <button
+                key={f.valor}
+                type="button"
+                onClick={() => setFiltroPropiedad(f.valor)}
+                className={cn(
+                  "rounded-full border px-2 py-0.5 text-[11px] transition-colors",
+                  filtroPropiedad === f.valor
+                    ? "border-primary/40 bg-primary/15 text-primary"
+                    : "border-border text-muted-foreground hover:bg-muted",
+                )}
+              >
+                {f.etiqueta}
+              </button>
+            ))}
+          </div>
 
           {tags.length > 0 && (
             <DropdownMenu>
@@ -566,6 +645,7 @@ export function ConversationList({
                 onPin={handlePin}
                 onUnpin={handleUnpin}
                 onDelete={handleDelete}
+                nombresPorAgente={nombresPorAgente}
                 t={t}
                 isSelected={selectedIds.has(conv.id)}
                 onToggleSelect={toggleSelect}
@@ -585,6 +665,8 @@ interface ConversationItemProps {
   onPin: (id: string) => void;
   onUnpin: (id: string) => void;
   onDelete: (id: string, name: string) => void;
+  /** userId -> nombre. Cargado una vez por la lista. */
+  nombresPorAgente?: ReadonlyMap<string, string>;
   t: ReturnType<typeof useTranslations>;
   isSelected: boolean;
   onToggleSelect: (id: string) => void;
@@ -597,10 +679,16 @@ function ConversationItem({
   onPin,
   onUnpin,
   onDelete,
+  nombresPorAgente,
   t,
   isSelected,
   onToggleSelect,
 }: ConversationItemProps) {
+  // El nombre sólo existe cuando hay alguien ASIGNADO. Si la propiedad viene de
+  // «una persona respondió a mano», no hay a quién nombrar: el CRM no guarda
+  // quién escribió en la conversación, sólo que fue una persona.
+  const { agentId } = resolveConversationOwnership(conversation);
+  const nombreAgente = agentId ? (nombresPorAgente?.get(agentId) ?? null) : null;
   const contact = conversation.contact;
   const displayName = contact?.name || contact?.phone || t("unknown");
   const initials = displayName.charAt(0).toUpperCase();
@@ -723,8 +811,13 @@ function ConversationItem({
           </span>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">
-          <p className="truncate text-xs text-muted-foreground">
-            {conversation.last_message_text || t("noMessagesYet")}
+          <p className="flex min-w-0 items-center gap-1.5 truncate text-xs text-muted-foreground">
+            {/* Delante del mensaje: sitio fijo, no lo empuja la longitud del
+                nombre y no choca con la hora. */}
+            <OwnershipIcon conversation={conversation} agentName={nombreAgente} />
+            <span className="truncate">
+              {conversation.last_message_text || t("noMessagesYet")}
+            </span>
           </p>
           <div className="flex shrink-0 items-center gap-1.5">
             {conversation.unread_count > 0 && (

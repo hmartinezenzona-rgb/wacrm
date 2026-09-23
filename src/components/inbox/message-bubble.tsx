@@ -350,7 +350,12 @@ export function MessageBubble({
               glance. */}
           {message.ai_generated && (
             <span
-              className="inline-flex items-center gap-0.5 rounded-full bg-primary-foreground/20 px-1.5 py-px text-[9px] font-semibold uppercase leading-none tracking-wide text-primary-foreground"
+              // El fondo `/20` del propio texto ACLARABA la burbuja y dejaba el
+              // distintivo en 4.05:1 — por debajo del minimo AA, y a 9px, que
+              // es el texto mas pequeno de la app. Sin el tinte, la etiqueta
+              // hereda el contraste de la burbuja y se sigue distinguiendo por
+              // mayusculas, peso y tamano.
+              className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[9px] font-semibold uppercase leading-none tracking-wide text-primary-foreground"
               title={t("aiBadgeTitle")}
             >
               <Sparkles className="h-2.5 w-2.5" />

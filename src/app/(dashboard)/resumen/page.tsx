@@ -6,6 +6,16 @@ import { useTranslations } from "next-intl";
 import { format } from "date-fns";
 import { BarChart3, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader, PageShell } from "@/components/layout/page-header";
 import {
   Table,
   TableBody,
@@ -90,6 +100,27 @@ const PAG_TXT = {
 
 function fmtGyd(n: number | null | undefined): string {
   return `${(n ?? 0).toLocaleString("en-US")} GYD`;
+}
+
+/** Centinela para "todos los servicios": el valor real que viaja al RPC es "". */
+const TODOS = "__todos__";
+
+/** Etiqueta encima del control, que es lo que `space-y-1` no hacia. */
+function Field({
+  label,
+  className,
+  children,
+}: {
+  label: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={`flex flex-col gap-1.5 ${className ?? ""}`}>
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      {children}
+    </div>
+  );
 }
 
 export default function ResumenPage() {
@@ -195,11 +226,8 @@ export default function ResumenPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{t("subtitle")}</p>
-      </div>
+    <PageShell>
+      <PageHeader title={t("title")} description={t("subtitle")} />
 
       {/* Resumen por periodo */}
       <section className="space-y-2">
@@ -242,76 +270,84 @@ export default function ResumenPage() {
         <h2 className="text-sm font-semibold text-foreground">
           {t("historialTitle")}
         </h2>
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="space-y-1">
-            <span className="text-xs text-muted-foreground">
-              {t("filtros.servicio")}
-            </span>
-            <select
-              value={servicio}
-              onChange={(e) => setServicio(e.target.value)}
-              className="h-9 rounded-md border border-border bg-background px-2 text-sm"
+        {/* Los cuatro controles eran <select>/<input> nativos sin estilar,
+            y cada <label> llevaba `space-y-1` sobre un elemento inline —
+            que no separa nada: la etiqueta acababa pegada al control, en
+            la misma linea. Ahora son los mismos primitivos que usa el
+            resto de la app, con la etiqueta encima. */}
+        <div className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-3">
+          <Field label={t("filtros.servicio")}>
+            <Select
+              value={servicio || TODOS}
+              onValueChange={(v) => setServicio(!v || v === TODOS ? "" : v)}
             >
-              <option value="">{t("filtros.todos")}</option>
-              {SERVICIOS.map((s) => (
-                <option key={s} value={s}>
-                  {SERVICIO_LABEL[s]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="space-y-1">
-            <span className="text-xs text-muted-foreground">
-              {t("filtros.desde")}
-            </span>
-            <input
+              <SelectTrigger className="w-40">
+                {/* Base UI pinta el valor en crudo si no le das la etiqueta,
+                    asi que el centinela saldria literal ("__todos__"). */}
+                <SelectValue>
+                  {(v) =>
+                    v === TODOS || !v
+                      ? t("filtros.todos")
+                      : (SERVICIO_LABEL[v as string] ?? (v as string))
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={TODOS}>{t("filtros.todos")}</SelectItem>
+                {SERVICIOS.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {SERVICIO_LABEL[s]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label={t("filtros.desde")}>
+            <Input
               type="date"
               value={desde}
               onChange={(e) => setDesde(e.target.value)}
-              className="h-9 rounded-md border border-border bg-background px-2 text-sm"
+              className="w-40"
             />
-          </label>
-          <label className="space-y-1">
-            <span className="text-xs text-muted-foreground">
-              {t("filtros.hasta")}
-            </span>
-            <input
+          </Field>
+          <Field label={t("filtros.hasta")}>
+            <Input
               type="date"
               value={hasta}
               onChange={(e) => setHasta(e.target.value)}
-              className="h-9 rounded-md border border-border bg-background px-2 text-sm"
+              className="w-40"
             />
-          </label>
+          </Field>
           <Button size="sm" onClick={aplicar} disabled={cargando}>
             {cargando ? t("filtros.cargando") : t("filtros.aplicar")}
           </Button>
-          <label className="space-y-1">
-            <span className="text-xs text-muted-foreground">
-              {PAG_TXT.porPagina}
-            </span>
-            <select
-              value={porPagina}
-              onChange={(e) => {
-                setPorPagina(Number(e.target.value));
+          {/* El tamano de pagina no filtra nada: es un control de la tabla.
+              `ml-auto` lo separa del grupo de filtros en vez de dejarlo
+              como si fuera un cuarto criterio de busqueda. */}
+          <Field label={PAG_TXT.porPagina} className="ml-auto">
+            <Select
+              value={String(porPagina)}
+              onValueChange={(v) => {
+                setPorPagina(Number(v));
                 setPagina(0);
               }}
-              className="h-9 rounded-md border border-border bg-background px-2 text-sm"
             >
-              {TAMANOS_PAGINA.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </label>
+              <SelectTrigger className="w-24">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TAMANOS_PAGINA.map((n) => (
+                  <SelectItem key={n} value={String(n)}>
+                    {n}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
         </div>
 
         {historial.length === 0 ? (
-          <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-border bg-muted/40">
-            <p className="text-sm text-muted-foreground">
-              {t("tabla.vacio")}
-            </p>
-          </div>
+          <EmptyState icon={BarChart3} title={t("tabla.vacio")} />
         ) : (
           <div
             className={`overflow-x-auto rounded-xl border border-border ${
@@ -390,6 +426,6 @@ export default function ResumenPage() {
         <BarChart3 className="h-3.5 w-3.5" />
         Remesas YA
       </div>
-    </div>
+    </PageShell>
   );
 }

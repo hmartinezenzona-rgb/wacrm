@@ -695,6 +695,14 @@ const BarChart = React.forwardRef<HTMLDivElement, BarChartProps>(
               tick={{
                 transform:
                   layout !== "vertical" ? "translate(0, 6)" : undefined,
+                // `fill` va AQUI y no basta con la clase del eje. Recharts pinta
+                // cada marca como su propio <text> y toma el color de esta prop,
+                // que gana a `fill-muted-foreground` del elemento padre. Sin
+                // ella caia al negro por defecto: las etiquetas de los ejes
+                // ("Mon", "60m") quedaban a 1.12:1 sobre la tarjeta oscura,
+                // practicamente invisibles. Y no lo detecta una auditoria que
+                // mire `color`: el texto de un SVG se pinta con `fill`.
+                fill: "var(--color-muted-foreground)",
               }}
               fill=""
               stroke=""
@@ -752,6 +760,7 @@ const BarChart = React.forwardRef<HTMLDivElement, BarChartProps>(
                   layout !== "vertical"
                     ? "translate(-3, 0)"
                     : "translate(0, 0)",
+                fill: "var(--color-muted-foreground)",
               }}
               {...(layout !== "vertical"
                 ? {

@@ -273,7 +273,11 @@ export function AiConfig() {
                   onValueChange={(v) => handleProviderChange(v as AiProvider)}
                   disabled={disabled}
                 >
-                  <SelectTrigger>
+                  {/* `w-full`: el SelectTrigger de shadcn nace con `w-fit`, asi
+                      que se encogia a ~70px al lado de un campo "Model" de 640,
+                      dejando la fila descuadrada aunque la rejilla fuera
+                      correcta. */}
+                  <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

@@ -47,7 +47,7 @@ export function ResponseTimeChart({
     })) ?? []
 
   return (
-    <section className="rounded-xl border border-border bg-card">
+    <section className="rounded-xl border border-border bg-card tarjeta-elevada">
       <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
         <div>
           <h2 className="text-sm font-semibold text-foreground">
@@ -58,8 +58,11 @@ export function ResponseTimeChart({
           </p>
         </div>
         <div className="flex items-center gap-3 text-right text-xs">
+          {/* Era rose/rojo: el color de "algo va mal". Esto es un objetivo, no
+              una alarma — y el grafico ni siquiera dice si se cumple. Neutro
+              hasta que haya un estado real que semaforizar. */}
           {thresholdMinutes > 0 && (
-            <span className="rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 font-medium text-rose-300 tabular-nums">
+            <span className="rounded-full border border-border bg-muted px-2 py-0.5 font-medium text-muted-foreground tabular-nums">
               {t('target', { minutes: thresholdMinutes })}
             </span>
           )}
@@ -97,9 +100,15 @@ export function ResponseTimeChart({
             // 'violet' maps to Tailwind's `fill-violet-500` — matches
             // the brand accent the hand-rolled bars used (#7c3aed).
             colors={['violet']}
-            valueFormatter={(value) => `${value.toFixed(1)}m`}
+            // `toFixed(1)` en cada marca daba etiquetas como "20.0m", que
+            // no cabian en los 48px del eje y se recortaban contra el borde
+            // del SVG: se perdia el digito de la izquierda, asi que la marca
+            // de 20 minutos se leia "0.0m" y el eje entero decia 0/5/0/5/0.
+            valueFormatter={(value) =>
+              Number.isInteger(value) ? `${value}m` : `${value.toFixed(1)}m`
+            }
             showLegend={false}
-            yAxisWidth={48}
+            yAxisWidth={56}
             // Compact height so the chart sits well inside the card
             // without dominating the row alongside the donut + activity feed.
             className="h-[260px]"

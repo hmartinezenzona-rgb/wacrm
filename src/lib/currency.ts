@@ -10,6 +10,23 @@
  * nothing is known.
  */
 
+/**
+ * Locale every money string is formatted in.
+ *
+ * These formatters used to pass `undefined`, which means "whatever
+ * locale this particular browser is set to". Two people looking at the
+ * same board saw the same amount written differently — "USD 1,618,310"
+ * for one, "1.618.310 US$" for another — with the separators and the
+ * position of the currency marker both moving. In a product whose whole
+ * job is moving money, the numbers have to read the same for everyone.
+ *
+ * en-US matches what the rest of the app already hard-codes (Resumen's
+ * `toLocaleString("en-US")`, the dashboard's compact figures). It
+ * changes nothing for GYD or CUP: neither has a symbol in any locale,
+ * so both stay "GYD 25,000" / "CUP 1,200" as before.
+ */
+const FORMATTING_LOCALE = "en-US";
+
 /** App-wide fallback when no account/deal currency is available. */
 export const DEFAULT_CURRENCY = "USD";
 
@@ -28,6 +45,19 @@ export interface CurrencyOption {
  * list to offer more — nothing else needs to change.
  */
 export const CURRENCIES: CurrencyOption[] = [
+  // Las tres del negocio van primero: son las unicas que Remesas Core
+  // reconoce (`Currency` en domain/enums.py — GYD lo que deposita el
+  // cliente, CUP lo que recibe el beneficiario, USD la entrega en
+  // dolares). GYD y CUP faltaban aqui, asi que la cuenta no podia
+  // configurarse en la moneda con la que realmente opera y los totales
+  // del tablero rotulaban en USD una suma de remesas en GYD.
+  //
+  // Su "simbolo" es el propio codigo a proposito: ni GYD ni CUP tienen
+  // simbolo en ningun locale, asi que `Intl` ya las escribe "GYD 25,000".
+  // Ponerlo aqui hace que la version compacta diga "GYD 25.0k" y no
+  // invente un "$" que se confundiria con el dolar.
+  { code: "GYD", label: "Guyanese Dollar", symbol: "GYD " },
+  { code: "CUP", label: "Cuban Peso", symbol: "CUP " },
   { code: "USD", label: "US Dollar", symbol: "$" },
   { code: "EUR", label: "Euro", symbol: "€" },
   { code: "GBP", label: "British Pound", symbol: "£" },
@@ -64,7 +94,7 @@ export function formatCurrency(
   const code = (currency || DEFAULT_CURRENCY).trim();
   const amount = Number(value) || 0;
   try {
-    return new Intl.NumberFormat(undefined, {
+    return new Intl.NumberFormat(FORMATTING_LOCALE, {
       style: "currency",
       currency: code,
       minimumFractionDigits: 0,
@@ -73,7 +103,7 @@ export function formatCurrency(
   } catch {
     // Invalid ISO code — show the raw code + grouped number so the
     // value is still legible instead of throwing.
-    return `${code} ${new Intl.NumberFormat(undefined, {
+    return `${code} ${new Intl.NumberFormat(FORMATTING_LOCALE, {
       maximumFractionDigits: 0,
     }).format(amount)}`;
   }

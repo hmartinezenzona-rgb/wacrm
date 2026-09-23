@@ -28,6 +28,7 @@ import {
   Zap,
 } from "lucide-react";
 import type { AccountRole } from "@/lib/auth/roles";
+import { BrandMark } from "@/components/layout/brand-mark";
 
 // Per-role chip metadata used in the sidebar's account strip + the
 // Members tab roster. Keeping this near both consumers in a single
@@ -42,7 +43,7 @@ const ROLE_CHIP: Record<
     labelKey: "roleOwner",
     // Amber: scarce, immutable, "the boss" — gets visual emphasis.
     className:
-      "border-amber-500/40 bg-amber-500/10 text-amber-300",
+      "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300",
   },
   admin: {
     icon: Shield,
@@ -190,9 +191,10 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             close button is hidden since the sidebar is always-visible. */}
         <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border px-4">
           <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <MessageSquare className="h-4 w-4" />
-            </div>
+            {/* 40px, no 32: el monograma tiene trazo fino y degradados, y a
+                32 se leia como una mancha oscura. La fila mide h-14 (56px),
+                asi que a 40 siguen quedando 8px de aire arriba y abajo. */}
+            <BrandMark size={40} />
             <span className="text-sm font-semibold text-foreground">
               {t("title")}
             </span>
@@ -242,7 +244,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                     {item.beta && (
                       <span
                         aria-label={t("beta")}
-                        className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-300"
+                        className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300"
                       >
                         {t("beta")}
                       </span>

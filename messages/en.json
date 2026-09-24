@@ -138,7 +138,7 @@
     "responseTimeChart": {
       "title": "Average First Response Time",
       "description": "Minutes to reply to a customer's first unreplied message, by weekday",
-      "target": "target {minutes}m",
+      "slaCompliance": "{percent}% within {minutes}m",
       "thisWeek": "This week:",
       "lastWeek": "Last week:",
       "noReplies": "No replies recorded yet",

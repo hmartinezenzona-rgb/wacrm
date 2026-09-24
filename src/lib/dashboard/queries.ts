@@ -217,7 +217,10 @@ export async function loadServiceVolume(db: DB): Promise<ServiceVolumeData> {
 
 // --- 4. Response time by day of week ----------------------------------
 
-export async function loadResponseTime(db: DB): Promise<ResponseTimeSummary> {
+export async function loadResponseTime(
+  db: DB,
+  thresholdMinutes = 5,
+): Promise<ResponseTimeSummary> {
   // Pull the last 14 days of messages in one shot, then walk per
   // conversation to find each "first inbound" → "first subsequent
   // outbound" pair. 14 days gives us both "this week" + "last week"
@@ -291,6 +294,16 @@ export async function loadResponseTime(db: DB): Promise<ResponseTimeSummary> {
   const avg = (arr: number[]) =>
     arr.length === 0 ? null : arr.reduce((a, b) => a + b, 0) / arr.length
 
+  // Share of samples answered at or under the threshold, as a 0-100
+  // percentage. This is what the header pill shows now — "X% within
+  // Nm" reads as compliance at a glance, which a raw average doesn't:
+  // an average can sit under the target while a chunk of replies still
+  // blow past it. Matches how Freshchat/Zendesk surface SLA status.
+  const slaCompliance = (arr: number[]) =>
+    arr.length === 0
+      ? null
+      : (100 * arr.filter((m) => m <= thresholdMinutes).length) / arr.length
+
   const buckets: ResponseTimeBucket[] = Array.from({ length: 7 }, (_, dow) => {
     const samples = byDow.get(dow) ?? []
     return {
@@ -308,6 +321,8 @@ export async function loadResponseTime(db: DB): Promise<ResponseTimeSummary> {
     buckets,
     thisWeekAvg: avg(thisWeekMins),
     lastWeekAvg: avg(lastWeekMins),
+    thisWeekSlaCompliance: slaCompliance(thisWeekMins),
+    lastWeekSlaCompliance: slaCompliance(lastWeekMins),
   }
 }
 

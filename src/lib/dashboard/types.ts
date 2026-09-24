@@ -62,6 +62,10 @@ export interface ResponseTimeSummary {
   buckets: ResponseTimeBucket[]
   thisWeekAvg: number | null
   lastWeekAvg: number | null
+  /** Share (0-100) of this week's samples answered within the
+   *  threshold passed to loadResponseTime. Null means no samples. */
+  thisWeekSlaCompliance: number | null
+  lastWeekSlaCompliance: number | null
 }
 
 export type ActivityKind =

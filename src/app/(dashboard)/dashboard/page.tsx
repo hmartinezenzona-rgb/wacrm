@@ -39,6 +39,13 @@ import { useTranslations } from 'next-intl'
 
 type RangeDays = 7 | 30 | 90
 
+// Single source of truth for the response-time target — passed to
+// both the query (so compliance is computed against it) and the
+// chart (so the header pill shows the same number). Previously the
+// chart had its own hardcoded default, completely disconnected from
+// what loadResponseTime actually computed.
+const RESPONSE_TIME_TARGET_MINUTES = 5
+
 export default function DashboardPage() {
   const t = useTranslations('Dashboard.page')
   const { defaultCurrency } = useAuth()
@@ -86,7 +93,7 @@ export default function DashboardPage() {
       .catch((err) => console.error('[dashboard] service volume failed:', err))
       .finally(() => setServiceVolumeLoading(false))
 
-    void loadResponseTime(db)
+    void loadResponseTime(db, RESPONSE_TIME_TARGET_MINUTES)
       .then((r) => setResponseTime(r))
       .catch((err) => console.error('[dashboard] response time failed:', err))
       .finally(() => setResponseTimeLoading(false))
@@ -214,7 +221,11 @@ export default function DashboardPage() {
       </div>
 
       {/* Response time */}
-      <ResponseTimeChart data={responseTime} loading={responseTimeLoading} />
+      <ResponseTimeChart
+        data={responseTime}
+        loading={responseTimeLoading}
+        thresholdMinutes={RESPONSE_TIME_TARGET_MINUTES}
+      />
 
       {/* Activity feed */}
       <ActivityFeed items={activity} loading={activityLoading} />

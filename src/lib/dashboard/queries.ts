@@ -9,16 +9,25 @@ import {
 } from './date-utils'
 import type {
   ActivityItem,
+  AgedOperation,
   ConversationsSeriesPoint,
+  LedgerProfitBucket,
+  LedgerProfitData,
   MetricsBundle,
-  PipelineDonutData,
-  PipelineStageSlice,
   ResponseTimeBucket,
   ResponseTimeSummary,
   OperationsFunnelData,
   ServiceVolumeData,
   ServiceVolumeSlice,
 } from './types'
+import {
+  LEDGER_ENTRY_COLUMNS,
+  ledgerTotals,
+  mapLedgerEntry,
+  type LedgerEntryRow,
+} from '@/lib/calculator/ledger-read-model'
+import { destinationBreakdownFrom, topClientsFrom } from './business-insights'
+import { serviceProfitabilityFrom } from './service-profitability'
 
 // ------------------------------------------------------------
 // All client-side aggregation. RLS scopes every query to the
@@ -134,45 +143,6 @@ export async function loadConversationsSeries(
   return keys.map((day) => ({ day, ...(buckets.get(day) ?? { incoming: 0, outgoing: 0 }) }))
 }
 
-// --- 3. Pipeline donut -------------------------------------------------
-
-export async function loadPipelineDonut(db: DB): Promise<PipelineDonutData> {
-  const [stagesRes, dealsRes] = await Promise.all([
-    db.from('pipeline_stages').select('id, name, color, pipeline_id, position').order('position'),
-    db.from('deals').select('stage_id, value, status').eq('status', 'open'),
-  ])
-
-  const stages =
-    (stagesRes.data ?? []) as { id: string; name: string; color: string }[]
-  const deals = (dealsRes.data ?? []) as { stage_id: string; value: number | null }[]
-
-  const byStage = new Map<string, { count: number; total: number }>()
-  for (const d of deals) {
-    const row = byStage.get(d.stage_id) ?? { count: 0, total: 0 }
-    row.count += 1
-    row.total += d.value ?? 0
-    byStage.set(d.stage_id, row)
-  }
-
-  const slices: PipelineStageSlice[] = stages
-    .map((s) => ({
-      id: s.id,
-      name: s.name,
-      color: s.color || '#64748b',
-      dealCount: byStage.get(s.id)?.count ?? 0,
-      totalValue: byStage.get(s.id)?.total ?? 0,
-    }))
-    // Hide empty stages from the ring (but we'd still show them in the
-    // legend if the user wanted a full breakdown — trimming keeps the
-    // visual clean for the common case).
-    .filter((s) => s.totalValue > 0 || s.dealCount > 0)
-
-  return {
-    stages: slices,
-    totalValue: slices.reduce((sum, s) => sum + s.totalValue, 0),
-  }
-}
-
 // --- 3b. Service volume donut -------------------------------------------
 
 // The 6 real `service_type` values (migration 046's CHECK constraint) mapped
@@ -230,6 +200,91 @@ export async function loadOperationsFunnel(db: DB): Promise<OperationsFunnelData
       operationCount: r.operaciones,
     })),
   }
+}
+
+// --- 3c. Calculator ledger profit (facturado/invertido/retorno) --------
+
+export async function loadLedgerProfit(db: DB): Promise<LedgerProfitData> {
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const weekStart = daysAgoStart(mondayIndex(now))
+  const todayStart = startOfLocalDay(now)
+
+  // `remittance_calculator_entries` carries a real RLS SELECT policy
+  // (is_account_member) — unlike remittance_operations, which needed a
+  // SECURITY DEFINER RPC for every other dashboard widget in this file.
+  // Direct table read, same as loadMetrics/loadConversationsSeries.
+  const { data, error } = await db
+    .from('remittance_calculator_entries')
+    .select(LEDGER_ENTRY_COLUMNS)
+    .eq('source', 'completed_operation')
+    .neq('status', 'void')
+    .gte('entry_date', localDayKey(monthStart))
+  if (error) throw error
+
+  const entries = ((data ?? []) as LedgerEntryRow[]).map(mapLedgerEntry)
+
+  // ledgerTotals() already only counts status==='completed' and treats
+  // a completed_at-less (pending) or voided entry as zero — see its own
+  // doc comment. Bucketing here is just "which entries' entry_date falls
+  // in this period", reusing the exact same totals function three times
+  // over three nested date ranges (today ⊂ this week ⊂ this month).
+  const bucket = (fromKey: string): LedgerProfitBucket => {
+    const totals = ledgerTotals(entries.filter((e) => e.entryDate >= fromKey))
+    return {
+      operationCount: totals.count,
+      facturadoGyd: totals.facturadoGyd,
+      invertidoGyd: totals.invertidoGyd,
+      retornoGyd: totals.retornoGyd,
+    }
+  }
+
+  return {
+    today: bucket(localDayKey(todayStart)),
+    thisWeek: bucket(localDayKey(weekStart)),
+    thisMonth: bucket(localDayKey(monthStart)),
+    // Same entries this function already fetched for the buckets above,
+    // aggregated a different way (by client / by destination currency
+    // instead of by time bucket) — was a second, byte-for-byte duplicate
+    // fetch of this same table/filters/window, which doubled this
+    // widget's round trip for no reason.
+    topClients: topClientsFrom(entries),
+    byDestinationCurrency: destinationBreakdownFrom(entries),
+    // Same entries again, aggregated by service (CUP/ZELLE/CLASICA/
+    // TROPICAL) instead of by time bucket/client/currency — no new
+    // fetch, see serviceProfitabilityFrom's own doc comment.
+    serviceProfitability: serviceProfitabilityFrom(entries),
+  }
+}
+
+// --- 3d. Aged / stuck operations queue ----------------------------------
+
+export async function loadAgedOperations(db: DB): Promise<AgedOperation[]> {
+  const { data, error } = await db.rpc('cerebro_dashboard_operaciones_envejecidas')
+  if (error) throw error
+
+  const rows = (data ?? []) as {
+    id: string
+    conversation_id: string
+    contact_name: string | null
+    delivery_method: string | null
+    destination_currency: string | null
+    quoted_source_amount: number | string | null
+    status: string
+    created_at: string
+  }[]
+
+  return rows.map((r) => ({
+    id: r.id,
+    conversationId: r.conversation_id,
+    contactName: r.contact_name,
+    deliveryMethod: r.delivery_method,
+    destinationCurrency: r.destination_currency,
+    quotedSourceAmount:
+      r.quoted_source_amount === null ? null : Number(r.quoted_source_amount),
+    status: r.status,
+    createdAt: r.created_at,
+  }))
 }
 
 // --- 4. Response time by day of week ----------------------------------
@@ -349,7 +404,7 @@ export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> 
   // Pull ~10 from each source (plenty of headroom after merge-sort),
   // then interleave by timestamp. The individual per-table limits
   // keep the payload small; the final limit is enforced after sort.
-  const [msgs, contacts, deals, broadcasts, autoLogs] = await Promise.all([
+  const [msgs, contacts, broadcasts, autoLogs] = await Promise.all([
     db
       .from('messages')
       .select('id, content_text, sender_type, created_at, conversation_id, conversations(contact_id, contacts(name, phone))')
@@ -360,11 +415,6 @@ export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> 
       .from('contacts')
       .select('id, name, phone, created_at')
       .order('created_at', { ascending: false })
-      .limit(10),
-    db
-      .from('deals')
-      .select('id, title, updated_at, stage:pipeline_stages(name)')
-      .order('updated_at', { ascending: false })
       .limit(10),
     db
       .from('broadcasts')
@@ -411,26 +461,6 @@ export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> 
       text: `New contact: ${c.name || c.phone}`,
       at: c.created_at,
       href: '/contacts',
-    })
-  }
-
-  for (const d of (deals.data ?? []) as unknown as Array<{
-    id: string
-    title: string
-    updated_at: string
-    stage: { name: string }[] | { name: string } | null
-  }>) {
-    const stage = Array.isArray(d.stage) ? d.stage[0] : d.stage
-    items.push({
-      id: `deal-${d.id}`,
-      kind: 'deal',
-      text: stage?.name
-        ? `Deal "${d.title}" in ${stage.name}`
-        : `Deal "${d.title}" updated`,
-      at: d.updated_at,
-      // No href: the /pipelines management UI was removed (cutover
-      // commit 78e682d). Deal rows still exist and still update, but
-      // there is no page left to send this click to.
     })
   }
 

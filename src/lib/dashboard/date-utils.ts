@@ -50,3 +50,20 @@ export function mondayIndex(d: Date): number {
 }
 
 export const DOW_SHORT_MON_FIRST = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const
+
+/**
+ * Compact elapsed-time label for "how long has this been sitting"
+ * widgets (e.g. the dashboard's aged-operations queue) — "<1m", "5m",
+ * "3h", "2d". Unit-less-short like `formatCompactNumber`, not a full
+ * i18n phrase: this is a status/urgency signal, not prose. A
+ * future/invalid `from` (negative elapsed) clamps to "<1m" rather
+ * than a negative or NaN value.
+ */
+export function humanizeAge(from: string, now: Date = new Date()): string {
+  const then = new Date(from).getTime()
+  const elapsedMs = Math.max(0, now.getTime() - then)
+  if (elapsedMs < 60_000) return '<1m'
+  if (elapsedMs < 3_600_000) return `${Math.floor(elapsedMs / 60_000)}m`
+  if (elapsedMs < 86_400_000) return `${Math.floor(elapsedMs / 3_600_000)}h`
+  return `${Math.floor(elapsedMs / 86_400_000)}d`
+}

@@ -19,18 +19,53 @@ interface MetricCardProps {
   }
   /** Used instead of `delta` when the metric has a static subtitle. */
   subtitle?: string
+  /**
+   * Reserved status color for the icon badge, for a value that IS a
+   * good/bad signal (e.g. profit). Omit (default 'neutral') for a plain
+   * count or magnitude — status color is never decorative, and doesn't
+   * follow the account's selectable brand theme (`--primary` can be red
+   * under the "rose" theme), so a status tile stays readable as
+   * good/bad regardless of theme.
+   */
+  tone?: 'neutral' | 'good' | 'bad'
 }
 
-export function MetricCard({ title, value, icon: Icon, delta, subtitle }: MetricCardProps) {
+const TONE_BADGE_CLASSES: Record<NonNullable<MetricCardProps['tone']>, string> = {
+  neutral: 'bg-muted text-muted-foreground',
+  good: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+  bad: 'bg-red-500/10 text-red-400',
+}
+
+// The value itself, not just the icon badge, has to carry the status
+// color — that's the number people actually look at.
+const TONE_VALUE_CLASSES: Record<NonNullable<MetricCardProps['tone']>, string> = {
+  neutral: 'text-foreground',
+  good: 'text-emerald-600 dark:text-emerald-400',
+  bad: 'text-red-400',
+}
+
+export function MetricCard({
+  title,
+  value,
+  icon: Icon,
+  delta,
+  subtitle,
+  tone = 'neutral',
+}: MetricCardProps) {
   return (
     <div className="rounded-xl border border-border bg-card tarjeta-elevada p-5">
       <div className="flex items-start justify-between">
         <p className="text-sm font-medium text-muted-foreground">{title}</p>
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+        <div
+          className={cn(
+            'flex h-8 w-8 items-center justify-center rounded-lg',
+            TONE_BADGE_CLASSES[tone],
+          )}
+        >
           <Icon className="h-4 w-4" />
         </div>
       </div>
-      <p className="mt-3 text-[28px] leading-none font-bold tabular-nums text-foreground">
+      <p className={cn('mt-3 text-[28px] leading-none font-bold tabular-nums', TONE_VALUE_CLASSES[tone])}>
         {value}
       </p>
       {delta ? <DeltaRow sign={delta.sign} label={delta.label} /> : subtitle ? (

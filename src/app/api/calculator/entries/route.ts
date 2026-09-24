@@ -13,13 +13,11 @@
 import { NextResponse } from "next/server";
 import { requireRole, toErrorResponse } from "@/lib/auth/account";
 import {
+  LEDGER_ENTRY_COLUMNS,
   ledgerTotals,
   mapLedgerEntry,
   type LedgerEntryRow,
 } from "@/lib/calculator/ledger-read-model";
-
-const LEDGER_ENTRY_COLUMNS =
-  "id, account_id, source, status, operation_id, entry_date, customer_name, service, amount, amount_currency, facturado_gyd, invertido_gyd, retorno_gyd, cup_global_rate, cup_rate, usdt_buy_gyd, usdt_sell_gyd, rate_version_id, missing_inputs, delivery_mode, voided_at, void_reason, completed_at, created_at";
 
 export async function GET(request: Request) {
   try {

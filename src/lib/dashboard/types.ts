@@ -24,19 +24,6 @@ export interface ConversationsSeriesPoint {
   outgoing: number
 }
 
-export interface PipelineStageSlice {
-  id: string
-  name: string
-  color: string
-  dealCount: number
-  totalValue: number
-}
-
-export interface PipelineDonutData {
-  stages: PipelineStageSlice[]
-  totalValue: number
-}
-
 export interface ServiceVolumeSlice {
   serviceType: string
   color: string
@@ -60,6 +47,88 @@ export interface OperationsFunnelData {
   stages: OperationsFunnelStage[]
 }
 
+/** facturado - invertido = retorno, summed over completed calculator
+ *  ledger entries in one period. */
+export interface LedgerProfitBucket {
+  operationCount: number
+  facturadoGyd: number
+  invertidoGyd: number
+  retornoGyd: number
+}
+
+export interface LedgerProfitData {
+  today: LedgerProfitBucket
+  thisWeek: LedgerProfitBucket
+  thisMonth: LedgerProfitBucket
+  /** Top clients / destination-currency breakdown this month — computed
+   *  from the SAME fetched entries as the buckets above, not a second
+   *  query, so BusinessInsights and LedgerProfitSummary share one
+   *  round trip instead of duplicating it. */
+  topClients: TopClientEntry[]
+  byDestinationCurrency: DestinationBreakdownEntry[]
+  /** Per-service (CUP/ZELLE/CLASICA/TROPICAL) profitability this
+   *  month — same SAME fetched entries as everything else above,
+   *  aggregated by `entry.service` instead of by time bucket or
+   *  client/currency. See `serviceProfitabilityFrom`. */
+  serviceProfitability: ServiceProfitabilityRow[]
+}
+
+/** One service's aggregated billing/profit this month (the ledger's
+ *  own CUP/ZELLE/CLASICA/TROPICAL taxonomy — NOT
+ *  `remittance_operations.service_type`, an unrelated taxonomy). */
+export interface ServiceProfitabilityRow {
+  service: string
+  operationCount: number
+  facturadoGyd: number
+  retornoGyd: number
+  /** `retornoGyd / facturadoGyd * 100`, `null` at zero facturado
+   *  (rendered as "—", never NaN/Infinity). */
+  margenPct: number | null
+  ticketMedioGyd: number
+}
+
+/** One row from `cerebro_dashboard_operaciones_envejecidas()` — an
+ *  in-flight (non-terminal-status) `remittance_operations` row,
+ *  oldest first. `contactName` is null when the operation has no
+ *  `contact_id` on record or the joined contact has no name. */
+export interface AgedOperation {
+  id: string
+  conversationId: string
+  contactName: string | null
+  deliveryMethod: string | null
+  /** Known well before `deliveryMethod` in this business's real flow —
+   *  coarser (CUP/USD, doesn't distinguish zelle/clasica/tropical
+   *  within USD) but real, already-decided information the caller
+   *  falls back to when `deliveryMethod` isn't set yet. */
+  destinationCurrency: string | null
+  quotedSourceAmount: number | null
+  status: string
+  createdAt: string
+}
+
+/** One client's aggregated billing this month. `customerName === null`
+ *  means the completed entry carried no identity on record — grouped
+ *  together rather than dropped, since it's still real volume. */
+export interface TopClientEntry {
+  customerName: string | null
+  operationCount: number
+  facturadoGyd: number
+}
+
+/** Aggregated billing this month for one destination currency
+ *  (`amount_currency` — the client's requested currency, not the GYD
+ *  settlement currency the rest of the ledger widgets show). */
+export interface DestinationBreakdownEntry {
+  currency: string
+  operationCount: number
+  facturadoGyd: number
+}
+
+export type BusinessInsightsData = Pick<
+  LedgerProfitData,
+  'topClients' | 'byDestinationCurrency'
+>
+
 export interface ResponseTimeBucket {
   /** 0 = Mon … 6 = Sun (Monday-first). */
   dow: number
@@ -80,7 +149,6 @@ export interface ResponseTimeSummary {
 
 export type ActivityKind =
   | 'message'
-  | 'deal'
   | 'broadcast'
   | 'automation'
   | 'contact'

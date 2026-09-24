@@ -177,6 +177,9 @@ export function MessageThread({
   const { getPresence, getRow, now } = usePresence();
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Tracks conversationId:lastMessageId:count for the last time the
+  // auto-scroll effect actually scrolled — see that effect for why.
+  const lastScrolledKeyRef = useRef<string | null>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [reactions, setReactions] = useState<MessageReaction[]>([]);
@@ -437,13 +440,26 @@ export function MessageThread({
       });
   }, [conversationId, hasUnread]);
 
-  // Auto-scroll to bottom on new messages
+  // Auto-scroll to bottom — but only when the tail of the thread
+  // actually changed (a new message arrived, or we switched to a
+  // different conversation), not on every `messages` array reference
+  // change. `resyncToken` (tab regains visibility, realtime
+  // reconnect) refetches the full message list on a timer/visibility
+  // effect above, and that refetch — even when it returns the exact
+  // same messages — produced a brand new array, which this effect
+  // used to treat as "content changed" and yanked the scroll position
+  // back to the bottom. That's what made switching away to look at
+  // something else and coming back reset wherever you'd scrolled to
+  // read an earlier message or image.
   useEffect(() => {
-    if (scrollRef.current) {
-      const el = scrollRef.current;
-      el.scrollTop = el.scrollHeight;
-    }
-  }, [messages]);
+    if (!scrollRef.current || messages.length === 0) return;
+    const lastMessage = messages[messages.length - 1];
+    const key = `${conversationId ?? ""}:${lastMessage.id}:${messages.length}`;
+    if (key === lastScrolledKeyRef.current) return;
+    lastScrolledKeyRef.current = key;
+    const el = scrollRef.current;
+    el.scrollTop = el.scrollHeight;
+  }, [messages, conversationId]);
 
   const handleSend = useCallback(
     async (text: string, replyToId?: string) => {
@@ -1072,8 +1088,22 @@ export function MessageThread({
       </div>
 
       {/* Messages Area */}
+      {/* `loading` alone used to gate this — true on every resync too
+          (tab regains visibility, realtime reconnect), which swapped
+          the whole message list for a few-pixel-tall spinner on
+          every one, collapsing `scrollRef`'s scrollHeight and letting
+          the browser clamp scrollTop toward 0. The list then grew
+          back once the fetch resolved, but the clamped position was
+          already lost — a flicker, and the real reason a resync could
+          still land somewhere other than where you'd scrolled to even
+          after the auto-scroll effect above stopped forcing the
+          bottom. Gating on `messages.length === 0` too means a resync
+          of an already-loaded thread keeps showing what's already on
+          screen, undisturbed, while it fetches in the background; the
+          spinner is now only for a conversation's genuine first
+          load. */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
-        {loading ? (
+        {loading && messages.length === 0 ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>

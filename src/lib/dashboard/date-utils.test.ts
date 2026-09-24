@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DOW_SHORT_MON_FIRST,
   daysAgoStart,
+  humanizeAge,
   lastNDayKeys,
   localDayKey,
   mondayIndex,
@@ -119,5 +120,39 @@ describe("mondayIndex", () => {
     expect(DOW_SHORT_MON_FIRST[mondayIndex(new Date("2026-05-24"))]).toBe(
       "Sun",
     );
+  });
+});
+
+describe("humanizeAge", () => {
+  const now = new Date("2026-05-18T12:00:00.000Z");
+
+  it("renders under a minute as '<1m'", () => {
+    expect(humanizeAge(new Date(now.getTime() - 30_000).toISOString(), now)).toBe(
+      "<1m",
+    );
+  });
+
+  it("renders whole minutes under an hour", () => {
+    expect(
+      humanizeAge(new Date(now.getTime() - 5 * 60_000).toISOString(), now),
+    ).toBe("5m");
+  });
+
+  it("renders whole hours under a day", () => {
+    expect(
+      humanizeAge(new Date(now.getTime() - 3 * 3_600_000).toISOString(), now),
+    ).toBe("3h");
+  });
+
+  it("renders whole days at a day or more", () => {
+    expect(
+      humanizeAge(new Date(now.getTime() - 2 * 86_400_000).toISOString(), now),
+    ).toBe("2d");
+  });
+
+  it("clamps a future/invalid timestamp to '<1m' instead of a negative value", () => {
+    expect(
+      humanizeAge(new Date(now.getTime() + 60_000).toISOString(), now),
+    ).toBe("<1m");
   });
 });

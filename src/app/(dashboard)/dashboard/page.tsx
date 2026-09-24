@@ -16,6 +16,7 @@ import {
   loadActivity,
   loadConversationsSeries,
   loadMetrics,
+  loadOperationsFunnel,
   loadResponseTime,
   loadServiceVolume,
 } from '@/lib/dashboard/queries'
@@ -23,6 +24,7 @@ import type {
   ActivityItem,
   ConversationsSeriesPoint,
   MetricsBundle,
+  OperationsFunnelData,
   ResponseTimeSummary,
   ServiceVolumeData,
 } from '@/lib/dashboard/types'
@@ -30,6 +32,7 @@ import type {
 import { MetricCard } from '@/components/dashboard/metric-card'
 import { SkeletonCard } from '@/components/dashboard/skeleton'
 import { QuickActions } from '@/components/dashboard/quick-actions'
+import { OperationsFunnel } from '@/components/dashboard/operations-funnel'
 import { ConversationsChart } from '@/components/dashboard/conversations-chart'
 import { ServiceVolumeDonut } from '@/components/dashboard/service-volume-donut'
 import { ResponseTimeChart } from '@/components/dashboard/response-time-chart'
@@ -66,6 +69,9 @@ export default function DashboardPage() {
   const [serviceVolume, setServiceVolume] = useState<ServiceVolumeData | null>(null)
   const [serviceVolumeLoading, setServiceVolumeLoading] = useState(true)
 
+  const [operationsFunnel, setOperationsFunnel] = useState<OperationsFunnelData | null>(null)
+  const [operationsFunnelLoading, setOperationsFunnelLoading] = useState(true)
+
   const [responseTime, setResponseTime] = useState<ResponseTimeSummary | null>(null)
   const [responseTimeLoading, setResponseTimeLoading] = useState(true)
 
@@ -92,6 +98,11 @@ export default function DashboardPage() {
       .then((v) => setServiceVolume(v))
       .catch((err) => console.error('[dashboard] service volume failed:', err))
       .finally(() => setServiceVolumeLoading(false))
+
+    void loadOperationsFunnel(db)
+      .then((f) => setOperationsFunnel(f))
+      .catch((err) => console.error('[dashboard] operations funnel failed:', err))
+      .finally(() => setOperationsFunnelLoading(false))
 
     void loadResponseTime(db, RESPONSE_TIME_TARGET_MINUTES)
       .then((r) => setResponseTime(r))
@@ -192,6 +203,14 @@ export default function DashboardPage() {
 
       {/* Quick actions */}
       <QuickActions />
+
+      {/* Live shape of the one real sequential process this business
+          runs (remittance_operations.status) — same widget type
+          HubSpot/Salesforce/Zoho/Pipedrive use for sales-stage
+          distribution, applied to this CRM's actual pipeline. Sits
+          right after quick actions: it's the closest thing this
+          dashboard has to "how's the core process doing right now". */}
+      <OperationsFunnel data={operationsFunnel} loading={operationsFunnelLoading} />
 
       {/* Charts row. Was a 3/2 split with the pipeline donut, pulled
           when the pipelines management UI it depended on was removed

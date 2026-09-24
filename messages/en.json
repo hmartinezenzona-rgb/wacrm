@@ -135,6 +135,20 @@
         "mexico": "Mexico"
       }
     },
+    "operationsFunnel": {
+      "title": "Operations In Flight",
+      "description": "Live count of remittance operations at each stage",
+      "noOperations": "No operations in flight right now",
+      "noOperationsHint": "Every stage is empty — new operations will show up here as they start.",
+      "stage": {
+        "collecting_information": "Collecting info",
+        "awaiting_deposit": "Awaiting deposit",
+        "deposit_received": "Deposit received",
+        "deposit_verification": "Verifying deposit",
+        "ready_to_transfer": "Ready to transfer",
+        "transferring": "Transferring"
+      }
+    },
     "responseTimeChart": {
       "title": "Average First Response Time",
       "description": "Minutes to reply to a customer's first unreplied message, by weekday",

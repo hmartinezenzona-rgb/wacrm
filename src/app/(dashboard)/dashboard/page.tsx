@@ -17,24 +17,34 @@ import {
   loadConversationsSeries,
   loadMetrics,
   loadResponseTime,
+  loadServiceVolume,
 } from '@/lib/dashboard/queries'
 import type {
   ActivityItem,
   ConversationsSeriesPoint,
   MetricsBundle,
   ResponseTimeSummary,
+  ServiceVolumeData,
 } from '@/lib/dashboard/types'
 
 import { MetricCard } from '@/components/dashboard/metric-card'
 import { SkeletonCard } from '@/components/dashboard/skeleton'
 import { QuickActions } from '@/components/dashboard/quick-actions'
 import { ConversationsChart } from '@/components/dashboard/conversations-chart'
+import { ServiceVolumeDonut } from '@/components/dashboard/service-volume-donut'
 import { ResponseTimeChart } from '@/components/dashboard/response-time-chart'
 import { ActivityFeed } from '@/components/dashboard/activity-feed'
 
 import { useTranslations } from 'next-intl'
 
 type RangeDays = 7 | 30 | 90
+
+// Single source of truth for the response-time target — passed to
+// both the query (so compliance is computed against it) and the
+// chart (so the header pill shows the same number). Previously the
+// chart had its own hardcoded default, completely disconnected from
+// what loadResponseTime actually computed.
+const RESPONSE_TIME_TARGET_MINUTES = 5
 
 export default function DashboardPage() {
   const t = useTranslations('Dashboard.page')
@@ -52,6 +62,9 @@ export default function DashboardPage() {
     90: null,
   })
   const [seriesLoading, setSeriesLoading] = useState(true)
+
+  const [serviceVolume, setServiceVolume] = useState<ServiceVolumeData | null>(null)
+  const [serviceVolumeLoading, setServiceVolumeLoading] = useState(true)
 
   const [responseTime, setResponseTime] = useState<ResponseTimeSummary | null>(null)
   const [responseTimeLoading, setResponseTimeLoading] = useState(true)
@@ -75,7 +88,12 @@ export default function DashboardPage() {
       .catch((err) => console.error('[dashboard] series failed:', err))
       .finally(() => setSeriesLoading(false))
 
-    void loadResponseTime(db)
+    void loadServiceVolume(db)
+      .then((v) => setServiceVolume(v))
+      .catch((err) => console.error('[dashboard] service volume failed:', err))
+      .finally(() => setServiceVolumeLoading(false))
+
+    void loadResponseTime(db, RESPONSE_TIME_TARGET_MINUTES)
       .then((r) => setResponseTime(r))
       .catch((err) => console.error('[dashboard] response time failed:', err))
       .finally(() => setResponseTimeLoading(false))
@@ -149,10 +167,10 @@ export default function DashboardPage() {
               }}
             />
             <MetricCard
-              title={t('openDealsValue')}
-              value={formatCurrency(metrics.openDealsValue, defaultCurrency)}
+              title={t('operationsInProgress')}
+              value={formatCurrency(metrics.operationsInProgressValue, defaultCurrency)}
               icon={DollarSign}
-              subtitle={t('openDeals', { count: metrics.openDealsCount })}
+              subtitle={t('operationsInProgressCount', { count: metrics.operationsInProgressCount })}
             />
             <MetricCard
               title={t('messagesSentToday')}
@@ -175,20 +193,39 @@ export default function DashboardPage() {
       {/* Quick actions */}
       <QuickActions />
 
-      {/* Charts row. Was a 3/2 split with the pipeline donut — that
-          widget queried deals/pipeline_stages for a management UI
-          that no longer exists (removed with the pipelines cutover)
-          and got pulled. Full-width until its replacement is
-          designed. */}
-      <ConversationsChart
-        series={series}
-        loading={seriesLoading}
-        range={range}
-        onRangeChange={handleRangeChange}
-      />
+      {/* Charts row. Was a 3/2 split with the pipeline donut, pulled
+          when the pipelines management UI it depended on was removed
+          (fix commit 4100a65). Replacement: today's remittance volume
+          by service_type, reading through remittance_operations
+          instead of the retired deals/pipeline model. */}
+      {/* items-stretch (the grid default) stretches the two columns to
+          match the tallest sibling; adding h-full on each wrapper and
+          on the inner panels makes both cards actually fill that
+          stretched height so their rounded borders line up. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+        <div className="h-full lg:col-span-3">
+          <ConversationsChart
+            series={series}
+            loading={seriesLoading}
+            range={range}
+            onRangeChange={handleRangeChange}
+          />
+        </div>
+        <div className="h-full lg:col-span-2">
+          <ServiceVolumeDonut
+            data={serviceVolume}
+            loading={serviceVolumeLoading}
+            currency={defaultCurrency}
+          />
+        </div>
+      </div>
 
       {/* Response time */}
-      <ResponseTimeChart data={responseTime} loading={responseTimeLoading} />
+      <ResponseTimeChart
+        data={responseTime}
+        loading={responseTimeLoading}
+        thresholdMinutes={RESPONSE_TIME_TARGET_MINUTES}
+      />
 
       {/* Activity feed */}
       <ActivityFeed items={activity} loading={activityLoading} />

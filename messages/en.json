@@ -72,11 +72,11 @@
       "description": "Live analytics across conversations, contacts, deals, broadcasts, and automations.",
       "activeConversations": "Active Conversations",
       "newContactsToday": "New Contacts Today",
-      "openDealsValue": "Open Deals Value",
+      "operationsInProgress": "Operations In Progress",
       "messagesSentToday": "Messages Sent Today",
       "newTodayVsYesterday": "new today vs yesterday",
       "vsYesterday": "vs yesterday",
-      "openDeals": "{count} open {count, plural, =1 {deal} other {deals}}",
+      "operationsInProgressCount": "{count} {count, plural, =1 {operation} other {operations}} in progress",
       "noChange": "No change {suffix}"
     },
     "quickActions": {
@@ -118,10 +118,27 @@
       "total": "Total",
       "ariaLabel": "Pipeline value by stage"
     },
+    "serviceVolumeDonut": {
+      "title": "Remittance Volume",
+      "description": "Today's volume by service",
+      "noOperationsToday": "No operations yet today",
+      "noOperationsTodayHint": "Completed remittance operations will show up here as they happen.",
+      "operationCount": "{count} {count, plural, =1 {op} other {ops}}",
+      "total": "Total",
+      "ariaLabel": "Remittance volume by service, today",
+      "serviceType": {
+        "remesa": "Remittance",
+        "combo": "Combo",
+        "recarga": "Top-up",
+        "visa": "Visa",
+        "traduccion": "Translation",
+        "mexico": "Mexico"
+      }
+    },
     "responseTimeChart": {
       "title": "Average First Response Time",
       "description": "Minutes to reply to a customer's first unreplied message, by weekday",
-      "target": "target {minutes}m",
+      "slaCompliance": "{percent}% within {minutes}m",
       "thisWeek": "This week:",
       "lastWeek": "Last week:",
       "noReplies": "No replies recorded yet",

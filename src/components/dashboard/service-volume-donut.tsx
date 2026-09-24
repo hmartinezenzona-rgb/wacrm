@@ -104,7 +104,13 @@ function Donut({ data, currency }: { data: ServiceVolumeData; currency: string }
   for (let i = 0; i < shares.length; i++) offsets.push(offsets[i] + shares[i])
   const segments = data.services.map((s, i) => {
     const start = offsets[i] * Math.PI * 2 - Math.PI / 2
-    const end = offsets[i + 1] * Math.PI * 2 - Math.PI / 2
+    let end = offsets[i + 1] * Math.PI * 2 - Math.PI / 2
+    // A single service with 100% share sweeps a full 2π, which makes the
+    // arc's start and end point coincide. SVG's arc command treats that as
+    // a zero-length path (nothing to draw) rather than a full ring, so the
+    // one-service case rendered an empty circle. Pull the end back a hair
+    // so the ring always has two distinct endpoints.
+    if (end - start >= Math.PI * 2 - 1e-6) end -= 1e-3
     return {
       path: arcPath(cx, cy, r, start, end),
       color: s.color,

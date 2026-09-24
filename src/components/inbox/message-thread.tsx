@@ -177,6 +177,9 @@ export function MessageThread({
   const { getPresence, getRow, now } = usePresence();
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Tracks conversationId:lastMessageId:count for the last time the
+  // auto-scroll effect actually scrolled — see that effect for why.
+  const lastScrolledKeyRef = useRef<string | null>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [reactions, setReactions] = useState<MessageReaction[]>([]);
@@ -437,13 +440,26 @@ export function MessageThread({
       });
   }, [conversationId, hasUnread]);
 
-  // Auto-scroll to bottom on new messages
+  // Auto-scroll to bottom — but only when the tail of the thread
+  // actually changed (a new message arrived, or we switched to a
+  // different conversation), not on every `messages` array reference
+  // change. `resyncToken` (tab regains visibility, realtime
+  // reconnect) refetches the full message list on a timer/visibility
+  // effect above, and that refetch — even when it returns the exact
+  // same messages — produced a brand new array, which this effect
+  // used to treat as "content changed" and yanked the scroll position
+  // back to the bottom. That's what made switching away to look at
+  // something else and coming back reset wherever you'd scrolled to
+  // read an earlier message or image.
   useEffect(() => {
-    if (scrollRef.current) {
-      const el = scrollRef.current;
-      el.scrollTop = el.scrollHeight;
-    }
-  }, [messages]);
+    if (!scrollRef.current || messages.length === 0) return;
+    const lastMessage = messages[messages.length - 1];
+    const key = `${conversationId ?? ""}:${lastMessage.id}:${messages.length}`;
+    if (key === lastScrolledKeyRef.current) return;
+    lastScrolledKeyRef.current = key;
+    const el = scrollRef.current;
+    el.scrollTop = el.scrollHeight;
+  }, [messages, conversationId]);
 
   const handleSend = useCallback(
     async (text: string, replyToId?: string) => {

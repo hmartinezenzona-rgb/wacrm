@@ -348,7 +348,9 @@ export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> 
         ? `Deal "${d.title}" in ${stage.name}`
         : `Deal "${d.title}" updated`,
       at: d.updated_at,
-      href: '/pipelines',
+      // No href: the /pipelines management UI was removed (cutover
+      // commit 78e682d). Deal rows still exist and still update, but
+      // there is no page left to send this click to.
     })
   }
 

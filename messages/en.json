@@ -149,6 +149,21 @@
         "transferring": "Transferring"
       }
     },
+    "ledgerProfit": {
+      "title": "Profit",
+      "description": "Billed vs. invested from completed calculator entries",
+      "period": {
+        "today": "Today",
+        "thisWeek": "This week",
+        "thisMonth": "This month"
+      },
+      "operationCount": "Operations",
+      "facturado": "Billed (GYD)",
+      "invertido": "Invested (GYD)",
+      "retorno": "Profit (GYD)",
+      "noOperations": "No completed operations in this period",
+      "noOperationsHint": "Profit fills in as calculator entries are completed."
+    },
     "responseTimeChart": {
       "title": "Average First Response Time",
       "description": "Minutes to reply to a customer's first unreplied message, by weekday",

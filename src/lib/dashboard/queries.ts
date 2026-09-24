@@ -10,6 +10,8 @@ import {
 import type {
   ActivityItem,
   ConversationsSeriesPoint,
+  LedgerProfitBucket,
+  LedgerProfitData,
   MetricsBundle,
   PipelineDonutData,
   PipelineStageSlice,
@@ -19,6 +21,12 @@ import type {
   ServiceVolumeData,
   ServiceVolumeSlice,
 } from './types'
+import {
+  LEDGER_ENTRY_COLUMNS,
+  ledgerTotals,
+  mapLedgerEntry,
+  type LedgerEntryRow,
+} from '@/lib/calculator/ledger-read-model'
 
 // ------------------------------------------------------------
 // All client-side aggregation. RLS scopes every query to the
@@ -229,6 +237,50 @@ export async function loadOperationsFunnel(db: DB): Promise<OperationsFunnelData
       status: r.status,
       operationCount: r.operaciones,
     })),
+  }
+}
+
+// --- 3c. Calculator ledger profit (facturado/invertido/retorno) --------
+
+export async function loadLedgerProfit(db: DB): Promise<LedgerProfitData> {
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const weekStart = daysAgoStart(mondayIndex(now))
+  const todayStart = startOfLocalDay(now)
+
+  // `remittance_calculator_entries` carries a real RLS SELECT policy
+  // (is_account_member) — unlike remittance_operations, which needed a
+  // SECURITY DEFINER RPC for every other dashboard widget in this file.
+  // Direct table read, same as loadMetrics/loadConversationsSeries.
+  const { data, error } = await db
+    .from('remittance_calculator_entries')
+    .select(LEDGER_ENTRY_COLUMNS)
+    .eq('source', 'completed_operation')
+    .neq('status', 'void')
+    .gte('entry_date', localDayKey(monthStart))
+  if (error) throw error
+
+  const entries = ((data ?? []) as LedgerEntryRow[]).map(mapLedgerEntry)
+
+  // ledgerTotals() already only counts status==='completed' and treats
+  // a completed_at-less (pending) or voided entry as zero — see its own
+  // doc comment. Bucketing here is just "which entries' entry_date falls
+  // in this period", reusing the exact same totals function three times
+  // over three nested date ranges (today ⊂ this week ⊂ this month).
+  const bucket = (fromKey: string): LedgerProfitBucket => {
+    const totals = ledgerTotals(entries.filter((e) => e.entryDate >= fromKey))
+    return {
+      operationCount: totals.count,
+      facturadoGyd: totals.facturadoGyd,
+      invertidoGyd: totals.invertidoGyd,
+      retornoGyd: totals.retornoGyd,
+    }
+  }
+
+  return {
+    today: bucket(localDayKey(todayStart)),
+    thisWeek: bucket(localDayKey(weekStart)),
+    thisMonth: bucket(localDayKey(monthStart)),
   }
 }
 

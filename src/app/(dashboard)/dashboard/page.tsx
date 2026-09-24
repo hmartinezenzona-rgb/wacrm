@@ -15,6 +15,7 @@ import {
 import {
   loadActivity,
   loadConversationsSeries,
+  loadLedgerProfit,
   loadMetrics,
   loadOperationsFunnel,
   loadResponseTime,
@@ -23,6 +24,7 @@ import {
 import type {
   ActivityItem,
   ConversationsSeriesPoint,
+  LedgerProfitData,
   MetricsBundle,
   OperationsFunnelData,
   ResponseTimeSummary,
@@ -35,6 +37,7 @@ import { QuickActions } from '@/components/dashboard/quick-actions'
 import { OperationsFunnel } from '@/components/dashboard/operations-funnel'
 import { ConversationsChart } from '@/components/dashboard/conversations-chart'
 import { ServiceVolumeDonut } from '@/components/dashboard/service-volume-donut'
+import { LedgerProfitSummary } from '@/components/dashboard/ledger-profit-summary'
 import { ResponseTimeChart } from '@/components/dashboard/response-time-chart'
 import { ActivityFeed } from '@/components/dashboard/activity-feed'
 
@@ -72,6 +75,9 @@ export default function DashboardPage() {
   const [operationsFunnel, setOperationsFunnel] = useState<OperationsFunnelData | null>(null)
   const [operationsFunnelLoading, setOperationsFunnelLoading] = useState(true)
 
+  const [ledgerProfit, setLedgerProfit] = useState<LedgerProfitData | null>(null)
+  const [ledgerProfitLoading, setLedgerProfitLoading] = useState(true)
+
   const [responseTime, setResponseTime] = useState<ResponseTimeSummary | null>(null)
   const [responseTimeLoading, setResponseTimeLoading] = useState(true)
 
@@ -103,6 +109,11 @@ export default function DashboardPage() {
       .then((f) => setOperationsFunnel(f))
       .catch((err) => console.error('[dashboard] operations funnel failed:', err))
       .finally(() => setOperationsFunnelLoading(false))
+
+    void loadLedgerProfit(db)
+      .then((p) => setLedgerProfit(p))
+      .catch((err) => console.error('[dashboard] ledger profit failed:', err))
+      .finally(() => setLedgerProfitLoading(false))
 
     void loadResponseTime(db, RESPONSE_TIME_TARGET_MINUTES)
       .then((r) => setResponseTime(r))
@@ -211,6 +222,12 @@ export default function DashboardPage() {
           right after quick actions: it's the closest thing this
           dashboard has to "how's the core process doing right now". */}
       <OperationsFunnel data={operationsFunnel} loading={operationsFunnelLoading} />
+
+      {/* Real margin from the calculator ledger (remittance_calculator_entries):
+          facturado - invertido = retorno, over completed entries only. This
+          is actual profit, not volume — a different signal from the service
+          volume donut below, which shows how much moved, not what it earned. */}
+      <LedgerProfitSummary data={ledgerProfit} loading={ledgerProfitLoading} />
 
       {/* Charts row. Was a 3/2 split with the pipeline donut, pulled
           when the pipelines management UI it depended on was removed

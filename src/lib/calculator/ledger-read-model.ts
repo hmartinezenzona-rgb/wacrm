@@ -6,6 +6,13 @@
 // routes that call it.
 // ============================================================
 
+/** Column list matching `LedgerEntryRow` exactly — kept next to the type
+ *  it feeds so a schema change can't update one without the other. Every
+ *  caller that queries `remittance_calculator_entries` for a row destined
+ *  for `mapLedgerEntry` should select this, not hand-roll its own list. */
+export const LEDGER_ENTRY_COLUMNS =
+  "id, account_id, source, status, operation_id, entry_date, customer_name, service, amount, amount_currency, facturado_gyd, invertido_gyd, retorno_gyd, cup_global_rate, cup_rate, usdt_buy_gyd, usdt_sell_gyd, rate_version_id, missing_inputs, delivery_mode, voided_at, void_reason, completed_at, created_at";
+
 /** Raw `remittance_calculator_entries` row shape. Numerics may arrive as
  * `number | string` (Postgres numeric columns round-trip through
  * postgres-js/PostgREST as strings), and every column the DB allows NULL

@@ -60,6 +60,21 @@ export interface OperationsFunnelData {
   stages: OperationsFunnelStage[]
 }
 
+/** facturado - invertido = retorno, summed over completed calculator
+ *  ledger entries in one period. */
+export interface LedgerProfitBucket {
+  operationCount: number
+  facturadoGyd: number
+  invertidoGyd: number
+  retornoGyd: number
+}
+
+export interface LedgerProfitData {
+  today: LedgerProfitBucket
+  thisWeek: LedgerProfitBucket
+  thisMonth: LedgerProfitBucket
+}
+
 export interface ResponseTimeBucket {
   /** 0 = Mon … 6 = Sun (Monday-first). */
   dow: number

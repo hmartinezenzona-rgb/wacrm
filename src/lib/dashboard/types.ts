@@ -50,6 +50,16 @@ export interface ServiceVolumeData {
   totalVolumeGyd: number
 }
 
+/** One non-terminal remittance_operations status, in process order. */
+export interface OperationsFunnelStage {
+  status: string
+  operationCount: number
+}
+
+export interface OperationsFunnelData {
+  stages: OperationsFunnelStage[]
+}
+
 export interface ResponseTimeBucket {
   /** 0 = Mon … 6 = Sun (Monday-first). */
   dow: number

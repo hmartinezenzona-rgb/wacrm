@@ -15,6 +15,7 @@ import type {
   PipelineStageSlice,
   ResponseTimeBucket,
   ResponseTimeSummary,
+  OperationsFunnelData,
   ServiceVolumeData,
   ServiceVolumeSlice,
 } from './types'
@@ -212,6 +213,22 @@ export async function loadServiceVolume(db: DB): Promise<ServiceVolumeData> {
   return {
     services,
     totalVolumeGyd: services.reduce((sum, s) => sum + s.volumeGyd, 0),
+  }
+}
+
+// --- 3b. Operations funnel ----------------------------------------------
+
+export async function loadOperationsFunnel(db: DB): Promise<OperationsFunnelData> {
+  const { data, error } = await db.rpc('cerebro_dashboard_embudo_operaciones')
+  if (error) throw error
+
+  const rows = (data ?? []) as { status: string; operaciones: number }[]
+
+  return {
+    stages: rows.map((r) => ({
+      status: r.status,
+      operationCount: r.operaciones,
+    })),
   }
 }
 

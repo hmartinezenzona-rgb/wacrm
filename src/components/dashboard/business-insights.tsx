@@ -18,6 +18,18 @@ interface BusinessInsightsProps {
 // different axis from this GYD figure.
 const LEDGER_CURRENCY = 'GYD'
 
+// Fixed categorical identity, same --chart-* tokens ServiceVolumeDonut
+// already uses for service_type — a currency keeps the same color
+// everywhere on the dashboard instead of each widget inventing its own.
+// A currency outside this fixed set (there are only two today: CUP/USD,
+// see calculator_service_for_operation) folds into the neutral default
+// rather than generating a new hue.
+const CURRENCY_COLORS: Record<string, string> = {
+  USD: 'var(--chart-1)',
+  CUP: 'var(--chart-2)',
+}
+const DEFAULT_CURRENCY_COLOR = 'var(--muted-foreground)'
+
 /**
  * "Who are my top clients" and "which destination currencies move the
  * most volume" this month, both from `loadBusinessInsights` /
@@ -87,11 +99,18 @@ export function BusinessInsights({ data, loading }: BusinessInsightsProps) {
                   key={row.currency}
                   className="flex items-center justify-between gap-3 rounded-lg bg-muted/40 px-3 py-2"
                 >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground">{row.currency}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {t('operationCount', { count: row.operationCount })}
-                    </p>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span
+                      className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
+                      style={{ background: CURRENCY_COLORS[row.currency] ?? DEFAULT_CURRENCY_COLOR }}
+                      aria-hidden
+                    />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground">{row.currency}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {t('operationCount', { count: row.operationCount })}
+                      </p>
+                    </div>
                   </div>
                   <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
                     {formatCurrencyShort(row.facturadoGyd, LEDGER_CURRENCY)}

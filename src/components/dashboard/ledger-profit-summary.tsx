@@ -78,7 +78,7 @@ export function LedgerProfitSummary({ data, loading }: LedgerProfitSummaryProps)
             <Tile
               label={t('retorno')}
               value={formatCurrencyShort(bucket.retornoGyd, LEDGER_CURRENCY)}
-              highlight
+              tone={bucket.retornoGyd > 0 ? 'good' : bucket.retornoGyd < 0 ? 'bad' : 'neutral'}
             />
           </div>
         )}
@@ -87,24 +87,28 @@ export function LedgerProfitSummary({ data, loading }: LedgerProfitSummaryProps)
   )
 }
 
+// Fixed status colors, not the account's selectable brand theme — retorno
+// is a genuine good/bad signal (profit vs. loss), and `--primary` can be
+// red under the "rose" theme, which would misread as a warning.
+const TONE_VALUE_CLASSES: Record<'neutral' | 'good' | 'bad', string> = {
+  neutral: 'text-foreground',
+  good: 'text-emerald-600 dark:text-emerald-400',
+  bad: 'text-red-400',
+}
+
 function Tile({
   label,
   value,
-  highlight,
+  tone = 'neutral',
 }: {
   label: string
   value: string
-  highlight?: boolean
+  tone?: 'neutral' | 'good' | 'bad'
 }) {
   return (
     <div className="rounded-lg bg-muted/40 px-4 py-3">
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p
-        className={cn(
-          'mt-1 text-lg font-semibold tabular-nums',
-          highlight ? 'text-primary' : 'text-foreground',
-        )}
-      >
+      <p className={cn('mt-1 text-lg font-semibold tabular-nums', TONE_VALUE_CLASSES[tone])}>
         {value}
       </p>
     </div>

@@ -48,6 +48,7 @@ export function BusinessSnapshotHero({ data, loading }: BusinessSnapshotHeroProp
             title={t('retorno')}
             value={formatCurrencyShort(today.retornoGyd, LEDGER_CURRENCY)}
             icon={TrendingUp}
+            tone={today.retornoGyd > 0 ? 'good' : today.retornoGyd < 0 ? 'bad' : 'neutral'}
           />
           <MetricCard
             title={t('invertido')}

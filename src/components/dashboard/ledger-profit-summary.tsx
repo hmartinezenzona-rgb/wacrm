@@ -14,7 +14,11 @@ interface LedgerProfitSummaryProps {
   loading: boolean
 }
 
-type Period = 'today' | 'thisWeek' | 'thisMonth'
+// 'today' is intentionally not a tab here: BusinessSnapshotHero already
+// shows the exact same today numbers (reads the same LedgerProfitData),
+// right above this widget — repeating it here was a straight duplicate.
+// This widget's real value is the week/month comparison.
+type Period = 'thisWeek' | 'thisMonth'
 
 import { useTranslations } from 'next-intl'
 
@@ -26,7 +30,7 @@ const LEDGER_CURRENCY = 'GYD'
 
 export function LedgerProfitSummary({ data, loading }: LedgerProfitSummaryProps) {
   const t = useTranslations('Dashboard.ledgerProfit')
-  const [period, setPeriod] = useState<Period>('today')
+  const [period, setPeriod] = useState<Period>('thisWeek')
 
   const bucket: LedgerProfitBucket | null = data ? data[period] : null
   const margenPct = bucket ? computeMarginPct(bucket.facturadoGyd, bucket.retornoGyd) : null
@@ -39,7 +43,7 @@ export function LedgerProfitSummary({ data, loading }: LedgerProfitSummaryProps)
           <p className="mt-0.5 text-xs text-muted-foreground">{t('description')}</p>
         </div>
         <div className="flex items-center gap-1 rounded-lg bg-muted/60 p-1">
-          {(['today', 'thisWeek', 'thisMonth'] as const).map((p) => (
+          {(['thisWeek', 'thisMonth'] as const).map((p) => (
             <button
               key={p}
               type="button"

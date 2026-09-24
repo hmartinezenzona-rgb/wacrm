@@ -24,19 +24,6 @@ export interface ConversationsSeriesPoint {
   outgoing: number
 }
 
-export interface PipelineStageSlice {
-  id: string
-  name: string
-  color: string
-  dealCount: number
-  totalValue: number
-}
-
-export interface PipelineDonutData {
-  stages: PipelineStageSlice[]
-  totalValue: number
-}
-
 export interface ServiceVolumeSlice {
   serviceType: string
   color: string
@@ -157,7 +144,6 @@ export interface ResponseTimeSummary {
 
 export type ActivityKind =
   | 'message'
-  | 'deal'
   | 'broadcast'
   | 'automation'
   | 'contact'

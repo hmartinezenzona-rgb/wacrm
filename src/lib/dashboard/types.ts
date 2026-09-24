@@ -75,6 +75,29 @@ export interface LedgerProfitData {
   thisMonth: LedgerProfitBucket
 }
 
+/** One client's aggregated billing this month. `customerName === null`
+ *  means the completed entry carried no identity on record — grouped
+ *  together rather than dropped, since it's still real volume. */
+export interface TopClientEntry {
+  customerName: string | null
+  operationCount: number
+  facturadoGyd: number
+}
+
+/** Aggregated billing this month for one destination currency
+ *  (`amount_currency` — the client's requested currency, not the GYD
+ *  settlement currency the rest of the ledger widgets show). */
+export interface DestinationBreakdownEntry {
+  currency: string
+  operationCount: number
+  facturadoGyd: number
+}
+
+export interface BusinessInsightsData {
+  topClients: TopClientEntry[]
+  byDestinationCurrency: DestinationBreakdownEntry[]
+}
+
 export interface ResponseTimeBucket {
   /** 0 = Mon … 6 = Sun (Monday-first). */
   dow: number

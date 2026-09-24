@@ -164,6 +164,22 @@
       "noOperations": "No completed operations in this period",
       "noOperationsHint": "Profit fills in as calculator entries are completed."
     },
+    "businessSnapshot": {
+      "operationCount": "Remittances Today",
+      "facturado": "Moved Today (GYD)",
+      "retorno": "Profit Today (GYD)",
+      "invertido": "Invested Today (GYD)"
+    },
+    "businessInsights": {
+      "title": "Top Clients & Destinations",
+      "description": "Who's billing the most and which destination currencies move the most this month",
+      "topClientsTitle": "Top clients",
+      "destinationBreakdownTitle": "By destination currency",
+      "operationCount": "{count} {count, plural, =1 {operation} other {operations}}",
+      "unknownClient": "Unknown client",
+      "noClients": "No completed operations this month",
+      "noBreakdown": "No completed operations this month"
+    },
     "responseTimeChart": {
       "title": "Average First Response Time",
       "description": "Minutes to reply to a customer's first unreplied message, by weekday",

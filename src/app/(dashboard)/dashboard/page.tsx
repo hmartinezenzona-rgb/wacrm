@@ -14,6 +14,7 @@ import {
 
 import {
   loadActivity,
+  loadBusinessInsights,
   loadConversationsSeries,
   loadLedgerProfit,
   loadMetrics,
@@ -23,6 +24,7 @@ import {
 } from '@/lib/dashboard/queries'
 import type {
   ActivityItem,
+  BusinessInsightsData,
   ConversationsSeriesPoint,
   LedgerProfitData,
   MetricsBundle,
@@ -38,6 +40,8 @@ import { OperationsFunnel } from '@/components/dashboard/operations-funnel'
 import { ConversationsChart } from '@/components/dashboard/conversations-chart'
 import { ServiceVolumeDonut } from '@/components/dashboard/service-volume-donut'
 import { LedgerProfitSummary } from '@/components/dashboard/ledger-profit-summary'
+import { BusinessSnapshotHero } from '@/components/dashboard/business-snapshot-hero'
+import { BusinessInsights } from '@/components/dashboard/business-insights'
 import { ResponseTimeChart } from '@/components/dashboard/response-time-chart'
 import { ActivityFeed } from '@/components/dashboard/activity-feed'
 
@@ -78,6 +82,9 @@ export default function DashboardPage() {
   const [ledgerProfit, setLedgerProfit] = useState<LedgerProfitData | null>(null)
   const [ledgerProfitLoading, setLedgerProfitLoading] = useState(true)
 
+  const [businessInsights, setBusinessInsights] = useState<BusinessInsightsData | null>(null)
+  const [businessInsightsLoading, setBusinessInsightsLoading] = useState(true)
+
   const [responseTime, setResponseTime] = useState<ResponseTimeSummary | null>(null)
   const [responseTimeLoading, setResponseTimeLoading] = useState(true)
 
@@ -114,6 +121,11 @@ export default function DashboardPage() {
       .then((p) => setLedgerProfit(p))
       .catch((err) => console.error('[dashboard] ledger profit failed:', err))
       .finally(() => setLedgerProfitLoading(false))
+
+    void loadBusinessInsights(db)
+      .then((b) => setBusinessInsights(b))
+      .catch((err) => console.error('[dashboard] business insights failed:', err))
+      .finally(() => setBusinessInsightsLoading(false))
 
     void loadResponseTime(db, RESPONSE_TIME_TARGET_MINUTES)
       .then((r) => setResponseTime(r))
@@ -155,7 +167,42 @@ export default function DashboardPage() {
     <PageShell className="space-y-5">
       <PageHeader title={t('title')} description={t('description')} />
 
-      {/* Metric cards */}
+      {/* Business snapshot: the real "how is the business doing today"
+          numbers (remesas/monto movido/ganancia/invertido hoy), promoted
+          above everything else so this is what's visible with no
+          scrolling — the chat/CRM metric cards below are useful but
+          aren't the business's money numbers. Reuses ledgerProfit.today,
+          no new fetch. */}
+      <BusinessSnapshotHero data={ledgerProfit} loading={ledgerProfitLoading} />
+
+      {/* Quick actions */}
+      <QuickActions />
+
+      {/* Live shape of the one real sequential process this business
+          runs (remittance_operations.status) — same widget type
+          HubSpot/Salesforce/Zoho/Pipedrive use for sales-stage
+          distribution, applied to this CRM's actual pipeline. Sits
+          right after quick actions: it's the closest thing this
+          dashboard has to "how's the core process doing right now". */}
+      <OperationsFunnel data={operationsFunnel} loading={operationsFunnelLoading} />
+
+      {/* Real margin from the calculator ledger (remittance_calculator_entries):
+          facturado - invertido = retorno, over completed entries only. This
+          is actual profit, not volume — a different signal from the service
+          volume donut below, which shows how much moved, not what it earned. */}
+      <LedgerProfitSummary data={ledgerProfit} loading={ledgerProfitLoading} />
+
+      {/* Who's billing the most and which destination currencies move the
+          most volume this month — same read path as LedgerProfitSummary
+          (remittance_calculator_entries, completed-only), aggregated by
+          client and by amount_currency instead of by time bucket. */}
+      <BusinessInsights data={businessInsights} loading={businessInsightsLoading} />
+
+      {/* Secondary metric cards: chat/CRM activity signals (active
+          conversations, new contacts, operations in progress, messages
+          sent). Still useful, just no longer the first thing seen — the
+          business snapshot hero above answers "how's the business doing"
+          before this answers "how's the inbox doing". */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {metricsLoading || !metrics ? (
           Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
@@ -168,8 +215,8 @@ export default function DashboardPage() {
               delta={{
                 sign: metrics.activeConversations.previous,
                 label: deltaLabel(
-                  metrics.activeConversations.previous, 
-                  t('newTodayVsYesterday'), 
+                  metrics.activeConversations.previous,
+                  t('newTodayVsYesterday'),
                   t('noChange', { suffix: t('newTodayVsYesterday') })
                 ),
               }}
@@ -211,23 +258,6 @@ export default function DashboardPage() {
           </>
         )}
       </div>
-
-      {/* Quick actions */}
-      <QuickActions />
-
-      {/* Live shape of the one real sequential process this business
-          runs (remittance_operations.status) — same widget type
-          HubSpot/Salesforce/Zoho/Pipedrive use for sales-stage
-          distribution, applied to this CRM's actual pipeline. Sits
-          right after quick actions: it's the closest thing this
-          dashboard has to "how's the core process doing right now". */}
-      <OperationsFunnel data={operationsFunnel} loading={operationsFunnelLoading} />
-
-      {/* Real margin from the calculator ledger (remittance_calculator_entries):
-          facturado - invertido = retorno, over completed entries only. This
-          is actual profit, not volume — a different signal from the service
-          volume donut below, which shows how much moved, not what it earned. */}
-      <LedgerProfitSummary data={ledgerProfit} loading={ledgerProfitLoading} />
 
       {/* Charts row. Was a 3/2 split with the pipeline donut, pulled
           when the pipelines management UI it depended on was removed

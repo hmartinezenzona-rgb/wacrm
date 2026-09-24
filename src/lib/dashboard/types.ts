@@ -73,6 +73,12 @@ export interface LedgerProfitData {
   today: LedgerProfitBucket
   thisWeek: LedgerProfitBucket
   thisMonth: LedgerProfitBucket
+  /** Top clients / destination-currency breakdown this month — computed
+   *  from the SAME fetched entries as the buckets above, not a second
+   *  query, so BusinessInsights and LedgerProfitSummary share one
+   *  round trip instead of duplicating it. */
+  topClients: TopClientEntry[]
+  byDestinationCurrency: DestinationBreakdownEntry[]
 }
 
 /** One client's aggregated billing this month. `customerName === null`
@@ -93,10 +99,10 @@ export interface DestinationBreakdownEntry {
   facturadoGyd: number
 }
 
-export interface BusinessInsightsData {
-  topClients: TopClientEntry[]
-  byDestinationCurrency: DestinationBreakdownEntry[]
-}
+export type BusinessInsightsData = Pick<
+  LedgerProfitData,
+  'topClients' | 'byDestinationCurrency'
+>
 
 export interface ResponseTimeBucket {
   /** 0 = Mon … 6 = Sun (Monday-first). */

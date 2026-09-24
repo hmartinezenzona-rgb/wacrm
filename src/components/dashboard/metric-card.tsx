@@ -36,6 +36,14 @@ const TONE_BADGE_CLASSES: Record<NonNullable<MetricCardProps['tone']>, string> =
   bad: 'bg-red-500/10 text-red-400',
 }
 
+// The value itself, not just the icon badge, has to carry the status
+// color — that's the number people actually look at.
+const TONE_VALUE_CLASSES: Record<NonNullable<MetricCardProps['tone']>, string> = {
+  neutral: 'text-foreground',
+  good: 'text-emerald-600 dark:text-emerald-400',
+  bad: 'text-red-400',
+}
+
 export function MetricCard({
   title,
   value,
@@ -57,7 +65,7 @@ export function MetricCard({
           <Icon className="h-4 w-4" />
         </div>
       </div>
-      <p className="mt-3 text-[28px] leading-none font-bold tabular-nums text-foreground">
+      <p className={cn('mt-3 text-[28px] leading-none font-bold tabular-nums', TONE_VALUE_CLASSES[tone])}>
         {value}
       </p>
       {delta ? <DeltaRow sign={delta.sign} label={delta.label} /> : subtitle ? (

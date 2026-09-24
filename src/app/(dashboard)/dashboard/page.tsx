@@ -14,7 +14,6 @@ import {
 
 import {
   loadActivity,
-  loadBusinessInsights,
   loadConversationsSeries,
   loadLedgerProfit,
   loadMetrics,
@@ -24,7 +23,6 @@ import {
 } from '@/lib/dashboard/queries'
 import type {
   ActivityItem,
-  BusinessInsightsData,
   ConversationsSeriesPoint,
   LedgerProfitData,
   MetricsBundle,
@@ -82,9 +80,6 @@ export default function DashboardPage() {
   const [ledgerProfit, setLedgerProfit] = useState<LedgerProfitData | null>(null)
   const [ledgerProfitLoading, setLedgerProfitLoading] = useState(true)
 
-  const [businessInsights, setBusinessInsights] = useState<BusinessInsightsData | null>(null)
-  const [businessInsightsLoading, setBusinessInsightsLoading] = useState(true)
-
   const [responseTime, setResponseTime] = useState<ResponseTimeSummary | null>(null)
   const [responseTimeLoading, setResponseTimeLoading] = useState(true)
 
@@ -121,11 +116,6 @@ export default function DashboardPage() {
       .then((p) => setLedgerProfit(p))
       .catch((err) => console.error('[dashboard] ledger profit failed:', err))
       .finally(() => setLedgerProfitLoading(false))
-
-    void loadBusinessInsights(db)
-      .then((b) => setBusinessInsights(b))
-      .catch((err) => console.error('[dashboard] business insights failed:', err))
-      .finally(() => setBusinessInsightsLoading(false))
 
     void loadResponseTime(db, RESPONSE_TIME_TARGET_MINUTES)
       .then((r) => setResponseTime(r))
@@ -196,7 +186,7 @@ export default function DashboardPage() {
           most volume this month — same read path as LedgerProfitSummary
           (remittance_calculator_entries, completed-only), aggregated by
           client and by amount_currency instead of by time bucket. */}
-      <BusinessInsights data={businessInsights} loading={businessInsightsLoading} />
+      <BusinessInsights data={ledgerProfit} loading={ledgerProfitLoading} />
 
       {/* Secondary metric cards: chat/CRM activity signals (active
           conversations, new contacts, operations in progress, messages

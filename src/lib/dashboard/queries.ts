@@ -9,7 +9,6 @@ import {
 } from './date-utils'
 import type {
   ActivityItem,
-  BusinessInsightsData,
   ConversationsSeriesPoint,
   LedgerProfitBucket,
   LedgerProfitData,
@@ -283,29 +282,11 @@ export async function loadLedgerProfit(db: DB): Promise<LedgerProfitData> {
     today: bucket(localDayKey(todayStart)),
     thisWeek: bucket(localDayKey(weekStart)),
     thisMonth: bucket(localDayKey(monthStart)),
-  }
-}
-
-// --- 3d. Business insights: top clients / destination breakdown -------
-
-export async function loadBusinessInsights(db: DB): Promise<BusinessInsightsData> {
-  const now = new Date()
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-
-  // Same read path as loadLedgerProfit — same table, same filters, same
-  // month window — just aggregated a different way (by client / by
-  // destination currency instead of by time bucket).
-  const { data, error } = await db
-    .from('remittance_calculator_entries')
-    .select(LEDGER_ENTRY_COLUMNS)
-    .eq('source', 'completed_operation')
-    .neq('status', 'void')
-    .gte('entry_date', localDayKey(monthStart))
-  if (error) throw error
-
-  const entries = ((data ?? []) as LedgerEntryRow[]).map(mapLedgerEntry)
-
-  return {
+    // Same entries this function already fetched for the buckets above,
+    // aggregated a different way (by client / by destination currency
+    // instead of by time bucket) — was a second, byte-for-byte duplicate
+    // fetch of this same table/filters/window, which doubled this
+    // widget's round trip for no reason.
     topClients: topClientsFrom(entries),
     byDestinationCurrency: destinationBreakdownFrom(entries),
   }

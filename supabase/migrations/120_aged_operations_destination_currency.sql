@@ -18,20 +18,24 @@
 --   already-known information the queue was previously showing as a
 --   blank dash for no reason.
 --
--- WHY CREATE OR REPLACE, NOT A NEW FUNCTION
---   Same function, same signature contract from the caller's
---   perspective (one more column), no behavior change to the WHERE/LIMIT/
---   ORDER BY. `CREATE OR REPLACE FUNCTION` is safe to run again in place;
---   119 is already applied, this migration only adds a column to its
---   RETURNS TABLE and SELECT list.
+-- WHY DROP THEN CREATE, NOT CREATE OR REPLACE
+--   Postgres refuses `CREATE OR REPLACE FUNCTION` when a `RETURNS TABLE`
+--   function's row type changes (42P13: "cannot change return type of
+--   existing function... Row type defined by OUT parameters is
+--   different"), even to only ADD a column. Confirmed against the live
+--   database. The function is pure `SELECT`, `SECURITY DEFINER`, no
+--   state of its own — dropping and recreating it loses nothing, only
+--   the brief window where the RPC doesn't exist.
 --
 -- ROLLBACK
---   Re-run 119 as-is (drops the extra column by replacing the function
---   with its original signature) — see ROLLBACK-119, which fully drops it
---   if a clean removal is preferred instead.
+--   Re-run 119's DROP + its original CREATE FUNCTION body (same DROP-
+--   then-CREATE requirement applies) — see ROLLBACK-119, which fully
+--   drops it if a clean removal is preferred instead.
 -- =====================================================================
 
-CREATE OR REPLACE FUNCTION cerebro_dashboard_operaciones_envejecidas()
+DROP FUNCTION IF EXISTS cerebro_dashboard_operaciones_envejecidas();
+
+CREATE FUNCTION cerebro_dashboard_operaciones_envejecidas()
 RETURNS TABLE (
   id                   uuid,
   conversation_id      uuid,

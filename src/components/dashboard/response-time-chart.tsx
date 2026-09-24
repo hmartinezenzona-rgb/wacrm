@@ -10,12 +10,14 @@ import { Skeleton } from './skeleton'
 interface ResponseTimeChartProps {
   data: ResponseTimeSummary | null
   loading: boolean
-  /** Minutes. Surfaced as a "target" pill in the header. The
-   *  hand-rolled SVG version drew this as a horizontal dashed
-   *  line on the chart; Tremor BarChart doesn't expose Recharts
-   *  primitives, so we promote it to the header for now. A
-   *  follow-up can introduce an overlay or extend the vendored
-   *  BarChart with a `referenceLines` prop. */
+  /** Minutes. Passed straight through to `loadResponseTime` on the
+   *  caller's side too, so the header's compliance percentage is
+   *  computed against the same threshold this prop displays — keep
+   *  the two in sync at the call site. Surfaced as a pill in the
+   *  header; the hand-rolled SVG version drew it as a horizontal
+   *  dashed line on the chart, which Tremor BarChart doesn't expose
+   *  a primitive for. A follow-up can introduce an overlay or extend
+   *  the vendored BarChart with a `referenceLines` prop. */
   thresholdMinutes?: number
 }
 
@@ -58,12 +60,25 @@ export function ResponseTimeChart({
           </p>
         </div>
         <div className="flex items-center gap-3 text-right text-xs">
-          {/* Era rose/rojo: el color de "algo va mal". Esto es un objetivo, no
-              una alarma — y el grafico ni siquiera dice si se cumple. Neutro
-              hasta que haya un estado real que semaforizar. */}
-          {thresholdMinutes > 0 && (
-            <span className="rounded-full border border-border bg-muted px-2 py-0.5 font-medium text-muted-foreground tabular-nums">
-              {t('target', { minutes: thresholdMinutes })}
+          {/* Used to be a static "target 5m" label, unconnected to any
+              real data — this repo's own comment flagged it as neutral
+              "until there's a real state to color for". It now shows
+              the actual share of this week's replies that landed
+              within the threshold (loadResponseTime computes it from
+              the same samples the chart is built from), colored
+              emerald once it clears a informal 80% bar. */}
+          {thresholdMinutes > 0 && data?.thisWeekSlaCompliance != null && (
+            <span
+              className={
+                data.thisWeekSlaCompliance >= 80
+                  ? 'rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 font-medium text-emerald-600 tabular-nums dark:text-emerald-400'
+                  : 'rounded-full border border-border bg-muted px-2 py-0.5 font-medium text-muted-foreground tabular-nums'
+              }
+            >
+              {t('slaCompliance', {
+                percent: Math.round(data.thisWeekSlaCompliance),
+                minutes: thresholdMinutes,
+              })}
             </span>
           )}
           {data && (data.thisWeekAvg != null || data.lastWeekAvg != null) && (

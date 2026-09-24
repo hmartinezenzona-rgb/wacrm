@@ -15,6 +15,8 @@ import type {
   PipelineStageSlice,
   ResponseTimeBucket,
   ResponseTimeSummary,
+  ServiceVolumeData,
+  ServiceVolumeSlice,
 } from './types'
 
 // ------------------------------------------------------------
@@ -39,7 +41,7 @@ export async function loadMetrics(db: DB): Promise<MetricsBundle> {
     newConvYesterday,
     newContactsToday,
     newContactsYesterday,
-    openDeals,
+    operationsInProgress,
     messagesToday,
     messagesYesterday,
   ] = await Promise.all([
@@ -61,7 +63,7 @@ export async function loadMetrics(db: DB): Promise<MetricsBundle> {
       .select('id', { count: 'exact', head: true })
       .gte('created_at', yesterdayStart)
       .lt('created_at', todayStart),
-    db.from('deals').select('value, status').eq('status', 'open'),
+    db.rpc('cerebro_dashboard_operaciones_en_curso'),
     db
       .from('messages')
       .select('id', { count: 'exact', head: true })
@@ -75,8 +77,11 @@ export async function loadMetrics(db: DB): Promise<MetricsBundle> {
       .lt('created_at', todayStart),
   ])
 
-  const openDealsRows = (openDeals.data ?? []) as { value: number | null }[]
-  const openDealsValue = openDealsRows.reduce((sum, d) => sum + (d.value ?? 0), 0)
+  const operationsInProgressRow = (
+    (operationsInProgress.data ?? [])[0] as
+      | { operaciones: number; volumen_gyd: number }
+      | undefined
+  )
 
   return {
     activeConversations: {
@@ -90,8 +95,8 @@ export async function loadMetrics(db: DB): Promise<MetricsBundle> {
       current: newContactsToday.count ?? 0,
       previous: newContactsYesterday.count ?? 0,
     },
-    openDealsValue,
-    openDealsCount: openDealsRows.length,
+    operationsInProgressValue: operationsInProgressRow?.volumen_gyd ?? 0,
+    operationsInProgressCount: operationsInProgressRow?.operaciones ?? 0,
     messagesSentToday: {
       current: messagesToday.count ?? 0,
       previous: messagesYesterday.count ?? 0,
@@ -167,9 +172,55 @@ export async function loadPipelineDonut(db: DB): Promise<PipelineDonutData> {
   }
 }
 
+// --- 3b. Service volume donut -------------------------------------------
+
+// The 6 real `service_type` values (migration 046's CHECK constraint) mapped
+// onto the design system's 5 theme-aware categorical tokens. `mexico` and
+// `traduccion` are the two most tangential to the core remittance business
+// (a corridor variant and a translation add-on, respectively), so they
+// share --chart-5; `traduccion`'s slice is rendered at reduced opacity in
+// the component to stay visually distinguishable from `mexico`.
+const SERVICE_TYPE_COLORS: Record<string, string> = {
+  remesa: 'var(--chart-1)',
+  combo: 'var(--chart-2)',
+  recarga: 'var(--chart-3)',
+  visa: 'var(--chart-4)',
+  mexico: 'var(--chart-5)',
+  traduccion: 'var(--chart-5)',
+}
+const DEFAULT_SERVICE_COLOR = 'var(--chart-5)'
+
+export async function loadServiceVolume(db: DB): Promise<ServiceVolumeData> {
+  const { data, error } = await db.rpc('cerebro_dashboard_volumen_por_servicio')
+  if (error) throw error
+
+  const rows = (data ?? []) as {
+    service_type: string
+    operaciones: number
+    volumen_gyd: number
+    ticket_medio_gyd: number
+  }[]
+
+  const services: ServiceVolumeSlice[] = rows.map((r) => ({
+    serviceType: r.service_type,
+    color: SERVICE_TYPE_COLORS[r.service_type] ?? DEFAULT_SERVICE_COLOR,
+    operationCount: r.operaciones,
+    volumeGyd: r.volumen_gyd,
+    averageTicketGyd: r.ticket_medio_gyd,
+  }))
+
+  return {
+    services,
+    totalVolumeGyd: services.reduce((sum, s) => sum + s.volumeGyd, 0),
+  }
+}
+
 // --- 4. Response time by day of week ----------------------------------
 
-export async function loadResponseTime(db: DB): Promise<ResponseTimeSummary> {
+export async function loadResponseTime(
+  db: DB,
+  thresholdMinutes = 5,
+): Promise<ResponseTimeSummary> {
   // Pull the last 14 days of messages in one shot, then walk per
   // conversation to find each "first inbound" → "first subsequent
   // outbound" pair. 14 days gives us both "this week" + "last week"
@@ -243,6 +294,16 @@ export async function loadResponseTime(db: DB): Promise<ResponseTimeSummary> {
   const avg = (arr: number[]) =>
     arr.length === 0 ? null : arr.reduce((a, b) => a + b, 0) / arr.length
 
+  // Share of samples answered at or under the threshold, as a 0-100
+  // percentage. This is what the header pill shows now — "X% within
+  // Nm" reads as compliance at a glance, which a raw average doesn't:
+  // an average can sit under the target while a chunk of replies still
+  // blow past it. Matches how Freshchat/Zendesk surface SLA status.
+  const slaCompliance = (arr: number[]) =>
+    arr.length === 0
+      ? null
+      : (100 * arr.filter((m) => m <= thresholdMinutes).length) / arr.length
+
   const buckets: ResponseTimeBucket[] = Array.from({ length: 7 }, (_, dow) => {
     const samples = byDow.get(dow) ?? []
     return {
@@ -260,6 +321,8 @@ export async function loadResponseTime(db: DB): Promise<ResponseTimeSummary> {
     buckets,
     thisWeekAvg: avg(thisWeekMins),
     lastWeekAvg: avg(lastWeekMins),
+    thisWeekSlaCompliance: slaCompliance(thisWeekMins),
+    lastWeekSlaCompliance: slaCompliance(lastWeekMins),
   }
 }
 

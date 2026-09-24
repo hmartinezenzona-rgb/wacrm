@@ -10,8 +10,11 @@ export interface MetricDelta {
 export interface MetricsBundle {
   activeConversations: MetricDelta
   newContactsToday: MetricDelta
-  openDealsValue: number
-  openDealsCount: number
+  /** Sum of quoted_source_amount for remittance_operations not yet
+   *  completed or cancelled — the successor to the retired
+   *  deals/pipeline "open value" metric. */
+  operationsInProgressValue: number
+  operationsInProgressCount: number
   messagesSentToday: MetricDelta
 }
 
@@ -34,6 +37,19 @@ export interface PipelineDonutData {
   totalValue: number
 }
 
+export interface ServiceVolumeSlice {
+  serviceType: string
+  color: string
+  operationCount: number
+  volumeGyd: number
+  averageTicketGyd: number
+}
+
+export interface ServiceVolumeData {
+  services: ServiceVolumeSlice[]
+  totalVolumeGyd: number
+}
+
 export interface ResponseTimeBucket {
   /** 0 = Mon … 6 = Sun (Monday-first). */
   dow: number
@@ -46,6 +62,10 @@ export interface ResponseTimeSummary {
   buckets: ResponseTimeBucket[]
   thisWeekAvg: number | null
   lastWeekAvg: number | null
+  /** Share (0-100) of this week's samples answered within the
+   *  threshold passed to loadResponseTime. Null means no samples. */
+  thisWeekSlaCompliance: number | null
+  lastWeekSlaCompliance: number | null
 }
 
 export type ActivityKind =

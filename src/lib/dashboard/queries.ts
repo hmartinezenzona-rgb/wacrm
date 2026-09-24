@@ -268,6 +268,7 @@ export async function loadAgedOperations(db: DB): Promise<AgedOperation[]> {
     conversation_id: string
     contact_name: string | null
     delivery_method: string | null
+    destination_currency: string | null
     quoted_source_amount: number | string | null
     status: string
     created_at: string
@@ -278,6 +279,7 @@ export async function loadAgedOperations(db: DB): Promise<AgedOperation[]> {
     conversationId: r.conversation_id,
     contactName: r.contact_name,
     deliveryMethod: r.delivery_method,
+    destinationCurrency: r.destination_currency,
     quotedSourceAmount:
       r.quoted_source_amount === null ? null : Number(r.quoted_source_amount),
     status: r.status,

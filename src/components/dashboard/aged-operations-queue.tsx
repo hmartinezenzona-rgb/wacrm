@@ -41,9 +41,18 @@ const DELIVERY_METHOD_SERVICE: Record<string, string> = {
   tropical: 'TROPICAL',
 }
 
-function serviceLabel(deliveryMethod: string | null): string {
-  if (!deliveryMethod) return '—'
-  return DELIVERY_METHOD_SERVICE[deliveryMethod] ?? deliveryMethod
+// `deliveryMethod` is almost never set yet on a non-terminal operation
+// in this business's real flow (verified against live data: 0 of 4
+// in-flight ops had it, vs 8 of 11 completed ones — it only resolves
+// late, at/near completion). `destinationCurrency` (CUP/USD) IS already
+// known this early (verified: all 4 in-flight ops had it) — coarser
+// than the delivery-method service (doesn't distinguish zelle/clasica/
+// tropical within USD) but real, already-decided information, so it's
+// a real fallback, not a guess.
+function serviceLabel(deliveryMethod: string | null, destinationCurrency: string | null): string {
+  if (deliveryMethod) return DELIVERY_METHOD_SERVICE[deliveryMethod] ?? deliveryMethod
+  if (destinationCurrency) return destinationCurrency
+  return '—'
 }
 
 /**
@@ -91,7 +100,7 @@ export function AgedOperationsQueue({ data, loading }: AgedOperationsQueueProps)
                     {row.contactName || t('unknownClient')}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {serviceLabel(row.deliveryMethod)}
+                    {serviceLabel(row.deliveryMethod, row.destinationCurrency)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-foreground">
                     {row.quotedSourceAmount === null

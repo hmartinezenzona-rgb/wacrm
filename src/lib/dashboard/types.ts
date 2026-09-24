@@ -96,6 +96,11 @@ export interface AgedOperation {
   conversationId: string
   contactName: string | null
   deliveryMethod: string | null
+  /** Known well before `deliveryMethod` in this business's real flow —
+   *  coarser (CUP/USD, doesn't distinguish zelle/clasica/tropical
+   *  within USD) but real, already-decided information the caller
+   *  falls back to when `deliveryMethod` isn't set yet. */
+  destinationCurrency: string | null
   quotedSourceAmount: number | null
   status: string
   createdAt: string

@@ -79,6 +79,39 @@ export interface LedgerProfitData {
    *  round trip instead of duplicating it. */
   topClients: TopClientEntry[]
   byDestinationCurrency: DestinationBreakdownEntry[]
+  /** Per-service (CUP/ZELLE/CLASICA/TROPICAL) profitability this
+   *  month — same SAME fetched entries as everything else above,
+   *  aggregated by `entry.service` instead of by time bucket or
+   *  client/currency. See `serviceProfitabilityFrom`. */
+  serviceProfitability: ServiceProfitabilityRow[]
+}
+
+/** One service's aggregated billing/profit this month (the ledger's
+ *  own CUP/ZELLE/CLASICA/TROPICAL taxonomy — NOT
+ *  `remittance_operations.service_type`, an unrelated taxonomy). */
+export interface ServiceProfitabilityRow {
+  service: string
+  operationCount: number
+  facturadoGyd: number
+  retornoGyd: number
+  /** `retornoGyd / facturadoGyd * 100`, `null` at zero facturado
+   *  (rendered as "—", never NaN/Infinity). */
+  margenPct: number | null
+  ticketMedioGyd: number
+}
+
+/** One row from `cerebro_dashboard_operaciones_envejecidas()` — an
+ *  in-flight (non-terminal-status) `remittance_operations` row,
+ *  oldest first. `contactName` is null when the operation has no
+ *  `contact_id` on record or the joined contact has no name. */
+export interface AgedOperation {
+  id: string
+  conversationId: string
+  contactName: string | null
+  deliveryMethod: string | null
+  quotedSourceAmount: number | null
+  status: string
+  createdAt: string
 }
 
 /** One client's aggregated billing this month. `customerName === null`

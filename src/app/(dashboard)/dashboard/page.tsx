@@ -14,6 +14,7 @@ import {
 
 import {
   loadActivity,
+  loadAgedOperations,
   loadConversationsSeries,
   loadLedgerProfit,
   loadMetrics,
@@ -23,6 +24,7 @@ import {
 } from '@/lib/dashboard/queries'
 import type {
   ActivityItem,
+  AgedOperation,
   ConversationsSeriesPoint,
   LedgerProfitData,
   MetricsBundle,
@@ -40,6 +42,8 @@ import { ServiceVolumeDonut } from '@/components/dashboard/service-volume-donut'
 import { LedgerProfitSummary } from '@/components/dashboard/ledger-profit-summary'
 import { BusinessSnapshotHero } from '@/components/dashboard/business-snapshot-hero'
 import { BusinessInsights } from '@/components/dashboard/business-insights'
+import { ServiceProfitabilityTable } from '@/components/dashboard/service-profitability-table'
+import { AgedOperationsQueue } from '@/components/dashboard/aged-operations-queue'
 import { ResponseTimeChart } from '@/components/dashboard/response-time-chart'
 import { ActivityFeed } from '@/components/dashboard/activity-feed'
 
@@ -80,6 +84,9 @@ export default function DashboardPage() {
   const [ledgerProfit, setLedgerProfit] = useState<LedgerProfitData | null>(null)
   const [ledgerProfitLoading, setLedgerProfitLoading] = useState(true)
 
+  const [agedOperations, setAgedOperations] = useState<AgedOperation[] | null>(null)
+  const [agedOperationsLoading, setAgedOperationsLoading] = useState(true)
+
   const [responseTime, setResponseTime] = useState<ResponseTimeSummary | null>(null)
   const [responseTimeLoading, setResponseTimeLoading] = useState(true)
 
@@ -116,6 +123,11 @@ export default function DashboardPage() {
       .then((p) => setLedgerProfit(p))
       .catch((err) => console.error('[dashboard] ledger profit failed:', err))
       .finally(() => setLedgerProfitLoading(false))
+
+    void loadAgedOperations(db)
+      .then((a) => setAgedOperations(a))
+      .catch((err) => console.error('[dashboard] aged operations failed:', err))
+      .finally(() => setAgedOperationsLoading(false))
 
     void loadResponseTime(db, RESPONSE_TIME_TARGET_MINUTES)
       .then((r) => setResponseTime(r))
@@ -165,6 +177,15 @@ export default function DashboardPage() {
           no new fetch. */}
       <BusinessSnapshotHero data={ledgerProfit} loading={ledgerProfitLoading} />
 
+      {/* Oldest in-flight operations across all six non-terminal
+          stages — "needs action now", so this goes before quick
+          actions and everything else: it's the closest thing this
+          dashboard has to a to-do list. Own fetch (cerebro_dashboard_
+          operaciones_envejecidas via loadAgedOperations), since this
+          reads remittance_operations rows, not the calculator ledger
+          ledgerProfit already fetched. */}
+      <AgedOperationsQueue data={agedOperations} loading={agedOperationsLoading} />
+
       {/* Quick actions */}
       <QuickActions />
 
@@ -181,6 +202,13 @@ export default function DashboardPage() {
           is actual profit, not volume — a different signal from the service
           volume donut below, which shows how much moved, not what it earned. */}
       <LedgerProfitSummary data={ledgerProfit} loading={ledgerProfitLoading} />
+
+      {/* Which service (CUP/ZELLE/CLASICA/TROPICAL) is actually
+          profitable this month — same read path as LedgerProfitSummary
+          above (remittance_calculator_entries, completed-only), reusing
+          the SAME ledgerProfit fetch, aggregated by entry.service
+          instead of by time bucket. */}
+      <ServiceProfitabilityTable data={ledgerProfit} loading={ledgerProfitLoading} />
 
       {/* Who's billing the most and which destination currencies move the
           most volume this month — same read path as LedgerProfitSummary

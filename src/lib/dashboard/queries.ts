@@ -9,6 +9,7 @@ import {
 } from './date-utils'
 import type {
   ActivityItem,
+  AgedOperation,
   ConversationsSeriesPoint,
   LedgerProfitBucket,
   LedgerProfitData,
@@ -28,6 +29,7 @@ import {
   type LedgerEntryRow,
 } from '@/lib/calculator/ledger-read-model'
 import { destinationBreakdownFrom, topClientsFrom } from './business-insights'
+import { serviceProfitabilityFrom } from './service-profitability'
 
 // ------------------------------------------------------------
 // All client-side aggregation. RLS scopes every query to the
@@ -289,7 +291,39 @@ export async function loadLedgerProfit(db: DB): Promise<LedgerProfitData> {
     // widget's round trip for no reason.
     topClients: topClientsFrom(entries),
     byDestinationCurrency: destinationBreakdownFrom(entries),
+    // Same entries again, aggregated by service (CUP/ZELLE/CLASICA/
+    // TROPICAL) instead of by time bucket/client/currency — no new
+    // fetch, see serviceProfitabilityFrom's own doc comment.
+    serviceProfitability: serviceProfitabilityFrom(entries),
   }
+}
+
+// --- 3d. Aged / stuck operations queue ----------------------------------
+
+export async function loadAgedOperations(db: DB): Promise<AgedOperation[]> {
+  const { data, error } = await db.rpc('cerebro_dashboard_operaciones_envejecidas')
+  if (error) throw error
+
+  const rows = (data ?? []) as {
+    id: string
+    conversation_id: string
+    contact_name: string | null
+    delivery_method: string | null
+    quoted_source_amount: number | string | null
+    status: string
+    created_at: string
+  }[]
+
+  return rows.map((r) => ({
+    id: r.id,
+    conversationId: r.conversation_id,
+    contactName: r.contact_name,
+    deliveryMethod: r.delivery_method,
+    quotedSourceAmount:
+      r.quoted_source_amount === null ? null : Number(r.quoted_source_amount),
+    status: r.status,
+    createdAt: r.created_at,
+  }))
 }
 
 // --- 4. Response time by day of week ----------------------------------

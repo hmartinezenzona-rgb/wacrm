@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { TrendingUp } from 'lucide-react'
 import type { LedgerProfitBucket, LedgerProfitData } from '@/lib/dashboard/types'
 import { formatCurrencyShort } from '@/lib/currency'
+import { computeMarginPct } from '@/lib/dashboard/service-profitability'
 import { EmptyState } from './empty-state'
 import { Skeleton } from './skeleton'
 import { cn } from '@/lib/utils'
@@ -28,6 +29,7 @@ export function LedgerProfitSummary({ data, loading }: LedgerProfitSummaryProps)
   const [period, setPeriod] = useState<Period>('today')
 
   const bucket: LedgerProfitBucket | null = data ? data[period] : null
+  const margenPct = bucket ? computeMarginPct(bucket.facturadoGyd, bucket.retornoGyd) : null
 
   return (
     <section className="rounded-xl border border-border bg-card tarjeta-elevada">
@@ -65,7 +67,7 @@ export function LedgerProfitSummary({ data, loading }: LedgerProfitSummaryProps)
             hint={t('noOperationsHint')}
           />
         ) : (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
             <Tile label={t('operationCount')} value={bucket.operationCount.toLocaleString()} />
             <Tile
               label={t('facturado')}
@@ -79,6 +81,13 @@ export function LedgerProfitSummary({ data, loading }: LedgerProfitSummaryProps)
               label={t('retorno')}
               value={formatCurrencyShort(bucket.retornoGyd, LEDGER_CURRENCY)}
               tone={bucket.retornoGyd > 0 ? 'good' : bucket.retornoGyd < 0 ? 'bad' : 'neutral'}
+            />
+            {/* No tone: no baseline yet to call a margin "good" or
+                "bad" — same reasoning as BusinessSnapshotHero's margin
+                tile. */}
+            <Tile
+              label={t('margen')}
+              value={margenPct === null ? '—' : `${margenPct.toFixed(1)}%`}
             />
           </div>
         )}

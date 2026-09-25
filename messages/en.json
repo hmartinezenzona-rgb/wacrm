@@ -2015,6 +2015,69 @@
         "vacio": "Sin operaciones para esos filtros"
       },
       "error": "No se pudo cargar: {msg}"
+    },
+    "cierre": {
+      "title": "Cierre financiero",
+      "subtitle": "Lo facturado, invertido y ganado según la calculadora. Los días se cortan en hora de Guyana.",
+      "periodo": {
+        "day": "Día",
+        "week": "Semana",
+        "month": "Mes",
+        "range": "Rango"
+      },
+      "anterior": "Periodo anterior",
+      "siguiente": "Periodo siguiente",
+      "hoy": "Hoy",
+      "desde": "Desde",
+      "hasta": "Hasta",
+      "aplicar": "Aplicar",
+      "rangoError": {
+        "missing": "Elige las dos fechas.",
+        "invalid": "Fecha no válida.",
+        "reversed": "«Desde» no puede ser posterior a «Hasta».",
+        "too_long": "El rango máximo es de 366 días."
+      },
+      "loadError": "No se pudo cargar el cierre.",
+      "reintentar": "Reintentar",
+      "totales": {
+        "facturado": "Facturado",
+        "invertido": "Invertido",
+        "retorno": "Retorno",
+        "operaciones": "Operaciones",
+        "margen": "Margen {pct}%"
+      },
+      "porDia": "Por día",
+      "porServicio": "Por servicio",
+      "sinDatos": "Sin operaciones completadas en este periodo.",
+      "detalle": "Detalle de operaciones",
+      "excluidas": "Anuladas y pendientes de tasa (no cuentan en los totales)",
+      "cols": {
+        "dia": "Día",
+        "hora": "Hora",
+        "operacion": "Operación",
+        "cliente": "Cliente",
+        "servicio": "Servicio",
+        "monto": "Monto",
+        "tasa": "Tasa",
+        "facturado": "Facturado",
+        "invertido": "Invertido",
+        "retorno": "Retorno",
+        "entrega": "Entrega",
+        "entregadoPor": "Entregado por",
+        "estado": "Estado",
+        "motivo": "Motivo",
+        "operaciones": "Ops"
+      },
+      "entrega": {
+        "proof_sent": "Con captura",
+        "no_proof": "Sin captura",
+        "skip_proof": "Sin captura (ventana cerrada)"
+      },
+      "estado": {
+        "void": "Anulada",
+        "verified_pending": "Pendiente de tasa"
+      },
+      "exportar": "Exportar CSV"
     }
   }
 }

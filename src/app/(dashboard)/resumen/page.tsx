@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
+import { FinancialCloseSection } from "@/components/resumen/financial-close-section";
 import {
   Table,
   TableBody,
@@ -228,6 +229,10 @@ export default function ResumenPage() {
   return (
     <PageShell>
       <PageHeader title={t("title")} description={t("subtitle")} />
+
+      {/* Cierre financiero: lo facturado/invertido/ganado segun el libro de
+          la calculadora (121). Va primero; volumen e historial debajo. */}
+      <FinancialCloseSection />
 
       {/* Resumen por periodo */}
       <section className="space-y-2">

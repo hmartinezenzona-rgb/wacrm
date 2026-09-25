@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Loader2 } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
+import { closeCsvFilename, financialCloseToCsv } from "@/lib/financial-close/csv";
 import { loadFinancialClose } from "@/lib/financial-close/load";
 import {
   guyanaToday,
@@ -19,6 +20,15 @@ import { FinancialCloseSummary } from "./financial-close-summary";
 import { FinancialCloseDetail } from "./financial-close-detail";
 
 type LoadResult = { status: "error" } | { status: "loaded"; data: FinancialClose };
+
+function downloadCsv(close: FinancialClose) {
+  const url = URL.createObjectURL(new Blob([financialCloseToCsv(close)], { type: "text/csv;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = closeCsvFilename(close.range);
+  link.click();
+  URL.revokeObjectURL(url);
+}
 
 /**
  * The financial close on /resumen: what the business billed, invested and
@@ -65,9 +75,17 @@ export function FinancialCloseSection() {
 
   return (
     <section className="space-y-3">
-      <div>
-        <h2 className="text-sm font-semibold text-foreground">{t("title")}</h2>
-        <p className="text-xs text-muted-foreground">{t("subtitle")}</p>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">{t("title")}</h2>
+          <p className="text-xs text-muted-foreground">{t("subtitle")}</p>
+        </div>
+        {state.status === "loaded" && state.data.detail.length + state.data.excluded.length > 0 && (
+          <Button type="button" variant="outline" size="sm" onClick={() => downloadCsv(state.data)}>
+            <Download />
+            {t("exportar")}
+          </Button>
+        )}
       </div>
 
       <FinancialClosePeriodPicker

@@ -1,4 +1,3 @@
-import { BUSINESS_TIME_ZONE } from "@/lib/financial-close/periods";
 import type { CloseEntry } from "@/lib/financial-close/read-model";
 
 /** Ledger money is always GYD (the business's settlement currency). */
@@ -17,16 +16,7 @@ export function marginPct(facturado: number, retorno: number): string | null {
   return ((retorno / facturado) * 100).toFixed(1);
 }
 
-/** HH:mm of a completion in Guyana time — the clock the business lives on. */
-export function guyanaTime(iso: string | null): string {
-  if (!iso) return "—";
-  return new Intl.DateTimeFormat("en-GB", {
-    timeZone: BUSINESS_TIME_ZONE,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(new Date(iso));
-}
+export { guyanaTime } from "@/lib/financial-close/periods";
 
 /** The frozen rate the ledger used, so a row can be audited by hand. */
 export function rateLabel(entry: CloseEntry): string {

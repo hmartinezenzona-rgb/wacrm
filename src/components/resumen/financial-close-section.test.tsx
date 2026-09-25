@@ -249,6 +249,45 @@ describe("FinancialCloseSection", () => {
     await act(async () => root.unmount());
   });
 
+  it("exports the loaded period as a CSV named after the range", async () => {
+    const createObjectURL = vi.fn(() => "blob:cierre");
+    const revokeObjectURL = vi.fn();
+    Object.assign(URL, { createObjectURL, revokeObjectURL });
+    const clicked: string[] = [];
+    const anchorClick = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        clicked.push(this.download);
+      });
+
+    const { node, root } = await render();
+    await click(button(node, T.exportar));
+
+    expect(clicked).toEqual(["cierre-financiero_2026-09-21_2026-09-27.csv"]);
+    const blob = (createObjectURL.mock.calls[0] as unknown as [Blob])[0];
+    // jsdom's Blob has no .text(); FileReader is supported.
+    const text = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.readAsText(blob);
+    });
+    expect(text).toContain("Ana Pérez");
+    expect(text).toContain("anulada");
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:cierre");
+    anchorClick.mockRestore();
+    await act(async () => root.unmount());
+  });
+
+  it("offers no export when the period has nothing to export", async () => {
+    loadFinancialClose.mockResolvedValue({
+      ok: true,
+      data: close({ detail: [], excluded: [], byService: [], totals: { operations: 0, facturadoGyd: 0, invertidoGyd: 0, retornoGyd: 0 } }),
+    });
+    const { node, root } = await render();
+    expect(Array.from(node.querySelectorAll("button")).some((b) => b.textContent === T.exportar)).toBe(false);
+    await act(async () => root.unmount());
+  });
+
   it("shows a retry on a failed load and reloads the same range", async () => {
     loadFinancialClose.mockResolvedValueOnce({ ok: false, error: "load_failed" });
     const { node, root } = await render();

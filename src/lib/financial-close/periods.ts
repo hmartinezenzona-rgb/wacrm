@@ -100,3 +100,14 @@ export function validateRange(range: DateRange): RangeError | null {
   if (days + 1 > MAX_RANGE_DAYS) return "too_long";
   return null;
 }
+
+/** HH:mm of an instant in Guyana time — the clock the business lives on. */
+export function guyanaTime(iso: string | null): string {
+  if (!iso) return "—";
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: BUSINESS_TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(iso));
+}

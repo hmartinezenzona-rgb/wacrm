@@ -193,8 +193,22 @@ function setValue(input: HTMLInputElement, value: string) {
   input.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
+/** Each operation card's own expand/collapse button (inside its `<article>`) —
+ *  scoped so the History section's toggle is never counted as a card. */
 function toggleButtons(node: Element) {
-  return Array.from(node.querySelectorAll<HTMLButtonElement>("button[aria-expanded]"));
+  return Array.from(node.querySelectorAll<HTMLButtonElement>("article button[aria-expanded]"));
+}
+
+function historyToggle(node: Element) {
+  return Array.from(node.querySelectorAll<HTMLButtonElement>("button[aria-expanded]")).find(
+    (button) => !button.closest("article") && button.textContent?.startsWith(en.Inbox.operationsPanel.historyTitle),
+  );
+}
+
+async function click(button: Element) {
+  await act(async () => {
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+  });
 }
 
 describe("OperationsPanelContainer", () => {
@@ -378,25 +392,96 @@ describe("OperationsPanelContainer", () => {
   });
 
   describe("history (migration 102)", () => {
-    it("renders history operations, collapsed, below a History label, after the open operations", async () => {
+    const historyOps = (count: number) =>
+      Array.from({ length: count }, (_, i) => ({ ...HISTORY_OP, id: `op-hist-${i + 1}` }));
+
+    it("hides history behind a collapsed History (N) toggle, below the open operations", async () => {
       const data: ConversationOperationsRead = {
         resolverState: "unica",
         resolverOperationId: "op-1",
         resolverCandidateCount: 1,
-        operations: [OP1, HISTORY_OP],
+        operations: [OP1, ...historyOps(2)],
       };
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(data)));
 
       const { node, root } = await renderContainer("conv-hist-1");
       await flush();
 
-      expect(node.textContent).toContain("History");
-      expect(node.querySelectorAll("article")).toHaveLength(2);
+      const toggle = historyToggle(node);
+      expect(toggle).toBeDefined();
+      expect(toggle!.textContent).toBe(`${en.Inbox.operationsPanel.historyTitle} (2)`);
+      expect(toggle!.getAttribute("aria-expanded")).toBe("false");
+      // Only the open operation's card is rendered while history is collapsed.
+      expect(node.querySelectorAll("article")).toHaveLength(1);
+      await act(async () => root.unmount());
+    });
+
+    it("reveals the history cards, each collapsed, when the History toggle is clicked", async () => {
+      const data: ConversationOperationsRead = {
+        resolverState: "unica",
+        resolverOperationId: "op-1",
+        resolverCandidateCount: 1,
+        operations: [OP1, ...historyOps(2)],
+      };
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(data)));
+
+      const { node, root } = await renderContainer("conv-hist-1b");
+      await flush();
+      await click(historyToggle(node)!);
+
+      expect(historyToggle(node)!.getAttribute("aria-expanded")).toBe("true");
       const buttons = toggleButtons(node);
-      expect(buttons).toHaveLength(2);
-      // The single open op auto-expands; the history card stays collapsed.
+      expect(buttons).toHaveLength(3);
+      // The single open op auto-expands; the history cards stay collapsed.
       expect(buttons[0].getAttribute("aria-expanded")).toBe("true");
       expect(buttons[1].getAttribute("aria-expanded")).toBe("false");
+      expect(buttons[2].getAttribute("aria-expanded")).toBe("false");
+
+      await click(historyToggle(node)!);
+      expect(node.querySelectorAll("article")).toHaveLength(1);
+      await act(async () => root.unmount());
+    });
+
+    it("shows only the latest 5 history operations until Show more is clicked", async () => {
+      const data: ConversationOperationsRead = {
+        resolverState: "unica",
+        resolverOperationId: "op-1",
+        resolverCandidateCount: 1,
+        operations: [OP1, ...historyOps(7)],
+      };
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(data)));
+
+      const { node, root } = await renderContainer("conv-hist-1c");
+      await flush();
+      await click(historyToggle(node)!);
+
+      expect(node.querySelectorAll("article")).toHaveLength(1 + 5);
+      const showMoreText = en.Inbox.operationsPanel.historyShowMore.replace("{count}", "2");
+      const showMore = Array.from(node.querySelectorAll("button")).find((b) => b.textContent === showMoreText);
+      expect(showMore).toBeDefined();
+
+      await click(showMore!);
+      expect(node.querySelectorAll("article")).toHaveLength(1 + 7);
+      expect(Array.from(node.querySelectorAll("button")).some((b) => b.textContent === showMoreText)).toBe(false);
+      await act(async () => root.unmount());
+    });
+
+    it("offers no Show more button when there are 5 or fewer history operations", async () => {
+      const data: ConversationOperationsRead = {
+        resolverState: "unica",
+        resolverOperationId: "op-1",
+        resolverCandidateCount: 1,
+        operations: [OP1, ...historyOps(5)],
+      };
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(data)));
+
+      const { node, root } = await renderContainer("conv-hist-1d");
+      await flush();
+      await click(historyToggle(node)!);
+
+      expect(node.querySelectorAll("article")).toHaveLength(1 + 5);
+      const showMorePrefix = en.Inbox.operationsPanel.historyShowMore.split("{count}")[0];
+      expect(Array.from(node.querySelectorAll("button")).some((b) => b.textContent?.startsWith(showMorePrefix))).toBe(false);
       await act(async () => root.unmount());
     });
 
@@ -421,7 +506,7 @@ describe("OperationsPanelContainer", () => {
         resolverState: "unica",
         resolverOperationId: "op-1",
         resolverCandidateCount: 1,
-        operations: [OP1, HISTORY_OP, { ...HISTORY_OP, id: "op-hist-2" }],
+        operations: [OP1, ...historyOps(2)],
       };
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(data)));
 
@@ -429,14 +514,12 @@ describe("OperationsPanelContainer", () => {
       await flush();
 
       const buttons = toggleButtons(node);
-      expect(buttons).toHaveLength(3);
+      expect(buttons).toHaveLength(1);
       expect(buttons[0].getAttribute("aria-expanded")).toBe("true");
-      expect(buttons[1].getAttribute("aria-expanded")).toBe("false");
-      expect(buttons[2].getAttribute("aria-expanded")).toBe("false");
       await act(async () => root.unmount());
     });
 
-    it("still shows the no-open-operations message AND a collapsed History section when the resolver reports ninguna", async () => {
+    it("still shows the no-open-operations message AND a collapsed History toggle when the resolver reports ninguna", async () => {
       const data: ConversationOperationsRead = {
         resolverState: "ninguna",
         resolverOperationId: null,
@@ -449,10 +532,12 @@ describe("OperationsPanelContainer", () => {
       await flush();
 
       expect(node.textContent).toContain("No open remittance operations for this conversation.");
-      expect(node.textContent).toContain("History");
+      expect(historyToggle(node)!.getAttribute("aria-expanded")).toBe("false");
+      expect(node.querySelectorAll("article")).toHaveLength(0);
+
+      await click(historyToggle(node)!);
       expect(node.querySelectorAll("article")).toHaveLength(1);
-      const buttons = toggleButtons(node);
-      expect(buttons[0].getAttribute("aria-expanded")).toBe("false");
+      expect(toggleButtons(node)[0].getAttribute("aria-expanded")).toBe("false");
       await act(async () => root.unmount());
     });
 
@@ -467,11 +552,8 @@ describe("OperationsPanelContainer", () => {
 
       const { node, root } = await renderContainer("conv-hist-5");
       await flush();
-
-      const buttons = toggleButtons(node);
-      await act(async () => {
-        buttons[1].dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-      });
+      await click(historyToggle(node)!);
+      await click(toggleButtons(node)[1]);
 
       const historyArticle = node.querySelectorAll("article")[1];
       expect(

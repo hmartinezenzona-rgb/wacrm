@@ -17,6 +17,10 @@ import { ResolverStateBanner } from "./resolver-state-banner";
  *  fetch instead of refetching per event. */
 const REALTIME_REFRESH_DEBOUNCE_MS = 800;
 
+/** History rows shown once the History section is opened, before "Show
+ *  more" — the RPC already caps history at the latest 10 completed ops. */
+const HISTORY_VISIBLE_COUNT = 5;
+
 interface OperationsPanelContainerProps {
   /** Active conversation id, or `null` when no conversation is selected. */
   conversationId: string | null;
@@ -85,6 +89,13 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
     return { status: "idle" };
   });
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // History is hidden until asked for, and shows only the latest
+  // HISTORY_VISIBLE_COUNT until "Show more". Both are stored as the
+  // conversation they were opened for (not a boolean) so switching
+  // conversations on this same instance starts collapsed again without
+  // a reset effect.
+  const [historyOpenFor, setHistoryOpenFor] = useState<string | null>(null);
+  const [historyShowAllFor, setHistoryShowAllFor] = useState<string | null>(null);
   // Bumped after every silent refetch (realtime-triggered or from a card's
   // own `onChanged`) and forwarded down to `DepositReviewContainer` so it
   // re-fetches its receipts too, without either side flashing a loading
@@ -250,6 +261,12 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
   // single-open-op auto-expand rule — both stay scoped to open operations.
   const openOperations = data.operations.filter((operation) => !operation.isHistory);
   const historyOperations = data.operations.filter((operation) => operation.isHistory);
+  const historyOpen = historyOpenFor !== null && historyOpenFor === conversationId;
+  const historyShowAll = historyShowAllFor !== null && historyShowAllFor === conversationId;
+  const visibleHistory = historyShowAll
+    ? historyOperations
+    : historyOperations.slice(0, HISTORY_VISIBLE_COUNT);
+  const hiddenHistoryCount = historyOperations.length - visibleHistory.length;
 
   const toggleHandlerFor = (operationId: string) => () =>
     setExpandedId((current) => (current === operationId ? null : operationId));
@@ -289,28 +306,46 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
       {historyOperations.length > 0 && (
         <div className="space-y-2">
           <h3 className="px-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            {t("historyTitle")}
+            <button
+              type="button"
+              aria-expanded={historyOpen}
+              className="flex items-center gap-1 uppercase tracking-[0.14em] hover:text-foreground"
+              onClick={() => setHistoryOpenFor(historyOpen ? null : conversationId)}
+            >
+              {`${t("historyTitle")} (${historyOperations.length})`}
+            </button>
           </h3>
-          <div className="space-y-2">
-            {historyOperations.map((operation) => (
-              <RemittanceOperationCard
-                key={operation.id}
-                operation={operation}
-                // A history op must never be passed editable/canForce —
-                // the card itself also guards on `operation.isHistory`,
-                // this is the same invariant enforced at the boundary too.
-                canEdit={false}
-                role={null}
-                otherOpenOperations={[]}
-                onChanged={() => silentLoad(conversationId)}
-                expanded={expandedId === operation.id}
-                onToggle={toggleHandlerFor(operation.id)}
-                conversationId={conversationId}
-                refreshToken={refreshToken}
-                initialReceipts={data.receiptsByOperationId?.[operation.id]}
-              />
-            ))}
-          </div>
+          {historyOpen && (
+            <div className="space-y-2">
+              {visibleHistory.map((operation) => (
+                <RemittanceOperationCard
+                  key={operation.id}
+                  operation={operation}
+                  // A history op must never be passed editable/canForce —
+                  // the card itself also guards on `operation.isHistory`,
+                  // this is the same invariant enforced at the boundary too.
+                  canEdit={false}
+                  role={null}
+                  otherOpenOperations={[]}
+                  onChanged={() => silentLoad(conversationId)}
+                  expanded={expandedId === operation.id}
+                  onToggle={toggleHandlerFor(operation.id)}
+                  conversationId={conversationId}
+                  refreshToken={refreshToken}
+                  initialReceipts={data.receiptsByOperationId?.[operation.id]}
+                />
+              ))}
+              {hiddenHistoryCount > 0 && (
+                <button
+                  type="button"
+                  className="w-full text-center text-xs text-muted-foreground underline underline-offset-2"
+                  onClick={() => setHistoryShowAllFor(conversationId)}
+                >
+                  {t("historyShowMore", { count: hiddenHistoryCount })}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

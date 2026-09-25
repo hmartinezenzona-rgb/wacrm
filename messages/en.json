@@ -380,6 +380,7 @@
     "operationsPanel": {
       "title": "Remittance operations",
       "historyTitle": "History",
+      "historyShowMore": "Show {count} more",
       "loading": "Loading remittance operations…",
       "loadError": "Couldn't load remittance operations.",
       "noOpenOperations": "No open remittance operations for this conversation.",

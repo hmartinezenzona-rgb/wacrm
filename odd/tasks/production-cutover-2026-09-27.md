@@ -36,6 +36,16 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
    identical counts (messages 23, conversations 1, operations 4, auth.users 2); only errors were
    `ai_knowledge_chunks` needing pgvector (present on Supabase) and "schema public exists".
    Take one on Saturday as well, so there are two.
+   - 2026-09-26 (user OK): production read-only backup user `respaldo_lectura` (LOGIN, INHERIT,
+     BYPASSRLS, member of pg_read_all_data, default_transaction_read_only=on, connection limit 3;
+     only a SCRAM verifier was sent; password generated locally, lives only in
+     `~/.config/wacrm/prod-db.env`, host aws-0-us-east-1.pooler.supabase.com). Chosen instead of
+     resetting the `postgres` password, which n8n uses (Cerebro, notifier, vigilantes, outbox).
+     Verified: reads (15,633 messages, 562 operations, 6 users), writes refused.
+     Remove with `DROP ROLE respaldo_lectura;`.
+   - SATURDAY BACKUP TAKEN: `~/wacrm-respaldos/produccion-20260926T162600Z.dump` (5.8 MB, 96
+     tables with data, 133 functions). Test restore: messages 15,633, operations 562, users 6 —
+     identical to production. Take the Sunday one right before step 3.
 3. [ ] Legacy open operations — DECIDED (user, 2026-09-26): start from zero, not carried over.
    Must run BEFORE migrations 095+ (at the latest before 104, the ledger feed).
    - 3a `supabase/cutover/2026-09-27-01-revisar-operaciones-legado.sql` (read-only): totals and the

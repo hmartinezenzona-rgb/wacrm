@@ -47,7 +47,12 @@ live in one place. Staging first (`[STAGING] Cerebro v2 — LEGACY OPTIMIZED V1`
   - T1+T3 deployed to STAGING 2026-09-26: rollback `~/cerebro-fase1/ROLLBACK-cerebro-staging-antes-observabilidad.json`
     (versionId 09e9577a…), live 79293fff-f4f0-4bb3-90a7-a5a1ff2d2610 == candidate; only
     "Medir el turno" and "Medir la semantica del turno" differ, connections/settings equal.
-  - Pending: live check with the test contact.
+  - Live check 2026-09-26 11:54 UTC (burst "Hola / Buenod / Dias" from the test contact):
+    two superseded turns = `rafaga_otro_proceso` ✓, one reply, no G3 ✓ — but the answering
+    turn wrongly got `sin_lote`: "Cerrar lote" runs at the end of EVERY processed batch.
+    Fix (TDD): 2 real-case bench cases RED → answered turns get null first, `sin_lote` only
+    when the Decisor did not run → 16/16. Redeployed: live dfa833b2-3b2c-4387-9bca-c9532116bfc9
+    == candidate. Pending: second live burst to confirm.
 - [ ] T4 — Accounts in one place (design + decision: 9 nodes incl. deposit registration).
 
 ## Checks

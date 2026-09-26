@@ -34,6 +34,19 @@ nothing breaks — not waiting for a week of collector data.
   messages; the current turn keeps its fresh context). Candidate mechanism: the existing
   BEFORE INSERT guard on `cerebro_memoria` (migration 105 `cerebro_memoria_sin_basura`). Measure
   with a replay of real calls (history stripped vs original) before any change.
+  - Replay 2026-09-26 (`~/cerebro-fase1/pruebas/evals/replay-memoria.py`, report
+    `informes/replay-memoria-20260926-150347.json`): 30 real production turns × {A current memory,
+    B customer-text-only memory}, same agent/prompt/model node, mocked tools with recorded results,
+    memory in staging table `eval_memoria_replay`. Input tokens 1,203,891 → 531,853 (−56%).
+    Agreement B vs A: tools 29/30, figures 25/30, silence 28/30 (noise A vs production: tools
+    29/30, figures 28/30).
+  - Case review: B is WORSE in 5 — promised a handoff without calling derivar_humano (247714); named
+    an OLD Zelle beneficiary on a receipt confirmation (246961); forgot the route was Zelle (246284);
+    spoke where silence was right (247370 human attending; 247053 "Ook"). Same/better in 2.
+  - VERDICT: variant B is NOT safe. The context blocks carry state of the operation in progress
+    (beneficiary, route, human attention) that the fresh turn context does not repeat.
+  - Next: variant C — strip only the repeated generic lines (today's rates, presentation note,
+    horario, client history summary, generic instructions) and keep the state-bearing lines.
 - [ ] T2 — Baseline: run the gold battery against the current production prompt (score + cost).
 - [ ] T3 — Reorganized prompt candidate(s): same or better exam score, fewer tokens; then staging;
   production only with the user's OK.

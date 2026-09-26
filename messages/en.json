@@ -2009,8 +2009,7 @@
         "cliente": "Cliente",
         "telefono": "Teléfono",
         "monto": "Monto (GYD)",
-        "beneficiario": "Beneficiario",
-        "tarjeta": "Tarjeta",
+        "destino": "Destino",
         "operation": "Operación",
         "vacio": "Sin operaciones para esos filtros"
       },

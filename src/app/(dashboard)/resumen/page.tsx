@@ -17,6 +17,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { FinancialCloseSection } from "@/components/resumen/financial-close-section";
+import { historialDestino } from "@/lib/resumen/historial-destino";
 import {
   Table,
   TableBody,
@@ -43,9 +44,10 @@ interface HistorialFila {
   cliente: string;
   telefono: string;
   monto_gyd: number;
-  beneficiario: string;
-  /** Ya viene enmascarada (9205****9412) a propósito. */
-  tarjeta: string;
+  /** Solo remesas: null en recargas y demás servicios. */
+  beneficiario: string | null;
+  /** Ya viene enmascarada (9205****9412) a propósito. Null sin tarjeta. */
+  tarjeta: string | null;
   operation_id: string;
   /** Filas que hay en TODO el filtro, no en esta página (088). */
   total: number;
@@ -368,8 +370,7 @@ export default function ResumenPage() {
                   <TableHead>{t("tabla.cliente")}</TableHead>
                   <TableHead>{t("tabla.telefono")}</TableHead>
                   <TableHead>{t("tabla.monto")}</TableHead>
-                  <TableHead>{t("tabla.beneficiario")}</TableHead>
-                  <TableHead>{t("tabla.tarjeta")}</TableHead>
+                  <TableHead>{t("tabla.destino")}</TableHead>
                   <TableHead>{t("tabla.operation")}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -388,8 +389,7 @@ export default function ResumenPage() {
                     <TableCell className="font-medium">
                       {fmtGyd(f.monto_gyd)}
                     </TableCell>
-                    <TableCell>{f.beneficiario}</TableCell>
-                    <TableCell>{f.tarjeta}</TableCell>
+                    <TableCell>{historialDestino(f)}</TableCell>
                     <TableCell className="font-mono text-xs">
                       {f.operation_id}
                     </TableCell>

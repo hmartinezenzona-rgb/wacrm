@@ -70,6 +70,41 @@ nothing breaks — not waiting for a week of collector data.
   production only with the user's OK.
 - [ ] T4 — One source for business data (accounts/holders in 9 nodes incl. deposit registration),
   with benches for every touched node.
+  - Map (2026-09-26, staging `U52y1kSNvhgxvWeb` = prod `jEzlVLCLUaJhVwzs` for these nodes):
+    prompt text in `Agente Remesas` (19 hits), the 4 vision readings (7 each), `Transcribir audio`
+    (2); logic in `Registrar deposito auto` (via detection) and `Historial contacto` (SQL CASE);
+    `Parsear vision` has only a code comment (not data, left as is).
+  - DECISION (user): the source lives INSIDE the Cerebro, not in a DB table (no extra query or
+    failure point per turn). Mechanism verified in a temp workflow: a disconnected, never-executed
+    Set node `Datos del negocio` (raw JSON) is readable from any expression via
+    `JSON.parse($('Datos del negocio').params.jsonOutput)`; the flow chain is not touched.
+  - Invariant: every touched node renders BYTE-IDENTICAL to today (same prompts, same SQL, same
+    deposit note), so the bot's replies do not change and no context is removed.
+  - [x] T4.1 — Bench `~/cerebro-fase1/pruebas/banco-datos-negocio.py`: RED = account literals
+    still present outside the source; GREEN = no literals + every candidate node rendered by n8n
+    itself (temp workflow) identical to the live staging node, and the deposit note identical
+    for a case battery (agent, app, cash in, holder names, other bank, multi-receipt).
+  - [x] T4.2 — Candidate: add `Datos del negocio`, rewrite the 8 nodes to read from it.
+  - [x] T4.3 — Eval harnesses (`evaluar.py`, `replay-memoria.py`) copy `Datos del negocio` into
+    their temp workflows so the agent prompt still renders there.
+  - [x] T4.4 — Deploy to STAGING only (ROLLBACK copy first), re-run the bench against the deployed
+    workflow. Production only with the user's explicit OK.
+  - Out of scope, noted: `Historial contacto` also names a Mexico account (Albo/CLABE); not in
+    the user's list.
+  - Evidence (2026-09-26): RED observed first (`--rojo` on live staging: literals in 8 nodes,
+    source missing). GREEN: candidate = `Datos del negocio` + 8 fields in 8 nodes; 7 text fields
+    rendered by n8n byte-identical; deposit expression old vs new identical on 16 cases (agent,
+    app, cash in/cashin, numbers, +592, holder names upper/lower, other bank, empty, rejected,
+    two-receipt burst). Mutation check: one wrong digit in the source → RED in all 8 nodes.
+  - Harness check: `evaluar.py` and `replay-memoria.py` build temp workflows that now include the
+    source node (structural check, no model call). Note for T2: `evaluar.py` still reads the old
+    workflow `T3v07IQqtMs6AKJ4`, not the current production `jEzlVLCLUaJhVwzs`.
+  - Deployed to STAGING 2026-09-26 22:34 UTC (115 nodes, active); the bench re-ran GREEN against
+    the deployed workflow. Rollback: `~/cerebro-fase1/ROLLBACK-cerebro-staging-antes-datos-negocio.json`
+    (PUT it back). Candidate file: `~/cerebro-fase1/candidato-cerebro-staging-datos-negocio.json`.
+    Production untouched (updatedAt 2026-09-16).
+  - [ ] T4.5 — Live smoke in staging with the test contact (a message asking for the account and a
+    receipt), then production only with the user's explicit OK (after the 2026-09-27 cutover).
 
 ## Constraints
 - Production is not changed by this work without the user's explicit OK (cutover 2026-09-27).
@@ -78,3 +113,4 @@ nothing breaks — not waiting for a week of collector data.
 
 ## Progress
 - 2026-09-26: document created.
+- 2026-09-26: T4.1–T4.4 done in staging; T4.5 (live smoke) and production pending.

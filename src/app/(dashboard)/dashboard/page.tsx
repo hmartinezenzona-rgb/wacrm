@@ -39,10 +39,7 @@ import { QuickActions } from '@/components/dashboard/quick-actions'
 import { OperationsFunnel } from '@/components/dashboard/operations-funnel'
 import { ConversationsChart } from '@/components/dashboard/conversations-chart'
 import { ServiceVolumeDonut } from '@/components/dashboard/service-volume-donut'
-import { LedgerProfitSummary } from '@/components/dashboard/ledger-profit-summary'
-import { BusinessSnapshotHero } from '@/components/dashboard/business-snapshot-hero'
 import { BusinessInsights } from '@/components/dashboard/business-insights'
-import { ServiceProfitabilityTable } from '@/components/dashboard/service-profitability-table'
 import { AgedOperationsQueue } from '@/components/dashboard/aged-operations-queue'
 import { ResponseTimeChart } from '@/components/dashboard/response-time-chart'
 import { ActivityFeed } from '@/components/dashboard/activity-feed'
@@ -169,14 +166,6 @@ export default function DashboardPage() {
     <PageShell className="space-y-5">
       <PageHeader title={t('title')} description={t('description')} />
 
-      {/* Business snapshot: the real "how is the business doing today"
-          numbers (remesas/monto movido/ganancia/invertido hoy), promoted
-          above everything else so this is what's visible with no
-          scrolling — the chat/CRM metric cards below are useful but
-          aren't the business's money numbers. Reuses ledgerProfit.today,
-          no new fetch. */}
-      <BusinessSnapshotHero data={ledgerProfit} loading={ledgerProfitLoading} />
-
       {/* Oldest in-flight operations across all six non-terminal
           stages — "needs action now", so this goes before quick
           actions and everything else: it's the closest thing this
@@ -197,23 +186,10 @@ export default function DashboardPage() {
           dashboard has to "how's the core process doing right now". */}
       <OperationsFunnel data={operationsFunnel} loading={operationsFunnelLoading} />
 
-      {/* Real margin from the calculator ledger (remittance_calculator_entries):
-          facturado - invertido = retorno, over completed entries only. This
-          is actual profit, not volume — a different signal from the service
-          volume donut below, which shows how much moved, not what it earned. */}
-      <LedgerProfitSummary data={ledgerProfit} loading={ledgerProfitLoading} />
-
-      {/* Which service (CUP/ZELLE/CLASICA/TROPICAL) is actually
-          profitable this month — same read path as LedgerProfitSummary
-          above (remittance_calculator_entries, completed-only), reusing
-          the SAME ledgerProfit fetch, aggregated by entry.service
-          instead of by time bucket. */}
-      <ServiceProfitabilityTable data={ledgerProfit} loading={ledgerProfitLoading} />
-
       {/* Who's billing the most and which destination currencies move the
-          most volume this month — same read path as LedgerProfitSummary
-          (remittance_calculator_entries, completed-only), aggregated by
-          client and by amount_currency instead of by time bucket. */}
+          most volume this month, from the calculator ledger
+          (remittance_calculator_entries, completed-only). The money totals
+          by period and by service live on /resumen (financial close). */}
       <BusinessInsights data={ledgerProfit} loading={ledgerProfitLoading} />
 
       {/* Secondary metric cards: chat/CRM activity signals (active

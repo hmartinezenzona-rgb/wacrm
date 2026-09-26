@@ -47,44 +47,12 @@ export interface OperationsFunnelData {
   stages: OperationsFunnelStage[]
 }
 
-/** facturado - invertido = retorno, summed over completed calculator
- *  ledger entries in one period. */
-export interface LedgerProfitBucket {
-  operationCount: number
-  facturadoGyd: number
-  invertidoGyd: number
-  retornoGyd: number
-}
-
+/** Who bills the most and which destination currencies move the most this
+ *  month, from completed calculator ledger entries. Period totals and the
+ *  per-service profitability live on /resumen's financial close. */
 export interface LedgerProfitData {
-  today: LedgerProfitBucket
-  thisWeek: LedgerProfitBucket
-  thisMonth: LedgerProfitBucket
-  /** Top clients / destination-currency breakdown this month — computed
-   *  from the SAME fetched entries as the buckets above, not a second
-   *  query, so BusinessInsights and LedgerProfitSummary share one
-   *  round trip instead of duplicating it. */
   topClients: TopClientEntry[]
   byDestinationCurrency: DestinationBreakdownEntry[]
-  /** Per-service (CUP/ZELLE/CLASICA/TROPICAL) profitability this
-   *  month — same SAME fetched entries as everything else above,
-   *  aggregated by `entry.service` instead of by time bucket or
-   *  client/currency. See `serviceProfitabilityFrom`. */
-  serviceProfitability: ServiceProfitabilityRow[]
-}
-
-/** One service's aggregated billing/profit this month (the ledger's
- *  own CUP/ZELLE/CLASICA/TROPICAL taxonomy — NOT
- *  `remittance_operations.service_type`, an unrelated taxonomy). */
-export interface ServiceProfitabilityRow {
-  service: string
-  operationCount: number
-  facturadoGyd: number
-  retornoGyd: number
-  /** `retornoGyd / facturadoGyd * 100`, `null` at zero facturado
-   *  (rendered as "—", never NaN/Infinity). */
-  margenPct: number | null
-  ticketMedioGyd: number
 }
 
 /** One row from `cerebro_dashboard_operaciones_envejecidas()` — an

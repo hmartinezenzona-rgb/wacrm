@@ -149,29 +149,6 @@
         "transferring": "Transferring"
       }
     },
-    "ledgerProfit": {
-      "title": "Profit",
-      "description": "Billed vs. invested from completed calculator entries",
-      "period": {
-        "today": "Today",
-        "thisWeek": "This week",
-        "thisMonth": "This month"
-      },
-      "operationCount": "Operations",
-      "facturado": "Billed (GYD)",
-      "invertido": "Invested (GYD)",
-      "retorno": "Profit (GYD)",
-      "margen": "Margin",
-      "noOperations": "No completed operations in this period",
-      "noOperationsHint": "Profit fills in as calculator entries are completed."
-    },
-    "businessSnapshot": {
-      "operationCount": "Remittances Today",
-      "facturado": "Moved Today (GYD)",
-      "retorno": "Profit Today (GYD)",
-      "invertido": "Invested Today (GYD)",
-      "margen": "Margin Today"
-    },
     "businessInsights": {
       "title": "Top Clients & Destinations",
       "description": "Who's billing the most and which destination currencies move the most this month",
@@ -181,17 +158,6 @@
       "unknownClient": "Unknown client",
       "noClients": "No completed operations this month",
       "noBreakdown": "No completed operations this month"
-    },
-    "serviceProfitability": {
-      "title": "Profitability by Service",
-      "description": "Which service (CUP/Zelle/Clásica/Tropical) is actually profitable this month",
-      "service": "Service",
-      "operationCount": "Ops",
-      "facturado": "Billed (GYD)",
-      "retorno": "Profit (GYD)",
-      "margen": "Margin",
-      "ticketMedio": "Avg. Ticket (GYD)",
-      "noOperations": "No completed operations this month"
     },
     "agedOperations": {
       "title": "Aged Operations",

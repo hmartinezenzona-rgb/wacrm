@@ -11,7 +11,6 @@ import type {
   ActivityItem,
   AgedOperation,
   ConversationsSeriesPoint,
-  LedgerProfitBucket,
   LedgerProfitData,
   MetricsBundle,
   ResponseTimeBucket,
@@ -22,12 +21,10 @@ import type {
 } from './types'
 import {
   LEDGER_ENTRY_COLUMNS,
-  ledgerTotals,
   mapLedgerEntry,
   type LedgerEntryRow,
 } from '@/lib/calculator/ledger-read-model'
 import { destinationBreakdownFrom, topClientsFrom } from './business-insights'
-import { serviceProfitabilityFrom } from './service-profitability'
 
 // ------------------------------------------------------------
 // All client-side aggregation. RLS scopes every query to the
@@ -207,8 +204,6 @@ export async function loadOperationsFunnel(db: DB): Promise<OperationsFunnelData
 export async function loadLedgerProfit(db: DB): Promise<LedgerProfitData> {
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-  const weekStart = daysAgoStart(mondayIndex(now))
-  const todayStart = startOfLocalDay(now)
 
   // `remittance_calculator_entries` carries a real RLS SELECT policy
   // (is_account_member) — unlike remittance_operations, which needed a
@@ -224,36 +219,13 @@ export async function loadLedgerProfit(db: DB): Promise<LedgerProfitData> {
 
   const entries = ((data ?? []) as LedgerEntryRow[]).map(mapLedgerEntry)
 
-  // ledgerTotals() already only counts status==='completed' and treats
-  // a completed_at-less (pending) or voided entry as zero — see its own
-  // doc comment. Bucketing here is just "which entries' entry_date falls
-  // in this period", reusing the exact same totals function three times
-  // over three nested date ranges (today ⊂ this week ⊂ this month).
-  const bucket = (fromKey: string): LedgerProfitBucket => {
-    const totals = ledgerTotals(entries.filter((e) => e.entryDate >= fromKey))
-    return {
-      operationCount: totals.count,
-      facturadoGyd: totals.facturadoGyd,
-      invertidoGyd: totals.invertidoGyd,
-      retornoGyd: totals.retornoGyd,
-    }
-  }
-
+  // The period totals (today/week/month) and the per-service profitability
+  // this used to compute now live on /resumen's financial close
+  // (crm_cierre_financiero, migration 121); the dashboard keeps only who
+  // bills the most and which destination currencies move the most.
   return {
-    today: bucket(localDayKey(todayStart)),
-    thisWeek: bucket(localDayKey(weekStart)),
-    thisMonth: bucket(localDayKey(monthStart)),
-    // Same entries this function already fetched for the buckets above,
-    // aggregated a different way (by client / by destination currency
-    // instead of by time bucket) — was a second, byte-for-byte duplicate
-    // fetch of this same table/filters/window, which doubled this
-    // widget's round trip for no reason.
     topClients: topClientsFrom(entries),
     byDestinationCurrency: destinationBreakdownFrom(entries),
-    // Same entries again, aggregated by service (CUP/ZELLE/CLASICA/
-    // TROPICAL) instead of by time bucket/client/currency — no new
-    // fetch, see serviceProfitabilityFrom's own doc comment.
-    serviceProfitability: serviceProfitabilityFrom(entries),
   }
 }
 

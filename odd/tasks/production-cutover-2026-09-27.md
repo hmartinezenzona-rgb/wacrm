@@ -32,17 +32,41 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
    before or after the ledger feed (104) exists — before keeps them out of the ledger, after
    puts them all in the ledger on Sunday. "Start the week clean" implies closing them.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
-   error. Do NOT re-run 119 (superseded by 120, already live). Review 109/110/112 (capture /
-   n8n repoint) against production before running them.
+   error. Do NOT re-run 119 (superseded by 120, already live).
+   - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of
+     pg_get_functiondef) to 109's bodies: a true no-op. Apply.
+   - 110: builds on those same bodies (adds the remittance_operations dual-write). Apply.
+   - 112: SKIP in production. Its tables already exist with the same columns and RLS; its only
+     effective statement would be `GRANT ALL ... TO anon, authenticated`, which production
+     does not have today (hardened by 064). Skipping loses nothing.
 5. [ ] Right after 114: repoint the customer notifier —
    `~/cerebro-fase1/PASOS-notificador-produccion-114.md` (pre-check SQL, `n8n.py put`, verify).
    Between 114 and this step no customer notification is sent.
 6. [ ] Migration 121 (`crm_cierre_financiero`, financial close on /resumen).
-7. [ ] Deploy the application code of `feat/port-chat-operations-calculator` (commit a558403 or
-   later) to production. First confirm the real deploy path: production serves
-   `/home/ubuntu/wacrm-releases/current` (pm2 `wacrm`, SSH `oracle`), not the
-   `/home/ubuntu/wacrm-deploy` of `.github/workflows/deploy.yml`. Build with production
-   `NEXT_PUBLIC_*` values; verify the bundle points to `hqztotshnlzaiziwjyzh`, never staging.
+7. [ ] Deploy the application code of `feat/port-chat-operations-calculator` to production.
+   Deploy path CONFIRMED 2026-09-26 (read-only on `oracle`):
+   - pm2 app `wacrm` runs `/home/ubuntu/wacrm-releases/current/server.js`; `current` and
+     `anterior` are symlinks to release dirs named by commit SHA (same model as staging).
+     `/home/ubuntu/wacrm-deploy` is an old, unused directory.
+   - Runtime env: each release has `.env.local -> /home/ubuntu/wacrm.env` (no pm2 env, no
+     /etc file). A new release MUST get that same symlink or the server starts without keys.
+   - Build with `NEXT_PUBLIC_*` from `/home/ubuntu/wacrm.env` (SUPABASE_URL points to
+     hqztotshnlzaiziwjyzh); verify the bundle has no staging ref.
+   - Production's own deploy scripts (`infra/deployment/desplegar-wacrm-produccion.sh`,
+     `rollback-wacrm-produccion.sh`, `build-wacrm.sh`, `lib-*.sh`) live on branch
+     `ui/operations-visibility-v2`, not on this branch.
+   - Production currently serves `83422d9` (2026-09-06, branch `ui/operations-visibility-v2`),
+     which is NOT an ancestor of this branch. File-by-file review: everything it adds is either
+     already ported here (ownership icon, bot pause on agent send, inbox selection/pin, header),
+     intentionally retired (pipelines board, deal cards, quick actions), or non-code
+     (screenshots, reports, dev pages) — EXCEPT the items in step 6b.
+6b. [ ] Before building: port what production has and this branch lacks:
+   - `messages.sender_id` on agent sends (production records it on 611/611 human messages in
+     the last 7 days; this branch would stop): `senderId` in `send-message.ts` + `route.ts`.
+   - Minor, optional: `ai_generated` in `/api/v1` conversations (n8n does not use it — the
+     Cerebro reads it from the DB), inbox "undo" after hiding chats, pin rail alignment.
+7b. [ ] Enable the operations panel: it is gated by `profiles.beta_features` containing
+   `operations_panel` (production has 5 profiles). Without it nobody sees the panel.
 8. [ ] Smoke test on production: login, inbox + operations panel, /resumen (financial close,
    history with Destino column), /dashboard (no money widgets, no quick actions), /calculadora.
 

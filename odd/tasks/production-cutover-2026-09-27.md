@@ -61,6 +61,14 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of
      pg_get_functiondef) to 109's bodies: a true no-op. Apply.
    - 110: builds on those same bodies (adds the remittance_operations dual-write). Apply.
+   - 114: FIXED 2026-09-26. As first written, its `cerebro_registrar_deposito` creado path
+     raised `column reference "deal_id" is ambiguous` on EVERY new receipt (found by a live
+     staging smoke). The file now carries `#variable_conflict use_column`. Apply the file from
+     the final commit, never an older copy. Right after applying it, run
+     `supabase/staging/assertions/registrar-deposito-creado.sql` against STAGING (BEGIN …
+     ROLLBACK) for reference, and in production check that
+     `pg_get_functiondef('public.cerebro_registrar_deposito(uuid,numeric,text,uuid,text,text)'::regprocedure)`
+     contains `#variable_conflict use_column`.
    - 112: SKIP in production. Its tables already exist with the same columns and RLS; its only
      effective statement would be `GRANT ALL ... TO anon, authenticated`, which production
      does not have today (hardened by 064). Skipping loses nothing.

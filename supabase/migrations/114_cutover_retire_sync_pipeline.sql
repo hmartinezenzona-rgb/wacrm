@@ -417,6 +417,13 @@ CREATE OR REPLACE FUNCTION public.cerebro_registrar_deposito(p_conv uuid, p_mont
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
+#variable_conflict use_column
+-- (114) The creado path's `ON CONFLICT (deal_id) WHERE deal_id IS NOT NULL`
+-- collides with this function's `deal_id` OUT parameter and raised
+-- `column reference "deal_id" is ambiguous` on every new receipt (staging
+-- smoke 2026-09-26). use_column only affects references that were
+-- ambiguous, i.e. that raised; every other reference resolves as before.
+-- Guarded by supabase/staging/assertions/registrar-deposito-creado.sql.
 DECLARE
   v_rev     boolean;
   v_recarga boolean := false;

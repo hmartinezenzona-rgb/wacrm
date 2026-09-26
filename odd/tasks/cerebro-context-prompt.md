@@ -47,6 +47,20 @@ nothing breaks — not waiting for a week of collector data.
     (beneficiary, route, human attention) that the fresh turn context does not repeat.
   - Next: variant C — strip only the repeated generic lines (today's rates, presentation note,
     horario, client history summary, generic instructions) and keep the state-bearing lines.
+  - Variant C (2026-09-26): line types measured on 1,500 prod memory messages; GENERIC dropped =
+    HISTORIAL de este cliente, EL NEGOCIO ESTA ABIERTO / FUERA DE HORARIO / PROXIMO A CERRAR,
+    TASAS DE HOY, YA te presentaste / PRIMER CONTACTO DEL DIA / EL CLIENTE ABRE CONVERSACION,
+    MINIMO PARA ZELLE, RECARGAS PRECIOS Y PROMO. Everything else (operation state, deposit,
+    beneficiary/route, Zelle/card detected, receipt, human attention, idiom, alerts) is kept.
+  - Run 1 (mocked tools): −23% tokens; the 5 B regressions: 3 fixed (handoff called, right
+    beneficiary, silence on "Ook"); 247370 turned out to be a CURRENT-memory failure (the bot
+    skipped "¿Tienen Zelle?" and an operator answered 3 min later; C answered correctly);
+    246284 inconclusive — the test harness returned an error for calcular_usd (not recorded).
+  - Harness fix: calcular_usd is NOT read-only (calls cerebro_fijar_objetivo, writes the send
+    target) → computed simulator (rate 260) without the side effect; the 5 pure-SELECT tools
+    (consultar_tasas, calcular_envio, calcular_inverso, calcular_usd_desde_gyd,
+    consultar_servicio) run for real against PRODUCTION read-only. With it, 246284 behaves the
+    same in A and C. Full 30-turn rerun in progress.
 - [ ] T2 — Baseline: run the gold battery against the current production prompt (score + cost).
 - [ ] T3 — Reorganized prompt candidate(s): same or better exam score, fewer tokens; then staging;
   production only with the user's OK.

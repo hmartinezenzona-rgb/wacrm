@@ -105,6 +105,13 @@ nothing breaks — not waiting for a week of collector data.
     Production untouched (updatedAt 2026-09-16).
   - [ ] T4.5 — Live smoke in staging with the test contact (a message asking for the account and a
     receipt), then production only with the user's explicit OK (after the 2026-09-27 cutover).
+    - Smoke 2026-09-26 22:42–22:46 UTC: "A q cuenta deposito?" → Osmany Pozo / 6762167 (exec
+      248766); "X la app" → Osmany Services / 6990225 (248774). Receipt (248780, 248784): the
+      vision nodes ran without errors, but `Registrar deposito auto` FAILED with `column reference
+      "deal_id" is ambiguous` inside `cerebro_registrar_deposito`. This is NOT caused by T4: it
+      comes from migration 114's creado path (`ON CONFLICT (deal_id) WHERE deal_id IS NOT NULL`
+      collides with the `deal_id` OUT param). It blocks the receipt smoke, and it would break
+      production if 114 ships as is in the cutover.
 
 ## Constraints
 - Production is not changed by this work without the user's explicit OK (cutover 2026-09-27).

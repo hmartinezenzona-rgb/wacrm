@@ -120,6 +120,11 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
 - `~/cerebro-fase1/PASOS-notificador-produccion-114.md`, `~/cerebro-fase1/PASOS-vigilante-etecsa-deteccion.md`
   (local only, by the user's choice).
 
+## After the cutover (decided by the user 2026-09-26)
+- Cerebro observability T1–T3 (silence reason, token collector, G3 scoped to USD) to production:
+  `~/cerebro-fase1/PASOS-cerebro-observabilidad-produccion.md`. Candidates built and benched
+  (16/16, 7/7); production snapshot taken; production DB function and columns verified.
+
 ## Deferred (not for Sunday)
 Calculator manual lines into the ledger, period lock and expenses, Zelle/Clásica type in the
 history, caption on the delivery proof, moving account numbers out of the agent prompt,

@@ -78,3 +78,4 @@ GREEN; staging put + verify identical; live check with the test contact.
 
 ## Progress
 - 2026-09-26: document created after exploration.
+- 2026-09-26: user decided production AFTER the cutover; runbook `~/cerebro-fase1/PASOS-cerebro-observabilidad-produccion.md`, prod candidates ready.

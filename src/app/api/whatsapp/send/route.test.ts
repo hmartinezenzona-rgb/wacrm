@@ -235,6 +235,16 @@ describe('POST /api/whatsapp/send — contact_id template path', () => {
     })
   })
 
+  it('records which person sent it: sender_id is the session user', async () => {
+    // Production records it on every panel send (fase 3C); without it the
+    // log only says "a human", never which one.
+    const res = await postContactTemplate()
+
+    expect(res.status).toBe(200)
+    expect(messageInserts).toHaveLength(1)
+    expect(messageInserts[0]).toMatchObject({ sender_id: 'user-1', ai_generated: false })
+  })
+
   it('reuses an existing conversation instead of creating a duplicate', async () => {
     existingConversation = {
       id: 'conv-existing',

@@ -112,6 +112,9 @@ export interface SendMessageParams {
    * dashboard send (human) leaves it false.
    */
   aiGenerated?: boolean;
+  /** Who wrote it, when a person is behind it. Only the dashboard send route
+   *  passes it; the bot and the public API leave it unset (NULL). */
+  senderId?: string | null;
 }
 
 export interface SendMessageResult {
@@ -309,6 +312,7 @@ export async function sendMessageToConversation(
     interactivePayload,
     replyToMessageId,
     aiGenerated,
+    senderId,
   } = params;
 
   if (!conversationId) {
@@ -617,6 +621,11 @@ export async function sendMessageToConversation(
       status: 'sent',
       reply_to_message_id: replyToMessageId || null,
       ai_generated: aiGenerated ?? false,
+      // Forward attribution (production's phase 3C): which PERSON wrote it.
+      // Only the dashboard route, the one with a verified user session, sets
+      // it; the bot and the public API stay NULL on purpose — their identity
+      // is `ai_generated`. History is not rewritten.
+      sender_id: senderId ?? null,
     })
     .select()
     .single();

@@ -221,6 +221,9 @@ export async function POST(request: Request) {
         templateMessageParams: template_message_params,
         interactivePayload: interactive_payload,
         replyToMessageId: reply_to_message_id,
+        // Forward attribution: who wrote it. The bot comes in through
+        // `/api/v1/messages` and keeps a NULL `sender_id`, with `ai_generated`.
+        senderId: user.id,
       })
 
       // Una persona ha escrito: el bot se calla en este hilo.

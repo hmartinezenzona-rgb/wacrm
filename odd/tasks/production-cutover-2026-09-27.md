@@ -60,9 +60,10 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
      already ported here (ownership icon, bot pause on agent send, inbox selection/pin, header),
      intentionally retired (pipelines board, deal cards, quick actions), or non-code
      (screenshots, reports, dev pages) — EXCEPT the items in step 6b.
-6b. [ ] Before building: port what production has and this branch lacks:
+6b. [x] Before building: port what production has and this branch lacks:
    - `messages.sender_id` on agent sends (production records it on 611/611 human messages in
      the last 7 days; this branch would stop): `senderId` in `send-message.ts` + `route.ts`.
+     DONE 2026-09-26, commit `73c4841` (TDD: route test RED → GREEN), deployed to staging.
    - Minor, optional: `ai_generated` in `/api/v1` conversations (n8n does not use it — the
      Cerebro reads it from the DB), inbox "undo" after hiding chats, pin rail alignment.
 7b. [ ] Enable the operations panel: it is gated by `profiles.beta_features` containing

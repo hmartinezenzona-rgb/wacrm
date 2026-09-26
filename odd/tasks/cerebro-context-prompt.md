@@ -30,7 +30,7 @@ nothing breaks — not waiting for a week of collector data.
     client history, instructions): stored Human median 3,094 chars vs AI 146. Each call re-sends
     ~23 stale context blocks — cost, and contradictory old context next to the fresh one (old
     rates, old "FUERA DE HORARIO"), a plausible cause of odd replies.
-- [ ] T3a — Memory stores only what the customer said (strip the context block from stored Human
+- [x] T3a (CLOSED, not applied — user decision) — Memory stores only what the customer said (strip the context block from stored Human
   messages; the current turn keeps its fresh context). Candidate mechanism: the existing
   BEFORE INSERT guard on `cerebro_memoria` (migration 105 `cerebro_memoria_sin_basura`). Measure
   with a replay of real calls (history stripped vs original) before any change.
@@ -60,7 +60,11 @@ nothing breaks — not waiting for a week of collector data.
     target) → computed simulator (rate 260) without the side effect; the 5 pure-SELECT tools
     (consultar_tasas, calcular_envio, calcular_inverso, calcular_usd_desde_gyd,
     consultar_servicio) run for real against PRODUCTION read-only. With it, 246284 behaves the
-    same in A and C. Full 30-turn rerun in progress.
+    same in A and C. Full 30-turn rerun started and then STOPPED.
+  - DECISION (user, 2026-09-26): drop the memory/token-saving work. The user does not want to
+    sacrifice context. T3a closed without changes; nothing was applied anywhere. Leftover temp
+    workflow deleted; staging `eval_memoria_replay` emptied. The replay harness stays in
+    `~/cerebro-fase1/pruebas/evals/replay-memoria.py` for future reuse.
 - [ ] T2 — Baseline: run the gold battery against the current production prompt (score + cost).
 - [ ] T3 — Reorganized prompt candidate(s): same or better exam score, fewer tokens; then staging;
   production only with the user's OK.

@@ -34,7 +34,7 @@ live in one place. Staging first (`[STAGING] Cerebro v2 — LEGACY OPTIMIZED V1`
     `extra` whole (checked).
   - Bench `~/cerebro-fase1/pruebas/banco-medir-turno.js` (real node code): RED 0/14 → GREEN
     14/14; every other telemetry field identical to the old code in 3 scenarios.
-- [ ] T2 — Record DeepSeek usage (prompt/completion/cache-hit tokens) in the turn telemetry.
+- [x] T2 — Record DeepSeek usage (prompt/completion/cache-hit tokens) in the turn telemetry.
   - n8n drops the model's tokenUsage from the Agent output (n8n issue #26302); it exists only in
     the sub-node's execution data (prod sample: promptTokens 43,844 per call). No in-flow node
     can read it → out-of-band collector reading finished executions via the n8n API and filling
@@ -50,7 +50,10 @@ live in one place. Staging first (`[STAGING] Cerebro v2 — LEGACY OPTIMIZED V1`
   - Bench `~/cerebro-fase1/pruebas/banco-recolector-tokens.js` over REAL staging executions
     (244580: 1 call, 17,653/12 tokens; 244579: burst turn, no model): RED 3/5 → GREEN 5/5.
     SQL tested on staging rolled back: fills once, a second run updates 0 rows.
-  - Pending: first live run fills execution 244580.
+  - VERIFIED LIVE 2026-09-26: the first run filled 244580 (1 call, 17,653 / 12 tokens) and 244499
+    (1 call, 16,792 / 43). An old turn (163440, 2026-09-16) stays null: the collector only reads the
+    latest 25 successful executions (enough for production's ~7 per 10 min; older execution data
+    may also be pruned by n8n). Only new turns get tokens; no backfill.
 - [x] T3 — Scope G3 to paragraphs where the USD route is in play.
   - G3 fires only if `tarjeta_generica` AND the USD route is in play (Snapshot `datos_zelle`, or
     usd/dólar(es)/zelle/clásica/tropical in the customer's batch text or in the reply).

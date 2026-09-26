@@ -39,6 +39,18 @@ live in one place. Staging first (`[STAGING] Cerebro v2 — LEGACY OPTIMIZED V1`
     the sub-node's execution data (prod sample: promptTokens 43,844 per call). No in-flow node
     can read it → out-of-band collector reading finished executions via the n8n API and filling
     `cerebro_telemetria_turno` by execution_id. Cache-hit tokens are not exposed by LangChain.
+  - User chose option 1 (2026-09-26): collector inside n8n. Credential `n8n API (recolector de
+    tokens)` (httpHeaderAuth X-N8N-API-KEY, id Fo37JUBboJiO8pGa; the key was never printed).
+  - Workflow `[STAGING] Cerebro - Recolector de tokens` (n8n j1SrhNxDe2SZhVbE, active): every 10
+    min GET /api/v1/executions?workflowId=U52y1kSNvhgxvWeb&status=success&includeData=true&limit=25
+    → "Extraer tokens" (sums ai_languageModel tokenUsage per execution) → UPDATE
+    cerebro_telemetria_turno ... WHERE execution_id=$1 AND prompt_tokens IS NULL (idempotent).
+    saveDataSuccessExecution=none (it downloads heavy execution data); errors are kept.
+    Source: `~/cerebro-fase1/candidato-workflow-recolector-tokens-staging.json`.
+  - Bench `~/cerebro-fase1/pruebas/banco-recolector-tokens.js` over REAL staging executions
+    (244580: 1 call, 17,653/12 tokens; 244579: burst turn, no model): RED 3/5 → GREEN 5/5.
+    SQL tested on staging rolled back: fills once, a second run updates 0 rows.
+  - Pending: first live run fills execution 244580.
 - [x] T3 — Scope G3 to paragraphs where the USD route is in play.
   - G3 fires only if `tarjeta_generica` AND the USD route is in play (Snapshot `datos_zelle`, or
     usd/dólar(es)/zelle/clásica/tropical in the customer's batch text or in the reply).

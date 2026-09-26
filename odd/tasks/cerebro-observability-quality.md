@@ -52,7 +52,9 @@ live in one place. Staging first (`[STAGING] Cerebro v2 — LEGACY OPTIMIZED V1`
     turn wrongly got `sin_lote`: "Cerrar lote" runs at the end of EVERY processed batch.
     Fix (TDD): 2 real-case bench cases RED → answered turns get null first, `sin_lote` only
     when the Decisor did not run → 16/16. Redeployed: live dfa833b2-3b2c-4387-9bca-c9532116bfc9
-    == candidate. Pending: second live burst to confirm.
+    == candidate. Second live burst 12:08 UTC ("Hola buenos días / Q / Tal estas"): 244578 and
+    244579 `rafaga_otro_proceso`, 244580 answered with motivo_silencio null ✓, no G3 ✓.
+    T1 and T3 verified live on staging.
 - [ ] T4 — Accounts in one place (design + decision: 9 nodes incl. deposit registration).
 
 ## Checks

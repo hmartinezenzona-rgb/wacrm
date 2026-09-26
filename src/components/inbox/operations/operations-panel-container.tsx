@@ -17,6 +17,13 @@ import { ResolverStateBanner } from "./resolver-state-banner";
  *  fetch instead of refetching per event. */
 const REALTIME_REFRESH_DEBOUNCE_MS = 800;
 
+/** Makes each mounted panel's realtime topic unique. realtime-js hands back
+ *  the EXISTING channel for a topic that is already live, and adding a
+ *  listener to it after `subscribe()` throws — which took the whole inbox
+ *  down on mobile, where the desktop rail (hidden with CSS, still mounted)
+ *  and the mobile contact sheet each render a panel for the same chat. */
+let realtimeTopicSeq = 0;
+
 /** History rows shown once the History section is opened, before "Show
  *  more" — the RPC already caps history at the latest 10 completed ops. */
 const HISTORY_VISIBLE_COUNT = 5;
@@ -206,8 +213,9 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
       }, REALTIME_REFRESH_DEBOUNCE_MS);
     };
 
+    realtimeTopicSeq += 1;
     const channel = supabase
-      .channel(`operations-panel-${conversationId}`)
+      .channel(`operations-panel-${conversationId}-${realtimeTopicSeq}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "deals", filter: `conversation_id=eq.${conversationId}` },

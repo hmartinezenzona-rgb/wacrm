@@ -66,14 +66,22 @@ const mockRealtime = vi.hoisted(() => {
   const channelCalls: string[] = [];
   const removeChannelCalls: unknown[] = [];
 
+  // Like realtime-js >= 2.108: `channel(topic)` hands back the EXISTING channel
+  // when one with that topic is live, and `on()` after `subscribe()` throws.
+  // That is exactly how a second mounted panel crashed the mobile inbox.
   function channel(name: string): MockChannel {
     channelCalls.push(name);
+    const existing = channels.find((c) => c.name === name && !removeChannelCalls.includes(c));
+    if (existing) return existing;
     const chan: MockChannel = {
       name,
       handler: null,
       onCalls: [],
       subscribeCalls: 0,
       on(event, filter, handler) {
+        if (chan.subscribeCalls > 0) {
+          throw new Error(`cannot add \`postgres_changes\` callbacks for realtime:${name} after \`subscribe()\`.`);
+        }
         chan.onCalls.push([event, filter]);
         chan.handler = handler;
         return chan;
@@ -587,7 +595,8 @@ describe("OperationsPanelContainer", () => {
       const { root } = await renderContainer("conv-rt-1");
       await flush();
 
-      expect(mockRealtime.channelCalls).toEqual(["operations-panel-conv-rt-1"]);
+      expect(mockRealtime.channelCalls).toHaveLength(1);
+      expect(mockRealtime.channelCalls[0]).toMatch(/^operations-panel-conv-rt-1/);
       const chan = mockRealtime.channels[0]!;
       expect(chan.onCalls).toHaveLength(1);
       expect(chan.onCalls[0]![0]).toBe("postgres_changes");
@@ -601,6 +610,33 @@ describe("OperationsPanelContainer", () => {
 
       await act(async () => root.unmount());
       expect(mockRealtime.removeChannelCalls).toEqual([chan]);
+    });
+
+    it("two panels for the same conversation (desktop rail + mobile sheet) each get their own channel", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(dataWith(WAITING_OP))));
+      const { OperationsPanelContainer } = await import("./operations-panel-container");
+      const node = document.createElement("div");
+      document.body.appendChild(node);
+      const root = createRoot(node);
+
+      await act(async () =>
+        root.render(
+          <>
+            <OperationsPanelContainer conversationId="conv-rt-2" />
+            <OperationsPanelContainer conversationId="conv-rt-2" />
+          </>,
+        ),
+      );
+      await flush();
+
+      expect(mockRealtime.channels).toHaveLength(2);
+      const [a, b] = mockRealtime.channels;
+      expect(a!.name).not.toBe(b!.name);
+      expect(a!.subscribeCalls).toBe(1);
+      expect(b!.subscribeCalls).toBe(1);
+
+      await act(async () => root.unmount());
+      expect(mockRealtime.removeChannelCalls).toHaveLength(2);
     });
 
     it("coalesces two quick events into exactly one silent fetch after 800ms, with no loading flash and fresh data", async () => {
@@ -678,7 +714,7 @@ describe("OperationsPanelContainer", () => {
 
       expect(mockRealtime.removeChannelCalls).toContain(firstChannel);
       expect(mockRealtime.channels).toHaveLength(2);
-      expect(mockRealtime.channels[1]!.name).toBe("operations-panel-conv-rt-b");
+      expect(mockRealtime.channels[1]!.name).toMatch(/^operations-panel-conv-rt-b-\d+$/);
 
       await act(async () => root.unmount());
     });

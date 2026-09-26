@@ -58,12 +58,16 @@ describe("pipeline UI removal (slice 11 cutover)", () => {
     expect(sidebar).not.toContain('href: "/pipelines"');
   });
 
-  it("quick actions carry no /pipelines shortcut", () => {
-    const quickActions = readFileSync(
-      join(root, "src/components/dashboard/quick-actions.tsx"),
+  it("the dashboard carries no /pipelines shortcut (quick actions were removed)", () => {
+    // The quick-actions strip (new contact / broadcast / automation) was
+    // dropped from the dashboard on 2026-09-25; nothing on it may link
+    // to the pipeline board either.
+    expect(existsSync(join(root, "src/components/dashboard/quick-actions.tsx"))).toBe(false);
+    const dashboard = readFileSync(
+      join(root, "src/app/(dashboard)/dashboard/page.tsx"),
       "utf8",
     );
-    expect(quickActions).not.toContain("href: '/pipelines'");
+    expect(dashboard).not.toContain("/pipelines");
   });
 
   it("the header's page-title map carries no /pipelines entry", () => {

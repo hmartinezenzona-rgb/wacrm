@@ -35,7 +35,6 @@ import type {
 
 import { MetricCard } from '@/components/dashboard/metric-card'
 import { SkeletonCard } from '@/components/dashboard/skeleton'
-import { QuickActions } from '@/components/dashboard/quick-actions'
 import { OperationsFunnel } from '@/components/dashboard/operations-funnel'
 import { ConversationsChart } from '@/components/dashboard/conversations-chart'
 import { ServiceVolumeDonut } from '@/components/dashboard/service-volume-donut'
@@ -167,16 +166,13 @@ export default function DashboardPage() {
       <PageHeader title={t('title')} description={t('description')} />
 
       {/* Oldest in-flight operations across all six non-terminal
-          stages — "needs action now", so this goes before quick
-          actions and everything else: it's the closest thing this
+          stages — "needs action now", so this goes first,
+          before everything else: it's the closest thing this
           dashboard has to a to-do list. Own fetch (cerebro_dashboard_
           operaciones_envejecidas via loadAgedOperations), since this
           reads remittance_operations rows, not the calculator ledger
           ledgerProfit already fetched. */}
       <AgedOperationsQueue data={agedOperations} loading={agedOperationsLoading} />
-
-      {/* Quick actions */}
-      <QuickActions />
 
       {/* Live shape of the one real sequential process this business
           runs (remittance_operations.status) — same widget type

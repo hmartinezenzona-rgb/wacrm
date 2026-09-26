@@ -79,12 +79,6 @@
       "operationsInProgressCount": "{count} {count, plural, =1 {operation} other {operations}} in progress",
       "noChange": "No change {suffix}"
     },
-    "quickActions": {
-      "newContact": "New Contact",
-      "newDeal": "New Deal",
-      "newBroadcast": "New Broadcast",
-      "newAutomation": "New Automation"
-    },
     "activityFeed": {
       "title": "Recent Activity",
       "viewAll": "View all →",

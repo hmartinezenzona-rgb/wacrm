@@ -27,10 +27,13 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
    `supabase/staging/check-production-clean.sql`, `supabase/staging/check-shared-fingerprint.sql`.
    Stop if anything FAILs.
 2. [ ] Backup of the production database before any write.
-3. [ ] DECISION (user): the ~93 legacy open operations (54 ready_to_transfer, 17
-   deposit_verification, 11 incident, 11 collecting_information as of 2026-09-25). Close them
-   before or after the ledger feed (104) exists — before keeps them out of the ledger, after
-   puts them all in the ledger on Sunday. "Start the week clean" implies closing them.
+3. [ ] DECIDED (user, 2026-09-26): start from zero — legacy open operations are NOT carried
+   into the new system. Close them BEFORE migration 104 (the ledger feed) so none enters the
+   ledger. As of 2026-09-26 production has 98 open: 55 ready_to_transfer (deal also "Lista
+   para transferir", likely completed in chat without moving the card), 17 deposit_verification,
+   15 incident, 11 collecting_information (9 of all these have their deal marked lost). SQL to be
+   prepared by the assistant; review the most recent ones (last 1–2 days) with the user first,
+   they may be live customers.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

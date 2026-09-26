@@ -26,7 +26,16 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
 1. [ ] Pre-checks (read-only, production SQL editor):
    `supabase/staging/check-production-clean.sql`, `supabase/staging/check-shared-fingerprint.sql`.
    Stop if anything FAILs.
-2. [ ] Backup of the production database before any write.
+2. [ ] Backup of the production database before any write. Supabase Free plan: NO automatic
+   backups and no point-in-time recovery (Supabase docs recommend exporting yourself).
+   `bash supabase/cutover/respaldar-base.sh produccion` → `~/wacrm-respaldos/produccion-<UTC>.dump`
+   (pg_dump 17 in the postgres:17 image, schemas public/auth/storage, custom format) + .list +
+   .sha256. Needs `~/.config/wacrm/prod-db.env` with `PROD_DATABASE_URL=` (session pooler URI,
+   created by the user; the script refuses a URL of the other project). Tested 2026-09-26 on
+   staging: 101 tables with data, 187 functions; test-restore into an empty Postgres 17 gave
+   identical counts (messages 23, conversations 1, operations 4, auth.users 2); only errors were
+   `ai_knowledge_chunks` needing pgvector (present on Supabase) and "schema public exists".
+   Take one on Saturday as well, so there are two.
 3. [ ] Legacy open operations — DECIDED (user, 2026-09-26): start from zero, not carried over.
    Must run BEFORE migrations 095+ (at the latest before 104, the ledger feed).
    - 3a `supabase/cutover/2026-09-27-01-revisar-operaciones-legado.sql` (read-only): totals and the

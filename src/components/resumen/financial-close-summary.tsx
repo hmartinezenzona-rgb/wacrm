@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { BarChart } from "@/components/tremor/bar-chart";
+import { shortDayLabel } from "@/lib/financial-close/periods";
 import type { FinancialClose } from "@/lib/financial-close/read-model";
 import { fmtGyd, marginPct } from "./financial-close-format";
 
@@ -27,7 +28,7 @@ export function FinancialCloseSummary({ close }: { close: FinancialClose }) {
   const facturadoLabel = t("totales.facturado");
   const retornoLabel = t("totales.retorno");
   const chartData = close.byDay.map((d) => ({
-    day: d.day.slice(5),
+    day: shortDayLabel(d.day),
     [facturadoLabel]: d.facturadoGyd,
     [retornoLabel]: d.retornoGyd,
   }));

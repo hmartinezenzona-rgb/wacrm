@@ -213,6 +213,36 @@ describe("FinancialCloseSection", () => {
     await act(async () => root.unmount());
   });
 
+  it("names the period in words and never moves past today", async () => {
+    const { node, root } = await render();
+    expect(node.textContent).toContain("Semana del 21 al 27 sep 2026");
+    // The current week is still running: there is no next week to see.
+    expect(button(node, T.siguiente).disabled).toBe(true);
+
+    await click(button(node, T.anterior));
+    expect(node.textContent).toContain("Semana del 14 al 20 sep 2026");
+    expect(button(node, T.siguiente).disabled).toBe(false);
+    await click(button(node, T.siguiente));
+    expect(lastRange()).toEqual({ desde: "2026-09-21", hasta: "2026-09-27" });
+    expect(button(node, T.siguiente).disabled).toBe(true);
+    await act(async () => root.unmount());
+  });
+
+  it("refuses a custom range that ends in the future", async () => {
+    const { node, root } = await render();
+    await click(button(node, T.periodo.range));
+    const calls = loadFinancialClose.mock.calls.length;
+    const [desde, hasta] = Array.from(node.querySelectorAll<HTMLInputElement>("input[type='date']"));
+    await act(async () => {
+      setValue(desde, "2026-09-20");
+      setValue(hasta, "2026-09-25");
+    });
+    await click(button(node, T.aplicar));
+    expect(node.textContent).toContain(T.rangoError.future);
+    expect(loadFinancialClose.mock.calls.length).toBe(calls);
+    await act(async () => root.unmount());
+  });
+
   it("validates a custom range before asking for it", async () => {
     const { node, root } = await render();
     await click(button(node, T.periodo.range));

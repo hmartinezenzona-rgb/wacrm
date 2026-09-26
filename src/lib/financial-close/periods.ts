@@ -111,3 +111,46 @@ export function guyanaTime(iso: string | null): string {
     hour12: false,
   }).format(new Date(iso));
 }
+
+// Fixed Spanish names instead of Intl("es"): ICU versions disagree on
+// abbreviations ("sep" vs "sept"), and a label must not change with the
+// server or browser it happens to run on.
+const MONTHS = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
+const MONTHS_SHORT = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+const WEEKDAYS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+
+function parts(day: string) {
+  const date = toUtc(day);
+  return { d: date.getUTCDate(), m: date.getUTCMonth(), y: date.getUTCFullYear(), wd: date.getUTCDay() };
+}
+
+/** "1 sep" — for chart axes. */
+export function shortDayLabel(day: string): string {
+  const { d, m } = parts(day);
+  return `${d} ${MONTHS_SHORT[m]}`;
+}
+
+/** The period in words: "jueves 24 sep 2026", "Semana del 21 al 27 sep 2026",
+ *  "septiembre 2026", "10 sep – 15 sep 2026". */
+export function periodLabel(kind: PeriodKind, range: DateRange): string {
+  const a = parts(range.desde);
+  const b = parts(range.hasta);
+  if (kind === "day" || range.desde === range.hasta) {
+    return `${WEEKDAYS[a.wd]} ${a.d} ${MONTHS_SHORT[a.m]} ${a.y}`;
+  }
+  if (kind === "month") return `${MONTHS[a.m]} ${a.y}`;
+  if (kind === "week") {
+    const from = a.y !== b.y ? `${a.d} ${MONTHS_SHORT[a.m]} ${a.y}` : a.m !== b.m ? `${a.d} ${MONTHS_SHORT[a.m]}` : `${a.d}`;
+    return `Semana del ${from} al ${b.d} ${MONTHS_SHORT[b.m]} ${b.y}`;
+  }
+  const from = a.y !== b.y ? `${a.d} ${MONTHS_SHORT[a.m]} ${a.y}` : `${a.d} ${MONTHS_SHORT[a.m]}`;
+  return `${from} – ${b.d} ${MONTHS_SHORT[b.m]} ${b.y}`;
+}
+
+/** Whether "next period" still lands on a day the business has reached. */
+export function canShiftForward(kind: PeriodKind, range: DateRange, today: string): boolean {
+  return shiftPeriod(kind, range, 1).desde <= today;
+}

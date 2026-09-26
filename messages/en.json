@@ -2035,7 +2035,8 @@
         "missing": "Elige las dos fechas.",
         "invalid": "Fecha no válida.",
         "reversed": "«Desde» no puede ser posterior a «Hasta».",
-        "too_long": "El rango máximo es de 366 días."
+        "too_long": "El rango máximo es de 366 días.",
+        "future": "No se pueden consultar fechas futuras."
       },
       "loadError": "No se pudo cargar el cierre.",
       "reintentar": "Reintentar",

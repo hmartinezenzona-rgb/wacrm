@@ -6,13 +6,22 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { validateRange, type DateRange, type PeriodKind, type RangeError } from "@/lib/financial-close/periods";
+import {
+  canShiftForward,
+  periodLabel,
+  validateRange,
+  type DateRange,
+  type PeriodKind,
+  type RangeError,
+} from "@/lib/financial-close/periods";
 
 const KINDS: PeriodKind[] = ["day", "week", "month", "range"];
 
 interface PeriodPickerProps {
   kind: PeriodKind;
   range: DateRange;
+  /** Today in Guyana: nothing after it can be looked at. */
+  today: string;
   onKindChange: (kind: PeriodKind) => void;
   onShift: (step: -1 | 1) => void;
   onToday: () => void;
@@ -24,6 +33,7 @@ interface PeriodPickerProps {
 export function FinancialClosePeriodPicker({
   kind,
   range,
+  today,
   onKindChange,
   onShift,
   onToday,
@@ -31,10 +41,10 @@ export function FinancialClosePeriodPicker({
 }: PeriodPickerProps) {
   const t = useTranslations("Resumen.cierre");
   const [draft, setDraft] = useState<DateRange>(range);
-  const [rangeError, setRangeError] = useState<RangeError | null>(null);
+  const [rangeError, setRangeError] = useState<RangeError | "future" | null>(null);
 
   const apply = () => {
-    const error = validateRange(draft);
+    const error = validateRange(draft) ?? (draft.hasta > today ? "future" : null);
     setRangeError(error);
     if (!error) onRangeApply(draft);
   };
@@ -63,10 +73,17 @@ export function FinancialClosePeriodPicker({
           <Button type="button" variant="outline" size="icon-sm" aria-label={t("anterior")} onClick={() => onShift(-1)}>
             <ChevronLeft />
           </Button>
-          <span className="min-w-[11rem] text-center text-sm font-medium tabular-nums text-foreground">
-            {range.desde === range.hasta ? range.desde : `${range.desde} → ${range.hasta}`}
+          <span className="min-w-[14rem] px-2 text-center text-sm font-semibold text-foreground first-letter:uppercase">
+            {periodLabel(kind, range)}
           </span>
-          <Button type="button" variant="outline" size="icon-sm" aria-label={t("siguiente")} onClick={() => onShift(1)}>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            aria-label={t("siguiente")}
+            disabled={!canShiftForward(kind, range, today)}
+            onClick={() => onShift(1)}
+          >
             <ChevronRight />
           </Button>
         </div>
@@ -83,6 +100,7 @@ export function FinancialClosePeriodPicker({
             <Input
               type="date"
               className="w-40"
+              max={today}
               value={draft.desde}
               onChange={(e) => setDraft((d) => ({ ...d, desde: e.target.value }))}
             />
@@ -92,6 +110,7 @@ export function FinancialClosePeriodPicker({
             <Input
               type="date"
               className="w-40"
+              max={today}
               value={draft.hasta}
               onChange={(e) => setDraft((d) => ({ ...d, hasta: e.target.value }))}
             />

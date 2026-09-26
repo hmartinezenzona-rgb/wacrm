@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { guyanaToday, periodRange, shiftPeriod, validateRange, MAX_RANGE_DAYS } from "./periods";
+import {
+  canShiftForward,
+  guyanaToday,
+  periodLabel,
+  periodRange,
+  shiftPeriod,
+  shortDayLabel,
+  validateRange,
+  MAX_RANGE_DAYS,
+} from "./periods";
 
 describe("guyanaToday", () => {
   it("returns the Guyana calendar day, not the UTC one (UTC-4, no DST)", () => {
@@ -75,5 +84,40 @@ describe("validateRange", () => {
     expect(validateRange({ desde: "2026-13-01", hasta: "2026-09-01" })).toBe("invalid");
     expect(validateRange({ desde: "2026-09-02", hasta: "2026-09-01" })).toBe("reversed");
     expect(validateRange({ desde: "2025-08-01", hasta: "2026-08-03" })).toBe("too_long");
+  });
+});
+
+describe("periodLabel", () => {
+  it("reads like a sentence, in Spanish, for each kind", () => {
+    expect(periodLabel("day", { desde: "2026-09-24", hasta: "2026-09-24" })).toBe("jueves 24 sep 2026");
+    expect(periodLabel("week", { desde: "2026-09-21", hasta: "2026-09-27" })).toBe("Semana del 21 al 27 sep 2026");
+    expect(periodLabel("week", { desde: "2026-09-28", hasta: "2026-10-04" })).toBe("Semana del 28 sep al 4 oct 2026");
+    expect(periodLabel("week", { desde: "2025-12-29", hasta: "2026-01-04" })).toBe(
+      "Semana del 29 dic 2025 al 4 ene 2026",
+    );
+    expect(periodLabel("month", { desde: "2026-09-01", hasta: "2026-09-30" })).toBe("septiembre 2026");
+    expect(periodLabel("range", { desde: "2026-09-10", hasta: "2026-09-15" })).toBe("10 sep – 15 sep 2026");
+    expect(periodLabel("range", { desde: "2025-12-20", hasta: "2026-01-05" })).toBe("20 dic 2025 – 5 ene 2026");
+    expect(periodLabel("range", { desde: "2026-09-10", hasta: "2026-09-10" })).toBe("jueves 10 sep 2026");
+  });
+});
+
+describe("shortDayLabel", () => {
+  it("day and short month, for chart axes", () => {
+    expect(shortDayLabel("2026-09-01")).toBe("1 sep");
+    expect(shortDayLabel("2026-12-31")).toBe("31 dic");
+  });
+});
+
+describe("canShiftForward", () => {
+  it("allows moving forward only while the next period has started", () => {
+    // Today is Thursday 2026-09-24.
+    expect(canShiftForward("day", { desde: "2026-09-23", hasta: "2026-09-23" }, "2026-09-24")).toBe(true);
+    expect(canShiftForward("day", { desde: "2026-09-24", hasta: "2026-09-24" }, "2026-09-24")).toBe(false);
+    // The current week (still running) has no next week yet.
+    expect(canShiftForward("week", { desde: "2026-09-21", hasta: "2026-09-27" }, "2026-09-24")).toBe(false);
+    expect(canShiftForward("week", { desde: "2026-09-14", hasta: "2026-09-20" }, "2026-09-24")).toBe(true);
+    expect(canShiftForward("month", { desde: "2026-09-01", hasta: "2026-09-30" }, "2026-09-24")).toBe(false);
+    expect(canShiftForward("month", { desde: "2026-08-01", hasta: "2026-08-31" }, "2026-09-24")).toBe(true);
   });
 });

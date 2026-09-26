@@ -94,6 +94,7 @@ export function FinancialCloseSection() {
         key={`${kind}|${range.desde}|${range.hasta}`}
         kind={kind}
         range={range}
+        today={guyanaToday()}
         onKindChange={changeKind}
         onShift={(step) => setRange((current) => shiftPeriod(kind, current, step))}
         onToday={() => setRange(periodRange(kind === "range" ? "day" : kind, guyanaToday()))}

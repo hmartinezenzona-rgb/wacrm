@@ -144,6 +144,8 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        `~/cerebro-fase1/BORRADO-duplicado-luis-enrique-2026-09-27.json`.
      - 2026-09-27 — Katia +5926432832, 2 remesas: 120,000 (97bdadb3…) and 52,000 GYD (91a605f9…)
        → completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Eliandro +5927604004, remesa 41,600 GYD (op b0f3237c…, deal 96608ff3…) →
+       completed, Entregada/won; queue unchanged. No other open ops.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

@@ -72,6 +72,9 @@ The LLM tools and `marcar_destino_usd` keep the old resolver.
 - [x] R3 — Scheduled n8n workflow "Cerebro - Repartos automaticos" (every 2 min, the validated
   prototype code in a Code node) + bench; staging.
 - [x] M4 — Production (126 + reparto), verify.
+- [x] R4 — Reparto v2: Cuban cards (user, 2026-09-27).
+- [ ] R5 — Vision readings stored in the DB, so photo-only repartos and beneficiaries can be
+  detected and measured.
 - [ ] M5 — Measure capture over the following days (weekly rate vs 44% baseline).
 
 ## Progress
@@ -121,3 +124,19 @@ The LLM tools and `marcar_destino_usd` keep the old resolver.
   - Cerebro `jEzlVLCLUaJhVwzs`: the live workflow equalled the snapshot; candidate deployed; bench
     GREEN on live. Rollback `ROLLBACK-cerebro-PRODUCCION-antes-resolver-beneficiario.json`.
   - Reparto workflow `5YseDUEC5IAaiofF` active (every 2 min).
+- 2026-09-27: R4 — Cuban-card reparto (node code v2).
+  - Each card is paired with its phone (8 digits starting with 5, or +53/0053…), read on the
+    card's line or the next 2 lines.
+  - Shares may be in CUP or GYD, including "10mil", and are stored in CUP at today's rate.
+  - A share with no unit is read both ways, never mixed.
+  - A card without its phone means no reparto.
+  - Filler words are never used as a holder name.
+  - Bench: RED (null on e98e868b; then an invented name "tarjeta mil guyanes"), then GREEN 5/5
+    verified repartos, 0 proposals elsewhere.
+  - Against 5 card repartos registered in the DB: 1 exact (e98e868b: 30,000 + 15,000 CUP, phones
+    53280131 / 54475972). The other 4 abstain, because their cards came in photos (0 in text).
+  - Staging end-to-end: 2 cards, 30,000 + 15,000 = 45,000 CUP, phones, locked, complete. The test
+    chat was cancelled.
+  - Production dry run with v2: 0 repartos.
+  - Both scheduled workflows were updated (code verified equal to the file).
+  - Rollback: `ROLLBACK-repartos-*-antes-tarjetas.json`.

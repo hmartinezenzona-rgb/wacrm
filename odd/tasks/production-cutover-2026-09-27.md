@@ -201,6 +201,8 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        completed, Entregada/won; queue unchanged. Leftover 66ba1e21… (collecting_information, 0 GYD,
        2026-08-17, deal bcccd429… already LOST) → CANCELLED on the user's OK (op only); queue
        unchanged. No other open ops.
+     - 2026-09-27 — adrianjerezperez4 +5926930995, remesa 26,000 GYD (op e1401727…, deal ae81c960…) →
+       completed, Entregada/won; queue unchanged. No other open ops.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

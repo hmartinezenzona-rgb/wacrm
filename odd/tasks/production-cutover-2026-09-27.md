@@ -75,6 +75,9 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
      - 2026-09-27 07:54 GY — `feecb06d-4e08-4503-9b48-f3e6561dc162`, Carlos +5926731279,
        6,200 GYD (a recarga, recorded as remesa), ready_to_transfer → completed; its deal
        4a0a5a0a… moved silently to Entregada/won at 08:01 GY (pg_net queue unchanged).
+     - 2026-09-27 08:06 GY — `602282f3-7286-435e-90b4-397bca4d526d`, Carlos +5926731279,
+       55,000 GYD, deposit_verification → completed; deal c3cb8ec8… Por verificar → Entregada/won
+       (done in the chat by an admin; pg_net queue unchanged).
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

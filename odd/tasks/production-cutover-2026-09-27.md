@@ -233,6 +233,9 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        the block; queue unchanged). Backup:
        `~/cerebro-fase1/BORRADO-complemento-5000-adriadni-2026-09-27.json`. This corrects the
        earlier "Osmany Services" entry: only its 114,000 and one 5,000 remain completed.
+     - 2026-09-27 — Liseth +5927250236, remesa 13,000 GYD "Por verificar" (op 184fbdc6…, deal
+       0c3d2676…; its ref appears in no other op) → completed, Entregada/won; queue unchanged. No
+       other open ops.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

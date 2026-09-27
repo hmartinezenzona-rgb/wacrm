@@ -163,6 +163,14 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        completed, Entregada/won; queue unchanged. No other open ops.
      - 2026-09-27 — Yuni +5926508036, remesa 5,000 GYD (op 18308748…, deal 5fdaa71e…) →
        completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Carlos Mora +5927410946: remesa 13,000 GYD (op 0543a69f…, deal 59a81cc4…,
+       verified) → completed, Entregada/won. PHANTOM 4,000 in Incidencia (op d7b62e3c…, deal
+       a2a577d8…, 2026-09-15, Ref 20400641076995): no MMG email with that ref, no similar ref, and
+       no 4,000 GYD email at all from 14 to 16-sep → a vision misread, confirmed. DELETED on the
+       user's request (op first; its Zelle beneficiary Yamile Dominguez 6023173696 cascaded — it
+       was the only beneficiary record in this chat). The 13,000's MMG deposit stayed attached
+       (checked in the block); queue unchanged. Backup:
+       `~/cerebro-fase1/BORRADO-lectura-falsa-carlos-mora-2026-09-27.json`. No other open ops.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

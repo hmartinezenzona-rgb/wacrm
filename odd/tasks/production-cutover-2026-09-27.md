@@ -61,15 +61,20 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
      one, as already done in the chat are closed, without any customer message:
      before the migrations → `status = 'completed'` on remittance_operations only (deals are not
      touched: their stage trigger notifies customers; ops only have the timestamp trigger);
-     after the cutover → ALSO `completed` (user, 2026-09-27: always completed, to organize the
-     work), inside one transaction with `SET LOCAL session_replication_role = replica` and
-     explicit `completed_at = now(), updated_at = now()`. Every trigger on remittance_operations
-     is `tgenabled = 'O'`, so none fires: no notifier (114), no 104 ledger entry, no guards.
-     Verified on staging (rolled back): status completed, pg_net queue 0 → 0, ledger 0 → 0.
-     Guard every UPDATE by id + current status + amount. Step 3b is NOT run.
+     ALSO move the deal, because the legacy CRM shows DEALS ("Lista para transferir"): in ONE DO
+     block, `ALTER TABLE deals DISABLE TRIGGER deals_stage_notify` → `UPDATE deals SET stage_id =
+     Entregada (1b36b34c…)` guarded by id + stage + status (the remaining triggers mark it won,
+     stamp entregado_en and keep the op completed) → `ENABLE TRIGGER` → RAISE if the
+     net.http_request_queue count changed or if the row count is not 1. The MCP role (postgres,
+     table owner) CAN do this; it CANNOT `SET session_replication_role` in production (42501).
+     After the cutover (114 applied) → same pattern on remittance_operations: disable
+     `trg_notify_operation_status_change` and `zzz_remittance_operations_calculator_feed`, set
+     completed, re-enable, check the queue (and that no ledger row was added). Always completed
+     (user, 2026-09-27), never cancelled. Step 3b is NOT run.
    - Manual closes log:
      - 2026-09-27 07:54 GY — `feecb06d-4e08-4503-9b48-f3e6561dc162`, Carlos +5926731279,
-       6,200 GYD (a recarga, recorded as remesa), ready_to_transfer → completed.
+       6,200 GYD (a recarga, recorded as remesa), ready_to_transfer → completed; its deal
+       4a0a5a0a… moved silently to Entregada/won at 08:01 GY (pg_net queue unchanged).
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

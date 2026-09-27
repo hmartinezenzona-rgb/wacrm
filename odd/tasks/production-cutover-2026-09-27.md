@@ -117,6 +117,8 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        other open ops.
      - 2026-09-27 — Frexi +5927567438, 3 remesas: 15,000 (6f15978b…), 20,000 (cd5266d4…),
        100,000 GYD (254415ab…) → completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Rubislandi +5926338345: remesa 28,600 (dab0ad10…), recarga 14,400 (e6f4bc83…),
+       remesa 10,000 GYD (58cab916…) → completed, Entregada/won; queue unchanged. No other open ops.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

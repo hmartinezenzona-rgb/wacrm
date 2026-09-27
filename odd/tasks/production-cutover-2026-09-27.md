@@ -161,6 +161,8 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        exact nor any nearby 5,000 email. The user decided to leave them completed anyway.
      - 2026-09-27 — Suset +5926142690, remesa 5,000 GYD (op a1b31bd5…, deal 5f330d08…) →
        completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Yuni +5926508036, remesa 5,000 GYD (op 18308748…, deal 5fdaa71e…) →
+       completed, Entregada/won; queue unchanged. No other open ops.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

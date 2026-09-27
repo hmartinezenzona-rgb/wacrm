@@ -75,6 +75,7 @@ The LLM tools and `marcar_destino_usd` keep the old resolver.
 - [x] R4 — Reparto v2: Cuban cards (user, 2026-09-27).
 - [x] R5 — Vision readings stored in the DB (migration 128 + Cerebro node) and used by the reparto workflow (v3).
 - [x] R6 — Mixed reparto: Cuban cards + Zelle in one deposit (user, 2026-09-27).
+- [x] R7 — Same phone for several cards, from the customer's own instructions (user, 2026-09-27).
 - [ ] M5 — Measure capture over the following days (weekly rate vs 44% baseline).
 
 ## Progress
@@ -191,3 +192,25 @@ The LLM tools and `marcar_destino_usd` keep the old resolver.
   - Production: 129 applied; md5 equals staging (fb4f5a10…). Dry run v4: 0 repartos. Both
     workflows are on v4.
   - Rollback copies: `ROLLBACK-repartos-*-antes-mixto.json`.
+- 2026-09-27: R7 — same phone for several cards (customer instructions).
+  - Real case ac718b32 (15-Aug, 57,700 GYD): three card photos, then "5x3 / 10x6 / 5x3 en targeta a
+    esta tarjeta", Alicia's Zelle with "y 145 dólares a este zelle", then "las 2 primeras tarjetas
+    confirma a este número 50883020" and "y la 3ra tarjeta confirma a este número 51292073". The
+    second photo was an old receipt printing phone 56094545, which must not be used. Truth taken
+    from the team's proofs: 15,000 / 30,000 / 15,000 CUP + 145 USD.
+  - Detector v5:
+    - the customer's phone instructions override phones read from photos ("las N primeras
+      tarjetas", "la Nra / primera … / última tarjeta", "todas las tarjetas / al mismo número");
+      the last instruction per card wins, and cards are ordered as they appear;
+    - "NxM" counts only N as the amount (the customer's rate is ignored; the exact sum decides the
+      scale);
+    - an amount written with a unit ("145 dólares") wins over a bare number near the account;
+    - 10-digit US numbers with a 5xx area code are accepted; only "53…" without +1 (a Cuban mobile
+      with its country code) is rejected.
+  - Bench: RED on ac718b32 (null), then GREEN 8/8 exact, 0 proposals on the 81 deposits.
+  - Staging end-to-end (temporary webhook, vision readings including the misleading phone): 4
+    beneficiaries, 57,700 exact, locked, complete. The test was cancelled.
+  - Production dry run v5: 3 candidates, 0 repartos. Both workflows are on v5; the code equals the
+    benched file.
+  - Rollback copies: `ROLLBACK-repartos-*-antes-celular.json`.
+  - No DB change was needed (129 already covers mixed repartos).

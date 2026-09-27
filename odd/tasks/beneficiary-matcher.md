@@ -55,7 +55,23 @@ The LLM tools and `marcar_destino_usd` keep the old resolver.
 - [x] M1 — Assertion with real-shaped fixtures, RED.
 - [x] M2 — Migration 126 (function) GREEN on `wacrm-ensayo` + rollback.
 - [x] M3 — Candidate for the two n8n nodes + bench; staging DB + staging Cerebro.
-- [ ] M4 — Production (DB + Cerebro), verify, measure capture over the following days.
+- [ ] R1 — Reparto (user, 2026-09-27: "rendirse no es opción"): one deposit shared among several
+  beneficiaries, each with its amount.
+  - Prototype `~/cerebro-fase1/pruebas/prototipo-reparto-beneficiarios.js`.
+  - Rule: pair each account with the amount written after it or before it (or "a cada una").
+  - Accept only if the amounts add up EXACTLY to the deposit at the day's rate and there is exactly
+    one way to make it add up.
+  - Safeguards:
+    - accounts within 2 h of the deposit and within 1 h of each other;
+    - no reparto when one account alone covers the deposit (amount written with or after it).
+  - Real result: 4 deposits, 10/10 beneficiaries correct, 0 wrong, all verified against the team's
+    delivery proofs (7c310d8c 4/4, a6e9919f 2/2, dd328ea4 2/2, ac2638c5 2/2).
+  - One wrong candidate (dab0ad10, cross-day coincidence) was found and removed by the safeguards.
+- [ ] R2 — DB `cerebro_aplicar_reparto(op, jsonb)` (re-validates the exact sum, writes the
+  beneficiaries, locks `beneficiaries`, audits) + assertion RED→GREEN.
+- [ ] R3 — Scheduled n8n workflow "Cerebro - Repartos automaticos" (every 2 min, the validated
+  prototype code in a Code node) + bench; staging.
+- [ ] M4 — Production (126 + reparto), verify, measure capture over the following days.
 
 ## Progress
 - 2026-09-27: document created.

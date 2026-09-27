@@ -48,11 +48,66 @@ proven first on a local restore of a fresh production backup, never on productio
 - TDD: SQL behavior proven by RED/GREEN in the rehearsal (checks fail before R1/R2, pass after).
 
 ## Tasks
-- [ ] R1 — rates seed script + guards.
-- [ ] R2 — legacy parity backfill script + undo log.
-- [ ] R3 — full rehearsal on a local restore of a fresh production backup; report counts and
+- [x] R1 — rates seed script + guards.
+- [x] R2 — legacy parity backfill script + undo log.
+- [x] R3 — full rehearsal on a local restore of a fresh production backup; report counts and
   sample panel output.
 - [ ] R4 — cutover plan updated, pushed to GitHub.
 
 ## Progress
 - 2026-09-27: document created; rates confirmed by the user; branch pushed to `privado` (6367021).
+- 2026-09-27: R1/R2/R3 done, rehearsed end-to-end on a LOCAL Docker restore of
+  `~/wacrm-respaldos/produccion-20260927T173432Z.dump` (never staging/production). Local DB:
+  official `public.ecr.aws/supabase/postgres:17.6.1.167` image (matches production's Postgres 17,
+  full Supabase role/schema bootstrap). The image's built-in `auth`/`storage` schemas are a
+  different GoTrue/Storage revision than production's — restoring on top produced cascading
+  "column does not exist" errors; fixed by `DROP SCHEMA auth/storage/public CASCADE` (their
+  extensions live in the separate `extensions` schema, untouched) before `pg_restore`. One real
+  gap: `ai_knowledge_chunks` needs `pgvector`, not installed by default — `CREATE EXTENSION vector`
+  then a second `pg_restore` pass picked it up cleanly (13 relations + the `vector` type were the
+  only real errors; everything else across two passes was cosmetic "already exists"). `pg_net`
+  installed too, to assert `net.http_request_queue` stays untouched.
+  - R1 (`2026-09-27-04-tasas-calculadora.sql`): RED confirmed — after 113 without the seed,
+    `SELECT * FROM tasas` returns 0 rows (proven in a rolled-back transaction). Applied between 103
+    and 113: seeds `calculator_rate_versions` for account `465fb4ce-…` (usdt_sell_gyd 260,
+    cup_global_rate 3, usdt_buy_gyd 240, usdt_sell_cup 975, set_by NULL). GREEN confirmed —
+    post-113 `SELECT * FROM tasas` returns exactly usd 260 / gyd 3. Second run correctly refuses
+    ("already has a calculator rate version").
+  - Migrations 095→118 (skip 112, verified its 3 tables already exist with the same shape in the
+    restored production data), 121, 123: ALL applied cleanly on real production data, zero errors.
+    119/120/122 confirmed already live by object (120's function shape, 122's Guyana-day logic
+    present). 114's `#variable_conflict use_column` fix confirmed present via
+    `pg_get_functiondef`. `crm_agregar_beneficiario(uuid,jsonb)` (123) confirmed present.
+  - R2 (`2026-09-27-06-relleno-remesas-legado.sql`): RED — 377 non-cancelled remesas missing
+    `quoted_destination_amount` before. GREEN — 228 filled (single beneficiary or zero-beneficiary
+    with a known delivery_method, USD via zelle/clasica/tropical floor(source/rate), CUP via
+    cuban_card round(source*rate), historical rate from `tasas_historico` by Guyana day), 149
+    correctly left NULL and listed (145 no beneficiary + no delivery_method, 2 with 0 source
+    amount, 2 with an unmapped delivery_method). `cerebro_sync_beneficiarios` step affected 0
+    operations on this dump (the ~1-case estimate predates today's manual op closures). Second run
+    inserted 0 new log rows and changed 0 additional operations — idempotence proven.
+    `remittance_calculator_entries` and `net.http_request_queue` row counts asserted unchanged
+    (0 → 0 both times; the script's own guard would have raised otherwise). `admin_locked_fields`
+    is set on touched fields as a side effect of running as `wacrm.origin='admin'` (096) — intended,
+    documented in the file's header.
+  - Panel RPC (`crm_operaciones_de_conversacion`, called as an authenticated member via
+    `request.jwt.claims`) verified for 3 legacy conversations: one completed CUP remesa (10,000 GYD
+    → 30,000 CUP), one completed Zelle remesa (26,000 GYD → 100 USD), and one of the still-open
+    ones (`unica` resolver result, `ready_to_transfer`, 13,000 GYD → 50 USD, beneficiary amount
+    also 50 — set earlier by 100's own live trigger since the op was already open). All render an
+    amount instead of "amount missing".
+  - Row counts of messages (15,853), conversations (216), contacts (218), deals (404),
+    remittance_operations (569), remittance_beneficiaries (411) and depositos_mmg (1,398) are
+    IDENTICAL before vs after the entire chain (only the new `cutover_legacy_backfill_2026_09_27`
+    table and the one `calculator_rate_versions` row are new) — no row deleted or spuriously
+    created anywhere.
+  - `check-production-clean.sql` run against the restore: ALL PASS. `check-shared-fingerprint.sql`
+    ran to completion (373 objects fingerprinted; it is a compare-against-a-baseline tool, not
+    pass/fail on its own — no baseline to diff against here).
+  - No migration failed on real production data anywhere in the chain — the most important finding
+    of this rehearsal is a negative one: the whole 095→123 chain (with R1 inserted before 113)
+    applies cleanly, in order, on today's actual production data.
+  - `wacrm-ensayo` container left running for inspection:
+    `docker exec -it wacrm-ensayo psql -U supabase_admin -d postgres` (password `ensayo`,
+    port 127.0.0.1:55432). `supabase/cutover/ensayar-cutover.sh` reproduces the whole rehearsal
+    from a fresh dump.

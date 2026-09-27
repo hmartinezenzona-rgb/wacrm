@@ -477,6 +477,19 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
   - FIXED 2026-09-27 with the user's OK: migration 124 applied to production; anon gets
     42501 through the REST API, authenticated still reads all four. Also applied to staging
     (psql with STAGING_DATABASE_URL; the staging MCP connection is read-only), same result.
+- Live test from the test chat "humbe (pruebas)" (operation df82a142), all OK: account answer, receipt
+  → operation created → incident (TransID already used) → admin alert → bot captured the Zelle
+  beneficiary (153 USD, floor) → forced verification notice → completion with proof → ledger ZELLE 153
+  (39,780 / 36,720 / 3,060). The operation was then cancelled as admin; its ledger entry is void.
+  - Incident during the test: the admin chat (5219622896918) was emptied by mistake instead of the
+    test chat. It was restored identically from `~/cerebro-fase1/BORRADO-chat-pruebas-humbe-2026-09-27.json`.
+- Notifier change (user, 2026-09-27): templates only when the 24 h window is closed. "Buscar
+  telefono" returns `ventana_abierta` (customer message in the last 23 h). With the window open the
+  customer gets a normal text with bold, and the admin gets its alert as text in the same shape.
+  With the window closed, templates are used, now with the amount in bold inside `{{1}}`
+  (`*153 Zelle*`, accepted by Meta in a live send).
+  - Bench `banco-enviar.js`: RED, then GREEN 12/12. Deployed and verified live.
+  - Rollback: `~/cerebro-fase1/ROLLBACK-notificador-PRODUCCION-antes-ventana-24h.json`.
 
 ## What arrives with the code deploy (step 7)
 - Operations panel (receipts, verify/force, complete transfer), History collapsed to "History (N)".

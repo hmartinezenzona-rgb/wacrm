@@ -42,6 +42,26 @@ vi.mock("@/lib/remittance-operations/commands", () => ({
   corregirOperacion: vi.fn(),
   corregirBeneficiario: (...args: unknown[]) => corregirBeneficiario(...args),
   reasignarBeneficiario: vi.fn(),
+  agregarBeneficiario: vi.fn(),
+}));
+
+// BeneficiaryAddControl owns its own field-level behavior (covered by
+// beneficiary-add-control.test.tsx) — stubbed here so this file only
+// asserts on what the card passes down and how it toggles the control.
+const BeneficiaryAddControl = vi.fn(
+  ({ onDone, onCancel }: { operationId: string; onDone: () => void; onCancel: () => void }) => (
+    <div data-testid="add-beneficiary-stub">
+      <button type="button" data-testid="add-beneficiary-done" onClick={onDone}>
+        done
+      </button>
+      <button type="button" data-testid="add-beneficiary-cancel" onClick={onCancel}>
+        cancel
+      </button>
+    </div>
+  ),
+);
+vi.mock("./beneficiary-add-control", () => ({
+  BeneficiaryAddControl: (props: unknown) => BeneficiaryAddControl(props as never),
 }));
 
 // The deposit review container fetches on mount and owns its own network
@@ -812,6 +832,84 @@ describe("RemittanceOperationCard", () => {
 
       expect(onChanged).toHaveBeenCalledTimes(1);
       expect(findCompleteButton(node)).not.toBeUndefined();
+      await act(async () => root.unmount());
+    });
+  });
+
+  describe("Add beneficiary button", () => {
+    const ADD_LABEL = en.Inbox.operationsPanel.addBeneficiary;
+
+    it("is absent when the card is not editable", async () => {
+      const { node, root } = await render(operation(), { canEdit: false });
+      expect(button(node, ADD_LABEL)).toBeNull();
+      await act(async () => root.unmount());
+    });
+
+    it("is absent when the operation status is terminal", async () => {
+      const { node, root } = await render(operation({ status: "completed" }));
+      expect(button(node, ADD_LABEL)).toBeNull();
+      await act(async () => root.unmount());
+    });
+
+    it("is absent for a history row even when canEdit is true", async () => {
+      const { node, root } = await render(operation({ isHistory: true, status: "completed" }));
+      expect(button(node, ADD_LABEL)).toBeNull();
+      await act(async () => root.unmount());
+    });
+
+    it("renders next to the Deliver to heading when editable", async () => {
+      const { node, root } = await render(operation());
+      expect(button(node, ADD_LABEL)).not.toBeNull();
+      await act(async () => root.unmount());
+    });
+
+    it("clicking it opens the add-beneficiary control, passing operationId, and hides the button", async () => {
+      const { node, root } = await render(operation({ id: "op-9" }));
+
+      await act(async () =>
+        button(node, ADD_LABEL)!.dispatchEvent(new MouseEvent("click", { bubbles: true })),
+      );
+
+      expect(node.querySelector('[data-testid="add-beneficiary-stub"]')).not.toBeNull();
+      expect(button(node, ADD_LABEL)).toBeNull();
+      expect(BeneficiaryAddControl).toHaveBeenCalledWith(
+        expect.objectContaining({ operationId: "op-9" }),
+      );
+      await act(async () => root.unmount());
+    });
+
+    it("onCancel from the control restores the button", async () => {
+      const { node, root } = await render(operation());
+
+      await act(async () =>
+        button(node, ADD_LABEL)!.dispatchEvent(new MouseEvent("click", { bubbles: true })),
+      );
+      await act(async () =>
+        node
+          .querySelector('[data-testid="add-beneficiary-cancel"]')!
+          .dispatchEvent(new MouseEvent("click", { bubbles: true })),
+      );
+
+      expect(button(node, ADD_LABEL)).not.toBeNull();
+      expect(node.querySelector('[data-testid="add-beneficiary-stub"]')).toBeNull();
+      await act(async () => root.unmount());
+    });
+
+    it("onDone from the control calls onChanged and restores the button", async () => {
+      const onChanged = vi.fn();
+      const { node, root } = await render(operation(), { onChanged });
+
+      await act(async () =>
+        button(node, ADD_LABEL)!.dispatchEvent(new MouseEvent("click", { bubbles: true })),
+      );
+      await act(async () =>
+        node
+          .querySelector('[data-testid="add-beneficiary-done"]')!
+          .dispatchEvent(new MouseEvent("click", { bubbles: true })),
+      );
+
+      expect(onChanged).toHaveBeenCalledTimes(1);
+      expect(button(node, ADD_LABEL)).not.toBeNull();
       await act(async () => root.unmount());
     });
   });

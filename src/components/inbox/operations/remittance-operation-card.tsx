@@ -2,7 +2,7 @@
 
 import { useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowRightLeft, AtSign, Banknote, ChevronDown, CreditCard, Lock, Pencil, Phone, UserRound, Users } from "lucide-react";
+import { ArrowRightLeft, AtSign, Banknote, ChevronDown, CreditCard, Lock, Pencil, Phone, UserPlus, UserRound, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { AccountRole } from "@/lib/auth/roles";
 import { corregirBeneficiario } from "@/lib/remittance-operations/commands";
@@ -14,6 +14,7 @@ import type {
   RemittanceOperationRead,
 } from "@/lib/remittance-operations/types";
 import { OperationCorrectionForm } from "./operation-correction-form";
+import { BeneficiaryAddControl } from "./beneficiary-add-control";
 import { BeneficiaryReassignControl } from "./beneficiary-reassign-control";
 import { CompleteTransferContainer } from "./complete-transfer-container";
 import { CopyChip } from "./copy-chip";
@@ -74,7 +75,7 @@ interface RemittanceOperationCardProps {
  *  still move an operation into one of them — defensive, not dead code. */
 const TERMINAL_STATUSES: ReadonlyArray<string> = ["completed", "cancelled"];
 
-type OpenFormKind = "operation" | "beneficiary" | "reassign" | "complete";
+type OpenFormKind = "operation" | "beneficiary" | "reassign" | "complete" | "addBeneficiary";
 
 interface OpenFormState {
   kind: OpenFormKind;
@@ -419,7 +420,28 @@ export function RemittanceOperationCard({
                   operation.beneficiaries[0],
                   openForm?.kind === "beneficiary" && openForm.beneficiaryId === operation.beneficiaries[0]!.id,
                 )}
+              {editable && openForm?.kind !== "addBeneficiary" && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label={t("addBeneficiary")}
+                  title={t("addBeneficiary")}
+                  onClick={() => toggleForm({ kind: "addBeneficiary" })}
+                >
+                  <UserPlus aria-hidden="true" />
+                </Button>
+              )}
             </div>
+            {openForm?.kind === "addBeneficiary" && (
+              <div className="mt-1.5">
+                <BeneficiaryAddControl
+                  operationId={operation.id}
+                  onDone={handleChanged}
+                  onCancel={() => setOpenForm(null)}
+                />
+              </div>
+            )}
             {operation.beneficiaries.length === 0 ? (
               <p className="mt-1 text-xs text-muted-foreground">{t("noBeneficiaries")}</p>
             ) : (

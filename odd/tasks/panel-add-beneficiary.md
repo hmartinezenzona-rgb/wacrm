@@ -42,8 +42,7 @@ captured the beneficiary.
   without 123, GREEN with it). Commit 67918d4.
 - [x] A2 — API route POST + tests (RED → GREEN). Commit b867ed7.
 - [x] A3 — Panel UI "Add beneficiary" + tests (RED → GREEN) + i18n. Commit a016f52.
-- [ ] A4 — Apply 123 to staging, deploy code to staging, user checks it on crm.onlinefreedom.site.
-  (123 applied + code deployed 2026-09-27; waiting for the user's check.)
+- [x] A4 — Apply 123 to staging, deploy code to staging, user checks it on crm.onlinefreedom.site.
 - [x] A5 — Add 123 to the cutover plan (step 6c, after 121) with its check.
 
 ## Acceptance criteria
@@ -90,3 +89,10 @@ captured the beneficiary.
   staging refs) and deployed to oracle2: release dir 952bd45…, `anterior` → 797bde45… (rollback:
   `ln -sfn` current back + `pm2 restart wacrm-staging`), pm2 online, served cwd verified via /proc,
   /login 200, new route POST → 401 without session. Pending: the user's check in the panel.
+- 2026-09-27: A4 VERIFIED end to end by the user on staging. Test remesa abe2a602… (40,000 GYD,
+  reopened without beneficiary for the test): the user added Zelle Mairenys Llerenas Martinez
+  5613052252, 153 USD (source admin_addition, beneficiaries lock set, audit human_beneficiary_added
+  with the user's id) and delivered it (status completed, delivery_mode proof_sent, audit
+  human_delivery). Ledger entry: ZELLE 153 USD, facturado 39,780 / invertido 36,720 / retorno 3,060.
+  Staging notifier ran at 17:29:43 UTC and reached "Enviar por WaCRM". Bonus: the bot's revert
+  attempt from the resent receipt was blocked (audit automation_revert_suppressed). FEATURE DONE.

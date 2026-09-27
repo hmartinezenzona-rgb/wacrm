@@ -240,6 +240,12 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        a668ce5a…, ref unique) → completed, Entregada/won; queue unchanged. Leftover 5c2be9eb…
        (collecting_information, 0 GYD, 2026-08-17, deal da85a046… already LOST) → CANCELLED on the
        user's OK (op only); queue unchanged. No other open ops.
+     - 2026-09-27 — BULK, on the user's OK: the remaining 6 leftovers of the same kind (open op,
+       collecting_information, 0 GYD, deal already LOST) → CANCELLED by exact id (op only; deals
+       untouched; queue unchanged). marlene Diaz 5927337802 (4f9a4eae…, 2026-08-22), Surany
+       5927559217 (244f707a…, 08-29), Adrismir 5926396623 (a9ce95db…, 09-01), Dannier Zaldibar
+       5927114087 (325bf8f7…, 09-01), Jaila 5926804067 (509f47cd…, 09-14), Librada 5926456891
+       (ba056b93…, 09-23). Afterwards: 0 leftovers of this kind remain in production.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

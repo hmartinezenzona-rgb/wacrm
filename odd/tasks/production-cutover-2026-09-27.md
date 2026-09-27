@@ -306,6 +306,11 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        5926456891 → never deposited, LEFT AS IS (op ba056b93… collecting_information, deal lost).
        Queue unchanged. Note: a first attempt rolled back because the deal→Entregada update makes
        the bridge trigger complete the op before the op UPDATE runs; the guard now accepts it.
+     - 2026-09-27 — Juan +5927669918, Incidencia 36,000 → 26,000 GYD (op cd575955…, deal 7c88d83e…,
+       "TransID existe en MMG pero el monto no coincide"; email 10400578068368 = 26,000, attached)
+       → completed, Entregada/won with a note; queue unchanged. Other open op REPORTED, not
+       touched: 4250ecfd… deposit_verification 5,000 GYD, 2026-08-13, deal 856db1d1… already LOST,
+       Ref 10319372234891 not in the MMG emails.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

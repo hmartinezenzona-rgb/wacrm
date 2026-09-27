@@ -103,7 +103,7 @@ nothing breaks — not waiting for a week of collector data.
     the deployed workflow. Rollback: `~/cerebro-fase1/ROLLBACK-cerebro-staging-antes-datos-negocio.json`
     (PUT it back). Candidate file: `~/cerebro-fase1/candidato-cerebro-staging-datos-negocio.json`.
     Production untouched (updatedAt 2026-09-16).
-  - [ ] T4.5 — Live smoke in staging with the test contact (a message asking for the account and a
+  - [x] T4.5 — Live smoke in staging with the test contact (a message asking for the account and a
     receipt), then production only with the user's explicit OK (after the 2026-09-27 cutover).
     - Smoke 2026-09-26 22:42–22:46 UTC: "A q cuenta deposito?" → Osmany Pozo / 6762167 (exec
       248766); "X la app" → Osmany Services / 6990225 (248774). Receipt (248780, 248784): the
@@ -112,6 +112,14 @@ nothing breaks — not waiting for a week of collector data.
       comes from migration 114's creado path (`ON CONFLICT (deal_id) WHERE deal_id IS NOT NULL`
       collides with the `deal_id` OUT param). It blocks the receipt smoke, and it would break
       production if 114 ships as is in the cutover.
+    - 114 fixed (commit 115537d, applied to staging). The receipt had already been used by a real
+      customer, so for the test (user's request) staging was reset: the dedup fingerprint was
+      deleted, a ledger row `PRUEBA T4 staging - borrar` (ref 20397391101636, 40,000 GYD) was
+      added, and the chat assignment was released. The undo script is
+      `~/cerebro-fase1/RESTAURAR-staging-prueba-comprobante-t4.sql`.
+    - End-to-end 2026-09-26 23:07 UTC (exec 248914, no errors): vision OK → not duplicated →
+      `Registrar deposito auto` creado → cross `verificado` (exact) → the agent replied "Su deposito
+      de 40,000 GYD ha sido verificado… ¿Me pasa los datos de quien recibe?".
 
 ## Constraints
 - Production is not changed by this work without the user's explicit OK (cutover 2026-09-27).
@@ -120,4 +128,4 @@ nothing breaks — not waiting for a week of collector data.
 
 ## Progress
 - 2026-09-26: document created.
-- 2026-09-26: T4.1–T4.4 done in staging; T4.5 (live smoke) and production pending.
+- 2026-09-26: T4.1–T4.5 done in staging (end-to-end receipt verified). Production pending the user's OK.

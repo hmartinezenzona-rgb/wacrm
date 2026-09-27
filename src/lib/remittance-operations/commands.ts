@@ -138,6 +138,23 @@ export function reasignarBeneficiario(
   );
 }
 
+export type AgregarBeneficiarioCommandResult =
+  | { ok: true; id: string; complete: boolean }
+  | { ok: false; status: number; error: string };
+
+export async function agregarBeneficiario(
+  operationId: string,
+  datos: Record<string, unknown>,
+): Promise<AgregarBeneficiarioCommandResult> {
+  const response = await postJsonResult<{ id: string; complete: boolean }>(
+    `/api/remittance-operations/${operationId}/beneficiaries`,
+    "POST",
+    { datos },
+  );
+  if (!response.ok) return response;
+  return { ok: true, id: response.data.id, complete: response.data.complete };
+}
+
 export async function fetchOperationReceipts(
   operationId: string,
 ): Promise<FetchResult<OperationReceiptsRead>> {

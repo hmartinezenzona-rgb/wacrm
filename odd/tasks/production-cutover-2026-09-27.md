@@ -212,6 +212,9 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        lost (stage kept; deals_stage_notify disabled only inside the block, because the bridge
        re-derives the op status from the stage on every deal update), then op → cancelled; queue
        unchanged. No other open ops.
+     - 2026-09-27 — LEAH +5927216685, empty request (0 GYD, Solicitada, 2026-09-22; op 9013b9ae…,
+       deal 02877b98…) → CANCELLED the same way (deal lost, then op cancelled); queue unchanged.
+       No other open ops.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

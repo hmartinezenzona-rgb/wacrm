@@ -251,6 +251,13 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
      - 2026-09-27 — Onaisy Avilas Torres +5926392831, recarga 5,200 → CORRECTED to 6,200 GYD (op
        bf93c90a…, deal 9b3f3605…, "Por verificar", vision misread; note "CORREGIDO a mano") →
        completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Jisckly +5926284148, 2 ops in Incidencia ("TransID existe en MMG pero el monto
+       no coincide"); the MMG emails confirmed the user's amounts: remesa 55,000 → 65,000 (op
+       4b60f25b…, deal 7e55ce07…, TransID 10400648768012) and 69,200 → recarga 6,200 (op 4fc6bd54…,
+       deal 4a7dcc20…, retitled "Recarga", service_type recarga, TransID 20401536969020). Amounts
+       fixed with "CORREGIDO a mano" notes, both MMG deposits attached (deal_id + consumido_en; no
+       triggers on depositos_mmg), both completed, Entregada/won; deals_stage_notify +
+       trg_notify_deal_incidencia disabled only inside the block; queue unchanged. No other open ops.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

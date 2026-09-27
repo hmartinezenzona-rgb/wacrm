@@ -258,6 +258,11 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        fixed with "CORREGIDO a mano" notes, both MMG deposits attached (deal_id + consumido_en; no
        triggers on depositos_mmg), both completed, Entregada/won; deals_stage_notify +
        trg_notify_deal_incidencia disabled only inside the block; queue unchanged. No other open ops.
+     - 2026-09-27 — Katalella +5926967250, Incidencia 0 GYD (op 6bb504a4…, deal f24092be…, App MMG /
+       Pay Merchant, no legible TransID; Zelle beneficiary LAMREY EXPRESS LLC) → CORRECTED per the
+       user to 13,000 GYD / 50 USD Zelle (note "CORREGIDO a mano"), completed, Entregada/won; queue
+       unchanged. NOT attached: the only 13,000 MMG email that day (10401528883918, 15:17 GY) came
+       30 min AFTER the op (14:47) and may belong to another client. No other open ops.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

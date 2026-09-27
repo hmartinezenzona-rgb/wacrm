@@ -433,6 +433,20 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
   `~/cerebro-fase1/PASOS-cerebro-observabilidad-produccion.md`. Candidates built and benched
   (16/16, 7/7); production snapshot taken; production DB function and columns verified.
 
+- NEXT IMPROVEMENTS, in this order (user, 2026-09-27):
+  1. Cerebro beneficiary capture: the bot recorded a beneficiary for only 29 of 68 remesas in the
+     week of 2026-09-21; the rest were handled by humans. Find why (image-only data, human already
+     attending, split payments…) and raise the capture rate. The panel's "Add beneficiary"
+     (migration 123) is the stopgap.
+  2. One source for service tariffs and procedures. Today they are spread over: `cerebro_servicios`
+     (5 free-text fact sheets: combos, traduccion, recargas, mexico, visa — e.g. Mexico says
+     "260 GYD por 1 USD, minimo 13,000" as TEXT, so it will not follow a calculator rate change),
+     `precio_recarga` (500 CUP = 5,200 GYD; 600 CUP = 6,200 GYD), `promo_etecsa`, `tasas` (the
+     calculator after 113), `cerebro_config` (zelle_minimo_gyd…) and the 38,581-char agent prompt
+     (remesa CUP, Zelle, Clásica and Tropical rules live ONLY there). Same approach as the accounts
+     single source: each tariff in one place, everything else reads it, bench proves the bot's
+     answers do not change unless intended.
+
 ## Deferred (not for Sunday)
 Calculator manual lines into the ledger, period lock and expenses, Zelle/Clásica type in the
 history, caption on the delivery proof, moving account numbers out of the agent prompt,

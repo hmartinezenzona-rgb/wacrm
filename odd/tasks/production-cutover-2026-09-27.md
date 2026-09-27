@@ -223,6 +223,16 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        2e27ebe9…, deal c9d4c832…) → completed, Entregada/won; queue unchanged. No other open ops.
      - 2026-09-27 — Laritza +5927496855, remesa 30,000 GYD "Por verificar" (op d8513022…, deal
        8521c2e2…) → completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Adriadni +5926439566: the 5,000 complement is already inside the Zelle 78,000
+       (op df4e9d65…, deal 9331ecd7…, Entregada; MMG 73,000 deposit attached). It was registered 3
+       extra times: 2 in Adriadni's chat ("Por verificar", ops 38f7dd2b… and d79f7bce…, misread
+       refs) and 1 in the admin contact "Osmany Services" (op f254d0ea…, deal 1695451a…, completed
+       earlier today as an "admin test") with the SAME Ref 20401268979551 — the admin had
+       forwarded Adriadni's receipt. All three ops + deals DELETED on the user's OK (no
+       beneficiaries, no deposits attached; the 78,000 and its deposit checked unchanged inside
+       the block; queue unchanged). Backup:
+       `~/cerebro-fase1/BORRADO-complemento-5000-adriadni-2026-09-27.json`. This corrects the
+       earlier "Osmany Services" entry: only its 114,000 and one 5,000 remain completed.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

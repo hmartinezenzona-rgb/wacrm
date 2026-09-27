@@ -318,7 +318,14 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        the original and its deposit checked unchanged inside the block; queue unchanged). Backup:
        `~/cerebro-fase1/BORRADO-duplicado-keila-2026-09-27.json`. No other open ops.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
-   error. Do NOT re-run 119 (superseded by 120, already live).
+   error. REHEARSED 2026-09-27 on a local restore of that day's production dump
+   (`supabase/cutover/ensayar-cutover.sh`, feature `odd/tasks/cutover-rates-and-legacy-parity.md`):
+   the whole chain 095→118 (skip 112), 121, 123 applied with ZERO errors on real production data;
+   row counts of messages/conversations/contacts/deals/operations/beneficiaries/deposits identical.
+   - 4a. RIGHT AFTER 103 and BEFORE 104: run
+     `supabase/cutover/2026-09-27-04-tasas-calculadora.sql` (seeds the calculator for account
+     465fb4ce… with 260 / 3 / 240 / 975, user-confirmed). After 113: `SELECT * FROM tasas` must
+     return usd 260 and gyd 3 (rehearsal: RED empty without the seed, GREEN with it). Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of
      pg_get_functiondef) to 109's bodies: a true no-op. Apply.
    - 110: builds on those same bodies (adds the remittance_operations dual-write). Apply.
@@ -364,6 +371,12 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
    `remittance_admin_audit_action_chk` vocabulary through 104, so it must run after 104). Check:
    `SELECT to_regprocedure('public.crm_agregar_beneficiario(uuid,jsonb)') IS NOT NULL`. Without it,
    remesas whose beneficiary the bot did not capture cannot be completed from the panel.
+6d. [ ] After 123: `supabase/cutover/2026-09-27-06-relleno-remesas-legado.sql` — legacy parity
+   backfill (only NULL fields, COMPLETED remesas only, logged in `cutover_legacy_backfill_2026_09_27`,
+   no notifications, no ledger entries; tested two-pass UNDO in its footer). Rehearsal: 228 completed
+   remesas get their destination amount/currency (rate of their Guyana day), 149 left empty on
+   purpose (no beneficiary and no delivery method to infer the currency), 0 open operations locked,
+   idempotent. Independent review verdict after fixes: safe.
 7. [ ] Deploy the application code of `feat/port-chat-operations-calculator` to production with
    production's own tooling (brought into this branch, commit 6343014; self-test passes):
    ```bash

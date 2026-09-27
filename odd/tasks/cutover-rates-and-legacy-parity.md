@@ -52,7 +52,7 @@ proven first on a local restore of a fresh production backup, never on productio
 - [x] R2 — legacy parity backfill script + undo log.
 - [x] R3 — full rehearsal on a local restore of a fresh production backup; report counts and
   sample panel output.
-- [ ] R4 — cutover plan updated, pushed to GitHub.
+- [x] R4 — cutover plan updated, pushed to GitHub.
 
 ## Progress
 - 2026-09-27: document created; rates confirmed by the user; branch pushed to `privado` (6367021).
@@ -111,3 +111,14 @@ proven first on a local restore of a fresh production backup, never on productio
     `docker exec -it wacrm-ensayo psql -U supabase_admin -d postgres` (password `ensayo`,
     port 127.0.0.1:55432). `supabase/cutover/ensayar-cutover.sh` reproduces the whole rehearsal
     from a fresh dump.
+- 2026-09-27: independent read-only review of R1/R2 (high risk tier because of the executable
+  rehearsal script): SAFE WITH FIXES. Fixed: (1) R2 set `wacrm.origin='admin'` for the whole
+  transaction → now scoped to section 2 only, so an automatic amount computed after section 1's
+  cerebro_sync_beneficiarios is not locked as human; (2) R1's UNDO comment was wrong
+  (calculator_rate_versions is append-only from 103, DELETE always fails) → corrected to "insert a
+  new version"; (3) R2 now fills COMPLETED remesas only, so open ones stay eligible for 100's
+  automatic recalculation. Also found and fixed by the parent: R2's footer UNDO used a plain
+  `UPDATE … FROM log` (applies one log row per op) and left locks → replaced with a tested two-pass
+  UNDO. Re-test in wacrm-ensayo (all in one rolled-back transaction: undo → fixed R2): 919 log rows,
+  233 completed with amount (228 backfilled + 5 pre-existing), 0 open ops locked, pg_net queue and
+  ledger unchanged (0/0). R4: cutover plan steps 4a and 6d.

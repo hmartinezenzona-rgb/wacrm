@@ -104,10 +104,13 @@ COMMIT;
 --        today | 260      | calculadora | ... | usd
 --        today | 3        | calculadora | ... | gyd
 --
--- UNDO (before 113 only — after 113, `calculator_rate_versions` is
--- append-only and this row can no longer be deleted; a correction would
--- instead be a new version via crm_set_calculator_rates):
---   DELETE FROM calculator_rate_versions
---    WHERE account_id = '465fb4ce-33b6-4473-ad2c-42818772f587'
---      AND set_by IS NULL AND usdt_sell_gyd = 260 AND cup_global_rate = 3;
+-- CORRECTING A WRONG VALUE: there is no undo by DELETE. From the moment
+-- migration 103 creates it, `calculator_rate_versions` is append-only
+-- (trigger `calculator_rate_versions_append_only`: any UPDATE or DELETE is
+-- rejected — verified in the rehearsal). `crm_set_calculator_rates` needs an
+-- admin session, unusable from the SQL editor. So a correction is simply a
+-- NEW version inserted the same way as below (the newest one wins):
+--   INSERT INTO calculator_rate_versions
+--     (account_id, cup_global_rate, usdt_buy_gyd, usdt_sell_gyd, usdt_sell_cup)
+--   VALUES ('465fb4ce-33b6-4473-ad2c-42818772f587', <cup>, <buy>, <sell>, <sell_cup>);
 -- =====================================================================

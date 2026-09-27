@@ -124,7 +124,8 @@
 -- =====================================================================
 BEGIN;
 
-SELECT set_config('wacrm.origin', 'admin', true);
+-- `wacrm.origin` is NOT set here on purpose: section 1 must keep the real
+-- automation identity (see section 2's comment).
 
 DO $$
 BEGIN
@@ -206,6 +207,12 @@ END $$;
 -- ---------------------------------------------------------------------
 -- 2. Destination currency / amount / rate / origin, and delivery_method.
 -- ---------------------------------------------------------------------
+-- Admin identity scoped to THIS section only (review fix 2026-09-27). If it
+-- were set for the whole transaction, a beneficiary added by section 1's
+-- cerebro_sync_beneficiarios would make migration 100's recalc trigger write
+-- an automatic amount that 096's guard then locks as if a human typed it,
+-- excluding that op from automatic recalculation forever.
+SELECT set_config('wacrm.origin', 'admin', true);
 SELECT set_config('wacrm.calc_destino', 'on', true); -- see header: preserves quoted_destination_rate/origin as set below
 
 WITH ben_counts AS (
@@ -235,7 +242,10 @@ candidates AS (
   FROM remittance_operations o
   LEFT JOIN single_ben sb ON sb.operation_id = o.id
  WHERE o.service_type = 'remesa'
-   AND o.status <> 'cancelled'
+   -- COMPLETED only (review fix 2026-09-27): an OPEN remesa must stay eligible
+   -- for migration 100's automatic recalculation; writing it here as admin
+   -- would lock its amount and leave it stale after a later deposit.
+   AND o.status = 'completed'
    AND o.quoted_destination_amount IS NULL
 ),
 decided AS (
@@ -377,16 +387,40 @@ COMMIT;
 -- `quoted_destination_amount IS NULL`; a second run finds nothing left to
 -- fill for any operation this run touched and inserts zero new log rows.
 --
--- UNDO (clears exactly what this script set, using its own log — leaves
--- any beneficiary rows cerebro_sync_beneficiarios added, since those are
--- real notes-derived data, not a guess, and are themselves idempotent/
--- harmless to keep):
+-- UNDO (clears exactly what this script set, using its own log; leaves any
+-- beneficiary rows cerebro_sync_beneficiarios added, since those are real
+-- notes-derived data). TWO passes, tested in the rehearsal (2026-09-27): the
+-- admin write that clears the values makes 096's guard re-lock them, so the
+-- second pass drops exactly those lock keys. `array_agg(field)` per operation
+-- matters: a plain `UPDATE … FROM log` would apply only ONE of an operation's
+-- several log rows and leave fields uncleared. Run inside BEGIN … COMMIT:
+--   SELECT set_config('wacrm.origin', 'admin', true);
+--   SELECT set_config('wacrm.calc_destino', 'on', true);
+--   WITH logged AS (
+--     SELECT operation_id, array_agg(DISTINCT field) AS fields
+--       FROM cutover_legacy_backfill_2026_09_27
+--      WHERE table_name = 'remittance_operations'
+--      GROUP BY operation_id
+--   )
 --   UPDATE remittance_operations o
---      SET quoted_destination_amount = NULL,
---          quoted_destination_rate = NULL,
---          quoted_destination_origin = NULL,
---          destination_currency = CASE WHEN l.field = 'destination_currency' THEN NULL ELSE destination_currency END,
---          delivery_method = CASE WHEN l.field = 'delivery_method' THEN NULL ELSE delivery_method END
---     FROM cutover_legacy_backfill_2026_09_27 l
---    WHERE l.operation_id = o.id AND l.table_name = 'remittance_operations';
+--      SET quoted_destination_amount = CASE WHEN 'quoted_destination_amount' = ANY (l.fields) THEN NULL ELSE o.quoted_destination_amount END,
+--          quoted_destination_rate   = CASE WHEN 'quoted_destination_rate'   = ANY (l.fields) THEN NULL ELSE o.quoted_destination_rate END,
+--          quoted_destination_origin = CASE WHEN 'quoted_destination_origin' = ANY (l.fields) THEN NULL ELSE o.quoted_destination_origin END,
+--          destination_currency      = CASE WHEN 'destination_currency'      = ANY (l.fields) THEN NULL ELSE o.destination_currency END,
+--          delivery_method           = CASE WHEN 'delivery_method'           = ANY (l.fields) THEN NULL ELSE o.delivery_method END,
+--          admin_locked_fields       = coalesce(o.admin_locked_fields, '{}'::jsonb) - l.fields
+--     FROM logged l
+--    WHERE l.operation_id = o.id;
+--   -- Second pass: the admin write above made 096's guard re-lock the cleared
+--   -- fields; drop exactly those lock keys (this UPDATE touches no locked field).
+--   WITH logged AS (
+--     SELECT operation_id, array_agg(DISTINCT field) AS fields
+--       FROM cutover_legacy_backfill_2026_09_27
+--      WHERE table_name = 'remittance_operations'
+--      GROUP BY operation_id
+--   )
+--   UPDATE remittance_operations o
+--      SET admin_locked_fields = o.admin_locked_fields - l.fields
+--     FROM logged l
+--    WHERE l.operation_id = o.id;
 -- =====================================================================

@@ -312,6 +312,11 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        touched at first: 4250ecfd… deposit_verification 5,000 GYD, 2026-08-13, deal 856db1d1… already
        LOST, Ref 10319372234891 not in the MMG emails. The user found no 5,000 deposit in the chat →
        op CANCELLED (deal left lost); queue unchanged. No other open ops.
+     - 2026-09-27 — Keila +5927009732: Incidencia 26,000 (op ee54dcf2…, deal 3df32f89…, 13-sep 11:35)
+       was a DUPLICATE of her deal bba98b51… (10:21, same MMG Ref 10400474236305, already completed
+       and holding the deposit) → op + deal DELETED on the user's OK (no deposit, no beneficiary;
+       the original and its deposit checked unchanged inside the block; queue unchanged). Backup:
+       `~/cerebro-fase1/BORRADO-duplicado-keila-2026-09-27.json`. No other open ops.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

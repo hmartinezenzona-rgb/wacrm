@@ -330,6 +330,16 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
      ROLLBACK) for reference, and in production check that
      `pg_get_functiondef('public.cerebro_registrar_deposito(uuid,numeric,text,uuid,text,text)'::regprocedure)`
      contains `#variable_conflict use_column`.
+   - 113 RISK (found 2026-09-27): 113 copies `tasas` into `tasas_historico`, DROPS the table and
+     re-creates `tasas` as a VIEW over `calculator_rate_versions`. In production that table is born
+     EMPTY by 095, so after 113 the bot would find NO rate. Seed the calculator rates for the
+     production account after 103 and BEFORE 113 (via `crm_set_calculator_rates` or an equivalent
+     insert), then check `SELECT * FROM tasas` returns usd and gyd rows. Production today: usd 260,
+     gyd 3. Staging calculator: usdt_sell_gyd 260, cup_global_rate 3, usdt_buy_gyd 240,
+     usdt_sell_cup 975 — the two cost rates need the user's confirmation.
+   - No migration 095–121 contains DELETE / TRUNCATE / DROP TABLE / DROP COLUMN except 113's
+     `DROP TABLE tasas` (rows preserved first). Data-changing blocks at apply time: 107/111
+     recompute open USD-rail quotes only; 113 archives tasas.
    - 112: SKIP in production. Its tables already exist with the same columns and RLS; its only
      effective statement would be `GRANT ALL ... TO anon, authenticated`, which production
      does not have today (hardened by 064). Skipping loses nothing.

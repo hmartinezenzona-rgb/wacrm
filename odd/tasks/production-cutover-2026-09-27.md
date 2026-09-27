@@ -237,9 +237,9 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        0c3d2676…; its ref appears in no other op) → completed, Entregada/won; queue unchanged. No
        other open ops.
      - 2026-09-27 — Enrrique +5927622595, remesa 15,000 GYD "Por verificar" (op f841b689…, deal
-       a668ce5a…, ref unique) → completed, Entregada/won; queue unchanged. Other open op REPORTED,
-       not touched: leftover 5c2be9eb… collecting_information, 0 GYD, 2026-08-17, deal da85a046…
-       already LOST.
+       a668ce5a…, ref unique) → completed, Entregada/won; queue unchanged. Leftover 5c2be9eb…
+       (collecting_information, 0 GYD, 2026-08-17, deal da85a046… already LOST) → CANCELLED on the
+       user's OK (op only); queue unchanged. No other open ops.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

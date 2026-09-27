@@ -56,6 +56,16 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
      triggers). Keeps a record in `cutover_legacy_ops_2026_09_27`; refuses if 104 is applied;
      aborts if any row does not reach its new status. Tested on staging (rolled back): completed,
      cancelled and kept cases correct; the 104 guard refuses.
+   - CHANGED (user, 2026-09-27): NOT from zero. Many legacy open operations are still to be
+     done, so they STAY OPEN and move to the new panel. Only the ones the user confirms, one by
+     one, as already done in the chat are closed, without any customer message:
+     before the migrations → `status = 'completed'` on remittance_operations only (deals are not
+     touched: their stage trigger notifies customers; ops only have the timestamp trigger);
+     after the cutover → `status = 'cancelled'` with the note "ya hecha en el chat" (a completion
+     then would message the customer and feed the 104 ledger). Step 3b is NOT run.
+   - Manual closes log:
+     - 2026-09-27 07:54 GY — `feecb06d-4e08-4503-9b48-f3e6561dc162`, Carlos +5926731279,
+       6,200 GYD (a recarga, recorded as remesa), ready_to_transfer → completed.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

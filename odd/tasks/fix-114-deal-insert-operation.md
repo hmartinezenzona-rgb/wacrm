@@ -48,10 +48,10 @@ panel, the ledger or the customer notifier.
   125, GREEN after).
 
 ## Tasks
-- [ ] F1 — Assertion RED on `wacrm-ensayo`.
-- [ ] F2 — Migration 125 + rollback, GREEN on `wacrm-ensayo`.
-- [ ] F3 — Apply to staging, assertion GREEN there.
-- [ ] F4 — Apply to production + backfill, verify (the test deal gets its operation, then that
+- [x] F1 — Assertion RED on `wacrm-ensayo`.
+- [x] F2 — Migration 125 + rollback, GREEN on `wacrm-ensayo`.
+- [x] F3 — Apply to staging, assertion GREEN there.
+- [x] F4 — Apply to production + backfill, verify (the test deal gets its operation, then that
   test operation is cancelled as admin).
 
 ## Acceptance criteria
@@ -63,3 +63,15 @@ panel, the ledger or the customer notifier.
 
 ## Progress
 - 2026-09-27: document created.
+- 2026-09-27: F1 RED on `wacrm-ensayo`: "case 1: expected 1 operation for the new deal, got 0".
+- 2026-09-27: F2 GREEN on `wacrm-ensayo`: 4/4 PASS.
+  - Mutation check: the trigger without the `cerebro_registrar_deposito` change fails case 3
+    ("expected service_type recarga, got remesa").
+  - Rollback verified: the trigger is gone and 114's DO NOTHING is back.
+  - Commit 56c2439.
+- 2026-09-27: F3 staging: 125 applied with psql; assertion 4/4 PASS. The fixture now creates its
+  own two chats when the DB has no clean ones.
+- 2026-09-27: F4 production: 125 applied via MCP.
+  - md5 of both functions and the trigger is identical to staging.
+  - Backfill: test deal 053d2936 got its operation + its Zelle beneficiary.
+  - That test operation was then cancelled as admin, and the test deal closed as `lost`.

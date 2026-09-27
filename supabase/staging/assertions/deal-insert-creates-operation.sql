@@ -15,6 +15,7 @@ DECLARE
   v_a uuid; v_b uuid;
   v_deal uuid; v_n int; v_op remittance_operations%ROWTYPE;
   v_ref_hi text;
+  v_n_ids uuid[];
   r record;
 BEGIN
   SELECT array_agg(id ORDER BY created_at) INTO STRICT r FROM (
@@ -25,6 +26,19 @@ BEGIN
                         WHERE c.id = v.contact_id)
      ORDER BY v.created_at LIMIT 2) x;
   v_a := (r.array_agg)[1]; v_b := (r.array_agg)[2];
+  -- A small database (staging) may not have two clean chats: create them. The
+  -- phones are fictitious and everything is rolled back with the file.
+  IF v_b IS NULL THEN
+    WITH src AS (SELECT user_id, account_id FROM conversations LIMIT 1),
+    c AS (INSERT INTO contacts (user_id, account_id, phone, name)
+          SELECT user_id, account_id, '5990000125' || n, 'test125 ' || n FROM src, generate_series(1, 2) n
+          RETURNING id, user_id, account_id)
+    INSERT INTO conversations (user_id, account_id, contact_id)
+    SELECT user_id, account_id, id FROM c;
+    SELECT array_agg(v.id ORDER BY c.phone) INTO v_n_ids FROM conversations v JOIN contacts c ON c.id = v.contact_id
+     WHERE c.phone LIKE '5990000125%';
+    v_a := v_n_ids[1]; v_b := v_n_ids[2];
+  END IF;
   IF v_a IS NULL OR v_b IS NULL THEN RAISE EXCEPTION 'fixture: need two clean conversations'; END IF;
 
   -- A TransID above every one received, so cerebro_transid_plausible accepts it.

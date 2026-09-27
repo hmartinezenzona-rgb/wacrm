@@ -131,6 +131,13 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        15,000 GYD (5f89d983…) → completed, Entregada/won; queue unchanged. No other open ops.
      - 2026-09-27 — Idalmis +5927641874, remesa 13,000 GYD (op 7844b27d…, deal 7e143741…) →
        completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Luis Enrique +5927661903: remesa 52,000 GYD (op 4433d370…, deal 35b635b7…) →
+       completed, Entregada/won. DUPLICATE verified: the "Incidencia" 15,000 (op 0c8b2e2e…, deal
+       71c62953…, 2026-09-26 18:22) carries the SAME MMG Ref 20401623619989 as the open 15,000
+       (op d034cc51…, deal 27b05adb…, 17:37, verified) — the bot itself flagged "TransID ya fue
+       usado". Duplicate deal → lost (stage kept, note added; NOT deleted, since deleting a deal
+       frees its deposits), op → cancelled; deals_stage_notify and trg_notify_deal_incidencia
+       disabled only inside the block; queue unchanged. KEPT OPEN: the verified 15,000.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

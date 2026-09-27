@@ -52,10 +52,33 @@ The LLM tools and `marcar_destino_usd` keep the old resolver.
 - Path: `wacrm-ensayo` → staging (DB + staging Cerebro `U52y1kSNvhgxvWeb`) → production.
 
 ## Tasks
-- [ ] M1 — Assertion with real-shaped fixtures, RED.
-- [ ] M2 — Migration 126 (function) GREEN on `wacrm-ensayo` + rollback.
-- [ ] M3 — Candidate for the two n8n nodes + bench; staging DB + staging Cerebro.
+- [x] M1 — Assertion with real-shaped fixtures, RED.
+- [x] M2 — Migration 126 (function) GREEN on `wacrm-ensayo` + rollback.
+- [x] M3 — Candidate for the two n8n nodes + bench; staging DB + staging Cerebro.
 - [ ] M4 — Production (DB + Cerebro), verify, measure capture over the following days.
 
 ## Progress
 - 2026-09-27: document created.
+- 2026-09-27: M1 RED: "function cerebro_resolver_operacion_beneficiario(...) does not exist".
+- 2026-09-27: M2 GREEN on `wacrm-ensayo`, 7/7:
+  - amount (Jose Carlos 100 / Liudis 215);
+  - proximity (Damaris / Daniuska, WhatsApp unicode normalized);
+  - reparto stays ambiguous;
+  - never over another operation's beneficiary;
+  - rule C;
+  - no evidence → ambiguous;
+  - a single op resolves as before.
+  - First draft used a temp table inside a STABLE function; it was replaced by the read-only helper
+    `cerebro_mensajes_cliente_normalizados`.
+  - Mutation check: without the "points to another beneficiary" guard, case 4 fails.
+  - Commit 96f1927.
+- 2026-09-27: M3:
+  - n8n candidates change only the resolver call in `Registrar zelle auto` ($3 account) and
+    `Registrar beneficiario auto` ($2 card).
+  - Bench `~/cerebro-fase1/pruebas/banco-resolver-beneficiario.py` is RED on live, GREEN on the
+    candidates.
+  - Both node queries compile (PREPARE) on `wacrm-ensayo`.
+  - End-to-end with the real Zelle node SQL + 125 + 126: 26,000 → Jose Carlos 7863447729,
+    56,000 → Liudis 7868613281.
+  - Staging: 126 applied, assertion 7/7; staging Cerebro deployed and verified GREEN.
+  - Rollback: `ROLLBACK-cerebro-staging-antes-resolver-beneficiario.json`.

@@ -38,10 +38,10 @@ captured the beneficiary.
 - Advisory ~400 authored lines per task; not a hard cap.
 
 ## Tasks
-- [ ] A1 — Migration 123 `crm_agregar_beneficiario` + rollback + staging assertion (RED on staging
-  without 123, GREEN with it).
-- [ ] A2 — API route POST + tests (RED → GREEN).
-- [ ] A3 — Panel UI "Add beneficiary" + tests (RED → GREEN) + i18n.
+- [x] A1 — Migration 123 `crm_agregar_beneficiario` + rollback + staging assertion (RED on staging
+  without 123, GREEN with it). Commit 67918d4.
+- [x] A2 — API route POST + tests (RED → GREEN). Commit b867ed7.
+- [x] A3 — Panel UI "Add beneficiary" + tests (RED → GREEN) + i18n. Commit a016f52.
 - [ ] A4 — Apply 123 to staging, deploy code to staging, user checks it on crm.onlinefreedom.site.
 - [ ] A5 — Add 123 to the cutover plan (after 118, before 121) with its check.
 
@@ -54,3 +54,30 @@ captured the beneficiary.
 
 ## Progress
 - 2026-09-27: document created.
+- 2026-09-27: A1 done (commit 67918d4). `supabase/migrations/123_add_beneficiary_rpc.sql` +
+  `ROLLBACK-123-add-beneficiary-rpc.sql` + `supabase/staging/assertions/add-beneficiary.sql`.
+  Mirrors 098's auth/lock/audit conventions; requires amount+currency (unlike a correction) since a
+  new beneficiary has no prior row to inherit them from. Discovered mid-task: 114 retired the
+  deals→remittance_operations INSERT/UPDATE mirror trigger, so `corrections.sql`'s
+  "INSERT INTO deals auto-creates an operation" fixture pattern no longer holds — this migration's
+  assertion inserts `remittance_operations` rows directly instead (a deal row is still created for
+  the one case, cerebro_sync_beneficiarios, that needs the deals join). Also had to restate the full
+  current `remittance_admin_audit_action_chk` vocabulary (through 104), not just 098's, since 099/
+  101/104 each redefined that CHECK. RED: staging assertion against staging without 123 fails with
+  "function crm_agregar_beneficiario(uuid, jsonb) does not exist". GREEN: `BEGIN; \i 123; \i
+  add-beneficiary.sql; ROLLBACK;` — 9/9 PASS. Rollback verified clean (`BEGIN; \i 123; \i
+  ROLLBACK-123; ROLLBACK;`). Nothing applied to staging or production.
+- 2026-09-27: A2 done (commit b867ed7). `POST /api/remittance-operations/[operationId]/beneficiaries`
+  + `route.test.ts`, same auth/beta-flag/RPC-error-code pattern as the sibling routes; added
+  `agregarBeneficiario` to `commands.ts`. RED: 15/15 failing (route.ts missing) →
+  GREEN: 15/15 passing (`npx vitest run`).
+- 2026-09-27: A3 done (commit a016f52). `BeneficiaryAddControl` (type select + per-type fields +
+  amount/currency, client-side validation mirroring the RPC) plus its wiring into
+  `RemittanceOperationCard` (icon button next to "Deliver to", hidden when not editable/history/
+  terminal); i18n keys added to `messages/en.json` (the only locale file the panel uses). RED:
+  component import missing / new card tests failing → GREEN: 10/10 (control) + 77/77 (card) passing.
+- 2026-09-27: full-suite verification for A1-A3: `npm test` → 1531 passed, 2 pre-existing failures
+  (`src/lib/dashboard/date-utils.test.ts`, `mondayIndex`, timezone-related) confirmed present on the
+  base commit before this work (stashed and re-verified) — unrelated to this feature. `npx tsc
+  --noEmit` clean. `npx eslint` on all changed files clean. A4/A5 intentionally not started (require
+  applying to staging / touching the cutover plan — out of this writer's scope).

@@ -263,6 +263,13 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        user to 13,000 GYD / 50 USD Zelle (note "CORREGIDO a mano"), completed, Entregada/won; queue
        unchanged. NOT attached: the only 13,000 MMG email that day (10401528883918, 15:17 GY) came
        30 min AFTER the op (14:47) and may belong to another client. No other open ops.
+     - 2026-09-27 — Yaimary +5927137352, 2 Incidencia ops where the bot SUMMED the same receipt sent
+       twice: 104,000 → 52,000 / 200 USD Zelle (op cbb61abd…, deal 2b836fed…, same TransID
+       10401249664068 twice) and 26,000 → 13,000 / 50 USD Zelle (op 22ef3cf1…, deal 5d980d65…;
+       20401508816636 + misread copy 20410508816636). Amounts fixed with notes, MMG deposits
+       attached (52,000 on 22-sep and 13,000 on 25-sep, both confirmed by email), both completed,
+       Entregada/won; notify triggers disabled only inside the block; queue unchanged. No other
+       open ops.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

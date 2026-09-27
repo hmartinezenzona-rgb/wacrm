@@ -111,6 +111,10 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
      - RULE (user, 2026-09-27): whatever the user pastes here was already done and checked
        visually by the user in the chat, so it is completed REGARDLESS of its current status.
        Do not ask about the status again.
+     - 2026-09-27 — zuleika7610 +5927221885, 4 ops of 2026-09-21: remesa 12,400 (35176e5d…) and
+       recargas 6,200 (088429f1…), 12,400 (184f4627…) — all three "Por verificar" — plus recarga
+       12,520 (9769c783…, Lista para transferir) → completed, Entregada/won; queue unchanged. No
+       other open ops.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

@@ -280,6 +280,18 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        Incidencia only for "importe no claro"). Fix note added, both MMG deposits attached, both
        completed, Entregada/won; notify triggers disabled only inside the block; queue unchanged.
        No other open ops.
+     - 2026-09-27 — Jaila +5926804067. MY MISTAKE, CORRECTED: the bulk cancel had hit op 509f47cd…
+       (0 GYD, deal 95a7255f… auto-closed "sin deposito por mas de 72 horas", Zelle beneficiary DTZ
+       SOLUTION LLC). Per the user it was a REAL 39,000 GYD remesa done by an admin → op back to
+       completed at 39,000 (cancelled_at cleared), deal → won / Entregada / 39,000 with a note; no
+       39,000 MMG email found 13–20 Sep, so no deposit attached. Also the 26,200 in Incidencia
+       (op a5c7240f…, deal 7e36dc33…, verified with MMG, 200 GYD over target) → completed,
+       Entregada/won. Queue unchanged. No other open ops.
+     - LESSON: the "0 GYD + deal lost" leftovers are auto-closed requests that may still hide real
+       remittances done off-system. The other 5 bulk-cancelled ones all carry a beneficiary and no
+       deposit; Adrismir and Dannier Zaldibar each have a completed op within 3 days (likely the
+       real one), marlene Diaz, Surany and Librada have none → the user should check those 3 in
+       the chat. Cancelled is reversible.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

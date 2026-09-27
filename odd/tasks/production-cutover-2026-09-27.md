@@ -105,9 +105,12 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        27,560 GYD (op 6b19e3eb…, deal 1aae3065…) → completed, Entregada/won; queue unchanged. No
        other open ops.
      - 2026-09-27 — Juan Carlos Marrero +5927657827: remesa Zelle 26,000 GYD (op 3f0fec82…, deal
-       80fe201c…, deposit verified with MMG) → completed, Entregada/won; queue unchanged. NOT
-       touched, pending the user's answer: 39,000 GYD (op dc2d7139…, 2026-09-26 15:55, "Por
-       verificar", deposit Ref 20401617518434 not crossed with any MMG email).
+       80fe201c…, deposit verified with MMG) → completed, Entregada/won; and 39,000 GYD (op
+       dc2d7139…, deal d08598ef…, was "Por verificar", deposit not crossed with MMG) → completed,
+       Entregada/won after the user's rule below; queue unchanged. No other open ops.
+     - RULE (user, 2026-09-27): whatever the user pastes here was already done and checked
+       visually by the user in the chat, so it is completed REGARDLESS of its current status.
+       Do not ask about the status again.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

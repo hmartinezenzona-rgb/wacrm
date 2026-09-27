@@ -246,6 +246,8 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        5927559217 (244f707a…, 08-29), Adrismir 5926396623 (a9ce95db…, 09-01), Dannier Zaldibar
        5927114087 (325bf8f7…, 09-01), Jaila 5926804067 (509f47cd…, 09-14), Librada 5926456891
        (ba056b93…, 09-23). Afterwards: 0 leftovers of this kind remain in production.
+     - 2026-09-27 — Luis Peres +5927317368, remesa 5,000 GYD "Por verificar" (op 9cda02f0…, deal
+       69fe9b24…, ref unique) → completed, Entregada/won; queue unchanged. No other open ops.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

@@ -73,8 +73,7 @@ The LLM tools and `marcar_destino_usd` keep the old resolver.
   prototype code in a Code node) + bench; staging.
 - [x] M4 — Production (126 + reparto), verify.
 - [x] R4 — Reparto v2: Cuban cards (user, 2026-09-27).
-- [ ] R5 — Vision readings stored in the DB, so photo-only repartos and beneficiaries can be
-  detected and measured.
+- [x] R5 — Vision readings stored in the DB (migration 128 + Cerebro node) and used by the reparto workflow (v3).
 - [ ] M5 — Measure capture over the following days (weekly rate vs 44% baseline).
 
 ## Progress
@@ -140,3 +139,29 @@ The LLM tools and `marcar_destino_usd` keep the old resolver.
   - Production dry run with v2: 0 repartos.
   - Both scheduled workflows were updated (code verified equal to the file).
   - Rollback: `ROLLBACK-repartos-*-antes-tarjetas.json`.
+- 2026-09-27: R5 — vision readings.
+  - Migration 128: table `cerebro_lecturas_vision` + `cerebro_guardar_lecturas_vision`.
+    - The function never raises and is idempotent per (execution, wamid, image hash).
+    - Server-side only.
+    - Assertion `vision-lecturas.sql`: RED, then 5/5 GREEN.
+    - The rollback keeps the history.
+  - Cerebro node 'Guardar lecturas vision' (executeOnce, continue on error), branched off
+    'Parsear vision'.
+    - Structural bench `banco-nodo-lecturas-vision.py`.
+    - The real node query was tested through a temp workflow on staging: 2 readings stored.
+    - Deployed to the staging and production Cerebro; bench GREEN on live.
+    - The prod function md5 equals staging.
+  - Reparto code v3:
+    - a card's phone is read after OR before the card, accepted only if a single direction gives
+      every card its own phone;
+    - [Contacto] cards give the phone and the holder;
+    - "5" = 5 mil, only if the exact sum confirms it;
+    - an announced "para cada persona" is honoured.
+  - The workflow query adds each vision reading as a line written at the photo's time.
+  - Bench: RED on 1054d03b (cards as photos), then GREEN 6/6 exact (phones 56678919 / 54054534 /
+    55773738, 3 x 30,000 CUP, as registered in the DB), 0 proposals elsewhere.
+  - Staging end-to-end with stored vision readings: 3 x 30,000 = 90,000 CUP, phones, locked,
+    complete. The test was cancelled.
+  - Production dry run: 0 repartos.
+  - Both workflows are on v3.
+  - Rollbacks: `ROLLBACK-repartos-*-antes-vision.json`, `ROLLBACK-cerebro-*-antes-lecturas-vision.json`.

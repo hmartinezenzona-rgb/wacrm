@@ -74,6 +74,7 @@ The LLM tools and `marcar_destino_usd` keep the old resolver.
 - [x] M4 — Production (126 + reparto), verify.
 - [x] R4 — Reparto v2: Cuban cards (user, 2026-09-27).
 - [x] R5 — Vision readings stored in the DB (migration 128 + Cerebro node) and used by the reparto workflow (v3).
+- [x] R6 — Mixed reparto: Cuban cards + Zelle in one deposit (user, 2026-09-27).
 - [ ] M5 — Measure capture over the following days (weekly rate vs 44% baseline).
 
 ## Progress
@@ -165,3 +166,28 @@ The LLM tools and `marcar_destino_usd` keep the old resolver.
   - Production dry run: 0 repartos.
   - Both workflows are on v3.
   - Rollbacks: `ROLLBACK-repartos-*-antes-vision.json`, `ROLLBACK-cerebro-*-antes-lecturas-vision.json`.
+- 2026-09-27: R6 — mixed reparto (cards + Zelle in one deposit).
+  - Real case 67c1aa23 (11-Aug): the bot confirmed 14,000 + 14,000 CUP to two cards (phone
+    51292073, read from the card photos) + 55 USD to Richel Moreno Ramos. The structured data lost
+    the cards: the Zelle note came after the REPARTO block and the latest block wins in
+    `cerebro_sync_beneficiarios`.
+  - Detector v4:
+    - mixed groups are summed in GYD (USD x usd rate + card shares in GYD or CUP ÷ cup rate), exact
+      or less than 1 USD left over (Zelle rounded down);
+    - "a cada tarjeta" applies to the cards only;
+    - a phone read on the card's own line (vision) may repeat, while borrowed phones must be
+      distinct;
+    - "a cada" and "tarjeta" count as amount context.
+  - Bench: RED on 67c1aa23 (null), then GREEN 7/7 exact (the mixed one matches what the bot
+    confirmed), 0 proposals on the 81 deposits.
+  - Migration 129: `cerebro_aplicar_reparto` accepts USD + CUP together, checked in GYD with the
+    same rule; one-currency repartos are unchanged.
+    - Assertion cases 9-11: RED ("formato"), then 11/11 GREEN (exact mixed applied, <1 USD left
+      applied, 500 GYD uncovered refused).
+    - Rollback restores 127's body (verified).
+    - Commit 2fced05.
+  - Staging: 129 applied (11/11). End-to-end with stored vision readings: 2 cards x 15,000 CUP + 55
+    USD = 24,300 GYD, locked, complete. The test was cancelled.
+  - Production: 129 applied; md5 equals staging (fb4f5a10…). Dry run v4: 0 repartos. Both
+    workflows are on v4.
+  - Rollback copies: `ROLLBACK-repartos-*-antes-mixto.json`.

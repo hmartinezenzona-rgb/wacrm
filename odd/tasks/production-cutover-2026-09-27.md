@@ -474,7 +474,8 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
   `_operaciones_envejecidas` are executable by `anon`.
   - Cause: those migrations GRANT to authenticated without revoking PUBLIC.
   - Staging is the same, so this is not a cutover regression.
-  - They expose aggregate volume only. The fix is `REVOKE EXECUTE … FROM PUBLIC, anon`.
+  - FIXED 2026-09-27 with the user's OK: migration 124 applied to production; anon gets
+    42501 through the REST API, authenticated still reads all four.
 
 ## What arrives with the code deploy (step 7)
 - Operations panel (receipts, verify/force, complete transfer), History collapsed to "History (N)".

@@ -43,6 +43,7 @@ captured the beneficiary.
 - [x] A2 — API route POST + tests (RED → GREEN). Commit b867ed7.
 - [x] A3 — Panel UI "Add beneficiary" + tests (RED → GREEN) + i18n. Commit a016f52.
 - [ ] A4 — Apply 123 to staging, deploy code to staging, user checks it on crm.onlinefreedom.site.
+  (123 applied + code deployed 2026-09-27; waiting for the user's check.)
 - [x] A5 — Add 123 to the cutover plan (step 6c, after 121) with its check.
 
 ## Acceptance criteria
@@ -83,3 +84,9 @@ captured the beneficiary.
   applying to staging / touching the cutover plan — out of this writer's scope).
 - 2026-09-27: parent spot check: staging assertion 9/9 PASS (BEGIN…ROLLBACK), new tests 102/102;
   review assess = medium (sonnet writer → writer self-verification + parent spot check). A5 done.
+- 2026-09-27: A4 staging part done. 123 applied to staging (function present, anon cannot execute,
+  assertion 9/9 PASS after apply). Code 952bd45 built locally (Node 20.20.2, WACRM_ENVIRONMENT=staging
+  added to ~/.config/wacrm/staging-build.env, manifest environment=staging, bundle 0 prod refs / 33
+  staging refs) and deployed to oracle2: release dir 952bd45…, `anterior` → 797bde45… (rollback:
+  `ln -sfn` current back + `pm2 restart wacrm-staging`), pm2 online, served cwd verified via /proc,
+  /login 200, new route POST → 401 without session. Pending: the user's check in the panel.

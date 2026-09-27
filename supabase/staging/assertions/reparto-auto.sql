@@ -115,4 +115,43 @@ BEGIN
     RAISE EXCEPTION 'case 8: a closed operation must be refused, got %', v_r;
   END IF;
   RAISE NOTICE 'PASS 8: a closed operation is refused';
+  -- 9. MIXED (migration 129): 2 cards x 5,000 GYD (15,000 CUP at 3) + 55 USD Zelle = 24,300 GYD exact
+  --    (chat 67c1aa23, 11-Aug, the reparto the bot confirmed to the customer).
+  INSERT INTO deals (user_id, account_id, contact_id, conversation_id, pipeline_id, stage_id, title, value, currency, notes, status)
+  VALUES (v_user, v_acc, v_ct, v_conv, c_pipeline, c_lista, 'test129a', 24300, 'GYD', 'DEPOSITO: 24,300 GYD', 'open')
+  RETURNING id INTO v_deal;
+  SELECT id INTO v_op FROM remittance_operations WHERE deal_id = v_deal;
+  v_r := cerebro_aplicar_reparto(v_op, '[{"tipo":"cuban_card","cuenta":"9238129972337028","celular":"51292073","monto":15000,"moneda":"CUP"},
+                                         {"tipo":"cuban_card","cuenta":"9238959871823862","celular":"51292073","monto":15000,"moneda":"CUP"},
+                                         {"tipo":"zelle","cuenta":"3059631942","nombre":"Richel Moreno Ramos","monto":55,"moneda":"USD"}]');
+  SELECT count(*) INTO v_n FROM remittance_beneficiaries WHERE operation_id = v_op AND status = 'vigente';
+  IF NOT (v_r->>'aplicado')::boolean OR v_n <> 3 THEN RAISE EXCEPTION 'case 9: mixed exact reparto should apply, got % (%)', v_r, v_n; END IF;
+  IF NOT crm_beneficiarios_completos(v_op) THEN RAISE EXCEPTION 'case 9: the mixed reparto should be complete'; END IF;
+  RAISE NOTICE 'PASS 9: a mixed cards + Zelle reparto that covers the deposit exactly is applied';
+
+  -- 10. MIXED with the Zelle rounded down (chat 1c49bcb0 shape): 226 USD + 10,000 + 5,000 GYD
+  --     (30,000 + 15,000 CUP) = 73,760 of a 74,000 deposit: 240 GYD left, less than 1 USD → applied.
+  INSERT INTO deals (user_id, account_id, contact_id, conversation_id, pipeline_id, stage_id, title, value, currency, notes, status)
+  VALUES (v_user, v_acc, v_ct, v_conv, c_pipeline, c_lista, 'test129b', 74000, 'GYD', 'DEPOSITO: 74,000 GYD', 'open')
+  RETURNING id INTO v_deal;
+  SELECT id INTO v_op FROM remittance_operations WHERE deal_id = v_deal;
+  v_r := cerebro_aplicar_reparto(v_op, '[{"tipo":"zelle","cuenta":"naranjoraciel@gmail.com","nombre":"Raciel Díaz","monto":226,"moneda":"USD"},
+                                         {"tipo":"cuban_card","cuenta":"9224069994566921","celular":"51265782","monto":30000,"moneda":"CUP"},
+                                         {"tipo":"cuban_card","cuenta":"9224069996547903","celular":"58192752","monto":15000,"moneda":"CUP"}]');
+  IF NOT (v_r->>'aplicado')::boolean THEN RAISE EXCEPTION 'case 10: less than 1 USD left over should be accepted, got %', v_r; END IF;
+  RAISE NOTICE 'PASS 10: a mixed reparto leaving less than 1 USD (Zelle rounded down) is applied';
+
+  -- 11. MIXED that leaves 1 USD or more uncovered → refused, nothing written.
+  INSERT INTO deals (user_id, account_id, contact_id, conversation_id, pipeline_id, stage_id, title, value, currency, notes, status)
+  VALUES (v_user, v_acc, v_ct, v_conv, c_pipeline, c_lista, 'test129c', 74000, 'GYD', 'DEPOSITO: 74,000 GYD', 'open')
+  RETURNING id INTO v_deal;
+  SELECT id INTO v_op FROM remittance_operations WHERE deal_id = v_deal;
+  v_r := cerebro_aplicar_reparto(v_op, '[{"tipo":"zelle","cuenta":"naranjoraciel@gmail.com","nombre":"Raciel Díaz","monto":225,"moneda":"USD"},
+                                         {"tipo":"cuban_card","cuenta":"9224069994566921","celular":"51265782","monto":30000,"moneda":"CUP"},
+                                         {"tipo":"cuban_card","cuenta":"9224069996547903","celular":"58192752","monto":15000,"moneda":"CUP"}]');
+  SELECT count(*) INTO v_n FROM remittance_beneficiaries WHERE operation_id = v_op;
+  IF (v_r->>'aplicado')::boolean OR v_r->>'motivo' <> 'suma_no_cuadra' OR v_n <> 0 THEN
+    RAISE EXCEPTION 'case 11: a mixed reparto leaving 500 GYD uncovered must be refused, got % (%)', v_r, v_n;
+  END IF;
+  RAISE NOTICE 'PASS 11: a mixed reparto that does not cover the deposit is refused';
 END $$;

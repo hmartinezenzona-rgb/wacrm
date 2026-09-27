@@ -121,6 +121,11 @@ nothing breaks — not waiting for a week of collector data.
       `Registrar deposito auto` creado → cross `verificado` (exact) → the agent replied "Su deposito
       de 40,000 GYD ha sido verificado… ¿Me pasa los datos de quien recibe?".
 
+  - 2026-09-27: the user moved T4 to production as the FINAL step of the cutover (step 9 of
+    `odd/tasks/production-cutover-2026-09-27.md`). The bench gained `--entorno produccion` (read-only)
+    and `--confirmo-produccion` (required to deploy there). Proven on the production Cerebro without
+    deploying: ROJO as is, VERDE with the candidate (7 fields identical, 16 deposit cases identical).
+
 ## Constraints
 - Production is not changed by this work without the user's explicit OK (cutover 2026-09-27).
 - Exams call the real model (small cost); nothing writes or sends.

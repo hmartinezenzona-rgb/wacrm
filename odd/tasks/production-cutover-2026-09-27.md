@@ -397,6 +397,18 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
 8. [ ] Smoke test on production: login, inbox + operations panel, /resumen (financial close,
    history with Destino column), /dashboard (no money widgets, no quick actions), /calculadora.
 
+9. [ ] FINAL STEP (user, 2026-09-27): Cerebro single source for accounts/holders (T4 of
+   `odd/tasks/cerebro-context-prompt.md`) to the PRODUCTION Cerebro `jEzlVLCLUaJhVwzs`.
+   Prepared and proven read-only on 2026-09-27: `python3 ~/cerebro-fase1/pruebas/banco-datos-negocio.py
+   --entorno produccion --rojo` → ROJO (literals in 8 nodes) and `--entorno produccion` → VERDE
+   (8 fields in 8 nodes, 7 text fields rendered byte-identical, 16 deposit cases identical; candidate
+   `~/cerebro-fase1/candidato-cerebro-produccion-datos-negocio.json`). Execute:
+   `python3 ~/cerebro-fase1/pruebas/banco-datos-negocio.py --entorno produccion --desplegar --confirmo-produccion`
+   (refuses without --confirmo-produccion and if not VERDE; saves
+   `~/cerebro-fase1/ROLLBACK-cerebro-produccion-antes-datos-negocio.json` first and re-verifies the
+   deployed workflow). Rollback: PUT that ROLLBACK json back. Then a live check from the test contact
+   (ask for the account → Osmany Pozo 6762167; "por la app" → Osmany Services 6990225).
+
 ## What arrives with the code deploy (step 7)
 - Operations panel (receipts, verify/force, complete transfer), History collapsed to "History (N)".
 - /resumen financial close (day/week/month/range by Guyana day, per service, per day, detail,

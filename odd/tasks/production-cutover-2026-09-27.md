@@ -26,7 +26,7 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
 1. [ ] Pre-checks (read-only, production SQL editor):
    `supabase/staging/check-production-clean.sql`, `supabase/staging/check-shared-fingerprint.sql`.
    Stop if anything FAILs.
-2. [ ] Backup of the production database before any write. Supabase Free plan: NO automatic
+2. [x] Backup of the production database before any write. Supabase Free plan: NO automatic
    backups and no point-in-time recovery (Supabase docs recommend exporting yourself).
    `bash supabase/cutover/respaldar-base.sh produccion` → `~/wacrm-respaldos/produccion-<UTC>.dump`
    (pg_dump 17 in the postgres:17 image, schemas public/auth/storage, custom format) + .list +
@@ -46,7 +46,7 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
    - SATURDAY BACKUP TAKEN: `~/wacrm-respaldos/produccion-20260926T162600Z.dump` (5.8 MB, 96
      tables with data, 133 functions). Test restore: messages 15,633, operations 562, users 6 —
      identical to production. Take the Sunday one right before step 3.
-3. [ ] Legacy open operations — DECIDED (user, 2026-09-26): start from zero, not carried over.
+3. [x] Legacy open operations — DECIDED (user, 2026-09-26): start from zero, not carried over.
    Must run BEFORE migrations 095+ (at the latest before 104, the ledger feed).
    - 3a `supabase/cutover/2026-09-27-01-revisar-operaciones-legado.sql` (read-only): totals and the
      ones touched in the last 48 h. On 2026-09-26: 98 open (55 ready_to_transfer → completed,
@@ -317,7 +317,7 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        and holding the deposit) → op + deal DELETED on the user's OK (no deposit, no beneficiary;
        the original and its deposit checked unchanged inside the block; queue unchanged). Backup:
        `~/cerebro-fase1/BORRADO-duplicado-keila-2026-09-27.json`. No other open ops.
-4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
+4. [x] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. REHEARSED 2026-09-27 on a local restore of that day's production dump
    (`supabase/cutover/ensayar-cutover.sh`, feature `odd/tasks/cutover-rates-and-legacy-parity.md`):
    the whole chain 095→118 (skip 112), 121, 123 applied with ZERO errors on real production data;
@@ -362,22 +362,22 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
    - 112: SKIP in production. Its tables already exist with the same columns and RLS; its only
      effective statement would be `GRANT ALL ... TO anon, authenticated`, which production
      does not have today (hardened by 064). Skipping loses nothing.
-5. [ ] Right after 114: repoint the customer notifier —
+5. [x] Right after 114: repoint the customer notifier —
    `~/cerebro-fase1/PASOS-notificador-produccion-114.md` (pre-check SQL, `n8n.py put`, verify).
    Between 114 and this step no customer notification is sent.
-6. [ ] Migration 121 (`crm_cierre_financiero`, financial close on /resumen).
-6c. [ ] Migration 123 (`crm_agregar_beneficiario`, panel "Add beneficiary"; feature
+6. [x] Migration 121 (`crm_cierre_financiero`, financial close on /resumen).
+6c. [x] Migration 123 (`crm_agregar_beneficiario`, panel "Add beneficiary"; feature
    `odd/tasks/panel-add-beneficiary.md`). Apply after 118/121 (it restates the full
    `remittance_admin_audit_action_chk` vocabulary through 104, so it must run after 104). Check:
    `SELECT to_regprocedure('public.crm_agregar_beneficiario(uuid,jsonb)') IS NOT NULL`. Without it,
    remesas whose beneficiary the bot did not capture cannot be completed from the panel.
-6d. [ ] After 123: `supabase/cutover/2026-09-27-06-relleno-remesas-legado.sql` — legacy parity
+6d. [x] After 123: `supabase/cutover/2026-09-27-06-relleno-remesas-legado.sql` — legacy parity
    backfill (only NULL fields, COMPLETED remesas only, logged in `cutover_legacy_backfill_2026_09_27`,
    no notifications, no ledger entries; tested two-pass UNDO in its footer). Rehearsal: 228 completed
    remesas get their destination amount/currency (rate of their Guyana day), 149 left empty on
    purpose (no beneficiary and no delivery method to infer the currency), 0 open operations locked,
    idempotent. Independent review verdict after fixes: safe.
-7. [ ] Deploy the application code of `feat/port-chat-operations-calculator` to production with
+7. [x] Deploy the application code of `feat/port-chat-operations-calculator` to production with
    production's own tooling (brought into this branch, commit 6343014; self-test passes):
    ```bash
    export PATH=~/.local/node-v20.20.2-linux-x64/bin:$PATH        # Node 20 = the servers' version
@@ -403,14 +403,14 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
      DONE 2026-09-26, commit `73c4841` (TDD: route test RED → GREEN), deployed to staging.
    - Minor, optional: `ai_generated` in `/api/v1` conversations (n8n does not use it — the
      Cerebro reads it from the DB), inbox "undo" after hiding chats, pin rail alignment.
-7b. [ ] Enable the operations panel: `supabase/cutover/2026-09-27-03-activar-panel-operaciones.sql`.
+7b. [x] Enable the operations panel: `supabase/cutover/2026-09-27-03-activar-panel-operaciones.sql`.
    Gated per user by `profiles.beta_features` containing `operations_panel`; production's 5
    profiles all have it empty. Idempotent; tested on staging (rolled back). Per-user off switch
    in the file's comment.
 8. [ ] Smoke test on production: login, inbox + operations panel, /resumen (financial close,
    history with Destino column), /dashboard (no money widgets, no quick actions), /calculadora.
 
-9. [ ] FINAL STEP (user, 2026-09-27): Cerebro single source for accounts/holders (T4 of
+9. [x] FINAL STEP (user, 2026-09-27): Cerebro single source for accounts/holders (T4 of
    `odd/tasks/cerebro-context-prompt.md`) to the PRODUCTION Cerebro `jEzlVLCLUaJhVwzs`.
    Prepared and proven read-only on 2026-09-27: `python3 ~/cerebro-fase1/pruebas/banco-datos-negocio.py
    --entorno produccion --rojo` → ROJO (literals in 8 nodes) and `--entorno produccion` → VERDE
@@ -421,6 +421,60 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
    `~/cerebro-fase1/ROLLBACK-cerebro-produccion-antes-datos-negocio.json` first and re-verifies the
    deployed workflow). Rollback: PUT that ROLLBACK json back. Then a live check from the test contact
    (ask for the account → Osmany Pozo 6762167; "por la app" → Osmany Services 6990225).
+
+## Execution log — production cutover 2026-09-27 (UTC)
+- Step 1: the pre-check scripts ran ALL PASS against the local restore of that day's production
+  dump (rehearsal R3); they were not re-run against live production.
+- Step 2: `~/wacrm-respaldos/produccion-20260927T182157Z.dump` taken right before the first write.
+- 095 → 107 applied, and R1 seeded the rates (`calculator_rates_vigentes`: 3 / 240 / 260 / 975).
+- 108 applied.
+- 109: not re-sent. All 7 production bodies and ACLs are byte-identical to the file
+  (md5 of prosrc + proacl, 7/7), so applying it would be a no-op.
+- 110: not applied (deviation from the plan). 114 fully replaces all three of its functions and
+  110 has no other objects. The final fingerprint (below) proves the end state is identical.
+- 111 applied. The two open USD operations recomputed with floor (15,000 GYD → 57 USD).
+- 113 applied: `tasas` is now a view returning usd 260 and gyd 3. `tasas_historico` keeps the 4
+  archived rows.
+- 114 applied in one atomic call. Notifier pre-check 5/5 true, and the `#variable_conflict
+  use_column` fix is present.
+- Step 5 done right after: `n8n.py put wGud0KGR6eMqqfMQ`, verifier `RESULT: OK - live equals the
+  tested candidate`.
+- 115, 116, 117, 118, 121 and 123 applied, with each check true.
+- Fingerprint compared with `wacrm-ensayo` (same search_path, ACL excluded because the rehearsal
+  restore has no ACLs): all 256 public functions, every trigger, table column set and constraint
+  are identical.
+  - The only extra object in the rehearsal is `cutover_legacy_backfill_2026_09_27`, which R2 had
+    not created in prod yet at that point.
+  - The only other difference is the deparse of the `cerebro_resumen_volumen` view: implicit
+    `AS text` aliases re-written by dump/restore. Cosmetic, and the view is not touched by the
+    cutover.
+- Step 6d (R2) applied. It filled 228 operations (919 log rows), left 149 undecided, locked 0 open
+  operations, and left the ledger at 0 rows. All figures are identical to the rehearsal.
+  - History counts are unchanged: messages 15,853, conversations 216, contacts 218, deals 404,
+    operations 569, beneficiaries 411, deposits 1,398.
+- Step 7: artifact 854ad65 built. Manifest: production, project hqztotshnlzaiziwjyzh; bundle has
+  32 prod refs, 0 staging refs and no .env.
+  - Deployed to oracle: `current` → 854ad65, `anterior` → 83422d9.
+  - wacrm.onlinefreedom.site serves BUILD_ID `_6LyDPGEN58kAlnfOmsDW`.
+- Step 7b: all 5 profiles have `operations_panel`.
+- Step 8, automated part:
+  - Pages: /login 200; /inbox and /dashboard 307 → /login; /resumen and /calculadora 200 (same as
+    staging).
+  - The new beneficiaries API route answers 401 without a session.
+  - Run as a real member (claims + role authenticated, rolled back): `crm_operaciones_de_conversacion`
+    resolves open remesas, and legacy completed ones now show their amount.
+  - Also as that member: `crm_cierre_financiero`, `cerebro_dashboard_embudo_operaciones` (1
+    collecting + 5 ready) and `calculator_rates_vigentes` answer.
+  - The visual browser check with a login is pending, and it is the user's to do.
+- Step 9: bench GREEN before and after deploying to production Cerebro `jEzlVLCLUaJhVwzs` (115
+  nodes, active). Rollback copy: `~/cerebro-fase1/ROLLBACK-cerebro-produccion-antes-datos-negocio.json`.
+  The live check from the test contact is pending, and it is the user's to do.
+- Found, NOT changed (needs the user's OK): `cerebro_dashboard_embudo_operaciones`,
+  `_operaciones_en_curso`, `_volumen_por_servicio` (116–118) and the older
+  `_operaciones_envejecidas` are executable by `anon`.
+  - Cause: those migrations GRANT to authenticated without revoking PUBLIC.
+  - Staging is the same, so this is not a cutover regression.
+  - They expose aggregate volume only. The fix is `REVOKE EXECUTE … FROM PUBLIC, anon`.
 
 ## What arrives with the code deploy (step 7)
 - Operations panel (receipts, verify/force, complete transfer), History collapsed to "History (N)".

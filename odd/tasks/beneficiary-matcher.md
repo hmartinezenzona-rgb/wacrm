@@ -55,7 +55,7 @@ The LLM tools and `marcar_destino_usd` keep the old resolver.
 - [x] M1 — Assertion with real-shaped fixtures, RED.
 - [x] M2 — Migration 126 (function) GREEN on `wacrm-ensayo` + rollback.
 - [x] M3 — Candidate for the two n8n nodes + bench; staging DB + staging Cerebro.
-- [ ] R1 — Reparto (user, 2026-09-27: "rendirse no es opción"): one deposit shared among several
+- [x] R1 — Reparto (user, 2026-09-27: "rendirse no es opción"): one deposit shared among several
   beneficiaries, each with its amount.
   - Prototype `~/cerebro-fase1/pruebas/prototipo-reparto-beneficiarios.js`.
   - Rule: pair each account with the amount written after it or before it (or "a cada una").
@@ -67,11 +67,12 @@ The LLM tools and `marcar_destino_usd` keep the old resolver.
   - Real result: 4 deposits, 10/10 beneficiaries correct, 0 wrong, all verified against the team's
     delivery proofs (7c310d8c 4/4, a6e9919f 2/2, dd328ea4 2/2, ac2638c5 2/2).
   - One wrong candidate (dab0ad10, cross-day coincidence) was found and removed by the safeguards.
-- [ ] R2 — DB `cerebro_aplicar_reparto(op, jsonb)` (re-validates the exact sum, writes the
+- [x] R2 — DB `cerebro_aplicar_reparto(op, jsonb)` (re-validates the exact sum, writes the
   beneficiaries, locks `beneficiaries`, audits) + assertion RED→GREEN.
-- [ ] R3 — Scheduled n8n workflow "Cerebro - Repartos automaticos" (every 2 min, the validated
+- [x] R3 — Scheduled n8n workflow "Cerebro - Repartos automaticos" (every 2 min, the validated
   prototype code in a Code node) + bench; staging.
-- [ ] M4 — Production (126 + reparto), verify, measure capture over the following days.
+- [x] M4 — Production (126 + reparto), verify.
+- [ ] M5 — Measure capture over the following days (weekly rate vs 44% baseline).
 
 ## Progress
 - 2026-09-27: document created.
@@ -98,3 +99,25 @@ The LLM tools and `marcar_destino_usd` keep the old resolver.
     56,000 → Liudis 7868613281.
   - Staging: 126 applied, assertion 7/7; staging Cerebro deployed and verified GREEN.
   - Rollback: `ROLLBACK-cerebro-staging-antes-resolver-beneficiario.json`.
+- 2026-09-27: R2 — migration 127 `cerebro_aplicar_reparto`.
+  - Assertion `supabase/staging/assertions/reparto-auto.sql`: RED, then 8/8 GREEN.
+  - The lock write runs with a scoped `wacrm.origin='admin'` and the previous value is restored,
+    because 096 lets only humans change locks. The audit keeps the automation actor.
+  - Rollback verified. Commit 94f9cce.
+- 2026-09-27: R3 — node code `~/cerebro-fase1/pruebas/nodo-repartos-automaticos.js` (Zelle only in v1).
+  - Bench `banco-repartos.js` on 81 real deposits: 4/4 verified repartos exact, names included, 0
+    proposals elsewhere.
+  - The bench caught a wrong name: "Buenas tardes" for Vanesa. Fixed with line-based names and a
+    greeting filter.
+  - Generator `pruebas/generar-workflow-repartos.py`.
+  - Staging: 127 applied (8/8).
+  - End-to-end with the real workflow on a seeded staging chat that reproduces 9e338224: 4
+    beneficiaries 100/100/50/300, named, locked, complete. The test chat was cancelled afterwards.
+  - Staging workflow Yu0uskQhydWgNFEy active.
+- 2026-09-27: M4 production.
+  - Read-only dry run: 3 candidates, 0 repartos would be applied, so no existing data is touched.
+  - 126 + 127 applied; md5 of the 3 functions and the audit CHECK are identical to staging;
+    anon/authenticated cannot execute them.
+  - Cerebro `jEzlVLCLUaJhVwzs`: the live workflow equalled the snapshot; candidate deployed; bench
+    GREEN on live. Rollback `ROLLBACK-cerebro-PRODUCCION-antes-resolver-beneficiario.json`.
+  - Reparto workflow `5YseDUEC5IAaiofF` active (every 2 min).

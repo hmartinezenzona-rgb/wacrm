@@ -340,6 +340,18 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
    - No migration 095–121 contains DELETE / TRUNCATE / DROP TABLE / DROP COLUMN except 113's
      `DROP TABLE tasas` (rows preserved first). Data-changing blocks at apply time: 107/111
      recompute open USD-rail quotes only; 113 archives tasas.
+   - BLOCKER FOUND 2026-09-27 (legacy parity review): `crm_entregar_operacion` (114, line ~1062)
+     refuses delivery unless `crm_beneficiarios_completos`, and the panel can only EDIT or REASSIGN
+     an existing beneficiary (098: crm_corregir_beneficiario / crm_reasignar_beneficiario) — there
+     is NO way to ADD one. In production the bot records a beneficiary for only part of the remesas
+     (last week 29 of 68; whenever the notes have it, the 042 sync puts it in
+     remittance_beneficiaries — 1 miss in 7 weeks). So remesas whose beneficiary was handled by a
+     human in the chat could not be completed from the panel. Also 3 of the 5 open legacy ones.
+     Pending the user's decision.
+   - Legacy parity backfill (user OK 2026-09-27): fill only EMPTY structured fields
+     (quoted_destination_amount/currency from the rate of that date; delivery_method from the
+     beneficiary type), never overwrite, log every change; test on a restore of the prod backup
+     first. Beneficiary backfill from notes adds ~1 case only.
    - 112: SKIP in production. Its tables already exist with the same columns and RLS; its only
      effective statement would be `GRANT ALL ... TO anon, authenticated`, which production
      does not have today (hardened by 064). Skipping loses nothing.

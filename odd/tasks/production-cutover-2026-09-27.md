@@ -99,6 +99,8 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        fb96a1c8… → Entregada/won; queue unchanged. No other open ops.
      - 2026-09-27 — Jose +5926328415, remesa 68,400 GYD (op a8fcb7f2…) → completed, deal
        e6a236c1… → Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Kirenia +5927511485, remesa 5,000 GYD (op 7afa23fc…) → completed, deal
+       e64b1b2b… → Entregada/won; queue unchanged. No other open ops.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

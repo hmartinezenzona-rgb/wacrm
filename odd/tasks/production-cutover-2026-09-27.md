@@ -215,6 +215,8 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
      - 2026-09-27 — LEAH +5927216685, empty request (0 GYD, Solicitada, 2026-09-22; op 9013b9ae…,
        deal 02877b98…) → CANCELLED the same way (deal lost, then op cancelled); queue unchanged.
        No other open ops.
+     - 2026-09-27 — Miguel +5927678574, 2 remesas "Por verificar": 32,500 (op 9276e528…) and
+       52,000 GYD (op fba44f2e…) → completed, Entregada/won; queue unchanged. No other open ops.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

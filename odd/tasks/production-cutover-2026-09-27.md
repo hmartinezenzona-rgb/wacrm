@@ -173,6 +173,8 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        `~/cerebro-fase1/BORRADO-lectura-falsa-carlos-mora-2026-09-27.json`. No other open ops.
      - 2026-09-27 — Gerardo Perez +5927672634, remesa 52,000 GYD (op 2eb89569…, deal 0a6e36c6…) →
        completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Yeny Victor +5926457239, remesa 5,000 GYD (op 12778d31…, deal 455f38c6…) →
+       completed, Entregada/won; queue unchanged. No other open ops.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

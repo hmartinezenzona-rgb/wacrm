@@ -198,9 +198,9 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        three completed, Entregada/won; deals_stage_notify + trg_notify_deal_incidencia disabled
        only inside the block; queue unchanged. No other open ops.
      - 2026-09-27 — Yordan +5927463380, remesa 13,500 GYD (op eb6f76fc…, deal 413c1f81…) →
-       completed, Entregada/won; queue unchanged. Other open op REPORTED, not touched: leftover
-       66ba1e21… collecting_information, 0 GYD, 2026-08-17, deal bcccd429… already LOST (same
-       pattern as Onelsi's).
+       completed, Entregada/won; queue unchanged. Leftover 66ba1e21… (collecting_information, 0 GYD,
+       2026-08-17, deal bcccd429… already LOST) → CANCELLED on the user's OK (op only); queue
+       unchanged. No other open ops.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

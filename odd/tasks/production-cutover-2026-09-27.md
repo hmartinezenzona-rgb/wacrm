@@ -298,6 +298,14 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
      - 2026-09-27 — Yanier Ramos Sablon +5927487384, 13,000 GYD in Incidencia (op ab02bfc4…, deal
        8d5dba3b…, MMG 20400834508055 verified and attached; flagged only because the bot's target was
        3,380) → completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — The user checked the 3 restored ones in the chat:
+       Surany 5927559217 → REAL remesa, 80 USD Zelle = 20,800 GYD: op 244f707a… completed (20,800 /
+       USD 80), deal 10f41562… → won / Entregada / 20,800 with a note, MMG deposit 10399188148868
+       (20,800, 29-ago 13:05, 23 min after the request) attached. marlene Diaz 5927337802 →
+       CANCELLED (op 4f9a4eae…; unclear which of her many requests, no money lost). Librada
+       5926456891 → never deposited, LEFT AS IS (op ba056b93… collecting_information, deal lost).
+       Queue unchanged. Note: a first attempt rolled back because the deal→Entregada update makes
+       the bridge trigger complete the op before the op UPDATE runs; the guard now accepts it.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

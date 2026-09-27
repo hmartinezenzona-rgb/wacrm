@@ -181,6 +181,8 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        10401620838334 verified). Chat after it: the customer asked to split it 40 USD to Zelle
        Prime Store LLC 7024061317 + 50 USD to Marlen Comendeiro 13059880166 (90 USD = 23,400 at 260).
        No beneficiary is recorded on the operation yet.
+     - 2026-09-27 — Raúl Cliente +5926755451, remesa 52,000 GYD (op ac2638c5…, deal 176e9201…) →
+       completed, Entregada/won; queue unchanged. No other open ops.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

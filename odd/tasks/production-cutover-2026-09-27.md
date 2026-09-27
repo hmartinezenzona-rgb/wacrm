@@ -91,7 +91,8 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        487564e6… → "Remesa Zelle +5926176300", 13,000 GYD, USD 50 (keeps the receipt and the
        THETANDEM TEAM LLC beneficiary); new deals dbe7a7e8… and 650f6a87… "Recarga (1|2 de 2)",
        6,200 each, their ops created by the bridge and set to recarga. Sum checked = 25,400. All
-       three still ready_to_transfer (not closed yet).
+       three then completed silently (ops completed, deals Entregada/won; queue unchanged). No
+       other open ops for this client.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

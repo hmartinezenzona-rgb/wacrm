@@ -154,4 +154,31 @@ BEGIN
     RAISE EXCEPTION 'case 11: a mixed reparto leaving 500 GYD uncovered must be refused, got % (%)', v_r, v_n;
   END IF;
   RAISE NOTICE 'PASS 11: a mixed reparto that does not cover the deposit is refused';
+
+  -- 12. NEW CUBAN MOBILES (migration 130): ETECSA gives new lines numbers that start with 63
+  --     (since 2023-12-30). Real phone 63691728 (chat 54454232, 21-Aug), rejected by the old rule.
+  INSERT INTO deals (user_id, account_id, contact_id, conversation_id, pipeline_id, stage_id, title, value, currency, notes, status)
+  VALUES (v_user, v_acc, v_ct, v_conv, c_pipeline, c_lista, 'test130a', 40000, 'GYD', 'DEPOSITO: 40,000 GYD', 'open')
+  RETURNING id INTO v_deal;
+  SELECT id INTO v_op FROM remittance_operations WHERE deal_id = v_deal;
+  v_r := cerebro_aplicar_reparto(v_op, '[{"tipo":"cuban_card","cuenta":"9224959876682574","celular":"63691728","monto":60000,"moneda":"CUP"},
+                                         {"tipo":"cuban_card","cuenta":"9204959875209704","celular":"+53 5474 3463","monto":60000,"moneda":"CUP"}]');
+  SELECT count(*) INTO v_n FROM remittance_beneficiaries WHERE operation_id = v_op AND status = 'vigente'
+     AND phone IN ('63691728', '54743463');
+  IF NOT (v_r->>'aplicado')::boolean OR v_n <> 2 THEN RAISE EXCEPTION 'case 12: a 63xxxxxx mobile must be accepted, got % (%)', v_r, v_n; END IF;
+  IF NOT crm_beneficiarios_completos(v_op) THEN RAISE EXCEPTION 'case 12: a card with a 63xxxxxx mobile should be complete'; END IF;
+  RAISE NOTICE 'PASS 12: a new Cuban mobile starting with 63 is accepted';
+
+  -- 13. Any other 6-prefix is still not a Cuban mobile → refused, nothing written.
+  INSERT INTO deals (user_id, account_id, contact_id, conversation_id, pipeline_id, stage_id, title, value, currency, notes, status)
+  VALUES (v_user, v_acc, v_ct, v_conv, c_pipeline, c_lista, 'test130b', 40000, 'GYD', 'DEPOSITO: 40,000 GYD', 'open')
+  RETURNING id INTO v_deal;
+  SELECT id INTO v_op FROM remittance_operations WHERE deal_id = v_deal;
+  v_r := cerebro_aplicar_reparto(v_op, '[{"tipo":"cuban_card","cuenta":"9224959876682574","celular":"64691728","monto":60000,"moneda":"CUP"},
+                                         {"tipo":"cuban_card","cuenta":"9204959875209704","celular":"54743463","monto":60000,"moneda":"CUP"}]');
+  SELECT count(*) INTO v_n FROM remittance_beneficiaries WHERE operation_id = v_op;
+  IF (v_r->>'aplicado')::boolean OR v_r->>'motivo' <> 'formato' OR v_n <> 0 THEN
+    RAISE EXCEPTION 'case 13: a 64xxxxxx number must be refused, got % (%)', v_r, v_n;
+  END IF;
+  RAISE NOTICE 'PASS 13: other numbers starting with 6 are still refused';
 END $$;

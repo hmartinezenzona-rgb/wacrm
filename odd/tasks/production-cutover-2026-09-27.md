@@ -191,6 +191,12 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        completed, Entregada/won; queue unchanged. No other open ops.
      - 2026-09-27 — Jeoendri +5927027342, remesa 13,120 GYD (op 27bed593…, deal 59f09f1f…) →
        completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Yoandy cruz +5926597626: remesa 10,000 (op 6837ee78…, verified), remesa 26,000
+       (op 14c7740f…, Incidencia: "imagen no reconocida", Mercado Pago card) and recarga 5,200 →
+       CORRECTED to 6,200 GYD (op 2e8b96a6…, deal e1ea7a22…, Incidencia: vision misread flagged as
+       "referencia imposible"; deal value + op amount fixed, note "CORREGIDO a mano" added) → all
+       three completed, Entregada/won; deals_stage_notify + trg_notify_deal_incidencia disabled
+       only inside the block; queue unchanged. No other open ops.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

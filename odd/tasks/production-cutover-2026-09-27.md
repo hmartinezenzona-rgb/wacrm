@@ -219,6 +219,8 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        52,000 GYD (op fba44f2e…) → completed, Entregada/won; queue unchanged. No other open ops.
      - 2026-09-27 — Shenille +5926845438, 2 remesas "Por verificar": 14,300 (op a89e120a…) and
        22,100 GYD (op eb59bf86…) → completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Danier Ramon Zaldivar +5927607414, remesa 52,000 GYD "Por verificar" (op
+       2e27ebe9…, deal c9d4c832…) → completed, Entregada/won; queue unchanged. No other open ops.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

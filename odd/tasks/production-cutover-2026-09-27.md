@@ -359,6 +359,11 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
    `~/cerebro-fase1/PASOS-notificador-produccion-114.md` (pre-check SQL, `n8n.py put`, verify).
    Between 114 and this step no customer notification is sent.
 6. [ ] Migration 121 (`crm_cierre_financiero`, financial close on /resumen).
+6c. [ ] Migration 123 (`crm_agregar_beneficiario`, panel "Add beneficiary"; feature
+   `odd/tasks/panel-add-beneficiary.md`). Apply after 118/121 (it restates the full
+   `remittance_admin_audit_action_chk` vocabulary through 104, so it must run after 104). Check:
+   `SELECT to_regprocedure('public.crm_agregar_beneficiario(uuid,jsonb)') IS NOT NULL`. Without it,
+   remesas whose beneficiary the bot did not capture cannot be completed from the panel.
 7. [ ] Deploy the application code of `feat/port-chat-operations-calculator` to production with
    production's own tooling (brought into this branch, commit 6343014; self-test passes):
    ```bash

@@ -43,7 +43,7 @@ captured the beneficiary.
 - [x] A2 — API route POST + tests (RED → GREEN). Commit b867ed7.
 - [x] A3 — Panel UI "Add beneficiary" + tests (RED → GREEN) + i18n. Commit a016f52.
 - [ ] A4 — Apply 123 to staging, deploy code to staging, user checks it on crm.onlinefreedom.site.
-- [ ] A5 — Add 123 to the cutover plan (after 118, before 121) with its check.
+- [x] A5 — Add 123 to the cutover plan (step 6c, after 121) with its check.
 
 ## Acceptance criteria
 - An operator can add a card / Zelle / phone beneficiary with amount to an open remesa; the
@@ -81,3 +81,5 @@ captured the beneficiary.
   base commit before this work (stashed and re-verified) — unrelated to this feature. `npx tsc
   --noEmit` clean. `npx eslint` on all changed files clean. A4/A5 intentionally not started (require
   applying to staging / touching the cutover plan — out of this writer's scope).
+- 2026-09-27: parent spot check: staging assertion 9/9 PASS (BEGIN…ROLLBACK), new tests 102/102;
+  review assess = medium (sonnet writer → writer self-verification + parent spot check). A5 done.

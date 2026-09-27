@@ -61,8 +61,12 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
      one, as already done in the chat are closed, without any customer message:
      before the migrations → `status = 'completed'` on remittance_operations only (deals are not
      touched: their stage trigger notifies customers; ops only have the timestamp trigger);
-     after the cutover → `status = 'cancelled'` with the note "ya hecha en el chat" (a completion
-     then would message the customer and feed the 104 ledger). Step 3b is NOT run.
+     after the cutover → ALSO `completed` (user, 2026-09-27: always completed, to organize the
+     work), inside one transaction with `SET LOCAL session_replication_role = replica` and
+     explicit `completed_at = now(), updated_at = now()`. Every trigger on remittance_operations
+     is `tgenabled = 'O'`, so none fires: no notifier (114), no 104 ledger entry, no guards.
+     Verified on staging (rolled back): status completed, pg_net queue 0 → 0, ledger 0 → 0.
+     Guard every UPDATE by id + current status + amount. Step 3b is NOT run.
    - Manual closes log:
      - 2026-09-27 07:54 GY — `feecb06d-4e08-4503-9b48-f3e6561dc162`, Carlos +5926731279,
        6,200 GYD (a recarga, recorded as remesa), ready_to_transfer → completed.

@@ -153,6 +153,9 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        completed, Entregada/won; queue unchanged. No other open ops.
      - 2026-09-27 — Wander +5926669732, remesa 52,000 GYD (op 38885a02…, deal e7138fc0…) →
        completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — "Osmany Services" +5926762167 (the business's own MMG agent number; admin test
+       sends, per the user): 114,000 (c7c8d5cc…, Lista), 5,000 (fc30e135…, Por verificar), 5,000
+       GYD (f254d0ea…, Por verificar) → completed, Entregada/won; queue unchanged. No other open ops.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

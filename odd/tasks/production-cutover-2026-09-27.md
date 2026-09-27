@@ -85,6 +85,13 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
      - 2026-09-27 — Yusmila +5927212465, recarga 6,200 GYD (op 77369f06…) → completed, deal
        f2ceac94… → Entregada/won; queue unchanged. KEPT OPEN (not done yet): recarga 15,500 GYD
        (op 12510beb…).
+     - 2026-09-27 — Josefa +5926176300: one 25,400 GYD deposit (Ref MMG 10401353010941,
+       2026-09-23) was really Zelle 50 USD + 2 recargas × 6,200. SPLIT (silently: deals_insert_notify
+       and deals_stage_notify disabled inside the DO block, queue unchanged): deal 2cd9a053… / op
+       487564e6… → "Remesa Zelle +5926176300", 13,000 GYD, USD 50 (keeps the receipt and the
+       THETANDEM TEAM LLC beneficiary); new deals dbe7a7e8… and 650f6a87… "Recarga (1|2 de 2)",
+       6,200 each, their ops created by the bridge and set to recarga. Sum checked = 25,400. All
+       three still ready_to_transfer (not closed yet).
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

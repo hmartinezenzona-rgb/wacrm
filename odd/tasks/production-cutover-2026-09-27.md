@@ -292,6 +292,12 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        deposit; Adrismir and Dannier Zaldibar each have a completed op within 3 days (likely the
        real one), marlene Diaz, Surany and Librada have none → the user should check those 3 in
        the chat. Cancelled is reversible.
+     - 2026-09-27 — On the user's request those 3 were RESTORED to their previous state (ops back to
+       collecting_information, cancelled_at cleared; deals untouched, still lost): marlene Diaz
+       4f9a4eae…, Surany 244f707a…, Librada ba056b93…. The user will check them in the chat.
+     - 2026-09-27 — Yanier Ramos Sablon +5927487384, 13,000 GYD in Incidencia (op ab02bfc4…, deal
+       8d5dba3b…, MMG 20400834508055 verified and attached; flagged only because the bot's target was
+       3,380) → completed, Entregada/won; queue unchanged. No other open ops.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

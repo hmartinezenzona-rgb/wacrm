@@ -175,6 +175,12 @@ Note: production's `supabase_migrations` also holds the Cerebro series (`102_pau
        completed, Entregada/won; queue unchanged. No other open ops.
      - 2026-09-27 — Yeny Victor +5926457239, remesa 5,000 GYD (op 12778d31…, deal 455f38c6…) →
        completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Daney Ruiz Ferrer +5927661933: remesa 42,900 GYD (op d97f3533…, deal 29b2f3bd…,
+       2026-09-14, verified) → completed, Entregada/won; queue unchanged. KEPT OPEN (checked in the
+       chat, not done yet): 23,400 GYD (op 53d4e1f0…, deal a363f0d7…, 2026-09-26 16:50, MMG Ref
+       10401620838334 verified). Chat after it: the customer asked to split it 40 USD to Zelle
+       Prime Store LLC 7024061317 + 50 USD to Marlen Comendeiro 13059880166 (90 USD = 23,400 at 260).
+       No beneficiary is recorded on the operation yet.
 4. [ ] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
    error. Do NOT re-run 119 (superseded by 120, already live).
    - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of

@@ -60,7 +60,7 @@ every piece before storing it. The deterministic twins stay as a safety net.
   - GREEN, with `banco-nombre-zelle.js` and `banco-merge-nombre.py` unchanged (rules 1–3 of
     zelle-holder-name hold, e.g. a tied name never moves to a different account).
 - [x] B4 — Staging Cerebro `U52y1kSNvhgxvWeb` with a backup; rerun the benches against it.
-- [ ] B5 — Production `jEzlVLCLUaJhVwzs` with a backup; watch the real executions; record.
+- [x] B5 — Production `jEzlVLCLUaJhVwzs` with a backup; watch the real executions; record.
 - [~] Model tool `guardar_dato_beneficiario` + prompt change: dropped with B2.
 
 ## Acceptance criteria
@@ -166,6 +166,18 @@ every piece before storing it. The deterministic twins stay as a safety net.
     (116 nodes) plus the same patch. Diff summary: node count unchanged (116/116); only
     `Snapshot final` and `Merge beneficiario` differ; `disabled` unchanged; connections unchanged.
     Awaiting a separate B5 decision to deploy.
+
+- 2026-09-28 12:37Z B5 — production `jEzlVLCLUaJhVwzs` updated.
+  - Backup: `~/cerebro-fase1/ROLLBACK-cerebro-PRODUCCION-antes-orden-zelle.json`.
+  - Parent checks before the PUT: `banco-orden-beneficiario.js` on current prod RED 3/5, on the
+    candidate GREEN 5/5; `banco-nombre-zelle.js` GREEN 19/19 on the candidate.
+  - Diff against live prod: only `Snapshot final` and `Merge beneficiario`; connections and
+    `disabled` flags identical.
+  - Read-back equals the candidate. Workflow active; the official DeepSeek node is still the only
+    model, and it is enabled.
+  - Pending: watch the first real Zelle registrations after the deploy.
+- 2026-09-28: first stored vision reading in prod (id 1, 12:36Z): a 250,000 GYD MMG receipt,
+  EXITOSA, read rotated 90°.
 
 ## Next step
 B5 (production), on explicit go-ahead — B4 only covered staging plus preparing (not applying) the

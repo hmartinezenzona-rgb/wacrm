@@ -72,8 +72,10 @@ Root causes (read-only map, 2026-09-28):
 - A single-card remesa behaves as today.
 
 ## Delivery
-- Strategy: ask-on-risk. Forecast: P1 ~60 lines; P2–P3 ~500–700 lines, which exceeds ~400, so the
-  chain strategy is asked before P2.
+- Strategy: ask-on-risk. Forecast: P1 ~60 lines; P2–P3 ~500–700 lines.
+- User decision 2026-09-28: "en dos partes". Slice 1 = P2 (DB); slice 2 = P3 (panel). Each is a
+  separate reviewed work unit on the feature branch; both reach production together (P4), since the
+  DB slice is inert without the panel.
 
 ## Progress
 - 2026-09-28: document created from the read-only map.

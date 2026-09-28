@@ -336,13 +336,25 @@ BEGIN
     END IF;
   END;
 
-  -- ---- case 16: unfed view is empty while the feed is working -----------
+  -- ---- case 16: unfed view holds only what genuinely could not be priced
+  -- Every op the trigger COULD price (cases 1-5, 7-9) has a live entry and
+  -- is absent here. v_op_mmg (case 6, delivery_method='mmg', no
+  -- beneficiaries) is genuinely unresolvable and — since 141 — is meant to
+  -- be VISIBLE here instead of silently excluded, so it is the one
+  -- expected row.
   SELECT count(*) INTO v_count FROM calculator_unfed_operations WHERE account_id = v_account_id;
-  IF v_count <> 0 THEN
+  IF v_count <> 1 THEN
     v_fail_count := v_fail_count + 1;
-    RAISE WARNING 'FAIL [case 16] expected calculator_unfed_operations empty, found % row(s)', v_count;
+    RAISE WARNING 'FAIL [case 16] expected calculator_unfed_operations to hold exactly the unresolvable mmg op, found % row(s)', v_count;
   ELSE
-    RAISE NOTICE 'PASS [case 16] nothing is unfed while the trigger is doing its job';
+    SELECT count(*) INTO v_count FROM calculator_unfed_operations
+     WHERE account_id = v_account_id AND operation_id = v_op_mmg AND unfed_reason = 'service_unresolved';
+    IF v_count <> 1 THEN
+      v_fail_count := v_fail_count + 1;
+      RAISE WARNING 'FAIL [case 16] expected the one unfed row to be v_op_mmg with unfed_reason=service_unresolved';
+    ELSE
+      RAISE NOTICE 'PASS [case 16] only the genuinely unresolvable op is unfed, and it is visible with its reason (141)';
+    END IF;
   END IF;
 
   -- ---- case 17: no backfill (assumption A1) -----------------------------

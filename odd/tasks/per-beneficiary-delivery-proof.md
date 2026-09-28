@@ -57,7 +57,7 @@ Root causes (read-only map, 2026-09-28):
   same function (forwarded as `isZelle`/`showCaption` through `complete-transfer-container.tsx` and
   `complete-transfer-section.tsx` into `delivery-proof.tsx`'s `showCaption` prop) — no other site
   needed a change. Commit `2761685`.
-- [ ] P2 — DB: table `remittance_beneficiary_proofs` (beneficiary_id, wamid, path, caption, sent_at,
+- [ ] P2 — (migration 142; 141 went to calculator-feed-from-beneficiaries) DB: table `remittance_beneficiary_proofs` (beneficiary_id, wamid, path, caption, sent_at,
   sent_by) + an RPC to record one beneficiary's proof; `crm_entregar_operacion` completes only when
   every current beneficiary has a proof. Migration + rollback + assertions; staging.
 - [ ] P3 — Panel: one proof panel (file + caption for Zelle) per beneficiary; send each image, record

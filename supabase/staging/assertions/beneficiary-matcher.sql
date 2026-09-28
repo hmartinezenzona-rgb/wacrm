@@ -161,4 +161,50 @@ BEGIN
     RAISE EXCEPTION 'case 7: a single open op must resolve as before, got % / %', v_r.resultado, v_r.operation_id;
   END IF;
   RAISE NOTICE 'PASS 7: a single open op resolves exactly as before';
+
+  ------------------------------------------------------------------
+  -- 8. REUSED ACCOUNT WITH AN AMOUNT (chat 1727ef31, migration 133): the same Zelle on 19-Sep
+  --    ("125 zelle", 32,500 GYD, already paid but left open) and on 26-Sep ("200 zelle", 52,000
+  --    GYD). The data sent on 26-Sep belongs to the 26-Sep remesa (team proof "Envía Yoandis Delis").
+  ------------------------------------------------------------------
+  INSERT INTO contacts (user_id, account_id, phone, name) VALUES (v_user, v_acc, '59900133008', 'test133 reusada monto') RETURNING id INTO v_a;
+  INSERT INTO conversations (user_id, account_id, contact_id) VALUES (v_user, v_acc, v_a) RETURNING id INTO v_conv;
+  INSERT INTO remittance_operations (account_id, conversation_id, status, service_type, quoted_source_amount, source_currency, created_at)
+  VALUES (v_acc, v_conv, 'ready_to_transfer', 'remesa', 32500, 'GYD', t0 - interval '7 days') RETURNING id INTO v_a;
+  INSERT INTO remittance_operations (account_id, conversation_id, status, service_type, quoted_source_amount, source_currency, created_at)
+  VALUES (v_acc, v_conv, 'ready_to_transfer', 'remesa', 52000, 'GYD', t0 + interval '1 hour') RETURNING id INTO v_b;
+  INSERT INTO messages (conversation_id, sender_type, content_type, content_text, created_at) VALUES
+    (v_conv, 'customer', 'image', NULL, t0 - interval '7 days'),
+    (v_conv, 'customer', 'text', '+1 (502) 539-2681', t0 - interval '7 days' + interval '10 seconds'),
+    (v_conv, 'customer', 'text', 'Hola pásame 125 zelle a la cuenta', t0 - interval '7 days' + interval '20 seconds'),
+    (v_conv, 'customer', 'text', 'Hola me tomó el puente cerrado tu crees que me puedas pasar 200 zelle hoy aunque sea después de las 5', t0),
+    (v_conv, 'customer', 'image', NULL, t0 + interval '1 minute'),
+    (v_conv, 'customer', 'text', '+1 (502) 539-2681', t0 + interval '3 minutes'),
+    (v_conv, 'customer', 'image', NULL, t0 + interval '1 hour');
+  SELECT * INTO v_r FROM cerebro_resolver_operacion_beneficiario(v_conv, c_estados, '5025392681');
+  IF v_r.operation_id IS DISTINCT FROM v_b OR v_r.resultado <> 'unica' THEN
+    RAISE EXCEPTION 'case 8: a reused account must go to the NEW remesa (200 USD), got % / % (%)', v_r.resultado, v_r.operation_id, v_r.metodo;
+  END IF;
+  RAISE NOTICE 'PASS 8: a reused account goes to the remesa it was sent for now, not to an old one';
+
+  ------------------------------------------------------------------
+  -- 9. REUSED ACCOUNT WITHOUT AN AMOUNT (chat de846b30): DTZ sent on 14-Sep (that remesa already
+  --    has DTZ) and again on 18-Sep for a new 26,200 deposit. The new remesa must get it.
+  ------------------------------------------------------------------
+  INSERT INTO contacts (user_id, account_id, phone, name) VALUES (v_user, v_acc, '59900133009', 'test133 reusada') RETURNING id INTO v_a;
+  INSERT INTO conversations (user_id, account_id, contact_id) VALUES (v_user, v_acc, v_a) RETURNING id INTO v_conv;
+  INSERT INTO remittance_operations (account_id, conversation_id, status, service_type, quoted_source_amount, source_currency, created_at)
+  VALUES (v_acc, v_conv, 'ready_to_transfer', 'remesa', 39000, 'GYD', t0 - interval '4 days') RETURNING id INTO v_a;
+  INSERT INTO remittance_beneficiaries (operation_id, beneficiary_type, name, zelle_account) VALUES (v_a, 'zelle', 'DTZ SOLUTION LLC', '2294563108');
+  INSERT INTO remittance_operations (account_id, conversation_id, status, service_type, quoted_source_amount, source_currency, created_at)
+  VALUES (v_acc, v_conv, 'ready_to_transfer', 'remesa', 26200, 'GYD', t0 + interval '70 minutes') RETURNING id INTO v_b;
+  INSERT INTO messages (conversation_id, sender_type, content_type, content_text, created_at) VALUES
+    (v_conv, 'customer', 'text', E'Zelle mínimo 50\nDTZ SOLUTION LLC\n\n+1 229 456 3108', t0 - interval '4 days' - interval '1 minute'),
+    (v_conv, 'customer', 'text', E'Zelle mínimo 50\nDTZ SOLUTION LLC\n\n+1 229 456 3108', t0),
+    (v_conv, 'customer', 'image', NULL, t0 + interval '70 minutes');
+  SELECT * INTO v_r FROM cerebro_resolver_operacion_beneficiario(v_conv, c_estados, '2294563108');
+  IF v_r.operation_id IS DISTINCT FROM v_b OR v_r.resultado <> 'unica' THEN
+    RAISE EXCEPTION 'case 9: a reused account without amount must go to the NEW remesa, got % / % (%)', v_r.resultado, v_r.operation_id, v_r.metodo;
+  END IF;
+  RAISE NOTICE 'PASS 9: a reused account without amount goes to the new remesa';
 END $$;

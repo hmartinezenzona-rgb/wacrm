@@ -47,7 +47,7 @@ every piece before storing it. The deterministic twins stay as a safety net.
 - RED is observed before each change.
 
 ## Tasks
-- [ ] B1 — Baseline (RED). Repoint `evaluar.py` to `jEzlVLCLUaJhVwzs`. Add cases:
+- [x] B1 — Baseline (RED). Repoint `evaluar.py` to `jEzlVLCLUaJhVwzs`. Add cases:
   - Zelle: name→account, account→name, "number\nname" in one message, split over 3 turns;
   - card: card→mobile, mobile→card, both in one message, with spaces or dashes;
   - details mixed with small talk.
@@ -71,6 +71,20 @@ every piece before storing it. The deterministic twins stay as a safety net.
 
 ## Progress
 - 2026-09-28: exploration done (explorer map + prod read-only counts). Document created.
+- 2026-09-28 B1 baseline (1 repetition; `evals/informes/informe-20260928-061342.json`,
+  `snapshot-orden-beneficiario-20260928120235..json`; harness `evaluar.py --workflow`, default
+  `jEzlVLCLUaJhVwzs`; cases `casos-orden-beneficiario.json`, 12 cases / 34 turns):
+  - All 12 end complete. 0 DSML, 0 reasoning_content, 0 errors.
+  - Zelle (6 cases): the model called `registrar_beneficiario_zelle` once, in every order,
+    including e-mail and small talk. It waits for the missing piece and asks for it.
+  - Zelle twin: fails to tie name and account in 3 of 5 orders (account first, "number then name",
+    e-mail). The gap is real, but only matters when the model does not call its tool.
+  - Cards (6 cases): the model never calls a tool; the twin extracted card and mobile in every order
+    (dashes, 63 prefix).
+  - Not covered: 2nd repetition; cross-burst merge in `cerebro_beneficiario_parcial` (needs DB
+    writes); the real `[CONTEXTO DEL SISTEMA]` block.
+  - Conclusion: the premise "the model cannot save in any order" does not hold in the harness. The
+    measurable gap is the Zelle twin (B3). B2/B4 await a user decision.
 
 ## Next step
-B1.
+User decision: scope after the B1 evidence.

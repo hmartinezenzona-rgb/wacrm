@@ -38,7 +38,7 @@ Replaying them (as they were at the handoff moment) through the CURRENT matcher 
   - Cases 1–7 stay green.
   - The replay gives 5/5 on the new remesa.
   - Apply on ensayo, staging and prod.
-- [ ] S2 — Daily alert of old open remesas to the team.
+- [x] S2 — Daily alert of old open remesas to the team.
 
 ## Acceptance
 - 1727ef31 → the 26-Sep remesa; de846b30 → the 18-Sep remesa. The other 3 stay on the new remesa.
@@ -52,5 +52,25 @@ Replaying them (as they were at the handoff moment) through the CURRENT matcher 
   - Replay of the 5 real handoffs: 5/5 on the new remesa (3/5 before).
   - The rollback restores the exact prod body (md5 7504b99e); checked.
   - Applied on staging (9/9) and prod; the md5 is the same on both (60cbe40c…). Commit 3888b37.
-- 2026-09-28 S2 — on hold: at 03:05Z the n8n server stopped answering (healthz timeouts; internet
-  fine). The user is restarting it.
+- 2026-09-28 n8n incident: the server stopped answering at 03:05Z (healthz timeouts; internet
+  fine). The user fixed a network problem.
+  - After the fix: healthz answers in 0.3 s and the 4 workflows are active.
+  - No customer message arrived during the outage.
+- 2026-09-28 S2 — migration 134.
+  - Changes:
+    - `notifications_type_check` gains `remesa_abierta_vieja`;
+    - new `cerebro_avisar_remesas_abiertas_viejas(p_horas, p_ignorar_horario)`.
+  - Behaviour:
+    - one panel notification per account member;
+    - at most once a day (cerebro_alertas);
+    - from 09:00 Guyana time, not on Sundays;
+    - settings: remesas_viejas_horas / _repetir_min / _desde.
+  - Assertion `stale-operations-alert.sql`: RED (function missing), then GREEN 4/4.
+    - Test fix: completing a remesa needs the panel origin; automation completions are suppressed
+      by the guard.
+  - The rollback drops the function; checked.
+  - The panel renders any notification type (default icon), so no frontend change was needed.
+  - Dry run in prod: 1 remesa listed (Librada, 4 days, Solicitada, no deposit).
+  - Applied on staging (4/4) and prod; the md5 is the same on both (2825c776…). Commit fba28e1.
+  - n8n workflow "Vigilante - remesas abiertas viejas" 4ptJpwWnjkyiAjvc runs every hour and is
+    active. Its call returns 0/0 outside hours.

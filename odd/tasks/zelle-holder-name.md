@@ -77,6 +77,9 @@ How the name is decided today:
   - It writes the same notes block as `Registrar zelle auto` (the sync applies it) and updates
     `cerebro_beneficiario_parcial`. It never raises and never creates a beneficiary.
 
+- [x] Z5 — A Zelle account the bot confirmed but nobody stored is registered (migration 135). The
+  user said "sigue con esa" on 2026-09-28.
+
 ## Acceptance
 - On the real texts:
   - Nelson → "Nelson Tejo Perez";
@@ -139,3 +142,25 @@ How the name is decided today:
     same on both (d0967dd3…). Commit e4e3734.
   - Limitation: it only corrects names. The 13 confirmations that were never stored as a
     beneficiary are not created by this.
+- 2026-09-28 Z5 — migration 135.
+  - The 13 confirmations never stored:
+    - 3 are from the test chat;
+    - 3 belong to cancelled remesas;
+    - 2 are from 8-Aug (before the current remesas table);
+    - 2 are from a 3-account reparto (now covered by the automatic reparto);
+    - 4 are real: Yamile (number line, then name line), Solution travel (a lower-case word),
+      Pencargo (data inside an instructions block) and Margarita ("number. name", which the
+      Snapshot has read since Z1).
+  - `cerebro_aplicar_nombre_confirmado` now also REGISTERS such an account, when:
+    - the customer wrote the account and every word of the name;
+    - the matcher picks ONE remesa;
+    - that remesa has no beneficiary and is not locked;
+    - the message has exactly one block, speaks of Zelle and carries no "*Tarjeta:*";
+    - the account is not a +53 Cuban mobile.
+  - Assertion cases 8–12: RED, then GREEN 12/12.
+    - Case 12 (a Cuban card confirmation) was RED on the first 135 draft: it registered the card
+      as Zelle. It was fixed before prod.
+  - Every assertion file is green on ensayo (50+ cases).
+  - The rollback restores the exact 132 body (md5 d0967dd3).
+  - Applied on staging (12/12) and prod; the md5 is the same on both (80ccbae5…). Commits 6a477f4,
+    2c5bbd9.

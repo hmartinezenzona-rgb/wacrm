@@ -180,5 +180,4 @@ every piece before storing it. The deterministic twins stay as a safety net.
   EXITOSA, read rotated 90°.
 
 ## Next step
-B5 (production), on explicit go-ahead — B4 only covered staging plus preparing (not applying) the
-production candidate.
+Watch the first real Zelle registrations after the deploy, then close the feature.

@@ -52,13 +52,113 @@ silently skipped.
 - GREEN: ZELLE entry, amount = ceil(basis / usdt_sell_gyd); a mixed op shows up in the unfed view.
 
 ## Tasks
-- [ ] F1 — Assertions RED on staging; migration 141 + rollback; applied on staging; GREEN;
-  feed-matrix.sql unchanged GREEN.
+- [x] F1 — Assertions RED on staging; migration 141 + rollback; applied on staging; GREEN;
+  feed-matrix.sql GREEN (one assertion updated, see below). Commit `d924890`.
 - [ ] F2 — Production: 141 + replay `53d4e1f0`; verify its entry (expected ZELLE 90 USD at 260,
   per the rates in force); the unfed view is empty.
 
 ## Progress
 - 2026-09-28: root cause found (read-only); document created.
+- 2026-09-28: F1 done, staging only (wacrm-ensayo).
+  - Checked `git log -p` first: no migration after 105 redefines
+    `calculator_feed_operation` / `calculator_unfed_operations`, but 111 flipped the
+    dollar-rail rounding in the SHARED `calculator_amount_from_basis` from ceil to
+    floor (105 already routes through it) — confirmed against staging with
+    `pg_get_functiondef` before writing assertions. So the task's ZELLE formula note
+    ("amount = ceil(...)") is stale; the actual (and correct) LATEST behavior is
+    floor, matching `feed-matrix.sql`'s own comment ("floor 98.11" -> 98). Wrote the
+    new assertion against floor, not ceil.
+  - `supabase/staging/assertions/feed-from-beneficiaries.sql`: RED before 141, for the
+    right reasons — case 1 (2-Zelle, NULL delivery_method) and case 2 (2-card, NULL)
+    had NO entry (`calculator_service_for_operation(NULL)` is NULL); case 3b (mixed
+    card+Zelle) was invisible in `calculator_unfed_operations` (old view filtered NULL
+    service out); case 5 (stale `delivery_method='cuban_card'` with current Zelle
+    beneficiaries) fed a WRONG CUP entry (39000, off the stale column) instead of
+    ZELLE. Case 4 (legacy op, no beneficiaries) passed already, as the control.
+  - Resolver `calculator_resolve_operation_service(operation_id, delivery_method)`:
+    current ('vigente') beneficiaries win; one shared `beneficiary_type` maps through
+    the existing `calculator_service_for_operation` table (same vocabulary as
+    `delivery_method` — verified byte-for-byte: cuban_card/zelle/clasica/
+    tropical/multiple_distribution); mixed types -> unresolved (NULL); zero current
+    beneficiaries -> the legacy `delivery_method` mapping, unchanged.
+    `calculator_feed_operation` and `calculator_unfed_operations` both call it.
+    Formulas/rates/trigger guard order untouched (verbatim from 105/111).
+  - `calculator_unfed_operations` gained `unfed_reason` (additive column;
+    `grep -rn calculator_unfed_operations src/` found no reader to keep compatible
+    with) and dropped the old `service IS NOT NULL` filter, so a service the resolver
+    cannot determine is now listed with `unfed_reason = 'service_unresolved'` instead
+    of silently excluded. The `quoted_source_amount > 0` bound is untouched —
+    deliberately out of scope for this slice.
+  - Migration 141 applied cleanly to staging (wacrm-ensayo). GREEN:
+    `feed-from-beneficiaries.sql` 6/6 PASS; `feed-matrix.sql` 20/20 PASS after
+    updating case 16 (the fixture's unmapped-delivery-method, no-beneficiaries op is
+    now the one expected row in the unfed view, with `unfed_reason =
+    'service_unresolved'` — that visibility is this migration's whole point, not a
+    money-path change); `reparto-auto.sql` 13/13 PASS; `delivery-feed-evidence.sql`
+    2/2 PASS. `delivery.sql` has one pre-existing case-1 failure (deal stage not
+    flipping to ENTREGADA) reproduced identically on staging BEFORE 141 too (tested by
+    temporarily applying and re-verifying `ROLLBACK-141`, then reapplying 141) —
+    unrelated to the calculator feed, not touched by this change.
+  - `ROLLBACK-141` restores 105's `calculator_feed_operation` and 104's
+    `calculator_unfed_operations` verbatim; had to `DROP VIEW` first (Postgres refuses
+    `CREATE OR REPLACE VIEW` when it would drop a column) — caught and fixed by
+    actually running the rollback on staging, not just reading it.
+  - `delivery_method` sync from beneficiaries: SKIPPED, per the task's "otherwise skip
+    and say why" — it would need its own handling of 096's admin-lock guard on
+    `delivery_method` (separate from the `beneficiaries` lock the add-beneficiary/
+    reparto RPCs already set) and the `wacrm.origin` juggling the reparto RPCs already
+    do for their own lock writes, and buys nothing for F1 since the feed now reads the
+    beneficiaries directly.
+  - Commit `d924890` — `fix(db): calculator feed resolves the service from
+    beneficiaries (141)` — 141, ROLLBACK-141, feed-from-beneficiaries.sql,
+    feed-matrix.sql (case 16 update).
 
 ## Next step
-F1.
+F2 — production: apply 141, then replay `53d4e1f0` through `crm_feed_calculator`, with
+the user's explicit go-ahead (remote/production operation).
+
+Exact SQL for F2 (not run — production is out of scope for this session):
+```sql
+-- 1) Apply supabase/migrations/141_calculator_feed_from_beneficiaries.sql as-is.
+
+BEGIN;
+
+-- 2) crm_feed_calculator requires is_account_member(account_id, 'admin'), which
+--    reads auth.uid() from request.jwt.claims — impersonate an owner/admin of
+--    53d4e1f0's own account, the same way a real admin session would look to it.
+DO $$
+DECLARE
+  v_account_id uuid;
+  v_admin_user uuid;
+BEGIN
+  SELECT account_id INTO v_account_id
+    FROM remittance_operations WHERE id = '53d4e1f0-284b-487e-9de1-174a70283145';
+
+  SELECT p.user_id INTO v_admin_user
+    FROM profiles p
+   WHERE p.account_id = v_account_id AND p.account_role IN ('owner', 'admin')
+   ORDER BY (p.account_role = 'owner') DESC
+   LIMIT 1;
+
+  IF v_admin_user IS NULL THEN
+    RAISE EXCEPTION 'no owner/admin profile found for account %', v_account_id;
+  END IF;
+
+  PERFORM set_config('request.jwt.claims',
+    json_build_object('sub', v_admin_user, 'role', 'authenticated')::text, true);
+END $$;
+
+SET ROLE authenticated;  -- crm_feed_calculator is granted to authenticated only;
+                          -- skip this line if connecting already as a superuser/owner.
+SELECT crm_feed_calculator('53d4e1f0-284b-487e-9de1-174a70283145'::uuid) AS entry_id;
+RESET ROLE;
+SELECT set_config('request.jwt.claims', '', true);
+
+-- 3) Verify: expect service=ZELLE, amount=90, amount_currency=USD, status=completed
+--    (per the rates in force at replay time), and the unfed view empty for this op.
+SELECT service, amount, amount_currency, status
+  FROM remittance_calculator_entries WHERE operation_id = '53d4e1f0-284b-487e-9de1-174a70283145';
+SELECT count(*) FROM calculator_unfed_operations WHERE operation_id = '53d4e1f0-284b-487e-9de1-174a70283145';
+
+COMMIT;
+```

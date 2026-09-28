@@ -155,6 +155,51 @@ nothing breaks — not waiting for a week of collector data.
   - Next: T6, the business HOURS in one place. It is logic in the Decisor and several watcher
     settings, kept apart on purpose.
 
+- [x] T6 — Business HOURS in one place (user, 2026-09-28: "sigue con el horario pero que no se
+  rompa nada").
+  - Map:
+    - 5 DB watchers with their own 09:00/17:00: chats atascados, envios incompletos, envios sin
+      beneficiario, mensajes perdidos, remesas viejas; plus the per-watcher rows
+      envio_incompleto_* and perdido_hora_*;
+    - 3 Cerebro nodes:
+      - `Contexto conversacion`: time '17:00' x2;
+      - `Decisor`: 9*60 / 17*60, "9:00am" x4 and "5:00pm" x2 in its notes;
+      - `Agente Remesas`: 540/1020 and "9:00am" x2 in the verified-receipt expression, and the
+        prompt text "9:00am" x4 and "5:00pm" x1.
+  - Source: `cerebro_config` horario_abre / horario_cierra, read through `cerebro_horario()`. It is
+    the ONLY place with defaults (09:00/17:00).
+    - Chosen over `Datos del negocio` because the DB watchers need it too.
+    - `Contexto conversacion` already reads cerebro_config every turn, so no new query or failure
+      point.
+  - Migration 136 (commit 546267d):
+    - the 5 watchers' FALLBACK becomes cerebro_horario();
+    - the per-watcher rows that only repeated 09:00/17:00 are emptied (values kept in the rollback).
+    - The generator proves each new body with the substitution undone equals the prod body.
+    - Assertion `business-hours.sql`: RED, then GREEN 5/5.
+    - The rollback was checked.
+    - Staging == prod on all 6 functions.
+  - Cerebro (`pruebas/parche-horario.py`):
+    - `Contexto conversacion` exposes horario_abre_min / horario_cierra_min / horario_abre_texto /
+      horario_cierra_texto;
+    - the Decisor and the agent read them, with NO literal fallback in the Cerebro.
+    - Undoing the patch gives back today's text; no hour literal is left in code.
+  - Proof of identical behaviour:
+    - Decisor: `banco.py --perfil contexto` (new `--workflow` option) on all 23 decisor case
+      files (262 contexts, today's hours injected into the mocked context): 0 combinations change.
+      The battery failures are exactly the same as today's code (stale expectations in those files,
+      shown by running today's code as the candidate).
+    - Contexto: the old and new queries on real staging conversations give identical columns; the
+      new ones hold 540/1020/9:00am/5:00pm.
+    - Agent: the verified-receipt text (1,123 chars) and the full prompt (38,581 chars), rendered
+      by n8n with a mocked context, are identical.
+  - Deployed to staging, then prod. In both the deployed nodes equal the candidate, and prod's 3
+    nodes equalled staging's before the patch.
+    - Prod check as `postgres`: the new columns give 540/1020/9:00am/5:00pm.
+    - Rollback copies: `ROLLBACK-cerebro-{staging,PRODUCCION}-antes-horario.json`; DB:
+      `ROLLBACK-136-business-hours.sql`.
+  - To change the hours now: `UPDATE cerebro_config SET valor='18:00' WHERE clave='horario_cierra'`
+    (bot, notes, prompt and watchers follow). The Sunday rule stays in code.
+
 ## Constraints
 - Production is not changed by this work without the user's explicit OK (cutover 2026-09-27).
 - Exams call the real model (small cost); nothing writes or sends.

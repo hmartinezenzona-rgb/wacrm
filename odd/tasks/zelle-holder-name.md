@@ -60,6 +60,22 @@ How the name is decided today:
 - [x] Z2 — Migration 131 and Merge beneficiario SQL: rule 1 across bursts and rule 3.
   - Ensayo sequences RED, then GREEN.
 - [x] Z3 — Deploy: staging (131 + Cerebro), then prod, with backups; watch the executions.
+- [ ] Z4 — The name the bot CONFIRMS reaches the panel. Approved by the user on 2026-09-28 ("eso esta
+  bien").
+  - Evidence: of 122 bot confirmations, 113 match what was stored. In 7 of the 9 mismatches the
+    bot was right (Lisandra, Sampedro, PTK family, Liliana, Yorlandis, Yadamy, Tiger), and 13
+    confirmations were never stored.
+  - The user's rule: a field labelled "Nombre:" in the customer's data is the name, kept as
+    written ("Nombre: Yandry Batista / Iscrito: K&Y …" → Yandry Batista).
+  - Migration 132: `cerebro_aplicar_nombre_confirmado`, fired by an AFTER INSERT trigger on
+    agent messages that carry "*Nombre:*". It corrects the NAME only, when:
+    - exactly one Zelle block is in the message;
+    - the account equals the only current Zelle beneficiary of an open operation;
+    - the beneficiaries are not locked;
+    - every word of the name was written by the customer in the last 24 h (so a typo such as
+      "Mairensy" never overwrites a correct "Mairenys").
+  - It writes the same notes block as `Registrar zelle auto` (the sync applies it) and updates
+    `cerebro_beneficiario_parcial`. It never raises and never creates a beneficiary.
 
 ## Acceptance
 - On the real texts:

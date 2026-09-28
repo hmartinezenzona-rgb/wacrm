@@ -1,0 +1,76 @@
+# Beneficiary capture in any order (model-saved, DB-validated)
+
+## Objective
+The Cerebro model saves each beneficiary detail as soon as the customer writes it, in whatever
+order it arrives: Zelle name and account, Cuban 16-digit card and mobile. The database validates
+every piece before storing it. The deterministic twins stay as a safety net.
+
+## Problem / why
+- User request (2026-09-28): "lo que me interesa es que el modelo pueda guardar los datos en
+  cualquier orden que lleguen". Approved as the next feature in the previous session.
+- Today the model does not save partial data:
+  - `registrar_beneficiario_zelle(nombre,cuenta)` refuses unless both come together, and the prompt
+    says to call it only with NAME and ACCOUNT.
+  - The prompt says cards and mobiles are registered by the system; the model has no tool for them.
+- The deterministic layer (`Snapshot final` → `Merge beneficiario` → `cerebro_beneficiario_parcial`,
+  COALESCE per field, 24 h expiry) already accumulates cards and mobiles in any order. Its gaps:
+  - Zelle "number on one line, name on the next" is not parsed (Yamile / Ana case).
+  - Card or mobile runs that are not exactly 16 / 8 digits go to `numeros_no_reconocidos` and are
+    dropped.
+  - A burst with more than one card or Zelle account blocks auto-registration (`multi_beneficiario`).
+  - No "confirmed but not stored" net for cards (migration 135 is Zelle-only).
+- Evidence (prod, read-only, 2026-09-28): only 2 real remesas since the 2026-09-27 cutover, both with
+  a beneficiary. No loss is measured yet since the cutover; the baseline must come from evals.
+
+## Scope
+- Harness: repoint `~/cerebro-fase1/pruebas/evals/evaluar.py` to prod `jEzlVLCLUaJhVwzs`; add
+  order-permutation cases.
+- DB: one migration with a validated partial-save function for the model's tool.
+- Cerebro: a new model tool plus the prompt change; `Snapshot final` learns "number, then name".
+- Staging first, then production with a backup.
+
+## Constraints
+- The DB accepts a piece only when the customer wrote it (digits, or every word of the name) in the
+  last 24 h, with valid formats: card 16 digits, mobile `5xxxxxxx` or `63xxxxxx`, Zelle US phone or
+  e-mail. Never store a Cuban card as a Zelle account.
+- Idempotent with the twins: saving the same piece twice, or after a twin, changes nothing.
+- No change to deposit registration, repartos or the matcher.
+- ~400 authored lines per task is an advisory heuristic only.
+
+## TDD
+- Mode: strict (source: global user instructions, "Strict TDD Mode: enabled").
+- Runners:
+  - model behavior: `evaluar.py` (real DeepSeek, mocked tools, temporary workflow);
+  - DB: SQL assertions in a rolled-back transaction on staging / wacrm-ensayo
+    (`supabase/staging/assertions/`);
+  - `Snapshot final`: JS bench running the real node code.
+- RED is observed before each change.
+
+## Tasks
+- [ ] B1 — Baseline (RED). Repoint `evaluar.py` to `jEzlVLCLUaJhVwzs`. Add cases:
+  - Zelle: name→account, account→name, "number\nname" in one message, split over 3 turns;
+  - card: card→mobile, mobile→card, both in one message, with spaces or dashes;
+  - details mixed with small talk.
+  Record what the current prod prompt and extractor do with each.
+- [ ] B2 — Migration 137: `cerebro_guardar_dato_beneficiario` (validate, merge into
+  `cerebro_beneficiario_parcial`, register when complete through the same path as the twins, return
+  what is still missing). SQL assertions RED → GREEN.
+- [ ] B3 — `Snapshot final`: parse Zelle "number, then name on the next line". Bench RED → GREEN.
+- [ ] B4 — Cerebro staging: tool `guardar_dato_beneficiario` + prompt ("save each piece as it
+  arrives, in any order"). Rerun B1 cases: GREEN, 0 DSML, no regressions.
+- [ ] B5 — Production with a backup; watch real executions; record.
+
+## Acceptance criteria
+- Every B1 permutation ends with the complete beneficiary stored, exactly once.
+- Invented or malformed data is refused by the DB and never stored.
+- No regressions in the existing eval cases; 0 DSML / reasoning_content leaks.
+
+## Delivery
+- Strategy: ask-on-risk. Forecast ~350 authored lines in the repo (migration, rollback,
+  assertions, docs); n8n JSON and harness live outside git.
+
+## Progress
+- 2026-09-28: exploration done (explorer map + prod read-only counts). Document created.
+
+## Next step
+B1.

@@ -43,7 +43,7 @@ See `docs/negocio/12-el-modelo-no-debe-pensar.md`.
 - [x] E2 — Full comparison: official vs community, 4 conversations x 3 repetitions (60 turns).
 - [x] E3 — Skipped: since the 2026-09-27 cutover the test chat reaches the PRODUCTION Cerebro and no
   route to staging was found. The user chose option A: switch prod with a backup and test at once.
-- [ ] E4 — Production with a backup, then watch.
+- [x] E4 — Production with a backup, then watch. Live test passed (see progress).
 
 ## Progress
 - 2026-09-28 first pass, official node (1 repetition, 10 turns):
@@ -84,3 +84,14 @@ See `docs/negocio/12-el-modelo-no-debe-pensar.md`.
     - it is enabled;
     - only that node's flag differs.
   - Watcher with AUTOMATIC rollback on any agent error or DSML.
+- 2026-09-28 live test from the test chat, official node (11:36–11:41Z): 5 executions, 0 errors,
+  0 DSML.
+  - Double question → calcular_envio + consultar_tasas in ONE turn, no error (3 CUP, the real rate).
+  - "100 dólares por zelle" → calcular_usd, 26,000 GYD.
+  - "Juan Pérez Gómez" / "+13055550101" → registered by the twin `Registrar zelle auto`, so the
+    model did not call its tool again.
+  - "A dónde le deposito?" → Osmany Pozo / 6762167; "Ok" → SKIP.
+  - The 11:33 message that failed during the incident was answered at 11:37 by the retry workflow.
+  - Test remesa af2b25d6 left OPEN: the user was asked whether to cancel it and has not answered.
+- Next: leave the official node running a day with real customers (watcher with auto-rollback),
+  then remove the community node from the canvas.

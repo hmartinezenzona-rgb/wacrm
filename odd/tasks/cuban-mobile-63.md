@@ -76,5 +76,5 @@ Other numbers starting with 6 stay rejected (zero-error bar).
   - `diff-solo-nodos.py`: only the 7 intended nodes change; connections and settings are identical.
   - Deployed to staging, then prod; the live code of both passes the bench.
   - Rollback copies: `ROLLBACK-cerebro-{staging,PRODUCCION}-antes-movil63.json`.
-  - Pending: watch the first prod executions after deploy.
+  - First 3 prod Cerebro executions after deploy (02:21–02:22Z): success. Reparto runs: success.
   - No staging end-to-end: the Cerebro only runs from the WhatsApp webhook.

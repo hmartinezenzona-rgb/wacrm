@@ -41,7 +41,8 @@ See `docs/negocio/12-el-modelo-no-debe-pensar.md`.
     (memoryBufferWindow).
   - Nothing touches the DB or WhatsApp; every temporary workflow is deleted.
 - [x] E2 — Full comparison: official vs community, 4 conversations x 3 repetitions (60 turns).
-- [ ] E3 — If clean: staging Cerebro on the official node, live test from the test chat.
+- [x] E3 — Skipped: since the 2026-09-27 cutover the test chat reaches the PRODUCTION Cerebro and no
+  route to staging was found. The user chose option A: switch prod with a backup and test at once.
 - [ ] E4 — Production with a backup, then watch.
 
 ## Progress
@@ -63,3 +64,10 @@ See `docs/negocio/12-el-modelo-no-debe-pensar.md`.
   - The first run was cut at turn 20 by an n8n network blip. The harness now retries and saves after
     every turn.
   - The acceptance criterion is met.
+- 2026-09-28 E4 — prod switched (user: "vamos por a").
+  - Only the connection changed: `DeepSeek sin pensamiento` (official, deepseek-v4-flash) now
+    feeds `Agente Remesas`. The community node stays on the canvas, disconnected.
+  - Nodes identical; the only model feeding the agent is the official one.
+  - Backup: `~/cerebro-fase1/ROLLBACK-cerebro-PRODUCCION-antes-nodo-oficial.json`. Rollback = move
+    the cable back (or PUT the backup).
+  - A watcher reports the first real executions (errors, DSML).

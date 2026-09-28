@@ -52,13 +52,16 @@ every piece before storing it. The deterministic twins stay as a safety net.
   - card: card→mobile, mobile→card, both in one message, with spaces or dashes;
   - details mixed with small talk.
   Record what the current prod prompt and extractor do with each.
-- [ ] B2 — Migration 137: `cerebro_guardar_dato_beneficiario` (validate, merge into
-  `cerebro_beneficiario_parcial`, register when complete through the same path as the twins, return
-  what is still missing). SQL assertions RED → GREEN.
-- [ ] B3 — `Snapshot final`: parse Zelle "number, then name on the next line". Bench RED → GREEN.
-- [ ] B4 — Cerebro staging: tool `guardar_dato_beneficiario` + prompt ("save each piece as it
-  arrives, in any order"). Rerun B1 cases: GREEN, 0 DSML, no regressions.
-- [ ] B5 — Production with a backup; watch real executions; record.
+- [~] B2 — Dropped by the user on 2026-09-28 after B1 ("sí, haz el paso 3"): the model already
+  saves Zelle in every order and the twin handles cards.
+- [ ] B3 — Zelle twin ties name and account in the 3 failing orders: account first, "number then
+  name", e-mail. `Snapshot final` (and `Merge beneficiario` if the gap is across bursts).
+  - RED: `banco-orden-beneficiario.js` + a cross-burst sequence on wacrm-ensayo.
+  - GREEN, with `banco-nombre-zelle.js` and `banco-merge-nombre.py` unchanged (rules 1–3 of
+    zelle-holder-name hold, e.g. a tied name never moves to a different account).
+- [ ] B4 — Staging Cerebro `U52y1kSNvhgxvWeb` with a backup; rerun the benches against it.
+- [ ] B5 — Production `jEzlVLCLUaJhVwzs` with a backup; watch the real executions; record.
+- [~] Model tool `guardar_dato_beneficiario` + prompt change: dropped with B2.
 
 ## Acceptance criteria
 - Every B1 permutation ends with the complete beneficiary stored, exactly once.
@@ -87,4 +90,4 @@ every piece before storing it. The deterministic twins stay as a safety net.
     measurable gap is the Zelle twin (B3). B2/B4 await a user decision.
 
 ## Next step
-User decision: scope after the B1 evidence.
+B3.

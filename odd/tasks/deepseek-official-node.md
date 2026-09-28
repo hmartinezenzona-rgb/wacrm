@@ -71,3 +71,16 @@ See `docs/negocio/12-el-modelo-no-debe-pensar.md`.
   - Backup: `~/cerebro-fase1/ROLLBACK-cerebro-PRODUCCION-antes-nodo-oficial.json`. Rollback = move
     the cable back (or PUT the backup).
   - A watcher reports the first real executions (errors, DSML).
+- 2026-09-28 11:33Z INCIDENT: the official node is DISABLED on the prod canvas (`disabled: true`).
+  - The first switch only moved the cable.
+  - 2 executions failed ("A Chat Model sub-node must be connected and enabled").
+  - Both came from the user's TEST chat (the double question); no customer was affected. The error
+    handler alerted the admin chats.
+  - Rolled back from the backup within ~1 min.
+  - Cause: the experiment copied the node's type, parameters and credentials but not its `disabled`
+    flag, and the switch check verified connections only.
+  - Re-applied correctly: connect AND enable the official node. Pre-flight asserts:
+    - one model feeds the agent;
+    - it is enabled;
+    - only that node's flag differs.
+  - Watcher with AUTOMATIC rollback on any agent error or DSML.

@@ -126,6 +126,35 @@ nothing breaks — not waiting for a week of collector data.
     and `--confirmo-produccion` (required to deploy there). Proven on the production Cerebro without
     deploying: ROJO as is, VERDE with the candidate (7 fields identical, 16 deposit cases identical).
 
+- [x] T5 — The business NAME and the MEXICO account join the single source (user, 2026-09-28: "quiero
+  que hagamos eso"; scope decided by the assistant when asked "decide tu").
+  - Still repeated after T4:
+    - "Remesas Ya": `Agente Remesas` x10, `Decisor` x2 (Code, inside JS strings);
+    - Mexico: titular 'Humberto Martinez Hernandez' and 'Albo' in the 4 vision prompts, 'Albo' in
+      `Transcribir audio`, and 'Albo, CLABE 123456781232456700' plus '(albo|clabe|spei)' in
+      `Historial contacto`.
+    - Not data (left alone): "Osmany" and "260" only appear in code comments; the words
+      'mexico'/'clabe' in the agent are routing keywords; `cerebro_servicios` only names CLABE as a
+      requirement.
+  - `Datos del negocio` gains `negocio.nombre` and `mexico.{titular,banco,clabe}`.
+  - The `Decisor` reads `NOMBRE_NEGOCIO` from it (a const at the top).
+  - Bench `pruebas/banco-datos-negocio-t5.py` (+ `banco_datos_negocio_comun.py`):
+    - RED on the live Cerebro: literals in 8 nodes.
+    - GREEN on the candidate:
+      - no literals outside the source;
+      - 7 fields rendered by n8n are byte-identical;
+      - the Decisor code, with the substitution undone, is identical, and its JS syntax is valid;
+      - a temporary Code node reads the source.
+    - Mutation check: one CLABE digit changed → RED.
+  - Deployed to staging, then prod (2026-09-28); in both the deployed nodes equal the candidate.
+    - Rollback copies: `ROLLBACK-cerebro-{staging,PRODUCCION}-antes-datos-negocio-t5.json`.
+    - After the deploy, the Zelle name, 63 mobile and Merge benches are still GREEN on the live
+      prod code.
+  - Still out: the notifier's "Aviso de Remesas Ya" and the template. They will read
+    `cerebro_config.nombre_negocio` when template v2 is switched on (planned there).
+  - Next: T6, the business HOURS in one place. It is logic in the Decisor and several watcher
+    settings, kept apart on purpose.
+
 ## Constraints
 - Production is not changed by this work without the user's explicit OK (cutover 2026-09-27).
 - Exams call the real model (small cost); nothing writes or sends.

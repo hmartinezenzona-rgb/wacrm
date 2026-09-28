@@ -141,5 +141,10 @@ terms, and hands the operation to a human. It never quotes cash at the Zelle/car
   photo of the ID card (carnet) and address. `hechos` now lists them; requiere_humano stays true.
   Still unknown for the full via: does 290 change daily, which provinces.
 
+- 2026-09-28 migration 140, applied on staging and prod. Provinces and municipalities for cash
+  delivery are discussed directly with the team (said by the other admin). The bot must never say
+  whether a place is covered; it offers an operator. Only open question for the full via: does 290
+  change daily.
+
 ## Next step
 Watch real cash questions; the full cash via awaits product answers.

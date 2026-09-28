@@ -54,8 +54,18 @@ silently skipped.
 ## Tasks
 - [x] F1 — Assertions RED on staging; migration 141 + rollback; applied on staging; GREEN;
   feed-matrix.sql GREEN (one assertion updated, see below). Commit `d924890`.
-- [ ] F2 — Production: 141 + replay `53d4e1f0`; verify its entry (expected ZELLE 90 USD at 260,
+- [x] F2 — Production: 141 + replay `53d4e1f0`; verify its entry (expected ZELLE 90 USD at 260,
   per the rates in force); the unfed view is empty.
+- [ ] M1 — Mixed remesas (card + USD rail in one deposit) get one ledger line PER service. The user
+  said "arreglemos lo de las mixtas" on 2026-09-28. Today the ledger allows one
+  `completed_operation` entry per operation (unique on account_id, operation_id) and the resolver
+  leaves mixed ops unresolved. Needs:
+  - a GYD basis split per service (derive it the way 129's reparto sums GYD: USD parts =
+    usd x usdt_sell_gyd, CUP part = the rest; if the data is missing → verified_pending naming what
+    is missing);
+  - the unique key and the void/revive paths per (operation, service);
+  - the panel readers of the ledger kept correct.
+  Staging first; prod with the user's go-ahead.
 
 ## Progress
 - 2026-09-28: root cause found (read-only); document created.
@@ -113,52 +123,16 @@ silently skipped.
     beneficiaries (141)` — 141, ROLLBACK-141, feed-from-beneficiaries.sql,
     feed-matrix.sql (case 16 update).
 
+- 2026-09-28 F2 — production, with the user's go-ahead ("aplica en producción"):
+  - Checked first: the prod `calculator_feed_operation` still used
+    `calculator_service_for_operation(v_op.delivery_method)`, i.e. the definition ROLLBACK-141
+    restores.
+  - Applied 141 (MCP). The unfed view then listed exactly `53d4e1f0` as ZELLE.
+  - Replayed with `calculator_feed_operation` directly as the DB owner: `crm_feed_calculator` only
+    adds an admin check on top, so no impersonation was needed. Entry `dac88541`: ZELLE 90 USD,
+    completed, 2026-09-28, Daney Ruiz Ferrer, usdt_sell_gyd 260, facturado 23,400, invertido
+    21,600, retorno 1,800.
+  - Unfed view: 0 rows.
+
 ## Next step
-F2 — production: apply 141, then replay `53d4e1f0` through `crm_feed_calculator`, with
-the user's explicit go-ahead (remote/production operation).
-
-Exact SQL for F2 (not run — production is out of scope for this session):
-```sql
--- 1) Apply supabase/migrations/141_calculator_feed_from_beneficiaries.sql as-is.
-
-BEGIN;
-
--- 2) crm_feed_calculator requires is_account_member(account_id, 'admin'), which
---    reads auth.uid() from request.jwt.claims — impersonate an owner/admin of
---    53d4e1f0's own account, the same way a real admin session would look to it.
-DO $$
-DECLARE
-  v_account_id uuid;
-  v_admin_user uuid;
-BEGIN
-  SELECT account_id INTO v_account_id
-    FROM remittance_operations WHERE id = '53d4e1f0-284b-487e-9de1-174a70283145';
-
-  SELECT p.user_id INTO v_admin_user
-    FROM profiles p
-   WHERE p.account_id = v_account_id AND p.account_role IN ('owner', 'admin')
-   ORDER BY (p.account_role = 'owner') DESC
-   LIMIT 1;
-
-  IF v_admin_user IS NULL THEN
-    RAISE EXCEPTION 'no owner/admin profile found for account %', v_account_id;
-  END IF;
-
-  PERFORM set_config('request.jwt.claims',
-    json_build_object('sub', v_admin_user, 'role', 'authenticated')::text, true);
-END $$;
-
-SET ROLE authenticated;  -- crm_feed_calculator is granted to authenticated only;
-                          -- skip this line if connecting already as a superuser/owner.
-SELECT crm_feed_calculator('53d4e1f0-284b-487e-9de1-174a70283145'::uuid) AS entry_id;
-RESET ROLE;
-SELECT set_config('request.jwt.claims', '', true);
-
--- 3) Verify: expect service=ZELLE, amount=90, amount_currency=USD, status=completed
---    (per the rates in force at replay time), and the unfed view empty for this op.
-SELECT service, amount, amount_currency, status
-  FROM remittance_calculator_entries WHERE operation_id = '53d4e1f0-284b-487e-9de1-174a70283145';
-SELECT count(*) FROM calculator_unfed_operations WHERE operation_id = '53d4e1f0-284b-487e-9de1-174a70283145';
-
-COMMIT;
-```
+M1 (mixed remesas).

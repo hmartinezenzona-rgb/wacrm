@@ -32,7 +32,7 @@ Replaying them (as they were at the handoff moment) through the CURRENT matcher 
   - `pruebas/replay-derivaciones-ambiguas.py` (the 5 real cases).
 
 ## Tasks
-- [ ] S1 — Migration 133: anchor on the latest occurrence.
+- [x] S1 — Migration 133: anchor on the latest occurrence.
   - Assertion cases 8 (reused account with an amount, 1727ef31) and 9 (reused account without an
     amount, de846b30): RED, then GREEN.
   - Cases 1–7 stay green.
@@ -46,3 +46,11 @@ Replaying them (as they were at the handoff moment) through the CURRENT matcher 
   single) are unchanged.
 
 ## Progress
+- 2026-09-28 S1 — migration 133.
+  - Assertion cases 8–9: RED (case 8 picked the old remesa by amount), then GREEN 9/9; cases 1–7
+    unchanged.
+  - Replay of the 5 real handoffs: 5/5 on the new remesa (3/5 before).
+  - The rollback restores the exact prod body (md5 7504b99e); checked.
+  - Applied on staging (9/9) and prod; the md5 is the same on both (60cbe40c…). Commit 3888b37.
+- 2026-09-28 S2 — on hold: at 03:05Z the n8n server stopped answering (healthz timeouts; internet
+  fine). The user is restarting it.

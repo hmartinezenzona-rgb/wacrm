@@ -46,7 +46,7 @@ terms, and hands the operation to a human. It never quotes cash at the Zelle/car
 - [x] C2 — Migration 137 (row) + ROLLBACK; applied on staging.
 - [x] C3 — Prompt + tool description on staging `U52y1kSNvhgxvWeb` with a backup; evals GREEN, 0 DSML,
   existing order-beneficiary cases unchanged.
-- [ ] C4 — Production: migration on `hqztotshnlzaiziwjyzh`, Cerebro `jEzlVLCLUaJhVwzs` with a
+- [x] C4 — Production: migration on `hqztotshnlzaiziwjyzh`, Cerebro `jEzlVLCLUaJhVwzs` with a
   backup; read-back; watch.
 
 ## Acceptance criteria
@@ -112,5 +112,29 @@ terms, and hands the operation to a human. It never quotes cash at the Zelle/car
     count 116 -> 116; `active` unchanged (true); `disabled` flags and `connections` byte-identical
     (asserted in-script). Not PUT anywhere.
 
+- 2026-09-28 parent review before C4:
+  - The 2 card-case differences are not a regression. "Necesito mandar 60 mil CUP" is correctly
+    `calcular_inverso` (21,430 GYD), where the baseline had used `calcular_envio`.
+  - Fixed one leftover contradiction on staging and in the prod candidate: "a cual de las tres vias
+    quiere que llegue" became "a cual de las cuatro vias quiere que llegue (Zelle, Clasica, Tropical
+    o efectivo)". Staging re-run 4/4 GREEN (`informe-20260928-070956.json`).
+- 2026-09-28 C4 — production:
+  - Migration 137 applied on `hqztotshnlzaiziwjyzh` (MCP). `cerebro_servicio_get('efectivo_usd')`
+    returns the row, requiere_humano = true.
+  - Cerebro `jEzlVLCLUaJhVwzs` updated. Backup:
+    `~/cerebro-fase1/ROLLBACK-cerebro-PRODUCCION-antes-efectivo-usd.json`.
+  - Pre-flight: only `Agente Remesas` and `consultar_servicio` differ; connections and `disabled`
+    flags identical. Read-back equals the candidate; the workflow is active.
+  - Evals against the prod prompt: 4/4 GREEN (`informe-20260928-071139.json`).
+    - Dollars: the options include cash.
+    - Cash question: 290, 100 USD minimum, 29,000 GYD.
+    - 200 USD cash: 58,000 GYD with no `calcular_usd`.
+    - Zelle 100 USD: 26,000 GYD.
+  - Notes:
+    - For 200 USD the model multiplied 200 x 290 itself (correct, but not from a tool). A cash
+      calculator belongs to the full cash via (out of scope).
+    - "Deposit by MMG" and "no discounts" in `hechos` follow the other services' policy. They were not
+      stated by the user for cash; the user was told.
+
 ## Next step
-C4.
+Watch real cash questions; the full cash via awaits product answers.

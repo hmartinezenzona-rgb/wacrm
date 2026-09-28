@@ -56,7 +56,7 @@ BEGIN
   UPDATE remittance_operations SET admin_locked_fields = coalesce(admin_locked_fields, '{}'::jsonb) || '{"beneficiaries": {"by": "test"}}' WHERE id = v_op;
   PERFORM set_config('wacrm.origin', '', true);
   INSERT INTO messages (conversation_id, sender_type, content_type, content_text) VALUES (v_conv, 'customer', 'text', 'Liliana Gonzales');
-  v_r := cerebro_aplicar_nombre_confirmado(v_conv, E'*Nombre:* Liliana Gonzales\n*Celular:* 6025563888');
+  v_r := cerebro_aplicar_nombre_confirmado(v_conv, E'La cuenta Zelle queda así:\n\n*Nombre:* Liliana Gonzales\n*Celular:* 6025563888');
   SELECT name INTO v_n FROM remittance_beneficiaries WHERE operation_id = v_op AND status = 'vigente';
   IF v_r <> 'bloqueado' OR v_n <> 'Liliana Gonzales Velázquez' THEN RAISE EXCEPTION 'case 5: locked beneficiaries must not change, got % / %', v_r, v_n; END IF;
   RAISE NOTICE 'PASS 5: locked beneficiaries are never touched';
@@ -66,7 +66,7 @@ BEGIN
   UPDATE remittance_operations SET admin_locked_fields = admin_locked_fields - 'beneficiaries' WHERE id = v_op;
   PERFORM set_config('wacrm.origin', '', true);
   INSERT INTO messages (conversation_id, sender_type, content_type, content_text) VALUES (v_conv, 'customer', 'text', 'Liliana Gonzales Velazquez Perez💙🇺🇸');
-  v_r := cerebro_aplicar_nombre_confirmado(v_conv, E'*Nombre:* Liliana Gonzales Velazquez Perez💙🇺🇸\n*Celular:* 6025563888');
+  v_r := cerebro_aplicar_nombre_confirmado(v_conv, E'La cuenta Zelle queda así:\n\n*Nombre:* Liliana Gonzales Velazquez Perez💙🇺🇸\n*Celular:* 6025563888');
   SELECT name INTO v_n FROM remittance_beneficiaries WHERE operation_id = v_op AND status = 'vigente';
   IF v_r <> 'aplicado' OR v_n <> 'Liliana Gonzales Velazquez Perez' THEN RAISE EXCEPTION 'case 6: emojis must be dropped, got % / %', v_r, v_n; END IF;
   v_r := cerebro_aplicar_nombre_confirmado(NULL, NULL);
@@ -104,7 +104,7 @@ BEGIN
   SELECT id INTO v_op FROM remittance_operations WHERE deal_id = v_deal;
   INSERT INTO messages (conversation_id, sender_type, content_type, content_text, created_at) VALUES
     (v_conv, 'customer', 'text', 'Yamile Dominguez', now() - interval '2 minutes');
-  v_r := cerebro_aplicar_nombre_confirmado(v_conv, E'*Nombre:* Yamile Dominguez\n*Celular:* +1 (602) 317-3696');
+  v_r := cerebro_aplicar_nombre_confirmado(v_conv, E'La cuenta Zelle queda así:\n\n*Nombre:* Yamile Dominguez\n*Celular:* +1 (602) 317-3696');
   IF v_r <> 'cuenta_no_escrita_por_cliente' OR EXISTS (SELECT 1 FROM remittance_beneficiaries WHERE operation_id = v_op) THEN
     RAISE EXCEPTION 'case 9: an account the customer never wrote must not be registered, got %', v_r;
   END IF;
@@ -113,7 +113,7 @@ BEGIN
   -- 10. The remesa already has a DIFFERENT beneficiary → never replaced from a confirmation.
   INSERT INTO messages (conversation_id, sender_type, content_type, content_text) VALUES (v_conv, 'customer', 'text', '+1 (602) 317-3696');
   UPDATE deals SET notes = notes || E'\n---\nBENEFICIARIO ZELLE\nNombre: Otra Persona\nCuenta Zelle: 3055550000' WHERE id = v_deal;
-  v_r := cerebro_aplicar_nombre_confirmado(v_conv, E'*Nombre:* Yamile Dominguez\n*Celular:* +1 (602) 317-3696');
+  v_r := cerebro_aplicar_nombre_confirmado(v_conv, E'La cuenta Zelle queda así:\n\n*Nombre:* Yamile Dominguez\n*Celular:* +1 (602) 317-3696');
   SELECT string_agg(zelle_account, ',') INTO v_n FROM remittance_beneficiaries WHERE operation_id = v_op AND status = 'vigente';
   IF v_r <> 'otro_beneficiario' OR v_n <> '3055550000' THEN RAISE EXCEPTION 'case 10: a different beneficiary must be kept, got % / %', v_r, v_n; END IF;
   RAISE NOTICE 'PASS 10: never replaces a different beneficiary';
@@ -127,9 +127,27 @@ BEGIN
   VALUES (v_user, v_acc, v_ct, v_conv, c_pipeline, c_solicitada, 'test135d', 26000, 'GYD', 'DEPOSITO: 26,000 GYD', 'open');
   INSERT INTO messages (conversation_id, sender_type, content_type, content_text, created_at) VALUES
     (v_conv, 'customer', 'text', E'Yamile Dominguez\n+1 (602) 317-3696', now() - interval '70 minutes');
-  v_r := cerebro_aplicar_nombre_confirmado(v_conv, E'*Nombre:* Yamile Dominguez\n*Celular:* +1 (602) 317-3696');
+  v_r := cerebro_aplicar_nombre_confirmado(v_conv, E'La cuenta Zelle queda así:\n\n*Nombre:* Yamile Dominguez\n*Celular:* +1 (602) 317-3696');
   IF v_r <> 'ambigua' OR EXISTS (SELECT 1 FROM remittance_beneficiaries b JOIN remittance_operations o ON o.id = b.operation_id WHERE o.conversation_id = v_conv) THEN
     RAISE EXCEPTION 'case 11: with two remesas and no evidence nothing must be registered, got %', v_r;
   END IF;
   RAISE NOTICE 'PASS 11: with several remesas and no evidence it abstains';
+
+  -- 12. A Cuban card confirmation ("*Celular:* +53 5474 3463" = 10 digits) is never taken as Zelle.
+  INSERT INTO contacts (user_id, account_id, phone, name) VALUES (v_user, v_acc, '59900135012', 'test135e') RETURNING id INTO v_ct;
+  INSERT INTO conversations (user_id, account_id, contact_id) VALUES (v_user, v_acc, v_ct) RETURNING id INTO v_conv;
+  INSERT INTO deals (user_id, account_id, contact_id, conversation_id, pipeline_id, stage_id, title, value, currency, notes, status)
+  VALUES (v_user, v_acc, v_ct, v_conv, c_pipeline, c_solicitada, 'test135e', 20000, 'GYD', 'DEPOSITO: 20,000 GYD', 'open') RETURNING id INTO v_deal;
+  SELECT id INTO v_op FROM remittance_operations WHERE deal_id = v_deal;
+  INSERT INTO messages (conversation_id, sender_type, content_type, content_text, created_at) VALUES
+    (v_conv, 'customer', 'text', E'Yony de la Cruz\nTarjeta: 9204 9598 7520 9704\nMóvil: +53 5474 3463', now() - interval '2 minutes');
+  v_r := cerebro_aplicar_nombre_confirmado(v_conv, E'Anotado:\n\n*Nombre:* Yony de la Cruz\n*Tarjeta:* 9204 9598 7520 9704\n*Celular:* +53 5474 3463');
+  IF v_r = 'registrado' OR EXISTS (SELECT 1 FROM remittance_beneficiaries WHERE operation_id = v_op) THEN
+    RAISE EXCEPTION 'case 12: a Cuban card confirmation must never be registered as Zelle, got %', v_r;
+  END IF;
+  v_r := cerebro_aplicar_nombre_confirmado(v_conv, E'Anotado. La cuenta Zelle queda así:\n\n*Nombre:* Yony de la Cruz\n*Celular:* +53 5474 3463');
+  IF v_r = 'registrado' OR EXISTS (SELECT 1 FROM remittance_beneficiaries WHERE operation_id = v_op) THEN
+    RAISE EXCEPTION 'case 12: a +53 number is a Cuban mobile, never a Zelle account, got %', v_r;
+  END IF;
+  RAISE NOTICE 'PASS 12: Cuban card confirmations and +53 numbers are never registered as Zelle';
 END $$;

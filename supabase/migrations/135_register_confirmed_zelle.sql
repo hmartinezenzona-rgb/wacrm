@@ -11,7 +11,9 @@
 --   - 8d6d9758 Margarita gonzalez: "786 750 8534. Margarita gonzalez".
 -- cerebro_aplicar_nombre_confirmado now also REGISTERS such an account, with
 -- the same notes block as 'Registrar zelle auto', only when:
---   - the message has exactly one "*Nombre:*" block (repartos are left alone);
+--   - the message has exactly one "*Nombre:*" block (repartos are left alone),
+--     speaks of Zelle and carries no "*Tarjeta:*" (a Cuban card confirmation);
+--   - the account is not a Cuban mobile ("+53 5xxxxxxx", 10 digits too);
 --   - the customer wrote the account and every word of the name (last 24 h);
 --   - the beneficiary matcher (126/133) picks exactly ONE open remesa;
 --   - that remesa has no current beneficiary at all and is not locked.
@@ -46,6 +48,8 @@ BEGIN
   SELECT count(*) INTO v_n FROM regexp_matches(p_texto, '\*Nombre:\*', 'g');
   IF v_n = 0 THEN RETURN 'sin_nombre'; END IF;
   IF v_n > 1 THEN RETURN 'varias_cuentas'; END IF;
+  -- Only Zelle confirmations (a Cuban card confirmation also carries "*Nombre:*" and "*Celular:*").
+  IF p_texto !~* 'zelle' OR p_texto ~* '\*Tarjeta:\*' THEN RETURN 'no_es_zelle'; END IF;
 
   -- The name, clean: no emojis/flags/symbols, no word "Zelle", single spaces.
   v_nombre := (regexp_match(p_texto, '\*Nombre:\*[ \t]*([^\n]*)'))[1];
@@ -60,6 +64,9 @@ BEGIN
     v_cuenta := lower(regexp_replace(v_cuenta_raw, '[\s*]', '', 'g'));
   ELSE
     v_cuenta := regexp_replace(v_cuenta_raw, '\D', '', 'g');
+    -- "+53 5xxxxxxx" is a Cuban mobile (10 digits too), never a Zelle account; a US 530/531
+    -- number is accepted only written with its +1.
+    IF length(v_cuenta) = 10 AND left(v_cuenta, 2) = '53' THEN RETURN 'cuenta_invalida'; END IF;
     IF length(v_cuenta) = 11 AND left(v_cuenta, 1) = '1' THEN v_cuenta := substr(v_cuenta, 2); END IF;
     IF length(v_cuenta) <> 10 THEN RETURN 'cuenta_invalida'; END IF;
   END IF;

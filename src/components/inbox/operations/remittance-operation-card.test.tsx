@@ -800,6 +800,63 @@ describe("RemittanceOperationCard", () => {
       await act(async () => root.unmount());
     });
 
+    describe("isZelle from beneficiaries, not deliveryMethod or count", () => {
+      async function isZellePassed(op: RemittanceOperationRead): Promise<boolean> {
+        const { node } = await render(op);
+        await act(async () =>
+          findCompleteButton(node)!.dispatchEvent(new MouseEvent("click", { bubbles: true })),
+        );
+        const call = CompleteTransferContainer.mock.calls.at(-1)![0] as { isZelle: boolean };
+        return call.isZelle;
+      }
+
+      it("shows the caption for a stale/null deliveryMethod with a single Zelle beneficiary", async () => {
+        const op = readyOperation({
+          deliveryMethod: null,
+          beneficiaries: [beneficiary({ beneficiaryType: "zelle", name: "Yaima" })],
+        });
+        expect(await isZellePassed(op)).toBe(true);
+      });
+
+      it("shows the caption for 2 Zelle beneficiaries (delivery_method stale/null)", async () => {
+        const op = readyOperation({
+          deliveryMethod: "cuban_card",
+          beneficiaries: [
+            beneficiary({ id: "b1", beneficiaryType: "zelle", name: "Yaima" }),
+            beneficiary({ id: "b2", beneficiaryType: "zelle", name: "Maria" }),
+          ],
+        });
+        expect(await isZellePassed(op)).toBe(true);
+      });
+
+      it("shows the caption for a mixed reparto (cuban_card + zelle)", async () => {
+        const op = readyOperation({
+          deliveryMethod: null,
+          beneficiaries: [
+            beneficiary({ id: "b1", beneficiaryType: "cuban_card" }),
+            beneficiary({ id: "b2", beneficiaryType: "zelle", name: "Maria" }),
+          ],
+        });
+        expect(await isZellePassed(op)).toBe(true);
+      });
+
+      it("hides the caption for a pure Cuban-card reparto, even with a stale zelle delivery_method", async () => {
+        const op = readyOperation({
+          deliveryMethod: "zelle",
+          beneficiaries: [
+            beneficiary({ id: "b1", beneficiaryType: "cuban_card" }),
+            beneficiary({ id: "b2", beneficiaryType: "cuban_card" }),
+          ],
+        });
+        expect(await isZellePassed(op)).toBe(false);
+      });
+
+      it("shows the caption for the legacy shape: no beneficiaries yet, delivery_method 'zelle'", async () => {
+        const op = readyOperation({ deliveryMethod: "zelle", beneficiaries: [] });
+        expect(await isZellePassed(op)).toBe(true);
+      });
+    });
+
     it("onCancel from the section restores the button", async () => {
       const { node, root } = await render(readyOperation());
 

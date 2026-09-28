@@ -194,12 +194,21 @@ function computeSummaryAmount(
 }
 
 /** Whether the "Complete transfer" section shows the delivery-proof note
- *  field: only for Zelle, where the recipient's name is the one thing the
- *  screenshot itself never carries. Mirrors `destinationLabel`'s Zelle
- *  check (operation-level rail) plus the single-beneficiary case. */
+ *  field: whenever the operation has at least one current Zelle
+ *  beneficiary, where the recipient's name is the one thing the
+ *  screenshot itself never carries — regardless of beneficiary count. Once
+ *  beneficiaries exist, `delivery_method` is ignored: it's set only by the
+ *  legacy notes trigger with an arbitrary `LIMIT 1` and is never touched by
+ *  the reparto/add-beneficiary RPCs, so it can be stale or null even for a
+ *  live Zelle operation, and mustn't hide the caption for a mixed reparto,
+ *  nor show it for a pure Cuban-card one. `delivery_method` is the only
+ *  signal left for the legacy shape: an operation with no beneficiaries
+ *  yet. */
 function isZelleOperation(operation: RemittanceOperationRead): boolean {
-  if (operation.deliveryMethod === "zelle") return true;
-  return operation.beneficiaries.length === 1 && operation.beneficiaries[0]!.beneficiaryType === "zelle";
+  if (operation.beneficiaries.length > 0) {
+    return operation.beneficiaries.some((beneficiary) => beneficiary.beneficiaryType === "zelle");
+  }
+  return operation.deliveryMethod === "zelle";
 }
 
 /** Short, locale-aware date + time for the history card's "Completed …"

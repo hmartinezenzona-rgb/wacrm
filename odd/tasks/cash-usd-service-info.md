@@ -136,5 +136,10 @@ terms, and hands the operation to a human. It never quotes cash at the Zelle/car
     - "Deposit by MMG" and "no discounts" in `hechos` follow the other services' policy. They were not
       stated by the user for cash; the user was told.
 
+- 2026-09-28 migration 139, applied on staging (psql) and prod (MCP). The user confirmed the facts:
+  the business always receives by MMG, no discounts. Cash delivery needs 3 recipient data: phone, a
+  photo of the ID card (carnet) and address. `hechos` now lists them; requiere_humano stays true.
+  Still unknown for the full via: does 290 change daily, which provinces.
+
 ## Next step
 Watch real cash questions; the full cash via awaits product answers.

@@ -54,12 +54,12 @@ every piece before storing it. The deterministic twins stay as a safety net.
   Record what the current prod prompt and extractor do with each.
 - [~] B2 — Dropped by the user on 2026-09-28 after B1 ("sí, haz el paso 3"): the model already
   saves Zelle in every order and the twin handles cards.
-- [ ] B3 — Zelle twin ties name and account in the 3 failing orders: account first, "number then
+- [x] B3 — Zelle twin ties name and account in the 3 failing orders: account first, "number then
   name", e-mail. `Snapshot final` (and `Merge beneficiario` if the gap is across bursts).
   - RED: `banco-orden-beneficiario.js` + a cross-burst sequence on wacrm-ensayo.
   - GREEN, with `banco-nombre-zelle.js` and `banco-merge-nombre.py` unchanged (rules 1–3 of
     zelle-holder-name hold, e.g. a tied name never moves to a different account).
-- [ ] B4 — Staging Cerebro `U52y1kSNvhgxvWeb` with a backup; rerun the benches against it.
+- [x] B4 — Staging Cerebro `U52y1kSNvhgxvWeb` with a backup; rerun the benches against it.
 - [ ] B5 — Production `jEzlVLCLUaJhVwzs` with a backup; watch the real executions; record.
 - [~] Model tool `guardar_dato_beneficiario` + prompt change: dropped with B2.
 
@@ -89,5 +89,84 @@ every piece before storing it. The deterministic twins stay as a safety net.
   - Conclusion: the premise "the model cannot save in any order" does not hold in the harness. The
     measurable gap is the Zelle twin (B3). B2/B4 await a user decision.
 
+- 2026-09-28 B3 — Zelle twin, the 3 failing orders (RED evidence from a fresh prod GET,
+  `jEzlVLCLUaJhVwzs`, 116 nodes):
+  - Root causes, all in `Snapshot final`'s two-line tie rule (it only tied name-line-then-
+    number-line, nothing else):
+    1. **account first**: the existing two-line rule only walks name→number, never number→name.
+    2. **"number, name" in one message**: same root cause as (1) — after the bench joins turns,
+       "+1 305 555 0103\nMaria Fernandez Lopez" is structurally identical to account-first.
+    3. **e-mail as the account**: the two-line rule's `sig` regex only accepts a phone-shaped
+       line, never an e-mail.
+    - Checked (not assumed) whether account-first-then-name across BURSTS already works, as the
+      doc asked: it does not. `cerebro_nombre_completa($8, cerebro_beneficiario_parcial.zelle_nombre)`
+      requires a non-empty stored label to "complete" (`cardinality(b.w) > 0`); when the account
+      arrived alone the stored `zelle_nombre` is NULL, so the function returns false and the
+      standalone name is never tied. This is a 4th, cross-burst-only gap, added to RED via a new
+      `banco-merge-nombre.py` sequence run on wacrm-ensayo (not assumed from reading the SQL).
+  - RED (fresh prod GET, before any change):
+    - `banco-orden-beneficiario.js` (now scored: the 5 `orden-beneficiario-zelle` cases carry
+      `esperado`): ROJO 5 casos con esperado, 3 failures (account-first, number-then-name,
+      e-mail); the 2 name-first cases already passed.
+    - `banco-merge-nombre.py` (now also asserts the tie `zelle_nombre_cuenta`, not just the name
+      and account): ROJO 8 secuencias, 1 failure (the new cross-burst case); the 7 existing
+      sequences stayed green under the new, stricter tie assertion.
+  - Fix, smallest change, additive only (no existing block touched):
+    - `Snapshot final`: one new two-line block, placed right after the existing same-line and
+      `[Contacto]` blocks, before the standalone-name fallback. For two adjacent non-blank lines
+      (blank lines skipped, same as the existing rule) in EITHER order, when one line is
+      account-shaped (a phone line OR a bare e-mail) and the other is name-shaped
+      (`pareceNombre`, 2–5 capitalized words, filtered by the same `NO_NOMBRE` set — so
+      "Buenas Tardes Hermano" still never ties), it sets `zelle_nombre` + `zelle_nombre_cuenta`
+      together, guarded by `if (zelle_nombre) return` so it never overrides an earlier tie.
+    - `Merge beneficiario` (SQL, query-text only — see below): one new `WHEN` in both the
+      `zelle_nombre` and `zelle_nombre_cuenta` CASE expressions, ordered between "complete an
+      existing label" and "drop on account change": when a standalone name ($8) arrives and the
+      stored `zelle_nombre` IS NULL, tie it to `coalesce($6, stored.zelle_cuenta)` (this burst's
+      new account, or the one already stored) — never a stale account left over after rule 3.
+    - Patch script: `~/cerebro-fase1/pruebas/parche-orden-beneficiario.py` (exact-match string
+      replacement, same style as `parche-nombre-zelle.py`; fails loudly if the anchor text isn't
+      found exactly once).
+    - Rule 3 (zelle-holder-name) verified still held, not just assumed: the tied number the new
+      block writes is always the same value already sitting in `zelle_celulares[0]` /
+      `zelle_correos[0]` (the "principal" account), so the existing rule-3 check at the end of
+      `Snapshot final` never nulls a name the new block just tied.
+  - GREEN (all against the SAME patched code):
+    - `banco-orden-beneficiario.js`: VERDE 5 casos con esperado.
+    - `banco-nombre-zelle.js` (regression, unchanged expectations): VERDE 19 casos (was 19 before).
+    - `banco-movil-63.js` (regression): VERDE (unchanged).
+    - `banco-merge-nombre.py`: VERDE 8 secuencias (was 7 passing + 1 new failing; now 8/8,
+      including the tie assertion on the 7 pre-existing sequences).
+    - `banco-captura-beneficiarios.js`: skipped — needs a real-remesa corpus file this session
+      does not have locally (`ERR_INVALID_ARG_TYPE`, second argument missing); not regenerated
+      because doing so needs a fresh prod DB export, out of scope for this task.
+  - No migration: no new column or function was needed (`zelle_nombre_cuenta`, `zelle_cuenta` and
+    `cerebro_nombre_completa` all already exist from migration 131). Both changes are query/code
+    text inside the n8n node, deployed in B4 — no `137_*.sql` was created.
+- 2026-09-28 B4 — staging deploy (`U52y1kSNvhgxvWeb`), then the production candidate (not
+  applied):
+  - Backup: `~/cerebro-fase1/ROLLBACK-cerebro-staging-antes-orden-zelle.json` (fresh GET, 117
+    nodes, confirmed byte-identical to the GET taken minutes earlier for the RED baseline).
+  - Candidate: `~/cerebro-fase1/candidato-cerebro-staging-orden-zelle.json`, built from that exact
+    backup with `parche-orden-beneficiario.py`.
+  - Pre-flight (before the PUT): node count unchanged (117/117); only `Snapshot final` and
+    `Merge beneficiario` differ; `disabled` unchanged (both `None`/`None`) — staging carries an
+    extra experimental node (`DeepSeek Web Search Chat Model`, not in prod) that the diff
+    confirmed untouched; connections unchanged (`==` on the full connections object).
+  - PUT: `nodos=117`. Read-back GET after the PUT: 117 nodes, `active=true`, zero nodes differ
+    from the candidate, `Snapshot final.jsCode` and `Merge beneficiario.query` byte-equal to the
+    candidate.
+  - No migration to apply on staging Supabase (`kolppplawzdsjfydwejr`): none was created (see B3).
+  - Reran the Snapshot/Merge benches against the code AS READ BACK from staging (not the local
+    candidate file): `banco-orden-beneficiario.js` VERDE 5/5, `banco-nombre-zelle.js` VERDE 19/19,
+    `banco-movil-63.js` VERDE, `banco-merge-nombre.py` VERDE 8/8 (SQL run on wacrm-ensayo,
+    unrelated to which n8n environment hosts the query text).
+  - Production: never PUT to `jEzlVLCLUaJhVwzs`, never touched Supabase `hqztotshnlzaiziwjyzh`.
+    Prepared `~/cerebro-fase1/candidato-cerebro-PRODUCCION-orden-zelle.json` from a FRESH prod GET
+    (116 nodes) plus the same patch. Diff summary: node count unchanged (116/116); only
+    `Snapshot final` and `Merge beneficiario` differ; `disabled` unchanged; connections unchanged.
+    Awaiting a separate B5 decision to deploy.
+
 ## Next step
-B3.
+B5 (production), on explicit go-ahead — B4 only covered staging plus preparing (not applying) the
+production candidate.

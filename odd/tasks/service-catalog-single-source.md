@@ -67,5 +67,24 @@ that is not active, and never ignores one that is.
 ## Progress
 - 2026-09-28: document created. Waiting for cash-usd-service-info to finish.
 
+- 2026-09-28 ~13:30Z PAUSED by the user (business hours; save DeepSeek tokens). The worker was
+  stopped mid-S4. State, verified by the parent:
+  - Staging DB `kolppplawzdsjfydwejr`: migration 138 APPLIED (`palabras_clave`, `resumen`,
+    `cerebro_catalogo_servicios()`). Files committed as "feat(db): service catalog columns and
+    function (138, staging only)". SQL assertions in `supabase/staging/assertions/service-catalog.sql`,
+    results not recorded by the worker.
+  - Staging Cerebro `U52y1kSNvhgxvWeb`: catalog change APPLIED at 13:25Z. Backup from before the
+    change: `~/cerebro-fase1/ROLLBACK-cerebro-staging-antes-catalogo.json`.
+    - The worker's last message: `casos-efectivo-usd` 4/4 GREEN on staging.
+    - Not yet run: `casos-orden-beneficiario`, `casos-regresion`, and the S2 GREEN evidence.
+  - New cases: `evals/casos/casos-catalogo-servicios.json` (8). RED runs in
+    `informe-20260928-071901.json` and the following reports.
+  - Production: NOT touched. The prod DB has no catalog columns; the prod Cerebro was last changed
+    by cash-usd-service-info at 13:10Z.
+  - Two leftover temporary eval workflows (`ZZ EVAL ...`, one active) were deleted.
+  - S1–S4 stay unchecked: no parent-verified evidence yet.
+
 ## Next step
-S1, after C4 of cash-usd-service-info.
+Resume: read the staging diff against the backup, rerun the S2 cases and the regressions on staging
+(consider parallel runs of 3 and one temporary workflow per batch to save time and DeepSeek tokens),
+then S5. Or restore staging from the backup if the approach is dropped.

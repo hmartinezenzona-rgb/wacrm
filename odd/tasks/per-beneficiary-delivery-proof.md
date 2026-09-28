@@ -49,8 +49,14 @@ Root causes (read-only map, 2026-09-28):
   (`supabase/staging/assertions/delivery.sql`, `reparto-auto.sql`, plus new ones).
 
 ## Tasks
-- [ ] P1 — Zelle caption: RED tests (stale/null `deliveryMethod` + 1 Zelle beneficiary; 2 Zelle
-  beneficiaries; mixed card + Zelle) → fix → GREEN.
+- [x] P1 — Zelle caption: RED tests (stale/null `deliveryMethod` + 1 Zelle beneficiary; 2 Zelle
+  beneficiaries; mixed card + Zelle) → fix → GREEN. `isZelleOperation()`
+  (`remittance-operation-card.tsx`) now derives from the current beneficiaries (`some(b =>
+  beneficiaryType === 'zelle')`) whenever any exist, falling back to `deliveryMethod === 'zelle'`
+  only for the legacy no-beneficiaries shape. Confirmed the only other caption/proof gate is that
+  same function (forwarded as `isZelle`/`showCaption` through `complete-transfer-container.tsx` and
+  `complete-transfer-section.tsx` into `delivery-proof.tsx`'s `showCaption` prop) — no other site
+  needed a change. Commit `2761685`.
 - [ ] P2 — DB: table `remittance_beneficiary_proofs` (beneficiary_id, wamid, path, caption, sent_at,
   sent_by) + an RPC to record one beneficiary's proof; `crm_entregar_operacion` completes only when
   every current beneficiary has a proof. Migration + rollback + assertions; staging.
@@ -71,6 +77,15 @@ Root causes (read-only map, 2026-09-28):
 
 ## Progress
 - 2026-09-28: document created from the read-only map.
+- 2026-09-28: P1 done. RED observed in `remittance-operation-card.test.tsx` for the 2-Zelle-
+  beneficiaries, mixed (card+zelle), and pure-Cuban-card-with-stale-zelle-column cases (3 failing,
+  right reason: old `isZelleOperation()` gated on count/`deliveryMethod`); the 1-Zelle-beneficiary
+  and legacy (no beneficiaries + `deliveryMethod: 'zelle'`) cases were already green under the old
+  code, added as regression coverage. Fixed `isZelleOperation()`; same 5 new tests + full existing
+  suite for the file GREEN (99/99 across the 3 touched test files). `npm run test`: 1536 passed, 2
+  pre-existing failures in `src/lib/dashboard/date-utils.test.ts` (`mondayIndex`, timezone-dependent,
+  untouched file, not caused by this change). `npx tsc --noEmit`: clean. `npm run lint` on the
+  touched files: clean. Commit `2761685`.
 
 ## Next step
-P1.
+P2 — DB: `remittance_beneficiary_proofs` table + RPC, staging migration.

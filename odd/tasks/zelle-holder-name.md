@@ -60,7 +60,7 @@ How the name is decided today:
 - [x] Z2 — Migration 131 and Merge beneficiario SQL: rule 1 across bursts and rule 3.
   - Ensayo sequences RED, then GREEN.
 - [x] Z3 — Deploy: staging (131 + Cerebro), then prod, with backups; watch the executions.
-- [ ] Z4 — The name the bot CONFIRMS reaches the panel. Approved by the user on 2026-09-28 ("eso esta
+- [x] Z4 — The name the bot CONFIRMS reaches the panel. Approved by the user on 2026-09-28 ("eso esta
   bien").
   - Evidence: of 122 bot confirmations, 113 match what was stored. In 7 of the 9 mismatches the
     bot was right (Lisandra, Sampedro, PTK family, Liliana, Yorlandis, Yadamy, Tiger), and 13
@@ -124,3 +124,18 @@ How the name is decided today:
   - Order: DB first, because the new node SQL needs 131.
   - Rollback copies: `ROLLBACK-cerebro-{staging,PRODUCCION}-antes-nombre-zelle.json`. Restore the
     node BEFORE dropping the function.
+- 2026-09-28 Z4 — migration 132 (`cerebro_aplicar_nombre_confirmado` plus the trigger
+  `trg_zz_nombre_confirmado_zelle` on agent messages).
+  - Assertion `zelle-confirmed-name.sql`: RED (still "Liliana"), then GREEN 7/7.
+    - The setup now includes the accumulated row that `Merge beneficiario` always leaves.
+  - The rollback drops the trigger and the functions; checked (case 1 fails again), then 132 was
+    re-applied.
+  - Read-only simulation over the real mismatches since August: 11 of 12 would be corrected with
+    the right name.
+    - Corrected: Lisandra, Sampedro, PTK family, Liliana, Yorlandis, Yadamy, Tiger, Miami Tuna x2,
+      Xpress, MF Farm.
+    - The only one left untouched is the bot's typo "Mairensy"; the customer wrote "Mairenys".
+  - Applied on staging (every assertion green: reparto 13, 131 4, 132 7) and on prod; the md5 is the
+    same on both (d0967dd3…). Commit e4e3734.
+  - Limitation: it only corrects names. The 13 confirmations that were never stored as a
+    beneficiary are not created by this.

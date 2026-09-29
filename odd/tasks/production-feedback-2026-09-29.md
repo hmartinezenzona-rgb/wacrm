@@ -166,8 +166,10 @@ functions. The user's list plus the defects the test proved.
     status=deposit_verification`. GREEN (144 applied in the same rolled-back transaction): both cases
     pass, `verify-deposit-status-drift: ALL PASS`. Full vitest suite re-run: 1610/1612 pass (same 2
     pre-existing `date-utils.test.ts`/`mondayIndex` failures, unrelated). `tsc --noEmit` clean.
-  - Not yet applied to the real staging database — that's the user's step, same as every other
-    migration in this repo.
+  - Applied to the real staging database (`kolppplawzdsjfydwejr`) on the user's explicit
+    instruction ("Aplica las migraciones 144 y 145 a staging"). Pre/post state confirmed by reading
+    `cerebro_cruzar_deposito`'s source before and after; the assertion re-run (in a rolled-back
+    transaction, no leftover rows) passed `ALL PASS` against the real database too.
   - No money/ledger totals touched; this is a status-gate read fix only.
   - Committed as `8576bd9`.
 
@@ -215,7 +217,10 @@ functions. The user's list plus the defects the test proved.
   - No money/ledger amounts or write paths touched — pure read-side wire-up (publication membership +
     client subscription); RLS and every write path (feed trigger, `crm_resolve_pending_entry`)
     unchanged.
-  - Not yet applied to the real staging database — the user's step.
+  - Applied to the real staging database (`kolppplawzdsjfydwejr`) alongside 144, on the user's
+    explicit instruction. Publication membership confirmed before (absent) and after (present); the
+    self-reverting assertion re-run against the real database passed `ALL PASS` with no leftover
+    rows.
   - Committed as `6437b40`.
 
 ## Next step

@@ -56,7 +56,7 @@ silently skipped.
   feed-matrix.sql GREEN (one assertion updated, see below). Commit `d924890`.
 - [x] F2 — Production: 141 + replay `53d4e1f0`; verify its entry (expected ZELLE 90 USD at 260,
   per the rates in force); the unfed view is empty.
-- [ ] M1 — Mixed remesas (card + USD rail in one deposit) get one ledger line PER service. The user
+- [x] M1 — Mixed remesas (card + USD rail in one deposit) get one ledger line PER service. The user
   said "arreglemos lo de las mixtas" on 2026-09-28. Today the ledger allows one
   `completed_operation` entry per operation (unique on account_id, operation_id) and the resolver
   leaves mixed ops unresolved. Needs:
@@ -134,5 +134,36 @@ silently skipped.
     21,600, retorno 1,800.
   - Unfed view: 0 rows.
 
+- 2026-09-28 M1 — done inline by the parent (the subagent hit its usage limit before writing
+  anything; staging was verified unchanged first).
+  - Migration 142 (commit c2c56ed), applied to STAGING only:
+    - `basis_gyd` on the entries;
+    - uniqueness (account, operation, service);
+    - `calculator_operation_parts()`: CUP part = card CUP / cup_global_rate; the last USD part =
+      the rest of the deposit; missing or mismatched amounts → pending 'beneficiaryAmounts';
+    - `calculator_feed_operation` feeds every part;
+    - the unfed view counts a part without a live line (`mixed_part_unfed`);
+    - `crm_resolve_pending_entry` prices a line on `basis_gyd` (refuses a mixed line with an
+      unknown share);
+    - `crm_cierre_financiero` counts DISTINCT operations in totals and per day.
+  - ROLLBACK-142 restores 141/105/121 verbatim. Note: void the extra line of any mixed remesa
+    first.
+  - Assertions (staging, `psql -1`):
+    - `feed-mixed.sql`: RED before 142 (0 lines, no basis_gyd), GREEN 9/9 after;
+    - `feed-matrix.sql`: 20/20;
+    - `delivery-feed-evidence.sql`: 2/2;
+    - `feed-from-beneficiaries.sql`: 6/6, after updating case 3 to the new behavior (a mixed op
+      without amounts now gets 2 pending lines);
+    - `reparto-auto.sql`: 13/13, run with a free fixture phone, because a committed leftover
+      contact `test127` (59900127001) from an earlier run blocks its fixture.
+  - Panel (commit df4e2a4):
+    - `dedupeCompletedOperationEntries` keys by operation + service;
+    - `topClientsFrom` counts a mixed remesa once.
+    - vitest: RED 2 → GREEN. `src/lib/calculator` + `src/lib/dashboard`: 169 pass; the 2 failures
+      are the known timezone ones in `date-utils.test.ts`. `tsc --noEmit` clean; eslint clean.
+  - Deploy order: the DB (142) can go first. Until the panel deploy, only the calculator page
+    totals would hide the second line of a mixed remesa; /resumen is fixed in SQL.
+
 ## Next step
-M1 (mixed remesas).
+M2 — production: apply 142 with the user's go-ahead, then check that the unfed view is empty. The
+panel fix ships with the next app deploy.

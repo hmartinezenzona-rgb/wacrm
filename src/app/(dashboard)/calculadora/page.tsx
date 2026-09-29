@@ -67,6 +67,11 @@ export default function CalculadoraPage() {
   const [ratesSaving, setRatesSaving] = useState(false);
   const [ratesMessage, setRatesMessage] = useState<string | null>(null);
   const [chatEntries, setChatEntries] = useState<ChatCalculatorEntry[]>([]);
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  const [editFacturado, setEditFacturado] = useState("");
+  const [editInvertido, setEditInvertido] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [entryActionMessage, setEntryActionMessage] = useState<{ entryId: string; text: string } | null>(null);
   // No local theme state: the page reads the CRM's design tokens, so it
   // follows whatever mode and accent the operator picked in Appearance.
   // The old `dark` boolean and its "🌗 Tema" button were a second switch
@@ -216,6 +221,88 @@ export default function CalculadoraPage() {
     }
   }
 
+  function parseEditAmount(value: string): number | null {
+    if (value.trim() === "") return null;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 0) return null;
+    return parsed;
+  }
+
+  function startEditEntry(entry: ChatCalculatorEntry) {
+    // Only one row edits at a time -- opening this row's editor discards
+    // any other row's in-progress edit and message.
+    setEditingEntryId(entry.id);
+    setEditFacturado(entry.facturadoGyd == null ? "" : String(entry.facturadoGyd));
+    setEditInvertido(entry.invertidoGyd == null ? "" : String(entry.invertidoGyd));
+    setEntryActionMessage(null);
+  }
+
+  function closeEditor() {
+    setEditingEntryId(null);
+    setEditFacturado("");
+    setEditInvertido("");
+  }
+
+  function cancelEditEntry() {
+    closeEditor();
+    setEntryActionMessage(null);
+  }
+
+  async function saveEditEntry(entryId: string) {
+    const facturadoGyd = parseEditAmount(editFacturado);
+    const invertidoGyd = parseEditAmount(editInvertido);
+    if (facturadoGyd === null || invertidoGyd === null) {
+      setEntryActionMessage({
+        entryId,
+        text: "Ingresa valores numéricos válidos (mayores o iguales a 0).",
+      });
+      return;
+    }
+    setEditSaving(true);
+    try {
+      const response = await fetch(`/api/calculator/entries/${entryId}/correct`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ facturadoGyd, invertidoGyd }),
+      });
+      if (response.status === 403) {
+        setEntryActionMessage({ entryId, text: "Solo un administrador puede corregir esta operación." });
+        closeEditor();
+        return;
+      }
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}) as { error?: string });
+        setEntryActionMessage({
+          entryId,
+          text: (data as { error?: string }).error ?? "No se pudo corregir la operación.",
+        });
+        return;
+      }
+      const data = (await response.json()) as {
+        entry: { id: string; facturadoGyd: number | null; invertidoGyd: number | null; retornoGyd: number | null; status: string };
+      };
+      setChatEntries((prev) =>
+        prev.map((entry) =>
+          entry.id === data.entry.id
+            ? {
+                ...entry,
+                facturadoGyd: data.entry.facturadoGyd,
+                invertidoGyd: data.entry.invertidoGyd,
+                retornoGyd: data.entry.retornoGyd,
+                status: data.entry.status as ChatCalculatorEntry["status"],
+              }
+            : entry,
+        ),
+      );
+      setEntryActionMessage(null);
+      closeEditor();
+    } catch {
+      setEntryActionMessage({ entryId, text: "No se pudo corregir la operación." });
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
   function handleTextChange(event: ChangeEvent<HTMLTextAreaElement>) {
     const textarea = event.currentTarget;
     const cursor = textarea.selectionStart;
@@ -361,7 +448,104 @@ export default function CalculadoraPage() {
 
         <div className="legacyCard"><h2>🔍 Auditoría de Operaciones por Día</h2><div style={{ maxHeight: 400, overflowY: "auto" }}>{operationGroups.map((group) => <div key={group.day}><div className="legacyDayHeader">{group.day}</div><table className="legacyParsedTable"><thead><tr><th>Cliente</th><th>Monto</th><th>Tipo</th><th>Detalle</th><th>Fact. (GYD)</th><th>Inv. (GYD)</th><th>Ganancia</th></tr></thead><tbody>{group.operations.map((operation, index) => <tr key={`${group.day}-${index}`}>{isErrorLine(operation) ? <td colSpan={7} style={{ color: "orange" }}>⚠️ No interpretado: &quot;{operation.raw}&quot;</td> : <><td data-label="Cliente"><b>{operation.cliente}</b></td><td data-label="Monto">{operation.montoOrig}</td><td data-label="Tipo"><span className="legacyBadge">{operation.tipo}</span></td><td data-label="Detalle">{operation.detalle || "-"}</td><td data-label="Fact. (GYD)">{formatNumber(operation.fact)}</td><td data-label="Inv. (GYD)">{formatNumber(operation.inv)}</td><td data-label="Ganancia" style={{ color: "green", fontWeight: "bold" }}>{formatNumber(operation.retorno)}</td></>}</tr>)}</tbody></table></div>)}</div></div>
 
-        <div className="legacyCard"><h2>🔗 Operaciones del chat (solo lectura)</h2>{chatEntries.length === 0 ? <span className="legacySmall">No hay operaciones vinculadas.</span> : <div style={{ maxHeight: 400, overflowY: "auto" }}><table className="legacyParsedTable"><thead><tr><th>Fecha</th><th>Cliente</th><th>Monto</th><th>Tipo</th><th>Estado</th><th>Fact. (GYD)</th><th>Inv. (GYD)</th><th>Ganancia</th></tr></thead><tbody>{chatEntries.map((entry) => <tr key={entry.id}><td data-label="Fecha">{entry.entryDate.slice(0, 10)}</td><td data-label="Cliente"><b>{entry.customerName || "—"}</b></td><td data-label="Monto">{entry.amount} {entry.service}</td><td data-label="Tipo"><span className="legacyBadge">{entry.service}</span></td><td data-label="Estado">{entry.status === "completed" ? "Completada" : `Pendiente${entry.missingRates.length ? `: ${entry.missingRates.join(", ")}` : ""}`}</td><td data-label="Fact. (GYD)">{entry.facturadoGyd == null ? "—" : formatNumber(entry.facturadoGyd)}</td><td data-label="Inv. (GYD)">{entry.invertidoGyd == null ? "—" : formatNumber(entry.invertidoGyd)}</td><td data-label="Ganancia">{entry.retornoGyd == null ? "—" : formatNumber(entry.retornoGyd)}</td></tr>)}</tbody></table></div>}</div>
+        <div className="legacyCard">
+          <h2>🔗 Operaciones del chat</h2>
+          {chatEntries.length === 0 ? (
+            <span className="legacySmall">No hay operaciones vinculadas.</span>
+          ) : (
+            <div style={{ maxHeight: 400, overflowY: "auto" }}>
+              <table className="legacyParsedTable">
+                <thead>
+                  <tr>
+                    <th>Fecha</th><th>Cliente</th><th>Monto</th><th>Tipo</th><th>Estado</th>
+                    <th>Fact. (GYD)</th><th>Inv. (GYD)</th><th>Ganancia</th><th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {chatEntries.map((entry) => {
+                    const editing = editingEntryId === entry.id;
+                    const rowMessage = entryActionMessage?.entryId === entry.id ? entryActionMessage.text : null;
+                    const editPreview = (Number(editFacturado) || 0) - (Number(editInvertido) || 0);
+                    return (
+                      <tr key={entry.id}>
+                        <td data-label="Fecha">{entry.entryDate.slice(0, 10)}</td>
+                        <td data-label="Cliente"><b>{entry.customerName || "—"}</b></td>
+                        <td data-label="Monto">{entry.amount} {entry.service}</td>
+                        <td data-label="Tipo"><span className="legacyBadge">{entry.service}</span></td>
+                        <td data-label="Estado">{entry.status === "completed" ? "Completada" : `Pendiente${entry.missingRates.length ? `: ${entry.missingRates.join(", ")}` : ""}`}</td>
+                        <td data-label="Fact. (GYD)">
+                          {editing ? (
+                            <input
+                              id={`editFacturado-${entry.id}`}
+                              type="number"
+                              step="0.01"
+                              value={editFacturado}
+                              onChange={(event) => setEditFacturado(event.target.value)}
+                            />
+                          ) : entry.facturadoGyd == null ? "—" : formatNumber(entry.facturadoGyd)}
+                        </td>
+                        <td data-label="Inv. (GYD)">
+                          {editing ? (
+                            <input
+                              id={`editInvertido-${entry.id}`}
+                              type="number"
+                              step="0.01"
+                              value={editInvertido}
+                              onChange={(event) => setEditInvertido(event.target.value)}
+                            />
+                          ) : entry.invertidoGyd == null ? "—" : formatNumber(entry.invertidoGyd)}
+                        </td>
+                        <td data-label="Ganancia">
+                          {editing ? formatNumber(editPreview) : entry.retornoGyd == null ? "—" : formatNumber(entry.retornoGyd)}
+                        </td>
+                        <td data-label="Acciones">
+                          {entry.status === "completed" && (
+                            editing ? (
+                              <div style={{ display: "flex", gap: 6, flexDirection: "column" }}>
+                                <div style={{ display: "flex", gap: 6 }}>
+                                  <button
+                                    type="button"
+                                    id={`guardarEntry-${entry.id}`}
+                                    onClick={() => void saveEditEntry(entry.id)}
+                                    disabled={editSaving}
+                                    style={{ width: "auto" }}
+                                  >
+                                    {editSaving ? "Guardando…" : "Guardar"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    id={`cancelarEntry-${entry.id}`}
+                                    className="legacySecondary"
+                                    onClick={cancelEditEntry}
+                                    disabled={editSaving}
+                                    style={{ width: "auto" }}
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
+                                {rowMessage && <div className="legacyError">{rowMessage}</div>}
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                id={`editarEntry-${entry.id}`}
+                                onClick={() => startEditEntry(entry)}
+                                style={{ width: "auto" }}
+                              >
+                                ✏️ Editar
+                              </button>
+                            )
+                          )}
+                          {!editing && rowMessage && <div className="legacyError">{rowMessage}</div>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
 
         <div className="legacyCard legacyFlex"><button type="button" onClick={exportar}>📄 Exportar Reporte (.txt)</button><button type="button" className="legacySecondary" onClick={clearAll}>🧹 Limpiar Todo</button></div>
       </div>

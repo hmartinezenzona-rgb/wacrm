@@ -109,16 +109,18 @@ function jsonResponse(body: unknown, status = 200) {
 }
 
 type RatesPostResult = { status: number; body?: unknown };
+type CorrectPostResult = { status: number; body?: unknown };
 
 /** Routes the page's fetch calls by URL + method instead of a single blanket
  * mock, since the page now talks to two GET endpoints on hydration
- * (/api/calculadora and /api/calculator/rates) plus two POST endpoints
- * (document autosave and the explicit rate save). */
+ * (/api/calculadora and /api/calculator/rates) plus three POST endpoints
+ * (document autosave, the explicit rate save, and per-entry corrections). */
 function createFetchMock(config: {
   calculadoraGet?: unknown;
   ratesGet?: { rates: unknown };
   calculadoraPost?: unknown;
   ratesPost?: (body: { rates: Record<string, unknown>; expectedVersionId?: string }) => RatesPostResult;
+  correctPost?: (entryId: string, body: { facturadoGyd: number; invertidoGyd: number }) => CorrectPostResult;
 }) {
   return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input.toString();
@@ -137,6 +139,26 @@ function createFetchMock(config: {
       const result = config.ratesPost
         ? config.ratesPost(body)
         : { status: 200, body: { rates: { id: "rate-1", ...body.rates } } };
+      return Promise.resolve(jsonResponse(result.body ?? {}, result.status));
+    }
+    const correctMatch = /^\/api\/calculator\/entries\/([^/]+)\/correct$/.exec(url);
+    if (correctMatch && method === "POST") {
+      const entryId = correctMatch[1]!;
+      const body = JSON.parse((init?.body as string) ?? "{}");
+      const result = config.correctPost
+        ? config.correctPost(entryId, body)
+        : {
+            status: 200,
+            body: {
+              entry: {
+                id: entryId,
+                facturadoGyd: body.facturadoGyd,
+                invertidoGyd: body.invertidoGyd,
+                retornoGyd: body.facturadoGyd - body.invertidoGyd,
+                status: "completed",
+              },
+            },
+          };
       return Promise.resolve(jsonResponse(result.body ?? {}, result.status));
     }
     return Promise.reject(new Error(`Unhandled fetch ${method} ${url}`));
@@ -447,7 +469,7 @@ describe("calculator chat operations (read-only)", () => {
     });
     const { node, root } = await renderPage(fetchMock);
 
-    expect(node.textContent).toContain("Operaciones del chat (solo lectura)");
+    expect(node.textContent).toContain("Operaciones del chat");
     expect(node.textContent).toContain("Completada");
     expect(node.textContent).toContain("Pendiente: usdtSellCup");
     expect(node.textContent).toContain("26260.00");
@@ -603,6 +625,164 @@ describe("calculator chat operations (realtime, B4.2)", () => {
     });
 
     expect(node.textContent).not.toContain("Raúl");
+    await act(async () => root.unmount());
+  });
+});
+
+describe("calculator chat operations (admin correction)", () => {
+  const COMPLETED_ENTRY = {
+    id: "entry-a",
+    operationId: "op-a",
+    status: "completed",
+    service: "ZELLE",
+    customerName: "Raúl",
+    amount: 100,
+    amountCurrency: "USD",
+    entryDate: "2026-09-12",
+    facturadoGyd: 26000,
+    invertidoGyd: 24000,
+    retornoGyd: 2000,
+    missingRates: [],
+  };
+  const PENDING_ENTRY = {
+    id: "entry-b",
+    operationId: "op-b",
+    status: "verified_pending",
+    service: "CUP",
+    customerName: "Bladimir",
+    amount: 30000,
+    amountCurrency: "CUP",
+    entryDate: "2026-09-12",
+    facturadoGyd: null,
+    invertidoGyd: null,
+    retornoGyd: null,
+    missingRates: ["usdtSellCup"],
+  };
+
+  function fixture(overrides?: { correctPost?: (entryId: string, body: { facturadoGyd: number; invertidoGyd: number }) => CorrectPostResult }) {
+    return createFetchMock({
+      calculadoraGet: {
+        rawText: "",
+        periodo: "SEMANA 1",
+        chatOperations: { entries: [COMPLETED_ENTRY, PENDING_ENTRY] },
+      },
+      ratesGet: { rates: null },
+      ...overrides,
+    });
+  }
+
+  it("shows the Editar button only on completed entries", async () => {
+    const fetchMock = fixture();
+    const { node, root } = await renderPage(fetchMock);
+
+    expect(node.querySelector("#editarEntry-entry-a")).not.toBeNull();
+    expect(node.querySelector("#editarEntry-entry-b")).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("editing and saving successfully updates the displayed values and closes the editor", async () => {
+    const fetchMock = fixture();
+    const { node, root } = await renderPage(fetchMock);
+
+    const editButton = node.querySelector("#editarEntry-entry-a") as HTMLButtonElement;
+    await act(async () => { editButton.click(); });
+
+    expect(inputValue(node, "editFacturado-entry-a")).toBe("26000");
+    act(() => setInputValue(node, "editFacturado-entry-a", "27000"));
+    act(() => setInputValue(node, "editInvertido-entry-a", "24500"));
+
+    const saveButton = node.querySelector("#guardarEntry-entry-a") as HTMLButtonElement;
+    await act(async () => { saveButton.click(); });
+    await flush();
+
+    const correctCall = fetchMock.mock.calls.find(([input]) =>
+      (typeof input === "string" ? input : input.toString()) === "/api/calculator/entries/entry-a/correct",
+    );
+    expect(correctCall).toBeDefined();
+    expect(JSON.parse((correctCall![1] as RequestInit).body as string)).toEqual({
+      facturadoGyd: 27000,
+      invertidoGyd: 24500,
+    });
+    expect(node.textContent).toContain("27000.00");
+    expect(node.textContent).toContain("24500.00");
+    expect(node.textContent).toContain("2500.00");
+    expect(node.querySelector("#guardarEntry-entry-a")).toBeNull();
+    expect(node.querySelector("#editarEntry-entry-a")).not.toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("a 403 response shows the admin-only message and closes the editor", async () => {
+    const fetchMock = fixture({ correctPost: () => ({ status: 403, body: { error: "Forbidden" } }) });
+    const { node, root } = await renderPage(fetchMock);
+
+    const editButton = node.querySelector("#editarEntry-entry-a") as HTMLButtonElement;
+    await act(async () => { editButton.click(); });
+    const saveButton = node.querySelector("#guardarEntry-entry-a") as HTMLButtonElement;
+    await act(async () => { saveButton.click(); });
+    await flush();
+
+    expect(node.textContent).toContain("Solo un administrador puede corregir esta operación.");
+    expect(node.querySelector("#guardarEntry-entry-a")).toBeNull();
+    expect(node.querySelector("#editarEntry-entry-a")).not.toBeNull();
+    // Values are unchanged since the RPC never ran.
+    expect(node.textContent).toContain("26000.00");
+    await act(async () => root.unmount());
+  });
+
+  it("rejects an invalid input client-side without a network call", async () => {
+    const fetchMock = fixture();
+    const { node, root } = await renderPage(fetchMock);
+
+    const editButton = node.querySelector("#editarEntry-entry-a") as HTMLButtonElement;
+    await act(async () => { editButton.click(); });
+    act(() => setInputValue(node, "editFacturado-entry-a", ""));
+    fetchMock.mockClear();
+
+    const saveButton = node.querySelector("#guardarEntry-entry-a") as HTMLButtonElement;
+    await act(async () => { saveButton.click(); });
+    await flush();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    // The editor stays open so the admin can fix the value and retry.
+    expect(node.querySelector("#guardarEntry-entry-a")).not.toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("rejects a negative input client-side without a network call", async () => {
+    const fetchMock = fixture();
+    const { node, root } = await renderPage(fetchMock);
+
+    const editButton = node.querySelector("#editarEntry-entry-a") as HTMLButtonElement;
+    await act(async () => { editButton.click(); });
+    act(() => setInputValue(node, "editInvertido-entry-a", "-5"));
+    fetchMock.mockClear();
+
+    const saveButton = node.querySelector("#guardarEntry-entry-a") as HTMLButtonElement;
+    await act(async () => { saveButton.click(); });
+    await flush();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(node.querySelector("#guardarEntry-entry-a")).not.toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("Cancelar discards the in-progress edit without a network call", async () => {
+    const fetchMock = fixture();
+    const { node, root } = await renderPage(fetchMock);
+
+    const editButton = node.querySelector("#editarEntry-entry-a") as HTMLButtonElement;
+    await act(async () => { editButton.click(); });
+    act(() => setInputValue(node, "editFacturado-entry-a", "99999"));
+    fetchMock.mockClear();
+
+    const cancelButton = node.querySelector("#cancelarEntry-entry-a") as HTMLButtonElement;
+    await act(async () => { cancelButton.click(); });
+    await flush();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(node.querySelector("#editarEntry-entry-a")).not.toBeNull();
+    expect(node.textContent).toContain("26000.00");
+    expect(node.textContent).not.toContain("99999");
     await act(async () => root.unmount());
   });
 });

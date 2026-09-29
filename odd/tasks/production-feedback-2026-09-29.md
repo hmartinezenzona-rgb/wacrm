@@ -76,6 +76,26 @@ functions. The user's list plus the defects the test proved.
 
 ## Open decisions (filled in as tasks reach them)
 
+- B1.1, B1.2, B1.4 (asked 2026-09-29, second session): the wording these tasks change is NOT
+  deterministic code. The replies come from the LLM agent's 41 KB system prompt (`Agente Remesas`,
+  few-shot examples such as "Apenas haga su depósito envíenos la captura por favor." and "Apenas lo
+  verifiquemos le hacemos la transferencia."); the staging `Decisor` only adds instruction notes.
+  A prompt edit can only be verified by running the model, which this loop may not do (no DeepSeek
+  evals). Choose: (a) allow model evals against a staging-only DeepSeek credential (not `DeepSeek
+  account`), so I can edit the prompt with before/after cases; (b) apply the prompt edit on staging
+  without evals and you judge it on real staging chats; (c) skip. B1.1 also needs the recipient
+  amount (CUP/USD at the current rate) passed into the agent context, which `Contexto conversacion`
+  does not carry today.
+- B2.2 (analysis, blocked on DB access rather than a product decision): the bot goes silent for 5
+  min after ANY non-AI agent message (`humano_reciente` in `Contexto conversacion`: `sender_type =
+  'agent' AND ai_generated = false AND created_at > now() - 5 min`), and `/api/whatsapp/send` also
+  calls `pauseAiOnAgentSend` after every send. A panel action that sends through that route (a
+  delivery proof) is indistinguishable from an admin typing in the chat. Fix needs a marker that
+  says "this message came from a panel action": a nullable `messages` column set by the send route
+  (migration on staging) plus the route skipping `pauseAiOnAgentSend` for it plus `humano_reciente`
+  ignoring it (n8n). Same blocker as A1: I cannot apply migrations to staging without DB access.
+  B2.1 (keep extracting while paused) changes the `Decisor` routing and depends on the same
+  n8n/DB access; not started.
 - A6 (RESOLVED by the user's information, 2026-09-29): the runaway completion tokens started
   between 2026-09-27 (avg 51 tokens, max 182, none over 2k) and 2026-09-28 (avg 1,415, max 31,621,
   7 turns over 2k; 09-29: avg 3,715, max 43,165). The user confirms that on ~09-28 they swapped the
@@ -283,8 +303,7 @@ functions. The user's list plus the defects the test proved.
     Progress section; it was restored verbatim from commit `8335805`.
 
 ## Next step
-A1: migration 146 is committed and verified on the rehearsal DB; it needs the user's staging DB
-access (see Progress) before the `Dedup comprobantes` n8n step. A2, A6 done; A4/A5 wait for "Available
-in MCP" on `Yu0uskQhydWgNFEy`; A3, B3.2, B4.3, B4.4 and the B4.1 reversal question wait for the user.
-Next loop tick: B1.1 (deterministic wording in the staging `Decisor`, testable with the
-extracted-Code-node harness, no model evals), then B1.2, B2.x.
+Every remaining task now waits on the user: staging DB access (A1 n8n step, B2.1, B2.2), "Available in
+MCP" on `Yu0uskQhydWgNFEy` (A4/A5), a call on evals (B1.1, B1.2, B1.4), or the older Open decisions
+(A3, B3.2, B4.3, B4.4, B4.1 reversal). Not yet examined: B1.3 (receipts not detected: read-only prod
+investigation). The loop should be stopped until one of those arrives.

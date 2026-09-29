@@ -75,7 +75,16 @@ functions. The user's list plus the defects the test proved.
   partially needs a decision, see below.**
 
 ## Open decisions (filled in as tasks reach them)
-- A3 — no expiry rule is decided yet for `cerebro_objetivo_envio`. Root cause is fully diagnosed
+
+- A1 (asked 2026-09-29, second session): what must a duplicate receipt surface? Evidence: the
+  staging `Decisor` already words the reply by the REAL stage of the original deal (`dup_etapa`:
+  Entregada / Lista para transferir / Incidencia / otherwise "still verifying"), and every
+  `comprobantes_hashes` row since 2026-09-28 in prod has its deal (19 of 19), so a duplicate is a
+  true resend of a registered receipt, not a lost one. What is missing is only an admin-visible
+  trace. But a customer resending a receipt while anxious is common, so alerting on every duplicate
+  may be noise. Options for you: (a) a quiet marker on the original deal/chat, no alert; (b) an
+  alert only when the original is not yet verified; (c) an incident on every duplicate. Not
+  implemented until you choose.- A3 — no expiry rule is decided yet for `cerebro_objetivo_envio`. Root cause is fully diagnosed
   (Engram #280): `cerebro_objetivo_atar` attaches ANY open, unattached target to a brand-new deal
   with no freshness check, so a stale quote from a prior day gets picked up by an unrelated new
   remesa. The fix needs one of: (a) a time-based expiry (how many hours is a quote "still valid"?),

@@ -76,6 +76,14 @@ functions. The user's list plus the defects the test proved.
 
 ## Open decisions (filled in as tasks reach them)
 
+- B1.3 (investigated, no defect visible in the data; needs a real case from you): customer images
+  since 2026-09-26 in prod (60): 39 have a `comprobantes_hashes` row; 21 do not. Of those 21, 6 are
+  Cuban cards (correct, cards are not hashed), 16 have NO vision reading and all 16 are dated
+  2026-09-26/27, before `cerebro_lecturas_vision` existed (migration 128), so they cannot be
+  classified, and 1 (2026-09-29 03:59) is the A1 resend of an already-registered receipt. Every
+  image from 2026-09-28 on that vision classified as a receipt was registered. So there is no
+  proven case of an undetected receipt in the logs I can read. Give me one chat and time where it
+  failed (or the phone) and I will trace that execution; until then B1.3 stays unchecked.
 - B1.1, B1.2, B1.4 (asked 2026-09-29, second session): the wording these tasks change is NOT
   deterministic code. The replies come from the LLM agent's 41 KB system prompt (`Agente Remesas`,
   few-shot examples such as "Apenas haga su depósito envíenos la captura por favor." and "Apenas lo
@@ -305,5 +313,5 @@ functions. The user's list plus the defects the test proved.
 ## Next step
 Every remaining task now waits on the user: staging DB access (A1 n8n step, B2.1, B2.2), "Available in
 MCP" on `Yu0uskQhydWgNFEy` (A4/A5), a call on evals (B1.1, B1.2, B1.4), or the older Open decisions
-(A3, B3.2, B4.3, B4.4, B4.1 reversal). Not yet examined: B1.3 (receipts not detected: read-only prod
-investigation). The loop should be stopped until one of those arrives.
+(A3, B3.2, B4.3, B4.4, B4.1 reversal). B1.3 was examined and needs a real failing case from the user. The loop is stopped until one of
+these arrives.

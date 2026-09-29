@@ -50,8 +50,9 @@ functions. The user's list plus the defects the test proved.
   todas como leídas" stops the sound and it does not ring again.
 
 ### B2. Admin and bot interaction
-- [ ] B2.1 — While the bot is paused by a human, keep extracting data (cards, phones, names) in the
-  background and update the panel silently. It must not reply.
+- [x] B2.1 — While the bot is paused by a human, keep extracting data (cards, phones, names) in the
+  background and update the panel silently. It must not reply. (Investigated: already satisfied by
+  the existing graph — see Progress.)
 - [x] B2.2 — The bot pauses ONLY when an admin writes in the chat. Panel actions (sending a proof,
   completing a remesa) must not pause it. (Both halves confirmed — see Progress: "sending a proof"
   fixed by 147; "completing a remesa" traced and found already safe by construction, no fix needed.)
@@ -386,12 +387,32 @@ functions. The user's list plus the defects the test proved.
     `ai_generated=true`, which already fails `humano_reciente`'s own `ai_generated=false`
     requirement — it never counted as a human taking the conversation, and never could pause the
     bot, before or after this session's fix. B2.2 is now fully closed.
-  - B2.1 (keep extracting silently while paused) still not started — same "changes the Decisor
-    routing" scope noted in the second session, independent of this fix.
+  - **B2.1 investigated — already satisfied, no code change made.** First read of `Decisor`'s
+    top only (`if (ctx.bot_pausado) { return [{ ruta: 'silencio' }] }`, before any routing) wrongly
+    suggested pause short-circuits everything, including extraction — asked the user before touching
+    live bot routing, was told to continue, then traced the actual node graph and found the
+    assumption wrong. `Decisor` only ever returns THREE ruta values (`agente`, `comando`,
+    `silencio`) — it has no deterministic "register this card/Zelle/deposit" route at all. The
+    automatic capture pipeline (`Dedup comprobantes` → `Comprobante nuevo?` → `Registrar deposito
+    auto` / `Merge beneficiario` → `Beneficiario completo?` → `Registrar beneficiario auto` /
+    `Registrar zelle auto` → `Zelle completo?`) runs entirely BEFORE `Contexto conversacion` and
+    `Decisor` in the graph, gated only on content (`tarjeta_final`/`celular_final`/Zelle fields being
+    present, not ambiguous), never on `bot_pausado` or anything from `Decisor`. So a card, phone, or
+    Zelle account the customer sends while the bot is paused is already extracted and persisted to
+    `remittance_beneficiaries`/`remittance_operations` today, updating the panel, with zero reply —
+    exactly B2.1's requirement. The only extraction gated behind `Decisor` reaching `ruta: 'agente'`
+    is the set of AGENT TOOLS (`gestionar_beneficiario`, `registrar_beneficiario_zelle`,
+    `registrar_reparto_multiple`, …) — but reaching those requires the LLM agent to run a
+    conversational turn, which is itself "replying"; B2.1 explicitly says the bot "must not reply"
+    while paused, so there is no way to capture more without violating that same requirement. No
+    fix needed; no code or workflow touched for this task.
+  - **Correction, said plainly**: my first message asking to proceed was based on reading one
+    `if` statement out of an 819-line function, not the actual node graph — the alarm about a large,
+    risky Decisor rewrite was wrong. Verified before building anything, not after.
 
 ## Next step
-A1 and B2.2 are both fully closed. Everything else still waits on the user: staging DB access is no
-longer the blocker for anything (this session can read `.env.staging` now) — remaining blockers are
+A1, B2.1 and B2.2 are all fully closed. Everything else still waits on the user: staging DB access is
+no longer the blocker for anything (this session can read `.env.staging` now) — remaining blockers are
 "Available in MCP" on `Yu0uskQhydWgNFEy` (A4/A5), a call on evals (B1.1, B1.2, B1.4), or the older
 Open decisions (A3, B3.2, B4.3, B4.4, B4.1 reversal). B1.3 needs a real failing case from the user.
 B2.1 has not been started. The loop is

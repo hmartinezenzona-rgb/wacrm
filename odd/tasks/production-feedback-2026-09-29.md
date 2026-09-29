@@ -73,8 +73,9 @@ functions. The user's list plus the defects the test proved.
 - [x] B4.2 — The calculator updates in real time when a remesa completes, with no page refresh.
 - [ ] B4.3 — The admin can complete a remesa without a prior deposit verification (force or skip),
   e.g. when the bot was paused. — **needs a decision, see below.**
-- [ ] B4.4 — Delete operations or records from the calculator module. — **partially satisfied,
-  partially needs a decision, see below.**
+- [x] B4.4 — Delete operations or records from the calculator module. (DECIDED by the user,
+  2026-09-29: a completed remesa's entry must NOT be deletable from the calculator. The manual
+  weekly log already supports deleting a line by editing the text — nothing else to build.)
 
 ## Open decisions (filled in as tasks reach them)
 
@@ -125,30 +126,19 @@ functions. The user's list plus the defects the test proved.
   remesa. The fix needs one of: (a) a time-based expiry (how many hours is a quote "still valid"?),
   or (b) some other explicit closing rule the user prefers. Neither is invented here — needs the
   user's call before implementing.
-- B4.1 (maybe) — should deleting a deal ALSO void the calculator entry of an already-*completed*
-  remesa? Today it deliberately does not (migration 114: "the money really moved, it's history").
-  Only relevant if that's actually what "Borrar...clears the calculator" meant; not acted on.
-- B3.2 — "Control semanal" IS the `/calculadora` page. Its "Operaciones del chat" table is genuinely
-  read-only today, and "investment cost" is not a new concept — `invertido_gyd` already exists
-  (095/104, auto-computed from the buy/sell rate spread) and is already shown as "Inv. (GYD)". Open
-  questions, none invented: which columns become editable (facturado/invertido/retorno? customer/
-  amount too?), who may edit (admin-only, like rates?), should edits be audited like
-  `crm_corregir_operacion` already does elsewhere, and does `retorno_gyd` stay derived from the
-  others or become independently editable.
-- B4.3 — the DB gap is real and narrow (`crm_forzar_verificacion` only accepts
-  `status IN ('deposit_verification','incident')`, so the actual "bot was paused" scenario — status
-  stuck at `collecting_information`/`awaiting_deposit`/`deposit_received` — has no admin override at
-  all today), but making it usable is not just a backend guard widen: `DepositReviewContainer` hides
-  the whole force-UI when there are zero receipts, and `DepositReviewSection` itself returns nothing
-  unless `canVerify` is true — both tied to the same status set. Enabling this for earlier statuses
-  means designing what the panel looks like with zero receipts and no deposit to review — a real UI
-  decision, not just widening a guard. Not invented.
-- B4.4 — the manual weekly log (free-text, "Limpiar Todo") already supports deleting a line by
-  editing the text — that half is satisfied, no decision needed. The auto-fed ledger
-  (`remittance_calculator_entries`, `source='completed_operation'`) has no delete/void path today,
-  and adding one bypasses migration 114's deliberate "money moved, it's history" design — same open
-  question as B4.1 above (hard delete vs. reversible void, audit trail, who's allowed). Only
-  relevant if "the calculator module" in B4.4 means the auto-fed ledger rather than the manual log.
+- ~~B4.1 (maybe)~~ **DECIDED (user, 2026-09-29): no.** Deleting a deal must NOT void the calculator
+  entry of an already-completed remesa — current behavior (migration 114) stays as-is. Closed.
+- B3.2 — **DECIDED (user, 2026-09-29):** admins can edit the values of ALREADY-COMPLETED remesas as
+  they appear in the calculator ("Operaciones del chat"), because exchange rates sometimes change
+  after the fact and the stored numbers need correcting. Still to design (not a new open decision,
+  just implementation choices): which exact columns (`facturado_gyd`/`invertido_gyd`/`retorno_gyd`?)
+  and whether `retorno_gyd` stays derived or becomes independently editable — will follow the
+  existing `crm_corregir_operacion` pattern (admin-only, audited) unless told otherwise.
+- B4.3 — **DECIDED (user, 2026-09-29): left to the implementer's judgment** on the panel design for
+  force-completing a remesa with zero receipts to review.
+- ~~B4.4~~ **DECIDED (user, 2026-09-29): no new deletion capability.** Same answer as the B4.1
+  reversal above — a completed remesa's entry must not be deletable. The manual weekly log's
+  existing delete-by-editing-text is the only deletion this app needs. Closed.
 
 ## n8n access restored (2026-09-29, second session)
 - The `claude.ai n8n` MCP is connected again and the user explicitly authorized reading and patching
@@ -410,10 +400,35 @@ functions. The user's list plus the defects the test proved.
     `if` statement out of an 819-line function, not the actual node graph — the alarm about a large,
     risky Decisor rewrite was wrong. Verified before building anything, not after.
 
+- 2026-09-29 (fourth touch-point, user answers): the user enabled "Available in MCP" on
+  `Yu0uskQhydWgNFEy` (A4/A5 unblocked — confirmed `availableInMCP: true`; fixing its reparto
+  detector, a pure-JS algorithm, delegated to a worker under strict TDD, in progress). Also answered
+  several open decisions directly:
+  - **B4.1 reversal: NO.** Deleting a deal must not void a completed remesa's calculator entry.
+    Current (114) behavior is correct as-is. Closed, no change.
+  - **B4.4: closed, no new deletion capability.** Same reasoning as above — completed entries stay
+    undeletable; the manual log's existing delete-by-editing-text is enough.
+  - **B3.2: decided.** Admins can edit an already-completed remesa's values as shown in the
+    calculator, because exchange rates sometimes get corrected after the fact. Implementation
+    (which exact columns, audit trail) still to design, following existing patterns.
+  - **B4.3: left to the implementer's judgment** on the zero-receipts panel design.
+  - **A3: still unclear to the user** — re-explained in plain terms (a stale quote from a
+    conversation that never became a deposit shouldn't be compared against tomorrow's unrelated
+    deposit) and asked again for either a concrete expiry window or a different closing rule.
+  - **DeepSeek credential claim, NOT yet accepted**: the user said the "DeepSeek account" credential
+    is theirs, not production's, and that they already swapped it in staging manually. Verified
+    directly against both workflows: credential id `f0K27ImOFO3QdL34` ("DeepSeek account") is still
+    the exact same entry wired into BOTH the production AND staging "DeepSeek sin pensamiento"
+    nodes — not two separate credentials. Whatever key is behind that id today is shared between
+    both environments; n8n credentials aren't duplicated per-environment by editing a node. Asked
+    the user to clarify whether they created a genuinely separate credential entry (different id) or
+    edited this same one's key (which would also change what production uses). No eval has been run
+    under this claim.
+
 ## Next step
-A1, B2.1 and B2.2 are all fully closed. Everything else still waits on the user: staging DB access is
-no longer the blocker for anything (this session can read `.env.staging` now) — remaining blockers are
-"Available in MCP" on `Yu0uskQhydWgNFEy` (A4/A5), a call on evals (B1.1, B1.2, B1.4), or the older
-Open decisions (A3, B3.2, B4.3, B4.4, B4.1 reversal). B1.3 needs a real failing case from the user.
-B2.1 has not been started. The loop is
-stopped until one of these arrives.
+A1, B2.1 and B2.2 are fully closed; B4.1-reversal and B4.4 are decided-closed with no change needed.
+A4/A5 unblocked and being fixed now (background worker, pure algorithm work — will be applied to the
+n8n node and verified once it reports back). B1.3: proceeding now with a read-only production
+investigation (already authorized) now that more real traffic has accumulated. Still waiting on the
+user: the DeepSeek credential clarification (before any eval can run for B1.1/B1.2/B1.4), and A3's
+expiry rule. B3.2 and B4.3 are unblocked for implementation (decisions given above).

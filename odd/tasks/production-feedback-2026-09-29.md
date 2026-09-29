@@ -56,7 +56,7 @@ functions. The user's list plus the defects the test proved.
   automation fails.
 - [ ] B3.2 — Weekly control (Control semanal): the read-only chat operations become editable, plus a
   field for the investment cost (costo de la inversión).
-- [ ] B3.3 — Some remesas verified and delivered from the right panel still show "Awaiting Deposit".
+- [x] B3.3 — Some remesas verified and delivered from the right panel still show "Awaiting Deposit".
   Find and fix the status update.
 
 ### B4. Calculator and panel
@@ -113,7 +113,38 @@ functions. The user's list plus the defects the test proved.
     "marcar todas como leídas" button was placed in `ConversationList`'s filter toolbar (there was no
     prior UI for it anywhere) — confirm that's the right spot if it matters.
 
+- 2026-09-30 (loop): **B3.3 DONE.** Root cause: `cerebro_cruzar_deposito` (114) still gates its
+  staleness check ("has this deal moved since I looked at it?") on `deals.stage_id`, a column 114
+  itself stopped writing from every operation-status-advancing write path (same class of oversight
+  125 already fixed once, for a write path). For an operation whose deal existed BEFORE its deposit
+  ("movido"/"sumado" branches, ~13% of deals per 125's own measurement), the deal is frozen at its
+  birth stage while `remittance_operations.status` correctly advances to `deposit_verification` —
+  so when the panel's `crm_verificar_deposito` (itself already correctly deriving its expected stage
+  from `status`, per 114) calls into `cerebro_cruzar_deposito`, that inner function's own
+  stage_id-based check disagrees and silently returns `resultado: 'no_aplica'` (a normal 200, not an
+  error). Verification never advances the status past `deposit_verification` — this IS the stuck
+  "Awaiting Deposit". The same shared function backs n8n's automatic MMG cross-reference, so the
+  automatic path is equally defeated; only the admin-only `crm_forzar_verificacion` escape hatch
+  (which never reads `deals.stage_id`) still works for these operations.
+  - New `supabase/migrations/144_verify_deposit_status_drift.sql` (+ROLLBACK-144): `v_aplica` now
+    compares against `remittance_operations.status` (via `cerebro_estado_desde_etapa`) instead of
+    `deals.stage_id`; every other line of the 114 function is untouched. `cerebro_cruzar_depositos`
+    needed no change — both its paths delegate to this same function.
+  - New `supabase/staging/assertions/verify-deposit-status-drift.sql`: case 1 reproduces the drift
+    (deal born before its deposit) and proves the fix; case 2 is a control (deal born already at "Por
+    verificar" — the common single-shot case) proving no regression there.
+  - TDD: RED and GREEN both independently reproduced by me (not just reported by the worker) against
+    a local non-production rehearsal Postgres (`wacrm-ensayo`, not staging/prod), inside
+    `BEGIN...ROLLBACK` — nothing committed. RED: case 1 fails with `resultado=no_aplica,
+    status=deposit_verification`. GREEN (144 applied in the same rolled-back transaction): both cases
+    pass, `verify-deposit-status-drift: ALL PASS`. Full vitest suite re-run: 1610/1612 pass (same 2
+    pre-existing `date-utils.test.ts`/`mondayIndex` failures, unrelated). `tsc --noEmit` clean.
+  - Not yet applied to the real staging database — that's the user's step, same as every other
+    migration in this repo.
+  - No money/ledger totals touched; this is a status-gate read fix only.
+  - Committed as `<pending>`.
+
 ## Next step
-Next in-repo, decision-free, non-n8n candidates: B3.3 (Awaiting Deposit status stuck after
-verify+deliver) and B4.1 (calculator auto-update on complete/delete) — both DB/app only, no n8n
-needed.
+Next in-repo, decision-free, non-n8n candidate: B4.1 (calculator auto-update on complete/delete) —
+DB/app only, no n8n needed. B3.1/B3.2/B4.2/B4.3/B4.4 not yet triaged for hidden decisions/n8n
+dependencies.

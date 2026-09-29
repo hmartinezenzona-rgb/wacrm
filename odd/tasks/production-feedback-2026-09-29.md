@@ -49,7 +49,8 @@ functions. The user's list plus the defects the test proved.
   depósito"; use "Datos registrados. Una vez realizada su remesa le notificaremos por este medio."
 - [x] B1.3 — Receipts sent in chat sometimes not detected or registered. Investigate the real cases
   (beyond A1) and fix. FOUND AND FIXED IN PRODUCTION — see Progress (case: Javier Cruz).
-- [ ] B1.4 — Cash delivery: the bot asks the sender for the recipient's exact address, phone and a
+- [ ] B1.4 — DB layer DONE (migration 150), n8n wiring pending — see Progress. Cash delivery: the bot
+  asks the sender for the recipient's exact address, phone and a
   photo of the ID card. CORRECTED PREMISE (see Progress): this data is not stored anywhere in the
   schema today (139/140 only added catalog TEXT describing what's needed, not per-operation columns)
   — this is a new feature, not a wording fix. User confirmed 2026-09-29: build it.
@@ -597,6 +598,41 @@ functions. The user's list plus the defects the test proved.
   decisions) — this is a large blast-radius change (pipeline/kanban UI, `deal_id` foreign keys across
   `remittance_operations`/`depositos_mmg`/audit rows, etc.) that needs its own exploration/proposal
   before any implementation, not a same-session code change.
+
+- 2026-09-29 (eighth touch-point): asked the user whether B1.4's data should persist across FUTURE
+  remesas to the same recipient, or only within the same operation. **DECIDED: per-operation only**
+  — a brand-new remesa to the same person asks again; this is not a cross-operation recipient
+  profile. Also found, by direct production query, that ZERO real operations with
+  `delivery_method = 'efectivo_usd'` have ever existed — this service is catalog-only today
+  (137/139/140), so B1.4 is built ahead of first use, following the exact same
+  `service_type='remesa'` + `delivery_method` shape `zelle`/`cuban_card`/etc. already use (no new
+  `service_type` value).
+  - **B1.4 DB layer DONE** (n8n wiring still pending, separate follow-up): migration 150 adds
+    `'efectivo_usd'` to `remittance_beneficiaries.beneficiary_type`, plus nullable `address` and
+    `id_photo_wamid` (a message-id reference, same graceful pattern as `comprobantes_hashes.
+    whatsapp_message_id` — never duplicates the image). New bot-facing RPC
+    `crm_registrar_datos_entrega_efectivo(p_conv, p_phone, p_address, p_id_photo_wamid)` —
+    every field but the conversation is optional; `NULL` means "no new value this call", so the bot
+    (or a deterministic step) can call it once per turn with only the field just given, and a
+    `COALESCE`-based merge against the current `vigente` row means an earlier turn's field is never
+    lost. Append-only (old `vigente` → `reemplazado`, fresh `vigente` inserted), no-op when nothing
+    actually changed, `22023` when there's no open `efectivo_usd` operation to record against
+    (this RPC never creates one). `service_role`-only grant, same trust boundary as
+    `cerebro_aplicar_reparto`/`cerebro_aplicar_nombre_confirmado` — verified against those functions'
+    own grants before accepting the claim.
+  - TDD: RED (function missing, 42883) then GREEN (9/9 expectations) reproduced independently by me
+    against `wacrm-ensayo`, matching the delegated worker's own reported run; also run by the worker
+    against real staging (RED then GREEN, 9/9), zero leftover fixture rows on both. Applied to
+    staging only — production needs its own go-ahead, not assumed.
+  - Committed as `0e359b0`.
+  - **Remaining for B1.4**: the n8n side — extend `Contexto conversacion` with a "what's still
+    missing" flag (phone/address/photo) so the agent asks only for what it doesn't have yet, a
+    deterministic step to auto-capture an ID-card photo's wamid when one arrives during an open
+    `efectivo_usd` operation (not relying on the LLM agent to reliably call a tool with the right
+    wamid — same "agent tool calls are unreliable, prefer deterministic pre-processing" lesson this
+    doc already recorded for A3/B1.1), and a prompt instruction for the agent to call
+    `crm_registrar_datos_entrega_efectivo` with phone/address when the customer states them in text.
+    Not started.
 
 ## Open decisions (new items from the seventh touch-point)
 - **Javier Cruz's specific stolen deposit** — needs a human/admin reconciliation decision, not code.

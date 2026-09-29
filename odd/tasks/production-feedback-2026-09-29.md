@@ -79,14 +79,17 @@ functions. The user's list plus the defects the test proved.
 
 ## Open decisions (filled in as tasks reach them)
 
-- B1.3 (investigated, no defect visible in the data; needs a real case from you): customer images
-  since 2026-09-26 in prod (60): 39 have a `comprobantes_hashes` row; 21 do not. Of those 21, 6 are
-  Cuban cards (correct, cards are not hashed), 16 have NO vision reading and all 16 are dated
-  2026-09-26/27, before `cerebro_lecturas_vision` existed (migration 128), so they cannot be
-  classified, and 1 (2026-09-29 03:59) is the A1 resend of an already-registered receipt. Every
-  image from 2026-09-28 on that vision classified as a receipt was registered. So there is no
-  proven case of an undetected receipt in the logs I can read. Give me one chat and time where it
-  failed (or the phone) and I will trace that execution; until then B1.3 stays unchecked.
+- B1.3 (investigated a SECOND time, 2026-09-29 third session, read-only prod, structure only; still
+  no defect visible): checked all 22 receipts `cerebro_lecturas_vision` classified as `comprobante`
+  in the last 3 days. 21 of 22 have a matching `comprobantes_hashes` row; the 1 without it is the
+  already-explained A1 resend. Of the 21 hashed ones, 2 looked suspicious at first (no deal touched
+  within ±10 min of the vision read) but both turned out fine on a closer look: one completed
+  normally with the deal update landing 27 min later (outside my first, too-narrow window); the
+  other was correctly registered (has a `DEPOSITO` note) and is sitting in `incident` status, which
+  is normal manual-review behavior, not a silently dropped receipt. So across two separate
+  investigations (this one and the second session's, covering different windows) the automated
+  pipeline has registered every classified receipt it saw. Still need a concrete case from the user
+  (chat/phone/approximate time) — until then B1.3 stays unchecked.
 - B1.1, B1.2, B1.4 (asked 2026-09-29, second session): the wording these tasks change is NOT
   deterministic code. The replies come from the LLM agent's 41 KB system prompt (`Agente Remesas`,
   few-shot examples such as "Apenas haga su depósito envíenos la captura por favor." and "Apenas lo

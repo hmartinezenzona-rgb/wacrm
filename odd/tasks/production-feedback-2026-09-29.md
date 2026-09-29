@@ -21,7 +21,7 @@ functions. The user's list plus the defects the test proved.
 ## Tasks
 
 ### A. Defects proven by the 2026-09-29 live test
-- [ ] A1 — A duplicate receipt (same image hash) is dropped silently. No deposit, no op, no incident,
+- [x] A1 — A duplicate receipt (same image hash) is dropped silently. No deposit, no op, no incident,
   and the bot still says "lo estamos verificando". It must surface: an incident / admin alert, and
   honest bot wording. (Dedup comprobantes → comprobantes_hashes.)
 - [x] A2 — A 10-digit US phone written without +1 ("celular 8133617809") is not recognized as a Zelle
@@ -310,8 +310,36 @@ functions. The user's list plus the defects the test proved.
   - Process note: an earlier edit of this document by the loop accidentally removed this whole
     Progress section; it was restored verbatim from commit `8335805`.
 
+- 2026-09-29 (third session, after reboot): **A1 DONE end to end.**
+  - `CRM_STAGING_DATABASE_URL` became readable this session (the user granted a scoped exception to
+    the global `Read(.env.*)` deny in `~/.claude/settings.json`, see the earlier config note). 146
+    applied for real to staging `kolppplawzdsjfydwejr` (no `psql` binary locally — used
+    `docker run --rm -i postgres:17-alpine psql "$CRM_STAGING_DATABASE_URL"`). Verified before
+    (columns/function absent) and after (present); its assertion re-run against the real database in
+    a rolled-back transaction: 7/7 PASS, zero leftover rows.
+  - n8n side: patched `Dedup comprobantes` (Postgres node) in the STAGING workflow `U52y1kSNvhgxvWeb`
+    — added a `mark` CTE that calls `cerebro_marcar_reenvio_comprobante($1, wamid)` gated on the
+    existing `dup` CTE's result; every other line of the query is byte-identical. `Snapshot final`
+    (the deterministic twin downstream of this node) only ever read `.duplicado` off this node's
+    output, confirmed by reading its 20 KB `jsCode`, so the new `marcado` field is inert there — no
+    other node needed touching.
+  - TDD proof (SQL-level, since this is a Postgres node, not a Code node): against the local
+    rehearsal Postgres `wacrm-ensayo` (146 applied there too, for testing only), `PREPARE`d both the
+    exact OLD and NEW query text and ran the same resend scenario through each, inside
+    `BEGIN...ROLLBACK`. RED (old query, live text): a real resend (same hash, new wamid) correctly
+    detects `duplicado=true` but `comprobantes_hashes.reenvios` stays 0 — the bug. GREEN (new query):
+    same resend gives `duplicado=true, marcado=true, reenvios=1`; a replay of the SAME wamid gives
+    `marcado=false` and `reenvios` stays 1 (no double count); a THIRD new wamid gives `marcado=true,
+    reenvios=2`; a genuinely new (non-duplicate) hash gives `duplicado=false, marcado=NULL`, row
+    untouched.
+  - Published as workflow version `fcf35a3d-6986-4272-947d-f51ae5fe0bc8` (previous active
+    `c96f131f...`, the A6 community-node fix — restorable via `publish_workflow` with that version
+    id). Workflow stayed `active: true` throughout; only a draft-then-publish step, no downtime.
+  - Never touched production (`jEzlVLCLUaJhVwzs`) or any DeepSeek eval.
+
 ## Next step
-Every remaining task now waits on the user: staging DB access (A1 n8n step, B2.1, B2.2), "Available in
+A1 is fully closed. Everything else still waits on the user: staging DB access is no longer the
+blocker for anything (this session can read `.env.staging` now) — remaining blockers are "Available in
 MCP" on `Yu0uskQhydWgNFEy` (A4/A5), a call on evals (B1.1, B1.2, B1.4), or the older Open decisions
-(A3, B3.2, B4.3, B4.4, B4.1 reversal). B1.3 was examined and needs a real failing case from the user. The loop is stopped until one of
-these arrives.
+(A3, B3.2, B4.3, B4.4, B4.1 reversal). B1.3 needs a real failing case from the user. The loop is
+stopped until one of these arrives.

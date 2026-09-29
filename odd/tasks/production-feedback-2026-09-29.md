@@ -159,9 +159,7 @@ functions. The user's list plus the defects the test proved.
   - Committed as `6437b40`.
 
 ## Next step
-Second session: n8n restored, A2 not reproducible (see above). Next loop tick: A1 (duplicate receipt
-surfaces an incident), then A4/A5, each behind a vitest harness for the extracted Code node.
-Earlier state: B3.1, B3.3, B4.1, B4.2 done. Remaining unchecked tasks all either need a user decision (A3, B3.2,
-B4.3, B4.4, and the B4.1 reversal question — all above) or are blocked by the n8n MCP disconnect (A1,
-A2, A4, A5, A6, B1.1-B1.4, B2.1-B2.2). No further decision-free, non-n8n work is available in this
-document until the user answers one of the open decisions or n8n access is restored.
+Second session: A2 and A6 checked; A1 and the A6 fix wait on Open decisions; A4/A5 wait on the user
+enabling "Available in MCP" for `Yu0uskQhydWgNFEy`. Next loop tick: B1.1 (deterministic wording in
+the staging `Decisor`, testable with the extracted-Code-node harness, no model evals), then B1.2,
+B2.x. Earlier state: B3.1, B3.3, B4.1, B4.2 done.

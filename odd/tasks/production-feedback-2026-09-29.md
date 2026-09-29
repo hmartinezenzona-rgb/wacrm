@@ -47,10 +47,12 @@ functions. The user's list plus the defects the test proved.
   current rate). Example: "…le hacemos la transferencia de *20,100 CUP*."
 - [ ] B1.2 — If the deposit is ALREADY verified, the confirmation must not say "apenas se confirme su
   depósito"; use "Datos registrados. Una vez realizada su remesa le notificaremos por este medio."
-- [ ] B1.3 — Receipts sent in chat sometimes not detected or registered. Investigate the real cases
-  (beyond A1) and fix.
+- [x] B1.3 — Receipts sent in chat sometimes not detected or registered. Investigate the real cases
+  (beyond A1) and fix. FOUND AND FIXED IN PRODUCTION — see Progress (case: Javier Cruz).
 - [ ] B1.4 — Cash delivery: the bot asks the sender for the recipient's exact address, phone and a
-  photo of the ID card (the facts are already in the efectivo_usd service row, 139/140).
+  photo of the ID card. CORRECTED PREMISE (see Progress): this data is not stored anywhere in the
+  schema today (139/140 only added catalog TEXT describing what's needed, not per-operation columns)
+  — this is a new feature, not a wording fix. User confirmed 2026-09-29: build it.
 - [x] B1.5 — Chat notifications: (a) a sound per incoming chat message, like WhatsApp; (b) "marcar
   todas como leídas" stops the sound and it does not ring again.
 
@@ -540,17 +542,75 @@ functions. The user's list plus the defects the test proved.
     `operations-panel-container.test.tsx`, 120/120). `npx tsc --noEmit` clean.
   - No DB migration needed — pure front-end fix, the RPC/route/command layer was already correct.
 
-## Next step
-A1, A3, A4, A5, B1.5, B2.1, B2.2, B3.1, B3.2, B3.3, B4.1(reversal), B4.2, B4.3 and B4.4 are all
-closed. Only three tasks remain, all blocked on the user rather than on unblocked implementation
-work:
-- **B1.1/B1.2/B1.4** — evals are unblocked (DeepSeek credential genuinely separated) but not yet run;
-  still need the user's choice on the open decision above (allow staging-only evals / apply the
-  prompt edit without evals / skip).
-- **B1.3** — read-only production investigated three times now (three widening windows), still no
-  defect found; needs a concrete case (chat/phone/approximate time) from the user to make further
-  progress.
-- **A6** — applied on staging at the user's request; still needs the user to confirm on real staging
-  traffic that completion tokens fell back to ~50-300 before this can be marked fully done.
+- 2026-09-29 (seventh touch-point): user chose option (a) for B1.1/B1.2/B1.4 (staging-only DeepSeek
+  evals, `DeepSeek account` credential) and gave a concrete B1.3 case: **Javier Cruz, phone
+  5926460583, operation `2f65becb-058e-438f-a06b-d0654727f8d5` (deal `badc01a5-...`), 13,000 GYD via
+  zelle, created 2026-09-28 14:31:39 UTC, stuck in `deposit_verification`.** Investigated (read-only
+  prod) and found a real, evidenced defect. **B1.3 DONE, migration 144 applied to PRODUCTION with the
+  user's explicit go-ahead.**
+  - Confirmed exact chain (read from staging `U52y1kSNvhgxvWeb`, mirrors production): `Snapshot final`
+    → `Comprobante nuevo?` → `Registrar deposito auto` (`cerebro_registrar_deposito`) → `Cruzar
+    deposito con MMG` (`cerebro_cruzar_depositos` → `cerebro_cruzar_deposito`) — this IS reactive, it
+    runs in the SAME turn vision classifies a new comprobante, using the extracted referencia/monto
+    directly. It is not "never reacted" — it reacted and was blocked.
+  - Root cause: this is the EXACT bug migration 144 (B3.3, applied to staging only, earlier today)
+    already fixes, just never applied to production. Javier's deal was born at stage "Solicitada" and
+    never moved (114 stopped writing `deals.stage_id`), but his operation correctly advanced to
+    `deposit_verification`. The pre-144 `cerebro_cruzar_deposito` compared `v_aplica` against the
+    stale `deals.stage_id` instead of `remittance_operations.status`, got `false`, and returned
+    `'no_aplica'` WITHOUT even checking his referencia/monto — even though his deposit (MMG trans_id
+    `10401770551050`, 13,000 GYD, in the book since 14:26:19) exactly matched and vision confirmed it
+    at 14:32:10 (`arbitro: "la referencia del giro 0 SI esta en el libro"`).
+  - Consequence: the deposit sat unconsumed for 11 minutes, until a DIFFERENT customer's unrelated
+    operation for the exact same amount (13,000 GYD) was created at 14:43:55 and its OWN crossing
+    attempt grabbed it via the approximate-match fallback (unique candidate by amount+time+ref
+    shape), consuming it within half a second — Javier's specific deposit is no longer
+    code-recoverable; it now belongs to another real operation.
+  - Verified production's `cerebro_cruzar_deposito` was still byte-for-byte the pre-144 (114)
+    version before touching anything (`pg_get_functiondef`), confirmed `cerebro_estado_desde_etapa`
+    exists in production, then applied 144's `CREATE OR REPLACE FUNCTION` to production via
+    `apply_migration` (pure function-definition swap, no data touched), and confirmed the new
+    `remittance_operations`-based check landed. This is a DDL-only, additive change (fail-closed
+    behavior is a strict superset of before) already proven via RED/GREEN against a rehearsal DB and
+    real staging earlier today — not re-proven with a fresh fixture run against production itself, to
+    avoid writing synthetic fixtures into the live database.
+  - **Two things found for free, NOT yet fixed:**
+    1. `crm_forzar_verificacion` (099, the RPC behind B4.3's "Force verification" button) has the
+       EXACT same `deals.stage_id`-based staleness check, unfixed by 144. Javier's case specifically
+       — and any deal born before 110/114's cutover — cannot be force-verified from the panel either,
+       until 099 gets the same `remittance_operations.status`-based fix. Not yet built.
+    2. Javier's own deposit is already consumed by someone else's real operation — this is a money
+       reconciliation problem, not fixable by code. Needs a human/admin decision on how to make Javier
+       whole (find him a different deposit, treat his remesa as outstanding, etc.).
+  - Committed: migration application (task doc only — no local file change, this was a prod-only DDL
+    application of an already-committed migration).
 
-Nothing decision-free and unblocked remains in this task list.
+- 2026-09-29 (same touch-point): user also raised a broader point — the whole point of building the
+  panel/RPCs was to STOP depending on `deals`, and asked why the system still leans on it, wanting
+  `deals` eliminated entirely. Logged as a new, NOT-yet-scoped architectural item below (Open
+  decisions) — this is a large blast-radius change (pipeline/kanban UI, `deal_id` foreign keys across
+  `remittance_operations`/`depositos_mmg`/audit rows, etc.) that needs its own exploration/proposal
+  before any implementation, not a same-session code change.
+
+## Open decisions (new items from the seventh touch-point)
+- **Fix `crm_forzar_verificacion` (099) with the same staleness fix as 144** — same root cause,
+  same fix shape (read `remittance_operations.status` instead of `deals.stage_id`). No new product
+  decision needed; queued as the next unblocked task, staging first, production needs its own
+  go-ahead (not assumed from today's 144 approval).
+- **Javier Cruz's specific stolen deposit** — needs a human/admin reconciliation decision, not code.
+- **Eliminate `deals` entirely** — user wants the system to stop depending on `deals` (that was the
+  original point of building the operations panel/RPCs). Needs a scoped, read-only exploration of
+  every remaining dependency (kanban/pipeline UI, FKs, RPCs still reading `deals.stage_id`/`notes`)
+  before any proposal — not started.
+
+## Next step
+A1, A3, A4, A5, B1.3, B1.5, B2.1, B2.2, B3.1, B3.2, B3.3, B4.1(reversal), B4.2, B4.3 and B4.4 are all
+closed. Remaining:
+- **B1.1/B1.2** — user chose option (a); design already worked out (see above), not yet built.
+- **B1.4** — user wants it built as a new feature (schema currently has nowhere to store the data);
+  not yet designed.
+- **crm_forzar_verificacion (099) staleness fix** — found while fixing B1.3, same shape as 144, not
+  yet built.
+- **Eliminate `deals`** — new architectural request, needs scoping before anything else.
+- **A6** — still needs the user to confirm on real staging traffic that completion tokens fell back
+  to ~50-300.

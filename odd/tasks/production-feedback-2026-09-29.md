@@ -119,6 +119,18 @@ functions. The user's list plus the defects the test proved.
   reused the first's phone-only data and the split amounts were not applied. Customer text is PII:
   tests must use synthetic data, never these rows.
 
+- A4/A5 root cause traced (read-only prod, structure only, no customer data recorded): in the live
+  burst both beneficiaries existed at the end, but the first had `amount=null`, the second had
+  `amount=53, source=admin_addition` (an admin added it), so the split "100 / 53" was never applied
+  by the bot. In the staging workflow `Zelle completo?` requires `unaSola` (<=1 email and <=1 phone)
+  and `!multi_beneficiario`, so a multi-account Zelle block always falls to the LLM agent, and the
+  only reparto tool, `registrar_reparto_multiple`, is Cuban-only (card/phone/CUP amounts). There is
+  NO deterministic path for several Zelle accounts with USD amounts. Plan (A4+A5 as one work unit):
+  staging migration adding a SQL function that registers N Zelle beneficiaries with optional USD
+  amounts and applies "first/second" amounts that arrive in a later message; SQL assertions; a
+  deterministic n8n node path fed by an extended `Snapshot final`; vitest harness for the extracted
+  Code node. Implementation starts next tick.
+
   - Committed as `6437b40`.
 
 ## Next step

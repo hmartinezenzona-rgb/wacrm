@@ -60,8 +60,8 @@ functions. The user's list plus the defects the test proved.
   Find and fix the status update.
 
 ### B4. Calculator and panel
-- [ ] B4.1 — Completing or deleting ("Borrar") a remesa updates or clears the calculator
-  automatically.
+- [x] B4.1 — Completing or deleting ("Borrar") a remesa updates or clears the calculator
+  automatically. (Investigated: already works correctly for every real path — see Progress.)
 - [ ] B4.2 — The calculator updates in real time when a remesa completes, with no page refresh.
 - [ ] B4.3 — The admin can complete a remesa without a prior deposit verification (force or skip),
   e.g. when the bot was paused.
@@ -74,6 +74,9 @@ functions. The user's list plus the defects the test proved.
   remesa. The fix needs one of: (a) a time-based expiry (how many hours is a quote "still valid"?),
   or (b) some other explicit closing rule the user prefers. Neither is invented here — needs the
   user's call before implementing.
+- B4.1 (maybe) — should deleting a deal ALSO void the calculator entry of an already-*completed*
+  remesa? Today it deliberately does not (migration 114: "the money really moved, it's history").
+  Only relevant if that's actually what "Borrar...clears the calculator" meant; not acted on.
 
 ## Blocked this session (not a product decision — a tooling/access gap)
 - The `claude.ai n8n` MCP is disconnected this session (needs `/mcp` re-auth), and no other safe,
@@ -106,7 +109,7 @@ functions. The user's list plus the defects the test proved.
   `src/lib/dashboard/date-utils.test.ts` (`mondayIndex`) — confirmed pre-existing and unrelated by
   re-running that file alone on a clean stash of this diff (fails identically with none of this
   task's changes applied). Typecheck and lint clean (lint: 3 pre-existing warnings only, none in the
-  touched files). Committed as `<pending>` (see below).
+  touched files). Committed as `59a99f1`.
   - Two low-stakes defaults made by the worker, flagged rather than silently chosen: (1) reused the
     existing `incidencia-v2.mp3` chime, so chat messages and incident alerts now sound identical —
     swap the constant in `use-chat-message-sound.ts` if a distinct sound is wanted later; (2) the
@@ -142,9 +145,27 @@ functions. The user's list plus the defects the test proved.
   - Not yet applied to the real staging database — that's the user's step, same as every other
     migration in this repo.
   - No money/ledger totals touched; this is a status-gate read fix only.
-  - Committed as `<pending>`.
+  - Committed as `8576bd9`.
+
+- 2026-09-30 (loop): **B4.1 investigated — no defect found.** Traced every real "complete" path
+  (deliver-with-proof → `crm_entregar_operacion`; force-verify → `crm_forzar_verificacion`, which only
+  reaches `ready_to_transfer`, never `completed`; `crm_corregir_operacion`, which refuses on a
+  terminal status) and the one real "delete" path (an external system removes the mirrored `deals`
+  row → `trg_cancel_operacion_on_deal_delete`, cancelling the linked operation unless it's already
+  `completed`). There is no "Borrar"/"Eliminar"/delete UI or API route for a remesa/operation
+  anywhere in this app's `src/` — every completion write is a plain `status` UPDATE, which already
+  correctly fires `zzz_remittance_operations_calculator_feed` (104) to feed or void the calculator
+  entry. No client-side calculator cache exists to go stale either. Verified empirically (not just
+  by reading code) against `wacrm-ensayo`, `BEGIN...ROLLBACK`, nothing committed: completing an
+  operation feeds the ledger correctly; deleting the deal of an already-completed operation leaves
+  both the operation and its ledger entry untouched (by migration 114's own deliberate design —
+  "the money really moved, it's history"); deleting the deal of a not-yet-completed operation
+  cancels it correctly with zero ledger entries (none was ever fed). No files changed, nothing to
+  commit for this task.
+  - **Possible product question, not acted on**: if what B4.1 actually meant was "deleting a deal
+    should ALSO void an already-*completed* remesa's calculator entry" — the opposite of 114's
+    documented decision — that would be a deliberate policy reversal, not a bug fix. Not invented;
+    added below as an open decision in case that's what's wanted.
 
 ## Next step
-Next in-repo, decision-free, non-n8n candidate: B4.1 (calculator auto-update on complete/delete) —
-DB/app only, no n8n needed. B3.1/B3.2/B4.2/B4.3/B4.4 not yet triaged for hidden decisions/n8n
-dependencies.
+Next in-repo, decision-free, non-n8n candidates to triage: B3.1, B3.2, B4.2, B4.3, B4.4.

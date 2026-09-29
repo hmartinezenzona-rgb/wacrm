@@ -283,7 +283,8 @@ functions. The user's list plus the defects the test proved.
     Progress section; it was restored verbatim from commit `8335805`.
 
 ## Next step
-Second session: A2 and A6 checked; A1 and the A6 fix wait on Open decisions; A4/A5 wait on the user
-enabling "Available in MCP" for `Yu0uskQhydWgNFEy`. Next loop tick: B1.1 (deterministic wording in
-the staging `Decisor`, testable with the extracted-Code-node harness, no model evals), then B1.2,
-B2.x. Earlier state: B3.1, B3.3, B4.1, B4.2 done.
+A1: migration 146 is committed and verified on the rehearsal DB; it needs the user's staging DB
+access (see Progress) before the `Dedup comprobantes` n8n step. A2, A6 done; A4/A5 wait for "Available
+in MCP" on `Yu0uskQhydWgNFEy`; A3, B3.2, B4.3, B4.4 and the B4.1 reversal question wait for the user.
+Next loop tick: B1.1 (deterministic wording in the staging `Decisor`, testable with the
+extracted-Code-node harness, no model evals), then B1.2, B2.x.

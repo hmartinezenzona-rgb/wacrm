@@ -461,7 +461,7 @@ functions. The user's list plus the defects the test proved.
     `objetivo-requiere-compromiso: ALL PASS`, no leftover rows.
   - Does not retroactively expire any target already open before this migration — only new
     `fijar_objetivo` calls are gated from now on.
-  - Committed as `<pending>`.
+  - Committed as `19f7abc`.
 
 ## Next step
 A1, A3, B2.1 and B2.2 are fully closed; B4.1-reversal and B4.4 are decided-closed with no change

@@ -10,6 +10,8 @@ import {
 } from "@/lib/inbox/conversations";
 import type { Conversation, Message, Contact, ConversationStatus } from "@/types";
 import { useRealtime } from "@/hooks/use-realtime";
+import { useChatMessageSound } from "@/hooks/use-chat-message-sound";
+import { createChatSoundGate } from "@/lib/inbox/chat-sound-gate";
 import { ConversationList } from "@/components/inbox/conversation-list";
 import { MessageThread } from "@/components/inbox/message-thread";
 import { ContactSidebar } from "@/components/inbox/contact-sidebar";
@@ -115,6 +117,14 @@ export default function InboxPage() {
     knownConvIdsRef.current = next;
   }, [conversations]);
 
+  // B1.5: WhatsApp-like sound on incoming chat messages, plus the gate
+  // that stops it ringing again for anything already covered by a
+  // "marcar todas como leídas". Logic split out into pure
+  // `chat-sound-gate.ts` (unit-tested) + a thin `<audio>` hook, wired
+  // together only here where the realtime message events already live.
+  const { play: playChatSound, stop: stopChatSound } = useChatMessageSound();
+  const chatSoundGateRef = useRef(createChatSoundGate());
+
   // Pull the conversation row with its `contact` joined and merge it
   // into state. Needed because Supabase Realtime payloads only carry the
   // row's own columns — a brand-new conversation arrives without a
@@ -213,6 +223,18 @@ export default function InboxPage() {
       const newMsg = event.new;
 
       if (event.eventType === "INSERT") {
+        // B1.5a: ring for a genuinely new inbound customer message, same
+        // gate rule the "mark all as read" flow below relies on to stay
+        // silent for anything already covered.
+        if (
+          chatSoundGateRef.current.shouldRing(
+            newMsg,
+            activeConversation?.id ?? null,
+          )
+        ) {
+          playChatSound();
+        }
+
         // Add to messages if it belongs to active conversation
         if (
           activeConversation &&
@@ -267,7 +289,7 @@ export default function InboxPage() {
         );
       }
     },
-    [activeConversation, hydrateConversation]
+    [activeConversation, hydrateConversation, playChatSound]
   );
 
   // Handle realtime conversation events
@@ -394,6 +416,37 @@ export default function InboxPage() {
   const handleManualRefresh = useCallback(() => {
     setResyncToken((n) => n + 1);
   }, []);
+
+  /**
+   * B1.5(b): "marcar todas como leídas". Optimistically zeroes every
+   * conversation's unread badge, persists it, and — the part that
+   * belongs here rather than in ConversationList — stops any
+   * in-flight chime and moves the sound gate's watermark forward so
+   * none of the messages just marked read can ring again later (e.g.
+   * if a stale realtime event for one of them is replayed).
+   */
+  const handleMarkAllRead = useCallback(() => {
+    chatSoundGateRef.current.muteUntilNow();
+    stopChatSound();
+    setConversations((prev) =>
+      prev.map((c) => (c.unread_count > 0 ? { ...c, unread_count: 0 } : c)),
+    );
+    void (async () => {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("conversations")
+        .update({ unread_count: 0 })
+        .gt("unread_count", 0);
+      if (error) {
+        console.error("Failed to mark all conversations as read:", {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+        });
+      }
+    })();
+  }, [stopChatSound]);
 
   const handleConversationsLoaded = useCallback(
     (loaded: Conversation[]) => {
@@ -604,6 +657,7 @@ export default function InboxPage() {
             onConversationsLoaded={handleConversationsLoaded}
             resyncToken={resyncToken}
             onConversationsHidden={handleConversationsHidden}
+            onMarkAllRead={handleMarkAllRead}
           />
         </div>
 

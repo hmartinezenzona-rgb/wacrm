@@ -58,6 +58,14 @@ interface ConversationListProps {
    * se queda enseñando un hilo que ya no está en la lista.
    */
   onConversationsHidden?: (ids: string[]) => void;
+  /**
+   * B1.5(b): bulk "marcar todas como leídas". Optional so existing
+   * callers keep working; when omitted the button doesn't render. The
+   * parent (inbox page) owns the DB write's side effects that don't
+   * belong here — stopping the chat notification sound and gating it
+   * against ringing again for messages already marked read.
+   */
+  onMarkAllRead?: () => void;
 }
 
 const STATUS_COLORS: Record<ConversationStatus, string> = {
@@ -112,6 +120,7 @@ export function ConversationList({
   onConversationsLoaded,
   resyncToken = 0,
   onConversationsHidden,
+  onMarkAllRead,
 }: ConversationListProps) {
   const t = useTranslations("Inbox.conversationList");
   
@@ -495,6 +504,7 @@ export function ConversationList({
   }, []);
 
   const hasContactFilters = selectedTagIds.length > 0 || selectedCompany !== null;
+  const hasUnreadConversations = conversations.some((c) => c.unread_count > 0);
 
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -661,6 +671,17 @@ export function ConversationList({
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
+          )}
+
+          {onMarkAllRead && (
+            <button
+              type="button"
+              onClick={onMarkAllRead}
+              disabled={!hasUnreadConversations}
+              className="inline-flex items-center justify-center h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground rounded-md hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+            >
+              Marcar todas como leídas
+            </button>
           )}
         </div>
 

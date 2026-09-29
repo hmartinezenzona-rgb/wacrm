@@ -153,6 +153,32 @@ async function renderList(conversations: Conversation[]) {
   return { node, root, onSelect };
 }
 
+/** Like `renderList`, but lets a test pass an `onMarkAllRead` callback. */
+async function renderListWithMarkAllRead(
+  conversations: Conversation[],
+  onMarkAllRead: () => void,
+) {
+  const { ConversationList } = await import("./conversation-list");
+  const node = document.createElement("div");
+  document.body.appendChild(node);
+  const root = createRoot(node);
+  const onSelect = vi.fn();
+  const onConversationsLoaded = vi.fn();
+  await act(async () =>
+    root.render(
+      <ConversationList
+        activeConversationId={null}
+        onSelect={onSelect}
+        conversations={conversations}
+        onConversationsLoaded={onConversationsLoaded}
+        onMarkAllRead={onMarkAllRead}
+      />,
+    ),
+  );
+  await flush();
+  return { node, root, onSelect };
+}
+
 function rowFor(node: Element, name: string): HTMLElement {
   const row = Array.from(node.querySelectorAll('[role="button"]')).find((el) =>
     el.textContent?.includes(name),
@@ -374,6 +400,58 @@ describe("ConversationList — pin", () => {
 
     const boton = row.querySelector('[aria-label="Fijar conversación"]') as HTMLButtonElement;
     expect(boton.disabled).toBe(true);
+
+    await act(async () => root.unmount());
+  });
+});
+
+// B1.5(b): the bulk "mark all as read" action lives here because
+// ConversationList already owns the `conversations` prop and its own
+// direct Supabase writes (pin/unpin, quitar del inbox above) — same
+// pattern, one more bulk mutation. The parent (inbox page) is only told
+// via `onMarkAllRead` so it can also stop the chat notification sound.
+describe("ConversationList — marcar todas como leídas", () => {
+  it("no se muestra sin un onMarkAllRead", async () => {
+    const convs = [conversation({ id: "conv-1", unread_count: 2 })];
+    const { node, root } = await renderList(convs);
+
+    expect(node.textContent).not.toContain("Marcar todas como leídas");
+
+    await act(async () => root.unmount());
+  });
+
+  it("se deshabilita cuando ninguna conversación tiene mensajes sin leer", async () => {
+    const convs = [conversation({ id: "conv-1", unread_count: 0 })];
+    const onMarkAllRead = vi.fn();
+    const { node, root } = await renderListWithMarkAllRead(convs, onMarkAllRead);
+
+    const boton = Array.from(node.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("Marcar todas como leídas"),
+    ) as HTMLButtonElement;
+    expect(boton).toBeTruthy();
+    expect(boton.disabled).toBe(true);
+
+    await act(async () => root.unmount());
+  });
+
+  it("se habilita y llama a onMarkAllRead al hacer clic cuando hay conversaciones sin leer", async () => {
+    const convs = [
+      conversation({ id: "conv-1", unread_count: 3 }),
+      conversation({ id: "conv-2", unread_count: 0 }),
+    ];
+    const onMarkAllRead = vi.fn();
+    const { node, root } = await renderListWithMarkAllRead(convs, onMarkAllRead);
+
+    const boton = Array.from(node.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("Marcar todas como leídas"),
+    ) as HTMLButtonElement;
+    expect(boton.disabled).toBe(false);
+
+    await act(async () => {
+      boton.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+
+    expect(onMarkAllRead).toHaveBeenCalledTimes(1);
 
     await act(async () => root.unmount());
   });

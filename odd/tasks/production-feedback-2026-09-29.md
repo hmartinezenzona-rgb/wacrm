@@ -42,7 +42,7 @@ functions. The user's list plus the defects the test proved.
   (beyond A1) and fix.
 - [ ] B1.4 — Cash delivery: the bot asks the sender for the recipient's exact address, phone and a
   photo of the ID card (the facts are already in the efectivo_usd service row, 139/140).
-- [ ] B1.5 — Chat notifications: (a) a sound per incoming chat message, like WhatsApp; (b) "marcar
+- [x] B1.5 — Chat notifications: (a) a sound per incoming chat message, like WhatsApp; (b) "marcar
   todas como leídas" stops the sound and it does not ring again.
 
 ### B2. Admin and bot interaction
@@ -68,6 +68,21 @@ functions. The user's list plus the defects the test proved.
 - [ ] B4.4 — Delete operations or records from the calculator module.
 
 ## Open decisions (filled in as tasks reach them)
+- A3 — no expiry rule is decided yet for `cerebro_objetivo_envio`. Root cause is fully diagnosed
+  (Engram #280): `cerebro_objetivo_atar` attaches ANY open, unattached target to a brand-new deal
+  with no freshness check, so a stale quote from a prior day gets picked up by an unrelated new
+  remesa. The fix needs one of: (a) a time-based expiry (how many hours is a quote "still valid"?),
+  or (b) some other explicit closing rule the user prefers. Neither is invented here — needs the
+  user's call before implementing.
+
+## Blocked this session (not a product decision — a tooling/access gap)
+- The `claude.ai n8n` MCP is disconnected this session (needs `/mcp` re-auth), and no other safe,
+  established path to read/patch the live Cerebro n8n workflow (staging `U52y1kSNvhgxvWeb`) was
+  used. Every task whose fix lives in that n8n workflow rather than in this repo/DB is blocked
+  until that access is restored: A1, A2, A4, A5, A6, B1.1, B1.2, B1.3, B1.4, B2.1, B2.2.
+  (While checking for an access path, a cached workflow export under `~/cerebro-fase1` was
+  `cat`-ed and turned out to contain an embedded webhook secret; exploration stopped there rather
+  than continuing to hunt for credentials. Nothing was sent anywhere external.)
 
 ## Progress
 - 2026-09-29: document created from the user's list and the live test.
@@ -76,6 +91,29 @@ functions. The user's list plus the defects the test proved.
   - After the test, restored: the test op was cancelled (its ledger line voided); Carolina's
     deposit 20397391101636 went back to its original deal/dates; comprobantes_hashes row
     restored; unfed view 0.
+- 2026-09-30 (loop): triaged the full list. A3 needs a product decision (above). A1/A2/A4/A5/A6 and
+  B1.1-B1.4/B2.1-B2.2 are blocked this session by the n8n MCP disconnect (above) — they all require
+  editing the live Cerebro workflow, which is outside this repo.
+- 2026-09-30 (loop): **B1.5 DONE.** New `src/lib/inbox/chat-sound-gate.ts` (pure gate: rings only for
+  inbound customer messages, never for the conversation open right now, never for anything at/before
+  the last "mark all as read" watermark) + `src/hooks/use-chat-message-sound.ts` (thin `<audio>`
+  wrapper, gesture-unlock pattern copied from `use-notification-alerts.ts`, reuses
+  `public/sounds/incidencia-v2.mp3` — no chat-specific asset exists yet). Wired into
+  `src/app/(dashboard)/inbox/page.tsx`'s realtime INSERT handler and a new "Marcar todas como
+  leídas" button in `ConversationList` (there was no such control before this task). TDD: RED
+  confirmed (`Cannot find module`, missing button assertions) before writing code, GREEN after (27
+  new/updated tests). Full suite `npx vitest run`: 1610/1612 pass; the 2 failures are
+  `src/lib/dashboard/date-utils.test.ts` (`mondayIndex`) — confirmed pre-existing and unrelated by
+  re-running that file alone on a clean stash of this diff (fails identically with none of this
+  task's changes applied). Typecheck and lint clean (lint: 3 pre-existing warnings only, none in the
+  touched files). Committed as `<pending>` (see below).
+  - Two low-stakes defaults made by the worker, flagged rather than silently chosen: (1) reused the
+    existing `incidencia-v2.mp3` chime, so chat messages and incident alerts now sound identical —
+    swap the constant in `use-chat-message-sound.ts` if a distinct sound is wanted later; (2) the
+    "marcar todas como leídas" button was placed in `ConversationList`'s filter toolbar (there was no
+    prior UI for it anywhere) — confirm that's the right spot if it matters.
 
 ## Next step
-Triage and order (the user chooses how to run it: loop or supervised).
+Next in-repo, decision-free, non-n8n candidates: B3.3 (Awaiting Deposit status stuck after
+verify+deliver) and B4.1 (calculator auto-update on complete/delete) — both DB/app only, no n8n
+needed.

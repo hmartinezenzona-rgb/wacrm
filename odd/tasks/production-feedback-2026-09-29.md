@@ -125,11 +125,15 @@ functions. The user's list plus the defects the test proved.
   by the bot. In the staging workflow `Zelle completo?` requires `unaSola` (<=1 email and <=1 phone)
   and `!multi_beneficiario`, so a multi-account Zelle block always falls to the LLM agent, and the
   only reparto tool, `registrar_reparto_multiple`, is Cuban-only (card/phone/CUP amounts). There is
-  NO deterministic path for several Zelle accounts with USD amounts. Plan (A4+A5 as one work unit):
-  staging migration adding a SQL function that registers N Zelle beneficiaries with optional USD
-  amounts and applies "first/second" amounts that arrive in a later message; SQL assertions; a
-  deterministic n8n node path fed by an extended `Snapshot final`; vitest harness for the extracted
-  Code node. Implementation starts next tick.
+  no deterministic path inside the Cerebro workflow. CORRECTION (same session): the write side
+  already exists. `cerebro_aplicar_reparto(op, jsonb)` (127/129/130) stores N beneficiaries, Cuban
+  cards and Zelle, each with its amount, requires the exact deposit sum, and is idempotent. The
+  pairing of amounts to accounts is done by the scheduled workflow `[STAGING] Cerebro - Repartos
+  automaticos` (`Yu0uskQhydWgNFEy`, every 2 min, prod copy `5YseDUEC5IAaiofF`), which is NOT
+  exposed to the MCP ("Workflow is not available in MCP"). So A4/A5 need NO new SQL function; the
+  defect is in that detector's pairing/timing (needs both accounts plus amounts at once). Blocked
+  until the user enables "Available in MCP" on `Yu0uskQhydWgNFEy` (workflow card or settings;
+  staging copy only). A1 does not depend on it and goes next.
 
   - Committed as `6437b40`.
 

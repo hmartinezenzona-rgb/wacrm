@@ -67,6 +67,8 @@ silently skipped.
   - the panel readers of the ledger kept correct.
   Staging first; prod with the user's go-ahead.
 
+- [x] M2 — Production: 142 + feed the pending mixed remesa; unfed view empty.
+
 ## Progress
 - 2026-09-28: root cause found (read-only); document created.
 - 2026-09-28: F1 done, staging only (wacrm-ensayo).
@@ -164,6 +166,24 @@ silently skipped.
   - Deploy order: the DB (142) can go first. Until the panel deploy, only the calculator page
     totals would hide the second line of a mixed remesa; /resumen is fixed in SQL.
 
+- 2026-09-28 M2 — production, with the user's go-ahead ("sí, aplícala").
+  - Pre-check: the prod `crm_resolve_pending_entry` / `crm_cierre_financiero` md5 equal staging's
+    before 142; 0 duplicate (account, operation, service) keys.
+  - Found 1 unfed op: `581471b1` (Rubislandi, 27,500 GYD, 20:53Z; Zelle 67 USD + 2 cards 15,000 CUP,
+    reparto_auto). This is a real mixed remesa, listed as service_unresolved under 141.
+  - Applied 142 via MCP in 3 blocks:
+    1. column, index, parts, feed and view;
+    2. `crm_resolve_pending_entry`;
+    3. `crm_cierre_financiero`, patched in place from its live definition, with a guard that both
+       expected strings occur exactly once.
+  - Prod md5 of the 5 objects equal staging's (where the assertions are GREEN).
+  - Fed `581471b1`:
+    - CUP 30,000 on basis 10,000 GYD (facturado 10,000; retorno 2,975.61);
+    - ZELLE 67 USD on basis 17,500 (facturado 17,420; retorno 1,340).
+
+    Both completed. The unfed view is empty.
+  - Pending: the panel fix df4e2a4 (calculator page dedupe, top clients) ships with the next app
+    deploy.
+
 ## Next step
-M2 — production: apply 142 with the user's go-ahead, then check that the unfed view is empty. The
-panel fix ships with the next app deploy.
+Next app deploy: P1 caption fix (2761685) + calculator panel fix (df4e2a4). Then P2 (migration 143).

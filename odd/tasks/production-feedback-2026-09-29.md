@@ -84,7 +84,7 @@ functions. The user's list plus the defects the test proved.
   node (`options` only has temperature; no thinking switch) and the community node is present but
   disconnected. Thinking tokens count as completion tokens, so this explains the 200 s turns. My
   earlier "cap max tokens" idea is dropped: reconnecting the community node (or an official-node
-  thinking-off option, if one exists) is the fix. Left to the user, who is testing that swap.
+  thinking-off option, if one exists) is the fix. APPLIED on STAGING at the user's request (2026-09-29): in `U52y1kSNvhgxvWeb` the agent is reconnected to the community node, the official node is disconnected, published as version `c96f131f` (previous active `8dc8df01`, restorable). The community node uses credential `osmany_chat`; the official one used `DeepSeek account` (production balance). Check on real staging traffic that completion tokens fall back to ~50-300.
 - A1 (DECIDED by the user, 2026-09-29): a duplicate receipt gets a SILENT marker, no alert and no
   incident. Evidence: the `Decisor` already words the reply by the original deal's real stage
   (`dup_etapa`) and 19 of 19 prod `comprobantes_hashes` rows since 2026-09-28 have their deal, so

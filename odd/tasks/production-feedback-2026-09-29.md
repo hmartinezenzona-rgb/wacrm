@@ -11,8 +11,11 @@ functions. The user's list plus the defects the test proved.
   `kolppplawzdsjfydwejr` only, no approval needed per migration; (b) READ-ONLY queries (SELECT) on
   the production database to read the live-test messages. No production writes, no production
   migrations, no production n8n changes.
-- DeepSeek evals only with a staging credential that is NOT "DeepSeek account" (f0K27ImOFO3QdL34 =
-  production balance). Until the user's staging key is visible in n8n, no model evals.
+- DeepSeek evals: UPDATED 2026-09-29 (third session). The user separated the credentials — verified
+  directly against both live workflows: production's `DeepSeek sin pensamiento` node now uses
+  `Osmany CRM` (`ol8nMUZZQYBILen2`); staging's uses `DeepSeek account` (`f0K27ImOFO3QdL34`), which no
+  longer touches production. Evals may now use `DeepSeek account` for staging work. (Superseded
+  constraint, kept for history: it used to be the shared production credential.)
 - Money-path changes (calculator, ledger, delivery) need SQL assertions and vitest, strict TDD.
 - A task that needs a product decision stops at the decision and lists it under "Open decisions";
   nothing is invented.
@@ -26,9 +29,10 @@ functions. The user's list plus the defects the test proved.
   honest bot wording. (Dedup comprobantes → comprobantes_hashes.)
 - [x] A2 — A 10-digit US phone written without +1 ("celular 8133617809") is not recognized as a Zelle
   account by `Snapshot final`.
-- [ ] A3 — A quote's shipment target (`cerebro_objetivo_envio`) never expires. Yesterday's
+- [x] A3 — A quote's shipment target (`cerebro_objetivo_envio`) never expires. Yesterday's
   "100 USD → 26,000" became today's target and raised a false "DEPOSITO DE MAS". It must expire or
-  close when a new remesa starts. The user: "no me parece que deba seguir".
+  close when a new remesa starts. The user: "no me parece que deba seguir". (DECIDED and FIXED —
+  see Progress.)
 - [ ] A4 — Two Zelle accounts pasted in one block ("Name email NAME2, celular N"; forwarded lines
   prefixed "onlinebussines:") are not separated. The bot merged them into one beneficiary.
 - [ ] A5 — A second Zelle beneficiary that arrives after the first is never added: 135 only fills an
@@ -123,12 +127,10 @@ functions. The user's list plus the defects the test proved.
   incident. Evidence: the `Decisor` already words the reply by the original deal's real stage
   (`dup_etapa`) and 19 of 19 prod `comprobantes_hashes` rows since 2026-09-28 have their deal, so
   duplicates are true resends. Implementation (next tick, strict TDD): record the duplicate on the
-  original deal or chat where an admin can see it, without notifying anyone.- A3 — no expiry rule is decided yet for `cerebro_objetivo_envio`. Root cause is fully diagnosed
-  (Engram #280): `cerebro_objetivo_atar` attaches ANY open, unattached target to a brand-new deal
-  with no freshness check, so a stale quote from a prior day gets picked up by an unrelated new
-  remesa. The fix needs one of: (a) a time-based expiry (how many hours is a quote "still valid"?),
-  or (b) some other explicit closing rule the user prefers. Neither is invented here — needs the
-  user's call before implementing.
+  original deal or chat where an admin can see it, without notifying anyone.
+- ~~A3~~ **DECIDED (user, 2026-09-29): a bare quote must not create a target at all.** If the
+  customer doesn't follow up with beneficiary data or a receipt, nothing should be persisted — see
+  Progress for the fix. Closed.
 - ~~B4.1 (maybe)~~ **DECIDED (user, 2026-09-29): no.** Deleting a deal must NOT void the calculator
   entry of an already-completed remesa — current behavior (migration 114) stays as-is. Closed.
 - B3.2 — **DECIDED (user, 2026-09-29):** admins can edit the values of ALREADY-COMPLETED remesas as
@@ -428,10 +430,43 @@ functions. The user's list plus the defects the test proved.
     edited this same one's key (which would also change what production uses). No eval has been run
     under this claim.
 
+- 2026-09-29 (mid-turn correction from the user): the user fixed it and confirmed. **Re-verified
+  directly against both live workflows, credential wiring now genuinely separated**: production's
+  `DeepSeek sin pensamiento` node now uses `Osmany CRM` (`ol8nMUZZQYBILen2`); staging's still uses
+  `DeepSeek account` (`f0K27ImOFO3QdL34`), no longer shared with production. Constraint updated
+  above. B1.1/B1.2/B1.4 evals are now unblocked (not yet run this session).
+
+- 2026-09-29 (same mid-turn message): the user answered **A3**: "if the client doesn't explicitly
+  say the amount, nothing should be created; it should only be created once they send [beneficiary]
+  data or a receipt." **A3 DONE.**
+  - Root cause, confirmed precisely: `calcular_usd` (the agent's ONLY quote tool,
+    `n8n-nodes-base.postgresTool`) calls `cerebro_fijar_objetivo` UNCONDITIONALLY every time the
+    agent answers "how much do you get for X USD" — by design (072/075's own comment: a separate
+    `fijar_objetivo` tool was tried and the model called it 0 of 2 times in real traffic, so it was
+    made deterministic and folded into `calcular_usd` itself). A bare curiosity question with no
+    beneficiary and no deposit already sets a persistent, un-expiring target.
+  - Fix: `supabase/migrations/148_objetivo_requiere_compromiso.sql` (+ROLLBACK-148) adds one guard
+    inside `cerebro_fijar_objetivo`, before it persists anything: only proceed if the conversation
+    already has a `vigente` beneficiary on one of its operations, OR a `comprobantes_hashes` row for
+    the contact's phone (a receipt already sent). Otherwise it returns without writing — the numeric
+    quote `calcular_usd` shows the customer is completely unaffected either way. Every other line
+    (currency parsing, the fijado/sustituido wording, the upsert) is byte-identical to 075. No n8n
+    change needed — the gate lives entirely in the DB function `calcular_usd` already calls.
+  - TDD: RED and GREEN both independently reproduced against `wacrm-ensayo` in `BEGIN...ROLLBACK`.
+    RED (current 072-147 body): a bare quote (no beneficiary, no receipt) creates the target — the
+    bug. GREEN (148 applied): the same bare quote creates nothing; a quote where a vigente
+    beneficiary already exists still sets the target; a quote where a receipt was already sent still
+    sets the target (both regression controls, no behavior change for the common case). Applied to
+    the real staging database (`kolppplawzdsjfydwejr`); its assertion re-run there:
+    `objetivo-requiere-compromiso: ALL PASS`, no leftover rows.
+  - Does not retroactively expire any target already open before this migration — only new
+    `fijar_objetivo` calls are gated from now on.
+  - Committed as `<pending>`.
+
 ## Next step
-A1, B2.1 and B2.2 are fully closed; B4.1-reversal and B4.4 are decided-closed with no change needed.
-A4/A5 unblocked and being fixed now (background worker, pure algorithm work — will be applied to the
-n8n node and verified once it reports back). B1.3: proceeding now with a read-only production
-investigation (already authorized) now that more real traffic has accumulated. Still waiting on the
-user: the DeepSeek credential clarification (before any eval can run for B1.1/B1.2/B1.4), and A3's
-expiry rule. B3.2 and B4.3 are unblocked for implementation (decisions given above).
+A1, A3, B2.1 and B2.2 are fully closed; B4.1-reversal and B4.4 are decided-closed with no change
+needed. B1.1/B1.2/B1.4 evals are unblocked (DeepSeek credential clarified) but not yet run. A4/A5
+unblocked and being fixed now (background worker, pure algorithm work — will be applied to the n8n
+node and verified once it reports back). B1.3: read-only production investigation done again this
+session, still no defect found, still needs a concrete case from the user. B3.2 and B4.3 are
+unblocked for implementation (decisions given above) — not yet built.

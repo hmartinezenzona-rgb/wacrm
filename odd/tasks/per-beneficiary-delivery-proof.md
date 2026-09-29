@@ -60,7 +60,7 @@ Root causes (read-only map, 2026-09-28):
 - [x] P2 — (migration 143; 141/142 went to calculator-feed-from-beneficiaries) DB: table `remittance_beneficiary_proofs` (beneficiary_id, wamid, path, caption, sent_at,
   sent_by) + an RPC to record one beneficiary's proof; `crm_entregar_operacion` completes only when
   every current beneficiary has a proof. Migration + rollback + assertions; staging.
-- [ ] P3 — Panel: one proof panel (file + caption for Zelle) per beneficiary; send each image, record
+- [x] P3 — Panel: one proof panel (file + caption for Zelle) per beneficiary; send each image, record
   it, then deliver once. vitest RED → GREEN.
 - [ ] P4 — Staging end-to-end with a 2-Zelle reparto and a mixed one; then the production build and
   deploy with the user's go-ahead.
@@ -123,7 +123,66 @@ Root causes (read-only map, 2026-09-28):
        `crm_registrar_prueba_beneficiario`.
     2. Then `crm_entregar_operacion` with the last proof's evidence.
 
+- 2026-09-29 P3 — Panel done (commit `9752af5`).
+  - New pure module `src/lib/pipelines/send-beneficiary-proofs.ts`: sends + registers each
+    beneficiary's proof in order (reusing `uploadProof`/`sendProofImage` deps, same as
+    `deliver-with-proof.ts`). Retry-safe: an item whose `sentWamid` is already set skips upload/send
+    and only re-calls `registerProof` (idempotent per (beneficiary, wamid), migration 143).
+  - `deliver-with-proof.ts`: extended `DeliveryProofDraft` with optional `sentPath`; the stage-only
+    retry branch now includes `path` in `moveToDelivered`'s evidence when the draft carries one —
+    absent (unchanged behavior) on an ordinary single-proof retry, present when the multi-beneficiary
+    flow's synthetic final draft carries the last beneficiary's path.
+  - New route `POST /api/remittance-operations/{operationId}/beneficiaries/{beneficiaryId}/proof` +
+    command `registerBeneficiaryProof`, calling `crm_registrar_prueba_beneficiario` (143). Same
+    auth/beta-flag/UUID/RPC-error-mapping pattern as the sibling `deliver` route.
+  - `complete-transfer-container.tsx`: new optional `beneficiaries?: {id, isZelle}[]` prop (default
+    `[]`, so existing callers/tests are unaffected). With 2+, the container keeps a per-beneficiary
+    draft map (extends the existing single-draft pattern, keyed by beneficiary id, `dealId` still the
+    operation id on every entry) and renders the new `CompleteTransferMultiSection` (one
+    `DeliveryProofPanel` per beneficiary, caption only for the Zelle ones) instead of
+    `CompleteTransferSection`. Confirm: `sendBeneficiaryProofs` sends+registers every beneficiary in
+    order, then `deliverDeal` runs once with a synthetic draft carrying the LAST beneficiary's
+    `sentWamid`/`sentPath` — reusing `deliverDeal`'s existing "already sent" branch, so it goes
+    straight to the stage update rather than re-uploading/re-sending. A partial failure's retry
+    re-enters the same function: already-sent beneficiaries are skipped (send) and only re-registered;
+    once all are sent, the retry naturally reaches the final `deliverDeal` call. The document-level
+    paste listener (single-proof convenience) is disabled in this mode — each panel's own paste still
+    works when it has focus. The "complete without screenshot" checkbox always calls the existing
+    single-draft `run({skip:true})` directly, bypassing the per-beneficiary flow entirely, matching
+    that `crm_entregar_operacion`'s missing-proofs check only applies to `proof_sent` mode.
+  - `remittance-operation-card.tsx` passes `operation.beneficiaries.map(b => ({id, isZelle: b.beneficiaryType === 'zelle'}))`.
+  - 0/1-beneficiary operations: `beneficiaries.length < 2` keeps the original single-draft code path
+    completely untouched (same functions, same JSX branch) — not just behaviorally equivalent.
+  - TDD: RED confirmed for the right reason before each new module (missing module / missing route /
+    missing exported function / component didn't exist / container didn't accept the prop) at each
+    step, then GREEN. 11 new tests in `send-beneficiary-proofs.test.ts`, 1 new in
+    `deliver-with-proof.test.ts` (sentPath propagation), 29 in the new route's `route.test.ts`, 3 new
+    in `commands.test.ts`, 6 in the new `complete-transfer-multi-section.test.tsx`, 5 new in
+    `complete-transfer-container.test.tsx` (2 beneficiaries: renders 2 panels/caption-only-for-Zelle;
+    happy path N sends → N registers → 1 deliver in order; partial failure on image 2 stops + retry
+    resends only image 2; skip bypasses per-beneficiary flow; 1-beneficiary regression), 1 new in
+    `remittance-operation-card.test.tsx`. Full existing suites in every touched file stay green.
+  - Verification: `npx vitest run` on the 12 touched/new test files — 294/294 passed. `npm run test` —
+    1595/1597 passed, the only failures are the 2 pre-existing timezone tests in
+    `src/lib/dashboard/date-utils.test.ts` (untouched file, unrelated). `npx tsc --noEmit` — clean.
+    `npx eslint` on every touched/new file — clean.
+  - Not decided by this task (left for the user):
+    - the per-beneficiary panel's label is an ordinal ("Beneficiary 1", "Beneficiary 2") rather than
+      the beneficiary's own name — avoids threading a name through just for a UI label; can change if
+      the operator would rather see names;
+    - beneficiary send order is `operation.beneficiaries`' existing order (position-based, as returned
+      by the RPC) — not re-specified by the user;
+    - a register-RPC failure (send succeeded, record failed) surfaces the same generic "Could not send
+      the screenshot: {message}" banner text as a send failure — no separate copy was requested for
+      that case.
+
 ## Next step
+P4 — staging end-to-end (2-Zelle reparto + a mixed one), then production build/deploy with the user's
+go-ahead. Note: P3 came in well over the ~500–700 line forecast (~1,718 lines, mostly tests: the new
+per-beneficiary send/register pure module, its route, and container/component tests each needed their
+own coverage) — flagging per the delivery heuristic, not re-splitting after the fact.
+
+<!-- previous next step -->
 P3 — panel.
 
 <!-- previous next step -->

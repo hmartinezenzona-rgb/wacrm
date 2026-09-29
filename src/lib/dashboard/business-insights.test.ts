@@ -159,3 +159,17 @@ describe("destinationBreakdownFrom", () => {
     ]);
   });
 });
+
+describe("mixed remesas (migration 142)", () => {
+  it("counts a mixed remesa once per client even though it has one line per service", () => {
+    const entries = [
+      entry({ id: "cup", operationId: "op-mixed", service: "CUP", amountCurrency: "CUP", facturadoGyd: 20000 }),
+      entry({ id: "zelle", operationId: "op-mixed", service: "ZELLE", amountCurrency: "USD", facturadoGyd: 55000 }),
+    ];
+
+    const [client] = topClientsFrom(entries);
+
+    expect(client.operationCount).toBe(1);
+    expect(client.facturadoGyd).toBe(75000);
+  });
+});

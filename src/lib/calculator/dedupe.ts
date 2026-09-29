@@ -4,7 +4,12 @@
  * operations start feeding the calculator. Manual entries have no
  * operationId and are never touched. Input is not mutated.
  *
- * Policy per `operationId` (source-order independent — callers do not need
+ * The key is `operationId` + `service`: a mixed remesa (cards in CUP + Zelle
+ * in USD paid by one deposit, migration 142) has one legitimate line per
+ * service, and both must survive. Two lines of the SAME service for the
+ * same operation are still duplicates.
+ *
+ * Policy per key (source-order independent — callers do not need
  * to pre-sort):
  *   1. If any entry for that operationId has `status: "completed"`, a
  *      completed entry always wins, even if a `verified_pending` entry for
@@ -25,7 +30,7 @@ export function dedupeCompletedOperationEntries(
   entries: CalculatorEntry[],
 ): CalculatorEntry[] {
   const result: CalculatorEntry[] = [];
-  const winnerIndexByOperationId = new Map<string, number>();
+  const winnerIndexByKey = new Map<string, number>();
 
   for (const entry of entries) {
     if (entry.source !== "completed_operation" || !entry.operationId) {
@@ -33,11 +38,11 @@ export function dedupeCompletedOperationEntries(
       continue;
     }
 
-    const operationId = entry.operationId;
-    const existingIndex = winnerIndexByOperationId.get(operationId);
+    const key = `${entry.operationId}|${entry.service}`;
+    const existingIndex = winnerIndexByKey.get(key);
 
     if (existingIndex === undefined) {
-      winnerIndexByOperationId.set(operationId, result.length);
+      winnerIndexByKey.set(key, result.length);
       result.push(entry);
       continue;
     }

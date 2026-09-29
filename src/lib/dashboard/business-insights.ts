@@ -24,6 +24,9 @@ export function topClientsFrom(
   limit = 5,
 ): TopClientEntry[] {
   const byClient = new Map<string | null, TopClientEntry>()
+  // A mixed remesa (migration 142) has one ledger line per service; it is
+  // still ONE operation for the client.
+  const countedOperations = new Set<string>()
 
   for (const entry of entries) {
     if (entry.status !== 'completed') continue
@@ -33,7 +36,11 @@ export function topClientsFrom(
       operationCount: 0,
       facturadoGyd: 0,
     }
-    existing.operationCount += 1
+    const operationKey = entry.operationId ? `${key}|${entry.operationId}` : null
+    if (operationKey === null || !countedOperations.has(operationKey)) {
+      existing.operationCount += 1
+      if (operationKey) countedOperations.add(operationKey)
+    }
     existing.facturadoGyd += entry.facturadoGyd ?? 0
     byClient.set(key, existing)
   }

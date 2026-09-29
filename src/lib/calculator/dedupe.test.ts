@@ -7,6 +7,7 @@ function operationEntry(
   id: string,
   operationId: string,
   status: "completed" | "verified_pending",
+  service: CalculatorEntry["service"] = "DIRECTO",
 ): CalculatorEntry {
   return normalizeCompletedOperationEntry({
     id,
@@ -14,8 +15,11 @@ function operationEntry(
     amountCurrency: "GYD",
     operationId,
     status,
-    service: "DIRECTO",
+    service,
     amount: 1_000,
+    ...(service === "DIRECTO"
+      ? {}
+      : { costGyd: 250, saleGyd: 265, cupRate: 400, cupGlobalRate: 1.5 }),
   });
 }
 
@@ -140,5 +144,21 @@ describe("dedupeCompletedOperationEntries", () => {
     ]);
 
     expect(result).toEqual([manualA, completedSecond, manualB]);
+  });
+
+  it("keeps one line per service of a mixed remesa (migration 142)", () => {
+    const cupPart = operationEntry("entry-cup", "op-mixed", "completed", "CUP");
+    const zellePart = operationEntry("entry-zelle", "op-mixed", "completed", "ZELLE");
+
+    const result = dedupeCompletedOperationEntries([cupPart, zellePart]);
+
+    expect(result).toEqual([cupPart, zellePart]);
+  });
+
+  it("still dedupes two lines of the same service for the same operation", () => {
+    const first = operationEntry("entry-a", "op-mixed", "completed", "ZELLE");
+    const duplicate = operationEntry("entry-b", "op-mixed", "completed", "ZELLE");
+
+    expect(dedupeCompletedOperationEntries([first, duplicate])).toEqual([first]);
   });
 });

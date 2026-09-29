@@ -24,7 +24,7 @@ functions. The user's list plus the defects the test proved.
 - [ ] A1 — A duplicate receipt (same image hash) is dropped silently. No deposit, no op, no incident,
   and the bot still says "lo estamos verificando". It must surface: an incident / admin alert, and
   honest bot wording. (Dedup comprobantes → comprobantes_hashes.)
-- [ ] A2 — A 10-digit US phone written without +1 ("celular 8133617809") is not recognized as a Zelle
+- [x] A2 — A 10-digit US phone written without +1 ("celular 8133617809") is not recognized as a Zelle
   account by `Snapshot final`.
 - [ ] A3 — A quote's shipment target (`cerebro_objetivo_envio`) never expires. Yesterday's
   "100 USD → 26,000" became today's target and raised a false "DEPOSITO DE MAS". It must expire or
@@ -112,11 +112,12 @@ functions. The user's list plus the defects the test proved.
   "blocked" note is obsolete. The staging workflow has 117 nodes; there is no repo test harness for
   its Code nodes yet, so strict TDD needs one: extract the node's `jsCode` and run it under vitest
   with a stubbed `$()` (a probe of this shape already ran the extracted `Snapshot final`).
-- A2 investigated, NOT reproducible in staging: the staging `Snapshot final` already returns
-  `zelle_celulares:["8133617809"]` for "celular 8133617809", for a two-line block with emails, for
-  the "onlinebussines:" forwarded prefix and for the bare number. Staging has zero executions since
-  2026-09-29T00:00Z, so the live test ran against production, which this loop must not read. Need
-  either the production execution id from the user or a real failing message; no fix invented.
+- A2 CLOSED, no defect (read-only prod query, message rows of 2026-09-29 04:00-04:05 UTC in the
+  "wacrm" project `hqztotshnlzaiziwjyzh`): the customer wrote "celular <10 digits>" and both the
+  extracted `Snapshot final` (staging code, exact live text) and the live bot recognized the phone
+  (the bot echoed it as "Celular"). The real failure in that burst is A4/A5: the second account
+  reused the first's phone-only data and the split amounts were not applied. Customer text is PII:
+  tests must use synthetic data, never these rows.
 
   - Committed as `6437b40`.
 

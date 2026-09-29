@@ -31,8 +31,10 @@ vi.mock("next-intl", () => ({
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const deliverOperation = vi.fn();
+const registerBeneficiaryProof = vi.fn();
 vi.mock("@/lib/remittance-operations/commands", () => ({
   deliverOperation: (...args: unknown[]) => deliverOperation(...args),
+  registerBeneficiaryProof: (...args: unknown[]) => registerBeneficiaryProof(...args),
 }));
 
 const sendProofImage = vi.fn();
@@ -114,6 +116,7 @@ function pngFile(): File {
 
 interface RenderOptions {
   isZelle?: boolean;
+  beneficiaries?: { id: string; isZelle: boolean }[];
   onDone?: () => void;
   onCancel?: () => void;
 }
@@ -131,6 +134,7 @@ async function renderContainer(options: RenderOptions = {}) {
         operationId={OPERATION_ID}
         conversationId={CONVERSATION_ID}
         isZelle={options.isZelle ?? false}
+        beneficiaries={options.beneficiaries ?? []}
         onDone={onDone}
         onCancel={onCancel}
       />,
@@ -177,6 +181,20 @@ function pasteEventWithText(text: string): Event {
 
 async function pickFile(node: Element, file: File) {
   const input = node.querySelector<HTMLInputElement>('input[type="file"]')!;
+  Object.defineProperty(input, "files", { value: [file], configurable: true });
+  await act(async () => {
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
+/** Same as `pickFile`, targeting the `index`-th file input — used by the
+ *  2+-beneficiary panel, which renders one drop zone per beneficiary. */
+async function pickFileAt(node: Element, index: number, file: File) {
+  const input = node.querySelectorAll<HTMLInputElement>('input[type="file"]')[index]!;
   Object.defineProperty(input, "files", { value: [file], configurable: true });
   await act(async () => {
     input.dispatchEvent(new Event("change", { bubbles: true }));
@@ -370,6 +388,139 @@ describe("CompleteTransferContainer", () => {
 
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:test-preview");
+    await act(async () => root.unmount());
+  });
+});
+
+// ---------------------------------------------------------------
+// Per-beneficiary delivery proof (P3): 2+ current beneficiaries.
+// ---------------------------------------------------------------
+
+const BENEFICIARIES_2 = [
+  { id: "ben-1", isZelle: true },
+  { id: "ben-2", isZelle: false },
+];
+
+describe("CompleteTransferContainer — 2+ beneficiaries", () => {
+  it("renders one proof panel per beneficiary, caption only for the Zelle one", async () => {
+    const { node, root } = await renderContainer({ beneficiaries: BENEFICIARIES_2 });
+
+    expect(node.querySelectorAll('input[type="file"]').length).toBe(2);
+    await pickFileAt(node, 0, pngFile());
+    await pickFileAt(node, 1, pngFile());
+
+    expect(node.querySelectorAll("textarea").length).toBe(1);
+    await act(async () => root.unmount());
+  });
+
+  it("sends each image, registers it, then delivers once — in order", async () => {
+    uploadAccountMedia.mockResolvedValue({ publicUrl: "https://storage.example/x.png", path: "account-1/x.png" });
+    sendProofImage
+      .mockResolvedValueOnce({ ok: true, wamid: "wamid.BEN1" })
+      .mockResolvedValueOnce({ ok: true, wamid: "wamid.BEN2" });
+    registerBeneficiaryProof.mockResolvedValue({ ok: true, registered: true, missing: 0 });
+    deliverOperation.mockResolvedValue({ ok: true, newStatus: "completed", completedAt: "2026-09-15T00:00:00Z" });
+    const onDone = vi.fn();
+
+    const { node, root } = await renderContainer({ beneficiaries: BENEFICIARIES_2, onDone });
+    await pickFileAt(node, 0, pngFile());
+    await pickFileAt(node, 1, pngFile());
+
+    await act(async () => submitButton(node).dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await flush();
+
+    expect(sendProofImage).toHaveBeenCalledTimes(2);
+    expect(registerBeneficiaryProof).toHaveBeenCalledTimes(2);
+    expect(registerBeneficiaryProof).toHaveBeenNthCalledWith(
+      1,
+      OPERATION_ID,
+      "ben-1",
+      expect.objectContaining({ wamid: "wamid.BEN1" }),
+    );
+    expect(registerBeneficiaryProof).toHaveBeenNthCalledWith(
+      2,
+      OPERATION_ID,
+      "ben-2",
+      expect.objectContaining({ wamid: "wamid.BEN2" }),
+    );
+    expect(deliverOperation).toHaveBeenCalledTimes(1);
+    expect(deliverOperation).toHaveBeenCalledWith(OPERATION_ID, {
+      mode: "proof_sent",
+      wamid: "wamid.BEN2",
+      path: "account-1/x.png",
+    });
+    expect(onDone).toHaveBeenCalledTimes(1);
+    await act(async () => root.unmount());
+  });
+
+  it("a failure on the second image stops, keeps the first sent, and a retry sends only the second", async () => {
+    uploadAccountMedia.mockResolvedValue({ publicUrl: "https://storage.example/x.png", path: "account-1/x.png" });
+    sendProofImage
+      .mockResolvedValueOnce({ ok: true, wamid: "wamid.BEN1" })
+      .mockResolvedValueOnce({ ok: false, outcome: "not-sent", message: "Meta 131047" });
+    registerBeneficiaryProof.mockResolvedValue({ ok: true, registered: true, missing: 0 });
+
+    const { node, root } = await renderContainer({ beneficiaries: BENEFICIARIES_2 });
+    await pickFileAt(node, 0, pngFile());
+    await pickFileAt(node, 1, pngFile());
+
+    await act(async () => submitButton(node).dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await flush();
+
+    expect(node.textContent).toContain("Meta 131047");
+    expect(sendProofImage).toHaveBeenCalledTimes(2);
+    expect(registerBeneficiaryProof).toHaveBeenCalledTimes(1);
+    expect(deliverOperation).not.toHaveBeenCalled();
+
+    // Retry: beneficiary 1 must not be re-sent, only beneficiary 2.
+    sendProofImage.mockResolvedValueOnce({ ok: true, wamid: "wamid.BEN2" });
+    deliverOperation.mockResolvedValue({ ok: true, newStatus: "completed", completedAt: "2026-09-15T00:00:00Z" });
+    const retry = actionButton(node, T.retry)!;
+    await act(async () => retry.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await flush();
+
+    expect(sendProofImage).toHaveBeenCalledTimes(3);
+    expect(registerBeneficiaryProof).toHaveBeenCalledTimes(3);
+    expect(deliverOperation).toHaveBeenCalledTimes(1);
+    await act(async () => root.unmount());
+  });
+
+  it("skip checkbox bypasses every beneficiary's proof: no sends, no registrations, one skip_proof delivery", async () => {
+    deliverOperation.mockResolvedValue({ ok: true, newStatus: "completed", completedAt: "2026-09-15T00:00:00Z" });
+    const { node, root } = await renderContainer({ beneficiaries: BENEFICIARIES_2 });
+
+    const checkbox = node.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+    await act(async () => {
+      checkbox.click();
+    });
+
+    await act(async () => submitButton(node).dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await flush();
+
+    expect(sendProofImage).not.toHaveBeenCalled();
+    expect(registerBeneficiaryProof).not.toHaveBeenCalled();
+    expect(deliverOperation).toHaveBeenCalledWith(OPERATION_ID, { mode: "skip_proof" });
+    await act(async () => root.unmount());
+  });
+
+  it("1 beneficiary still uses the single-proof path (no registration call)", async () => {
+    uploadAccountMedia.mockResolvedValue({ publicUrl: "https://storage.example/x.png", path: "account-1/x.png" });
+    sendProofImage.mockResolvedValue({ ok: true, wamid: "wamid.ABC" });
+    deliverOperation.mockResolvedValue({ ok: true, newStatus: "completed", completedAt: "2026-09-15T00:00:00Z" });
+
+    const { node, root } = await renderContainer({ beneficiaries: [{ id: "ben-1", isZelle: true }] });
+    await pickFile(node, pngFile());
+
+    await act(async () => submitButton(node).dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await flush();
+
+    expect(registerBeneficiaryProof).not.toHaveBeenCalled();
+    expect(sendProofImage).toHaveBeenCalledTimes(1);
+    expect(deliverOperation).toHaveBeenCalledWith(OPERATION_ID, {
+      mode: "proof_sent",
+      wamid: "wamid.ABC",
+      path: "account-1/x.png",
+    });
     await act(async () => root.unmount());
   });
 });

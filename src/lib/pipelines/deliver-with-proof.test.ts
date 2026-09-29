@@ -361,6 +361,24 @@ describe("when the proof arrives but the stage update fails", () => {
     expect(d.isWindowOpen).not.toHaveBeenCalled();
   });
 
+  it("carries the path along on a stage-only retry when the draft has one (multi-beneficiary flow)", async () => {
+    const d = deps();
+    const sent = draftFor("deal-1", { sentWamid: "wamid.ABC", sentPath: "account-1/x.png" });
+
+    const result = await deliverDeal(
+      { dealId: "deal-1", conversationId: "conv-1", draft: sent },
+      d,
+    );
+
+    expect(result).toEqual({ status: "delivered", proofSent: true, wamid: "wamid.ABC" });
+    expect(d.moveToDelivered).toHaveBeenCalledWith("deal-1", {
+      proofSent: true,
+      skipProof: false,
+      wamid: "wamid.ABC",
+      path: "account-1/x.png",
+    });
+  });
+
   it("keeps offering the retry when it fails again", async () => {
     const d = deps({
       moveToDelivered: vi.fn(async () => ({ ok: false as const, message: "still down" })),

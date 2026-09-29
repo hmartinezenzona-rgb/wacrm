@@ -42,18 +42,43 @@ import {
   type DeliveryResult,
 } from "@/lib/pipelines/deliver-with-proof";
 import { sendProofImage } from "@/lib/pipelines/send-proof-image";
+import {
+  sendBeneficiaryProofs,
+  type BeneficiaryProofDeps,
+  type BeneficiaryProofItem,
+} from "@/lib/pipelines/send-beneficiary-proofs";
 import { DELIVERY_PROOF_STAGE_ID } from "@/lib/pipelines/delivery-stages";
-import { deliverOperation } from "@/lib/remittance-operations/commands";
+import { deliverOperation, registerBeneficiaryProof } from "@/lib/remittance-operations/commands";
 import { evidenceToRpc } from "@/lib/remittance-operations/delivery";
 import type { ConversationOperationsRead } from "@/lib/remittance-operations/types";
 import { CompleteTransferSection, type CompleteTransferBanner } from "./complete-transfer-section";
+import { CompleteTransferMultiSection, type CompleteTransferProofItem } from "./complete-transfer-multi-section";
+
+/** A current beneficiary, as far as this container needs to know: which
+ *  panel to render (and whether it shows the caption box) once there are
+ *  2 or more — see the `beneficiaries.length >= 2` branch below. Kept
+ *  deliberately narrow (no name) — same reasoning as the generic upload
+ *  filename in `delivery-proof.ts`. */
+export interface CompleteTransferBeneficiary {
+  id: string;
+  isZelle: boolean;
+}
 
 export interface CompleteTransferContainerProps {
   operationId: string;
   conversationId: string;
   /** Only Zelle transfers show the note field (the recipient's name never
-   *  appears anywhere else once the screenshot is sent). */
+   *  appears anywhere else once the screenshot is sent). Used for the
+   *  0/1-beneficiary path only — see `beneficiaries` for 2+. */
   isZelle: boolean;
+  /** The operation's current ('vigente') beneficiaries. With 2 or more,
+   *  the panel switches to one proof (image + caption for Zelle) per
+   *  beneficiary, sent and recorded in order before the single
+   *  completion call (per-beneficiary delivery proof, P3). With 0 or 1,
+   *  this is ignored and the panel behaves exactly as before, driven by
+   *  `isZelle` alone. Defaults to `[]` so existing callers/tests that
+   *  don't pass it keep the single-proof path unchanged. */
+  beneficiaries?: CompleteTransferBeneficiary[];
   /** The delivery completed (or the operator dismissed this card's
    *  in-flight state) — the panel container refetches, which drops this
    *  operation out of the ready-to-transfer list. */
@@ -65,12 +90,15 @@ export function CompleteTransferContainer({
   operationId,
   conversationId,
   isZelle,
+  beneficiaries = [],
   onDone,
   onCancel,
 }: CompleteTransferContainerProps) {
   const t = useTranslations("Inbox.operationsPanel.completeTransfer");
   const canSend = useCan("send-messages");
+  const multiMode = beneficiaries.length >= 2;
   const [draft, setDraftState] = useState<DeliveryProofDraft | null>(null);
+  const [beneficiaryDrafts, setBeneficiaryDraftsState] = useState<Record<string, DeliveryProofDraft>>({});
   const [skipChecked, setSkipChecked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [banner, setBanner] = useState<CompleteTransferBanner | null>(null);
@@ -87,6 +115,11 @@ export function CompleteTransferContainer({
   // which render's closures end up running.
   const draftRef = useRef<DeliveryProofDraft | null>(null);
   const busyRef = useRef(false);
+  // Same reasoning as `draftRef`, for the 2+-beneficiary map: a retry
+  // action built inside `handleMultiDeliverResult` must see whichever
+  // beneficiaries a LATER render marked as sent, not the map the render
+  // that built the closure captured.
+  const beneficiaryDraftsRef = useRef<Record<string, DeliveryProofDraft>>({});
 
   const setDraft = useCallback(
     (updater: DeliveryProofDraft | null | ((prev: DeliveryProofDraft | null) => DeliveryProofDraft | null)) => {
@@ -154,7 +187,14 @@ export function CompleteTransferContainer({
   // would attach the same file twice as the native event bubbles here. A
   // paste carrying no image (e.g. plain text into the caption) is left
   // alone either way, same contract as the panel's own handler.
+  //
+  // Skipped entirely in `multiMode`: with 2+ drop zones on screen there is
+  // no single "the" draft a document-wide paste could attach to. Each
+  // panel's own `onPaste` (wired by `DeliveryProofPanel` itself) still
+  // works normally when that panel's drop zone or caption box has focus.
   useEffect(() => {
+    if (multiMode) return;
+
     function handleDocumentPaste(event: ClipboardEvent) {
       if (event.defaultPrevented) return;
       const image = pickPastedImage(event.clipboardData as unknown as ClipboardLike);
@@ -165,7 +205,7 @@ export function CompleteTransferContainer({
 
     document.addEventListener("paste", handleDocumentPaste);
     return () => document.removeEventListener("paste", handleDocumentPaste);
-  }, [acceptPastedImage]);
+  }, [acceptPastedImage, multiMode]);
 
   const handleCaptionChange = useCallback(
     (caption: string) => {
@@ -174,12 +214,89 @@ export function CompleteTransferContainer({
     [setDraft],
   );
 
+  // ---------------------------------------------------------------
+  // 2+ beneficiaries: one draft per beneficiary, same shape
+  // (`DeliveryProofDraft`) as the single-draft path above, keyed by
+  // beneficiary id rather than held as one value. `dealId` still carries
+  // the OPERATION id on every entry (not the beneficiary id) — consistent
+  // with what `DeliveryProofDraft.dealId` means everywhere else.
+  // ---------------------------------------------------------------
+
+  const setBeneficiaryDrafts = useCallback(
+    (
+      updater:
+        | Record<string, DeliveryProofDraft>
+        | ((prev: Record<string, DeliveryProofDraft>) => Record<string, DeliveryProofDraft>),
+    ) => {
+      setBeneficiaryDraftsState((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        beneficiaryDraftsRef.current = next;
+        return next;
+      });
+    },
+    [],
+  );
+
+  const handleBeneficiaryFileAccepted = useCallback(
+    (beneficiaryId: string, file: File, kind: ProofImageKind) => {
+      setBeneficiaryDrafts((prev) => {
+        const previous = prev[beneficiaryId];
+        if (previous) URL.revokeObjectURL(previous.previewUrl);
+        return {
+          ...prev,
+          [beneficiaryId]: {
+            dealId: operationId,
+            file,
+            kind,
+            previewUrl: URL.createObjectURL(file),
+            caption: previous?.caption ?? "",
+          },
+        };
+      });
+      setBanner(null);
+    },
+    [operationId, setBeneficiaryDrafts],
+  );
+
+  const clearBeneficiaryDraft = useCallback(
+    (beneficiaryId: string) => {
+      setBeneficiaryDrafts((prev) => {
+        const existing = prev[beneficiaryId];
+        if (!existing) return prev;
+        URL.revokeObjectURL(existing.previewUrl);
+        const next = { ...prev };
+        delete next[beneficiaryId];
+        return next;
+      });
+    },
+    [setBeneficiaryDrafts],
+  );
+
+  const handleBeneficiaryCaptionChange = useCallback(
+    (beneficiaryId: string, caption: string) => {
+      setBeneficiaryDrafts((prev) => {
+        const existing = prev[beneficiaryId];
+        if (!existing) return prev;
+        return { ...prev, [beneficiaryId]: { ...existing, caption } };
+      });
+    },
+    [setBeneficiaryDrafts],
+  );
+
+  const clearAllBeneficiaryDrafts = useCallback(() => {
+    setBeneficiaryDrafts((prev) => {
+      for (const d of Object.values(prev)) URL.revokeObjectURL(d.previewUrl);
+      return {};
+    });
+  }, [setBeneficiaryDrafts]);
+
   const handleCancel = useCallback(() => {
     clearDraft();
+    clearAllBeneficiaryDrafts();
     setBanner(null);
     setSkipChecked(false);
     onCancel();
-  }, [clearDraft, onCancel]);
+  }, [clearDraft, clearAllBeneficiaryDrafts, onCancel]);
 
   const buildDeps = useCallback(
     (): DeliveryDeps => ({
@@ -319,6 +436,192 @@ export function CompleteTransferContainer({
     },
     [buildDeps, operationId, conversationId, handleResult],
   );
+
+  // ---------------------------------------------------------------
+  // 2+ beneficiaries: send + record each proof, then run `deliverDeal`
+  // ONCE more, exactly as the single-proof path above — with a synthetic
+  // draft carrying the LAST beneficiary's `sentWamid`/`sentPath`, so it
+  // takes `deliverDeal`'s existing "already sent" branch straight to the
+  // stage update rather than uploading/sending anything itself (panel
+  // contract, P2's doc). Only ever called when `skipChecked` is false —
+  // skipping bypasses every beneficiary's proof at once and reuses `run`
+  // directly (see `onSubmit` below), the same "complete without
+  // screenshot" escape hatch the single-beneficiary path has always had.
+  // ---------------------------------------------------------------
+
+  const buildBeneficiaryDeps = useCallback(
+    (): BeneficiaryProofDeps => ({
+      conversationId,
+      uploadProof: (file, uploadName) =>
+        uploadAccountMedia(
+          CHAT_MEDIA_BUCKET,
+          new File([file], uploadName, { type: file.type }),
+        ),
+      sendProof: sendProofImage,
+      discardUpload: async (path) => {
+        await deleteAccountMedia(CHAT_MEDIA_BUCKET, path);
+      },
+      registerProof: async (beneficiaryId, evidence) => {
+        const result = await registerBeneficiaryProof(operationId, beneficiaryId, evidence);
+        return result.ok
+          ? { ok: true, missing: result.missing }
+          : { ok: false, message: result.error };
+      },
+    }),
+    [conversationId, operationId],
+  );
+
+  const handleMultiDeliverResult = useCallback(
+    (result: DeliveryResult) => {
+      switch (result.status) {
+        case "delivered":
+          clearAllBeneficiaryDrafts();
+          setBanner(null);
+          toast.success(t("delivered"));
+          onDone();
+          return;
+
+        case "stage-failed":
+          // Every beneficiary is already sent and recorded at this point
+          // (this call only runs after `sendBeneficiaryProofs` reports
+          // "sent") — retrying re-enters `runMulti`, which skips the
+          // whole send/register loop (every draft already carries its
+          // `sentWamid`) and goes straight back to this same call.
+          setBanner({
+            kind: "error",
+            text: t("stageFailed"),
+            action: { label: t("retry"), onClick: () => void runMulti() },
+          });
+          return;
+
+        case "busy":
+          return;
+
+        default:
+          // Unreachable in practice: a draft carrying `sentWamid` takes
+          // `deliverDeal`'s "already sent" branch, which only ever
+          // returns "delivered" or "stage-failed". Kept exhaustive for
+          // type safety and defense in depth.
+          setBanner({ kind: "error", text: t("blocked") });
+          return;
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [clearAllBeneficiaryDrafts, onDone, t],
+  );
+
+  const runMulti = useCallback(async () => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      const currentDrafts = beneficiaryDraftsRef.current;
+      const missing = beneficiaries.some((b) => !currentDrafts[b.id]);
+      if (missing) {
+        setBanner({ kind: "error", text: t("missingProofs") });
+        return;
+      }
+
+      const items: BeneficiaryProofItem[] = beneficiaries.map((b) => {
+        const d = currentDrafts[b.id]!;
+        return {
+          beneficiaryId: b.id,
+          file: d.file,
+          kind: d.kind,
+          caption: d.caption,
+          sentWamid: d.sentWamid,
+          sentPath: d.sentPath,
+        };
+      });
+
+      const sendResult = await sendBeneficiaryProofs(items, buildBeneficiaryDeps());
+
+      // Persist progress either way — a partial failure must keep every
+      // already-sent wamid/path so a retry does not re-send that image.
+      setBeneficiaryDrafts((prev) => {
+        const next = { ...prev };
+        for (const sentItem of sendResult.items) {
+          const existing = next[sentItem.beneficiaryId];
+          if (existing) {
+            next[sentItem.beneficiaryId] = {
+              ...existing,
+              sentWamid: sentItem.sentWamid,
+              sentPath: sentItem.sentPath,
+            };
+          }
+        }
+        return next;
+      });
+
+      if (sendResult.status === "failed") {
+        setBanner({
+          kind: "error",
+          text: t("failed", { message: sendResult.message }),
+          action: { label: t("retry"), onClick: () => void runMulti() },
+        });
+        return;
+      }
+
+      const last = sendResult.items[sendResult.items.length - 1]!;
+      const finalDraft: DeliveryProofDraft = {
+        dealId: operationId,
+        file: last.file,
+        kind: last.kind,
+        previewUrl: "",
+        caption: last.caption,
+        sentWamid: last.sentWamid,
+        sentPath: last.sentPath,
+      };
+      const result = await deliverDeal(
+        {
+          dealId: operationId,
+          conversationId,
+          draft: finalDraft,
+          skipProof: false,
+          expectsProof: true,
+        },
+        buildDeps(),
+      );
+      handleMultiDeliverResult(result);
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [beneficiaries, buildBeneficiaryDeps, buildDeps, operationId, conversationId, handleMultiDeliverResult, t]);
+
+  if (multiMode) {
+    const items: CompleteTransferProofItem[] = beneficiaries.map((b, index) => {
+      const d = beneficiaryDrafts[b.id];
+      return {
+        beneficiaryId: b.id,
+        label: t("beneficiaryLabel", { n: index + 1 }),
+        showCaption: b.isZelle,
+        file: d?.file ?? null,
+        previewUrl: d?.previewUrl ?? null,
+        caption: d?.caption ?? "",
+        onFileAccepted: (file, kind) => handleBeneficiaryFileAccepted(b.id, file, kind),
+        onFileRejected: handleFileRejected,
+        onCaptionChange: (caption) => handleBeneficiaryCaptionChange(b.id, caption),
+        onClear: () => clearBeneficiaryDraft(b.id),
+      };
+    });
+    const canSubmit = skipChecked || beneficiaries.every((b) => !!beneficiaryDrafts[b.id]);
+
+    return (
+      <CompleteTransferMultiSection
+        items={items}
+        skipChecked={skipChecked}
+        onSkipChange={setSkipChecked}
+        busy={busy}
+        canSend={canSend}
+        canSubmit={canSubmit}
+        banner={banner}
+        onCancel={handleCancel}
+        onSubmit={() => void (skipChecked ? run({ skip: true }) : runMulti())}
+      />
+    );
+  }
 
   return (
     <CompleteTransferSection

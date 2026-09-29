@@ -218,3 +218,31 @@ export async function deliverOperation(
   if (!response.ok) return response;
   return { ok: true, newStatus: response.data.newStatus, completedAt: response.data.completedAt };
 }
+
+export interface BeneficiaryProofEvidenceRpc {
+  wamid: string;
+  path?: string;
+  caption?: string;
+}
+
+export type RegisterBeneficiaryProofCommandResult =
+  | { ok: true; registered: boolean; missing: number }
+  | { ok: false; status: number; error: string };
+
+/** `crm_registrar_prueba_beneficiario`, via the per-beneficiary proof
+ *  endpoint (migration 143) — records one beneficiary's delivery proof
+ *  ahead of the single `deliverOperation` call, for a 2+ beneficiary
+ *  remesa (panel per-beneficiary delivery proof, P3). */
+export async function registerBeneficiaryProof(
+  operationId: string,
+  beneficiaryId: string,
+  evidence: BeneficiaryProofEvidenceRpc,
+): Promise<RegisterBeneficiaryProofCommandResult> {
+  const response = await postJsonResult<{ registered: boolean; missing: number }>(
+    `/api/remittance-operations/${operationId}/beneficiaries/${beneficiaryId}/proof`,
+    "POST",
+    { evidence },
+  );
+  if (!response.ok) return response;
+  return { ok: true, registered: response.data.registered, missing: response.data.missing };
+}

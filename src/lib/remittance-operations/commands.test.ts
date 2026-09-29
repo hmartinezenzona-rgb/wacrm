@@ -11,6 +11,7 @@ import {
   verifyDeposit,
   forceVerifyDeposit,
   deliverOperation,
+  registerBeneficiaryProof,
 } from "./commands";
 
 const OPERATION_ID = "11111111-1111-1111-1111-111111111111";
@@ -313,6 +314,47 @@ describe("deliverOperation", () => {
     vi.mocked(fetch).mockRejectedValueOnce(new Error("offline"));
 
     const response = await deliverOperation(OPERATION_ID, { mode: "no_proof" });
+
+    expect(response).toEqual({ ok: false, status: 0, error: "Network error" });
+  });
+});
+
+describe("registerBeneficiaryProof", () => {
+  it("POSTs the evidence to the beneficiary proof endpoint and unwraps registered/missing", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ok: true, registered: true, missing: 1 }));
+
+    const evidence = { wamid: "wamid.ABC", path: "account-1/x.png", caption: "Ana" };
+    const response = await registerBeneficiaryProof(OPERATION_ID, BENEFICIARY_ID, evidence);
+
+    expect(fetch).toHaveBeenCalledWith(
+      `/api/remittance-operations/${OPERATION_ID}/beneficiaries/${BENEFICIARY_ID}/proof`,
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ evidence }),
+      }),
+    );
+    expect(response).toEqual({ ok: true, registered: true, missing: 1 });
+  });
+
+  it("maps a non-2xx response to ok:false with status and error message", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse({ error: "beneficiary is not a current beneficiary of this operation" }, 400),
+    );
+
+    const response = await registerBeneficiaryProof(OPERATION_ID, BENEFICIARY_ID, { wamid: "w" });
+
+    expect(response).toEqual({
+      ok: false,
+      status: 400,
+      error: "beneficiary is not a current beneficiary of this operation",
+    });
+  });
+
+  it("maps a network failure to ok:false status 0", async () => {
+    vi.mocked(fetch).mockRejectedValueOnce(new Error("offline"));
+
+    const response = await registerBeneficiaryProof(OPERATION_ID, BENEFICIARY_ID, { wamid: "w" });
 
     expect(response).toEqual({ ok: false, status: 0, error: "Network error" });
   });

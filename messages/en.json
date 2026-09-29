@@ -428,6 +428,8 @@
         "unconfirmed": "Could not confirm the screenshot was sent. Check the conversation before retrying.",
         "stale": "This operation changed. Reload the panel.",
         "blocked": "This action isn't available right now.",
+        "beneficiaryLabel": "Beneficiary {n}",
+        "missingProofs": "Attach a screenshot for every beneficiary, or complete without one.",
         "proof": {
           "dropHint": "Paste (Ctrl+V), drop or choose a screenshot",
           "dropFormats": "PNG · JPG · WEBP · max {mb} MB",

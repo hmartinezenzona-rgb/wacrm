@@ -857,6 +857,28 @@ describe("RemittanceOperationCard", () => {
       });
     });
 
+    it("passes the current beneficiaries as {id, isZelle} pairs, in order", async () => {
+      const op = readyOperation({
+        beneficiaries: [
+          beneficiary({ id: "b1", beneficiaryType: "zelle", name: "Ana" }),
+          beneficiary({ id: "b2", beneficiaryType: "cuban_card" }),
+        ],
+      });
+      const { node } = await render(op);
+      await act(async () =>
+        findCompleteButton(node)!.dispatchEvent(new MouseEvent("click", { bubbles: true })),
+      );
+
+      expect(CompleteTransferContainer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          beneficiaries: [
+            { id: "b1", isZelle: true },
+            { id: "b2", isZelle: false },
+          ],
+        }),
+      );
+    });
+
     it("onCancel from the section restores the button", async () => {
       const { node, root } = await render(readyOperation());
 

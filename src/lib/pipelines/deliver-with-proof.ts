@@ -276,11 +276,16 @@ async function execute(
   // to persist the stage. Re-sending would give the customer the same
   // screenshot twice.
   if (draft.sentWamid) {
-    const moved = await deps.moveToDelivered(dealId, {
+    const evidence: DeliveryEvidence = {
       proofSent: true,
       skipProof: false,
       wamid: draft.sentWamid,
-    });
+    };
+    // Only the per-beneficiary flow (send-beneficiary-proofs.ts) ever sets
+    // `sentPath` — an ordinary single-proof stage-failure retry never did,
+    // and still doesn't, so this stays absent there exactly as before.
+    if (draft.sentPath) evidence.path = draft.sentPath;
+    const moved = await deps.moveToDelivered(dealId, evidence);
     return moved.ok
       ? { status: "delivered", proofSent: true, wamid: draft.sentWamid }
       : {

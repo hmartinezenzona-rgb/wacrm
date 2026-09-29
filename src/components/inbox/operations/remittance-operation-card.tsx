@@ -561,6 +561,10 @@ export function RemittanceOperationCard({
                 operationId={operation.id}
                 conversationId={conversationId}
                 isZelle={isZelleOperation(operation)}
+                beneficiaries={operation.beneficiaries.map((b) => ({
+                  id: b.id,
+                  isZelle: b.beneficiaryType === "zelle",
+                }))}
                 onDone={handleChanged}
                 onCancel={() => setOpenForm(null)}
               />

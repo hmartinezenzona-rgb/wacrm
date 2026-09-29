@@ -7,6 +7,10 @@ functions. The user's list plus the defects the test proved.
 ## Constraints (all tasks)
 - Staging first. Production (DB migrations, n8n prod `jEzlVLCLUaJhVwzs`, app deploy) only with the
   user's explicit go-ahead. An unattended loop NEVER touches production.
+- Authorizations given by the user (2026-09-29): (a) migrations on STAGING Supabase
+  `kolppplawzdsjfydwejr` only, no approval needed per migration; (b) READ-ONLY queries (SELECT) on
+  the production database to read the live-test messages. No production writes, no production
+  migrations, no production n8n changes.
 - DeepSeek evals only with a staging credential that is NOT "DeepSeek account" (f0K27ImOFO3QdL34 =
   production balance). Until the user's staging key is visible in n8n, no model evals.
 - Money-path changes (calculator, ledger, delivery) need SQL assertions and vitest, strict TDD.

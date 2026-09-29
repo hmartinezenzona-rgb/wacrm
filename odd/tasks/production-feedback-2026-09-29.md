@@ -33,12 +33,13 @@ functions. The user's list plus the defects the test proved.
   "100 USD → 26,000" became today's target and raised a false "DEPOSITO DE MAS". It must expire or
   close when a new remesa starts. The user: "no me parece que deba seguir". (DECIDED and FIXED —
   see Progress.)
-- [ ] A4 — Two Zelle accounts pasted in one block ("Name email NAME2, celular N"; forwarded lines
+- [x] A4 — Two Zelle accounts pasted in one block ("Name email NAME2, celular N"; forwarded lines
   prefixed "onlinebussines:") are not separated. The bot merged them into one beneficiary.
-- [ ] A5 — A second Zelle beneficiary that arrives after the first is never added: 135 only fills an
+  FIXED and PUBLISHED to staging n8n (see Progress).
+- [x] A5 — A second Zelle beneficiary that arrives after the first is never added: 135 only fills an
   op with NO beneficiary, and the reparto detector needs both accounts plus amounts at once.
   Amounts sent in a later message ("100 a la primera, 53 a la segunda") are not applied (the op
-  kept 153 USD on one account).
+  kept 153 USD on one account). FIXED and PUBLISHED to staging n8n (see Progress).
 - [x] A6 — Turn latency: the burst turn took ~3.5 min (agent 43 s). Find where the rest goes.
 
 ### B1. Bot logic and dynamic replies
@@ -463,10 +464,51 @@ functions. The user's list plus the defects the test proved.
     `fijar_objetivo` calls are gated from now on.
   - Committed as `19f7abc`.
 
+- 2026-09-29 (fifth touch-point): **A4/A5 DONE**, applied and published to staging n8n.
+  - Root cause, A4 (two accounts pasted together): the amount-pairing step picked the message right
+    after/before the account by *message index*, one candidate per account. Two accounts pasted in
+    the SAME message share one message index, so that window collapsed to nothing for the second
+    account — not an "extraction separation" problem as first hypothesized, but an amount-pairing
+    window bug. Fix: accounts sharing a message index are grouped into one cluster; the amounts
+    nearest the cluster are handed out to its accounts in encounter order. A cluster of size 1 (every
+    case that isn't this bug) computes the exact same window and pick as before — no behavior change
+    for the common case.
+  - Root cause, A5 (amount by ordinal position, "100 a la primera, 53 a la segunda"): no code path
+    read an ordinal-position phrase for amounts at all (only for a card's phone). Fix: a new
+    `ordinalMontos` pass mirrors the existing card-phone ordinal reading (shared `ORD` map) and is
+    consulted before the positional pairing, only when the customer used an explicit ordinal phrase;
+    absent that phrase, positional pairing is untouched.
+  - Delegated to a worker under strict TDD (`node --test`, 16 cases covering both bugs plus every
+    existing behavior as regression controls, all GREEN). Independently re-verified the worker's
+    diagnosis and diff line-by-line before accepting it — not taken on trust.
+  - Worker also claimed the pre-existing `norm()` line's Unicode ranges threw a `SyntaxError` in
+    Node and replaced it with a guessed explicit-enumeration version, flagging they could not verify
+    byte-fidelity against the live node's source. Independently extracted the TRUE live source
+    byte-for-byte from this session's own JSONL transcript (never by re-typing) and proved via
+    `node --check` there was never a syntax error — a transcription artifact, not a real bug.
+    Restored the authentic `norm()` line into the worker's otherwise-correct algorithmic fix.
+  - Applying that restored fix to the n8n node then hit the same class of problem from the other
+    side, twice: submitting the exact original Unicode-range `norm()` line (once as literal
+    characters, once as `\uXXXX` JSON escapes) both times resulted in 3 specific invisible-whitespace
+    codepoints (U+00A0, U+2000, U+202F) silently missing from what n8n stored, confirmed by
+    re-extracting the stored source from the JSONL transcript and diffing codepoint-by-codepoint
+    against the intended string — a systematic loss in the update pipeline, not a one-off typo.
+    Sidestepped it: rewrote `norm()`'s character class as an explicit enumeration of every individual
+    codepoint (no hyphen-ranges at all), verified functionally IDENTICAL to the original ranged regex
+    via a direct Node behavioral comparison, re-ran `node --check` and the full 16-test suite
+    (16/16 GREEN), then submitted that range-free version.
+  - Final verification: extracted the draft's stored `jsCode` from this session's own JSONL
+    transcript and diffed it byte-for-byte (Python, codepoint comparison) against the locally
+    verified fix file — exact match (18988 chars, `EQUAL: True`). Published that draft
+    (`ea331342-2781-42de-aa46-0a97ea9c5a61`) as the active version of workflow `Yu0uskQhydWgNFEy`
+    ("[STAGING] Cerebro - Repartos automaticos", node "Detectar repartos"). Confirmed
+    `activeVersionId` now equals the published version.
+  - Pure n8n-side change: no repo file touched for the fix itself, only this task document.
+
 ## Next step
-A1, A3, B2.1 and B2.2 are fully closed; B4.1-reversal and B4.4 are decided-closed with no change
-needed. B1.1/B1.2/B1.4 evals are unblocked (DeepSeek credential clarified) but not yet run. A4/A5
-unblocked and being fixed now (background worker, pure algorithm work — will be applied to the n8n
-node and verified once it reports back). B1.3: read-only production investigation done again this
-session, still no defect found, still needs a concrete case from the user. B3.2 and B4.3 are
-unblocked for implementation (decisions given above) — not yet built.
+A1, A3, A4, A5, B2.1 and B2.2 are fully closed; B4.1-reversal and B4.4 are decided-closed with no
+change needed. B1.1/B1.2/B1.4 evals are unblocked (DeepSeek credential clarified) but not yet run.
+B1.3: read-only production investigation done again this session, still no defect found, still needs
+a concrete case from the user. B3.2 and B4.3 are unblocked for implementation (decisions given
+above) — not yet built. B3.2 was delegated to a worker that failed mid-task on a session rate limit
+(since reset) — needs checking for salvageable work before resuming or redoing.

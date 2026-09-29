@@ -21,9 +21,9 @@
 --     the control: it must PASS unchanged both before and after 141.
 --
 -- AFTER 141 (GREEN): cases 1, 2, 5 resolve to the beneficiary-derived
--- service; case 3 stays entry-less but becomes VISIBLE in
--- calculator_unfed_operations with service NULL and a reason naming why;
--- case 4 is untouched.
+-- service; case 4 is untouched. Case 3 (mixed) was entry-less and listed
+-- as unfed under 141; since 142 it gets one pending line per service
+-- (its fixtures carry no amounts), see feed-mixed.sql.
 --
 -- Rates: cup_global_rate=1.5, usdt_buy_gyd=250, usdt_sell_gyd=265,
 -- usdt_sell_cup=400 (same as feed-matrix.sql, exact numeric results).
@@ -162,21 +162,26 @@ BEGIN
     RAISE NOTICE 'PASS [case 2] a 2-card op with NULL delivery_method is fed as CUP';
   END IF;
 
-  -- ---- case 3: mixed card + Zelle -> no entry, visible in the unfed view
-  SELECT count(*) INTO v_count FROM remittance_calculator_entries WHERE operation_id = v_op_mixed;
-  IF v_count <> 0 THEN
+  -- ---- case 3: mixed card + Zelle with NO amounts -----------------------
+  -- Since 142 a mixed remesa gets one line per service. These fixtures carry
+  -- no beneficiary amounts, so its share is unknown: two verified_pending
+  -- lines naming 'beneficiaryAmounts', never an invented number.
+  SELECT count(*) INTO v_count FROM remittance_calculator_entries
+   WHERE operation_id = v_op_mixed AND status = 'verified_pending'
+     AND 'beneficiaryAmounts' = ANY (missing_inputs);
+  IF v_count <> 2 THEN
     v_fail_count := v_fail_count + 1;
-    RAISE WARNING 'FAIL [case 3] a mixed card+Zelle op must produce no entry, found %', v_count;
+    RAISE WARNING 'FAIL [case 3] a mixed op without amounts must get 2 pending lines naming beneficiaryAmounts, found %', v_count;
   ELSE
-    RAISE NOTICE 'PASS [case 3a] a mixed card+Zelle op produces no entry (unresolved)';
+    RAISE NOTICE 'PASS [case 3a] a mixed op without amounts gets 2 pending lines (142)';
   END IF;
 
   SELECT count(*) INTO v_count FROM calculator_unfed_operations WHERE operation_id = v_op_mixed;
-  IF v_count <> 1 THEN
+  IF v_count <> 0 THEN
     v_fail_count := v_fail_count + 1;
-    RAISE WARNING 'FAIL [case 3b] the mixed op must be visible in calculator_unfed_operations, found %', v_count;
+    RAISE WARNING 'FAIL [case 3b] a mixed op with a line per service is fed (pending), not unfed; found %', v_count;
   ELSE
-    RAISE NOTICE 'PASS [case 3b] the mixed op is visible in calculator_unfed_operations rather than silently missing';
+    RAISE NOTICE 'PASS [case 3b] the mixed op has a (pending) line per service, so it is not listed as unfed';
   END IF;
 
   -- ---- case 4: legacy op, no beneficiaries, delivery_method='cuban_card'

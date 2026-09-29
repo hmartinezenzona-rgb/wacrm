@@ -115,6 +115,16 @@ export interface SendMessageParams {
   /** Who wrote it, when a person is behind it. Only the dashboard send route
    *  passes it; the bot and the public API leave it unset (NULL). */
   senderId?: string | null;
+  /**
+   * True when this send is a system/panel action (a delivery proof
+   * image, e.g.) rather than a person typing in the chat — B2.2. Stored
+   * on the row so the Cerebro workflow's `humano_reciente` check can
+   * ignore it too; the dashboard route also reads this same flag to
+   * decide whether to yield the conversation to a human, since doing
+   * that for the panel's own automated delivery would be exactly the
+   * bug this exists to avoid.
+   */
+  isPanelAction?: boolean;
 }
 
 export interface SendMessageResult {
@@ -313,6 +323,7 @@ export async function sendMessageToConversation(
     replyToMessageId,
     aiGenerated,
     senderId,
+    isPanelAction,
   } = params;
 
   if (!conversationId) {
@@ -626,6 +637,8 @@ export async function sendMessageToConversation(
       // it; the bot and the public API stay NULL on purpose — their identity
       // is `ai_generated`. History is not rewritten.
       sender_id: senderId ?? null,
+      // B2.2: a system/panel action, not a human typing (147).
+      is_panel_action: isPanelAction ?? false,
     })
     .select()
     .single();

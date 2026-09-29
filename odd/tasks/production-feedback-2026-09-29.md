@@ -53,7 +53,12 @@ functions. The user's list plus the defects the test proved.
 - [ ] B2.1 — While the bot is paused by a human, keep extracting data (cards, phones, names) in the
   background and update the panel silently. It must not reply.
 - [ ] B2.2 — The bot pauses ONLY when an admin writes in the chat. Panel actions (sending a proof,
-  completing a remesa) must not pause it.
+  completing a remesa) must not pause it. (The "sending a proof" half is DONE — see Progress. The
+  "completing a remesa" half is a SEPARATE path — `deals_stage_notify` fires an n8n webhook that
+  sends the "remesa_completada" template directly from n8n, never through this app's
+  `/api/whatsapp/send` — and has not been traced yet: unknown whether that n8n-side insert into
+  `messages` already sets `ai_generated=true`/wouldn't count as `humano_reciente` anyway, or needs
+  the same `is_panel_action` marker. Left unchecked rather than assumed fixed.)
 
 ### B3. Panel and data editing
 - [x] B3.1 — The right panel in a customer chat is editable, to complete a transfer manually when
@@ -337,9 +342,54 @@ functions. The user's list plus the defects the test proved.
     id). Workflow stayed `active: true` throughout; only a draft-then-publish step, no downtime.
   - Never touched production (`jEzlVLCLUaJhVwzs`) or any DeepSeek eval.
 
+- 2026-09-29 (third session): **B2.2 partially DONE — the "sending a proof" half.** Root cause: a
+  human typing in the inbox and the panel delivering a proof image go through the exact same route
+  (`/api/whatsapp/send`) and the exact same shared send core (`sendMessageToConversation`), which
+  always inserts `sender_type='agent'`. The route then unconditionally called `pauseAiOnAgentSend`,
+  and the Cerebro workflow's `Contexto conversacion` node computed `humano_reciente` from
+  `sender_type='agent' AND ai_generated=false AND created_at > now() - 5 min` — a delivery-proof
+  send was indistinguishable from an admin typing, on both sides.
+  - New `supabase/migrations/147_panel_action_marker.sql` (+ROLLBACK-147): `messages.is_panel_action
+    boolean NOT NULL DEFAULT false`.
+  - App side: `SendMessageParams.isPanelAction` (`send-message.ts`) sets the column;
+    `/api/whatsapp/send/route.ts` reads a new `panel_action` request field, forwards it, and skips
+    `pauseAiOnAgentSend` when it's true; `sendProofImage` (used by both the single-proof and
+    per-beneficiary delivery pipelines — `deliver-with-proof.ts` / `send-beneficiary-proofs.ts`
+    inject it as `sendProof`) now sends `panel_action: true`. Deliberately did NOT touch the
+    separate `flow_runs` pause a few lines below in the same function — that is the unrelated Flows
+    feature, out of scope here.
+  - TDD: RED confirmed first (5 new/updated tests failing — `is_panel_action` missing from every
+    insert, `pauseAiOnAgentSend` always called), GREEN after. Full suite re-run: 1627/1629 (same 2
+    pre-existing `date-utils.test.ts`/`mondayIndex` failures). `tsc --noEmit` and `eslint` on every
+    changed file: clean.
+  - Applied 147 to the real staging database (`kolppplawzdsjfydwejr`), verified before/after.
+  - n8n side: patched `Contexto conversacion` (Postgres node, staging workflow `U52y1kSNvhgxvWeb`) —
+    added `AND COALESCE(m.is_panel_action,false) = false` to the `humano_reciente` EXISTS clause;
+    every other byte of this ~15.8 KB query is unchanged (verified with a Python diff before
+    applying). Did NOT touch the separate `caducar` CTE (manual-assignment expiry) a few lines above
+    — same reasoning, a different feature the task didn't name.
+  - Proof, since this query is far too large and side-effecting (UPDATEs, derivation-registering
+    function calls) to safely `EXECUTE` end to end even on the rehearsal DB: (a) isolated the exact
+    `humano_reciente` EXISTS clause against synthetic fixtures — RED: a panel-action message
+    incorrectly counted as `humano_reciente=true` (the bug); GREEN: the same message now gives
+    `false`, while a genuine human agent message still gives `true` (no regression); (b) `PREPARE`d
+    (never `EXECUTE`d) the FULL modified query against real staging inside
+    `BEGIN...ROLLBACK` — zero errors, proving the whole 263-line query is still valid Postgres with
+    every function it calls actually present there.
+  - Published as workflow version `44672ff8-952e-4736-9fd8-9bc54a6ddd69` (previous active
+    `fcf35a3d...`, the A1 fix — restorable). Never touched production or any DeepSeek eval.
+  - **Not done**: the "completing a remesa" half. That notification is a SEPARATE path —
+    `deals_stage_notify` fires an n8n webhook that sends the `remesa_completada` template directly
+    from n8n, never through this app's route — and has not been traced. Left B2.2 unchecked rather
+    than assume it's covered.
+  - B2.1 (keep extracting silently while paused) still not started — same "changes the Decisor
+    routing" scope noted in the second session, independent of this fix.
+
 ## Next step
-A1 is fully closed. Everything else still waits on the user: staging DB access is no longer the
-blocker for anything (this session can read `.env.staging` now) — remaining blockers are "Available in
-MCP" on `Yu0uskQhydWgNFEy` (A4/A5), a call on evals (B1.1, B1.2, B1.4), or the older Open decisions
-(A3, B3.2, B4.3, B4.4, B4.1 reversal). B1.3 needs a real failing case from the user. The loop is
+A1 is fully closed. B2.2 is half done (see above) — the remaining half needs tracing the
+`remesa_completada` n8n notify path. Everything else still waits on the user: staging DB access is no
+longer the blocker for anything (this session can read `.env.staging` now) — remaining blockers are
+"Available in MCP" on `Yu0uskQhydWgNFEy` (A4/A5), a call on evals (B1.1, B1.2, B1.4), or the older
+Open decisions (A3, B3.2, B4.3, B4.4, B4.1 reversal). B1.3 needs a real failing case from the user.
+B2.1 has not been started. The loop is
 stopped until one of these arrives.

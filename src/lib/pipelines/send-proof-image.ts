@@ -27,6 +27,9 @@ export async function sendProofImage({
       message_type: "image",
       media_url: mediaUrl,
       content_text: caption || undefined,
+      // B2.2: delivering a proof is the panel acting, not a human typing
+      // in the chat — must not pause the bot (147).
+      panel_action: true,
     }),
   });
   const body = await res.json().catch(() => ({}));

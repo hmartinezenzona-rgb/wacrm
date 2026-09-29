@@ -114,6 +114,7 @@ export async function POST(request: Request) {
       template_message_params,
       interactive_payload,
       reply_to_message_id,
+      panel_action,
     } = body
 
     if ((!conversationIdInput && !contact_id) || !message_type) {
@@ -224,6 +225,9 @@ export async function POST(request: Request) {
         // Forward attribution: who wrote it. The bot comes in through
         // `/api/v1/messages` and keeps a NULL `sender_id`, with `ai_generated`.
         senderId: user.id,
+        // B2.2: a panel action (a delivery proof image, e.g.), not a
+        // person typing — see pauseAiOnAgentSend below and 147.
+        isPanelAction: !!panel_action,
       })
 
       // Una persona ha escrito: el bot se calla en este hilo.
@@ -234,7 +238,15 @@ export async function POST(request: Request) {
       //
       // Sólo por esta ruta. `/api/v1/messages` es el bot y no debe pausarse a
       // sí mismo; la diferencia es el tipo de autenticación, no el contenido.
-      await pauseAiOnAgentSend(supabase, conversationId)
+      //
+      // EXCEPTO cuando este envío es una acción del panel (`panel_action`,
+      // B2.2) — mandar el comprobante de un depósito o notificar que una
+      // remesa se completó no es "un humano tomó la conversación": es el
+      // propio sistema entregando evidencia. Pausar el bot ahí es el bug
+      // que esto arregla.
+      if (!panel_action) {
+        await pauseAiOnAgentSend(supabase, conversationId)
+      }
 
       return NextResponse.json({
         success: true,

@@ -154,13 +154,24 @@ vi.mock('@/lib/whatsapp/encryption', () => ({
   isLegacyFormat: vi.fn(() => false),
 }))
 
-const { sendTemplateMessage } = vi.hoisted(() => ({
+const { sendTemplateMessage, sendTextMessage } = vi.hoisted(() => ({
   sendTemplateMessage: vi.fn(async () => ({ messageId: 'wamid-1' })),
+  sendTextMessage: vi.fn(async () => ({ messageId: 'wamid-1' })),
 }))
 vi.mock('@/lib/whatsapp/meta-api', () => ({
   sendTemplateMessage,
-  sendTextMessage: vi.fn(),
+  sendTextMessage,
   sendMediaMessage: vi.fn(),
+}))
+
+// B2.2: mocked so these tests assert on WHETHER it's called, not on its
+// own internals (already covered by pause-ai-on-agent-send.test.ts).
+const { pauseAiOnAgentSend } = vi.hoisted(() => ({
+  pauseAiOnAgentSend: vi.fn(async () => ({ paused: true, alreadyPaused: false })),
+}))
+vi.mock('@/lib/inbox/pause-ai-on-agent-send', () => ({
+  pauseAiOnAgentSend,
+  AGENT_REPLIED_REASON: 'agent_replied',
 }))
 
 import { POST } from './route'
@@ -510,5 +521,75 @@ describe('POST /api/whatsapp/send — distinguishing post-Meta failures', () => 
     expect(json.success).toBe(true)
     expect(json.whatsapp_message_id).toBe('wamid-1')
     expect(json).not.toHaveProperty('code')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// B2.2 — a panel action (sending a delivery proof, e.g.) must not pause the
+// bot the same way an admin typing in the chat does. Both go through this
+// same route and the same shared send core, so the distinction has to be an
+// explicit flag on the request, not something inferred from content_type.
+// ---------------------------------------------------------------------------
+
+describe('POST /api/whatsapp/send — panel actions must not pause the bot (B2.2)', () => {
+  beforeEach(() => {
+    conversationInserts.length = 0
+    messageInserts.length = 0
+    existingConversation = {
+      id: 'conv-1',
+      account_id: 'acct-1',
+      contact_id: 'contact-1',
+      contact: CONTACT,
+    }
+    createdConversation = null
+    contactRow = CONTACT
+    profileRow = { account_id: 'acct-1', account_role: 'agent' }
+    messageInsertError = null
+    supabaseMock = makeSupabaseMock()
+    sendTemplateMessage.mockClear()
+    pauseAiOnAgentSend.mockClear()
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  function postText(overrides: Record<string, unknown> = {}) {
+    return POST(
+      new Request('http://localhost/api/whatsapp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversation_id: 'conv-1',
+          message_type: 'text',
+          content_text: 'hola',
+          ...overrides,
+        }),
+      }),
+    )
+  }
+
+  it('an ordinary agent send (no panel_action) still pauses the bot', async () => {
+    const res = await postText()
+
+    expect(res.status).toBe(200)
+    expect(pauseAiOnAgentSend).toHaveBeenCalledTimes(1)
+    expect(messageInserts[0]).toMatchObject({ is_panel_action: false })
+  })
+
+  it('panel_action: true skips pausing the bot and marks the message', async () => {
+    const res = await postText({ panel_action: true })
+
+    expect(res.status).toBe(200)
+    expect(pauseAiOnAgentSend).not.toHaveBeenCalled()
+    expect(messageInserts[0]).toMatchObject({ is_panel_action: true })
+  })
+
+  it('a falsy panel_action behaves exactly like it being absent', async () => {
+    const res = await postText({ panel_action: false })
+
+    expect(res.status).toBe(200)
+    expect(pauseAiOnAgentSend).toHaveBeenCalledTimes(1)
+    expect(messageInserts[0]).toMatchObject({ is_panel_action: false })
   })
 })

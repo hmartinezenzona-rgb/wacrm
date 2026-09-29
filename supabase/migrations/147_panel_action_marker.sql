@@ -1,0 +1,35 @@
+-- =====================================================================
+-- 147 — messages.is_panel_action: distinguish a system send from a human
+--
+-- PROBLEM (B2.2, production feedback 2026-09-29): "The bot pauses ONLY
+-- when an admin writes in the chat. Panel actions (sending a proof,
+-- completing a remesa) must not pause it." Today they do: both a human
+-- typing in the inbox AND the panel sending a delivery proof image go
+-- through the same `/api/whatsapp/send` route and the same shared send
+-- core (`sendMessageToConversation`), which always inserts
+-- `sender_type = 'agent'`. The route then unconditionally calls
+-- `pauseAiOnAgentSend`, and the Cerebro n8n workflow's `Contexto
+-- conversacion` node computes `humano_reciente` from
+-- `sender_type = 'agent' AND ai_generated = false AND created_at > now()
+-- - 5 min` — a delivery-proof send is indistinguishable from an admin
+-- typing, on both sides.
+--
+-- FIX: a nullable-in-spirit (NOT NULL DEFAULT false, so every existing
+-- and future row has a definite value) marker column. The send route
+-- sets it true only when the caller explicitly says this send is a
+-- panel action (`panel_action: true` in the request body — today that's
+-- `sendProofImage`, used by both the single-proof and per-beneficiary
+-- delivery pipelines), and skips `pauseAiOnAgentSend` for it. A second,
+-- separate change to the Cerebro workflow's `humano_reciente` query adds
+-- `AND NOT is_panel_action` so the automatic path is not fooled either.
+--
+-- Deliberately NOT touching the `flow_runs` pause a few lines below the
+-- bot pause in `sendMessageToConversation` — that is a different
+-- feature (Flows) with its own "agent stepped in" rule, not asked for
+-- here, and B2.2 is scoped to the AI/Cerebro bot only.
+--
+-- ROLLBACK: ROLLBACK-147-panel-action-marker.sql
+-- =====================================================================
+
+ALTER TABLE messages
+  ADD COLUMN IF NOT EXISTS is_panel_action boolean NOT NULL DEFAULT false;

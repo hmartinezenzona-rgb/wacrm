@@ -44,8 +44,23 @@ describe("sendProofImage", () => {
         message_type: "image",
         media_url: "https://storage.example/x.png",
         content_text: "Nombre del remitente: Juan",
+        panel_action: true,
       }),
     });
+  });
+
+  it("marks the request as a panel action (B2.2) — delivering a proof must not pause the bot", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({}, true));
+
+    await sendProofImage({
+      conversationId: "conv-1",
+      mediaUrl: "https://storage.example/x.png",
+      caption: "",
+    });
+
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body.panel_action).toBe(true);
   });
 
   it("sends content_text as undefined when the caption is empty", async () => {

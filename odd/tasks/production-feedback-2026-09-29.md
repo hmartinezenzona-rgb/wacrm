@@ -84,17 +84,24 @@ functions. The user's list plus the defects the test proved.
 
 ## Open decisions (filled in as tasks reach them)
 
-- B1.3 (investigated a SECOND time, 2026-09-29 third session, read-only prod, structure only; still
-  no defect visible): checked all 22 receipts `cerebro_lecturas_vision` classified as `comprobante`
-  in the last 3 days. 21 of 22 have a matching `comprobantes_hashes` row; the 1 without it is the
-  already-explained A1 resend. Of the 21 hashed ones, 2 looked suspicious at first (no deal touched
-  within ±10 min of the vision read) but both turned out fine on a closer look: one completed
-  normally with the deal update landing 27 min later (outside my first, too-narrow window); the
-  other was correctly registered (has a `DEPOSITO` note) and is sitting in `incident` status, which
-  is normal manual-review behavior, not a silently dropped receipt. So across two separate
-  investigations (this one and the second session's, covering different windows) the automated
-  pipeline has registered every classified receipt it saw. Still need a concrete case from the user
-  (chat/phone/approximate time) — until then B1.3 stays unchecked.
+- B1.3 (investigated a THIRD time, 2026-09-29 fifth touch-point, at the user's explicit request —
+  "revisa produccion, ahora tendras material de sobra" — widened to 10 days, read-only prod,
+  structure only; still no defect found):
+  - Widened the receipt check from 3 to 10 days: 26 images classified `comprobante` (vs 22 before),
+    still exactly 1 without a matching `comprobantes_hashes` row — and it is the SAME
+    already-explained case (`2026-09-29 03:59:40 UTC`, inside the previously documented A1 burst),
+    not a new one. Every other classified receipt in the wider window is registered.
+  - New angle this pass: checked whether vision is silently skipped on real receipt photos rather
+    than mis-registering ones it did classify. Of 197 customer images in 10 days, 159 have no
+    `cerebro_lecturas_vision` row at all (only 38 do). Checked all 159 for a plausible reason: 0 of
+    159 had ANY open (non-completed/non-cancelled) remittance operation in the 6 hours before they
+    were sent — meaning none of them were sent in a context where a receipt would even be expected.
+    This matches the pipeline only running vision analysis inside an active deal, not on every photo
+    a customer sends (profile pictures, unrelated images, etc.) — expected behavior, not a gap.
+  - Across three separate investigations now (three different, increasingly wide windows), the
+    automated pipeline has registered every classified receipt it saw, and never appears to skip
+    vision on an image sent during an open operation. Still need a concrete case from the user
+    (chat/phone/approximate time) to find anything beyond this — until then B1.3 stays unchecked.
 - B1.1, B1.2, B1.4 (asked 2026-09-29, second session): the wording these tasks change is NOT
   deterministic code. The replies come from the LLM agent's 41 KB system prompt (`Agente Remesas`,
   few-shot examples such as "Apenas haga su depósito envíenos la captura por favor." and "Apenas lo

@@ -216,7 +216,7 @@ functions. The user's list plus the defects the test proved.
     client subscription); RLS and every write path (feed trigger, `crm_resolve_pending_entry`)
     unchanged.
   - Not yet applied to the real staging database — the user's step.
-  - Committed as `<pending>`.
+  - Committed as `6437b40`.
 
 ## Next step
 B3.1, B3.3, B4.1, B4.2 done. Remaining unchecked tasks all either need a user decision (A3, B3.2,

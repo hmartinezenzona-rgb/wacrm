@@ -574,14 +574,20 @@ functions. The user's list plus the defects the test proved.
     behavior is a strict superset of before) already proven via RED/GREEN against a rehearsal DB and
     real staging earlier today — not re-proven with a fresh fixture run against production itself, to
     avoid writing synthetic fixtures into the live database.
-  - **Two things found for free, NOT yet fixed:**
-    1. `crm_forzar_verificacion` (099, the RPC behind B4.3's "Force verification" button) has the
-       EXACT same `deals.stage_id`-based staleness check, unfixed by 144. Javier's case specifically
-       — and any deal born before 110/114's cutover — cannot be force-verified from the panel either,
-       until 099 gets the same `remittance_operations.status`-based fix. Not yet built.
-    2. Javier's own deposit is already consumed by someone else's real operation — this is a money
-       reconciliation problem, not fixable by code. Needs a human/admin decision on how to make Javier
-       whole (find him a different deposit, treat his remesa as outstanding, etc.).
+  - **CORRECTION (same touch-point, caught before writing any code):** first reported that
+    `crm_forzar_verificacion` (099) had the same `deals.stage_id` staleness bug as `cerebro_cruzar_
+    deposito`. That was WRONG — a background investigation read 099's ORIGINAL (pre-114) body, not
+    its LATEST one. Migration 114 (already live, item 6 of its own header) already rewrote
+    `crm_forzar_verificacion` to drop the `deals.stage_id` gate entirely and write
+    `remittance_operations.status` directly. Verified against production's live `pg_get_functiondef`
+    before touching anything: it matches 114's fixed version exactly, no staleness bug, nothing to
+    build here. The "Force verification" button (B4.3) already works correctly today for Javier's
+    operation (`status = 'deposit_verification'` satisfies its gate) — an admin can force it from the
+    panel right now if desired.
+  - Javier's own deposit is still already consumed by someone else's real operation — that is a money
+    reconciliation problem, not fixable by code. Needs a human/admin decision on how to make Javier
+    whole (find him a different deposit, treat his remesa as outstanding, etc.), independent of
+    whether his operation gets force-verified.
   - Committed: migration application (task doc only — no local file change, this was a prod-only DDL
     application of an already-committed migration).
 
@@ -593,10 +599,6 @@ functions. The user's list plus the defects the test proved.
   before any implementation, not a same-session code change.
 
 ## Open decisions (new items from the seventh touch-point)
-- **Fix `crm_forzar_verificacion` (099) with the same staleness fix as 144** — same root cause,
-  same fix shape (read `remittance_operations.status` instead of `deals.stage_id`). No new product
-  decision needed; queued as the next unblocked task, staging first, production needs its own
-  go-ahead (not assumed from today's 144 approval).
 - **Javier Cruz's specific stolen deposit** — needs a human/admin reconciliation decision, not code.
 - **Eliminate `deals` entirely** — user wants the system to stop depending on `deals` (that was the
   original point of building the operations panel/RPCs). Needs a scoped, read-only exploration of
@@ -609,8 +611,6 @@ closed. Remaining:
 - **B1.1/B1.2** — user chose option (a); design already worked out (see above), not yet built.
 - **B1.4** — user wants it built as a new feature (schema currently has nowhere to store the data);
   not yet designed.
-- **crm_forzar_verificacion (099) staleness fix** — found while fixing B1.3, same shape as 144, not
-  yet built.
 - **Eliminate `deals`** — new architectural request, needs scoping before anything else.
 - **A6** — still needs the user to confirm on real staging traffic that completion tokens fell back
   to ~50-300.

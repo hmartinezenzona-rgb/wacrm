@@ -102,129 +102,24 @@ functions. The user's list plus the defects the test proved.
   question as B4.1 above (hard delete vs. reversible void, audit trail, who's allowed). Only
   relevant if "the calculator module" in B4.4 means the auto-fed ledger rather than the manual log.
 
-## Blocked this session (not a product decision — a tooling/access gap)
-- The `claude.ai n8n` MCP is disconnected this session (needs `/mcp` re-auth), and no other safe,
-  established path to read/patch the live Cerebro n8n workflow (staging `U52y1kSNvhgxvWeb`) was
-  used. Every task whose fix lives in that n8n workflow rather than in this repo/DB is blocked
-  until that access is restored: A1, A2, A4, A5, A6, B1.1, B1.2, B1.3, B1.4, B2.1, B2.2.
-  (While checking for an access path, a cached workflow export under `~/cerebro-fase1` was
-  `cat`-ed and turned out to contain an embedded webhook secret; exploration stopped there rather
-  than continuing to hunt for credentials. Nothing was sent anywhere external.)
+## n8n access restored (2026-09-29, second session)
+- The `claude.ai n8n` MCP is connected again and the user explicitly authorized reading and patching
+  the STAGING workflow `U52y1kSNvhgxvWeb` (never production `jEzlVLCLUaJhVwzs`). The earlier
+  "blocked" note is obsolete. The staging workflow has 117 nodes; there is no repo test harness for
+  its Code nodes yet, so strict TDD needs one: extract the node's `jsCode` and run it under vitest
+  with a stubbed `$()` (a probe of this shape already ran the extracted `Snapshot final`).
+- A2 investigated, NOT reproducible in staging: the staging `Snapshot final` already returns
+  `zelle_celulares:["8133617809"]` for "celular 8133617809", for a two-line block with emails, for
+  the "onlinebussines:" forwarded prefix and for the bare number. Staging has zero executions since
+  2026-09-29T00:00Z, so the live test ran against production, which this loop must not read. Need
+  either the production execution id from the user or a real failing message; no fix invented.
 
-## Progress
-- 2026-09-29: document created from the user's list and the live test.
-  - The live test of per-beneficiary proofs PASSED: 2 proofs stored for op 17e82489, both images
-    and captions arrived in the chat.
-  - After the test, restored: the test op was cancelled (its ledger line voided); Carolina's
-    deposit 20397391101636 went back to its original deal/dates; comprobantes_hashes row
-    restored; unfed view 0.
-- 2026-09-30 (loop): triaged the full list. A3 needs a product decision (above). A1/A2/A4/A5/A6 and
-  B1.1-B1.4/B2.1-B2.2 are blocked this session by the n8n MCP disconnect (above) — they all require
-  editing the live Cerebro workflow, which is outside this repo.
-- 2026-09-30 (loop): **B1.5 DONE.** New `src/lib/inbox/chat-sound-gate.ts` (pure gate: rings only for
-  inbound customer messages, never for the conversation open right now, never for anything at/before
-  the last "mark all as read" watermark) + `src/hooks/use-chat-message-sound.ts` (thin `<audio>`
-  wrapper, gesture-unlock pattern copied from `use-notification-alerts.ts`, reuses
-  `public/sounds/incidencia-v2.mp3` — no chat-specific asset exists yet). Wired into
-  `src/app/(dashboard)/inbox/page.tsx`'s realtime INSERT handler and a new "Marcar todas como
-  leídas" button in `ConversationList` (there was no such control before this task). TDD: RED
-  confirmed (`Cannot find module`, missing button assertions) before writing code, GREEN after (27
-  new/updated tests). Full suite `npx vitest run`: 1610/1612 pass; the 2 failures are
-  `src/lib/dashboard/date-utils.test.ts` (`mondayIndex`) — confirmed pre-existing and unrelated by
-  re-running that file alone on a clean stash of this diff (fails identically with none of this
-  task's changes applied). Typecheck and lint clean (lint: 3 pre-existing warnings only, none in the
-  touched files). Committed as `59a99f1`.
-  - Two low-stakes defaults made by the worker, flagged rather than silently chosen: (1) reused the
-    existing `incidencia-v2.mp3` chime, so chat messages and incident alerts now sound identical —
-    swap the constant in `use-chat-message-sound.ts` if a distinct sound is wanted later; (2) the
-    "marcar todas como leídas" button was placed in `ConversationList`'s filter toolbar (there was no
-    prior UI for it anywhere) — confirm that's the right spot if it matters.
-
-- 2026-09-30 (loop): **B3.3 DONE.** Root cause: `cerebro_cruzar_deposito` (114) still gates its
-  staleness check ("has this deal moved since I looked at it?") on `deals.stage_id`, a column 114
-  itself stopped writing from every operation-status-advancing write path (same class of oversight
-  125 already fixed once, for a write path). For an operation whose deal existed BEFORE its deposit
-  ("movido"/"sumado" branches, ~13% of deals per 125's own measurement), the deal is frozen at its
-  birth stage while `remittance_operations.status` correctly advances to `deposit_verification` —
-  so when the panel's `crm_verificar_deposito` (itself already correctly deriving its expected stage
-  from `status`, per 114) calls into `cerebro_cruzar_deposito`, that inner function's own
-  stage_id-based check disagrees and silently returns `resultado: 'no_aplica'` (a normal 200, not an
-  error). Verification never advances the status past `deposit_verification` — this IS the stuck
-  "Awaiting Deposit". The same shared function backs n8n's automatic MMG cross-reference, so the
-  automatic path is equally defeated; only the admin-only `crm_forzar_verificacion` escape hatch
-  (which never reads `deals.stage_id`) still works for these operations.
-  - New `supabase/migrations/144_verify_deposit_status_drift.sql` (+ROLLBACK-144): `v_aplica` now
-    compares against `remittance_operations.status` (via `cerebro_estado_desde_etapa`) instead of
-    `deals.stage_id`; every other line of the 114 function is untouched. `cerebro_cruzar_depositos`
-    needed no change — both its paths delegate to this same function.
-  - New `supabase/staging/assertions/verify-deposit-status-drift.sql`: case 1 reproduces the drift
-    (deal born before its deposit) and proves the fix; case 2 is a control (deal born already at "Por
-    verificar" — the common single-shot case) proving no regression there.
-  - TDD: RED and GREEN both independently reproduced by me (not just reported by the worker) against
-    a local non-production rehearsal Postgres (`wacrm-ensayo`, not staging/prod), inside
-    `BEGIN...ROLLBACK` — nothing committed. RED: case 1 fails with `resultado=no_aplica,
-    status=deposit_verification`. GREEN (144 applied in the same rolled-back transaction): both cases
-    pass, `verify-deposit-status-drift: ALL PASS`. Full vitest suite re-run: 1610/1612 pass (same 2
-    pre-existing `date-utils.test.ts`/`mondayIndex` failures, unrelated). `tsc --noEmit` clean.
-  - Applied to the real staging database (`kolppplawzdsjfydwejr`) on the user's explicit
-    instruction ("Aplica las migraciones 144 y 145 a staging"). Pre/post state confirmed by reading
-    `cerebro_cruzar_deposito`'s source before and after; the assertion re-run (in a rolled-back
-    transaction, no leftover rows) passed `ALL PASS` against the real database too.
-  - No money/ledger totals touched; this is a status-gate read fix only.
-  - Committed as `8576bd9`.
-
-- 2026-09-30 (loop): **B4.1 investigated — no defect found.** Traced every real "complete" path
-  (deliver-with-proof → `crm_entregar_operacion`; force-verify → `crm_forzar_verificacion`, which only
-  reaches `ready_to_transfer`, never `completed`; `crm_corregir_operacion`, which refuses on a
-  terminal status) and the one real "delete" path (an external system removes the mirrored `deals`
-  row → `trg_cancel_operacion_on_deal_delete`, cancelling the linked operation unless it's already
-  `completed`). There is no "Borrar"/"Eliminar"/delete UI or API route for a remesa/operation
-  anywhere in this app's `src/` — every completion write is a plain `status` UPDATE, which already
-  correctly fires `zzz_remittance_operations_calculator_feed` (104) to feed or void the calculator
-  entry. No client-side calculator cache exists to go stale either. Verified empirically (not just
-  by reading code) against `wacrm-ensayo`, `BEGIN...ROLLBACK`, nothing committed: completing an
-  operation feeds the ledger correctly; deleting the deal of an already-completed operation leaves
-  both the operation and its ledger entry untouched (by migration 114's own deliberate design —
-  "the money really moved, it's history"); deleting the deal of a not-yet-completed operation
-  cancels it correctly with zero ledger entries (none was ever fed). No files changed, nothing to
-  commit for this task.
-  - **Possible product question, not acted on**: if what B4.1 actually meant was "deleting a deal
-    should ALSO void an already-*completed* remesa's calculator entry" — the opposite of 114's
-    documented decision — that would be a deliberate policy reversal, not a bug fix. Not invented;
-    added below as an open decision in case that's what's wanted.
-
-- 2026-09-30 (loop): triaged B3.1, B3.2, B4.2, B4.3, B4.4. B3.1 already satisfied (above). B3.2 and
-  B4.3 need decisions (above). B4.4 half satisfied, half needs a decision (above). **B4.2 DONE** —
-  the only clean, unambiguous candidate: the calculadora page fetched "Operaciones del chat" once on
-  mount with no realtime subscription, and `remittance_calculator_entries` was never added to the
-  `supabase_realtime` publication (`104_calculator_ledger_feed.sql` introduced the feed trigger but
-  never touched the publication).
-  - New `supabase/migrations/145_calculator_entries_realtime.sql` (+ROLLBACK-145): adds the table to
-    `supabase_realtime`, same idempotent shape every other realtime table in this repo already uses.
-    No RLS change — the existing `remittance_calculator_entries_select` policy (106) already scopes
-    who sees which rows, same as the initial `GET /api/calculadora` read.
-  - New `src/lib/calculator/realtime-entry.ts` (pure raw-row → UI-shape mapping + event-fold logic,
-    mirrors the GET route's own `source='completed_operation' AND status<>'void'` filter so the live
-    feed and the initial load can never disagree) + `src/hooks/use-calculator-entries-realtime.ts`
-    (subscription hook, same pattern as `use-realtime.ts`), wired into
-    `src/app/(dashboard)/calculadora/page.tsx`.
-  - TDD: RED and GREEN both independently reproduced by me against `wacrm-ensayo`
-    (`BEGIN...ROLLBACK`, nothing committed): RED — publication-membership check fails; GREEN (145
-    applied in the same rolled-back transaction) — both the publication check and a 106-regression
-    check pass. Confirmed the table is NOT left in the real publication afterward. Full vitest suite
-    re-run: 1623/1625 pass (same 2 pre-existing `date-utils.test.ts`/`mondayIndex` failures,
-    unrelated). `tsc --noEmit` clean.
-  - No money/ledger amounts or write paths touched — pure read-side wire-up (publication membership +
-    client subscription); RLS and every write path (feed trigger, `crm_resolve_pending_entry`)
-    unchanged.
-  - Applied to the real staging database (`kolppplawzdsjfydwejr`) alongside 144, on the user's
-    explicit instruction. Publication membership confirmed before (absent) and after (present); the
-    self-reverting assertion re-run against the real database passed `ALL PASS` with no leftover
-    rows.
   - Committed as `6437b40`.
 
 ## Next step
-B3.1, B3.3, B4.1, B4.2 done. Remaining unchecked tasks all either need a user decision (A3, B3.2,
+Second session: n8n restored, A2 not reproducible (see above). Next loop tick: A1 (duplicate receipt
+surfaces an incident), then A4/A5, each behind a vitest harness for the extracted Code node.
+Earlier state: B3.1, B3.3, B4.1, B4.2 done. Remaining unchecked tasks all either need a user decision (A3, B3.2,
 B4.3, B4.4, and the B4.1 reversal question — all above) or are blocked by the n8n MCP disconnect (A1,
 A2, A4, A5, A6, B1.1-B1.4, B2.1-B2.2). No further decision-free, non-n8n work is available in this
 document until the user answers one of the open decisions or n8n access is restored.

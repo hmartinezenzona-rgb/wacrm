@@ -176,14 +176,18 @@ Root causes (read-only map, 2026-09-28):
       the screenshot: {message}" banner text as a send failure — no separate copy was requested for
       that case.
 
+- 2026-09-29 P4 (production), with the user's go-ahead ("sí, hazlo ahora"):
+  1. Built the app from clean commit 581aba3 (money-path vitest 113/113).
+  2. Applied 143 via MCP: table + `crm_pruebas_faltantes` + `crm_registrar_prueba_beneficiario`,
+     then `crm_entregar_operacion` patched in place from its live definition. Guard: the 114 anchor
+     occurs exactly once and the function is not already patched.
+  3. Deployed right after: current → 581aba3…; anterior → e3072747…; wacrm.onlinefreedom.site
+     serves BUILD_ID qWz2Kjbu5WM2HeFdswRIB.
+  - No delivery was attempted in the gap (no completions in the last 15 min). No open remesa has 2+
+    beneficiaries right now.
+  - Pending: the user's live test with a 2-Zelle remesa.
+  - Product details left as built: ordinal labels "Beneficiary N", send order = beneficiary
+    position, the generic error copy when the image went out but registering failed.
+
 ## Next step
-P4 — staging end-to-end (2-Zelle reparto + a mixed one), then production build/deploy with the user's
-go-ahead. Note: P3 came in well over the ~500–700 line forecast (~1,718 lines, mostly tests: the new
-per-beneficiary send/register pure module, its route, and container/component tests each needed their
-own coverage) — flagging per the delivery heuristic, not re-splitting after the fact.
-
-<!-- previous next step -->
-P3 — panel.
-
-<!-- previous next step -->
-P2 — DB: `remittance_beneficiary_proofs` table + RPC, staging migration.
+Live test with the user; then close the feature.

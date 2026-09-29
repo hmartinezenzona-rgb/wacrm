@@ -412,6 +412,31 @@ describe("DepositReviewSection", () => {
       await act(async () => textButton(node, T.forceConfirm)!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
       expect(onForce).toHaveBeenCalledWith("valid reason");
     });
+
+    // B4.3 — an admin must be able to force-complete a remesa with ZERO
+    // receipts to review (e.g. the bot was paused and never logged one).
+    // `data.canVerify` is purely status-based (099's `v_can_verify`), so it
+    // can be true with `receipts: []`; the force control must not depend on
+    // an unmatched receipt existing.
+    it("still offers force verification when there are zero receipts (data.canVerify true, canForce true)", async () => {
+      const { node, onForce } = await render({ data: readModel({ receipts: [] }) });
+
+      expect(node.querySelector("img")).toBeNull();
+      expect(textButton(node, T.verify)).toBeUndefined();
+      const forceToggle = textButton(node, T.force)!;
+      expect(forceToggle).not.toBeUndefined();
+
+      await act(async () => forceToggle.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+      const reasonInput = node.querySelector<HTMLInputElement>("#deposit-review-force-reason")!;
+      await act(async () => setValue(reasonInput, "sin recibos, bot pausado"));
+      await act(async () => textButton(node, T.forceConfirm)!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+      expect(onForce).toHaveBeenCalledWith("sin recibos, bot pausado");
+    });
+
+    it("hides the force link with zero receipts too when canForce is false", async () => {
+      const { node } = await render({ data: readModel({ receipts: [] }), canForce: false });
+      expect(node.textContent).not.toContain(T.force);
+    });
   });
 
   it("renders nothing for any other state", async () => {

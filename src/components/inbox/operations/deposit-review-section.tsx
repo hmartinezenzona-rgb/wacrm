@@ -285,37 +285,6 @@ export function DepositReviewSection({
               >
                 {t("depositReview.verify")}
               </Button>
-
-              {canForce && !forcing && (
-                <button
-                  type="button"
-                  className="w-full text-center text-xs text-muted-foreground underline underline-offset-2"
-                  onClick={() => setForcing(true)}
-                >
-                  {t("depositReview.force")}
-                </button>
-              )}
-
-              {canForce && forcing && (
-                <div className="space-y-1.5 rounded-md border border-border bg-muted/40 p-1.5">
-                  <div className="space-y-1">
-                    <Label htmlFor="deposit-review-force-reason">{t("depositReview.forceReason")}</Label>
-                    <Input
-                      id="deposit-review-force-reason"
-                      value={reason}
-                      onChange={(event: ChangeEvent<HTMLInputElement>) => setReason(event.target.value)}
-                    />
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={cancelForce}>
-                      {t("depositReview.cancel")}
-                    </Button>
-                    <Button type="button" size="sm" disabled={!canConfirmForce} onClick={confirmForce}>
-                      {t("depositReview.forceConfirm")}
-                    </Button>
-                  </div>
-                </div>
-              )}
             </>
           ) : (
             <div className="space-y-1 text-xs">
@@ -330,6 +299,48 @@ export function DepositReviewSection({
             </div>
           )}
         </div>
+      )}
+
+      {/* B4.3 — force verification must not depend on an unmatched receipt
+         existing: `data.canVerify` (099's `v_can_verify`) is purely
+         status-based, so an operation the bot never logged a receipt for
+         (e.g. paused before one arrived) can still be stuck awaiting
+         verification with `receipts: []`. Kept outside the `current &&
+         draft` block above so it renders whether or not there is a
+         receipt to review. */}
+      {canVerify && canForce && (
+        <>
+          {!forcing && (
+            <button
+              type="button"
+              className="w-full text-center text-xs text-muted-foreground underline underline-offset-2"
+              onClick={() => setForcing(true)}
+            >
+              {t("depositReview.force")}
+            </button>
+          )}
+
+          {forcing && (
+            <div className="space-y-1.5 rounded-md border border-border bg-muted/40 p-1.5">
+              <div className="space-y-1">
+                <Label htmlFor="deposit-review-force-reason">{t("depositReview.forceReason")}</Label>
+                <Input
+                  id="deposit-review-force-reason"
+                  value={reason}
+                  onChange={(event: ChangeEvent<HTMLInputElement>) => setReason(event.target.value)}
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={cancelForce}>
+                  {t("depositReview.cancel")}
+                </Button>
+                <Button type="button" size="sm" disabled={!canConfirmForce} onClick={confirmForce}>
+                  {t("depositReview.forceConfirm")}
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

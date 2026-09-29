@@ -35,7 +35,7 @@ functions. The user's list plus the defects the test proved.
   op with NO beneficiary, and the reparto detector needs both accounts plus amounts at once.
   Amounts sent in a later message ("100 a la primera, 53 a la segunda") are not applied (the op
   kept 153 USD on one account).
-- [ ] A6 — Turn latency: the burst turn took ~3.5 min (agent 43 s). Find where the rest goes.
+- [x] A6 — Turn latency: the burst turn took ~3.5 min (agent 43 s). Find where the rest goes.
 
 ### B1. Bot logic and dynamic replies
 - [ ] B1.1 — When confirming beneficiary data, say how much the recipient receives (per service and
@@ -76,6 +76,18 @@ functions. The user's list plus the defects the test proved.
 
 ## Open decisions (filled in as tasks reach them)
 
+- A6 (asked 2026-09-29, second session): cause FOUND, fix needs your call. Evidence
+  (`cerebro_telemetria_turno`, prod read-only, agent turns since 2026-09-26): 134 turns; p50 20 s,
+  p90 32 s. The 5 turns over 60 s average 28,945 completion tokens versus 303 for turns under 30 s,
+  and latency tracks completion tokens almost exactly in that band (corr 0.996; ~210 tokens/s, so
+  the 202 s burst turn = 43,165 completion tokens for a ~300-char reply). Not the wait windows
+  (12 s + 25 s), not vision, not DB tools: the model runs away generating tens of thousands of
+  tokens, then answers briefly. `reasoning_tokens` is null, so it is not counted as thinking.
+  Proposal: cap the agent model's max output tokens (normal turns need ~300, the 30-60 s band ~2k;
+  a cap around 4k would cut the runaway turns to ~20 s) plus an alert when a turn exceeds it. I
+  cannot validate the cap without model evals (forbidden), and a cap that truncates a legitimate
+  tool-call turn would break replies. Choose: (a) apply a 4k cap on STAGING and observe real
+  traffic there, (b) a different value, (c) leave it.
 - A1 (asked 2026-09-29, second session): what must a duplicate receipt surface? Evidence: the
   staging `Decisor` already words the reply by the REAL stage of the original deal (`dup_etapa`:
   Entregada / Lista para transferir / Incidencia / otherwise "still verifying"), and every

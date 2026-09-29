@@ -89,5 +89,13 @@ Root causes (read-only map, 2026-09-28):
   untouched file, not caused by this change). `npx tsc --noEmit`: clean. `npm run lint` on the
   touched files: clean. Commit `2761685`.
 
+- 2026-09-29 02:5xZ — app deployed to production (user: "despliega la app en producción"):
+  - commit e307274, BUILD_ID HgBhyHrHlJRRCga9_2ECo; built with Node 20; money-path vitest passed
+    inside build-wacrm.sh; manifest environment=production, project hqztotshnlzaiziwjyzh;
+  - `desplegar-wacrm-produccion.sh` on oracle: current → e3072747…; anterior → 854ad653…
+    (rollback: `infra/deployment/rollback-wacrm-produccion.sh`); wacrm.onlinefreedom.site serves
+    the new BUILD_ID.
+  - Ships P1 (Zelle caption, 2761685) and the calculator panel fix (df4e2a4).
+
 ## Next step
 P2 — DB: `remittance_beneficiary_proofs` table + RPC, staging migration.

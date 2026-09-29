@@ -52,13 +52,9 @@ functions. The user's list plus the defects the test proved.
 ### B2. Admin and bot interaction
 - [ ] B2.1 — While the bot is paused by a human, keep extracting data (cards, phones, names) in the
   background and update the panel silently. It must not reply.
-- [ ] B2.2 — The bot pauses ONLY when an admin writes in the chat. Panel actions (sending a proof,
-  completing a remesa) must not pause it. (The "sending a proof" half is DONE — see Progress. The
-  "completing a remesa" half is a SEPARATE path — `deals_stage_notify` fires an n8n webhook that
-  sends the "remesa_completada" template directly from n8n, never through this app's
-  `/api/whatsapp/send` — and has not been traced yet: unknown whether that n8n-side insert into
-  `messages` already sets `ai_generated=true`/wouldn't count as `humano_reciente` anyway, or needs
-  the same `is_panel_action` marker. Left unchecked rather than assumed fixed.)
+- [x] B2.2 — The bot pauses ONLY when an admin writes in the chat. Panel actions (sending a proof,
+  completing a remesa) must not pause it. (Both halves confirmed — see Progress: "sending a proof"
+  fixed by 147; "completing a remesa" traced and found already safe by construction, no fix needed.)
 
 ### B3. Panel and data editing
 - [x] B3.1 — The right panel in a customer chat is editable, to complete a transfer manually when
@@ -378,16 +374,23 @@ functions. The user's list plus the defects the test proved.
     every function it calls actually present there.
   - Published as workflow version `44672ff8-952e-4736-9fd8-9bc54a6ddd69` (previous active
     `fcf35a3d...`, the A1 fix — restorable). Never touched production or any DeepSeek eval.
-  - **Not done**: the "completing a remesa" half. That notification is a SEPARATE path —
-    `deals_stage_notify` fires an n8n webhook that sends the `remesa_completada` template directly
-    from n8n, never through this app's route — and has not been traced. Left B2.2 unchecked rather
-    than assume it's covered.
+  - **"Completing a remesa" half TRACED — already safe, no fix needed.** `deals_stage_notify` fires
+    the n8n webhook `staging-wacrm-notify-etapa`, handled by
+    `[STAGING] WaCRM - Notificar cliente por etapa del deal` (`OCdJoHTkV6S0aAdk`), whose final node
+    ("Enviar por WaCRM") sends the `remesa_completada` notification through `POST
+    https://crm.onlinefreedom.site/api/v1/messages` — the PUBLIC bot API, not `/api/whatsapp/send`.
+    `src/app/api/v1/messages/route.ts` unconditionally passes `aiGenerated: true` to
+    `sendMessageToConversation` (confirmed by reading the route — not conditional on anything) and
+    never calls `pauseAiOnAgentSend` (already covered by the existing structural test in
+    `pause-ai-on-agent-send.test.ts`). So this notification's `messages` row always has
+    `ai_generated=true`, which already fails `humano_reciente`'s own `ai_generated=false`
+    requirement — it never counted as a human taking the conversation, and never could pause the
+    bot, before or after this session's fix. B2.2 is now fully closed.
   - B2.1 (keep extracting silently while paused) still not started — same "changes the Decisor
     routing" scope noted in the second session, independent of this fix.
 
 ## Next step
-A1 is fully closed. B2.2 is half done (see above) — the remaining half needs tracing the
-`remesa_completada` n8n notify path. Everything else still waits on the user: staging DB access is no
+A1 and B2.2 are both fully closed. Everything else still waits on the user: staging DB access is no
 longer the blocker for anything (this session can read `.env.staging` now) — remaining blockers are
 "Available in MCP" on `Yu0uskQhydWgNFEy` (A4/A5), a call on evals (B1.1, B1.2, B1.4), or the older
 Open decisions (A3, B3.2, B4.3, B4.4, B4.1 reversal). B1.3 needs a real failing case from the user.

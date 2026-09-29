@@ -22,6 +22,56 @@ import CalculadoraPage from "./page";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+// Chainable `supabase.channel(...).on(...).subscribe()` mock, same shape
+// `operations-panel-container.test.tsx` already uses, so B4.2's live
+// "Operaciones del chat" feed (`use-calculator-entries-realtime`) can be
+// driven from these tests without pulling in the real `@supabase/ssr`
+// client (which needs env vars this test env doesn't set).
+const mockRealtime = vi.hoisted(() => {
+  interface MockChannel {
+    name: string;
+    handler: ((payload?: unknown) => void) | null;
+    subscribeCalls: number;
+    on: (event: string, filter: unknown, handler: (payload?: unknown) => void) => MockChannel;
+    subscribe: () => MockChannel;
+  }
+  const channels: MockChannel[] = [];
+  const removeChannelCalls: unknown[] = [];
+
+  function channel(name: string): MockChannel {
+    const chan: MockChannel = {
+      name,
+      handler: null,
+      subscribeCalls: 0,
+      on(_event, _filter, handler) {
+        chan.handler = handler;
+        return chan;
+      },
+      subscribe() {
+        chan.subscribeCalls += 1;
+        return chan;
+      },
+    };
+    channels.push(chan);
+    return chan;
+  }
+
+  function removeChannel(ch: unknown) {
+    removeChannelCalls.push(ch);
+  }
+
+  function reset() {
+    channels.length = 0;
+    removeChannelCalls.length = 0;
+  }
+
+  return { channels, removeChannelCalls, channel, removeChannel, reset };
+});
+
+vi.mock("@/lib/supabase/client", () => ({
+  createClient: () => ({ channel: mockRealtime.channel, removeChannel: mockRealtime.removeChannel }),
+}));
+
 // This Node/jsdom combination only exposes `localStorage` behind a CLI flag
 // vitest doesn't set, so the page's persistence fallback needs an in-memory
 // stand-in here rather than the real thing.
@@ -113,6 +163,7 @@ afterEach(() => {
   vi.clearAllMocks();
   vi.unstubAllGlobals();
   vi.useRealTimers();
+  mockRealtime.reset();
 });
 
 describe("calculator global rate inputs (post-ledger)", () => {
@@ -439,6 +490,119 @@ describe("calculator chat operations (read-only)", () => {
     const montoCell = node.querySelector('td[data-label="Monto"]');
     expect(montoCell?.textContent).toBe("100 ZELLE");
     expect(node.textContent).not.toContain("100 USD");
+    await act(async () => root.unmount());
+  });
+});
+
+describe("calculator chat operations (realtime, B4.2)", () => {
+  it("subscribes to remittance_calculator_entries after hydration", async () => {
+    const fetchMock = createFetchMock({
+      calculadoraGet: { rawText: "", periodo: "", chatOperations: { entries: [] } },
+      ratesGet: { rates: null },
+    });
+    const { root } = await renderPage(fetchMock);
+
+    expect(mockRealtime.channels).toHaveLength(1);
+    const chan = mockRealtime.channels[0]!;
+    expect(chan.subscribeCalls).toBe(1);
+    expect(chan.handler).not.toBeNull();
+
+    await act(async () => root.unmount());
+    expect(mockRealtime.removeChannelCalls).toHaveLength(1);
+  });
+
+  it("an INSERT event adds a new completed entry with no refetch", async () => {
+    const fetchMock = createFetchMock({
+      calculadoraGet: { rawText: "", periodo: "", chatOperations: { entries: [] } },
+      ratesGet: { rates: null },
+    });
+    const { node, root } = await renderPage(fetchMock);
+    fetchMock.mockClear();
+
+    const chan = mockRealtime.channels[0]!;
+    act(() => {
+      chan.handler!({
+        eventType: "INSERT",
+        new: {
+          id: "entry-live",
+          operation_id: "op-live",
+          status: "completed",
+          service: "ZELLE",
+          customer_name: "Raúl",
+          amount: "100",
+          amount_currency: "USD",
+          entry_date: "2026-09-29",
+          facturado_gyd: "26000",
+          invertido_gyd: "24000",
+          retorno_gyd: "2000",
+          missing_inputs: [],
+          source: "completed_operation",
+        },
+        old: {},
+      });
+    });
+
+    expect(node.textContent).toContain("Raúl");
+    expect(node.textContent).toContain("26000.00");
+    // No page-refresh round trip: the live row came from the channel event,
+    // not a re-fetch of /api/calculadora.
+    expect(fetchMock).not.toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
+
+  it("an UPDATE to void removes an entry the initial load had shown", async () => {
+    const fetchMock = createFetchMock({
+      calculadoraGet: {
+        rawText: "",
+        periodo: "",
+        chatOperations: {
+          entries: [
+            {
+              id: "entry-a",
+              operationId: "op-a",
+              status: "completed",
+              service: "ZELLE",
+              customerName: "Raúl",
+              amount: 100,
+              amountCurrency: "USD",
+              entryDate: "2026-09-29",
+              facturadoGyd: 26000,
+              invertidoGyd: 24000,
+              retornoGyd: 2000,
+              missingRates: [],
+            },
+          ],
+        },
+      },
+      ratesGet: { rates: null },
+    });
+    const { node, root } = await renderPage(fetchMock);
+    expect(node.textContent).toContain("Raúl");
+
+    const chan = mockRealtime.channels[0]!;
+    act(() => {
+      chan.handler!({
+        eventType: "UPDATE",
+        new: {
+          id: "entry-a",
+          operation_id: "op-a",
+          status: "void",
+          service: "ZELLE",
+          customer_name: "Raúl",
+          amount: "100",
+          amount_currency: "USD",
+          entry_date: "2026-09-29",
+          facturado_gyd: "26000",
+          invertido_gyd: "24000",
+          retorno_gyd: "2000",
+          missing_inputs: [],
+          source: "completed_operation",
+        },
+        old: { id: "entry-a" },
+      });
+    });
+
+    expect(node.textContent).not.toContain("Raúl");
     await act(async () => root.unmount());
   });
 });

@@ -52,20 +52,23 @@ functions. The user's list plus the defects the test proved.
   completing a remesa) must not pause it.
 
 ### B3. Panel and data editing
-- [ ] B3.1 — The right panel in a customer chat is editable, to complete a transfer manually when
-  automation fails.
+- [x] B3.1 — The right panel in a customer chat is editable, to complete a transfer manually when
+  automation fails. (Investigated: already satisfied — `OperationCorrectionForm` +
+  `BeneficiaryEditFields` + `BeneficiaryReassignControl` + `CompleteTransferContainer`, all backed
+  by the 098 RPCs, are already wired live into `remittance-operation-card.tsx`.)
 - [ ] B3.2 — Weekly control (Control semanal): the read-only chat operations become editable, plus a
-  field for the investment cost (costo de la inversión).
+  field for the investment cost (costo de la inversión). — **needs a decision, see below.**
 - [x] B3.3 — Some remesas verified and delivered from the right panel still show "Awaiting Deposit".
   Find and fix the status update.
 
 ### B4. Calculator and panel
 - [x] B4.1 — Completing or deleting ("Borrar") a remesa updates or clears the calculator
   automatically. (Investigated: already works correctly for every real path — see Progress.)
-- [ ] B4.2 — The calculator updates in real time when a remesa completes, with no page refresh.
+- [x] B4.2 — The calculator updates in real time when a remesa completes, with no page refresh.
 - [ ] B4.3 — The admin can complete a remesa without a prior deposit verification (force or skip),
-  e.g. when the bot was paused.
-- [ ] B4.4 — Delete operations or records from the calculator module.
+  e.g. when the bot was paused. — **needs a decision, see below.**
+- [ ] B4.4 — Delete operations or records from the calculator module. — **partially satisfied,
+  partially needs a decision, see below.**
 
 ## Open decisions (filled in as tasks reach them)
 - A3 — no expiry rule is decided yet for `cerebro_objetivo_envio`. Root cause is fully diagnosed
@@ -77,6 +80,27 @@ functions. The user's list plus the defects the test proved.
 - B4.1 (maybe) — should deleting a deal ALSO void the calculator entry of an already-*completed*
   remesa? Today it deliberately does not (migration 114: "the money really moved, it's history").
   Only relevant if that's actually what "Borrar...clears the calculator" meant; not acted on.
+- B3.2 — "Control semanal" IS the `/calculadora` page. Its "Operaciones del chat" table is genuinely
+  read-only today, and "investment cost" is not a new concept — `invertido_gyd` already exists
+  (095/104, auto-computed from the buy/sell rate spread) and is already shown as "Inv. (GYD)". Open
+  questions, none invented: which columns become editable (facturado/invertido/retorno? customer/
+  amount too?), who may edit (admin-only, like rates?), should edits be audited like
+  `crm_corregir_operacion` already does elsewhere, and does `retorno_gyd` stay derived from the
+  others or become independently editable.
+- B4.3 — the DB gap is real and narrow (`crm_forzar_verificacion` only accepts
+  `status IN ('deposit_verification','incident')`, so the actual "bot was paused" scenario — status
+  stuck at `collecting_information`/`awaiting_deposit`/`deposit_received` — has no admin override at
+  all today), but making it usable is not just a backend guard widen: `DepositReviewContainer` hides
+  the whole force-UI when there are zero receipts, and `DepositReviewSection` itself returns nothing
+  unless `canVerify` is true — both tied to the same status set. Enabling this for earlier statuses
+  means designing what the panel looks like with zero receipts and no deposit to review — a real UI
+  decision, not just widening a guard. Not invented.
+- B4.4 — the manual weekly log (free-text, "Limpiar Todo") already supports deleting a line by
+  editing the text — that half is satisfied, no decision needed. The auto-fed ledger
+  (`remittance_calculator_entries`, `source='completed_operation'`) has no delete/void path today,
+  and adding one bypasses migration 114's deliberate "money moved, it's history" design — same open
+  question as B4.1 above (hard delete vs. reversible void, audit trail, who's allowed). Only
+  relevant if "the calculator module" in B4.4 means the auto-fed ledger rather than the manual log.
 
 ## Blocked this session (not a product decision — a tooling/access gap)
 - The `claude.ai n8n` MCP is disconnected this session (needs `/mcp` re-auth), and no other safe,
@@ -167,5 +191,35 @@ functions. The user's list plus the defects the test proved.
     documented decision — that would be a deliberate policy reversal, not a bug fix. Not invented;
     added below as an open decision in case that's what's wanted.
 
+- 2026-09-30 (loop): triaged B3.1, B3.2, B4.2, B4.3, B4.4. B3.1 already satisfied (above). B3.2 and
+  B4.3 need decisions (above). B4.4 half satisfied, half needs a decision (above). **B4.2 DONE** —
+  the only clean, unambiguous candidate: the calculadora page fetched "Operaciones del chat" once on
+  mount with no realtime subscription, and `remittance_calculator_entries` was never added to the
+  `supabase_realtime` publication (`104_calculator_ledger_feed.sql` introduced the feed trigger but
+  never touched the publication).
+  - New `supabase/migrations/145_calculator_entries_realtime.sql` (+ROLLBACK-145): adds the table to
+    `supabase_realtime`, same idempotent shape every other realtime table in this repo already uses.
+    No RLS change — the existing `remittance_calculator_entries_select` policy (106) already scopes
+    who sees which rows, same as the initial `GET /api/calculadora` read.
+  - New `src/lib/calculator/realtime-entry.ts` (pure raw-row → UI-shape mapping + event-fold logic,
+    mirrors the GET route's own `source='completed_operation' AND status<>'void'` filter so the live
+    feed and the initial load can never disagree) + `src/hooks/use-calculator-entries-realtime.ts`
+    (subscription hook, same pattern as `use-realtime.ts`), wired into
+    `src/app/(dashboard)/calculadora/page.tsx`.
+  - TDD: RED and GREEN both independently reproduced by me against `wacrm-ensayo`
+    (`BEGIN...ROLLBACK`, nothing committed): RED — publication-membership check fails; GREEN (145
+    applied in the same rolled-back transaction) — both the publication check and a 106-regression
+    check pass. Confirmed the table is NOT left in the real publication afterward. Full vitest suite
+    re-run: 1623/1625 pass (same 2 pre-existing `date-utils.test.ts`/`mondayIndex` failures,
+    unrelated). `tsc --noEmit` clean.
+  - No money/ledger amounts or write paths touched — pure read-side wire-up (publication membership +
+    client subscription); RLS and every write path (feed trigger, `crm_resolve_pending_entry`)
+    unchanged.
+  - Not yet applied to the real staging database — the user's step.
+  - Committed as `<pending>`.
+
 ## Next step
-Next in-repo, decision-free, non-n8n candidates to triage: B3.1, B3.2, B4.2, B4.3, B4.4.
+B3.1, B3.3, B4.1, B4.2 done. Remaining unchecked tasks all either need a user decision (A3, B3.2,
+B4.3, B4.4, and the B4.1 reversal question — all above) or are blocked by the n8n MCP disconnect (A1,
+A2, A4, A5, A6, B1.1-B1.4, B2.1-B2.2). No further decision-free, non-n8n work is available in this
+document until the user answers one of the open decisions or n8n access is restored.

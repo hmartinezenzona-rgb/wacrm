@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { procesarTexto, type WebCalculatorErrorLine, type WebCalculatorParsedLine } from "@/lib/calculator/web-calculator";
 import type { CalculatorRates } from "@/lib/calculator/ledger-read-model";
+import { applyCalculatorEntryRealtimeEvent, type ChatCalculatorEntry } from "@/lib/calculator/realtime-entry";
+import { useCalculatorEntriesRealtime } from "@/hooks/use-calculator-entries-realtime";
 import "./calculadora.module.css";
 
 const STORAGE_KEYS = {
@@ -17,21 +19,6 @@ function isErrorLine(operation: WebCalculatorParsedLine): operation is WebCalcul
 function formatNumber(value: number): string {
   return value.toFixed(2);
 }
-
-type ChatCalculatorEntry = {
-  id: string;
-  operationId: string;
-  status: "completed" | "verified_pending";
-  service: string;
-  customerName: string | null;
-  amount: number;
-  amountCurrency: string;
-  entryDate: string;
-  facturadoGyd: number | null;
-  invertidoGyd: number | null;
-  retornoGyd: number | null;
-  missingRates: string[];
-};
 
 function chatTotals(entries: ChatCalculatorEntry[]) {
   return entries.reduce(
@@ -179,6 +166,19 @@ export default function CalculadoraPage() {
     }, 600);
     return () => window.clearTimeout(timer);
   }, [hydrated, rawText, periodo]);
+
+  // B4.2 — live updates for "Operaciones del chat", no page refresh: a
+  // remesa completed (or voided) elsewhere folds straight into
+  // `chatEntries` from the realtime payload itself, never a refetch.
+  // Gated on `hydrated` so a live event can't race the initial load's own
+  // `setChatEntries`. Requires `remittance_calculator_entries` in the
+  // `supabase_realtime` publication (migration 145).
+  useCalculatorEntriesRealtime({
+    enabled: hydrated,
+    onEntryEvent: (event) => {
+      setChatEntries((prev) => applyCalculatorEntryRealtimeEvent(prev, event.eventType, event.new, event.old));
+    },
+  });
 
   async function guardarTasas() {
     setRatesSaving(true);

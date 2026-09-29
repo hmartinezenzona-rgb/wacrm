@@ -55,3 +55,12 @@ export type {
   ShorthandParseError,
   ShorthandParseResult,
 } from "./shorthand-parser";
+export {
+  applyCalculatorEntryRealtimeEvent,
+  mapRealtimeCalculatorEntry,
+} from "./realtime-entry";
+export type {
+  CalculatorEntryRealtimeEventType,
+  CalculatorEntryRealtimeRow,
+  ChatCalculatorEntry,
+} from "./realtime-entry";

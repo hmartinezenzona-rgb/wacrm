@@ -76,8 +76,10 @@ functions. The user's list plus the defects the test proved.
 - [x] B4.1 — Completing or deleting ("Borrar") a remesa updates or clears the calculator
   automatically. (Investigated: already works correctly for every real path — see Progress.)
 - [x] B4.2 — The calculator updates in real time when a remesa completes, with no page refresh.
-- [ ] B4.3 — The admin can complete a remesa without a prior deposit verification (force or skip),
-  e.g. when the bot was paused. — **needs a decision, see below.**
+- [x] B4.3 — The admin can complete a remesa without a prior deposit verification (force or skip),
+  e.g. when the bot was paused. FIXED (see Progress) — the backend (`crm_forzar_verificacion`, 099)
+  and its route/command already existed; the bug was the panel hiding the Force button whenever
+  there were zero receipts to review.
 - [x] B4.4 — Delete operations or records from the calculator module. (DECIDED by the user,
   2026-09-29: a completed remesa's entry must NOT be deletable from the calculator. The manual
   weekly log already supports deleting a line by editing the text — nothing else to build.)
@@ -147,8 +149,7 @@ functions. The user's list plus the defects the test proved.
   just implementation choices): which exact columns (`facturado_gyd`/`invertido_gyd`/`retorno_gyd`?)
   and whether `retorno_gyd` stays derived or becomes independently editable — will follow the
   existing `crm_corregir_operacion` pattern (admin-only, audited) unless told otherwise.
-- B4.3 — **DECIDED (user, 2026-09-29): left to the implementer's judgment** on the panel design for
-  force-completing a remesa with zero receipts to review.
+- ~~B4.3~~ **DECIDED (user, 2026-09-29): left to the implementer's judgment.** DONE — see Progress.
 - ~~B4.4~~ **DECIDED (user, 2026-09-29): no new deletion capability.** Same answer as the B4.1
   reversal above — a completed remesa's entry must not be deletable. The manual weekly log's
   existing delete-by-editing-text is the only deletion this app needs. Closed.
@@ -512,10 +513,44 @@ functions. The user's list plus the defects the test proved.
     `activeVersionId` now equals the published version.
   - Pure n8n-side change: no repo file touched for the fix itself, only this task document.
 
+- 2026-09-29 (sixth touch-point): **B4.3 DONE.**
+  - Root cause, found by reading the deposit-review code rather than guessing: the backend already
+    had everything needed — `crm_forzar_verificacion` (099, admin-only, moves an operation stuck in
+    `deposit_verification`/`incident` straight to `ready_to_transfer` with no evidence check) plus
+    its route (`/api/remittance-operations/[operationId]/force-verify`) and command
+    (`forceVerifyDeposit`) were already wired end to end. `data.canVerify`
+    (`crm_comprobantes_de_operacion`'s `v_can_verify`, 099) is purely status-based — true whenever
+    the operation is `deposit_verification`/`incident` with a linked deal at the right stage,
+    independent of how many receipts exist.
+  - The actual bug: `DepositReviewSection` rendered the entire "Force verification…" control (button,
+    reason field, confirm) INSIDE the `{current && draft && (...)}` block, where `current` is the
+    first unmatched receipt. With zero receipts (`unmatched.length === 0`), `current` is `null`, so
+    the Force control never rendered at all — an admin with force-verify permission had no way to
+    see or click it for exactly the case B4.3 describes ("e.g. when the bot was paused" and never
+    logged a receipt).
+  - Fix: moved the Force button/confirm block out of the `current && draft` guard into its own
+    `canVerify && canForce` block (same two gates it always used, just no longer coupled to a receipt
+    existing). The amount/TransID inputs and the Verify button correctly stay inside the receipt
+    block (they only make sense against an actual declared receipt).
+  - `src/components/inbox/operations/deposit-review-section.tsx` (fix) and
+    `deposit-review-section.test.tsx` (2 new tests: force still offered with `receipts: []`, and
+    still hidden with `receipts: []` when `canForce` is false). TDD: RED confirmed the missing button
+    (`expected undefined not to be undefined`) before the fix; GREEN after (22/22 passing, no
+    regressions in `deposit-review-container.test.tsx` / `remittance-operation-card.test.tsx` /
+    `operations-panel-container.test.tsx`, 120/120). `npx tsc --noEmit` clean.
+  - No DB migration needed — pure front-end fix, the RPC/route/command layer was already correct.
+
 ## Next step
-A1, A3, A4, A5, B2.1 and B2.2 are fully closed; B4.1-reversal and B4.4 are decided-closed with no
-change needed. B1.1/B1.2/B1.4 evals are unblocked (DeepSeek credential clarified) but not yet run.
-B1.3: read-only production investigation done again this session, still no defect found, still needs
-a concrete case from the user. B3.2 and B4.3 are unblocked for implementation (decisions given
-above) — not yet built. B3.2 was delegated to a worker that failed mid-task on a session rate limit
-(since reset) — needs checking for salvageable work before resuming or redoing.
+A1, A3, A4, A5, B1.5, B2.1, B2.2, B3.1, B3.2, B3.3, B4.1(reversal), B4.2, B4.3 and B4.4 are all
+closed. Only three tasks remain, all blocked on the user rather than on unblocked implementation
+work:
+- **B1.1/B1.2/B1.4** — evals are unblocked (DeepSeek credential genuinely separated) but not yet run;
+  still need the user's choice on the open decision above (allow staging-only evals / apply the
+  prompt edit without evals / skip).
+- **B1.3** — read-only production investigated three times now (three widening windows), still no
+  defect found; needs a concrete case (chat/phone/approximate time) from the user to make further
+  progress.
+- **A6** — applied on staging at the user's request; still needs the user to confirm on real staging
+  traffic that completion tokens fell back to ~50-300 before this can be marked fully done.
+
+Nothing decision-free and unblocked remains in this task list.

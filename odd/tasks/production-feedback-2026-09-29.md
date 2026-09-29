@@ -76,27 +76,20 @@ functions. The user's list plus the defects the test proved.
 
 ## Open decisions (filled in as tasks reach them)
 
-- A6 (asked 2026-09-29, second session): cause FOUND, fix needs your call. Evidence
-  (`cerebro_telemetria_turno`, prod read-only, agent turns since 2026-09-26): 134 turns; p50 20 s,
-  p90 32 s. The 5 turns over 60 s average 28,945 completion tokens versus 303 for turns under 30 s,
-  and latency tracks completion tokens almost exactly in that band (corr 0.996; ~210 tokens/s, so
-  the 202 s burst turn = 43,165 completion tokens for a ~300-char reply). Not the wait windows
-  (12 s + 25 s), not vision, not DB tools: the model runs away generating tens of thousands of
-  tokens, then answers briefly. `reasoning_tokens` is null, so it is not counted as thinking.
-  Proposal: cap the agent model's max output tokens (normal turns need ~300, the 30-60 s band ~2k;
-  a cap around 4k would cut the runaway turns to ~20 s) plus an alert when a turn exceeds it. I
-  cannot validate the cap without model evals (forbidden), and a cap that truncates a legitimate
-  tool-call turn would break replies. Choose: (a) apply a 4k cap on STAGING and observe real
-  traffic there, (b) a different value, (c) leave it.
-- A1 (asked 2026-09-29, second session): what must a duplicate receipt surface? Evidence: the
-  staging `Decisor` already words the reply by the REAL stage of the original deal (`dup_etapa`:
-  Entregada / Lista para transferir / Incidencia / otherwise "still verifying"), and every
-  `comprobantes_hashes` row since 2026-09-28 in prod has its deal (19 of 19), so a duplicate is a
-  true resend of a registered receipt, not a lost one. What is missing is only an admin-visible
-  trace. But a customer resending a receipt while anxious is common, so alerting on every duplicate
-  may be noise. Options for you: (a) a quiet marker on the original deal/chat, no alert; (b) an
-  alert only when the original is not yet verified; (c) an incident on every duplicate. Not
-  implemented until you choose.- A3 — no expiry rule is decided yet for `cerebro_objetivo_envio`. Root cause is fully diagnosed
+- A6 (RESOLVED by the user's information, 2026-09-29): the runaway completion tokens started
+  between 2026-09-27 (avg 51 tokens, max 182, none over 2k) and 2026-09-28 (avg 1,415, max 31,621,
+  7 turns over 2k; 09-29: avg 3,715, max 43,165). The user confirms that on ~09-28 they swapped the
+  agent's model node from the COMMUNITY node (which turns deep thinking off) to the OFFICIAL n8n
+  DeepSeek node "to test it again". In the staging workflow the agent is connected to the official
+  node (`options` only has temperature; no thinking switch) and the community node is present but
+  disconnected. Thinking tokens count as completion tokens, so this explains the 200 s turns. My
+  earlier "cap max tokens" idea is dropped: reconnecting the community node (or an official-node
+  thinking-off option, if one exists) is the fix. Left to the user, who is testing that swap.
+- A1 (DECIDED by the user, 2026-09-29): a duplicate receipt gets a SILENT marker, no alert and no
+  incident. Evidence: the `Decisor` already words the reply by the original deal's real stage
+  (`dup_etapa`) and 19 of 19 prod `comprobantes_hashes` rows since 2026-09-28 have their deal, so
+  duplicates are true resends. Implementation (next tick, strict TDD): record the duplicate on the
+  original deal or chat where an admin can see it, without notifying anyone.- A3 — no expiry rule is decided yet for `cerebro_objetivo_envio`. Root cause is fully diagnosed
   (Engram #280): `cerebro_objetivo_atar` attaches ANY open, unattached target to a brand-new deal
   with no freshness check, so a stale quote from a prior day gets picked up by an unrelated new
   remesa. The fix needs one of: (a) a time-based expiry (how many hours is a quote "still valid"?),

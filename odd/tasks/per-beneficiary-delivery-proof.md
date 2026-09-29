@@ -57,7 +57,7 @@ Root causes (read-only map, 2026-09-28):
   same function (forwarded as `isZelle`/`showCaption` through `complete-transfer-container.tsx` and
   `complete-transfer-section.tsx` into `delivery-proof.tsx`'s `showCaption` prop) — no other site
   needed a change. Commit `2761685`.
-- [ ] P2 — (migration 143; 141/142 went to calculator-feed-from-beneficiaries) DB: table `remittance_beneficiary_proofs` (beneficiary_id, wamid, path, caption, sent_at,
+- [x] P2 — (migration 143; 141/142 went to calculator-feed-from-beneficiaries) DB: table `remittance_beneficiary_proofs` (beneficiary_id, wamid, path, caption, sent_at,
   sent_by) + an RPC to record one beneficiary's proof; `crm_entregar_operacion` completes only when
   every current beneficiary has a proof. Migration + rollback + assertions; staging.
 - [ ] P3 — Panel: one proof panel (file + caption for Zelle) per beneficiary; send each image, record
@@ -97,5 +97,34 @@ Root causes (read-only map, 2026-09-28):
     the new BUILD_ID.
   - Ships P1 (Zelle caption, 2761685) and the calculator panel fix (df4e2a4).
 
+- 2026-09-29 P2 — DB slice done inline by the parent, STAGING only (commit after this doc).
+  - Migration 143:
+    - table `remittance_beneficiary_proofs` (operation_id, beneficiary_id, wamid, path, caption,
+      sent_by, sent_at; unique (beneficiary_id, wamid); RLS select for account members; writes only
+      via RPC);
+    - `crm_pruebas_faltantes(op)`: current beneficiaries without a proof, 0 when fewer than 2;
+    - `crm_registrar_prueba_beneficiario(op, beneficiary, {wamid, path?, caption?})`: agent+,
+      ready_to_transfer only, current beneficiary of that op only, idempotent per wamid; does not
+      change status; returns `{registered, missing}`;
+    - `crm_entregar_operacion` (114 verbatim + one check): in `proof_sent` mode it refuses while
+      `crm_pruebas_faltantes > 0`, with the error "every beneficiary needs its delivery proof before
+      delivering (N missing)". One beneficiary and `no_proof` / `skip_proof` are unchanged.
+  - ROLLBACK-143 restores 114's function and drops the new objects.
+  - Assertions:
+    - `beneficiary-proofs.sql`: RED before 143 (function missing), GREEN 8/8 after.
+    - Regressions GREEN: delivery-feed-evidence 2/2, feed-mixed 9/9, feed-matrix 20/20,
+      reparto-auto 13/13.
+  - Found: `psql -1` COMMITS at the end. Files with their own SAVEPOINT/ROLLBACK TO are safe, but
+    `reparto-auto.sql` must run as `BEGIN; <file> ROLLBACK;`. Two earlier `-1` runs left fixture
+    data in staging: contacts `test127` 59900127001 and 59900127991, with their account, deal and
+    op. Cleanup pending.
+  - Panel contract for P3:
+    1. For each current beneficiary: send its image (caption for Zelle), then
+       `crm_registrar_prueba_beneficiario`.
+    2. Then `crm_entregar_operacion` with the last proof's evidence.
+
 ## Next step
+P3 — panel.
+
+<!-- previous next step -->
 P2 — DB: `remittance_beneficiary_proofs` table + RPC, staging migration.

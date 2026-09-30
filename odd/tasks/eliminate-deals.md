@@ -63,7 +63,7 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
   production notes read-only (lesson: fresh data hides old formats).
   Other notes readers still to repoint later: `crm_comprobantes_de_operacion` (099, deposit panel),
   `cerebro_registrar_deposito`'s own idempotency/branch checks on notes.
-- [~] 1.0b — Rewrite `Contexto conversacion` to read structured sources only. Parity check on
+- [x] 1.0b — Rewrite `Contexto conversacion` to read structured sources only. Parity check on
   staging: old vs new query output on the same conversations must match. Byte-exact draft diff
   before publish.
 - [ ] 1.0c — Same for `Historial contacto`.
@@ -130,9 +130,13 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
   Draft diff: only Contexto conversacion.parameters.query changed. Published on staging:
   88dbbcb1 (previous eb85f86b for restore). Query copy: odd/backups/n8n-staging-contexto-conversacion-1.0b.sql.
   Behavior change accepted as a fix: recarga_en_curso's 24 h window now moves on real deliveries.
-  Pending: live WhatsApp test on staging, then mark 1.0b done.
+- 2026-09-30: 1.0b live WhatsApp test on staging (executions 287507-287513, all success): the
+  receipt was dual-written by the bot (receipts row source='bot', COMP-47202fc9…, Agente MMG);
+  Contexto output dup_etapa='Por verificar', dup_valor=40000, via_deposito_ya_usada='Agente MMG',
+  recarga_en_curso=false. The user did not resend the same screenshot (step 3), so the Decisor's
+  duplicate branch was not exercised live; its inputs were.
 
 ## Next step
-1.0b live test, then — rewrite `Contexto conversacion` (dup_etapa/dup_valor via receipts.comp_id → operation
+1.0c — rewrite `Historial contacto`, then — rewrite `Contexto conversacion` (dup_etapa/dup_valor via receipts.comp_id → operation
 status/amount; via_deposito_ya_usada via receipts.via; recarga_en_curso via operations timestamps),
 staging parity check, byte-exact draft diff before publish.

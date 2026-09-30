@@ -688,7 +688,20 @@ functions. The user's list plus the defects the test proved.
 ## Next step
 A1, A3, A4, A5, B1.3, B1.5, B2.1, B2.2, B3.1, B3.2, B3.3, B4.1(reversal), B4.2, B4.3 and B4.4 are all
 closed. Remaining:
-- **B1.1/B1.2** — user chose option (a); design already worked out (see above), not yet built.
+- **B1.1/B1.2 — built and published to STAGING**, not yet evaluated with real conversations or ported
+  to production. `Contexto conversacion` gained `deposito_ya_verificado` (mirrors
+  `deposit-review-section.tsx`'s `VERIFIED_STATUSES`) and `monto_recibe_valor`/`monto_recibe_moneda`
+  (reused `crm_calcular_monto_destino`, 100, rather than re-deriving rounding rules — same floor-USD/
+  round-CUP logic the panel already uses). `Decisor` gained `esteTurnoVerificado`/the
+  `deposito_ya_verificado` branch (B1.2) with the exact required wording. `Agente Remesas` gained one
+  line telling the agent to state the destination amount from context, never computed itself (B1.1).
+  Published to `U52y1kSNvhgxvWeb`, `activeVersionId` `84491bf8-a14d-4d91-8ee0-09e9fac92ff7`
+  (previous `a6680af7-c25a-4b88-bd5f-712aa6d4af16`, restorable). Independently re-verified byte-exact
+  after publishing (not just trusting the delegated worker's report — this same task's earlier two
+  attempts both had real problems: an unrelated "enseño"→"enseno" and "guardados"→"guardadas"
+  corruption caught before the first publish attempt, then a rate-limit failure that left the draft
+  unfixed despite a false "byte-for-byte match" report). Needs real-traffic or synthetic-eval
+  observation before being considered proven, same as A6 — not yet run.
 - **B1.4** — user wants it built as a new feature (schema currently has nowhere to store the data);
   not yet designed.
 - **Eliminate `deals`** — new architectural request, needs scoping before anything else.

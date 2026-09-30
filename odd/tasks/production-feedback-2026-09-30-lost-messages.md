@@ -42,6 +42,24 @@ cause, not a patch).
 - Remaining suspect: the host (another service or a 10-minute system task starving n8n). Read-only
   investigation instructions handed to Hermes (on the same VPS); waiting for the report.
 
+## Root cause found (Hermes host report, 2026-09-30, verified)
+- VPS: 1 vCPU, 1.9 GiB RAM (956 MiB in swap), n8n 2.39.8 on SQLite (~700 MB), no container limits,
+  no n8n env tuning. No system cron, backup or kernel event every 10 minutes; no OOM.
+- Live capture 12:50:38-12:50:57: n8n at 94-99% of the only vCPU, RAM +238 MB, `/healthz` up to
+  7.9 s, swap up to 27 MB/s, disk up to 95 MB/s.
+- Culprit: "Cerebro - Recolector de tokens" (production `iF0K3MpyXhjD58HJ` + staging
+  `j1SrhNxDe2SZhVbE`), every 10 minutes. Verified in its definition: HTTP GET to the instance's OWN
+  public API `/api/v1/executions?workflowId=jEzlVLCLUaJhVwzs&status=success&includeData=true&limit=25`
+  with a 120 s timeout, then a Code node walking all that run data. It has
+  `saveDataSuccessExecution: none`, which is why its runs never showed up in the MCP execution
+  search. Hermes also saw runs stuck in `running` for over 13 minutes, overlapping the next ones.
+- It was added by this project (observability work, `odd/tasks/cerebro-observability-quality.md`)
+  on 2026-09-26 (staging) / 09-27 (production); lost messages in production rose right after
+  (3 on 09-28, 4 on 09-29).
+- Hermes also blames "Vigilante - ingesta de depositos MMG" (10-14 s per run). Not accepted as a
+  cause: its own work is ~3 s of Gmail I/O (12:30 run took 2 s); the long runs are its trivial
+  Postgres node inflated by the stall.
+
 ## Next step
 Identify the 10-minute stall (needs visibility into the hidden workflows or the n8n host), then fix
 both causes. Nothing changed yet.

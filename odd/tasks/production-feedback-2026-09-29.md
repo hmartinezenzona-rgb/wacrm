@@ -847,3 +847,18 @@ The user tested on the staging WhatsApp and reported two problems. Diagnosis and
 Pending: user re-test on staging with a NEW conversation (the old one has open operation
 `eabf911d`); then, with explicit go-ahead, port 152, 153 and B1.1/B1.2 + the prompt change to
 production (production has none of B1.1/B1.2 yet — surgical patches on production's own nodes).
+
+## Quote message too heavy (2026-09-30, tenth touch-point)
+
+User feedback on the re-test: the first quote reply (two amounts, four ways, efectivo, deposit
+question) was correct but too loaded. User decision: when the destination currency is unknown, the
+first reply asks ONLY the currency (CUP or USD) and, if still unknown, the deposit way (app or agent),
+with no amounts; the amount goes in the next reply (CUP: only that amount + deposit data + card and
+phone; USD: the USD amount for Zelle/Clásica/Tropical, noting efectivo has its own rate, and which
+way). Prompt v2 built from the published staging prompt (only the rule lines 112-114, rule 5 and the
+quote examples change; two follow-up examples added). NOT yet submitted: the upload worker hit a
+rate limit and then the n8n MCP was unavailable (`mcp_upstream_auth_unavailable`). Before the
+upload, check that the draft still equals the published version `57b65d4e`.
+
+New convention (user): every staging test starts from zero. `supabase/staging/reset-test-contact.sql`
+wipes the test number (commit `cc0704f`); run it before each test.

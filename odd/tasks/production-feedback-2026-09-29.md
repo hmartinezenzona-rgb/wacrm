@@ -882,3 +882,6 @@ closing as is. Expression checked in node against 30000 CUP / 38 USD / null / 20
 
 USD re-test after the delivery-retry deploy: no lost message (card and phone 4 s apart both
 reached the bot), beneficiary registered in the panel, operation `clasica`.
+Prompt v3 published to staging `5441c97a-004f-4a22-aad3-e066edfb7933` (previous `b5729202`,
+restorable). Verified before publishing: only `Agente Remesas` `options/systemMessage` changed,
+equal to the prepared file; connections identical. Test number reset for the re-test.

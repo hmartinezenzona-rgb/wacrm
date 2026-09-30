@@ -960,3 +960,17 @@ B1.1 decision), `monto_recibe_*`.
   column `width: 1%; white-space: nowrap` (fits its content; `width: auto` in the phone layout).
   TDD RED→GREEN, calculator tests 23/23. Deployed: current → `1fede6c…`, anterior → `eae37b0…`,
   BUILD_ID `MSsIdjiDZUYLavv7ma2Nd` served.
+
+## Wrap-up decisions (2026-09-30, user)
+- OpenAI credits: another admin recharged them. Not yet confirmed by traffic (no customer message
+  since 16:16 UTC). During the outage 13 events ended in `permanent_error` (never answered, never
+  retried again) in 4 conversations: Osmany Services 5926762167 (2 images), Lourdes Martinez
+  5926561842 (4 images + 1 audio), marlene Diaz 5927337802 (1 image), Odessa Ford - Quik Access
+  5926499818 (1 image). A human replied afterwards in all but Osmany Services. Images that were
+  receipts were NOT registered as deposits: an admin must review them.
+- `privado/master` aligned with production: every change on it was already in `1fede6c` (the
+  three commits flagged by `git cherry` are conflict-adjusted cherry-picks whose files are equal or
+  a subset of production's). Old tip saved as `privado/backup/master-before-align-2026-09-30`
+  (`6468a98`), then `privado/master` force-updated (with lease) to `1fede6c`.
+- n8n host: stays on the current VPS for now; the user has another server for later.
+- Token collector: stays deactivated.

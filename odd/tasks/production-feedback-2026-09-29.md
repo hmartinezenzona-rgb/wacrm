@@ -863,3 +863,22 @@ had already landed the value: verified the draft equals the prepared file exactl
 
 New convention (user): every staging test starts from zero. `supabase/staging/reset-test-contact.sql`
 wipes the test number (commit `cc0704f`); run it before each test.
+
+## Correction — 154 was a wrong diagnosis, reverted (2026-09-30, twelfth touch-point)
+
+The eleventh touch-point claimed `Contexto conversacion` ran before the beneficiary was registered.
+False: the n8n execution data shows it runs AFTER `Registrar beneficiario auto`, and in the CUP
+test (execution `283700`) the context already had `monto_recibe_valor = 30000 CUP`; in the USD
+re-test (`284279`) it had `38 USD`. Migration 154 was reverted (`git revert 9474a7a`; staging
+function restored to 153's body, md5 7154b4a8…; assertion back to 12/12).
+
+Real cause of the missing amount (both tests): the prompt. Line 96 and rule 6 ordered the fixed
+closing "Apenas haga su depósito envíenos la captura por favor." "y NADA mas", and every example
+closes that way; the separate B1.1 line asking to append the amount lost. Fix (prompt v3): the
+closing sentence itself is an n8n expression that includes "y le hacemos la transferencia de
+*30,000 CUP*." when the context has the amount (formatted with thousands separators), and the plain
+sentence otherwise; same for the deposit-registered closing; the B1.1 line now says to copy the
+closing as is. Expression checked in node against 30000 CUP / 38 USD / null / 20100.5.
+
+USD re-test after the delivery-retry deploy: no lost message (card and phone 4 s apart both
+reached the bot), beneficiary registered in the panel, operation `clasica`.

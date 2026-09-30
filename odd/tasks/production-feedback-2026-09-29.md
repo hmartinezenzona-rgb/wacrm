@@ -637,9 +637,35 @@ functions. The user's list plus the defects the test proved.
 ## Open decisions (new items from the seventh touch-point)
 - **Javier Cruz's specific stolen deposit** — needs a human/admin reconciliation decision, not code.
 - **Eliminate `deals` entirely** — user wants the system to stop depending on `deals` (that was the
-  original point of building the operations panel/RPCs). Needs a scoped, read-only exploration of
-  every remaining dependency (kanban/pipeline UI, FKs, RPCs still reading `deals.stage_id`/`notes`)
-  before any proposal — not started.
+  original point of building the operations panel/RPCs). Confirmed 2026-09-29: full product-wide
+  removal, including the Contacts page "Deals" tab and the automations engine's `create_deal` step,
+  not just the remittance flow (an earlier scoping pass wrongly said deals had no other use — see
+  `odd/tasks/eliminate-deals.md`, the dedicated plan for this, phased and not started beyond planning).
+- **B2.2's app-code deploy needs `pauseAiOnAgentSend`, which isn't in production yet** — found while
+  cherry-picking B2.2 onto `privado/master`: it calls a function from an earlier, unshipped commit
+  (`cd50134`) whose own message says it's "ported verbatim from production" under a different
+  implementation — meaning production likely already pauses the bot on an agent send some OTHER way.
+  User doesn't know which. Held back from this deploy; needs investigation into how production
+  currently does this before B2.2's app code (not its DB migration, already live) can ship safely.
+
+## Production deploy (2026-09-29, eighth touch-point)
+- **DB migrations 145-149 applied to production** (`hqztotshnlzaiziwjyzh`), each verified before/after
+  against the live function/column state, not assumed from the migration file alone.
+- **App code**: cherry-picked `d781e94` (B4.2), `6499fa4` (B3.2), `ab03310` (B4.3) from
+  `feat/port-chat-operations-calculator` onto `privado/master` (production's separate deploy repo,
+  `wacrm-produccion`) and pushed — `89d9d47..ab03310`, should auto-deploy. `npx tsc --noEmit` clean,
+  `npx vitest run`: 1407/1409 (the 2 failures are the same pre-existing timezone-sensitive
+  `date-utils.test.ts` flake seen earlier this session, unrelated to any of these changes, present on
+  `privado/master`'s own baseline already). **B2.2's app code deliberately NOT included** (see Open
+  decisions above) — B2.2's migration (147) is live, but its dashboard-route/send-message.ts half is
+  not, so the panel-action marker exists in the schema but nothing sets it yet in production.
+  - Caught and self-corrected a real mistake during this process: an automated regex-based
+    conflict-resolution script introduced a genuine syntax error (deleted a chunk of an interface
+    declaration between two nearby conflicts) — caught by running `tsc --noEmit` before pushing,
+    not left for later; redid the affected conflict resolutions by hand instead of trusting the
+    script, then re-verified clean.
+- **n8n production**: not yet ported (A1's "Dedup comprobantes", B2.2's "Contexto conversacion",
+  A4/A5's "Detectar repartos" — see Open decisions history above). Next step.
 
 ## Next step
 A1, A3, A4, A5, B1.3, B1.5, B2.1, B2.2, B3.1, B3.2, B3.3, B4.1(reversal), B4.2, B4.3 and B4.4 are all

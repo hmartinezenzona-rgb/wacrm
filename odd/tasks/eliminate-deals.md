@@ -45,14 +45,27 @@ wired).
 
 ## Tasks
 
-### Phase 1 — Operations stop being created via `deals` (DB + n8n)
+### Phase 1 — Readers first, then writers stop creating via `deals` (DB + n8n)
+Reordered 2026-09-30 (user-approved): the staging Cerebro keeps bot state in `deals.notes` and two
+nodes read it every turn, so switching writers first would silently drop history, duplicate-receipt
+detection, deposit way and recarga-in-progress for new operations. Map: Engram
+`discovery/eliminate-deals-n8n-map`.
+- [ ] 1.0a — Field-by-field map of every `deals`-derived output of `Contexto conversacion` and
+  `Historial contacto` to a structured source (`remittance_operations`, `remittance_beneficiaries`,
+  deposits, audit), or "no structured source" (then a structured column/table must come first).
+- [ ] 1.0b — Rewrite `Contexto conversacion` to read structured sources only. Parity check on
+  staging: old vs new query output on the same conversations must match. Byte-exact draft diff
+  before publish.
+- [ ] 1.0c — Same for `Historial contacto`.
 - [ ] 1.1 — New RPC that creates a `remittance_operations` row directly (whatever
   `trg_sync_operacion_al_crear_deal` currently derives: account/contact/currency/status), with NO
-  `deals` row involved. Accepts structured beneficiary data up front (so Phase 2 can fold in here)
-  rather than expecting a later notes-parse.
-- [ ] 1.2 — Rewire the 6 n8n nodes above to call the new RPC instead of inserting into `deals`.
-  Each node verified individually (byte-exact draft verification before publish, same discipline as
-  A4/A5 today) before moving to the next.
+  `deals` row involved, writing structured beneficiary / USD-destination data up front (Phase 2
+  folds in here).
+- [ ] 1.2 — Rewire the 7 writers to the new RPC(s), one at a time, each verified individually
+  (byte-exact draft verification before publish): `Registrar beneficiario auto`,
+  `Registrar zelle auto`, `gestionar_beneficiario`, `registrar_beneficiario_zelle`,
+  `registrar_reparto_multiple`, `marcar_destino_usd`, and `Registrar deposito auto`
+  (`cerebro_registrar_deposito`, which also INSERTs `deals`; missed by the first exploration).
 
 ### Phase 2 — Beneficiaries stop being parsed from `deals.notes`
 - [ ] 2.1 — The Phase 1 RPC(s) write `remittance_beneficiaries` rows directly and structured
@@ -93,5 +106,8 @@ wired).
   pass by me (not delegated) found the two non-remittance dependencies (item 6) the fork missed,
   corrected the scope with the user before starting any implementation.
 
+- 2026-09-30: read-only map by Hermes (DB) + OpenCode (n8n), verified by me: 9 nodes touch
+  `deals` (7 writers, 2 readers). Phase 1 reordered to readers-first with the user's approval.
+
 ## Next step
-Start Phase 1 — design the new operation-creation RPC, then rewire the first of the 6 n8n nodes.
+1.0a — map every `deals`-derived output of the two reader nodes to a structured source.

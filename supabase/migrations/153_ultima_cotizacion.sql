@@ -21,10 +21,12 @@
 --   the number back to the customer.
 --
 -- WHAT
---   1. cerebro_ultima_cotizacion: one row per conversation — the GYD the
---      customer would deposit, the destination amount and currency exactly
---      as the tool computed them (no rounding rule is duplicated here), the
---      tool, and when.
+--   1. cerebro_ultima_cotizacion: one row per conversation AND destination
+--      currency — the GYD the customer would deposit, the destination amount
+--      exactly as the tool computed it (no rounding rule is duplicated
+--      here), the tool, and when. Per currency because, when the customer
+--      has not said how to receive, the bot quotes BOTH (CUP and USD) with
+--      two tools; a single "last quote" would keep whichever ran last.
 --   2. cerebro_registrar_cotizacion(conv, origen_gyd, destino, moneda,
 --      herramienta): upsert; NULL conversation or destination is a no-op.
 --      The four n8n quote tools call it from the same query that computes
@@ -33,9 +35,12 @@
 --   3. cerebro_monto_recibe(conv) -> (valor, moneda): what `Contexto
 --      conversacion` shows the agent as monto_recibe_*. The open operation's
 --      own destination amount wins when it exists (after the deposit, it is
---      the truth); otherwise the last quote, only if it is newer than the
---      conversation's last closed remesa and younger than 24 hours.
---      Otherwise NULL, and the prompt already says: no amount, don't invent.
+--      the truth); otherwise the last quote IN THE CURRENCY OF THE OPERATION'S
+--      DELIVERY METHOD (cuban_card -> CUP; zelle/clasica/tropical -> USD),
+--      only if it is newer than the conversation's last closed remesa and
+--      younger than 24 hours. efectivo_usd has its own rate (not these
+--      tools) and an unknown method is not guessed: NULL. NULL means the
+--      prompt's existing rule applies: no amount, don't invent.
 --   Same lock-down as the other cerebro_* objects: RLS on with no policy,
 --   functions executable only by postgres and service_role.
 --
@@ -44,12 +49,13 @@
 -- =====================================================================
 
 CREATE TABLE IF NOT EXISTS cerebro_ultima_cotizacion (
-  conversation_id uuid PRIMARY KEY REFERENCES conversations(id) ON DELETE CASCADE,
+  conversation_id uuid NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
   origen_gyd      numeric,
   destino_monto   numeric NOT NULL,
   destino_moneda  text NOT NULL CHECK (destino_moneda IN ('CUP', 'USD')),
   herramienta     text NOT NULL,
-  cotizado_en     timestamptz NOT NULL DEFAULT now()
+  cotizado_en     timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (conversation_id, destino_moneda)
 );
 
 ALTER TABLE cerebro_ultima_cotizacion ENABLE ROW LEVEL SECURITY;
@@ -78,7 +84,7 @@ BEGIN
   INSERT INTO cerebro_ultima_cotizacion AS q
     (conversation_id, origen_gyd, destino_monto, destino_moneda, herramienta, cotizado_en)
   VALUES (p_conv, p_origen_gyd, p_destino, upper(p_moneda), p_herramienta, now())
-  ON CONFLICT (conversation_id) DO UPDATE
+  ON CONFLICT (conversation_id, destino_moneda) DO UPDATE
      SET origen_gyd     = EXCLUDED.origen_gyd,
          destino_monto  = EXCLUDED.destino_monto,
          destino_moneda = EXCLUDED.destino_moneda,
@@ -95,12 +101,14 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_valor  numeric;
-  v_moneda text;
+  v_valor   numeric;
+  v_moneda  text;
+  v_metodo  text;
+  v_quiere  text;
 BEGIN
   -- The open remesa's own amount, when it has one (after the deposit).
-  SELECT NULLIF(o.quoted_destination_amount, 0), o.destination_currency
-    INTO v_valor, v_moneda
+  SELECT NULLIF(o.quoted_destination_amount, 0), o.destination_currency, o.delivery_method
+    INTO v_valor, v_moneda, v_metodo
     FROM remittance_operations o
    WHERE o.conversation_id = p_conv
      AND o.status NOT IN ('completed', 'cancelled')
@@ -112,11 +120,16 @@ BEGIN
     RETURN;
   END IF;
 
-  -- Otherwise the last quote, if it belongs to this remesa and is recent.
+  -- Otherwise the last quote in the currency the chosen method delivers.
+  v_quiere := CASE WHEN v_metodo = 'cuban_card' THEN 'CUP'
+                   WHEN v_metodo IN ('zelle', 'clasica', 'tropical') THEN 'USD'
+                   ELSE NULL END;
+
   RETURN QUERY
   SELECT q.destino_monto, q.destino_moneda
     FROM cerebro_ultima_cotizacion q
    WHERE q.conversation_id = p_conv
+     AND q.destino_moneda = v_quiere
      AND q.cotizado_en > now() - interval '24 hours'
      AND q.cotizado_en > COALESCE(
            (SELECT max(COALESCE(o2.completed_at, o2.cancelled_at, o2.created_at))

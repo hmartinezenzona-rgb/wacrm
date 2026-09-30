@@ -3,7 +3,8 @@
 -- recipient gets BEFORE the deposit).
 --
 --   case 1 — cerebro_registrar_cotizacion stores the quote; a second quote
---            replaces it (one row per conversation).
+--            in the same currency replaces it (one row per conversation and
+--            currency).
 --   case 2 — NULL conversation or NULL destination amount is a harmless no-op.
 --   case 3 — cerebro_monto_recibe: open operation with no destination amount
 --            yet + fresh quote -> returns the quote (the real test case: the
@@ -16,6 +17,9 @@
 --   case 7 — nothing at all -> NULLs (the bot says no amount).
 --   case 8 — the table has RLS on, and neither function is executable by
 --            anon or authenticated.
+--   case 9 — double quote (CUP and USD, USD last): a cuban_card operation
+--            gets the CUP quote, a zelle one the USD quote, and efectivo_usd
+--            or an unknown method gets NULL (never the other currency).
 --
 -- RED (before 153): the functions do not exist.
 -- GREEN (after 153): all eight pass.
@@ -38,6 +42,7 @@ DECLARE
   v_val  numeric;
   v_mon  text;
   v_fail_count integer := 0;
+  v_ct9 uuid; v_conv9 uuid; v_op9 uuid;
 BEGIN
   INSERT INTO auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
   VALUES (v_owner_user, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'uc-owner-' || v_owner_user || '@test.invalid', v_dummy_hash, now(), now(), now(), '{}'::jsonb, '{}'::jsonb, false, false);
@@ -166,10 +171,51 @@ BEGIN
     RAISE NOTICE 'PASS [case 8] RLS on; functions not exposed to anon/authenticated';
   END IF;
 
+  -- ===========================================================================
+  -- CASE 9 — double quote, the method picks the currency.
+  -- ===========================================================================
+  INSERT INTO contacts (id, user_id, phone, name, account_id) VALUES (gen_random_uuid(), v_owner_user, '59900153009', 'UC 9', v_acc) RETURNING id INTO v_ct9;
+  INSERT INTO conversations (id, user_id, contact_id, account_id) VALUES (gen_random_uuid(), v_owner_user, v_ct9, v_acc) RETURNING id INTO v_conv9;
+  PERFORM cerebro_registrar_cotizacion(v_conv9, 10000, 30000, 'CUP', 'calcular_envio');
+  PERFORM cerebro_registrar_cotizacion(v_conv9, 10000, 38, 'USD', 'calcular_usd_desde_gyd');
+  INSERT INTO remittance_operations (account_id, conversation_id, contact_id, delivery_method, status, quoted_source_amount)
+  VALUES (v_acc, v_conv9, v_ct9, 'cuban_card', 'collecting_information', 0) RETURNING id INTO v_op9;
+  SELECT valor, moneda INTO v_val, v_mon FROM cerebro_monto_recibe(v_conv9);
+  IF v_val IS DISTINCT FROM 30000 OR v_mon IS DISTINCT FROM 'CUP' THEN
+    v_fail_count := v_fail_count + 1;
+    RAISE WARNING 'FAIL [case 9a] cuban_card should get 30000 CUP, got % %', v_val, v_mon;
+  ELSE
+    RAISE NOTICE 'PASS [case 9a] cuban_card -> the CUP quote';
+  END IF;
+  UPDATE remittance_operations SET delivery_method = 'zelle' WHERE id = v_op9;
+  SELECT valor, moneda INTO v_val, v_mon FROM cerebro_monto_recibe(v_conv9);
+  IF v_val IS DISTINCT FROM 38 OR v_mon IS DISTINCT FROM 'USD' THEN
+    v_fail_count := v_fail_count + 1;
+    RAISE WARNING 'FAIL [case 9b] zelle should get 38 USD, got % %', v_val, v_mon;
+  ELSE
+    RAISE NOTICE 'PASS [case 9b] zelle -> the USD quote';
+  END IF;
+  UPDATE remittance_operations SET delivery_method = 'efectivo_usd' WHERE id = v_op9;
+  SELECT valor, moneda INTO v_val, v_mon FROM cerebro_monto_recibe(v_conv9);
+  IF v_val IS NOT NULL THEN
+    v_fail_count := v_fail_count + 1;
+    RAISE WARNING 'FAIL [case 9c] efectivo_usd should get NULL, got % %', v_val, v_mon;
+  ELSE
+    RAISE NOTICE 'PASS [case 9c] efectivo_usd -> NULL (own rate, not these tools)';
+  END IF;
+  UPDATE remittance_operations SET delivery_method = NULL WHERE id = v_op9;
+  SELECT valor, moneda INTO v_val, v_mon FROM cerebro_monto_recibe(v_conv9);
+  IF v_val IS NOT NULL THEN
+    v_fail_count := v_fail_count + 1;
+    RAISE WARNING 'FAIL [case 9d] unknown method should get NULL, got % %', v_val, v_mon;
+  ELSE
+    RAISE NOTICE 'PASS [case 9d] unknown method -> NULL (not guessed)';
+  END IF;
+
   IF v_fail_count > 0 THEN
     RAISE EXCEPTION 'ultima-cotizacion: % expectation(s) FAILED — see WARNINGs above', v_fail_count;
   END IF;
-  RAISE NOTICE 'ultima-cotizacion: ALL PASS (8 expectations)';
+  RAISE NOTICE 'ultima-cotizacion: ALL PASS (12 expectations)';
 END $$;
 
 ROLLBACK TO SAVEPOINT ultima_cotizacion;

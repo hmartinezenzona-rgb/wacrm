@@ -53,7 +53,7 @@ functions. The user's list plus the defects the test proved.
   le notificaremos por este medio."
 - [x] B1.3 — Receipts sent in chat sometimes not detected or registered. Investigate the real cases
   (beyond A1) and fix. FOUND AND FIXED IN PRODUCTION — see Progress (case: Javier Cruz).
-- [ ] B1.4 — Built and PUBLISHED TO STAGING (DB + n8n, see Progress) — not yet ported to production.
+- [x] B1.4 — DONE and LIVE IN PRODUCTION (DB 150+151, n8n), see Progress.
   Cash delivery: the bot
   asks the sender for the recipient's exact address, phone and a
   photo of the ID card. CORRECTED PREMISE (see Progress): this data is not stored anywhere in the
@@ -785,7 +785,23 @@ closed. Remaining:
   - Known pre-existing edge, not changed: `marcar_destino_usd` skips appending a mark that already
     appears anywhere in the notes, so Efectivo → Clasica → Efectivo stays Clasica (same for
     Clasica/Tropical today).
-  - n8n production: in progress.
+  - **n8n production — DONE, B1.4 is live.** Patched production's OWN node contents (not copied
+    from staging, which also carries B1.1/B1.2 and the staging-only service catalog): the
+    efectivo block appended to `Contexto conversacion`, the three `foto_otro_wamid` hunks in
+    `Snapshot final`, the efectivo changes to `marcar_destino_usd`, the three prompt lines in
+    `Agente Remesas`, plus the two new nodes (`Registrar carnet efectivo`,
+    `registrar_datos_entrega_efectivo`) with production's `Supabase Account` credential and their
+    two connections. Every insertion anchor was confirmed to occur exactly once in production first;
+    production's `Snapshot final` was byte-identical to staging's pre-B1.4 version.
+    Independently verified the draft before publishing: all edited values exact, no stray
+    `options.systemMessage` flat key, new nodes/credentials/connections exact, every other node and
+    connection identical to the active version. The only non-exact value was `Snapshot final`: n8n
+    again turned the two `\uXXXX` regex escapes into literal characters. It's identical after
+    decoding, both regexes behave the same on every test string, and it's the same form staging has
+    run since `a905531e`. Published `226791a1-2f7f-4189-8928-3096c87b1cda` (previous
+    `49136979-7a6f-4dd4-a9a5-52d62c0597f1`, restorable). Read-only check against a production
+    conversation: the new context columns evaluate correctly. n8n execution history returns nothing
+    for this workflow (same as staging), so post-publish errors can't be monitored from here.
 - **Eliminate `deals`** — new architectural request, needs scoping before anything else.
 - **A6** — attempted to verify this myself before asking the user: staging's `ai_usage_log` table
   (columns `prompt_tokens`/`completion_tokens`/`total_tokens`) is exactly the right shape to check,

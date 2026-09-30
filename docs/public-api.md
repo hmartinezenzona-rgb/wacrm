@@ -357,16 +357,20 @@ const ok = crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(v1));
 
 ### Delivery semantics
 
-Delivery is **best-effort**: a single attempt per event with a short
-timeout, and **redirects are not followed**. `message.status_updated`
+Delivery is **best-effort with retries**: up to 3 attempts per event,
+each with a 5-second timeout, 3 s and then 8 s apart. Only a network
+error, a timeout, a `5xx` or a `429` is retried; any other response is
+final, and **redirects are not followed**. Every attempt resends the same
+body (same `id`) with a fresh signature timestamp, so a receiver that
+answered slowly may see the same event twice: **dedupe on `id`**. `message.status_updated`
 covers messages wacrm stores (inbox + API sends), not broadcast-only
 sends, and — because providers re-send and re-order status callbacks —
 the same status may arrive more than once or out of order; **dedupe on
-`id` and don't assume ordering**. Each consecutive failure increments
-`failure_count`; after enough consecutive failures the endpoint is
+`id` and don't assume ordering**. Each event whose attempts all failed
+increments `failure_count`; after enough consecutive failures the endpoint is
 auto-disabled (`is_active: false`) — re-enable it with `PATCH` (which
-resets the counter). Durable retry-with-backoff (a delivery queue) is a
-future enhancement; today, treat missed deliveries as possible and
+resets the counter). Retries are in-process, so a restart mid-retry loses
+the event; a durable delivery queue is a future enhancement; today, treat missed deliveries as possible and
 reconcile with the read endpoints when it matters.
 
 **Target restrictions (SSRF).** The `url` must be `https://` and must

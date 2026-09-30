@@ -11,7 +11,7 @@ vi.mock('@/lib/webhooks/ssrf', () => ({
   isDeliverableUrl: vi.fn(async () => true),
 }));
 
-import { dispatchWebhookEvent, MAX_CONSECUTIVE_FAILURES } from './deliver';
+import { dispatchWebhookEvent, DELIVERY_ATTEMPTS, MAX_CONSECUTIVE_FAILURES } from './deliver';
 import { isDeliverableUrl } from './ssrf';
 
 interface Row {
@@ -61,7 +61,10 @@ beforeEach(() => {
   vi.mocked(isDeliverableUrl).mockResolvedValue(true);
   vi.stubGlobal('fetch', vi.fn());
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 describe('dispatchWebhookEvent', () => {
   it('signs + POSTs (no redirect follow) and resets failure_count on success', async () => {
@@ -88,22 +91,98 @@ describe('dispatchWebhookEvent', () => {
     expect(calls.rpcs).toHaveLength(0);
   });
 
-  it('records an atomic failure (RPC) when the endpoint errors', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 } as Response));
+  it('records one atomic failure (RPC) once every attempt errored', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 500 } as Response);
+    vi.stubGlobal('fetch', fetchMock);
     const calls = emptyCalls();
 
-    await dispatchWebhookEvent(
+    const done = dispatchWebhookEvent(
       makeDb([{ id: 'b', url: 'https://b.test/hook', secret: 's2' }], calls),
       'acct-1',
       'message.received',
       {}
     );
+    await vi.runAllTimersAsync();
+    await done;
 
-    expect(calls.rpcs[0]).toEqual({
-      name: 'record_webhook_failure',
-      args: { endpoint_id: 'b', max_failures: MAX_CONSECUTIVE_FAILURES },
-    });
+    expect(fetchMock).toHaveBeenCalledTimes(DELIVERY_ATTEMPTS);
+    expect(calls.rpcs).toEqual([
+      {
+        name: 'record_webhook_failure',
+        args: { endpoint_id: 'b', max_failures: MAX_CONSECUTIVE_FAILURES },
+      },
+    ]);
     expect(calls.updates).toHaveLength(0);
+  });
+
+  // A receiver that stalls for a few seconds (the Cerebro's n8n did, every 10
+  // minutes, on 2026-09-28/30) must not lose the customer's message: a
+  // single 5 s attempt dropped it for good.
+  describe('retries a transient failure', () => {
+    beforeEach(() => vi.useFakeTimers());
+
+    async function dispatchWith(fetchMock: ReturnType<typeof vi.fn>, calls: Calls) {
+      vi.stubGlobal('fetch', fetchMock);
+      const done = dispatchWebhookEvent(
+        makeDb([{ id: 'r', url: 'https://r.test/hook', secret: 's9' }], calls),
+        'acct-1',
+        'message.received',
+        { whatsapp_message_id: 'wamid.X' }
+      );
+      await vi.runAllTimersAsync();
+      await done;
+    }
+
+    it('delivers on a later attempt after a timeout, with no failure recorded', async () => {
+      const timeout = Object.assign(new Error('The operation was aborted due to timeout'), {
+        name: 'TimeoutError',
+      });
+      const fetchMock = vi
+        .fn()
+        .mockRejectedValueOnce(timeout)
+        .mockResolvedValueOnce({ ok: true, status: 200 } as Response);
+      const calls = emptyCalls();
+
+      await dispatchWith(fetchMock, calls);
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(calls.rpcs).toHaveLength(0);
+      expect(calls.updates[0]).toMatchObject({ id: 'r', payload: { failure_count: 0 } });
+    });
+
+    it('retries 5xx and 429, not other 4xx', async () => {
+      const retried = vi
+        .fn()
+        .mockResolvedValueOnce({ ok: false, status: 503 } as Response)
+        .mockResolvedValueOnce({ ok: false, status: 429 } as Response)
+        .mockResolvedValueOnce({ ok: true, status: 200 } as Response);
+      await dispatchWith(retried, emptyCalls());
+      expect(retried).toHaveBeenCalledTimes(3);
+
+      const rejected = vi.fn().mockResolvedValue({ ok: false, status: 401 } as Response);
+      const calls = emptyCalls();
+      await dispatchWith(rejected, calls);
+      expect(rejected).toHaveBeenCalledTimes(1);
+      expect(calls.rpcs).toHaveLength(1);
+    });
+
+    it('resends the same payload (same dedupe id), freshly signed each time', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce({ ok: false, status: 502 } as Response)
+        .mockResolvedValueOnce({ ok: true, status: 200 } as Response);
+
+      await dispatchWith(fetchMock, emptyCalls());
+
+      const [first, second] = fetchMock.mock.calls.map((c) => c[1]);
+      expect(second.body).toBe(first.body);
+      const ts = (o: { headers: Record<string, string> }) =>
+        Number(o.headers['X-Wacrm-Signature'].match(/^t=(\d+),/)![1]);
+      // A replayed signature is rejected by receivers that keep nonces (the
+      // Cerebro does), so each attempt carries its own timestamp.
+      expect(ts(second)).toBeGreaterThan(ts(first));
+    });
   });
 
   it('blocks a non-public target (SSRF guard) without fetching', async () => {

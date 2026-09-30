@@ -8,14 +8,23 @@
 // delivery must not affect the 200 OK returned to Meta.
 //
 // Delivery semantics (documented in docs/public-api.md):
-//   - At-most-once per event, single attempt with a short timeout.
-//   - Each consecutive failure bumps `failure_count`; once it crosses
-//     MAX_CONSECUTIVE_FAILURES the endpoint is auto-disabled
-//     (`is_active = false`) so a dead sink stops being hit. A success
-//     resets the counter and stamps `last_delivery_at`.
-//   - Durable retry-with-backoff would need a queue/worker (a
-//     follow-up); in-process retries inside `after()` would burn the
-//     route's duration budget without a real durability guarantee.
+//   - Up to DELIVERY_ATTEMPTS attempts per event, each with a short
+//     timeout, spaced by RETRY_DELAYS_MS. Only transient failures are
+//     retried (network error/timeout, 5xx, 429); any other response is
+//     final. Every attempt resends the SAME payload (same `id`, so
+//     receivers dedupe) with a FRESH signature timestamp (receivers that
+//     keep signature nonces reject a replayed one).
+//     Why: with a single attempt, a receiver that stalled for a few
+//     seconds lost the event for good — the Cerebro's n8n stalled every
+//     10 minutes on 2026-09-28/30 and customer messages never reached the
+//     bot. The worst case (3 x 5 s + 3 s + 8 s = 26 s) fits the route's
+//     `maxDuration`.
+//   - An event whose attempts all failed bumps `failure_count` once;
+//     once it crosses MAX_CONSECUTIVE_FAILURES the endpoint is
+//     auto-disabled (`is_active = false`) so a dead sink stops being hit.
+//     A success resets the counter and stamps `last_delivery_at`.
+//   - Still in-process: a crash mid-retry loses the event. Durable
+//     delivery would need a queue/worker (a follow-up).
 // ============================================================
 
 import { createHmac, randomUUID } from 'node:crypto';
@@ -29,6 +38,12 @@ import type { WebhookEvent } from '@/lib/webhooks/events';
 
 /** Per-endpoint HTTP timeout. Kept short — this runs in `after()`. */
 export const DELIVERY_TIMEOUT_MS = 5000;
+
+/** Attempts per event and endpoint (the first one included). */
+export const DELIVERY_ATTEMPTS = 3;
+
+/** Wait before attempt 2, 3, ... */
+export const RETRY_DELAYS_MS = [3000, 8000];
 
 /** Auto-disable an endpoint after this many consecutive failures. */
 export const MAX_CONSECUTIVE_FAILURES = 15;
@@ -60,8 +75,8 @@ export async function dispatchWebhookEvent(
     if (error || !rows || rows.length === 0) return;
 
     // Sign the exact bytes we send so a receiver can recompute the
-    // HMAC over the raw request body. `id` is a per-delivery uuid the
-    // receiver can dedupe on (deliveries are at-least-once and may
+    // HMAC over the raw request body. `id` is a per-event uuid the
+    // receiver can dedupe on (a retry resends it, and deliveries may
     // repeat / arrive out of order).
     const payload = JSON.stringify({
       id: randomUUID(),
@@ -70,12 +85,9 @@ export async function dispatchWebhookEvent(
       account_id: accountId,
       data,
     });
-    const tsSeconds = Math.floor(Date.now() / 1000);
 
     await Promise.allSettled(
-      (rows as EndpointRow[]).map((row) =>
-        deliverOne(db, row, event, payload, tsSeconds)
-      )
+      (rows as EndpointRow[]).map((row) => deliverOne(db, row, event, payload))
     );
   } catch (err) {
     // Never let a delivery problem bubble into the webhook response.
@@ -87,8 +99,7 @@ async function deliverOne(
   db: SupabaseClient,
   row: EndpointRow,
   event: WebhookEvent,
-  payload: string,
-  tsSeconds: number
+  payload: string
 ): Promise<void> {
   // SSRF guard: refuse to POST to a host that resolves to a private /
   // loopback / link-local address. Counts as a failure so a
@@ -110,6 +121,39 @@ async function deliverOne(
     return;
   }
 
+  let lastError = '';
+  for (let attempt = 1; attempt <= DELIVERY_ATTEMPTS; attempt++) {
+    if (attempt > 1) await sleep(RETRY_DELAYS_MS[attempt - 2] ?? 0);
+    const outcome = await sendOnce(row, event, payload, secret);
+    if (outcome.ok) {
+      // Success: clear the failure streak.
+      await db
+        .from('webhook_endpoints')
+        .update({ failure_count: 0, last_delivery_at: new Date().toISOString() })
+        .eq('id', row.id);
+      return;
+    }
+    lastError = outcome.error;
+    console.warn(
+      `[webhooks] delivery to ${row.id} failed (attempt ${attempt}/${DELIVERY_ATTEMPTS}):`,
+      lastError
+    );
+    if (!outcome.retryable) break;
+  }
+  console.warn(`[webhooks] giving up on delivery to ${row.id}:`, lastError);
+  await recordFailure(db, row);
+}
+
+type SendOutcome = { ok: true } | { ok: false; retryable: boolean; error: string };
+
+/** One signed POST. Signed at send time, so every attempt has its own timestamp. */
+async function sendOnce(
+  row: EndpointRow,
+  event: WebhookEvent,
+  payload: string,
+  secret: string
+): Promise<SendOutcome> {
+  const tsSeconds = Math.floor(Date.now() / 1000);
   try {
     // Firma del Cerebro (n8n) — migración a HMAC en cabeceras. Durante la
     // transición el Cerebro acepta ambas formas, así que se mantiene el
@@ -144,24 +188,24 @@ async function deliverOne(
       body: payload,
       // Do NOT follow redirects — a public URL could 3xx-bounce to an
       // internal address, bypassing the SSRF check above. A 3xx is a
-      // misconfiguration; treat it as a failure.
+      // misconfiguration; treat it as a final failure.
       redirect: 'manual',
       signal: AbortSignal.timeout(DELIVERY_TIMEOUT_MS),
     });
-    if (!res.ok) throw new Error(`endpoint responded ${res.status}`);
-
-    // Success: clear the failure streak.
-    await db
-      .from('webhook_endpoints')
-      .update({ failure_count: 0, last_delivery_at: new Date().toISOString() })
-      .eq('id', row.id);
+    if (res.ok) return { ok: true };
+    return {
+      ok: false,
+      retryable: res.status >= 500 || res.status === 429,
+      error: `endpoint responded ${res.status}`,
+    };
   } catch (err) {
-    console.warn(
-      `[webhooks] delivery to ${row.id} failed:`,
-      err instanceof Error ? err.message : err
-    );
-    await recordFailure(db, row);
+    // Network error or timeout: the receiver may just be busy.
+    return { ok: false, retryable: true, error: err instanceof Error ? err.message : String(err) };
   }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function recordFailure(db: SupabaseClient, row: EndpointRow): Promise<void> {

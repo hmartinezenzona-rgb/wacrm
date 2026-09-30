@@ -70,6 +70,19 @@ Verified on the first window after deactivation (13:00:25-13:01:40 UTC): every s
 its own second (outbox 13:01:00.052, vigilante :46.031, :52.019, the X0:58-X0:59 group on time),
 the MMG ingest vigilante took 1.4 s. No stall. Before: 5-25 s late every 10 minutes.
 
+## Fix 2 — delivery retries (2026-09-30, user go-ahead)
+- [x] T2.1 `src/lib/webhooks/deliver.ts`: up to 3 attempts (5 s timeout each, 3 s then 8 s apart,
+  worst case 26 s inside the webhook's `after()`). Retries network errors, timeouts, 5xx and 429;
+  any other response is final. Same payload (same `id`), fresh signature timestamp per attempt,
+  since the Cerebro rejects a replayed signature (`Replay?` node). One `record_webhook_failure` per
+  event only when all attempts failed. `docs/public-api.md` updated.
+  Retrying is safe for the Cerebro: `Guardar evento` dedupes by (conversation, wamid) and
+  `Evento nuevo?` stops a duplicate.
+  TDD (vitest, `npx vitest run src/lib/webhooks/`): RED 4 failing (single attempt), GREEN 29/29;
+  `tsc --noEmit` and eslint clean.
+- [ ] T2.2 Deploy to the staging app and re-run the USD test; then production with go-ahead.
+- Known limit: still in-process; a crash mid-retry loses the event (durable queue = follow-up).
+
 ## Next step
 Fix 2 — WaCRM delivery must not drop a message on one timeout (retry with backoff and/or
 reconciliation). Fix 3 — host sizing (user decision). Redesign the token collector.

@@ -178,8 +178,16 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
   already allows clasica/tropical. Applied 157 via apply_migration; all 5 function md5s equal
   staging's (verified independently). Production Cerebro jEzlVLCLUaJhVwzs: node "Registrar destino
   auto" added (credential Supabase Account), draft diff PASS (Hermes, spot-checked), published
-  ada843d2 (previous 3b40ee12 for restore). Still open: the 6 older production clasica ops quoted
-  in CUP (no backfill yet).
+  ada843d2 (previous 3b40ee12 for restore). The 6 older CUP-quoted clasica ops: corrected (see below).
+
+- 2026-09-30: the 6 production clasica ops quoted in CUP were corrected with the user's go-ahead
+  ("calculalos clasica"). All completed (2026-08-10..09-19), no calculator entries, deposits exact
+  multiples of 260 GYD/USD (no USD rate existed in the system before 09-27): 80, 50, 110, 100, 40,
+  90 USD. Operations: quoted_destination_amount/destination_currency USD; vigente beneficiaries
+  re-typed cuban_card → clasica with the USD amount. Done inside one DO block with
+  set_config('wacrm.origin','admin',true) (without it the 096 guard suppresses writes to locked
+  fields); dry-run first via RAISE. Backup = the before-row JSON in remittance_admin_audit
+  (action human_correction, reason mentions pre-157, 12 rows). Production now has 0 clasica ops in CUP.
 
 ## Next step
 1.1 — design the direct operation/beneficiary write path (no deals) together with

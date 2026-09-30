@@ -664,8 +664,26 @@ functions. The user's list plus the defects the test proved.
     declaration between two nearby conflicts) — caught by running `tsc --noEmit` before pushing,
     not left for later; redid the affected conflict resolutions by hand instead of trusting the
     script, then re-verified clean.
-- **n8n production**: not yet ported (A1's "Dedup comprobantes", B2.2's "Contexto conversacion",
-  A4/A5's "Detectar repartos" — see Open decisions history above). Next step.
+- **n8n production — DONE, all three ported and verified byte-exact before publishing**:
+  - **A1** ("Dedup comprobantes", workflow `jEzlVLCLUaJhVwzs`): staging-vs-production diff was clean
+    (only the expected fix). Published, `activeVersionId` `09122bba-28af-4bd6-a8a7-f4297a413c27`
+    (previous `f4eb304a-fa11-40b1-8d47-17657e9bd62e`, restorable).
+  - **A4/A5** ("Detectar repartos", workflow `5YseDUEC5IAaiofF`, the production repartos automation):
+    staging-vs-production diff was clean. First submission attempt failed its own byte-exact check
+    (caught a ` ` vs ` ` transcription slip plus a stray `﻿` before publishing anything
+    — exactly the discipline this is for); corrected and re-verified exact on the second attempt.
+    Published, `activeVersionId` `e0603c06-784e-4f20-afba-8aaf8deb0251` (previous
+    `66656e77-c7a0-4155-8f46-c3b17e756c1b`, restorable).
+  - **B2.2** ("Contexto conversacion", `jEzlVLCLUaJhVwzs`) — **not a straight copy from staging**:
+    staging's active version also carries an unrelated, deliberately staging-only addition
+    (`catalogo_servicios`, migration 138 — "staging only" per its own commit message) that production
+    must NOT get yet. Copying the whole node would have shipped an unfinished feature by accident.
+    Instead, applied a surgical one-line patch directly to production's own current query: inserted
+    exactly `AND COALESCE(m.is_panel_action,false) = false` into the `humano_reciente` EXISTS clause
+    (confirmed exactly one occurrence of the target text before patching), verified byte-exact, then
+    published. `activeVersionId` `49136979-7a6f-4dd4-a9a5-52d62c0597f1` (previous
+    `09122bba-28af-4bd6-a8a7-f4297a413c27`). Currently a no-op in production (nothing sets
+    `is_panel_action` yet, since B2.2's app-code half is held back — see above) until that ships.
 
 ## Next step
 A1, A3, A4, A5, B1.3, B1.5, B2.1, B2.2, B3.1, B3.2, B3.3, B4.1(reversal), B4.2, B4.3 and B4.4 are all

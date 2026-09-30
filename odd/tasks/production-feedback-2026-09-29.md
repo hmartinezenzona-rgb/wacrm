@@ -48,9 +48,9 @@ functions. The user's list plus the defects the test proved.
   conversations, not yet ported to production. When confirming beneficiary data, say how much the
   recipient receives (per service and current rate). Example: "…le hacemos la transferencia de
   *20,100 CUP*."
-- [ ] B1.2 — PASSED on staging with a real conversation (2026-09-30 13:47-13:51: deposit forced
-  verified before the card and phone; the bot closed with the exact required wording, no amount
-  repeated, no lost message). Not yet ported to production. If the deposit is ALREADY verified, the confirmation
+- [x] B1.2 — LIVE IN PRODUCTION (n8n `3b40ee12`, 2026-09-30), with the user's shorter wording
+  "Una vez realizada su remesa le notificaremos por acá." and the returning-customer fix. Passed on
+  staging with a real conversation (13:47-13:51). If the deposit is ALREADY verified, the confirmation
   must not say "apenas se confirme su depósito"; use "Datos registrados. Una vez realizada su remesa
   le notificaremos por este medio."
 - [x] B1.3 — Receipts sent in chat sometimes not detected or registered. Investigate the real cases
@@ -974,3 +974,12 @@ B1.1 decision), `monto_recibe_*`.
   (`6468a98`), then `privado/master` force-updated (with lease) to `1fede6c`.
 - n8n host: stays on the current VPS for now; the user has another server for later.
 - Token collector: stays deactivated.
+
+## Production status audit (2026-09-30, user asked "¿quedó todo en producción?")
+Verified against production itself, not the notes: served app `1fede6c` contains every app commit
+(B1.5, B2.2, B3.2 + compact button, B4.2, B4.3, retries); DB fingerprints equal staging for
+`cerebro_cruzar_deposito` (144: B1.3/B3.3), `crm_registrar_datos_entrega_efectivo` (150/151: B1.4),
+`crm_forzar_verificacion` (B4.3); `crm_corregir_entrada_calculadora` (149: B3.2) differs from
+staging only by one comment line (production was applied without it) — same logic; 147 column,
+145 realtime publication present; n8n `3b40ee12` carries B1.2 and B1.4. B1.1 closed by decision,
+B4.4 decided "don't build", B3.1/B4.1/B2.1 needed no change.

@@ -903,3 +903,22 @@ single line: published to staging `9b3cd809-3aa7-45b5-8649-5a529614be4e` (previo
 verified only `Agente Remesas` `options/systemMessage` changed, equal to the prepared file. The
 B1.2 test at 13:35-13:43 did not exercise B1.2 (beneficiary data sent before the forced
 verification); repeat it with the verification BEFORE the card and phone. Test number reset.
+
+## Production port (2026-09-30, user go-ahead: "pasa los cambios a produccion, verifica antes que no se rompa nada")
+Scope: prompt (ask currency + deposit way, no B1.1 line), B1.2 (Contexto `deposito_ya_verificado`
++ Decisor branch, closing "Una vez realizada su remesa le notificaremos por acá."), migration 152,
+WaCRM delivery retries. NOT ported: 153 and the quote-registration tool changes (unused after the
+B1.1 decision), `monto_recibe_*`.
+- B1.2 defect found BEFORE porting and fixed in staging and in the production patch: the flag
+  counted a COMPLETED operation as "deposit already verified" and the Decisor note fired on every
+  turn. On production data 121 conversations would have been flagged, 115 of them only because of
+  a finished remesa (returning customers). Now: only an in-progress operation (not completed or
+  cancelled) in ready_to_transfer/transferring, and the phrase only on the turn that brings the
+  beneficiary's data (this batch has a card or phone, both known, not multi-beneficiary). With the
+  fix, 6 production conversations flag. Both context queries PREPARE cleanly; Decisor syntax OK.
+- 152 applied to production: live body was 148's (md5 b7a58018…) before; after, md5
+  585f5579… = staging; still SECURITY DEFINER, not executable by anon.
+- App: `516ebda` cherry-picked onto `privado/master` (2f3deb6) in worktree `prod-port-retry`
+  (only the doc conflicted — the odd file is not shipped). Webhook tests 29/29, tsc clean, full
+  suite 1435 pass / 2 fail; the 2 failures (`date-utils.test.ts` mondayIndex) also fail on
+  2f3deb6 without the change (pre-existing, timezone-dependent).

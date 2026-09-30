@@ -947,5 +947,8 @@ B1.1 decision), `monto_recibe_*`.
   the live domain, pm2 online, no restart loop, `/login` 200.
 - Production bot errors since 14:44 UTC: the image node `Vision clasificar y extraer` fails with
   OpenAI 429 "You have no credits remaining" (credential "CRM audio vision"). Not caused by the
-  port; receipts/cards in images cannot be read until credits are added. Classification of all
-  errors in progress.
+  port; receipts/cards in images cannot be read until credits are added. All 19 errors classified:
+  15 in `Vision clasificar y extraer` (gpt-4o image analyze) and 4 in `Transcribir audio`
+  (gpt-4o-transcribe), every one OpenAI 429 `insufficient_quota`/`credit_balance_exhausted`, same
+  credential `CRM audio vision` (`BHpcqLjEuUJbQ0eB`); 10 of them are automatic `cerebro.reintento`
+  retries hitting the same wall. No other error. Fix = add credits (user); no workflow change.

@@ -934,3 +934,18 @@ B1.1 decision), `monto_recibe_*`.
   `infra/deployment/desplegar-wacrm-produccion.sh <sha>` over SSH to `oracle`. So the earlier
   "pushed, should auto-deploy" entries (B2.2, B3.2, B4.3 app parts) are UNVERIFIED — production may
   not serve them. Needs the user's authorization for SSH to `oracle` to check and deploy.
+- App deploy (user authorized SSH to `oracle`, 2026-09-30): production was serving `581aba3`
+  (feature branch, deployed 09-29 03:28), NOT `privado/master`. `privado/master` is a different
+  line: deploying `6468a98` would have removed ~18k lines of what production runs. NOT deployed.
+  None of B2.2/B3.2/B4.3/145/sound/retry were live. Deployed the feature branch `1b93cd0` instead:
+  DB prerequisites checked on production first (145 realtime, 147 column, 149 fn, 150 column+fn).
+  Full suite 1655 pass / 2 fail (the same `date-utils` mondayIndex tests fail on `581aba3`), tsc
+  clean; artifact built in a `node:20` container with the official `build-wacrm.sh` (money-path
+  tests 114/114), manifest `production` + ref `hqztotshnlzaiziwjyzh`, bundle has no staging ref.
+  Deployed with `desplegar-wacrm-produccion.sh`: current → `1b93cd0…`, anterior → `581aba3…`
+  (rollback: `rollback-wacrm-produccion.sh`); served BUILD_ID `dbt-zylYTmLPLWZTqQuUR` confirmed on
+  the live domain, pm2 online, no restart loop, `/login` 200.
+- Production bot errors since 14:44 UTC: the image node `Vision clasificar y extraer` fails with
+  OpenAI 429 "You have no credits remaining" (credential "CRM audio vision"). Not caused by the
+  port; receipts/cards in images cannot be read until credits are added. Classification of all
+  errors in progress.

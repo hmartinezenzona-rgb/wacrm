@@ -459,7 +459,7 @@ export default function CalculadoraPage() {
                 <thead>
                   <tr>
                     <th>Fecha</th><th>Cliente</th><th>Monto</th><th>Tipo</th><th>Estado</th>
-                    <th>Fact. (GYD)</th><th>Inv. (GYD)</th><th>Ganancia</th><th>Acciones</th>
+                    <th>Fact. (GYD)</th><th>Inv. (GYD)</th><th>Ganancia</th><th className="legacyActionsCell">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -499,7 +499,7 @@ export default function CalculadoraPage() {
                         <td data-label="Ganancia">
                           {editing ? formatNumber(editPreview) : entry.retornoGyd == null ? "—" : formatNumber(entry.retornoGyd)}
                         </td>
-                        <td data-label="Acciones">
+                        <td data-label="Acciones" className="legacyActionsCell">
                           {entry.status === "completed" && (
                             editing ? (
                               <div style={{ display: "flex", gap: 6, flexDirection: "column" }}>

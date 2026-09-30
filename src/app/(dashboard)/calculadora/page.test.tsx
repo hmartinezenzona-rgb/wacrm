@@ -693,6 +693,17 @@ describe("calculator chat operations (admin correction)", () => {
     await act(async () => root.unmount());
   });
 
+  it("sizes the Acciones column to its content instead of sharing the table width", async () => {
+    const fetchMock = fixture();
+    const { node, root } = await renderPage(fetchMock);
+
+    const header = Array.from(node.querySelectorAll("th")).find((th) => th.textContent === "Acciones");
+    const cell = node.querySelector("#editarEntry-entry-a")?.closest("td");
+    expect(header?.classList.contains("legacyActionsCell")).toBe(true);
+    expect(cell?.classList.contains("legacyActionsCell")).toBe(true);
+    await act(async () => root.unmount());
+  });
+
   it("editing and saving successfully updates the displayed values and closes the editor", async () => {
     const fetchMock = fixture();
     const { node, root } = await renderPage(fetchMock);

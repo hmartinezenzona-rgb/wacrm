@@ -41,6 +41,8 @@
 :global(.legacyCalc .legacyParsedTable) { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
 :global(.legacyCalc .legacyParsedTable th), :global(.legacyCalc .legacyParsedTable td) { border: 1px solid var(--border); padding: 8px; text-align: left; }
 :global(.legacyCalc .legacyParsedTable th) { background: var(--muted); color: var(--foreground); }
+/* Actions column: as narrow as its content (the icon button), not an equal share of the table. */
+:global(.legacyCalc .legacyParsedTable .legacyActionsCell) { width: 1%; white-space: nowrap; text-align: center; }
 :global(.legacyCalc .legacyBadge) { background: var(--muted); padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 11px; color: var(--foreground); display: inline-block; }
 :global(.legacyCalc .legacyDayHeader) { background: var(--primary); color: var(--primary-foreground); padding: 8px 12px; font-weight: bold; border-radius: 4px; margin-top: 15px; font-size: 13px; }
 :global(.legacyCalc details) { background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin-bottom: 15px; font-size: 13px; }
@@ -79,5 +81,6 @@
   :global(.legacyCalc .legacyParsedTable tr) { margin-bottom: 12px; background: var(--card-2); border: 1px solid var(--border); border-radius: 6px; padding: 10px; }
   :global(.legacyCalc .legacyParsedTable td) { border: none; padding: 3px 0; display: flex; justify-content: space-between; align-items: center; }
   :global(.legacyCalc .legacyParsedTable td[data-label]::before) { content: attr(data-label); font-weight: bold; color: var(--muted-foreground); margin-right: 10px; }
+  :global(.legacyCalc .legacyParsedTable .legacyActionsCell) { width: auto; }
   :global(.legacyCalc .legacyBlockRow) { flex-direction: column; align-items: flex-start; }
 }

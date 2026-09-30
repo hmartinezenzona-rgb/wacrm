@@ -172,6 +172,15 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
   operation ended delivery_method=clasica, 153 USD, beneficiary clasica 153 USD, closing message
   "153 Clasica", pending row cleared on completion.
 
+- 2026-09-30: Clasica fix DEPLOYED TO PRODUCTION with the user's explicit go-ahead. Pre-checks:
+  production md5s of crm_calcular_monto_destino (29efa6e6…) and
+  cerebro_reset_beneficiario_parcial_al_cerrar (564a943c…) equal staging's pre-157 ones; rb_type_chk
+  already allows clasica/tropical. Applied 157 via apply_migration; all 5 function md5s equal
+  staging's (verified independently). Production Cerebro jEzlVLCLUaJhVwzs: node "Registrar destino
+  auto" added (credential Supabase Account), draft diff PASS (Hermes, spot-checked), published
+  ada843d2 (previous 3b40ee12 for restore). Still open: the 6 older production clasica ops quoted
+  in CUP (no backfill yet).
+
 ## Next step
 1.1 — design the direct operation/beneficiary write path (no deals) together with
 cerebro_registrar_deposito, since the deposit function finds open deals by notes; then — rewrite `Contexto conversacion` (dup_etapa/dup_valor via receipts.comp_id → operation

@@ -66,6 +66,10 @@ Both "Recolector de tokens" workflows unpublished (production `iF0K3MpyXhjD58HJ`
 `cerebro_telemetria_turno` stop filling until the collector is redesigned (read one finished
 execution at a time, never 25 full executions through the public API).
 
+Verified on the first window after deactivation (13:00:25-13:01:40 UTC): every schedule fired on
+its own second (outbox 13:01:00.052, vigilante :46.031, :52.019, the X0:58-X0:59 group on time),
+the MMG ingest vigilante took 1.4 s. No stall. Before: 5-25 s late every 10 minutes.
+
 ## Next step
-Identify the 10-minute stall (needs visibility into the hidden workflows or the n8n host), then fix
-both causes. Nothing changed yet.
+Fix 2 — WaCRM delivery must not drop a message on one timeout (retry with backoff and/or
+reconciliation). Fix 3 — host sizing (user decision). Redesign the token collector.

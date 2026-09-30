@@ -646,12 +646,17 @@ functions. The user's list plus the defects the test proved.
   removal, including the Contacts page "Deals" tab and the automations engine's `create_deal` step,
   not just the remittance flow (an earlier scoping pass wrongly said deals had no other use — see
   `odd/tasks/eliminate-deals.md`, the dedicated plan for this, phased and not started beyond planning).
-- **B2.2's app-code deploy needs `pauseAiOnAgentSend`, which isn't in production yet** — found while
-  cherry-picking B2.2 onto `privado/master`: it calls a function from an earlier, unshipped commit
-  (`cd50134`) whose own message says it's "ported verbatim from production" under a different
-  implementation — meaning production likely already pauses the bot on an agent send some OTHER way.
-  User doesn't know which. Held back from this deploy; needs investigation into how production
-  currently does this before B2.2's app code (not its DB migration, already live) can ship safely.
+- ~~B2.2's app-code deploy needs `pauseAiOnAgentSend`~~ **RESOLVED and SHIPPED.** Read
+  `pause-ai-on-agent-send.ts`'s implementation: it writes `ai_autoreply_disabled`/`ai_handoff_reason`/
+  `ai_handoff_at` — confirmed all three columns already exist in production, and
+  `ai_autoreply_disabled` is the SAME column the existing manual "tomar el control" panel button
+  already uses (per the Decisor's own comment). `pauseAiOnAgentSend` doesn't duplicate anything; it
+  just triggers that same existing mechanism automatically on any agent/admin send instead of
+  requiring a manual click. Cherry-picked its prerequisite (`cd50134`, self-contained, also adds an
+  unrelated-but-harmless ownership-icon feature not wired into anything else) plus B2.2 (`0651520`)
+  onto `privado/master` and pushed (`ab03310..2f3deb6`). `tsc --noEmit` clean, 1432/1434 tests (same
+  pre-existing unrelated flake). B2.2 is now fully live: DB (147), n8n (SQL patch, prior entry), and
+  app code, all in production.
 
 ## Production deploy (2026-09-29, eighth touch-point)
 - **DB migrations 145-149 applied to production** (`hqztotshnlzaiziwjyzh`), each verified before/after

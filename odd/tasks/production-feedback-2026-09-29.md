@@ -895,3 +895,9 @@ Consequence for the production port: the quote record (migration 153 + the four 
 their quote + `monto_recibe_*` from `cerebro_monto_recibe`) only fed the confirmation amount; the
 B1.1 prompt line that uses it is effectively ignored. Before porting, decide whether to drop 153
 and that line instead of carrying them to production.
+Restoring v2 also restored the original B1.1 line, and the bot applied it once the deposit was
+registered ("...le hacemos la transferencia de *120000 CUP*.", 13:41). Prompt v4 = v2 minus that
+single line: published to staging `9b3cd809-3aa7-45b5-8649-5a529614be4e` (previous `0ec90e4b`);
+verified only `Agente Remesas` `options/systemMessage` changed, equal to the prepared file. The
+B1.2 test at 13:35-13:43 did not exercise B1.2 (beneficiary data sent before the forced
+verification); repeat it with the verification BEFORE the card and phone. Test number reset.

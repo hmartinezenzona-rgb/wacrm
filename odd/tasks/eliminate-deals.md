@@ -63,7 +63,7 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
   production notes read-only (lesson: fresh data hides old formats).
   Other notes readers still to repoint later: `crm_comprobantes_de_operacion` (099, deposit panel),
   `cerebro_registrar_deposito`'s own idempotency/branch checks on notes.
-- [ ] 1.0b — Rewrite `Contexto conversacion` to read structured sources only. Parity check on
+- [~] 1.0b — Rewrite `Contexto conversacion` to read structured sources only. Parity check on
   staging: old vs new query output on the same conversations must match. Byte-exact draft diff
   before publish.
 - [ ] 1.0c — Same for `Historial contacto`.
@@ -123,7 +123,16 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
   receipt→operation link lived only in `deals.notes` → 156. `corregido` (Historial) has no writer
   in SQL (only 042's parser skips it); decide during 1.0c.
 
+- 2026-09-30: 1.0b query written by OpenCode (ordering fixed by me: by operation created_at,
+  because backfilled receipts carry the migration time). Staging parity old vs new over all 9
+  (conversation, comp_id) pairs: 1 diff, dup_etapa 'Por verificar' → 'Lista para transferir' for an
+  operation that is ready_to_transfer while its deal stage is stale since 114 (new is right).
+  Draft diff: only Contexto conversacion.parameters.query changed. Published on staging:
+  88dbbcb1 (previous eb85f86b for restore). Query copy: odd/backups/n8n-staging-contexto-conversacion-1.0b.sql.
+  Behavior change accepted as a fix: recarga_en_curso's 24 h window now moves on real deliveries.
+  Pending: live WhatsApp test on staging, then mark 1.0b done.
+
 ## Next step
-1.0b — rewrite `Contexto conversacion` (dup_etapa/dup_valor via receipts.comp_id → operation
+1.0b live test, then — rewrite `Contexto conversacion` (dup_etapa/dup_valor via receipts.comp_id → operation
 status/amount; via_deposito_ya_usada via receipts.via; recarga_en_curso via operations timestamps),
 staging parity check, byte-exact draft diff before publish.

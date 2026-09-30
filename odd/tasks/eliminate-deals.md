@@ -66,7 +66,7 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
 - [x] 1.0b — Rewrite `Contexto conversacion` to read structured sources only. Parity check on
   staging: old vs new query output on the same conversations must match. Byte-exact draft diff
   before publish.
-- [ ] 1.0c — Same for `Historial contacto`.
+- [~] 1.0c — Same for `Historial contacto`.
 - [ ] 1.1 — New RPC that creates a `remittance_operations` row directly (whatever
   `trg_sync_operacion_al_crear_deal` currently derives: account/contact/currency/status), with NO
   `deals` row involved, writing structured beneficiary / USD-destination data up front (Phase 2
@@ -136,7 +136,21 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
   recarga_en_curso=false. The user did not resend the same screenshot (step 3), so the Decisor's
   duplicate branch was not exercised live; its inputs were.
 
+- 2026-09-30: 1.0c query by OpenCode (session wacrm-worker). Staging parity over 8 conversations:
+  every diff explained and judged correct or harmless — stale deal stages ('Lista para transferir'
+  on cancelled ops, 'Solicitada' on a deposit_verification op), envios_abiertos 9→8 (deal open,
+  op closed), amounts '40000.00'→'40000' (text only), and beneficiarios now include reparto cards
+  (old regex only read the last notes block): accepted behavior change. corregido =
+  admin_audit human_correction OR a 'reemplazado' beneficiary. Draft diff: only Historial
+  contacto.query. Published on staging e8ef4342 (previous 88dbbcb1). Copy:
+  odd/backups/n8n-staging-historial-contacto-1.0c.sql. Pending: live test.
+  Follow-up: add block_index to remittance_operation_receipts (backfilled multi-receipt ops lost
+  their order; created_at = migration time).
+- 2026-09-30: new bug found in the live test: the LLM skipped marcar_destino_usd, Clasica shown as
+  CUP (Engram bug/clasica-shown-as-cup; 3 likely cases in production in 60 days). User: fix it
+  right after 1.0c, as a deterministic step that writes operations directly (first 1.2 writer).
+
 ## Next step
-1.0c — rewrite `Historial contacto`, then — rewrite `Contexto conversacion` (dup_etapa/dup_valor via receipts.comp_id → operation
+1.0c live test; then the Clasica deterministic fix; then — rewrite `Contexto conversacion` (dup_etapa/dup_valor via receipts.comp_id → operation
 status/amount; via_deposito_ya_usada via receipts.via; recarga_en_curso via operations timestamps),
 staging parity check, byte-exact draft diff before publish.

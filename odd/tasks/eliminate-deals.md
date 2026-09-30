@@ -66,7 +66,7 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
 - [x] 1.0b — Rewrite `Contexto conversacion` to read structured sources only. Parity check on
   staging: old vs new query output on the same conversations must match. Byte-exact draft diff
   before publish.
-- [~] 1.0c — Same for `Historial contacto`.
+- [x] 1.0c — Same for `Historial contacto`.
 - [ ] 1.1 — New RPC that creates a `remittance_operations` row directly (whatever
   `trg_sync_operacion_al_crear_deal` currently derives: account/contact/currency/status), with NO
   `deals` row involved, writing structured beneficiary / USD-destination data up front (Phase 2
@@ -150,7 +150,14 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
   CUP (Engram bug/clasica-shown-as-cup; 3 likely cases in production in 60 days). User: fix it
   right after 1.0c, as a deterministic step that writes operations directly (first 1.2 writer).
 
+- 2026-09-30: 1.0c live test on staging (exec 287783): second request after a delivered remesa →
+  Historial envios_previos=1, ultimo_estado='Entregada' (the old query would have shown the stale
+  deal stage), beneficiarios=[the card used], envios_abiertos=0. The tester then resent the SAME
+  receipt for the second remesa; the bot answered "Ese envio ya fue entregado": correct, that
+  COMP id belongs to the delivered first remesa (dup_etapa now reads the real status).
+  Two-remesa tests need two different receipts.
+
 ## Next step
-1.0c live test; then the Clasica deterministic fix; then — rewrite `Contexto conversacion` (dup_etapa/dup_valor via receipts.comp_id → operation
+Clasica deterministic fix (migration 157 being written by OpenCode); then — rewrite `Contexto conversacion` (dup_etapa/dup_valor via receipts.comp_id → operation
 status/amount; via_deposito_ya_usada via receipts.via; recarga_en_curso via operations timestamps),
 staging parity check, byte-exact draft diff before publish.

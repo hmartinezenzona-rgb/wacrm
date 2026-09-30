@@ -1003,5 +1003,11 @@ B4.4 decided "don't build", B3.1/B4.1/B2.1 needed no change.
   Applied to staging and production (function md5 564a943c… identical; not executable by anon).
 - Cleanup: 5 stale accumulator rows in production (conversations with no open remesa holding a
   Zelle account already used on a closed one) deleted; backup
-  `odd/backups/2026-09-30-stale-beneficiario-parcial-production.sql`. The 3 open zombie remesas
-  are left for an admin to cancel from the panel (normal path: mark lost).
+  `odd/backups/2026-09-30-stale-beneficiario-parcial-production.sql`.
+- The 3 open zombie remesas cancelled by me at the user's request ("bórralas tú"): operations
+  `dcf07753`, `17583e9d`, `412e3779` → cancelled (+cancelled_at), their deals `2a755095`,
+  `ad959df1`, `f8f0ad55` → lost (same end state as the historical hand-cancelled ones). Guarded to
+  collecting_information with 0 GYD. The customer notifier ignores `cancelled` (verified in
+  `wGud0KGR6eMqqfMQ`), so no message was sent. Readback: all three cancelled/lost, no open remesa
+  left in those conversations, and their accumulator rows were removed by the new 155 trigger —
+  live proof of the fix in production.

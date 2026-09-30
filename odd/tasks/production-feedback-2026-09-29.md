@@ -956,3 +956,7 @@ B1.1 decision), `monto_recibe_*`.
   button (aria-label/title "Editar"); TDD RED→GREEN, calculator tests 22/22, tsc + eslint clean.
   Deployed to production with the same procedure: current → `eae37b0…`, anterior → `1b93cd0…`,
   BUILD_ID `Aw94vYjb3SFP8mTzYWX5b` served; the served bundle contains `legacyIconButton`.
+- Follow-up (user): the Acciones column stayed wide around the small icon. `1fede6c` gives that
+  column `width: 1%; white-space: nowrap` (fits its content; `width: auto` in the phone layout).
+  TDD RED→GREEN, calculator tests 23/23. Deployed: current → `1fede6c…`, anterior → `eae37b0…`,
+  BUILD_ID `MSsIdjiDZUYLavv7ma2Nd` served.

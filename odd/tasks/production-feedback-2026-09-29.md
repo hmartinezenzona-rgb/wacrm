@@ -43,10 +43,14 @@ functions. The user's list plus the defects the test proved.
 - [x] A6 — Turn latency: the burst turn took ~3.5 min (agent 43 s). Find where the rest goes.
 
 ### B1. Bot logic and dynamic replies
-- [ ] B1.1 — When confirming beneficiary data, say how much the recipient receives (per service and
-  current rate). Example: "…le hacemos la transferencia de *20,100 CUP*."
-- [ ] B1.2 — If the deposit is ALREADY verified, the confirmation must not say "apenas se confirme su
-  depósito"; use "Datos registrados. Una vez realizada su remesa le notificaremos por este medio."
+- [ ] B1.1 — Built and PUBLISHED TO STAGING (see Progress) — not yet evaluated with real
+  conversations, not yet ported to production. When confirming beneficiary data, say how much the
+  recipient receives (per service and current rate). Example: "…le hacemos la transferencia de
+  *20,100 CUP*."
+- [ ] B1.2 — Built and PUBLISHED TO STAGING (see Progress) — not yet evaluated with real
+  conversations, not yet ported to production. If the deposit is ALREADY verified, the confirmation
+  must not say "apenas se confirme su depósito"; use "Datos registrados. Una vez realizada su remesa
+  le notificaremos por este medio."
 - [x] B1.3 — Receipts sent in chat sometimes not detected or registered. Investigate the real cases
   (beyond A1) and fix. FOUND AND FIXED IN PRODUCTION — see Progress (case: Javier Cruz).
 - [ ] B1.4 — DB layer DONE (migration 150), n8n wiring pending — see Progress. Cash delivery: the bot
@@ -70,8 +74,9 @@ functions. The user's list plus the defects the test proved.
   automation fails. (Investigated: already satisfied — `OperationCorrectionForm` +
   `BeneficiaryEditFields` + `BeneficiaryReassignControl` + `CompleteTransferContainer`, all backed
   by the 098 RPCs, are already wired live into `remittance-operation-card.tsx`.)
-- [ ] B3.2 — Weekly control (Control semanal): the read-only chat operations become editable, plus a
-  field for the investment cost (costo de la inversión). — **needs a decision, see below.**
+- [x] B3.2 — DONE (see Progress, migration 149) — deployed to staging AND production. Weekly control
+  (Control semanal): the read-only chat operations become editable, plus a field for the investment
+  cost (costo de la inversión).
 - [x] B3.3 — Some remesas verified and delivered from the right panel still show "Awaiting Deposit".
   Find and fix the status update.
 

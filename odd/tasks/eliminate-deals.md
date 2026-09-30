@@ -157,7 +157,17 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
   COMP id belongs to the delivered first remesa (dup_etapa now reads the real status).
   Two-remesa tests need two different receipts.
 
+- 2026-09-30: Clasica fix. Two defects confirmed (LLM-only mark; calculator quoted CUP for any
+  card type; production: 6 clasica ops quoted in CUP). Migration 157 (commit 8d9ba3e, OpenCode;
+  fixture fixed by me: tasas is a view): cerebro_destino_pendiente + cerebro_detectar_destino +
+  cerebro_registrar_destino + BEFORE INSERT re-type trigger + USD branch for clasica/tropical in
+  crm_calcular_monto_destino + pending cleared on close. Staging: RED→GREEN 5/5, rollback restores
+  live md5s, related assertions unchanged with/without. Applied to staging. n8n: new node
+  "Registrar destino auto" (dead-end branch from Snapshot final, top position so it runs first,
+  onError continue). Published cbbd5642 (previous e8ef4342). Pending: live test.
+  Not covered: backfill of the 6 production clasica ops quoted in CUP (decide before prod).
+
 ## Next step
-Clasica deterministic fix (migration 157 being written by OpenCode); then — rewrite `Contexto conversacion` (dup_etapa/dup_valor via receipts.comp_id → operation
+Clasica live test; then — rewrite `Contexto conversacion` (dup_etapa/dup_valor via receipts.comp_id → operation
 status/amount; via_deposito_ya_usada via receipts.via; recarga_en_curso via operations timestamps),
 staging parity check, byte-exact draft diff before publish.

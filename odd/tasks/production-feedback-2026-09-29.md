@@ -952,3 +952,7 @@ B1.1 decision), `monto_recibe_*`.
   (gpt-4o-transcribe), every one OpenAI 429 `insufficient_quota`/`credit_balance_exhausted`, same
   credential `CRM audio vision` (`BHpcqLjEuUJbQ0eB`); 10 of them are automatic `cerebro.reintento`
   retries hitting the same wall. No other error. Fix = add credits (user); no workflow change.
+- Follow-up (user): the B3.2 edit button was too big. `eae37b0` makes it a 32 px pencil icon
+  button (aria-label/title "Editar"); TDD RED→GREEN, calculator tests 22/22, tsc + eslint clean.
+  Deployed to production with the same procedure: current → `eae37b0…`, anterior → `1b93cd0…`,
+  BUILD_ID `Aw94vYjb3SFP8mTzYWX5b` served; the served bundle contains `legacyIconButton`.

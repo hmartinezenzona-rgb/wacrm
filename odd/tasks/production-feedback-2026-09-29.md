@@ -43,12 +43,14 @@ functions. The user's list plus the defects the test proved.
 - [x] A6 — Turn latency: the burst turn took ~3.5 min (agent 43 s). Find where the rest goes.
 
 ### B1. Bot logic and dynamic replies
-- [ ] B1.1 — Built and PUBLISHED TO STAGING (see Progress) — not yet evaluated with real
+- [x] B1.1 — CLOSED by user decision 2026-09-30 (amount said once, in the quote; see "B1.1
+  decision"). Original notes: Built and PUBLISHED TO STAGING — not yet evaluated with real
   conversations, not yet ported to production. When confirming beneficiary data, say how much the
   recipient receives (per service and current rate). Example: "…le hacemos la transferencia de
   *20,100 CUP*."
-- [ ] B1.2 — Built and PUBLISHED TO STAGING (see Progress) — not yet evaluated with real
-  conversations, not yet ported to production. If the deposit is ALREADY verified, the confirmation
+- [ ] B1.2 — PASSED on staging with a real conversation (2026-09-30 13:47-13:51: deposit forced
+  verified before the card and phone; the bot closed with the exact required wording, no amount
+  repeated, no lost message). Not yet ported to production. If the deposit is ALREADY verified, the confirmation
   must not say "apenas se confirme su depósito"; use "Datos registrados. Una vez realizada su remesa
   le notificaremos por este medio."
 - [x] B1.3 — Receipts sent in chat sometimes not detected or registered. Investigate the real cases

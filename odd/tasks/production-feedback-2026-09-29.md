@@ -712,8 +712,17 @@ closed. Remaining:
   corruption caught before the first publish attempt, then a rate-limit failure that left the draft
   unfixed despite a false "byte-for-byte match" report). Needs real-traffic or synthetic-eval
   observation before being considered proven, same as A6 — not yet run.
-- **B1.4** — user wants it built as a new feature (schema currently has nowhere to store the data);
-  not yet designed.
+  - Checked the safe automated eval path (`test_workflow`) before recommending it: its own tool
+    description confirms it pins any node WITH CREDENTIALS, which includes the DeepSeek chat-model
+    sub-node behind `Agente Remesas` — so a `test_workflow` run would return simulated/pinned output
+    for the LLM itself, never a real generation, making a before/after comparison meaningless. The
+    real alternative, `execute_workflow`, does a genuine live run with real side effects (could send
+    an actual WhatsApp message) — not something to fire without explicit authorization. Recommended
+    the same low-risk path as A6 instead: send a couple of real test messages to the staging WhatsApp
+    number (one beneficiary-confirmation scenario, one already-verified-deposit scenario) and observe
+    the bot's actual replies.
+- **B1.4 — n8n wiring in progress** (context flags, deterministic ID-photo capture, agent tool,
+  prompt update — DB layer already done, see above); delegated, not yet reviewed/published.
 - **Eliminate `deals`** — new architectural request, needs scoping before anything else.
 - **A6** — attempted to verify this myself before asking the user: staging's `ai_usage_log` table
   (columns `prompt_tokens`/`completion_tokens`/`total_tokens`) is exactly the right shape to check,

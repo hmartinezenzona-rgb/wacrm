@@ -983,3 +983,25 @@ Verified against production itself, not the notes: served app `1fede6c` contains
 staging only by one comment line (production was applied without it) — same logic; 147 column,
 145 realtime publication present; n8n `3b40ee12` carries B1.2 and B1.4. B1.1 closed by decision,
 B4.4 decided "don't build", B3.1/B4.1/B2.1 needed no change.
+
+## Zombie remesa after completion (2026-09-30, user report: Yilian Barbara Hernandez)
+- Symptom: after a remesa is completed, the panel shows a new "Awaiting deposit" remesa (0 GYD) with
+  the same beneficiary. Yilian: completed 13:16:31, customer "Gracias" 13:22:45, zombie op
+  `dcf07753` + deal `2a755095` at 13:23:02.
+- Root cause: `cerebro_beneficiario_parcial` (037) is never cleared when a remesa closes, and
+  `Merge beneficiario` refreshes `actualizado` every turn, so its 24 h reset never fires in an
+  active chat. Any later message finds the old beneficiary "complete"; `Zelle completo?` /
+  `Beneficiario completo?` pass and `cerebro_resolver_operacion_beneficiario` opens a new remesa.
+  Production: 14 such remesas cancelled by hand in 45 days, 3 open (Yilian, Norma 5926800266,
+  Franklin 5926560983 — same beneficiary as the previous remesa, no receipt or message after).
+- Fix: migration **155** — AFTER UPDATE OF status trigger: when a remesa becomes completed or
+  cancelled, its conversation's accumulator row is deleted. Assertion
+  `beneficiario-parcial-reset.sql`: RED (cases 1-2 fail) → GREEN 4/4; 152 and cash-delivery
+  assertions still pass; full assertion sweep: the only failures (deposit-review 3/8d, delivery 1,
+  history-readiness, field-lock, rounding, reparto-auto, n8n-repoint, destination-amount,
+  add-beneficiary) fail identically without 155 (pre-existing). Rollback proven.
+  Applied to staging and production (function md5 564a943c… identical; not executable by anon).
+- Cleanup: 5 stale accumulator rows in production (conversations with no open remesa holding a
+  Zelle account already used on a closed one) deleted; backup
+  `odd/backups/2026-09-30-stale-beneficiario-parcial-production.sql`. The 3 open zombie remesas
+  are left for an admin to cancel from the panel (normal path: mark lost).

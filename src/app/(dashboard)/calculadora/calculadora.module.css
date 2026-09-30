@@ -29,6 +29,9 @@
 :global(.legacyCalc button:hover) { background: var(--primary-hover); }
 :global(.legacyCalc button.legacySecondary) { background: var(--secondary); color: var(--secondary-foreground); }
 :global(.legacyCalc button.legacySecondary:hover) { background: var(--accent); }
+/* Row action that only needs an icon (e.g. Editar): overrides the full-width primary button. */
+:global(.legacyCalc button.legacyIconButton) { width: 32px; min-height: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: var(--muted-foreground); border: 1px solid var(--border); border-radius: 6px; }
+:global(.legacyCalc button.legacyIconButton:hover) { background: var(--accent); color: var(--foreground); }
 :global(.legacyCalc .legacyFlex) { display: flex; gap: 12px; flex-wrap: wrap; }
 :global(.legacyCalc .legacyFlex > div) { flex: 1; min-width: 150px; }
 :global(.legacyCalc .legacyTotals) { display: flex; gap: 12px; margin-bottom: 15px; flex-wrap: wrap; }

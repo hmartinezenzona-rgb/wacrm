@@ -680,6 +680,19 @@ describe("calculator chat operations (admin correction)", () => {
     await act(async () => root.unmount());
   });
 
+  it("renders Editar as a compact icon button with an accessible name", async () => {
+    const fetchMock = fixture();
+    const { node, root } = await renderPage(fetchMock);
+
+    const editButton = node.querySelector("#editarEntry-entry-a") as HTMLButtonElement;
+    expect(editButton.getAttribute("aria-label")).toBe("Editar");
+    expect(editButton.getAttribute("title")).toBe("Editar");
+    expect(editButton.classList.contains("legacyIconButton")).toBe(true);
+    expect(editButton.querySelector("svg")).not.toBeNull();
+    expect(editButton.textContent?.trim()).toBe("");
+    await act(async () => root.unmount());
+  });
+
   it("editing and saving successfully updates the displayed values and closes the editor", async () => {
     const fetchMock = fixture();
     const { node, root } = await renderPage(fetchMock);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ChangeEvent, type KeyboardEvent } from "react";
+import { Pencil } from "lucide-react";
 import { procesarTexto, type WebCalculatorErrorLine, type WebCalculatorParsedLine } from "@/lib/calculator/web-calculator";
 import type { CalculatorRates } from "@/lib/calculator/ledger-read-model";
 import { applyCalculatorEntryRealtimeEvent, type ChatCalculatorEntry } from "@/lib/calculator/realtime-entry";
@@ -529,10 +530,12 @@ export default function CalculadoraPage() {
                               <button
                                 type="button"
                                 id={`editarEntry-${entry.id}`}
+                                className="legacyIconButton"
                                 onClick={() => startEditEntry(entry)}
-                                style={{ width: "auto" }}
+                                aria-label="Editar"
+                                title="Editar"
                               >
-                                ✏️ Editar
+                                <Pencil size={16} aria-hidden="true" />
                               </button>
                             )
                           )}

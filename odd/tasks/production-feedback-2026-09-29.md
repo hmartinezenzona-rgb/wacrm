@@ -922,3 +922,15 @@ B1.1 decision), `monto_recibe_*`.
   (only the doc conflicted — the odd file is not shipped). Webhook tests 29/29, tsc clean, full
   suite 1435 pass / 2 fail; the 2 failures (`date-utils.test.ts` mondayIndex) also fail on
   2f3deb6 without the change (pre-existing, timezone-dependent).
+- Production n8n published 2026-09-30 14:15 UTC: `3b40ee12-5bb2-4c4f-b006-c0d0c3f71d03` (previous
+  `226791a1`, restorable). Verified before publishing: node set, connections and settings identical;
+  only `Agente Remesas` systemMessage, `Contexto conversacion` query and `Decisor` jsCode changed,
+  each equal to its prepared file; production's original Decisor with `\uXXXX` escapes decoded
+  differs from the new one ONLY by the B1.2 hunks. Staging carries the same B1.2 fix
+  (`eb85f86b-7a95-467b-b84f-e458cd4b5b98`). No production executions yet since the publish.
+- App: `6468a98` pushed to `privado/master`. FINDING: pushing does NOT deploy. Both repos'
+  `deploy.yml` are `workflow_dispatch` only; `wacrm-produccion` has never run Actions, and the last
+  deploy run in `wacrm` was 2026-08-21. Production is deployed by
+  `infra/deployment/desplegar-wacrm-produccion.sh <sha>` over SSH to `oracle`. So the earlier
+  "pushed, should auto-deploy" entries (B2.2, B3.2, B4.3 app parts) are UNVERIFIED — production may
+  not serve them. Needs the user's authorization for SSH to `oracle` to check and deploy.

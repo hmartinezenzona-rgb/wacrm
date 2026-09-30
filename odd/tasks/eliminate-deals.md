@@ -167,7 +167,13 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
   onError continue). Published cbbd5642 (previous e8ef4342). Pending: live test.
   Not covered: backfill of the 6 production clasica ops quoted in CUP (decide before prod).
 
+- 2026-09-30: Clasica live test on staging PASSED (exec 287988): "Seria en clasica" →
+  Registrar destino auto returned 'clasica'; the LLM did NOT call marcar_destino_usd, yet the
+  operation ended delivery_method=clasica, 153 USD, beneficiary clasica 153 USD, closing message
+  "153 Clasica", pending row cleared on completion.
+
 ## Next step
-Clasica live test; then — rewrite `Contexto conversacion` (dup_etapa/dup_valor via receipts.comp_id → operation
+1.1 — design the direct operation/beneficiary write path (no deals) together with
+cerebro_registrar_deposito, since the deposit function finds open deals by notes; then — rewrite `Contexto conversacion` (dup_etapa/dup_valor via receipts.comp_id → operation
 status/amount; via_deposito_ya_usada via receipts.via; recarga_en_curso via operations timestamps),
 staging parity check, byte-exact draft diff before publish.

@@ -60,6 +60,12 @@ cause, not a patch).
   cause: its own work is ~3 s of Gmail I/O (12:30 run took 2 s); the long runs are its trivial
   Postgres node inflated by the stall.
 
+## Fix 1 applied — collector deactivated (2026-09-30 12:57 UTC, user go-ahead)
+Both "Recolector de tokens" workflows unpublished (production `iF0K3MpyXhjD58HJ`, staging
+`j1SrhNxDe2SZhVbE`); verified `active: false`. Reversible (publish again). Cost: token counts in
+`cerebro_telemetria_turno` stop filling until the collector is redesigned (read one finished
+execution at a time, never 25 full executions through the public API).
+
 ## Next step
 Identify the 10-minute stall (needs visibility into the hidden workflows or the n8n host), then fix
 both causes. Nothing changed yet.

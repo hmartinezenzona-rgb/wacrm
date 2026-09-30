@@ -53,7 +53,8 @@ functions. The user's list plus the defects the test proved.
   le notificaremos por este medio."
 - [x] B1.3 — Receipts sent in chat sometimes not detected or registered. Investigate the real cases
   (beyond A1) and fix. FOUND AND FIXED IN PRODUCTION — see Progress (case: Javier Cruz).
-- [ ] B1.4 — DB layer DONE (migration 150), n8n wiring pending — see Progress. Cash delivery: the bot
+- [ ] B1.4 — Built and PUBLISHED TO STAGING (DB + n8n, see Progress) — not yet ported to production.
+  Cash delivery: the bot
   asks the sender for the recipient's exact address, phone and a
   photo of the ID card. CORRECTED PREMISE (see Progress): this data is not stored anywhere in the
   schema today (139/140 only added catalog TEXT describing what's needed, not per-operation columns)
@@ -721,8 +722,39 @@ closed. Remaining:
     the same low-risk path as A6 instead: send a couple of real test messages to the staging WhatsApp
     number (one beneficiary-confirmation scenario, one already-verified-deposit scenario) and observe
     the bot's actual replies.
-- **B1.4 — n8n wiring in progress** (context flags, deterministic ID-photo capture, agent tool,
-  prompt update — DB layer already done, see above); delegated, not yet reviewed/published.
+- **B1.4 — n8n wiring DONE, built and PUBLISHED to STAGING.** `Contexto conversacion` gained
+  `entrega_efectivo_en_curso` (bool) and `entrega_efectivo_falta` (text[] of `'telefono'/'direccion'/
+  'carnet'` still missing), same join/filter shape as the RPC (150) itself so they can never disagree.
+  `Snapshot final` gained `foto_otro_wamid`: the first image left classified `'otro'` after the
+  existing card-reclassification pass (never a `comprobante`/`tarjeta_cubana`/`cuenta_zelle`). New
+  deterministic node `Registrar carnet efectivo` (parallel fan-out from `Snapshot final`, dead-end)
+  calls `crm_registrar_datos_entrega_efectivo` with just that wamid when there's an open efectivo_usd
+  operation with no photo saved yet — same "don't delegate critical capture to the LLM" lesson as A3/
+  B1.1. New agent tool `registrar_datos_entrega_efectivo` (same wiring pattern as
+  `registrar_beneficiario_zelle`) lets the agent save phone/address when the customer states them in
+  text. `Agente Remesas` gained two lines: documenting the new tool, and telling the agent to ask only
+  for what `entrega_efectivo_falta` lists.
+  - Independently re-verified every touched node myself (not just trusting the delegated worker):
+    `Contexto conversacion`'s addition is a clean pure append; the two new nodes are wired and
+    positioned correctly; `Agente Remesas`'s two added lines are clean with no surrounding corruption.
+    `Snapshot final`'s diff had two additional, unrelated hunks where n8n's own save re-encoded two
+    pre-existing `\uXXXX`-escaped regex character classes into their literal-character equivalents —
+    verified BOTH are functionally identical to the originals by direct regex-behavior testing in
+    Python (same match results across every relevant test string), not just eyeballing the bytes.
+  - **Found and left alone, documented for later cleanup**: `Agente Remesas` carries a stray,
+    orphaned flat parameter key literally named `"options.systemMessage"` (a sibling of the real,
+    correct nested `options: { systemMessage: ... } }`), already present in the currently-published
+    active version before this task touched anything — almost certainly the byproduct of an earlier
+    `setNodeParameter` call using dot-notation (`/options.systemMessage`) instead of the correct JSON
+    Pointer slash-notation (`/options/systemMessage`), which creates a literal flat key instead of
+    navigating into the nested object. Confirmed this key is NOT part of the AI Agent node's actual
+    parameter schema (n8n's own node definitions use the nested path; this flat key matches no defined
+    property) and its content was byte-identical to the real one at the time of B1.1/B1.2's publish,
+    so it caused no behavior difference. It's now stale (still holds the pre-B1.4 prompt) since only
+    the real nested key was updated this time — left it untouched rather than risk a fresh corruption
+    while removing ~42KB of inert cruft under time pressure. Should be cleaned up in a future pass.
+  - Published, `activeVersionId` `a905531e-a187-404b-be26-c920e54c905c` (previous
+    `84491bf8-a14d-4d91-8ee0-09e9fac92ff7`, restorable). Not yet ported to production.
 - **Eliminate `deals`** — new architectural request, needs scoping before anything else.
 - **A6** — attempted to verify this myself before asking the user: staging's `ai_usage_log` table
   (columns `prompt_tokens`/`completion_tokens`/`total_tokens`) is exactly the right shape to check,

@@ -81,6 +81,11 @@ the MMG ingest vigilante took 1.4 s. No stall. Before: 5-25 s late every 10 minu
   TDD (vitest, `npx vitest run src/lib/webhooks/`): RED 4 failing (single attempt), GREEN 29/29;
   `tsc --noEmit` and eslint clean.
 - [ ] T2.2 Deploy to the staging app and re-run the USD test; then production with go-ahead.
+  - Staging deployed 2026-09-30 13:12 UTC (user go-ahead): `oracle2`, pm2 `wacrm-staging` serves
+    `~/wacrm-releases/516ebda…` (verified via `/proc/<pid>/cwd`); `anterior` → `952bd458…`
+    (previous, rollback = relink + `pm2 restart wacrm-staging --update-env`). Built locally with
+    the staging `NEXT_PUBLIC_*` values; bundle references only the staging DB. `/login` 200 local
+    and public. Test number reset. USD re-test pending.
 - Known limit: still in-process; a crash mid-retry loses the event (durable queue = follow-up).
 
 ## Next step

@@ -885,3 +885,13 @@ reached the bot), beneficiary registered in the panel, operation `clasica`.
 Prompt v3 published to staging `5441c97a-004f-4a22-aad3-e066edfb7933` (previous `b5729202`,
 restorable). Verified before publishing: only `Agente Remesas` `options/systemMessage` changed,
 equal to the prepared file; connections identical. Test number reset for the re-test.
+
+## B1.1 decision (2026-09-30, user)
+Stating the amount again at the beneficiary confirmation is repetitive: the amount is said once, in
+the quote reply after the customer picks the currency. Prompt v3 reverted: staging restored to the
+v2 content (`restore_workflow_version` of `b5729202` → `0ec90e4b-260c-4d4b-9c49-b7ced80f3a0b`,
+verified node-by-node identical to `b5729202`, published). B1.1 is closed by this decision.
+Consequence for the production port: the quote record (migration 153 + the four tools registering
+their quote + `monto_recibe_*` from `cerebro_monto_recibe`) only fed the confirmation amount; the
+B1.1 prompt line that uses it is effectively ignored. Before porting, decide whether to drop 153
+and that line instead of carrying them to production.

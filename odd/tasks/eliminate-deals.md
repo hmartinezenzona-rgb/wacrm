@@ -53,6 +53,16 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
 - [ ] 1.0a — Field-by-field map of every `deals`-derived output of `Contexto conversacion` and
   `Historial contacto` to a structured source (`remittance_operations`, `remittance_beneficiaries`,
   deposits, audit), or "no structured source" (then a structured column/table must come first).
+- [x] 1.0a' — Structured receipts: migration 156 adds `remittance_operation_receipts` + parser
+  `cerebro_parsear_comprobantes`, backfills receipts from `deals.notes`, and makes all three write
+  branches of `cerebro_registrar_deposito` dual-write the receipt against its operation. Commit
+  41ab02d (written by OpenCode; currency capture-group bug fixed by me). Evidence on staging: RED
+  (parser missing) → GREEN 5/5 in a rolled-back transaction; rollback proven (function md5 back to
+  a0251d99…, table and parser gone); `registrar-deposito-creado` still ALL PASS; applied to staging
+  2026-09-30 (backfill 24 rows, 1 with COMP id). Before production: measure the parser on
+  production notes read-only (lesson: fresh data hides old formats).
+  Other notes readers still to repoint later: `crm_comprobantes_de_operacion` (099, deposit panel),
+  `cerebro_registrar_deposito`'s own idempotency/branch checks on notes.
 - [ ] 1.0b — Rewrite `Contexto conversacion` to read structured sources only. Parity check on
   staging: old vs new query output on the same conversations must match. Byte-exact draft diff
   before publish.
@@ -109,5 +119,11 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
 - 2026-09-30: read-only map by Hermes (DB) + OpenCode (n8n), verified by me: 9 nodes touch
   `deals` (7 writers, 2 readers). Phase 1 reordered to readers-first with the user's approval.
 
+- 2026-09-30: 1.0a mapping done (Hermes: Contexto, OpenCode: Historial, verified by me). Gap: the
+  receipt→operation link lived only in `deals.notes` → 156. `corregido` (Historial) has no writer
+  in SQL (only 042's parser skips it); decide during 1.0c.
+
 ## Next step
-1.0a — map every `deals`-derived output of the two reader nodes to a structured source.
+1.0b — rewrite `Contexto conversacion` (dup_etapa/dup_valor via receipts.comp_id → operation
+status/amount; via_deposito_ya_usada via receipts.via; recarga_en_curso via operations timestamps),
+staging parity check, byte-exact draft diff before publish.

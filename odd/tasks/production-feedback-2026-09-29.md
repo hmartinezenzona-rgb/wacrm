@@ -856,9 +856,10 @@ first reply asks ONLY the currency (CUP or USD) and, if still unknown, the depos
 with no amounts; the amount goes in the next reply (CUP: only that amount + deposit data + card and
 phone; USD: the USD amount for Zelle/Clásica/Tropical, noting efectivo has its own rate, and which
 way). Prompt v2 built from the published staging prompt (only the rule lines 112-114, rule 5 and the
-quote examples change; two follow-up examples added). NOT yet submitted: the upload worker hit a
-rate limit and then the n8n MCP was unavailable (`mcp_upstream_auth_unavailable`). Before the
-upload, check that the draft still equals the published version `57b65d4e`.
+quote examples change; two follow-up examples added). The upload worker died on a rate limit, but it
+had already landed the value: verified the draft equals the prepared file exactly and that
+`systemMessage` is the only field changed in the whole workflow vs `57b65d4e`. Published to staging
+`b5729202-ce9e-4b5d-8eef-7b495c2ec11a` (previous `57b65d4e`, restorable). Test number reset.
 
 New convention (user): every staging test starts from zero. `supabase/staging/reset-test-contact.sql`
 wipes the test number (commit `cc0704f`); run it before each test.

@@ -810,3 +810,40 @@ closed. Remaining:
   actually feeding data yet. Still needs the user to confirm from wherever they originally observed
   the token spike (likely the model provider's own dashboard, not this DB) that completion tokens
   fell back to ~50-300 after the community-node reconnect.
+
+## Staging test feedback (2026-09-30, ninth touch-point)
+
+The user tested on the staging WhatsApp and reported two problems. Diagnosis and fixes:
+
+- **The bot assumed CUP before being told.** The "COTIZACION SIN MONEDA DE DESTINO" rule was
+  contradicted by the prompt's own examples ("quiero enviar 5 mil" answered in CUP), and the model
+  copied the example. User decision: never assume — if the customer has not said the delivery way,
+  the bot asks. The rule now lists every way (including efectivo) and says "PROHIBIDO asumir CUP";
+  the contradicting examples were rewritten ("a Cuba" is not a destination currency).
+- **After card + phone the bot did not say how much the recipient gets (B1.1).** Root cause: the
+  operation is created with amount 0 when the beneficiary arrives and only gets a real amount at the
+  deposit, so B1.1 could only fire after the deposit. Only `calcular_usd` left any trace;
+  `calcular_envio` kept nothing. Fix = migration **153** (`cerebro_ultima_cotizacion`, one row per
+  conversation and destination currency; `cerebro_registrar_cotizacion`; `cerebro_monto_recibe`,
+  which prefers the open operation's own amount, else the quote in the currency of its delivery
+  method, <24h and newer than the last closed remesa). The four quote tools now register the quote
+  in the same query, and `Contexto conversacion` reads `monto_recibe_*` from `cerebro_monto_recibe`.
+  Assertion `ultima-cotizacion.sql` 12/12. Commits `1aec2aa`, `e69949b`. Staging DB only.
+- **A stale "100 USD" target in the test conversation** came from a 148 leak for returning
+  customers (148 counted completed operations and old receipts). Fixed by migration **152** (only a
+  vigente beneficiary on an OPEN operation, or a receipt newer than the last closed remesa, counts
+  as commitment). Assertion 4/4. Commit `a9aea20`. Staging DB only.
+- **Orphan shipment targets deleted** (user authorized): 14 rows in production
+  `cerebro_objetivo_envio` (backup `odd/backups/2026-09-30-orphan-shipment-targets-production.sql`)
+  and 1 staging test row.
+- The n8n changes (4 quote tools + their parameters, `Contexto conversacion`, prompt) were
+  syntax-checked against the staging DB (all four tool queries executed in a rolled-back
+  transaction and registered the expected rows; the context query PREPAREs cleanly).
+- **Published to staging n8n:** `57b65d4e-6d2b-4445-820a-f5d43f9d3fa1` (previous
+  `1610ae47-14d8-438f-ba21-1576b794514b`, restorable). Independently verified before publishing:
+  the 9 edited values equal the prepared files exactly, only those 6 nodes differ from the active
+  version (and only in those parameters), node set and connections identical.
+
+Pending: user re-test on staging with a NEW conversation (the old one has open operation
+`eabf911d`); then, with explicit go-ahead, port 152, 153 and B1.1/B1.2 + the prompt change to
+production (production has none of B1.1/B1.2 yet — surgical patches on production's own nodes).

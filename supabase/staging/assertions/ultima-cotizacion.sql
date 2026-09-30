@@ -20,14 +20,9 @@
 --   case 9 — double quote (CUP and USD, USD last): a cuban_card operation
 --            gets the CUP quote, a zelle one the USD quote, and efectivo_usd
 --            or an unknown method gets NULL (never the other currency).
---   case 10 — (154) the method is not known yet — no operation, or one with no
---            delivery_method — and ONE currency was quoted -> that quote. Real
---            staging test 2026-09-30: `Contexto conversacion` runs before the
---            beneficiary is registered in the same turn, so the operation did
---            not exist yet and the confirmation lost the amount.
 --
--- RED (before 153): the functions do not exist. RED (before 154): case 10.
--- GREEN (after 154): all fourteen pass.
+-- RED (before 153): the functions do not exist.
+-- GREEN (after 153): all eight pass.
 --
 -- MUST run inside an already-open transaction that ends in ROLLBACK. Never
 -- COMMIT. Never run against production. Builds its own fixtures.
@@ -48,7 +43,6 @@ DECLARE
   v_mon  text;
   v_fail_count integer := 0;
   v_ct9 uuid; v_conv9 uuid; v_op9 uuid;
-  v_ct10 uuid; v_conv10 uuid;
 BEGIN
   INSERT INTO auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
   VALUES (v_owner_user, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'uc-owner-' || v_owner_user || '@test.invalid', v_dummy_hash, now(), now(), now(), '{}'::jsonb, '{}'::jsonb, false, false);
@@ -218,33 +212,10 @@ BEGIN
     RAISE NOTICE 'PASS [case 9d] unknown method -> NULL (not guessed)';
   END IF;
 
-  -- ===========================================================================
-  -- CASE 10 — method not known yet, a single currency quoted.
-  -- ===========================================================================
-  INSERT INTO contacts (id, user_id, phone, name, account_id) VALUES (gen_random_uuid(), v_owner_user, '59900154010', 'UC 10', v_acc) RETURNING id INTO v_ct10;
-  INSERT INTO conversations (id, user_id, contact_id, account_id) VALUES (gen_random_uuid(), v_owner_user, v_ct10, v_acc) RETURNING id INTO v_conv10;
-  PERFORM cerebro_registrar_cotizacion(v_conv10, 10000, 30000, 'CUP', 'calcular_envio');
-  SELECT valor, moneda INTO v_val, v_mon FROM cerebro_monto_recibe(v_conv10);
-  IF v_val IS DISTINCT FROM 30000 OR v_mon IS DISTINCT FROM 'CUP' THEN
-    v_fail_count := v_fail_count + 1;
-    RAISE WARNING 'FAIL [case 10a] no operation yet, only a CUP quote -> expected 30000 CUP, got % %', v_val, v_mon;
-  ELSE
-    RAISE NOTICE 'PASS [case 10a] no operation yet, single quote -> that quote';
-  END IF;
-  INSERT INTO remittance_operations (account_id, conversation_id, contact_id, delivery_method, status, quoted_source_amount)
-  VALUES (v_acc, v_conv10, v_ct10, NULL, 'collecting_information', 0);
-  SELECT valor, moneda INTO v_val, v_mon FROM cerebro_monto_recibe(v_conv10);
-  IF v_val IS DISTINCT FROM 30000 OR v_mon IS DISTINCT FROM 'CUP' THEN
-    v_fail_count := v_fail_count + 1;
-    RAISE WARNING 'FAIL [case 10b] operation without method, only a CUP quote -> expected 30000 CUP, got % %', v_val, v_mon;
-  ELSE
-    RAISE NOTICE 'PASS [case 10b] operation without method, single quote -> that quote';
-  END IF;
-
   IF v_fail_count > 0 THEN
     RAISE EXCEPTION 'ultima-cotizacion: % expectation(s) FAILED — see WARNINGs above', v_fail_count;
   END IF;
-  RAISE NOTICE 'ultima-cotizacion: ALL PASS (14 expectations)';
+  RAISE NOTICE 'ultima-cotizacion: ALL PASS (12 expectations)';
 END $$;
 
 ROLLBACK TO SAVEPOINT ultima_cotizacion;

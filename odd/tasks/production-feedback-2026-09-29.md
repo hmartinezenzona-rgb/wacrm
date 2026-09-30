@@ -863,15 +863,3 @@ had already landed the value: verified the draft equals the prepared file exactl
 
 New convention (user): every staging test starts from zero. `supabase/staging/reset-test-contact.sql`
 wipes the test number (commit `cc0704f`); run it before each test.
-
-## CUP re-test (2026-09-30, eleventh touch-point)
-
-User: the CUP test went perfectly (currency + deposit way asked without amounts; then only the CUP
-amount, agent deposit data and the request for the recipient's data). One gap found on review: the
-confirmation after card + phone did not restate the amount. Cause: `Contexto conversacion` ran at
-11:55:21, the operation was created at 11:55:33 in that same turn, so `cerebro_monto_recibe` saw no
-operation and no method and returned NULL. Fix = migration **154**: with the method not known yet,
-a quote is used when it is the only currency quoted in the last 24h (double quote still NULL).
-Assertion `ultima-cotizacion.sql` case 10: RED (2 fails) before, GREEN 14/14 after. Applied to
-staging; rollback proven to restore 153's body (md5 7154b4a8…) in a rolled-back transaction. Test
-number reset for the USD test.

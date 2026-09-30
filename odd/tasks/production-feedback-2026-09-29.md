@@ -754,7 +754,38 @@ closed. Remaining:
     the real nested key was updated this time — left it untouched rather than risk a fresh corruption
     while removing ~42KB of inert cruft under time pressure. Should be cleaned up in a future pass.
   - Published, `activeVersionId` `a905531e-a187-404b-be26-c920e54c905c` (previous
-    `84491bf8-a14d-4d91-8ee0-09e9fac92ff7`, restorable). Not yet ported to production.
+    `84491bf8-a14d-4d91-8ee0-09e9fac92ff7`, restorable).
+  - **B1.4 was still INERT after that — found and fixed (migration 151).** Asked what "B1.4" means to
+    the user and, while answering, checked the one assumption left: nothing in the system ever set
+    `delivery_method = 'efectivo_usd'`. `marcar_destino_usd` only accepted clasica/tropical, and the
+    deals-notes parser only read `ENTREGA EN USD: (Clasica|Tropical)`. So the RPC, context flags and
+    photo capture waited on an operation that could never exist. Should have been caught when 150
+    was built.
+  - **User decisions (2026-09-29):** the bot collects the three data first, then the admin is
+    NOTIFIED — the chat is NOT handed over and the bot keeps attending ("no es que deje de funcionar
+    el bot en ese chat, más bien que le avise al admin en notificación").
+  - **Migration 151:** the notes parser also accepts `Efectivo` → `'efectivo_usd'`; new
+    notification type `entrega_efectivo_lista`; the RPC inserts one in-app notification per
+    owner/admin only on the incomplete→complete transition. No `derivar_humano`, no assignment, no
+    pause. Built on the LIVE parser body, not 042's: production and staging both run an unversioned
+    edit (prosrc md5 `ac2d34c4…`) where the LAST `ENTREGA EN USD` mark wins; basing 151 on 042 would
+    have silently dropped that. The rollback restores that live body byte for byte (hash verified).
+    Assertion `cash-delivery-activation.sql` (8 cases, incl. last-mark-wins both ways and "chat not
+    assigned/paused"): RED from the live baseline, GREEN on `wacrm-ensayo` and real staging; 150's own
+    assertion still 9/9. Commit `0191532`.
+  - **n8n staging:** `marcar_destino_usd` accepts `efectivo`; prompt: the tool line no longer says
+    "clasica o tropical" only, and "SI ES EFECTIVO" now says to call `marcar_destino_usd('efectivo')`,
+    ask only what's missing, and when complete tell the customer the team will coordinate zone and
+    time — without calling `derivar_humano`. Verified byte-exact (only those 2 nodes changed),
+    published `1610ae47-14d8-438f-ba21-1576b794514b`.
+  - **Production DB:** 150 (schema part; its RPC body is superseded by 151's) and 151 applied.
+    Verified by fingerprint: md5 of both function bodies and all three CHECK constraints are
+    identical on production, staging and the rehearsal DB. RPC granted to `service_role` only. 5
+    owner/admin profiles in production will receive the notification.
+  - Known pre-existing edge, not changed: `marcar_destino_usd` skips appending a mark that already
+    appears anywhere in the notes, so Efectivo → Clasica → Efectivo stays Clasica (same for
+    Clasica/Tropical today).
+  - n8n production: in progress.
 - **Eliminate `deals`** — new architectural request, needs scoping before anything else.
 - **A6** — attempted to verify this myself before asking the user: staging's `ai_usage_log` table
   (columns `prompt_tokens`/`completion_tokens`/`total_tokens`) is exactly the right shape to check,

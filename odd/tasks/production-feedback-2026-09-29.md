@@ -715,5 +715,10 @@ closed. Remaining:
 - **B1.4** — user wants it built as a new feature (schema currently has nowhere to store the data);
   not yet designed.
 - **Eliminate `deals`** — new architectural request, needs scoping before anything else.
-- **A6** — still needs the user to confirm on real staging traffic that completion tokens fell back
-  to ~50-300.
+- **A6** — attempted to verify this myself before asking the user: staging's `ai_usage_log` table
+  (columns `prompt_tokens`/`completion_tokens`/`total_tokens`) is exactly the right shape to check,
+  but it has ZERO rows (confirmed `count(*) = 0`), and the "[STAGING] Cerebro - Recolector de tokens"
+  n8n workflow (`j1SrhNxDe2SZhVbE`) has zero logged executions — that collection pipeline isn't
+  actually feeding data yet. Still needs the user to confirm from wherever they originally observed
+  the token spike (likely the model provider's own dashboard, not this DB) that completion tokens
+  fell back to ~50-300 after the community-node reconnect.

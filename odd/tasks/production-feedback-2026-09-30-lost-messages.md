@@ -33,6 +33,15 @@ cause, not a patch).
 2. Design: WaCRM hands each message to the bot exactly once, 5 s timeout, no retry, no
    reconciliation. Any stall of the receiver silently drops a customer message.
 
+## Hidden workflows cleared (2026-09-30, after MCP access was enabled)
+- The seven vigilantes/connector and "Limpieza Abandonos - Remesas Ya" (`RdYJq4FbSAP2XeFu`,
+  folder production/ai_agent, legacy, every 6 h) are not the cause. The 10-minute ones finish in
+  under a second at X0:01-X0:02 and X0:38. The 12:30 stall (12:30:50-12:31:12) had no execution
+  at all, and two MCP calls to n8n returned 502 inside it (12:30:48, 12:31:11): n8n answers
+  nobody during the stall.
+- Remaining suspect: the host (another service or a 10-minute system task starving n8n). Read-only
+  investigation instructions handed to Hermes (on the same VPS); waiting for the report.
+
 ## Next step
 Identify the 10-minute stall (needs visibility into the hidden workflows or the n8n host), then fix
 both causes. Nothing changed yet.

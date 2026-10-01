@@ -143,11 +143,59 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
          absolute starting value differs, and every comparison downstream is relative.
       2. `remittance_operations.delivery_method`: old `{cuban_card|zelle}`, new `{NULL}` in 23 cases.
          Investigated as WU4d and closed without a change — see below.
-    - [ ] WU4c reparto + destino adapters: `registrar_reparto_multiple` (10 args) and
-      `marcar_destino_usd` (2). `marcar_destino_usd` must be migrated even though
-      `Registrar destino auto` superseded it on the deterministic rail: it survives as an
-      `ai_tool` on `Agente Remesas`, so leaving it means a live path still INSERTs `deals` and
-      Phase 6 can never drop the table.
+    - [x] WU4c reparto + destino adapters: `registrar_reparto_multiple` (11 args) and
+      `marcar_destino_usd` (3). Delivered `15e956d`, rebased and ff-merged as **`10bbd38`**.
+      Files: `163_reparto_destino_node_adapters.sql`, its ROLLBACK, and
+      `assertions/reparto-destino-node-adapters.sql`.
+      `marcar_destino_usd` had to be migrated even though `Registrar destino auto` superseded it on
+      the deterministic rail: it survives as an `ai_tool` on `Agente Remesas`, so leaving it meant a
+      live path still INSERTing `deals` and Phase 6 could never drop the table.
+      Functions: `cerebro_registrar_reparto_multiple(uuid, 10×text)` and
+      `cerebro_marcar_destino_usd(uuid, text, text)`, both `TABLE(id uuid, accion text)`, params in
+      the node's exact `$1..$n` order. `marcar` is written procedurally, not as a chain of CTEs: in
+      a `WITH` every sub-statement shares one snapshot, so the `UPDATE` cannot see the row
+      `cerebro_crear_operacion()` just inserted. The harness caught that as `ins_clasica`
+      (old `{clasica}` / new `{<NULL>}`) — a good example of the harness earning its cost.
+      Parent verification, independent of the writer's run: harness re-run **22 PASS / 0 FAIL**
+      plus the one intentional FAIL from the negative control; `md5(live) == md5(file)` for both
+      functions (`cerebro_marcar_destino_usd 9f779e60d4…`,
+      `cerebro_registrar_reparto_multiple f6ba198eec…`).
+      **A failure mode worth recording, because it nearly produced a false pass:** my first md5 run
+      passed the HOST path (`/tmp/…`) to psql running inside the container, where that path is not
+      mounted, and I had redirected stderr to `/dev/null`. Both sides came back empty and `diff`
+      dutifully printed "IDÉNTICO". An empty diff is not proof — assert the evidence is non-empty
+      before comparing it. Same shape as the vacuous-harness problem the negative control exists to
+      prevent, one level up.
+      Harness honesty check (I read the comparison function, not just its output): it has exactly
+      two carve-outs, each used by exactly one case — `p_allow_block_diff` on `upd_no_tiene` and
+      `p_allow_accion_diff` on `divergencia_ya_tipado` — and each still requires the NULL pattern,
+      the operation counts, the beneficiary rows and `delivery_method` to match exactly. The
+      `p_stub` negative control proves the comparison is not vacuous. So 22 PASS is a real 22.
+      **OPEN USER DECISION — the only user-visible divergence in the feature.**
+      `marcar / divergencia_ya_tipado`: when the rail was already typed by 157 with no notes marker,
+      the old node replies `destino marcado: entrega en USD por Clasica` and the new function
+      replies `sin cambios: ese destino ya estaba marcado`. Database state is identical; the text
+      the customer sees is not. The new text is arguably the more truthful of the two. Reverting it
+      is a one-line change in 163. This must be settled before the **production** rewire (WU5b), not
+      before WU5a — staging is where we find out whether it matters.
+      Reuse decisions: `cerebro_aplicar_reparto` (127/129/130) NOT reused — its contract is stricter
+      (exact sum, mobile regex, row type, beneficiary lock, jsonb). `cerebro_registrar_destino`
+      (157) NOT reused — the node has its own rail rules, no lock check of its own, and creates a
+      new remesa where 157 applies nothing. `cerebro_crear_operacion` (161) and
+      `cerebro_registrar_derivacion` were reused. The 157-vs-node contradiction was resolved by
+      reproducing the NODE (WU5 depends on the node's observable output), and the 096 admin guard
+      was measured with a real human-written lock: it suppresses the old trigger's write, the new
+      function's write and 157's write identically.
+      "this turn" resolves to one n8n execution (`$execution.id`) through
+      `tool_execution_log.idempotency_key` UNIQUE (044:15); the key the function builds is identical
+      to the node's, so the dedupe scope does not change. The notes never participated in it.
+      Writer self-corrected mid-unit: a draft asserted Efectivo was "no rail", but `151:65/77` maps
+      `ENTREGA EN USD: Efectivo` to the literal `'efectivo_usd'`, not `'efectivo'`. Now covered by
+      `ins_efectivo`, `upd_efectivo` and `sin_cambio_efectivo`.
+      Writer's honest "not verified": no real n8n execution (node SQL copied from the frozen
+      contract), no PostgREST HTTP call, no concurrency test, no human-actor path through the
+      function, no statuses outside the 4-filter except `awaiting_deposit`, no re-run of the earlier
+      units' assertions, and no real rewire. WU5a owns the first and the last of those.
     - [x] WU4d `remittance_operations.delivery_method` — INVESTIGATED 2026-10-01 AND CLOSED WITH NO
       CODE CHANGE. It does not need a deal-free home. The gap opened by WU4b is real as a
       *difference* (old `{cuban_card|zelle}`, new `{NULL}` in 23 cases) but it is not a defect: the

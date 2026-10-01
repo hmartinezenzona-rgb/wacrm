@@ -94,9 +94,24 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
     node-contract adapters that resolve the operation, replace the notes-based update-vs-create
     decision with a structured one, delegate to those writers, and return the nodes' exact
     `accion` strings. Split:
-    - [ ] WU4a operation creator, deal-free: the equivalent of `INSERT INTO deals` +
-      `trg_sync_operacion_al_crear_deal` (125) — same derived account/conversation/contact,
-      currency and status. Foundation for every "envio nuevo creado" branch.
+    - [x] WU4a operation creator, deal-free: `cerebro_crear_operacion(p_conversation_id uuid,
+      p_amount numeric DEFAULT 0, p_currency text DEFAULT 'GYD', p_stage_id uuid DEFAULT
+      '96cd4fec-…') RETURNS uuid` (migration 161). Verified 2026-10-01: field-by-field parity
+      against `INSERT INTO deals` + `trg_sync_operacion_al_crear_deal` (125) on the trigger's own
+      columns — a minimal deal differs only in `id` and `deal_id`. Independent checks (not the
+      writer's own test): `deals` 35→35 delta 0, new row `deal_id NULL / collecting_information /
+      remesa / GYD / 0 / version 1`, account and conversation both matching the source, ACL
+      `postgres=X | service_role=X` with no PUBLIC/anon/authenticated; `md5(live) == md5(file)` =
+      `58b31f0025e73dbb7e0603cb0472a265`. Commit `bcc6cd7`.
+      Honest gaps, measured not hidden: a *second* deal-keyed trigger,
+      `trg_sync_z_benef_desde_deal` → `cerebro_sync_benef_trigger` (042/151), parses notes into
+      beneficiaries and then `UPDATE remittance_operations SET delivery_method … WHERE deal_id =
+      NEW.id`. A deal-free creator cannot reproduce that cascade — `delivery_method` NULL vs
+      `cuban_card`, `version` 1 vs 2, `admin_locked_fields` {} vs populated, and 0 vs 1
+      beneficiaries. That is exactly WU4b/WU4c's job (write the beneficiary rows structurally),
+      and the assertion labels it `KNOWN GAP` rather than asserting it away. Also untested:
+      the `completed`/`cancelled` arms, the NULL-contact guard, and concurrency (two creators on
+      one conversation both write).
     - [ ] WU4b card + zelle adapters: `Registrar beneficiario auto` (4 args),
       `gestionar_beneficiario` (5), `Registrar zelle auto` (4), `registrar_beneficiario_zelle`
       (4; body byte-identical to the zelle auto one except the resolver and the log literals).
@@ -112,6 +127,13 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
       inline the `status` filter instead, or a repo-built environment breaks. The repo-visible
       1-arg form is `040_remittance_operations.sql:178`;
       `cerebro_resolver_operacion_beneficiario(uuid, text[], text)` is repo-visible at 133:23.
+      MEASURED on staging 2026-10-01: the 1-arg form is not merely shadowed, it ERRORS —
+      `42725 function public.cerebro_resolver_operacion(uuid) is not unique`, because the live
+      2-arg overload carries one default and both are then admissible. The 2-arg and the
+      `_beneficiario` forms both resolve fine. Nothing is broken today only because no live node
+      calls the 1-arg form (the two rail nodes use `_beneficiario`, the four ai_tool nodes use the
+      2-arg). Any new call written from the repo against `040:178` will fail at runtime, so treat
+      that function as unusable and inline the filter.
     - `remittance_operations_status_chk` (verbatim): collecting_information, awaiting_deposit,
       deposit_received, deposit_verification, ready_to_transfer, transferring, completed,
       incident, cancelled.

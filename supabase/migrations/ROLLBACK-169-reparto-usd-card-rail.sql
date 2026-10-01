@@ -1,4 +1,4 @@
--- ROLLBACK for 167: restores 130's cerebro_aplicar_reparto and 157's
+-- ROLLBACK for 169: restores 130's cerebro_aplicar_reparto and 157's
 -- cerebro_destino_pendiente_antes_insert. No data is touched: clasica/tropical beneficiaries already
 -- written by a reparto stay as they are.
 

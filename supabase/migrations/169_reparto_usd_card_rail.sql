@@ -1,5 +1,5 @@
 -- =====================================================================
--- 167 — reparto with a USD card rail (Clasica / Tropical)
+-- 169 — reparto with a USD card rail (Clasica / Tropical)
 --
 -- Production case a29ef5e8 (2026-10-01): one 65,000 GYD deposit split as
 -- 15,000 GYD to an MN (CUP) card and 50,000 GYD to a Clasica card. It was

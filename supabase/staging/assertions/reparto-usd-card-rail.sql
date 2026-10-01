@@ -1,5 +1,5 @@
 -- =====================================================================
--- Assertion for migration 167 (reparto with a USD card rail).
+-- Assertion for migration 169 (reparto with a USD card rail).
 -- Self-reverting: run as  BEGIN; \i this file; ROLLBACK;
 -- Case 1 reproduces the production reparto a29ef5e8 (2026-10-01): 65,000 GYD
 -- = 15,000 GYD to an MN card (45,000 CUP) + 50,000 GYD to a Clasica card

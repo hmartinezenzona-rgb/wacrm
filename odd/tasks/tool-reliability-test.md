@@ -39,8 +39,8 @@ Results: `~/cerebro-fase1/pruebas/gate76-resultados.jsonl`, summary copied below
       on missing `Contexto conversacion` stand-in, fixed)
 - [x] T2 Full run (8 scenarios x 3 repetitions x 2 arms), run of 2026-10-01 ~23:40 UTC
 - [x] T3 Analyse and report
-- [ ] T4 (proposed, not authorized) Replay REAL production turns that said "Anotado" without a write,
-      with their exact agent input and memory, to find what in production stops the call
+- [x] T4 Replay REAL production turns that said "Anotado" without a write, with their exact agent input
+      and memory (authorized 2026-10-01). Harness `~/cerebro-fase1/pruebas/gate77-replay-real.py`.
 
 ## Progress / evidence
 Cleanup verified on every run: memory rows of the run deleted (336 in the full run, 0 left), the 3
@@ -73,3 +73,34 @@ Findings:
   (5-10k chars of notes per turn, many "NO hay tool que llamar / PROHIBIDO", 30 real memory messages
   including admin turns, ~53k input tokens) and the bot being paused at the moment the data
   arrives. Next step T4 measures exactly that.
+
+
+## T4: replay of real production failures (gate 77)
+
+Source: the 32 bot replies of the last 14 days that said "Anotado/queda..." with no write. Excluded:
+no tool exists for them (Mexico, recargas, a lone phone, a Zelle number without a name) or no memory
+row to rebuild. Kept: 11 turns; each replayed with the exact human input stored in `cerebro_memoria`
+(customer text + the full Decisor context) and the 30 memory rows loaded before it, 3 repetitions.
+
+| Arm | What changes | Result |
+|---|---|---|
+| A | nothing (production prompt, real input) | 0/33 — reproduces production exactly |
+| A2 | real input, the false sentence "YA ESTA REGISTRADO EN EL TABLERO: NO hay ninguna tool que llamar" replaced by production's own truthful sentence | 25/33 |
+| B2 | A2 + gate 76's corrected prompt and tool descriptions | 30/33 |
+
+The 3 misses of every arm are one case (`oberto_correccion`): a Mexico remittance handled by an admin,
+for which no tool exists, so it is not a valid case. On the 10 valid Zelle cases: A 0/30, A2 25/30,
+B2 30/30.
+
+Root cause found: in 10 of the 11 real turns the Decisor told the model the Zelle was ALREADY
+registered and that there was no tool to call, and it was not. `Contexto conversacion` computes
+`tiene_beneficiario` as "any open operation of this conversation has any complete vigente
+beneficiary"; it never checks that the Zelle detected in this turn is the registered one. Katalella
+2026-10-01 14:33: her stuck open operation f9289dc7 had "RF Consulting Business", so the new Zelle
+"Rodolfo valiente / rvalienter@outlook.com" was announced as registered. The model obeyed the context.
+
+Fix order this points to (not implemented, needs the owner's go):
+1. Make "already registered" true only for the datum detected in this turn and the operation in
+   progress (alone: 0 -> 83%).
+2. Prompt "regla de oro" + real tool descriptions (with 1: 100% on these cases).
+3. Partial-friendly tools (Zelle number before the name, reparto in steps), per the owner's request.

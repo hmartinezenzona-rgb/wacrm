@@ -740,7 +740,7 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
   there is **no `remittance_*` table in it**. So the `DROP TABLE` kills the panel's live refresh
   silently unless the publication gains `remittance_operations` (a DB change) or the subscription
   moves. Pinned by `operations-panel-container.test.tsx:592-606`. **Deliberately not in WU7**: it is
-  a publication decision, and nothing breaks until 6.4.
+  a publication decision, and nothing breaks until 6.4. **→ sliced as WU8 (2026-10-01).**
 - [ ] 6.6 — **NEW 2026-10-01.** Decide the fate of the `/settings?tab=deals` tab
   (`src/components/settings/deals-settings.tsx`, mounted at `settings/page.tsx:18,83,97`). It is
   **not** a table dependency — it writes only `accounts.default_currency` — and that column is still
@@ -827,7 +827,117 @@ returns **only** the 6.5 subscription plus its own test mock — no runtime quer
   assumption. It is benign by measurement of the code path (the `default:` arm returns rather than
   throws), not by measurement of production data.
 
+#### WU8 — Fase 6.5 (realtime: the panel stops depending on `deals`), sliced 2026-10-01
+Authorised by the user, who chose this approach from three explained options. Scope: **one migration
++ the subscription's table name + its pinned test.** No n8n, no production.
+
+**Chosen approach: subscribe directly to `remittance_operations`.** Rationale, all measured against
+the staging catalog in this session rather than read off this document:
+
+- The panel's data comes from `GET /api/remittance-operations` → RPCs `crm_operaciones_de_conversacion`
+  and `crm_comprobantes_de_operacion`, which read `remittance_operations`, `remittance_beneficiaries`,
+  `remittance_operation_receipts`, `depositos_mmg`, `messages`, `conversations`.
+- `remittance_operations` **has `conversation_id`**, so the existing `conversation_id=eq.<id>` filter
+  survives the move unchanged. (`remittance_beneficiaries` does **not** have it — only `operation_id`
+  — which is why it is *not* part of this unit.)
+- One table is sufficient because **every command that changes what the panel renders updates the
+  operation row**: `crm_agregar_beneficiario`, `crm_corregir_beneficiario`, `crm_reasignar_beneficiario`,
+  `crm_verificar_deposito`, `cerebro_registrar_deposito` all do a literal `UPDATE remittance_operations`,
+  and `cerebro_crear_operacion` a literal `INSERT INTO remittance_operations`. The only measured gap is
+  a raw write to `remittance_beneficiaries` (its recalc trigger does not touch the operation) — a case
+  that does not reach the panel today either, so this unit is a strict improvement, not a regression.
+- RLS on `remittance_operations` is tenant-scoped (`remittance_operations_select` → `is_account_member
+  (account_id)`), so publishing it creates **no** cross-tenant exposure.
+- `supabase_realtime` is owned by `postgres`, so a normal migration can `ALTER PUBLICATION` it.
+  The brief said the next free number was **170**; **it shipped as 171** — see the renumber note below.
+  (`168` is also used twice — pre-existing collision, `168_late_mmg_email_recross.sql` and
+  `168_tags_off_delivered_operations.sql`, unrelated to this unit.)
+
+**The finding that reframed this item — the panel's live refresh is ALREADY broken, not merely
+at risk.** `deals` is written today by exactly three functions: `cerebro_aplicar_nombre_confirmado`
+(called by `trg_nombre_confirmado_zelle` on `messages`), `crm_verificar_deposito` and
+`crm_forzar_verificacion` (both called by the panel's own `/verify` and `/force-verify` RPC routes).
+**No trigger on `remittance_operations` or its child tables writes `deals`**, and none of the
+n8n-path functions (`cerebro_crear_operacion`, `cerebro_registrar_deposito`, the 162/163 adapters)
+appears in the writers list. So the bot's operation changes have not reached the panel since WU5a/WU3
+moved the flow onto `remittance_operations` — the panel refreshes today only for human panel actions
+and the Zelle-name message path. That is why the comment at `operations-panel-container.tsx:196-202`,
+which asserts the sync-trigger mechanism ("every automation write ... happens inside the same
+transaction as an UPDATE/INSERT on `deals`"), is **factually false today** and must be rewritten, not
+merely re-pointed.
+
+- [x] WU8.1 — new migration `supabase/migrations/170_operations_in_realtime_publication.sql`:
+  `ALTER PUBLICATION supabase_realtime ADD TABLE public.remittance_operations;`, plus its matching
+  `ROLLBACK-170-*.sql` (`DROP TABLE ... FROM ...`), following the 163-169 pattern.
+  **Not** included: `REPLICA IDENTITY FULL`. Today `deals` is also `relreplident='d'`, so DELETE events
+  behave exactly as they do now — carried as a follow-up, not a regression.
+- [x] WU8.2 — `operations-panel-container.tsx:221`: `table: "deals"` → `table: "remittance_operations"`,
+  filter unchanged.
+- [x] WU8.3 — same file, rewrite the three stale comments that document the `deals`-as-proxy mechanism:
+  `:14-17` (the debounce's stated reason), `:149-153` (`silentLoad`'s "realtime `deals` changes"),
+  `:196-202` (the false sync-trigger claim). They describe a mechanism that no longer exists.
+- [x] WU8.4 — `operations-panel-container.test.tsx`: the pinned assertion at `:606` moves to
+  `remittance_operations`, and the comments at `:576-579` (which call the fixture flip an "n8n-driven
+  sync trigger on `deals`") are corrected to match.
+- [x] WU8.5 — apply migration 170 to **staging** and assert the publication gained the table
+  (`pg_publication_tables`), because a correct `src/` change against an unpublished table is a silent
+  no-op — exactly the failure mode this unit exists to remove.
+Checks: `npx tsc --noEmit`, `npm test` (vitest), `npm run lint`. TDD **enabled** (user's global
+config); runner `npm test` → `vitest run`. RED = WU8.4's assertion fails against the unmodified tree.
+
+**WU8 DONE — Fase 6.5 closed, 6 files, uncommitted at report time; verified by the parent, not taken
+from the writer's report.**
+
+- **The migration renumbered 170 → 171, and the cause is worth recording: a CONCURRENT SESSION was
+  committing to this very worktree and branch.** Opening the tree, the writer found
+  `170_split_deposit_minimums.sql` already present, and mid-session another session committed it as
+  `369eff6` (and `0b4fcab` for the 168 re-cross). Both are authored by the same git identity, so this
+  is a second Claude session on the same worktree, not an intruder. Shipping a duplicate `170` would
+  have been the real defect, so the writer renumbered to the verified-free **171** and documented the
+  renumber in each header. **This is a live hazard for the rest of the feature**: two sessions share
+  one working tree, one index, and one branch. Nothing of ours was lost, but `odd/` writes and
+  migration numbers must be treated as shared mutable state from here on.
+- **RED and GREEN were both measured by the parent against staging, which is the part the writer
+  could not do.** RED, before applying 171:
+  `WARNING: FAIL: remittance_operations is not in the supabase_realtime publication` /
+  `NOTICE: PASS: remittance_operations_select SELECT policy is still present (RLS unchanged)` /
+  `ERROR: operations-realtime: 1 check(s) FAILED`. After `psql -f 171_...`: `ALL PASS`. The
+  publication now reads `conversations, deals, flow_runs, member_presence, message_reactions,
+  messages, notifications, remittance_calculator_entries, remittance_operations` — 9 tables, up from 8.
+- **The test's RED is live, and I proved it rather than trusting the report.** Backing up the
+  container, forcing `table: "remittance_operations"` back to `"deals"` and re-running produced exactly
+  `- "table": "remittance_operations" / + "table": "deals"`, 1 failed / 20 passed; the file was then
+  restored and its `numstat` (14/15) re-checked. A green test alone would not have shown the assertion
+  was live.
+- **The new comment's claim was checked and it holds — and my first check of it was wrong.** The old
+  comment asserted a sync-trigger mechanism that no longer existed; the new one asserts that the
+  recalc/touch triggers can fire several UPDATEs on one operation row. My static probe
+  (`prosrc ~* 'update remittance_operations'`) returned `f` for every trigger function, which would
+  have made the new comment a *second* false one. It was the probe that was wrong: `trg_zz_recalc_destino_operations`
+  (`AFTER INSERT OR UPDATE OF quoted_source_amount, source_currency, status`, `100_destination_amount_calc.sql:264`)
+  calls `crm_calcular_monto_destino(NEW.id)`, which *does* issue its own `UPDATE remittance_operations`
+  — an indirect write the regex cannot see. **Seventh instance of the same family** (a probe that
+  measures literal patterns and misses indirect calls), and the second time in this unit alone.
+- Checks, all reproduced by the parent and all baseline-identical: `npx tsc --noEmit` exit 0;
+  full `npm test` **141 files / 1659 tests passed**; targeted `operations-panel-container.test.tsx`
+  21/21; `npm run lint` **45 problems (0 errors, 45 warnings)** — no new warning.
+- Deltas: `operations-panel-container.tsx` +14/-15, its test +4/-4, plus three new files. The three
+  stale comments were rewritten to describe what is actually true, not re-pointed at a new noun.
+- **Carried, not done:** `REPLICA IDENTITY FULL` is deliberately unset, so DELETE events behave exactly
+  as they did on `deals` (which is also `relreplident='d'`). If a deleted operation should refresh the
+  panel, that is a separate `ALTER TABLE`. Also carried: WU8.4's test proves the *subscription shape*,
+  not that a real Realtime event arrives over the wire — no browser was exercised, and no end-to-end
+  Realtime round trip was observed.
+
 ## Progress
+- 2026-10-01: **WU8 DONE — Fase 6.5 closed. The panel no longer depends on `deals` for its live
+  refresh.** Full detail in the WU8 block. In one line: the subscription moved to
+  `remittance_operations`, migration **171** puts that table in `supabase_realtime` (RED/GREEN measured
+  against staging by the parent), and the item turned out to be a *present* silent defect rather than
+  the future `DROP TABLE` risk this document originally recorded. Two things to carry forward: a
+  **concurrent session is committing to this worktree and branch** (it forced the 170 → 171 renumber),
+  and the feature's brief-defect pattern gained a seventh instance whose culprit was a *probe* that
+  missed indirect writes, not a line number.
 - 2026-09-29: document created. Scoping fork's exploration (see task doc
   production-feedback-2026-09-29.md, "seventh/eighth touch-point") found items 1-6 above. A second
   pass by me (not delegated) found the two non-remittance dependencies (item 6) the fork missed,

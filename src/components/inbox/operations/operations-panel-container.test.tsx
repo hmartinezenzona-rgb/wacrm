@@ -575,8 +575,8 @@ describe("OperationsPanelContainer", () => {
   describe("live refresh (realtime)", () => {
     // beneficiariesComplete:false demotes ready_to_transfer to
     // awaiting_beneficiary (effectiveStatus) — label "Waiting for
-    // beneficiary". Flipping it to true (simulating the n8n-driven sync
-    // trigger on `deals`) promotes it back to "Ready to transfer".
+    // beneficiary". Flipping it to true (simulating a `remittance_operations`
+    // update) promotes it back to "Ready to transfer".
     const WAITING_OP = { ...OP1, status: "ready_to_transfer" as const, beneficiariesComplete: false };
     const READY_OP = { ...WAITING_OP, beneficiariesComplete: true };
 
@@ -589,7 +589,7 @@ describe("OperationsPanelContainer", () => {
       };
     }
 
-    it("subscribes to deals changes filtered by conversation and removes the channel on unmount", async () => {
+    it("subscribes to remittance_operations changes filtered by conversation and removes the channel on unmount", async () => {
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(dataWith(WAITING_OP))));
 
       const { root } = await renderContainer("conv-rt-1");
@@ -603,7 +603,7 @@ describe("OperationsPanelContainer", () => {
       expect(chan.onCalls[0]![1]).toEqual({
         event: "*",
         schema: "public",
-        table: "deals",
+        table: "remittance_operations",
         filter: "conversation_id=eq.conv-rt-1",
       });
       expect(chan.subscribeCalls).toBe(1);

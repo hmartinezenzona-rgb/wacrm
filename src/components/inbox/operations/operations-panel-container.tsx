@@ -11,10 +11,10 @@ import type { ConversationOperationsRead, RemittanceOperationRead } from "@/lib/
 import { RemittanceOperationCard } from "./remittance-operation-card";
 import { ResolverStateBanner } from "./resolver-state-banner";
 
-/** How long to wait after a `deals` change before refetching — n8n's sync
- *  triggers can fire several UPDATEs on the same deal in quick succession
- *  (one per field group), so a short debounce coalesces a burst into one
- *  fetch instead of refetching per event. */
+/** How long to wait after a `remittance_operations` change before
+ *  refetching — the recalc/touch triggers can fire several UPDATEs on the
+ *  same operation row in quick succession, so a short debounce coalesces a
+ *  burst into one fetch instead of refetching per event. */
 const REALTIME_REFRESH_DEBOUNCE_MS = 800;
 
 /** Makes each mounted panel's realtime topic unique. realtime-js hands back
@@ -148,9 +148,9 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
 
   // Same fetch as `load`, but never switches the UI to the loading state
   // and never shows an error screen on failure — used for background
-  // refreshes (realtime `deals` changes, a card's own `onChanged`) where
-  // flashing "Loading…" or wiping the panel on a transient failure would
-  // be worse than briefly showing stale data.
+  // refreshes (realtime `remittance_operations` changes, a card's own
+  // `onChanged`) where flashing "Loading…" or wiping the panel on a
+  // transient failure would be worse than briefly showing stale data.
   const silentLoad = useCallback(
     async (id: string) => {
       try {
@@ -193,13 +193,12 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
     }
   }, [conversationId, load, silentLoad, applyLoadedData]);
 
-  // Live refresh: every automation write to remittance_operations/
-  // remittance_beneficiaries (n8n) happens inside the same transaction as
-  // an UPDATE/INSERT on `deals` (sync triggers) — `deals` is in the
-  // `supabase_realtime` publication, the remittance_* tables aren't. So we
-  // subscribe to `deals` changes for this conversation and treat any of
-  // them as "something here may have changed", debounced so a burst of
-  // per-field UPDATEs from one sync only refetches once.
+  // Live refresh: subscribe directly to `remittance_operations` for this
+  // conversation. Every command that changes what the panel renders writes
+  // that row — the panel's own RPCs and the bot's create/register-deposit
+  // paths alike — so any change here means "something may have changed".
+  // We treat all of them the same and debounce, because one operation write
+  // can cascade into several row updates from the recalc/touch triggers.
   useEffect(() => {
     if (!conversationId) return;
     const supabase = createClient();
@@ -218,7 +217,7 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
       .channel(`operations-panel-${conversationId}-${realtimeTopicSeq}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "deals", filter: `conversation_id=eq.${conversationId}` },
+        { event: "*", schema: "public", table: "remittance_operations", filter: `conversation_id=eq.${conversationId}` },
         scheduleSilentRefetch,
       )
       .subscribe();

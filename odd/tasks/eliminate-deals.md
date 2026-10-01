@@ -112,14 +112,54 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
       and the assertion labels it `KNOWN GAP` rather than asserting it away. Also untested:
       the `completed`/`cancelled` arms, the NULL-contact guard, and concurrency (two creators on
       one conversation both write).
-    - [ ] WU4b card + zelle adapters: `Registrar beneficiario auto` (4 args),
-      `gestionar_beneficiario` (5), `Registrar zelle auto` (4), `registrar_beneficiario_zelle`
-      (4; body byte-identical to the zelle auto one except the resolver and the log literals).
+    - [x] WU4b card + zelle adapters (migration 162): `cerebro_registrar_beneficiario_auto`,
+      `cerebro_gestionar_beneficiario`, `cerebro_registrar_zelle_auto`,
+      `cerebro_registrar_beneficiario_zelle` — node argument order, `TABLE(id uuid, accion text)`.
+      Verified 2026-10-01 on staging: 27 branches across the four nodes matched the old node SQL as
+      sorted multisets of raw text, with accents, punctuation and trailing spaces significant
+      (ins/upd/sin_cambio/ambigua for both card nodes; falta_nombre, falta_cuenta and the
+      `+1 (469) 512-1137 → 4695121137` normalization for both zelle nodes). Beneficiary rows matched
+      column by column, and every non-NULL id was confirmed to be a real operation of its own
+      conversation. Independent parent checks: assertion re-run 27 PASS / 0 FAIL, and
+      `md5(live) == md5(file)` for all four functions
+      (`cerebro_gestionar_beneficiario ca234e9def…`, `cerebro_registrar_beneficiario_auto
+      6d97a2bbe4…`, `cerebro_registrar_beneficiario_zelle 6a0139d6f4…`, `cerebro_registrar_zelle_auto
+      379021dc04…`). Commit `af07d9d`. The RED/GREEN harness has a negative control: a stubbed wrong
+      `accion` made it fail, so it is not vacuous.
+      `crm_agregar_beneficiario` (123) could NOT be reused, verified in its body rather than from
+      memory: it requires `amount > 0` plus a currency (else `22023`), enforces an `agent` caller,
+      takes the admin lock, writes a `human_beneficiary_added` audit row and inserts
+      `source='admin_addition'`. Node writes carry no amount and must stay `source='notes_parse'`, so
+      reuse would raise on every call.
+      Two divergences, named not hidden:
+      1. `block_index` on the four `upd_no_tiene` cases: old `{2}` vs new `{1}`. Old was the block's
+         index inside `deals.notes`; the new writers use the codebase's
+         `coalesce(max(block_index),0)+1`. The rationale given in the writer's report ("no reader
+         groups by it") is WRONG and I am recording the correct one: `042:166-175` and `098:211+` do
+         read `block_index`, and `rb_unico_por_bloque(operation_id, block_index, position)` is a
+         UNIQUE constraint. It is benign only because those readers belong to the notes-parse
+         mechanism, which is deal-keyed and never fires for a deal-free operation, and because no
+         `src/` code reads the column (grep: zero hits in `src/`). The rule is preserved, only the
+         absolute starting value differs, and every comparison downstream is relative.
+      2. `remittance_operations.delivery_method`: old `{cuban_card|zelle}`, new `{NULL}` in 23 cases.
+         NOT inert — see WU4d.
     - [ ] WU4c reparto + destino adapters: `registrar_reparto_multiple` (10 args) and
       `marcar_destino_usd` (2). `marcar_destino_usd` must be migrated even though
       `Registrar destino auto` superseded it on the deterministic rail: it survives as an
       `ai_tool` on `Agente Remesas`, so leaving it means a live path still INSERTs `deals` and
       Phase 6 can never drop the table.
+    - [ ] WU4d maintenance of `remittance_operations.delivery_method`, found by WU4b and owned
+      before WU5. `042:207` sets it inside `cerebro_sync_beneficiarios` —
+      `SET delivery_method = coalesce(lower(v_usd), v_tipo, o.delivery_method)` — which is part of
+      the deal-keyed notes-parse mechanism, so a deal-free operation never gets it and ends up NULL
+      where the old path produced `cuban_card` / `zelle`. That is not cosmetic: `097:175` reads
+      `o.delivery_method` for the conversation-operations RPC, so the panel and the bot would see a
+      different value for every operation created after WU5 ships. Also written by `098` (admin
+      corrections) and by `157` (`cerebro_registrar_destino`). Needs a deal-free home for 042's
+      derivation rule — either the writers set it directly, or a trigger on
+      `remittance_beneficiaries` maintains it the way 157 already does for the card rail. Decide
+      which, and prove parity against the old value on a notes-bearing fixture. Must land before
+      WU5, because WU5 is what makes these writers live.
     Constraints found by recon (2026-10-01) — these are load-bearing, not commentary:
     - `cerebro_resolver_operacion(uuid, text[] DEFAULT NULL)` is LIVE-ONLY: absent from the
       working tree and from all reachable git history, with the drift documented at

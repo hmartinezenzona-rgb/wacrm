@@ -574,6 +574,38 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
       - **ACL correction:** both functions read `{postgres, service_role}` — **no `authenticated`, no
         `PUBLIC`**. The brief's earlier claim that the panel calls them was wrong; n8n calls them as
         `service_role`. The writer's measurement is the authority.
+      - **DONE and parent-verified** — commit `24a28ae` (3 files, +1065). Both avisos left the
+        `deals` set: positional **8 → 6**, bare mentions 11 → 9, and neither names `deals`,
+        `pipelines` or `pipeline_stages` any more. Row sets matched on live data (incompletos 1 = 1,
+        sin_beneficiario 0 = 0) with a non-empty control (20 operations in the same scope once the
+        deposit filters are lifted); under fixtures the only extra row old→new is the deal-free `161`
+        operation, which is exactly the divergence sought. The dedup `clave` is byte-identical for a
+        deal-linked operation, and a repeat call updated rather than duplicated. RED observed first
+        (7 failures) and GREEN after with the *same* assertion file; `ROLLBACK-166` verified against a
+        pre-166 dump. ACL unchanged, no new GRANT/REVOKE.
+      - **Verification of record.** `assess` over the diff: `risk: medium`. RDD off; writer on sonnet,
+        so self-verification suffices and no separate verifier was required. Parent spot check ran
+        anyway: the assertion, wrapped in `BEGIN; … ROLLBACK;`, gave **ALL PASS**, and staging came
+        back to baseline (34 / 0 / 35 / 3 alerts) with nothing committed. The catalog delta was then
+        re-derived **independently** of the writer's query → 6.
+      - **A third behaviour change the writer made deliberately, beyond the brief's two.** It dropped
+        the legacy `d.notes NOT LIKE '%BENEFICIARIO%'` gate rather than carrying it forward — the
+        `deals` read has to go, and the structured `remittance_beneficiaries` row (with
+        `status='vigente'`) is the real source of truth, with the notes transport slated for
+        retirement in WU6d. The brief's §3 row for this was ambiguous and the writer resolved it
+        correctly and declared it. Measured impact of the dropped gate on live staging: **0 rows** —
+        latent. The other two named changes are also latent: the `cancelled` operations and the
+        notes-marked deals have no consumed deposit inside the window, and there is no `recarga`
+        operation in it.
+      - **Two operator-visible strings changed, both asserted:** `sin_beneficiario` no longer claims a
+        pipeline stage (`Esta en "Lista para transferir" y ahi se queda` → `El envio sigue abierto y
+        ahi se queda`), and its closing instruction now points at the structured `162` route instead
+        of the `deals.notes` block. Title, amounts and the bot warning are unchanged and asserted.
+      - **Not verified, carried:** n8n was not executed — only the `service_role` ACL path was
+        exercised, not a real call; the three named behaviour changes stay latent on staging; the
+        Sunday branch of the hours guard is hard-coded and could not be forced (the assertion aborts
+        with an explicit message rather than passing silently); the rollback's orphan-alert path was
+        not exercised.
     - **WU6d — retire the notes transport.** `cerebro_aplicar_nombre_confirmado` (repoint to the 162
       structured writers) and `cerebro_sync_beneficiarios` (retire). **Sequenced last**: it is only
       correct once the deal-keyed triggers `trg_sync_z_benef_desde_deal` and

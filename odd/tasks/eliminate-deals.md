@@ -507,6 +507,40 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
         the live n8n readers of `deals.notes` are retired (`Leer secreto` in `WaCRM - Notificar cliente
         por etapa del deal`; `Historial contacto` and `Contexto conversacion` in production `Cerebro
         v2`) — a **carried dependency**, deliberately sequenced later, not a gap in this slice.
+      - **DONE and parent-verified** — commit `1039546` (3 files, +1319), branch
+        `feat/port-chat-operations-calculator`. The latent blocker is closed: a genuinely deal-free
+        operation (built by the `161` path, `deal_id IS NULL`) now verifies from the panel end to end —
+        `crm_verificar_deposito` returns `verificado`/`ready_to_transfer`, `crm_forzar_verificacion`
+        returns `{"new_status":"ready_to_transfer"}`, both write their `remittance_admin_audit` row,
+        and the panel read gives `can_verify:true` with one consumed deposit. RED was captured first
+        (both RPCs raised `22023 operation has no linked deal`). Deal-linked equality held across all
+        12 captured values with **zero diff**, including the `deals.notes` text. No `deals` row created
+        by any path (35 → 35).
+      - **Verification of record.** Native `assess` over the writer's diff: `risk: medium`
+        (`executable_change`). RDD is off, the writer ran on sonnet (not a mini profile), so writer
+        self-verification suffices and no separate verifier was required; the parent spot check ran
+        anyway. The parent re-ran the assertion harness wrapped in `BEGIN; … ROLLBACK;` → **ALL PASS,
+        15 assertions**. The catalog exit criterion was then re-derived **independently** of the
+        writer's query: exactly 8 functions still reference `deals`, `crm_comprobantes_de_operacion`
+        absent, `crm_verificar_deposito` and `crm_forzar_verificacion` present, 0 views — `9 → 8`
+        confirmed.
+      - **A parent error, recorded rather than hidden.** The first spot-check run omitted the
+        `BEGIN; … ROLLBACK;` wrapper the assertion file explicitly requires. Its `SAVEPOINT` failed in
+        autocommit, so the fixture **committed** to staging: 5 fixture operations (3 of them deal-free),
+        2 `deals`, plus receipts/audit/`depositos_mmg` rows. Detected by comparing staging against the
+        known baseline, then removed precisely by the fixture's fixed `bbbbbbbb-…` UUIDs in a single
+        transaction. Staging is back to its baseline: **34 operations, 0 deal-free, 35 `deals`** — the
+        exact condition the slice started from. The wrapped re-run then passed and left nothing behind.
+      - **Second self-inflicted trap in the same check.** The first independent catalog count returned
+        **0** functions, which looked like a finding; it was a bad regex — in PostgreSQL ARE `\b` is
+        not a word boundary (it is `\m`/`\M`/`\y`). Re-run with `\M`, the count was 8. Same lesson as
+        the earlier empty-catalog incident: an empty result is not evidence until the query is proven
+        able to produce a non-empty one.
+      - **Not verified, carried:** the `UPDATE deals SET updated_at` ELSIF branch was not exercised
+        behaviourally (needs an objective plus an overpaid deposit the fixture does not build) —
+        source-level check only; the deal `FOR UPDATE` lock leaves no artefact, so its conditionality
+        is asserted at source level and not observed; the `cerebro_saldo_envio` `viejo` branch (deal
+        with no operation) is unreachable here. No n8n work; the `deals.notes` readers were not touched.
     - **WU6c — re-key the avisos.** `cerebro_avisar_envios_incompletos`,
       `cerebro_avisar_envios_sin_beneficiario`. Changes row sets and the `cerebro_alertas.clave`
       dedup keys; needs its own alert-dedup proof.

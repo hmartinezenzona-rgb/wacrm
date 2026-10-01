@@ -1,0 +1,533 @@
+Pager usage is off.
+Output format is unaligned.
+-- BACKUP de las funciones vivas en staging con la 160 (defectuosa) aplicada
+-- tomado: 2026-10-01 03:49:31.896429+00
+-- md5 vivo: cerebro_cruzar_deposito = 00906b514e37c675b4663a2963d8d381
+-- md5 vivo: cerebro_cruzar_depositos = 694875ca67f75b889eb19bce31aa1519
+-- md5 vivo: cerebro_registrar_deposito = c94ed0d83d8a6ec2f2537882194ceb34
+-- md5 vivo: cerebro_resolve_op_id = 49ede272ed6708e43352024b9093984a
+
+-- Para restaurar EXACTAMENTE este estado: ejecutar el fichero entero.
+-- Ojo: cerebro_resolve_op_id solo existe a partir de la 160.
+
+CREATE OR REPLACE FUNCTION public.cerebro_cruzar_deposito(p_deal uuid, p_ref text, p_monto numeric, p_stage_ok uuid, p_stage_incidencia uuid, p_stage_esperado uuid, p_simular boolean DEFAULT false)
+ RETURNS TABLE(resultado text, trans_id text, deal_actualizado integer, metodo text)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_ref        text;
+  v_aplica     boolean;
+  v_res        text;
+  v_trans      text;
+  v_recibido   timestamptz;
+  v_metodo     text := 'exacto';
+  v_nota       text;
+  v_stage      uuid;
+  v_tocados    int  := 0;
+  v_horas      int;
+  v_maxhoras   int;
+  v_candidatos int := 0;
+  v_conv       uuid;
+  v_phone      text;
+  v_op_id      uuid;
+BEGIN
+  -- (160) Resolve either flavour of id to an operation id.
+  v_op_id := cerebro_resolve_op_id(p_deal);
+
+  v_ref := NULLIF(regexp_replace(COALESCE(p_ref, ''), '[^0-9]', '', 'g'), '');
+
+  SELECT COALESCE(
+           (SELECT ro.status FROM remittance_operations ro WHERE ro.id = v_op_id)
+             = cerebro_estado_desde_etapa(p_stage_esperado),
+           false)
+    INTO v_aplica;
+
+  IF NOT v_aplica THEN
+    RETURN QUERY SELECT 'no_aplica'::text, v_ref, 0, 'ninguno'::text; RETURN;
+  END IF;
+
+  IF v_ref IS NULL THEN
+    RETURN QUERY SELECT 'sin_referencia'::text, v_ref, 0, 'ninguno'::text; RETURN;
+  END IF;
+
+  v_maxhoras := COALESCE(NULLIF(cerebro_config_get('cruce_antiguedad_max_horas'), '')::int, 72);
+
+  SELECT d.trans_id, d.recibido_en INTO v_trans, v_recibido
+    FROM depositos_mmg d
+   WHERE d.trans_id = v_ref AND d.consumido_en IS NULL AND d.monto = p_monto
+     AND d.anulado_en IS NULL
+   FOR UPDATE;
+
+  IF v_trans IS NOT NULL AND v_recibido < now() - make_interval(hours => v_maxhoras) THEN
+    v_res    := 'deposito_antiguo';
+    v_metodo := 'antiguo';
+  ELSIF v_trans IS NOT NULL THEN
+    IF NOT p_simular THEN
+      UPDATE depositos_mmg d SET consumido_en = now(), operation_id = v_op_id
+       WHERE d.trans_id = v_trans AND d.consumido_en IS NULL;
+    END IF;
+    v_res := 'verificado';
+  ELSIF EXISTS (SELECT 1 FROM depositos_mmg x
+                 WHERE x.trans_id = v_ref AND x.anulado_en IS NOT NULL) THEN
+    v_res := 'deposito_anulado';
+  ELSIF EXISTS (SELECT 1 FROM depositos_mmg x
+                 WHERE x.trans_id = v_ref AND x.consumido_en IS NOT NULL) THEN
+    v_res := 'ya_reclamado';
+  ELSIF EXISTS (SELECT 1 FROM depositos_mmg x WHERE x.trans_id = v_ref) THEN
+    v_res := 'monto_no_coincide';
+  ELSE
+    v_res := 'sin_correo';
+  END IF;
+
+  IF v_res = 'sin_correo' THEN
+    v_horas := COALESCE(NULLIF(cerebro_config_get('cruce_ventana_horas'), '')::int, 6);
+
+    SELECT count(*) INTO v_candidatos
+      FROM depositos_mmg m
+     WHERE m.consumido_en IS NULL
+       AND m.anulado_en IS NULL
+       AND m.monto        = p_monto
+       AND m.recibido_en BETWEEN now() - make_interval(hours => v_horas)
+                             AND now() + interval '15 minutes'
+       AND length(m.trans_id) = length(v_ref)
+       AND left(m.trans_id, 5) = left(v_ref, 5)
+       AND right(m.trans_id, 4) = right(v_ref, 4);
+
+    IF v_candidatos = 1 THEN
+      IF p_simular THEN
+        SELECT m.trans_id INTO v_trans
+          FROM depositos_mmg m
+         WHERE m.consumido_en IS NULL AND m.anulado_en IS NULL AND m.monto = p_monto
+           AND m.recibido_en BETWEEN now() - make_interval(hours => v_horas)
+                                 AND now() + interval '15 minutes'
+           AND length(m.trans_id) = length(v_ref)
+           AND left(m.trans_id, 5) = left(v_ref, 5)
+           AND right(m.trans_id, 4) = right(v_ref, 4);
+      ELSE
+        UPDATE depositos_mmg m
+           SET consumido_en = now(), operation_id = v_op_id
+         WHERE m.trans_id = (
+                 SELECT x.trans_id FROM depositos_mmg x
+                  WHERE x.consumido_en IS NULL
+                    AND x.anulado_en IS NULL
+                    AND x.monto = p_monto
+                    AND x.recibido_en BETWEEN now() - make_interval(hours => v_horas)
+                                          AND now() + interval '15 minutes'
+                    AND length(x.trans_id) = length(v_ref)
+                    AND left(x.trans_id, 5) = left(v_ref, 5)
+                    AND right(x.trans_id, 4) = right(v_ref, 4)
+                  LIMIT 1 FOR UPDATE SKIP LOCKED)
+        RETURNING m.trans_id INTO v_trans;
+      END IF;
+
+      IF v_trans IS NOT NULL THEN
+        v_res := 'verificado'; v_metodo := 'aproximado';
+      END IF;
+    ELSIF v_candidatos > 1 THEN
+      v_metodo := 'ambiguo';
+    END IF;
+  END IF;
+
+  IF v_res IN ('verificado','ya_reclamado','monto_no_coincide','deposito_antiguo','deposito_anulado') THEN
+    v_stage := CASE WHEN v_res = 'verificado' THEN p_stage_ok ELSE p_stage_incidencia END;
+
+    v_nota := CASE
+      WHEN v_res = 'verificado' AND v_metodo = 'aproximado' THEN
+        'VERIFICADO: casa con el correo de MMG (TransID ' || v_trans || ') '
+        || '- COINCIDENCIA APROXIMADA: el comprobante decia ' || v_ref
+        || '. Coinciden importe, hora, longitud, prefijo y sufijo, y era el unico'
+        || ' candidato posible. CONFIRMAR VISUALMENTE el comprobante.'
+      WHEN v_res = 'verificado' THEN
+        'VERIFICADO: casa con el correo de MMG (TransID ' || v_ref || ')'
+      WHEN v_res = 'deposito_anulado' THEN
+        'SIN VERIFICAR - DEPOSITO ANULADO: el TransID ' || v_ref || ' figura como'
+        || ' ANULADO en el libro de MMG. NO se ha dado por bueno. Motivo registrado: '
+        || COALESCE((SELECT x.motivo_anulacion FROM depositos_mmg x WHERE x.trans_id = v_ref LIMIT 1), 'sin motivo')
+      WHEN v_res = 'deposito_antiguo' THEN
+        'SIN VERIFICAR - DEPOSITO ANTIGUO: el TransID ' || v_ref || ' si existe y el'
+        || ' importe cuadra, pero el deposito se recibio el '
+        || to_char(v_recibido AT TIME ZONE 'America/Guyana', 'DD/MM/YYYY HH24:MI')
+        || ' (hace ' || floor(EXTRACT(epoch FROM (now() - v_recibido))/3600)::int || ' horas).'
+        || ' NO se ha dado por bueno ni se ha consumido. Compruebe que esta remesa no'
+        || ' se pago ya por otra via antes de transferir.'
+      WHEN v_res = 'ya_reclamado' THEN
+        'ALERTA: el TransID ' || v_ref || ' ya fue usado en otro envio'
+      ELSE
+        'ALERTA: el TransID ' || v_ref || ' existe en MMG pero el monto no coincide'
+    END;
+
+    IF NOT p_simular THEN
+      -- (160) Write status directly on the operation; no deals touch.
+      UPDATE remittance_operations
+         SET status = cerebro_estado_desde_etapa(v_stage),
+             updated_at = now()
+       WHERE id = v_op_id;
+      GET DIAGNOSTICS v_tocados = ROW_COUNT;
+    ELSE
+      v_tocados := 1;
+    END IF;
+  END IF;
+
+  IF NOT p_simular AND v_metodo IN ('aproximado','ambiguo') THEN
+    SELECT o.conversation_id INTO v_conv FROM remittance_operations o WHERE o.id = v_op_id;
+    SELECT c.phone INTO v_phone FROM conversations v JOIN contacts c ON c.id = v.contact_id
+     WHERE v.id = v_conv;
+
+    PERFORM net.http_post(
+      url     := cerebro_config_get('notify_url'),
+      body    := jsonb_build_object('type','CRUCE_APROXIMADO','metodo',v_metodo,
+                   'cliente_phone',COALESCE(v_phone,'?'),'monto',p_monto,
+                   'ref_leida',v_ref,'ref_hallada',v_trans,'candidatos',v_candidatos),
+      headers := jsonb_build_object('Content-Type','application/json',
+                   'X-Cerebro-Secret', cerebro_config_get('notify_secret')));
+  END IF;
+
+  RETURN QUERY SELECT v_res, COALESCE(v_trans, v_ref), v_tocados, v_metodo;
+END;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.cerebro_cruzar_depositos(p_deal uuid, p_refs text[], p_montos numeric[], p_stage_ok uuid, p_stage_incidencia uuid, p_stage_esperado uuid, p_simular boolean DEFAULT false)
+ RETURNS TABLE(resultado text, trans_id text, deal_actualizado integer, metodo text, todos_verificados boolean, total_verificado numeric, n_comprobantes integer, detalle jsonb, objetivo numeric, depositado numeric, saldo numeric)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_n int; v_i int; v_c record;
+  v_det jsonb := '[]'::jsonb; v_todos boolean := true; v_total numeric := 0;
+  v_trans1 text := NULL; v_fallo text := NULL; v_metodo text := 'exacto';
+  v_nota text; v_tocados int := 0; v_refs_ok int;
+  v_obj numeric; v_dep numeric; v_saldo numeric; v_mon text;
+  v_stage_final uuid;
+  v_op_id uuid;
+BEGIN
+  -- (160) Resolve either flavour.
+  v_op_id := cerebro_resolve_op_id(p_deal);
+
+  v_n := COALESCE(array_length(p_refs, 1), 0);
+
+  SELECT s.objetivo, s.moneda INTO v_obj, v_mon FROM cerebro_saldo_operacion(v_op_id) s;
+
+  IF v_n <= 1 AND v_obj IS NULL THEN
+    RETURN QUERY
+      SELECT c.resultado, c.trans_id, c.deal_actualizado, c.metodo,
+             (c.resultado = 'verificado'),
+             CASE WHEN c.resultado = 'verificado' THEN COALESCE(p_montos[1], 0) ELSE 0 END,
+             v_n,
+             jsonb_build_array(jsonb_build_object(
+               'ref', p_refs[1], 'monto', p_montos[1],
+               'resultado', c.resultado, 'trans_id', c.trans_id, 'metodo', c.metodo)),
+             NULL::numeric, NULL::numeric, NULL::numeric
+        FROM cerebro_cruzar_deposito(v_op_id, p_refs[1], p_montos[1],
+                                     p_stage_ok, p_stage_incidencia,
+                                     p_stage_esperado, p_simular) c;
+    RETURN;
+  END IF;
+
+  IF v_n > 1 THEN
+    IF COALESCE(array_length(p_montos, 1), 0) <> v_n THEN
+      v_todos := false;
+      v_fallo := 'las referencias y los importes no vienen emparejados';
+    END IF;
+    IF v_todos THEN
+      SELECT count(DISTINCT regexp_replace(COALESCE(r, ''), '[^0-9]', '', 'g'))
+        INTO v_refs_ok FROM unnest(p_refs) AS r;
+      IF v_refs_ok <> v_n THEN
+        v_todos := false;
+        v_fallo := 'la misma referencia viene repetida dentro de la rafaga';
+      END IF;
+    END IF;
+  END IF;
+
+  IF v_todos THEN
+    FOR v_i IN 1 .. GREATEST(v_n, 1) LOOP
+      SELECT * INTO v_c
+        FROM cerebro_cruzar_deposito(v_op_id, p_refs[v_i], p_montos[v_i],
+                                     p_stage_esperado, p_stage_esperado,
+                                     p_stage_esperado, true);
+      v_det := v_det || jsonb_build_object(
+                 'ref', p_refs[v_i], 'monto', p_montos[v_i],
+                 'resultado', v_c.resultado, 'trans_id', v_c.trans_id, 'metodo', v_c.metodo);
+      IF v_c.resultado = 'verificado' THEN
+        v_total := v_total + COALESCE(p_montos[v_i], 0);
+        IF v_trans1 IS NULL THEN v_trans1 := v_c.trans_id; END IF;
+        IF v_c.metodo = 'aproximado' THEN v_metodo := 'aproximado'; END IF;
+      ELSE
+        v_todos := false;
+        IF v_fallo IS NULL THEN v_fallo := v_c.resultado; END IF;
+      END IF;
+    END LOOP;
+  END IF;
+
+  IF v_todos AND NOT p_simular THEN
+    BEGIN
+      v_det := '[]'::jsonb; v_total := 0; v_trans1 := NULL;
+      FOR v_i IN 1 .. GREATEST(v_n, 1) LOOP
+        SELECT * INTO v_c
+          FROM cerebro_cruzar_deposito(v_op_id, p_refs[v_i], p_montos[v_i],
+                                       p_stage_esperado, p_stage_esperado,
+                                       p_stage_esperado, false);
+        v_det := v_det || jsonb_build_object(
+                   'ref', p_refs[v_i], 'monto', p_montos[v_i],
+                   'resultado', v_c.resultado, 'trans_id', v_c.trans_id, 'metodo', v_c.metodo);
+        IF v_c.resultado <> 'verificado' THEN
+          RAISE EXCEPTION 'cruce parcial: % en %', v_c.resultado, p_refs[v_i]
+            USING ERRCODE = 'data_exception';
+        END IF;
+        v_total := v_total + COALESCE(p_montos[v_i], 0);
+        IF v_trans1 IS NULL THEN v_trans1 := v_c.trans_id; END IF;
+        IF v_c.metodo = 'aproximado' THEN v_metodo := 'aproximado'; END IF;
+      END LOOP;
+    EXCEPTION WHEN OTHERS THEN
+      v_todos := false; v_total := 0; v_trans1 := NULL;
+      v_fallo := COALESCE(v_fallo, 'cruce parcial revertido: ' || SQLERRM);
+    END;
+  END IF;
+
+  SELECT s.objetivo, s.depositado, s.saldo INTO v_obj, v_dep, v_saldo
+    FROM cerebro_saldo_operacion(v_op_id) s;
+  IF p_simular AND v_obj IS NOT NULL THEN
+    v_dep := v_dep + CASE WHEN v_todos THEN v_total ELSE 0 END;
+    v_saldo := v_obj - v_dep;
+  END IF;
+
+  v_stage_final := CASE
+    WHEN NOT v_todos           THEN p_stage_incidencia
+    WHEN v_saldo IS NULL       THEN p_stage_ok
+    WHEN v_saldo > 0           THEN p_stage_esperado
+    WHEN v_saldo < 0           THEN p_stage_incidencia
+    ELSE                            p_stage_ok
+  END;
+
+  IF NOT p_simular THEN
+    -- (160) Write status directly on the operation; no deals touch.
+    UPDATE remittance_operations
+       SET status = cerebro_estado_desde_etapa(v_stage_final),
+           updated_at = now()
+     WHERE id = v_op_id;
+    GET DIAGNOSTICS v_tocados = ROW_COUNT;
+    IF v_todos AND v_saldo IS NOT NULL AND v_saldo = 0 THEN
+      PERFORM cerebro_objetivo_cerrar_op(v_op_id);
+    END IF;
+  ELSE
+    v_tocados := 1;
+  END IF;
+
+  RETURN QUERY SELECT
+    CASE WHEN NOT v_todos THEN COALESCE(v_fallo, 'sin_cruce')
+         WHEN v_saldo IS NOT NULL AND v_saldo > 0 THEN 'verificado_incompleto'
+         WHEN v_saldo IS NOT NULL AND v_saldo < 0 THEN 'verificado_de_mas'
+         ELSE 'verificado' END,
+    v_trans1, v_tocados, v_metodo, v_todos, v_total, v_n, v_det,
+    v_obj, v_dep, v_saldo;
+END;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.cerebro_registrar_deposito(p_conv uuid, p_monto numeric, p_moneda text, p_stage uuid, p_nota text, p_comp_id text)
+ RETURNS TABLE(deal_id uuid, accion text, es_revendedor boolean, sumado boolean)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+#variable_conflict use_column
+DECLARE
+  v_rev     boolean;
+  v_recarga boolean := false;
+  v_ya      uuid;
+  v_ex      uuid;
+  v_suma    uuid;
+  v_id      uuid;
+  v_phone   text;
+  v_ref     text;
+  v_nota    text;
+  v_contact uuid;
+BEGIN
+  v_rev := cerebro_es_revendedor(p_conv);
+
+  v_nota := COALESCE(p_nota,'');
+  IF NULLIF(p_comp_id,'') IS NOT NULL AND v_nota NOT LIKE '%'||p_comp_id||'%' THEN
+    v_nota := v_nota || chr(10) || p_comp_id;
+  END IF;
+
+  IF NOT cerebro_transid_plausible(NULLIF(substring(v_nota from 'Ref: ([0-9]+)'), '')) THEN
+    p_stage := 'da7b3e24-9222-4150-8be8-d7f7378e16aa'::uuid;
+    v_nota := v_nota || chr(10)
+      || 'REFERENCIA IMPOSIBLE: ese numero no puede ser un TransID de MMG. El contador '
+      || 'solo crece y este queda por debajo de todos los recibidos, asi que casi seguro '
+      || 'lo leyo la vision de una CAPTURA o de una foto de otra pantalla, no de un '
+      || 'comprobante directo. NO se ha registrado como deposito normal: mire la imagen y '
+      || 'pidale al cliente el comprobante original antes de dar nada por recibido.';
+  END IF;
+
+  -- (160) Idempotency: check remittance_operation_receipts.comp_id instead
+  -- of deals.notes LIKE %comp_id%.
+  IF NULLIF(p_comp_id,'') IS NOT NULL THEN
+    SELECT ro.id INTO v_ya
+      FROM remittance_operations ro
+      JOIN remittance_operation_receipts r ON r.operation_id = ro.id
+     WHERE ro.conversation_id = p_conv
+       AND r.comp_id = p_comp_id
+     LIMIT 1;
+    IF v_ya IS NOT NULL THEN
+      RETURN QUERY SELECT v_ya, 'ya registrado (idempotente)'::text, v_rev, false; RETURN;
+    END IF;
+  END IF;
+
+  -- (160) movido branch: find the latest open remesa operation for this
+  -- conversation that has no receipt yet and no vigente beneficiary.
+  IF NOT v_rev THEN
+    SELECT ro.id INTO v_ex
+      FROM remittance_operations ro
+     WHERE ro.conversation_id = p_conv
+       AND ro.status NOT IN ('completed','cancelled')
+       AND ro.service_type = 'remesa'
+       AND NOT EXISTS (
+         SELECT 1 FROM remittance_operation_receipts r
+          WHERE r.operation_id = ro.id AND r.comp_id IS NOT NULL)
+       AND NOT EXISTS (
+         SELECT 1 FROM remittance_beneficiaries b
+          WHERE b.operation_id = ro.id AND b.status = 'vigente')
+     ORDER BY ro.created_at DESC LIMIT 1;
+  END IF;
+
+  -- (160) sumado branch: same op but specifically at deposit_verification
+  -- with a positive balance.
+  IF NOT v_rev AND v_ex IS NULL THEN
+    SELECT ro.id INTO v_suma
+      FROM remittance_operations ro
+     WHERE ro.conversation_id = p_conv
+       AND ro.status = 'deposit_verification'
+       AND ro.service_type = 'remesa'
+       AND NOT EXISTS (
+         SELECT 1 FROM remittance_operation_receipts r
+          WHERE r.operation_id = ro.id AND r.comp_id IS NOT NULL)
+       AND NOT EXISTS (
+         SELECT 1 FROM remittance_beneficiaries b
+          WHERE b.operation_id = ro.id AND b.status = 'vigente')
+       AND (SELECT s.saldo FROM cerebro_saldo_operacion(ro.id) s) > 0
+     ORDER BY ro.created_at DESC LIMIT 1;
+  END IF;
+
+  -- (160) Recarga 24 h window: use the latest CLOSED operation for this
+  -- conversation instead of the max(deals.updated_at) with status <>
+  -- 'open' OR stage = '1b36b34c'.
+  IF NOT v_rev THEN
+    SELECT EXISTS (
+             SELECT 1 FROM messages m
+              WHERE m.conversation_id = p_conv
+                AND m.sender_type = 'customer'
+                AND m.created_at > GREATEST(
+                      now() - interval '24 hours',
+                      COALESCE((SELECT max(op.updated_at) FROM remittance_operations op
+                                 WHERE op.conversation_id = p_conv
+                                   AND op.status IN ('completed','cancelled')),
+                               now() - interval '24 hours'))
+                AND (m.content_text ILIKE '%recarga%'
+                     OR m.content_text ILIKE '%etecsa%'
+                     OR m.content_text ILIKE '%cubacel%'))
+       AND NOT EXISTS (
+             SELECT 1 FROM cerebro_beneficiario_parcial bp
+              WHERE bp.conversation_id = p_conv
+                AND COALESCE(bp.tarjeta,'') <> '')
+      INTO v_recarga;
+  END IF;
+
+  SELECT c.phone, v.contact_id INTO v_phone, v_contact
+    FROM conversations v JOIN contacts c ON c.id = v.contact_id WHERE v.id = p_conv;
+  v_ref := NULLIF(substring(v_nota from 'Ref: ([0-9]+)'), '');
+
+  -- (160) movido branch: update the found op directly.
+  IF v_ex IS NOT NULL THEN
+    UPDATE remittance_operations ro
+       SET status = cerebro_estado_desde_etapa(p_stage),
+           quoted_source_amount = p_monto,
+           contact_id = coalesce(v_contact, ro.contact_id)
+     WHERE ro.id = v_ex;
+    PERFORM cerebro_objetivo_atar_op(p_conv, v_ex);
+    -- (156) dual-write: insert parsed receipts for this operation.
+    INSERT INTO public.remittance_operation_receipts (
+      operation_id, conversation_id, comp_id, amount, currency, receipt_status,
+      recipient, via, reference, receipt_date, correct_destination, source)
+    SELECT o.id, o.conversation_id, p.comp_id, p.amount, p.currency, p.receipt_status,
+           p.recipient, p.via, p.reference, p.receipt_date, p.correct_destination, 'bot'
+      FROM remittance_operations o
+     CROSS JOIN LATERAL cerebro_parsear_comprobantes(v_nota) p
+     WHERE o.id = v_ex
+    ON CONFLICT (operation_id, comp_id) WHERE comp_id IS NOT NULL DO NOTHING;
+    RETURN QUERY SELECT v_ex, 'movido'::text, false, false; RETURN;
+  END IF;
+
+  -- (160) sumado branch: update the found op directly.
+  IF v_suma IS NOT NULL THEN
+    UPDATE remittance_operations ro
+       SET status = cerebro_estado_desde_etapa(p_stage),
+           quoted_source_amount = p_monto,
+           contact_id = coalesce(v_contact, ro.contact_id)
+     WHERE ro.id = v_suma;
+    PERFORM cerebro_objetivo_atar_op(p_conv, v_suma);
+    -- (156) dual-write.
+    INSERT INTO public.remittance_operation_receipts (
+      operation_id, conversation_id, comp_id, amount, currency, receipt_status,
+      recipient, via, reference, receipt_date, correct_destination, source)
+    SELECT o.id, o.conversation_id, p.comp_id, p.amount, p.currency, p.receipt_status,
+           p.recipient, p.via, p.reference, p.receipt_date, p.correct_destination, 'bot'
+      FROM remittance_operations o
+     CROSS JOIN LATERAL cerebro_parsear_comprobantes(v_nota) p
+     WHERE o.id = v_suma
+    ON CONFLICT (operation_id, comp_id) WHERE comp_id IS NOT NULL DO NOTHING;
+    RETURN QUERY SELECT v_suma, 'sumado al envio abierto'::text, false, true; RETURN;
+  END IF;
+
+  -- (160) creado branch: INSERT remittance_operations directly, no deal.
+  INSERT INTO remittance_operations (
+    account_id, conversation_id, contact_id, deal_id, status,
+    service_type, quoted_source_amount, source_currency, created_at,
+    completed_at, cancelled_at
+  )
+  VALUES (
+    (SELECT account_id FROM conversations WHERE id = p_conv),
+    p_conv, v_contact, NULL,   -- deal_id = NULL (the whole point)
+    cerebro_estado_desde_etapa(p_stage),
+    CASE WHEN v_rev THEN 'remesa' WHEN v_recarga THEN 'recarga' ELSE 'remesa' END,
+    p_monto, coalesce(p_moneda, 'GYD'), now(),
+    CASE WHEN cerebro_estado_desde_etapa(p_stage) = 'completed' THEN now() END,
+    CASE WHEN cerebro_estado_desde_etapa(p_stage) = 'cancelled' THEN now() END
+  )
+  RETURNING id INTO v_id;
+
+  IF NOT v_rev THEN PERFORM cerebro_objetivo_atar_op(p_conv, v_id); END IF;
+
+  -- (156) dual-write: parse and insert receipts linked to this new op.
+  INSERT INTO public.remittance_operation_receipts (
+    operation_id, conversation_id, comp_id, amount, currency, receipt_status,
+    recipient, via, reference, receipt_date, correct_destination, source)
+  SELECT v_id, p_conv, p.comp_id, p.amount, p.currency, p.receipt_status,
+         p.recipient, p.via, p.reference, p.receipt_date, p.correct_destination, 'bot'
+    FROM cerebro_parsear_comprobantes(v_nota) p
+  ON CONFLICT (operation_id, comp_id) WHERE comp_id IS NOT NULL DO NOTHING;
+
+  -- (160) OUT column keeps its name 'deal_id' but now carries the
+  -- operation id. Callers (n8n node) pass it back to
+  -- cerebro_cruzar_deposito which now calls cerebro_resolve_op_id.
+  RETURN QUERY SELECT v_id, 'creado'::text, v_rev, false;
+END;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.cerebro_resolve_op_id(p_deal_or_op uuid)
+ RETURNS uuid
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  SELECT COALESCE(
+    (SELECT ro.id FROM remittance_operations ro WHERE ro.deal_id = p_deal_or_op LIMIT 1),
+    p_deal_or_op
+  );
+$function$
+;
+

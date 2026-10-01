@@ -29,7 +29,7 @@ payment, not a remesa. What the customer said they want to receive (rail, amount
       saldo, or the new deposit alone is below the smallest minimum; an op below its minimum gets an
       objetivo = minimum so the cross waits; earlier uncrossed receipts of the op are crossed;
       168's job handles multi-receipt deals. GREEN.
-- [ ] T3 Customer-stated target from the bot's own quote (deterministic objetivo), separate migration.
+- [x] T3 Customer-stated target from the bot's own quote (deterministic objetivo), separate migration.
 
 ## Checks
 TDD: assertion RED before T2, GREEN after, run in a rolled-back transaction on production.
@@ -46,6 +46,17 @@ TDD: assertion RED before T2, GREEN after, run in a rolled-back transaction on p
   cerebro_registrar_deposito. Whoever deploys them must carry 170's sum branch, objetivo minimum and
   cerebro_cruzar_pendientes call over, or production goes back to splitting deposits.
 
+- 2026-10-01: T3 migration 171: the bot's own quote ("necesita depositar *X GYD*", "Por *X GYD* llegan")
+  is stored per chat by a trigger on bot messages (never blocks a message) and is the target for
+  cotizacion_ventana_horas (6) after the last closed remesa. Minimums, rates, per-page fees and per-card
+  reparto shares are ignored. A newer, lower quote releases a waiting remesa already covered (audited
+  so the customer is told). Assertion requested-amount-target.sql RED (13,000 of "100 Zelle" was
+  released), trial of 171 + its 6 cases + 170 regression in one rolled-back block: all pass; applied;
+  prosrc md5 of the 5 functions equal the file; GREEN 6/6 on production, rolled back. No live quote
+  yet at 17:11 (no bot traffic since 16:14).
+
 ## Next step
-T3: set the objetivo from what the customer asked for (the bot's own quote), so a remesa above the
-minimum (e.g. 100 USD paid as 13,000 + 13,000) also waits for its rest.
+- Watch the first real quotes land in cerebro_cotizacion and the first split payment.
+- Check what the bot tells the customer while a remesa waits for the rest (only the admin "FALTAN X"
+  wording was found in the Decisor).
+- Coordinate with the eliminate-deals work: 160 and 167_operation_incident_reason must carry 170/171.

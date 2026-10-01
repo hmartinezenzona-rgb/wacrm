@@ -311,7 +311,125 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
     first; rewiring before that makes seven live paths call functions that do not exist there. Two
     open decisions ride with it: the production go-ahead itself, and the `divergencia_ya_tipado`
     reply text recorded under WU4c above.
-  - [ ] WU6 stage-based notifiers/alerts (090, 114 notify_*, 136 avisos, 052, 096 guard) → status.
+  - [ ] WU6 the **live staging catalog** was audited on 2026-10-01 and the real remaining scope is
+    **3 views + 13 functions**, not the earlier guess of "090, 114 notify_*, 136 avisos, 052, 096".
+    Reconciled against `pg_depend` / `pg_proc.prosrc` / `pg_get_viewdef`, not against migration text:
+    - **Views (hard DDL blockers — Postgres refuses `DROP TABLE deals` while they exist):**
+      `cerebro_historial_operaciones`, `cerebro_volumen_diario` (both `LEFT JOIN deals d ON d.id =
+      o.deal_id`) and `cerebro_conciliacion_operaciones`, which is worse — it has `deals` as its
+      **primary `FROM`**, not merely a join. All three are defined in `114`.
+    - **Functions (live body references `deals`; authoritative = highest migration that defines it):**
+      `cerebro_avisar_envios_incompletos`, `cerebro_avisar_envios_sin_beneficiario`,
+      `cerebro_avisar_remesas_abiertas_viejas` (`136`); `cerebro_sync_beneficiarios` (`098`);
+      `merge_duplicate_contacts` (`022`); `crm_comprobantes_de_operacion` (`159`);
+      `crm_verificar_deposito`, `crm_forzar_verificacion`, `notify_operation_incidencia` (`114`);
+      `crm_entregar_operacion` (`143`); `cerebro_aplicar_nombre_confirmado` (`135`);
+      `cerebro_saldo_envio` (`158`, and it is `LANGUAGE sql`, so unlike the plpgsql ones it **does**
+      create a parse-time dependency and blocks the DROP by itself).
+    - **`sync_tags_cliente(uuid)` has NO defining migration** — the identifier appears in exactly one
+      file, `065_revoke_rpc_wacrm_tanda_c.sql`, and only inside a `REVOKE` list. Its live body exists
+      in the database with no migration behind it, so it cannot be "edited in place": its body has to
+      be captured from the catalog first. Unaccounted-for objects like this are exactly why the
+      scope is now taken from the catalog rather than from the repo.
+    - **`notify_deal_incidencia` exists live but no trigger references it** (`pg_trigger` returns
+      zero rows for it) — the 090 question resolves to a dead function; only an optional
+      `DROP FUNCTION` remains, and it is a casualty of the table drop, not work.
+    - **Method note (a trap already sprung twice this feature):** a first pass at this same query
+      returned *empty* for both "views referencing deals" and "functions referencing deals", because
+      a regex (`~* '\mdeals\M'`) did not survive nested heredoc quoting. Taken at face value that
+      empty result would have said "WU6 is already clean" — the opposite of the truth. The query was
+      re-run from a file with `LIKE` and every result set asserted non-empty before being believed.
+      An empty diff is not proof.
+    - **Per-object disposition** (read-only mapper, repository evidence; live-shape claims
+      re-verified by the orchestrator against the catalog where they were load-bearing):
+      - `cerebro_historial_operaciones` / `cerebro_volumen_diario` — used only for
+        `coalesce(o.quoted_source_amount, d.value, 0)`. Drop the LEFT JOIN; the partial UNIQUE index
+        `remittance_operations_deal_uk` (`040:78-79`) makes it at most 1:1, so rows and columns are
+        unchanged. Only NULL-`quoted_source_amount` rows lose a legacy fallback.
+      - `cerebro_conciliacion_operaciones` — **no clean deal-free equivalent**: `deals` is the
+        driving `FROM` of branch 1 and every row of all three branches touches it. It is an internal
+        drift-audit over the deal↔operation bridge; that bridge ceases to exist. **Product decision.**
+        Nothing in `src/` or any DB object consumes it **by DDL**; the only DDL-dependent object of
+        the three views is `cerebro_resumen_volumen` reading `cerebro_volumen_diario` (verified in
+        the catalog). Other readers are plpgsql RPCs, invisible to `pg_depend` — hence the grep.
+      - `crm_comprobantes_de_operacion` (`159`) — `v_stage_id` is assigned and **never read again**;
+        pure deletion. The `cerebro_saldo_envio`/`depositos_mmg.deal_id` swaps go to
+        `cerebro_saldo_operacion`/`.operation_id` (verified: **identical return shape**
+        `TABLE(objetivo, depositado, saldo, moneda)`, exactly one row, on the live catalog).
+      - `crm_entregar_operacion` (`143`) — the deal lock is already `IF v_deal_id IS NOT NULL`; delete
+        the block. No observable change.
+      - `merge_duplicate_contacts` (`022`) — delete the `UPDATE deals` line. Flagged separately,
+        **pre-existing and not caused by this feature**: the function re-points many tables to the
+        surviving contact but never `remittance_operations.contact_id`, and it `DELETE`s the absorbed
+        contacts (`022:100`).
+      - `cerebro_avisar_remesas_abiertas_viejas` (`136`) — already operation-driven; drop both LEFT
+        JOINs. Only the stage label and the legacy amount fallback in the message text disappear.
+      - `cerebro_avisar_envios_incompletos` / `cerebro_avisar_envios_sin_beneficiario` (`136`) —
+        re-key onto `remittance_operations`. **These change behaviour**: the `cerebro_alertas.clave`
+        dedup key is `'envio_incompleto:'||d.id` / `'sin_beneficiario:'||d.id` and must be re-keyed to
+        the operation id, or alert dedup breaks. `sin_beneficiario` already INNER JOINs
+        `remittance_operations ON o.deal_id = d.id`, so its row set is essentially preserved.
+      - `cerebro_saldo_envio` (`158`) — `LANGUAGE sql`, hence a hard DDL blocker by itself. Its
+        deal-free twin `cerebro_saldo_operacion` already exists in the same migration.
+      - `cerebro_aplicar_nombre_confirmado` (`135`) — the `deals.notes` append is the *transport* the
+        sync trigger parsed; it must repoint to the 162 structured writers. `accion` strings must stay
+        byte-identical.
+      - `cerebro_sync_beneficiarios` (`098`) — signature is `(p_deal_id uuid)`: the whole input key
+        disappears. It cannot be "made deal-free", only **retired** once its two callers
+        (`trg_sync_z_benef_desde_deal` `043:89`, `trg_sync_operacion_al_crear_deal` `125:61`) are gone.
+      - `notify_operation_incidencia` (`114`) — **named gap.** `remittance_operations` has no
+        free-text reason column; the read supplies the MOTIVO line and otherwise falls back to a
+        generic string. The alert already fires deal-free. **Product decision.**
+      - `sync_tags_cliente` — **cannot be analysed from the repository at all.** Its live body must be
+        captured from the catalog before any claim about it (including that it touches `deals`) can be
+        made. Note the trap this sets: my catalog sweep listed it as a `deals`-referencing function,
+        but that sweep matched `prosrc LIKE '%deals%'`, which is satisfied by a mere comment — the same
+        false-positive class that put the 163 functions on the list.
+    - **The strongest functional finding, and it is latent rather than reproducing:** both
+      `crm_verificar_deposito` (`114:1153-1155`) and `crm_forzar_verificacion` (`114:1308-1310`) do
+      `IF v_deal_id IS NULL THEN RAISE EXCEPTION 'operation has no linked deal' USING ERRCODE =
+      '22023'` — verified verbatim in the file. So a deal-free operation **cannot be deposit-verified
+      or force-verified from the panel**. It does not reproduce today because staging currently holds
+      **0** operations with `deal_id IS NULL` (all 34 are legacy, deal-linked) — every WU4 assertion
+      ran inside a rolled-back transaction. It will fire the first time a deal-free operation
+      persists, which is exactly what the cutover produces. Report it as reachable-and-pending, not as
+      an observed failure.
+    - **n8n sweep — all 151 workflows fetched individually and grepped (0 failures, GET-only).**
+      Twelve of the seventeen identifiers had **zero hits** across every workflow, node parameter,
+      node name, note, `pinData`, `staticData`, `connections`, workflow name and description —
+      including partial-name probes (`verificar_deposito`, `volumen_diario`, …). The three views are
+      in that zero set, so **no live workflow reads them**: redefining them cannot break a node, and
+      the only DDL-side consumer to respect is the one view found above (`cerebro_resumen_volumen`).
+    - **But n8n does call six of the functions, from ACTIVE workflows — so they are behaviourally
+      live, not dead code:**
+      - `cerebro_avisar_envios_incompletos()` ← `Vigilante - envios incompletos` (`O1TqpAJXgRfKCiW6`)
+      - `cerebro_avisar_envios_sin_beneficiario()` ← `Vigilante - envios sin beneficiario`
+        (`I2qKK76f8Tp9eo16`)
+      - `cerebro_avisar_remesas_abiertas_viejas()` ← `Vigilante - remesas abiertas viejas`
+        (`4ptJpwWnjkyiAjvc`)
+      - `cerebro_cruzar_depositos(...)` ← `Cruzar deposito con MMG` in **both** `jEzlVLCLUaJhVwzs`
+        (production) and `U52y1kSNvhgxvWeb` (staging)
+      - `sync_tags_cliente(c.id)` ← `Reconciliar etiquetas` in `Remesas - Cierre automatico de
+        solicitudes zombis`, **both** `K6EpIX4lSJLGMJN7` (production) and `2CECGodU0oj85hMJ`
+        (staging). **This is the caller that was missing:** `sync_tags_cliente` is not dead, it is
+        called by two active workflows, so its body must be captured from the catalog before it can be
+        touched. `cerebro_sync_beneficiarios` and `notify_operation_incidencia`, by contrast, have
+        **zero call-form hits** — n8n only names them in comments.
+    - **New scope this sweep surfaced — active n8n workflows that still run `deals` SQL, beyond the
+      six nodes WU5a rewired.** These are Phase 6 blockers and were not on any earlier list:
+      - `bTwsEJsmoAzsuOxm` `Vigilante - depositos sin cruzar` — `FROM deals d JOIN conversations …`
+      - `K6EpIX4lSJLGMJN7` (prod) + `2CECGodU0oj85hMJ` (staging) `Remesas - Cierre automatico de
+        solicitudes zombis` — `UPDATE deals SET status = 'lost', notes = …`
+      - `wGud0KGR6eMqqfMQ` (prod) + `OCdJoHTkV6S0aAdk` (staging) `WaCRM - Notificar cliente por etapa
+        del deal` — `Leer secreto` reads `(SELECT d.notes … JOIN deals d ON d.id = o.deal_id)`, and
+        its code node branches on `b.table === 'deals'`. The workflow is literally named for the deal
+        stage it notifies on.
+      - Confirms WU5a landed as intended: `U52y1kSNvhgxvWeb` now has **zero** real `deals` SQL — the
+        only hits are a CTE alias named `deals_cli` (×3) and one comment. `deals_cli` is the
+        false-positive that would make a naive count look wrong in both directions.
+    - **Counts worth distrusting:** the sweep found 151 workflows, not the ~143 an earlier listing
+      suggested, and it classified `deals` hits by form (`FROM`/`UPDATE`/`INSERT` vs CTE alias vs
+      prose) rather than by raw count — the same discipline the md5 and 119-node errors taught.
 - [ ] 1.1 — New RPC that creates a `remittance_operations` row directly (whatever
   `trg_sync_operacion_al_crear_deal` currently derives: account/contact/currency/status), with NO
   `deals` row involved, writing structured beneficiary / USD-destination data up front (Phase 2
@@ -544,20 +662,19 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
    on the deterministic rail; the other five have no inbound `main` edge and fire only as `ai_tool`s
    (see the WU4 constraints block above). A rewire that is safe for a rail node is not automatically
    safe for an `ai_tool` one.
-3. WU6 — stage-based notifiers/alerts (090, 114 `notify_*`, 136 avisos, 052, 096 guard) → status.
-   Same access, no longer blocked; still depends on WU5 landing first.
-   PREMISE CHECK 2026-10-01 (grep only, no behaviour exercised — this is a hypothesis, not a
-   finding): of the five named migrations, `090_notificacion_incidencia_nombre_y_formato.sql`
-   contains **zero** occurrences of `deals`. Either it was mis-attributed when WU6 was scoped, or
-   it depends on `deals` indirectly through a function it calls. That must be settled before WU6
-   is briefed, the same way the `Webhook WaCRM` node-name error and the `delivery_method` gap were
-   — do not brief a unit on a dependency nobody has shown exists.
-   The other four are real and the grep shows their shape:
-   - `114_cutover_retire_sync_pipeline.sql` — the cutover that retired the deals→operations sync
-     bridge; most of its 73 hits are header commentary, so the live statements must be separated
-     from the prose before scoping.
-   - `136_business_hours.sql:507` — `LEFT JOIN deals d ON d.id = o.deal_id`. A LEFT JOIN survives
-     `deal_id` going NULL, but only if nothing downstream uses a `d.` column for a real value;
-     check what `136` reads off `d` (also `:192`, `:273`) rather than assuming the join is inert.
-   - `052_cerrar_deal_entregado.sql` — drops and recreates `trg_cerrar_deal_entregado` on `deals`.
-   - `096_admin_locks_audit_sync.sql` — "Guard 12b" on `deals.stage_id` (`:383-423`).
+3. WU6 — **scope re-settled 2026-10-01 from the live staging catalog** (see the WU6 block in Phase 1
+   for the full object list and the raw evidence). The earlier grep-based scoping — superseded:
+   - `090_notificacion_incidencia_nombre_y_formato.sql` — SETTLED. It contains zero `deals`
+     references, and the object it created, `notify_deal_incidencia`, **exists live but has no
+     trigger** (`pg_trigger` returns zero rows for its `tgfoid`). Dead function; the only residue
+     is an optional `DROP FUNCTION`, and it is a casualty of the table drop rather than work.
+   - `114_cutover_retire_sync_pipeline.sql` — **was mis-assessed as "mostly header commentary".**
+     It is the single biggest WU6 item: it defines all three blocking views (one of which has
+     `deals` as its primary `FROM`) and three of the thirteen functions.
+   - `136_business_hours.sql` — three live `cerebro_avisar_*` bodies, still real.
+   - `052_cerrar_deal_entregado.sql` / `096_admin_locks_audit_sync.sql` — these own
+     `trg_cerrar_deal_entregado` and `deals_admin_completion_guard()`, both trigger functions **on**
+     `deals`. They are casualties that must be dropped before the table, not porting work. They are
+     **not** in the thirteen.
+   - The lesson worth keeping: scoping from migration text produced both a false positive (090, a
+     dead function) and a false negative (114's real weight). Only the catalog is authoritative.

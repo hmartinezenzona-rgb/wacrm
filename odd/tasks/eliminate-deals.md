@@ -76,9 +76,12 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
   - [x] WU2 receipt readers off notes: cerebro_cruzar_deposito(s), crm_verificar_deposito,
     crm_forzar_verificacion, crm_comprobantes_de_operacion read remittance_operation_receipts
     (+ add block_index to receipts first).
-  - [ ] WU3 cerebro_registrar_deposito without deals (movido/sumado/creado on operations,
+  - [x] WU3 cerebro_registrar_deposito without deals (movido/sumado/creado on operations,
     idempotency by receipts.comp_id); `id` returned = what 'Cruzar deposito con MMG' consumes,
     rewired together.
+    - correction pass 1 done 2026-10-01: 160 fixed (D1 `v_ex` + the NULL-saldo hole, D2 `v_suma`,
+      D3 `deal_id` mirror, and the `v_ya` prefix regression), applied to staging, committed
+      `4039674` on `agent/hermes-work`. Evidence: `.briefs/WU3-hermes-fix1-report.md`.
   - [ ] WU4 beneficiary writer RPCs (card auto/tool, zelle auto/tool, reparto, marcar_destino_usd)
     on operations + beneficiaries, same inputs/outputs as today's node SQL.
   - [ ] WU5 rewire the 7 n8n nodes one by one (byte-exact draft diff, live test each).
@@ -222,8 +225,56 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
   fixture writes the receipt row like the bot. Note: can_verify still requires a deal (verification
   RPCs are deal-bound until WU3/Phase 4). Applied to staging. Production: not yet.
 
+- 2026-09-30: **WU3 started, interface frozen before any code** (my decision; workers implement
+  it). `cerebro_registrar_deposito` keeps its signature, its OUT column names
+  (`deal_id, accion, es_revendedor, sumado`) and its four `accion` strings byte for byte, but the
+  first column now carries the **operation id**; `cerebro_cruzar_deposito(s)` accept **either** an
+  operation id or a legacy deal id through a small resolver. Reason: `cerebro_cruzar_deposito`
+  takes `p_deal` and looks the operation up by `deal_id`, so changing what
+  `cerebro_registrar_deposito` returns without migrating its consumer in the same unit is exactly
+  the silent-failure trap this plan warns about (no FK to `deals` anywhere). With the pair
+  migrated together the n8n node needs **no edit** in this unit — which matters because this
+  session has no n8n MCP connected.
+  Blast radius confirmed before delegating: **only n8n calls `cerebro_registrar_deposito`**; there
+  is no SQL caller outside the staging assertions.
+  Delegation: Hermes (heavy) = migration 160 + assertion + ROLLBACK + the (a)-(g) mapping;
+  OpenCode (light) = read-only caller/contract map. Briefs kept outside the repo at
+  `/home/onlinefreedom/wacrm-worktrees/.briefs/WU3-{hermes,opencode}.md`; working copies
+  `agent-hermes` / `agent-opencode`; I verify, commit and ff-merge.
+
+- 2026-10-01: **WU3 correction pass 1 verified by me** (Hermes died twice on provider quota, so I
+  closed it myself). Staging was never mutated — every check ran in `BEGIN; … ROLLBACK;`. Method:
+  one fixture set driven against three bodies in the same transaction (live 156, the rejected 160
+  from `odd/backups/wu3-staging-160-defectuosa-20260930-214930.sql`, and the corrected 160).
+  Verified: D1 (`v_ex` beneficiary guard), D2 (`v_suma` genuinely unreachable in the rejected body —
+  `creado` on the exact fixture where the fixed body returns `sumado al envio abierto`), D3
+  (`deposit-review` case 4 red on the rejected body, green now), and **two defects the brief did not
+  list**: (1) `v_ex`'s `NOT (beneficiary AND saldo>0)` evaluated to NULL when the operation had no
+  objetivo, re-creating the phantom second remesa — fixed with `COALESCE(…, 0)`, witnessed by
+  `ops_after=2 → 1`; (2) `v_ya` compared the receipt's `comp_id` (`'COMP-'||comp`) against the bare
+  `p_comp_id`, so idempotency never matched on the real flow while 156's `notes LIKE` did — fixed by
+  keeping the substring arm. Sweep: `deposit-path-without-deals` 6/6, `registrar-deposito-creado`
+  3/3, `operation-receipts` 6/6 (was 3 FAIL on 156, 2 on the rejected body),
+  `deal-insert-creates-operation` 1–4 all pass, `deposit-review` back to its **2 pre-existing
+  failures** (cases 3 and 8d, identical on 156 — they assert a `deals` UPDATE notify payload that a
+  deal-free path must not emit; they belong to WU5/WU6, not weakened here). `ROLLBACK-160` re-proven
+  byte-exact: restores `1b095ebe…`, `565a6adc…`, `2a30bb22…` and drops `cerebro_resolve_op_id`.
+  Hermes' config was also repaired this session (`model.default` was `auto` advertising a 1048576
+  window while the router served 262144, plus `compression.enabled: false`).
+  **Delivered**: corrected 160 applied to staging in one transaction (`ON_ERROR_STOP`, `-1`), and
+  proven byte-for-byte live — LIVE and FILE md5s agree on all four functions
+  (`cerebro_registrar_deposito = 314abaa05f78f4c48ad141ee38c772ed`, `cruzar_deposito =
+  5c70475480f24b46e1bab0945be21a1d`, `cruzar_depositos = 694875ca67f75b889eb19bce31aa1519`,
+  `resolve_op_id = 49ede272ed6708e43352024b9093984a`). Pre-160 staging backed up to
+  `odd/backups/wu3-staging-pre-160-20261001-055820.sql`. Regression sweep re-run against live
+  staging: `deposit-path-without-deals` 6/6, `registrar-deposito-creado` 3/3, `operation-receipts`
+  5/5, `deal-insert-creates-operation` 1–4, `deposit-review` 2 pre-existing failures (cases 3, 8d).
+  Committed `4039674` on `agent/hermes-work`. **ff-merge into
+  `feat/port-chat-operations-calculator` done — rebased onto 8daf4e0 first so it was a true fast-forward (SHA moved 8eb227a → 4039674).**
+
 ## Next step
-1.1 — design the direct operation/beneficiary write path (no deals) together with
-cerebro_registrar_deposito, since the deposit function finds open deals by notes; then — rewrite `Contexto conversacion` (dup_etapa/dup_valor via receipts.comp_id → operation
-status/amount; via_deposito_ya_usada via receipts.via; recarga_en_curso via operations timestamps),
-staging parity check, byte-exact draft diff before publish.
+1. WU4 — beneficiary writer RPCs on operations + beneficiaries.
+2. WU5 — rewire the 7 n8n nodes one by one; **blocked in this session**: the n8n MCP connector is
+   not available, so reading/publishing workflows has to be re-enabled (or done from the user's
+   own session) before this unit can start.
+3. WU6 — stage-based notifiers/alerts → status. Same n8n-access caveat.

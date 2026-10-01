@@ -13,8 +13,10 @@
 --      remittance_operations.status = 'incident' instead of
 --      deals.stage_id;
 --   4. the repointed views (cerebro_historial_operaciones,
---      cerebro_volumen_diario, cerebro_conciliacion_operaciones) read
---      remittance_operations as authoritative.
+--      cerebro_volumen_diario) read remittance_operations as
+--      authoritative. A third view, cerebro_conciliacion_operaciones, was
+--      checked here until 164 dropped it by product decision; its check
+--      is gone with it.
 --
 -- MUST run inside an already-open transaction that ends in ROLLBACK
 -- (docker psql against $CRM_STAGING_DATABASE_URL, wrapped in
@@ -258,18 +260,9 @@ BEGIN
     RAISE NOTICE 'PASS [case 4a] cerebro_historial_operaciones prefers remittance_operations.quoted_source_amount over the stale deals.value';
   END IF;
 
-  -- The fixture operation is completed with its deal frozen at Por
-  -- verificar (never Entregada) — the conciliation view must NOT report
-  -- it as a divergence.
-  SELECT count(*) INTO v_divergent
-    FROM cerebro_conciliacion_operaciones
-   WHERE operation_id = v_op_id2 AND problema = 'estado divergente';
-  IF v_divergent <> 0 THEN
-    v_fail_count := v_fail_count + 1;
-    RAISE WARNING 'FAIL [case 4b] cerebro_conciliacion_operaciones reported a completed panel-delivered operation as divergent (deal never reached Entregada, which is now expected)';
-  ELSE
-    RAISE NOTICE 'PASS [case 4b] cerebro_conciliacion_operaciones does not flag a completed operation whose deal stayed at Por verificar';
-  END IF;
+  -- (case 4b was removed: it queried cerebro_conciliacion_operaciones,
+  --  which 164 dropped by product decision. The check could never pass
+  --  again, so it is gone rather than left failing.)
 
   -- Volume view: same coalesce-order flip, checked via the daily rollup.
   IF NOT EXISTS (

@@ -55,8 +55,16 @@ TDD: assertion RED before T2, GREEN after, run in a rolled-back transaction on p
   prosrc md5 of the 5 functions equal the file; GREEN 6/6 on production, rolled back. No live quote
   yet at 17:11 (no bot traffic since 16:14).
 
+- 2026-10-01: T4 what the customer is told while a remesa waits. Found: the Decisor's
+  'verificado_incompleto' note says "El cliente dijo que iba a enviar X", false when X is the service
+  minimum (170); and the deposit that completes a multi-deposit remesa was confirmed alone, not as the
+  total. Fix: migration 173 (`cerebro_objetivo_envio.pedido` = 'cotizacion' | 'minimo <via>';
+  `cerebro_riel_op` shared by minimum and label), assertion target-origin-label.sql RED -> GREEN 3/3
+  on production (rolled back) + 170/171 regressions in the trial; deployed md5 = file. Cerebro
+  published 9468cc8e (previous 3ff5f17e): `Cruzar deposito con MMG` returns pedido_objetivo (query run
+  on production first), and `Agente Remesas` gets two notes (minimum wording; completion confirms the
+  TOTAL), unit-tested 6/6 locally; draft verified equal to the tested text before publishing.
+
 ## Next step
-- Watch the first real quotes land in cerebro_cotizacion and the first split payment.
-- Check what the bot tells the customer while a remesa waits for the rest (only the admin "FALTAN X"
-  wording was found in the Decisor).
-- Coordinate with the eliminate-deals work: 160 and 167_operation_incident_reason must carry 170/171.
+- Watch the first real quotes, split payments and both new notes in live chats.
+- Coordinate with the eliminate-deals work (see HANDOFF-production-registrar-168-170-171.md; add 173).

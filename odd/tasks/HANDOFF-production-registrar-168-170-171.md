@@ -27,4 +27,8 @@ not 125's (`a0251d99...`) and not the `314abaa0...` the eliminate-deals doc meas
    `operations_realtime_publication`). The production ones are applied under those names; renumber
    the ones that are not in production yet.
 
-None of 168/170/171 is on staging. Feature doc: `odd/tasks/split-deposit-minimums.md`.
+Also live since: `173_target_origin_label` (commit fa769f4): `cerebro_riel_op`, `cerebro_minimo_gyd` and
+`cerebro_objetivo_minimo` redefined; `cerebro_objetivo_envio.pedido` is now 'cotizacion' | 'minimo <via>'
+and the Cerebro node `Cruzar deposito con MMG` reads it (keyed by deal_id). Your 172 exists, so this is 173.
+
+None of 168/170/171/173 is on staging. Feature doc: `odd/tasks/split-deposit-minimums.md`.

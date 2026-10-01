@@ -117,12 +117,9 @@ BEGIN
     RAISE WARNING 'FAIL [0] the deals-referencing function set is EMPTY — the probe is broken, not the catalog';
   ELSIF v_set IS DISTINCT FROM ARRAY[
        'cerebro_aplicar_nombre_confirmado',
-       'cerebro_avisar_envios_incompletos',
-       'cerebro_avisar_envios_sin_beneficiario',
        'cerebro_sync_beneficiarios',
        'crm_forzar_verificacion',
        'crm_verificar_deposito',
-       'notify_operation_incidencia',
        'sync_tags_cliente']::text[] THEN
     v_fail := v_fail + 1;
     RAISE WARNING 'FAIL [0] the deals-referencing function set is % — expected the eight post-WU6b ones', v_set;

@@ -603,13 +603,9 @@ BEGIN
      AND pg_temp.wu6a_names_deals(p.prosrc);
   IF v_names IS DISTINCT FROM ARRAY[
        'cerebro_aplicar_nombre_confirmado',
-       'cerebro_avisar_envios_incompletos',
-       'cerebro_avisar_envios_sin_beneficiario',
        'cerebro_sync_beneficiarios',
-       'crm_comprobantes_de_operacion',
        'crm_forzar_verificacion',
        'crm_verificar_deposito',
-       'notify_operation_incidencia',
        'sync_tags_cliente']::text[] THEN
     v_fail := v_fail + 1;
     RAISE WARNING 'FAIL [0.3] the deals-referencing function set is % — expected the nine WU6b/c/d + unallocated ones', v_names;

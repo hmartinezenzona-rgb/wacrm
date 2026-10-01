@@ -65,6 +65,14 @@ TDD: assertion RED before T2, GREEN after, run in a rolled-back transaction on p
   on production first), and `Agente Remesas` gets two notes (minimum wording; completion confirms the
   TOTAL), unit-tested 6/6 locally; draft verified equal to the tested text before publishing.
 
+- 2026-10-01: T5 the late/manual "deposit verified" notice asked an operation with no beneficiary
+  and no delivery_method for "tarjeta y celular" (Alejandro, Zelle). Notify workflow wGud0KGR6eMqqfMQ
+  published 45700701 (previous a7c282de): `Leer secreto` returns riel = cerebro_riel_op(op) (173),
+  `Filtrar cambio de etapa` asks for Zelle data, card data, cash data, or - with no known rail -
+  "los datos de quien recibe: la cuenta Zelle, o la tarjeta y el celular en Cuba". Wording logic
+  unit-tested 6/6; n8n version diff showed only those two nodes; the new SQL run on production with an
+  op id and with '' (non-operation notices).
+
 ## Next step
-- Watch the first real quotes, split payments and both new notes in live chats.
-- Coordinate with the eliminate-deals work (see HANDOFF-production-registrar-168-170-171.md; add 173).
+- Watch the first real quotes, split payments and the new notes/notices in live chats.
+- Coordinate with the eliminate-deals work (HANDOFF-production-registrar-168-170-171.md).

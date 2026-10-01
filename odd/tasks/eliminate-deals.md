@@ -84,6 +84,58 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
       `4039674` on `agent/hermes-work`. Evidence: `.briefs/WU3-hermes-fix1-report.md`.
   - [ ] WU4 beneficiary writer RPCs (card auto/tool, zelle auto/tool, reparto, marcar_destino_usd)
     on operations + beneficiaries, same inputs/outputs as today's node SQL.
+    Recon 2026-10-01 (two read-only maps, both verified against live): the structured writers
+    ALREADY EXIST and are already operation-keyed — `crm_agregar_beneficiario(p_operation_id,
+    p_datos jsonb)` (123), `cerebro_aplicar_reparto(p_operation_id, p_reparto jsonb)`
+    (127, redefined 129/130), `cerebro_aplicar_nombre_confirmado` (135),
+    `cerebro_registrar_destino(p_conv, p_texto)` (157, with `cerebro_destino_pendiente` plus a
+    BEFORE INSERT trigger that re-types the card rail), `cerebro_objetivo_atar_op(p_conv, p_op)`
+    (158). So WU4 is NOT six RPCs from scratch: it is a deal-free operation creator plus thin
+    node-contract adapters that resolve the operation, replace the notes-based update-vs-create
+    decision with a structured one, delegate to those writers, and return the nodes' exact
+    `accion` strings. Split:
+    - [ ] WU4a operation creator, deal-free: the equivalent of `INSERT INTO deals` +
+      `trg_sync_operacion_al_crear_deal` (125) — same derived account/conversation/contact,
+      currency and status. Foundation for every "envio nuevo creado" branch.
+    - [ ] WU4b card + zelle adapters: `Registrar beneficiario auto` (4 args),
+      `gestionar_beneficiario` (5), `Registrar zelle auto` (4), `registrar_beneficiario_zelle`
+      (4; body byte-identical to the zelle auto one except the resolver and the log literals).
+    - [ ] WU4c reparto + destino adapters: `registrar_reparto_multiple` (10 args) and
+      `marcar_destino_usd` (2). `marcar_destino_usd` must be migrated even though
+      `Registrar destino auto` superseded it on the deterministic rail: it survives as an
+      `ai_tool` on `Agente Remesas`, so leaving it means a live path still INSERTs `deals` and
+      Phase 6 can never drop the table.
+    Constraints found by recon (2026-10-01) — these are load-bearing, not commentary:
+    - `cerebro_resolver_operacion(uuid, text[] DEFAULT NULL)` is LIVE-ONLY: absent from the
+      working tree and from all reachable git history, with the drift documented at
+      `097_operaciones_de_conversacion_rpc.sql:38-53`. The new RPCs must NOT depend on it —
+      inline the `status` filter instead, or a repo-built environment breaks. The repo-visible
+      1-arg form is `040_remittance_operations.sql:178`;
+      `cerebro_resolver_operacion_beneficiario(uuid, text[], text)` is repo-visible at 133:23.
+    - `remittance_operations_status_chk` (verbatim): collecting_information, awaiting_deposit,
+      deposit_received, deposit_verification, ready_to_transfer, transferring, completed,
+      incident, cancelled.
+    - `remittance_beneficiaries`: 20 columns; NOT NULL is only operation_id, beneficiary_type,
+      position (default 1), status (default 'vigente'), source (default 'notes_parse'),
+      created_at. UNIQUE `rb_unico_por_bloque(operation_id, block_index, position)`.
+      `rb_type_chk`: cuban_card|zelle|clasica|tropical|multiple_distribution|efectivo_usd.
+      `rb_status_chk`: vigente|reemplazado. FK operation_id → remittance_operations ON DELETE
+      CASCADE.
+    - `ENTREGA EN USD: …` is a delivery-method marker, never a beneficiary row — the 042 parser
+      only ever emits cuban_card, zelle and multiple_distribution.
+    - `remittance_operations` has NO FK on deal_id, account_id or conversation_id. A wrong id
+      therefore does not raise: it writes a row nothing reads. Every adapter needs its own
+      "did I actually land on an operation" check; a constraint will not save us.
+    - Node wiring (live graph, entry `Webhook WaCRM`): only `Registrar beneficiario auto` and
+      `Registrar zelle auto` are on a deterministic rail (`Beneficiario completo?`, `Zelle
+      completo?`). `gestionar_beneficiario`, `registrar_beneficiario_zelle`,
+      `registrar_reparto_multiple` and `marcar_destino_usd` have no inbound `main` edge at all —
+      they fire only when the model calls them as `ai_tool`s on `Agente Remesas`.
+      `Registrar destino auto` is the already-migrated template for the target shape:
+      `SELECT cerebro_registrar_destino($1::uuid, $2::text) AS destino`.
+    - Full per-node contract (verbatim SQL, argument bindings, notes markers, complete `accion`
+      value sets) and the DB contract: `agent-shared/reports/wu4-n8n-writers.md` and
+      `agent-shared/reports/wu4-db-side.md`.
   - [ ] WU5 rewire the 7 n8n nodes one by one (byte-exact draft diff, live test each).
   - [ ] WU6 stage-based notifiers/alerts (090, 114 notify_*, 136 avisos, 052, 096 guard) → status.
 - [ ] 1.1 — New RPC that creates a `remittance_operations` row directly (whatever

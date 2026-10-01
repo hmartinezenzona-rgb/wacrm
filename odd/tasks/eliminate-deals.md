@@ -913,6 +913,38 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
   Carried, listed not touched: `v_divergent` unused; three comment-only stale counts at
   `deals-free-views-and-inert-edits.sql:19`, `:599`, `deal-free-panel-verification.sql:7-8`.
 
+- 2026-10-01: **WU6f sliced and delegated — `sync_tags_cliente`, the last un-sliced object.**
+  Brief: `.briefs/WU6f-tags-off-delivered-operations.md`. Migration `168` + rollback + assertion, and
+  a **second** commit reconciling three stale inventory arrays (5 → 4).
+  **It has no defining migration — measured, not assumed.** The only repo references are
+  `065:17,47,61` (a REVOKE/GRANT that *assumes* it exists) and three assertion arrays; the live body
+  is out-of-band drift, `md5(prosrc) = d0a05822c5116cd69e97c58721846724`, length 1351. **Consequence
+  recorded, not fixed: a from-zero migration replay already fails at `065`**, because nothing creates
+  the function before it. That predates this feature and is out of scope.
+  Six live measurements shaped the slice:
+  1. the `pipeline_id` filter in the old count is **vacuous** — `pipelines` holds exactly one row and
+     all 35 deals are in it, so it drops cleanly;
+  2. stage `1b36b34c-…` is named **`Entregada`**, which `cerebro_estado_desde_etapa` (`041:38-45`) maps
+     to `completed` — the re-key uses the repo's own canonical map, not an invention;
+  3. the old count has **no `d.status` and no `service_type` filter**, so the new side gets
+     `status = 'completed'` and nothing more — adding `<> 'recarga'` would subtract the one `recarga`
+     operation that exists, an unauthorised change, so fidelity wins and it is flagged to the user as
+     an open product question instead;
+  4. the deal → operation mapping is **injective** (`remittance_operations_deal_uk` is a UNIQUE index
+     on `deal_id WHERE deal_id IS NOT NULL`; 34 deals, 1 operation each), so the count cannot inflate;
+  5. two **legitimate divergences** the writer must drive and print — a deal at `Entregada` whose op
+     is not `completed` (old 1 / new 0), and a deal-free op at `completed` (old 0 / new 1);
+  6. on staging **both sides are 0**, so a naive old-vs-new comparison is `0 = 0` and proves nothing —
+     every equivalence claim must rest on constructed fixtures with a non-empty control.
+  **Two measurement traps hit while slicing, both corrected:** a probe for triggers naming
+  `sync_tags_cliente` returned empty because `pg_get_triggerdef` names the *trigger function*
+  (`trg_sync_tags_contact`), not the function it calls — an empty result from a wrong probe, not a
+  real absence; and the first `service_type` query matched comparisons rather than assignments, so the
+  "who sets `completed`" reading was narrowed before being used. This is the **fourth** instance of
+  the stale-inventory pattern and the first one authorised **up front**, in the same brief, so it does
+  not need a follow-up commit — the three arrays *and* their six count strings are named explicitly in
+  §5.
+
 ## Next step
 1. WU4 — DONE. WU4a `bcc6cd7` (161), WU4b `af07d9d` (162), WU4d closed as unnecessary with no code
    change (`8edac6f`). WU4c (163, reparto + destino) queued to land next.
@@ -975,3 +1007,9 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
      **not** in the thirteen.
    - The lesson worth keeping: scoping from migration text produced both a false positive (090, a
      dead function) and a false negative (114's real weight). Only the catalog is authoritative.
+   - **Where WU6 stands after WU6f is sliced:** WU6a, WU6b, WU6c, WU6e DONE; **WU6f** (tags,
+     `sync_tags_cliente`) delegated; **WU6d BLOCKED** — its precondition triggers
+     `trg_sync_z_benef_desde_deal` and `trg_sync_operacion_al_crear_deal` are still live on `deals`.
+     `crm_verificar_deposito` and `crm_forzar_verificacion` stay by design. After WU6f the positional
+     `deals` set is **4**: `cerebro_aplicar_nombre_confirmado`, `cerebro_sync_beneficiarios` (both
+     WU6d's), `crm_forzar_verificacion`, `crm_verificar_deposito` (both intentional).

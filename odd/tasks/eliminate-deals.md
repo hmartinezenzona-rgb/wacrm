@@ -67,6 +67,22 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
   staging: old vs new query output on the same conversations must match. Byte-exact draft diff
   before publish.
 - [x] 1.0c — Same for `Historial contacto`.
+- Work units for 1.1/1.2 (2026-09-30, from my own inventory: 31 latest SQL functions still
+  reference deals/stage/notes — workers' design/inventory reports were too shallow to rely on).
+  Each unit small, staging-first, old (deal) and new (no deal) operations must both keep working:
+  - [ ] WU1 operation-keyed money helpers: cerebro_saldo_envio / cerebro_objetivo_atar /
+    cerebro_objetivo_cerrar get operation-id variants; deal-id versions delegate to them (absorbs
+    Phase 3).
+  - [ ] WU2 receipt readers off notes: cerebro_cruzar_deposito(s), crm_verificar_deposito,
+    crm_forzar_verificacion, crm_comprobantes_de_operacion read remittance_operation_receipts
+    (+ add block_index to receipts first).
+  - [ ] WU3 cerebro_registrar_deposito without deals (movido/sumado/creado on operations,
+    idempotency by receipts.comp_id); `id` returned = what 'Cruzar deposito con MMG' consumes,
+    rewired together.
+  - [ ] WU4 beneficiary writer RPCs (card auto/tool, zelle auto/tool, reparto, marcar_destino_usd)
+    on operations + beneficiaries, same inputs/outputs as today's node SQL.
+  - [ ] WU5 rewire the 7 n8n nodes one by one (byte-exact draft diff, live test each).
+  - [ ] WU6 stage-based notifiers/alerts (090, 114 notify_*, 136 avisos, 052, 096 guard) → status.
 - [ ] 1.1 — New RPC that creates a `remittance_operations` row directly (whatever
   `trg_sync_operacion_al_crear_deal` currently derives: account/contact/currency/status), with NO
   `deals` row involved, writing structured beneficiary / USD-destination data up front (Phase 2

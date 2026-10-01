@@ -493,6 +493,20 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
       latent blocker above — and its acceptance test is the first genuine exercise of a deal-free
       operation end-to-end. `crm_comprobantes_de_operacion` is here rather than in WU6a precisely
       because it does not satisfy WU6a's no-observable-change property.
+      - **Scope correction before the first write (orchestrator error, third of the feature).** The
+        first WU6b brief carried a self-contradiction: §3 orders every `UPDATE deals SET notes …`
+        write kept (live n8n workflows read `deals.notes`), while the exit criterion demanded the
+        deals-referencing set shrink 9 → 6 — which requires those very writes to be gone. The writer
+        stopped before writing anything and measured it. Confirmed independently on the live catalog:
+        `crm_verificar_deposito` holds 3 live deals lines (one being the notes write) and
+        `crm_forzar_verificacion` 2, so under §3 both **cannot** leave the set.
+      - **Resolution — §3 wins; exit criterion corrected to 9 → 8.** Only
+        `crm_comprobantes_de_operacion` leaves the set. `crm_verificar_deposito` and
+        `crm_forzar_verificacion` keep their deal-linked writes untouched and *remain* deals-referencing
+        for now; that is the correct outcome, not a shortfall. They become fully deal-free only after
+        the live n8n readers of `deals.notes` are retired (`Leer secreto` in `WaCRM - Notificar cliente
+        por etapa del deal`; `Historial contacto` and `Contexto conversacion` in production `Cerebro
+        v2`) — a **carried dependency**, deliberately sequenced later, not a gap in this slice.
     - **WU6c — re-key the avisos.** `cerebro_avisar_envios_incompletos`,
       `cerebro_avisar_envios_sin_beneficiario`. Changes row sets and the `cerebro_alertas.clave`
       dedup keys; needs its own alert-dedup proof.

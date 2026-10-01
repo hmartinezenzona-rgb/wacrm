@@ -46,4 +46,15 @@ Also live: `176_zelle_remainder_amount`: `crm_calcular_monto_destino` (157 body 
 `crm_monto_resto_zelle(op)`: a vigente Zelle without amount next to priced shares gets
 floor((deposit or quote - CUP shares/CUP rate - USD shares x USD rate) / USD rate), amount_origin 'calculated'.
 
-None of 168/170/171/173/174/175/176 is on staging. Feature doc: `odd/tasks/split-deposit-minimums.md`.
+Also live: `177_panel_can_verify_by_status`: `crm_comprobantes_de_operacion` offers verify/force when the
+operation status is `deposit_verification` or `incident` (it no longer reads the stale `deals.stage_id`).
+
+Also live: `178_repeated_receipt` (prosrc md5 registrar `0637aba3...`, cruzar_depositos `0050acb1...`) + Cerebro
+version 0d7de989 (`Snapshot final` drops a repeated Ref+amount+currency inside one burst):
+`cerebro_registrar_deposito` returns the open envio that already holds the receipt's Ref ('ya registrado (misma
+referencia)', appends a COMPROBANTE REPETIDO line, never sums it); `cerebro_cruzar_depositos` collapses repeated
+Ref+amount pairs and, when every Ref is already consumed by this envio, reports its state and writes nothing.
+Your deal-free registrar must keep the Ref lookup (it reads `deals.notes` today). Guard:
+`supabase/staging/assertions/repeated-receipt.sql` (needs the helpers of split-deposit-minimums.sql).
+
+None of 168/170/171/173/174/175/176/177/178 is on staging. Feature doc: `odd/tasks/split-deposit-minimums.md`.

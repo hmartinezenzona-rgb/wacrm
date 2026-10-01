@@ -18,11 +18,12 @@
 -- Never COMMIT. Never run against production. Builds its own fixtures,
 -- same posture as registrar-deposito-creado.sql.
 --
--- Case 5 fixture: case 3's deal only qualifies for the 'sumado' branch when
--- it has an open remittance target — cerebro_saldo_envio(d).saldo is the
--- objetivo (cerebro_objetivo_envio) minus consumed MMG deposits, and the
--- fixture consumes none. Without that row the deal has no saldo and the
--- second receipt would open a brand new deal instead.
+-- Case 5 fixture: case 3's operation only qualifies for the 'sumado'
+-- branch when it has an open remittance target —
+-- cerebro_saldo_operacion(op).saldo is the objetivo
+-- (cerebro_objetivo_envio) minus consumed MMG deposits, and the fixture
+-- consumes none. Without that row the operation has no saldo and the
+-- second receipt would open a brand new operation instead.
 --
 -- RED:   against staging WITHOUT 156 the run dies at case 1 — the parser
 --        does not exist. Case 1 raises on failure on purpose (no nested
@@ -200,13 +201,10 @@ BEGIN
 
     IF v_result.accion IS DISTINCT FROM 'creado' OR v_result.deal_id IS NULL THEN
       v_fail_count := v_fail_count + 1;
-      RAISE WARNING 'FAIL [case 3] expected accion=creado with a deal id, got accion=% deal=%', v_result.accion, v_result.deal_id;
+      RAISE WARNING 'FAIL [case 3] expected accion=creado with an op id, got accion=% deal=%', v_result.accion, v_result.deal_id;
     ELSE
-      v_deal_id := v_result.deal_id;
-
-      SELECT o.id INTO v_op_id
-        FROM remittance_operations o
-       WHERE o.deal_id = v_deal_id;
+      -- The returned value is now an operation id (deal_id IS NULL).
+      v_op_id := v_result.deal_id;
 
       IF v_op_id IS NULL THEN
         v_fail_count := v_fail_count + 1;
@@ -242,14 +240,14 @@ BEGIN
     RAISE WARNING 'FAIL [case 3] cerebro_registrar_deposito (creado) raised: % (%)', SQLERRM, SQLSTATE;
   END;
 
-  -- ---- cases 4 and 5 need case 3's deal and operation -------------------
-  IF v_deal_id IS NULL OR v_op_id IS NULL THEN
+  -- ---- cases 4 and 5 need case 3's operation ----------------------------
+  IF v_op_id IS NULL THEN
     v_fail_count := v_fail_count + 1;
-    RAISE WARNING 'FAIL [cases 4-5] skipped: case 3 did not produce a deal + operation';
+    RAISE WARNING 'FAIL [cases 4-5] skipped: case 3 did not produce an operation';
   END IF;
 
   -- ---- case 4: the same comp_id again is idempotent --------------------
-  IF v_deal_id IS NOT NULL AND v_op_id IS NOT NULL THEN
+  IF v_op_id IS NOT NULL THEN
     BEGIN
       SELECT * INTO v_result
         FROM cerebro_registrar_deposito(v_conv_id, 40000, 'GYD', v_por_verificar, v_nota1, v_comp1);
@@ -276,13 +274,14 @@ BEGIN
   END IF;
 
   -- ---- case 5: a second receipt adds a row to the SAME operation -------
-  IF v_deal_id IS NOT NULL AND v_op_id IS NOT NULL THEN
+  IF v_op_id IS NOT NULL THEN
     BEGIN
       -- An open remittance target on the conversation is what makes
-      -- cerebro_saldo_envio(deal).saldo > 0, i.e. what makes the deal
-      -- eligible for the 'sumado' branch instead of opening a new deal.
-      INSERT INTO cerebro_objetivo_envio (conversation_id, monto, moneda, deal_id)
-      VALUES (v_conv_id, 80000, 'GYD', v_deal_id);
+      -- cerebro_saldo_operacion(op).saldo > 0, i.e. what makes the op
+      -- eligible for the 'sumado' branch instead of opening a new op.
+      INSERT INTO cerebro_objetivo_envio (conversation_id, monto, moneda)
+      VALUES (v_conv_id, 80000, 'GYD');
+      PERFORM cerebro_objetivo_atar_op(v_conv_id, v_op_id);
 
       v_nota2 := E'DEPOSITO: 15,000 GYD - APROBADA\n'
              || E'Destinatario: XYZ Comisiones\n'
@@ -295,10 +294,10 @@ BEGIN
         FROM cerebro_registrar_deposito(v_conv_id, 15000, 'GYD', v_por_verificar, v_nota2, v_comp2);
 
       IF v_result.accion IS DISTINCT FROM 'sumado al envio abierto'
-         OR v_result.deal_id IS DISTINCT FROM v_deal_id THEN
+         OR v_result.deal_id IS DISTINCT FROM v_op_id THEN
         v_fail_count := v_fail_count + 1;
-        RAISE WARNING 'FAIL [case 5] expected the second receipt to be sumado onto deal %, got accion=% deal=%',
-          v_deal_id, v_result.accion, v_result.deal_id;
+        RAISE WARNING 'FAIL [case 5] expected the second receipt to be sumado onto op %, got accion=% id=%',
+          v_op_id, v_result.accion, v_result.deal_id;
       ELSE
         SELECT count(*) INTO v_receipts
           FROM remittance_operation_receipts

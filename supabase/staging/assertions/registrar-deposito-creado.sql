@@ -86,30 +86,30 @@ BEGIN
       RAISE NOTICE 'PASS [case 1] first receipt returned accion=creado (deal %)', v_result.deal_id;
     END IF;
 
-    -- ---- case 2: the deal and its operation row exist --------------------
-    SELECT count(*) INTO v_ops FROM remittance_operations WHERE remittance_operations.deal_id = v_result.deal_id;
-    IF NOT EXISTS (SELECT 1 FROM deals WHERE id = v_result.deal_id) OR v_ops <> 1 THEN
+    -- ---- case 2: the deal (now op) and its operation row exist ---------
+    -- The returned value is now an operation id (deal_id IS NULL).
+    SELECT count(*) INTO v_ops FROM remittance_operations WHERE remittance_operations.id = v_result.deal_id AND remittance_operations.deal_id IS NULL;
+    IF NOT EXISTS (SELECT 1 FROM remittance_operations WHERE id = v_result.deal_id AND deal_id IS NULL) OR v_ops <> 1 THEN
       v_fail_count := v_fail_count + 1;
-      RAISE WARNING 'FAIL [case 2] expected the deal plus exactly 1 remittance_operations row, got % rows', v_ops;
+      RAISE WARNING 'FAIL [case 2] expected the operation plus exactly 1 row, got % rows', v_ops;
     ELSE
-      RAISE NOTICE 'PASS [case 2] the deal exists with exactly 1 linked remittance_operations row';
+      RAISE NOTICE 'PASS [case 2] the created operation exists with exactly 1 row (deal_id IS NULL)';
     END IF;
 
     -- ---- case 3: a second receipt on the same conversation -------------
-    -- Exercises the non-creado paths (movido/sumado, already qualified
-    -- with `ro.`) under the same function: it must not raise, and the
-    -- first deal must still have exactly one operation row.
+    -- Exercises the non-creado paths under the same function: it must not
+    -- raise, and the first operation must still have exactly one row.
     BEGIN
       PERFORM * FROM cerebro_registrar_deposito(
                 v_conv_id, 5000, 'GYD', v_por_verificar,
                 'DEPOSITO: 5,000 GYD - VERIFICADA' || chr(10) || 'Via: Agente MMG;',
                 'comp-assert-' || substr(gen_random_uuid()::text, 1, 8));
-      SELECT count(*) INTO v_ops FROM remittance_operations WHERE remittance_operations.deal_id = v_result.deal_id;
+      SELECT count(*) INTO v_ops FROM remittance_operations WHERE remittance_operations.id = v_result.deal_id AND remittance_operations.deal_id IS NULL;
       IF v_ops <> 1 THEN
         v_fail_count := v_fail_count + 1;
-        RAISE WARNING 'FAIL [case 3] after a second receipt the first deal has % operation rows, expected 1', v_ops;
+        RAISE WARNING 'FAIL [case 3] after a second receipt the first operation has % rows, expected 1', v_ops;
       ELSE
-        RAISE NOTICE 'PASS [case 3] a second receipt did not raise and left the first deal with 1 operation row';
+        RAISE NOTICE 'PASS [case 3] a second receipt did not raise and left the first operation with 1 row';
       END IF;
     EXCEPTION WHEN OTHERS THEN
       v_fail_count := v_fail_count + 1;

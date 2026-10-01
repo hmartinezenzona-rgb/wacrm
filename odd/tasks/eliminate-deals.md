@@ -645,6 +645,45 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
         **Lesson, same shape as the 090 false positive:** an absolute inventory assertion is a
         standing claim about the catalog, and nothing in the workflow re-evaluates it when a later
         slice legitimately moves the catalog. Whoever moves the count owns the array.
+      - **WU6e DONE `94e4d7e`** (167 + ROLLBACK-167 + assertion; staging; parent-verified against the
+        live catalog). **The §3 hypothesis was measured and HELD.** Pre-167, a deal-linked operation
+        driven to `incident` through the real `160` path rendered
+        `MOTIVO:` / `VERIFICADO EN PANEL por un operador del CRM` — the raw last line of
+        `deals.notes`, prefix unstripped, in the same confident format a real motive uses, while the
+        true `REFERENCIA IMPOSIBLE` text appeared nowhere. Empty notes fell back to the generic
+        string, which is why the defect stayed invisible: the fallback path looked correct. **This
+        was not a port, it was an operator being shown a false motive.**
+      - **Independently re-measured by me, not taken from the writer:** positional `deals` set
+        **6 → 5**; any-mention (comment-stripped) 9 → 8; ACLs identical before and after, including
+        the `PUBLIC EXECUTE` on the two trigger functions that the brief forbade "fixing"; column is
+        `incident_reason text` nullable with no default; all four writes put the reason in the
+        **same `SET`** as the status, with `ELSE NULL` when the new status is not `incident`, which
+        satisfies the stale-reason invariant without having been asked. Staging left at baseline
+        (34 ops / 0 deal-free / 35 deals). I re-ran the new assertion and the WU6b one myself: both
+        `ALL PASS`.
+      - **Declared and sanctioned deviations:** the one `deals` string still inside
+        `notify_operation_incidencia` is a **comment** explaining the invariant — no dependency, and
+        the drop does not see it. The writer's report claimed the raw and comment-stripped sets were
+        identical; they are not (raw keeps that comment). Corrected for the record; the conclusion is
+        unaffected.
+      - **Not verified, carried:** `crm_verificar_deposito`'s panel path was never driven (it
+        reaches incident through `verificado_de_mas` and stays NULL → fallback, established by
+        reading its body); the out-of-incident movers outside the redefined set were classified by
+        catalog query only; `cerebro_sync_operacion_desde_deal` likewise.
+    - **Assertion debt reconciled `982d993`** (its own commit, deliberately not folded into WU6e).
+      Three assertions from WU6a/b/c were asserting the pre-move catalog and are now green:
+      the two inventory arrays (8 and 9 expected, 6 measured, 5 after WU6e), and **`cutover.sql`
+      case 4b, which was not latent but impossible** — it queried `cerebro_conciliacion_operaciones`,
+      which 164 dropped by product decision, so it aborted the whole file before its own summary and
+      could never pass again. Verified by me before authorising the removal: the view is absent from
+      the catalog, no live function names it, and `pg_depend` has no consumers. `cutover.sql` now
+      runs to completion, `ALL PASS` over cases 1, 2, 3, 3b, 4a, 4c (reproduced by me, not taken from
+      the writer). Remaining, deliberately out of scope and listed rather than touched: `v_divergent`
+      is now declared and unused, and three **comment-only** stale count references survive at
+      `deals-free-views-and-inert-edits.sql:19`, `:599` and `deal-free-panel-verification.sql:7-8`.
+      **The pattern is now three-for-three:** every slice that legitimately moves the catalog leaves
+      an assertion behind claiming the old world, and nothing re-evaluates it. Whoever moves the
+      count owns the array — and, it turns out, the neighbouring strings that describe it.
     - **Not yet sliced, blocked on a capture:** `sync_tags_cliente` (**capture its live body from the
       catalog first** — it cannot be planned from the repository, and it has two active n8n callers,
       `K6EpIX4lSJLGMJN7` production and `2CECGodU0oj85hMJ` staging, in
@@ -855,6 +894,24 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
   today** — WU6c (`5f8e0f8`) moved the count and updated neither file. Folded into WU6e's scope with
   a narrow authorisation and a measurement requirement rather than left silently standing.
   Brief: `.briefs/WU6e-operation-incident-reason.md`.
+
+- 2026-10-01: **WU6e DONE and parent-verified — `94e4d7e` (167) + `982d993` (assertion debt).**
+  `notify_operation_incidencia` no longer reads `deals`; an operation carries its own
+  `incident_reason`. The §3 hypothesis **held under measurement**: an operator was being shown
+  `MOTIVO: VERIFICADO EN PANEL por un operador del CRM` — a stale, wrong motive in the same
+  confident format a real one uses — for a deal-linked incident raised after `160` stopped writing
+  motives into `deals.notes`. Positional `deals` set **6 → 5**, re-measured by me. I re-ran both the
+  new assertion and the WU6b one: `ALL PASS`. Staging at baseline.
+  **The one deviation was mine, not the writer's:** I authorised only the two array literals, which
+  left four count strings announcing eight and nine on a passing run; corrected in a separate commit
+  rather than folded in, so the WU6e work unit stays clean.
+  **Third instance of the same failure, found while verifying:** `cutover.sql` case 4b queried
+  `cerebro_conciliacion_operaciones`, dropped by 164 by product decision — an impossible check, not a
+  latent one, and it aborted the file before its own summary. Removed after I confirmed the view is
+  absent, unnamed by any live function, and has no `pg_depend` consumers. `cutover.sql` now passes
+  all six of its cases.
+  Carried, listed not touched: `v_divergent` unused; three comment-only stale counts at
+  `deals-free-views-and-inert-edits.sql:19`, `:599`, `deal-free-panel-verification.sql:7-8`.
 
 ## Next step
 1. WU4 — DONE. WU4a `bcc6cd7` (161), WU4b `af07d9d` (162), WU4d closed as unnecessary with no code

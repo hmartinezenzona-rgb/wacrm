@@ -558,7 +558,6 @@
         "activity": "Activity",
         "notes": "Notes",
         "custom": "Custom Fields",
-        "deals": "Deals",
         "noTags": "No tags",
         "noDeals": "No deals",
         "addNotePlaceholder": "Add a note..."
@@ -588,9 +587,6 @@
         "placeholder": "Write a note...",
         "save": "Add Note",
         "noNotes": "No notes yet."
-      },
-      "dealsTab": {
-        "noDeals": "No deals yet"
       },
       "tagsTab": {
         "clickTagDesc": "Click a tag to add or remove it from this contact.",
@@ -1086,7 +1082,6 @@
         "remove_tag": "Remove Tag",
         "assign_conversation": "Assign Conversation",
         "update_contact_field": "Update Contact Field",
-        "create_deal": "Create Deal",
         "wait": "Wait",
         "condition": "Condition (If/Else)",
         "send_webhook": "Send Webhook",

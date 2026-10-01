@@ -460,7 +460,6 @@ export type AutomationStepType =
   | 'remove_tag'
   | 'assign_conversation'
   | 'update_contact_field'
-  | 'create_deal'
   | 'wait'
   | 'condition'
   | 'send_webhook'
@@ -537,13 +536,6 @@ export interface UpdateContactFieldStepConfig {
   value: string;
 }
 
-export interface CreateDealStepConfig {
-  pipeline_id: string;
-  stage_id: string;
-  title: string;
-  value?: number;
-}
-
 export interface WaitStepConfig {
   amount: number;
   unit: 'minutes' | 'hours' | 'days';
@@ -577,7 +569,6 @@ export type AutomationStepConfig =
   | TagStepConfig
   | AssignConversationStepConfig
   | UpdateContactFieldStepConfig
-  | CreateDealStepConfig
   | WaitStepConfig
   | ConditionStepConfig
   | SendWebhookStepConfig

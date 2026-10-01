@@ -944,6 +944,19 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
   the stale-inventory pattern and the first one authorised **up front**, in the same brief, so it does
   not need a follow-up commit — the three arrays *and* their six count strings are named explicitly in
   §5.
+  **Does `completed` survive the drop? Measured by reading the live bodies, 2026-10-01 — yes.** The
+  question mattered because the tag is keyed on delivered shipments: if nothing could reach
+  `completed` after the drop, every contact would be frozen at whatever tag it held. The setters that
+  actually touch `remittance_operations` are `crm_entregar_operacion(uuid, jsonb)` — the operator
+  panel action, ACL `{postgres, service_role, authenticated}`, not attached to `deals` — and
+  `cerebro_crear_operacion` (`161`), which inserts with
+  `CASE WHEN v_status = 'completed' THEN now() END` off `cerebro_estado_desde_etapa`. The three
+  look-alikes are false positives and update other tables: `cerebro_completar_lote` →
+  `cerebro_ejecuciones`; `crm_corregir_entrada_calculadora` and `crm_resolve_pending_entry` →
+  `remittance_calculator_entries`. The deal-driven route
+  (`cerebro_crear_operacion_al_crear_deal`, `cerebro_sync_operacion_desde_deal`) does disappear with
+  the table — but that route is precisely what is being removed. **Honest limit: this is a reading of
+  the literal bodies, not a driven execution.** Carried to the drop checklist as a verification item.
 
 ## Next step
 1. WU4 — DONE. WU4a `bcc6cd7` (161), WU4b `af07d9d` (162), WU4d closed as unnecessary with no code

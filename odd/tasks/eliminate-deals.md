@@ -430,6 +430,42 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
     - **Counts worth distrusting:** the sweep found 151 workflows, not the ~143 an earlier listing
       suggested, and it classified `deals` hits by form (`FROM`/`UPDATE`/`INSERT` vs CTE alias vs
       prose) rather than by raw count — the same discipline the md5 and 119-node errors taught.
+    - **USER DECISION 2026-10-01: `cerebro_conciliacion_operaciones` is DROPPED, not rewritten.** It
+      audited drift across a bridge the feature is deliberately removing; keeping it would mean
+      auditing something that should no longer exist, and nothing consumes it. Recorded as a decision,
+      and it is reversible only by writing new work — there is no port to fall back to.
+  - [ ] **WU6 is 16 objects, so it is split. Slice plan, in dependency order:**
+    - **WU6a — the views and the no-observable-change edits.** `cerebro_historial_operaciones` and
+      `cerebro_volumen_diario` (drop the LEFT JOIN → `coalesce(o.quoted_source_amount, 0)`),
+      `cerebro_conciliacion_operaciones` (DROP, per the decision above), `merge_duplicate_contacts`
+      (delete the `UPDATE deals` line), `crm_entregar_operacion` (delete the guarded lock),
+      `cerebro_avisar_remesas_abiertas_viejas` (drop both LEFT JOINs), `cerebro_saldo_envio` (DDL
+      replace — `LANGUAGE sql`, so it must become a **wrapper** over `cerebro_saldo_operacion`, not
+      be deleted: its other caller in `136` does not move until WU6c). Property that makes this slice
+      safe: **every object in it either changes nothing observable or is dropped with no consumer.**
+      Must be verified, not assumed — especially that `cerebro_resumen_volumen` still compiles and
+      returns the same columns, and that the `cerebro_saldo_envio` wrapper returns the same values as
+      the body it replaces for every deal-linked operation.
+    - **WU6b — enable deal-free operations.** `crm_comprobantes_de_operacion` (delete the dead
+      `v_stage_id` read, then repoint `cerebro_saldo_envio`→`cerebro_saldo_operacion` and
+      `depositos_mmg.deal_id`→`.operation_id` — its `IF v_deal_id IS NOT NULL` guard currently makes a
+      deal-free operation return NULLs, so this slice **does** change observable output, for the
+      better), plus `crm_verificar_deposito` and `crm_forzar_verificacion` (remove the
+      `operation has no linked deal` guard). This is the highest-value slice — it is the fix for the
+      latent blocker above — and its acceptance test is the first genuine exercise of a deal-free
+      operation end-to-end. `crm_comprobantes_de_operacion` is here rather than in WU6a precisely
+      because it does not satisfy WU6a's no-observable-change property.
+    - **WU6c — re-key the avisos.** `cerebro_avisar_envios_incompletos`,
+      `cerebro_avisar_envios_sin_beneficiario`. Changes row sets and the `cerebro_alertas.clave`
+      dedup keys; needs its own alert-dedup proof.
+    - **WU6d — retire the notes transport.** `cerebro_aplicar_nombre_confirmado` (repoint to the 162
+      structured writers) and `cerebro_sync_beneficiarios` (retire). **Sequenced last**: it is only
+      correct once the deal-keyed triggers `trg_sync_z_benef_desde_deal` and
+      `trg_sync_operacion_al_crear_deal` are gone, which is Phase 2/4 work.
+    - **Not yet sliced, blocked on a capture or a decision:**
+      `notify_operation_incidencia` (the reason-text gap — **second user decision, to be asked when
+      this slice is briefed**), and `sync_tags_cliente` (**capture its live body from the catalog
+      first** — it cannot be planned from the repository, and it has two active n8n callers).
 - [ ] 1.1 — New RPC that creates a `remittance_operations` row directly (whatever
   `trg_sync_operacion_al_crear_deal` currently derives: account/contact/currency/status), with NO
   `deals` row involved, writing structured beneficiary / USD-destination data up front (Phase 2

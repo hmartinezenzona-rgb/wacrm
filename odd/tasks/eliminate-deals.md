@@ -730,6 +730,24 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
   `pipeline_stages` any more.
 - [ ] 6.4 — **STOP and get one more explicit go-ahead from the user before this step.** Drop
   `deals`, `pipelines`, `pipeline_stages` and their triggers/functions. Irreversible.
+  - **READINESS MEASURED against the live staging catalog, 2026-10-01 (later). This item is NOT one
+    confirmation away.** Two hard blockers stand between here and a `DROP TABLE`:
+    - **An FK the plan never counted.** `depositos_mmg_deal_id_fkey` — a 258-row live table
+      (`depositos_mmg`) still references `deals`. The DROP fails until that constraint is retired or
+      repointed.
+    - **Nine triggers on `deals`, not two.** `deals_insert_notify`, `deals_sync_tags`, `set_updated_at`,
+      `trg_admin_guard_deals_stage`, `trg_cancel_operacion_on_deal_delete`, `trg_cerrar_deal_entregado`,
+      `trg_liberar_depositos_al_borrar_deal`, `trg_sync_operacion_al_crear_deal`,
+      `trg_sync_z_benef_desde_deal`. The document only ever named three (WU6d's two prerequisites plus
+      the `trg_cerrar_deal_entregado` casualty); the other six were never assigned to any work unit.
+    - **Good news, also measured:** **zero views** reference `deals` or `pipelines` any more. WU6's
+      original scope read "3 views + 13 functions"; the views are gone.
+  - **Row counts to be destroyed (staging):** `deals` 35, `pipelines` 1, `pipeline_stages` 5.
+  - Open decisions for the user, recorded here so they survive compaction: (a) dump those rows to
+    `odd/backups/` before the drop, or accept true irreversibility; (b) 5.1's open question — drop
+    `remittance_operations.deal_id`/`depositos_mmg.deal_id` in the same pass, or leave them
+    nullable-and-unused for a safety window; (c) staging first, with production as a separate step and
+    its own go-ahead, since production is still behind on 160-169.
 - [ ] 6.5 — **NEW 2026-10-01, measured against the staging catalog — without this the panel goes
   silent.** `src/components/inbox/operations/operations-panel-container.tsx:221` keeps a live
   realtime subscription to `deals` (filtered by `conversation_id`), and its own comment at `:196-200`
@@ -923,13 +941,148 @@ from the writer's report.**
   21/21; `npm run lint` **45 problems (0 errors, 45 warnings)** — no new warning.
 - Deltas: `operations-panel-container.tsx` +14/-15, its test +4/-4, plus three new files. The three
   stale comments were rewritten to describe what is actually true, not re-pointed at a new noun.
+- **Committed as `3b5f5dc`** `refactor(realtime): keep the operations panel live without deals (171)`,
+  no attribution lines.
 - **Carried, not done:** `REPLICA IDENTITY FULL` is deliberately unset, so DELETE events behave exactly
   as they did on `deals` (which is also `relreplident='d'`). If a deleted operation should refresh the
-  panel, that is a separate `ALTER TABLE`. Also carried: WU8.4's test proves the *subscription shape*,
-  not that a real Realtime event arrives over the wire — no browser was exercised, and no end-to-end
-  Realtime round trip was observed.
+  panel, that is a separate `ALTER TABLE`.
+
+**WU8 E2E VERIFICATION — the round trip the unit above left unproven, now observed (2026-10-01).**
+WU8.4's test proved the *subscription shape*; it did not prove a real Realtime event arrives over the
+wire. That gap is now closed, with a negative control.
+
+- **GREEN.** A probe user holding `operations_panel` in account `472917ed` signed in and got a real
+  GoTrue JWT. `GET /rest/v1/remittance_operations?conversation_id=eq.<id>` returned **200 with rows** —
+  RLS passes for that subscriber, which is the predicate Realtime evaluates per subscriber. A
+  `@supabase/supabase-js` client then subscribed with **exactly** the panel's descriptor
+  (`{ event: "*", schema: "public", table: "remittance_operations", filter: "conversation_id=eq.<id>" }`),
+  reported `SUBSCRIBED`, and a plain SQL `UPDATE` on that conversation produced
+  `EVENT RECEIVED: {"eventType":"UPDATE","id":"31113e41-…"}`. **PASS.**
+- **RED, and it is the important half.** With the table removed from the publication
+  (`ALTER PUBLICATION supabase_realtime DROP TABLE remittance_operations`), the channel **still reported
+  `SUBSCRIBED`** and then delivered **no event within 25 s**. That is precisely the silent no-op the
+  migration header describes: a *correct* client subscription against an *unpublished* table fails with
+  no error anywhere. The publication was restored immediately (`count = 1` re-verified).
+- **The subscriber is not the human's account.** The only profile carrying `operations_panel` belongs to
+  the human; it was deliberately left untouched. A throwaway probe user was created instead, and
+  **deleted afterwards** — `auth.users`, `auth.identities` and `public.profiles` all verified at 0 rows
+  of residue, with the publication back at 1. Staging is at baseline.
+- **One staging row was touched:** `remittance_operations.updated_at` on the probe conversation
+  `13bb5a3b` was set to `now()`. No other column changed and no trigger fired (the recalc trigger only
+  watches `quoted_source_amount`, `source_currency`, `status`). Recorded rather than silently reverted,
+  because the original value was not captured.
+- **Earlier claim in this unit was WRONG and is corrected here:** staging is the **hosted** project
+  `kolppplawzdsjfydwejr.supabase.co`, *not* the local `wacrm-ensayo` Docker container. The offer to build
+  this test said otherwise; the test was built against the hosted project, which is the one carrying 171.
+- **A GoTrue quirk cost most of the time, and is worth recording.** A user inserted straight into
+  `auth.users` can never log in: password grant returns **HTTP 500** `unexpected_failure` /
+  "Database error querying schema", while a nonexistent email correctly returns 400 `invalid_credentials`.
+  Cause: GoTrue scans `email_change`, `confirmation_token`, `email_change_token_new` and `recovery_token`
+  into plain Go strings, so a NULL in any of them fails the row scan. API-created users carry `''` there.
+  Also, `confirmed_at` is a GENERATED column. Verbose SQL signup fixtures in this repo have therefore
+  never been loginnable.
+- **Second migration-number collision, same cause.** The concurrent session on this branch committed
+  `2c20505` with a *second* `171_requested_amount_target.sql`, so **two migrations now share 171** — and
+  two already share `168`. Lexical ordering still applies both, so this is hygiene, not breakage, but
+  "next free number" cannot be trusted while another session shares the branch.
+- **Unchanged by this:** `REPLICA IDENTITY FULL` remains unset, so DELETE events still carry no full old
+  row. The board idea discussed below is the first thing that would actually need it.
+
+### WU9 — retire the `deals` foreign key and the inert triggers (2026-10-01, authorized by the user
+### as "empieza por la limpieza", immediately before a cross-session handoff)
+
+**Authorized scope.** Exactly one migration plus its rollback, applied to **staging only**: retire
+`depositos_mmg_deal_id_fkey` and the provably inert triggers on `deals`. **Not** authorized and **not**
+attempted: `DROP TABLE` (6.4), dropping `deal_id` columns, changing RLS, touching n8n, or production.
+
+**Why the trigger list shrank from nine to seven.** Every trigger on a table dies with the table, so
+none of them is a `DROP TABLE` blocker — the FK is. What matters is which are still *live*. Measured
+from the catalog, not inferred:
+
+- Nothing `INSERT`s into `deals` and nothing `DELETE`s from it. Only **three** functions update it —
+  `cerebro_aplicar_nombre_confirmado` (reached *indirectly* through `trg_zz_nombre_confirmado_zelle` on
+  `messages`), `crm_forzar_verificacion`, `crm_verificar_deposito` — and all three write **only
+  `notes` and `updated_at`**. No writer touches `stage_id` or `contact_id`.
+- Therefore the INSERT-keyed, DELETE-keyed and `UPDATE OF stage_id` triggers can no longer fire:
+  `deals_insert_notify`, `trg_sync_operacion_al_crear_deal`, `trg_cancel_operacion_on_deal_delete`,
+  `trg_liberar_depositos_al_borrar_deal`, `deals_sync_tags`, `trg_admin_guard_deals_stage`,
+  `trg_cerrar_deal_entregado` — **seven inert**.
+- **One is live and harmless:** `set_updated_at` (BEFORE UPDATE, any column). Retiring it earns nothing
+  and it is shared across 12 other tables, so its *trigger* stays. Only the trigger — never the
+  function `update_updated_at_column`, which is attached to `accounts`, `automations`, `broadcasts`,
+  `contacts`, `conversations`, `flows`, `message_templates`, `objects`, `profiles`, `quick_replies`,
+  `whatsapp_config`.
+- **One is live and behavioral, and must NOT be touched:** `trg_sync_z_benef_desde_deal`
+  (AFTER INSERT OR UPDATE OF notes) → `cerebro_sync_benef_trigger`, which reads `NEW.notes` for
+  `ENTREGA EN USD: Clasica|Tropical|Efectivo` and **writes `remittance_operations.delivery_method`**.
+  That is an indirect write into the operation, exactly the family of trap this feature has hit seven
+  times. It stays until WU6d repoints the writer to the 162 structured path. **This is the one real
+  blocker left behind, and it is WU6d's.**
+
+**A second finding, outside this slice's scope but decisive for 6.4.** Eleven public functions still
+reference `deals` and are *not* trigger functions: `cerebro_aplicar_nombre_confirmado`,
+`cerebro_cruzar_depositos`, `cerebro_marcar_destino_usd`, `cerebro_registrar_deposito`,
+`cerebro_registrar_reparto_multiple`, `cerebro_sync_beneficiarios`, `crm_comprobantes_de_operacion`,
+`crm_forzar_verificacion`, `crm_verificar_deposito`, `notify_deal_stage_change`, `redeem_invitation`.
+`DROP TABLE` will not fail on these — PostgreSQL does not validate plpgsql bodies — but they break **at
+runtime**. The concurrent session's handoff adds that `cerebro_cruzar_pendientes` and
+`cerebro_recruzar_depositos_tardios` still read `deals.notes` too. **6.4 is therefore further away than
+the FK alone suggested.**
+
+**Tasks**
+- [x] WU9.1 — Retire `depositos_mmg_deal_id_fkey` (**the constraint only**, keeping the `deal_id`
+  column: `cerebro_objetivo_envio`/`cerebro_saldo_envio` are still keyed by it, and 255 of 259 rows have
+  it NULL).
+- [x] WU9.2 — Drop the seven inert triggers on `deals`.
+- [x] WU9.3 — Leave `set_updated_at` and `trg_sync_z_benef_desde_deal` in place, with the reason in the
+  migration header.
+- [ ] WU9.4 — Do **not** drop the eight now-orphan trigger functions in this slice: no caller check has
+  been run yet, and an orphaned function is harmless whereas a wrongly dropped one is not. **Carried.**
+
+**Checks**
+- Migration and rollback both idempotent and existence-guarded. ✅ re-running 172 reports `dropped 0 of 7`
+  and skips the missing constraint.
+- ✅ Applied to staging; catalog re-read: **2 triggers remain** (`set_updated_at`,
+  `trg_sync_z_benef_desde_deal`), **0 foreign keys** reference `deals`, `depositos_mmg.deal_id` still
+  present, and `update_updated_at_column` still attached to **12** tables.
+- ✅ Rollback rehearsed inside a transaction ending in `ROLLBACK`, and the assertion was proved **live**
+  the same way: restoring the pre-172 state made it report
+  `FAIL: 9 triggers remain on deals, expected 2` and `FAIL: 1 foreign key(s) still reference deals`,
+  then the transaction was discarded. Staging confirmed back at 2 triggers afterwards.
+- ✅ `supabase/staging/assertions/retire-deals-triggers.sql` → **ALL PASS** (5 checks).
+- TDD mode does not apply: this is DB DDL with no test runner. Verification is catalog read-back.
+
+**WU9 DONE — staging, `supabase/migrations/172_retire_deals_triggers_and_fk.sql` + its rollback +
+`supabase/staging/assertions/retire-deals-triggers.sql`.**
+
+- **What this buys 6.4:** the only true DDL blocker is gone. The remaining triggers never needed
+  removing for the drop — they die with the table.
+- **What it does NOT buy:** 6.4 is still not runnable. `trg_sync_z_benef_desde_deal` is live and writes
+  `remittance_operations.delivery_method` off `deals.notes`, and eleven public functions plus the two
+  the concurrent session named still read `deals`. Those break at *runtime*, not at DDL time, which is
+  what makes them easy to miss.
+- **Naming hazard recorded:** the file is `172`, not `171`, because the concurrent session's own handoff
+  (`odd/tasks/HANDOFF-production-registrar-168-170-171.md`) asks that the migrations **not in
+  production** be the ones renumbered — and this one is not in production. `171_operations_realtime_publication`
+  falls under the same rule and is still awaiting that renumber.
 
 ## Progress
+- 2026-10-01 (**later, same day**): **WU9 done — the `deals` FK is retired and 7 of the 9 triggers are
+  gone; staging verified.** Migration `172` + rollback + assertion. The headline is a *correction to
+  the plan*: the nine triggers were never a `DROP TABLE` blocker (they die with the table) and seven of
+  them were already dead — nothing inserts into or deletes from `deals`, and the only three writers
+  touch `notes`/`updated_at` alone. **One trigger is genuinely live** (`trg_sync_z_benef_desde_deal`
+  writes `remittance_operations.delivery_method`) and is left alone as WU6d's. **6.4 is still not
+  runnable**: eleven functions plus the concurrent session's two still read `deals` and would break at
+  runtime, not at DDL time.
+- 2026-10-01 (**later, same day**): **WU8's end-to-end gap closed.** A real WebSocket subscriber
+  holding `operations_panel` received a `postgres_changes` UPDATE for a row of its conversation, and the
+  negative control — table removed from the publication — reported `SUBSCRIBED` yet delivered nothing,
+  reproducing the silent no-op this unit exists to remove. Committed as **`3b5f5dc`**. Staging is back at
+  baseline (probe fixture deleted, 0 rows of residue, publication membership restored to 1). Two new
+  carried items: a **second migration-number collision** (two files now numbered 171, and two numbered
+  168 — the concurrent-session hazard already recorded above has now produced a duplicate), and the
+  **GoTrue NULL-scan quirk** that blocks password login for any SQL-created `auth.users` row.
 - 2026-10-01: **WU8 DONE — Fase 6.5 closed. The panel no longer depends on `deals` for its live
   refresh.** Full detail in the WU8 block. In one line: the subscription moved to
   `remittance_operations`, migration **171** puts that table in `supabase_realtime` (RED/GREEN measured

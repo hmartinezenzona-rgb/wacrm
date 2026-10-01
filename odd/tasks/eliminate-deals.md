@@ -461,3 +461,18 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
    safe for an `ai_tool` one.
 3. WU6 — stage-based notifiers/alerts (090, 114 `notify_*`, 136 avisos, 052, 096 guard) → status.
    Same access, no longer blocked; still depends on WU5 landing first.
+   PREMISE CHECK 2026-10-01 (grep only, no behaviour exercised — this is a hypothesis, not a
+   finding): of the five named migrations, `090_notificacion_incidencia_nombre_y_formato.sql`
+   contains **zero** occurrences of `deals`. Either it was mis-attributed when WU6 was scoped, or
+   it depends on `deals` indirectly through a function it calls. That must be settled before WU6
+   is briefed, the same way the `Webhook WaCRM` node-name error and the `delivery_method` gap were
+   — do not brief a unit on a dependency nobody has shown exists.
+   The other four are real and the grep shows their shape:
+   - `114_cutover_retire_sync_pipeline.sql` — the cutover that retired the deals→operations sync
+     bridge; most of its 73 hits are header commentary, so the live statements must be separated
+     from the prose before scoping.
+   - `136_business_hours.sql:507` — `LEFT JOIN deals d ON d.id = o.deal_id`. A LEFT JOIN survives
+     `deal_id` going NULL, but only if nothing downstream uses a `d.` column for a real value;
+     check what `136` reads off `d` (also `:192`, `:273`) rather than assuming the join is inert.
+   - `052_cerrar_deal_entregado.sql` — drops and recreates `trg_cerrar_deal_entregado` on `deals`.
+   - `096_admin_locks_audit_sync.sql` — "Guard 12b" on `deals.stage_id` (`:383-423`).

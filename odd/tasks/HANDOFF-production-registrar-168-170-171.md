@@ -42,4 +42,8 @@ Also live: `175_reparto_keeps_zelle`: `cerebro_sync_beneficiarios` keeps the rem
 vigente when the newest block is a card reparto (user decision 2026-10-01). Your deal-free writers (162/163)
 must keep that rule.
 
-None of 168/170/171/173/174/175 is on staging. Feature doc: `odd/tasks/split-deposit-minimums.md`.
+Also live: `176_zelle_remainder_amount`: `crm_calcular_monto_destino` (157 body + one call) runs
+`crm_monto_resto_zelle(op)`: a vigente Zelle without amount next to priced shares gets
+floor((deposit or quote - CUP shares/CUP rate - USD shares x USD rate) / USD rate), amount_origin 'calculated'.
+
+None of 168/170/171/173/174/175/176 is on staging. Feature doc: `odd/tasks/split-deposit-minimums.md`.

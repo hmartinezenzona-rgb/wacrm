@@ -426,12 +426,35 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
    `Registrar beneficiario auto`, `Registrar zelle auto`, `gestionar_beneficiario`,
    `registrar_beneficiario_zelle` (all four ← 162); `registrar_reparto_multiple` and
    `marcar_destino_usd` (← 163); `Registrar deposito auto` (← 160, deal-free deposit path).
-   **BLOCKER THAT MUST BE ANSWERED BEFORE THE FIRST NODE IS TOUCHED: which database does the live
-   workflow actually talk to?** Every replacement function exists only on STAGING today. If the
-   workflow's Postgres nodes point at production, the first rewire breaks production traffic — the
-   node would call a function that does not exist there. Establish this from the credential the
-   nodes use, not from an assumption, and do not rewire anything until it is settled. Wiring map in
-   flight → `agent-shared/reports/wu5-n8n-wiring-map.md`.
+   **BLOCKER — ANSWERED 2026-10-01, and the answer changes the plan.** There is no workflow named
+   `Webhook WaCRM`: that is the *node*. The real flows, established by read-only API recon and
+   then re-verified by me directly against the API:
+   - PRODUCTION: `Cerebro v2 — LEGACY OPTIMIZED V1`, id `jEzlVLCLUaJhVwzs`, webhook
+     `wacrm-cerebro-green-v1`, **`active: true`**. All 44 of its Postgres nodes share ONE credential,
+     `Supabase Account` (`S2CallLPSjzbVXN4`, type `postgres`).
+   - STAGING TWIN: `[STAGING] Cerebro v2 — LEGACY OPTIMIZED V1`, id `U52y1kSNvhgxvWeb`,
+     **also `active: true`**, using `Supabase STAGING` (`np3egGrAcrWkOWd4`).
+   - The split is clean across the whole instance: 30 unprefixed workflows → `Supabase Account`;
+     the 10 `[STAGING]` ones → `Supabase STAGING`. Nothing crosses.
+   Consequence: **the live production workflow is active and does NOT point at the database where
+   our functions exist.** Rewiring it directly is the failure mode this check existed to prevent.
+   So WU5 proceeds against the `[STAGING]` twin `U52y1kSNvhgxvWeb` end-to-end first, and the
+   production rewire becomes a separate, explicitly user-gated step that also requires deploying
+   160/161/162/163 to production first. Nothing in WU5 may touch `jEzlVLCLUaJhVwzs` without the
+   user's explicit go-ahead for production.
+   Honest limit on the evidence: the n8n public API returns credential metadata only
+   (`id`/`name`/`type`), never the connection string, so the *host* behind `Supabase Account` is
+   confirmed by naming and by its isolation from the staging credential — not by reading a host.
+   Reading the actual host needs the n8n UI or `n8n export:credentials --decrypted`, which is out
+   of scope and was not attempted. The conclusion is not weakened by this: whether that credential
+   is production or merely unpinned, treating an active workflow on an unlabelled credential as
+   production is the only safe reading, and the staging twin gives us a path that needs no such
+   assumption.
+   LATERAL FINDING, reported, not acted on: `PRUEBA OpenAI - copia del Cerebro (NO es produccion)`
+   (`lpl76uti9nup5ekm`) points at the SAME `Supabase Account` as production, despite a name that
+   says otherwise. Anyone treating that workflow as a safe sandbox would be writing to production.
+   Its `active` is `false`.
+   Wiring map: `agent-shared/reports/wu5-n8n-wiring-map.md`.
    Also note the rail asymmetry: only `Registrar beneficiario auto` and `Registrar zelle auto` sit
    on the deterministic rail; the other five have no inbound `main` edge and fire only as `ai_tool`s
    (see the WU4 constraints block above). A rewire that is safe for a rail node is not automatically

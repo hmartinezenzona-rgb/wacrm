@@ -119,12 +119,11 @@ BEGIN
        'cerebro_aplicar_nombre_confirmado',
        'cerebro_sync_beneficiarios',
        'crm_forzar_verificacion',
-       'crm_verificar_deposito',
-       'sync_tags_cliente']::text[] THEN
+       'crm_verificar_deposito']::text[] THEN
     v_fail := v_fail + 1;
-    RAISE WARNING 'FAIL [0] the deals-referencing function set is % — expected the five left after WU6c and WU6e', v_set;
+    RAISE WARNING 'FAIL [0] the deals-referencing function set is % — expected the four left after WU6f', v_set;
   ELSE
-    RAISE NOTICE 'PASS [0] exactly five functions reference deals in a real position (9 -> 5: crm_comprobantes_de_operacion, the two avisos, and notify_operation_incidencia all left)';
+    RAISE NOTICE 'PASS [0] exactly four functions reference deals in a real position (9 -> 4: crm_comprobantes_de_operacion, the two avisos, notify_operation_incidencia and sync_tags_cliente all left)';
   END IF;
 
   IF NOT ('crm_comprobantes_de_operacion' = ANY (v_set)) THEN

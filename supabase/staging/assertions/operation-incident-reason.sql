@@ -77,11 +77,11 @@ BEGIN
     RAISE WARNING 'FAIL [0] the deals set is EMPTY — the probe is broken, not the catalog';
   ELSIF v_set IS DISTINCT FROM ARRAY[
        'cerebro_aplicar_nombre_confirmado','cerebro_sync_beneficiarios',
-       'crm_forzar_verificacion','crm_verificar_deposito','sync_tags_cliente']::text[] THEN
+       'crm_forzar_verificacion','crm_verificar_deposito']::text[] THEN
     v_fail := v_fail + 1;
-    RAISE WARNING 'FAIL [0] positional deals set is % — expected the five post-167', v_set;
+    RAISE WARNING 'FAIL [0] positional deals set is % — expected the four post-168', v_set;
   ELSE
-    RAISE NOTICE 'PASS [0] exactly five functions reference deals in a real position (6 -> 5)';
+    RAISE NOTICE 'PASS [0] exactly four functions reference deals in a real position (6 -> 4)';
   END IF;
 
   IF NOT ('notify_operation_incidencia' = ANY (v_set)) THEN

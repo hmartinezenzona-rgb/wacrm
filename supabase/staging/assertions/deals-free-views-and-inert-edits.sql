@@ -605,12 +605,11 @@ BEGIN
        'cerebro_aplicar_nombre_confirmado',
        'cerebro_sync_beneficiarios',
        'crm_forzar_verificacion',
-       'crm_verificar_deposito',
-       'sync_tags_cliente']::text[] THEN
+       'crm_verificar_deposito']::text[] THEN
     v_fail := v_fail + 1;
-    RAISE WARNING 'FAIL [0.3] the deals-referencing function set is % — expected the five left after WU6c and WU6e', v_names;
+    RAISE WARNING 'FAIL [0.3] the deals-referencing function set is % — expected the four left after WU6f', v_names;
   ELSE
-    RAISE NOTICE 'PASS [0.3] exactly five functions still reference deals in a real position (all out of WU6a scope)';
+    RAISE NOTICE 'PASS [0.3] exactly four functions still reference deals in a real position (all out of WU6a scope)';
   END IF;
 
   -- 0.4 the two surviving views keep their exact column names and types.

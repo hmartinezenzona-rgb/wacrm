@@ -70,7 +70,7 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
 - Work units for 1.1/1.2 (2026-09-30, from my own inventory: 31 latest SQL functions still
   reference deals/stage/notes — workers' design/inventory reports were too shallow to rely on).
   Each unit small, staging-first, old (deal) and new (no deal) operations must both keep working:
-  - [ ] WU1 operation-keyed money helpers: cerebro_saldo_envio / cerebro_objetivo_atar /
+  - [x] WU1 operation-keyed money helpers: cerebro_saldo_envio / cerebro_objetivo_atar /
     cerebro_objetivo_cerrar get operation-id variants; deal-id versions delegate to them (absorbs
     Phase 3).
   - [ ] WU2 receipt readers off notes: cerebro_cruzar_deposito(s), crm_verificar_deposito,
@@ -204,6 +204,13 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
   set_config('wacrm.origin','admin',true) (without it the 096 guard suppresses writes to locked
   fields); dry-run first via RAISE. Backup = the before-row JSON in remittance_admin_audit
   (action human_correction, reason mentions pre-157, 12 rows). Production now has 0 clasica ops in CUP.
+
+- 2026-09-30: WU1 done on staging: migration 158 (commit a7cf4b8; written by OpenCode, fixtures
+  fixed by me). operation_id on depositos_mmg and cerebro_objetivo_envio (trigger on deal_id +
+  backfill); cerebro_saldo_operacion / cerebro_objetivo_atar_op / cerebro_objetivo_cerrar_op; deal
+  versions delegate. Evidence: RED (column missing) -> GREEN 5/5; rollback restores the 3 live md5s;
+  related assertions identical with/without (deposit-review fails both ways, pre-existing); saldo of
+  all 24 staging deals identical before/after. Applied to staging. Production: not yet.
 
 ## Next step
 1.1 — design the direct operation/beneficiary write path (no deals) together with

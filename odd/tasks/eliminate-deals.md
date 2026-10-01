@@ -610,10 +610,45 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
       structured writers) and `cerebro_sync_beneficiarios` (retire). **Sequenced last**: it is only
       correct once the deal-keyed triggers `trg_sync_z_benef_desde_deal` and
       `trg_sync_operacion_al_crear_deal` are gone, which is Phase 2/4 work.
-    - **Not yet sliced, blocked on a capture or a decision:**
-      `notify_operation_incidencia` (the reason-text gap — **second user decision, to be asked when
-      this slice is briefed**), and `sync_tags_cliente` (**capture its live body from the catalog
-      first** — it cannot be planned from the repository, and it has two active n8n callers).
+    - **WU6e — give an operation an incident reason.** `notify_operation_incidencia` (live body =
+      `114:272-331`, verified live by exploration, no later redefinition). It is the **last `deals`
+      read on the incident path**: it builds the notification's `MOTIVO:` line out of the **entire
+      last line** of `deals.notes`, prefix not stripped, with the fallback
+      `'Un envío necesita revisión manual.'` (`114:298-302`, `:320-321`).
+      **User decision (2026-10-01): add a free-text reason column** to `remittance_operations` and
+      repoint the trigger at it (the other options were the generic fallback and deferring).
+      Not blocked by WU6d: the two `deals` triggers WU6d waits on are irrelevant here.
+      - **Why this is a real defect and not only a port — HYPOTHESIS, not yet measured.** After `160`
+        nothing writes an incident motive into `deals.notes` any more (`160:51` says so; `v_nota` is
+        consumed only by `cerebro_parsear_comprobantes`). So the "last line" the trigger reads is
+        whatever unrelated thing was written last — potentially WU6b's kept
+        `VERIFICADO EN PANEL por un operador del CRM`. If it holds, the operator sees a **stale, wrong
+        motive** rendered as confidently as a right one, which is worse than the fallback. The brief
+        requires the writer to measure it and report the verdict either way.
+      - **Live writer inventory (exploration, to be re-established by the writer):**
+        `cerebro_registrar_deposito` (`REFERENCIA IMPOSIBLE`, `160:143-148`), `cerebro_cruzar_deposito`
+        (`160:459-482`), `cerebro_cruzar_depositos` (`v_fallo`, `160:614-615`),
+        `remittance_operations_completion_guard` (`096:352`, BEFORE trigger), and possibly
+        `crm_verificar_deposito`. Sites that know no reason stay NULL — the fallback is correct there;
+        placeholder text is forbidden.
+      - **The two traps:** the reason and the status must land in the **same `SET`** (the notify
+        trigger is `AFTER … UPDATE OF status` and fires once per statement; a second statement
+        silently produces a NULL-reason notification), and the 096 guard is **BEFORE**, so its
+        `NEW.incident_reason` is visible to the AFTER trigger in the same row version.
+      - **LATERAL FINDING, 2026-10-01, independent of WU6e — two inventory assertions are stale and
+        red.** Measured live: the positional `deals`-referencing set is **6**, the any-mention set is
+        **9**. But `deal-free-panel-verification.sql:118-130` (WU6b) still expects **8** and
+        `deals-free-views-and-inert-edits.sql:604-616` (WU6a) still expects **9**. WU6c moved the set
+        8 → 6 in `5f8e0f8` and updated neither file, so running either assertion today fails. WU6e
+        fixes both arrays to the measured value (5 after its own change), reporting both measurements
+        so the edit is derived from the catalog and not from what makes the assertion green.
+        **Lesson, same shape as the 090 false positive:** an absolute inventory assertion is a
+        standing claim about the catalog, and nothing in the workflow re-evaluates it when a later
+        slice legitimately moves the catalog. Whoever moves the count owns the array.
+    - **Not yet sliced, blocked on a capture:** `sync_tags_cliente` (**capture its live body from the
+      catalog first** — it cannot be planned from the repository, and it has two active n8n callers,
+      `K6EpIX4lSJLGMJN7` production and `2CECGodU0oj85hMJ` staging, in
+      `Remesas - Cierre automatico de solicitudes zombis`).
 - [ ] 1.1 — New RPC that creates a `remittance_operations` row directly (whatever
   `trg_sync_operacion_al_crear_deal` currently derives: account/contact/currency/status), with NO
   `deals` row involved, writing structured beneficiary / USD-destination data up front (Phase 2
@@ -799,6 +834,27 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
   5/5, `deal-insert-creates-operation` 1–4, `deposit-review` 2 pre-existing failures (cases 3, 8d).
   Committed `4039674` on `agent/hermes-work`. **ff-merge into
   `feat/port-chat-operations-calculator` done — rebased onto 8daf4e0 first so it was a true fast-forward (SHA moved 8eb227a → 4039674).**
+
+- 2026-10-01: **WU6e sliced and delegated.** User decision taken for the incident reason: **add a
+  free-text column** to `remittance_operations` (alternatives were the generic fallback and
+  deferring). Read-only exploration established the live surface: `notify_operation_incidencia` is
+  byte-identical to `114:272-331` with no later redefinition; the trigger is
+  `AFTER INSERT OR UPDATE OF status` with **no `WHEN` clause** (filtering is inside the function);
+  the motive is the **whole last line** of `deals.notes` with no prefix stripped; there is **no**
+  `text`/`jsonb` reason column today (`admin_locked_fields` is the only jsonb); there are **no
+  positional `INSERT`s, no `SELECT *` and no `RETURNS remittance_operations`** anywhere, so adding a
+  column is safe — the only composite use, `calculator_operation_parts(p_op remittance_operations, …)`,
+  reads fields by name. The one live `deals`-notes reader other than the trigger: none.
+  **Correction to an explorer claim I had to check myself:** the explorer reported the ACL of
+  `notify_operation_incidencia` as matching the `160` functions. Measured: it is
+  `{=X/postgres,postgres=X/postgres,service_role=X/postgres}` — **PUBLIC holds EXECUTE** — while the
+  three `160` functions read `{postgres=X/postgres,service_role=X/postgres}`. The brief now says
+  preserve each ACL exactly and do not "fix" the PUBLIC grant.
+  **Lateral finding, measured by me, not by the writer:** the positional `deals` set is **6** live,
+  the any-mention set is **9**. WU6b's assertion expects 8 and WU6a's expects 9, so **both are red
+  today** — WU6c (`5f8e0f8`) moved the count and updated neither file. Folded into WU6e's scope with
+  a narrow authorisation and a measurement requirement rather than left silently standing.
+  Brief: `.briefs/WU6e-operation-incident-reason.md`.
 
 ## Next step
 1. WU4 — DONE. WU4a `bcc6cd7` (161), WU4b `af07d9d` (162), WU4d closed as unnecessary with no code

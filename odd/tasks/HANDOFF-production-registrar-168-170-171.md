@@ -31,4 +31,11 @@ Also live since: `173_target_origin_label` (commit fa769f4): `cerebro_riel_op`, 
 `cerebro_objetivo_minimo` redefined; `cerebro_objetivo_envio.pedido` is now 'cotizacion' | 'minimo <via>'
 and the Cerebro node `Cruzar deposito con MMG` reads it (keyed by deal_id). Your 172 exists, so this is 173.
 
-None of 168/170/171/173 is on staging. Feature doc: `odd/tasks/split-deposit-minimums.md`.
+Also live since: `174_reparto_tool_usd_rail` (commit ccfb082) + Cerebro version 177e5713: the tool
+`registrar_reparto_multiple` now passes each share WITH its currency in the same 11 arguments ("45000 CUP"
+or "30 USD clasica|tropical"; a bare "30 USD" takes cerebro_destino_pendiente, none -> error) and writes
+"Recibe: 30 USD Clasica" in the block; `cerebro_parsear_beneficiarios` reads it as a clasica/tropical row
+in USD; `cerebro_detectar_destino` accepts plurals. Your 163 `cerebro_registrar_reparto_multiple` must accept
+these values (it currently strips everything but digits and writes CUP).
+
+None of 168/170/171/173/174 is on staging. Feature doc: `odd/tasks/split-deposit-minimums.md`.

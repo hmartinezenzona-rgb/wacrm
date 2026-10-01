@@ -274,7 +274,43 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
     - Full per-node contract (verbatim SQL, argument bindings, notes markers, complete `accion`
       value sets) and the DB contract: `agent-shared/reports/wu4-n8n-writers.md` and
       `agent-shared/reports/wu4-db-side.md`.
-  - [ ] WU5 rewire the 7 n8n nodes one by one (byte-exact draft diff, live test each).
+  - [x] WU5a rewire the n8n nodes on the **STAGING twin** — DONE `9a9d23e`. **SIX nodes, not seven**
+    (correction from the unit itself): only `Registrar beneficiario auto`, `Registrar zelle auto`,
+    `gestionar_beneficiario`, `registrar_beneficiario_zelle`, `registrar_reparto_multiple` and
+    `marcar_destino_usd` still wrote `deals`. `Registrar deposito auto` never did — it was already
+    deal-free and was not touched. Also corrected: `cerebro_registrar_deposito` returns
+    `TABLE(deal_id, accion, es_revendedor, sumado)`, NOT `TABLE(id, accion)` like the other six.
+    Target: `[STAGING] Cerebro v2 — LEGACY OPTIMIZED V1` (`U52y1kSNvhgxvWeb`), `versionId`
+    `cbbd5642-…` → `06d3e4bf-…`. Production `jEzlVLCLUaJhVwzs` never received a single request.
+    Parent verification, run directly against the live n8n API, not taken from the report:
+    - A canonical per-node diff (before/after, `jq -S` so keys are order-independent) shows
+      **exactly 6 nodes** changed, all six expected ones, and nothing else.
+    - `connections`, `settings`, and the node name/order/type/position list are all byte-identical.
+      `active` stayed `true`.
+    - Production's `updatedAt` is still `2026-09-30T21:58:52` (yesterday) while staging's moved to
+      today — independent confirmation that the forbidden workflow was untouched.
+    - **The load-bearing safety fact:** no expression anywhere in the workflow reads the output of
+      any of the six (`$('Nodo')` inventory returns NONE of them). That is what makes it safe that
+      the returned `id` changes meaning from `deals.id` to `remittance_operations.id`. Contrast
+      `Cruzar deposito con MMG`, which does read `$('Registrar deposito auto')…id` — an untouched
+      node.
+    - `deals` count in staging: 35 before and after. Exercised end-to-end through the real webhook
+      (executions 294201 and 294209) for the two rail nodes; the other four are pure `ai_tool`s with
+      no inbound `main` edge and were exercised only by direct node execution, correctly labelled as
+      such.
+    - A method note, mine again: my first blast-radius diff reported 119 changed nodes. That was an
+      artifact — `tojson` does not honour `-S`, so I was comparing key order, not content. The
+      canonical diff gives 6. Same family as the empty-md5-diff trap above: check that the
+      comparison method is sound before believing its number, in either direction.
+    One operational hiccup, correctly handled: the first PUT via `python-urllib` was rejected by
+    Cloudflare (403 `error 1010 browser_signature_banned`) **before** reaching n8n — the workflow
+    was still on the old SQL, so nothing partial landed. The identical body was re-sent with
+    `curl`. No blind retries, no second target.
+  - [ ] WU5b rewire the **production** workflow `jEzlVLCLUaJhVwzs`. **USER-GATED — do not start
+    without an explicit go-ahead.** Requires deploying 160/161/162/163 to the production database
+    first; rewiring before that makes seven live paths call functions that do not exist there. Two
+    open decisions ride with it: the production go-ahead itself, and the `divergencia_ya_tipado`
+    reply text recorded under WU4c above.
   - [ ] WU6 stage-based notifiers/alerts (090, 114 notify_*, 136 avisos, 052, 096 guard) → status.
 - [ ] 1.1 — New RPC that creates a `remittance_operations` row directly (whatever
   `trg_sync_operacion_al_crear_deal` currently derives: account/contact/currency/status), with NO
@@ -469,11 +505,12 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
    reachable from this session through its REST API (credentials at
    `/home/onlinefreedom/.config/wacrm/n8n-api.env`); the MCP connector is simply not the channel we
    use. WU5 and WU6 are therefore NOT blocked on access — see the real blocker below.
-2. WU5 — rewire the **7** n8n nodes one by one (byte-exact draft diff, live test each), queued by the
-   user to start when WU4c lands:
-   `Registrar beneficiario auto`, `Registrar zelle auto`, `gestionar_beneficiario`,
-   `registrar_beneficiario_zelle` (all four ← 162); `registrar_reparto_multiple` and
-   `marcar_destino_usd` (← 163); `Registrar deposito auto` (← 160, deal-free deposit path).
+2. WU5 — rewire the n8n nodes one by one (byte-exact draft diff, live test each).
+   **WU5a DONE on the staging twin (`9a9d23e`) — SIX nodes, not seven**: `Registrar beneficiario
+   auto`, `Registrar zelle auto`, `gestionar_beneficiario`, `registrar_beneficiario_zelle` (← 162);
+   `registrar_reparto_multiple` and `marcar_destino_usd` (← 163). `Registrar deposito auto` was
+   already deal-free and needed no rewire — that is the seventh node this plan carried, now retired.
+   **WU5b (production) is USER-GATED and not started.**
    **BLOCKER — ANSWERED 2026-10-01, and the answer changes the plan.** There is no workflow named
    `Webhook WaCRM`: that is the *node*. The real flows, established by read-only API recon and
    then re-verified by me directly against the API:

@@ -38,4 +38,8 @@ or "30 USD clasica|tropical"; a bare "30 USD" takes cerebro_destino_pendiente, n
 in USD; `cerebro_detectar_destino` accepts plurals. Your 163 `cerebro_registrar_reparto_multiple` must accept
 these values (it currently strips everything but digits and writes CUP).
 
-None of 168/170/171/173/174 is on staging. Feature doc: `odd/tasks/split-deposit-minimums.md`.
+Also live: `175_reparto_keeps_zelle`: `cerebro_sync_beneficiarios` keeps the remesa's latest Zelle block
+vigente when the newest block is a card reparto (user decision 2026-10-01). Your deal-free writers (162/163)
+must keep that rule.
+
+None of 168/170/171/173/174/175 is on staging. Feature doc: `odd/tasks/split-deposit-minimums.md`.

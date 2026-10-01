@@ -415,8 +415,26 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
   `feat/port-chat-operations-calculator` done — rebased onto 8daf4e0 first so it was a true fast-forward (SHA moved 8eb227a → 4039674).**
 
 ## Next step
-1. WU4 — beneficiary writer RPCs on operations + beneficiaries.
-2. WU5 — rewire the 7 n8n nodes one by one; **blocked in this session**: the n8n MCP connector is
-   not available, so reading/publishing workflows has to be re-enabled (or done from the user's
-   own session) before this unit can start.
-3. WU6 — stage-based notifiers/alerts → status. Same n8n-access caveat.
+1. WU4 — DONE. WU4a `bcc6cd7` (161), WU4b `af07d9d` (162), WU4d closed as unnecessary with no code
+   change (`8edac6f`). WU4c (163, reparto + destino) queued to land next.
+   **Correction (2026-10-01): the n8n-access caveat previously recorded here was stale.** n8n IS
+   reachable from this session through its REST API (credentials at
+   `/home/onlinefreedom/.config/wacrm/n8n-api.env`); the MCP connector is simply not the channel we
+   use. WU5 and WU6 are therefore NOT blocked on access — see the real blocker below.
+2. WU5 — rewire the **7** n8n nodes one by one (byte-exact draft diff, live test each), queued by the
+   user to start when WU4c lands:
+   `Registrar beneficiario auto`, `Registrar zelle auto`, `gestionar_beneficiario`,
+   `registrar_beneficiario_zelle` (all four ← 162); `registrar_reparto_multiple` and
+   `marcar_destino_usd` (← 163); `Registrar deposito auto` (← 160, deal-free deposit path).
+   **BLOCKER THAT MUST BE ANSWERED BEFORE THE FIRST NODE IS TOUCHED: which database does the live
+   workflow actually talk to?** Every replacement function exists only on STAGING today. If the
+   workflow's Postgres nodes point at production, the first rewire breaks production traffic — the
+   node would call a function that does not exist there. Establish this from the credential the
+   nodes use, not from an assumption, and do not rewire anything until it is settled. Wiring map in
+   flight → `agent-shared/reports/wu5-n8n-wiring-map.md`.
+   Also note the rail asymmetry: only `Registrar beneficiario auto` and `Registrar zelle auto` sit
+   on the deterministic rail; the other five have no inbound `main` edge and fire only as `ai_tool`s
+   (see the WU4 constraints block above). A rewire that is safe for a rail node is not automatically
+   safe for an `ai_tool` one.
+3. WU6 — stage-based notifiers/alerts (090, 114 `notify_*`, 136 avisos, 052, 096 guard) → status.
+   Same access, no longer blocked; still depends on WU5 landing first.

@@ -988,11 +988,33 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
   A commit appeared on the branch during this session, `526310c` *"fix(db): store a Clasica/Tropical
   reparto share in USD on its own rail (167)"*, adding `167_reparto_usd_card_rail.sql` (+ rollback +
   assertion). That is **the second migration numbered 167**: WU6e's `167_operation_incident_reason.sql`
-  already occupies it. Both now live on the branch, so migration order depends on filesystem sort
+  already occupies it. Both live on the branch, so migration order depends on filesystem sort
   order. The two are independent — I grepped the reparto file and it mentions nothing in the WU6f
   set, and it redefines only `cerebro_aplicar_reparto` and `cerebro_destino_pendiente_antes_insert` —
-  so nothing is broken today, but the numbering needs a decision. **Reported to the user; not
+  so nothing was broken, but the numbering needed a decision. **Reported to the user; not
   renumbered unilaterally, because it is the user's commit.**
+
+  **RESOLVED 2026-10-01, on the user's explicit instruction ("si muevela"): the reparto migration is
+  now `169`.** Renamed `167_reparto_usd_card_rail.sql` → `169_reparto_usd_card_rail.sql` and
+  `ROLLBACK-167-reparto-usd-card-rail.sql` → `ROLLBACK-169-reparto-usd-card-rail.sql`, plus three
+  self-referencing header lines (the migration, its rollback, and
+  `assertions/reparto-usd-card-rail.sql:2`). WU6e keeps `167`, so the two are now distinct and
+  ordered; `169` was free.
+  **Order-safety was measured before moving, not assumed.** The reparto file is the *last* definer of
+  both functions it touches — the earlier definers are 127, 129, 130, 150, 157 and 163, and nothing
+  after it redefines them. Neither `167_operation_incident_reason` (`notify_operation_incidencia`,
+  `cerebro_registrar_deposito`, `cerebro_cruzar_deposito(s)`) nor `168_tags_off_delivered_operations`
+  (`sync_tags_cliente`) touches those two functions, so applying 169 after 168 yields the
+  byte-identical final state.
+  **The rename changed no database.** The migration was already not applied on staging —
+  `cerebro_aplicar_reparto` does not contain `clasica` (md5 `3fea2dace04bbef07619f6b3b73d31a2`) — and
+  the `supabase_migrations.schema_migrations` ledger stops at `122`, everything after being applied
+  by hand, so no ledger entry carries the old number. **Production was not inspected:** reading it
+  needs a per-session authorization that a file rename does not require.
+  One lateral observation, **not acted on**: `ROLLBACK-169`'s header says it restores "130's
+  `cerebro_aplicar_reparto`", but `163_reparto_destino_node_adapters.sql` (WU4c) also mentions that
+  function — though it does **not** redefine it, checked. So the claim may be merely imprecise rather
+  than wrong; it is the user's file and outside this rename's scope.
 
 ## Next step
 1. WU4 — DONE. WU4a `bcc6cd7` (161), WU4b `af07d9d` (162), WU4d closed as unnecessary with no code

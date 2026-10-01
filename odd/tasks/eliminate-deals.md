@@ -544,6 +544,36 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
     - **WU6c — re-key the avisos.** `cerebro_avisar_envios_incompletos`,
       `cerebro_avisar_envios_sin_beneficiario`. Changes row sets and the `cerebro_alertas.clave`
       dedup keys; needs its own alert-dedup proof.
+      - **Brief corrected before the first write — orchestrator error, fourth of the feature.** The
+        first WU6c brief presented a *simplified reconstruction* of both predicates as though it had
+        been measured against the live functions. The writer measured the real ones and stopped:
+        `cerebro_avisar_envios_sin_beneficiario()` returns 0, not the 4 the brief claimed, and the
+        brief had missed the second stage in `d.stage_id IN ('3cf01654','f5cf87f8')` and the
+        `AND b.status='vigente'` condition. The brief's `4 = 4` had actually compared the *incompletos*
+        scope against a wrong partner.
+      - **The corrected mapping is read off the real bodies with the stage→status translation taken
+        from the repo's own `cerebro_estado_desde_etapa` (`041:38-45`), not invented:**
+        incompletos `d.stage_id='3cf01654'` → `o.status='deposit_verification'`; sin_beneficiario
+        `d.stage_id IN ('3cf01654','f5cf87f8')` → `o.status IN ('deposit_verification',
+        'ready_to_transfer')`; pipeline scope → `COALESCE(o.service_type,'remesa') <> 'recarga'`;
+        `d.value`/`d.currency` → `o.quoted_source_amount`/`o.source_currency`; `cerebro_saldo_envio` →
+        `cerebro_saldo_operacion`; `depositos_mmg.deal_id` → `.operation_id`. The `b.status='vigente'`
+        condition and the `messages` silence check stay.
+      - **One deliberate behaviour change, named not hidden:** migration `114` dropped
+        `trg_sync_operacion_desde_deal` (`114:359`), so deal stage and operation status now diverge.
+        Two open deals sit at `f5cf87f8` whose operation is `cancelled`; the deal-keyed predicate
+        included them, the operation-keyed one excludes them. Intended — a cancelled shipment should
+        not raise a "money inside, no recipient" alert — and latent today.
+      - **Two measurement traps recorded for reuse:** (a) both avisos `RETURN QUERY SELECT 0,0` when
+        called outside their hours window, so a bare zero is a *guard*, not an empty row set — the
+        orchestrator's own first read of `0` was inconclusive for exactly this reason, while the
+        writer's `1` came from an in-window run; (b) two catalog counts are both correct under
+        different definitions — `deals` in a real position gives **8** functions, any bare mention
+        gives **11** (the extra three are the `deals` trigger functions, casualties of the drop). The
+        exit criterion is the positional set: **8 → 6**.
+      - **ACL correction:** both functions read `{postgres, service_role}` — **no `authenticated`, no
+        `PUBLIC`**. The brief's earlier claim that the panel calls them was wrong; n8n calls them as
+        `service_role`. The writer's measurement is the authority.
     - **WU6d — retire the notes transport.** `cerebro_aplicar_nombre_confirmado` (repoint to the 162
       structured writers) and `cerebro_sync_beneficiarios` (retire). **Sequenced last**: it is only
       correct once the deal-keyed triggers `trg_sync_z_benef_desde_deal` and

@@ -73,7 +73,7 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
   - [x] WU1 operation-keyed money helpers: cerebro_saldo_envio / cerebro_objetivo_atar /
     cerebro_objetivo_cerrar get operation-id variants; deal-id versions delegate to them (absorbs
     Phase 3).
-  - [ ] WU2 receipt readers off notes: cerebro_cruzar_deposito(s), crm_verificar_deposito,
+  - [x] WU2 receipt readers off notes: cerebro_cruzar_deposito(s), crm_verificar_deposito,
     crm_forzar_verificacion, crm_comprobantes_de_operacion read remittance_operation_receipts
     (+ add block_index to receipts first).
   - [ ] WU3 cerebro_registrar_deposito without deals (movido/sumado/creado on operations,
@@ -211,6 +211,16 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
   versions delegate. Evidence: RED (column missing) -> GREEN 5/5; rollback restores the 3 live md5s;
   related assertions identical with/without (deposit-review fails both ways, pre-existing); saldo of
   all 24 staging deals identical before/after. Applied to staging. Production: not yet.
+
+- 2026-09-30: WU2 done on staging: migration 159 (commit dd3fc56; written by Hermes, assertion bugs
+  fixed by me). Hermes found that only crm_comprobantes_de_operacion READS receipts from notes;
+  cerebro_cruzar_deposito(s), crm_verificar_deposito and crm_forzar_verificacion only WRITE notes
+  (Phase 4). 159 adds block_index to receipts (backfilled) and makes the panel RPC read
+  remittance_operation_receipts, the operation status and depositos_mmg.operation_id. Evidence: RED
+  -> GREEN 2/2; rollback restores the live md5 and grants; panel RPC output identical for all 24
+  staging operations (per-account auth); deposit-review back to its 2 pre-existing failures after its
+  fixture writes the receipt row like the bot. Note: can_verify still requires a deal (verification
+  RPCs are deal-bound until WU3/Phase 4). Applied to staging. Production: not yet.
 
 ## Next step
 1.1 — design the direct operation/beneficiary write path (no deals) together with

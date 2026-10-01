@@ -380,11 +380,18 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
       - `notify_operation_incidencia` (`114`) — **named gap.** `remittance_operations` has no
         free-text reason column; the read supplies the MOTIVO line and otherwise falls back to a
         generic string. The alert already fires deal-free. **Product decision.**
-      - `sync_tags_cliente` — **cannot be analysed from the repository at all.** Its live body must be
-        captured from the catalog before any claim about it (including that it touches `deals`) can be
-        made. Note the trap this sets: my catalog sweep listed it as a `deals`-referencing function,
-        but that sweep matched `prosrc LIKE '%deals%'`, which is satisfied by a mere comment — the same
-        false-positive class that put the 163 functions on the list.
+      - `sync_tags_cliente` — **cannot be analysed from the repository**: no migration defines it, so
+        its body exists only in the database. **CORRECTION OF AN EARLIER CLAIM IN THIS DOCUMENT:** an
+        earlier draft here said its `deals` mention was probably a comment false-positive, like the
+        ones that put the 163 functions on the sweep list. That was wrong, and the catalog disproves
+        it directly — its live body contains the real statement line
+        `from deals d` (verified by extracting its non-comment lines). It genuinely queries `deals`,
+        and it has two active n8n callers (`Reconciliar etiquetas` in both the production and staging
+        `Remesas - Cierre automatico de solicitudes zombis`). So it is neither dead nor a false
+        positive; it is real work whose body must be captured from the catalog first.
+        *Method note:* the catalog, not the grep count, is what settled this — and it settled it in
+        the opposite direction from the guess. Distrust the guess in both directions, not just the
+        flattering one.
     - **The strongest functional finding, and it is latent rather than reproducing:** both
       `crm_verificar_deposito` (`114:1153-1155`) and `crm_forzar_verificacion` (`114:1308-1310`) do
       `IF v_deal_id IS NULL THEN RAISE EXCEPTION 'operation has no linked deal' USING ERRCODE =
@@ -435,7 +442,8 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
       auditing something that should no longer exist, and nothing consumes it. Recorded as a decision,
       and it is reversible only by writing new work — there is no port to fall back to.
   - [ ] **WU6 is 16 objects, so it is split. Slice plan, in dependency order:**
-    - **WU6a — the views and the no-observable-change edits.** `cerebro_historial_operaciones` and
+    - [x] **WU6a DONE `31cc878`** (staging; parent-verified against the live catalog, not taken on the
+      writer's word). The views and the no-observable-change edits: `cerebro_historial_operaciones` and
       `cerebro_volumen_diario` (drop the LEFT JOIN → `coalesce(o.quoted_source_amount, 0)`),
       `cerebro_conciliacion_operaciones` (DROP, per the decision above), `merge_duplicate_contacts`
       (delete the `UPDATE deals` line), `crm_entregar_operacion` (delete the guarded lock),
@@ -446,6 +454,36 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
       Must be verified, not assumed — especially that `cerebro_resumen_volumen` still compiles and
       returns the same columns, and that the `cerebro_saldo_envio` wrapper returns the same values as
       the body it replaces for every deal-linked operation.
+      - **Verification evidence (re-run by the parent, not quoted from the report):** the unit's own
+        assertion harness, executed by the orchestrator inside `BEGIN; … ROLLBACK;`, prints
+        `ALL PASS` — 21 PASS / 2 NOTE / 0 FAIL. Independently re-derived by the orchestrator from the
+        catalog: **0** views still reference `deals`; **12** functions have a live (non-comment) line
+        touching `deals`, of which **3** are the deal-trigger functions that die with the table, so
+        exactly **9** real ones remain — matching the writer's claim and the harness's own
+        `exactly nine functions still reference deals`. `cerebro_resumen_volumen` compiles and
+        returns 5 rows. `cerebro_saldo_envio` is still `LANGUAGE sql`, no longer mentions `deals`, and
+        delegates to `cerebro_saldo_operacion`. Commit carries no AI attribution.
+      - **One declared deviation, and it was the right call:** the writer did **not** apply the
+        brief's `REVOKE … FROM authenticated` template to `crm_entregar_operacion`, because the live
+        ACL grants EXECUTE to `authenticated` (the panel calls it) — templating it verbatim would have
+        been a real permission regression. The parent verified the live ACL is preserved
+        (`postgres`, `service_role`, `authenticated`). The brief was wrong to template it; the unit
+        caught it, which is exactly the behaviour §5 asked for.
+      - **One user-visible text change, expected and shown:** the `Vigilante - remesas abiertas
+        viejas` alert message loses its `(etapa)` label — observed before `…abierta hace 0 dias (Por
+        verificar)`, after `…abierta hace 0 dias`. Rows, `cerebro_alertas.clave` and `avisos_creados`
+        are unchanged. Unlike `divergencia_ya_tipado` this is an internal admin alert, not
+        customer-facing, but it is the second visible-text change in the feature and is recorded here
+        rather than left in the report.
+      - **Honest gaps, carried forward rather than buried:** (a) `crm_entregar_operacion`'s
+        `FOR UPDATE` on the deal now only runs for deal-linked rows — the lock existed to order
+        against legacy n8n writes to `deals.notes`/`deals.value`. Removing it is safe **only if
+        nothing concurrent writes the same deal row**, and that assumption was *not* verified: n8n was
+        out of scope for this unit, and the earlier sweep shows active workflows **do** still write
+        `deals`. The safety is argued, not measured. (b) No real duplicate-contact merge was executed
+        (unreachable: 0 duplicate groups + the partial UNIQUE index). (c) The alert was re-run on a
+        fixture, not the full live population, and the consumer that renders the alert text was not
+        checked for tolerance of the missing label.
     - **WU6b — enable deal-free operations.** `crm_comprobantes_de_operacion` (delete the dead
       `v_stage_id` read, then repoint `cerebro_saldo_envio`→`cerebro_saldo_operacion` and
       `depositos_mmg.deal_id`→`.operation_id` — its `IF v_deal_id IS NOT NULL` guard currently makes a

@@ -958,6 +958,42 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
   the table — but that route is precisely what is being removed. **Honest limit: this is a reading of
   the literal bodies, not a driven execution.** Carried to the drop checklist as a verification item.
 
+- 2026-10-01: **WU6f DONE and parent-verified — `902a789` (168) + `3aa13de` (assertion reconciliation).**
+  `sync_tags_cliente` now counts delivered **operations**; the positional `deals` set is **4**.
+  Its body was ported from the captured live text (no migration defined it) into the repository for
+  the first time. Applied `md5(prosrc) = 4c79ab4579d24a55b85418d78347e6c1`, length 1278 — measured by
+  me, not taken from the writer's report.
+  **Parent verification, independent of the writer's claims:** positional set re-measured as exactly
+  `{cerebro_aplicar_nombre_confirmado, cerebro_sync_beneficiarios, crm_forzar_verificacion,
+  crm_verificar_deposito}` (5 → 4); loose set 7; signature `(p_contact_id uuid) → void`, `v`, secdef,
+  owner `postgres`, ACL `{postgres, service_role}` with **no `=X/` entry**; `contacts_sync_tags` alive
+  and `deals_sync_tags` still present as a drop casualty; staging at the exact baseline
+  34 / 0 / 35 / 18 / 18. I re-ran **all four** assertions myself — the new one reports its four
+  fixtures with measured values and `every check passed`, and the three reconciled ones all report
+  ALL PASS.
+  **The four fixtures** (old / new): 1 deal + completed op → **1 / 1** → Cliente; 3 + 3 → **3 / 3** →
+  Recurrentes (and the stale `Cliente` row is deleted); a deal at `Entregada` whose op is not
+  completed → **1 / 0** → Nuevo (divergence A); a deal-free op at completed → **0 / 1** → Cliente
+  (divergence B). Both divergences are behaviour, not defects, and nothing was done to equalise them.
+  **A false alarm in my own verification, recorded so it is not repeated:** my first pass looked like
+  the new assertion had no summary line and skipped check `[1.2]`. Both were artefacts of my grep —
+  the summary reads `OK … every check passed`, not `ALL PASS`, and `[1.2]` announces itself as a
+  `FIXTURE 2 … old=3 new=3` notice rather than a PASS line. The assertion was correct; my filter was
+  wrong. Same trap as the `pg_get_triggerdef` probe during slicing.
+  **Carried, honest gaps:** n8n's real call was not executed (only direct SQL; the ACL is the
+  evidence that `service_role` still binds); no from-zero replay, so the `065` hole stays reasoned
+  rather than reproduced; the `tag_id IN (...)` NULL-swallow was preserved, not exercised; no
+  concurrency testing.
+  **NEW, AND NOT MINE — a migration-number collision on `feat/port-chat-operations-calculator`.**
+  A commit appeared on the branch during this session, `526310c` *"fix(db): store a Clasica/Tropical
+  reparto share in USD on its own rail (167)"*, adding `167_reparto_usd_card_rail.sql` (+ rollback +
+  assertion). That is **the second migration numbered 167**: WU6e's `167_operation_incident_reason.sql`
+  already occupies it. Both now live on the branch, so migration order depends on filesystem sort
+  order. The two are independent — I grepped the reparto file and it mentions nothing in the WU6f
+  set, and it redefines only `cerebro_aplicar_reparto` and `cerebro_destino_pendiente_antes_insert` —
+  so nothing is broken today, but the numbering needs a decision. **Reported to the user; not
+  renumbered unilaterally, because it is the user's commit.**
+
 ## Next step
 1. WU4 — DONE. WU4a `bcc6cd7` (161), WU4b `af07d9d` (162), WU4d closed as unnecessary with no code
    change (`8edac6f`). WU4c (163, reparto + destino) queued to land next.

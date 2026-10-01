@@ -142,24 +142,52 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
          `src/` code reads the column (grep: zero hits in `src/`). The rule is preserved, only the
          absolute starting value differs, and every comparison downstream is relative.
       2. `remittance_operations.delivery_method`: old `{cuban_card|zelle}`, new `{NULL}` in 23 cases.
-         NOT inert — see WU4d.
+         Investigated as WU4d and closed without a change — see below.
     - [ ] WU4c reparto + destino adapters: `registrar_reparto_multiple` (10 args) and
       `marcar_destino_usd` (2). `marcar_destino_usd` must be migrated even though
       `Registrar destino auto` superseded it on the deterministic rail: it survives as an
       `ai_tool` on `Agente Remesas`, so leaving it means a live path still INSERTs `deals` and
       Phase 6 can never drop the table.
-    - [ ] WU4d maintenance of `remittance_operations.delivery_method`, found by WU4b and owned
-      before WU5. `042:207` sets it inside `cerebro_sync_beneficiarios` —
-      `SET delivery_method = coalesce(lower(v_usd), v_tipo, o.delivery_method)` — which is part of
-      the deal-keyed notes-parse mechanism, so a deal-free operation never gets it and ends up NULL
-      where the old path produced `cuban_card` / `zelle`. That is not cosmetic: `097:175` reads
-      `o.delivery_method` for the conversation-operations RPC, so the panel and the bot would see a
-      different value for every operation created after WU5 ships. Also written by `098` (admin
-      corrections) and by `157` (`cerebro_registrar_destino`). Needs a deal-free home for 042's
-      derivation rule — either the writers set it directly, or a trigger on
-      `remittance_beneficiaries` maintains it the way 157 already does for the card rail. Decide
-      which, and prove parity against the old value on a notes-bearing fixture. Must land before
-      WU5, because WU5 is what makes these writers live.
+    - [x] WU4d `remittance_operations.delivery_method` — INVESTIGATED 2026-10-01 AND CLOSED WITH NO
+      CODE CHANGE. It does not need a deal-free home. The gap opened by WU4b is real as a
+      *difference* (old `{cuban_card|zelle}`, new `{NULL}` in 23 cases) but it is not a defect: the
+      column is already stale-or-NULL on live deal-based operations today, and two earlier
+      migrations were written specifically to route around that.
+      Evidence, each claim verified by the parent against the file, not taken from a report:
+      - `141:94-110` — `calculator_resolve_operation_service(p_operation_id, p_delivery_method)`
+        reads the beneficiaries FIRST and consults the column only when there are ZERO `vigente`
+        beneficiaries; one shared `beneficiary_type` maps through it, mixed types resolve to NULL.
+        Its own `COMMENT` at `141:113-120` states the intent outright: "so the stale
+        delivery_method column can never override a real current beneficiary." The calculator is
+        already independent of the column.
+      - `remittance-operation-card.tsx:196-206` — the front-end comment says the column "is set
+        only by the legacy notes trigger with an arbitrary `LIMIT 1` and is never touched by the
+        reparto/add-beneficiary RPCs, so it can be stale or null even for a live Zelle operation".
+        That is the panel already treating it as unreliable ON THE DEAL PATH, before we touched
+        anything. `isZelleOperation` (`:207-212`) branches on `beneficiaries.length > 0` and falls
+        back to the column only for the legacy shape with no beneficiaries yet. Tests pin both
+        shapes (`:813-857`, legacy shape at `:604-611`).
+      - `120:53` → `aged-operations-queue.tsx:52-55` falls back to `destination_currency`; `153:110`
+        degrades to a coarser quote rather than a wrong one.
+      - The only hard SQL reads are `150:191` and `151:148`, which filter
+        `delivery_method = 'efectivo_usd'` — PREEXISTING and unrelated to this feature: no deal-free
+        writer produces that value (`162` writes only `cuban_card`/`zelle`), so deal-free cash
+        delivery was already unhandled before WU4b. Not WU4d's to fix and not caused by it.
+      - `157:208-212` still writes the column and survives the deals removal (it is keyed by
+        conversation, not by deal), so the destino flow keeps populating it.
+      - Question F, answered: the column's only non-derivable information was the rail during the
+        notes window (`clasica`/`tropical` while the beneficiary still read `cuban_card`), and
+        `157:202-206` already moves that into `beneficiary_type`.
+      CORRECTION OF AN EARLIER CLAIM IN THIS DOCUMENT: I first recorded this as "not cosmetic:
+      `097:175` reads `o.delivery_method`, so the panel and the bot would see a different value".
+      That was wrong. `097:175` does read the column and does carry it to the client, but the
+      client does not trust it — the card branches on beneficiaries first and only consults it for
+      the legacy no-beneficiary shape. Reading the column is not depending on it; I conflated the
+      two. Residual exposure is therefore limited to an operation with NO beneficiaries yet whose
+      rail was set by deal-path notes — a transient shape that 157 still covers for the rail it
+      owns.
+      Consequence for the plan: WU5 carries no delivery_method obligation, and no unit between here
+      and Phase 6 does either. Recorded so nobody re-opens it from the WU4b report alone.
     Constraints found by recon (2026-10-01) — these are load-bearing, not commentary:
     - `cerebro_resolver_operacion(uuid, text[] DEFAULT NULL)` is LIVE-ONLY: absent from the
       working tree and from all reachable git history, with the drift documented at

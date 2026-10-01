@@ -730,6 +730,102 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
   `pipeline_stages` any more.
 - [ ] 6.4 — **STOP and get one more explicit go-ahead from the user before this step.** Drop
   `deals`, `pipelines`, `pipeline_stages` and their triggers/functions. Irreversible.
+- [ ] 6.5 — **NEW 2026-10-01, measured against the staging catalog — without this the panel goes
+  silent.** `src/components/inbox/operations/operations-panel-container.tsx:221` keeps a live
+  realtime subscription to `deals` (filtered by `conversation_id`), and its own comment at `:196-200`
+  explains why: the panel's live refresh exists *because* `deals` is in the `supabase_realtime`
+  publication while `remittance_operations`/`remittance_beneficiaries` are not. **Re-measured today,
+  not taken from the comment:** the publication holds `conversations, deals, flow_runs,
+  member_presence, message_reactions, messages, notifications, remittance_calculator_entries` —
+  there is **no `remittance_*` table in it**. So the `DROP TABLE` kills the panel's live refresh
+  silently unless the publication gains `remittance_operations` (a DB change) or the subscription
+  moves. Pinned by `operations-panel-container.test.tsx:592-606`. **Deliberately not in WU7**: it is
+  a publication decision, and nothing breaks until 6.4.
+- [ ] 6.6 — **NEW 2026-10-01.** Decide the fate of the `/settings?tab=deals` tab
+  (`src/components/settings/deals-settings.tsx`, mounted at `settings/page.tsx:18,83,97`). It is
+  **not** a table dependency — it writes only `accounts.default_currency` — and that column is still
+  load-bearing outside deals: `dashboard/page.tsx:230,274` formats the operations-in-progress value
+  with it and `settings-overview.tsx:150,203` displays it. So the **setting stays**; only the tab's
+  name and placement are open. Product/naming decision, not work.
+
+#### WU7 — Fase 6.1 + 6.2 (the `src/` half of Phase 6), sliced 2026-10-01
+Authorised by the user ("arrancá por la Fase 6"). Scope is the generic-CRM removal only: **no DB, no
+n8n, no production.** The runtime surface in `src/` is **four query sites plus one realtime
+subscription**, measured by grep rather than read off this document:
+`contact-detail-view.tsx:175` (`.from('deals')`), `automation-builder.tsx:266,268`
+(`.from("pipelines")` / `.from("pipeline_stages")`), `engine.ts:539` (`db.from('deals').insert`), and
+the `deals` realtime subscription of 6.5. Everything else that matches the word `deals` in `src/` is
+a comment or an i18n key — with the one substantive exception of `defaultCurrency` (see 6.6).
+- [x] WU7.1 `contact-detail-view.tsx` — remove the Deals tab: the `deals` state `:97`, `fetchDeals`
+  `:171-193` (query at `:175-176`), the `TabsTrigger value="deals"` `:487-490`, the
+  `TabsContent value="deals"` `:696-…`, the `Deal` type, and the `deal.currency || defaultCurrency`
+  use at `:731`. Drop i18n `tabs.deals` (`messages/en.json:561`) and the `dealsTab` object (`:592`).
+- [x] WU7.2 `automations/engine.ts` — delete the `create_deal` case `:526-552` and the
+  `CreateDealStepConfig` type. **Measured, and this is why the removal is graceful:** the switch's
+  `default:` at `:589-590` **returns** `unknown step: <type>` instead of throwing, so an automation
+  row still carrying a `create_deal` step degrades to a logged no-op message rather than a crash.
+  Staging `automation_steps` holds **0 rows**, so no configured step exists there today.
+  **Production was not read** (needs its own authorization) — carried as an open risk, not assumed
+  clean.
+- [x] WU7.3 `automations/validate.ts` — delete the `create_deal` case `:99-109`.
+- [x] WU7.4 `automations/validate.test.ts` — the removal must be **driven**, not assumed: replace
+  "flags create_deal when required fields are missing" `:112-114` with an assertion that the step
+  type is no longer accepted.
+- [x] WU7.5 `types/index.ts` — drop `'create_deal'` from the step-type union `:463` and the
+  `CreateDealStepConfig` interface.
+- [x] WU7.6 `automation-builder.tsx` — drop the registry entry `:109`, the ordering list `:125`, the
+  config-panel case `:181`, the `pipelines`/`pipeline_stages` fetch `:266-268`, the render case
+  `:1377`, and the stale comment `:447`. Drop i18n `:1089`.
+- [x] WU7.7 — the 6.3 partial: re-grep `src/` and record what legitimately remains (comments,
+  `defaultCurrency`, 6.5's subscription, 6.6's tab) rather than claiming a clean sweep.
+Checks: `npx tsc --noEmit`, `npm test` (vitest), `npm run lint`. TDD **enabled** (user's global
+config); runner `npm test` → `vitest run`; RED must precede GREEN and be observed, not asserted.
+
+**WU7 DONE — commit `9565f25`, 7 files, +17 / -310.** Verified by the parent, not taken from the
+writer's report: `npx tsc --noEmit` exit 0; `npm test` **141 files / 1659 tests passed** (the
+writer's number, reproduced by me); the targeted `validate.test.ts` 21/21; `npm run lint` **45
+warnings / 0 errors**, identical to baseline; `messages/en.json` parses and the intended keys
+survive (`Settings.sections.deals` and the `Settings.deals` object both intact); and the re-grep
+returns **only** the 6.5 subscription plus its own test mock — no runtime query against `deals`,
+`pipelines` or `pipeline_stages` remains anywhere in `src/`.
+- **RED is genuine and I checked its shape, not just its exit code:** the report's "received" branch
+  is `pipeline is required` / `stage is required` / `title is required` at `steps[0].*` — which is
+  exactly what the deleted `validate.ts:99-109` arm produced. The new test asserts the *runtime*
+  refusal, `{path: steps[0], message: 'unknown step type: create_deal'}`, so it documents the
+  legacy-row degradation rather than merely claiming a type is gone.
+- **Two line ranges in my brief were WRONG, and the writer caught both.** `fetchDeals` is
+  `171-181`, not `171-193`: `183-191` is the **shared** `useEffect` that also loads contacts, tags,
+  notes and custom fields — the literal range would have deleted four other tab loaders. And the
+  pipelines fetch is `266-270`, not `266-268`, which would have left a dangling `.select().order()`
+  chain. I confirmed the shared `useEffect` is intact in the committed tree, still calling all four
+  fetchers. This is the **fifth** brief defect of the feature, and again it was the writer's
+  measurement that caught it — the pattern is now five-for-five, and the brief's stop-condition
+  clause is what made the catch possible.
+- **A false alarm of mine, recorded so it is not repeated:** my first probe reported
+  `Settings.tabs.deals = undefined` and looked like the writer had deleted a key it claimed to keep.
+  The key is `Settings.sections.deals` (line 1746) — my probe assumed the wrong path. **Sixth
+  instance of the same family: a wrong probe produces a confident false finding in either
+  direction.** The writer was right; my query was wrong.
+- Follow-ups this unit created or surfaced, **recorded rather than swept**, so the work unit stays
+  clean (the `982d993` / `3aa13de` pattern):
+  1. `messages/en.json` — `Automations.builder.pipelines` (~10 keys) and
+     `Automations.builder.config.titleLabel` are now orphaned: their only consumers were
+     `DealPipelineFields` and the `create_deal` render case. Dead strings, no runtime effect.
+  2. `Contacts.detailView.tabs.noDeals` was **already** orphaned before this unit — pre-existing.
+  3. `src/middleware.ts:73` still lists `'/pipelines'` in `protectedPaths` — a dead route guard for a
+     route that no longer exists. **Pre-existing, not caused by WU7**, and it is exactly what 6.3's
+     sweep will match, so it is recorded here rather than left to surprise that sweep.
+- **A naming trap for 6.3, and it would produce a false positive there:** `src/lib/pipelines/*` and
+  `src/components/pipelines/*` are the **WhatsApp proof-delivery modules**, unrelated to the CRM
+  `pipelines` table — they never query it. And `src/lib/pipelines/proof-drafts.ts` takes a parameter
+  literally named `deals` (a TS type, not a query); its `pruneStaleDrafts` has no caller in `src/`,
+  so it is dead code, not a live dependency. A grep-based sweep will match all of this.
+- **Not verified, carried:** neither the Contacts sheet nor the automation builder was exercised in a
+  browser; `contact-detail-view.tsx` has no component test, so the tab removal rests on the
+  typecheck plus the shared suite. Production `automation_steps` was **not read** — "0 rows" is a
+  staging measurement, and whether any production automation carries a `create_deal` step is an open
+  assumption. It is benign by measurement of the code path (the `default:` arm returns rather than
+  throws), not by measurement of production data.
 
 ## Progress
 - 2026-09-29: document created. Scoping fork's exploration (see task doc
@@ -1016,7 +1112,50 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
   function — though it does **not** redefine it, checked. So the claim may be merely imprecise rather
   than wrong; it is the user's file and outside this rename's scope.
 
+- 2026-10-01: **resumed in a fresh session; WU7 sliced (Fase 6.1 + 6.2, the `src/` half).** Before
+  slicing I re-measured the `src/` surface by grep rather than trusting this document's Phase 6 list,
+  and it was **incomplete in both directions** — the same lesson the catalog taught WU6. The doc
+  named two items; the real runtime surface is **four query sites plus one realtime subscription**.
+  - **Found and verified, and it is a real silent-failure risk (now 6.5):** the operations panel
+    refreshes live off a realtime subscription to `deals`
+    (`operations-panel-container.tsx:221`), because `deals` is in `supabase_realtime` and the
+    `remittance_*` tables are not. Confirmed against the staging catalog, not just the code comment:
+    the publication holds eight tables and **none of them is `remittance_operations` or
+    `remittance_beneficiaries`**. Dropping `deals` therefore kills the panel's live refresh with no
+    error anywhere. Not fixed in WU7 (it needs a publication decision) and not lost: it is item 6.5.
+  - **Found (now 6.6):** a `/settings?tab=deals` tab (`deals-settings.tsx`) that this document never
+    listed. It is **not** a `deals`-table dependency — it writes `accounts.default_currency`, which
+    `dashboard/page.tsx:230,274` still uses to format operations-in-progress. The setting stays; only
+    the naming is open. Recorded as a product decision rather than deleted by reflex.
+  - **Two facts that make WU7.2 safe, both measured:** the engine's `default:` arm **returns**
+    `unknown step: <type>` rather than throwing (`engine.ts:589-590`), so a surviving `create_deal`
+    row degrades to a no-op message; and staging `automation_steps` holds **0 rows**, so no
+    configured step exists there. **Production was not read** — that needs its own authorization, so
+    "no production automation carries `create_deal`" is an assumption carried openly, not a finding.
+  - Scope of WU7 is generic-CRM only: no DB, no n8n, no production. TDD is enabled (user's global
+    config), runner `npm test` → `vitest run`.
+
+- 2026-10-01: **WU7 DONE — `9565f25` (7 files, +17 / -310).** The generic CRM is off `deals`. All
+  four checks re-run by the parent: `tsc` exit 0, `npm test` 141 files / 1659 tests, `lint` 45
+  warnings / 0 errors (baseline-identical), and the re-grep leaves only the 6.5 subscription. Two
+  line ranges in my brief were wrong and the writer caught both by measuring before writing —
+  `fetchDeals` was `171-181` inside a **shared** `useEffect` (the literal range would have deleted
+  the contacts/tags/notes/custom-fields loaders), and the pipelines fetch was `266-270` (the literal
+  range would have left a dangling chain). Fifth brief defect of the feature, fifth time the writer's
+  measurement caught it. My own verification then produced a **false finding** — I probed
+  `Settings.tabs.deals`, got `undefined`, and nearly reported a key the writer had correctly kept;
+  the real path is `Settings.sections.deals`. Recorded because it is the sixth instance of this
+  family: a wrong probe is not evidence, in either direction.
+
 ## Next step
+0. **WU7 — DONE 2026-10-01, commit `9565f25` (Fase 6.1 + 6.2, `src/` only).** The generic CRM no
+   longer touches `deals`/`pipelines`/`pipeline_stages`; evidence and the two brief defects it
+   caught are in the WU7 block under Phase 6. **What is left in Phase 6, and each has a different
+   owner:** 6.3 the sweep (now cheaper — its two known false-positive sources are named in the WU7
+   block), 6.4 the `DROP TABLE` (needs your explicit go-ahead), 6.5 the operations-panel realtime
+   dependency (**DB/publication work, and the only remaining silent-failure risk in this phase — it
+   must be settled before the drop, not after**), 6.6 the Settings tab naming (product call). Plus
+   three follow-ups WU7 deliberately did not sweep, listed in its block.
 1. WU4 — DONE. WU4a `bcc6cd7` (161), WU4b `af07d9d` (162), WU4d closed as unnecessary with no code
    change (`8edac6f`). WU4c (163, reparto + destino) queued to land next.
    **Correction (2026-10-01): the n8n-access caveat previously recorded here was stale.** n8n IS

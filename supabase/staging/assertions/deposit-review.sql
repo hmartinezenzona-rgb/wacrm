@@ -122,6 +122,14 @@ BEGIN
       'Tarjeta: 1111222233334444' || E'\n' ||
       'Celular: 55512345'
    WHERE id = v_deal_id;
+  -- Since 156 every receipt the bot registers is also a structured row
+  -- (cerebro_registrar_deposito dual-writes it); since 159 the panel reads
+  -- that row, not the notes. Mirror what the bot writes.
+  INSERT INTO remittance_operation_receipts (operation_id, conversation_id, comp_id, amount, currency,
+         receipt_status, recipient, via, reference, receipt_date, correct_destination, source, block_index)
+  SELECT v_op_id, v_conv_id, p.comp_id, p.amount, p.currency, p.receipt_status, p.recipient, p.via,
+         p.reference, p.receipt_date, p.correct_destination, 'bot', p.block_index
+    FROM cerebro_parsear_comprobantes((SELECT notes FROM deals WHERE id = v_deal_id)) p;
 
   -- deal x2: POR_VERIFICAR, used for the amount-mismatch cross-reference
   -- case (5) and as the FK anchor for the already-consumed deposit fixture.

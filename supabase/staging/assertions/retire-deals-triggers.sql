@@ -1,3 +1,5 @@
+\set ON_ERROR_STOP on
+-- (2026-10-02) Stop at the first error: run outside BEGIN ... ROLLBACK, the SAVEPOINT below fails and nothing is written.
 -- retire-deals-triggers.sql — self-reverting assertion for
 -- 172_retire_deals_triggers_and_fk.sql (WU9)
 --

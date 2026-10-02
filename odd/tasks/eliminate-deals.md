@@ -1530,3 +1530,23 @@ the FK alone suggested.**
     only on production: the 8 deals triggers (retired on staging by 172/WU9).
   - Not all of it is deals work (cerebro_rescatar_dsml, cerebro_catalogo_servicios, crm_limpiar_calculadora are other
     staging-only features): the port list must be filtered, not copied wholesale.
+- 2026-10-02: **WU5b step 2 — DB REHEARSAL on a production copy: PASSED.** Read-only dump (owner go-ahead, user
+  `respaldo_lectura`): `~/wacrm-respaldos/produccion-20261002T171652Z.dump` (106 tables with data, 243 functions),
+  restored into a NEW container `wacrm-ensayo-wu5b` (supabase/postgres 17.6.1.167, 127.0.0.1:55433; the older
+  `wacrm-ensayo` untouched) with the ensayar-cutover.sh recipe (only "already exists"/duplicate-key errors of the second
+  pass). Bundle applied in order, every file exit 0: 153, 156, 158, 159, 160, 161, 162, 163, 164, 165, 166,
+  167_operation_incident_reason, 168_tags_off_delivered_operations, 172, 182, 183 (repo 169 is already production's
+  "167_reparto_usd_card_rail"). Result vs staging (md5 of every function): identical except the known unrelated items
+  (cerebro_rescatar_dsml, crm_corregir_entrada_calculadora comments, staging-only cerebro_catalogo_servicios,
+  crm_limpiar_calculadora, tables eval_memoria_replay, remittance_calculator_clearances; production-only table
+  cutover_legacy_backfill_2026_09_27). Assertions on the rehearsed copy ALL PASS: partial-beneficiary-tools, -auto,
+  reparto-guards, beneficiary-touches-operation, deal-free-money-rules, cup-excess-equivalent, deposit-path-without-deals,
+  panel-quote, operation-receipts (inside BEGIN ... ROLLBACK). operations-realtime FAILS only because a restore does not
+  carry the publication membership (0 tables published in the copy; production has remittance_operations, 181).
+  Real data: 442 receipts backfilled for 431 operations; the 7 open production operations read through the panel
+  (crm_operaciones_de_conversacion, crm_comprobantes_de_operacion `receipts` with the matched MMG deposit, saldo); dashboards,
+  crm_cierre_financiero, the alerts and cerebro_recruzar_depositos_tardios run. `deals` keeps 2 triggers by design
+  (set_updated_at, trg_sync_z_benef_desde_deal; WU9.3). Side finding: deposit-path-without-deals.sql run without BEGIN
+  left 3 fixture operations in the rehearsal copy (copy only) -> all 47 SAVEPOINT-style assertions now start with
+  `\set ON_ERROR_STOP on`.
+  Next: the n8n side (production Cerebro nodes vs staging), then the production window with go-ahead.

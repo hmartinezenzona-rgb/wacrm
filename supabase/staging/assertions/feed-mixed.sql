@@ -1,3 +1,5 @@
+\set ON_ERROR_STOP on
+-- (2026-10-02) Stop at the first error: run outside BEGIN ... ROLLBACK, the SAVEPOINT below fails and nothing is written.
 -- feed-mixed.sql — self-reverting assertion for
 -- 142_calculator_mixed_remesas.sql
 --

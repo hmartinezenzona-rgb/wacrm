@@ -1,3 +1,5 @@
+\set ON_ERROR_STOP on
+-- (2026-10-02) Stop at the first error: run outside BEGIN ... ROLLBACK, the SAVEPOINT below fails and nothing is written.
 -- deals-free-views-and-inert-edits.sql — self-reverting assertion for
 -- 164_deals_free_views_and_inert_edits.sql (WU6a of the eliminate-deals
 -- feature on WaCRM).

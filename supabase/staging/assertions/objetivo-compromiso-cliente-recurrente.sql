@@ -1,3 +1,5 @@
+\set ON_ERROR_STOP on
+-- (2026-10-02) Stop at the first error: run outside BEGIN ... ROLLBACK, the SAVEPOINT below fails and nothing is written.
 -- objetivo-compromiso-cliente-recurrente.sql — self-reverting assertion for
 -- 152_objetivo_compromiso_envio_en_curso.sql
 --

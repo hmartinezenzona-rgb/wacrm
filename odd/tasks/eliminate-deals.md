@@ -1063,10 +1063,16 @@ the FK alone suggested.**
   what makes them easy to miss.
 - **Naming hazard recorded:** the file is `172`, not `171`, because the concurrent session's own handoff
   (`odd/tasks/HANDOFF-production-registrar-168-170-171.md`) asks that the migrations **not in
-  production** be the ones renumbered — and this one is not in production. `171_operations_realtime_publication`
+  production** be the ones renumbered — and this one is not in production. `181_operations_realtime_publication`
   falls under the same rule and is still awaiting that renumber.
 
 ## Progress
+- 2026-10-01 (**handoff to this session**): `171_operations_realtime_publication` renumbered to
+  **`181_operations_realtime_publication`** (+ rollback, + assertion reference), user decision. Rule from
+  the registrar handoff: the migration NOT in production is the one renumbered; `171_requested_amount_target`
+  is in production, this one is only on staging (applied there as 171), and 172-180 were taken. Content
+  unchanged. Still duplicated: 168 (`168_late_mmg_email_recross` in production /
+  `168_tags_off_delivered_operations` staging only) — same rule applies if it is ever renumbered.
 - 2026-10-01 (**later, same day**): **WU9 done — the `deals` FK is retired and 7 of the 9 triggers are
   gone; staging verified.** Migration `172` + rollback + assertion. The headline is a *correction to
   the plan*: the nine triggers were never a `DROP TABLE` blocker (they die with the table) and seven of

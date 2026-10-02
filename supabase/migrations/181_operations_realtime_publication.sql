@@ -1,10 +1,12 @@
 -- =====================================================================
--- 171 — remittance_operations joins supabase_realtime
+-- 181 — remittance_operations joins supabase_realtime
 --
 -- (Sliced as "170" in odd/tasks/eliminate-deals.md; renumbered to 171
 -- because the split-deposit-minimums work landed migration 170 on this
 -- branch in the same session. Content is unchanged — this is the same
 -- unit, at the next free number.)
+-- (Renumbered again 171 -> 181 on 2026-10-01: 171_requested_amount_target is in production
+-- under 171, this one is not, and 172-180 are taken. Same content. Staging applied it as 171.)
 --
 -- PROBLEM (Phase 6.5): the operations panel kept its live refresh by
 -- subscribing to Supabase Realtime on the `deals` table
@@ -41,7 +43,7 @@
 --
 -- Guarded by supabase/staging/assertions/operations-realtime.sql.
 --
--- ROLLBACK: ROLLBACK-171-operations-realtime-publication.sql
+-- ROLLBACK: ROLLBACK-181-operations-realtime-publication.sql
 -- =====================================================================
 
 DO $$
@@ -59,5 +61,5 @@ END $$;
 -- supabase/staging/assertions/operations-realtime.sql.
 --
 -- ROLLBACK
---   supabase/migrations/ROLLBACK-171-operations-realtime-publication.sql
+--   supabase/migrations/ROLLBACK-181-operations-realtime-publication.sql
 -- =====================================================================

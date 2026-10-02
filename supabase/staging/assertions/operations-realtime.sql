@@ -1,5 +1,5 @@
 -- operations-realtime.sql — self-reverting assertion for
--- 171_operations_realtime_publication.sql
+-- 181_operations_realtime_publication.sql
 --
 -- Proves the Phase 6.5 fix at the only level a migration this small has:
 -- that `remittance_operations` is actually in the `supabase_realtime`

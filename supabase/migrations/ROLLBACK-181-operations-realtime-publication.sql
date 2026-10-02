@@ -1,17 +1,17 @@
 -- =====================================================================
--- ROLLBACK 171 — remove remittance_operations from supabase_realtime
+-- ROLLBACK 181 — remove remittance_operations from supabase_realtime
 --
--- (Sliced as "170"; renumbered to 171 — see the migration header.)
+-- (Sliced as "170"; renumbered to 171, then to 181 — see the migration header.)
 --
--- Reverts the operations panel's live refresh to its pre-171 shape
+-- Reverts the operations panel's live refresh to its pre-181 shape
 -- (initial load only, no `postgres_changes` events ever fire for this table
 -- again). Safe: no data change, no RLS change, and
 -- `src/components/inbox/operations/operations-panel-container.tsx`'s
 -- subscription simply goes quiet (the panel still loads and refetches on
--- demand exactly as it did before 171).
+-- demand exactly as it did before 181).
 --
 -- What reverting costs: the panel's live refresh. For bot activity that
--- refresh is *already* silent before 171 (the bot writes
+-- refresh is *already* silent before 181 (the bot writes
 -- `remittance_operations`, not `deals`), so reverting loses only the human
 -- panel-action and Zelle-name-message paths that still write `deals` today.
 -- =====================================================================

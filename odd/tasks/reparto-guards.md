@@ -63,3 +63,9 @@ TDD: on (user global config, Strict TDD Mode). Runners: SQL self-reverting asser
   live Decisor and all 10 GREEN on the candidate. Drift-checked PUT, byte-verified, active version
   8f60434f-cc0e-4556-832a-367fc444f03f; rollback `ROLLBACK-82-staging-20261001-220507.json`.
   Test number 529622896918 reset for the replay (T4).
+- T3 correction (2026-10-02, owner): the minimum is per envio (the deposit), not per card; a reparto is one
+  envio. The GYD reparto note now compares the TOTAL ("5 mil a cada una" x 2 = 10,000 GYD: only CUP; "3 mil a cada
+  una" = 6,000: only CUP; "10 mil y 5 mil" = 15,000: ask CUP or USD; "2 mil a cada una" = 4,000: below the CUP
+  minimum). `gate82-reparto.py actualizar` swaps only the gate-82 block. Bank 193 identical; 11 cases GREEN, the 3
+  whose rule changed were RED on the per-card version. Active version 8d3288fe-9fa1-4fdf-8296-e028cdc109cf;
+  rollback `ROLLBACK-82-staging-20261001-221226.json`. Test number still clean.

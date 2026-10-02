@@ -39,7 +39,7 @@ behaviour: gate harness (`~/cerebro-fase1/pruebas/gate7x`).
 ## Tasks
 - [x] T1 Parser accepts partial blocks; complete blocks unchanged on all production notes (179)
 - [x] T2 Merge functions with D1 semantics + assertions (179)
-- [ ] T3 Tools rewired to the functions; prompt/descriptions say partial data is accepted; bot test
+- [x] T3 Tools rewired to the functions; prompt/descriptions say partial data is accepted; bot test
 - [ ] T4 Deterministic nodes (`Registrar beneficiario auto`, `Registrar zelle auto`) use the functions
 - [ ] T5 Deploy, watch the first real cases
 
@@ -55,3 +55,19 @@ behaviour: gate harness (`~/cerebro-fase1/pruebas/gate7x`).
 - Installed prosrc md5 = file for all 6 plpgsql functions (parser c2babec4, guardar_beneficiario 0874fa3b,
   guardar_zelle dcc45293, guardar_reparto dd9a83ca, resolver_para_guardar c85dae88, escribir_bloque d779251e).
 - Nothing calls the new functions yet (T3 rewires the tools).
+
+- T3 (gate 79, `~/cerebro-fase1/pruebas/gate79-candidato.py`, deployed 2026-10-01): `gestionar_beneficiario`,
+  `registrar_beneficiario_zelle`, `registrar_reparto_multiple` now run `SELECT deal_id AS id, accion FROM
+  cerebro_guardar_*(...)`; every $fromAI argument says "(cadena vacia si todavia no lo tienes)"; manual
+  descriptions say partial data is accepted; prompt REGLA DE ORO + tool lines + reparto section say "call
+  with each new datum, ask what the tool says is missing"; Decisor reparto and Zelle notes the same.
+  Checks before deploy: Decisor bank 193 cases, 0 broken (7 wording diffs), 5 gate-78 cases OK; real replay
+  27/30 (the 3 "misses" are yoel_primo: the bot now SAVES the account and asks the holder's name, the
+  check wanted the name from an earlier turn); clean scenarios 23/24 (reparto_explicito rep 3 saved cards and
+  amounts and asked the phones); reparto saved from the FIRST turn in 6/6 (yeny + reparto_explicito);
+  2 "Anotado" wording slips before the customer confirmed (no wrong data).
+  Deploy: drift-checked REST PUT, exactly 5 nodes changed, connections identical, active version
+  41253c6e-23c0-49cf-9c0b-c0c9e048b63b. Rollback: `~/cerebro-fase1/pruebas/ROLLBACK-79-cerebro-20261001-195029.json`.
+- Next: T4 (deterministic nodes through the same functions: a card photo without a phone is saved at once,
+  the phone that arrives later completes it, even with the bot paused); a deterministic guard against
+  "Anotado" without a write; watch the first real cases (T5).

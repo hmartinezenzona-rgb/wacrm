@@ -1,5 +1,5 @@
 -- =====================================================================
--- 184 — a single-beneficiary write never overwrites a vigente reparto (STAGING ONLY for now)
+-- 184 — a single-beneficiary write never overwrites a vigente reparto (staging; production 2026-10-02)
 --
 -- odd/tasks/reparto-guards.md, T1 (finding F2). Staging live test 2 (2026-10-02 03:36 UTC): the
 -- reparto was saved with both cards; then gestionar_beneficiario (card 1 + the phone) wrote a single
@@ -230,3 +230,5 @@ END $$;
 
 REVOKE ALL ON FUNCTION public.cerebro_guardar_reparto(uuid, text, text, text, text, text, text, text, text, text, text, uuid, text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.cerebro_guardar_beneficiario(uuid, text, text, text, text, uuid, text) FROM PUBLIC, anon, authenticated;
+-- Production (2026-10-02) also ran, to keep its pre-184 ACL (postgres only):
+--   REVOKE ALL ON FUNCTION public.cerebro_guardar_reparto(uuid, text, text, text, text, text, text, text, text, text, text, uuid, text) FROM service_role;

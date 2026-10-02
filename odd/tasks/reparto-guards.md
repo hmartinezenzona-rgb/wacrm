@@ -47,6 +47,11 @@ TDD: on (user global config, Strict TDD Mode). Runners: SQL self-reverting asser
       `gate82-banco.js` ("3 mil a cada una" -> CUP, "2 mil a cada una" -> below), then
       `python3 gate82-reparto.py actualizar && node gate82-banco.js && python3 gate82-reparto.py desplegar`
 - [x] T4 Deploy T2/T3 to staging Cerebro, replay test 2 on staging with the owner
+- [x] T5 Production DB (owner go-ahead 2026-10-02): 184 + 185 on production; self-reverting assertions RED before,
+      GREEN after (reparto-guards, partial-beneficiary-tools, partial-beneficiary-auto) against production's
+      deal-writing `cerebro_escribir_bloque_beneficiario` (183 is NOT ported: deal-free is WU5b)
+- [ ] T6 Production Cerebro jEzlVLCLUaJhVwzs: gate 82 (Decisor block + Contexto posicion/monto/moneda + minimos);
+      bank base vs candidate on the production Decisor, drift-checked PUT, rollback snapshot
 
 ## Acceptance
 - Test 2 replayed: final vigente generation is the reparto with both cards, the phone on both, and
@@ -104,4 +109,13 @@ TDD: on (user global config, Strict TDD Mode). Runners: SQL self-reverting asser
   Minor: the "el minimo es por deposito ... aunque una tarjeta reciba menos" sentence is also emitted when every card
   is already >= 5,000 (harmless, not changed).
 
-Next step: production port of 184 + gate 82 (+ 185) needs the owner's go-ahead.
+Owner (2026-10-02): the minimum is per deposit, the reparto split does not count for it (confirms T3b); go-ahead
+to port all these fixes to production (T5, T6).
+- T5 (2026-10-02, production hqztotshnlzaiziwjyzh): production `cerebro_guardar_reparto` / `cerebro_guardar_beneficiario`
+  were byte-identical (md5) to staging's pre-184 bodies; only `cerebro_escribir_bloque_beneficiario` differs (production
+  still writes deals; same signature). RED on production (self-reverting): reparto-guards case 1 reproduced test 2
+  ("guardado ... Completo." and the reparto reduced to one card). GREEN in one rolled-back transaction with 184: all 6
+  reparto-guards cases. Applied 184 (+ REVOKE from service_role to keep the pre-184 ACL, postgres only) and 185.
+  Installed md5 = staging for both functions (beneficiario c77c5e81, reparto 346793f8). After applying:
+  partial-beneficiary-tools (P1-P4, cases 1-9) and partial-beneficiary-auto (cases 1-8) ALL PASS.
+  `minimo_gyd_recarga_hasta` = 6200 present.

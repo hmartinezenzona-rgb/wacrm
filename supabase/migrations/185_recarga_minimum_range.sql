@@ -1,5 +1,5 @@
 -- =====================================================================
--- 185 — the top of the recarga deposit minimum range, for the bot's context (STAGING ONLY for now)
+-- 185 — the top of the recarga deposit minimum range, for the bot's context (staging; production 2026-10-02)
 --
 -- odd/tasks/reparto-guards.md, T3 (finding F3). The owner's deposit minimums (2026-10-02): recargas
 -- go from 5,200 GYD (500 CUP promotion) to 6,200 GYD (600 CUP promotion). 170 stored only the lower

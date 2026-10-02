@@ -50,5 +50,15 @@ subscription probe (throwaway user, deleted after).
   reset-test-contact.sql for the probe phone (1 contact, 1 conversation, 1 operation), auth user/identity/profile
   deleted; residue 0. Script: scratchpad `probe186.cjs` (not kept).
 
-Next step: production, with the owner's go-ahead: 181 (publication) + 186, then the app `e3fff52`, then check that a
-bot beneficiary write refreshes the panel.
+- Production (2026-10-02, owner go-ahead): RED on production (self-reverting): `case 1 ... (1 -> 1)`; GREEN with 186 in a
+  rolled-back transaction (4 cases). Applied `181_operations_realtime_publication` and
+  `186_beneficiary_change_touches_operation`: remittance_operations in `supabase_realtime`, trigger enabled, function md5
+  = staging (9407513f), ACL postgres only. After: 179/180 (P1-P4, cases 1-9, auto 1-8), reparto-guards 1-6 and 186
+  cases 1-2 ALL PASS. App: `bf89693` (app code = `e3fff52`) built with Node 20 + the production build env (manifest
+  production / hqztotshnlzaiziwjyzh, 32 prod refs, 0 staging refs, 114 money-path tests passed, sha256 OK), deployed
+  with `desplegar-wacrm-produccion.sh`: served cwd `~/wacrm-releases/bf89693…`, `anterior` -> `1fede6c…` (rollback:
+  `infra/deployment/rollback-wacrm-produccion.sh`), domain serves BUILD_ID `ijpZQJc-zOYDyG_oPZqFX`, `/login` 200, the
+  panel chunk subscribes to `remittance_operations`. `privado/master` fast-forwarded to `bf89693` (served).
+
+Next step: owner's live test in the production test chat (529622896918, conversation 38e981c7, no open operation):
+a card, then the phone, watching the panel refresh without a reload.

@@ -1501,3 +1501,7 @@ the FK alone suggested.**
   current to anterior + `pm2 restart wacrm-staging --update-env`), `/login` 200 and the domain serves BUILD_ID
   `eRJxKEGVFzNdTyQjSen4m`; no crash after restart. **Production app is still behind** (`1fede6c`): it lacks
   `9565f25` and `3b5f5dc`, and `3b5f5dc` needs migration 181 on the production DB first (not applied there).
+- 2026-10-02: **production app updated to `bf89693`** (app code = `e3fff52`: Deals tab / create_deal removed, panel
+  realtime on `remittance_operations`), after applying 181 and 186 to the production DB
+  (odd/tasks/panel-realtime-beneficiaries.md). The only production automation with a `create_deal` step ("Recurrente
+  manda datos") is inactive since 2026-07-10, no pending executions. Staging and production apps now run the same code.

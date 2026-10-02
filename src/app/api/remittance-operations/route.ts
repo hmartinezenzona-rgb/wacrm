@@ -15,9 +15,11 @@
 
 import { NextResponse } from "next/server";
 import { requireRole, toErrorResponse } from "@/lib/auth/account";
-import { mapRemittanceOperationsRows } from "@/lib/remittance-operations/read-model";
+import { mapQuoteRows, mapRemittanceOperationsRows } from "@/lib/remittance-operations/read-model";
 import { mapOperationReceiptsPayload } from "@/lib/remittance-operations/receipts-read-model";
 import type {
+  ConversationQuoteRead,
+  ConversationQuoteRpcRow,
   OperationReceiptsRead,
   OperationReceiptsRpcPayload,
   RemittanceOperationsRpcRow,
@@ -74,6 +76,32 @@ async function fetchOperationReceiptsRead(
   }
 }
 
+/**
+ * Fetches the bot's current quote (`crm_cotizacion_de_conversacion`, migration
+ * 187). Never throws: it is context for the panel, so a failed call (or the
+ * function not existing yet, e.g. production before 187) is logged and mapped
+ * to `null` instead of costing the operations response. The operations read
+ * already enforced membership, so a 42501 here is not a separate gate.
+ */
+async function fetchConversationQuote(
+  supabase: SessionSupabaseClient,
+  conversationId: string,
+): Promise<ConversationQuoteRead | null> {
+  try {
+    const { data, error } = await supabase.rpc("crm_cotizacion_de_conversacion", {
+      p_conversation_id: conversationId,
+    });
+    if (error) {
+      console.error("[remittance-operations GET] quote RPC error:", error);
+      return null;
+    }
+    return mapQuoteRows(data as ConversationQuoteRpcRow[] | null);
+  } catch (cause) {
+    console.error("[remittance-operations GET] quote read threw:", cause);
+    return null;
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const ctx = await requireRole("viewer");
@@ -114,6 +142,7 @@ export async function GET(request: Request) {
     // invokes `ctx.supabase.rpc(...)` for every operation synchronously
     // before any of those calls is awaited — genuinely parallel, not a
     // sequential loop — and `Promise.all` waits for all of them together.
+    const quotePromise = fetchConversationQuote(ctx.supabase, conversationId);
     const receiptsEntries = await Promise.all(
       result.operations.map(async (operation) => {
         const receipts = await fetchOperationReceiptsRead(
@@ -128,8 +157,10 @@ export async function GET(request: Request) {
       if (receipts) receiptsByOperationId[operationId] = receipts;
     }
 
+    const quote = await quotePromise;
+
     return NextResponse.json(
-      { ...result, receiptsByOperationId },
+      { ...result, receiptsByOperationId, quote },
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (error) {

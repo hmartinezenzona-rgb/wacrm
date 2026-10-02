@@ -5,6 +5,8 @@
 
 import type {
   ConversationOperationsRead,
+  ConversationQuoteRead,
+  ConversationQuoteRpcRow,
   RemittanceOperationRead,
   RemittanceOperationsRpcRow,
 } from "./types";
@@ -92,5 +94,28 @@ export function mapRemittanceOperationsRows(
     // yields the right operation order and beneficiary order within each
     // operation — `order` just preserves first-seen order per operation id.
     operations: order.map((id) => operationsById.get(id)!),
+  };
+}
+
+/**
+ * Maps `crm_cotizacion_de_conversacion`'s 0-or-1 row to the panel's quote.
+ * `null` when there is no row (or its GYD amount is unusable). An unknown
+ * destination currency is dropped together with its amount, so the panel never
+ * labels a figure with a currency it was not quoted in.
+ */
+export function mapQuoteRows(
+  rows: ConversationQuoteRpcRow[] | null | undefined,
+): ConversationQuoteRead | null {
+  const row = rows?.[0];
+  if (!row) return null;
+  const gyd = toNullableNumber(row.gyd);
+  if (gyd === null) return null;
+  const destinationCurrency =
+    row.destino_moneda === "CUP" || row.destino_moneda === "USD" ? row.destino_moneda : null;
+  return {
+    gyd,
+    destinationAmount: destinationCurrency ? toNullableNumber(row.destino_monto) : null,
+    destinationCurrency,
+    quotedAt: row.cotizado_en,
   };
 }

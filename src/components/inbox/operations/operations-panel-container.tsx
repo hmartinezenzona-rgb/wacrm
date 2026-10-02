@@ -291,7 +291,7 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
             <ResolverStateBanner candidateCount={data.resolverCandidateCount} />
           )}
           <div className="space-y-2">
-            {openOperations.map((operation) => (
+            {openOperations.map((operation, index) => (
               <RemittanceOperationCard
                 key={operation.id}
                 operation={operation}
@@ -304,6 +304,9 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
                 conversationId={conversationId}
                 refreshToken={refreshToken}
                 initialReceipts={data.receiptsByOperationId?.[operation.id]}
+                // The quote belongs to the conversation, not to one
+                // operation: show it once, on the newest open card.
+                quote={index === 0 ? data.quote : null}
               />
             ))}
           </div>

@@ -346,6 +346,8 @@
       "noOpenOperations": "No open remittance operations for this conversation.",
       "ambiguousState": "{count} open operations for this conversation — resolve which one before acting.",
       "amountUnavailable": "Amount unavailable",
+      "quoted": "Quoted: {source}",
+      "quotedTo": "Quoted: {source} → {destination}",
       "deliveryMethod": "Delivery method",
       "beneficiaries": "Beneficiaries",
       "noBeneficiaries": "No beneficiaries recorded yet",

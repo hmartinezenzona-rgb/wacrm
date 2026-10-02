@@ -128,6 +128,26 @@ export interface RemittanceOperationRead {
   beneficiaries: RemittanceBeneficiaryRead[];
 }
 
+/** What the bot last quoted for the conversation (`crm_cotizacion_de_
+ *  conversacion`, migration 187). Read-only context shown before any
+ *  deposit; it never feeds an operation's amounts. The destination is read
+ *  from the bot's text, so it can be absent. */
+export interface ConversationQuoteRead {
+  gyd: number;
+  destinationAmount: number | null;
+  destinationCurrency: "CUP" | "USD" | null;
+  quotedAt: string;
+}
+
+/** Raw row of `crm_cotizacion_de_conversacion` (0 or 1 row). `numeric`
+ *  columns may arrive as strings from PostgREST. */
+export interface ConversationQuoteRpcRow {
+  gyd: number | string;
+  destino_monto: number | string | null;
+  destino_moneda: string | null;
+  cotizado_en: string;
+}
+
 export interface ConversationOperationsRead {
   resolverState: ResolverState;
   resolverOperationId: string | null;
@@ -153,6 +173,11 @@ export interface ConversationOperationsRead {
    * never as "this operation has no receipts."
    */
   receiptsByOperationId?: Record<string, OperationReceiptsRead>;
+  /** The bot's current quote for the conversation, composed by the route
+   *  next to `operations`. `null` when there is none, or when its read
+   *  failed (convenience data: never fatal to the request). Absent only
+   *  on responses that predate this field. */
+  quote?: ConversationQuoteRead | null;
 }
 
 /**

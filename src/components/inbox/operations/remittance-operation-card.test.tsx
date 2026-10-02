@@ -17,6 +17,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import en from "../../../../messages/en.json";
 import type {
+  ConversationQuoteRead,
   RemittanceBeneficiaryRead,
   RemittanceOperationRead,
   RemittanceOperationStatus,
@@ -176,6 +177,7 @@ interface RenderOptions {
   expanded?: boolean;
   onToggle?: () => void;
   conversationId?: string;
+  quote?: ConversationQuoteRead | null;
 }
 
 async function render(op: RemittanceOperationRead, options: RenderOptions = {}) {
@@ -196,6 +198,7 @@ async function render(op: RemittanceOperationRead, options: RenderOptions = {}) 
         expanded={options.expanded ?? true}
         onToggle={onToggle}
         conversationId={options.conversationId ?? "conv-1"}
+        quote={options.quote}
       />,
     ),
   );
@@ -1371,5 +1374,54 @@ describe("RemittanceOperationCard", () => {
       expect(node.textContent).toContain("window closed, no screenshot");
       await act(async () => root.unmount());
     });
+  });
+});
+
+describe("RemittanceOperationCard — the bot's quote", () => {
+  const QUOTE: ConversationQuoteRead = {
+    gyd: 5000,
+    destinationAmount: 15000,
+    destinationCurrency: "CUP",
+    quotedAt: "2026-10-02T10:00:00Z",
+  };
+
+  it("shows what the bot quoted, even collapsed", async () => {
+    const { node, root } = await render(operation({ quotedSourceAmount: null }), { quote: QUOTE, expanded: false });
+
+    expect(node.textContent).toContain("Quoted: 5,000 GYD → 15,000 CUP");
+    await act(async () => root.unmount());
+  });
+
+  it("formats a USD destination", async () => {
+    const { node, root } = await render(operation(), {
+      quote: { ...QUOTE, gyd: 26000, destinationAmount: 100, destinationCurrency: "USD" },
+    });
+
+    expect(node.textContent).toContain("Quoted: 26,000 GYD → 100 USD");
+    await act(async () => root.unmount());
+  });
+
+  it("shows only the GYD amount when the quote has no destination", async () => {
+    const { node, root } = await render(operation(), {
+      quote: { ...QUOTE, destinationAmount: null, destinationCurrency: null },
+    });
+
+    expect(node.textContent).toContain("Quoted: 5,000 GYD");
+    expect(node.textContent).not.toContain("Quoted: 5,000 GYD →");
+    await act(async () => root.unmount());
+  });
+
+  it("shows nothing without a quote", async () => {
+    const { node, root } = await render(operation(), { quote: null });
+
+    expect(node.textContent).not.toContain("Quoted:");
+    await act(async () => root.unmount());
+  });
+
+  it("never shows it on a history operation", async () => {
+    const { node, root } = await render(operation({ isHistory: true, status: "completed" }), { quote: QUOTE });
+
+    expect(node.textContent).not.toContain("Quoted:");
+    await act(async () => root.unmount());
   });
 });

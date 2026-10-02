@@ -8,6 +8,7 @@ import type { AccountRole } from "@/lib/auth/roles";
 import { corregirBeneficiario } from "@/lib/remittance-operations/commands";
 import { effectiveStatus } from "@/lib/remittance-operations/effective-status";
 import type {
+  ConversationQuoteRead,
   OperationDeliveryMode,
   OperationReceiptsRead,
   RemittanceBeneficiaryRead,
@@ -69,6 +70,10 @@ interface RemittanceOperationCardProps {
    *  failed for this operation or wasn't composed; the container falls
    *  back to fetching it itself. */
   initialReceipts?: OperationReceiptsRead;
+  /** What the bot quoted for the conversation, shown as one read-only line
+   *  before any deposit. The container hands it to a single open card;
+   *  never rendered on a history operation. */
+  quote?: ConversationQuoteRead | null;
 }
 
 /** The RPC never returns these (see types.ts), but the correction API can
@@ -261,6 +266,7 @@ export function RemittanceOperationCard({
   conversationId,
   refreshToken,
   initialReceipts,
+  quote,
 }: RemittanceOperationCardProps) {
   const t = useTranslations("Inbox.operationsPanel");
   const [openForm, setOpenForm] = useState<OpenFormState | null>(null);
@@ -391,6 +397,17 @@ export function RemittanceOperationCard({
           </span>
         )}
       </div>
+
+      {quote && !operation.isHistory && (
+        <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">
+          {quote.destinationAmount !== null && quote.destinationCurrency !== null
+            ? t("quotedTo", {
+                source: money(quote.gyd, "GYD")!,
+                destination: money(quote.destinationAmount, quote.destinationCurrency)!,
+              })
+            : t("quoted", { source: money(quote.gyd, "GYD")! })}
+        </p>
+      )}
 
       {operation.isHistory && (
         <p className="mt-1 text-[11px] text-muted-foreground">

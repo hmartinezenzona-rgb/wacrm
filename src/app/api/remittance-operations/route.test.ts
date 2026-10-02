@@ -334,3 +334,82 @@ describe("GET /api/remittance-operations — receipts prefetch", () => {
     expect(response.status).toBe(200);
   });
 });
+
+// The bot's current quote rides along as `quote`. It is a convenience read:
+// a failing/missing quote function must never cost the operations panel.
+describe("GET /api/remittance-operations — quote", () => {
+  const QUOTE_ROW = { gyd: "5000", destino_monto: "15000", destino_moneda: "CUP", cotizado_en: "2026-10-02T10:00:00Z" };
+
+  function quoteCtx(quoteImpl: () => Promise<{ data: unknown; error: unknown }>) {
+    const rpc = vi.fn((name: string) => {
+      if (name === "crm_operaciones_de_conversacion") {
+        return Promise.resolve({ data: [operationRow("op-1")], error: null });
+      }
+      if (name === "crm_comprobantes_de_operacion") {
+        return Promise.resolve({ data: receiptsPayload("op-1"), error: null });
+      }
+      if (name === "crm_cotizacion_de_conversacion") return quoteImpl();
+      throw new Error(`unexpected rpc: ${name}`);
+    });
+    const from = vi.fn(() => profileBuilder({ data: { beta_features: ["operations_panel"] }, error: null }));
+    return { supabase: { from, rpc }, userId: USER_ID, accountId: "account-a", role: "viewer" as const, account: { id: "account-a", name: "A" } };
+  }
+
+  it("returns the mapped quote and asks for the same conversation", async () => {
+    const { GET } = await import("./route");
+    const callCtx = quoteCtx(() => Promise.resolve({ data: [QUOTE_ROW], error: null }));
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const body = await (await GET(request(CONVERSATION_ID))).json();
+
+    expect(body.quote).toEqual({
+      gyd: 5000,
+      destinationAmount: 15000,
+      destinationCurrency: "CUP",
+      quotedAt: "2026-10-02T10:00:00Z",
+    });
+    expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_cotizacion_de_conversacion", {
+      p_conversation_id: CONVERSATION_ID,
+    });
+  });
+
+  it("quote is null when the function returns no row", async () => {
+    const { GET } = await import("./route");
+    requireRole.mockResolvedValueOnce(quoteCtx(() => Promise.resolve({ data: [], error: null })));
+
+    const body = await (await GET(request(CONVERSATION_ID))).json();
+
+    expect(body.quote).toBeNull();
+  });
+
+  it("an error from the quote RPC still returns the operations with quote null", async () => {
+    const { GET } = await import("./route");
+    requireRole.mockResolvedValueOnce(
+      quoteCtx(() => Promise.resolve({ data: null, error: { code: "42883", message: "function does not exist" } })),
+    );
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await GET(request(CONVERSATION_ID));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.operations).toHaveLength(1);
+    expect(body.quote).toBeNull();
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("a quote RPC that throws still returns the operations with quote null", async () => {
+    const { GET } = await import("./route");
+    requireRole.mockResolvedValueOnce(quoteCtx(() => Promise.reject(new Error("network down"))));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await GET(request(CONVERSATION_ID));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.operations).toHaveLength(1);
+    expect(body.quote).toBeNull();
+    errorSpy.mockRestore();
+  });
+});

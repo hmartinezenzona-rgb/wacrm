@@ -20,7 +20,7 @@ Scope: staging first, production with go-ahead (DB + app deploy). TDD on: SQL as
 
 ## Tasks
 - [x] T1 Assertion + migration 187 (+ rollback): RED, GREEN, staging
-- [ ] T2 App: route returns `quote`, types, panel line "Cotizado: X GYD -> Y CUP" on the open operation; vitest RED/GREEN
+- [x] T2 App: route returns `quote`, types, panel line "Cotizado: X GYD -> Y CUP" on the open operation; vitest RED/GREEN
 - [ ] T3 Staging deploy (DB + app), owner check; then production with go-ahead
 
 ## Acceptance
@@ -34,3 +34,11 @@ Scope: staging first, production with go-ahead (DB + app deploy). TDD on: SQL as
   non-member 42501). RED on staging: `function crm_cotizacion_de_conversacion(uuid) does not exist`. GREEN in a
   rolled-back transaction with `187_panel_quote.sql` (+ ROLLBACK). Applied to staging; ALL PASS after. The owner's
   staging test conversation (9892f40c) reads 5000 GYD -> 15000 CUP.
+- T2 (2026-10-02, delegated writer + parent review): GET /api/remittance-operations returns `quote` (null or
+  {gyd, destinationAmount, destinationCurrency 'CUP'|'USD'|null, quotedAt}); `mapQuoteRows`; a failed or missing quote
+  RPC logs and returns null (production before 187 keeps working); the newest open card shows "Quoted: 5,000 GYD ->
+  15,000 CUP" (or "Quoted: 5,000 GYD" without a destination), never on history cards; strings
+  `Inbox.operationsPanel.quoted/quotedTo`. RED: 14 failing tests in the 4 test files (e.g. `mapQuoteRows is not a
+  function`, card text missing "Quoted: 5,000 GYD -> 15,000 CUP"). GREEN (parent re-run): 4 files / 139 tests; full suite
+  141 files / 1677 tests (the board's 2 test files live on feat/operations-board); `tsc --noEmit` clean; eslint clean.
+  Parent fix: the mapQuoteRows comment said the amount was kept with an unknown currency; the code drops both.

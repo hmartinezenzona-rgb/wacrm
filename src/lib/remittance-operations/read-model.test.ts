@@ -6,7 +6,7 @@
 // appear in the conversation thread on this screen.
 
 import { describe, expect, it } from "vitest";
-import { mapRemittanceOperationsRows } from "./read-model";
+import { mapQuoteRows, mapRemittanceOperationsRows } from "./read-model";
 import type { RemittanceOperationsRpcRow } from "./types";
 
 function row(overrides: Partial<RemittanceOperationsRpcRow>): RemittanceOperationsRpcRow {
@@ -236,5 +236,45 @@ describe("mapRemittanceOperationsRows", () => {
 
     expect(result.resolverState).toBe("ninguna");
     expect(result.operations).toEqual([]);
+  });
+});
+
+describe("mapQuoteRows", () => {
+  it("maps the single row to camelCase", () => {
+    expect(
+      mapQuoteRows([
+        { gyd: 5000, destino_monto: 15000, destino_moneda: "CUP", cotizado_en: "2026-10-02T10:00:00Z" },
+      ]),
+    ).toEqual({ gyd: 5000, destinationAmount: 15000, destinationCurrency: "CUP", quotedAt: "2026-10-02T10:00:00Z" });
+  });
+
+  it("coerces PostgREST numeric strings to numbers", () => {
+    const quote = mapQuoteRows([
+      { gyd: "26000.00", destino_monto: "100", destino_moneda: "USD", cotizado_en: "2026-10-02T10:00:00Z" },
+    ]);
+    expect(quote?.gyd).toBe(26000);
+    expect(quote?.destinationAmount).toBe(100);
+    expect(quote?.destinationCurrency).toBe("USD");
+  });
+
+  it("keeps a missing destination as nulls", () => {
+    expect(
+      mapQuoteRows([{ gyd: 5000, destino_monto: null, destino_moneda: null, cotizado_en: "2026-10-02T10:00:00Z" }]),
+    ).toEqual({ gyd: 5000, destinationAmount: null, destinationCurrency: null, quotedAt: "2026-10-02T10:00:00Z" });
+  });
+
+  it("drops an unknown destination currency", () => {
+    const quote = mapQuoteRows([
+      { gyd: 5000, destino_monto: 10, destino_moneda: "EUR", cotizado_en: "2026-10-02T10:00:00Z" },
+    ]);
+    expect(quote?.destinationCurrency).toBeNull();
+  });
+
+  it("returns null for no rows, null data or a non-numeric gyd", () => {
+    expect(mapQuoteRows([])).toBeNull();
+    expect(mapQuoteRows(null)).toBeNull();
+    expect(
+      mapQuoteRows([{ gyd: "abc", destino_monto: null, destino_moneda: null, cotizado_en: "2026-10-02T10:00:00Z" }]),
+    ).toBeNull();
   });
 });

@@ -720,3 +720,63 @@ describe("OperationsPanelContainer", () => {
     });
   });
 });
+
+describe("OperationsPanelContainer — the bot's quote", () => {
+  const QUOTE = { gyd: 5000, destinationAmount: 15000, destinationCurrency: "CUP", quotedAt: "2026-10-02T10:00:00Z" };
+
+  function load(operations: unknown[], quote: unknown) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          jsonResponse({
+            resolverState: operations.length > 1 ? "ambigua" : "unica",
+            resolverOperationId: "op-1",
+            resolverCandidateCount: operations.length,
+            operations,
+            quote,
+          }),
+        ),
+      ),
+    );
+  }
+
+  it("shows the quote on the open operation", async () => {
+    load([OP1], QUOTE);
+    const { node, root } = await renderContainer("conv-1");
+    await flush();
+
+    expect(node.textContent).toContain("Quoted: 5,000 GYD → 15,000 CUP");
+    await act(async () => root.unmount());
+  });
+
+  it("shows it once, on the newest open operation, when there are several", async () => {
+    load([OP1, OP2], QUOTE);
+    const { node, root } = await renderContainer("conv-1");
+    await flush();
+
+    expect(node.textContent?.match(/Quoted:/g)).toHaveLength(1);
+    expect(node.querySelectorAll("article")[0]!.textContent).toContain("Quoted:");
+    await act(async () => root.unmount());
+  });
+
+  it("shows nothing when the quote is null", async () => {
+    load([OP1], null);
+    const { node, root } = await renderContainer("conv-1");
+    await flush();
+
+    expect(node.textContent).not.toContain("Quoted:");
+    await act(async () => root.unmount());
+  });
+
+  it("does not show it on a history operation", async () => {
+    load([HISTORY_OP], QUOTE);
+    const { node, root } = await renderContainer("conv-1");
+    await flush();
+    await click(historyToggle(node)!);
+
+    expect(node.querySelectorAll("article")).toHaveLength(1);
+    expect(node.textContent).not.toContain("Quoted:");
+    await act(async () => root.unmount());
+  });
+});

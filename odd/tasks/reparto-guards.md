@@ -21,8 +21,8 @@ cuban_card (card 1 + phone); card 2 and the amounts lost; a duplicate "Anotado" 
 Owner's deposit minimums (GYD, 2026-10-02): CUP 5,000; Zelle / clasica / tropical 13,000; USD cash
 delivery 29,000; recargas 5,200 to 6,200; translations / visa extensions 5,000.
 
-Scope: staging only (DB migration 184 + staging Cerebro U52y1kSNvhgxvWeb). Production port needs the
-owner's go-ahead. Constraints: strict TDD; no deals; drift-checked n8n PUT with a rollback snapshot.
+Scope: staging first (DB migration 184 + staging Cerebro U52y1kSNvhgxvWeb); production ported with the owner's
+go-ahead (2026-10-02, T5/T6). Constraints: strict TDD; no deals; drift-checked n8n PUT with a rollback snapshot.
 TDD: on (user global config, Strict TDD Mode). Runners: SQL self-reverting assertions via
 `docker run postgres:17-alpine psql "$CRM_STAGING_DATABASE_URL"`; Decisor cases via node harness.
 
@@ -50,7 +50,7 @@ TDD: on (user global config, Strict TDD Mode). Runners: SQL self-reverting asser
 - [x] T5 Production DB (owner go-ahead 2026-10-02): 184 + 185 on production; self-reverting assertions RED before,
       GREEN after (reparto-guards, partial-beneficiary-tools, partial-beneficiary-auto) against production's
       deal-writing `cerebro_escribir_bloque_beneficiario` (183 is NOT ported: deal-free is WU5b)
-- [ ] T6 Production Cerebro jEzlVLCLUaJhVwzs: gate 82 (Decisor block + Contexto posicion/monto/moneda + minimos);
+- [x] T6 Production Cerebro jEzlVLCLUaJhVwzs: gate 82 (Decisor block + Contexto posicion/monto/moneda + minimos);
       bank base vs candidate on the production Decisor, drift-checked PUT, rollback snapshot
 
 ## Acceptance
@@ -119,3 +119,15 @@ to port all these fixes to production (T5, T6).
   Installed md5 = staging for both functions (beneficiario c77c5e81, reparto 346793f8). After applying:
   partial-beneficiary-tools (P1-P4, cases 1-9) and partial-beneficiary-auto (cases 1-8) ALL PASS.
   `minimo_gyd_recarga_hasta` = 6200 present.
+- T6 (2026-10-02 04:46 UTC, production Cerebro jEzlVLCLUaJhVwzs): the production Decisor was byte-identical to
+  staging's pre-gate-82 Decisor, so the production candidate Decisor is byte-identical to the staging Decisor validated
+  in T4. `gate82-reparto.py` and `gate82-banco.js` take a `prod` mode (`construir prod`, `G82=prod`, `desplegar prod`).
+  Bank on production: 193 identical, 0 broken; 12 of 14 gate-82 cases RED on the live production Decisor, 14/14 GREEN.
+  Contexto: only two additions (slot posicion/monto/moneda, `minimos`); full query PREPAREd on staging; both fragments
+  run on production against a rolled-back test reparto (slots and the 7 minimums, as the Decisor expects).
+  Drift-checked PUT, byte-verified, only `Decisor` and `Contexto conversacion` changed, connections equal; active
+  version 5f09e630-915e-4598-8f05-d809fe52f1ef; rollback `ROLLBACK-82-prod-20261001-224615.json`. No real production
+  execution yet after the deploy (last one 21:30 UTC).
+
+Next step: watch the first real production repartos (messages, tool_execution_log, remittance_beneficiaries).
+Out of scope, still pending: F4 stale context; 183/deal-free (WU5b) is not in production.

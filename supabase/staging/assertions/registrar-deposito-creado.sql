@@ -1,3 +1,5 @@
+\set ON_ERROR_STOP on
+-- (2026-10-02) Stop at the first error: run outside BEGIN ... ROLLBACK, the SAVEPOINT below fails and nothing is written (operation-receipts.sql once left staging's notify_url on a no-op this way).
 -- registrar-deposito-creado.sql — self-reverting assertion for the
 -- "creado" path of cerebro_registrar_deposito as defined by
 -- 114_cutover_retire_sync_pipeline.sql.

@@ -31,7 +31,7 @@ objects) or by the assertions of both sides (merged objects). Strict TDD for the
       sides' assertions (2 needed no merge; migration 182 for the rest)
 - [x] T3 Align the staging Cerebro n8n workflow (production nodes + deal-free rewiring)
 - [x] T4 Re-measure: every function equal to production except the deal-free ones, documented
-- [ ] T5 Live WhatsApp test on staging (test number 529622896918, reset first) — needs the owner
+- [x] T5 Live WhatsApp test on staging (test number 529622896918, reset first) — needs the owner
 
 ## Progress / evidence
 - T1 (2026-10-01): 168_late, 169, 170 (minus `cerebro_registrar_deposito`), 171, 173, 174, 175, 176, 179, 180 applied
@@ -89,3 +89,19 @@ objects) or by the assertions of both sides (merged objects). Strict TDD for the
   a real receipt of a 5,000 GYD deposit from the last 72 h -> panel delivery. Checks: no deals row, operation created
   by cerebro_crear_operacion, receipt in remittance_operation_receipts, verification against depositos_mmg,
   ready_to_transfer, panel refreshes live, delivery completes and feeds the calculator.
+- T5 DONE (2026-10-02 17:04-17:14 UTC, owner, conv 812eb3ee, operation 00af7859): voice "15 mil CUP" -> "Para que lleguen
+  15,000 CUP necesita depositar 5,000 GYD"; card -> operation opened deal-free; phone 53721238 -> beneficiary complete;
+  real receipt (MMG 20402119681701, 5,000 GYD) -> remittance_operation_receipts row, depositos_mmg consumed by this
+  operation, "verificado", ready_to_transfer; panel delivery with proof -> completed (audit human_delivery, proof_sent),
+  calculator entry completed_operation CUP 5,000 GYD -> 15,000 CUP. `deals` stayed at 0 rows. Owner saw the panel refresh
+  live at every step.
+  ONE FAILURE, not deal-related: the "Listo, su remesa ... ya fue completada" message was not sent. Cause: staging
+  `cerebro_config.notify_url` was 'http://127.0.0.1:1/receipts-noop' (and notify_secret 'receipts-noop'): the assertion
+  `supabase/staging/assertions/operation-receipts.sql` overwrites them assuming an outer BEGIN ... ROLLBACK; run without
+  it, the SAVEPOINT failed, psql kept going, and the overwrite was committed (so staging sent no status notification at
+  all; net._http_response showed "Couldn't connect to server" at 17:08 and 17:09). Fixed: notify_url restored to the
+  staging notifier webhook (staging-wacrm-notify-etapa), notify_secret restored and then rotated (it was printed in a
+  local tool output) in DB + ~/.config/wacrm/staging-n8n.env; the missed notification replayed for 00af7859 -> 17:13:58
+  "Listo, su remesa de *15,000 CUP* ya fue completada". Hardened: the 16 assertions that write cerebro_config behind a
+  SAVEPOINT now start with `\set ON_ERROR_STOP on` (proved: run without BEGIN it stops at the SAVEPOINT and the config is
+  untouched). horario_cierra (the other key they write) equals production.

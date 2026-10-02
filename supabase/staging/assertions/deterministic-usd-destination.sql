@@ -1,3 +1,5 @@
+\set ON_ERROR_STOP on
+-- (2026-10-02) Stop at the first error: run outside BEGIN ... ROLLBACK, the SAVEPOINT below fails and nothing is written (operation-receipts.sql once left staging's notify_url on a no-op this way).
 -- deterministic-usd-destination.sql — self-reverting assertion for 157
 -- (cerebro_destino_pendiente + cerebro_detectar_destino +
 -- cerebro_registrar_destino + the BEFORE INSERT trigger + the calculator's

@@ -1,3 +1,5 @@
+\set ON_ERROR_STOP on
+-- (2026-10-02) Stop at the first error: run outside BEGIN ... ROLLBACK, the SAVEPOINT below fails and nothing is written (operation-receipts.sql once left staging's notify_url on a no-op this way).
 -- deposit-review.sql — self-reverting assertion for
 -- 099_deposit_review_rpcs.sql
 --

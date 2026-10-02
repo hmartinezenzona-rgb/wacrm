@@ -1492,3 +1492,12 @@ the FK alone suggested.**
      `crm_verificar_deposito` and `crm_forzar_verificacion` stay by design. After WU6f the positional
      `deals` set is **4**: `cerebro_aplicar_nombre_confirmado`, `cerebro_sync_beneficiarios` (both
      WU6d's), `crm_forzar_verificacion`, `crm_verificar_deposito` (both intentional).
+- 2026-10-02: **staging app updated to `e3fff52`** (owner go-ahead; oracle2, pm2 `wacrm-staging`). It brings the WU7
+  removal of the Deals tab / `create_deal` (`9565f25`) and the WU8 operations-panel realtime on
+  `remittance_operations` (`3b5f5dc`; staging DB has the publication, applied as 171 = file 181). Built in
+  `prod-build` with Node 20 docker + `~/.config/wacrm/staging-build.env` (NEXT_PUBLIC values identical to the
+  server's): manifest environment=staging, 114 money-path tests passed, bundle 0 production refs / 32 staging refs,
+  no .env inside, sha256 OK. Served cwd = `~/wacrm-releases/e3fff52…`, `anterior` -> `516ebda…` (rollback: relink
+  current to anterior + `pm2 restart wacrm-staging --update-env`), `/login` 200 and the domain serves BUILD_ID
+  `eRJxKEGVFzNdTyQjSen4m`; no crash after restart. **Production app is still behind** (`1fede6c`): it lacks
+  `9565f25` and `3b5f5dc`, and `3b5f5dc` needs migration 181 on the production DB first (not applied there).

@@ -21,7 +21,7 @@ Scope: staging first, production with go-ahead (DB + app deploy). TDD on: SQL as
 ## Tasks
 - [x] T1 Assertion + migration 187 (+ rollback): RED, GREEN, staging
 - [x] T2 App: route returns `quote`, types, panel line "Cotizado: X GYD -> Y CUP" on the open operation; vitest RED/GREEN
-- [ ] T3 Staging deploy (DB + app), owner check; then production with go-ahead
+- [x] T3 Staging deploy (DB + app), owner check; then production with go-ahead
 
 ## Acceptance
 - A conversation where the bot said "Para que lleguen *15,000 CUP* necesita depositar *5,000 GYD*" -> the panel shows
@@ -49,3 +49,12 @@ Scope: staging first, production with go-ahead (DB + app deploy). TDD on: SQL as
   `anterior` -> `e3fff52…` (rollback: relink + `pm2 restart wacrm-staging --update-env`); `/login` 200, domain serves
   BUILD_ID `a3kHAsTQOhkWcW0Q19eSk`; no crash after restart. Pending: owner's check in the panel; production (187 + app)
   with go-ahead.
+- Production (2026-10-02, owner go-ahead after checking staging): RED (function absent; 171 trigger and
+  cerebro_cotizacion_vigente present); GREEN with 187 in a rolled-back transaction (7 cases); applied
+  `187_panel_quote`; function md5 = staging (7a822b63), ACL postgres + authenticated (production grants no
+  service_role); real read of conversation 40e6ab76 as a member -> 15000 GYD -> 45000 CUP (this morning's wrong quote;
+  that conversation has no open operation). App `304a0c9` (app code = `ac45d47`; diff vs served `bf89693` = the 10
+  panel files) built with the production env: manifest production / hqztotshnlzaiziwjyzh, 32 prod refs, 0 staging,
+  114 money-path tests passed, sha256 OK; `desplegar-wacrm-produccion.sh`: served cwd `~/wacrm-releases/304a0c9…`,
+  `anterior` -> `bf89693…` (rollback: `rollback-wacrm-produccion.sh`), domain serves BUILD_ID `389KqodTU7X9ucywy77V0`,
+  `/login` 200. `privado/master` fast-forwarded to `304a0c9`. Staging and production run the same app code.

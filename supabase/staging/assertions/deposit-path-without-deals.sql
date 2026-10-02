@@ -115,6 +115,7 @@ Comp: ' || v_comp_a, v_comp_a);
   END;
 
   -- ---- case 3: movido branch — existing open op without receipt ----------
+  -- (182) Each deposit carries its OWN Ref: since 178 the same Ref is the same deposit (a resend).
   BEGIN
     -- Insert a receipt on v_op_a so it is skipped (taken).
     INSERT INTO remittance_operation_receipts (operation_id, conversation_id, comp_id, amount, currency, reference, source, block_index)
@@ -130,7 +131,7 @@ Comp: ' || v_comp_a, v_comp_a);
       FROM cerebro_registrar_deposito(v_conv, 5000, 'GYD', v_por_verificar,
         'DEPOSITO: 5,000 GYD
 Via: Agente MMG;
-Ref: ' || v_ref_hi || '
+Ref: ' || (v_ref_hi::numeric + 3)::text || '
 ' || v_comp_b, v_comp_b);
 
     IF v_result.accion = 'movido' AND v_result.deal_id IS NOT NULL THEN
@@ -166,7 +167,7 @@ Ref: ' || v_ref_hi || '
       FROM cerebro_registrar_deposito(v_conv, 3000, 'GYD', v_por_verificar,
         'DEPOSITO: 3,000 GYD - APROBADA
 Via: Agente MMG;
-Ref: ' || v_ref_hi || '
+Ref: ' || (v_ref_hi::numeric + 4)::text || '
 ' || v_comp_c, '');
 
     -- Now the op has one receipt and saldo is still > 0 (20000 - 3000 = 17000).
@@ -175,7 +176,7 @@ Ref: ' || v_ref_hi || '
       FROM cerebro_registrar_deposito(v_conv, 2000, 'GYD', v_por_verificar,
         'DEPOSITO: 2,000 GYD - APROBADA
 Via: Agente MMG;
-Ref: ' || v_ref_hi || '
+Ref: ' || (v_ref_hi::numeric + 5)::text || '
 eeeeeeeeeeeeeeeeeeee', '');
 
     IF v_result.accion = 'sumado al envio abierto' AND v_result.deal_id IS NOT NULL THEN

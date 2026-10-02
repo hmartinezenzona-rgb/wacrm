@@ -19,7 +19,7 @@ API route GET /api/remittance-operations returns it as `quote`; the panel shows 
 Scope: staging first, production with go-ahead (DB + app deploy). TDD on: SQL assertion (self-reverting) + vitest.
 
 ## Tasks
-- [ ] T1 Assertion + migration 187 (+ rollback): RED, GREEN, staging
+- [x] T1 Assertion + migration 187 (+ rollback): RED, GREEN, staging
 - [ ] T2 App: route returns `quote`, types, panel line "Cotizado: X GYD -> Y CUP" on the open operation; vitest RED/GREEN
 - [ ] T3 Staging deploy (DB + app), owner check; then production with go-ahead
 
@@ -29,3 +29,8 @@ Scope: staging first, production with go-ahead (DB + app deploy). TDD on: SQL as
 - A quote older than the window, or from before the last closed remesa, is not shown.
 
 ## Progress / evidence
+- T1 (2026-10-02): `supabase/staging/assertions/panel-quote.sql` (7 cases: no quote, CUP inverse 5,000 -> 15,000 CUP,
+  newer USD 26,000 -> 100 USD, forward 30,000 -> 90,000 CUP, read-only (no target fixed), older than the window hidden,
+  non-member 42501). RED on staging: `function crm_cotizacion_de_conversacion(uuid) does not exist`. GREEN in a
+  rolled-back transaction with `187_panel_quote.sql` (+ ROLLBACK). Applied to staging; ALL PASS after. The owner's
+  staging test conversation (9892f40c) reads 5000 GYD -> 15000 CUP.

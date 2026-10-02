@@ -46,7 +46,7 @@ TDD: on (user global config, Strict TDD Mode). Runners: SQL self-reverting asser
       Change in `~/cerebro-fase1/pruebas/gate82-decisor-bloque.js` (the `bajo` test must use the total), update
       `gate82-banco.js` ("3 mil a cada una" -> CUP, "2 mil a cada una" -> below), then
       `python3 gate82-reparto.py actualizar && node gate82-banco.js && python3 gate82-reparto.py desplegar`
-- [ ] T4 Deploy T2/T3 to staging Cerebro, replay test 2 on staging with the owner
+- [x] T4 Deploy T2/T3 to staging Cerebro, replay test 2 on staging with the owner
 
 ## Acceptance
 - Test 2 replayed: final vigente generation is the reparto with both cards, the phone on both, and
@@ -95,5 +95,13 @@ TDD: on (user global config, Strict TDD Mode). Runners: SQL self-reverting asser
   f5db1feb-6810-4cad-9983-f7250a281b44; rollback `ROLLBACK-82-staging-20261001-222618.json`.
   Test number 529622896918 reset (clean) for the owner's replay of test 2 (T4).
 
-Next step: T4 — the owner replays test 2 on staging; review messages, tool_execution_log and remittance_beneficiaries
-generations against the acceptance criteria.
+- T4 (2026-10-02 04:31 UTC, owner replay of test 2 on staging, exec 301146): same 6 messages as test 2. One reply
+  (no duplicate): greeting + after-hours line + "cada tarjeta recibe 15,000 CUP por 5,000 GYD" with both cards and the
+  phone on both, then the next question. Decisor emitted the per-deposit note (10,000 GYD total, CUP for both cards).
+  Tools: calcular_envio(5000 GYD) -> 15000 CUP (staging rate 1 GYD = 3 CUP), then ONE registrar_reparto_multiple; no
+  gestionar_beneficiario. remittance_beneficiaries: one generation, positions 1 and 2, multiple_distribution, phone
+  53821203 on both, 15000 CUP each, vigente; no single cuban_card written. Acceptance met on staging.
+  Minor: the "el minimo es por deposito ... aunque una tarjeta reciba menos" sentence is also emitted when every card
+  is already >= 5,000 (harmless, not changed).
+
+Next step: production port of 184 + gate 82 (+ 185) needs the owner's go-ahead.

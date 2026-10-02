@@ -35,7 +35,7 @@ TDD: on (user global config, Strict TDD Mode). Runners: SQL self-reverting asser
 - [x] T3 F3: deposit minimums in the context (from cerebro_config, recarga range key added) and a
       Decisor note for a GYD amount in a reparto (per card vs total, CUP vs clasica/tropical, ask when
       ambiguous)
-- [ ] T3b Final minimum rule (owner, 2026-10-02, NOT yet implemented — the deployed gate 82 is per card):
+- [x] T3b Final minimum rule (owner, 2026-10-02):
       * bare amounts are GYD the customer deposits (rule 4), never CUP to receive;
       * VALIDITY uses the minimum PER DEPOSIT (the whole envio): "3 mil a cada una" = 6,000 GYD >= 5,000,
         valid CUP remesa, split as the customer says; below 5,000 in total -> say the minimum;
@@ -86,3 +86,14 @@ TDD: on (user global config, Strict TDD Mode). Runners: SQL self-reverting asser
   service's minimum); below 5,000 is said to the customer; only an amount >= 13,000 is asked about (CUP or USD),
   per card ("5 mil y 20 mil": card 1 CUP, ask card 2). Bank 193 identical; 12 cases GREEN. Rollback
   `ROLLBACK-82-staging-*` (latest snapshot of this deploy).
+- T3b (2026-10-02, owner's final rule): validity per deposit, currency per card. `gate82-decisor-bloque.js`: only a
+  TOTAL below the CUP minimum is refused ("El deposito total (4,000 GYD) no llega ... NO guardes ningun monto"); otherwise
+  the note says the minimum is per deposit and reads each card: < 13,000 -> CUP (convert, save, confirm), >= 13,000 ->
+  ask CUP or USD. Bank: "3 mil a cada una" -> CUP; "2 mil a cada una" -> below; new "4 mil y 1 mil" (5,000 total) -> CUP
+  and "3 mil y 20 mil" -> card 1 CUP, ask card 2. RED: these 4 failed on the live Decisor; GREEN: 14/14 on the
+  candidate, bank 193 identical, 0 broken. Drift-checked PUT, byte-verified, active version
+  f5db1feb-6810-4cad-9983-f7250a281b44; rollback `ROLLBACK-82-staging-20261001-222618.json`.
+  Test number 529622896918 reset (clean) for the owner's replay of test 2 (T4).
+
+Next step: T4 — the owner replays test 2 on staging; review messages, tool_execution_log and remittance_beneficiaries
+generations against the acceptance criteria.

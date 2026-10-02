@@ -306,7 +306,7 @@ detection, deposit way and recarga-in-progress for new operations. Map: Engram
     Cloudflare (403 `error 1010 browser_signature_banned`) **before** reaching n8n — the workflow
     was still on the old SQL, so nothing partial landed. The identical body was re-sent with
     `curl`. No blind retries, no second target.
-  - [ ] WU5b rewire the **production** workflow `jEzlVLCLUaJhVwzs`. **USER-GATED — do not start
+  - [x] WU5b rewire the **production** workflow `jEzlVLCLUaJhVwzs`. **USER-GATED (done 2026-10-02, see the log) — do not start
     without an explicit go-ahead.** Requires deploying 160/161/162/163 to the production database
     first; rewiring before that makes seven live paths call functions that do not exist there. Two
     open decisions ride with it: the production go-ahead itself, and the `divergencia_ya_tipado`
@@ -1565,3 +1565,28 @@ the FK alone suggested.**
   via_deposito_ya_usada '' -> 'Agente MMG' (the receipt carries the way the deal note lacked).
   ORDER for the production window: the current `marcar_destino_usd` INSERTs into deals, which after 172 no longer
   creates an operation, so the n8n PUT must follow the DB bundle immediately (minutes), never precede it.
+- 2026-10-02 17:49 UTC: **WU5b IN PRODUCTION (owner go-ahead "hazlo ahora").**
+  - Fresh backup before: `~/wacrm-respaldos/produccion-20261002T173301Z.dump`. 153 applied first through the Supabase
+    MCP (additive). No write connection string was available (owner does not know the DB password), so the rest went
+    through a temporary n8n workflow using the bot's production Postgres credential (role `postgres`; owner chose this
+    fallback): `~/cerebro-fase1/pruebas/gate84-aplicar-db.py`. Lessons: n8n's Postgres node rewrites `$` in query text
+    and splits queryReplacement on commas, so the bundle travels base64 inside the query and a temporary
+    `public.zz_wu5b_exec(text)` EXECUTEs it in one call (one transaction); `168_tags_off_delivered_operations.sql` ends
+    without `;` (fine for psql at end of file, fatal when chained) -> the bundler closes unterminated files.
+  - Dry run on production (bundle + forced exception): `functions=319 receipts=438 deals_triggers=2 open_ops=8`, nothing
+    kept (verified). Real run 17:49:31 (1.6 s, one transaction, bundle md5 02877a3e...): 156, 158-168 (167 incident
+    reason, 168 tags), 172, 182, 183, registered in supabase_migrations.schema_migrations (created_by gate84-aplicar-db).
+    Bot: `gate84-wu5b.py desplegar` at 17:49:39, exactly the 8 nodes, byte-verified, active version
+    43568e65-8633-480c-8228-4bc5484b7b8f, rollback `ROLLBACK-84-prod-20261002-114939.json`.
+  - After: every deals/money function md5 = staging (only rescatar_dsml and corregir_entrada_calculadora differ, as
+    planned); receipts 438; deals triggers: set_updated_at, trg_sync_z_benef_desde_deal (by design); realtime still
+    publishes remittance_operations. Assertions ON PRODUCTION (self-reverting, forced rollback): partial-beneficiary-tools,
+    -auto, reparto-guards, beneficiary-touches-operation, panel-quote, deal-free-money-rules, cup-excess-equivalent,
+    deposit-path-without-deals, operation-receipts ALL PASS. No fixture residue; helper dropped.
+  - First real traffic (conv 4814cdfe): 18:19 a 29,000 GYD receipt landed on the customer's OLD deal-linked open
+    operation 972718ea, matched the MMG email, verified -> ready_to_transfer (new code handles legacy operations);
+    18:20 a second receipt (28,000, ref 20321203276682, no MMG email) opened a new deal-free operation 591262ba ->
+    incident `sin_correo` (the normal rule; the ref prefix 2032 is unusual: a human should check it). 0 deals created
+    after the cutover.
+  Next: owner live test in production; then WU6d (cerebro_aplicar_nombre_confirmado, cerebro_sync_beneficiarios),
+  WU9.4, 6.4 (drop deals/pipelines/pipeline_stages, extra confirmation).

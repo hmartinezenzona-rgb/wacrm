@@ -40,7 +40,7 @@ behaviour: gate harness (`~/cerebro-fase1/pruebas/gate7x`).
 - [x] T1 Parser accepts partial blocks; complete blocks unchanged on all production notes (179)
 - [x] T2 Merge functions with D1 semantics + assertions (179)
 - [x] T3 Tools rewired to the functions; prompt/descriptions say partial data is accepted; bot test
-- [ ] T4 Deterministic nodes (`Registrar beneficiario auto`, `Registrar zelle auto`) use the functions
+- [x] T4 Deterministic nodes (`Registrar beneficiario auto`, `Registrar zelle auto`) use the functions (180)
 - [ ] T5 Deploy, watch the first real cases
 
 ## Progress / evidence
@@ -71,3 +71,17 @@ behaviour: gate harness (`~/cerebro-fase1/pruebas/gate7x`).
 - Next: T4 (deterministic nodes through the same functions: a card photo without a phone is saved at once,
   the phone that arrives later completes it, even with the bot paused); a deterministic guard against
   "Anotado" without a write; watch the first real cases (T5).
+- T4 (migration 180 + gate 80, deployed 2026-10-01): `cerebro_guardar_beneficiario_auto` /
+  `cerebro_guardar_zelle_auto`. With an open remesa (resolved by card/account with
+  cerebro_resolver_operacion_beneficiario, as the nodes always did) the data of THIS burst is saved at once,
+  partial, D1 (a new card never inherits the old phone: the Merge memory used to pair them). Without an open
+  remesa only the complete pair opens one (a lone Cuban phone, e.g. a recarga, never opens a remesa). Several
+  undecidable remesas: derive, as before. The memory is cleared when the cuban beneficiary is complete.
+  guardar_beneficiario / guardar_zelle / resolver_para_guardar take optional (op, origin tool name);
+  the bot tools call them unchanged. RED (functions absent) -> GREEN: cases 1-8 of
+  `supabase/staging/assertions/partial-beneficiary-auto.sql` + 179 regressions; the tool log keeps the
+  origin ('Registrar beneficiario auto' / 'Registrar zelle auto').
+  n8n (`~/cerebro-fase1/pruebas/gate80-nodos-auto.py`): `Beneficiario completo?` fires on a card OR a
+  phone in the burst; `Zelle completo?` on a holder OR an account; both registrars call the auto functions.
+  Exactly 4 nodes changed, connections identical, active version a91aa13f-be25-4029-bcee-f4a4b2eacaa5.
+  Rollback: `ROLLBACK-80-cerebro-20261001-200021.json` (n8n) then `ROLLBACK-180-...sql`.

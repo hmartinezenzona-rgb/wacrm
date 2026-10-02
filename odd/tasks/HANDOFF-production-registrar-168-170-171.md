@@ -61,4 +61,11 @@ Also live (n8n only, 2026-10-01, Cerebro version a2b2851d): `Contexto conversaci
 `beneficiarios_registrados` (vigente beneficiaries of the open operations); the Decisor and the agent prompt
 use it. Details: `odd/tasks/tool-reliability-test.md`.
 
-None of 168/170/171/173/174/175/176/177/178 is on staging. Feature doc: `odd/tasks/split-deposit-minimums.md`.
+Also live: `179_partial_beneficiary_tools` + `180_partial_beneficiary_auto` (owner's request 2026-10-01): beneficiary
+data is saved partial and in arrival order. `cerebro_parsear_beneficiarios` accepts "-" fields; the merge rules live in
+`cerebro_guardar_beneficiario|zelle|reparto` (+ `_auto` for the deterministic nodes); the n8n tools and nodes are thin
+calls to them. They still WRITE a block to deals.notes: your deal-free writers (162/163) should port these functions'
+storage and keep their rules (PATCH, a new card never inherits the old phone, a new Zelle account never inherits the
+holder, reparto slots by position). Feature doc: `odd/tasks/partial-beneficiary-tools.md`.
+
+None of 168/170/171/173/174/175/176/177/178/179/180 is on staging. Feature doc: `odd/tasks/split-deposit-minimums.md`.

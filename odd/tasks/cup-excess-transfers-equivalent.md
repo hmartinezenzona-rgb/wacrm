@@ -27,16 +27,22 @@ TDD: on. Runners: self-reverting SQL assertions (staging deal-free helpers of de
 deal helpers of split-deposit-minimums.sql), Decisor bank (gate84).
 
 ## Tasks
-- [ ] T1 Assertions (staging + production style): CUP above quote -> ready_to_transfer, destination = equivalent;
-      CUP below -> waits then completes; Zelle above -> incident. RED on staging
-- [ ] T2 Migration 187 + rollback; GREEN in a rolled-back transaction; apply to staging; regressions
-- [ ] T3 Decisor gate 84: verified above target -> "se transfiere el equivalente"; bank RED/GREEN; staging deploy
-- [ ] T4 Production (go-ahead): RED, GREEN rolled back, apply, regressions, gate 84
+- [x] T1 Measure current behaviour on both environments (assertion + rolled-back production runs)
+- [~] T2-T4 (migration 187, gate 84) DROPPED: not needed, see the finding below
 
 ## Acceptance
-- CUP single card, quote 5,000 GYD, deposit 7,000 -> ready_to_transfer, quoted_source_amount 7,000, destination
-  recalculated from 7,000; no incident.
-- Zelle quote 13,000, deposit 15,000 -> incident (unchanged).
-- split-deposit-minimums, requested-amount-target, deal-free-money-rules still pass.
+- CUP single card, quote 5,000 GYD, deposit 7,000 -> ready_to_transfer, 7,000, destination 21,000 CUP. MET today.
+- CUP quote 10,000, 6,000 -> waits; +4,000 -> complete. MET today.
 
 ## Progress / evidence
+- 2026-10-02 FINDING (corrects my two earlier explanations to the owner): both environments ALREADY follow the
+  owner's option 1. Measured with rolled-back runs on production (deal path) and the staging assertion
+  `supabase/staging/assertions/cup-excess-equivalent.sql` (deal-free path, run after deal-free-money-rules.sql):
+  CUP quote 5,000 + deposit 7,000 -> verificado, ready_to_transfer, 7,000, 21,000 CUP, no objetivo kept; CUP quote
+  10,000 + 6,000 -> verificado_incompleto, waits; + 4,000 -> ready; 6,000 + 6,000 -> verificado, ready, 12,000; Zelle
+  quote 13,000 + 15,000 -> ready (also equivalent). The ONLY "deposito de mas" Incidencia: a target fixed BEFORE the
+  deposit by calcular_usd (cerebro_fijar_objetivo) -> 15,000 on 13,000 -> verificado_de_mas / incident (case 4).
+  Why: 171's cerebro_objetivo_minimo keeps a target only when the money does not cover it ("Covered and nothing open
+  to correct: nothing to do") and raises an open one with the total. The assertion now pins this (4 cases ALL PASS).
+- Consequence for the panel follow-up (show the quote before the deposit): it must NOT fix a CUP target the
+  calcular_usd way (that would create the Incidencia path for CUP); read the quote for display instead.

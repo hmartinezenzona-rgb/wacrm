@@ -82,3 +82,10 @@ objects) or by the assertions of both sides (merged objects). Strict TDD for the
 - Incident during T2 checks (fixed): running the other session's assertions with `psql -1` and a prepended
   ROLLBACK-182 COMMITTED the revert (those scripts end in NOTICE, not an exception). 182 re-applied (md5
   verified), and the 2 fixture contacts my runs left were deleted. Runbook saved to Engram.
+- T5 started (2026-10-02, eliminate-deals WU5b step 1, owner go-ahead): end-to-end deal-free test on staging. Test number
+  reset (1 contact, 1 conversation, 1 operation removed). Staging: Cerebro ec691647 (gate 83), app ac45d47 (panel quote),
+  `deals` has 0 rows, the [STAGING] MMG ingestion receives the real bank emails (unconsumed 5,000 GYD deposits of
+  2026-10-02: 20402119681701 at 15:24 and 10402113200446 at 13:36 UTC). Script: quote "15 mil CUP" -> card -> phone ->
+  a real receipt of a 5,000 GYD deposit from the last 72 h -> panel delivery. Checks: no deals row, operation created
+  by cerebro_crear_operacion, receipt in remittance_operation_receipts, verification against depositos_mmg,
+  ready_to_transfer, panel refreshes live, delivery completes and feeds the calculator.

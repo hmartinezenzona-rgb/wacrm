@@ -29,8 +29,9 @@ objects) or by the assertions of both sides (merged objects). Strict TDD for the
 - [x] T1 Copy the production-only objects to staging, in production order, excluding the 4 merges
 - [x] T2 Merge the 4 functions changed on both sides (deal-free + production fixes), RED/GREEN with both
       sides' assertions (2 needed no merge; migration 182 for the rest)
-- [ ] T3 Align the staging Cerebro n8n workflow (production nodes + deal-free rewiring)
-- [ ] T4 Re-measure: every function equal to production except the deal-free ones, documented
+- [x] T3 Align the staging Cerebro n8n workflow (production nodes + deal-free rewiring)
+- [x] T4 Re-measure: every function equal to production except the deal-free ones, documented
+- [ ] T5 Live WhatsApp test on staging (test number 529622896918, reset first) — needs the owner
 
 ## Progress / evidence
 - T1 (2026-10-01): 168_late, 169, 170 (minus `cerebro_registrar_deposito`), 171, 173, 174, 175, 176, 179, 180 applied
@@ -57,3 +58,27 @@ objects) or by the assertions of both sides (merged objects). Strict TDD for the
   `deposit-path-without-deals` cases 3/4 changed: they registered four DIFFERENT deposits with the SAME Ref;
   with 178 that is a resend, so the fixture now gives each deposit its own Ref -> ALL PASS.
 
+- T3 (2026-10-02 UTC): migration `183_deal_free_beneficiary_block.sql` (staging only, + rollback): the single
+  writer of 179/180, `cerebro_escribir_bloque_beneficiario`, stores without deals (creates the operation with
+  `cerebro_crear_operacion` when none, writes the parsed block as a new generation, 175's replacement rule,
+  operator lock respected). RED before: partial-beneficiary-tools.sql case 1a ("guardado" but nothing stored,
+  the deal no longer creates an operation since 172). GREEN after: partial-beneficiary-tools.sql and
+  partial-beneficiary-auto.sql ALL PASS on staging; deal-free-money-rules.sql still ALL PASS.
+  n8n (`~/cerebro-fase1/pruebas/gate81-staging-merge.py`, staging only): base = staging workflow (its URLs,
+  credentials, webhook path, secret kept); from production: Snapshot final, Decisor, Beneficiario/Zelle completo?,
+  Registrar beneficiario/zelle auto, the 3 registration tools, the agent prompt (with staging's 138 services
+  catalog section) and text, the write-tool descriptions, Cruzar deposito con MMG (173 pedido_objetivo looked up
+  by OPERATION via cerebro_resolve_op_id), and the official DeepSeek node (staging still used the community
+  node, the DSML one). Kept from staging: Historial and Contexto deal-free readers (+ production's
+  beneficiarios_registrados column), the 153 last-quote calc tools, marcar_destino_usd deal-free. Contexto
+  validated with EXPLAIN on staging; every ctx field the production Decisor reads is present. Drift-checked PUT,
+  15 nodes changed, verified byte-identical; active version fad5f789-1c43-4bc5-ba67-d9f057a4d115. Rollback:
+  `~/cerebro-fase1/pruebas/ROLLBACK-81-staging-20261001-210429.json`.
+  Found and NOT carried: the staging agent has a stray parameter `options.systemMessage` holding a B1.1 prompt
+  ("cuanto recibe") that n8n never used; B1.1 was never live on staging either.
+- T4: deals-referencing functions on staging back to exactly 4 (`deal-free-panel-verification` [0] PASS: the
+  179/180/182 additions are deal-free now). Remaining staging-vs-production function differences are the
+  deal-free ones (156-167, 182, 183) and staging-only 153/138.
+- Incident during T2 checks (fixed): running the other session's assertions with `psql -1` and a prepended
+  ROLLBACK-182 COMMITTED the revert (those scripts end in NOTICE, not an exception). 182 re-applied (md5
+  verified), and the 2 fixture contacts my runs left were deleted. Runbook saved to Engram.

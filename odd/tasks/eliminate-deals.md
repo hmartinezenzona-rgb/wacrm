@@ -1550,3 +1550,18 @@ the FK alone suggested.**
   left 3 fixture operations in the rehearsal copy (copy only) -> all 47 SAVEPOINT-style assertions now start with
   `\set ON_ERROR_STOP on`.
   Next: the n8n side (production Cerebro nodes vs staging), then the production window with go-ahead.
+- 2026-10-02: **WU5b — n8n side prepared (gate 84, NOT deployed).** Node diff production vs staging Cerebro (connections
+  identical): environment-only nodes kept (Avisar espera al cliente, Confirmar al admin, Despertar al enviador,
+  Responder por WaCRM, Validar evento, Webhook WaCRM); prompt kept (its only difference is staging's 138 services
+  catalog, not deals); consultar_servicio and the community DeepSeek node kept. Eight nodes to port, script
+  `~/cerebro-fase1/pruebas/gate84-wu5b.py` (construir|desplegar): Contexto conversacion = production query with ONLY its 3
+  deals hunks replaced by staging's (dup_etapa/dup_valor from remittance_operation_receipts, via_deposito_ya_usada from
+  receipts, last closed remesa from operations; staging's catalogo_servicios not ported); Historial contacto, Cruzar
+  deposito con MMG (objetivo by operation), marcar_destino_usd (cerebro_marcar_destino_usd), calcular_envio,
+  calcular_inverso, calcular_usd, calcular_usd_desde_gyd (also register the quote, 153) = staging parameters,
+  production credentials/ids kept. Candidate built on live production 712e779d: exactly those 8 nodes change; no
+  `deals` read left in them. All 8 queries PREPARE on the migrated production copy. Old vs candidate Contexto EXECUTED
+  on 11 real conversations (8 open, 3 completed) of the copy: 27/27 columns identical except one
+  via_deposito_ya_usada '' -> 'Agente MMG' (the receipt carries the way the deal note lacked).
+  ORDER for the production window: the current `marcar_destino_usd` INSERTs into deals, which after 172 no longer
+  creates an operation, so the n8n PUT must follow the DB bundle immediately (minutes), never precede it.

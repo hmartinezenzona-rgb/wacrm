@@ -69,3 +69,9 @@ TDD: on (user global config, Strict TDD Mode). Runners: SQL self-reverting asser
   minimum). `gate82-reparto.py actualizar` swaps only the gate-82 block. Bank 193 identical; 11 cases GREEN, the 3
   whose rule changed were RED on the per-card version. Active version 8d3288fe-9fa1-4fdf-8296-e028cdc109cf;
   rollback `ROLLBACK-82-staging-20261001-221226.json`. Test number still clean.
+- T3 second correction (2026-10-02, owner): the previous "per envio" reading was a misunderstanding ("el minimo es
+  para enviar" meant the minimum is in GYD sent). Each card's amount is read on its own against the minimums:
+  "10 mil a la primera y 5 mil a la segunda" is CUP for both (5,000 is the CUP minimum, 10,000 reaches no other
+  service's minimum); below 5,000 is said to the customer; only an amount >= 13,000 is asked about (CUP or USD),
+  per card ("5 mil y 20 mil": card 1 CUP, ask card 2). Bank 193 identical; 12 cases GREEN. Rollback
+  `ROLLBACK-82-staging-*` (latest snapshot of this deploy).

@@ -30,9 +30,9 @@ TDD: on (user global config, Strict TDD Mode). Runners: SQL self-reverting asser
 - [x] T1 F2: `cerebro_guardar_beneficiario` never overwrites a vigente reparto: a card in the reparto
       patches its slot, a lone phone fills the first slot without one, anything else is refused with
       "use registrar_reparto_multiple" (migration 184 + rollback + assertion)
-- [ ] T2 F1: Decisor: while a reparto is vigente (or the burst is multi), no single-beneficiary note;
+- [x] T2 F1: Decisor: while a reparto is vigente (or the burst is multi), no single-beneficiary note;
       a REPARTO EN CURSO note lists the slots and what is missing and names registrar_reparto_multiple
-- [ ] T3 F3: deposit minimums in the context (from cerebro_config, recarga range key added) and a
+- [x] T3 F3: deposit minimums in the context (from cerebro_config, recarga range key added) and a
       Decisor note for a GYD amount in a reparto (per card vs total, CUP vs clasica/tropical, ask when
       ambiguous)
 - [ ] T4 Deploy T2/T3 to staging Cerebro, replay test 2 on staging with the owner
@@ -48,3 +48,18 @@ TDD: on (user global config, Strict TDD Mode). Runners: SQL self-reverting asser
   and the reparto reduced to one card). GREEN after, in one rolled-back transaction and again after applying:
   reparto-guards, partial-beneficiary-tools, partial-beneficiary-auto, deal-free-money-rules ALL PASS.
   `cerebro_guardar_reparto` keeps its 11-argument call (n8n tool) through DEFAULTs.
+- T2 + T3 (2026-10-02, staging Cerebro only): `~/cerebro-fase1/pruebas/gate82-reparto.py` (block in
+  `gate82-decisor-bloque.js`). Decisor: a vigente reparto (2-3 slots in `beneficiarios_registrados`) takes
+  precedence over the single-beneficiary notes and emits REPARTO EN CURSO (slots, what is missing,
+  registrar_reparto_multiple only, "same phone for all" goes to every slot, ask on a foreign card); the
+  MINIMOS DE DEPOSITO note (from `ctx.minimos`) when the burst has an amount or says "minimo"; the MONTO EN GYD
+  PARA EL REPARTO note: per card ("cada una", or one amount per card) -> below the CUP minimum: say it, do not
+  save; below the Clasica/Tropical minimum: only CUP, convert with calcular_envio, save, confirm; otherwise ask
+  CUP or USD; one amount without "cada" -> ask total or each. Assumption: the minimums apply per card.
+  Contexto: `beneficiarios_registrados` carries posicion/monto/moneda, new column `minimos` (validated on the
+  staging test conversation in a rolled-back transaction). Migration `185_recarga_minimum_range.sql`
+  (`minimo_gyd_recarga_hasta` = 6200, informative only; + rollback), applied to staging.
+  Tests `gate82-banco.js`: bank 193 cases identical base vs candidate, 0 broken; 10 new cases, 8 RED on the
+  live Decisor and all 10 GREEN on the candidate. Drift-checked PUT, byte-verified, active version
+  8f60434f-cc0e-4556-832a-367fc444f03f; rollback `ROLLBACK-82-staging-20261001-220507.json`.
+  Test number 529622896918 reset for the replay (T4).

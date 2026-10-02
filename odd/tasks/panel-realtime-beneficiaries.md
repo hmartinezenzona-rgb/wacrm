@@ -25,7 +25,7 @@ subscription probe (throwaway user, deleted after).
 ## Tasks
 - [x] T1 Assertion `supabase/staging/assertions/beneficiary-touches-operation.sql`, RED on staging
 - [x] T2 Migration 186 + rollback, GREEN in a rolled-back transaction, apply to staging, regressions
-- [ ] T3 Realtime probe: a subscriber with the panel's exact descriptor receives an event when the bot writes a
+- [x] T3 Realtime probe: a subscriber with the panel's exact descriptor receives an event when the bot writes a
       beneficiary (negative control without 186)
 
 ## Acceptance
@@ -42,3 +42,13 @@ subscription probe (throwaway user, deleted after).
 - T2 (2026-10-02): `186_beneficiary_change_touches_operation.sql` + ROLLBACK. GREEN in a rolled-back transaction
   (ALL PASS). Baseline before applying: partial-beneficiary-tools, partial-beneficiary-auto, reparto-guards,
   deal-free-money-rules, operations-realtime ALL PASS, the new one RED. Applied to staging; after: all 6 ALL PASS.
+- T3 (2026-10-02, staging): throwaway user `probe186@example.invalid` (viewer, account 472917ed; auth row with '' token
+  columns + email identity) logged in with the anon key, read the probe operation under RLS (1 row) and subscribed with
+  the panel's exact descriptor (`remittance_operations`, `conversation_id=eq.<conv>`): SUBSCRIBED. A: the bot saved the
+  phone alone (`cerebro_guardar_beneficiario`) -> 2 UPDATE events on the operation within 15 s. B (negative control,
+  trigger disabled): another phone write -> 0 events in 20 s; trigger re-enabled (tgenabled O). Cleanup:
+  reset-test-contact.sql for the probe phone (1 contact, 1 conversation, 1 operation), auth user/identity/profile
+  deleted; residue 0. Script: scratchpad `probe186.cjs` (not kept).
+
+Next step: production, with the owner's go-ahead: 181 (publication) + 186, then the app `e3fff52`, then check that a
+bot beneficiary write refreshes the panel.

@@ -42,3 +42,10 @@ Scope: staging first, production with go-ahead (DB + app deploy). TDD on: SQL as
   function`, card text missing "Quoted: 5,000 GYD -> 15,000 CUP"). GREEN (parent re-run): 4 files / 139 tests; full suite
   141 files / 1677 tests (the board's 2 test files live on feat/operations-board); `tsc --noEmit` clean; eslint clean.
   Parent fix: the mapQuoteRows comment said the amount was kept with an unknown currency; the code drops both.
+- T3 staging (2026-10-02 14:23 UTC, owner go-ahead): app `ac45d47` built in prod-build with Node 20 docker + the staging
+  build env (NEXT_PUBLIC identical to the server's): manifest staging / kolppplawzdsjfydwejr, 114 money-path tests
+  passed, 0 production refs / 32 staging refs, no .env, sha256 OK, the quote RPC present in the server chunks. Uploaded
+  (2368 files = 2368), BUILD_ID checked on the server before relinking; served cwd `~/wacrm-releases/ac45d47…`,
+  `anterior` -> `e3fff52…` (rollback: relink + `pm2 restart wacrm-staging --update-env`); `/login` 200, domain serves
+  BUILD_ID `a3kHAsTQOhkWcW0Q19eSk`; no crash after restart. Pending: owner's check in the panel; production (187 + app)
+  with go-ahead.

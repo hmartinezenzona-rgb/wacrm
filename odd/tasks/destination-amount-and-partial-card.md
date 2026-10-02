@@ -58,3 +58,11 @@ TDD: on (user global config). Runners: node Decisor bank; python replay harness 
   ec691647-9593-411b-9b8f-4180a12eab7d; rollback `ROLLBACK-83-staging-20261002-073245.json`. Staging test number reset.
   Pending: owner's retest on staging, then production with go-ahead (`construir prod`, `G83=prod node gate83-banco.js`,
   `desplegar prod`).
+- Owner retest on staging (2026-10-02 13:41 UTC, conv 9892f40c, test number): voice "15 mil CUP" + the card -> 13:42:15
+  "Para que lleguen *15,000 CUP* necesita depositar *5,000 GYD*. Anotada la tarjeta ..." (64 s incl. the 37 s burst
+  window); gestionar_beneficiario(card) at 13:42:10 opened operation 3fb71783 with the card; the phone (13:42:36) was
+  completed by `Registrar beneficiario auto` (13:43:18), new generation vigente card + phone; the operation was touched
+  by 186 (updated_at 13:43:18, version 2). cerebro_ultima_cotizacion = 5000 GYD / 15000 CUP (calcular_inverso).
+  FINDING (pre-existing, not gate 83): the quote does not reach the operation: quoted_source_amount 0, no destination
+  amount, cerebro_objetivo_envio empty. Only calcular_usd sets the target (cerebro_fijar_objetivo);
+  cerebro_aplicar_cotizacion only acts on deposit_verification operations. The panel shows 0 GYD until a deposit.

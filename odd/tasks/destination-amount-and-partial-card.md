@@ -33,7 +33,7 @@ TDD: on (user global config). Runners: node Decisor bank; python replay harness 
 - [x] T3 Prompt: the 'enviar + monto + CUP' rule limited to GYD/bare amounts; new line for destination amounts
 - [x] T4 Real replay of exec 304592's burst (base vs candidate, 3 reps): candidate calls calcular_inverso(15000)
       and gestionar_beneficiario(card), says "Para que lleguen 15,000 CUP necesita depositar 5,000 GYD"
-- [ ] T5 Deploy staging, owner retest on staging; then production with go-ahead
+- [x] T5 Deploy staging, owner retest on staging; then production with go-ahead
 
 ## Acceptance
 - "quiero enviar 15 mil CUP" -> deposit 5,000 GYD quoted; "100 USD por Zelle" -> calcular_usd(100).
@@ -66,3 +66,10 @@ TDD: on (user global config). Runners: node Decisor bank; python replay harness 
   FINDING (pre-existing, not gate 83): the quote does not reach the operation: quoted_source_amount 0, no destination
   amount, cerebro_objetivo_envio empty. Only calcular_usd sets the target (cerebro_fijar_objetivo);
   cerebro_aplicar_cotizacion only acts on deposit_verification operations. The panel shows 0 GYD until a deposit.
+- Production (2026-10-02 13:46 UTC, owner go-ahead after the staging retest): rebuilt on live production (version
+  5f09e630); candidate Decisor byte-identical to the staging-tested one, prompt rule block identical; bank 193 (186
+  identical, 7 intended, 0 broken) and 14/14 new cases GREEN. Drift-checked PUT, only `Decisor` and `Agente Remesas`
+  changed, byte-verified; active version 712e779d-60bc-4b04-aaf8-aa24ec15caee; rollback
+  `ROLLBACK-83-prod-20261002-074653.json`.
+
+Next step: the quote fills the operation amount (separate feature, owner to confirm), then DeepSeek timeout + retry.

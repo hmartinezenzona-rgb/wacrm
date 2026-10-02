@@ -35,6 +35,17 @@ TDD: on (user global config, Strict TDD Mode). Runners: SQL self-reverting asser
 - [x] T3 F3: deposit minimums in the context (from cerebro_config, recarga range key added) and a
       Decisor note for a GYD amount in a reparto (per card vs total, CUP vs clasica/tropical, ask when
       ambiguous)
+- [ ] T3b Final minimum rule (owner, 2026-10-02, NOT yet implemented — the deployed gate 82 is per card):
+      * bare amounts are GYD the customer deposits (rule 4), never CUP to receive;
+      * VALIDITY uses the minimum PER DEPOSIT (the whole envio): "3 mil a cada una" = 6,000 GYD >= 5,000,
+        valid CUP remesa, split as the customer says; below 5,000 in total -> say the minimum;
+      * CURRENCY is inferred PER CARD amount: an amount < 13,000 reaches no other service minimum -> CUP
+        ("10 mil a la 1a y 5 mil a la 2a" = CUP both); only an amount >= 13,000 is asked (CUP or USD);
+      * then convert each card's GYD to CUP with calcular_envio ("5 mil y 5 mil" = 10,000 GYD, about
+        15,000 CUP), save per slot, confirm.
+      Change in `~/cerebro-fase1/pruebas/gate82-decisor-bloque.js` (the `bajo` test must use the total), update
+      `gate82-banco.js` ("3 mil a cada una" -> CUP, "2 mil a cada una" -> below), then
+      `python3 gate82-reparto.py actualizar && node gate82-banco.js && python3 gate82-reparto.py desplegar`
 - [ ] T4 Deploy T2/T3 to staging Cerebro, replay test 2 on staging with the owner
 
 ## Acceptance

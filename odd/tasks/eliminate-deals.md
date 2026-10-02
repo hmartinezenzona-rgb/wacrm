@@ -1505,3 +1505,28 @@ the FK alone suggested.**
   realtime on `remittance_operations`), after applying 181 and 186 to the production DB
   (odd/tasks/panel-realtime-beneficiaries.md). The only production automation with a `create_deal` step ("Recurrente
   manda datos") is inactive since 2026-07-10, no pending executions. Staging and production apps now run the same code.
+- 2026-10-02: **WU5b scope MEASURED (catalog diff staging vs production, md5 of every function body; n8n node scan).**
+  - Still reading/writing `deals`: production DB 20 functions, production Cerebro 3 nodes (`Contexto conversacion`,
+    `Historial contacto`, `marcar_destino_usd`) plus the indirect path (tools -> cerebro_guardar_* ->
+    cerebro_escribir_bloque_beneficiario -> deals.notes -> `trg_sync_operacion_al_crear_deal` /
+    `trg_sync_z_benef_desde_deal`). Staging: 4 functions (cerebro_aplicar_nombre_confirmado, cerebro_sync_beneficiarios
+    = WU6d; crm_forzar_verificacion, crm_verificar_deposito = by design), 0 nodes.
+  - Functions that differ (23): cerebro_aplicar_cotizacion, cerebro_avisar_envios_incompletos,
+    cerebro_avisar_envios_sin_beneficiario, cerebro_avisar_remesas_abiertas_viejas, cerebro_cruzar_deposito,
+    cerebro_cruzar_depositos, cerebro_cruzar_pendientes, cerebro_escribir_bloque_beneficiario, cerebro_objetivo_atar,
+    cerebro_objetivo_cerrar, cerebro_objetivo_minimo, cerebro_recruzar_depositos_tardios, cerebro_registrar_deposito,
+    cerebro_rescatar_dsml, cerebro_saldo_envio, crm_comprobantes_de_operacion, crm_corregir_entrada_calculadora (comments
+    only), crm_entregar_operacion, crm_forzar_verificacion, crm_verificar_deposito, merge_duplicate_contacts,
+    notify_operation_incidencia, sync_tags_cliente.
+  - Only on staging (17): cerebro_atar_operation_por_deal, cerebro_catalogo_servicios, cerebro_crear_operacion,
+    cerebro_gestionar_beneficiario, cerebro_marcar_destino_usd, cerebro_monto_recibe, cerebro_objetivo_atar_op,
+    cerebro_objetivo_cerrar_op, cerebro_parsear_comprobantes, cerebro_registrar_beneficiario_auto,
+    cerebro_registrar_beneficiario_zelle, cerebro_registrar_cotizacion(5 args), cerebro_registrar_reparto_multiple,
+    cerebro_registrar_zelle_auto, cerebro_resolve_op_id, cerebro_saldo_operacion, crm_limpiar_calculadora.
+    Only on production: none.
+  - Tables only on staging: remittance_operation_receipts (156, needs a backfill from deals.notes for open operations),
+    cerebro_ultima_cotizacion (153), remittance_calculator_clearances, eval_memoria_replay (test). Triggers only on
+    staging: depositos_mmg.trg_depositos_mmg_atar_operation, cerebro_objetivo_envio.trg_objetivo_envio_atar_operation;
+    only on production: the 8 deals triggers (retired on staging by 172/WU9).
+  - Not all of it is deals work (cerebro_rescatar_dsml, cerebro_catalogo_servicios, crm_limpiar_calculadora are other
+    staging-only features): the port list must be filtered, not copied wholesale.

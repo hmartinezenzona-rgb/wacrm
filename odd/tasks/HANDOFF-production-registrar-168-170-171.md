@@ -57,4 +57,8 @@ Ref+amount pairs and, when every Ref is already consumed by this envio, reports 
 Your deal-free registrar must keep the Ref lookup (it reads `deals.notes` today). Guard:
 `supabase/staging/assertions/repeated-receipt.sql` (needs the helpers of split-deposit-minimums.sql).
 
+Also live (n8n only, 2026-10-01, Cerebro version a2b2851d): `Contexto conversacion` returns a new column
+`beneficiarios_registrados` (vigente beneficiaries of the open operations); the Decisor and the agent prompt
+use it. Details: `odd/tasks/tool-reliability-test.md`.
+
 None of 168/170/171/173/174/175/176/177/178 is on staging. Feature doc: `odd/tasks/split-deposit-minimums.md`.

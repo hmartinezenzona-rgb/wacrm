@@ -104,3 +104,40 @@ Fix order this points to (not implemented, needs the owner's go):
    progress (alone: 0 -> 83%).
 2. Prompt "regla de oro" + real tool descriptions (with 1: 100% on these cases).
 3. Partial-friendly tools (Zelle number before the name, reparto in steps), per the owner's request.
+
+
+## T5-T6: fixes 1 + 2 implemented, tested on the real cases, deployed (gate 78, owner's go 2026-10-01)
+
+Harness: `~/cerebro-fase1/pruebas/gate78-candidato.py` (construir / probar / desplegar) and
+`gate78-banco-decisor.js`. Rollback: `~/cerebro-fase1/pruebas/ROLLBACK-78-cerebro-20261001-180009.json`
+(full workflow before the change, base version 0d7de989).
+
+- [x] T5 Fix 1: `Contexto conversacion` returns `beneficiarios_registrados` (vigente beneficiaries of the
+      open operations); the Decisor says "YA ESTA REGISTRADO" only when the detected Zelle (account +
+      name) or card + phone is in that list, otherwise "NO ESTA REGISTRADO TODAVIA ... llama ... EN ESTE
+      MISMO TURNO" (Zelle) / "TARJETA Y CELULAR DETECTADOS PERO NO REGISTRADOS ... llama
+      gestionar_beneficiario" (Cuban). Without the list the old flag is used.
+- [x] T6 Fix 2: prompt "REGLA DE ORO DEL REGISTRO" (only a tool call saves a datum; no "anotado" without
+      it), the "UNA sola vez" rules allow re-calling on a correction, manual descriptions for
+      gestionar_beneficiario, registrar_beneficiario_zelle, marcar_destino_usd,
+      registrar_datos_entrega_efectivo, derivar_humano. Partial tools (fix 3) not included.
+
+Checks before deploy:
+- Decisor bank (193 existing cases, base vs candidate, local): 0 broken; 186 identical; 7 differ only in
+  the new wording of the not-registered Zelle sentence. 5 new gate-78 cases OK (Katalella shape, same
+  Zelle registered, corrected name, Cuban pair registered / not registered).
+- New SQL column run read-only on production data (returns the expected lists; conversation 8d6d9758 still
+  has a stuck open operation with another Zelle, the shape that produced the false sentence).
+- Real replay, 10 Zelle turns x 3: candidate 28/30 (production 0/30). The 2 misses: yoel_primo, the bot
+  asks for the holder's name (the name came from an earlier turn) instead of registering, once with an
+  "Anotado".
+- Clean scenarios x 3: candidate 23/24 (production 24/24). The miss: reparto_explicito rep 3, the bot asked
+  which phone goes with which card and said "Anotado el reparto" without calling.
+- No miss wrote wrong data; all are "asked instead of registering", one wording violation each.
+
+Deploy: REST PUT with drift check (Contexto, Decisor, prompt, descriptions equal to the tested base),
+exactly 8 nodes changed (the 3 + 5 tools), connections identical, workflow active, active version
+a2b2851d-1eff-4761-b368-4fd2370a1a7a. The full Contexto query validated live with EXPLAIN.
+
+Pending: watch the first real turns with a Zelle/card in production; residual "Anotado" while asking a
+question (a deterministic guard on the reply, or fix 3) is the next lever.

@@ -124,3 +124,25 @@ silent mode. Cash delivery must be reviewed carefully before building it.
 - 2026-10-03 02:11 UTC, staging: recreated Bruce's case on the test chat for the owner's panel review: op 4a044782 set
   to 29,000 GYD / deposit_verification, crm_calcular_monto_destino -> 100 USD calculated, crm_forzar_verificacion as
   owner -> ready_to_transfer, complete. The verified message exposed A5.
+- 191 DB (2026-10-03, staging): `191_panel_notify_and_cash_name.sql` (+ ROLLBACK), commit e756b11. Column
+  remittance_operations.customer_notice_muted_for (the status whose customer notice the panel switched off, written in
+  the same UPDATE as the status change). p_notify on crm_verificar_deposito / crm_forzar_verificacion /
+  crm_entregar_operacion (default true) and crm_cerrar_operacion_manual (default false); p_motivo optional on close and
+  delete with fixed notes "Closed manually from the panel" / "Deleted from the panel"; crm_registrar_datos_entrega_efectivo
+  gains p_name (kept once given, audited, in the admin notification; not required for completeness). Functions dropped
+  and recreated (signature change). Assertion `panel-notify-and-cash-name.sql` (6 cases) RED (`function ... (uuid,
+  unknown x4) does not exist`) -> GREEN; panel-closing-actions (blank-reason case removed), cash-delivery-data (5-arg
+  signature), panel-cash-recipient, cash-delivery-rate, panel-quote, beneficiary-touches-operation ALL PASS. Comparing the
+  other assertions that touch these functions against the pre-191 state (rollback inside a forced-rollback transaction):
+  the same 10 fail before and after on deal fixtures retired by 172 (pre-existing); deals-free-views-and-inert-edits
+  gains one expected failure — its [5a] guard says the 164 body of crm_entregar_operacion only removes lines, and 191
+  adds the notify line on purpose.
+- A5 + E2 notifier (2026-10-03, staging OCdJoHTkV6S0aAdk) via ~/cerebro-fase1/pruebas/gate85-notificador.py (same script
+  for production): 'Leer secreto' returns address + id_photo_wamid; the verified message checks a cash recipient's phone,
+  address and ID photo; `avisoClienteApagado` (customer_notice_muted_for === status) silences the customer message of
+  ready_to_transfer and completed, replacing the 190 closed_manually rule; admin alerts untouched. Offline run of the
+  node, 8 cases: cash complete -> "En breve le hacemos la transferencia"; cash missing address/photo -> asks for them;
+  card missing phone unchanged; bell off -> nothing; manual close default -> nothing; manual close bell on -> "Listo";
+  stale mute on another status -> still notifies; incident alert with mute -> admin alert still sent.
+- A4 Cerebro (2026-10-03, staging U52y1kSNvhgxvWeb) via gate85-cerebro-nombre.py: tool registrar_datos_entrega_efectivo
+  passes `nombre` as p_name; the agent's tool line names it (optional, saved when given). Backups in ~/cerebro-fase1/pruebas.

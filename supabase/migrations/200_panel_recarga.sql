@@ -1,0 +1,369 @@
+-- =====================================================================
+-- 200 — Recharges in the Operations panel (staging first)
+--
+-- odd/tasks/panel-other-services.md (R1/R3).
+--   - crm_operaciones_de_conversacion lists service_type 'recarga' operations too (open and history).
+--   - crm_agregar_beneficiario: a recharge takes recharge numbers only (beneficiary_type 'recarga', one Cuban mobile
+--     per recharge, validated with cerebro_norm_celular_cu; no card, no amount), and a remesa none.
+--   - crm_cerrar_operacion_manual: the service picker's 'recarga' (Yosvany 54c25086: a remesa without beneficiary that
+--     was a recharge) turns the operation into a recharge (service_type) in the same UPDATE as the status, so the
+--     calculator feeds it as RECARGA (199).
+-- Same signatures (CREATE OR REPLACE; grants kept).
+--
+-- Guarded by supabase/staging/assertions/panel-recarga.sql.
+-- ROLLBACK: ROLLBACK-200-panel-recarga.sql
+-- =====================================================================
+CREATE OR REPLACE FUNCTION public.crm_operaciones_de_conversacion(p_conversation_id uuid)
+ RETURNS TABLE(resolver_resultado text, resolver_operation_id uuid, resolver_candidatas integer, operation_id uuid, operation_status text, operation_service_type text, operation_source_currency text, operation_destination_currency text, operation_delivery_method text, operation_deposit_method text, operation_quoted_source_amount numeric, operation_quoted_destination_amount numeric, operation_admin_locked_fields jsonb, operation_created_at timestamp with time zone, operation_completed_at timestamp with time zone, beneficiary_id uuid, beneficiary_type text, beneficiary_name text, beneficiary_card_number text, beneficiary_phone text, beneficiary_zelle_account text, beneficiary_delivery_method text, beneficiary_amount numeric, beneficiary_currency text, beneficiary_position integer, operation_quoted_destination_rate numeric, operation_quoted_destination_origin text, beneficiary_amount_origin text, operation_is_history boolean, operation_beneficiaries_complete boolean, operation_delivery_mode text, operation_delivered_at timestamp with time zone, beneficiary_address text, beneficiary_id_photo_wamid text, beneficiary_id_photo_url text)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_account_id            uuid;
+  v_resolver_resultado    text;
+  v_resolver_operation_id uuid;
+  v_resolver_candidatas   integer;
+BEGIN
+  IF p_conversation_id IS NULL THEN
+    RAISE EXCEPTION 'insufficient_privilege' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT c.account_id INTO v_account_id
+    FROM conversations c
+   WHERE c.id = p_conversation_id;
+
+  -- Same 42501 whether the conversation doesn't exist or belongs to an
+  -- account the caller isn't a member of — see 097's file header for why.
+  IF v_account_id IS NULL OR NOT is_account_member(v_account_id, 'viewer') THEN
+    RAISE EXCEPTION 'insufficient_privilege' USING ERRCODE = '42501';
+  END IF;
+
+  -- Inlined, NOT called by name — see 097's file header's "WHY THE
+  -- RESOLVER LOGIC IS INLINED" section. Unchanged by this migration: the
+  -- resolver only ever looks at live (non-terminal) operations, regardless
+  -- of the history rows the RETURN QUERY below now also surfaces.
+  SELECT count(*) INTO v_resolver_candidatas
+    FROM remittance_operations
+   WHERE conversation_id = p_conversation_id
+     AND status NOT IN ('completed', 'cancelled');
+
+  IF v_resolver_candidatas = 0 THEN
+    v_resolver_resultado := 'ninguna';
+    v_resolver_operation_id := NULL;
+  ELSIF v_resolver_candidatas = 1 THEN
+    v_resolver_resultado := 'unica';
+    SELECT o.id INTO v_resolver_operation_id
+      FROM remittance_operations o
+     WHERE o.conversation_id = p_conversation_id
+       AND o.status NOT IN ('completed', 'cancelled');
+  ELSE
+    v_resolver_resultado := 'ambigua';
+    v_resolver_operation_id := NULL;
+  END IF;
+
+  RETURN QUERY
+  WITH ops AS (
+    -- Current open (non-terminal) remesa operations — same set the RPC
+    -- has always returned.
+    SELECT o.*, false AS is_history
+      FROM remittance_operations o
+     WHERE o.conversation_id = p_conversation_id
+       AND o.status NOT IN ('completed', 'cancelled')
+       AND o.service_type IN ('remesa', 'recarga')  -- (200) recharges too
+    UNION ALL
+    -- The 10 most recently completed remesa operations of the same
+    -- conversation — read-only history. A completed operation can never
+    -- also match the branch above (status is exclusive), so UNION ALL
+    -- cannot duplicate a row.
+    SELECT h.*, true AS is_history
+      FROM (
+        SELECT o2.*
+          FROM remittance_operations o2
+         WHERE o2.conversation_id = p_conversation_id
+           AND o2.status = 'completed'
+           AND o2.service_type IN ('remesa', 'recarga')  -- (200)
+         ORDER BY o2.completed_at DESC
+         LIMIT 10
+      ) h
+  )
+  SELECT
+    r.resultado,
+    r.operation_id,
+    r.candidatas,
+    o.id,
+    o.status,
+    o.service_type,
+    o.source_currency,
+    o.destination_currency,
+    o.delivery_method,
+    o.deposit_method,
+    o.quoted_source_amount,
+    o.quoted_destination_amount,
+    o.admin_locked_fields,
+    o.created_at,
+    o.completed_at,
+    b.id,
+    b.beneficiary_type,
+    b.name,
+    b.card_number,
+    b.phone,
+    b.zelle_account,
+    b.delivery_method,
+    b.amount,
+    b.currency,
+    b.position,
+    o.quoted_destination_rate,
+    o.quoted_destination_origin,
+    b.amount_origin,
+    o.is_history,
+    CASE WHEN o.id IS NULL THEN NULL ELSE crm_beneficiarios_completos(o.id) END,
+    o.delivery_mode,
+    CASE WHEN o.is_history THEN o.completed_at ELSE NULL END,
+    -- (189) a cash recipient (150): address and the ID-card photo, with the URL of the message it came in.
+    b.address,
+    b.id_photo_wamid,
+    (SELECT m.media_url FROM messages m
+      WHERE b.id_photo_wamid IS NOT NULL AND m.message_id = b.id_photo_wamid
+        AND m.conversation_id = o.conversation_id
+      ORDER BY m.created_at DESC LIMIT 1)
+  -- A single synthetic one-row source (no FROM) rather than a set-returning
+  -- call, so the resolver values still surface even when zero operations
+  -- match below (the 'ninguna' case) — LEFT JOIN against zero rows on the
+  -- left would otherwise return zero rows overall, not one resolver-only row.
+  FROM (SELECT v_resolver_resultado AS resultado, v_resolver_operation_id AS operation_id, v_resolver_candidatas AS candidatas) r
+  LEFT JOIN ops o ON true
+  LEFT JOIN remittance_beneficiaries b
+         ON b.operation_id = o.id
+        AND b.status = 'vigente'
+  ORDER BY o.is_history ASC NULLS LAST, o.created_at DESC NULLS LAST, o.completed_at DESC NULLS LAST, b.position ASC NULLS LAST;
+END $function$;
+
+CREATE OR REPLACE FUNCTION public.crm_agregar_beneficiario(p_operation_id uuid, p_datos jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_account_id        uuid;
+  v_op_status          text;
+  v_service_type       text;
+  v_key                text;
+  v_new_id             uuid;
+  v_next_position      integer;
+  v_next_block_index   integer;
+
+  v_beneficiary_type   text;
+  v_name               text;
+  v_card_number        text;
+  v_phone              text;
+  v_zelle_account      text;
+  v_delivery_method    text;
+  v_amount             numeric;
+  v_currency           text;
+BEGIN
+  SELECT account_id, status, service_type
+    INTO v_account_id, v_op_status, v_service_type
+    FROM remittance_operations
+   WHERE id = p_operation_id
+   FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'operation not found' USING ERRCODE = 'P0002';
+  END IF;
+
+  IF NOT is_account_member(v_account_id, 'agent'::account_role_enum) THEN
+    RAISE EXCEPTION 'not authorized to add a beneficiary to this operation' USING ERRCODE = '42501';
+  END IF;
+
+  IF v_op_status IN ('completed', 'cancelled') THEN
+    RAISE EXCEPTION 'operation is closed' USING ERRCODE = '22023';
+  END IF;
+
+  IF v_service_type IS NULL OR v_service_type NOT IN ('remesa', 'recarga') THEN
+    RAISE EXCEPTION 'beneficiaries can only be added to remesa or recarga operations' USING ERRCODE = '22023';
+  END IF;
+
+  IF p_datos IS NULL OR jsonb_typeof(p_datos) <> 'object' THEN
+    RAISE EXCEPTION 'datos must be a JSON object' USING ERRCODE = '22023';
+  END IF;
+
+  -- Reject unknown keys up front, same posture as crm_corregir_beneficiario.
+  FOR v_key IN SELECT jsonb_object_keys(p_datos) LOOP
+    IF v_key NOT IN ('beneficiary_type', 'name', 'card_number', 'phone', 'zelle_account',
+                      'delivery_method', 'amount', 'currency') THEN
+      RAISE EXCEPTION 'unknown field: %', v_key USING ERRCODE = '22023';
+    END IF;
+  END LOOP;
+
+  v_beneficiary_type := p_datos ->> 'beneficiary_type';
+  IF v_beneficiary_type IS NULL
+     OR v_beneficiary_type NOT IN ('cuban_card', 'zelle', 'clasica', 'tropical', 'multiple_distribution', 'recarga') THEN
+    RAISE EXCEPTION 'invalid beneficiary_type: %', v_beneficiary_type USING ERRCODE = '22023';
+  END IF;
+
+  -- (200) A recharge takes recharge numbers only (one Cuban mobile per recharge), and a remesa none: no card, no
+  -- amount. Same lock and audit as below.
+  IF (v_service_type = 'recarga') <> (v_beneficiary_type = 'recarga') THEN
+    RAISE EXCEPTION 'a recharge takes recharge numbers only, and a remesa none' USING ERRCODE = '22023';
+  END IF;
+  IF v_beneficiary_type = 'recarga' THEN
+    v_phone := cerebro_norm_celular_cu(p_datos ->> 'phone');
+    IF coalesce(v_phone, '') !~ '^[0-9]{8}$' THEN
+      RAISE EXCEPTION 'phone must be a Cuban mobile number' USING ERRCODE = '22023';
+    END IF;
+    SELECT coalesce(max(position), 0) + 1 INTO v_next_position
+      FROM remittance_beneficiaries WHERE operation_id = p_operation_id AND status = 'vigente';
+    SELECT coalesce(max(block_index), 0) + 1 INTO v_next_block_index
+      FROM remittance_beneficiaries WHERE operation_id = p_operation_id;
+    INSERT INTO remittance_beneficiaries (operation_id, beneficiary_type, phone, position, status, source, block_index)
+    VALUES (p_operation_id, 'recarga', v_phone, v_next_position, 'vigente', 'admin_addition', v_next_block_index)
+    RETURNING id INTO v_new_id;
+    UPDATE remittance_operations
+       SET admin_locked_fields = admin_locked_fields ||
+           jsonb_build_object('beneficiaries', jsonb_build_object('by', wacrm_current_actor(), 'at', now()))
+     WHERE id = p_operation_id;
+    INSERT INTO remittance_admin_audit (account_id, table_name, row_id, field_name, action, actor, before, after)
+    VALUES (v_account_id, 'remittance_beneficiaries', v_new_id, 'beneficiary_type,phone',
+            'human_beneficiary_added', wacrm_current_actor(), NULL, p_datos);
+    RETURN jsonb_build_object('id', v_new_id, 'complete', crm_beneficiarios_completos(p_operation_id));
+  END IF;
+
+  -- amount and currency are required: unlike a correction, a newly added
+  -- beneficiary has no prior row to fall back on for its destination amount.
+  IF NOT (p_datos ? 'amount') OR p_datos ->> 'amount' IS NULL
+     OR (p_datos ->> 'amount')::numeric <= 0 THEN
+    RAISE EXCEPTION 'amount is required and must be greater than 0' USING ERRCODE = '22023';
+  END IF;
+  v_amount := (p_datos ->> 'amount')::numeric;
+
+  IF NOT (p_datos ? 'currency') OR p_datos ->> 'currency' IS NULL
+     OR p_datos ->> 'currency' !~ '^[A-Z]{3}$' THEN
+    RAISE EXCEPTION 'currency is required and must be a 3-letter uppercase code' USING ERRCODE = '22023';
+  END IF;
+  v_currency := p_datos ->> 'currency';
+
+  v_delivery_method := p_datos ->> 'delivery_method';
+  IF p_datos ? 'delivery_method' AND btrim(coalesce(v_delivery_method, '')) = '' THEN
+    RAISE EXCEPTION 'delivery_method must not be empty' USING ERRCODE = '22023';
+  END IF;
+
+  IF v_beneficiary_type = 'zelle' THEN
+    v_name := p_datos ->> 'name';
+    v_zelle_account := p_datos ->> 'zelle_account';
+    IF btrim(coalesce(v_name, '')) = '' THEN
+      RAISE EXCEPTION 'name is required for a zelle beneficiary' USING ERRCODE = '22023';
+    END IF;
+    IF btrim(coalesce(v_zelle_account, '')) = '' THEN
+      RAISE EXCEPTION 'zelle_account is required for a zelle beneficiary' USING ERRCODE = '22023';
+    END IF;
+    v_card_number := NULL;
+    v_phone := NULL;
+  ELSE
+    v_card_number := p_datos ->> 'card_number';
+    v_phone := p_datos ->> 'phone';
+    IF v_card_number IS NULL OR v_card_number !~ '^[0-9]{16}$' THEN
+      RAISE EXCEPTION 'card_number must be exactly 16 digits' USING ERRCODE = '22023';
+    END IF;
+    -- (190) The phone is optional: the owner records a card the customer gave without its phone, and closes the
+    -- remesa manually (crm_cerrar_operacion_manual). A given phone is still validated; the remesa stays incomplete
+    -- (crm_beneficiarios_completos) so a normal delivery still needs it.
+    v_phone := nullif(btrim(coalesce(v_phone, '')), '');
+    IF v_phone IS NOT NULL AND v_phone !~ '^[0-9]{8,15}$' THEN
+      RAISE EXCEPTION 'phone must be 8 to 15 digits' USING ERRCODE = '22023';
+    END IF;
+    v_name := p_datos ->> 'name';
+    v_zelle_account := NULL;
+  END IF;
+
+  SELECT coalesce(max(position), 0) + 1 INTO v_next_position
+    FROM remittance_beneficiaries WHERE operation_id = p_operation_id AND status = 'vigente';
+
+  SELECT coalesce(max(block_index), 0) + 1 INTO v_next_block_index
+    FROM remittance_beneficiaries WHERE operation_id = p_operation_id;
+
+  INSERT INTO remittance_beneficiaries (
+    operation_id, beneficiary_type, name, card_number, phone, zelle_account,
+    delivery_method, amount, currency, position, status, source, block_index
+  ) VALUES (
+    p_operation_id, v_beneficiary_type, v_name, v_card_number, v_phone, v_zelle_account,
+    v_delivery_method, v_amount, v_currency, v_next_position, 'vigente', 'admin_addition', v_next_block_index
+  ) RETURNING id INTO v_new_id;
+
+  -- Lock beneficiaries on this operation so automation cannot overwrite or
+  -- delete the row a human just added — same lock crm_corregir_beneficiario
+  -- and crm_reasignar_beneficiario place (098), honored by
+  -- cerebro_sync_beneficiarios' early return (also 098).
+  UPDATE remittance_operations
+     SET admin_locked_fields = admin_locked_fields ||
+         jsonb_build_object('beneficiaries', jsonb_build_object('by', wacrm_current_actor(), 'at', now()))
+   WHERE id = p_operation_id;
+
+  INSERT INTO remittance_admin_audit (account_id, table_name, row_id, field_name, action, actor, before, after)
+  VALUES (v_account_id, 'remittance_beneficiaries', v_new_id, 'beneficiary_type,name,card_number,phone,zelle_account,delivery_method,amount,currency',
+          'human_beneficiary_added', wacrm_current_actor(), NULL, p_datos);
+
+  RETURN jsonb_build_object(
+    'id', v_new_id,
+    'complete', crm_beneficiarios_completos(p_operation_id)
+  );
+END $function$;
+
+CREATE OR REPLACE FUNCTION public.crm_cerrar_operacion_manual(p_operation_id uuid, p_motivo text DEFAULT NULL, p_notify boolean DEFAULT false, p_delivery_method text DEFAULT NULL)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_account_id    uuid;
+  v_status_before text;
+  v_completed_at  timestamptz;
+  v_motivo        text := coalesce(nullif(btrim(p_motivo), ''), 'Closed manually from the panel');
+BEGIN
+  SELECT account_id, status INTO v_account_id, v_status_before
+    FROM remittance_operations WHERE id = p_operation_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'operation not found' USING ERRCODE = 'P0002';
+  END IF;
+  IF NOT is_account_member(v_account_id, 'admin'::account_role_enum) THEN
+    RAISE EXCEPTION 'only an owner or admin can close an operation manually' USING ERRCODE = '42501';
+  END IF;
+  -- (191) No typed reason any more: the fixed note above is audited unless one is given.
+  IF length(v_motivo) > 500 THEN
+    RAISE EXCEPTION 'the reason must be at most 500 characters' USING ERRCODE = '22023';
+  END IF;
+  -- (196) The service chosen in the panel when the remesa has no beneficiary, so the calculator can price it.
+  IF p_delivery_method IS NOT NULL THEN
+    IF p_delivery_method NOT IN ('cuban_card', 'zelle', 'clasica', 'tropical', 'efectivo_usd', 'recarga') THEN
+      RAISE EXCEPTION 'unknown service: %', p_delivery_method USING ERRCODE = '22023';
+    END IF;
+    IF EXISTS (SELECT 1 FROM remittance_beneficiaries b WHERE b.operation_id = p_operation_id AND b.status = 'vigente') THEN
+      RAISE EXCEPTION 'this remesa already has a beneficiary: its service comes from it' USING ERRCODE = '22023';
+    END IF;
+  END IF;
+  IF v_status_before NOT IN ('ready_to_transfer', 'transferring') THEN
+    RAISE EXCEPTION 'only a verified operation can be closed manually (status %)', v_status_before USING ERRCODE = '22023';
+  END IF;
+
+  -- One statement, like crm_entregar_operacion: completed_at (040) and the calculator feed read this row image.
+  UPDATE remittance_operations
+     SET status = 'completed', delivery_mode = 'closed_manually', delivered_by = auth.uid(),
+         -- (196) In the same UPDATE, so the calculator feed (AFTER UPDATE OF status) sees the service.
+         -- (200) 'recarga' is a kind of operation, not a delivery method: it sets service_type.
+         delivery_method = CASE WHEN p_delivery_method = 'recarga' THEN delivery_method ELSE coalesce(p_delivery_method, delivery_method) END,
+         service_type = CASE WHEN p_delivery_method = 'recarga' THEN 'recarga' ELSE service_type END,
+         -- (191) Silent by default (p_notify false); the bell on the panel can turn the notice on.
+         customer_notice_muted_for = CASE WHEN p_notify THEN NULL ELSE 'completed' END
+   WHERE id = p_operation_id
+  RETURNING completed_at INTO v_completed_at;
+
+  INSERT INTO remittance_admin_audit (account_id, table_name, row_id, field_name, action, actor, reason, before, after)
+  VALUES (v_account_id, 'remittance_operations', p_operation_id, 'status', 'human_manual_close', wacrm_current_actor(),
+          v_motivo, jsonb_build_object('status', v_status_before),
+          jsonb_build_object('status', 'completed', 'delivery_mode', 'closed_manually', 'notify', p_notify)
+            || CASE WHEN p_delivery_method IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('delivery_method', p_delivery_method) END);
+
+  RETURN jsonb_build_object('new_status', 'completed', 'completed_at', v_completed_at);
+END $function$;

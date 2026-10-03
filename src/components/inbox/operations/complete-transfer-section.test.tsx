@@ -90,3 +90,23 @@ describe("CompleteTransferSection has no explanatory helper text", () => {
     }
   });
 });
+
+describe("CompleteTransferSection confirms with icons (owner, 2026-10-03)", () => {
+  it("renders an X cancel and a check confirm icon button, labelled but without visible text", async () => {
+    const onCancel = vi.fn();
+    const onSubmit = vi.fn();
+    const { node, root } = await render({ onCancel, onSubmit });
+
+    const cancel = node.querySelector<HTMLButtonElement>('button[aria-label="Cancel"]');
+    const confirm = node.querySelector<HTMLButtonElement>(`button[aria-label="${en.Inbox.operationsPanel.completeTransfer.complete}"]`);
+    expect(cancel).not.toBeNull();
+    expect(confirm).not.toBeNull();
+    expect(cancel!.textContent).toBe("");
+    expect(confirm!.textContent).toBe("");
+    await act(async () => cancel!.click());
+    await act(async () => confirm!.click());
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    await act(async () => root.unmount());
+  });
+});

@@ -9,6 +9,7 @@
 
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
+import { Check, X } from "lucide-react";
 import { NotifyToggle } from "./notify-toggle";
 import { DeliveryProofPanel } from "@/components/pipelines/delivery-proof";
 import { PROOF_MAX_BYTES, type ProofImageKind, type ProofRejection } from "@/lib/pipelines/delivery-proof";
@@ -135,11 +136,27 @@ export function CompleteTransferSection({
 
       <div className="flex items-center justify-end gap-2">
         {onNotifyChange && <NotifyToggle notify={notify} onChange={onNotifyChange} disabled={locked} />}
-        <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={busy}>
-          {tCommon("cancel")}
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          aria-label={tCommon("cancel")}
+          title={tCommon("cancel")}
+          onClick={onCancel}
+          disabled={busy}
+        >
+          <X aria-hidden="true" />
         </Button>
-        <Button type="button" size="sm" onClick={onSubmit} disabled={locked}>
-          {submitLabel}
+        <Button
+          type="button"
+          size="icon-sm"
+          aria-label={submitLabel}
+          title={submitLabel}
+          className="bg-green-600 text-white hover:bg-green-700"
+          onClick={onSubmit}
+          disabled={locked}
+        >
+          <Check aria-hidden="true" />
         </Button>
       </div>
 

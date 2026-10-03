@@ -107,7 +107,7 @@ describe("CompleteTransferMultiSection", () => {
     const { node, root } = await render({ canSubmit: false });
 
     const submit = Array.from(node.querySelectorAll("button")).find(
-      (b) => b.textContent?.trim() === T.sendAndComplete || b.textContent?.trim() === T.complete,
+      (b) => (b.textContent?.trim() || b.getAttribute("aria-label")) === T.sendAndComplete || (b.textContent?.trim() || b.getAttribute("aria-label")) === T.complete,
     ) as HTMLButtonElement;
     expect(submit.disabled).toBe(true);
     await act(async () => root.unmount());
@@ -118,7 +118,7 @@ describe("CompleteTransferMultiSection", () => {
     const { node, root } = await render({ onSubmit, canSubmit: true });
 
     const submit = Array.from(node.querySelectorAll("button")).find(
-      (b) => b.textContent?.trim() === T.sendAndComplete || b.textContent?.trim() === T.complete,
+      (b) => (b.textContent?.trim() || b.getAttribute("aria-label")) === T.sendAndComplete || (b.textContent?.trim() || b.getAttribute("aria-label")) === T.complete,
     ) as HTMLButtonElement;
     await act(async () => submit.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 
@@ -133,7 +133,7 @@ describe("CompleteTransferMultiSection", () => {
     });
 
     expect(node.textContent).toContain("Could not send");
-    const retry = Array.from(node.querySelectorAll("button")).find((b) => b.textContent?.trim() === T.retry) as HTMLButtonElement;
+    const retry = Array.from(node.querySelectorAll("button")).find((b) => (b.textContent?.trim() || b.getAttribute("aria-label")) === T.retry) as HTMLButtonElement;
     await act(async () => retry.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     expect(onClick).toHaveBeenCalledTimes(1);
     await act(async () => root.unmount());

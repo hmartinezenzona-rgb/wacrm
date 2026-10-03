@@ -153,12 +153,12 @@ function flush() {
 
 function submitButton(node: Element): HTMLButtonElement {
   return Array.from(node.querySelectorAll("button")).find(
-    (b) => b.textContent?.trim() === T.complete || b.textContent?.trim() === T.sendAndComplete,
+    (b) => (b.textContent?.trim() || b.getAttribute("aria-label")) === T.complete || (b.textContent?.trim() || b.getAttribute("aria-label")) === T.sendAndComplete,
   ) as HTMLButtonElement;
 }
 
 function actionButton(node: Element, label: string): HTMLButtonElement | undefined {
-  return Array.from(node.querySelectorAll("button")).find((b) => b.textContent?.trim() === label) as
+  return Array.from(node.querySelectorAll("button")).find((b) => (b.textContent?.trim() || b.getAttribute("aria-label")) === label) as
     | HTMLButtonElement
     | undefined;
 }

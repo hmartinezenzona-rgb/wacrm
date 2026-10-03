@@ -83,7 +83,7 @@ silent mode. Cash delivery must be reviewed carefully before building it.
       'Registrar carnet efectivo' stores the FIRST "otro" image during an open cash delivery. Proposed: a vision case
       for an ID card (with name and ID number), store only that case, and repoint Bruce's photo to his 14:26 image.
       Awaiting the owner's yes
-- [ ] A8 (owner, 2026-10-03: accepted) "Close manually" on a remesa with no beneficiary shows service icons (CUP, Zelle,
+- [x] A8 (owner, 2026-10-03: accepted) "Close manually" on a remesa with no beneficiary shows service icons (CUP, Zelle,
       Clasica, Tropical, Efectivo — and Recarga once odd/tasks/panel-other-services.md lands) before the check; the
       choice sets the delivery method so the calculator can price it. With a beneficiary nothing changes.
       Origin: a manual close with no beneficiary and no delivery method never reaches the calculator (production, 2026-10-03:
@@ -391,3 +391,10 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   CUP icon and the bell off -> delivery_method cuban_card, completed / closed_manually, muted (no message), audit
   {"delivery_method":"cuban_card","notify":false}, calculator CUP 18,600 CUP, facturado 6,200, invertido 4,578.46,
   retorno 1,621.54. A8 PASSED on staging. Pending: production (196 + app) with go-ahead.
+- A8 PRODUCTION (2026-10-03 ~19:25 UTC, owner go-ahead): crm_cerrar_operacion_manual md5 production = staging pre-196
+  (5c8dfbf7); backup produccion-20261003T192159Z.dump; gate92-aplicar-db.py ensayo "cerrar=... p_delivery_method text"
+  rolled back, aplicar {"r":"ok"}, 196 registered; manual-close-service, panel-closing-actions,
+  panel-notify-and-cash-name ALL PASS; helper dropped, 0 fixture contacts. App e59bc30 (app code = d93815b) built with
+  the production env (32 prod / 0 staging refs, 114 money-path tests, sha256 OK), deployed: BUILD_ID
+  Ic9uCXHPhXz5eL8970NwW, anterior 9c85723, /login 200, online. privado/master -> e59bc30 (first push failed
+  transiently; the retry went through). Cash plan items P1, P2, A8 DONE. Next: odd/tasks/vision-document-catalog.md.

@@ -42,6 +42,9 @@ silent mode. Cash delivery must be reviewed carefully before building it.
 - [x] B+D-2 Staging notifier skips delivery_mode closed_manually
 - [x] B+D-3 App: trash icon, "Close manually", optional phone in the add form — 96884d3
 - [ ] B+D-4 Staging deploy + owner check, then production (190 + notifier + app) with go-ahead
+- [ ] A4 Cash recipient's NAME is stored and shown (owner, 2026-10-03): the bot repeats it ("*Nombre:* Anabel Frenes
+      Vera") but remittance_beneficiaries.name stays NULL (staging op 4a044782; production Bruce 972718ea also lost
+      name, phone and address); the panel shows it for a cash recipient
 - [ ] C resent receipt guard
 
 ## Progress / evidence
@@ -103,3 +106,7 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   - Side finding (staging only): the incident alert at 01:40:31 failed ('to' must be E.164) because the staging
     contact tagged `admin` was the test number, and reset-test-contact deletes it with its tags. Production has 3 admin
     contacts with valid phones. Not changed.
+- A owner check on staging (2026-10-03 01:54-01:57 UTC, test number): bot quoted 100 USD = 29,000 GYD (rate 290);
+  automation_cash_delivery_data_registered stored phone 53904458 + address, then the ID photo -> complete; panel row
+  carries phone, address and photo URL; crm_cotizacion_de_conversacion = 29,000 GYD -> 100 USD. The name was NOT
+  stored (-> A4). No deposit was sent, so the operation amount (and "100 USD cash") is still empty, as designed.

@@ -70,3 +70,7 @@ live staging test for n8n changes.
     cost is missing the line is "pending" with that missing input, as the calculator already does for missing rates.
   - Several recharges in one deposit are normally DIFFERENT numbers, one per recharge (owner, 2026-10-03): the bot
     collects one Cuban number per recharge; the panel lists each number with its recharge.
+  - Normally ONE promotion at a time (owner, 2026-10-03). Proposed: the current promotion (500 or 600 CUP, i.e. its
+    price) is set in ONE place (the calculator rates, next to the cost); the bot quotes from it and counts recharges as
+    deposit / price (12,400 at 6,200 -> 2 recharges, 2 numbers); with no promotion set the bot says there are no
+    recharges now.

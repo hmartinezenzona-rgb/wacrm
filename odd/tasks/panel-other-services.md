@@ -132,3 +132,14 @@ live staging test for n8n changes.
   editing). Assertion recarga-numbers.sql (5 cases; the lock fixture is set as an admin — an automation write to the
   lock is suppressed by the guard) RED -> GREEN; cash-phone-not-a-card, partial-beneficiary-tools/-auto,
   deal-free-money-rules, deposit-path-without-deals, recharge and cross assertions ALL PASS.
+- R4 notifier (2026-10-03, staging) via ~/cerebro-fase1/pruebas/gate94-notificador-recarga.py (after gate85/85b; first
+  run restored from its backup and re-run to also say "Para poder hacer la recarga"): a recharge's verified line says
+  "su recarga", a 'recarga' row is complete with its number, no rows asks for "el numero a recargar", completed says
+  "Listo, su recarga ya fue realizada" (the Meta template fallback outside 24 h still says "remesa"). Offline run: 12
+  cases, remesa/cash lines unchanged.
+- R2 Cerebro (2026-10-03, staging) via gate95-cerebro-recarga.py: tool registrar_numeros_recarga (copy of the cash tool,
+  same credential, wired as ai_tool) -> crm_registrar_numeros_recarga; one line in the agent's tool list (both copies of
+  its instructions). Agent expressions parse.
+- Staging test setup: a confirmed test promotion (600 CUP, today .. +3 days, huella staging-test-20261003) so the bot
+  quotes recharges; the recharge cost left empty for the owner to set in the Calculator. App a43d66b deployed (BUILD_ID
+  ilElZx0jGdwEuoxBNkqev, anterior d93815b; staging checks as usual). Test number reset.

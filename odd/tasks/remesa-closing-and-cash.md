@@ -65,6 +65,9 @@ silent mode. Cash delivery must be reviewed carefully before building it.
       title, full text as tooltip and aria-label (owner, 2026-10-03: heavy, takes room) — 4b3a2b5. It already
       disappears by itself with one or no open remesa (it shows only for the resolver's `ambigua`, any status; the
       owner's test chat had 4 ready_to_transfer, no incident tag). RED 2 -> GREEN; suite 1763; tsc, eslint clean
+- [x] E8 Badge removed altogether and the panel titled "Operations" (owner, 2026-10-03: the badge crowded the title;
+      the cards and their statuses already show it) — fdeffae; ResolverStateBanner and its keys deleted. RED 1 ->
+      GREEN; suite 1761; tsc, eslint clean
 - [ ] A6 Cash in the calculator: calculator_service_for_operation maps cuban_card/multiple_distribution -> CUP,
       zelle, clasica, tropical and NOTHING for efectivo_usd, so a completed cash remesa never reaches the calculator
       (staging 4a044782 closed 02:16 has no entry; production Bruce 972718ea would not either). Needs the owner's

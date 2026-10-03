@@ -21,7 +21,7 @@ import {
 import { mapRateVersion, type RateVersionRow } from "@/lib/calculator/ledger-read-model";
 
 const RATE_VERSION_COLUMNS =
-  "id, account_id, cup_global_rate, usdt_buy_gyd, usdt_sell_gyd, usdt_sell_cup, efectivo_usd_gyd, set_by, effective_at";
+  "id, account_id, cup_global_rate, usdt_buy_gyd, usdt_sell_gyd, usdt_sell_cup, efectivo_usd_gyd, recarga_costo_usdt, set_by, effective_at";
 
 /** The only keys `crm_set_calculator_rates`'s `p_rates` jsonb argument
  * accepts. Mirrors the RPC contract exactly -- an unknown key is rejected
@@ -32,6 +32,7 @@ const RATE_KEYS = [
   "usdt_sell_gyd",
   "usdt_sell_cup",
   "efectivo_usd_gyd",
+  "recarga_costo_usdt",
 ] as const;
 
 function isRateKey(key: string): key is (typeof RATE_KEYS)[number] {

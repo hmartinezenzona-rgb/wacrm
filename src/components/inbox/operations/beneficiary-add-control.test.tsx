@@ -48,18 +48,61 @@ function submit(node: HTMLElement) {
   });
 }
 
-async function render(onDone = vi.fn(), onCancel = vi.fn()) {
+async function render(onDone = vi.fn(), onCancel = vi.fn(), serviceType?: string) {
   const { BeneficiaryAddControl } = await import("./beneficiary-add-control");
   const node = document.createElement("div");
   document.body.appendChild(node);
   const root = createRoot(node);
   await act(async () =>
-    root.render(<BeneficiaryAddControl operationId="op-1" onDone={onDone} onCancel={onCancel} />),
+    root.render(<BeneficiaryAddControl operationId="op-1" serviceType={serviceType} onDone={onDone} onCancel={onCancel} />),
   );
   return { node, root, onDone, onCancel };
 }
 
+describe("BeneficiaryAddControl on a recharge", () => {
+  it("offers only a phone field: no type select, card, amount or currency", async () => {
+    const { node, root } = await render(vi.fn(), vi.fn(), "recarga");
+
+    expect(node.querySelector("select")).toBeNull();
+    expect(node.querySelector("#add-beneficiary-phone")).not.toBeNull();
+    expect(node.querySelector("#add-beneficiary-card-number")).toBeNull();
+    expect(node.querySelector("#add-beneficiary-amount")).toBeNull();
+    expect(node.querySelector("#add-beneficiary-currency")).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("sends {beneficiary_type: recarga, phone} for a Cuban mobile", async () => {
+    agregarBeneficiario.mockResolvedValue({ ok: true, id: "ben-9", complete: true });
+    const { node, root, onDone } = await render(vi.fn(), vi.fn(), "recarga");
+
+    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-phone")!, "52345678"));
+    await submit(node);
+
+    expect(agregarBeneficiario).toHaveBeenCalledWith("op-1", { beneficiary_type: "recarga", phone: "52345678" });
+    expect(onDone).toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
+
+  it.each(["12345678", "5234567", "523456789", ""])("rejects %j (8 digits starting 5 or 6)", async (value) => {
+    const { node, root } = await render(vi.fn(), vi.fn(), "recarga");
+
+    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-phone")!, value));
+    await submit(node);
+
+    expect(node.textContent).toContain(en.Inbox.operationsPanel.invalidRechargePhone);
+    expect(agregarBeneficiario).not.toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
+});
+
 describe("BeneficiaryAddControl", () => {
+  it("on a remesa never offers recarga", async () => {
+    const { node, root } = await render(vi.fn(), vi.fn(), "remesa");
+    const values = Array.from(node.querySelectorAll("option")).map((o) => o.getAttribute("value"));
+    expect(values).not.toContain("recarga");
+    await act(async () => root.unmount());
+  });
+
   it("defaults to the cuban_card fields (card number + phone)", async () => {
     const { node, root } = await render();
 

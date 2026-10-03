@@ -2,7 +2,7 @@
 
 import { useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowRightLeft, AtSign, Banknote, ChevronDown, CreditCard, IdCard, Lock, MapPin, Pencil, Phone, Trash2, UserPlus, UserRound, Users } from "lucide-react";
+import { ArrowRightLeft, AtSign, Banknote, ChevronDown, CreditCard, IdCard, Lock, MapPin, Pencil, Phone, Smartphone, Trash2, UserPlus, UserRound, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { canForceVerify, type AccountRole } from "@/lib/auth/roles";
 import { corregirBeneficiario } from "@/lib/remittance-operations/commands";
@@ -27,6 +27,7 @@ import { KNOWN_BENEFICIARY_TYPES, MethodIcon, StatusChip } from "./operation-ico
 
 const CARD_NUMBER_PATTERN = /^\d{16}$/;
 const PHONE_PATTERN = /^\d{8,15}$/;
+const RECHARGE_PHONE_PATTERN = /^[56]\d{7}$/;
 
 interface ReassignTarget {
   id: string;
@@ -132,6 +133,7 @@ function knownMethodLabel(method: string, t: (key: string) => string): string {
  *  shown anywhere in the header. */
 function destinationLabel(operation: RemittanceOperationRead, t: (key: string) => string): string | null {
   const { deliveryMethod, destinationCurrency, beneficiaries } = operation;
+  if (isRecharge(operation)) return t("beneficiaryType.recarga");
 
   const units = new Set(
     beneficiaries
@@ -183,10 +185,21 @@ function unitLabel(
   return currency;
 }
 
+function isRecharge(operation: RemittanceOperationRead): boolean {
+  return operation.serviceType === "recarga";
+}
+
 function computeSummaryAmount(
   operation: RemittanceOperationRead,
-  t: (key: string) => string,
+  t: (key: string, params?: Record<string, unknown>) => string,
 ): SummaryAmount | null {
+  // A recharge is counted, not priced here: one number per recharge.
+  if (isRecharge(operation)) {
+    const count = operation.beneficiaries.filter((b) => b.beneficiaryType === "recarga").length;
+    if (count === 0) return null;
+    return { kind: "amount", display: t(count === 1 ? "rechargeCountOne" : "rechargeCountMany", { count }) };
+  }
+
   if (operation.beneficiaries.length === 1) {
     const beneficiary = operation.beneficiaries[0]!;
     const amount = resolveBeneficiaryAmount(beneficiary, operation);
@@ -315,7 +328,7 @@ export function RemittanceOperationCard({
     isManager && !operation.isHistory && MANUALLY_CLOSABLE_STATUSES.includes(operation.status);
 
   const showCompleteTransfer = status === "ready_to_transfer" && editable;
-  const summaryAmount = computeSummaryAmount(operation, t as (key: string) => string);
+  const summaryAmount = computeSummaryAmount(operation, t as (key: string, params?: Record<string, unknown>) => string);
 
   const beneficiaryActions = (
     beneficiary: RemittanceOperationRead["beneficiaries"][number],
@@ -370,6 +383,7 @@ export function RemittanceOperationCard({
                   →
                 </span>
                 <span className="inline-flex items-center gap-1">
+                  {isRecharge(operation) && <Smartphone className="size-3.5 shrink-0" aria-hidden="true" />}
                   {destLabel}
                   {destLocked && lock}
                 </span>
@@ -428,7 +442,7 @@ export function RemittanceOperationCard({
         )}
       </div>
 
-      {quote && !operation.isHistory && (
+      {quote && !operation.isHistory && !isRecharge(operation) && (
         <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">
           {quote.destinationAmount !== null && quote.destinationCurrency !== null
             ? t("quotedTo", {
@@ -502,6 +516,7 @@ export function RemittanceOperationCard({
               <div className="mt-1.5">
                 <BeneficiaryAddControl
                   operationId={operation.id}
+                  serviceType={operation.serviceType}
                   onDone={handleChanged}
                   onCancel={() => setOpenForm(null)}
                 />
@@ -514,6 +529,7 @@ export function RemittanceOperationCard({
                 {operation.beneficiaries.map((beneficiary) => {
                   const isZelle = beneficiary.beneficiaryType === "zelle";
                   const isCash = beneficiary.beneficiaryType === "efectivo_usd";
+                  const isRecarga = beneficiary.beneficiaryType === "recarga";
                   const amount = resolveBeneficiaryAmount(beneficiary, operation);
                   const currencyLabel = unitLabel(
                     beneficiary.beneficiaryType,
@@ -539,14 +555,14 @@ export function RemittanceOperationCard({
                         <BeneficiaryEditFields
                           beneficiary={beneficiary}
                           amount={amount}
-                          showAmountField={operation.beneficiaries.length >= 2 && amount !== null}
+                          showAmountField={operation.beneficiaries.length >= 2 && amount !== null && !isRecharge(operation)}
                           t={t as (key: string) => string}
                           onCancel={() => setOpenForm(null)}
                           onSaved={handleChanged}
                         />
                       ) : (
                         <div className="space-y-1.5">
-                          {operation.beneficiaries.length >= 2 && amount !== null && (
+                          {operation.beneficiaries.length >= 2 && amount !== null && !isRecharge(operation) && (
                             <div className="flex items-center gap-2 text-sm leading-5">
                               <span className="flex w-4 shrink-0 items-center justify-center">
                                 <Banknote className="size-3.5 text-muted-foreground" aria-hidden="true" />
@@ -591,7 +607,7 @@ export function RemittanceOperationCard({
                               {t("beneficiaryType.efectivo_usd")}
                             </p>
                           )}
-                          {!isZelle && !isCash && beneficiary.cardNumber && (
+                          {!isZelle && !isCash && !isRecarga && beneficiary.cardNumber && (
                             <CopyChip
                               value={beneficiary.cardNumber}
                               display={formatCardNumber(beneficiary.cardNumber)}
@@ -723,6 +739,7 @@ interface BeneficiaryEditFieldsProps {
  */
 function BeneficiaryEditFields({ beneficiary, amount, showAmountField, t, onCancel, onSaved }: BeneficiaryEditFieldsProps) {
   const isZelle = beneficiary.beneficiaryType === "zelle";
+  const isRecarga = beneficiary.beneficiaryType === "recarga";
   const initialName = beneficiary.name ?? "";
   const initialZelleAccount = beneficiary.zelleAccount ?? "";
   const initialCardDigits = (beneficiary.cardNumber ?? "").replace(/\D/g, "");
@@ -760,7 +777,7 @@ function BeneficiaryEditFields({ beneficiary, amount, showAmountField, t, onCanc
         if (trimmedZelleAccount !== "") changes.zelle_account = trimmedZelleAccount;
       }
     } else {
-      const digitsCard = cardNumber.replace(/\D/g, "");
+      const digitsCard = isRecarga ? initialCardDigits : cardNumber.replace(/\D/g, "");
       if (digitsCard !== initialCardDigits) {
         if (digitsCard === "" && initialCardDigits !== "") {
           setError(t("cannotBeEmpty"));
@@ -782,8 +799,8 @@ function BeneficiaryEditFields({ beneficiary, amount, showAmountField, t, onCanc
           return;
         }
         if (digitsPhone !== "") {
-          if (!PHONE_PATTERN.test(digitsPhone)) {
-            setError(t("invalidPhone"));
+          if (isRecarga ? !RECHARGE_PHONE_PATTERN.test(digitsPhone) : !PHONE_PATTERN.test(digitsPhone)) {
+            setError(t(isRecarga ? "invalidRechargePhone" : "invalidPhone"));
             return;
           }
           changes.phone = digitsPhone;
@@ -872,6 +889,7 @@ function BeneficiaryEditFields({ beneficiary, amount, showAmountField, t, onCanc
         </>
       ) : (
         <>
+          {!isRecarga && (
           <InlineEditField
             id={`inline-card-${beneficiary.id}`}
             icon={<CreditCard className="size-3.5" aria-hidden="true" />}
@@ -883,6 +901,7 @@ function BeneficiaryEditFields({ beneficiary, amount, showAmountField, t, onCanc
             inputMode="numeric"
             autoFocus={!showAmountField}
           />
+          )}
           <InlineEditField
             id={`inline-phone-${beneficiary.id}`}
             icon={<Phone className="size-3.5" aria-hidden="true" />}

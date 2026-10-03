@@ -9,6 +9,8 @@ import { agregarBeneficiario } from "@/lib/remittance-operations/commands";
 
 interface BeneficiaryAddControlProps {
   operationId: string;
+  /** `recarga` turns the form into a single Cuban-mobile-number field. */
+  serviceType?: string;
   onDone: () => void;
   onCancel: () => void;
 }
@@ -16,6 +18,7 @@ interface BeneficiaryAddControlProps {
 const CARD_NUMBER_PATTERN = /^\d{16}$/;
 const PHONE_PATTERN = /^\d{8,15}$/;
 const CURRENCY_PATTERN = /^[A-Z]{3}$/;
+const RECHARGE_PHONE_PATTERN = /^[56]\d{7}$/;
 
 /** Types offered by this control. `multiple_distribution` (reparto) is
  *  deliberately excluded — splitting one payment across several
@@ -30,7 +33,7 @@ const ADDABLE_BENEFICIARY_TYPES: ReadonlyArray<string> = ["cuban_card", "zelle",
  * `datos` contract exactly (snake_case keys, amount as a number). Sends
  * only the fields the selected type needs.
  */
-export function BeneficiaryAddControl({ operationId, onDone, onCancel }: BeneficiaryAddControlProps) {
+export function BeneficiaryAddControl({ operationId, serviceType, onDone, onCancel }: BeneficiaryAddControlProps) {
   const t = useTranslations("Inbox.operationsPanel");
 
   const [beneficiaryType, setBeneficiaryType] = useState("cuban_card");
@@ -44,10 +47,28 @@ export function BeneficiaryAddControl({ operationId, onDone, onCancel }: Benefic
   const [error, setError] = useState<string | null>(null);
 
   const isZelle = beneficiaryType === "zelle";
+  const isRecharge = serviceType === "recarga";
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
+
+    if (isRecharge) {
+      const digits = phone.replace(/\D/g, "");
+      if (!RECHARGE_PHONE_PATTERN.test(digits)) {
+        setError(t("invalidRechargePhone"));
+        return;
+      }
+      setPending(true);
+      const result = await agregarBeneficiario(operationId, { beneficiary_type: "recarga", phone: digits });
+      setPending(false);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      onDone();
+      return;
+    }
 
     const datos: Record<string, unknown> = { beneficiary_type: beneficiaryType };
 
@@ -100,6 +121,33 @@ export function BeneficiaryAddControl({ operationId, onDone, onCancel }: Benefic
     }
 
     onDone();
+  }
+
+  if (isRecharge) {
+    return (
+      <form onSubmit={handleSubmit} className="space-y-2 rounded-md border border-border bg-muted/40 p-2">
+        <div className="space-y-1">
+          <Label htmlFor="add-beneficiary-phone">{t("phone")}</Label>
+          <Input
+            id="add-beneficiary-phone"
+            inputMode="numeric"
+            value={phone}
+            onChange={(event) => setPhone(event.target.value)}
+          />
+        </div>
+
+        {error && <p className="text-xs text-destructive">{error}</p>}
+
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={onCancel} disabled={pending}>
+            {t("cancel")}
+          </Button>
+          <Button type="submit" size="sm" disabled={pending}>
+            {pending ? t("adding") : t("add")}
+          </Button>
+        </div>
+      </form>
+    );
   }
 
   return (

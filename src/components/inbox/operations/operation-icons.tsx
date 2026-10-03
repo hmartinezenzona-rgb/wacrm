@@ -98,4 +98,5 @@ export const KNOWN_BENEFICIARY_TYPES: ReadonlyArray<string> = [
   "tropical",
   "efectivo_usd",
   "multiple_distribution",
+  "recarga",
 ];

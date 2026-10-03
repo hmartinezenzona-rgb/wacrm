@@ -64,6 +64,7 @@ export default function CalculadoraPage() {
   const [ventaUsdtGyd, setVentaUsdtGyd] = useState("");
   const [ventaUsdtCup, setVentaUsdtCup] = useState("");
   const [efectivoUsdGyd, setEfectivoUsdGyd] = useState("");
+  const [recargaCostoUsdt, setRecargaCostoUsdt] = useState("");
   const [rateVersionId, setRateVersionId] = useState<string | null>(null);
   const [ratesLocked, setRatesLocked] = useState(false);
   const [ratesSaving, setRatesSaving] = useState(false);
@@ -115,6 +116,7 @@ export default function CalculadoraPage() {
     setVentaUsdtGyd(rates?.usdtSellGyd == null ? "" : String(rates.usdtSellGyd));
     setVentaUsdtCup(rates?.usdtSellCup == null ? "" : String(rates.usdtSellCup));
     setEfectivoUsdGyd(rates?.efectivoUsdGyd == null ? "" : String(rates.efectivoUsdGyd));
+    setRecargaCostoUsdt(rates?.recargaCostoUsdt == null ? "" : String(rates.recargaCostoUsdt));
   }
 
   useEffect(() => {
@@ -197,6 +199,7 @@ export default function CalculadoraPage() {
     if (ventaUsdtGyd.trim() !== "") rates.usdt_sell_gyd = Number(ventaUsdtGyd);
     if (ventaUsdtCup.trim() !== "") rates.usdt_sell_cup = Number(ventaUsdtCup);
     if (efectivoUsdGyd.trim() !== "") rates.efectivo_usd_gyd = Number(efectivoUsdGyd);
+    if (recargaCostoUsdt.trim() !== "") rates.recarga_costo_usdt = Number(recargaCostoUsdt);
     try {
       const response = await fetch("/api/calculator/rates", {
         method: "POST",
@@ -407,6 +410,7 @@ export default function CalculadoraPage() {
             <div><label htmlFor="ventaUsdtGyd">Venta USDT/Zelle (GYD)</label><input id="ventaUsdtGyd" type="number" step="0.01" value={ventaUsdtGyd} onChange={(event) => setVentaUsdtGyd(event.target.value)} disabled={ratesLocked} /></div>
             <div><label htmlFor="ventaUsdtCup">Venta USDT (CUP)</label><input id="ventaUsdtCup" type="number" step="0.01" value={ventaUsdtCup} onChange={(event) => setVentaUsdtCup(event.target.value)} disabled={ratesLocked} /></div>
             <div><label htmlFor="efectivoUsdGyd">Tasa efectivo USD (GYD por dólar)</label><input id="efectivoUsdGyd" type="number" step="0.01" value={efectivoUsdGyd} onChange={(event) => setEfectivoUsdGyd(event.target.value)} disabled={ratesLocked} /></div>
+            <div><label htmlFor="recargaCostoUsdt">Recarga: costo (USDT)</label><input id="recargaCostoUsdt" type="number" step="0.01" value={recargaCostoUsdt} onChange={(event) => setRecargaCostoUsdt(event.target.value)} disabled={ratesLocked} /></div>
           </div>
           <div className="legacyFlex" style={{ marginTop: 10, alignItems: "center" }}>
             <button type="button" id="guardarTasas" onClick={() => void guardarTasas()} disabled={ratesLocked || ratesSaving} style={{ width: "auto" }}>

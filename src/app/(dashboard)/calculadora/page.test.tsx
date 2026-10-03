@@ -198,6 +198,7 @@ describe("calculator global rate inputs (post-ledger)", () => {
     expect(node.querySelector('label[for="ventaUsdtGyd"]')?.textContent).toBe("Venta USDT/Zelle (GYD)");
     expect(node.querySelector('label[for="ventaUsdtCup"]')?.textContent).toBe("Venta USDT (CUP)");
     expect(node.querySelector('label[for="efectivoUsdGyd"]')?.textContent).toBe("Tasa efectivo USD (GYD por dólar)");
+    expect(node.querySelector('label[for="recargaCostoUsdt"]')?.textContent).toBe("Recarga: costo (USDT)");
     await act(async () => root.unmount());
   });
 
@@ -210,6 +211,7 @@ describe("calculator global rate inputs (post-ledger)", () => {
     expect(inputValue(node, "ventaUsdtGyd")).toBe("");
     expect(inputValue(node, "ventaUsdtCup")).toBe("");
     expect(inputValue(node, "efectivoUsdGyd")).toBe("");
+    expect(inputValue(node, "recargaCostoUsdt")).toBe("");
     await act(async () => root.unmount());
   });
 
@@ -223,6 +225,7 @@ describe("calculator global rate inputs (post-ledger)", () => {
           usdtSellGyd: 260,
           usdtSellCup: 975,
           efectivoUsdGyd: 290,
+          recargaCostoUsdt: 4.5,
           effectiveAt: "2026-09-10T00:00:00Z",
           setBy: "user-a",
         },
@@ -235,6 +238,7 @@ describe("calculator global rate inputs (post-ledger)", () => {
     expect(inputValue(node, "ventaUsdtGyd")).toBe("260");
     expect(inputValue(node, "ventaUsdtCup")).toBe("975");
     expect(inputValue(node, "efectivoUsdGyd")).toBe("290");
+    expect(inputValue(node, "recargaCostoUsdt")).toBe("4.5");
     await act(async () => root.unmount());
   });
 
@@ -317,6 +321,36 @@ describe("calculator global rate inputs (post-ledger)", () => {
       expectedVersionId: "rate-1",
     });
     expect(inputValue(node, "efectivoUsdGyd")).toBe("300");
+    await act(async () => root.unmount());
+  });
+
+  it("Guardar tasas sends recarga_costo_usdt with the version id when the recharge cost is edited", async () => {
+    let capturedBody: { rates: Record<string, unknown>; expectedVersionId?: string } | undefined;
+    const ratesPost = vi.fn(
+      (body: { rates: Record<string, unknown>; expectedVersionId?: string }): RatesPostResult => {
+        capturedBody = body;
+        return {
+          status: 200,
+          body: { rates: { id: "rate-2", cupGlobalRate: 3, usdtBuyGyd: null, usdtSellGyd: null, usdtSellCup: null, efectivoUsdGyd: null, recargaCostoUsdt: 4.5, effectiveAt: "2026-09-16T00:00:00Z", setBy: "user-a" } },
+        };
+      },
+    );
+    const fetchMock = createFetchMock({
+      ratesGet: { rates: { id: "rate-1", cupGlobalRate: 3, usdtBuyGyd: null, usdtSellGyd: null, usdtSellCup: null, efectivoUsdGyd: null, recargaCostoUsdt: 4, effectiveAt: "2026-09-10T00:00:00Z", setBy: null } },
+      ratesPost,
+    });
+    const { node, root } = await renderPage(fetchMock);
+
+    act(() => setInputValue(node, "recargaCostoUsdt", "4.5"));
+    const button = node.querySelector("#guardarTasas") as HTMLButtonElement;
+    await act(async () => { button.click(); });
+    await flush();
+
+    expect(capturedBody).toEqual({
+      rates: { cup_global_rate: 3, recarga_costo_usdt: 4.5 },
+      expectedVersionId: "rate-1",
+    });
+    expect(inputValue(node, "recargaCostoUsdt")).toBe("4.5");
     await act(async () => root.unmount());
   });
 

@@ -382,8 +382,12 @@
         "clasica": "Clásica",
         "tropical": "Tropical",
         "efectivo_usd": "Cash in USD",
-        "multiple_distribution": "Multiple distribution"
+        "multiple_distribution": "Multiple distribution",
+        "recarga": "Recharge"
       },
+      "rechargeCountOne": "{count} recharge",
+      "rechargeCountMany": "{count} recharges",
+      "invalidRechargePhone": "Enter a Cuban mobile number: 8 digits starting with 5 or 6",
       "cashUnit": "USD cash",
       "address": "Address",
       "viewIdPhoto": "View ID",
@@ -433,7 +437,8 @@
           "zelle": "Zelle",
           "clasica": "Clásica",
           "tropical": "Tropical",
-          "efectivo_usd": "Cash in USD"
+          "efectivo_usd": "Cash in USD",
+          "recarga": "Recharge"
         }
       },
       "completeTransfer": {

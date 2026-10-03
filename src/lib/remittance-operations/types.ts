@@ -63,7 +63,9 @@ export type BeneficiaryType =
   | "clasica"
   | "tropical"
   | "efectivo_usd"
-  | "multiple_distribution";
+  | "multiple_distribution"
+  /** One Cuban mobile number per recharge (migration 198); the number is in `phone`. */
+  | "recarga";
 
 /** Whether a quoted destination amount / beneficiary amount was
  *  auto-calculated (single-beneficiary remittances, migration 100) or set

@@ -222,6 +222,7 @@ describe("mapRateVersion", () => {
       usdt_sell_gyd: 148,
       usdt_sell_cup: 1.05,
       efectivo_usd_gyd: 290,
+      recarga_costo_usdt: "4.5",
       set_by: "user-1",
       effective_at: "2026-09-10T08:00:00Z",
       ...overrides,
@@ -238,6 +239,7 @@ describe("mapRateVersion", () => {
       usdtSellGyd: 148,
       usdtSellCup: 1.05,
       efectivoUsdGyd: 290,
+      recargaCostoUsdt: 4.5,
       effectiveAt: "2026-09-10T08:00:00Z",
       setBy: "user-1",
     });
@@ -251,6 +253,7 @@ describe("mapRateVersion", () => {
         usdt_sell_gyd: null,
         usdt_sell_cup: null,
         efectivo_usd_gyd: null,
+        recarga_costo_usdt: null,
       }),
     );
 
@@ -259,6 +262,7 @@ describe("mapRateVersion", () => {
     expect(rates.usdtSellGyd).toBeNull();
     expect(rates.usdtSellCup).toBeNull();
     expect(rates.efectivoUsdGyd).toBeNull();
+    expect(rates.recargaCostoUsdt).toBeNull();
   });
 
   it("passes through a null set_by (system-set rate)", () => {

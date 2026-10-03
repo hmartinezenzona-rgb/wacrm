@@ -58,6 +58,7 @@ const RATE_ROW = {
   usdt_sell_gyd: "148",
   usdt_sell_cup: "1.05",
   efectivo_usd_gyd: "290",
+  recarga_costo_usdt: "4.5",
   set_by: "user-a",
   effective_at: "2026-09-10T08:00:00Z",
 };
@@ -69,6 +70,7 @@ const MAPPED_RATES = {
   usdtSellGyd: 148,
   usdtSellCup: 1.05,
   efectivoUsdGyd: 290,
+  recargaCostoUsdt: 4.5,
   effectiveAt: "2026-09-10T08:00:00Z",
   setBy: "user-a",
 };
@@ -272,6 +274,21 @@ describe("POST /api/calculator/rates", () => {
       p_expected_version_id: null,
     });
     expect(body.rates.efectivoUsdGyd).toBe(290);
+  });
+
+  it("accepts and forwards recarga_costo_usdt to the RPC", async () => {
+    const { POST } = await import("./route");
+    const callCtx = ctx({ data: null, error: null }, { data: RATE_ROW, error: null });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await POST(jsonRequest({ rates: { recarga_costo_usdt: 4.5 } }));
+
+    expect(response.status).toBe(200);
+    expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_set_calculator_rates", {
+      p_account_id: "account-a",
+      p_rates: { recarga_costo_usdt: 4.5 },
+      p_expected_version_id: null,
+    });
   });
 
   it("an out-of-range efectivo_usd_gyd rejected by the RPC is not swallowed (no 200)", async () => {

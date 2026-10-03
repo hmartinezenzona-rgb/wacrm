@@ -50,8 +50,8 @@ vi.mock("@/lib/remittance-operations/commands", () => ({
 // beneficiary-add-control.test.tsx) — stubbed here so this file only
 // asserts on what the card passes down and how it toggles the control.
 const BeneficiaryAddControl = vi.fn(
-  ({ onDone, onCancel }: { operationId: string; onDone: () => void; onCancel: () => void }) => (
-    <div data-testid="add-beneficiary-stub">
+  ({ onDone, onCancel, serviceType }: { operationId: string; serviceType?: string; onDone: () => void; onCancel: () => void }) => (
+    <div data-testid="add-beneficiary-stub" data-service-type={serviceType ?? ""}>
       <button type="button" data-testid="add-beneficiary-done" onClick={onDone}>
         done
       </button>
@@ -241,6 +241,85 @@ function setValue(input: HTMLInputElement, value: string) {
 function buttonByText(node: Element, text: string): HTMLButtonElement {
   return Array.from(node.querySelectorAll("button")).find((b) => b.textContent?.trim() === text) as HTMLButtonElement;
 }
+
+describe("RemittanceOperationCard recharge", () => {
+  const rechargeOp = () =>
+    operation({
+      serviceType: "recarga",
+      status: "ready_to_transfer",
+      quotedSourceAmount: 10400,
+      quotedDestinationAmount: 99,
+      deliveryMethod: "recarga",
+      beneficiaries: [
+        beneficiary({ id: "r1", beneficiaryType: "recarga", phone: "52345678", position: 1 }),
+        beneficiary({ id: "r2", beneficiaryType: "recarga", phone: "63456789", position: 2 }),
+      ],
+    });
+
+  it("shows the Recharge label and icon, the deposit in GYD, and the recharge count", async () => {
+    const { node, root } = await render(rechargeOp(), { quote: { gyd: 10400, destinationAmount: 4000, destinationCurrency: "CUP", quotedAt: "2026-10-03T00:00:00Z" } });
+
+    expect(node.textContent).toContain("10,400 GYD");
+    expect(node.textContent).toContain("Recharge");
+    expect(node.querySelector("article svg.lucide-smartphone")).not.toBeNull();
+    const summary = node.querySelector('[data-testid="deposit-review-stub"]')!;
+    expect(summary.getAttribute("data-summary-amount")).toContain("2 recharges");
+    await act(async () => root.unmount());
+  });
+
+  it("shows one copy chip per number and no card, amount or remesa-only quote line", async () => {
+    const { node, root } = await render(rechargeOp(), { quote: { gyd: 10400, destinationAmount: 4000, destinationCurrency: "CUP", quotedAt: "2026-10-03T00:00:00Z" } });
+
+    expect(button(node, "Copy Phone")).not.toBeNull();
+    expect(node.querySelectorAll('button[aria-label="Copy Phone"]')).toHaveLength(2);
+    expect(node.textContent).toContain("52345678");
+    expect(node.textContent).toContain("63456789");
+    expect(button(node, "Copy Card")).toBeNull();
+    expect(node.textContent).not.toContain("Quoted");
+    expect(node.textContent).not.toContain("CUP");
+    expect(node.textContent).not.toContain("99");
+    await act(async () => root.unmount());
+  });
+
+  it("hands the service type to the add control", async () => {
+    const { node, root } = await render(rechargeOp());
+    await act(async () => (button(node, "Add beneficiary") as HTMLButtonElement).click());
+
+    expect(node.querySelector('[data-testid="add-beneficiary-stub"]')!.getAttribute("data-service-type")).toBe("recarga");
+    await act(async () => root.unmount());
+  });
+
+  it("editing a number shows only the phone field", async () => {
+    const { node, root } = await render(rechargeOp());
+    await act(async () => (node.querySelectorAll('button[aria-label="Edit"]')[0] as HTMLButtonElement).click());
+
+    expect(node.querySelector('input[aria-label="Phone"]')).not.toBeNull();
+    expect(node.querySelector('input[aria-label="Card"]')).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("completing a recharge passes one proof slot per number, none Zelle", async () => {
+    const { node, root } = await render(rechargeOp());
+    await act(async () => buttonByText(node, en.Inbox.operationsPanel.completeTransfer.button).click());
+
+    const props = CompleteTransferContainer.mock.calls.at(-1)![0] as unknown as { isZelle: boolean; beneficiaries: { id: string; isZelle: boolean }[] };
+    expect(props.isZelle).toBe(false);
+    expect(props.beneficiaries).toEqual([{ id: "r1", isZelle: false }, { id: "r2", isZelle: false }]);
+    await act(async () => root.unmount());
+  });
+
+  it("a remesa card is unchanged: quote line, no Recharge label", async () => {
+    const { node, root } = await render(
+      operation({ beneficiaries: [beneficiary({ cardNumber: "9205123412349412", amount: 100, currency: "CUP" })] }),
+      { quote: { gyd: 10400, destinationAmount: 4000, destinationCurrency: "CUP", quotedAt: "2026-10-03T00:00:00Z" } },
+    );
+
+    expect(node.textContent).toContain("Quoted: 10,400 GYD → 4,000 CUP");
+    expect(node.textContent).not.toContain("Recharge");
+    expect(node.querySelector("article svg.lucide-smartphone")).toBeNull();
+    await act(async () => root.unmount());
+  });
+});
 
 describe("RemittanceOperationCard", () => {
   it("renders the source amount and the status label", async () => {
@@ -895,7 +974,7 @@ describe("RemittanceOperationCard", () => {
         await act(async () =>
           findCompleteButton(node)!.dispatchEvent(new MouseEvent("click", { bubbles: true })),
         );
-        const call = CompleteTransferContainer.mock.calls.at(-1)![0] as { isZelle: boolean };
+        const call = CompleteTransferContainer.mock.calls.at(-1)![0] as unknown as { isZelle: boolean };
         return call.isZelle;
       }
 

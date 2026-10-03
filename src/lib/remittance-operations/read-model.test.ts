@@ -50,6 +50,31 @@ function row(overrides: Partial<RemittanceOperationsRpcRow>): RemittanceOperatio
   };
 }
 
+describe("mapRemittanceOperationsRows (recharge)", () => {
+  it("carries serviceType recarga and recarga beneficiaries with their number", () => {
+    const base = {
+      resolver_resultado: "unica" as const,
+      resolver_operation_id: "op-r",
+      resolver_candidatas: 1,
+      operation_id: "op-r",
+      operation_status: "ready_to_transfer" as const,
+      operation_service_type: "recarga",
+      beneficiary_type: "recarga" as const,
+    };
+    const { operations } = mapRemittanceOperationsRows([
+      row({ ...base, beneficiary_id: "b1", beneficiary_phone: "52345678", beneficiary_position: 1 }),
+      row({ ...base, beneficiary_id: "b2", beneficiary_phone: "63456789", beneficiary_position: 2 }),
+    ]);
+
+    expect(operations).toHaveLength(1);
+    expect(operations[0]!.serviceType).toBe("recarga");
+    expect(operations[0]!.beneficiaries.map((b) => [b.beneficiaryType, b.phone, b.cardNumber, b.amount])).toEqual([
+      ["recarga", "52345678", null, null],
+      ["recarga", "63456789", null, null],
+    ]);
+  });
+});
+
 describe("mapRemittanceOperationsRows", () => {
   it("maps a conversation with two open remesas, one with two beneficiaries", () => {
     const rows: RemittanceOperationsRpcRow[] = [

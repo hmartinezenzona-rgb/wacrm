@@ -146,6 +146,8 @@ export interface RateVersionRow {
   usdt_sell_cup: number | string | null;
   /** GYD per US dollar delivered in cash (migration 188). */
   efectivo_usd_gyd?: number | string | null;
+  /** Cost of one recharge in USDT (migration 198). */
+  recarga_costo_usdt?: number | string | null;
   set_by: string | null;
   effective_at: string;
 }
@@ -158,6 +160,7 @@ export interface CalculatorRates {
   usdtSellGyd: number | null;
   usdtSellCup: number | null;
   efectivoUsdGyd: number | null;
+  recargaCostoUsdt: number | null;
   effectiveAt: string;
   setBy: string | null;
 }
@@ -176,6 +179,7 @@ export function mapRateVersion(row: RateVersionRow): CalculatorRates {
     usdtSellGyd: toNullableNumber(row.usdt_sell_gyd),
     usdtSellCup: toNullableNumber(row.usdt_sell_cup),
     efectivoUsdGyd: toNullableNumber(row.efectivo_usd_gyd ?? null),
+    recargaCostoUsdt: toNullableNumber(row.recarga_costo_usdt ?? null),
     effectiveAt: row.effective_at,
     setBy: row.set_by,
   };

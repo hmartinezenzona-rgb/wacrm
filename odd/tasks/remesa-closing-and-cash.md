@@ -373,3 +373,9 @@ silent mode. Cash delivery must be reviewed carefully before building it.
     zPUxEOdMl9E_BNQ0tQntI, /login 200, online. privado/master -> 9c85723. prod-build left at 9c85723.
   Cash work (A, B+D, E, A4-A7, P1-P2) DONE in production. Next in the plan: A8, then vision-document-catalog.md, then
   panel-other-services.md (recargas).
+- A8 DB (2026-10-03, staging): `196_manual_close_service.sql` (+ ROLLBACK), commit 9a5ace2. crm_cerrar_operacion_manual
+  gains p_delivery_method (cuban_card, zelle, clasica, tropical, efectivo_usd; refused when a current beneficiary exists),
+  written in the same UPDATE as the status and audited. Assertion manual-close-service.sql (5 cases: Yosvany's shape ->
+  CUP line, cash -> EFECTIVO line, unknown refused, beneficiary present refused, close without service as before) RED
+  (function signature missing) -> GREEN; panel-closing-actions, panel-notify-and-cash-name, calculator-cash ALL PASS.
+  App part: writer running.

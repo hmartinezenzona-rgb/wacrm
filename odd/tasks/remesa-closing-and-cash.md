@@ -166,3 +166,16 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   forbidden; the example line follows; a cash delivery says a teammate coordinates it. Decisor, resent receipt of a
   verified remesa: same promise. Closed-hours wording unchanged. Prompt expressions (4) and the Decisor code parse OK.
   Pending: a live bot test on staging.
+- REVISED wording (owner, 2026-10-03, supersedes the two entries above; staging notifier and Cerebro were restored from
+  their pre-85b/85c backups — only the touched nodes differed — and the rewritten scripts applied): after a verified
+  deposit neither the notifier nor the bot promises a time or repeats the recipient's data; the recipient's data is
+  only echoed when the customer gives it. Form: "Su depósito de *5,000 GYD* ya fue verificado. Una vez hecha su remesa
+  de *15,000 CUP* le notificamos por acá." with light variation; cash says "entregada" and "USD en efectivo"; with
+  several currencies (no single amount) the amount is left out.
+  - Notifier gate85b-textos.py: three phrasings picked at random, amount via {RECIBE} ('Buscar telefono' now labels
+    efectivo_usd "USD en efectivo", which also reads better in "Listo, su remesa de *100 USD en efectivo* ...").
+    Offline run: cash -> "Una vez entregada su remesa{RECIBE} le notificamos por acá."; card -> the hecha forms.
+  - Cerebro gate85c-cerebro-promesa.py: automatic verification (open / closing / closed) = verified + "una vez hecha su
+    remesa de X le notificamos por aca" (X from monto_recibe_valor/moneda), part (3) card+phone removed and forbidden;
+    out-of-hours example without card data; Decisor resent-verified note the same. Expressions parse; the verified
+    block evaluated with and without an amount gives the expected instruction. Pending: live bot test.

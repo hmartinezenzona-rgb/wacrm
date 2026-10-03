@@ -109,3 +109,12 @@ live staging test for n8n changes.
     regression loop (that file is not self-reverting and I ran it with psql -1), and once more while diagnosing.
     Cleaned both times (7 ops 1001..1007 + "FC e*" entries, triggers disabled for the delete); now passes with a forced
     rollback and leaves 0 rows. Memory note added.
+- DESIGN CHANGE (2026-10-03): the DB already holds the Etecsa promotions (promo_etecsa, detected automatically and
+  confirmed by an admin; cerebro_promo_vigente) and the prices (precio_recarga: 500 -> 5,200, 600 -> 6,200), and the bot
+  already quotes from them ("Ultima cotizacion"). recarga_precio_gyd would have duplicated them: 198/199 amended (not in
+  production yet; staging rolled back 200-198 and re-applied). Now cerebro_recarga_precio(deposit) = the precio_recarga
+  price the deposit is a whole multiple of (current promotion first), cerebro_recarga_unidades = deposit / price; the
+  completeness rule and the calculator use them; a deposit matching no price (12,520) leaves the line pending with
+  recargaPrecioGyd. Only recarga_costo_usdt stays as a calculator rate. Assertions updated (recarga-model 5 cases,
+  calculator-recarga 5, panel-recarga 4) and GREEN; calculator-cash, manual-close-service, panel-closing-actions,
+  feed-matrix, rate-versions ALL PASS. The app writer was told to drop the price field.

@@ -154,3 +154,9 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   failing (writer) + 1 (helper) -> GREEN; full suite 1764 passed; tsc and eslint clean. Checked off on staging code;
   owner check and production still pending. Open owner question: wording of the "verified" message instead of
   "En breve le hacemos la transferencia" (cash and possibly every method).
+- Verified message without a time promise (owner, 2026-10-03): ~/cerebro-fase1/pruebas/gate85b-textos.py (after
+  gate85) on staging. Cash: "Ya tenemos los datos de quien recibe. Un compañero coordinará la entrega en efectivo y le
+  avisamos en cuanto quede hecha."; every other method: "Su remesa ya está en cola para transferir. Le avisamos en
+  cuanto quede hecha." Offline run: cash and card complete give the new lines; missing-data asks unchanged.
+  Open: the Cerebro itself still promises "en breve le hacemos la transferencia" on an automatic verification in open
+  hours (Agente Remesas / Decisor) — asked the owner.

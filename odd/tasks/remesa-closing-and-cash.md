@@ -276,3 +276,21 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   copied from production (riel via cerebro_riel_op, automation_late_deposit_verification as manual, 24 h window text vs
   template), staging credentials and URL kept (backup notificador-staging-antes-igualar-*.json); the copied config query
   runs on staging (riel efectivo_usd for the cash fixture).
+- A6 DB (2026-10-03, staging): `193_calculator_cash.sql` (+ ROLLBACK), commit 99c8385. Service EFECTIVO (entries CHECK),
+  efectivo_usd -> EFECTIVO; calculator_feed_operation prices an EFECTIVO line with efectivo_usd_gyd as its sale rate
+  (snapshotted in usdt_sell_gyd) and the shared usdt_buy_gyd; calculator_missing_rates names efectivoUsdGyd;
+  crm_resolve_pending_entry accepts efectivo_usd_gyd; completed cash remesas without a live entry are fed. Assertion
+  `calculator-cash.sql` (4 cases, expectations from the live rates) RED ("efectivo_usd must map to EFECTIVO, got
+  <NULL>") -> GREEN. Backfill on staging: 4a044782 -> EFECTIVO 100 USD, facturado 29,000, invertido 24,000, retorno
+  5,000. Calculator regressions: calculator-entries-realtime, calculator-access, calculator-entry-correction,
+  feed-matrix, financial-close, feed-from-beneficiaries, resolve-pending ALL PASS; feed-mixed case 5 fails before and
+  after 193 (pre-existing); delivery-feed-evidence (deal fixture) and rounding-parity (INSERT into the view tasas)
+  pre-existing. App part: writer running.
+- A7 (2026-10-03, staging Cerebro U52y1kSNvhgxvWeb) via ~/cerebro-fase1/pruebas/gate87-carnet.py (same script for
+  production): the four vision nodes gain CASO 4 "documento de identidad" -> {"tipo":"carnet","nombre",
+  "numero_identidad"} (an app screenshot is explicitly not one; catch-all becomes CASO 5); 'Snapshot final' takes
+  foto_carnet_wamid from tipo carnet only and raises the non-receipt alert for it; 'Registrar carnet efectivo' uses
+  foto_carnet_wamid. Snapshot code parses. Real vision check (gate87-probar-vision.py: temporary workflow with a copy
+  of the staging vision node, same prompt/model/credential) on Bruce's production images: 14:07 MMG screenshot ->
+  "otro"; 14:26:44 and 14:26:45 -> "carnet" with the recipient's name. Pending: live staging test; production
+  (gate87 produccion) and repoint Bruce's id_photo_wamid to the 14:26:44 image, with go-ahead.

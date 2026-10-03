@@ -45,6 +45,10 @@ silent mode. Cash delivery must be reviewed carefully before building it.
 - [ ] A4 Cash recipient's NAME is stored and shown (owner, 2026-10-03): the bot repeats it ("*Nombre:* Anabel Frenes
       Vera") but remittance_beneficiaries.name stays NULL (staging op 4a044782; production Bruce 972718ea also lost
       name, phone and address); the panel shows it for a cash recipient
+- [ ] A5 Notifier "verified" message knows cash (owner, 2026-10-03): on a manual verification the notifier's
+      ready_to_transfer branch checks only Zelle (name + account) or card (card + phone), so a complete efectivo_usd
+      recipient got "nos falta la tarjeta de quien recibe en Cuba" (staging op 4a044782, 02:11 UTC). For cash it must
+      check phone + address + ID photo, like crm_beneficiarios_completos (188); staging and production notifiers
 - [ ] C resent receipt guard
 
 ## Progress / evidence
@@ -110,3 +114,6 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   automation_cash_delivery_data_registered stored phone 53904458 + address, then the ID photo -> complete; panel row
   carries phone, address and photo URL; crm_cotizacion_de_conversacion = 29,000 GYD -> 100 USD. The name was NOT
   stored (-> A4). No deposit was sent, so the operation amount (and "100 USD cash") is still empty, as designed.
+- 2026-10-03 02:11 UTC, staging: recreated Bruce's case on the test chat for the owner's panel review: op 4a044782 set
+  to 29,000 GYD / deposit_verification, crm_calcular_monto_destino -> 100 USD calculated, crm_forzar_verificacion as
+  owner -> ready_to_transfer, complete. The verified message exposed A5.

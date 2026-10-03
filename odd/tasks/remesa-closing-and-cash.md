@@ -87,3 +87,10 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   reason (close warns the customer is not notified); trash only when not completed/cancelled/ready_to_transfer/
   transferring, Close manually only on ready_to_transfer/transferring, both owner/admin; history label "Closed
   manually"; add-beneficiary phone optional for cards. RED 51 failing -> GREEN; full suite 1741 passed; tsc clean.
+- B+D-4 staging (2026-10-03 01:29 UTC, owner go-ahead): app `69a5fca` built in prod-build (Node 20 docker, staging
+  build env; NEXT_PUBLIC identical to the server's): manifest staging / kolppplawzdsjfydwejr, 114 money-path tests
+  passed, 0 production refs / 32 staging refs, no .env, sha256 OK, close RPC present in the server chunks. Uploaded
+  (2386 files = 2386), BUILD_ID `leVxLTPARti0VuIXc4fog` checked before relinking; served cwd `~/wacrm-releases/69a5fca…`,
+  `anterior` -> `ac45d47…` (rollback: relink + `pm2 restart wacrm-staging --update-env`); `/login` 200 and the domain
+  serves the new BUILD_ID; online, 0 unstable restarts. Pending: owner's check, then production (188, 189, 190,
+  production notifier edit, app) with go-ahead.

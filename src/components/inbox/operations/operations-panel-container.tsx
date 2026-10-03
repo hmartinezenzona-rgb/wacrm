@@ -284,12 +284,12 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
         <p className="px-1 py-2 text-xs text-muted-foreground">{t("noOpenOperations")}</p>
       ) : (
         <>
-          <h3 className="px-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          <h3 className="flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
             {t("title")}
+            {data.resolverState === "ambigua" && (
+              <ResolverStateBanner candidateCount={data.resolverCandidateCount} />
+            )}
           </h3>
-          {data.resolverState === "ambigua" && (
-            <ResolverStateBanner candidateCount={data.resolverCandidateCount} />
-          )}
           <div className="space-y-2">
             {openOperations.map((operation, index) => (
               <RemittanceOperationCard

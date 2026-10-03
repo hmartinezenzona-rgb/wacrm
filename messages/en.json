@@ -345,6 +345,7 @@
       "loadError": "Couldn't load remittance operations.",
       "noOpenOperations": "No open remittance operations for this conversation.",
       "ambiguousState": "{count} open operations for this conversation — resolve which one before acting.",
+      "ambiguousBadge": "{count} open",
       "amountUnavailable": "Amount unavailable",
       "quoted": "Quoted: {source}",
       "quotedTo": "Quoted: {source} → {destination}",

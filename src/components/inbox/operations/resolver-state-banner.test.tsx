@@ -30,42 +30,32 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("ResolverStateBanner", () => {
-  it("renders the ambiguous-state message with the real candidate count", async () => {
+describe("ResolverStateBanner (compact badge, owner 2026-10-03: the old block took room and looked heavy)", () => {
+  async function renderBadge(count: number) {
     const { ResolverStateBanner } = await import("./resolver-state-banner");
     const node = document.createElement("div");
     document.body.appendChild(node);
     const root = createRoot(node);
+    await act(async () => root.render(<ResolverStateBanner candidateCount={count} />));
+    return { node, root };
+  }
 
-    await act(async () => root.render(<ResolverStateBanner candidateCount={2} />));
+  it("shows only a short count, with the full explanation as its tooltip", async () => {
+    const { node, root } = await renderBadge(4);
 
-    expect(node.textContent).toBe(
-      "2 open operations for this conversation — resolve which one before acting.",
+    expect(node.textContent).toBe("4 open");
+    const badge = node.querySelector('[role="status"]');
+    expect(badge?.getAttribute("title")).toBe(
+      "4 open operations for this conversation — resolve which one before acting.",
     );
+    expect(badge?.getAttribute("aria-label")).toBe(badge?.getAttribute("title"));
     await act(async () => root.unmount());
   });
 
   it("substitutes a different candidate count (triangulation)", async () => {
-    const { ResolverStateBanner } = await import("./resolver-state-banner");
-    const node = document.createElement("div");
-    document.body.appendChild(node);
-    const root = createRoot(node);
+    const { node, root } = await renderBadge(2);
 
-    await act(async () => root.render(<ResolverStateBanner candidateCount={5} />));
-
-    expect(node.textContent).toContain("5 open operations");
-    await act(async () => root.unmount());
-  });
-
-  it("exposes the banner as an ARIA status region", async () => {
-    const { ResolverStateBanner } = await import("./resolver-state-banner");
-    const node = document.createElement("div");
-    document.body.appendChild(node);
-    const root = createRoot(node);
-
-    await act(async () => root.render(<ResolverStateBanner candidateCount={2} />));
-
-    expect(node.querySelector('[role="status"]')).not.toBeNull();
+    expect(node.textContent).toBe("2 open");
     await act(async () => root.unmount());
   });
 });

@@ -298,7 +298,10 @@ describe("OperationsPanelContainer", () => {
     const { node, root } = await renderContainer("conv-3");
     await flush();
 
-    expect(node.textContent).toContain("2 open operations for this conversation");
+    // Compact badge (2026-10-03): short text, the full explanation as its accessible name.
+    const badge = node.querySelector('[role="status"]');
+    expect(badge?.textContent).toBe("2 open");
+    expect(badge?.getAttribute("aria-label")).toContain("2 open operations for this conversation");
     // Both operations render — "no guessing" means not hiding data, not
     // picking a winner (spec: "List All Open Remesas Per Conversation").
     expect(node.querySelectorAll("article")).toHaveLength(2);

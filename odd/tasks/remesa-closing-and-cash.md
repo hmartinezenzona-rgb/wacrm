@@ -188,3 +188,10 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   without phone (close manually, bell default off / on); collecting_information card (delete; plus 333fe846); 29,000 GYD
   cash ready_to_transfer, complete with name Anabel Frenes Vera (name shown, 100 USD). Panel RPC returns all with the
   amounts calculated (15,000 ... 30,000 CUP; 100 USD).
+- [x] E4 Force-verify like close/delete (owner, 2026-10-03, found while testing the 5,000 fixture: the force form still
+  had Reason + text buttons — missed in E1/E3). DB 192 (8841220): crm_forzar_verificacion p_reason optional, fixed note
+  "Verified manually from the panel"; assertion force-verify-without-reason.sql RED ("reason must be at least 5
+  characters") -> GREEN, panel-notify-and-cash-name and panel-closing-actions ALL PASS. App 222da4b: force form = bell (on) +
+  X + green Check, no reason; route reason optional. RED 9 failing -> GREEN; full suite 1764; tsc clean.
+  The 5,000 fixture was force-verified by the owner with the bell on at 03:04 and got "En cuanto quede hecha su remesa
+  de *15,000 CUP* le avisamos por aquí."

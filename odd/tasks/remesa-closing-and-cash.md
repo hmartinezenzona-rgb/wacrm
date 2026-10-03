@@ -71,10 +71,18 @@ silent mode. Cash delivery must be reviewed carefully before building it.
 - [ ] A6 Cash in the calculator: calculator_service_for_operation maps cuban_card/multiple_distribution -> CUP,
       zelle, clasica, tropical and NOTHING for efectivo_usd, so a completed cash remesa never reaches the calculator
       (staging 4a044782 closed 02:16 has no entry; production Bruce 972718ea would not either). Needs the owner's
-      decision on how cash is counted (service, cost). WAITING (owner, 2026-10-03): the owner asks the admin (Osmany)
+      decision on how cash is counted (service, cost). DECIDED (admin via owner, 2026-10-03): the cost (buy) of a cash
+      dollar is the same as Zelle / Clasica / Tropical, usdt_buy_gyd (240 today); only the sale price differs
+      (efectivo_usd_gyd 290 vs usdt_sell_gyd 260). So: invertido = USD delivered x usdt_buy_gyd; facturado = GYD
+      deposited; amount = USD at efectivo_usd_gyd. (Earlier note:) the owner asked the admin (Osmany)
       how the cost of a cash delivery is computed. Proposal on the table: new USD service EFECTIVO, amount = USD
       delivered, facturado = GYD deposited, invertido = USD x the USDT rate used for Zelle — or another cost (courier
       fee, another rate) per the admin's answer
+- [ ] A7 The bot recognises an ID card (owner, 2026-10-03): Bruce's "carnet" was his 14:07 MMG-account screenshot
+      ("SOLO ESTA CUENTA"). Vision (gpt-4o) has only comprobante / tarjeta+celular / cuenta Zelle / "otro", and
+      'Registrar carnet efectivo' stores the FIRST "otro" image during an open cash delivery. Proposed: a vision case
+      for an ID card (with name and ID number), store only that case, and repoint Bruce's photo to his 14:26 image.
+      Awaiting the owner's yes
 - [ ] C resent receipt guard
 
 ## Progress / evidence

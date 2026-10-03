@@ -43,6 +43,9 @@ function row(overrides: Partial<RemittanceOperationsRpcRow>): RemittanceOperatio
     operation_beneficiaries_complete: null,
     operation_delivery_mode: null,
     operation_delivered_at: null,
+    beneficiary_address: null,
+    beneficiary_id_photo_wamid: null,
+    beneficiary_id_photo_url: null,
     ...overrides,
   };
 }
@@ -121,6 +124,44 @@ describe("mapRemittanceOperationsRows", () => {
     expect(op1?.quotedDestinationOrigin).toBe("calculated");
     expect(op1?.beneficiaries[0].amountOrigin).toBe("manual");
     expect(op2?.beneficiaries).toEqual([]);
+  });
+
+  it("maps a cash recipient's address and ID photo (migration 189), null-safe", () => {
+    const result = mapRemittanceOperationsRows([
+      row({
+        operation_id: "op-1",
+        operation_status: "ready_to_transfer",
+        operation_service_type: "remesa",
+        operation_destination_currency: "USD",
+        operation_quoted_destination_amount: "100",
+        beneficiary_id: "ben-1",
+        beneficiary_type: "efectivo_usd",
+        beneficiary_name: "Bruce",
+        beneficiary_phone: "5926001111",
+        beneficiary_address: "12 Main St, Georgetown",
+        beneficiary_id_photo_wamid: "wamid.ABC",
+        beneficiary_id_photo_url: "https://cdn.example.invalid/id.jpg",
+        beneficiary_position: 1,
+      }),
+      row({
+        operation_id: "op-2",
+        operation_status: "deposit_verification",
+        operation_service_type: "remesa",
+        beneficiary_id: "ben-2",
+        beneficiary_type: "cuban_card",
+        beneficiary_position: 1,
+      }),
+    ]);
+
+    const cash = result.operations.find((o) => o.id === "op-1")!.beneficiaries[0]!;
+    expect(cash.beneficiaryType).toBe("efectivo_usd");
+    expect(cash.address).toBe("12 Main St, Georgetown");
+    expect(cash.idPhotoWamid).toBe("wamid.ABC");
+    expect(cash.idPhotoUrl).toBe("https://cdn.example.invalid/id.jpg");
+    const card = result.operations.find((o) => o.id === "op-2")!.beneficiaries[0]!;
+    expect(card.address).toBeNull();
+    expect(card.idPhotoWamid).toBeNull();
+    expect(card.idPhotoUrl).toBeNull();
   });
 
   it("maps history/readiness/delivery columns (migration 102)", () => {

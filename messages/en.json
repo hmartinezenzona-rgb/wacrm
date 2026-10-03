@@ -382,8 +382,13 @@
         "zelle": "Zelle",
         "clasica": "Clásica",
         "tropical": "Tropical",
+        "efectivo_usd": "Cash in USD",
         "multiple_distribution": "Multiple distribution"
       },
+      "cashUnit": "USD cash",
+      "address": "Address",
+      "viewIdPhoto": "View ID",
+      "idPhotoMissing": "ID photo missing",
       "editOperation": "Edit operation",
       "editBeneficiary": "Edit",
       "moveBeneficiary": "Move",

@@ -2,7 +2,7 @@
 
 import { useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowRightLeft, AtSign, Banknote, ChevronDown, CreditCard, Lock, Pencil, Phone, UserPlus, UserRound, Users } from "lucide-react";
+import { ArrowRightLeft, AtSign, Banknote, ChevronDown, CreditCard, IdCard, Lock, MapPin, Pencil, Phone, UserPlus, UserRound, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { AccountRole } from "@/lib/auth/roles";
 import { corregirBeneficiario } from "@/lib/remittance-operations/commands";
@@ -170,6 +170,7 @@ function unitLabel(
   t: (key: string) => string,
 ): string | null {
   if (service && SERVICE_UNIT_TYPES.includes(service)) return t(`beneficiaryType.${service}`);
+  if (service === "efectivo_usd") return t("cashUnit");
   return currency;
 }
 
@@ -474,6 +475,7 @@ export function RemittanceOperationCard({
               <ul className="mt-1.5 space-y-4">
                 {operation.beneficiaries.map((beneficiary) => {
                   const isZelle = beneficiary.beneficiaryType === "zelle";
+                  const isCash = beneficiary.beneficiaryType === "efectivo_usd";
                   const amount = resolveBeneficiaryAmount(beneficiary, operation);
                   const currencyLabel = unitLabel(
                     beneficiary.beneficiaryType,
@@ -537,7 +539,13 @@ export function RemittanceOperationCard({
                               ariaLabel={t("copyValue", { label: t("zelleAccount") })}
                             />
                           )}
-                          {!isZelle && beneficiary.cardNumber && (
+                          {isCash && (
+                            <p className="flex items-center gap-2 px-2 text-xs font-medium text-muted-foreground">
+                              <Banknote className="size-3.5" aria-hidden="true" />
+                              {t("beneficiaryType.efectivo_usd")}
+                            </p>
+                          )}
+                          {!isZelle && !isCash && beneficiary.cardNumber && (
                             <CopyChip
                               value={beneficiary.cardNumber}
                               display={formatCardNumber(beneficiary.cardNumber)}
@@ -552,6 +560,30 @@ export function RemittanceOperationCard({
                               ariaLabel={t("copyValue", { label: t("phone") })}
                             />
                           )}
+                          {isCash && beneficiary.address && (
+                            <CopyChip
+                              value={beneficiary.address}
+                              icon={<MapPin className="size-3.5" aria-hidden="true" />}
+                              ariaLabel={t("copyValue", { label: t("address") })}
+                            />
+                          )}
+                          {isCash &&
+                            (beneficiary.idPhotoUrl ? (
+                              <a
+                                href={beneficiary.idPhotoUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 px-2 text-xs font-medium text-primary underline-offset-2 hover:underline"
+                              >
+                                <IdCard className="size-3.5" aria-hidden="true" />
+                                {t("viewIdPhoto")}
+                              </a>
+                            ) : (
+                              <p className="flex items-center gap-2 px-2 text-xs text-amber-600 dark:text-amber-400">
+                                <IdCard className="size-3.5" aria-hidden="true" />
+                                {t("idPhotoMissing")}
+                              </p>
+                            ))}
                         </div>
                       )}
 

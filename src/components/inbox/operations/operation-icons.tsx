@@ -12,6 +12,7 @@ export function methodKind(method: string | null): MethodKind {
       return "zelle";
     case "clasica":
     case "tropical":
+    case "efectivo_usd":
       return "cash";
     case "multiple_distribution":
       return "multiple";
@@ -95,5 +96,6 @@ export const KNOWN_BENEFICIARY_TYPES: ReadonlyArray<string> = [
   "zelle",
   "clasica",
   "tropical",
+  "efectivo_usd",
   "multiple_distribution",
 ];

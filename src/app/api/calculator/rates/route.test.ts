@@ -57,6 +57,7 @@ const RATE_ROW = {
   usdt_buy_gyd: "145",
   usdt_sell_gyd: "148",
   usdt_sell_cup: "1.05",
+  efectivo_usd_gyd: "290",
   set_by: "user-a",
   effective_at: "2026-09-10T08:00:00Z",
 };
@@ -67,6 +68,7 @@ const MAPPED_RATES = {
   usdtBuyGyd: 145,
   usdtSellGyd: 148,
   usdtSellCup: 1.05,
+  efectivoUsdGyd: 290,
   effectiveAt: "2026-09-10T08:00:00Z",
   setBy: "user-a",
 };
@@ -253,6 +255,32 @@ describe("POST /api/calculator/rates", () => {
     });
     expect(body).toEqual({ rates: MAPPED_RATES });
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+  });
+
+  it("accepts and forwards efectivo_usd_gyd (number or null) to the RPC", async () => {
+    const { POST } = await import("./route");
+    const callCtx = ctx({ data: null, error: null }, { data: RATE_ROW, error: null });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await POST(jsonRequest({ rates: { efectivo_usd_gyd: 295 } }));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_set_calculator_rates", {
+      p_account_id: "account-a",
+      p_rates: { efectivo_usd_gyd: 295 },
+      p_expected_version_id: null,
+    });
+    expect(body.rates.efectivoUsdGyd).toBe(290);
+  });
+
+  it("an out-of-range efectivo_usd_gyd rejected by the RPC is not swallowed (no 200)", async () => {
+    const { POST } = await import("./route");
+    requireRole.mockResolvedValueOnce(ctx({ data: null, error: null }, { data: null, error: { message: "boom" } }));
+
+    const response = await POST(jsonRequest({ rates: { efectivo_usd_gyd: -1 } }));
+
+    expect(response.status).toBeGreaterThanOrEqual(400);
   });
 
   it("omitted expectedVersionId defaults to null", async () => {

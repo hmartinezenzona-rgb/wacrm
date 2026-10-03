@@ -165,6 +165,9 @@ function beneficiary(overrides: Partial<RemittanceBeneficiaryRead> = {}): Remitt
     amountOrigin: null,
     currency: null,
     position: 1,
+    address: null,
+    idPhotoWamid: null,
+    idPhotoUrl: null,
     ...overrides,
   };
 }
@@ -405,6 +408,61 @@ describe("RemittanceOperationCard", () => {
     expect(heading).not.toBeNull();
     expect(stub!.compareDocumentPosition(heading!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     await act(async () => root.unmount());
+  });
+
+  describe("cash (efectivo_usd) beneficiary", () => {
+    const cashOperation = (b: Partial<RemittanceBeneficiaryRead> = {}) =>
+      operation({
+        destinationCurrency: "USD",
+        quotedDestinationAmount: 100,
+        beneficiaries: [
+          beneficiary({
+            beneficiaryType: "efectivo_usd",
+            phone: "5926001111",
+            address: "12 Main St, Georgetown",
+            idPhotoWamid: "wamid.ABC",
+            idPhotoUrl: "https://cdn.example.invalid/id.jpg",
+            ...b,
+          }),
+        ],
+      });
+
+    it("shows the phone, address, an ID link opening in a new tab, the USD cash amount and no card line", async () => {
+      const { node, root } = await render(cashOperation());
+
+      expect(node.textContent).toContain(en.Inbox.operationsPanel.beneficiaryType.efectivo_usd);
+      expect(button(node, "Copy Phone")?.textContent).toContain("5926001111");
+      expect(node.textContent).toContain("12 Main St, Georgetown");
+      const link = Array.from(node.querySelectorAll("a")).find(
+        (a) => a.textContent === en.Inbox.operationsPanel.viewIdPhoto,
+      ) as HTMLAnchorElement;
+      expect(link.getAttribute("href")).toBe("https://cdn.example.invalid/id.jpg");
+      expect(link.getAttribute("target")).toBe("_blank");
+      expect(link.getAttribute("rel")).toContain("noopener");
+      expect(button(node, "Copy Card")).toBeNull();
+      const summary = node.querySelector('[data-testid="deposit-review-stub"]')!;
+      expect(summary.getAttribute("data-summary-amount")).toContain("100 USD cash");
+      await act(async () => root.unmount());
+    });
+
+    it("says the ID photo is missing when there is no URL", async () => {
+      const { node, root } = await render(cashOperation({ idPhotoUrl: null, idPhotoWamid: null }));
+
+      expect(Array.from(node.querySelectorAll("a")).some((a) => a.textContent === en.Inbox.operationsPanel.viewIdPhoto)).toBe(false);
+      expect(node.textContent).toContain(en.Inbox.operationsPanel.idPhotoMissing);
+      await act(async () => root.unmount());
+    });
+
+    it("a cuban_card beneficiary shows no address or ID photo lines", async () => {
+      const { node, root } = await render(
+        operation({ beneficiaries: [beneficiary({ cardNumber: "9205123412349412", phone: "5350001111" })] }),
+      );
+
+      expect(button(node, "Copy Card")).not.toBeNull();
+      expect(node.textContent).not.toContain(en.Inbox.operationsPanel.idPhotoMissing);
+      expect(node.textContent).not.toContain(en.Inbox.operationsPanel.viewIdPhoto);
+      await act(async () => root.unmount());
+    });
   });
 
   describe("Zelle beneficiary: name and account chips, actions on the Deliver to line", () => {

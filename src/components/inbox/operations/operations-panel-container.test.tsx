@@ -163,6 +163,9 @@ const OP1 = {
       amountOrigin: null,
       currency: null,
       position: 1,
+      address: null,
+      idPhotoWamid: null,
+      idPhotoUrl: null,
     },
   ],
 };
@@ -361,6 +364,9 @@ describe("OperationsPanelContainer", () => {
       amountOrigin: null,
       currency: null,
       position: 1,
+      address: null,
+      idPhotoWamid: null,
+      idPhotoUrl: null,
     };
     const data: ConversationOperationsRead = {
       resolverState: "unica",

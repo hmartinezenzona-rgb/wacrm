@@ -55,6 +55,7 @@ export type BeneficiaryType =
   | "zelle"
   | "clasica"
   | "tropical"
+  | "efectivo_usd"
   | "multiple_distribution";
 
 /** Whether a quoted destination amount / beneficiary amount was
@@ -91,6 +92,12 @@ export interface RemittanceBeneficiaryRead {
   amountOrigin: AmountOrigin | null;
   currency: string | null;
   position: number;
+  /** Cash recipient's delivery address (`efectivo_usd`, migration 189). */
+  address: string | null;
+  /** WhatsApp message id of the recipient's ID-card photo. */
+  idPhotoWamid: string | null;
+  /** Media URL of that photo, when the message is in the conversation. */
+  idPhotoUrl: string | null;
 }
 
 export interface RemittanceOperationRead {
@@ -224,6 +231,9 @@ export interface RemittanceOperationsRpcRow {
   operation_beneficiaries_complete: boolean | null;
   operation_delivery_mode: OperationDeliveryMode | null;
   operation_delivered_at: string | null;
+  beneficiary_address: string | null;
+  beneficiary_id_photo_wamid: string | null;
+  beneficiary_id_photo_url: string | null;
 }
 
 // ============================================================

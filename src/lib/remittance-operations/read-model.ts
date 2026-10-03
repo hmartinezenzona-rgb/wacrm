@@ -82,6 +82,9 @@ export function mapRemittanceOperationsRows(
         amountOrigin: row.beneficiary_amount_origin ?? null,
         currency: row.beneficiary_currency,
         position: row.beneficiary_position ?? 1,
+        address: row.beneficiary_address ?? null,
+        idPhotoWamid: row.beneficiary_id_photo_wamid ?? null,
+        idPhotoUrl: row.beneficiary_id_photo_url ?? null,
       });
     }
   }

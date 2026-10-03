@@ -123,6 +123,9 @@ const OP1 = {
       amountOrigin: null,
       currency: null,
       position: 1,
+      address: null,
+      idPhotoWamid: null,
+      idPhotoUrl: null,
     },
   ],
 };

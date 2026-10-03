@@ -56,6 +56,12 @@ silent mode. Cash delivery must be reviewed carefully before building it.
       by default; unchecked = no message. Delete never notifies (no bell). Needs the choice to reach the notifier
 - [x] E3 Delete the same way (owner, 2026-10-03, on staging op 333fe846): no reason field, confirm with a check and
       cancel with an X; the audit stores a fixed internal note ("Deleted from the panel")
+- [x] E5 No explanatory texts in the action forms (owner, 2026-10-03: they take room and deform the panel): closing
+      control warnings and the complete-transfer helper removed — cb358a9
+- [ ] A6 Cash in the calculator: calculator_service_for_operation maps cuban_card/multiple_distribution -> CUP,
+      zelle, clasica, tropical and NOTHING for efectivo_usd, so a completed cash remesa never reaches the calculator
+      (staging 4a044782 closed 02:16 has no entry; production Bruce 972718ea would not either). Needs the owner's
+      decision on how cash is counted (service, cost)
 - [ ] C resent receipt guard
 
 ## Progress / evidence
@@ -195,3 +201,9 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   X + green Check, no reason; route reason optional. RED 9 failing -> GREEN; full suite 1764; tsc clean.
   The 5,000 fixture was force-verified by the owner with the bell on at 03:04 and got "En cuanto quede hecha su remesa
   de *15,000 CUP* le avisamos por aquí."
+- Owner test round 2 (2026-10-03 03:03-03:17 UTC, staging): 5,500 force-verify bell on -> "Una vez hecha su remesa de
+  *16,500 CUP* le notificamos por acá"; 6,000 bell off -> muted, no message; 8,000 complete transfer bell off
+  (skip_proof) -> muted, no message, calculator entry; 9,000 and 10,000 manual close both sent with notify=true (the
+  control starts with the bell off, so it was switched on) -> "Listo, su remesa de *27,000 / 30,000 CUP* ya fue
+  completada", calculator entries; two deletes -> cancelled with "Deleted from the panel"; every audit carries the
+  fixed notes. 7,000 not tested. Found A6.

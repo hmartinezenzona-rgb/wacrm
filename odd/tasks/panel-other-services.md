@@ -74,3 +74,21 @@ live staging test for n8n changes.
     price) is set in ONE place (the calculator rates, next to the cost); the bot quotes from it and counts recharges as
     deposit / price (12,400 at 6,200 -> 2 recharges, 2 numbers); with no promotion set the bot says there are no
     recharges now.
+  - Completing a recharge sends the customer the "Listo" message AND the screenshot of the recharge (owner,
+    2026-10-03): the same "Complete transfer" flow as remesas (screenshot per number, bell).
+- S1 closed except the cost (admin). DESIGN for recargas (2026-10-03):
+  - R1 DB: calculator_rate_versions gains recarga_precio_gyd (the current promotion's price, 5,200 or 6,200; NULL = no
+    promotion) and recarga_costo_usdt (cost per recharge, USDT; NULL until the admin confirms) — set in the Calculator
+    like the cash rate; crm_set_calculator_rates accepts both. Beneficiary type 'recarga' = one Cuban number per
+    recharge; crm_beneficiarios_completos: every recarga row has a valid number and there are as many as recharges
+    (deposit / price). The panel RPC lists recarga operations too. The calculator feeds a completed recarga as RECARGA:
+    units = deposit / price, facturado = deposit, invertido = units x recarga_costo_usdt x usdt_buy_gyd; a missing cost
+    leaves the line pending (recargaCostoUsdt). The A8 picker gains a Recarga icon (sets service_type recarga).
+    Yosvany 54c25086 re-filed as a recarga and fed.
+  - R2 Bot: the recargas service text quotes from recarga_precio_gyd (placeholders, like efectivo) and says there are
+    no recharges when it is NULL; a tool registers the numbers; the context says how many numbers are still missing.
+  - R3 Panel: a recarga card (Smartphone icon, "Recharge"), each number as a row with its copy chip; verify, complete
+    (screenshot per number + bell), close manually, delete as for remesas. Calculator page: the two new rate fields.
+  - R4 Notifier: the completed message for a recarga says "recarga" (not "remesa").
+  - R5 Staging test with the owner, then production.
+  - Known gap kept for later: a recarga asked by AUDIO is not detected (the keyword check reads typed text only).

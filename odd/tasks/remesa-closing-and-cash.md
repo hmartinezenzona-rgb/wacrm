@@ -68,7 +68,7 @@ silent mode. Cash delivery must be reviewed carefully before building it.
 - [x] E8 Badge removed altogether and the panel titled "Operations" (owner, 2026-10-03: the badge crowded the title;
       the cards and their statuses already show it) — fdeffae; ResolverStateBanner and its keys deleted. RED 1 ->
       GREEN; suite 1761; tsc, eslint clean
-- [ ] A6 Cash in the calculator: calculator_service_for_operation maps cuban_card/multiple_distribution -> CUP,
+- [x] A6 Cash in the calculator: calculator_service_for_operation maps cuban_card/multiple_distribution -> CUP,
       zelle, clasica, tropical and NOTHING for efectivo_usd, so a completed cash remesa never reaches the calculator
       (staging 4a044782 closed 02:16 has no entry; production Bruce 972718ea would not either). Needs the owner's
       decision on how cash is counted (service, cost). DECIDED (admin via owner, 2026-10-03): the cost (buy) of a cash
@@ -78,7 +78,7 @@ silent mode. Cash delivery must be reviewed carefully before building it.
       how the cost of a cash delivery is computed. Proposal on the table: new USD service EFECTIVO, amount = USD
       delivered, facturado = GYD deposited, invertido = USD x the USDT rate used for Zelle — or another cost (courier
       fee, another rate) per the admin's answer
-- [ ] A7 The bot recognises an ID card (owner, 2026-10-03): Bruce's "carnet" was his 14:07 MMG-account screenshot
+- [x] A7 The bot recognises an ID card (owner, 2026-10-03): Bruce's "carnet" was his 14:07 MMG-account screenshot
       ("SOLO ESTA CUENTA"). Vision (gpt-4o) has only comprobante / tarjeta+celular / cuenta Zelle / "otro", and
       'Registrar carnet efectivo' stores the FIRST "otro" image during an open cash delivery. Proposed: a vision case
       for an ID card (with name and ID number), store only that case, and repoint Bruce's photo to his 14:26 image.
@@ -354,3 +354,22 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   "MARLENE PEREZ GARCIA" -> stored. (That fixture run committed by mistake — psql -1 with no closing error; its contact
   5990019001 was removed with reset-test-contact.sql.) Limitation: an ID arriving in the same burst as the recipient's
   first name is stored unchecked (the name is saved later by the agent's tool).
+- P2 PRODUCTION (2026-10-03 ~19:00 UTC, owner go-ahead "dale pasalo a produccion"):
+  - Pre-check: calculator_feed_operation, calculator_missing_rates, calculator_service_for_operation,
+    crm_resolve_pending_entry, cerebro_guardar_beneficiario_auto have the same md5 in production as in staging before
+    193 (rebuilt with ROLLBACK-195..193 in a forced-rollback transaction); the 195 functions did not exist.
+  - Backup ~/wacrm-respaldos/produccion-20261003T185309Z.dump (+ .sha256, .list; 203 functions, 143 table data).
+  - DB: gate91-aplicar-db.py (temporary zz_wu5b_exec created and dropped): ensayo "svc=EFECTIVO match=true
+    efectivo_entries=1 open_ops=7" rolled back — the one entry is Bruce 972718ea, completed by the owner at 13:19
+    (skip_proof); aplicar {"r":"ok"}, 193-195 registered (gate91); probar calculator-cash, cash-phone-not-a-card,
+    id-name-match ALL PASS, cash-delivery-data passes (NOTICE form); 0 fixture contacts. Bruce's calculator line:
+    EFECTIVO 100 USD, facturado 29,000, invertido 24,000, retorno 5,000 (sell 290, buy 240).
+  - Cerebro jEzlVLCLUaJhVwzs: gate87-carnet, gate88-orden-carnet, gate89-cerebro-efectivo-texto, gate90-carnet-nombre
+    applied (backups cerebro-produccion-antes-8{7,8,9}/90-*.json); Snapshot parses, agent expressions parse, ID node y=80.
+  - Bruce's ID photo repointed from the 14:07 MMG screenshot to the 14:26:44 ID image (direct update, his remesa is
+    completed), audited as human_correction.
+  - App 9c85723 (app code = ff98e2e) built with the production env (manifest production, 32 prod / 0 staging refs, 114
+    money-path tests, sha256 OK) and deployed: served ~/wacrm-releases/9c85723…, anterior 3f20c78…, BUILD_ID
+    zPUxEOdMl9E_BNQ0tQntI, /login 200, online. privado/master -> 9c85723. prod-build left at 9c85723.
+  Cash work (A, B+D, E, A4-A7, P1-P2) DONE in production. Next in the plan: A8, then vision-document-catalog.md, then
+  panel-other-services.md (recargas).

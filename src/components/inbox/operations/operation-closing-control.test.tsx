@@ -39,13 +39,26 @@ function buttonByLabel(node: Element, label: string): HTMLButtonElement {
   return node.querySelector(`button[aria-label="${label}"]`) as HTMLButtonElement;
 }
 
-async function render(kind: "close" | "delete", onDone = vi.fn(), onCancel = vi.fn()) {
+async function render(
+  kind: "close" | "delete",
+  onDone = vi.fn(),
+  onCancel = vi.fn(),
+  needsService?: boolean,
+) {
   const { OperationClosingControl } = await import("./operation-closing-control");
   const node = document.createElement("div");
   document.body.appendChild(node);
   const root = createRoot(node);
   await act(async () =>
-    root.render(<OperationClosingControl operationId="op-1" kind={kind} onDone={onDone} onCancel={onCancel} />),
+    root.render(
+      <OperationClosingControl
+        operationId="op-1"
+        kind={kind}
+        onDone={onDone}
+        onCancel={onCancel}
+        needsService={needsService}
+      />,
+    ),
   );
   return { node, root, onDone, onCancel };
 }
@@ -129,6 +142,71 @@ describe("OperationClosingControl", () => {
 
     expect(onCancel).toHaveBeenCalled();
     expect(cerrarOperacionManual).not.toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
+
+  describe("service picker (no beneficiary and no delivery method)", () => {
+    const m = en.Inbox.operationsPanel.closing.method;
+    const labels = [m.cuban_card, m.zelle, m.clasica, m.tropical, m.efectivo_usd];
+
+    it("shows five single-select icon buttons and keeps the check disabled until one is picked", async () => {
+      const { node, root } = await render("close", vi.fn(), vi.fn(), true);
+
+      for (const label of labels) {
+        const b = buttonByLabel(node, label);
+        expect(b).not.toBeNull();
+        expect(b.title).toBe(label);
+        expect(b.getAttribute("aria-pressed")).toBe("false");
+        expect(b.querySelector('[role="img"]')).not.toBeNull(); // icon, not a text label
+      }
+      expect(buttonByLabel(node, t.closeConfirm).disabled).toBe(true);
+
+      await act(async () => buttonByLabel(node, m.zelle).click());
+      expect(buttonByLabel(node, m.zelle).getAttribute("aria-pressed")).toBe("true");
+      expect(buttonByLabel(node, m.cuban_card).getAttribute("aria-pressed")).toBe("false");
+      expect(buttonByLabel(node, t.closeConfirm).disabled).toBe(false);
+
+      await act(async () => buttonByLabel(node, m.tropical).click());
+      expect(buttonByLabel(node, m.zelle).getAttribute("aria-pressed")).toBe("false");
+      expect(buttonByLabel(node, m.tropical).getAttribute("aria-pressed")).toBe("true");
+      await act(async () => root.unmount());
+    });
+
+    it("confirm sends the chosen method and the bell value", async () => {
+      cerrarOperacionManual.mockResolvedValue({ ok: true, newStatus: "completed", completedAt: null });
+      const { node, root, onDone } = await render("close", vi.fn(), vi.fn(), true);
+
+      await act(async () => buttonByLabel(node, m.efectivo_usd).click());
+      await act(async () => buttonByLabel(node, en.Inbox.operationsPanel.notify.off).click());
+      await act(async () => buttonByLabel(node, t.closeConfirm).click());
+
+      expect(cerrarOperacionManual).toHaveBeenCalledWith("op-1", true, "efectivo_usd");
+      expect(onDone).toHaveBeenCalled();
+      await act(async () => root.unmount());
+    });
+
+    it("shows no icons for delete, nor for close when a beneficiary or method exists", async () => {
+      for (const [kind, needs] of [["delete", true], ["close", false], ["close", undefined]] as const) {
+        const { node, root } = await render(kind, vi.fn(), vi.fn(), needs);
+        for (const label of labels) expect(buttonByLabel(node, label)).toBeNull();
+        await act(async () => root.unmount());
+        document.body.replaceChildren();
+      }
+    });
+  });
+});
+
+describe("OperationClosingControl service icons are told apart", () => {
+  it("draws a different icon for each of the five services", async () => {
+    const { node, root } = await render("close", vi.fn(), vi.fn(), true);
+    const methods = t.method as Record<string, string>;
+    const icons = Object.values(methods).map((label) => {
+      const svg = buttonByLabel(node, label)?.querySelector("svg");
+      return svg?.getAttribute("class") ?? "";
+    });
+
+    expect(icons).toHaveLength(5);
+    expect(new Set(icons).size).toBe(5);
     await act(async () => root.unmount());
   });
 });

@@ -255,15 +255,17 @@ export type ManualCloseCommandResult =
 
 /** `crm_cerrar_operacion_manual` (migrations 190/191): completes a verified
  *  remesa; the customer is messaged only when `notify` is true (default
- *  false). Owner/admin only; no reason is asked for. */
+ *  false). Owner/admin only; no reason is asked for. `deliveryMethod` (migration
+ *  196) names the service when the remesa has no beneficiary yet. */
 export async function cerrarOperacionManual(
   operationId: string,
   notify = false,
+  deliveryMethod?: string,
 ): Promise<ManualCloseCommandResult> {
   const response = await postJsonResult<{ newStatus: string; completedAt: string | null }>(
     `/api/remittance-operations/${operationId}/close-manual`,
     "POST",
-    { notify },
+    deliveryMethod ? { notify, deliveryMethod } : { notify },
   );
   if (!response.ok) return response;
   return { ok: true, newStatus: response.data.newStatus, completedAt: response.data.completedAt };

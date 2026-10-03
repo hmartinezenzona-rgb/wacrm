@@ -290,4 +290,54 @@ describe("POST /api/remittance-operations/[operationId]/close-manual", () => {
     expect(response.status).toBe(400);
     expect(callCtx.supabase.rpc).not.toHaveBeenCalled();
   });
+
+  it.each(["cuban_card", "zelle", "clasica", "tropical", "efectivo_usd"])(
+    "deliveryMethod %s -> RPC gets p_delivery_method",
+    async (method) => {
+      const { POST } = await import("./route");
+      const callCtx = ctx(ENABLED_PROFILE, {
+        data: { new_status: "completed", completed_at: null },
+        error: null,
+      });
+      requireRole.mockResolvedValueOnce(callCtx);
+
+      const response = await POST(request({ deliveryMethod: method }), paramsFor(OPERATION_ID));
+
+      expect(response.status).toBe(200);
+      expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_cerrar_operacion_manual", {
+        p_operation_id: OPERATION_ID,
+        p_motivo: null,
+        p_notify: false,
+        p_delivery_method: method,
+      });
+    },
+  );
+
+  it("no deliveryMethod -> p_delivery_method is not sent", async () => {
+    const { POST } = await import("./route");
+    const callCtx = ctx(ENABLED_PROFILE, {
+      data: { new_status: "completed", completed_at: null },
+      error: null,
+    });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    await POST(request({ notify: false }), paramsFor(OPERATION_ID));
+
+    const args = (callCtx.supabase.rpc.mock.calls[0] as unknown as [string, Record<string, unknown>])[1];
+    expect("p_delivery_method" in args).toBe(false);
+  });
+
+  it.each(["mmg", "multiple_distribution", 5, ""])(
+    "unknown deliveryMethod %j -> 400, RPC never called",
+    async (method) => {
+      const { POST } = await import("./route");
+      const callCtx = ctx(ENABLED_PROFILE, { data: null, error: null });
+      requireRole.mockResolvedValueOnce(callCtx);
+
+      const response = await POST(request({ deliveryMethod: method }), paramsFor(OPERATION_ID));
+
+      expect(response.status).toBe(400);
+      expect(callCtx.supabase.rpc).not.toHaveBeenCalled();
+    },
+  );
 });

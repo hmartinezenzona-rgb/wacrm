@@ -22,6 +22,18 @@ import {
 
 const MAX_REASON_LENGTH = 500;
 
+/** Services the calculator prices (migration 196); same list the RPC accepts. */
+const DELIVERY_METHODS = ["cuban_card", "zelle", "clasica", "tropical", "efectivo_usd"];
+
+/** `undefined` when absent / null, `null` (caller answers 400) when present
+ *  but not one of the five services. */
+function parseDeliveryMethod(body: unknown): string | null | undefined {
+  const method = (body as { deliveryMethod?: unknown } | null)?.deliveryMethod;
+  if (method === undefined || method === null) return undefined;
+  if (typeof method !== "string" || !DELIVERY_METHODS.includes(method)) return null;
+  return method;
+}
+
 /** The reason is optional now: `undefined` when absent or blank, `null`
  *  (caller answers 400) when present but not a string or over the limit. */
 function parseReason(body: unknown): string | null | undefined {
@@ -71,10 +83,19 @@ export async function POST(
     const notify = parseNotify(body, false);
     if (notify === null) return invalidNotifyResponse();
 
+    const deliveryMethod = parseDeliveryMethod(body);
+    if (deliveryMethod === null) {
+      return NextResponse.json(
+        { error: `deliveryMethod, when sent, must be one of: ${DELIVERY_METHODS.join(", ")}` },
+        { status: 400 },
+      );
+    }
+
     const { data, error } = await ctx.supabase.rpc("crm_cerrar_operacion_manual", {
       p_operation_id: operationId,
       p_motivo: reason ?? null,
       p_notify: notify,
+      ...(deliveryMethod ? { p_delivery_method: deliveryMethod } : {}),
     });
     if (error) {
       const errorResponse = rpcErrorResponse(error);

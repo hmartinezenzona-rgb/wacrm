@@ -679,6 +679,7 @@ export function RemittanceOperationCard({
               <OperationClosingControl
                 operationId={operation.id}
                 kind="close"
+                needsService={operation.beneficiaries.length === 0 && !operation.deliveryMethod}
                 onDone={handleChanged}
                 onCancel={() => setOpenForm(null)}
               />

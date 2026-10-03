@@ -412,6 +412,17 @@ describe("cerrarOperacionManual", () => {
     expect(response).toMatchObject({ ok: true, newStatus: "completed" });
   });
 
+  it("POSTs deliveryMethod only when a service was picked", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(closed));
+
+    await cerrarOperacionManual(OPERATION_ID, true, "zelle");
+
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0]![1]!.body as string)).toEqual({
+      notify: true,
+      deliveryMethod: "zelle",
+    });
+  });
+
   it("POSTs notify:true when the operator turns the bell on", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(closed));
 

@@ -427,7 +427,14 @@
         "deleteButton": "Delete remesa",
         "closeButton": "Close manually",
         "closeConfirm": "Close remesa",
-        "deleteConfirm": "Delete remesa"
+        "deleteConfirm": "Delete remesa",
+        "method": {
+          "cuban_card": "CUP card",
+          "zelle": "Zelle",
+          "clasica": "Clásica",
+          "tropical": "Tropical",
+          "efectivo_usd": "Cash in USD"
+        }
       },
       "completeTransfer": {
         "title": "Complete transfer",

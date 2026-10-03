@@ -118,3 +118,17 @@ live staging test for n8n changes.
   recargaPrecioGyd. Only recarga_costo_usdt stays as a calculator rate. Assertions updated (recarga-model 5 cases,
   calculator-recarga 5, panel-recarga 4) and GREEN; calculator-cash, manual-close-service, panel-closing-actions,
   feed-matrix, rate-versions ALL PASS. The app writer was told to drop the price field.
+- R3 app (2026-10-03): commit 0f32bd4. Calculator field "Recarga: costo (USDT)" (recarga_costo_usdt; the price field was
+  dropped with the design change); panel: a recharge card (Smartphone, "Recharge", "N recharges" from its recarga rows,
+  numbers as copy chips, no remesa-only bits), the add control adds a number only on a recharge, the manual-close
+  picker's sixth option "Recharge" (route accepts "recarga"); complete transfer already handles one proof per number.
+  RED 7 + 14 -> GREEN; suite 1805; tsc, eslint clean.
+- R2 DB (2026-10-03, staging): `201_recarga_numbers.sql` (+ ROLLBACK). crm_registrar_numeros_recarga(conv, text): Cuban
+  mobiles in the text (pattern 8 digits starting 5/6, optional +53, separators between groups; cards and landlines are
+  not matched) -> 'recarga' rows on the open recharge, no repeats, panel lock respected, audited
+  (automation_recharge_numbers_registered), returns what is still missing (cerebro_recarga_unidades). Used by
+  cerebro_registrar_deposito (a NEW recharge takes the numbers typed since asking) and cerebro_guardar_beneficiario_auto
+  (a number alone with an open recharge). cerebro_registrar_deposito's body equals production's (checked before
+  editing). Assertion recarga-numbers.sql (5 cases; the lock fixture is set as an admin — an automation write to the
+  lock is suppressed by the guard) RED -> GREEN; cash-phone-not-a-card, partial-beneficiary-tools/-auto,
+  deal-free-money-rules, deposit-path-without-deals, recharge and cross assertions ALL PASS.

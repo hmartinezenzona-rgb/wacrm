@@ -42,19 +42,19 @@ silent mode. Cash delivery must be reviewed carefully before building it.
 - [x] B+D-2 Staging notifier skips delivery_mode closed_manually
 - [x] B+D-3 App: trash icon, "Close manually", optional phone in the add form — 96884d3
 - [ ] B+D-4 Staging deploy + owner check, then production (190 + notifier + app) with go-ahead
-- [ ] A4 Cash recipient's NAME is stored and shown (owner, 2026-10-03): the bot repeats it ("*Nombre:* Anabel Frenes
+- [x] A4 Cash recipient's NAME is stored and shown (owner, 2026-10-03): the bot repeats it ("*Nombre:* Anabel Frenes
       Vera") but remittance_beneficiaries.name stays NULL (staging op 4a044782; production Bruce 972718ea also lost
       name, phone and address); the panel shows it for a cash recipient
-- [ ] A5 Notifier "verified" message knows cash (owner, 2026-10-03): on a manual verification the notifier's
+- [x] A5 Notifier "verified" message knows cash (owner, 2026-10-03): on a manual verification the notifier's
       ready_to_transfer branch checks only Zelle (name + account) or card (card + phone), so a complete efectivo_usd
       recipient got "nos falta la tarjeta de quien recibe en Cuba" (staging op 4a044782, 02:11 UTC). For cash it must
       check phone + address + ID photo, like crm_beneficiarios_completos (188); staging and production notifiers
-- [ ] E1 Panel actions with icons, no reason text (owner, 2026-10-03): manual close confirms with a green check and
+- [x] E1 Panel actions with icons, no reason text (owner, 2026-10-03): manual close confirms with a green check and
       cancels with an X, no reason field; the audit stores a fixed internal note ("Closed manually from the panel")
-- [ ] E2 Notify-customer bell (owner, 2026-10-03): every panel action that messages the customer (verify / force-verify,
+- [x] E2 Notify-customer bell (owner, 2026-10-03): every panel action that messages the customer (verify / force-verify,
       deliver, manual close) shows a bell toggle. ON by default (customer notified) EXCEPT manual close, where it is OFF
       by default; unchecked = no message. Delete never notifies (no bell). Needs the choice to reach the notifier
-- [ ] E3 Delete the same way (owner, 2026-10-03, on staging op 333fe846): no reason field, confirm with a check and
+- [x] E3 Delete the same way (owner, 2026-10-03, on staging op 333fe846): no reason field, confirm with a check and
       cancel with an X; the audit stores a fixed internal note ("Deleted from the panel")
 - [ ] C resent receipt guard
 
@@ -146,3 +146,11 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   stale mute on another status -> still notifies; incident alert with mute -> admin alert still sent.
 - A4 Cerebro (2026-10-03, staging U52y1kSNvhgxvWeb) via gate85-cerebro-nombre.py: tool registrar_datos_entrega_efectivo
   passes `nombre` as p_name; the agent's tool line names it (optional, saved when given). Backups in ~/cerebro-fase1/pruebas.
+- A4/E1/E2/E3 app (2026-10-03): commit 3901074. Routes verify / force-verify / deliver take optional
+  notify (default true) -> p_notify; close-manual notify default false; close-manual and delete take no reason. New
+  NotifyToggle (Bell/BellOff, aria-pressed) in deposit review (verify + force-verify), complete transfer (single and
+  multi) and the manual close; closing control = green Check / X icon buttons, no textarea; delete has no bell; cash
+  recipient's name chip; the complete-transfer helper says only the screenshot goes out when the bell is off. RED 49
+  failing (writer) + 1 (helper) -> GREEN; full suite 1764 passed; tsc and eslint clean. Checked off on staging code;
+  owner check and production still pending. Open owner question: wording of the "verified" message instead of
+  "En breve le hacemos la transferencia" (cash and possibly every method).

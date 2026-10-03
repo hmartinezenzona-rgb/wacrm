@@ -233,3 +233,27 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   (crm_calcular_monto_destino) and the owner closes Rubislandi 30c87ea5 himself. DB first: the app and the
   notifier/Cerebro read the 191/192 signatures and column. Open: A6 (cash in the calculator, waiting for the admin),
   C (resent receipt guard).
+- PRODUCTION (2026-10-03 ~04:00 UTC, owner go-ahead "pasa todo a produccion"):
+  - Pre-check: the 12 functions 188-192 replace have the same md5 in production as in staging before 188 (staging
+    pre-188 state rebuilt by applying ROLLBACK-192..188 in a forced-rollback transaction, closed_manually rows and new
+    audit actions neutralised inside it); the efectivo_usd service text matches 188's guarded replace; one account.
+  - Backup ~/wacrm-respaldos/produccion-20261003T035113Z.dump (+ .sha256, .list; 200 functions, 143 table data).
+  - DB: ~/cerebro-fase1/pruebas/gate86-aplicar-db.py (gate84 route, temporary zz_wu5b_exec created and dropped):
+    ensayo "efectivo=290 min=29000 muted_col=1 forzar=p_operation_id uuid, p_reason text, p_notify boolean open_ops=9"
+    rolled back; aplicar {"r":"ok"}, 188-192 registered (created_by gate86); probar: cash-delivery-rate,
+    panel-cash-recipient, panel-closing-actions, panel-notify-and-cash-name, force-verify-without-reason ALL PASS;
+    0 fixture contacts left.
+  - Notifier wGud0KGR6eMqqfMQ: production's ready_to_transfer branch is NEWER than staging's (cfg.riel from
+    cerebro_riel_op 173, plural "faltan", cash without beneficiary already handled), and never had the 190
+    closed_manually rule; gate85-notificador.py now inserts the mute after the incident line when that rule is absent
+    and skips the no-beneficiary patch when riel handles cash (first run stopped on a marker before any PUT). Applied
+    gate85 + gate85b; offline run of the production node: same 9 results as staging. Drift noted: staging notifier
+    lacks production's riel logic.
+  - Cerebro jEzlVLCLUaJhVwzs: gate85-cerebro-nombre.py + gate85c-cerebro-promesa.py applied; expressions parse,
+    Decisor parses, tool passes $4 (name).
+  - App 3f20c78 built with the production env (manifest production, 32 prod / 0 staging refs, 114 money-path tests,
+    sha256 OK, p_notify present) and deployed with desplegar-wacrm-produccion.sh: served cwd ~/wacrm-releases/3f20c78…,
+    anterior -> 304a0c9…, BUILD_ID y-nuLGCNQ5pFHnSNfZyvS, /login 200, online. privado/master fast-forwarded to 3f20c78.
+  - Bruce 972718ea: crm_calcular_monto_destino -> 100 USD calculated; still incomplete (name, phone and address were
+    never stored by the old bot; ID photo present).
+  Pending: owner closes Rubislandi 30c87ea5 himself; Bruce's recipient data (offered to fill from his chat); A6; C.

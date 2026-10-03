@@ -20,14 +20,17 @@ import {
   rpcErrorResponse,
 } from "@/lib/remittance-operations/route-helpers";
 
-const MIN_REASON_LENGTH = 5;
+const MAX_REASON_LENGTH = 500;
 
-function parseReason(body: unknown): string | null {
+/** The reason is optional: `undefined` when absent or blank, `null`
+ *  (caller answers 400) when present but not a string or over the limit. */
+function parseReason(body: unknown): string | null | undefined {
   const reason = (body as { reason?: unknown } | null)?.reason;
+  if (reason === undefined) return undefined;
   if (typeof reason !== "string") return null;
   const trimmed = reason.trim();
-  if (trimmed.length < MIN_REASON_LENGTH) return null;
-  return trimmed;
+  if (trimmed.length > MAX_REASON_LENGTH) return null;
+  return trimmed === "" ? undefined : trimmed;
 }
 
 export async function POST(
@@ -58,9 +61,9 @@ export async function POST(
     }
 
     const reason = parseReason(body);
-    if (!reason) {
+    if (reason === null) {
       return NextResponse.json(
-        { error: "reason must be a string of at least 5 characters" },
+        { error: "reason, when sent, must be a string of at most 500 characters" },
         { status: 400 },
       );
     }
@@ -70,7 +73,7 @@ export async function POST(
 
     const { data, error } = await ctx.supabase.rpc("crm_forzar_verificacion", {
       p_operation_id: operationId,
-      p_reason: reason,
+      p_reason: reason ?? null,
       p_notify: notify,
     });
     if (error) {

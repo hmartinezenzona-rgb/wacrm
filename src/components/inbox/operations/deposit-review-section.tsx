@@ -2,7 +2,7 @@
 
 import { useState, type ChangeEvent } from "react";
 import { useTranslations } from "next-intl";
-import { AlertTriangle, Banknote, CircleCheck, Hash, TriangleAlert } from "lucide-react";
+import { AlertTriangle, Banknote, Check, CircleCheck, Hash, TriangleAlert, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,7 +29,7 @@ interface DepositReviewSectionProps {
   result: { kind: "success" | "error"; message: string } | null;
   /** `notify` is the bell: whether the customer gets the WhatsApp message. */
   onVerify: (items: VerifyDepositItem[], notify: boolean) => void;
-  onForce: (reason: string, notify: boolean) => void;
+  onForce: (notify: boolean) => void;
   /** Destination amount row shown in the verified state, computed by the
    *  card from the operation's beneficiaries. `undefined`/`null` omits
    *  the row (multiple beneficiaries, or none known). */
@@ -45,7 +45,6 @@ interface Draft {
   amount: string;
 }
 
-const MIN_FORCE_REASON_LENGTH = 5;
 const VERIFIED_STATUSES: ReadonlyArray<string> = ["ready_to_transfer", "transferring", "completed"];
 
 function draftsFrom(receipts: DepositReceipt[]): Record<string, Draft> {
@@ -107,7 +106,6 @@ export function DepositReviewSection({
   const [drafts, setDrafts] = useState<Record<string, Draft>>(() => draftsFrom(data.receipts));
   const [unmatchedIndex, setUnmatchedIndex] = useState(0);
   const [forcing, setForcing] = useState(false);
-  const [reason, setReason] = useState("");
   const [notify, setNotify] = useState(true);
 
   // Reset drafts (and the receipt switcher) whenever the container hands
@@ -136,16 +134,12 @@ export function DepositReviewSection({
       amount: Number(drafts[receipt.compId]!.amount),
     }));
 
-  const trimmedReason = reason.trim();
-  const canConfirmForce = trimmedReason.length >= MIN_FORCE_REASON_LENGTH;
-
   function cancelForce() {
     setForcing(false);
-    setReason("");
   }
 
   function confirmForce() {
-    onForce(trimmedReason, notify);
+    onForce(notify);
     cancelForce();
   }
 
@@ -328,21 +322,29 @@ export function DepositReviewSection({
 
           {forcing && (
             <div className="space-y-1.5 rounded-md border border-border bg-muted/40 p-1.5">
-              <div className="space-y-1">
-                <Label htmlFor="deposit-review-force-reason">{t("depositReview.forceReason")}</Label>
-                <Input
-                  id="deposit-review-force-reason"
-                  value={reason}
-                  onChange={(event: ChangeEvent<HTMLInputElement>) => setReason(event.target.value)}
-                />
-              </div>
-              <div className="flex items-center justify-end gap-2">
+              <div className="flex items-center justify-end gap-1">
                 <NotifyToggle notify={notify} onChange={setNotify} disabled={busy} />
-                <Button type="button" variant="outline" size="sm" onClick={cancelForce}>
-                  {t("depositReview.cancel")}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  aria-label={t("depositReview.cancel")}
+                  title={t("depositReview.cancel")}
+                  onClick={cancelForce}
+                  disabled={busy}
+                >
+                  <X aria-hidden="true" />
                 </Button>
-                <Button type="button" size="sm" disabled={!canConfirmForce} onClick={confirmForce}>
-                  {t("depositReview.forceConfirm")}
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  aria-label={t("depositReview.forceConfirm")}
+                  title={t("depositReview.forceConfirm")}
+                  className="bg-green-600 text-white hover:bg-green-700"
+                  disabled={busy}
+                  onClick={confirmForce}
+                >
+                  <Check aria-hidden="true" />
                 </Button>
               </div>
             </div>

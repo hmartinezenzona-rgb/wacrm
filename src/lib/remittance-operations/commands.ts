@@ -192,13 +192,12 @@ export type ForceVerifyDepositCommandResult =
 
 export async function forceVerifyDeposit(
   operationId: string,
-  reason: string,
   notify = true,
 ): Promise<ForceVerifyDepositCommandResult> {
   const response = await postJsonResult<{ newStatus: string }>(
     `/api/remittance-operations/${operationId}/force-verify`,
     "POST",
-    { reason, notify },
+    { notify },
   );
   if (!response.ok) return response;
   return { ok: true, newStatus: response.data.newStatus };

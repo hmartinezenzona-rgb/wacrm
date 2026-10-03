@@ -76,7 +76,7 @@ interface RenderOptions {
   busy?: boolean;
   result?: { kind: "success" | "error"; message: string } | null;
   onVerify?: (items: VerifyDepositItem[], notify: boolean) => void;
-  onForce?: (reason: string, notify: boolean) => void;
+  onForce?: (notify: boolean) => void;
   summaryAmount?: SummaryAmount | null;
   onAddAmount?: () => void;
 }
@@ -116,6 +116,14 @@ function textButton(node: Element, text: string) {
   return Array.from(node.querySelectorAll("button")).find((b) => b.textContent?.trim() === text) as
     | HTMLButtonElement
     | undefined;
+}
+
+function forceConfirmButton(node: Element) {
+  return node.querySelector<HTMLButtonElement>(`button[aria-label="${T.forceConfirm}"]`)!;
+}
+
+function cancelIconButton(node: Element) {
+  return node.querySelector<HTMLButtonElement>(`button[aria-label="${T.cancel}"]`)!;
 }
 
 describe("DepositReviewSection", () => {
@@ -412,32 +420,34 @@ describe("DepositReviewSection", () => {
     it("force verification carries the notify choice too", async () => {
       const { node, onForce } = await render();
 
+      await act(async () => textButton(node, T.force)!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
       const bell = node.querySelector<HTMLButtonElement>("button[aria-pressed]")!;
       await act(async () => bell.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-      await act(async () => textButton(node, T.force)!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-      await act(async () => setValue(node.querySelector<HTMLInputElement>("#deposit-review-force-reason")!, "owner confirmed"));
-      await act(async () => textButton(node, T.forceConfirm)!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+      await act(async () => forceConfirmButton(node).dispatchEvent(new MouseEvent("click", { bubbles: true })));
 
-      expect(onForce).toHaveBeenCalledWith("owner confirmed", false);
+      expect(onForce).toHaveBeenCalledWith(false);
     });
 
-    it("keeps the force confirm button disabled until the reason is at least 5 trimmed characters, then calls onForce with the trimmed reason", async () => {
+    it("force form is icon-only: no reason label or input, bell on by default, check confirms and X cancels", async () => {
       const { node, onForce } = await render();
 
-      const forceToggle = textButton(node, T.force)!;
-      await act(async () => forceToggle.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+      await act(async () => textButton(node, T.force)!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 
-      const reasonInput = node.querySelector<HTMLInputElement>("#deposit-review-force-reason")!;
-      expect(textButton(node, T.forceConfirm)!.disabled).toBe(true);
+      expect(node.querySelector("#deposit-review-force-reason")).toBeNull();
+      expect(node.textContent).not.toContain("Reason");
+      expect(textButton(node, T.forceConfirm)).toBeUndefined();
+      const bells = Array.from(node.querySelectorAll<HTMLButtonElement>("button[aria-pressed]"));
+      expect(bells.some((b) => b.getAttribute("aria-pressed") === "true")).toBe(true);
+      expect(forceConfirmButton(node).disabled).toBe(false);
+      expect(forceConfirmButton(node).className).toContain("bg-green-600");
 
-      await act(async () => setValue(reasonInput, "1234"));
-      expect(textButton(node, T.forceConfirm)!.disabled).toBe(true);
+      await act(async () => cancelIconButton(node).dispatchEvent(new MouseEvent("click", { bubbles: true })));
+      expect(node.querySelector(`button[aria-label="${T.forceConfirm}"]`)).toBeNull();
+      expect(onForce).not.toHaveBeenCalled();
 
-      await act(async () => setValue(reasonInput, "  valid reason  "));
-      expect(textButton(node, T.forceConfirm)!.disabled).toBe(false);
-
-      await act(async () => textButton(node, T.forceConfirm)!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-      expect(onForce).toHaveBeenCalledWith("valid reason", true);
+      await act(async () => textButton(node, T.force)!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+      await act(async () => forceConfirmButton(node).dispatchEvent(new MouseEvent("click", { bubbles: true })));
+      expect(onForce).toHaveBeenCalledWith(true);
     });
 
     // B4.3 — an admin must be able to force-complete a remesa with ZERO
@@ -454,10 +464,8 @@ describe("DepositReviewSection", () => {
       expect(forceToggle).not.toBeUndefined();
 
       await act(async () => forceToggle.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-      const reasonInput = node.querySelector<HTMLInputElement>("#deposit-review-force-reason")!;
-      await act(async () => setValue(reasonInput, "sin recibos, bot pausado"));
-      await act(async () => textButton(node, T.forceConfirm)!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-      expect(onForce).toHaveBeenCalledWith("sin recibos, bot pausado", true);
+      await act(async () => forceConfirmButton(node).dispatchEvent(new MouseEvent("click", { bubbles: true })));
+      expect(onForce).toHaveBeenCalledWith(true);
     });
 
     it("hides the force link with zero receipts too when canForce is false", async () => {

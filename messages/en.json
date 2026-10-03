@@ -473,7 +473,6 @@
         "transId": "TransID",
         "verify": "Verify deposit",
         "force": "Force verification…",
-        "forceReason": "Reason",
         "forceConfirm": "Force",
         "cancel": "Cancel",
         "loading": "Loading receipts…",

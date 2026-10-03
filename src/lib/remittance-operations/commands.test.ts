@@ -249,20 +249,19 @@ describe("verifyDeposit", () => {
 });
 
 describe("forceVerifyDeposit", () => {
-  it("POSTs the reason to the force-verify endpoint and unwraps newStatus", async () => {
+  it("POSTs only notify (no reason) to the force-verify endpoint and unwraps newStatus", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       jsonResponse({ ok: true, newStatus: "ready_to_transfer" }),
     );
 
-    const reason = "Confirmed by phone with the sender";
-    const response = await forceVerifyDeposit(OPERATION_ID, reason);
+    const response = await forceVerifyDeposit(OPERATION_ID);
 
     expect(fetch).toHaveBeenCalledWith(
       `/api/remittance-operations/${OPERATION_ID}/force-verify`,
       expect.objectContaining({
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason, notify: true }),
+        body: JSON.stringify({ notify: true }),
       }),
     );
     expect(response).toEqual({ ok: true, newStatus: "ready_to_transfer" });
@@ -271,7 +270,7 @@ describe("forceVerifyDeposit", () => {
   it("maps a non-2xx response to ok:false with status and error message", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ error: "Forbidden" }, 403));
 
-    const response = await forceVerifyDeposit(OPERATION_ID, "short reason enough");
+    const response = await forceVerifyDeposit(OPERATION_ID);
 
     expect(response).toEqual({ ok: false, status: 403, error: "Forbidden" });
   });
@@ -279,7 +278,7 @@ describe("forceVerifyDeposit", () => {
   it("maps a network failure to ok:false status 0", async () => {
     vi.mocked(fetch).mockRejectedValueOnce(new Error("offline"));
 
-    const response = await forceVerifyDeposit(OPERATION_ID, "short reason enough");
+    const response = await forceVerifyDeposit(OPERATION_ID);
 
     expect(response).toEqual({ ok: false, status: 0, error: "Network error" });
   });
@@ -377,12 +376,9 @@ describe("forceVerifyDeposit / deliverOperation notify flag", () => {
   it("forceVerifyDeposit sends notify:false when asked", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ok: true, newStatus: "ready_to_transfer" }));
 
-    await forceVerifyDeposit(OPERATION_ID, "owner confirmed it", false);
+    await forceVerifyDeposit(OPERATION_ID, false);
 
-    expect(JSON.parse(vi.mocked(fetch).mock.calls[0]![1]!.body as string)).toEqual({
-      reason: "owner confirmed it",
-      notify: false,
-    });
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0]![1]!.body as string)).toEqual({ notify: false });
   });
 
   it("deliverOperation sends notify:false when asked", async () => {

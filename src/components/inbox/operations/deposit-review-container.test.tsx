@@ -134,12 +134,6 @@ function textButton(node: Element, text: string) {
     | undefined;
 }
 
-function setValue(input: HTMLInputElement, value: string) {
-  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")!.set!;
-  setter.call(input, value);
-  input.dispatchEvent(new Event("input", { bubbles: true }));
-}
-
 describe("DepositReviewContainer", () => {
   it("fetches receipts on mount and renders the section", async () => {
     fetchOperationReceipts.mockResolvedValue({ ok: true, data: readModel() });
@@ -239,13 +233,11 @@ describe("DepositReviewContainer", () => {
 
     const forceToggle = textButton(node, T.force)!;
     await act(async () => forceToggle.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-    const reasonInput = node.querySelector<HTMLInputElement>("#deposit-review-force-reason")!;
-    await act(async () => setValue(reasonInput, "manual override"));
-    const forceConfirm = textButton(node, T.forceConfirm)!;
+    const forceConfirm = node.querySelector<HTMLButtonElement>(`button[aria-label="${T.forceConfirm}"]`)!;
     await act(async () => forceConfirm.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     await flush();
 
-    expect(forceVerifyDeposit).toHaveBeenCalledWith("op-1", "manual override", true);
+    expect(forceVerifyDeposit).toHaveBeenCalledWith("op-1", true);
     expect(fetchOperationReceipts).toHaveBeenCalledTimes(2);
     expect(onChanged).toHaveBeenCalledTimes(1);
     expect(node.textContent).toContain(T.forced);
@@ -261,9 +253,7 @@ describe("DepositReviewContainer", () => {
 
     const forceToggle = textButton(node, T.force)!;
     await act(async () => forceToggle.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-    const reasonInput = node.querySelector<HTMLInputElement>("#deposit-review-force-reason")!;
-    await act(async () => setValue(reasonInput, "manual override"));
-    const forceConfirm = textButton(node, T.forceConfirm)!;
+    const forceConfirm = node.querySelector<HTMLButtonElement>(`button[aria-label="${T.forceConfirm}"]`)!;
     await act(async () => forceConfirm.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     await flush();
 

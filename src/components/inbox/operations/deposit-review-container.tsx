@@ -165,9 +165,9 @@ export function DepositReviewContainer({
     }
   }
 
-  async function handleForce(reason: string, notify: boolean) {
+  async function handleForce(notify: boolean) {
     setBusy(true);
-    const response = await forceVerifyDeposit(operationId, reason, notify);
+    const response = await forceVerifyDeposit(operationId, notify);
     setBusy(false);
 
     if (!response.ok) {

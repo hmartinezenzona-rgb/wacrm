@@ -16,7 +16,7 @@ Catalog the real formats from history, describe the missing ones in the vision p
 formats text cannot pin down, and measure before/after on past images.
 
 ## Tasks
-- [ ] V0 Catalog: collect customer images with the vision verdict and the outcome; select the misreads (receipts
+- [x] V0 Catalog: collect customer images with the vision verdict and the outcome; select the misreads (receipts
       classified "otro", wrong amount or reference, receipts that ended in incidents such as sin_correo / mismatch);
       group them by layout. Show the owner the groups (one example each).
 - [ ] V1 Owner confirms which groups are real deposit formats (and any other document types worth adding).
@@ -37,3 +37,31 @@ Every catalogued format is read with the right amount and reference in the repla
 ## Progress / evidence
 - 2026-10-03: feature document created from the owner's request; starts after the cash work
   (odd/tasks/remesa-closing-and-cash.md plan P1, P2, A8).
+- V0 (2026-10-03, production data): cerebro_lecturas_vision holds every vision reading since 2026-09-28: 78 readings
+  (50 receipts, 23 Cuban cards, 1 Zelle account, 4 "otro"). Receipts: 46 match their MMG email exactly, 0 with a wrong
+  amount, 4 references not found — 1 is Bruce's misread resend (task C), and 3 are misreads with a matching email of
+  the same amount a minute earlier: 09-29 17:46 one digit 5->3 (agent app "Successfully Completed!" screen, clear, the
+  180-degree reading won the shape tie-break), 10-02 12:41 two neighbours swapped 78<->87 (format C photographed from a
+  monitor, tilted), 10-02 12:08 badly read (format C photographed from a monitor, heavy moiré). All three were
+  force-verified by hand and their real emails were left unconsumed. "otro": the ID cards (now A7) and Bruce's MMG
+  account screenshot. CONCLUSION (owner told): the formats are known; the failures are digit accuracy on photos of
+  screens. Plan changed from "describe more formats" to a safety net on the MMG emails.
+  - Owner go-ahead (2026-10-03): linked the 3 real emails to their completed operations in production
+    (20401883358716 -> 57a7ada2, 10402122268980 -> b6eeb07b, 10402124277872 -> 703f1a13; consumido_en + operation_id,
+    only if unconsumed and same amount; audited human_correction).
+  - Timing: the 12:08 email row was created 9 s AFTER the reading; 12:41 30 s before; 09-29 1 s before.
+  - DB 197 (staging, ee2e51d): cerebro_ref_parecida (8+ digits, lengths +-1, optimal string alignment distance <= 2);
+    cerebro_cruzar_deposito's approximate match uses it instead of "same length, first 5, last 4" (all other guards
+    kept: amount, unconsumed, not voided, window, ONE candidate, CRUCE_APROXIMADO admin alert); cerebro_cruzar_pendientes
+    and cerebro_recruzar_depositos_tardios also take a similar reference of the same amount (late email). Assertion
+    cruce-ref-parecida.sql (rule cases, swap at receipt time, two candidates refused, late pairing via
+    cerebro_cruzar_pendientes, exact unchanged) RED -> GREEN; the case-4 fixture first collided with case 3's similar
+    emails of the same amount and was refused as ambiguous — the uniqueness guard at work. Cross regressions: cutover,
+    deal-free-money-rules, deposit-path-without-deals ALL PASS; deposit-review, n8n-repoint, verify-deposit-status-drift
+    (deal fixtures), operation-incident-reason, repeated-receipt and split-deposit-minimums fail the same before and
+    after 197 (pre-existing).
+  - Rotation tie-break NOT changed: it was measured on 60 real images and favours the shape score; the 09-29 case is
+    covered by 197 (a one-digit-off elected reading still pairs). Revisit only with a replay.
+  - Still open: the 10-02 12:08 kind (badly read monitor photo) stays a manual verification; the bot's "No me llegó
+    bien la imagen" reply to a readable non-receipt image.
+  Next: owner go-ahead for 197 in production; then panel-other-services.md (recargas).

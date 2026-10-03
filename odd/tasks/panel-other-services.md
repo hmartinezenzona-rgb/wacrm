@@ -60,3 +60,11 @@ live staging test for n8n changes.
   price by where the promotion starts — 500 CUP -> 5,200 GYD, 600 CUP -> 6,200 GYD; only the Cuban number is needed;
   done in 5-20 minutes; no discounts. The manual calculator prices RECARGA as facturado = units x saleGyd and invertido =
   units x costGyd x cupRate; production has no RECARGA line yet. Next: S1 owner decisions, first the cost of a recarga.
+- S1 decisions so far (owner, 2026-10-03):
+  - Sale price is fixed by the promotion's main balance the recipient gets: 500 CUP -> 5,200 GYD; 600 CUP -> 6,200 GYD
+    ("la recarga siempre es así"; it changes very rarely).
+  - Cost: the calculator guide's example "• Josefa 1 rec promo (23.1/6.2k/242)" = 23.1 USDT per recharge x 242 GYD per
+    USDT -> invertido 5,590, facturado 6,200, retorno 610. The owner will confirm with the admin (Osmany) whether the
+    500-CUP promotion costs the same. Proposal on the table: the cost per recharge (USDT) lives in the calculator rates
+    (one place, like the cash rate), one value per promotion; the USDT rate is the calculator's usdt_buy_gyd; while a
+    cost is missing the line is "pending" with that missing input, as the calculator already does for missing rates.

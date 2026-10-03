@@ -59,3 +59,9 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   staging, ALL PASS; also GREEN on the production copy (wacrm-ensayo-wu5b, rolled back). Regressions after: rate-versions,
   tasas-derives, calculator-access, deal-free-money-rules, cup-excess-equivalent ALL PASS. destination-amount.sql fails
   BEFORE and after (it INSERTs into the view tasas: stale since 120, unrelated).
+- A2 DB (2026-10-02, staging): `189_panel_cash_recipient.sql` (+ ROLLBACK): crm_operaciones_de_conversacion appends
+  beneficiary_address, beneficiary_id_photo_wamid, beneficiary_id_photo_url (media_url of that message in the same
+  conversation); DROP + CREATE, grants as before; columns appended so the current app keeps working. Assertion
+  `panel-cash-recipient.sql` (address, photo wamid + URL, 100 USD from 188, complete) RED (`v_r has no field
+  beneficiary_address`) -> GREEN rolled back -> applied to staging, ALL PASS; read-rpc and panel-quote ALL PASS.
+  history-readiness fails in its fixture (a deal no longer creates an operation since 172): pre-existing.

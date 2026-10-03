@@ -25,7 +25,7 @@ Recargas first, end to end; then the other services one by one in the order the 
 - Don't break the remesa flow (cash, cards, Zelle, Clasica, Tropical).
 
 ## Tasks
-- [ ] S0 Explore recargas today: who creates the 22 recarga operations and with what data; the recargas service text the
+- [x] S0 Explore recargas today: who creates the 22 recarga operations and with what data; the recargas service text the
       bot reads; how the manual calculator prices RECARGA / SALDO_MOVIL; what the bot does today when asked for one.
 - [ ] S1 Owner decisions for recargas (one question at a time): data to collect (number(s) to recharge, plan/amount,
       operator), price and cost for the calculator, what "completed" means, the customer messages.
@@ -50,3 +50,13 @@ live staging test for n8n changes.
 ## Progress / evidence
 - 2026-10-03: feature document created from the owner's request; nothing implemented yet. Starts after the cash work
   (odd/tasks/remesa-closing-and-cash.md, plan P1-P2, A8).
+- S0 (2026-10-03, production read-only): 22 recarga operations (13-aug..2-oct), all with a legacy deal_id, no
+  beneficiary except 2 (one cuban_card, one zelle — the 2-oct 83,200 GYD zelle one looks like a remesa misfiled), amounts
+  mostly 6,200 GYD (also 1,000; 5,000; 12,400; 12,520; 14,400; 15,500). Creation today (deal-free, 160):
+  cerebro_registrar_deposito files the deposit as service_type 'recarga' when the customer wrote "recarga", "etecsa" or
+  "cubacel" in the last 24 h (and no card is pending) — words in an AUDIO do not count, which is likely why Yosvany's
+  6,200 GYD became a remesa. Nothing stores the number to recharge; the panel lists only remesas; the calculator feed
+  ignores recargas. Bot facts (cerebro_servicios 'recargas'): Etecsa promotions only; always the promotion's minimum;
+  price by where the promotion starts — 500 CUP -> 5,200 GYD, 600 CUP -> 6,200 GYD; only the Cuban number is needed;
+  done in 5-20 minutes; no discounts. The manual calculator prices RECARGA as facturado = units x saleGyd and invertido =
+  units x costGyd x cupRate; production has no RECARGA line yet. Next: S1 owner decisions, first the cost of a recarga.

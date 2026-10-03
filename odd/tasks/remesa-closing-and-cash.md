@@ -257,3 +257,14 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   - Bruce 972718ea: crm_calcular_monto_destino -> 100 USD calculated; still incomplete (name, phone and address were
     never stored by the old bot; ID photo present).
   Pending: owner closes Rubislandi 30c87ea5 himself; Bruce's recipient data (offered to fill from his chat); A6; C.
+- Bruce completed (2026-10-03, owner go-ahead): crm_registrar_datos_entrega_efectivo(4814cdfe…, '53904458', 'Cipres 2D
+  Bajos, Cerro', NULL, 'Anabel Frenes Vera') picked 972718ea (the duplicate 591262ba has no delivery method) ->
+  complete, audited; its three "Entrega en efectivo lista para coordinar" notifications (one per owner/admin) marked
+  read, since that delivery was already made.
+- Staging matched to production (2026-10-03): app 3f20c78 (BUILD_ID rj70Jr138tLvQAH3UyP3R, anterior 8d46b34; staging
+  checks as before). Note: this staging build replaced prod-build/dist's production tarball of the same commit (the
+  production release lives on the server; rebuild with the production env before reusing dist). Staging notifier
+  OCdJoHTkV6S0aAdk: parameters of 'Leer secreto', 'Buscar telefono', 'Filtrar cambio de etapa' and 'Enviar por WaCRM'
+  copied from production (riel via cerebro_riel_op, automation_late_deposit_verification as manual, 24 h window text vs
+  template), staging credentials and URL kept (backup notificador-staging-antes-igualar-*.json); the copied config query
+  runs on staging (riel efectivo_usd for the cash fixture).

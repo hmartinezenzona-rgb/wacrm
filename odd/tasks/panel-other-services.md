@@ -92,3 +92,20 @@ live staging test for n8n changes.
   - R4 Notifier: the completed message for a recarga says "recarga" (not "remesa").
   - R5 Staging test with the owner, then production.
   - Known gap kept for later: a recarga asked by AUDIO is not detected (the keyword check reads typed text only).
+- R1 DB part 1 (2026-10-03, staging): `198_recarga_model.sql` (+ ROLLBACK), commit 7833df9: calculator_rate_versions
+  recarga_precio_gyd / recarga_costo_usdt (crm_set_calculator_rates accepts both), beneficiary type 'recarga',
+  crm_beneficiarios_completos recharge rule (every row a valid Cuban mobile via cerebro_norm_celular_cu, as many as
+  deposit / price; no price -> at least one; wrapped in coalesce(..., false)). Assertion recarga-model.sql (5 cases) RED
+  ("unknown rate: recarga_costo_usdt") -> GREEN; cash/panel/calculator neighbours ALL PASS.
+- R1 DB part 2 (2026-10-03, staging): `199_calculator_recarga.sql` (+ ROLLBACK), commit 98b9ade: RECARGA in
+  calculator_service_for_operation / calculator_resolve_operation_service (service_type wins) / calculator_missing_rates
+  (recargaPrecioGyd, recargaCostoUsdt, usdtBuyGyd) / calculator_feed_operation (units = floor(deposit / price), facturado
+  = units x price, invertido = units x USDT cost x usdt_buy_gyd, currency REC, snapshot cup_rate = USDT rate, cost_gyd =
+  USDT cost, sale_gyd = price). Assertion calculator-recarga.sql (Josefa's guide line 6200/5590.2/609.8 and its
+  snapshot; 2 numbers = 2 units; missing cost -> pending recargaCostoUsdt; no numbers still RECARGA) RED -> GREEN;
+  calculator-cash, feed-matrix, feed-from-beneficiaries, resolve-pending, calculator-entry-correction,
+  manual-close-service, recarga-model, rate-versions ALL PASS.
+  - financial-close.sql failed "totales ... 6": its fixture had been COMMITTED to staging at 17:25 UTC by my A6
+    regression loop (that file is not self-reverting and I ran it with psql -1), and once more while diagnosing.
+    Cleaned both times (7 ops 1001..1007 + "FC e*" entries, triggers disabled for the delete); now passes with a forced
+    rollback and leaves 0 rows. Memory note added.

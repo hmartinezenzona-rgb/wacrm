@@ -4,7 +4,7 @@
 --
 -- odd/tasks/panel-other-services.md (R1). The calculator guide's line "• Josefa 1 rec promo (23.1/6.2k/242)" =
 -- 1 recharge, cost 23.1 USDT, sale 6,200 GYD, 242 GYD per USDT: invertido 5,590.2, facturado 6,200. Automatic lines
--- mirror it: units = deposit / recarga_precio_gyd, facturado = units x price, invertido = units x recarga_costo_usdt x
+-- mirror it: units = deposit / its precio_recarga price, facturado = units x price, invertido = units x recarga_costo_usdt x
 -- usdt_buy_gyd; snapshot cost_gyd = cost (USDT), sale_gyd = price, cup_rate = usdt_buy_gyd, like a manual RECARGA line.
 -- =====================================================================
 CREATE OR REPLACE FUNCTION pg_temp.op_t199(p_tag text, p_gyd numeric, p_numbers text[]) RETURNS uuid
@@ -30,7 +30,7 @@ BEGIN
   SELECT account_id INTO v_acc FROM conversations LIMIT 1;
   SELECT p.user_id INTO v_admin FROM profiles p WHERE p.account_id = v_acc AND p.account_role IN ('owner', 'admin') LIMIT 1;
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin, 'role', 'authenticated')::text, true);
-  PERFORM crm_set_calculator_rates(v_acc, '{"recarga_precio_gyd": 6200, "recarga_costo_usdt": 23.1, "usdt_buy_gyd": 242}'::jsonb, NULL);
+  PERFORM crm_set_calculator_rates(v_acc, '{"recarga_costo_usdt": 23.1, "usdt_buy_gyd": 242}'::jsonb, NULL);
   v_buy := 242;
 
   -- 1. Josefa's line: one recharge of 6,200 GYD.
@@ -66,6 +66,13 @@ BEGIN
   PERFORM crm_cerrar_operacion_manual(v_op);
   IF (SELECT service FROM remittance_calculator_entries WHERE operation_id = v_op AND status <> 'void') IS DISTINCT FROM 'RECARGA' THEN
     RAISE EXCEPTION 'case 4: a recharge without numbers must still reach the calculator as RECARGA'; END IF;
+
+  -- 5. A deposit matching no recharge price (12,520) is pending and names the price.
+  v_op := pg_temp.op_t199('05', 12520, ARRAY['53871234', '63123456']);
+  PERFORM crm_cerrar_operacion_manual(v_op);
+  SELECT * INTO v_e FROM remittance_calculator_entries WHERE operation_id = v_op AND status <> 'void';
+  IF v_e.status IS DISTINCT FROM 'verified_pending' OR NOT ('recargaPrecioGyd' = ANY (v_e.missing_inputs)) THEN
+    RAISE EXCEPTION 'case 5: an odd deposit leaves the line pending naming recargaPrecioGyd, got % %', v_e.status, v_e.missing_inputs; END IF;
 
   RAISE EXCEPTION 'ALL PASS (rolled back on purpose)';
 END $$;

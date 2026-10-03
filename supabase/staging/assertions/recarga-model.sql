@@ -4,8 +4,8 @@
 --
 -- odd/tasks/panel-other-services.md (R1). Owner, 2026-10-03: one Etecsa promotion at a time; its price is set by the
 -- promotion's main balance (500 CUP -> 5,200 GYD; 600 CUP -> 6,200 GYD); one Cuban number per recharge; the cost per
--- recharge is in USDT (23.1 in the calculator guide; confirmation pending with the admin). Both live in the calculator
--- rates (one place); NULL price = no promotion now.
+-- recharge is in USDT (23.1 in the calculator guide; confirmation pending with the admin) and lives in the calculator
+-- rates. The price comes from precio_recarga (500 -> 5,200, 600 -> 6,200): a deposit pays the price it is a multiple of.
 -- =====================================================================
 CREATE OR REPLACE FUNCTION pg_temp.op_t198(p_tag text, p_gyd numeric) RETURNS uuid
 LANGUAGE plpgsql AS $$
@@ -27,10 +27,14 @@ BEGIN
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin, 'role', 'authenticated')::text, true);
   v_before := calculator_rates_vigentes(v_acc);
 
-  -- 1. The current promotion's price and the cost per recharge are calculator rates, set in one place.
-  PERFORM crm_set_calculator_rates(v_acc, '{"recarga_precio_gyd": 6200, "recarga_costo_usdt": 23.1}'::jsonb, NULL);
+  -- 1. The cost per recharge is a calculator rate; the price and the count come from the deposit.
+  PERFORM crm_set_calculator_rates(v_acc, '{"recarga_costo_usdt": 23.1}'::jsonb, NULL);
   v_rates := calculator_rates_vigentes(v_acc);
-  IF v_rates.recarga_precio_gyd IS DISTINCT FROM 6200 OR v_rates.recarga_costo_usdt IS DISTINCT FROM 23.1
+  IF cerebro_recarga_precio(12400) IS DISTINCT FROM 6200 OR cerebro_recarga_unidades(12400) IS DISTINCT FROM 2
+     OR cerebro_recarga_precio(10400) IS DISTINCT FROM 5200 OR cerebro_recarga_precio(12520) IS NOT NULL THEN
+    RAISE EXCEPTION 'case 1: price/count from the deposit wrong: % % % %', cerebro_recarga_precio(12400), cerebro_recarga_unidades(12400),
+      cerebro_recarga_precio(10400), cerebro_recarga_precio(12520); END IF;
+  IF v_rates.recarga_costo_usdt IS DISTINCT FROM 23.1
      OR v_rates.usdt_buy_gyd IS DISTINCT FROM v_before.usdt_buy_gyd OR v_rates.efectivo_usd_gyd IS DISTINCT FROM v_before.efectivo_usd_gyd THEN
     RAISE EXCEPTION 'case 1: the recharge rates must be stored and the others kept'; END IF;
 
@@ -49,9 +53,8 @@ BEGIN
   VALUES (v_op, 'recarga', '78123456', 1, 1, 'manual', 'vigente');
   IF crm_beneficiarios_completos(v_op) THEN RAISE EXCEPTION 'case 3: a landline is not a recharge number'; END IF;
 
-  -- 4. No promotion now (price cleared): a recharge with at least one valid number is complete (no count to compare).
-  PERFORM crm_set_calculator_rates(v_acc, '{"recarga_precio_gyd": null}'::jsonb, NULL);
-  IF (calculator_rates_vigentes(v_acc)).recarga_precio_gyd IS NOT NULL THEN RAISE EXCEPTION 'case 4: the price must clear'; END IF;
+  -- 4. A deposit matching no price (12,520): a recharge with at least one valid number is complete (no count to compare).
+  UPDATE remittance_operations SET quoted_source_amount = 12520 WHERE id = v_op;
   UPDATE remittance_beneficiaries SET phone = '53871234' WHERE operation_id = v_op;
   IF NOT crm_beneficiarios_completos(v_op) THEN RAISE EXCEPTION 'case 4: one valid number completes when the count is unknown'; END IF;
 

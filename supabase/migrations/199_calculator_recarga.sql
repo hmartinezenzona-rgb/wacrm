@@ -6,8 +6,9 @@
 -- operation now feeds the same line:
 --   - calculator_resolve_operation_service: a recharge is RECARGA (even with no number yet);
 --     calculator_service_for_operation maps a 'recarga' beneficiary row to RECARGA;
---   - calculator_missing_rates: RECARGA needs recargaPrecioGyd, recargaCostoUsdt, usdtBuyGyd (else the line is pending);
---   - calculator_feed_operation: units = floor(deposit / recarga_precio_gyd), facturado = units x price, invertido =
+--   - calculator_missing_rates: RECARGA needs recargaCostoUsdt and usdtBuyGyd; the feed adds recargaPrecioGyd when the
+--     deposit matches no recharge price (198 cerebro_recarga_precio) — the line is then pending;
+--   - calculator_feed_operation: units = deposit / price (cerebro_recarga_precio), facturado = units x price, invertido =
 --     units x recarga_costo_usdt x usdt_buy_gyd, amount currency 'REC'; snapshot cup_rate = usdt_buy_gyd, cost_gyd =
 --     USDT cost, sale_gyd = price (what a manual RECARGA line stores). Every other service is priced as before.
 --
@@ -71,10 +72,9 @@ AS $function$
         CASE WHEN p_rates.usdt_sell_cup   IS NULL THEN 'usdtSellCup'   END,
         CASE WHEN p_rates.usdt_buy_gyd    IS NULL THEN 'usdtBuyGyd'    END
       ], NULL)
-    -- (199) A recharge: the current promotion's price, its USDT cost and the USDT buy rate.
+    -- (199) A recharge: its USDT cost and the USDT buy rate (its price comes from the deposit, see the feed).
     WHEN 'RECARGA' THEN
       array_remove(ARRAY[
-        CASE WHEN p_rates.recarga_precio_gyd IS NULL THEN 'recargaPrecioGyd' END,
         CASE WHEN p_rates.recarga_costo_usdt IS NULL THEN 'recargaCostoUsdt' END,
         CASE WHEN p_rates.usdt_buy_gyd       IS NULL THEN 'usdtBuyGyd'       END
       ], NULL)
@@ -134,12 +134,16 @@ BEGIN
     v_facturado := NULL;
     v_invertido := NULL;
     v_missing   := calculator_missing_rates(v_part.service, v_rates) || coalesce(v_part.missing, ARRAY[]::text[]);
+    -- (199) a recharge whose deposit matches no recharge price cannot be priced
+    IF v_part.service = 'RECARGA' AND cerebro_recarga_precio(v_basis) IS NULL THEN
+      v_missing := v_missing || ARRAY['recargaPrecioGyd'];
+    END IF;
     v_currency  := CASE WHEN v_part.service = 'CUP' THEN 'CUP' WHEN v_part.service = 'RECARGA' THEN 'REC' ELSE 'USD' END;
     -- (193) The sale rate of the line: a cash dollar sells at efectivo_usd_gyd; every other USD service at
     -- usdt_sell_gyd. The cost (usdt_buy_gyd) is shared. Snapshotted in usdt_sell_gyd (= the sale rate used).
     v_sell      := CASE WHEN v_part.service = 'EFECTIVO' THEN v_rates.efectivo_usd_gyd
-                        -- (199) a recharge sells at the current promotion's price
-                        WHEN v_part.service = 'RECARGA' THEN v_rates.recarga_precio_gyd
+                        -- (199) a recharge sells at the price its deposit pays (198 cerebro_recarga_precio)
+                        WHEN v_part.service = 'RECARGA' THEN cerebro_recarga_precio(v_basis)
                         ELSE v_rates.usdt_sell_gyd END;
 
     IF v_basis IS NOT NULL AND coalesce(array_length(v_missing, 1), 0) = 0 THEN
@@ -184,7 +188,7 @@ BEGIN
       nullif(v_missing, ARRAY[]::text[]), v_op.delivery_mode, v_op.delivered_by,
       coalesce(v_op.completed_at, clock_timestamp()),
       CASE WHEN v_part.service = 'RECARGA' THEN v_rates.recarga_costo_usdt END,
-      CASE WHEN v_part.service = 'RECARGA' THEN v_rates.recarga_precio_gyd END
+      CASE WHEN v_part.service = 'RECARGA' THEN v_sell END
     )
     ON CONFLICT (account_id, operation_id, service) WHERE source = 'completed_operation'
     DO UPDATE SET

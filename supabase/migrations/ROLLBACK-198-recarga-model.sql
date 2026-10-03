@@ -101,4 +101,6 @@ $function$;
 ALTER TABLE public.remittance_beneficiaries DROP CONSTRAINT rb_type_chk;
 ALTER TABLE public.remittance_beneficiaries ADD CONSTRAINT rb_type_chk
   CHECK (beneficiary_type = ANY (ARRAY['cuban_card', 'zelle', 'clasica', 'tropical', 'multiple_distribution', 'efectivo_usd']));
-ALTER TABLE public.calculator_rate_versions DROP COLUMN IF EXISTS recarga_precio_gyd, DROP COLUMN IF EXISTS recarga_costo_usdt;
+ALTER TABLE public.calculator_rate_versions DROP COLUMN IF EXISTS recarga_costo_usdt;
+DROP FUNCTION IF EXISTS public.cerebro_recarga_unidades(numeric);
+DROP FUNCTION IF EXISTS public.cerebro_recarga_precio(numeric);

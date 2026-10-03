@@ -46,7 +46,7 @@ BEGIN
   IF NOT v_ok THEN RAISE EXCEPTION 'case 2: a card on a recharge must be refused'; END IF;
 
   -- 3. Yosvany's shape: a remesa without beneficiary closed manually as a RECHARGE becomes one and reaches the calculator.
-  PERFORM crm_set_calculator_rates(v_acc, '{"recarga_precio_gyd": 6200, "recarga_costo_usdt": 23.1}'::jsonb, NULL);
+  PERFORM crm_set_calculator_rates(v_acc, '{"recarga_costo_usdt": 23.1}'::jsonb, NULL);
   v_op := pg_temp.op_t200('03', 'remesa', 'ready_to_transfer', 6200);
   PERFORM crm_cerrar_operacion_manual(v_op, NULL, false, 'recarga');
   SELECT o.service_type AS t, o.delivery_method AS m, e.service AS s INTO v_r

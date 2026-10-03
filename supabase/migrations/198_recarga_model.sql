@@ -2,25 +2,50 @@
 -- 198 — The recharge data model (staging first)
 --
 -- odd/tasks/panel-other-services.md (R1). Owner, 2026-10-03: recharges are sold on Etecsa promotions, ONE at a time;
--- the price follows the promotion's main balance (500 CUP -> 5,200 GYD, 600 CUP -> 6,200 GYD); one Cuban number per
--- recharge; the cost per recharge is in USDT (the calculator guide's example: 23.1 USDT at 242 GYD/USDT; the admin
--- confirms the figures). So:
---   - calculator_rate_versions gains recarga_precio_gyd (the current promotion's price; NULL = no promotion now) and
---     recarga_costo_usdt; crm_set_calculator_rates accepts both (one place, like efectivo_usd_gyd);
+-- the price follows the promotion's main balance (500 CUP -> 5,200 GYD, 600 CUP -> 6,200 GYD) — already in the table
+-- precio_recarga, and the current promotion in promo_etecsa (cerebro_promo_vigente); one Cuban number per recharge;
+-- the cost per recharge is in USDT (the calculator guide's example: 23.1 USDT at 242 GYD/USDT; the admin confirms it).
+-- So:
+--   - calculator_rate_versions gains recarga_costo_usdt; crm_set_calculator_rates accepts it (one place);
+--   - cerebro_recarga_precio(deposit): the price a deposit pays — the precio_recarga price it is a whole multiple of,
+--     the current promotion's first; NULL when it matches none (e.g. 12,520). cerebro_recarga_unidades(deposit) =
+--     deposit / that price;
 --   - beneficiary type 'recarga' (one row per number, the number in phone);
 --   - crm_beneficiarios_completos: for a service_type 'recarga' operation, every current row is a 'recarga' with a
---     valid Cuban mobile and there are as many as recharges (deposit / price; with no price, at least one). Every other
+--     valid Cuban mobile and there are as many as recharges (with no matching price, at least one). Every other
 --     operation keeps the 188 rule.
--- New rows only seed nothing: the owner sets the price and the cost in the Calculator.
 --
 -- Guarded by supabase/staging/assertions/recarga-model.sql.
 -- ROLLBACK: ROLLBACK-198-recarga-model.sql
 -- =====================================================================
 ALTER TABLE public.calculator_rate_versions
-  ADD COLUMN IF NOT EXISTS recarga_precio_gyd numeric CHECK (recarga_precio_gyd IS NULL OR (recarga_precio_gyd > 0 AND recarga_precio_gyd < 1e9)),
   ADD COLUMN IF NOT EXISTS recarga_costo_usdt numeric CHECK (recarga_costo_usdt IS NULL OR (recarga_costo_usdt > 0 AND recarga_costo_usdt < 1e6));
-COMMENT ON COLUMN public.calculator_rate_versions.recarga_precio_gyd IS '198. GYD price of one recharge on the current Etecsa promotion (5,200 for 500 CUP, 6,200 for 600 CUP); NULL = no promotion now.';
 COMMENT ON COLUMN public.calculator_rate_versions.recarga_costo_usdt IS '198. Cost of one recharge in USDT (priced in GYD with usdt_buy_gyd).';
+
+CREATE OR REPLACE FUNCTION public.cerebro_recarga_precio(p_deposito numeric)
+ RETURNS numeric
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  SELECT r.precio_gyd
+    FROM precio_recarga r
+   WHERE p_deposito > 0 AND r.precio_gyd > 0 AND mod(p_deposito, r.precio_gyd) = 0
+   ORDER BY (r.min_cup = (SELECT v.min_cup FROM cerebro_promo_vigente() v)) DESC NULLS LAST, r.precio_gyd DESC
+   LIMIT 1;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.cerebro_recarga_unidades(p_deposito numeric)
+ RETURNS integer
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  SELECT (p_deposito / cerebro_recarga_precio(p_deposito))::integer;
+$function$;
+
+REVOKE ALL ON FUNCTION public.cerebro_recarga_precio(numeric), public.cerebro_recarga_unidades(numeric) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.cerebro_recarga_precio(numeric), public.cerebro_recarga_unidades(numeric) TO authenticated, service_role;
 
 ALTER TABLE public.remittance_beneficiaries DROP CONSTRAINT rb_type_chk;
 ALTER TABLE public.remittance_beneficiaries ADD CONSTRAINT rb_type_chk
@@ -52,7 +77,7 @@ BEGIN
 
   FOR v_key IN SELECT jsonb_object_keys(p_rates) LOOP
     IF v_key NOT IN ('cup_global_rate', 'usdt_buy_gyd', 'usdt_sell_gyd', 'usdt_sell_cup', 'efectivo_usd_gyd',
-                     'recarga_precio_gyd', 'recarga_costo_usdt') THEN
+                     'recarga_costo_usdt') THEN
       RAISE EXCEPTION 'unknown rate: %', v_key USING ERRCODE = '22023';
     END IF;
 
@@ -81,7 +106,7 @@ BEGIN
 
   INSERT INTO calculator_rate_versions (
     account_id, cup_global_rate, usdt_buy_gyd, usdt_sell_gyd, usdt_sell_cup, efectivo_usd_gyd,
-    recarga_precio_gyd, recarga_costo_usdt, set_by
+    recarga_costo_usdt, set_by
   ) VALUES (
     p_account_id,
     CASE WHEN p_rates ? 'cup_global_rate'
@@ -94,9 +119,7 @@ BEGIN
          THEN (p_rates ->> 'usdt_sell_cup')::numeric ELSE v_current.usdt_sell_cup END,
     CASE WHEN p_rates ? 'efectivo_usd_gyd'
          THEN (p_rates ->> 'efectivo_usd_gyd')::numeric ELSE v_current.efectivo_usd_gyd END,
-    -- (198) The current recharge promotion's price (NULL = no promotion now) and the cost per recharge in USDT.
-    CASE WHEN p_rates ? 'recarga_precio_gyd'
-         THEN (p_rates ->> 'recarga_precio_gyd')::numeric ELSE v_current.recarga_precio_gyd END,
+    -- (198) The cost of one recharge in USDT.
     CASE WHEN p_rates ? 'recarga_costo_usdt'
          THEN (p_rates ->> 'recarga_costo_usdt')::numeric ELSE v_current.recarga_costo_usdt END,
     auth.uid()
@@ -114,13 +137,12 @@ CREATE OR REPLACE FUNCTION public.crm_beneficiarios_completos(p_operation_id uui
  SET search_path TO 'public'
 AS $function$
   -- (198) A recharge: every current row is a 'recarga' with a valid Cuban mobile, and there are as many as
-  -- recharges (deposit / the current promotion's price; with no price set, at least one).
+  -- recharges (cerebro_recarga_unidades; with no matching price, at least one).
   SELECT coalesce((SELECT CASE WHEN o.service_type = 'recarga' THEN
            (SELECT count(*) > 0
                    AND bool_and(b.beneficiary_type = 'recarga'
                                 AND coalesce(cerebro_norm_celular_cu(b.phone), '') ~ '^[0-9]{8}$')
-                   AND count(*) >= coalesce(floor(o.quoted_source_amount
-                                                  / NULLIF((calculator_rates_vigentes(o.account_id)).recarga_precio_gyd, 0)), 0)
+                   AND count(*) >= coalesce(cerebro_recarga_unidades(o.quoted_source_amount), 0)
               FROM remittance_beneficiaries b
              WHERE b.operation_id = o.id AND b.status = 'vigente')
          ELSE (

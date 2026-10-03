@@ -20,7 +20,7 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   beneficiary, so a cash delivery can never be delivered; the app has no code for efectivo (no address / ID photo shown).
   Bruce's operation is the first efectivo_usd operation ever in production.
 
-## B+D. Panel closing actions (planned)
+## B+D. Panel closing actions
 - B: delete a remesa (trash icon) = soft delete: status cancelled + audited reason, hidden from the panel; owner/admin;
   not allowed when completed or with a verified deposit.
 - D: "Cerrar manualmente" on a verified remesa: completes it even with incomplete beneficiary data (e.g. no phone), feeds
@@ -35,10 +35,13 @@ silent mode. Cash delivery must be reviewed carefully before building it.
 - [x] A0 Owner decisions (2026-10-02): the cash rate changes and must be set in ONE place that every user reads; the
       minimum stays 100 USD (its GYD value follows the rate).
 - [x] A1 DB: migration 188 (cash rate in the calculator, received amount, completeness, minimum, live service text)
-- [ ] A2 App: the Calculator rates form edits the cash rate; the panel shows a cash recipient (address, phone, ID photo,
-      "Recibe X USD en efectivo") — needs crm_operaciones_de_conversacion to return address / id_photo_wamid
+- [x] A2 App: the Calculator rates form edits the cash rate; the panel shows a cash recipient (address, phone, ID photo,
+      "100 USD cash") — DB 189 (c69d39d), app 6564fa0
 - [ ] A3 Production (188 + app) with go-ahead; fill Bruce's operation (972718ea) amount
-- [ ] B+D panel actions (plan, TDD, staging, owner check, production)
+- [x] B+D-1 DB: migration 190 (manual silent close, soft delete, card without phone) — 0099e34, staging
+- [x] B+D-2 Staging notifier skips delivery_mode closed_manually
+- [ ] B+D-3 App: trash icon, "Close manually", optional phone in the add form (writer running)
+- [ ] B+D-4 Staging deploy + owner check, then production (190 + notifier + app) with go-ahead
 - [ ] C resent receipt guard
 
 ## Progress / evidence
@@ -65,3 +68,17 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   `panel-cash-recipient.sql` (address, photo wamid + URL, 100 USD from 188, complete) RED (`v_r has no field
   beneficiary_address`) -> GREEN rolled back -> applied to staging, ALL PASS; read-rpc and panel-quote ALL PASS.
   history-readiness fails in its fixture (a deal no longer creates an operation since 172): pre-existing.
+- A2 app (2026-10-02): commit 6564fa0. Calculator field "Tasa efectivo USD (GYD por dólar)" (route accepts and selects
+  efectivo_usd_gyd); the panel card shows a cash recipient's kind, phone, address and a "View ID" link (media_url is a
+  public storage URL), or "ID photo missing". RED 12 failing -> GREEN; full suite 1684 passed; tsc clean.
+- B+D-1 (2026-10-02, staging): `190_panel_closing_actions.sql` (+ ROLLBACK). delivery_mode CHECK + closed_manually;
+  audit actions + human_manual_close, human_operation_deleted; crm_agregar_beneficiario phone optional (validated when
+  given; the remesa stays incomplete so a normal delivery still needs it); crm_cerrar_operacion_manual (owner/admin,
+  reason, only ready_to_transfer/transferring -> completed closed_manually, calculator feed); crm_eliminar_operacion
+  (owner/admin, reason, refused for completed/cancelled/ready_to_transfer/transferring or a consumed non-voided MMG
+  deposit -> cancelled). Assertion `panel-closing-actions.sql` (6 cases) RED (`phone must be 8 to 15 digits`) ->
+  GREEN on staging; panel-cash-recipient, cash-delivery-rate, panel-quote, beneficiary-touches-operation ALL PASS.
+- B+D-2 (2026-10-02): staging notifier OCdJoHTkV6S0aAdk node "Filtrar cambio de etapa": in the completed branch
+  `if (rec.delivery_mode === 'closed_manually') return [];` (the trigger sends to_jsonb(NEW), so the field is there).
+  Backup ~/cerebro-fase1/pruebas/notificador-staging-antes-190.json. Offline run of the node: closed_manually -> [],
+  proof_sent -> "Listo, su remesa ... completada". Production notifier wGud0KGR6eMqqfMQ: same edit pending (B+D-4).

@@ -143,7 +143,6 @@ export function CompleteTransferSection({
         </Button>
       </div>
 
-      <p className="text-[11px] text-muted-foreground">{notify ? t("helper") : t("helperSilent")}</p>
     </div>
   );
 }

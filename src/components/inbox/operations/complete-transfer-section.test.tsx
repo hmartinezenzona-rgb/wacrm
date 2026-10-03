@@ -80,21 +80,13 @@ describe("CompleteTransferSection proof attach (compact)", () => {
   });
 });
 
-describe("CompleteTransferSection helper follows the notify bell", () => {
-  const CT = en.Inbox.operationsPanel.completeTransfer;
-
-  it("says the customer gets the completed message while the bell is on", async () => {
-    const { node, root } = await render({ notify: true, onNotifyChange: vi.fn() });
-
-    expect(node.textContent).toContain(CT.helper);
-    await act(async () => root.unmount());
-  });
-
-  it("says only the screenshot goes out while the bell is off", async () => {
-    const { node, root } = await render({ notify: false, onNotifyChange: vi.fn() });
-
-    expect(node.textContent).toContain(CT.helperSilent);
-    expect(node.textContent).not.toContain(CT.helper);
-    await act(async () => root.unmount());
+describe("CompleteTransferSection has no explanatory helper text", () => {
+  it("shows no helper line with the bell on or off (owner, 2026-10-03: it takes room)", async () => {
+    for (const notify of [true, false]) {
+      const { node, root } = await render({ notify, onNotifyChange: vi.fn() });
+      expect(node.textContent).not.toContain("remittance completed");
+      expect(node.textContent).not.toContain("receives the screenshot");
+      await act(async () => root.unmount());
+    }
   });
 });

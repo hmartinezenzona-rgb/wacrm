@@ -49,10 +49,6 @@ export function OperationClosingControl({ operationId, kind, onDone, onCancel }:
 
   return (
     <div className="space-y-1.5 rounded-md border border-border bg-muted/40 p-2">
-      <p className="text-xs text-muted-foreground">
-        {isClose ? t("closing.closeWarning") : t("closing.deleteWarning")}
-      </p>
-
       {error && <p className="text-xs text-destructive">{error}</p>}
 
       <div className="flex items-center justify-end gap-1">

@@ -72,7 +72,7 @@ describe("OperationClosingControl", () => {
     cerrarOperacionManual.mockResolvedValue({ ok: true, newStatus: "completed", completedAt: null });
     const { node, root, onDone } = await render("close");
 
-    expect(node.textContent).toContain(t.closeWarning);
+    expect(node.textContent).toBe(""); // no explanatory text (owner, 2026-10-03)
     const bell = node.querySelector<HTMLButtonElement>("button[aria-pressed]")!;
     expect(bell.getAttribute("aria-pressed")).toBe("false");
     expect(bell.getAttribute("aria-label")).toBe(en.Inbox.operationsPanel.notify.off);
@@ -101,7 +101,7 @@ describe("OperationClosingControl", () => {
     eliminarOperacion.mockResolvedValue({ ok: true, newStatus: "cancelled" });
     const { node, root, onDone } = await render("delete");
 
-    expect(node.textContent).toContain(t.deleteWarning);
+    expect(node.textContent).toBe(""); // no explanatory text (owner, 2026-10-03)
     expect(node.querySelector("button[aria-pressed]")).toBeNull();
     await act(async () => buttonByLabel(node, t.deleteConfirm).click());
 

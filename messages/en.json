@@ -427,9 +427,7 @@
       "closing": {
         "deleteButton": "Delete remesa",
         "closeButton": "Close manually",
-        "closeWarning": "Marks the remesa completed. Use the bell to choose whether the customer is messaged.",
         "closeConfirm": "Close remesa",
-        "deleteWarning": "The remesa is removed from the panel. This can't be undone from here.",
         "deleteConfirm": "Delete remesa"
       },
       "completeTransfer": {
@@ -438,8 +436,6 @@
         "sendAndComplete": "Send & complete",
         "complete": "Complete",
         "withoutScreenshot": "Complete without screenshot",
-        "helper": "The client receives the screenshot and the \"remittance completed\" message.",
-        "helperSilent": "The client receives only the screenshot, without the \"remittance completed\" message.",
         "delivered": "Transfer completed",
         "windowClosed": "The 24-hour window is closed. Complete without the screenshot?",
         "completeAnyway": "Complete without screenshot",

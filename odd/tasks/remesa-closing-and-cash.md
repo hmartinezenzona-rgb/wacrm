@@ -179,3 +179,12 @@ silent mode. Cash delivery must be reviewed carefully before building it.
     remesa de X le notificamos por aca" (X from monto_recibe_valor/moneda), part (3) card+phone removed and forbidden;
     out-of-hours example without card data; Decisor resent-verified note the same. Expressions parse; the verified
     block evaluated with and without an amount gives the expected instruction. Pending: live bot test.
+- Staging app `2a5ea2e` deployed (2026-10-03 02:59 UTC, owner go-ahead): same checks as before (staging manifest,
+  114 money-path tests, 0 production refs, no .env, sha256 OK, p_notify in the server chunks, 2386 = 2386 files),
+  BUILD_ID `94cyyCFRs9MFhl4dMEcBN`, `anterior` -> `69a5fca…`, `/login` 200, online, 0 unstable restarts.
+- Owner test fixtures on the staging test chat (no bot chat needed), 8 operations inserted directly (no status
+  transition, so no message at creation): 5,000 / 6,000 GYD deposit_verification (force-verify bell on / off);
+  7,000 / 8,000 ready_to_transfer complete card (complete transfer bell on / off); 9,000 / 10,000 ready_to_transfer card
+  without phone (close manually, bell default off / on); collecting_information card (delete; plus 333fe846); 29,000 GYD
+  cash ready_to_transfer, complete with name Anabel Frenes Vera (name shown, 100 USD). Panel RPC returns all with the
+  amounts calculated (15,000 ... 30,000 CUP; 100 USD).

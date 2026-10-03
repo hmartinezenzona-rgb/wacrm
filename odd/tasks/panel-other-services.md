@@ -68,3 +68,5 @@ live staging test for n8n changes.
     500-CUP promotion costs the same. Proposal on the table: the cost per recharge (USDT) lives in the calculator rates
     (one place, like the cash rate), one value per promotion; the USDT rate is the calculator's usdt_buy_gyd; while a
     cost is missing the line is "pending" with that missing input, as the calculator already does for missing rates.
+  - Several recharges in one deposit are normally DIFFERENT numbers, one per recharge (owner, 2026-10-03): the bot
+    collects one Cuban number per recharge; the panel lists each number with its recharge.

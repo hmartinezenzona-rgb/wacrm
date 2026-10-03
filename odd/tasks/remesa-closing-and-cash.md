@@ -61,6 +61,10 @@ silent mode. Cash delivery must be reviewed carefully before building it.
 - [x] E6 Complete transfer confirms with X / green Check icons (owner, 2026-10-03), the varying label (Send & complete /
       Complete / Complete without screenshot) as aria-label and title; bell reused — e941a30. RED (new icon test)
       -> GREEN; container/multi tests find buttons by text or aria-label; suite 1764; tsc and eslint clean
+- [x] E7 The "N open operations ... resolve which one" block becomes a compact amber badge "⚠ N open" beside the panel
+      title, full text as tooltip and aria-label (owner, 2026-10-03: heavy, takes room) — 4b3a2b5. It already
+      disappears by itself with one or no open remesa (it shows only for the resolver's `ambigua`, any status; the
+      owner's test chat had 4 ready_to_transfer, no incident tag). RED 2 -> GREEN; suite 1763; tsc, eslint clean
 - [ ] A6 Cash in the calculator: calculator_service_for_operation maps cuban_card/multiple_distribution -> CUP,
       zelle, clasica, tropical and NOTHING for efectivo_usd, so a completed cash remesa never reaches the calculator
       (staging 4a044782 closed 02:16 has no entry; production Bruce 972718ea would not either). Needs the owner's

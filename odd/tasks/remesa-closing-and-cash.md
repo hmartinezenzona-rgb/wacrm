@@ -49,6 +49,12 @@ silent mode. Cash delivery must be reviewed carefully before building it.
       ready_to_transfer branch checks only Zelle (name + account) or card (card + phone), so a complete efectivo_usd
       recipient got "nos falta la tarjeta de quien recibe en Cuba" (staging op 4a044782, 02:11 UTC). For cash it must
       check phone + address + ID photo, like crm_beneficiarios_completos (188); staging and production notifiers
+- [ ] E1 Panel actions with icons, no reason text (owner, 2026-10-03): manual close confirms with a green check and
+      cancels with an X, no reason field; the audit stores a fixed internal note ("Closed manually from the panel")
+- [ ] E2 Notify-customer bell (owner, 2026-10-03): every panel action that messages the customer (verify / force-verify,
+      deliver, manual close) shows a bell toggle. ON by default (customer notified) EXCEPT manual close, where it is OFF
+      by default; unchecked = no message. Delete never notifies (no bell). Needs the choice to reach the notifier
+- [ ] E3 Delete-flow changes: owner will describe them on the recreated remesa (staging op 333fe846, card, no phone)
 - [ ] C resent receipt guard
 
 ## Progress / evidence

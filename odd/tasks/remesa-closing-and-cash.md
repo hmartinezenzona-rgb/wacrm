@@ -337,3 +337,11 @@ silent mode. Cash delivery must be reviewed carefully before building it.
     panel-notify-and-cash-name, partial-beneficiary-tools, partial-beneficiary-auto (with the tools' helpers) ALL PASS.
     The stray row of the test remesa d214fe33 was set 'reemplazado' so the owner can finish steps 5-6 (now complete,
     service EFECTIVO).
+- P1 steps 5-6 (2026-10-03 18:40-18:42 UTC, staging): deposit verified automatically by the bot ("Su depósito de *29,000
+  GYD* ha sido verificado. Una vez hecha su remesa de *100 USD* le notificamos por acá."); Close manually with the bell
+  ON -> completed / closed_manually, "Listo, su remesa de *100 USD en efectivo* ya fue completada."; calculator line
+  EFECTIVO 100 USD, facturado 29,000, invertido 24,000, retorno 5,000, sell 290, buy 240. P1 PASSED.
+  - Bot wording for cash aligned with the panel: gate89-cerebro-efectivo-texto.py on staging ("una vez entregada su
+    remesa de *100 USD en efectivo*"; non-cash unchanged), evaluated offline both ways.
+  - Observed: at 18:29 the bot noticed the ID's name (Anabel Frene Vera) differs from the recipient (Marlene Pérez) and
+    asked for the right one, but the photo was stored anyway. Asked the owner whether a mismatching ID should be stored.

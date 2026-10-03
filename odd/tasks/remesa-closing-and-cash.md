@@ -94,3 +94,12 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   `anterior` -> `ac45d47…` (rollback: relink + `pm2 restart wacrm-staging --update-env`); `/login` 200 and the domain
   serves the new BUILD_ID; online, 0 unstable restarts. Pending: owner's check, then production (188, 189, 190,
   production notifier edit, app) with go-ahead.
+- B+D-4 owner check on staging (2026-10-03 01:38-01:43 UTC), test number 529622896918:
+  - Delete: op f45a353c collecting_information -> cancelled, audit human_operation_deleted with the reason, notifier
+    ran with 0 messages.
+  - Manual close: op 5368d741, forced verification -> ready_to_transfer ("ya fue verificado" sent), then Close
+    manually -> completed / closed_manually, audit human_manual_close, calculator entry at 01:43:05, notifier ran with
+    0 messages (no "Listo, su remesa").
+  - Side finding (staging only): the incident alert at 01:40:31 failed ('to' must be E.164) because the staging
+    contact tagged `admin` was the test number, and reset-test-contact deletes it with its tags. Production has 3 admin
+    contacts with valid phones. Not changed.

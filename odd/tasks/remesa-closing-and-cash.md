@@ -40,7 +40,7 @@ silent mode. Cash delivery must be reviewed carefully before building it.
 - [ ] A3 Production (188 + app) with go-ahead; fill Bruce's operation (972718ea) amount
 - [x] B+D-1 DB: migration 190 (manual silent close, soft delete, card without phone) — 0099e34, staging
 - [x] B+D-2 Staging notifier skips delivery_mode closed_manually
-- [ ] B+D-3 App: trash icon, "Close manually", optional phone in the add form (writer running)
+- [x] B+D-3 App: trash icon, "Close manually", optional phone in the add form — 96884d3
 - [ ] B+D-4 Staging deploy + owner check, then production (190 + notifier + app) with go-ahead
 - [ ] C resent receipt guard
 
@@ -82,3 +82,8 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   `if (rec.delivery_mode === 'closed_manually') return [];` (the trigger sends to_jsonb(NEW), so the field is there).
   Backup ~/cerebro-fase1/pruebas/notificador-staging-antes-190.json. Offline run of the node: closed_manually -> [],
   proof_sent -> "Listo, su remesa ... completada". Production notifier wGud0KGR6eMqqfMQ: same edit pending (B+D-4).
+- B+D-3 (2026-10-02): commit 96884d3. POST routes close-manual and delete (admin role, beta flag, reason 1-500,
+  rpcErrorResponse mapping); commands cerrarOperacionManual / eliminarOperacion; inline confirmation with required
+  reason (close warns the customer is not notified); trash only when not completed/cancelled/ready_to_transfer/
+  transferring, Close manually only on ready_to_transfer/transferring, both owner/admin; history label "Closed
+  manually"; add-beneficiary phone optional for cards. RED 51 failing -> GREEN; full suite 1741 passed; tsc clean.

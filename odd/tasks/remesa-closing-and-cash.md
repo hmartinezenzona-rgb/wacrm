@@ -320,3 +320,20 @@ silent mode. Cash delivery must be reviewed carefully before building it.
 3. A8 service icons on a manual close without beneficiary (staging -> owner check -> production).
 4. Vision document catalog (owner, 2026-10-03: right after cash): odd/tasks/vision-document-catalog.md.
 5. Then the next service: odd/tasks/panel-other-services.md (recargas first; Yosvany 54c25086 fed as RECARGA there).
+- P1 owner test on staging (2026-10-03 18:16-18:25 UTC), cash flow on the test number:
+  - A7 works: 18:21:53 MMG screenshot -> "otro" (not stored); 18:22:47 deposit-request note -> "otro" (not stored; but
+    the agent replied "No me llegó bien la imagen, ¿me la reenvía?" — wrong wording for a readable non-receipt image,
+    to look at in the vision catalog work); 18:23:28 ID -> "carnet" with the name, stored, "View ID" in the panel.
+  - Bug 1 (fixed, gate88-orden-carnet.py on staging): the agent asked for the ID photo it had just received.
+    'Registrar carnet efectivo' is a side branch of 'Snapshot final' and, with executionOrder v1, sibling branches run
+    top-to-bottom by canvas position: it sat at y=400 under 'Comprobante nuevo?' (y=160, the path to the agent), so the
+    photo was stored at 18:25:17, after the agent read its context (reply 18:25:18). Moved to y=80 (backup
+    cerebro-staging-antes-88-*.json).
+  - Bug 2 (fixed, 194, commit ec4d7ef): the phone sent alone ("53871234") went through 'Registrar beneficiario auto'
+    -> cerebro_guardar_beneficiario_auto and became a cuban_card beneficiary without card (second vigente row: the
+    remesa read incomplete; the agent was told "FALTA: la tarjeta. Pideselo al cliente."). Now in an efectivo_usd remesa
+    with no card in the burst the phone goes to crm_registrar_datos_entrega_efectivo and the agent is told what the cash
+    delivery still lacks. Assertion cash-phone-not-a-card.sql (2 cases) RED -> GREEN; cash-delivery-data,
+    panel-notify-and-cash-name, partial-beneficiary-tools, partial-beneficiary-auto (with the tools' helpers) ALL PASS.
+    The stray row of the test remesa d214fe33 was set 'reemplazado' so the owner can finish steps 5-6 (now complete,
+    service EFECTIVO).

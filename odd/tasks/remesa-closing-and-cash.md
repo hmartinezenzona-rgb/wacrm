@@ -387,3 +387,7 @@ silent mode. Cash delivery must be reviewed carefully before building it.
 - Staging app d93815b deployed (2026-10-03): staging manifest, 114 money-path tests, 0 production refs, no .env, sha256
   OK, 2386 = 2386 files, BUILD_ID -emdXlzX4LOy-PAm0A_IQ, anterior ff98e2e, /login 200, online. Test fixture for the owner:
   a 6,200 GYD ready_to_transfer remesa without beneficiary nor delivery method on the test chat (Yosvany's shape).
+- A8 owner test on staging (2026-10-03 19:17 UTC): the 6,200 GYD remesa without beneficiary closed manually with the
+  CUP icon and the bell off -> delivery_method cuban_card, completed / closed_manually, muted (no message), audit
+  {"delivery_method":"cuban_card","notify":false}, calculator CUP 18,600 CUP, facturado 6,200, invertido 4,578.46,
+  retorno 1,621.54. A8 PASSED on staging. Pending: production (196 + app) with go-ahead.

@@ -160,3 +160,9 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   cuanto quede hecha." Offline run: cash and card complete give the new lines; missing-data asks unchanged.
   Open: the Cerebro itself still promises "en breve le hacemos la transferencia" on an automatic verification in open
   hours (Agente Remesas / Decisor) — asked the owner.
+- Bot without a time promise (owner, 2026-10-03, "varíala un poco"): ~/cerebro-fase1/pruebas/gate85c-cerebro-promesa.py
+  on staging U52y1kSNvhgxvWeb. Agente Remesas, automatic verification in open hours: "su remesa ya queda en cola para
+  transferir y le avisamos en cuanto quede hecha" with an alternative phrasing, "en breve"/"enseguida"/any time
+  forbidden; the example line follows; a cash delivery says a teammate coordinates it. Decisor, resent receipt of a
+  verified remesa: same promise. Closed-hours wording unchanged. Prompt expressions (4) and the Decisor code parse OK.
+  Pending: a live bot test on staging.

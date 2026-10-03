@@ -318,4 +318,5 @@ silent mode. Cash delivery must be reviewed carefully before building it.
    calculator-cash assertion; gate87-carnet.py produccion; app ff98e2e (or later); Bruce's id_photo_wamid -> his 14:26:44
    image; Bruce's line enters the calculator when the owner closes it (EFECTIVO 100 USD).
 3. A8 service icons on a manual close without beneficiary (staging -> owner check -> production).
-4. Then the next service: odd/tasks/panel-other-services.md (recargas first; Yosvany 54c25086 fed as RECARGA there).
+4. Vision document catalog (owner, 2026-10-03: right after cash): odd/tasks/vision-document-catalog.md.
+5. Then the next service: odd/tasks/panel-other-services.md (recargas first; Yosvany 54c25086 fed as RECARGA there).

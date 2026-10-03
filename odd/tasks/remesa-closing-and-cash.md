@@ -58,6 +58,9 @@ silent mode. Cash delivery must be reviewed carefully before building it.
       cancel with an X; the audit stores a fixed internal note ("Deleted from the panel")
 - [x] E5 No explanatory texts in the action forms (owner, 2026-10-03: they take room and deform the panel): closing
       control warnings and the complete-transfer helper removed — cb358a9
+- [x] E6 Complete transfer confirms with X / green Check icons (owner, 2026-10-03), the varying label (Send & complete /
+      Complete / Complete without screenshot) as aria-label and title; bell reused — e941a30. RED (new icon test)
+      -> GREEN; container/multi tests find buttons by text or aria-label; suite 1764; tsc and eslint clean
 - [ ] A6 Cash in the calculator: calculator_service_for_operation maps cuban_card/multiple_distribution -> CUP,
       zelle, clasica, tropical and NOTHING for efectivo_usd, so a completed cash remesa never reaches the calculator
       (staging 4a044782 closed 02:16 has no entry; production Bruce 972718ea would not either). Needs the owner's

@@ -83,9 +83,13 @@ silent mode. Cash delivery must be reviewed carefully before building it.
       'Registrar carnet efectivo' stores the FIRST "otro" image during an open cash delivery. Proposed: a vision case
       for an ID card (with name and ID number), store only that case, and repoint Bruce's photo to his 14:26 image.
       Awaiting the owner's yes
-- [ ] A8 A manual close with no beneficiary and no delivery method never reaches the calculator (production, 2026-10-03:
+- [ ] A8 (owner, 2026-10-03: accepted) "Close manually" on a remesa with no beneficiary shows service icons (CUP, Zelle,
+      Clasica, Tropical, Efectivo — and Recarga once odd/tasks/panel-other-services.md lands) before the check; the
+      choice sets the delivery method so the calculator can price it. With a beneficiary nothing changes.
+      Origin: a manual close with no beneficiary and no delivery method never reaches the calculator (production, 2026-10-03:
       Yosvany 54c25086, 6,200 GYD, closed manually 16:36 UTC, calculator_resolve_operation_service NULL -> no line).
-      Rubislandi 30c87ea5 (1 card) reached it as CUP. Needs the owner's decision: how the service is chosen then
+      Rubislandi 30c87ea5 (1 card) reached it as CUP. Yosvany's was a RECHARGE (owner): it is fixed once recargas exist
+      in the panel and the calculator (panel-other-services.md)
 - [ ] C resent receipt guard
 
 ## Progress / evidence
@@ -306,3 +310,12 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   2386 = 2386 files, BUILD_ID 1JDoZiIrkNUJSQ5Tc0v6i, anterior 3f20c78, /login 200, online. prod-build back at 3f20c78.
 - Calculator test lines: staging has the owner's fixtures from the test number (CUP 7,000 / 8,000 / 9,000 / 10,000 GYD
   and EFECTIVO 29,000 GYD); production has none from the test number or test contacts.
+
+## Plan for 2026-10-03 (owner: "dejar bien listo el del efectivo y luego pasar a otro servicio")
+1. P1 Owner tests on staging (app ff98e2e): the EFECTIVO line in the calculator; the bot with a cash delivery receiving
+   an MMG screenshot (must NOT be taken as the ID) and then the ID photo (must be taken, name shown in the panel).
+2. P2 Production for cash, with go-ahead: pre-check md5 of the 4 functions 193 replaces; backup; 193 via gate86 route +
+   calculator-cash assertion; gate87-carnet.py produccion; app ff98e2e (or later); Bruce's id_photo_wamid -> his 14:26:44
+   image; Bruce's line enters the calculator when the owner closes it (EFECTIVO 100 USD).
+3. A8 service icons on a manual close without beneficiary (staging -> owner check -> production).
+4. Then the next service: odd/tasks/panel-other-services.md (recargas first; Yosvany 54c25086 fed as RECARGA there).

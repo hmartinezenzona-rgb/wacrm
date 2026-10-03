@@ -294,3 +294,8 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   of the staging vision node, same prompt/model/credential) on Bruce's production images: 14:07 MMG screenshot ->
   "otro"; 14:26:44 and 14:26:45 -> "carnet" with the recipient's name. Pending: live staging test; production
   (gate87 produccion) and repoint Bruce's id_photo_wamid to the 14:26:44 image, with go-ahead.
+- A6 app (2026-10-03): commit dd11329. EFECTIVO in the service union, formulas, document rates (requires usdtBuyGyd +
+  efectivoUsdGyd, sells at the cash rate, floor), projection (efectivo_usd -> EFECTIVO), aged-operations mapping, the
+  resolve route accepts efectivo_usd_gyd, financial-close rate label "EFECTIVO buy/sell". RED 9 -> GREEN; suite 1772;
+  tsc and eslint clean. No resolve UI exists in the app (pending lines only list their missing rate names), so none
+  was added; the manual shorthand calculator does not know EFECTIVO (out of scope).

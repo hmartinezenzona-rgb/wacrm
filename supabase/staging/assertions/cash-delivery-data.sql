@@ -226,10 +226,10 @@ BEGIN
   END IF;
 
   -- ---- case 9: bot-only, never exposed to anon or authenticated --------
-  IF has_function_privilege('anon', 'crm_registrar_datos_entrega_efectivo(uuid,text,text,text)', 'EXECUTE') THEN
+  IF has_function_privilege('anon', 'crm_registrar_datos_entrega_efectivo(uuid,text,text,text,text)', 'EXECUTE') THEN
     v_fail_count := v_fail_count + 1;
     RAISE WARNING 'FAIL [case 9] anon must not execute crm_registrar_datos_entrega_efectivo';
-  ELSIF has_function_privilege('authenticated', 'crm_registrar_datos_entrega_efectivo(uuid,text,text,text)', 'EXECUTE') THEN
+  ELSIF has_function_privilege('authenticated', 'crm_registrar_datos_entrega_efectivo(uuid,text,text,text,text)', 'EXECUTE') THEN
     v_fail_count := v_fail_count + 1;
     RAISE WARNING 'FAIL [case 9] authenticated must not execute crm_registrar_datos_entrega_efectivo (service_role only)';
   ELSE

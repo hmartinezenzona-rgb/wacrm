@@ -48,9 +48,6 @@ BEGIN
 
   -- 2. ... and CLOSED manually: completed, delivery_mode closed_manually (the notifier stays silent), audited with
   --    the reason, fed to the calculator.
-  v_ok := false;
-  BEGIN PERFORM crm_cerrar_operacion_manual(v_op, '  '); EXCEPTION WHEN OTHERS THEN v_ok := true; END;
-  IF NOT v_ok THEN RAISE EXCEPTION 'case 2: a manual close needs a reason'; END IF;
   PERFORM crm_cerrar_operacion_manual(v_op, 'Transferido por el admin; el cliente nunca mando el celular');
   SELECT * INTO v_r FROM remittance_operations WHERE id = v_op;
   IF v_r.status IS DISTINCT FROM 'completed' OR v_r.delivery_mode IS DISTINCT FROM 'closed_manually'

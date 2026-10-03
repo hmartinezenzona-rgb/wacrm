@@ -208,3 +208,37 @@ describe("deposit-based automatic calculation", () => {
     );
   });
 });
+
+describe("EFECTIVO (cash dollars) — migration 193", () => {
+  const cash = (overrides: Partial<CalculatorDocumentRates> = {}) => doc({ efectivoUsdGyd: 290, ...overrides });
+
+  it("requires the shared buy rate and the cash sale rate, not usdtSellGyd", () => {
+    expect(missingDocumentRates("EFECTIVO", cash())).toEqual([]);
+    expect(missingDocumentRates("EFECTIVO", cash({ usdtSellGyd: null }))).toEqual([]);
+    expect(missingDocumentRates("EFECTIVO", doc())).toEqual(["efectivoUsdGyd"]);
+    expect(missingDocumentRates("EFECTIVO", cash({ usdtBuyGyd: null, efectivoUsdGyd: null }))).toEqual([
+      "usdtBuyGyd",
+      "efectivoUsdGyd",
+    ]);
+  });
+
+  it("sells at the cash rate and costs the shared buy rate", () => {
+    expect(rateInputForService("EFECTIVO", cash())).toEqual({ costGyd: 240, saleGyd: 290 });
+  });
+
+  it("derives whole USD from the GYD deposit at the cash rate (floor)", () => {
+    expect(deriveAmountFromDeposit("EFECTIVO", 29_000, cash())).toBe(100);
+    expect(deriveAmountFromDeposit("EFECTIVO", 29_289, cash())).toBe(100);
+  });
+
+  it("names efectivoUsdGyd when the cash rate is missing", () => {
+    expect(() => deriveAmountFromDeposit("EFECTIVO", 29_000, doc())).toThrow(/efectivoUsdGyd/);
+  });
+
+  it("prices 29,000 GYD at 290/240 as 100 USD, facturado 29,000, invertido 24,000, retorno 5,000", () => {
+    expect(computeAutoCompletionSnapshotFromDeposit("EFECTIVO", 29_000, cash())).toEqual({
+      amount: 100,
+      financials: { facturadoGyd: 29_000, invertidoGyd: 24_000, retornoGyd: 5_000 },
+    });
+  });
+});

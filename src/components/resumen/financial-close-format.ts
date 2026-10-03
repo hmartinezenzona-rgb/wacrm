@@ -21,6 +21,10 @@ export { guyanaTime } from "@/lib/financial-close/periods";
 /** The frozen rate the ledger used, so a row can be audited by hand. */
 export function rateLabel(entry: CloseEntry): string {
   if (entry.cupRate !== null) return `CUP ${entry.cupRate}`;
+  // The ledger snapshots the sale rate used in usdtSellGyd; for cash that is the cash rate.
+  if (entry.service === "EFECTIVO" && entry.usdtSellGyd !== null) {
+    return `EFECTIVO ${entry.usdtBuyGyd ?? "?"}/${entry.usdtSellGyd}`;
+  }
   if (entry.usdtSellGyd !== null) return `USDT ${entry.usdtBuyGyd ?? "?"}/${entry.usdtSellGyd}`;
   return "—";
 }

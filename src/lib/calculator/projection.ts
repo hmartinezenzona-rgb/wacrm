@@ -82,6 +82,7 @@ function serviceFor(source: StructuredRemittanceCalculatorSource):
     return "CLASICA";
   }
   if (method === "tropical") return "TROPICAL";
+  if (method === "efectivo usd") return "EFECTIVO";
   return "unknown_delivery_method";
 }
 
@@ -146,6 +147,7 @@ const DEPOSIT_DERIVED_SERVICES = new Set<CalculatorServiceType>([
   "ZELLE",
   "CLASICA",
   "TROPICAL",
+  "EFECTIVO",
 ]);
 
 /**
@@ -182,6 +184,8 @@ function depositDerivedAmount(
       cupGlobalRate: rates.cupGlobalRate ?? null,
       usdtBuyGyd: rates.costGyd ?? null,
       usdtSellGyd: rates.saleGyd ?? null,
+      // For EFECTIVO, saleGyd carries the cash sale rate (see rateInputForService).
+      efectivoUsdGyd: rates.saleGyd ?? null,
       usdtSellCup: rates.cupRate ?? null,
     },
   );

@@ -19,7 +19,8 @@ export type CalculatorServiceType =
   | "USDT"
   | "RECARGA"
   | "SALDO_MOVIL"
-  | "DIRECTO";
+  | "DIRECTO"
+  | "EFECTIVO";
 
 export type CalculatorEntrySource = "manual" | "completed_operation";
 

@@ -84,7 +84,8 @@ export function calculateEntry(
     case "ZELLE":
     case "MLC":
     case "CLASICA":
-    case "TROPICAL": {
+    case "TROPICAL":
+    case "EFECTIVO": {
       const costGyd = requireFiniteNumber(input.costGyd, "costGyd");
       const saleGyd = requireFiniteNumber(input.saleGyd, "saleGyd");
       const discountPct =

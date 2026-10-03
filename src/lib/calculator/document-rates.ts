@@ -59,6 +59,9 @@ export interface CalculatorDocumentRates {
   usdtBuyGyd: number | null;
   usdtSellGyd: number | null;
   usdtSellCup: number | null;
+  /** Cash-dollar (EFECTIVO) sale rate, `efectivo_usd_gyd`. Optional so callers
+   * that never price cash need not carry it; absent means "not set". */
+  efectivoUsdGyd?: number | null;
 }
 
 /** Delivery methods a completed structured operation can resolve to. Kept
@@ -70,7 +73,8 @@ export type CalculatorAutoCompletionService =
   | "ZELLE"
   | "CLASICA"
   | "TROPICAL"
-  | "USDT";
+  | "USDT"
+  | "EFECTIVO";
 
 const REQUIRED_DOCUMENT_RATE_FIELDS: Record<
   CalculatorAutoCompletionService,
@@ -81,6 +85,8 @@ const REQUIRED_DOCUMENT_RATE_FIELDS: Record<
   CLASICA: ["usdtBuyGyd", "usdtSellGyd"],
   TROPICAL: ["usdtBuyGyd", "usdtSellGyd"],
   USDT: ["usdtBuyGyd", "usdtSellGyd"],
+  // Migration 193: a cash dollar costs the shared buy rate but sells at its own rate.
+  EFECTIVO: ["usdtBuyGyd", "efectivoUsdGyd"],
 };
 
 /** Which of the service's required document rates are currently unset.
@@ -109,6 +115,12 @@ export function rateInputForService(
       costGyd: doc.usdtBuyGyd ?? undefined,
       cupRate: doc.usdtSellCup ?? undefined,
       cupGlobalRate: doc.cupGlobalRate ?? undefined,
+    };
+  }
+  if (service === "EFECTIVO") {
+    return {
+      costGyd: doc.usdtBuyGyd ?? undefined,
+      saleGyd: doc.efectivoUsdGyd ?? undefined,
     };
   }
   return {
@@ -173,14 +185,22 @@ export function deriveAmountFromDeposit(
     const amount = sourceAmountGyd * doc.cupGlobalRate;
     return Number.isFinite(amount) && amount > 0 ? amount : null;
   }
-  if (service === "ZELLE" || service === "CLASICA" || service === "TROPICAL") {
-    if (doc.usdtSellGyd == null) {
+  if (
+    service === "ZELLE" ||
+    service === "CLASICA" ||
+    service === "TROPICAL" ||
+    service === "EFECTIVO"
+  ) {
+    // EFECTIVO sells at its own cash rate; the others at the USDT sale rate.
+    const field = service === "EFECTIVO" ? "efectivoUsdGyd" : "usdtSellGyd";
+    const saleRate = doc[field];
+    if (saleRate == null) {
       throw new CalculatorValidationError(
-        "Missing required document rate: usdtSellGyd",
-        "usdtSellGyd",
+        `Missing required document rate: ${field}`,
+        field,
       );
     }
-    const amount = Math.floor(sourceAmountGyd / doc.usdtSellGyd);
+    const amount = Math.floor(sourceAmountGyd / saleRate);
     return Number.isFinite(amount) && amount > 0 ? amount : null;
   }
   return null;

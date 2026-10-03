@@ -22,12 +22,13 @@ import { mapLedgerEntry, type LedgerEntryRow } from "@/lib/calculator/ledger-rea
 const MIN_REASON_LENGTH = 5;
 
 /** The only keys `crm_resolve_pending_entry`'s `p_rates` jsonb argument
- * accepts -- same four rate columns as `crm_set_calculator_rates`. */
+ * accepts -- same rate columns as `crm_set_calculator_rates`. */
 const RATE_KEYS = [
   "cup_global_rate",
   "usdt_buy_gyd",
   "usdt_sell_gyd",
   "usdt_sell_cup",
+  "efectivo_usd_gyd",
 ] as const;
 
 function isRateKey(key: string): key is (typeof RATE_KEYS)[number] {

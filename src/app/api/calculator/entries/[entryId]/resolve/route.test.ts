@@ -156,6 +156,22 @@ describe("POST /api/calculator/entries/[entryId]/resolve", () => {
     expect(callCtx.supabase.rpc).not.toHaveBeenCalled();
   });
 
+  it("accepts the cash sale rate key efectivo_usd_gyd and forwards it to the RPC", async () => {
+    const { POST } = await import("./route");
+    const callCtx = ctx({ data: RESOLVED_ROW, error: null });
+    requireRole.mockResolvedValueOnce(callCtx);
+    const rates = { usdt_buy_gyd: 240, efectivo_usd_gyd: 290 };
+
+    const response = await POST(request({ rates, reason: VALID_REASON }), paramsFor(ENTRY_ID));
+
+    expect(response.status).toBe(200);
+    expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_resolve_pending_entry", {
+      p_entry_id: ENTRY_ID,
+      p_rates: rates,
+      p_reason: VALID_REASON,
+    });
+  });
+
   it("RPC entry not found (P0002) -> 404", async () => {
     const { POST } = await import("./route");
     requireRole.mockResolvedValueOnce(

@@ -28,6 +28,7 @@ describe("structured operation calculator projection", () => {
     ["clasica", "USD", "CLASICA"],
     ["clásica", "USD", "CLASICA"],
     ["tropical", "USD", "TROPICAL"],
+    ["efectivo_usd", "USD", "EFECTIVO"],
   ])("maps %s to %s", (deliveryMethod, currency, service) => {
     const result = projectStructuredOperation(source({ deliveryMethod, destinationCurrency: currency }));
     expect(result).toMatchObject({ kind: "candidate", candidate: { service, status: "completed", amount: 50_000, amountCurrency: currency } });
@@ -122,5 +123,15 @@ describe("structured operation calculator projection", () => {
     expect(() =>
       materializeProjectedOperation(result.candidate, { costGyd: 240, cupRate: 975 }),
     ).toThrow();
+  });
+
+  it("materializes an EFECTIVO deposit at the cash sale rate and the shared buy rate", () => {
+    const result = projectStructuredOperation(
+      source({ deliveryMethod: "efectivo_usd", destinationCurrency: "USD", sourceAmount: 29_000, sourceCurrency: "GYD" }),
+    );
+    if (result.kind !== "candidate") throw new Error("expected candidate");
+    expect(result.candidate.financialBlockers).toEqual(["costGyd", "saleGyd"]);
+    const entry = materializeProjectedOperation(result.candidate, { costGyd: 240, saleGyd: 290 });
+    expect(entry).toMatchObject({ service: "EFECTIVO", amount: 100, facturadoGyd: 29_000, invertidoGyd: 24_000, retornoGyd: 5_000 });
   });
 });

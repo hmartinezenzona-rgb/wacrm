@@ -28,7 +28,7 @@ interface AgedOperationsQueueProps {
 const LEDGER_CURRENCY = 'GYD'
 
 // Mirrors `calculator_service_for_operation()` (migration 104) exactly
-// — the same delivery_method -> CUP/ZELLE/CLASICA/TROPICAL mapping the
+// — the same delivery_method -> CUP/ZELLE/CLASICA/TROPICAL/EFECTIVO mapping the
 // calculator ledger uses (see ServiceProfitabilityTable). No display
 // mapping for raw `delivery_method` existed anywhere on this dashboard
 // before this widget, so this reuses the ledger's own taxonomy rather
@@ -39,6 +39,7 @@ const DELIVERY_METHOD_SERVICE: Record<string, string> = {
   zelle: 'ZELLE',
   clasica: 'CLASICA',
   tropical: 'TROPICAL',
+  efectivo_usd: 'EFECTIVO',
 }
 
 // `deliveryMethod` is almost never set yet on a non-terminal operation

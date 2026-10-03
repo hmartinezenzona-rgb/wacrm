@@ -201,8 +201,44 @@ describe("POST /api/remittance-operations/[operationId]/force-verify", () => {
     expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_forzar_verificacion", {
       p_operation_id: OPERATION_ID,
       p_reason: VALID_REASON,
+      p_notify: true,
     });
     expect(body).toEqual({ ok: true, newStatus: "ready_to_transfer" });
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+  });
+
+  it("notify:false in the body -> RPC gets p_notify false", async () => {
+    const { POST } = await import("./route");
+    const callCtx = ctx(ENABLED_PROFILE, {
+      data: { new_status: "ready_to_transfer" },
+      error: null,
+    });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await POST(
+      request({ reason: VALID_REASON, notify: false }),
+      paramsFor(OPERATION_ID),
+    );
+
+    expect(response.status).toBe(200);
+    expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_forzar_verificacion", {
+      p_operation_id: OPERATION_ID,
+      p_reason: VALID_REASON,
+      p_notify: false,
+    });
+  });
+
+  it("notify not a boolean -> 400, RPC never called", async () => {
+    const { POST } = await import("./route");
+    const callCtx = ctx(ENABLED_PROFILE, { data: null, error: null });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await POST(
+      request({ reason: VALID_REASON, notify: 1 }),
+      paramsFor(OPERATION_ID),
+    );
+
+    expect(response.status).toBe(400);
+    expect(callCtx.supabase.rpc).not.toHaveBeenCalled();
   });
 });

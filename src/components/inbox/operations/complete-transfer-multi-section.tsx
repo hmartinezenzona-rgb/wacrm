@@ -16,6 +16,7 @@
 
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
+import { NotifyToggle } from "./notify-toggle";
 import { DeliveryProofPanel } from "@/components/pipelines/delivery-proof";
 import { PROOF_MAX_BYTES, type ProofImageKind, type ProofRejection } from "@/lib/pipelines/delivery-proof";
 import type { CompleteTransferBanner } from "./complete-transfer-section";
@@ -54,6 +55,9 @@ export interface CompleteTransferMultiSectionProps {
   banner: CompleteTransferBanner | null;
   onCancel: () => void;
   onSubmit: () => void;
+  /** Notify-customer bell; rendered only when `onNotifyChange` is given. */
+  notify?: boolean;
+  onNotifyChange?: (notify: boolean) => void;
 }
 
 export function CompleteTransferMultiSection({
@@ -66,6 +70,8 @@ export function CompleteTransferMultiSection({
   banner,
   onCancel,
   onSubmit,
+  notify = true,
+  onNotifyChange,
 }: CompleteTransferMultiSectionProps) {
   const t = useTranslations("Inbox.operationsPanel.completeTransfer");
   const tCommon = useTranslations("Inbox.operationsPanel");
@@ -140,7 +146,8 @@ export function CompleteTransferMultiSection({
         </p>
       )}
 
-      <div className="flex justify-end gap-2">
+      <div className="flex items-center justify-end gap-2">
+        {onNotifyChange && <NotifyToggle notify={notify} onChange={onNotifyChange} disabled={locked} />}
         <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={busy}>
           {tCommon("cancel")}
         </Button>
@@ -149,7 +156,7 @@ export function CompleteTransferMultiSection({
         </Button>
       </div>
 
-      <p className="text-[11px] text-muted-foreground">{t("helper")}</p>
+      <p className="text-[11px] text-muted-foreground">{notify ? t("helper") : t("helperSilent")}</p>
     </div>
   );
 }

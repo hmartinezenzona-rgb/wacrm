@@ -6,6 +6,7 @@ import { AlertTriangle, Banknote, CircleCheck, Hash, TriangleAlert } from "lucid
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NotifyToggle } from "./notify-toggle";
 import { ReceiptReviewViewer } from "./receipt-review-viewer";
 import type { DepositReceipt, OperationReceiptsRead, VerifyDepositItem } from "@/lib/remittance-operations/types";
 
@@ -26,8 +27,9 @@ interface DepositReviewSectionProps {
   canForce: boolean;
   busy: boolean;
   result: { kind: "success" | "error"; message: string } | null;
-  onVerify: (items: VerifyDepositItem[]) => void;
-  onForce: (reason: string) => void;
+  /** `notify` is the bell: whether the customer gets the WhatsApp message. */
+  onVerify: (items: VerifyDepositItem[], notify: boolean) => void;
+  onForce: (reason: string, notify: boolean) => void;
   /** Destination amount row shown in the verified state, computed by the
    *  card from the operation's beneficiaries. `undefined`/`null` omits
    *  the row (multiple beneficiaries, or none known). */
@@ -106,6 +108,7 @@ export function DepositReviewSection({
   const [unmatchedIndex, setUnmatchedIndex] = useState(0);
   const [forcing, setForcing] = useState(false);
   const [reason, setReason] = useState("");
+  const [notify, setNotify] = useState(true);
 
   // Reset drafts (and the receipt switcher) whenever the container hands
   // us a new `data.receipts` (initial load or a refetch after a
@@ -142,7 +145,7 @@ export function DepositReviewSection({
   }
 
   function confirmForce() {
-    onForce(trimmedReason);
+    onForce(trimmedReason, notify);
     cancelForce();
   }
 
@@ -277,14 +280,17 @@ export function DepositReviewSection({
                 />
               </div>
 
-              <Button
-                type="button"
-                className="w-full"
-                disabled={busy || items.length === 0}
-                onClick={() => onVerify(items)}
-              >
-                {t("depositReview.verify")}
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  className="flex-1"
+                  disabled={busy || items.length === 0}
+                  onClick={() => onVerify(items, notify)}
+                >
+                  {t("depositReview.verify")}
+                </Button>
+                <NotifyToggle notify={notify} onChange={setNotify} disabled={busy} />
+              </div>
             </>
           ) : (
             <div className="space-y-1 text-xs">
@@ -330,7 +336,8 @@ export function DepositReviewSection({
                   onChange={(event: ChangeEvent<HTMLInputElement>) => setReason(event.target.value)}
                 />
               </div>
-              <div className="flex justify-end gap-2">
+              <div className="flex items-center justify-end gap-2">
+                <NotifyToggle notify={notify} onChange={setNotify} disabled={busy} />
                 <Button type="button" variant="outline" size="sm" onClick={cancelForce}>
                   {t("depositReview.cancel")}
                 </Button>

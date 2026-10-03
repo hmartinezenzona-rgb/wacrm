@@ -18,7 +18,9 @@ import type {
 } from "@/lib/remittance-operations/delivery";
 import {
   UUID_RE,
+  invalidNotifyResponse,
   isOperationsPanelEnabled,
+  parseNotify,
   rpcErrorResponse,
 } from "@/lib/remittance-operations/route-helpers";
 
@@ -95,9 +97,13 @@ export async function POST(
       );
     }
 
+    const notify = parseNotify(body, true);
+    if (notify === null) return invalidNotifyResponse();
+
     const { data, error } = await ctx.supabase.rpc("crm_entregar_operacion", {
       p_operation_id: operationId,
       p_evidence: evidence,
+      p_notify: notify,
     });
     if (error) {
       const errorResponse = rpcErrorResponse(error);

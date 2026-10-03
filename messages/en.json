@@ -420,16 +420,17 @@
         "skipProof": "window closed, no screenshot",
         "closedManually": "Closed manually"
       },
+      "notify": {
+        "on": "The customer will be notified. Click to turn off.",
+        "off": "The customer will not be notified. Click to turn on."
+      },
       "closing": {
         "deleteButton": "Delete remesa",
         "closeButton": "Close manually",
-        "reasonLabel": "Reason",
-        "closeWarning": "The customer will NOT be notified. The remesa is marked completed.",
+        "closeWarning": "Marks the remesa completed. Use the bell to choose whether the customer is messaged.",
         "closeConfirm": "Close remesa",
-        "closing": "Closing…",
         "deleteWarning": "The remesa is removed from the panel. This can't be undone from here.",
-        "deleteConfirm": "Delete remesa",
-        "deleting": "Deleting…"
+        "deleteConfirm": "Delete remesa"
       },
       "completeTransfer": {
         "title": "Complete transfer",
@@ -438,6 +439,7 @@
         "complete": "Complete",
         "withoutScreenshot": "Complete without screenshot",
         "helper": "The client receives the screenshot and the \"remittance completed\" message.",
+        "helperSilent": "The client receives only the screenshot, without the \"remittance completed\" message.",
         "delivered": "Transfer completed",
         "windowClosed": "The 24-hour window is closed. Complete without the screenshot?",
         "completeAnyway": "Complete without screenshot",

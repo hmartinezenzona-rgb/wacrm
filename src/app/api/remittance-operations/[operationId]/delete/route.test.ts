@@ -132,9 +132,7 @@ describe("POST /api/remittance-operations/[operationId]/delete", () => {
   });
 
   it.each([
-    ["reason missing", {}],
     ["reason too long", { reason: "x".repeat(501) }],
-    ["reason blank after trim", { reason: "    " }],
     ["reason not a string", { reason: 12345 }],
   ])("%s -> 400, RPC never called", async (_label, body) => {
     const { POST } = await import("./route");
@@ -240,5 +238,22 @@ describe("POST /api/remittance-operations/[operationId]/delete", () => {
     });
     expect(body).toEqual({ ok: true, newStatus: "cancelled" });
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+  });
+
+  it.each([
+    ["body without reason", {}],
+    ["blank reason", { reason: "    " }],
+  ])("%s -> 200, RPC gets a null reason", async (_label, body) => {
+    const { POST } = await import("./route");
+    const callCtx = ctx(ENABLED_PROFILE, { data: { new_status: "cancelled" }, error: null });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await POST(request(body), paramsFor(OPERATION_ID));
+
+    expect(response.status).toBe(200);
+    expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_eliminar_operacion", {
+      p_operation_id: OPERATION_ID,
+      p_motivo: null,
+    });
   });
 });

@@ -75,8 +75,8 @@ interface RenderOptions {
   canForce?: boolean;
   busy?: boolean;
   result?: { kind: "success" | "error"; message: string } | null;
-  onVerify?: (items: VerifyDepositItem[]) => void;
-  onForce?: (reason: string) => void;
+  onVerify?: (items: VerifyDepositItem[], notify: boolean) => void;
+  onForce?: (reason: string, notify: boolean) => void;
   summaryAmount?: SummaryAmount | null;
   onAddAmount?: () => void;
 }
@@ -304,7 +304,7 @@ describe("DepositReviewSection", () => {
       const verifyButton = textButton(node, T.verify)!;
       await act(async () => verifyButton.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 
-      expect(onVerify).toHaveBeenCalledWith([{ ref: "NEWREF123", amount: 30000 }]);
+      expect(onVerify).toHaveBeenCalledWith([{ ref: "NEWREF123", amount: 30000 }], true);
     });
 
     it("excludes matched receipts from the verify items", async () => {
@@ -325,7 +325,7 @@ describe("DepositReviewSection", () => {
       const verifyButton = textButton(node, T.verify)!;
       await act(async () => verifyButton.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 
-      expect(onVerify).toHaveBeenCalledWith([{ ref: "ref-1", amount: 1000 }]);
+      expect(onVerify).toHaveBeenCalledWith([{ ref: "ref-1", amount: 1000 }], true);
     });
 
     it("disables the verify button when there is no eligible receipt", async () => {
@@ -374,7 +374,7 @@ describe("DepositReviewSection", () => {
       expect(onVerify).toHaveBeenCalledWith([
         { ref: "ref-1", amount: 1000 },
         { ref: "ref-2", amount: 2000 },
-      ]);
+      ], true);
     });
 
     it("read-only when canVerify is false: shows values as text, no inputs, no verify/force", async () => {
@@ -394,6 +394,33 @@ describe("DepositReviewSection", () => {
       expect(node.textContent).not.toContain(T.force);
     });
 
+    it("shows the notify bell on by default and sends notify=false to onVerify once it is toggled off", async () => {
+      const { node, onVerify } = await render();
+
+      const bell = node.querySelector<HTMLButtonElement>("button[aria-pressed]")!;
+      expect(bell.getAttribute("aria-pressed")).toBe("true");
+      expect(bell.getAttribute("aria-label")).toBe(en.Inbox.operationsPanel.notify.on);
+
+      await act(async () => bell.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+      expect(bell.getAttribute("aria-pressed")).toBe("false");
+      expect(bell.getAttribute("aria-label")).toBe(en.Inbox.operationsPanel.notify.off);
+
+      await act(async () => textButton(node, T.verify)!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+      expect(onVerify).toHaveBeenCalledWith([{ ref: "10412345678901", amount: 25000 }], false);
+    });
+
+    it("force verification carries the notify choice too", async () => {
+      const { node, onForce } = await render();
+
+      const bell = node.querySelector<HTMLButtonElement>("button[aria-pressed]")!;
+      await act(async () => bell.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+      await act(async () => textButton(node, T.force)!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+      await act(async () => setValue(node.querySelector<HTMLInputElement>("#deposit-review-force-reason")!, "owner confirmed"));
+      await act(async () => textButton(node, T.forceConfirm)!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+      expect(onForce).toHaveBeenCalledWith("owner confirmed", false);
+    });
+
     it("keeps the force confirm button disabled until the reason is at least 5 trimmed characters, then calls onForce with the trimmed reason", async () => {
       const { node, onForce } = await render();
 
@@ -410,7 +437,7 @@ describe("DepositReviewSection", () => {
       expect(textButton(node, T.forceConfirm)!.disabled).toBe(false);
 
       await act(async () => textButton(node, T.forceConfirm)!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-      expect(onForce).toHaveBeenCalledWith("valid reason");
+      expect(onForce).toHaveBeenCalledWith("valid reason", true);
     });
 
     // B4.3 — an admin must be able to force-complete a remesa with ZERO
@@ -430,7 +457,7 @@ describe("DepositReviewSection", () => {
       const reasonInput = node.querySelector<HTMLInputElement>("#deposit-review-force-reason")!;
       await act(async () => setValue(reasonInput, "sin recibos, bot pausado"));
       await act(async () => textButton(node, T.forceConfirm)!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-      expect(onForce).toHaveBeenCalledWith("sin recibos, bot pausado");
+      expect(onForce).toHaveBeenCalledWith("sin recibos, bot pausado", true);
     });
 
     it("hides the force link with zero receipts too when canForce is false", async () => {

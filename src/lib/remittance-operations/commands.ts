@@ -175,11 +175,12 @@ export type VerifyDepositCommandResult =
 export async function verifyDeposit(
   operationId: string,
   items: VerifyDepositItem[],
+  notify = true,
 ): Promise<VerifyDepositCommandResult> {
   const response = await postJsonResult<{ result: VerifyDepositResult }>(
     `/api/remittance-operations/${operationId}/verify`,
     "POST",
-    { items },
+    { items, notify },
   );
   if (!response.ok) return response;
   return { ok: true, result: response.data.result };
@@ -192,11 +193,12 @@ export type ForceVerifyDepositCommandResult =
 export async function forceVerifyDeposit(
   operationId: string,
   reason: string,
+  notify = true,
 ): Promise<ForceVerifyDepositCommandResult> {
   const response = await postJsonResult<{ newStatus: string }>(
     `/api/remittance-operations/${operationId}/force-verify`,
     "POST",
-    { reason },
+    { reason, notify },
   );
   if (!response.ok) return response;
   return { ok: true, newStatus: response.data.newStatus };
@@ -209,11 +211,12 @@ export type DeliverOperationCommandResult =
 export async function deliverOperation(
   operationId: string,
   evidence: DeliveryEvidenceRpc,
+  notify = true,
 ): Promise<DeliverOperationCommandResult> {
   const response = await postJsonResult<{ newStatus: string; completedAt: string | null }>(
     `/api/remittance-operations/${operationId}/deliver`,
     "POST",
-    { evidence },
+    { evidence, notify },
   );
   if (!response.ok) return response;
   return { ok: true, newStatus: response.data.newStatus, completedAt: response.data.completedAt };
@@ -251,16 +254,17 @@ export type ManualCloseCommandResult =
   | { ok: true; newStatus: string; completedAt: string | null }
   | { ok: false; status: number; error: string };
 
-/** `crm_cerrar_operacion_manual` (migration 190): completes a verified remesa
- *  without notifying the customer. Owner/admin only; a reason is required. */
+/** `crm_cerrar_operacion_manual` (migrations 190/191): completes a verified
+ *  remesa; the customer is messaged only when `notify` is true (default
+ *  false). Owner/admin only; no reason is asked for. */
 export async function cerrarOperacionManual(
   operationId: string,
-  reason: string,
+  notify = false,
 ): Promise<ManualCloseCommandResult> {
   const response = await postJsonResult<{ newStatus: string; completedAt: string | null }>(
     `/api/remittance-operations/${operationId}/close-manual`,
     "POST",
-    { reason },
+    { notify },
   );
   if (!response.ok) return response;
   return { ok: true, newStatus: response.data.newStatus, completedAt: response.data.completedAt };
@@ -270,16 +274,15 @@ export type DeleteOperationCommandResult =
   | { ok: true; newStatus: string }
   | { ok: false; status: number; error: string };
 
-/** `crm_eliminar_operacion` (migration 190): soft-deletes a remesa (status
- *  cancelled). Owner/admin only; a reason is required. */
+/** `crm_eliminar_operacion` (migrations 190/191): soft-deletes a remesa
+ *  (status cancelled). Owner/admin only; no reason is asked for. */
 export async function eliminarOperacion(
   operationId: string,
-  reason: string,
 ): Promise<DeleteOperationCommandResult> {
   const response = await postJsonResult<{ newStatus: string }>(
     `/api/remittance-operations/${operationId}/delete`,
     "POST",
-    { reason },
+    {},
   );
   if (!response.ok) return response;
   return { ok: true, newStatus: response.data.newStatus };

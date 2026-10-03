@@ -212,10 +212,21 @@ describe("verifyDeposit", () => {
       expect.objectContaining({
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items }),
+        body: JSON.stringify({ items, notify: true }),
       }),
     );
     expect(response).toEqual({ ok: true, result });
+  });
+
+  it("sends notify:false when the caller turns the customer message off", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ok: true, result: {} }));
+
+    await verifyDeposit(OPERATION_ID, [{ ref: "TX-1", amount: 1 }], false);
+
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0]![1]!.body as string)).toEqual({
+      items: [{ ref: "TX-1", amount: 1 }],
+      notify: false,
+    });
   });
 
   it("maps a non-2xx response to ok:false with status and error message", async () => {
@@ -251,7 +262,7 @@ describe("forceVerifyDeposit", () => {
       expect.objectContaining({
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({ reason, notify: true }),
       }),
     );
     expect(response).toEqual({ ok: true, newStatus: "ready_to_transfer" });
@@ -288,7 +299,7 @@ describe("deliverOperation", () => {
       expect.objectContaining({
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ evidence }),
+        body: JSON.stringify({ evidence, notify: true }),
       }),
     );
     expect(response).toEqual({
@@ -362,35 +373,84 @@ describe("registerBeneficiaryProof", () => {
   });
 });
 
-describe.each([
-  ["cerrarOperacionManual", cerrarOperacionManual, "close-manual", { ok: true, newStatus: "completed", completedAt: "2026-10-02T10:00:00Z" }],
-  ["eliminarOperacion", eliminarOperacion, "delete", { ok: true, newStatus: "cancelled" }],
-])("%s", (_name, command, slug, body) => {
-  it("POSTs the reason to the endpoint and unwraps newStatus", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(body));
+describe("forceVerifyDeposit / deliverOperation notify flag", () => {
+  it("forceVerifyDeposit sends notify:false when asked", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ok: true, newStatus: "ready_to_transfer" }));
 
-    const response = await command(OPERATION_ID, "Duplicate receipt");
+    await forceVerifyDeposit(OPERATION_ID, "owner confirmed it", false);
+
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0]![1]!.body as string)).toEqual({
+      reason: "owner confirmed it",
+      notify: false,
+    });
+  });
+
+  it("deliverOperation sends notify:false when asked", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ok: true, newStatus: "completed", completedAt: null }));
+
+    await deliverOperation(OPERATION_ID, { mode: "no_proof" }, false);
+
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0]![1]!.body as string)).toEqual({
+      evidence: { mode: "no_proof" },
+      notify: false,
+    });
+  });
+});
+
+describe("cerrarOperacionManual", () => {
+  const closed = { ok: true, newStatus: "completed", completedAt: "2026-10-02T10:00:00Z" };
+
+  it("POSTs notify:false by default, with no reason, and unwraps newStatus", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(closed));
+
+    const response = await cerrarOperacionManual(OPERATION_ID);
 
     expect(fetch).toHaveBeenCalledWith(
-      `/api/remittance-operations/${OPERATION_ID}/${slug}`,
+      `/api/remittance-operations/${OPERATION_ID}/close-manual`,
       expect.objectContaining({
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: "Duplicate receipt" }),
+        body: JSON.stringify({ notify: false }),
       }),
     );
-    expect(response).toMatchObject({ ok: true, newStatus: (body as { newStatus: string }).newStatus });
+    expect(response).toMatchObject({ ok: true, newStatus: "completed" });
+  });
+
+  it("POSTs notify:true when the operator turns the bell on", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(closed));
+
+    await cerrarOperacionManual(OPERATION_ID, true);
+
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0]![1]!.body as string)).toEqual({ notify: true });
   });
 
   it("maps a non-2xx response to ok:false with status and error message", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ error: "Forbidden" }, 403));
 
-    expect(await command(OPERATION_ID, "Duplicate receipt")).toEqual({ ok: false, status: 403, error: "Forbidden" });
+    expect(await cerrarOperacionManual(OPERATION_ID)).toEqual({ ok: false, status: 403, error: "Forbidden" });
+  });
+});
+
+describe("eliminarOperacion", () => {
+  it("POSTs an empty body (no reason) and unwraps newStatus", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ok: true, newStatus: "cancelled" }));
+
+    const response = await eliminarOperacion(OPERATION_ID);
+
+    expect(fetch).toHaveBeenCalledWith(
+      `/api/remittance-operations/${OPERATION_ID}/delete`,
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      }),
+    );
+    expect(response).toMatchObject({ ok: true, newStatus: "cancelled" });
   });
 
-  it("maps a network failure to ok:false status 0", async () => {
-    vi.mocked(fetch).mockRejectedValueOnce(new Error("offline"));
+  it("maps a non-2xx response to ok:false with status and error message", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ error: "Forbidden" }, 403));
 
-    expect(await command(OPERATION_ID, "Duplicate receipt")).toEqual({ ok: false, status: 0, error: "Network error" });
+    expect(await eliminarOperacion(OPERATION_ID)).toEqual({ ok: false, status: 403, error: "Forbidden" });
   });
 });

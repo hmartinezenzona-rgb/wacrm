@@ -577,6 +577,14 @@ export function RemittanceOperationCard({
                               ariaLabel={t("copyValue", { label: t("zelleAccount") })}
                             />
                           )}
+                          {isCash && beneficiary.name && (
+                            <CopyChip
+                              value={beneficiary.name}
+                              display={<span className="font-sans text-sm font-medium">{beneficiary.name}</span>}
+                              icon={<UserRound className="size-3.5" aria-hidden="true" />}
+                              ariaLabel={t("copyValue", { label: t("name") })}
+                            />
+                          )}
                           {isCash && (
                             <p className="flex items-center gap-2 px-2 text-xs font-medium text-muted-foreground">
                               <Banknote className="size-3.5" aria-hidden="true" />

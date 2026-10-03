@@ -246,9 +246,27 @@ describe("CompleteTransferContainer", () => {
     await act(async () => submitButton(node).dispatchEvent(new MouseEvent("click", { bubbles: true })));
     await flush();
 
-    expect(deliverOperation).toHaveBeenCalledWith(OPERATION_ID, { mode: "no_proof" });
+    expect(deliverOperation).toHaveBeenCalledWith(OPERATION_ID, { mode: "no_proof" }, true);
     expect(sendProofImage).not.toHaveBeenCalled();
     expect(onDone).toHaveBeenCalledTimes(1);
+    await act(async () => root.unmount());
+  });
+
+  it("the notify bell starts on, and turning it off sends notify=false to deliverOperation", async () => {
+    deliverOperation.mockResolvedValue({ ok: true, newStatus: "completed", completedAt: "2026-09-15T00:00:00Z" });
+    const { node, root } = await renderContainer();
+
+    const bell = node.querySelector<HTMLButtonElement>("button[aria-pressed]")!;
+    expect(bell.getAttribute("aria-pressed")).toBe("true");
+    expect(bell.getAttribute("aria-label")).toBe(en.Inbox.operationsPanel.notify.on);
+
+    await act(async () => bell.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(bell.getAttribute("aria-pressed")).toBe("false");
+
+    await act(async () => submitButton(node).dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await flush();
+
+    expect(deliverOperation).toHaveBeenCalledWith(OPERATION_ID, { mode: "no_proof" }, false);
     await act(async () => root.unmount());
   });
 
@@ -279,7 +297,7 @@ describe("CompleteTransferContainer", () => {
       mode: "proof_sent",
       wamid: "wamid.ABC",
       path: "account-1/x.png",
-    });
+    }, true);
     expect(onDone).toHaveBeenCalledTimes(1);
     await act(async () => root.unmount());
   });
@@ -300,7 +318,7 @@ describe("CompleteTransferContainer", () => {
     await act(async () => completeAnyway.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     await flush();
 
-    expect(deliverOperation).toHaveBeenCalledWith(OPERATION_ID, { mode: "skip_proof" });
+    expect(deliverOperation).toHaveBeenCalledWith(OPERATION_ID, { mode: "skip_proof" }, true);
     expect(sendProofImage).not.toHaveBeenCalled();
     await act(async () => root.unmount());
   });
@@ -344,7 +362,7 @@ describe("CompleteTransferContainer", () => {
     expect(deliverOperation).toHaveBeenLastCalledWith(OPERATION_ID, {
       mode: "proof_sent",
       wamid: "wamid.ABC",
-    });
+    }, true);
     await act(async () => root.unmount());
   });
 
@@ -448,7 +466,7 @@ describe("CompleteTransferContainer — 2+ beneficiaries", () => {
       mode: "proof_sent",
       wamid: "wamid.BEN2",
       path: "account-1/x.png",
-    });
+    }, true);
     expect(onDone).toHaveBeenCalledTimes(1);
     await act(async () => root.unmount());
   });
@@ -499,7 +517,7 @@ describe("CompleteTransferContainer — 2+ beneficiaries", () => {
 
     expect(sendProofImage).not.toHaveBeenCalled();
     expect(registerBeneficiaryProof).not.toHaveBeenCalled();
-    expect(deliverOperation).toHaveBeenCalledWith(OPERATION_ID, { mode: "skip_proof" });
+    expect(deliverOperation).toHaveBeenCalledWith(OPERATION_ID, { mode: "skip_proof" }, true);
     await act(async () => root.unmount());
   });
 
@@ -520,7 +538,7 @@ describe("CompleteTransferContainer — 2+ beneficiaries", () => {
       mode: "proof_sent",
       wamid: "wamid.ABC",
       path: "account-1/x.png",
-    });
+    }, true);
     await act(async () => root.unmount());
   });
 });

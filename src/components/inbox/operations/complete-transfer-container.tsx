@@ -101,6 +101,14 @@ export function CompleteTransferContainer({
   const [beneficiaryDrafts, setBeneficiaryDraftsState] = useState<Record<string, DeliveryProofDraft>>({});
   const [skipChecked, setSkipChecked] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Whether the customer gets the "remesa completada" message; read through a
+  // ref by `buildDeps` so a retry built in an earlier render sees the latest choice.
+  const [notify, setNotifyState] = useState(true);
+  const notifyRef = useRef(true);
+  const setNotify = useCallback((value: boolean) => {
+    notifyRef.current = value;
+    setNotifyState(value);
+  }, []);
   const [banner, setBanner] = useState<CompleteTransferBanner | null>(null);
   // The last `skip` a run actually used — a plain (no-proof) stage
   // failure has no wamid to retry from, so "Retry" just repeats the
@@ -332,7 +340,7 @@ export function CompleteTransferContainer({
         await deleteAccountMedia(CHAT_MEDIA_BUCKET, path);
       },
       moveToDelivered: async (_id, evidence) => {
-        const result = await deliverOperation(operationId, evidenceToRpc(evidence));
+        const result = await deliverOperation(operationId, evidenceToRpc(evidence), notifyRef.current);
         return result.ok ? { ok: true } : { ok: false, message: result.error };
       },
     }),
@@ -619,6 +627,8 @@ export function CompleteTransferContainer({
         banner={banner}
         onCancel={handleCancel}
         onSubmit={() => void (skipChecked ? run({ skip: true }) : runMulti())}
+        notify={notify}
+        onNotifyChange={setNotify}
       />
     );
   }
@@ -640,6 +650,8 @@ export function CompleteTransferContainer({
       banner={banner}
       onCancel={handleCancel}
       onSubmit={() => void run({ skip: skipChecked })}
+      notify={notify}
+      onNotifyChange={setNotify}
     />
   );
 }

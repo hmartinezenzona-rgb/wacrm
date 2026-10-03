@@ -14,7 +14,9 @@ import { NextResponse } from "next/server";
 import { requireRole, toErrorResponse } from "@/lib/auth/account";
 import {
   UUID_RE,
+  invalidNotifyResponse,
   isOperationsPanelEnabled,
+  parseNotify,
   rpcErrorResponse,
 } from "@/lib/remittance-operations/route-helpers";
 
@@ -63,9 +65,13 @@ export async function POST(
       );
     }
 
+    const notify = parseNotify(body, true);
+    if (notify === null) return invalidNotifyResponse();
+
     const { data, error } = await ctx.supabase.rpc("crm_forzar_verificacion", {
       p_operation_id: operationId,
       p_reason: reason,
+      p_notify: notify,
     });
     if (error) {
       const errorResponse = rpcErrorResponse(error);

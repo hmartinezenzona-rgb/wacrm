@@ -194,6 +194,7 @@ describe("POST /api/remittance-operations/[operationId]/verify", () => {
     expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_verificar_deposito", {
       p_operation_id: OPERATION_ID,
       p_items: [{ ref: "TX-1", amount: 25000 }],
+      p_notify: true,
     });
     expect(body.ok).toBe(true);
     expect(body.result).toEqual({
@@ -210,5 +211,37 @@ describe("POST /api/remittance-operations/[operationId]/verify", () => {
       newStatus: "ready_to_transfer",
     });
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+  });
+
+  it("notify:false in the body -> RPC gets p_notify false", async () => {
+    const { POST } = await import("./route");
+    const callCtx = ctx(ENABLED_PROFILE, { data: VERIFY_RPC_RESULT, error: null });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await POST(
+      request({ items: VALID_ITEMS, notify: false }),
+      paramsFor(OPERATION_ID),
+    );
+
+    expect(response.status).toBe(200);
+    expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_verificar_deposito", {
+      p_operation_id: OPERATION_ID,
+      p_items: [{ ref: "TX-1", amount: 25000 }],
+      p_notify: false,
+    });
+  });
+
+  it("notify not a boolean -> 400, RPC never called", async () => {
+    const { POST } = await import("./route");
+    const callCtx = ctx(ENABLED_PROFILE, { data: null, error: null });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await POST(
+      request({ items: VALID_ITEMS, notify: "no" }),
+      paramsFor(OPERATION_ID),
+    );
+
+    expect(response.status).toBe(400);
+    expect(callCtx.supabase.rpc).not.toHaveBeenCalled();
   });
 });

@@ -79,3 +79,22 @@ describe("CompleteTransferSection proof attach (compact)", () => {
     await act(async () => root.unmount());
   });
 });
+
+describe("CompleteTransferSection helper follows the notify bell", () => {
+  const CT = en.Inbox.operationsPanel.completeTransfer;
+
+  it("says the customer gets the completed message while the bell is on", async () => {
+    const { node, root } = await render({ notify: true, onNotifyChange: vi.fn() });
+
+    expect(node.textContent).toContain(CT.helper);
+    await act(async () => root.unmount());
+  });
+
+  it("says only the screenshot goes out while the bell is off", async () => {
+    const { node, root } = await render({ notify: false, onNotifyChange: vi.fn() });
+
+    expect(node.textContent).toContain(CT.helperSilent);
+    expect(node.textContent).not.toContain(CT.helper);
+    await act(async () => root.unmount());
+  });
+});

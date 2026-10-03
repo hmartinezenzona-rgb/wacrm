@@ -146,9 +146,9 @@ export function DepositReviewContainer({
     return { kind: "error", message: t("depositReview.results.other", { code: resultado }) };
   }
 
-  async function handleVerify(items: VerifyDepositItem[]) {
+  async function handleVerify(items: VerifyDepositItem[], notify: boolean) {
     setBusy(true);
-    const response = await verifyDeposit(operationId, items);
+    const response = await verifyDeposit(operationId, items, notify);
     setBusy(false);
 
     if (!response.ok) {
@@ -165,9 +165,9 @@ export function DepositReviewContainer({
     }
   }
 
-  async function handleForce(reason: string) {
+  async function handleForce(reason: string, notify: boolean) {
     setBusy(true);
-    const response = await forceVerifyDeposit(operationId, reason);
+    const response = await forceVerifyDeposit(operationId, reason, notify);
     setBusy(false);
 
     if (!response.ok) {

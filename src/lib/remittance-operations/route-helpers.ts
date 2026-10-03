@@ -67,3 +67,17 @@ export function isPlainObjectWithKeys(
     Object.keys(v).length >= 1
   );
 }
+
+/** Reads the optional `notify` flag from a request body: `fallback` when it
+ *  is absent, `null` (caller answers 400) when present but not a boolean. */
+export function parseNotify(body: unknown, fallback: boolean): boolean | null {
+  const notify = (body as { notify?: unknown } | null)?.notify;
+  if (notify === undefined) return fallback;
+  return typeof notify === "boolean" ? notify : null;
+}
+
+const NOTIFY_ERROR = "notify must be a boolean";
+
+export function invalidNotifyResponse(): NextResponse {
+  return NextResponse.json({ error: NOTIFY_ERROR }, { status: 400 });
+}

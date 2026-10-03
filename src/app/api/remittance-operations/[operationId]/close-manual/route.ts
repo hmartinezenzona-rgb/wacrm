@@ -3,7 +3,7 @@
 //
 // Closes a verified remesa (ready_to_transfer / transferring) by hand via
 // crm_cerrar_operacion_manual: completed + delivery_mode closed_manually, and
-// the customer is NOT notified (the notifier skips closed_manually).
+// the customer is notified only when the body says `notify: true` (default false).
 // Uses the caller's own SESSION Supabase client (never service role) so the
 // RPC sees a real auth.uid(), same as the sibling routes. Gated behind the
 // operations_panel beta flag and the "admin" role (owner included); the RPC
@@ -14,18 +14,23 @@ import { NextResponse } from "next/server";
 import { requireRole, toErrorResponse } from "@/lib/auth/account";
 import {
   UUID_RE,
+  invalidNotifyResponse,
   isOperationsPanelEnabled,
+  parseNotify,
   rpcErrorResponse,
 } from "@/lib/remittance-operations/route-helpers";
 
 const MAX_REASON_LENGTH = 500;
 
-function parseReason(body: unknown): string | null {
+/** The reason is optional now: `undefined` when absent or blank, `null`
+ *  (caller answers 400) when present but not a string or over the limit. */
+function parseReason(body: unknown): string | null | undefined {
   const reason = (body as { reason?: unknown } | null)?.reason;
+  if (reason === undefined) return undefined;
   if (typeof reason !== "string") return null;
   const trimmed = reason.trim();
-  if (trimmed.length < 1 || trimmed.length > MAX_REASON_LENGTH) return null;
-  return trimmed;
+  if (trimmed.length > MAX_REASON_LENGTH) return null;
+  return trimmed === "" ? undefined : trimmed;
 }
 
 export async function POST(
@@ -56,16 +61,20 @@ export async function POST(
     }
 
     const reason = parseReason(body);
-    if (!reason) {
+    if (reason === null) {
       return NextResponse.json(
-        { error: "reason must be a string of 1 to 500 characters" },
+        { error: "reason, when sent, must be a string of at most 500 characters" },
         { status: 400 },
       );
     }
 
+    const notify = parseNotify(body, false);
+    if (notify === null) return invalidNotifyResponse();
+
     const { data, error } = await ctx.supabase.rpc("crm_cerrar_operacion_manual", {
       p_operation_id: operationId,
-      p_motivo: reason,
+      p_motivo: reason ?? null,
+      p_notify: notify,
     });
     if (error) {
       const errorResponse = rpcErrorResponse(error);

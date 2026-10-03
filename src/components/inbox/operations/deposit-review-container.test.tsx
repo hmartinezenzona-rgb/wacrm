@@ -174,7 +174,7 @@ describe("DepositReviewContainer", () => {
     await act(async () => verifyButton.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     await flush();
 
-    expect(verifyDeposit).toHaveBeenCalledWith("op-1", [{ ref: "10412345678901", amount: 25000 }]);
+    expect(verifyDeposit).toHaveBeenCalledWith("op-1", [{ ref: "10412345678901", amount: 25000 }], true);
     expect(fetchOperationReceipts).toHaveBeenCalledTimes(2);
     expect(onChanged).toHaveBeenCalledTimes(1);
     expect(node.textContent).toContain(T.results.verificado);
@@ -214,6 +214,21 @@ describe("DepositReviewContainer", () => {
     expect(node.textContent).toContain(T.conflict);
   });
 
+  it("a notify bell turned off reaches verifyDeposit as notify=false", async () => {
+    fetchOperationReceipts.mockResolvedValue({ ok: true, data: readModel() });
+    verifyDeposit.mockResolvedValue({ ok: true, result: verifyResult() });
+
+    const { node } = await renderContainer();
+    await flush();
+
+    const bell = node.querySelector<HTMLButtonElement>("button[aria-pressed]")!;
+    await act(async () => bell.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await act(async () => textButton(node, T.verify)!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await flush();
+
+    expect(verifyDeposit).toHaveBeenCalledWith("op-1", [{ ref: "10412345678901", amount: 25000 }], false);
+  });
+
   it("force success refetches, calls onChanged, and shows the forced message", async () => {
     fetchOperationReceipts.mockResolvedValue({ ok: true, data: readModel() });
     forceVerifyDeposit.mockResolvedValue({ ok: true, newStatus: "ready_to_transfer" });
@@ -230,7 +245,7 @@ describe("DepositReviewContainer", () => {
     await act(async () => forceConfirm.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     await flush();
 
-    expect(forceVerifyDeposit).toHaveBeenCalledWith("op-1", "manual override");
+    expect(forceVerifyDeposit).toHaveBeenCalledWith("op-1", "manual override", true);
     expect(fetchOperationReceipts).toHaveBeenCalledTimes(2);
     expect(onChanged).toHaveBeenCalledTimes(1);
     expect(node.textContent).toContain(T.forced);

@@ -20,12 +20,15 @@ import {
 
 const MAX_REASON_LENGTH = 500;
 
-function parseReason(body: unknown): string | null {
+/** The reason is optional now: `undefined` when absent or blank, `null`
+ *  (caller answers 400) when present but not a string or over the limit. */
+function parseReason(body: unknown): string | null | undefined {
   const reason = (body as { reason?: unknown } | null)?.reason;
+  if (reason === undefined) return undefined;
   if (typeof reason !== "string") return null;
   const trimmed = reason.trim();
-  if (trimmed.length < 1 || trimmed.length > MAX_REASON_LENGTH) return null;
-  return trimmed;
+  if (trimmed.length > MAX_REASON_LENGTH) return null;
+  return trimmed === "" ? undefined : trimmed;
 }
 
 export async function POST(
@@ -56,16 +59,16 @@ export async function POST(
     }
 
     const reason = parseReason(body);
-    if (!reason) {
+    if (reason === null) {
       return NextResponse.json(
-        { error: "reason must be a string of 1 to 500 characters" },
+        { error: "reason, when sent, must be a string of at most 500 characters" },
         { status: 400 },
       );
     }
 
     const { data, error } = await ctx.supabase.rpc("crm_eliminar_operacion", {
       p_operation_id: operationId,
-      p_motivo: reason,
+      p_motivo: reason ?? null,
     });
     if (error) {
       const errorResponse = rpcErrorResponse(error);

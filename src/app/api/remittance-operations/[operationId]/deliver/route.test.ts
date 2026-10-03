@@ -236,6 +236,7 @@ describe("POST /api/remittance-operations/[operationId]/deliver", () => {
     expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_entregar_operacion", {
       p_operation_id: OPERATION_ID,
       p_evidence: { mode: "proof_sent", wamid: "wamid.ABC", path: "account-1/x.png" },
+      p_notify: true,
     });
     expect(body).toEqual({ ok: true, newStatus: "completed", completedAt: "2026-09-15T12:00:00Z" });
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
@@ -255,6 +256,39 @@ describe("POST /api/remittance-operations/[operationId]/deliver", () => {
     expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_entregar_operacion", {
       p_operation_id: OPERATION_ID,
       p_evidence: { mode: "no_proof" },
+      p_notify: true,
     });
+  });
+
+  it("notify:false in the body -> RPC gets p_notify false", async () => {
+    const { POST } = await import("./route");
+    const callCtx = ctx(ENABLED_PROFILE, { data: DELIVER_RPC_RESULT, error: null });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await POST(
+      request({ ...VALID_EVIDENCE, notify: false }),
+      paramsFor(OPERATION_ID),
+    );
+
+    expect(response.status).toBe(200);
+    expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_entregar_operacion", {
+      p_operation_id: OPERATION_ID,
+      p_evidence: { mode: "proof_sent", wamid: "wamid.ABC", path: "account-1/x.png" },
+      p_notify: false,
+    });
+  });
+
+  it("notify not a boolean -> 400, RPC never called", async () => {
+    const { POST } = await import("./route");
+    const callCtx = ctx(ENABLED_PROFILE, { data: null, error: null });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await POST(
+      request({ ...VALID_EVIDENCE, notify: "yes" }),
+      paramsFor(OPERATION_ID),
+    );
+
+    expect(response.status).toBe(400);
+    expect(callCtx.supabase.rpc).not.toHaveBeenCalled();
   });
 });

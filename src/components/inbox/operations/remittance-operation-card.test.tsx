@@ -458,6 +458,21 @@ describe("RemittanceOperationCard", () => {
       await act(async () => root.unmount());
     });
 
+    it("shows the cash recipient's name as a copy chip when it is stored", async () => {
+      const { node, root } = await render(cashOperation({ name: "Maria Lopez" }));
+
+      expect(button(node, "Copy Name")?.textContent).toContain("Maria Lopez");
+      await act(async () => root.unmount());
+    });
+
+    it("shows no name line (and no 'unavailable' notice) when the cash recipient has no name", async () => {
+      const { node, root } = await render(cashOperation({ name: null }));
+
+      expect(button(node, "Copy Name")).toBeNull();
+      expect(node.textContent).not.toContain(en.Inbox.operationsPanel.beneficiaryNameUnavailable);
+      await act(async () => root.unmount());
+    });
+
     it("says the ID photo is missing when there is no URL", async () => {
       const { node, root } = await render(cashOperation({ idPhotoUrl: null, idPhotoWamid: null }));
 

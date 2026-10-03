@@ -11,6 +11,8 @@ import {
   verifyDeposit,
   forceVerifyDeposit,
   deliverOperation,
+  cerrarOperacionManual,
+  eliminarOperacion,
   registerBeneficiaryProof,
 } from "./commands";
 
@@ -357,5 +359,38 @@ describe("registerBeneficiaryProof", () => {
     const response = await registerBeneficiaryProof(OPERATION_ID, BENEFICIARY_ID, { wamid: "w" });
 
     expect(response).toEqual({ ok: false, status: 0, error: "Network error" });
+  });
+});
+
+describe.each([
+  ["cerrarOperacionManual", cerrarOperacionManual, "close-manual", { ok: true, newStatus: "completed", completedAt: "2026-10-02T10:00:00Z" }],
+  ["eliminarOperacion", eliminarOperacion, "delete", { ok: true, newStatus: "cancelled" }],
+])("%s", (_name, command, slug, body) => {
+  it("POSTs the reason to the endpoint and unwraps newStatus", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(body));
+
+    const response = await command(OPERATION_ID, "Duplicate receipt");
+
+    expect(fetch).toHaveBeenCalledWith(
+      `/api/remittance-operations/${OPERATION_ID}/${slug}`,
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "Duplicate receipt" }),
+      }),
+    );
+    expect(response).toMatchObject({ ok: true, newStatus: (body as { newStatus: string }).newStatus });
+  });
+
+  it("maps a non-2xx response to ok:false with status and error message", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ error: "Forbidden" }, 403));
+
+    expect(await command(OPERATION_ID, "Duplicate receipt")).toEqual({ ok: false, status: 403, error: "Forbidden" });
+  });
+
+  it("maps a network failure to ok:false status 0", async () => {
+    vi.mocked(fetch).mockRejectedValueOnce(new Error("offline"));
+
+    expect(await command(OPERATION_ID, "Duplicate receipt")).toEqual({ ok: false, status: 0, error: "Network error" });
   });
 });

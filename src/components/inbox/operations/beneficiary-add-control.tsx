@@ -66,13 +66,15 @@ export function BeneficiaryAddControl({ operationId, onDone, onCancel }: Benefic
         setError(t("invalidCard"));
         return;
       }
+      // The phone is optional for a card (migration 190) — validated only
+      // when given, and left out of `datos` when empty.
       const digitsPhone = phone.replace(/\D/g, "");
-      if (!PHONE_PATTERN.test(digitsPhone)) {
+      if (digitsPhone !== "" && !PHONE_PATTERN.test(digitsPhone)) {
         setError(t("invalidPhone"));
         return;
       }
       datos.card_number = digitsCard;
-      datos.phone = digitsPhone;
+      if (digitsPhone !== "") datos.phone = digitsPhone;
     }
 
     const parsedAmount = Number(amount);

@@ -102,6 +102,39 @@ describe("BeneficiaryAddControl", () => {
     await act(async () => root.unmount());
   });
 
+  it("submits a card beneficiary without a phone and sends no phone key", async () => {
+    agregarBeneficiario.mockResolvedValue({ ok: true, id: "ben-3", complete: false });
+    const { node, root, onDone } = await render();
+
+    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-card-number")!, "9205123412349412"));
+    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-amount")!, "5000"));
+    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-currency")!, "CUP"));
+    await submit(node);
+
+    expect(agregarBeneficiario).toHaveBeenCalledWith("op-1", {
+      beneficiary_type: "cuban_card",
+      card_number: "9205123412349412",
+      amount: 5000,
+      currency: "CUP",
+    });
+    expect(onDone).toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
+
+  it("still blocks a non-empty phone that isn't 8 to 15 digits", async () => {
+    const { node, root } = await render();
+
+    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-card-number")!, "9205123412349412"));
+    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-phone")!, "123"));
+    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-amount")!, "5000"));
+    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-currency")!, "CUP"));
+    await submit(node);
+
+    expect(node.textContent).toContain(en.Inbox.operationsPanel.invalidPhone);
+    expect(agregarBeneficiario).not.toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
+
   it("submits a zelle beneficiary with name and zelle_account", async () => {
     agregarBeneficiario.mockResolvedValue({ ok: true, id: "ben-2", complete: true });
     const { node, root, onDone } = await render();

@@ -46,8 +46,15 @@ export type RemittanceOperationStatus =
 /** `remittance_operations.delivery_mode` (migrations 101/102) — how a
  *  completed operation's delivery proof was handled. `legacy_pipeline`
  *  covers operations completed before the delivery RPC existed (the old
- *  Kanban drag-to-Entregada path), which never set this column. */
-export type OperationDeliveryMode = "proof_sent" | "no_proof" | "skip_proof" | "legacy_pipeline";
+ *  Kanban drag-to-Entregada path), which never set this column.
+ *  `closed_manually` (migration 190) is an owner/admin close that skips the
+ *  delivery and never notifies the customer. */
+export type OperationDeliveryMode =
+  | "proof_sent"
+  | "no_proof"
+  | "skip_proof"
+  | "legacy_pipeline"
+  | "closed_manually";
 
 /** `remittance_beneficiaries.beneficiary_type` (migration 042). */
 export type BeneficiaryType =

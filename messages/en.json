@@ -417,7 +417,19 @@
         "completedAt": "{date}",
         "proofSent": "with screenshot",
         "noProof": "without screenshot",
-        "skipProof": "window closed, no screenshot"
+        "skipProof": "window closed, no screenshot",
+        "closedManually": "Closed manually"
+      },
+      "closing": {
+        "deleteButton": "Delete remesa",
+        "closeButton": "Close manually",
+        "reasonLabel": "Reason",
+        "closeWarning": "The customer will NOT be notified. The remesa is marked completed.",
+        "closeConfirm": "Close remesa",
+        "closing": "Closing…",
+        "deleteWarning": "The remesa is removed from the panel. This can't be undone from here.",
+        "deleteConfirm": "Delete remesa",
+        "deleting": "Deleting…"
       },
       "completeTransfer": {
         "title": "Complete transfer",

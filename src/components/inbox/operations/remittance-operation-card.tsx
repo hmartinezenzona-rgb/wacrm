@@ -2,9 +2,9 @@
 
 import { useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowRightLeft, AtSign, Banknote, ChevronDown, CreditCard, IdCard, Lock, MapPin, Pencil, Phone, UserPlus, UserRound, Users } from "lucide-react";
+import { ArrowRightLeft, AtSign, Banknote, ChevronDown, CreditCard, IdCard, Lock, MapPin, Pencil, Phone, Trash2, UserPlus, UserRound, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { AccountRole } from "@/lib/auth/roles";
+import { canForceVerify, type AccountRole } from "@/lib/auth/roles";
 import { corregirBeneficiario } from "@/lib/remittance-operations/commands";
 import { effectiveStatus } from "@/lib/remittance-operations/effective-status";
 import type {
@@ -22,6 +22,7 @@ import { CopyChip } from "./copy-chip";
 import { DepositReviewContainer } from "./deposit-review-container";
 import type { SummaryAmount } from "./deposit-review-section";
 import { InlineEditField } from "./inline-edit-field";
+import { OperationClosingControl } from "./operation-closing-control";
 import { KNOWN_BENEFICIARY_TYPES, MethodIcon, StatusChip } from "./operation-icons";
 
 const CARD_NUMBER_PATTERN = /^\d{16}$/;
@@ -80,7 +81,15 @@ interface RemittanceOperationCardProps {
  *  still move an operation into one of them — defensive, not dead code. */
 const TERMINAL_STATUSES: ReadonlyArray<string> = ["completed", "cancelled"];
 
-type OpenFormKind = "operation" | "beneficiary" | "reassign" | "complete" | "addBeneficiary";
+/** Statuses a remesa can no longer be deleted from: finished, or already
+ *  verified (money moved) — mirrors `crm_eliminar_operacion` (migration 190). */
+const NOT_DELETABLE_STATUSES: ReadonlyArray<string> = ["completed", "cancelled", "ready_to_transfer", "transferring"];
+
+/** Statuses a verified remesa can be closed manually from
+ *  (`crm_cerrar_operacion_manual`, migration 190). */
+const MANUALLY_CLOSABLE_STATUSES: ReadonlyArray<string> = ["ready_to_transfer", "transferring"];
+
+type OpenFormKind = "operation" | "beneficiary" | "reassign" | "complete" | "addBeneficiary" | "close" | "delete";
 
 interface OpenFormState {
   kind: OpenFormKind;
@@ -228,13 +237,14 @@ function formatCompletedAt(iso: string | null): string {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
 
-/** `history.proofSent`/`noProof`/`skipProof` — only these three delivery
- *  modes get a suffix; `legacy_pipeline` (and any future value) shows the
+/** `history.proofSent`/`noProof`/`skipProof`/`closedManually` — only these
+ *  delivery modes get a suffix; `legacy_pipeline` (and any future value) shows the
  *  completed date alone. */
 const DELIVERY_MODE_HISTORY_KEY: Partial<Record<OperationDeliveryMode, string>> = {
   proof_sent: "history.proofSent",
   no_proof: "history.noProof",
   skip_proof: "history.skipProof",
+  closed_manually: "history.closedManually",
 };
 
 /**
@@ -296,6 +306,13 @@ export function RemittanceOperationCard({
   const methodLabel = (method: string): string => knownMethodLabel(method, t as (key: string) => string);
 
   const lock = <Lock className="size-3 shrink-0" aria-label={t("lockedByOperator")} />;
+
+  // Owner/admin only. The raw status (not the effective one) decides, since
+  // that is what the RPCs check.
+  const isManager = role !== null && canForceVerify(role);
+  const canDelete = isManager && !operation.isHistory && !NOT_DELETABLE_STATUSES.includes(operation.status);
+  const canCloseManually =
+    isManager && !operation.isHistory && MANUALLY_CLOSABLE_STATUSES.includes(operation.status);
 
   const showCompleteTransfer = status === "ready_to_transfer" && editable;
   const summaryAmount = computeSummaryAmount(operation, t as (key: string) => string);
@@ -364,6 +381,18 @@ export function RemittanceOperationCard({
             aria-hidden="true"
           />
         </button>
+        {expanded && canDelete && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            aria-label={t("closing.deleteButton")}
+            title={t("closing.deleteButton")}
+            onClick={() => toggleForm({ kind: "delete" })}
+          >
+            <Trash2 aria-hidden="true" />
+          </Button>
+        )}
         {expanded && editable && (
           <Button
             type="button"
@@ -423,6 +452,15 @@ export function RemittanceOperationCard({
         <div className="mt-[22px] space-y-2.5">
           {openForm?.kind === "operation" && (
             <OperationCorrectionForm operation={operation} onDone={handleChanged} onCancel={() => setOpenForm(null)} />
+          )}
+
+          {openForm?.kind === "delete" && (
+            <OperationClosingControl
+              operationId={operation.id}
+              kind="delete"
+              onDone={handleChanged}
+              onCancel={() => setOpenForm(null)}
+            />
           )}
 
           <DepositReviewContainer
@@ -625,6 +663,26 @@ export function RemittanceOperationCard({
                 onClick={() => toggleForm({ kind: "complete" })}
               >
                 {t("completeTransfer.button")}
+              </Button>
+            ))}
+
+          {canCloseManually &&
+            (openForm?.kind === "close" ? (
+              <OperationClosingControl
+                operationId={operation.id}
+                kind="close"
+                onDone={handleChanged}
+                onCancel={() => setOpenForm(null)}
+              />
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                className="w-full"
+                onClick={() => toggleForm({ kind: "close" })}
+              >
+                {t("closing.closeButton")}
               </Button>
             ))}
         </div>

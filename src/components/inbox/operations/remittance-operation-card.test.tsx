@@ -117,6 +117,19 @@ vi.mock("./deposit-review-container", () => ({
   ),
 }));
 
+// The inline reason form owns its own command calls (covered by
+// operation-closing-control.test.tsx) — stubbed so this file asserts only on
+// when the card offers each action and which kind it opens.
+vi.mock("./operation-closing-control", () => ({
+  OperationClosingControl: ({ kind, onDone }: { kind: string; onDone: () => void }) => (
+    <div data-testid="closing-stub" data-kind={kind}>
+      <button type="button" data-testid="closing-done" onClick={onDone}>
+        done
+      </button>
+    </div>
+  ),
+}));
+
 afterEach(() => {
   document.body.replaceChildren();
   vi.restoreAllMocks();
@@ -1480,6 +1493,93 @@ describe("RemittanceOperationCard — the bot's quote", () => {
     const { node, root } = await render(operation({ isHistory: true, status: "completed" }), { quote: QUOTE });
 
     expect(node.textContent).not.toContain("Quoted:");
+    await act(async () => root.unmount());
+  });
+});
+
+describe("RemittanceOperationCard closing actions", () => {
+  const copy = en.Inbox.operationsPanel.closing;
+  const deleteButton = (node: Element) => button(node, copy.deleteButton);
+  const closeButton = (node: Element) => button(node, copy.closeButton) ?? buttonByText(node, copy.closeButton);
+
+  it.each(["owner", "admin"] as const)("%s sees the trash button on an open operation", async (role) => {
+    const { node, root } = await render(operation({ status: "deposit_verification" }), { role });
+
+    expect(deleteButton(node)).not.toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it.each(["agent", "viewer", null] as const)("%s never sees either closing button", async (role) => {
+    const { node, root } = await render(operation({ status: "deposit_verification" }), { role });
+    const second = await render(operation({ status: "ready_to_transfer" }), { role });
+
+    expect(deleteButton(node)).toBeNull();
+    expect(closeButton(second.node)).toBeFalsy();
+    expect(deleteButton(second.node)).toBeNull();
+    await act(async () => root.unmount());
+    await act(async () => second.root.unmount());
+  });
+
+  it.each(["ready_to_transfer", "transferring", "completed", "cancelled"] as const)(
+    "hides the trash button when the status is %s",
+    async (status) => {
+      const { node, root } = await render(operation({ status: status as RemittanceOperationStatus }), { role: "owner" });
+
+      expect(deleteButton(node)).toBeNull();
+      await act(async () => root.unmount());
+    },
+  );
+
+  it("hides the trash button on a history operation", async () => {
+    const { node, root } = await render(operation({ status: "incident", isHistory: true }), { role: "owner" });
+
+    expect(deleteButton(node)).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it.each(["ready_to_transfer", "transferring"] as const)("owner sees Close manually when the status is %s", async (status) => {
+    const { node, root } = await render(operation({ status }), { role: "owner" });
+
+    expect(closeButton(node)).toBeTruthy();
+    await act(async () => root.unmount());
+  });
+
+  it("hides Close manually for other statuses", async () => {
+    const { node, root } = await render(operation({ status: "deposit_verification" }), { role: "owner" });
+
+    expect(closeButton(node)).toBeFalsy();
+    await act(async () => root.unmount());
+  });
+
+  it("clicking the trash opens the delete form; done refreshes the panel and closes it", async () => {
+    const onChanged = vi.fn();
+    const { node, root } = await render(operation({ status: "deposit_verification" }), { role: "admin", onChanged });
+
+    await act(async () => (deleteButton(node) as HTMLButtonElement).click());
+    expect(node.querySelector('[data-testid="closing-stub"]')?.getAttribute("data-kind")).toBe("delete");
+
+    await act(async () => (node.querySelector('[data-testid="closing-done"]') as HTMLButtonElement).click());
+    expect(onChanged).toHaveBeenCalled();
+    expect(node.querySelector('[data-testid="closing-stub"]')).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("clicking Close manually opens the close form", async () => {
+    const { node, root } = await render(operation({ status: "ready_to_transfer" }), { role: "owner" });
+
+    await act(async () => (closeButton(node) as HTMLButtonElement).click());
+
+    expect(node.querySelector('[data-testid="closing-stub"]')?.getAttribute("data-kind")).toBe("close");
+    await act(async () => root.unmount());
+  });
+
+  it("labels a history operation closed manually where delivered ones show their delivery info", async () => {
+    const { node, root } = await render(
+      operation({ status: "completed", isHistory: true, deliveryMode: "closed_manually", completedAt: "2026-10-02T10:00:00Z" }),
+      { role: "owner", expanded: false },
+    );
+
+    expect(node.textContent).toContain(en.Inbox.operationsPanel.history.closedManually);
     await act(async () => root.unmount());
   });
 });

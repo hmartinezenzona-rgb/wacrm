@@ -246,3 +246,41 @@ export async function registerBeneficiaryProof(
   if (!response.ok) return response;
   return { ok: true, registered: response.data.registered, missing: response.data.missing };
 }
+
+export type ManualCloseCommandResult =
+  | { ok: true; newStatus: string; completedAt: string | null }
+  | { ok: false; status: number; error: string };
+
+/** `crm_cerrar_operacion_manual` (migration 190): completes a verified remesa
+ *  without notifying the customer. Owner/admin only; a reason is required. */
+export async function cerrarOperacionManual(
+  operationId: string,
+  reason: string,
+): Promise<ManualCloseCommandResult> {
+  const response = await postJsonResult<{ newStatus: string; completedAt: string | null }>(
+    `/api/remittance-operations/${operationId}/close-manual`,
+    "POST",
+    { reason },
+  );
+  if (!response.ok) return response;
+  return { ok: true, newStatus: response.data.newStatus, completedAt: response.data.completedAt };
+}
+
+export type DeleteOperationCommandResult =
+  | { ok: true; newStatus: string }
+  | { ok: false; status: number; error: string };
+
+/** `crm_eliminar_operacion` (migration 190): soft-deletes a remesa (status
+ *  cancelled). Owner/admin only; a reason is required. */
+export async function eliminarOperacion(
+  operationId: string,
+  reason: string,
+): Promise<DeleteOperationCommandResult> {
+  const response = await postJsonResult<{ newStatus: string }>(
+    `/api/remittance-operations/${operationId}/delete`,
+    "POST",
+    { reason },
+  );
+  if (!response.ok) return response;
+  return { ok: true, newStatus: response.data.newStatus };
+}

@@ -65,3 +65,8 @@ Every catalogued format is read with the right amount and reference in the repla
   - Still open: the 10-02 12:08 kind (badly read monitor photo) stays a manual verification; the bot's "No me llegó
     bien la imagen" reply to a readable non-receipt image.
   Next: owner go-ahead for 197 in production; then panel-other-services.md (recargas).
+- 197 PRODUCTION (2026-10-03 ~20:30 UTC, owner go-ahead): md5 of cerebro_cruzar_deposito / cerebro_cruzar_pendientes /
+  cerebro_recruzar_depositos_tardios in production = staging pre-197; cerebro_ref_parecida absent; backup
+  produccion-20261003T202532Z.dump; gate93-aplicar-db.py ensayo "parecida=true lejana=false open_ops=7" rolled back,
+  aplicar {"r":"ok"}, registered; cruce-ref-parecida, deal-free-money-rules ALL PASS, deposit-path-without-deals passes
+  (NOTICE form); helper dropped, 0 fixture contacts/emails. V-work for now DONE; next: panel-other-services.md.

@@ -83,6 +83,9 @@ silent mode. Cash delivery must be reviewed carefully before building it.
       'Registrar carnet efectivo' stores the FIRST "otro" image during an open cash delivery. Proposed: a vision case
       for an ID card (with name and ID number), store only that case, and repoint Bruce's photo to his 14:26 image.
       Awaiting the owner's yes
+- [ ] A8 A manual close with no beneficiary and no delivery method never reaches the calculator (production, 2026-10-03:
+      Yosvany 54c25086, 6,200 GYD, closed manually 16:36 UTC, calculator_resolve_operation_service NULL -> no line).
+      Rubislandi 30c87ea5 (1 card) reached it as CUP. Needs the owner's decision: how the service is chosen then
 - [ ] C resent receipt guard
 
 ## Progress / evidence
@@ -299,3 +302,7 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   resolve route accepts efectivo_usd_gyd, financial-close rate label "EFECTIVO buy/sell". RED 9 -> GREEN; suite 1772;
   tsc and eslint clean. No resolve UI exists in the app (pending lines only list their missing rate names), so none
   was added; the manual shorthand calculator does not know EFECTIVO (out of scope).
+- Staging app ff98e2e deployed (2026-10-03): staging manifest, 114 money-path tests, 0 production refs, no .env, sha256 OK,
+  2386 = 2386 files, BUILD_ID 1JDoZiIrkNUJSQ5Tc0v6i, anterior 3f20c78, /login 200, online. prod-build back at 3f20c78.
+- Calculator test lines: staging has the owner's fixtures from the test number (CUP 7,000 / 8,000 / 9,000 / 10,000 GYD
+  and EFECTIVO 29,000 GYD); production has none from the test number or test contacts.

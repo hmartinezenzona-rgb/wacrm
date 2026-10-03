@@ -384,3 +384,6 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   card and Zelle with the cards' icons; Clásica Landmark, Tropical TreePalm, Cash Banknote — the cards' MethodIcon
   shares one "cash" kind for those three) when the remesa has no beneficiary and no delivery method; the check stays
   disabled until one is picked. RED 10 (writer) + 1 (distinct icons) -> GREEN; suite 1787; tsc, eslint clean.
+- Staging app d93815b deployed (2026-10-03): staging manifest, 114 money-path tests, 0 production refs, no .env, sha256
+  OK, 2386 = 2386 files, BUILD_ID -emdXlzX4LOy-PAm0A_IQ, anterior ff98e2e, /login 200, online. Test fixture for the owner:
+  a 6,200 GYD ready_to_transfer remesa without beneficiary nor delivery method on the test chat (Yosvany's shape).

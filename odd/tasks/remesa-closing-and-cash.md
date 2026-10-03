@@ -379,3 +379,8 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   CUP line, cash -> EFECTIVO line, unknown refused, beneficiary present refused, close without service as before) RED
   (function signature missing) -> GREEN; panel-closing-actions, panel-notify-and-cash-name, calculator-cash ALL PASS.
   App part: writer running.
+- A8 app (2026-10-03): commit 03cc772. close-manual route takes deliveryMethod (5 values, else 400) -> p_delivery_method;
+  cerrarOperacionManual(id, notify, deliveryMethod?); the closing control shows five single-select icon buttons (CUP
+  card and Zelle with the cards' icons; Clásica Landmark, Tropical TreePalm, Cash Banknote — the cards' MethodIcon
+  shares one "cash" kind for those three) when the remesa has no beneficiary and no delivery method; the check stays
+  disabled until one is picked. RED 10 (writer) + 1 (distinct icons) -> GREEN; suite 1787; tsc, eslint clean.

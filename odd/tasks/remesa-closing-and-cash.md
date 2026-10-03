@@ -213,3 +213,16 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   control starts with the bell off, so it was switched on) -> "Listo, su remesa de *27,000 / 30,000 CUP* ya fue
   completada", calculator entries; two deletes -> cancelled with "Deleted from the panel"; every audit carries the
   fixed notes. 7,000 not tested. Found A6.
+- Staging app `08bce88` deployed (2026-10-03, owner go-ahead "cerremos con lo que queda"): texts removed + complete
+  transfer icons; staging manifest, 114 money-path tests, 0 production refs, no .env, sha256 OK, 2386 = 2386 files,
+  BUILD_ID `zMLNPv0xnL1tHbIHGAcvY`, `anterior` -> `596cf86…`, `/login` 200, online, 0 unstable restarts.
+- STATE at close (2026-10-03): staging has DB 188-192, notifier gate85 + gate85b, Cerebro gate85-cerebro-nombre +
+  gate85c, app 08bce88. PRODUCTION has none of it (DB at 187, app 304a0c9). Production plan, each step with the
+  owner's go-ahead: (1) DB bundle 188, 189, 190, 191, 192 in one transaction via gate84-aplicar-db.py (BUNDLE list
+  updated) + assertions cash-delivery-rate, panel-cash-recipient, panel-closing-actions, panel-notify-and-cash-name,
+  force-verify-without-reason in probar mode; (2) notifier gate85-notificador.py produccion then gate85b-textos.py
+  produccion; (3) Cerebro gate85-cerebro-nombre.py produccion then gate85c-cerebro-promesa.py produccion; (4) app
+  08bce88 (or later) with desplegar-wacrm-produccion.sh; (5) fill Bruce 972718ea amount
+  (crm_calcular_monto_destino) and the owner closes Rubislandi 30c87ea5 himself. DB first: the app and the
+  notifier/Cerebro read the 191/192 signatures and column. Open: A6 (cash in the calculator, waiting for the admin),
+  C (resent receipt guard).

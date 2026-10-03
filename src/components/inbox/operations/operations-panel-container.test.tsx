@@ -286,7 +286,7 @@ describe("OperationsPanelContainer", () => {
     await act(async () => root.unmount());
   });
 
-  it("shows the ambiguous banner AND still lists every open remesa, both collapsed (no auto-select)", async () => {
+  it("shows no ambiguous banner and still lists every open remesa, both collapsed (no auto-select)", async () => {
     const data: ConversationOperationsRead = {
       resolverState: "ambigua",
       resolverOperationId: null,
@@ -298,10 +298,11 @@ describe("OperationsPanelContainer", () => {
     const { node, root } = await renderContainer("conv-3");
     await flush();
 
-    // Compact badge (2026-10-03): short text, the full explanation as its accessible name.
-    const badge = node.querySelector('[role="status"]');
-    expect(badge?.textContent).toBe("2 open");
-    expect(badge?.getAttribute("aria-label")).toContain("2 open operations for this conversation");
+    // No ambiguous-state badge any more (owner, 2026-10-03): the cards and their
+    // statuses already say it. The panel title is just "Operations".
+    expect(node.querySelector('[role="status"]')).toBeNull();
+    expect(node.textContent).not.toContain("open operations for this conversation");
+    expect(node.querySelector("h3")?.textContent).toBe("Operations");
     // Both operations render — "no guessing" means not hiding data, not
     // picking a winner (spec: "List All Open Remesas Per Conversation").
     expect(node.querySelectorAll("article")).toHaveLength(2);

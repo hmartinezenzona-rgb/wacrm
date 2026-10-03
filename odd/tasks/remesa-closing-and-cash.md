@@ -345,3 +345,12 @@ silent mode. Cash delivery must be reviewed carefully before building it.
     remesa de *100 USD en efectivo*"; non-cash unchanged), evaluated offline both ways.
   - Observed: at 18:29 the bot noticed the ID's name (Anabel Frene Vera) differs from the recipient (Marlene Pérez) and
     asked for the right one, but the photo was stored anyway. Asked the owner whether a mismatching ID should be stored.
+- ID name must match (owner, 2026-10-03: "que no se guarde hasta que mande el correcto"): DB 195 (a3fbab3)
+  cerebro_nombre_coincide (lower case, no accents, any order, words of 3+ letters equal or one edit apart, at least 2
+  words of the recipient's name or its only one; no extension — none installed); assertion id-name-match.sql (7 cases)
+  RED -> GREEN. Cerebro staging gate90-carnet-nombre.py: Snapshot final carries foto_carnet_nombre; 'Registrar carnet
+  efectivo' stores only when the recipient's name is unknown, the ID's name is unreadable, or they match. The real
+  node query run on a staging fixture: "ANABEL FRENE VERA" vs recipient "Marlene Pérez" -> 0 rows, photo not stored;
+  "MARLENE PEREZ GARCIA" -> stored. (That fixture run committed by mistake — psql -1 with no closing error; its contact
+  5990019001 was removed with reset-test-contact.sql.) Limitation: an ID arriving in the same burst as the recipient's
+  first name is stored unchecked (the name is saved later by the agent's tool).

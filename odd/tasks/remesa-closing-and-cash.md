@@ -32,9 +32,30 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   already verified receipt of the conversation is treated as a resend, not a new operation.
 
 ## Tasks
-- [ ] A0 Owner decisions on cash delivery (rate source, what the panel must show, completeness rule)
-- [ ] A1..An (after A0)
+- [x] A0 Owner decisions (2026-10-02): the cash rate changes and must be set in ONE place that every user reads; the
+      minimum stays 100 USD (its GYD value follows the rate).
+- [x] A1 DB: migration 188 (cash rate in the calculator, received amount, completeness, minimum, live service text)
+- [ ] A2 App: the Calculator rates form edits the cash rate; the panel shows a cash recipient (address, phone, ID photo,
+      "Recibe X USD en efectivo") — needs crm_operaciones_de_conversacion to return address / id_photo_wamid
+- [ ] A3 Production (188 + app) with go-ahead; fill Bruce's operation (972718ea) amount
 - [ ] B+D panel actions (plan, TDD, staging, owner check, production)
 - [ ] C resent receipt guard
 
 ## Progress / evidence
+- A finding (corrects what I told the owner): rates are NOT set by WhatsApp any more. `tasas` became a VIEW over
+  calculator_rate_versions at the cutover (120); the Cerebro admin command `tasa <moneda> <valor>` (node "Liberar chat")
+  still INSERTs into it and would fail. Rates are set in the app's Calculator page (crm_set_calculator_rates).
+- A1 (2026-10-02, staging): `188_cash_delivery_rate.sql` (+ ROLLBACK). calculator_rate_versions.efectivo_usd_gyd (one
+  new version per account seeds 290 with the current rates); crm_set_calculator_rates accepts it;
+  crm_tasa_vigente('efectivo') reads it from the calculator; the view `tasas` is deliberately NOT changed (first draft
+  added an 'efectivo' row: consultar_tasas, cerebro_ejecutar_tool_dsml and the admin rate list print every row as
+  "1 <MONEDA> = x CUP", so the bot would have said "1 EFECTIVO = 290 CUP"; caught by tasas-derives case 2, reverted
+  on staging); cerebro_minimo_efectivo_gyd() = minimo_usd_efectivo (100, new config) x rate, used by cerebro_minimo_gyd;
+  crm_calcular_monto_destino: efectivo_usd -> floor(GYD / rate) USD calculated; crm_beneficiarios_completos: cash =
+  phone + address + ID photo; the efectivo_usd service text carries {tasa_efectivo}/{minimo_efectivo_gyd}/{tasa_usd},
+  filled live by cerebro_servicio_get. Assertion `cash-delivery-rate.sql` (5 cases: rate 290 and view still gyd/usd,
+  minimum 29,000, 29,000 GYD -> 100 USD, setting 300 once -> 300/30,000/96 USD/text updated/CUP rate untouched,
+  completeness) RED (`tasa efectivo must read 290, got NULL`) -> GREEN in a rolled-back transaction, applied to
+  staging, ALL PASS; also GREEN on the production copy (wacrm-ensayo-wu5b, rolled back). Regressions after: rate-versions,
+  tasas-derives, calculator-access, deal-free-money-rules, cup-excess-equivalent ALL PASS. destination-amount.sql fails
+  BEFORE and after (it INSERTs into the view tasas: stale since 120, unrelated).

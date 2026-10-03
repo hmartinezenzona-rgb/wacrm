@@ -54,7 +54,8 @@ silent mode. Cash delivery must be reviewed carefully before building it.
 - [ ] E2 Notify-customer bell (owner, 2026-10-03): every panel action that messages the customer (verify / force-verify,
       deliver, manual close) shows a bell toggle. ON by default (customer notified) EXCEPT manual close, where it is OFF
       by default; unchecked = no message. Delete never notifies (no bell). Needs the choice to reach the notifier
-- [ ] E3 Delete-flow changes: owner will describe them on the recreated remesa (staging op 333fe846, card, no phone)
+- [ ] E3 Delete the same way (owner, 2026-10-03, on staging op 333fe846): no reason field, confirm with a check and
+      cancel with an X; the audit stores a fixed internal note ("Deleted from the panel")
 - [ ] C resent receipt guard
 
 ## Progress / evidence

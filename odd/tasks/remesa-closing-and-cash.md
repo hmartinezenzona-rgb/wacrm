@@ -221,7 +221,7 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   transfer icons; staging manifest, 114 money-path tests, 0 production refs, no .env, sha256 OK, 2386 = 2386 files,
   BUILD_ID `zMLNPv0xnL1tHbIHGAcvY`, `anterior` -> `596cf86…`, `/login` 200, online, 0 unstable restarts.
 - STATE at close (2026-10-03): staging has DB 188-192, notifier gate85 + gate85b, Cerebro gate85-cerebro-nombre +
-  gate85c, app 08bce88. PRODUCTION has none of it (DB at 187, app 304a0c9). Production plan, each step with the
+  gate85c, app 08bce88. PRODUCTION has none of it (DB at 187, app 304a0c9); staging app now 8d46b34 (BUILD_ID 4TGs_vI2mU4ppkE---KHG, anterior 08bce88). Production plan, each step with the
   owner's go-ahead: (1) DB bundle 188, 189, 190, 191, 192 in one transaction via gate84-aplicar-db.py (BUNDLE list
   updated) + assertions cash-delivery-rate, panel-cash-recipient, panel-closing-actions, panel-notify-and-cash-name,
   force-verify-without-reason in probar mode; (2) notifier gate85-notificador.py produccion then gate85b-textos.py

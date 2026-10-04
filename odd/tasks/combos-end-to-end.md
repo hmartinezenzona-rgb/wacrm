@@ -308,3 +308,12 @@ production goes per task after the owner's test.
       cleanup.
   - Staging app: release 1056b49, BUILD_ID mvVL43PN8mSJv4YNJ2iKU, served. The test contact was reset. Waiting for
     the owner's test.
+  - Owner test on staging PASSED (2026-10-04 23:32–23:35Z, demo conversation "Prueba combos" with 2 combos created on
+    request). Five human actions, each audited; every untouched field (address, reference, contact phone, amount)
+    survived each step:
+    - Luis's reference edited, then Ana's reference;
+    - Ana's amount 30,000 -> 32,000;
+    - Luis's phone edited;
+    - Luis moved to combo 2 with all his data.
+    - Totals: combo 1 = 32,000 (Ana only), combo 2 = 51,000 (Rosa 26,000 + Luis 25,000); both complete and locked.
+    - Not seen in the data: the invalid contact phone check, which is client side or a 400 with no row written.

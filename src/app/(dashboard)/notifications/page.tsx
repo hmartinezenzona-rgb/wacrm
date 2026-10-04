@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { usePromoPendiente } from "@/hooks/use-promo-pendiente";
 import type { Notification } from "@/types";
 import {
   AlertTriangle,
@@ -31,21 +32,6 @@ const TYPE_ICON: Record<Notification["type"], typeof Bell> = {
   promo_etecsa: Percent,
 };
 
-/** Fila de la ruta autenticada de promociones Etecsa. */
-interface PromoPendiente {
-  id: string;
-  min_cup: number;
-  max_cup: number | null;
-  multiplicador: number | null;
-  precio_gyd: number | null;
-  vigente_desde: string;
-  vigente_hasta: string;
-  /** Texto ya formateado para pintar tal cual. */
-  resumen: string;
-  /** Si false, confirmar no sirve: falta poner precio al negocio. */
-  hay_precio: boolean;
-}
-
 export default function NotificationsPage() {
   const router = useRouter();
   const { accountId } = useAuth();
@@ -54,14 +40,13 @@ export default function NotificationsPage() {
   );
   const [error, setError] = useState<string | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
-  const [promoPendiente, setPromoPendiente] = useState<PromoPendiente | null>(
-    null,
-  );
-  // Distingue "ya cargó y no hay" de "aún cargando" (evita parpadeos).
-  const [promoChecked, setPromoChecked] = useState(false);
-  const [promoAction, setPromoAction] = useState<"confirm" | "discard" | null>(
-    null,
-  );
+  const {
+    promo: promoPendiente,
+    checked: promoChecked,
+    action: promoAction,
+    confirm: confirmPromo,
+    discard: discardPromo,
+  } = usePromoPendiente();
 
   const load = useCallback(async () => {
     if (!accountId) return;
@@ -83,36 +68,6 @@ export default function NotificationsPage() {
     load();
   }, [load]);
 
-  // Promoción Etecsa pendiente de decidir (si la hay). La ruta autentica
-  // la sesión y usa el cliente de servidor, con fallback para instalaciones
-  // donde el grant/RPC de PostgREST aún no se haya refrescado.
-  const loadPromoPendiente = useCallback(async () => {
-    try {
-      const response = await fetch("/api/promotions/etecsa", {
-        cache: "no-store",
-      });
-      const payload = (await response.json().catch(() => null)) as {
-        promo?: PromoPendiente | null;
-        error?: string;
-      } | null;
-      if (!response.ok) {
-        throw new Error(payload?.error || "No se pudo cargar la promoción");
-      }
-      setPromoPendiente(payload?.promo ?? null);
-    } catch (err) {
-      console.warn(
-        "[notifications] promo pendiente:",
-        err instanceof Error ? err.message : err,
-      );
-    } finally {
-      setPromoChecked(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadPromoPendiente();
-  }, [loadPromoPendiente]);
-
   // Realtime — new assignments appear without a refresh, and a
   // "mark all read" fired from another tab/device stays in sync here.
   useEffect(() => {
@@ -130,12 +85,6 @@ export default function NotificationsPage() {
               if (prev.some((n) => n.id === row.id)) return prev;
               return [row, ...prev];
             });
-            // Entró una promo nueva: recargar la RPC para que la franja
-            // del botón aparezca sin recargar la página (el caso real:
-            // el operador tiene el CRM abierto todo el día).
-            if (row.type === "promo_etecsa") {
-              void loadPromoPendiente();
-            }
           } else if (payload.eventType === "UPDATE") {
             const row = payload.new as Notification;
             setNotifications((prev) =>
@@ -155,7 +104,7 @@ export default function NotificationsPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [loadPromoPendiente]);
+  }, []);
 
   const markRead = useCallback(
     async (id: string) => {
@@ -213,54 +162,6 @@ export default function NotificationsPage() {
       load();
     }
   }, [unreadIds.length, load]);
-
-  const runPromoAction = useCallback(
-    async (action: "confirm" | "discard") => {
-      if (promoAction || !promoPendiente) return;
-      setPromoAction(action);
-      try {
-        const response = await fetch("/api/promotions/etecsa", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action, id: promoPendiente.id }),
-        });
-        const payload = (await response.json().catch(() => null)) as {
-          result?: "confirmada" | "descartada";
-          error?: string;
-        } | null;
-        if (!response.ok) {
-          throw new Error(payload?.error || "No se pudo actualizar la promoción");
-        }
-        toast.success(
-          payload?.result === "confirmada"
-            ? "Promoción confirmada para el bot"
-            : "Promoción descartada; el bot no la usará",
-        );
-        await loadPromoPendiente();
-      } catch (err) {
-        console.error(
-          `[notifications] ${action} promo:`,
-          err instanceof Error ? err.message : err,
-        );
-        toast.error(
-          action === "confirm"
-            ? "No se pudo confirmar la promoción"
-            : "No se pudo descartar la promoción",
-        );
-      } finally {
-        setPromoAction(null);
-      }
-    },
-    [loadPromoPendiente, promoAction, promoPendiente],
-  );
-
-  const confirmPromo = useCallback(() => {
-    void runPromoAction("confirm");
-  }, [runPromoAction]);
-
-  const discardPromo = useCallback(() => {
-    void runPromoAction("discard");
-  }, [runPromoAction]);
 
   if (error) {
     return (

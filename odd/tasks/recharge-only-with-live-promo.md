@@ -55,3 +55,17 @@ Strict. SQL assertion (self-reverting DO block ending in RAISE EXCEPTION 'ALL PA
   - All 5 recharge/promo assertions pass on staging.
   - Known: calculator-recarga (not touched) still reads `FROM conversations LIMIT 1` and fails on staging while it has
     no conversations ("account_id is required").
+- cerebro_recarga_anotada_para(conv) (commit ad892de) returns 'DD/MM' when the open recharge was taken ahead of a
+  confirmed promo. Assertion RED ("function does not exist"), then ALL PASS. All 5 recharge/promo assertions pass.
+- Cerebro staging: gate104 (~/cerebro-fase1/pruebas/gate104-recarga-anotada.py; backup
+  cerebro-staging-antes-104-20261004T115608.json).
+  - 'Contexto conversacion' carries recarga_anotada_para.
+  - 'Ultima cotizacion' says the recharge can be booked ahead of a confirmed promo (it used to say "HOY NO hay
+    recargas").
+  - The Decisor's verified state for a booked recharge says "se hace el DD/MM", plus a note that forbids "hoy /
+    enseguida / en breve / en minutos / en cuanto abramos".
+  - The agent's verified-deposit line for a booked recharge says "su recarga queda anotada para el DD/MM".
+  - Checks: the Decisor and the agent expressions parse (node --check). Both SQL queries ran on staging: Ultima
+    cotizacion gives "HOY NO se hacen recargas todavia: la proxima promocion de Etecsa empieza el 08/10 ...". The
+    published version equals the active one.
+- Waiting for the owner's re-test: ask by audio, give the number, optionally pay.

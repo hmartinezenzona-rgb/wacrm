@@ -66,6 +66,40 @@ export interface LedgerEntry {
   completedAt: string | null;
 }
 
+/** The calculator service a combo operation feeds (migration 209): billed in GYD,
+ *  the deposit is `facturado` and the cost the admin enters is `invertido`. It is
+ *  computed in the database, not by the TS formulas, and has no rates. */
+export const COMBO_SERVICE = "COMBO";
+
+/** `missing_inputs` entry of a COMBO line whose cost has not been entered yet. */
+export const COMBO_COST_MISSING_INPUT = "comboCosto";
+
+export const COMBO_COST_PENDING_MESSAGE = "Falta el costo del combo: anótalo en el panel de la conversación";
+
+type PendingShape = Pick<LedgerEntry, "service" | "status" | "missingRates">;
+
+/** A COMBO line waiting for the cost entered in the conversation panel. */
+export function isComboCostPending(entry: PendingShape): boolean {
+  return (
+    entry.service === COMBO_SERVICE &&
+    entry.status === "verified_pending" &&
+    entry.missingRates.includes(COMBO_COST_MISSING_INPUT)
+  );
+}
+
+/** Whether a pending line can be completed by supplying rates
+ *  (`crm_resolve_pending_entry`). Never for COMBO: it has no rates, and the
+ *  procedure would ask for USDT ones. */
+export function canResolveWithRates(entry: PendingShape): boolean {
+  return entry.status === "verified_pending" && entry.service !== COMBO_SERVICE;
+}
+
+/** What a pending line is waiting for, in the page's words. */
+export function pendingReason(entry: PendingShape): string {
+  if (isComboCostPending(entry)) return COMBO_COST_PENDING_MESSAGE;
+  return entry.missingRates.length ? entry.missingRates.join(", ") : "tasas pendientes";
+}
+
 function toNullableNumber(value: number | string | null): number | null {
   if (value === null) return null;
   return typeof value === "number" ? value : Number(value);

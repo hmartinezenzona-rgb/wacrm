@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { Pencil } from "lucide-react";
 import { procesarTexto, type WebCalculatorErrorLine, type WebCalculatorParsedLine } from "@/lib/calculator/web-calculator";
-import type { CalculatorRates } from "@/lib/calculator/ledger-read-model";
+import { isComboCostPending, pendingReason, type CalculatorRates } from "@/lib/calculator/ledger-read-model";
 import { applyCalculatorEntryRealtimeEvent, type ChatCalculatorEntry } from "@/lib/calculator/realtime-entry";
 import { useCalculatorEntriesRealtime } from "@/hooks/use-calculator-entries-realtime";
 import "./calculadora.module.css";
@@ -423,12 +423,12 @@ export default function CalculadoraPage() {
         {pendingEntries.length > 0 && (
           <div className="legacyWarning" id="pendingBanner">
             <p style={{ margin: "0 0 6px 0", fontWeight: "bold" }}>
-              {pendingEntries.length} operación{pendingEntries.length === 1 ? "" : "es"} del chat en espera de tasas para completarse:
+              {pendingEntries.length} operación{pendingEntries.length === 1 ? "" : "es"} del chat en espera {pendingEntries.every(isComboCostPending) ? "del costo" : "de tasas"} para completarse:
             </p>
             <ul style={{ margin: 0, paddingLeft: 18 }}>
               {pendingEntries.map((entry) => (
                 <li key={entry.id}>
-                  {entry.customerName || "Sin nombre"} ({entry.service}): {entry.missingRates.length ? entry.missingRates.join(", ") : "tasas pendientes"}
+                  {entry.customerName || "Sin nombre"} ({entry.service}): {pendingReason(entry)}
                 </li>
               ))}
             </ul>
@@ -481,7 +481,7 @@ export default function CalculadoraPage() {
                         <td data-label="Cliente"><b>{entry.customerName || "—"}</b></td>
                         <td data-label="Monto">{entry.amount} {entry.service}</td>
                         <td data-label="Tipo"><span className="legacyBadge">{entry.service}</span></td>
-                        <td data-label="Estado">{entry.status === "completed" ? "Completada" : `Pendiente${entry.missingRates.length ? `: ${entry.missingRates.join(", ")}` : ""}`}</td>
+                        <td data-label="Estado">{entry.status === "completed" ? "Completada" : `Pendiente${entry.missingRates.length ? `: ${pendingReason(entry)}` : ""}`}</td>
                         <td data-label="Fact. (GYD)">
                           {editing ? (
                             <input

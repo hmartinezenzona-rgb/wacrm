@@ -5,6 +5,9 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  COMBO_COST_PENDING_MESSAGE,
+  canResolveWithRates,
+  isComboCostPending,
   ledgerTotals,
   mapLedgerEntry,
   mapRateVersion,
@@ -268,5 +271,67 @@ describe("mapRateVersion", () => {
   it("passes through a null set_by (system-set rate)", () => {
     const rates = mapRateVersion(rateRow({ set_by: null }));
     expect(rates.setBy).toBeNull();
+  });
+});
+
+describe("COMBO ledger lines (migration 209)", () => {
+  it("maps a priced combo: the deposit billed, the entered cost invested, no rates", () => {
+    const entry = mapLedgerEntry(
+      row({
+        service: "COMBO",
+        amount: "55000",
+        amount_currency: "GYD",
+        facturado_gyd: "55000",
+        invertido_gyd: "41000",
+        retorno_gyd: "14000",
+        cup_global_rate: null,
+        cup_rate: null,
+        usdt_buy_gyd: null,
+        usdt_sell_gyd: null,
+        rate_version_id: null,
+        missing_inputs: [],
+      }),
+    );
+
+    expect(entry).toMatchObject({
+      service: "COMBO",
+      status: "completed",
+      amount: 55000,
+      amountCurrency: "GYD",
+      facturadoGyd: 55000,
+      invertidoGyd: 41000,
+      retornoGyd: 14000,
+      missingRates: [],
+    });
+    expect(isComboCostPending(entry)).toBe(false);
+    expect(ledgerTotals([entry])).toMatchObject({ facturadoGyd: 55000, invertidoGyd: 41000, retornoGyd: 14000 });
+  });
+
+  it("a pending combo carries comboCosto, counts as zero, and is flagged as waiting for the cost", () => {
+    const entry = mapLedgerEntry(
+      row({
+        service: "COMBO",
+        status: "verified_pending",
+        facturado_gyd: null,
+        invertido_gyd: null,
+        retorno_gyd: null,
+        missing_inputs: ["comboCosto"],
+      }),
+    );
+
+    expect(entry.missingRates).toEqual(["comboCosto"]);
+    expect(isComboCostPending(entry)).toBe(true);
+    expect(COMBO_COST_PENDING_MESSAGE).toBe("Falta el costo del combo: anótalo en el panel de la conversación");
+    expect(ledgerTotals([entry]).count).toBe(0);
+  });
+
+  it("rates resolution is never offered for a COMBO line, only for a pending line of another service", () => {
+    const combo = mapLedgerEntry(row({ service: "COMBO", status: "verified_pending", missing_inputs: ["comboCosto"] }));
+    const cup = mapLedgerEntry(row({ service: "CUP", status: "verified_pending", missing_inputs: ["usdtSellCup"] }));
+    const done = mapLedgerEntry(row({ service: "CUP", status: "completed" }));
+
+    expect(canResolveWithRates(combo)).toBe(false);
+    expect(canResolveWithRates(cup)).toBe(true);
+    expect(canResolveWithRates(done)).toBe(false);
   });
 });

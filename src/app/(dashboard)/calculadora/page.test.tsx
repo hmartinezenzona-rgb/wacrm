@@ -461,6 +461,88 @@ describe("calculator pending-entries banner", () => {
     await act(async () => root.unmount());
   });
 
+  const comboEntry = (overrides: Record<string, unknown>) => ({
+    id: "entry-combo",
+    operationId: "op-combo",
+    source: "completed_operation",
+    status: "verified_pending",
+    service: "COMBO",
+    customerName: "Marta",
+    amount: 55000,
+    amountCurrency: "GYD",
+    entryDate: "2026-10-04",
+    facturadoGyd: null,
+    invertidoGyd: null,
+    retornoGyd: null,
+    missingRates: ["comboCosto"],
+    ...overrides,
+  });
+
+  it("a pending COMBO line asks for the cost in the conversation panel, not for rates", async () => {
+    const fetchMock = createFetchMock({
+      calculadoraGet: { rawText: "", periodo: "", chatOperations: { entries: [comboEntry({})] } },
+      ratesGet: { rates: null },
+    });
+    const { node, root } = await renderPage(fetchMock);
+
+    const banner = node.querySelector("#pendingBanner")!;
+    expect(banner.textContent).toContain("Marta");
+    expect(banner.textContent).toContain("Falta el costo del combo: anótalo en el panel de la conversación");
+    expect(banner.textContent).not.toContain("comboCosto");
+    expect(banner.textContent).not.toContain("tasas");
+    const row = node.querySelector('td[data-label="Estado"]')!;
+    expect(row.textContent).toContain("Falta el costo del combo: anótalo en el panel de la conversación");
+    expect(row.textContent).not.toContain("comboCosto");
+    // No rates-resolution action on a COMBO line: the Acciones cell stays empty.
+    expect(node.querySelector('td[data-label="Acciones"]')!.querySelector("button")).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("a priced COMBO line shows its figures as Completada, with no pending banner", async () => {
+    const fetchMock = createFetchMock({
+      calculadoraGet: {
+        rawText: "",
+        periodo: "",
+        chatOperations: {
+          entries: [comboEntry({ status: "completed", facturadoGyd: 55000, invertidoGyd: 41000, retornoGyd: 14000, missingRates: [] })],
+        },
+      },
+      ratesGet: { rates: null },
+    });
+    const { node, root } = await renderPage(fetchMock);
+
+    expect(node.querySelector("#pendingBanner")).toBeNull();
+    const cells = Array.from(node.querySelectorAll("#cardRegistros ~ * td, .legacyParsedTable td")).map((c) => c.textContent);
+    expect(cells).toContain("Completada");
+    expect(node.textContent).toContain("55000.00");
+    expect(node.textContent).toContain("41000.00");
+    expect(node.textContent).toContain("14000.00");
+    expect(node.textContent).not.toContain("Falta el costo");
+    await act(async () => root.unmount());
+  });
+
+  it("the banner keeps naming the missing rates for non-COMBO lines next to a COMBO one", async () => {
+    const fetchMock = createFetchMock({
+      calculadoraGet: {
+        rawText: "",
+        periodo: "",
+        chatOperations: {
+          entries: [
+            comboEntry({}),
+            comboEntry({ id: "entry-cup", service: "CUP", customerName: "Bladimir", missingRates: ["usdtSellCup"] }),
+          ],
+        },
+      },
+      ratesGet: { rates: null },
+    });
+    const { node, root } = await renderPage(fetchMock);
+
+    const banner = node.querySelector("#pendingBanner")!;
+    expect(banner.textContent).toContain("Falta el costo del combo");
+    expect(banner.textContent).toContain("Bladimir (CUP): usdtSellCup");
+    await act(async () => root.unmount());
+  });
+
   it("shows no banner when there are no pending entries", async () => {
     const fetchMock = createFetchMock({
       calculadoraGet: {

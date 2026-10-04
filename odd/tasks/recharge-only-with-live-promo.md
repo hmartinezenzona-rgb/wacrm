@@ -69,3 +69,13 @@ Strict. SQL assertion (self-reverting DO block ending in RAISE EXCEPTION 'ALL PA
     cotizacion gives "HOY NO se hacen recargas todavia: la proxima promocion de Etecsa empieza el 08/10 ...". The
     published version equals the active one.
 - Waiting for the owner's re-test: ask by audio, give the number, optionally pay.
+- T2 PASSED (owner re-test, 2026-10-04 17:58–18:02Z, fake promo 8–11 Oct):
+  - Audio question -> "Sí hacemos recargas a Cuba, aunque hoy todavía no se pueden hacer. La próxima promoción de
+    Etecsa empieza el 08/10 ... Si la quiere, la dejamos anotada desde ya. ¿Me pasa el número de Cuba a recargar?"
+  - Audio + "53821203" -> "Anotado. Su recarga para el *53821203* queda para el 08/10 ... Puede pagar ahora o ese día,
+    como prefiera."
+  - Panel: recharge a6e2612a, collecting_information, beneficiary 53821203; cerebro_recarga_anotada_para = '08/10'.
+  - Greeting "Buenas tardes" at 13:58 Guyana time (the customer did not greet with a day part).
+  - Seen, not changed: the recharge opened on the first audio, a mere question (204's tool rule "llamala EN CUANTO
+    entiendas que quiere RECARGAS"). A customer who only asks leaves an empty recharge open in the panel. The paid
+    path (deposit verified on a booked recharge) was not exercised.

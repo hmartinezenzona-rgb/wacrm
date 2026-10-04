@@ -42,3 +42,16 @@ deposit filed as what it is, not as a recharge.
     discarded, since staging still has the fake 8–11 Oct promo.
 - T2 (staging): gate109 (~/cerebro-fase1/pruebas/gate109-recarga-una-regla.py; old block saved as
   gate109-bloque-viejo.sql; backup cerebro-staging-antes-109-*). The edited Contexto SQL runs on staging; published.
+- T3 PRODUCTION (owner go-ahead 2026-10-04 "si, pásalo a producción"):
+  - Backup produccion-20261004T224959Z.dump (sha256 61e318a965bb053b...; 2144 list entries).
+  - Pre-check: cerebro_recarga_en_curso md5 d0f16653 (the rollback body).
+  - Temp helper. gate110-aplicar-db.py: ensayo md5 4146aaff equal to staging; aplicar OK (schema_migrations
+    20261004225256 211_recarga_needs_promo).
+  - probar in production (no promo there), all passing: recarga-needs-promo, recarga-model, recarga-numbers,
+    recarga-before-deposit, recarga-by-audio, recharge-only-with-live-promo, calculator-recarga, panel-recarga, the
+    combo-* suites, promo-notice, deposit-path-without-deals, deal-free-money-rules, cash-phone-not-a-card,
+    partial-beneficiary-tools.
+  - Helper dropped; no leftovers.
+  - gate109 produccion published (backup cerebro-produccion-antes-109-20261004T170019.json).
+  - Yilian's conversation still reads "recarga en curso" because her misfiled op 89f6df7e is still OPEN as a recarga
+    (the open-op rule, 204). T4 fixes that.

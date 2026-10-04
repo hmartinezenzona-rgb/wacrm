@@ -12,6 +12,7 @@ import {
   forceVerifyDeposit,
   deliverOperation,
   cerrarOperacionManual,
+  setComboCosto,
   eliminarOperacion,
   registerBeneficiaryProof,
 } from "./commands";
@@ -459,5 +460,32 @@ describe("eliminarOperacion", () => {
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ error: "Forbidden" }, 403));
 
     expect(await eliminarOperacion(OPERATION_ID)).toEqual({ ok: false, status: 403, error: "Forbidden" });
+  });
+});
+
+describe("setComboCosto", () => {
+  it("POSTs the cost to the combo-cost route and unwraps the saved value", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ok: true, costGyd: 18000 }));
+
+    const response = await setComboCosto(OPERATION_ID, 18000);
+
+    expect(fetch).toHaveBeenCalledWith(
+      `/api/remittance-operations/${OPERATION_ID}/combo-cost`,
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ costGyd: 18000 }),
+      }),
+    );
+    expect(response).toEqual({ ok: true, costGyd: 18000 });
+  });
+
+  it("sends null to clear and surfaces a failure's status and message", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ error: "Forbidden" }, 403));
+
+    const response = await setComboCosto(OPERATION_ID, null);
+
+    expect(fetch).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ body: JSON.stringify({ costGyd: null }) }));
+    expect(response).toEqual({ ok: false, status: 403, error: "Forbidden" });
   });
 });

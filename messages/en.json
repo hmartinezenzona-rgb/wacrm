@@ -391,6 +391,12 @@
       "comboCountOne": "{count} combo",
       "comboCountMany": "{count} combos",
       "comboMinimumHint": "Minimum 25,000 GYD per combo",
+      "comboCost": {
+        "label": "Combo cost (GYD)",
+        "clear": "Clear",
+        "missing": "Cost missing: the calculator waits for it",
+        "invalid": "Enter a cost from 0 up to 999,999,999"
+      },
       "reference": "Reference",
       "contactPhone": "Contact phone",
       "invalidRechargePhone": "Enter a Cuban mobile number: 8 digits starting with 5 or 6",

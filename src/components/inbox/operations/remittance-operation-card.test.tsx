@@ -71,6 +71,12 @@ vi.mock("./beneficiary-add-control", () => ({
 // `onAddAmount`) via a data attribute and a test-only button, so this
 // file's card-only tests stay isolated from that fetch while still being
 // able to assert on what the card passes down.
+vi.mock("./combo-cost-field", () => ({
+  ComboCostField: ({ costGyd, completed }: { costGyd: number | null; completed: boolean }) => (
+    <div data-testid="combo-cost-stub" data-cost={String(costGyd)} data-completed={String(completed)} />
+  ),
+}));
+
 const CompleteTransferContainer = vi.fn(
   ({ onDone, onCancel }: { operationId: string; conversationId: string; isZelle: boolean; onDone: () => void; onCancel: () => void }) => (
     <div data-testid="complete-transfer-stub">
@@ -335,6 +341,56 @@ describe("RemittanceOperationCard combo", () => {
 
     expect(button(node, "Edit")).toBeNull();
     expect(button(node, "Move")).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it.each([
+    ["owner", true],
+    ["admin", true],
+    ["agent", false],
+    ["viewer", false],
+    [null, false],
+  ] as const)("the cost field for role %s is shown: %s", async (role, shown) => {
+    const { node, root } = await render(comboOp({ comboCostoGyd: 18000 }), { role });
+
+    const stub = node.querySelector('[data-testid="combo-cost-stub"]');
+    expect(stub !== null).toBe(shown);
+    if (shown) {
+      expect(stub!.getAttribute("data-cost")).toBe("18000");
+      expect(stub!.getAttribute("data-completed")).toBe("false");
+    }
+    await act(async () => root.unmount());
+  });
+
+  it("a completed (history) combo shows the cost field to the cost role passed in, flagged completed", async () => {
+    const { RemittanceOperationCard } = await import("./remittance-operation-card");
+    const node = document.createElement("div");
+    document.body.appendChild(node);
+    const root = createRoot(node);
+    await act(async () =>
+      root.render(
+        <RemittanceOperationCard
+          operation={comboOp({ status: "completed", isHistory: true })}
+          canEdit={false}
+          role={null}
+          costRole="owner"
+          otherOpenOperations={[]}
+          onChanged={vi.fn()}
+          expanded
+          onToggle={vi.fn()}
+          conversationId="conv-1"
+        />,
+      ),
+    );
+
+    expect(node.querySelector('[data-testid="combo-cost-stub"]')!.getAttribute("data-completed")).toBe("true");
+    await act(async () => root.unmount());
+  });
+
+  it("no cost field on a remesa or a recharge", async () => {
+    const { node, root } = await render(operation(), { role: "owner" });
+
+    expect(node.querySelector('[data-testid="combo-cost-stub"]')).toBeNull();
     await act(async () => root.unmount());
   });
 

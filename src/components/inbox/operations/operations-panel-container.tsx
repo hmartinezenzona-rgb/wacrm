@@ -332,6 +332,7 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
                   // this is the same invariant enforced at the boundary too.
                   canEdit={false}
                   role={null}
+                  costRole={accountRole}
                   otherOpenOperations={[]}
                   onChanged={() => silentLoad(conversationId)}
                   expanded={expandedId === operation.id}

@@ -271,6 +271,25 @@ export async function cerrarOperacionManual(
   return { ok: true, newStatus: response.data.newStatus, completedAt: response.data.completedAt };
 }
 
+export type SetComboCostoCommandResult =
+  | { ok: true; costGyd: number | null }
+  | { ok: false; status: number; error: string };
+
+/** `crm_set_combo_costo` (migration 208): what a combo cost, in GYD; `null`
+ *  clears it. Owner/admin only. */
+export async function setComboCosto(
+  operationId: string,
+  costGyd: number | null,
+): Promise<SetComboCostoCommandResult> {
+  const response = await postJsonResult<{ costGyd: number | null }>(
+    `/api/remittance-operations/${operationId}/combo-cost`,
+    "POST",
+    { costGyd },
+  );
+  if (!response.ok) return response;
+  return { ok: true, costGyd: response.data.costGyd ?? null };
+}
+
 export type DeleteOperationCommandResult =
   | { ok: true; newStatus: string }
   | { ok: false; status: number; error: string };

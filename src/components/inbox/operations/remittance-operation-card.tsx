@@ -17,6 +17,7 @@ import type {
 import { OperationCorrectionForm } from "./operation-correction-form";
 import { BeneficiaryAddControl } from "./beneficiary-add-control";
 import { BeneficiaryReassignControl } from "./beneficiary-reassign-control";
+import { ComboCostField } from "./combo-cost-field";
 import { CompleteTransferContainer } from "./complete-transfer-container";
 import { CopyChip } from "./copy-chip";
 import { DepositReviewContainer } from "./deposit-review-container";
@@ -42,6 +43,10 @@ interface RemittanceOperationCardProps {
    *  — forwarded to the deposit review container so it can gate the
    *  force-verify escalation (`canForceVerify`, owner/admin only). */
   role: AccountRole | null;
+  /** Role that decides who sees the combo cost field; defaults to `role`. The panel
+   *  hands history cards `role={null}` (no actions) but still passes the real role
+   *  here, since a completed combo with no cost is exactly what needs one. */
+  costRole?: AccountRole | null;
   /** Other open (non-terminal) remesa operations of the same
    *  conversation, offered as reassignment targets for this card's
    *  beneficiaries. */
@@ -295,6 +300,7 @@ export function RemittanceOperationCard({
   operation,
   canEdit,
   role,
+  costRole,
   otherOpenOperations,
   onChanged,
   expanded,
@@ -335,6 +341,8 @@ export function RemittanceOperationCard({
   // Owner/admin only. The raw status (not the effective one) decides, since
   // that is what the RPCs check.
   const isManager = role !== null && canForceVerify(role);
+  const effectiveCostRole = costRole === undefined ? role : costRole;
+  const canSetComboCost = isCombo(operation) && effectiveCostRole !== null && canForceVerify(effectiveCostRole);
   const canDelete = isManager && !operation.isHistory && !NOT_DELETABLE_STATUSES.includes(operation.status);
   const canCloseManually =
     isManager && !operation.isHistory && MANUALLY_CLOSABLE_STATUSES.includes(operation.status);
@@ -706,6 +714,17 @@ export function RemittanceOperationCard({
               </ul>
             )}
           </div>
+
+          {canSetComboCost && (
+            <ComboCostField
+              // Re-keyed on the saved value so a refetch resets the input to what was saved.
+              key={`${operation.id}:${operation.comboCostoGyd ?? "none"}`}
+              operationId={operation.id}
+              costGyd={operation.comboCostoGyd ?? null}
+              completed={operation.status === "completed"}
+              onSaved={onChanged}
+            />
+          )}
 
           {showCompleteTransfer &&
             (openForm?.kind === "complete" ? (

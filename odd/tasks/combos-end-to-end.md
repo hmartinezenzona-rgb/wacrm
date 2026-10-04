@@ -286,7 +286,7 @@ production goes per task after the owner's test.
     the buttons are hidden.
   - 12 stale staging assertions (see round 2).
   - Outside the 24 h window the completion notice uses the "remesa" Meta template.
-- [ ] T7 Edit and move a combo recipient from the panel (owner, 2026-10-04: "sigue con editar destinatarios de combo").
+- [x] T7 Edit and move a combo recipient from the panel (owner, 2026-10-04: "sigue con editar destinatarios de combo").
   - DB 212_combo_edit (+ ROLLBACK, staging, schema_migrations 212):
     - crm_corregir_beneficiario accepts address, reference and contact_phone (combo; the address also for cash);
       refuses card, Zelle, delivery method, currency and type changes on a combo recipient; carries every untouched
@@ -317,3 +317,16 @@ production goes per task after the owner's test.
     - Luis moved to combo 2 with all his data.
     - Totals: combo 1 = 32,000 (Ana only), combo 2 = 51,000 (Rosa 26,000 + Luis 25,000); both complete and locked.
     - Not seen in the data: the invalid contact phone check, which is client side or a 400 with no row written.
+  - The owner also checked the invalid contact phone rejection on staging ("también probé lo del rechazo del celular,
+    pasó también").
+  - PRODUCTION (owner go-ahead 2026-10-04 "pasa a producción"):
+    - Pre-check: prod md5s of crm_corregir_beneficiario / crm_reasignar_beneficiario (b74d60ea / dacd694a) equal the
+      staging pre-212 state, measured by applying ROLLBACK-212 inside a rolled-back transaction.
+    - Backup produccion-20261004T233751Z.dump (sha256 618d8877d2d418b1...; 2144 list entries).
+    - Temp helper. gate111-aplicar-db.py: ensayo md5s equal to staging (43e52676 / 0303c4b0); aplicar OK
+      (schema_migrations 20261004234043 212_combo_edit).
+    - probar, all passing: combo-edit, combo-model, combo-deposit-calculator, combo-ignores-remesa-writers,
+      add-beneficiary, panel-cash-recipient, cash-delivery-data, panel-closing-actions, read-rpc.
+    - Helper dropped; no leftovers.
+    - App release 64f1b03 (build hCZFoZm9rTALIA-83uiJN): pm2 cwd is the new release and the domain serves it;
+      anterior -> 0f008f6.

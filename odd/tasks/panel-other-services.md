@@ -35,7 +35,7 @@ Recargas first, end to end; then the other services one by one in the order the 
 - [x] S3 Bot (Cerebro): a tool to register the recarga data and the "what is missing" context, like efectivo_usd.
 - [x] S4 Panel: a recarga card (number, plan, amount) with the same actions (verify, complete with bell, close
       manually, delete).
-- [ ] S5 Staging test with the owner, then production.
+- [x] S5 Staging test with the owner, then production.
 - [ ] S6.. Next services (combos, Mexico, visa, traduccion) in the owner's order, same steps.
 
 ## Acceptance criteria
@@ -177,3 +177,8 @@ live staging test for n8n changes.
   Pending: the owner sets "Recarga: costo (USDT)" in the production Calculator (23.1 or the admin's figure); then
   Yosvany 54c25086 -> recharge + calculator line. Production has no confirmed Etecsa promotion today (the bot says
   there are no recharges until an admin confirms one); cerebro_recarga_precio still prices a deposit from precio_recarga.
+- Yosvany fixed (2026-10-04, owner go-ahead): the owner first set the cost in STAGING (00:16, during the test) — production
+  was still empty; after he set it in production (23.1, 00:55 UTC) operation 54c25086 (completed remesa, no rows, no
+  method, 6,200 GYD, closed manually 2026-10-03) was re-filed service_type 'recarga' (audited human_correction) and fed
+  with calculator_feed_operation: RECARGA 1 REC, facturado 6,200, invertido 5,544, retorno 656 (cost 23.1, sale 6,200,
+  rate 240), dated 2026-10-03. Recharges DONE. Next per the owner: the next service; also the audio-only gap and C.

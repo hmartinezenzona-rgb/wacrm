@@ -65,4 +65,7 @@ deposit filed as what it is, not as a recharge.
   - After: calculator ZELLE completed, facturado 83,200, invertido 76,800, retorno 6,400 (20 GYD/USD, as the other
     Zelle lines). cerebro_recarga_en_curso(Yilian) = false. No message to the customer (0 messages, 0 outbox rows
     after 23:06Z).
-- T4b op 12510beb (Yusmila, 15,500 GYD, 2026-09-23): still open; waiting for the owner to say what it was.
+- T4b op 12510beb (Yusmila, 15,500 GYD, 2026-09-23): LEFT AS IS by the owner (2026-10-04): "revisé el chat y no veo
+  nada, no mandó más nada, solo el depósito; un admin le preguntó y no respondió, déjalo así por ahora". It stays
+  ready_to_transfer as a recarga until the customer writes back. Since 211, her conversation only counts as a
+  recharge in progress because this op is open.

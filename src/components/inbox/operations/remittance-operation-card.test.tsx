@@ -160,6 +160,7 @@ function operation(overrides: Partial<RemittanceOperationRead> = {}): Remittance
     beneficiariesComplete: true,
     deliveryMode: null,
     deliveredAt: null,
+    comboCostoGyd: null,
     beneficiaries: [],
     ...overrides,
   };
@@ -179,6 +180,8 @@ function beneficiary(overrides: Partial<RemittanceBeneficiaryRead> = {}): Remitt
     currency: null,
     position: 1,
     address: null,
+    reference: null,
+    contactPhone: null,
     idPhotoWamid: null,
     idPhotoUrl: null,
     ...overrides,
@@ -241,6 +244,108 @@ function setValue(input: HTMLInputElement, value: string) {
 function buttonByText(node: Element, text: string): HTMLButtonElement {
   return Array.from(node.querySelectorAll("button")).find((b) => b.textContent?.trim() === text) as HTMLButtonElement;
 }
+
+describe("RemittanceOperationCard combo", () => {
+  const comboOp = (overrides: Partial<RemittanceOperationRead> = {}) =>
+    operation({
+      serviceType: "combo",
+      status: "ready_to_transfer",
+      quotedSourceAmount: 55000,
+      sourceCurrency: "GYD",
+      beneficiaries: [
+        beneficiary({
+          id: "c1",
+          beneficiaryType: "combo",
+          name: "Ana Lopez",
+          phone: "52345678",
+          address: "Calle 1 #2, Habana",
+          reference: "frente a la bodega",
+          contactPhone: "53456789",
+          amount: 25000,
+          currency: "GYD",
+          position: 1,
+        }),
+        beneficiary({
+          id: "c2",
+          beneficiaryType: "combo",
+          name: "Luis Perez",
+          phone: "62345678",
+          address: "Calle 9, Matanzas",
+          reference: "casa azul",
+          contactPhone: "63456789",
+          amount: 30000,
+          currency: "GYD",
+          position: 2,
+        }),
+      ],
+      ...overrides,
+    });
+
+  it("shows the Combo label with its icon and the combo count, and no remesa quote line", async () => {
+    const { node, root } = await render(comboOp(), {
+      quote: { gyd: 55000, destinationAmount: 4000, destinationCurrency: "CUP", quotedAt: "2026-10-03T00:00:00Z" },
+    });
+
+    expect(node.querySelector("article")!.textContent).toContain("55,000 GYD");
+    expect(node.querySelector("article")!.textContent).toContain("Combo");
+    expect(node.querySelector("article svg.lucide-shopping-basket")).not.toBeNull();
+    expect(node.querySelector('[data-testid="deposit-review-stub"]')!.getAttribute("data-summary-amount")).toContain("2 combos");
+    expect(node.textContent).not.toContain("Quoted");
+    await act(async () => root.unmount());
+  });
+
+  it("counts a single combo in the singular", async () => {
+    const op = comboOp();
+    const { node, root } = await render({ ...op, beneficiaries: [op.beneficiaries[0]!] });
+
+    expect(node.querySelector('[data-testid="deposit-review-stub"]')!.getAttribute("data-summary-amount")).toContain("1 combo");
+    expect(node.querySelector('[data-testid="deposit-review-stub"]')!.getAttribute("data-summary-amount")).not.toContain("combos");
+    await act(async () => root.unmount());
+  });
+
+  it("shows every recipient field and its GYD amount, one set per recipient", async () => {
+    const { node, root } = await render(comboOp());
+
+    for (const text of [
+      "Ana Lopez", "52345678", "Calle 1 #2, Habana", "frente a la bodega", "53456789", "25,000 GYD",
+      "Luis Perez", "62345678", "Calle 9, Matanzas", "casa azul", "63456789", "30,000 GYD",
+    ]) {
+      expect(node.textContent, text).toContain(text);
+    }
+    expect(node.querySelectorAll('button[aria-label="Copy Name"]')).toHaveLength(2);
+    expect(node.querySelectorAll('button[aria-label="Copy Phone"]')).toHaveLength(2);
+    expect(node.querySelectorAll('button[aria-label="Copy Address"]')).toHaveLength(2);
+    expect(node.querySelectorAll('button[aria-label="Copy Reference"]')).toHaveLength(2);
+    expect(node.querySelectorAll('button[aria-label="Copy Contact phone"]')).toHaveLength(2);
+    expect(button(node, "Copy Card")).toBeNull();
+    expect(node.textContent).not.toContain("ID photo");
+    await act(async () => root.unmount());
+  });
+
+  it("shows the amount of a single recipient too", async () => {
+    const op = comboOp();
+    const { node, root } = await render({ ...op, beneficiaries: [op.beneficiaries[0]!] });
+
+    expect(node.textContent).toContain("25,000 GYD");
+    await act(async () => root.unmount());
+  });
+
+  it("hides edit and move on recipients (the correction RPC does not carry the combo fields)", async () => {
+    const { node, root } = await render(comboOp(), { otherOpenOperations: [{ id: "op-2", label: "x" }] });
+
+    expect(button(node, "Edit")).toBeNull();
+    expect(button(node, "Move")).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("hands the service type to the add control", async () => {
+    const { node, root } = await render(comboOp());
+    await act(async () => (button(node, "Add beneficiary") as HTMLButtonElement).click());
+
+    expect(node.querySelector('[data-testid="add-beneficiary-stub"]')!.getAttribute("data-service-type")).toBe("combo");
+    await act(async () => root.unmount());
+  });
+});
 
 describe("RemittanceOperationCard recharge", () => {
   const rechargeOp = () =>

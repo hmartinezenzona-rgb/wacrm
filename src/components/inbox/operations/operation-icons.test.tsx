@@ -6,7 +6,7 @@
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
-import { MethodIcon, StatusChip, methodKind } from "./operation-icons";
+import { KNOWN_BENEFICIARY_TYPES, MethodIcon, StatusChip, methodKind } from "./operation-icons";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -123,5 +123,11 @@ describe("StatusChip", () => {
       expect(chip.className).toContain("text-muted-foreground");
       await act(async () => root.unmount());
     }
+  });
+});
+
+describe("KNOWN_BENEFICIARY_TYPES", () => {
+  it("includes combo so its label resolves through beneficiaryType", () => {
+    expect(KNOWN_BENEFICIARY_TYPES).toContain("combo");
   });
 });

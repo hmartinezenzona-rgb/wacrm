@@ -2,7 +2,7 @@
 
 import { useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowRightLeft, AtSign, Banknote, ChevronDown, CreditCard, IdCard, Lock, MapPin, Pencil, Phone, Smartphone, Trash2, UserPlus, UserRound, Users } from "lucide-react";
+import { ArrowRightLeft, AtSign, Banknote, ChevronDown, CreditCard, IdCard, Lock, MapPin, Pencil, Phone, ShoppingBasket, Smartphone, Trash2, UserPlus, UserRound, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { canForceVerify, type AccountRole } from "@/lib/auth/roles";
 import { corregirBeneficiario } from "@/lib/remittance-operations/commands";
@@ -134,6 +134,7 @@ function knownMethodLabel(method: string, t: (key: string) => string): string {
 function destinationLabel(operation: RemittanceOperationRead, t: (key: string) => string): string | null {
   const { deliveryMethod, destinationCurrency, beneficiaries } = operation;
   if (isRecharge(operation)) return t("beneficiaryType.recarga");
+  if (isCombo(operation)) return t("beneficiaryType.combo");
 
   const units = new Set(
     beneficiaries
@@ -189,6 +190,10 @@ function isRecharge(operation: RemittanceOperationRead): boolean {
   return operation.serviceType === "recarga";
 }
 
+function isCombo(operation: RemittanceOperationRead): boolean {
+  return operation.serviceType === "combo";
+}
+
 function computeSummaryAmount(
   operation: RemittanceOperationRead,
   t: (key: string, params?: Record<string, unknown>) => string,
@@ -198,6 +203,13 @@ function computeSummaryAmount(
     const count = operation.beneficiaries.filter((b) => b.beneficiaryType === "recarga").length;
     if (count === 0) return null;
     return { kind: "amount", display: t(count === 1 ? "rechargeCountOne" : "rechargeCountMany", { count }) };
+  }
+
+  // A combo is counted too: each recipient's own GYD amount shows on its row.
+  if (isCombo(operation)) {
+    const count = operation.beneficiaries.filter((b) => b.beneficiaryType === "combo").length;
+    if (count === 0) return null;
+    return { kind: "amount", display: t(count === 1 ? "comboCountOne" : "comboCountMany", { count }) };
   }
 
   if (operation.beneficiaries.length === 1) {
@@ -334,7 +346,11 @@ export function RemittanceOperationCard({
     beneficiary: RemittanceOperationRead["beneficiaries"][number],
     hideEdit = false,
   ) =>
-    editable && (
+    editable &&
+    // A combo recipient is read-only here: `crm_corregir_beneficiario` and
+    // `crm_reasignar_beneficiario` copy only the legacy columns, so a correction or a
+    // move would drop its address, reference and contact phone.
+    !isCombo(operation) && (
       <>
         {!hideEdit && (
           <Button
@@ -384,6 +400,7 @@ export function RemittanceOperationCard({
                 </span>
                 <span className="inline-flex items-center gap-1">
                   {isRecharge(operation) && <Smartphone className="size-3.5 shrink-0" aria-hidden="true" />}
+                  {isCombo(operation) && <ShoppingBasket className="size-3.5 shrink-0" aria-hidden="true" />}
                   {destLabel}
                   {destLocked && lock}
                 </span>
@@ -442,7 +459,7 @@ export function RemittanceOperationCard({
         )}
       </div>
 
-      {quote && !operation.isHistory && !isRecharge(operation) && (
+      {quote && !operation.isHistory && !isRecharge(operation) && !isCombo(operation) && (
         <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">
           {quote.destinationAmount !== null && quote.destinationCurrency !== null
             ? t("quotedTo", {
@@ -530,10 +547,11 @@ export function RemittanceOperationCard({
                   const isZelle = beneficiary.beneficiaryType === "zelle";
                   const isCash = beneficiary.beneficiaryType === "efectivo_usd";
                   const isRecarga = beneficiary.beneficiaryType === "recarga";
+                  const isComboRecipient = beneficiary.beneficiaryType === "combo";
                   const amount = resolveBeneficiaryAmount(beneficiary, operation);
                   const currencyLabel = unitLabel(
                     beneficiary.beneficiaryType,
-                    beneficiary.currency ?? operation.destinationCurrency,
+                    beneficiary.currency ?? (isComboRecipient ? "GYD" : operation.destinationCurrency),
                     t,
                   );
                   const amountDisplay = amount === null ? null : money(amount, currencyLabel);
@@ -562,7 +580,7 @@ export function RemittanceOperationCard({
                         />
                       ) : (
                         <div className="space-y-1.5">
-                          {operation.beneficiaries.length >= 2 && amount !== null && !isRecharge(operation) && (
+                          {(isComboRecipient || operation.beneficiaries.length >= 2) && amount !== null && !isRecharge(operation) && (
                             <div className="flex items-center gap-2 text-sm leading-5">
                               <span className="flex w-4 shrink-0 items-center justify-center">
                                 <Banknote className="size-3.5 text-muted-foreground" aria-hidden="true" />
@@ -593,6 +611,14 @@ export function RemittanceOperationCard({
                               ariaLabel={t("copyValue", { label: t("zelleAccount") })}
                             />
                           )}
+                          {isComboRecipient && beneficiary.name && (
+                            <CopyChip
+                              value={beneficiary.name}
+                              display={<span className="font-sans text-sm font-medium">{beneficiary.name}</span>}
+                              icon={<UserRound className="size-3.5" aria-hidden="true" />}
+                              ariaLabel={t("copyValue", { label: t("name") })}
+                            />
+                          )}
                           {isCash && beneficiary.name && (
                             <CopyChip
                               value={beneficiary.name}
@@ -607,7 +633,7 @@ export function RemittanceOperationCard({
                               {t("beneficiaryType.efectivo_usd")}
                             </p>
                           )}
-                          {!isZelle && !isCash && !isRecarga && beneficiary.cardNumber && (
+                          {!isZelle && !isCash && !isRecarga && !isComboRecipient && beneficiary.cardNumber && (
                             <CopyChip
                               value={beneficiary.cardNumber}
                               display={formatCardNumber(beneficiary.cardNumber)}
@@ -622,7 +648,22 @@ export function RemittanceOperationCard({
                               ariaLabel={t("copyValue", { label: t("phone") })}
                             />
                           )}
-                          {isCash && beneficiary.address && (
+                          {isComboRecipient && beneficiary.contactPhone && (
+                            <CopyChip
+                              value={beneficiary.contactPhone}
+                              icon={<Phone className="size-3.5" aria-hidden="true" />}
+                              ariaLabel={t("copyValue", { label: t("contactPhone") })}
+                            />
+                          )}
+                          {isComboRecipient && beneficiary.reference && (
+                            <CopyChip
+                              value={beneficiary.reference}
+                              display={<span className="font-sans text-sm">{beneficiary.reference}</span>}
+                              icon={<AtSign className="size-3.5" aria-hidden="true" />}
+                              ariaLabel={t("copyValue", { label: t("reference") })}
+                            />
+                          )}
+                          {(isCash || isComboRecipient) && beneficiary.address && (
                             <CopyChip
                               value={beneficiary.address}
                               icon={<MapPin className="size-3.5" aria-hidden="true" />}

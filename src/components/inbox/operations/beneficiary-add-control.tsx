@@ -9,7 +9,8 @@ import { agregarBeneficiario } from "@/lib/remittance-operations/commands";
 
 interface BeneficiaryAddControlProps {
   operationId: string;
-  /** `recarga` turns the form into a single Cuban-mobile-number field. */
+  /** `recarga` turns the form into a single Cuban-mobile-number field; `combo`
+   *  into a recipient form (name, phone, address, reference, contact phone, amount). */
   serviceType?: string;
   onDone: () => void;
   onCancel: () => void;
@@ -43,11 +44,15 @@ export function BeneficiaryAddControl({ operationId, serviceType, onDone, onCanc
   const [phone, setPhone] = useState("");
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState("");
+  const [address, setAddress] = useState("");
+  const [reference, setReference] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isZelle = beneficiaryType === "zelle";
   const isRecharge = serviceType === "recarga";
+  const isCombo = serviceType === "combo";
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -61,6 +66,49 @@ export function BeneficiaryAddControl({ operationId, serviceType, onDone, onCanc
       }
       setPending(true);
       const result = await agregarBeneficiario(operationId, { beneficiary_type: "recarga", phone: digits });
+      setPending(false);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      onDone();
+      return;
+    }
+
+    if (isCombo) {
+      // The 25,000 GYD minimum is only a hint: the bot enforces it, an admin may know better.
+      const trimmedName = name.trim();
+      const digitsPhone = phone.replace(/\D/g, "");
+      if (trimmedName === "") {
+        setError(t("cannotBeEmpty"));
+        return;
+      }
+      if (!PHONE_PATTERN.test(digitsPhone)) {
+        setError(t("invalidPhone"));
+        return;
+      }
+      const digitsContact = contactPhone.replace(/\D/g, "");
+      if (digitsContact !== "" && !PHONE_PATTERN.test(digitsContact)) {
+        setError(t("invalidPhone"));
+        return;
+      }
+      const comboAmount = Number(amount);
+      if (!(comboAmount > 0)) {
+        setError(t("invalidAmount"));
+        return;
+      }
+      const comboDatos: Record<string, unknown> = {
+        beneficiary_type: "combo",
+        name: trimmedName,
+        phone: digitsPhone,
+        amount: comboAmount,
+        currency: "GYD",
+      };
+      if (address.trim() !== "") comboDatos.address = address.trim();
+      if (reference.trim() !== "") comboDatos.reference = reference.trim();
+      if (digitsContact !== "") comboDatos.contact_phone = digitsContact;
+      setPending(true);
+      const result = await agregarBeneficiario(operationId, comboDatos);
       setPending(false);
       if (!result.ok) {
         setError(result.error);
@@ -134,6 +182,52 @@ export function BeneficiaryAddControl({ operationId, serviceType, onDone, onCanc
             value={phone}
             onChange={(event) => setPhone(event.target.value)}
           />
+        </div>
+
+        {error && <p className="text-xs text-destructive">{error}</p>}
+
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={onCancel} disabled={pending}>
+            {t("cancel")}
+          </Button>
+          <Button type="submit" size="sm" disabled={pending}>
+            {pending ? t("adding") : t("add")}
+          </Button>
+        </div>
+      </form>
+    );
+  }
+
+  if (isCombo) {
+    const textFields: ReadonlyArray<{ id: string; label: string; value: string; set: (v: string) => void; numeric?: boolean }> = [
+      { id: "name", label: t("name"), value: name, set: setName },
+      { id: "phone", label: t("phone"), value: phone, set: setPhone, numeric: true },
+      { id: "address", label: t("address"), value: address, set: setAddress },
+      { id: "reference", label: t("reference"), value: reference, set: setReference },
+      { id: "contact-phone", label: t("contactPhone"), value: contactPhone, set: setContactPhone, numeric: true },
+    ];
+    return (
+      <form onSubmit={handleSubmit} className="space-y-2 rounded-md border border-border bg-muted/40 p-2">
+        {textFields.map((field) => (
+          <div key={field.id} className="space-y-1">
+            <Label htmlFor={`add-beneficiary-${field.id}`}>{field.label}</Label>
+            <Input
+              id={`add-beneficiary-${field.id}`}
+              inputMode={field.numeric ? "numeric" : undefined}
+              value={field.value}
+              onChange={(event) => field.set(event.target.value)}
+            />
+          </div>
+        ))}
+        <div className="space-y-1">
+          <Label htmlFor="add-beneficiary-amount">{t("amount")} (GYD)</Label>
+          <Input
+            id="add-beneficiary-amount"
+            inputMode="decimal"
+            value={amount}
+            onChange={(event) => setAmount(event.target.value)}
+          />
+          <p className="text-[11px] text-muted-foreground">{t("comboMinimumHint")}</p>
         </div>
 
         {error && <p className="text-xs text-destructive">{error}</p>}

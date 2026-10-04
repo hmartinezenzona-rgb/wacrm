@@ -75,6 +75,57 @@ describe("mapRemittanceOperationsRows (recharge)", () => {
   });
 });
 
+describe("mapRemittanceOperationsRows (combo)", () => {
+  it("carries the combo recipients' address, reference, contact phone and amount, and the operation's cost", () => {
+    const base = {
+      resolver_resultado: "unica" as const,
+      resolver_operation_id: "op-c",
+      resolver_candidatas: 1,
+      operation_id: "op-c",
+      operation_status: "ready_to_transfer" as const,
+      operation_service_type: "combo",
+      operation_combo_costo_gyd: "18000.50",
+      beneficiary_type: "combo" as const,
+      beneficiary_currency: "GYD",
+    };
+    const { operations } = mapRemittanceOperationsRows([
+      row({
+        ...base,
+        beneficiary_id: "b1",
+        beneficiary_name: "Ana Lopez",
+        beneficiary_phone: "52345678",
+        beneficiary_address: "Calle 1 #2, Habana",
+        beneficiary_reference: "frente a la bodega",
+        beneficiary_contact_phone: "53456789",
+        beneficiary_amount: "25000",
+        beneficiary_position: 1,
+      }),
+    ]);
+
+    expect(operations[0]!.serviceType).toBe("combo");
+    expect(operations[0]!.comboCostoGyd).toBe(18000.5);
+    expect(operations[0]!.beneficiaries[0]).toMatchObject({
+      beneficiaryType: "combo",
+      name: "Ana Lopez",
+      phone: "52345678",
+      address: "Calle 1 #2, Habana",
+      reference: "frente a la bodega",
+      contactPhone: "53456789",
+      amount: 25000,
+      currency: "GYD",
+    });
+  });
+
+  it("keeps the cost null when none is saved and the new columns are absent", () => {
+    const { operations } = mapRemittanceOperationsRows([
+      row({ operation_id: "op-c", operation_status: "ready_to_transfer", operation_service_type: "combo", beneficiary_id: "b1", beneficiary_type: "combo" }),
+    ]);
+
+    expect(operations[0]!.comboCostoGyd).toBeNull();
+    expect(operations[0]!.beneficiaries[0]).toMatchObject({ reference: null, contactPhone: null });
+  });
+});
+
 describe("mapRemittanceOperationsRows", () => {
   it("maps a conversation with two open remesas, one with two beneficiaries", () => {
     const rows: RemittanceOperationsRpcRow[] = [

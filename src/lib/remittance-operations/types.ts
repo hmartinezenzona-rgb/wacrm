@@ -65,7 +65,10 @@ export type BeneficiaryType =
   | "efectivo_usd"
   | "multiple_distribution"
   /** One Cuban mobile number per recharge (migration 198); the number is in `phone`. */
-  | "recarga";
+  | "recarga"
+  /** One food-combo recipient (migration 208): name, phone, address, reference,
+   *  contact phone and an amount in GYD. */
+  | "combo";
 
 /** Whether a quoted destination amount / beneficiary amount was
  *  auto-calculated (single-beneficiary remittances, migration 100) or set
@@ -103,6 +106,10 @@ export interface RemittanceBeneficiaryRead {
   position: number;
   /** Cash recipient's delivery address (`efectivo_usd`, migration 189). */
   address: string | null;
+  /** Combo recipient's directions on how to get there (migration 208). */
+  reference?: string | null;
+  /** Combo recipient's second contact phone (migration 208). */
+  contactPhone?: string | null;
   /** WhatsApp message id of the recipient's ID-card photo. */
   idPhotoWamid: string | null;
   /** Media URL of that photo, when the message is in the conversation. */
@@ -141,6 +148,9 @@ export interface RemittanceOperationRead {
   deliveryMode: OperationDeliveryMode | null;
   /** When this operation was delivered; `null` for open operations. */
   deliveredAt: string | null;
+  /** Combo operations only (migration 208): the total cost the admin entered, in
+   *  GYD. `null` until entered. Absent on responses that predate the column. */
+  comboCostoGyd?: number | null;
   beneficiaries: RemittanceBeneficiaryRead[];
 }
 
@@ -243,6 +253,10 @@ export interface RemittanceOperationsRpcRow {
   beneficiary_address: string | null;
   beneficiary_id_photo_wamid: string | null;
   beneficiary_id_photo_url: string | null;
+  /** Migration 208 (combo); absent on responses that predate it. */
+  beneficiary_reference?: string | null;
+  beneficiary_contact_phone?: string | null;
+  operation_combo_costo_gyd?: number | string | null;
 }
 
 // ============================================================

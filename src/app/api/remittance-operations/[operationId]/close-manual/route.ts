@@ -22,8 +22,8 @@ import {
 
 const MAX_REASON_LENGTH = 500;
 
-/** Services the calculator prices (migration 196, recarga 200); same list the RPC accepts. */
-const DELIVERY_METHODS = ["cuban_card", "zelle", "clasica", "tropical", "efectivo_usd", "recarga"];
+/** Services the calculator prices (migration 196, recarga 200, combo 208); same list the RPC accepts. */
+const DELIVERY_METHODS = ["cuban_card", "zelle", "clasica", "tropical", "efectivo_usd", "recarga", "combo"];
 
 /** `undefined` when absent / null, `null` (caller answers 400) when present
  *  but not one of the services. */

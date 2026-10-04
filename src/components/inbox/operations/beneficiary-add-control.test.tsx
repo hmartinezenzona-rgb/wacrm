@@ -282,3 +282,101 @@ describe("BeneficiaryAddControl", () => {
     await act(async () => root.unmount());
   });
 });
+
+describe("BeneficiaryAddControl on a combo", () => {
+  const fill = async (node: HTMLElement, values: Record<string, string>) => {
+    for (const [id, value] of Object.entries(values)) {
+      await act(async () => setValue(node.querySelector<HTMLInputElement>(`#add-beneficiary-${id}`)!, value));
+    }
+  };
+
+  it("offers name, phone, address, reference, contact phone and amount, no type, card or currency, and hints the minimum", async () => {
+    const { node, root } = await render(vi.fn(), vi.fn(), "combo");
+
+    expect(node.querySelector("select")).toBeNull();
+    for (const id of ["name", "phone", "address", "reference", "contact-phone", "amount"]) {
+      expect(node.querySelector(`#add-beneficiary-${id}`), id).not.toBeNull();
+    }
+    expect(node.querySelector("#add-beneficiary-card-number")).toBeNull();
+    expect(node.querySelector("#add-beneficiary-currency")).toBeNull();
+    expect(node.textContent).toContain("25,000");
+    await act(async () => root.unmount());
+  });
+
+  it.each([
+    ["missing name", { name: "", phone: "52345678", amount: "25000" }, en.Inbox.operationsPanel.cannotBeEmpty],
+    ["missing phone", { name: "Ana", phone: "", amount: "25000" }, en.Inbox.operationsPanel.invalidPhone],
+    ["bad phone", { name: "Ana", phone: "12345", amount: "25000" }, en.Inbox.operationsPanel.invalidPhone],
+    ["zero amount", { name: "Ana", phone: "52345678", amount: "0" }, en.Inbox.operationsPanel.invalidAmount],
+    ["missing amount", { name: "Ana", phone: "52345678", amount: "" }, en.Inbox.operationsPanel.invalidAmount],
+  ])("%s -> error and no request", async (_label, values, message) => {
+    agregarBeneficiario.mockReset();
+    const { node, root } = await render(vi.fn(), vi.fn(), "combo");
+
+    await fill(node, values);
+    await submit(node);
+
+    expect(agregarBeneficiario).not.toHaveBeenCalled();
+    expect(node.textContent).toContain(message);
+    await act(async () => root.unmount());
+  });
+
+  it("sends the five fields and GYD amount, leaving empty optionals out", async () => {
+    agregarBeneficiario.mockReset();
+    agregarBeneficiario.mockResolvedValue({ ok: true, id: "ben-9", complete: true });
+    const { node, root, onDone } = await render(vi.fn(), vi.fn(), "combo");
+
+    await fill(node, {
+      name: " Ana Lopez ",
+      phone: "523-45678",
+      address: "Calle 1 #2",
+      reference: "frente a la bodega",
+      "contact-phone": "53456789",
+      amount: "25000",
+    });
+    await submit(node);
+
+    expect(agregarBeneficiario).toHaveBeenCalledWith("op-1", {
+      beneficiary_type: "combo",
+      name: "Ana Lopez",
+      phone: "52345678",
+      address: "Calle 1 #2",
+      reference: "frente a la bodega",
+      contact_phone: "53456789",
+      amount: 25000,
+      currency: "GYD",
+    });
+    expect(onDone).toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
+
+  it("sends only the required fields when the optionals are empty, and accepts an amount below the 25,000 hint", async () => {
+    agregarBeneficiario.mockReset();
+    agregarBeneficiario.mockResolvedValue({ ok: true, id: "ben-9", complete: false });
+    const { node, root } = await render(vi.fn(), vi.fn(), "combo");
+
+    await fill(node, { name: "Ana", phone: "52345678", amount: "20000" });
+    await submit(node);
+
+    expect(agregarBeneficiario).toHaveBeenCalledWith("op-1", {
+      beneficiary_type: "combo",
+      name: "Ana",
+      phone: "52345678",
+      amount: 20000,
+      currency: "GYD",
+    });
+    await act(async () => root.unmount());
+  });
+
+  it("rejects a contact phone that is not 8 to 15 digits", async () => {
+    agregarBeneficiario.mockReset();
+    const { node, root } = await render(vi.fn(), vi.fn(), "combo");
+
+    await fill(node, { name: "Ana", phone: "52345678", "contact-phone": "123", amount: "25000" });
+    await submit(node);
+
+    expect(agregarBeneficiario).not.toHaveBeenCalled();
+    expect(node.textContent).toContain(en.Inbox.operationsPanel.invalidPhone);
+    await act(async () => root.unmount());
+  });
+});

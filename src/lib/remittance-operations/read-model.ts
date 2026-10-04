@@ -63,6 +63,7 @@ export function mapRemittanceOperationsRows(
         beneficiariesComplete: row.operation_beneficiaries_complete ?? false,
         deliveryMode: row.operation_delivery_mode ?? null,
         deliveredAt: row.operation_delivered_at ?? null,
+        comboCostoGyd: toNullableNumber(row.operation_combo_costo_gyd ?? null),
         beneficiaries: [],
       };
       operationsById.set(row.operation_id, operation);
@@ -83,6 +84,8 @@ export function mapRemittanceOperationsRows(
         currency: row.beneficiary_currency,
         position: row.beneficiary_position ?? 1,
         address: row.beneficiary_address ?? null,
+        reference: row.beneficiary_reference ?? null,
+        contactPhone: row.beneficiary_contact_phone ?? null,
         idPhotoWamid: row.beneficiary_id_photo_wamid ?? null,
         idPhotoUrl: row.beneficiary_id_photo_url ?? null,
       });

@@ -29,3 +29,14 @@ customer's greeting. That is reported to the owner and not changed here.
 Strict. SQL assertion (self-reverting DO block ending in RAISE EXCEPTION 'ALL PASS').
 
 ## Progress
+- [x] T1 (commit 5ef4971): the assertion was RED on staging ("case 1: got guardados 1 numero(s) de recarga nuevos").
+  207 was applied to staging (schema_migrations 207 / 207_recharge_only_with_live_promo): ALL PASS. The ROLLBACK is
+  pg_get_functiondef of both functions before 207 (md5 b3a6b11d... / 9a9dc7fe..., equal on staging and production).
+  Updated older assertions:
+  - recarga-by-audio and recarga-before-deposit assumed a recharge opens with no promo; they now set up one running
+    promo.
+  - promo-notice now discards leftover promos first: staging's fake 8–11 Oct promo was winning "next promo".
+  All five pass on staging: recarga-by-audio, recarga-before-deposit, recarga-numbers, promo-notice,
+  recharge-only-with-live-promo.
+- T2 setup: the test contact was reset, which also removed stray op b5a6d565. The fake promo b4f92aa4 (8–11 Oct) is
+  still confirmed. Waiting for the owner's re-test by audio.

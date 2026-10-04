@@ -395,7 +395,9 @@
         "label": "Combo cost (GYD)",
         "clear": "Clear",
         "missing": "Cost missing: the calculator waits for it",
-        "invalid": "Enter a cost from 0 up to 999,999,999"
+        "invalid": "Enter a cost from 0 up to 999,999,999",
+        "change": "Change",
+        "saved": "Combo cost saved"
       },
       "reference": "Reference",
       "contactPhone": "Contact phone",

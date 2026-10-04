@@ -17,6 +17,9 @@ vi.mock("next-intl", () => ({
   },
 }));
 
+const toastSuccess = vi.fn();
+vi.mock("sonner", () => ({ toast: { success: (...args: unknown[]) => toastSuccess(...args), error: vi.fn() } }));
+
 const setComboCosto = vi.fn();
 vi.mock("@/lib/remittance-operations/commands", () => ({
   setComboCosto: (...args: unknown[]) => setComboCosto(...args),
@@ -25,6 +28,7 @@ vi.mock("@/lib/remittance-operations/commands", () => ({
 afterEach(() => {
   document.body.replaceChildren();
   setComboCosto.mockReset();
+  toastSuccess.mockReset();
 });
 
 const t = en.Inbox.operationsPanel.comboCost;
@@ -65,12 +69,40 @@ describe("ComboCostField", () => {
     await act(async () => root.unmount());
   });
 
-  it("shows the saved value, and a clear button", async () => {
+  // Owner test 2026-10-04: the form stayed open after Save, so the saved cost looked unsaved.
+  it("shows a saved cost as a value with change and clear, not as an open form", async () => {
     const { node, root } = await render({ costGyd: 18000 });
 
-    expect(input(node).value).toBe("18000");
+    expect(node.querySelector("input")).toBeNull();
+    expect(node.textContent).toContain("18,000 GYD");
+    expect(buttonByText(node, t.change)).toBeDefined();
     expect(buttonByText(node, t.clear)).toBeDefined();
     expect(node.textContent).not.toContain(t.missing);
+    await act(async () => root.unmount());
+  });
+
+  it("change opens the form with the saved value, and cancel closes it unchanged", async () => {
+    const { node, root } = await render({ costGyd: 18000 });
+
+    await act(async () => buttonByText(node, t.change)!.click());
+    expect(input(node).value).toBe("18000");
+    await act(async () => buttonByText(node, en.Inbox.operationsPanel.cancel)!.click());
+    expect(node.querySelector("input")).toBeNull();
+    expect(node.textContent).toContain("18,000 GYD");
+    expect(setComboCosto).not.toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
+
+  it("after a save the form closes, shows the saved cost and confirms", async () => {
+    setComboCosto.mockResolvedValue({ ok: true, costGyd: 40000 });
+    const { node, root } = await render();
+
+    await act(async () => setValue(input(node), "40,000"));
+    await act(async () => buttonByText(node, en.Inbox.operationsPanel.save)!.click());
+
+    expect(node.querySelector("input")).toBeNull();
+    expect(node.textContent).toContain("40,000 GYD");
+    expect(toastSuccess).toHaveBeenCalledWith(t.saved);
     await act(async () => root.unmount());
   });
 

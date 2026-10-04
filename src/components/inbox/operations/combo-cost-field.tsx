@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,6 +42,10 @@ export function ComboCostField({ operationId, costGyd, completed, onSaved }: Com
   const [value, setValue] = useState(costGyd === null ? "" : String(costGyd));
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // What was just saved, shown at once (the card's refetch brings the same value a moment later).
+  const [saved, setSaved] = useState<{ cost: number | null } | null>(null);
+  const [editing, setEditing] = useState(false);
+  const current = saved ? saved.cost : costGyd;
 
   async function submit(cost: number | null) {
     setError(null);
@@ -51,8 +56,40 @@ export function ComboCostField({ operationId, costGyd, completed, onSaved }: Com
       setError(result.error);
       return;
     }
-    if (cost === null) setValue("");
+    setSaved({ cost: result.costGyd });
+    setValue(result.costGyd === null ? "" : String(result.costGyd));
+    setEditing(false);
+    if (cost !== null) toast.success(t("comboCost.saved"));
     onSaved();
+  }
+
+  if (current !== null && !editing) {
+    return (
+      <div className="space-y-1.5 rounded-md border border-border bg-muted/40 p-2">
+        <p className="text-sm">
+          <span className="text-muted-foreground">{t("comboCost.label")}: </span>
+          <span className="font-medium">{current.toLocaleString("en-US")} GYD</span>
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" size="sm" onClick={() => void submit(null)} disabled={pending}>
+            {t("comboCost.clear")}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setValue(String(current));
+              setError(null);
+              setEditing(true);
+            }}
+            disabled={pending}
+          >
+            {t("comboCost.change")}
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   function handleSave(event: FormEvent) {
@@ -75,7 +112,7 @@ export function ComboCostField({ operationId, costGyd, completed, onSaved }: Com
         onChange={(event) => setValue(event.target.value)}
         disabled={pending}
       />
-      {completed && costGyd === null && (
+      {completed && current === null && (
         <p className="text-xs text-amber-600 dark:text-amber-400">{t("comboCost.missing")}</p>
       )}
       {error && (
@@ -84,9 +121,9 @@ export function ComboCostField({ operationId, costGyd, completed, onSaved }: Com
         </p>
       )}
       <div className="flex justify-end gap-2">
-        {costGyd !== null && (
-          <Button type="button" variant="ghost" size="sm" onClick={() => void submit(null)} disabled={pending}>
-            {t("comboCost.clear")}
+        {current !== null && (
+          <Button type="button" variant="ghost" size="sm" onClick={() => setEditing(false)} disabled={pending}>
+            {t("cancel")}
           </Button>
         )}
         <Button type="submit" size="sm" disabled={pending}>

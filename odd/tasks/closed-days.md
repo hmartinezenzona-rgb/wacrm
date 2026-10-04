@@ -20,7 +20,7 @@ right next business day.
       no trabajamos ... abrimos el martes 6"; Saturday 16:45 closing soon -> "El siguiente dia habil es el martes 6 (el
       lunes 5 no trabajamos ...)"; normal Tuesday 11:00 -> open. Agent expressions parse; its line on Monday: "hoy no
       trabajamos por el aniversario de Remesas Ya, asi que su remesa se hace mañana martes 6, a partir de las 9:00am".
-- [ ] D3 Owner check on staging, then production (205 + the Monday row in production's cerebro_config + gate101
+- [x] D3 Owner check on staging, then production (205 + the Monday row in production's cerebro_config + gate101
       produccion) BEFORE Monday 2026-10-05.
 
 ## Notes
@@ -30,3 +30,11 @@ Wording amendment (owner, 2026-10-03): the anniversary is the admin's and his wi
 after "no estamos trabajando" ("porque estamos de aniversario"); default 'por un dia festivo'. 205 amended and
 re-applied on staging (assertion ALL PASS); gate101 re-applied on staging with the owner's sentence, offline
 simulation of Monday and of the Saturday-evening note OK.
+
+Production (owner go-ahead 2026-10-04 "pasa el cierre del lunes a produccion"): backup
+produccion-20261004T024835Z.dump (sha256 bc45afb78efde007...); pre-check: 205 functions and the config row absent;
+gate102-aplicar-db.py ensayo OK, aplicar OK (205 + the Monday row in one transaction, schema_migrations
+205_closed_days), closed-days assertion ALL PASS in production, temp helper dropped. gate101 produccion applied to
+Cerebro jEzlVLCLUaJhVwzs (backup cerebro-produccion-antes-101-20261004T100847.json); Decisor parses, agent
+expressions 0 errors. Sunday noon in production cerebro_cierre_especial_info() says "mañana lunes 5 no trabajamos
+porque estamos de aniversario"; Monday gives "mañana martes 6". The past-date row is harmless after Monday.

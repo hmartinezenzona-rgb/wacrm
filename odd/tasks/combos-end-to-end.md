@@ -190,3 +190,16 @@ production goes per task after the owner's test.
     - never ask again for something the tool does not list as missing.
     - The Decisor passes node --check.
   - The test contact was reset for round 3.
+- T5 round 3: the owner reported "al poner el costo del combo da error, ya probé varias veces".
+  - The DB path works: crm_set_combo_costo as the staging owner (feeccc91) on combo dee3268d returned
+    {"combo_costo_gyd": 40000}, rolled back.
+  - No "[remittance-operations combo-cost POST] RPC error" in the staging pm2 logs, so the error was a client or a
+    mapped one.
+  - Cause found: the field parsed with Number(), so "40,000" / "40.000" / "40 000" (how GYD amounts are typed) were
+    rejected locally with "Enter a cost from 0 up to 999,999,999".
+  - Fix (commit 719bc2c): parseCostInput reads groups of three after a separator as thousands, and otherwise one ","
+    or "." as the decimal mark.
+  - combo-cost-field tests: 5 new cases were RED, then all operations tests pass (21 files, 334 tests); typecheck
+    and lint clean.
+  - Staging app redeployed: release 719bc2c, BUILD_ID BkSoDd41i4eJBQMfZSgHf, served by the domain.
+  - The owner has not yet said which error text appeared. If it still fails, ask for it.

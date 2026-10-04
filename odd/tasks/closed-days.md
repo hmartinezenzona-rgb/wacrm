@@ -13,7 +13,7 @@ right next business day.
       Tuesday, broken config closes nothing) RED -> GREEN on staging. Staging data: Monday 2026-10-05 "el aniversario de
       Remesas Ya".
 - [x] D2 Cerebro staging gate101-dias-cerrados.py: 'Contexto conversacion' carries cierre_especial; 'Decisor': a closed
-      day is out of hours all day (note: "HOY NO SE TRABAJA EN TODO EL DIA por <motivo>... se hace <proximo_habil>"),
+      day is out of hours all day (note carries the owner's sentence: "Hoy <dia> no estamos trabajando <motivo>; por aqui le atendemos igual y lo pendiente se hace <proximo_habil> a partir de las 9:00am."),
       the closing-soon and out-of-hours notes name the next business day and the closure when a closed day comes before
       it; 'Agente Remesas' verified-deposit line follows the same rule. Decisor parses; its schedule section run offline
       with a faked clock: Monday 12:00 -> closed all day, "se hace mañana martes 6"; Saturday 21:50 -> "OJO: el lunes 5
@@ -25,3 +25,8 @@ right next business day.
 
 ## Notes
 Adding another closed day later is a config change only: append {"fecha","motivo"} to cerebro_config 'dias_cerrados'.
+
+Wording amendment (owner, 2026-10-03): the anniversary is the admin's and his wife's, so motivo is the clause
+after "no estamos trabajando" ("porque estamos de aniversario"); default 'por un dia festivo'. 205 amended and
+re-applied on staging (assertion ALL PASS); gate101 re-applied on staging with the owner's sentence, offline
+simulation of Monday and of the Saturday-evening note OK.

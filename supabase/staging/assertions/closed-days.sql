@@ -9,13 +9,13 @@
 DO $$
 DECLARE v_info jsonb;
 BEGIN
-  UPDATE cerebro_config SET valor = '[{"fecha": "2026-10-05", "motivo": "el aniversario de Remesas Ya"}]' WHERE clave = 'dias_cerrados';
+  UPDATE cerebro_config SET valor = '[{"fecha": "2026-10-05", "motivo": "porque estamos de aniversario"}]' WHERE clave = 'dias_cerrados';
   IF NOT FOUND THEN
-    INSERT INTO cerebro_config (clave, valor) VALUES ('dias_cerrados', '[{"fecha": "2026-10-05", "motivo": "el aniversario de Remesas Ya"}]');
+    INSERT INTO cerebro_config (clave, valor) VALUES ('dias_cerrados', '[{"fecha": "2026-10-05", "motivo": "porque estamos de aniversario"}]');
   END IF;
 
   -- 1. The closed day and its reason; an ordinary day is open.
-  IF cerebro_dia_cerrado('2026-10-05') IS DISTINCT FROM 'el aniversario de Remesas Ya' OR cerebro_dia_cerrado('2026-10-06') IS NOT NULL THEN
+  IF cerebro_dia_cerrado('2026-10-05') IS DISTINCT FROM 'porque estamos de aniversario' OR cerebro_dia_cerrado('2026-10-06') IS NOT NULL THEN
     RAISE EXCEPTION 'case 1: got % / %', cerebro_dia_cerrado('2026-10-05'), cerebro_dia_cerrado('2026-10-06'); END IF;
 
   -- 2. The next business day skips Sunday and the closed Monday.
@@ -27,15 +27,15 @@ BEGIN
 
   -- 3. What the bot reads: on the closed day / the day before / a normal week.
   v_info := cerebro_cierre_especial_info('2026-10-05');
-  IF v_info ->> 'hoy_motivo' IS DISTINCT FROM 'el aniversario de Remesas Ya' OR v_info ->> 'proximo_habil' IS DISTINCT FROM 'mañana martes 6' THEN
+  IF v_info ->> 'hoy_motivo' IS DISTINCT FROM 'porque estamos de aniversario' OR v_info ->> 'proximo_habil' IS DISTINCT FROM 'mañana martes 6' THEN
     RAISE EXCEPTION 'case 3 (Monday): got %', v_info; END IF;
   v_info := cerebro_cierre_especial_info('2026-10-04');
   IF v_info ->> 'hoy_motivo' IS NOT NULL OR v_info ->> 'proximo_habil' IS DISTINCT FROM 'el martes 6'
-     OR v_info ->> 'proximo_cierre' IS DISTINCT FROM 'mañana lunes 5 no trabajamos por el aniversario de Remesas Ya' THEN
+     OR v_info ->> 'proximo_cierre' IS DISTINCT FROM 'mañana lunes 5 no trabajamos porque estamos de aniversario' THEN
     RAISE EXCEPTION 'case 3 (Sunday): got %', v_info; END IF;
   v_info := cerebro_cierre_especial_info('2026-10-03');
   IF v_info ->> 'proximo_habil' IS DISTINCT FROM 'el martes 6'
-     OR v_info ->> 'proximo_cierre' IS DISTINCT FROM 'el lunes 5 no trabajamos por el aniversario de Remesas Ya' THEN
+     OR v_info ->> 'proximo_cierre' IS DISTINCT FROM 'el lunes 5 no trabajamos porque estamos de aniversario' THEN
     RAISE EXCEPTION 'case 3 (Saturday): got %', v_info; END IF;
   v_info := cerebro_cierre_especial_info('2026-10-13');
   IF v_info ->> 'hoy_motivo' IS NOT NULL OR v_info ->> 'proximo_cierre' IS NOT NULL OR v_info ->> 'proximo_habil' IS DISTINCT FROM 'mañana miércoles 14' THEN

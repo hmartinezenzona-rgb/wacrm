@@ -143,3 +143,16 @@ live staging test for n8n changes.
 - Staging test setup: a confirmed test promotion (600 CUP, today .. +3 days, huella staging-test-20261003) so the bot
   quotes recharges; the recharge cost left empty for the owner to set in the Calculator. App a43d66b deployed (BUILD_ID
   ilElZx0jGdwEuoxBNkqev, anterior d93815b; staging checks as usual). Test number reset.
+- Owner test on staging (2026-10-03 21:26 UTC): "Para poner unas recargas / A dos números / 53821230 / 53456789 /
+  Cuánto sería?" -> the bot quoted correctly ("600 CUP por 6,200 GYD cada una... sus dos números... 12,400 GYD") but
+  nothing showed in the panel: 201 created the recharge only with the deposit, and 'Registrar beneficiario auto' kept
+  one number in cerebro_beneficiario_parcial. The cost was not set yet.
+- FIX `202_recarga_before_deposit.sql` (+ ROLLBACK), commit 5b87df0: cerebro_textos_cliente_recientes /
+  cerebro_recarga_en_curso (the 160 rule, now shared); crm_registrar_numeros_recarga opens the recharge
+  (collecting_information) when one was asked for; cerebro_guardar_beneficiario_auto opens/extends it with ALL numbers
+  typed since asking; cerebro_registrar_deposito decides "recharge" up front, its movido search takes the open recharge,
+  a moved deposit adds new numbers. Assertion recarga-before-deposit.sql (owner's exact messages -> one recharge with
+  both numbers; deposit lands on it; the tool opens one; no recharge asked -> nothing) RED -> GREEN; recarga-numbers,
+  deal-free-money-rules, deposit-path-without-deals, cash-phone-not-a-card, partial-beneficiary-tools/-auto, recharge,
+  cross and cutover assertions ALL PASS. The owner's test conversation: its recharge opened with both numbers through
+  crm_registrar_numeros_recarga (what the bot now does on the next number).

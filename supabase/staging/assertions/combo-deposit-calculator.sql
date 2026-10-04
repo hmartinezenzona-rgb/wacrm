@@ -34,6 +34,10 @@ DECLARE
   v_conv uuid; v_conv2 uuid; v_op uuid; v_e record; v_acc uuid; v_admin uuid; v_res text; v_n int;
   c_verif constant uuid := '3cf01654-cd27-47c1-ac92-62abf5435751';
 BEGIN
+  -- (211) A typed recharge needs a promo running: these cases run with one.
+  INSERT INTO promo_etecsa (min_cup, max_cup, multiplicador, vigente_desde, vigente_hasta, titulo, url, texto_crudo, huella, estado)
+  VALUES (600, 1250, 5, (now() AT TIME ZONE 'America/Guyana')::date - 1, (now() AT TIME ZONE 'America/Guyana')::date + 2,
+          'ASSERT VIGENTE', 'https://assert.invalid/v', 'assert', md5('assert-vigente-209-211'), 'confirmada');
   SELECT w.account_id INTO v_acc FROM whatsapp_config w JOIN profiles p ON p.account_id = w.account_id
    ORDER BY (p.account_role = 'owner') DESC LIMIT 1;
   SELECT p.user_id INTO v_admin FROM profiles p WHERE p.account_id = v_acc AND p.account_role IN ('owner', 'admin') LIMIT 1;

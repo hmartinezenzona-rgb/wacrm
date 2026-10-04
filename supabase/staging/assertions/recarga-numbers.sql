@@ -32,6 +32,10 @@ $$;
 DO $$
 DECLARE v_conv uuid; v_op uuid; v_r text; v_out record;
 BEGIN
+  -- (211) A typed recharge needs a promo running: these cases run with one.
+  INSERT INTO promo_etecsa (min_cup, max_cup, multiplicador, vigente_desde, vigente_hasta, titulo, url, texto_crudo, huella, estado)
+  VALUES (600, 1250, 5, (now() AT TIME ZONE 'America/Guyana')::date - 1, (now() AT TIME ZONE 'America/Guyana')::date + 2,
+          'ASSERT VIGENTE', 'https://assert.invalid/v', 'assert', md5('assert-vigente-201-211'), 'confirmada');
   -- 1. The tool: a typed or dictated number lands on the open recharge; a repeat is ignored; it says what is missing.
   v_conv := pg_temp.conv_t201('01');
   v_op := pg_temp.op_t201(v_conv, 12400);

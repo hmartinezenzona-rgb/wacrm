@@ -25,7 +25,7 @@ BEGIN
   -- 1. The typed-number auto registration (runs before the bot on every message with a Cuban number).
   INSERT INTO messages (conversation_id, sender_type, content_type, content_text) VALUES (v_conv, 'customer', 'text', '53845687');
   PERFORM cerebro_guardar_beneficiario_auto(v_conv, '', '53845687', '', '53845687', 'assert210');
-  SELECT string_agg(b.beneficiary_type || ':' || coalesce(b.name, '-') || ':' || b.status, ',' ORDER BY b.created_at) INTO v_state
+  SELECT string_agg(b.beneficiary_type || ':' || coalesce(b.name, '-') || ':' || b.status, ',' ORDER BY b.position, b.beneficiary_type) INTO v_state
     FROM remittance_beneficiaries b WHERE b.operation_id = v_op;
   IF v_state IS DISTINCT FROM 'combo:Juan Perez:vigente,combo:Julian Gonzalez:vigente' THEN
     RAISE EXCEPTION 'case 1: the auto registration touched the combo: %', v_state; END IF;
@@ -37,7 +37,7 @@ BEGIN
   -- 3. The remesa tools, if the model calls them by mistake.
   PERFORM cerebro_guardar_beneficiario(v_conv, 'X', '', '53845687', 'assert210', v_op, 'assert');
   PERFORM cerebro_guardar_reparto(v_conv, '', '53845687', '', '', '53821069', '', '', '', '', 'assert210', v_op, 'assert');
-  SELECT string_agg(b.beneficiary_type || ':' || coalesce(b.name, '-') || ':' || b.status, ',' ORDER BY b.created_at) INTO v_state
+  SELECT string_agg(b.beneficiary_type || ':' || coalesce(b.name, '-') || ':' || b.status, ',' ORDER BY b.position, b.beneficiary_type) INTO v_state
     FROM remittance_beneficiaries b WHERE b.operation_id = v_op;
   IF v_state IS DISTINCT FROM 'combo:Juan Perez:vigente,combo:Julian Gonzalez:vigente' THEN
     RAISE EXCEPTION 'case 2/3: a remesa writer touched the combo: %', v_state; END IF;

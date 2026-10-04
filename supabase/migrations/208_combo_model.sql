@@ -183,7 +183,7 @@ BEGIN
     IF btrim(coalesce(v_r.phone, '')) = '' THEN v_falta := array_append(v_falta, 'telefono'::text); END IF;
     IF btrim(coalesce(v_r.address, '')) = '' THEN v_falta := array_append(v_falta, 'direccion'::text); END IF;
     IF btrim(coalesce(v_r.reference, '')) = '' THEN v_falta := array_append(v_falta, 'referencia de como llegar'::text); END IF;
-    IF btrim(coalesce(v_r.contact_phone, '')) = '' THEN v_falta := array_append(v_falta, 'telefono de contacto'::text); END IF;
+    -- (owner 2026-10-04) A second contact phone is optional: kept when given, never asked for.
     IF v_r.amount IS NULL THEN v_falta := array_append(v_falta, 'monto en GYD (minimo 25,000)'::text); END IF;
     IF cardinality(v_falta) > 0 THEN
       v_msgs := v_msgs || ' FALTA: ' || array_to_string(v_falta, ', ') || ' de ' || v_label || '.';
@@ -196,7 +196,7 @@ BEGIN
 
   IF v_n = 0 THEN
     RETURN 'combo abierto, aun sin destinatarios. Pide del primer destinatario: nombre completo, telefono, direccion, '
-           || 'referencia de como llegar, telefono de contacto y monto en GYD (minimo 25,000 por combo).' || v_aviso;
+           || 'referencia de como llegar y monto en GYD (minimo 25,000 por combo).' || v_aviso;
   END IF;
   IF v_bajo <> '' THEN
     v_msgs := v_msgs || ' el minimo por combo es 25,000 GYD (' || v_bajo || '): pregunta cuanto es para cada destinatario '
@@ -228,14 +228,13 @@ AS $function$
                    AND count(*) >= coalesce(cerebro_recarga_unidades(o.quoted_source_amount), 0)
               FROM remittance_beneficiaries b
              WHERE b.operation_id = o.id AND b.status = 'vigente')
-         -- (208) A combo: at least one current recipient, and every one has name, phone, address, reference, contact
-         -- phone and an amount of at least 25,000 GYD (the minimum per combo).
+         -- (208) A combo: at least one current recipient, and every one has name, phone, address, reference and an
+         -- amount of at least 25,000 GYD (the minimum per combo). A second contact phone is optional (owner 2026-10-04).
          WHEN o.service_type = 'combo' THEN
            (SELECT count(*) > 0
                    AND bool_and(b.beneficiary_type = 'combo'
                                 AND btrim(coalesce(b.name, '')) <> '' AND btrim(coalesce(b.phone, '')) <> ''
                                 AND btrim(coalesce(b.address, '')) <> '' AND btrim(coalesce(b.reference, '')) <> ''
-                                AND btrim(coalesce(b.contact_phone, '')) <> ''
                                 AND coalesce(b.amount, 0) >= 25000)
               FROM remittance_beneficiaries b
              WHERE b.operation_id = o.id AND b.status = 'vigente')
@@ -721,8 +720,8 @@ GRANT EXECUTE ON FUNCTION public.crm_set_combo_costo(uuid, numeric) TO authentic
 
 -- The bot now collects the combo's data and the payment; the products are still chosen by a person after paying.
 UPDATE public.cerebro_servicios
-   SET hechos = $combo208$Envio de combos de comida y productos a Cuba. NO es un catalogo cerrado con precios: el combo se arma a medida segun lo que haya en existencia, y hay productos que se agotan. El enlace de muestra sirve para hacerse una idea de lo que lleva un combo, no es una lista de precios. El minimo son 25,000 GYD por combo: se van sumando productos hasta llegar a ese monto, y se puede pedir por mas. El precio INCLUYE el envio hasta la casa. Llega a toda Cuba y cuesta lo mismo para cualquier provincia. Plazos de entrega: Habana, Artemisa y Mayabeque de 3 a 5 dias; Pinar del Rio y Matanzas de 5 a 7; Cienfuegos y Villa Clara de 7 a 10; el resto de provincias de 10 a 15 dias. Se paga por adelantado por MMG, igual que una remesa. Los productos concretos se eligen DESPUES de pagar, en una llamada con una persona del equipo: el asistente no arma el combo ni elige productos. Por cada combo el asistente recoge, del destinatario: nombre completo, telefono, direccion lo mas completa posible, una referencia de como llegar o como es el lugar, el telefono de otra persona de contacto, y el monto de ESE combo (minimo 25,000 GYD cada uno; con varios combos, pregunta cuanto es para cada destinatario y comprueba que cada uno llegue al minimo). Los datos pueden llegar en varios mensajes. El asistente SI gestiona el pedido: suma los combos para dar el total y el cliente paga todo por adelantado por MMG, como una remesa; despues una persona del equipo lo llama para elegir los productos. PROHIBIDO elegir o prometer productos concretos. PROHIBIDO ofrecer rebajas, descuentos o precios especiales. Si el cliente pide rebaja, di la tarifa fija y que cualquier rebaja la trata una persona del equipo.$combo208$,
-       notas_internas = $combo208$Osmany 8-ago: minimo 25,000 GYD, a medida por disponibilidad, envio incluido, mismo precio toda Cuba. 208 (4-oct): el asistente recoge los destinatarios del combo (nombre, telefono, direccion, referencia, telefono de contacto, monto); los productos los elige una persona en una llamada posterior.$combo208$,
+   SET hechos = $combo208$Envio de combos de comida y productos a Cuba. NO es un catalogo cerrado con precios: el combo se arma a medida segun lo que haya en existencia, y hay productos que se agotan. El enlace de muestra sirve para hacerse una idea de lo que lleva un combo, no es una lista de precios. El minimo son 25,000 GYD por combo: se van sumando productos hasta llegar a ese monto, y se puede pedir por mas. El precio INCLUYE el envio hasta la casa. Llega a toda Cuba y cuesta lo mismo para cualquier provincia. Plazos de entrega: Habana, Artemisa y Mayabeque de 3 a 5 dias; Pinar del Rio y Matanzas de 5 a 7; Cienfuegos y Villa Clara de 7 a 10; el resto de provincias de 10 a 15 dias. Se paga por adelantado por MMG, igual que una remesa. Los productos concretos se eligen DESPUES de pagar, en una llamada con una persona del equipo: el asistente no arma el combo ni elige productos. Por cada combo el asistente recoge, del destinatario: nombre completo, telefono, direccion lo mas completa posible, una referencia de como llegar o como es el lugar, y el monto de ESE combo (minimo 25,000 GYD cada uno; con varios combos, pregunta cuanto es para cada destinatario y comprueba que cada uno llegue al minimo). Los datos pueden llegar en varios mensajes. El asistente SI gestiona el pedido: suma los combos para dar el total y el cliente paga todo por adelantado por MMG, como una remesa; despues una persona del equipo lo llama para elegir los productos. PROHIBIDO elegir o prometer productos concretos. PROHIBIDO ofrecer rebajas, descuentos o precios especiales. Si el cliente pide rebaja, di la tarifa fija y que cualquier rebaja la trata una persona del equipo.$combo208$,
+       notas_internas = $combo208$Osmany 8-ago: minimo 25,000 GYD, a medida por disponibilidad, envio incluido, mismo precio toda Cuba. 208 (4-oct): el asistente recoge los destinatarios del combo (nombre, telefono, direccion, referencia, monto; un telefono de contacto extra solo si el cliente lo da); los productos los elige una persona en una llamada posterior.$combo208$,
        requiere_humano = false,
        actualizado = now()
  WHERE clave = 'combos';

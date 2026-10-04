@@ -39,7 +39,8 @@ BEGIN
     RAISE EXCEPTION 'case 1: status % currency %', v_r.status, v_r.source_currency; END IF;
   IF (SELECT count(*) FROM remittance_beneficiaries WHERE operation_id = v_op AND status = 'vigente' AND beneficiary_type = 'combo') <> 1 THEN
     RAISE EXCEPTION 'case 1: expected one combo recipient'; END IF;
-  IF v_res NOT LIKE '%FALTA:%direccion%de Maria Perez%' OR v_res NOT LIKE '%referencia%' OR v_res NOT LIKE '%contacto%' THEN
+  -- Owner 2026-10-04: only the recipient's phone is asked for; a second contact phone is never asked for.
+  IF v_res NOT LIKE '%FALTA:%direccion%de Maria Perez%' OR v_res NOT LIKE '%referencia%' OR v_res LIKE '%contacto%' THEN
     RAISE EXCEPTION 'case 1: the reply must list what is missing, got %', v_res; END IF;
   IF crm_beneficiarios_completos(v_op) THEN RAISE EXCEPTION 'case 1: a partial recipient must not be complete'; END IF;
   -- The same call is idempotent: no second recipient, no second operation.
@@ -61,8 +62,12 @@ BEGIN
   IF (SELECT count(*) FROM remittance_beneficiaries WHERE operation_id = v_op AND status = 'vigente') <> 1 THEN
     RAISE EXCEPTION 'case 2: the second call must update the same recipient'; END IF;
   IF v_res NOT LIKE '%el minimo por combo es 25,000 GYD%' THEN RAISE EXCEPTION 'case 2: the minimum rule is not stated: %', v_res; END IF;
-  IF v_res NOT LIKE '%FALTA:%contacto%de Maria Perez%' THEN RAISE EXCEPTION 'case 2: contact phone must still be missing: %', v_res; END IF;
+  IF v_res LIKE '%contacto%' THEN RAISE EXCEPTION 'case 2: a contact phone must not be asked for: %', v_res; END IF;
   IF crm_beneficiarios_completos(v_op) THEN RAISE EXCEPTION 'case 2: below the minimum is not complete'; END IF;
+  -- 2b. With a valid amount the recipient is complete WITHOUT a second contact phone.
+  v_res := crm_registrar_destinatario_combo(v_conv, NULL, '53871234', NULL, NULL, NULL, 25000);
+  IF v_res NOT LIKE 'Datos completos. Total a pagar: 25,000 GYD%' OR NOT crm_beneficiarios_completos(v_op) THEN
+    RAISE EXCEPTION 'case 2b: complete without a contact phone, got %', v_res; END IF;
 
   -- 3. Completeness false, then true: the contact phone and a valid amount close the gap. A phone with +53 and
   --    separators is stored normalised. quoted_source_amount follows the amount.
@@ -189,7 +194,7 @@ BEGIN
     RAISE EXCEPTION 'case 10: a completed combo must appear in the history'; END IF;
   SELECT hechos, requiere_humano INTO v_r FROM cerebro_servicio_get('combos');
   IF v_r.hechos LIKE '%NO gestiona todavia el pago%' OR v_r.hechos NOT LIKE '%25,000 GYD%' OR v_r.hechos NOT LIKE '%MMG%'
-     OR v_r.hechos NOT LIKE '%llamada con una persona del equipo%' OR v_r.hechos NOT LIKE '%telefono de otra persona de contacto%'
+     OR v_r.hechos NOT LIKE '%llamada con una persona del equipo%' OR v_r.hechos LIKE '%otra persona de contacto%'
      OR v_r.requiere_humano THEN
     RAISE EXCEPTION 'case 10: the combos text is wrong: %', v_r.hechos; END IF;
 

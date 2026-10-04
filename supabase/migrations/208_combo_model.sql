@@ -44,15 +44,18 @@ ALTER TABLE remittance_admin_audit ADD CONSTRAINT remittance_admin_audit_action_
     'automation_recharge_numbers_registered',
     'automation_combo_recipient_registered', 'human_combo_cost_set']));
 
-CREATE OR REPLACE FUNCTION public.crm_registrar_destinatario_combo(p_conv uuid, p_nombre text, p_telefono text, p_direccion text, p_referencia text, p_telefono_contacto text, p_monto_gyd numeric)
+CREATE OR REPLACE FUNCTION public.crm_registrar_destinatario_combo(p_conv uuid, p_nombre text, p_telefono text, p_direccion text, p_referencia text, p_telefono_contacto text, p_monto_gyd numeric, p_numero integer DEFAULT NULL)
  RETURNS text
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
 -- (208) The agent's tool for a food combo. Opens the conversation's combo (collecting_information, GYD) when none is
--- open, then adds or updates ONE recipient: matched by phone, or by name while the stored row has no phone (or the call
--- has none); with neither, the latest recipient. Empty arguments never overwrite what is stored. The panel's
+-- open, then adds or updates ONE recipient. p_numero (the combo's number in the order the customer said them, 1-based)
+-- picks the recipient at that position, or a new one when there is none yet: owner test 2026-10-04, "dos combos, uno
+-- de 30 mil y otro de 25 mil" said before any name, made the second call overwrite the first. Without p_numero:
+-- matched by phone, or by name while the stored row has no phone (or the call has none); with neither, the latest
+-- recipient. Empty arguments never overwrite what is stored. The panel's
 -- beneficiary lock wins. quoted_source_amount = the sum of the recipients' amounts. Returns what is still missing.
 DECLARE
   v_op      record;
@@ -110,18 +113,22 @@ BEGIN
   ELSIF v_digits <> '' THEN v_aviso := v_aviso || ' El telefono de contacto ' || btrim(p_telefono_contacto) || ' no parece valido (faltan o sobran digitos): no se guardo, pideselo de nuevo.';
   END IF;
 
-  IF v_phone IS NOT NULL THEN
+  IF p_numero IS NOT NULL AND p_numero >= 1 THEN
+    SELECT b.id INTO v_id FROM remittance_beneficiaries b
+     WHERE b.operation_id = v_op.id AND b.status = 'vigente' AND b.beneficiary_type = 'combo'
+     ORDER BY b.position OFFSET p_numero - 1 LIMIT 1;
+  ELSIF v_phone IS NOT NULL THEN
     SELECT b.id INTO v_id FROM remittance_beneficiaries b
      WHERE b.operation_id = v_op.id AND b.status = 'vigente' AND b.beneficiary_type = 'combo' AND b.phone = v_phone
      ORDER BY b.position LIMIT 1;
   END IF;
-  IF v_id IS NULL AND v_name IS NOT NULL THEN
+  IF v_id IS NULL AND p_numero IS NULL AND v_name IS NOT NULL THEN
     SELECT b.id INTO v_id FROM remittance_beneficiaries b
      WHERE b.operation_id = v_op.id AND b.status = 'vigente' AND b.beneficiary_type = 'combo'
        AND lower(b.name) = lower(v_name) AND (v_phone IS NULL OR b.phone IS NULL)
      ORDER BY b.position LIMIT 1;
   END IF;
-  IF v_id IS NULL AND v_name IS NULL AND v_phone IS NULL THEN
+  IF v_id IS NULL AND p_numero IS NULL AND v_name IS NULL AND v_phone IS NULL THEN
     SELECT b.id INTO v_id FROM remittance_beneficiaries b
      WHERE b.operation_id = v_op.id AND b.status = 'vigente' AND b.beneficiary_type = 'combo'
      ORDER BY b.position DESC LIMIT 1;
@@ -203,8 +210,8 @@ BEGIN
   RETURN 'combo con ' || v_n || ' destinatario(s), total ' || rtrim(trim(to_char(v_total, 'FM999,999,990.99')), '.') || ' GYD.'
          || v_msgs || ' Pideselo al cliente.' || v_aviso;
 END $function$;
-REVOKE ALL ON FUNCTION public.crm_registrar_destinatario_combo(uuid, text, text, text, text, text, numeric) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.crm_registrar_destinatario_combo(uuid, text, text, text, text, text, numeric) TO service_role;
+REVOKE ALL ON FUNCTION public.crm_registrar_destinatario_combo(uuid, text, text, text, text, text, numeric, integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.crm_registrar_destinatario_combo(uuid, text, text, text, text, text, numeric, integer) TO service_role;
 
 CREATE OR REPLACE FUNCTION public.crm_beneficiarios_completos(p_operation_id uuid)
  RETURNS boolean

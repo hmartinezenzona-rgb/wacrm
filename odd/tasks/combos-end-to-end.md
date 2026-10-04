@@ -148,3 +148,18 @@ production goes per task after the owner's test.
 - Staging app deployed: release 1499140, BUILD_ID lO3gSzKXhTtAVTLM9B6V3, served by crm.onlinefreedom.site;
   anterior -> 2b9306a; 0 production refs in the bundle. The prod-build worktree was restored to 30f4d75. The test
   contact was reset. Waiting for the owner's T5 test.
+- T5 owner test, round 1 (2026-10-04 19:48Z), FAILED at step 1:
+  - The customer said by audio "quiero enviar dos combos, uno de 30 mil y otro de 25 mil". The agent called
+    registrar_destinatario_combo twice (30000, then 25000, no name or phone) and replied "Anoté sus dos combos".
+  - The DB kept ONE recipient of 25,000: with neither name nor phone the function updated the latest recipient.
+  - Fix:
+    - 208 amended: crm_registrar_destinatario_combo gets `p_numero integer DEFAULT NULL`, the combo's 1-based number
+      in the order the customer said them. It picks the recipient at that position, or creates one. The signature
+      changes, so the ROLLBACK drops the 8-arg function.
+    - combo-model case 12 was RED ("function ... (..., integer, integer) does not exist"), then ALL PASS;
+      combo-deposit-calculator still ALL PASS. Applied to staging (old 7-arg function dropped).
+    - Cerebro gate106b (~/cerebro-fase1/pruebas/gate106b-combo-numero.py; backup
+      cerebro-staging-antes-106b-20261004T135931.json): the tool passes $8 numero, and the agent's tool line and
+      the Decisor note say to always send the combo's number. node --check passes on the tool replacement and the
+      Decisor; the tool SQL ran on staging.
+    - The test contact was reset for round 2.

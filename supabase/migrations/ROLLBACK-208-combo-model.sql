@@ -414,7 +414,7 @@ BEGIN
 END $function$;
 
 DROP FUNCTION public.crm_set_combo_costo(uuid, numeric);
-DROP FUNCTION public.crm_registrar_destinatario_combo(uuid, text, text, text, text, text, numeric);
+DROP FUNCTION public.crm_registrar_destinatario_combo(uuid, text, text, text, text, text, numeric, integer);
 
 ALTER TABLE remittance_admin_audit DROP CONSTRAINT remittance_admin_audit_action_chk;
 ALTER TABLE remittance_admin_audit ADD CONSTRAINT remittance_admin_audit_action_chk

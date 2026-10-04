@@ -194,9 +194,9 @@ BEGIN
     RAISE EXCEPTION 'case 10: the combos text is wrong: %', v_r.hechos; END IF;
 
   -- 11. Access: the bot function is for service_role only; the panel RPCs are for authenticated.
-  IF has_function_privilege('authenticated', 'crm_registrar_destinatario_combo(uuid,text,text,text,text,text,numeric)', 'EXECUTE')
-     OR has_function_privilege('anon', 'crm_registrar_destinatario_combo(uuid,text,text,text,text,text,numeric)', 'EXECUTE')
-     OR NOT has_function_privilege('service_role', 'crm_registrar_destinatario_combo(uuid,text,text,text,text,text,numeric)', 'EXECUTE') THEN
+  IF has_function_privilege('authenticated', 'crm_registrar_destinatario_combo(uuid,text,text,text,text,text,numeric,integer)', 'EXECUTE')
+     OR has_function_privilege('anon', 'crm_registrar_destinatario_combo(uuid,text,text,text,text,text,numeric,integer)', 'EXECUTE')
+     OR NOT has_function_privilege('service_role', 'crm_registrar_destinatario_combo(uuid,text,text,text,text,text,numeric,integer)', 'EXECUTE') THEN
     RAISE EXCEPTION 'case 11: wrong ACL on crm_registrar_destinatario_combo'; END IF;
   IF NOT has_function_privilege('authenticated', 'crm_set_combo_costo(uuid,numeric)', 'EXECUTE')
      OR has_function_privilege('anon', 'crm_set_combo_costo(uuid,numeric)', 'EXECUTE') THEN
@@ -204,6 +204,25 @@ BEGIN
   IF NOT has_function_privilege('authenticated', 'crm_operaciones_de_conversacion(uuid)', 'EXECUTE')
      OR has_function_privilege('anon', 'crm_operaciones_de_conversacion(uuid)', 'EXECUTE') THEN
     RAISE EXCEPTION 'case 11: wrong ACL on crm_operaciones_de_conversacion'; END IF;
+
+  -- 12. Owner test 2026-10-04: "dos combos, uno de 30 mil y otro de 25 mil", said before any name. The agent
+  -- numbers the combos in the order the customer said them; each call goes to its own recipient (it used to
+  -- overwrite the latest one, leaving one recipient of 25,000).
+  INSERT INTO contacts (user_id, account_id, phone, name) VALUES (v_user, v_acc, '5990020812', 'test208b') RETURNING id INTO v_ct;
+  INSERT INTO conversations (user_id, account_id, contact_id) VALUES (v_user, v_acc, v_ct) RETURNING id INTO v_conv;
+  PERFORM crm_registrar_destinatario_combo(v_conv, '', '', '', '', '', 30000, 1);
+  v_res := crm_registrar_destinatario_combo(v_conv, '', '', '', '', '', 25000, 2);
+  IF (SELECT string_agg(b.position || ':' || b.amount::int, ',' ORDER BY b.position)
+        FROM remittance_beneficiaries b JOIN remittance_operations o ON o.id = b.operation_id
+       WHERE o.conversation_id = v_conv AND b.status = 'vigente' AND b.beneficiary_type = 'combo') IS DISTINCT FROM '1:30000,2:25000'
+     OR (SELECT quoted_source_amount FROM remittance_operations WHERE conversation_id = v_conv AND service_type = 'combo') <> 55000 THEN
+    RAISE EXCEPTION 'case 12: two numbered combos must be two recipients totalling 55000, got %', v_res; END IF;
+  -- the data of combo 2 then lands on combo 2, and combo 1 keeps its amount
+  PERFORM crm_registrar_destinatario_combo(v_conv, 'Rosa Diaz', '53711122', 'Calle 2, Holguin', '', '', NULL, 2);
+  IF (SELECT string_agg(coalesce(b.name, '-') || ':' || b.amount::int, ',' ORDER BY b.position)
+        FROM remittance_beneficiaries b JOIN remittance_operations o ON o.id = b.operation_id
+       WHERE o.conversation_id = v_conv AND b.status = 'vigente' AND b.beneficiary_type = 'combo') IS DISTINCT FROM '-:30000,Rosa Diaz:25000' THEN
+    RAISE EXCEPTION 'case 12: the data of combo 2 went elsewhere'; END IF;
 
   RAISE EXCEPTION 'ALL PASS (rolled back on purpose)';
 END $$;

@@ -163,3 +163,17 @@ live staging test for n8n changes.
   invertido 11,088, retorno 1,312, snapshot cost 23.1 / sale 6,200 / cup_rate 240 (the owner set the cost in the
   Calculator). Pending: production (198-202, gate94 + gate95 produccion, app), then Yosvany 54c25086 (completed remesa
   without rows -> recharge + calculator line) once the production cost is set.
+- PRODUCTION (2026-10-04 ~00:50 UTC, owner go-ahead): pre-check — the 11 functions 198-202 replace have the same md5 in
+  production as in staging before 198 (rebuilt with ROLLBACK-202..198 in a forced-rollback transaction, the owner's
+  recharge test rows neutralised inside it); the 5 new functions absent. Backup produccion-20261004T004344Z.dump.
+  gate96-aplicar-db.py: ensayo "precio12400=6200 svc=RECARGA costo_col=1 open_ops=8" rolled back; aplicar {"r":"ok"},
+  198-202 registered (gate96); probar recarga-model, calculator-recarga, panel-recarga, recarga-numbers,
+  recarga-before-deposit, calculator-cash, manual-close-service, cash-phone-not-a-card, deal-free-money-rules,
+  cruce-ref-parecida ALL PASS; helper dropped; 0 fixture contacts. Notifier gate94 + Cerebro gate95 produccion applied
+  (offline run = staging; agent expressions parse; the tool uses the production credential). App 38bda2f (app code =
+  a43d66b) built with the production env (32 prod / 0 staging refs, 114 money-path tests, sha256 OK), deployed: BUILD_ID
+  Ca2Cqkhlifa2amG3PNoFE, anterior e59bc30, /login 200, online. privado/master -> 38bda2f (first push failed
+  transiently again; the retry went through). prod-build left at 38bda2f.
+  Pending: the owner sets "Recarga: costo (USDT)" in the production Calculator (23.1 or the admin's figure); then
+  Yosvany 54c25086 -> recharge + calculator line. Production has no confirmed Etecsa promotion today (the bot says
+  there are no recharges until an admin confirms one); cerebro_recarga_precio still prices a deposit from precio_recarga.

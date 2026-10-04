@@ -60,7 +60,7 @@ logic where feasible.
 - [x] T2 Panel UI + calculator UI (vitest), staging app deploy.
 - [x] T3 Cerebro gate106 (staging): agent tool registrar_combo, Decisor notes, verified line.
 - [x] T4 Notifier: combo completion message (staging).
-- [ ] T5 Owner test on staging.
+- [x] T5 Owner test on staging.
 - [ ] T6 Production after the go-ahead.
 
 ## Delivery
@@ -232,3 +232,12 @@ production goes per task after the owner's test.
   cerebro_registrar_deposito(conv, 55000, 'GYD', stage "Por verificar", 'SIMULADO: ...') returned "movido" onto combo
   dee3268d, which is now deposit_verification, 55,000, cost 40,000, 1 operation in the conversation (no remesa).
   Next: the owner verifies it in the panel, then completes it.
+- T5 PASSED (owner, 2026-10-04 22:07Z):
+  - Verified from the panel (human_forced_verification) -> the customer got "Su deposito de *55,000 GYD* ya fue
+    verificado. Una persona del equipo le llama para elegir los productos de su combo y, una vez enviado, le avisamos
+    por acá."
+  - Completed (human_delivery) -> "Listo, su combo ya fue enviado. Suele llegar entre 3 y 15 días, según la
+    provincia. Gracias por confiar en *Remesas Ya*."
+  - Calculator: one COMBO line, completed, facturado 55,000, invertido 40,000, retorno 15,000; no feed failure.
+  - The delivery time was generic because the stored address ("calle 40 entre 30/45, Santa Fe") names no province:
+    "Holguín" was only said in the audio.

@@ -90,7 +90,7 @@ silent mode. Cash delivery must be reviewed carefully before building it.
       Yosvany 54c25086, 6,200 GYD, closed manually 16:36 UTC, calculator_resolve_operation_service NULL -> no line).
       Rubislandi 30c87ea5 (1 card) reached it as CUP. Yosvany's was a RECHARGE (owner): it is fixed once recargas exist
       in the panel and the calculator (panel-other-services.md)
-- [ ] C resent receipt guard
+- [x] C resent receipt guard (staging; production pending go-ahead)
 
 ## Progress / evidence
 - A finding (corrects what I told the owner): rates are NOT set by WhatsApp any more. `tasas` became a VIEW over
@@ -398,3 +398,17 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   the production env (32 prod / 0 staging refs, 114 money-path tests, sha256 OK), deployed: BUILD_ID
   Ic9uCXHPhXz5eL8970NwW, anterior 9c85723, /login 200, online. privado/master -> e59bc30 (first push failed
   transiently; the retry went through). Cash plan items P1, P2, A8 DONE. Next: odd/tasks/vision-document-catalog.md.
+- C resent receipt guard (2026-10-04, staging): Bruce's case read in cerebro_lecturas_vision — original 29,000 GYD ref
+  20402130026768 date "2026-10-02 14:16" (verified); the resend in another photo 28,000 GYD ref 20321203276682 date
+  "2023-10-02 14:16" (year misread): same month-day hour:minute, amount within 10%, different image hash, so the hash
+  dedup let it through and it opened 591262ba. DB `203_resent_receipt.sql` (+ ROLLBACK), commit 0dbb526:
+  cerebro_comprobante_reenviado(phone, date, amount, ref) -> the original's comp_id (same customer by last 10 phone
+  digits, last 48 h, live operation, same month-day hour:minute any year, amount within 10%). Assertion
+  resent-receipt.sql (6 cases) RED -> GREEN. Production history check (read-only, receipts with dates): the rule matches
+  exactly ONE pair — Bruce's — no legitimate payment would have been taken for a resend. Cerebro staging
+  gate97-reenvio-comprobante.py: 'Dedup comprobantes' also asks cerebro_comprobante_reenviado (fecha/monto/referencia
+  from vision) and returns comp_id_original; 'Snapshot final' carries the original comp_id for a duplicate, so
+  'Contexto conversacion' reads the original remesa's state and the Decisor's existing duplicate branch answers from it;
+  nothing is registered. The real node query on a staging fixture: Bruce's resend -> duplicado true, comp_id_original =
+  the original; another minute -> not a duplicate; a card image -> not a duplicate. Snapshot parses. "Impossible date"
+  alone (no matching original) is not blocked: a real payment with a misread year must not be dropped.

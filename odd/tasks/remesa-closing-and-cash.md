@@ -90,7 +90,7 @@ silent mode. Cash delivery must be reviewed carefully before building it.
       Yosvany 54c25086, 6,200 GYD, closed manually 16:36 UTC, calculator_resolve_operation_service NULL -> no line).
       Rubislandi 30c87ea5 (1 card) reached it as CUP. Yosvany's was a RECHARGE (owner): it is fixed once recargas exist
       in the panel and the calculator (panel-other-services.md)
-- [x] C resent receipt guard (staging; production pending go-ahead)
+- [x] C resent receipt guard (staging and production, 2026-10-04)
 
 ## Progress / evidence
 - A finding (corrects what I told the owner): rates are NOT set by WhatsApp any more. `tasas` became a VIEW over
@@ -412,3 +412,10 @@ silent mode. Cash delivery must be reviewed carefully before building it.
   nothing is registered. The real node query on a staging fixture: Bruce's resend -> duplicado true, comp_id_original =
   the original; another minute -> not a duplicate; a card image -> not a duplicate. Snapshot parses. "Impossible date"
   alone (no matching original) is not blocked: a real payment with a misread year must not be dropped.
+- C PRODUCTION (2026-10-04 ~01:10 UTC, owner go-ahead "si dale"): cerebro_comprobante_reenviado absent before; backup
+  produccion-20261004T010850Z.dump; gate98-aplicar-db.py ensayo "fn=1 open_ops=8" rolled back, aplicar {"r":"ok"},
+  203 registered; resent-receipt, cruce-ref-parecida, deal-free-money-rules ALL PASS; helper dropped; 0 fixture
+  contacts. On real data cerebro_comprobante_reenviado('5927587287','2023-10-02 14:16',28000,...) returns Bruce's
+  original COMP-2735c37e242c46d273aa. Cerebro jEzlVLCLUaJhVwzs gate97 applied (backup cerebro-produccion-antes-97-*);
+  Snapshot parses; the production 'Dedup comprobantes' query and parameters equal staging's (the version tested on a
+  staging fixture). C DONE.

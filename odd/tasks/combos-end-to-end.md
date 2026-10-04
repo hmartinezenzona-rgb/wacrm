@@ -93,3 +93,25 @@ production goes per task after the owner's test.
       add-beneficiary, cash-delivery-data, read-rpc.
     - read-rpc's fixture used 'combo' as an example of an unlisted service; it is now 'visa'.
   - Gap until T1b: a combo deposit is still filed as a remesa, and closing a combo feeds no calculator line.
+- T1b (commit 39796eb, staging): 209_combo_deposit_and_calculator.
+  - Deposit routing:
+    - cerebro_combo_en_curso: an open combo, or typed `combos?` / "(mandar|enviar|...) comida"; the bare "comida" is
+      not used, so "comida de mi mama" stays a remesa.
+    - cerebro_registrar_deposito: the OPEN operation wins; combo only when a combo is open and no recarga is; with
+      text only, recarga wins as today.
+    - cerebro_riel_op, cerebro_minimo_gyd (25,000 per recipient), cerebro_objetivo_minimo and
+      cerebro_recruzar_depositos_tardios know 'combo'.
+  - Calculator:
+    - the service is COMBO, in GYD: facturado = the verified deposit (quoted_source_amount), invertido =
+      combo_costo_gyd, retorno = the difference;
+    - with no cost the line is verified_pending with missing_inputs {comboCosto};
+    - crm_set_combo_costo feeds a completed combo; re-setting voids and revives the same row, never a duplicate.
+  - Tests:
+    - combo-deposit-calculator.sql: RED ("case 1: ... got combo/collecting_information/30000;
+      remesa/deposit_verification/30000"), then ALL PASS (re-checked by the parent, with combo-model and
+      calculator-recarga).
+    - The writer re-ran 20 neighbours, all ALL PASS.
+    - Pre-existing failures, also failing without 209 (stale deal-based fixtures): deposit-review,
+      verify-deposit-status-drift, split-deposit-minimums.
+  - For T2: crm_resolve_pending_entry would ask for USDT rates on a COMBO line. The UI must not offer "resolve rates"
+    for COMBO; it points to the combo cost field instead.

@@ -34,6 +34,9 @@ BEGIN
                   WHERE o.conversation_id = v_conv AND o.service_type = 'recarga' AND o.status NOT IN ('completed', 'cancelled')
                     AND b.phone = '52345678' AND b.status = 'vigente') THEN
     RAISE EXCEPTION 'case 1: the upcoming promo did not open the recharge with its number'; END IF;
+  -- What the Cerebro reads to never promise it today: the booked date.
+  IF cerebro_recarga_anotada_para(v_conv) IS DISTINCT FROM to_char(v_hoy + 4, 'DD/MM') THEN
+    RAISE EXCEPTION 'case 1: anotada_para = %', cerebro_recarga_anotada_para(v_conv); END IF;
   UPDATE remittance_operations SET status = 'cancelled'
    WHERE conversation_id = v_conv AND service_type = 'recarga' AND status NOT IN ('completed', 'cancelled');
 
@@ -61,6 +64,8 @@ BEGIN
                   WHERE o.conversation_id = v_conv AND o.service_type = 'recarga' AND o.status NOT IN ('completed', 'cancelled')
                     AND b.phone = '52345678' AND b.status = 'vigente') THEN
     RAISE EXCEPTION 'case 4: the running promo did not open the recharge with its number'; END IF;
+  IF cerebro_recarga_anotada_para(v_conv) IS NOT NULL THEN
+    RAISE EXCEPTION 'case 4: a recharge during the promo is not booked ahead (got %)', cerebro_recarga_anotada_para(v_conv); END IF;
 
   RAISE EXCEPTION 'ALL PASS';
 END $$;

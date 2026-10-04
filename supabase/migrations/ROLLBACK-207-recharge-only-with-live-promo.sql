@@ -106,3 +106,4 @@ AS $function$
    ORDER BY s.nombre;
 $function$
 ;
+DROP FUNCTION IF EXISTS public.cerebro_recarga_anotada_para(uuid);

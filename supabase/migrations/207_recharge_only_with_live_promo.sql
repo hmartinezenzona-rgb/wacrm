@@ -129,3 +129,21 @@ AS $function$
    ORDER BY s.nombre;
 $function$
 ;
+
+-- (207) The date an open recharge is booked for, when it was taken ahead of a confirmed promo (no promo running today):
+-- the Cerebro reads it so it never promises that recharge for today or "en cuanto abramos". NULL otherwise.
+CREATE OR REPLACE FUNCTION public.cerebro_recarga_anotada_para(p_conv uuid)
+ RETURNS text
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  SELECT to_char(p.vigente_desde, 'DD/MM')
+    FROM cerebro_promo_proxima() p
+   WHERE NOT EXISTS (SELECT 1 FROM cerebro_promo_vigente())
+     AND EXISTS (SELECT 1 FROM remittance_operations o
+                  WHERE o.conversation_id = p_conv AND o.service_type = 'recarga'
+                    AND o.status NOT IN ('completed', 'cancelled'));
+$function$;
+REVOKE ALL ON FUNCTION public.cerebro_recarga_anotada_para(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.cerebro_recarga_anotada_para(uuid) TO service_role;

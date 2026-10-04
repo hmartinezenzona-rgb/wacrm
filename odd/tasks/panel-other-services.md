@@ -193,3 +193,8 @@ live staging test for n8n changes.
   and cash assertions ALL PASS. Cerebro staging gate99-recarga-audio.py: the tool passes p_abrir => true and the agent is
   told to call it as soon as it understands a recharge (numbers empty if not given yet). Test number reset for the
   owner's voice-note test.
+- Owner voice-note test on staging PASSED (2026-10-04 01:30 UTC): one audio only -> the agent called
+  registrar_numeros_recarga (p_abrir) and the recharge opened with both dictated numbers 53821203, 53821204 (audit
+  automation_recharge_numbers_registered); reply: "Anotado, dos recargas para los números ... cuesta 6,200 GYD cada una,
+  las dos por 12,400 GYD." A simulated 12,400 GYD deposit landed on it ('movido'), complete. Pending: production (204 +
+  gate99 produccion) with go-ahead.

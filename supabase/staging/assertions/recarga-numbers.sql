@@ -11,7 +11,8 @@ CREATE OR REPLACE FUNCTION pg_temp.conv_t201(p_tag text) RETURNS uuid
 LANGUAGE plpgsql AS $$
 DECLARE v_user uuid; v_acc uuid; v_ct uuid; v_conv uuid;
 BEGIN
-  SELECT user_id, account_id INTO v_user, v_acc FROM conversations LIMIT 1;
+  SELECT p.user_id, w.account_id INTO v_user, v_acc FROM whatsapp_config w JOIN profiles p ON p.account_id = w.account_id
+   ORDER BY (p.account_role = 'owner') DESC LIMIT 1;  -- not from conversations: staging can have none after a reset
   INSERT INTO contacts (user_id, account_id, phone, name) VALUES (v_user, v_acc, '59900201' || p_tag, 'test201' || p_tag) RETURNING id INTO v_ct;
   INSERT INTO conversations (user_id, account_id, contact_id) VALUES (v_user, v_acc, v_ct) RETURNING id INTO v_conv;
   RETURN v_conv;

@@ -1,13 +1,14 @@
 -- =====================================================================
--- 207 — A recharge opens only while an ETECSA promo is running
+-- 207 — A recharge opens only with a running or a confirmed upcoming ETECSA promo
 --
--- odd/tasks/recharge-only-with-live-promo.md. Owner test on staging, 2026-10-04: the promo started on the 8th, the
--- customer asked on the 4th, and the bot asked "¿Me pasa el número de Cuba a recargar?". The agent's tool (204,
--- p_abrir) opened a recharge with no promo check, and an open recharge makes the Decisor ask for the number.
---   * crm_registrar_numeros_recarga: with no open recharge and no promo running today, it opens nothing, saves
---     nothing, and returns what to tell the customer (the next promo's date and price, or an operator). An open
---     recharge keeps working as before.
---   * cerebro_servicio_get: the upcoming-promo text forbids asking for the number before the start date.
+-- odd/tasks/recharge-only-with-live-promo.md. Owner test on staging, 2026-10-04: with no promo running, the agent's
+-- tool (204, p_abrir) opened a recharge with no promo check, and an open recharge makes the Decisor ask for the number.
+-- Owner, same day: the admins often take the numbers before a confirmed promo starts; the customer pays then or on
+-- the day, it varies.
+--   * crm_registrar_numeros_recarga: with no promo running and none confirmed ahead, it opens nothing, saves nothing,
+--     and says to offer an operator. With a confirmed upcoming promo the recharge opens and its reply says it is
+--     booked for the start date (pay now or that day; never done before it). An open recharge keeps working.
+--   * cerebro_servicio_get: the upcoming-promo text lets the bot book it now, on the same terms.
 -- Both bodies are otherwise byte-for-byte the previous ones (see the ROLLBACK).
 -- Assertion: supabase/staging/assertions/recharge-only-with-live-promo.sql. Rollback: ROLLBACK-207-recharge-only-with-live-promo.sql.
 -- =====================================================================
@@ -42,14 +43,11 @@ BEGIN
     IF NOT (p_abrir OR cerebro_recarga_en_curso(p_conv)) THEN
       RETURN 'sin recarga en curso: no se guarda ningun numero de recarga';
     END IF;
-    -- (207) A new recharge opens only while a promo is running: before it, the bot was asking for the number days ahead
-    -- and the panel showed a recharge nobody could do. Nothing is saved; the reply says what to tell the customer.
-    IF NOT EXISTS (SELECT 1 FROM cerebro_promo_vigente()) THEN
-      RETURN 'NO HAY PROMOCION VIGENTE HOY: no se abre ninguna recarga y no se guarda ningun numero. PROHIBIDO pedir el numero de Cuba. '
-             || COALESCE((SELECT format('Dile que la proxima promocion empieza el %s (%s CUP, x%s, %s GYD) y que nos escriba ese dia para hacerla.',
-                                        to_char(p.vigente_desde, 'DD/MM'), p.min_cup, p.multiplicador, p.precio_gyd)
-                            FROM cerebro_promo_proxima() p),
-                         'No hay ninguna promocion anunciada: ofrece pasar con un operador.');
+    -- (207) A new recharge opens only with a promo running or a confirmed one ahead (booked for its start date): with
+    -- neither, the bot was asking for a number for a recharge nobody could do. Nothing is saved then.
+    IF NOT EXISTS (SELECT 1 FROM cerebro_promo_vigente()) AND NOT EXISTS (SELECT 1 FROM cerebro_promo_proxima()) THEN
+      RETURN 'NO HAY PROMOCION DE ETECSA, ni vigente ni anunciada: no se abre ninguna recarga y no se guarda ningun numero. '
+             || 'PROHIBIDO pedir el numero de Cuba. Ofrece pasar con un operador.';
     END IF;
     INSERT INTO remittance_operations (account_id, conversation_id, contact_id, status, service_type, source_currency, quoted_source_amount)
     SELECT v.account_id, v.id, v.contact_id, 'collecting_information', 'recarga', 'GYD', 0
@@ -83,7 +81,13 @@ BEGIN
   RETURN 'guardados ' || v_added || ' numero(s) de recarga nuevos; la recarga tiene ' || v_have || '.'
          || CASE WHEN coalesce(v_need, 0) = 0 THEN ''
                  WHEN v_have >= v_need THEN ' Numeros completos (' || v_have || ' de ' || v_need || ').'
-                 ELSE ' FALTA ' || (v_need - v_have) || ' numero(s) de recarga (son ' || v_need || ' recargas, un numero por recarga). Pideselo al cliente.' END;
+                 ELSE ' FALTA ' || (v_need - v_have) || ' numero(s) de recarga (son ' || v_need || ' recargas, un numero por recarga). Pideselo al cliente.' END
+         -- (207) Booked ahead of a confirmed promo: what to tell the customer about when it is done and paid.
+         || CASE WHEN EXISTS (SELECT 1 FROM cerebro_promo_vigente()) THEN ''
+                 ELSE COALESCE((SELECT format(' LA PROMOCION AUN NO EMPIEZA: la recarga queda ANOTADA PARA EL %s y se hace ese dia. '
+                                              || 'Si el cliente quiere pagar ya, puede; si no, paga ese dia: no le exijas el pago ahora. '
+                                              || 'PROHIBIDO decir que se hace hoy o en minutos.', to_char(p.vigente_desde, 'DD/MM'))
+                                  FROM cerebro_promo_proxima() p), '') END;
 END $function$
 ;
 CREATE OR REPLACE FUNCTION public.cerebro_servicio_get(p_busqueda text DEFAULT NULL::text)
@@ -100,7 +104,7 @@ AS $function$
                             v.min_cup, v.multiplicador, v.precio_gyd, to_char(v.vigente_hasta,'DD/MM'))
                 FROM cerebro_promo_vigente() v),
              -- 2) Promo CONFIRMADA que aun no empieza: se informa, NO se vende
-             (SELECT format('PROXIMA PROMOCION, EMPIEZA EL %s (en %s dias) y dura hasta el %s: se recargara el minimo de %s CUP y el cliente recibira x%s, precio %s GYD. HOY NO SE PUEDE APLICAR TODAVIA. Di la fecha y el precio si preguntan, y que nos escriba ese dia para hacerla. PROHIBIDO pedir el numero de Cuba antes de esa fecha. No cobres recargas hasta esa fecha.',
+             (SELECT format('PROXIMA PROMOCION, EMPIEZA EL %s (en %s dias) y dura hasta el %s: se recargara el minimo de %s CUP y el cliente recibira x%s, precio %s GYD. HOY NO SE PUEDE HACER TODAVIA. Di la fecha y el precio si preguntan. Si el cliente la quiere, se puede dejar ANOTADA desde ya: toma el numero de Cuba (registrar_numeros_recarga) y aclarale que se hace ese dia. Puede pagar ahora o ese dia, como prefiera: no le exijas el pago ahora. PROHIBIDO decir que se hace hoy o en minutos.',
                             to_char(p.vigente_desde,'DD/MM'), p.dias_para, to_char(p.vigente_hasta,'DD/MM'),
                             p.min_cup, p.multiplicador, p.precio_gyd)
                 FROM cerebro_promo_proxima() p),

@@ -40,3 +40,18 @@ Strict. SQL assertion (self-reverting DO block ending in RAISE EXCEPTION 'ALL PA
   recharge-only-with-live-promo.
 - T2 setup: the test contact was reset, which also removed stray op b5a6d565. The fake promo b4f92aa4 (8–11 Oct) is
   still confirmed. Waiting for the owner's re-test by audio.
+- Owner amendment, 2026-10-04: "muchas veces el admin toma los datos antes de que la promo este activa" and payment
+  "muchas veces paga en ese momento, otras no". 207 was amended (not yet in production):
+  - With a confirmed upcoming promo, the recharge opens with the numbers. The reply says it is booked for the start
+    date, that payment can be now or that day (never demanded now), and never "today" or "in minutes".
+  - With no promo running and none confirmed ahead, nothing opens and the bot offers an operator.
+  - cerebro_servicio_get's upcoming text says the recharge can be booked now on those terms; "No cobres recargas
+    hasta esa fecha" is gone.
+  - RED: "case 1: got NO HAY PROMOCION VIGENTE HOY..." Amended 207 re-applied to staging; ALL PASS.
+- The fixtures stopped depending on existing conversations. Staging had zero after the test-contact reset, so
+  recarga-by-audio, recarga-before-deposit and recarga-numbers failed on contacts.user_id.
+  - Those three take the user and account from whatsapp_config + profiles.
+  - recharge-only-with-live-promo creates its own conversation.
+  - All 5 recharge/promo assertions pass on staging.
+  - Known: calculator-recarga (not touched) still reads `FROM conversations LIMIT 1` and fails on staging while it has
+    no conversations ("account_id is required").

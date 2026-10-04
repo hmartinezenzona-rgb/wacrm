@@ -41,7 +41,7 @@ behaviour: gate harness (`~/cerebro-fase1/pruebas/gate7x`).
 - [x] T2 Merge functions with D1 semantics + assertions (179)
 - [x] T3 Tools rewired to the functions; prompt/descriptions say partial data is accepted; bot test
 - [x] T4 Deterministic nodes (`Registrar beneficiario auto`, `Registrar zelle auto`) use the functions (180)
-- [ ] T5 Deploy, watch the first real cases
+- [x] T5 Deploy, watch the first real cases (measured 2026-10-04; follow-ups below)
 
 ## Progress / evidence
 - 179 applied to production 2026-10-01. RED before (P1: phone-only block gave 0 rows), GREEN after: all 4
@@ -85,3 +85,37 @@ behaviour: gate harness (`~/cerebro-fase1/pruebas/gate7x`).
   phone in the burst; `Zelle completo?` on a holder OR an account; both registrars call the auto functions.
   Exactly 4 nodes changed, connections identical, active version a91aa13f-be25-4029-bcee-f4a4b2eacaa5.
   Rollback: `ROLLBACK-80-cerebro-20261001-200021.json` (n8n) then `ROLLBACK-180-...sql`.
+- T5 (measured 2026-10-04 00:07 UTC, production, window 2026-10-02 00:01 -> now, ~48 h; baseline = the 14 days
+  2026-09-17 -> 2026-10-01). NOTE: the window measures the CURRENT production state, which by then also had
+  184/185 (reparto guards), gate 82+ and migrations up to 197 deployed by another session, not only gates 78-80.
+  | metric | baseline 14 d | window |
+  | model turns (cerebro_telemetria_turno.modelo_llamado) | 905 | 96 |
+  | turns with a logged bot tool (proxy, see below) | 39 (4.3%) | 6 (6.3%) |
+  | registrar_reparto_multiple calls | 3 | 0 (no card reparto in the window) |
+  | auto node writes (Registrar beneficiario/zelle auto) | 250 | 15 (7 + 8) |
+  | bot "Anotado"/"queda anotado" without a write (-3/+1 min) | 32 of 114 (28%) | 1 of 8, not a real miss (0%) |
+  | leaked DSML text in bot messages | 21 | 0 |
+  | Cerebro executions in error/crashed | - | 0 |
+  - `model_calls` is NULL on every turn since 2026-09-29 23:44 (and on 699 of 905 baseline turns): the
+    baseline 3.4% metric is no longer measurable; the proxy is model turns whose execution wrote a bot tool row
+    in tool_execution_log (gestionar_beneficiario 2, registrar_beneficiario_zelle 3, marcar_destino_usd 1).
+    Telemetry fix pending (follow-up).
+  - The only "Anotado" without a write: "Anotado, Mahaica" (conversation 8d6d9758), the customer's town in
+    Guyana for a cash deposit; no tool exists for it. The other 7 had the write.
+  - Partial beneficiaries: 5 partial generations (2 Zelle account without holder, 1 card without phone, 1 cash
+    delivery without name/phone), on 4 operations; all 4 completed later and the operations closed.
+    Minor: one Zelle account stored as "+2392695584" by the bot tool and "2392695584" by the auto node
+    (cerebro_norm_cuenta_zelle keeps the "+"); the D1 rule then treats them as different accounts and can drop a
+    saved holder. Final data was right here. Follow-up: strip "+" (and a leading 1) in the normalizer.
+  - No errors of cerebro_guardar_* / cerebro_aplicar_reparto in the postgres logs of the window.
+  - Per path (beneficiary writes in the window): bot tools 5 calls (gestionar 2, zelle 3, reparto 0); auto nodes
+    15 calls; repartos detector (5YseDUEC5IAaiofF, every 2 min, 748 executions, writes marked
+    remittance_beneficiaries.source = 'reparto_auto' via cerebro_aplicar_reparto) wrote 2 generations on ONE
+    operation (972718ea, a USD cash delivery, efectivo_usd), no card reparto. In that case the detector wrote
+    first (18:08, amount only); the auto node (18:27, lone phone) and the bot (20:47, name + phone) logged with
+    operation_id NULL and stored nothing on it; the detector stored name + phone at 04:04 the next day. No
+    overwrite and no duplicate, but the bot tools did not cover the cash recipient.
+  - Recommendation (nothing retired): keep the repartos detector for now: zero card repartos to compare, and it
+    was the only path that stored a cash-delivery recipient. Rescatar DSML: 0 leaks since the official DeepSeek
+    node, candidate to retire after a longer window. Merge beneficiario partial memory: still feeds the auto
+    nodes; retire only after the auto nodes read from remittance_beneficiaries.

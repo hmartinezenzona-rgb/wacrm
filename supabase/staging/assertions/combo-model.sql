@@ -64,10 +64,20 @@ BEGIN
   IF v_res NOT LIKE '%el minimo por combo es 25,000 GYD%' THEN RAISE EXCEPTION 'case 2: the minimum rule is not stated: %', v_res; END IF;
   IF v_res LIKE '%contacto%' THEN RAISE EXCEPTION 'case 2: a contact phone must not be asked for: %', v_res; END IF;
   IF crm_beneficiarios_completos(v_op) THEN RAISE EXCEPTION 'case 2: below the minimum is not complete'; END IF;
-  -- 2b. With a valid amount the recipient is complete WITHOUT a second contact phone.
+  -- 2b. A valid amount, but the address names no province (owner 2026-10-04: the delivery time and the admin need
+  --     it): still incomplete, and the reply asks for the province.
   v_res := crm_registrar_destinatario_combo(v_conv, NULL, '53871234', NULL, NULL, NULL, 25000);
+  IF v_res NOT LIKE '%FALTA:%provincia%de Maria Perez%' OR crm_beneficiarios_completos(v_op) THEN
+    RAISE EXCEPTION 'case 2b: an address without province must be incomplete and ask for it, got %', v_res; END IF;
+  -- 2c. With the province in the address it is complete, WITHOUT a second contact phone.
+  v_res := crm_registrar_destinatario_combo(v_conv, NULL, '53871234', 'Calle 10 #45 e/ 3ra y 5ta, Vedado, La Habana', NULL, NULL, NULL);
   IF v_res NOT LIKE 'Datos completos. Total a pagar: 25,000 GYD%' OR NOT crm_beneficiarios_completos(v_op) THEN
-    RAISE EXCEPTION 'case 2b: complete without a contact phone, got %', v_res; END IF;
+    RAISE EXCEPTION 'case 2c: complete with province and without a contact phone, got %', v_res; END IF;
+  IF cerebro_combo_provincia('calle 40 entre 30/45, Santa Fe') IS NOT NULL
+     OR cerebro_combo_provincia('Reparto Pedro Diaz, Holguín') IS DISTINCT FROM 'Holguín'
+     OR cerebro_combo_provincia('Vedado, LA HABANA') IS DISTINCT FROM 'La Habana'
+     OR cerebro_combo_provincia('Santiago de Cuba') IS DISTINCT FROM 'Santiago de Cuba' THEN
+    RAISE EXCEPTION 'case 2c: province reading is wrong'; END IF;
 
   -- 3. Completeness false, then true: the contact phone and a valid amount close the gap. A phone with +53 and
   --    separators is stored normalised. quoted_source_amount follows the amount.
@@ -111,7 +121,7 @@ BEGIN
   IF v_n <> 2 THEN RAISE EXCEPTION 'case 6: the panel must list the combo with 2 recipients, got %', v_n; END IF;
   SELECT * INTO v_r FROM crm_operaciones_de_conversacion(v_conv)
    WHERE operation_id = v_op AND beneficiary_name = 'Maria Perez';
-  IF v_r.beneficiary_type <> 'combo' OR v_r.beneficiary_phone <> '53871234' OR v_r.beneficiary_address <> 'Calle 10 #45 e/ 3ra y 5ta, Vedado'
+  IF v_r.beneficiary_type <> 'combo' OR v_r.beneficiary_phone <> '53871234' OR v_r.beneficiary_address <> 'Calle 10 #45 e/ 3ra y 5ta, Vedado, La Habana'
      OR v_r.beneficiary_reference <> 'Frente a la bodega azul' OR v_r.beneficiary_contact_phone <> '52223344'
      OR v_r.beneficiary_amount <> 25000 OR v_r.beneficiary_currency <> 'GYD' OR v_r.operation_beneficiaries_complete IS NOT TRUE
      OR v_r.operation_combo_costo_gyd IS NOT NULL THEN

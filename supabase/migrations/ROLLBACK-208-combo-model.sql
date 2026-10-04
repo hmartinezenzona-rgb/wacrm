@@ -439,3 +439,5 @@ UPDATE public.cerebro_servicios
        requiere_humano = true,
        actualizado = '2026-08-09T23:44:05.82854+00:00'
  WHERE clave = 'combos';
+
+DROP FUNCTION IF EXISTS public.cerebro_combo_provincia(text);

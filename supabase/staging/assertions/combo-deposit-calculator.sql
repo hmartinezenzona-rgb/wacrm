@@ -41,7 +41,7 @@ BEGIN
 
   -- 1. A deposit with an open combo lands on the combo: no new remesa, service_type stays combo.
   v_conv := pg_temp.conv_t209('01', ARRAY['hola', 'quiero mandar un combo']);
-  PERFORM crm_registrar_destinatario_combo(v_conv, 'Maria Perez', '53871234', 'Calle 10 #45, Vedado', 'Frente a la bodega azul', '53999888', 30000);
+  PERFORM crm_registrar_destinatario_combo(v_conv, 'Maria Perez', '53871234', 'Calle 10 #45, Vedado, La Habana', 'Frente a la bodega azul', '53999888', 30000);
   SELECT id INTO v_op FROM remittance_operations WHERE conversation_id = v_conv AND service_type = 'combo';
   IF v_op IS NULL THEN RAISE EXCEPTION 'case 1: fixture combo did not open'; END IF;
   PERFORM cerebro_registrar_deposito(v_conv, 30000, 'GYD', c_verif, NULL, NULL);
@@ -130,7 +130,7 @@ BEGIN
 
   -- 9. Cost entered BEFORE the combo is completed: no line yet; completing feeds it already priced.
   v_conv2 := pg_temp.conv_t209('09', ARRAY['quiero un combo']);
-  PERFORM crm_registrar_destinatario_combo(v_conv2, 'Luis Mora', '53222333', 'Calle 1 #2', 'Esquina', '53444555', 26000);
+  PERFORM crm_registrar_destinatario_combo(v_conv2, 'Luis Mora', '53222333', 'Calle 1 #2, Holguin', 'Esquina', '53444555', 26000);
   PERFORM cerebro_registrar_deposito(v_conv2, 26000, 'GYD', c_verif, NULL, NULL);
   SELECT id INTO v_op FROM remittance_operations WHERE conversation_id = v_conv2 AND service_type = 'combo';
   PERFORM crm_set_combo_costo(v_op, 15000);

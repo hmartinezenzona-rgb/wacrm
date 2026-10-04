@@ -241,3 +241,17 @@ production goes per task after the owner's test.
   - Calculator: one COMBO line, completed, facturado 55,000, invertido 40,000, retorno 15,000; no feed failure.
   - The delivery time was generic because the stored address ("calle 40 entre 30/45, Santa Fe") names no province:
     "Holguín" was only said in the audio.
+- Owner, 2026-10-04: "agrega la provincia y después pásalo a producción".
+  - 208 amended: cerebro_combo_provincia(direccion) returns the province named or NULL (accent and case insensitive;
+    La Habana checked before Santiago). A combo address without a province is incomplete, and the bot function asks
+    for "provincia de la direccion". The combos hechos say "direccion ... CON LA PROVINCIA". ROLLBACK-208 drops the
+    new function.
+  - combo-model cases 2b and 2c: 2b RED ("got Datos completos ..." for an address without a province), then ALL PASS.
+    The combo-deposit-calculator fixtures got a province; it passes, and so does combo-ignores-remesa-writers.
+  - gate106e (~/cerebro-fase1/pruebas/gate106e-combo-provincia.py; backups cerebro-staging-antes-106e-*,
+    notificador-staging-antes-107c-*):
+    - the Decisor note and falta text, and the tool's direccion parameter (a province said apart is joined to the
+      address);
+    - the notifier asks for "la provincia de la direccion" when the address names none.
+    - Checks: node --check on the Decisor and the tool; the notifier harness gives "nos falta la provincia de la
+      direccion de Ana Perez".

@@ -286,3 +286,14 @@ production goes per task after the owner's test.
     the buttons are hidden.
   - 12 stale staging assertions (see round 2).
   - Outside the 24 h window the completion notice uses the "remesa" Meta template.
+- [ ] T7 Edit and move a combo recipient from the panel (owner, 2026-10-04: "sigue con editar destinatarios de combo").
+  - DB 212_combo_edit (+ ROLLBACK, staging, schema_migrations 212):
+    - crm_corregir_beneficiario accepts address, reference and contact_phone (combo; the address also for cash);
+      refuses card, Zelle, delivery method, currency and type changes on a combo recipient; carries every untouched
+      column over (this also fixes a cash recipient losing its address and ID photo); keeps a combo's total = the sum.
+    - crm_reasignar_beneficiario moves a combo recipient only between combos, with every column; both totals follow.
+    - Assertion combo-edit.sql (7 cases): RED ("case 1: fields lost on correction ... address null"), then ALL PASS.
+      combo-model, combo-deposit-calculator and combo-ignores-remesa-writers pass with and without 212.
+    - The old 'corrections' assertion fails identically with and without 212 (stale deal fixture), so case 7 covers a
+      plain remesa card correction.
+  - UI: next.

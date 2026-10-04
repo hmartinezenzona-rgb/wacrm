@@ -198,3 +198,9 @@ live staging test for n8n changes.
   automation_recharge_numbers_registered); reply: "Anotado, dos recargas para los números ... cuesta 6,200 GYD cada una,
   las dos por 12,400 GYD." A simulated 12,400 GYD deposit landed on it ('movido'), complete. Pending: production (204 +
   gate99 produccion) with go-ahead.
+- Audio-only recharge PRODUCTION (2026-10-04 ~01:45 UTC, owner go-ahead): crm_registrar_numeros_recarga(uuid,text) and
+  cerebro_recarga_en_curso md5 production = staging pre-204; backup produccion-20261004T014428Z.dump; gate100-aplicar-db.py
+  ensayo "fn=p_conv uuid, p_texto text, p_abrir boolean" rolled back, aplicar {"r":"ok"}, 204 registered;
+  recarga-by-audio, recarga-before-deposit, recarga-numbers, deal-free-money-rules ALL PASS; helper dropped (the first
+  drop call hit an MCP session error and was re-run); 0 fixture contacts. Cerebro gate99 produccion applied; agent
+  expressions parse.

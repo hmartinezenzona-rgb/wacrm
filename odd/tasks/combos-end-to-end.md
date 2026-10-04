@@ -145,3 +145,6 @@ production goes per task after the owner's test.
     "entre 3 y 15 días, según la provincia" when mixed or unknown.
   - Offline harness (scratchpad harness107.js): all combo cases are right, and the remesa and recarga messages are
     unchanged. Outside the 24 h window the Meta template remesa_completada is still the fallback, as for recarga.
+- Staging app deployed: release 1499140, BUILD_ID lO3gSzKXhTtAVTLM9B6V3, served by crm.onlinefreedom.site;
+  anterior -> 2b9306a; 0 production refs in the bundle. The prod-build worktree was restored to 30f4d75. The test
+  contact was reset. Waiting for the owner's T5 test.

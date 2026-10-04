@@ -110,7 +110,7 @@ BEGIN
   INSERT INTO remittance_operations (id, account_id, conversation_id, status, service_type)
   VALUES (gen_random_uuid(), v_account_id, v_conv_ambigua_id, 'cancelled', 'remesa') RETURNING id INTO v_op3_cancelled;
   INSERT INTO remittance_operations (id, account_id, conversation_id, status, service_type)
-  VALUES (gen_random_uuid(), v_account_id, v_conv_ambigua_id, 'collecting_information', 'combo') RETURNING id INTO v_op4_combo;
+  VALUES (gen_random_uuid(), v_account_id, v_conv_ambigua_id, 'collecting_information', 'visa') RETURNING id INTO v_op4_combo;  -- (208) was 'combo', which the panel now lists; 'visa' is still a non-listed service
 
   -- op1 gets two 'vigente' beneficiaries (two distinct blocks, so the
   -- (operation_id, block_index, position) unique index is untouched).

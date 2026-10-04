@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/dashboard/skeleton";
 import { readPrefetchedConversationOperations } from "@/lib/remittance-operations/panel-prefetch";
 import type { ConversationOperationsRead, RemittanceOperationRead } from "@/lib/remittance-operations/types";
 import { RemittanceOperationCard } from "./remittance-operation-card";
+import { otherOpenOperationsFor } from "./reassign-targets";
 
 /** How long to wait after a `remittance_operations` change before
  *  refetching — the recalc/touch triggers can fire several UPDATEs on the
@@ -37,24 +38,6 @@ type PanelState =
   | { status: "loading" }
   | { status: "error" }
   | { status: "loaded"; data: ConversationOperationsRead };
-
-/** The RPC never returns these (see types.ts) — same defensive exclusion
- *  as `remittance-operation-card.tsx`. */
-const TERMINAL_STATUSES: ReadonlyArray<string> = ["completed", "cancelled"];
-
-/** Other open operations of the same conversation, offered as
- *  reassignment targets for `operation`'s beneficiaries. */
-function otherOpenOperationsFor(
-  operation: RemittanceOperationRead,
-  operations: RemittanceOperationRead[],
-): { id: string; label: string }[] {
-  return operations
-    .filter((candidate) => candidate.id !== operation.id && !TERMINAL_STATUSES.includes(candidate.status))
-    .map((candidate) => ({
-      id: candidate.id,
-      label: `${candidate.quotedSourceAmount ?? "?"} ${candidate.sourceCurrency ?? ""} → ${candidate.destinationCurrency ?? ""}`,
-    }));
-}
 
 /**
  * Container: fetches `GET /api/remittance-operations` for the active

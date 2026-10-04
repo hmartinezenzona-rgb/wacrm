@@ -336,12 +336,178 @@ describe("RemittanceOperationCard combo", () => {
     await act(async () => root.unmount());
   });
 
-  it("hides edit and move on recipients (the correction RPC does not carry the combo fields)", async () => {
-    const { node, root } = await render(comboOp(), { otherOpenOperations: [{ id: "op-2", label: "x" }] });
+  describe("edit and move a recipient", () => {
+    const P = en.Inbox.operationsPanel;
+    const click = (el: Element) => act(async () => el.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    const field = (node: Element, id: string) => node.querySelector<HTMLInputElement>(`#inline-${id}-c1`)!;
+    async function openEdit(op = comboOp()) {
+      const rendered = await render(op);
+      await click(rendered.node.querySelectorAll(`button[aria-label="${P.editBeneficiary}"]`)[0]!);
+      return rendered;
+    }
 
-    expect(button(node, "Edit")).toBeNull();
-    expect(button(node, "Move")).toBeNull();
-    await act(async () => root.unmount());
+    it("shows Edit on every combo recipient, and Move when another open combo exists", async () => {
+      const { node, root } = await render(comboOp(), { otherOpenOperations: [{ id: "op-2", label: "x" }] });
+
+      expect(node.querySelectorAll(`button[aria-label="${P.editBeneficiary}"]`)).toHaveLength(2);
+      expect(node.querySelectorAll(`button[aria-label="${P.moveBeneficiary}"]`)).toHaveLength(2);
+      await act(async () => root.unmount());
+    });
+
+    it("shows no Move without another open combo", async () => {
+      const { node, root } = await render(comboOp());
+
+      expect(button(node, P.editBeneficiary)).not.toBeNull();
+      expect(button(node, P.moveBeneficiary)).toBeNull();
+      await act(async () => root.unmount());
+    });
+
+    it("a single combo recipient is editable from the section header", async () => {
+      const op = comboOp();
+      op.beneficiaries = [op.beneficiaries[0]!];
+      const { node, root } = await render(op);
+      await click(button(node, P.editBeneficiary)!);
+
+      expect(field(node, "amount").value).toBe("25000");
+      await act(async () => root.unmount());
+    });
+
+    it("a viewer (canEdit false) gets no Edit", async () => {
+      const { node, root } = await render(comboOp(), { canEdit: false });
+
+      expect(button(node, P.editBeneficiary)).toBeNull();
+      await act(async () => root.unmount());
+    });
+
+    it("pre-fills name, phone, address, reference, contact phone and amount", async () => {
+      const { node, root } = await openEdit();
+
+      expect(field(node, "name").value).toBe("Ana Lopez");
+      expect(field(node, "phone").value).toBe("52345678");
+      expect(field(node, "address").value).toBe("Calle 1 #2, Habana");
+      expect(field(node, "reference").value).toBe("frente a la bodega");
+      expect(field(node, "contact-phone").value).toBe("53456789");
+      expect(field(node, "amount").value).toBe("25000");
+      expect(node.querySelector(`#inline-card-c1`)).toBeNull();
+      expect(node.textContent).toContain(P.comboMinimumHint);
+      expect(node.textContent).toContain(P.comboProvinceHint);
+      await act(async () => root.unmount());
+    });
+
+    it("sends only the changed keys", async () => {
+      corregirBeneficiario.mockResolvedValue({ ok: true, id: "n1" });
+      const { node, root, onChanged } = await openEdit();
+      await act(async () => setValue(field(node, "name"), "  Ana Maria Lopez "));
+      await act(async () => setValue(field(node, "address"), "Calle 5, Matanzas"));
+      await act(async () => setValue(field(node, "amount"), "27000"));
+      await click(buttonByText(node, P.save));
+
+      expect(corregirBeneficiario).toHaveBeenCalledWith("c1", {
+        name: "Ana Maria Lopez",
+        address: "Calle 5, Matanzas",
+        amount: 27000,
+      });
+      expect(onChanged).toHaveBeenCalled();
+      await act(async () => root.unmount());
+    });
+
+    it("clearing the contact phone sends null; clearing the reference sends null", async () => {
+      corregirBeneficiario.mockResolvedValue({ ok: true, id: "n1" });
+      const { node, root } = await openEdit();
+      await act(async () => setValue(field(node, "contact-phone"), ""));
+      await act(async () => setValue(field(node, "reference"), ""));
+      await click(buttonByText(node, P.save));
+
+      expect(corregirBeneficiario).toHaveBeenCalledWith("c1", { contact_phone: null, reference: null });
+      await act(async () => root.unmount());
+    });
+
+    it("a new contact phone is sent as digits only", async () => {
+      corregirBeneficiario.mockResolvedValue({ ok: true, id: "n1" });
+      const { node, root } = await openEdit();
+      await act(async () => setValue(field(node, "contact-phone"), "+53 5555 5555"));
+      await click(buttonByText(node, P.save));
+
+      expect(corregirBeneficiario).toHaveBeenCalledWith("c1", { contact_phone: "5355555555" });
+      await act(async () => root.unmount());
+    });
+
+    it.each([
+      ["name", "  ", P.cannotBeEmpty],
+      ["phone", "123", P.invalidPhone],
+      ["phone", "", P.cannotBeEmpty],
+      ["contact-phone", "123", P.invalidPhone],
+      ["amount", "0", P.invalidAmount],
+      ["amount", "abc", P.invalidAmount],
+    ])("blocks an invalid %s (%j) without calling the API", async (id, value, message) => {
+      corregirBeneficiario.mockClear();
+      const { node, root } = await openEdit();
+      await act(async () => setValue(field(node, id), value));
+      await click(buttonByText(node, P.save));
+
+      expect(corregirBeneficiario).not.toHaveBeenCalled();
+      expect(node.querySelector('[role="alert"]')!.textContent).toBe(message);
+      await act(async () => root.unmount());
+    });
+
+    it("an amount below 25,000 only hints, it does not block", async () => {
+      corregirBeneficiario.mockResolvedValue({ ok: true, id: "n1" });
+      const { node, root } = await openEdit();
+      await act(async () => setValue(field(node, "amount"), "20000"));
+      await click(buttonByText(node, P.save));
+
+      expect(corregirBeneficiario).toHaveBeenCalledWith("c1", { amount: 20000 });
+      await act(async () => root.unmount());
+    });
+
+    it("an address with no province still saves (hint only)", async () => {
+      corregirBeneficiario.mockResolvedValue({ ok: true, id: "n1" });
+      const { node, root } = await openEdit();
+      await act(async () => setValue(field(node, "address"), "Calle 5"));
+      await click(buttonByText(node, P.save));
+
+      expect(corregirBeneficiario).toHaveBeenCalledWith("c1", { address: "Calle 5" });
+      await act(async () => root.unmount());
+    });
+
+    it("no changes closes the form without calling the API", async () => {
+      corregirBeneficiario.mockClear();
+      const { node, root } = await openEdit();
+      await click(buttonByText(node, P.save));
+
+      expect(corregirBeneficiario).not.toHaveBeenCalled();
+      expect(field(node, "name")).toBeNull();
+      await act(async () => root.unmount());
+    });
+
+    it("shows the API error and stays open", async () => {
+      corregirBeneficiario.mockResolvedValue({ ok: false, status: 400, error: "amount must be greater than 0" });
+      const { node, root } = await openEdit();
+      await act(async () => setValue(field(node, "amount"), "30000"));
+      await click(buttonByText(node, P.save));
+
+      expect(node.querySelector('[role="alert"]')!.textContent).toBe("amount must be greater than 0");
+      expect(field(node, "amount")).not.toBeNull();
+      await act(async () => root.unmount());
+    });
+
+    it("a remesa recipient's edit form has no combo-only fields and sends the same payload", async () => {
+      corregirBeneficiario.mockResolvedValue({ ok: true, id: "ben-1" });
+      const { node, root } = await render(
+        operation({ beneficiaries: [beneficiary({ cardNumber: "9205123412349412", phone: "52345678" })] }),
+      );
+      await click(button(node, P.editBeneficiary)!);
+
+      expect(node.querySelector("#inline-address-ben-1")).toBeNull();
+      expect(node.querySelector("#inline-reference-ben-1")).toBeNull();
+      expect(node.querySelector("#inline-contact-phone-ben-1")).toBeNull();
+      expect(node.textContent).not.toContain(P.comboMinimumHint);
+      await act(async () => setValue(node.querySelector<HTMLInputElement>("#inline-phone-ben-1")!, "53456789"));
+      await click(buttonByText(node, P.save));
+
+      expect(corregirBeneficiario).toHaveBeenCalledWith("ben-1", { phone: "53456789" });
+      await act(async () => root.unmount());
+    });
   });
 
   it.each([

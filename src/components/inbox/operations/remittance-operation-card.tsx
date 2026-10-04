@@ -17,6 +17,7 @@ import type {
 import { OperationCorrectionForm } from "./operation-correction-form";
 import { BeneficiaryAddControl } from "./beneficiary-add-control";
 import { BeneficiaryReassignControl } from "./beneficiary-reassign-control";
+import { ComboBeneficiaryEditFields } from "./combo-beneficiary-edit-fields";
 import { ComboCostField } from "./combo-cost-field";
 import { CompleteTransferContainer } from "./complete-transfer-container";
 import { CopyChip } from "./copy-chip";
@@ -355,10 +356,7 @@ export function RemittanceOperationCard({
     hideEdit = false,
   ) =>
     editable &&
-    // A combo recipient is read-only here: `crm_corregir_beneficiario` and
-    // `crm_reasignar_beneficiario` copy only the legacy columns, so a correction or a
-    // move would drop its address, reference and contact phone.
-    !isCombo(operation) && (
+    (
       <>
         {!hideEdit && (
           <Button
@@ -577,7 +575,13 @@ export function RemittanceOperationCard({
                         </div>
                       )}
 
-                      {isEditingBeneficiary ? (
+                      {isEditingBeneficiary && isComboRecipient ? (
+                        <ComboBeneficiaryEditFields
+                          beneficiary={beneficiary}
+                          onCancel={() => setOpenForm(null)}
+                          onSaved={handleChanged}
+                        />
+                      ) : isEditingBeneficiary ? (
                         <BeneficiaryEditFields
                           beneficiary={beneficiary}
                           amount={amount}

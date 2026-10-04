@@ -391,6 +391,7 @@
       "comboCountOne": "{count} combo",
       "comboCountMany": "{count} combos",
       "comboMinimumHint": "Minimum 25,000 GYD per combo",
+      "comboProvinceHint": "Include the Cuban province in the address",
       "comboCost": {
         "label": "Combo cost (GYD)",
         "clear": "Clear",

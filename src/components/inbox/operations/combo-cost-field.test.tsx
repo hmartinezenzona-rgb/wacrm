@@ -108,6 +108,26 @@ describe("ComboCostField", () => {
     await act(async () => root.unmount());
   });
 
+  // Owner test 2026-10-04: costs are typed the way GYD amounts are written, with thousands separators.
+  it.each([
+    ["40,000", 40000],
+    ["40.000", 40000],
+    ["40 000", 40000],
+    ["1,250,000", 1250000],
+    ["40000", 40000],
+    ["18000.5", 18000.5],
+    ["18000,5", 18000.5],
+  ])("reads %j as %d", async (typed, expected) => {
+    setComboCosto.mockResolvedValue({ ok: true, costGyd: expected });
+    const { node, root } = await render();
+
+    await act(async () => setValue(input(node), typed));
+    await act(async () => buttonByText(node, en.Inbox.operationsPanel.save)!.click());
+
+    expect(setComboCosto).toHaveBeenCalledWith("op-1", expected);
+    await act(async () => root.unmount());
+  });
+
   it("accepts zero", async () => {
     setComboCosto.mockResolvedValue({ ok: true, costGyd: 0 });
     const { node, root } = await render();

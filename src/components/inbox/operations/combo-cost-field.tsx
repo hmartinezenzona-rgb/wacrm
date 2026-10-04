@@ -10,6 +10,17 @@ import { setComboCosto } from "@/lib/remittance-operations/commands";
 /** Same ceiling `crm_set_combo_costo` enforces (exclusive). */
 const MAX_COST_GYD = 1e9;
 
+/**
+ * Reads a cost the way GYD amounts are typed: "40,000", "40.000" and "40 000" are forty thousand (groups of three
+ * after the first separator); otherwise one "," or "." is the decimal mark ("18000,5"). NaN when it is not a number.
+ */
+export function parseCostInput(typed: string): number {
+  const trimmed = typed.trim();
+  if (/^\d{1,3}([.,\s]\d{3})+$/.test(trimmed)) return Number(trimmed.replace(/[.,\s]/g, ""));
+  if (/^\d+([.,]\d+)?$/.test(trimmed)) return Number(trimmed.replace(",", "."));
+  return Number.NaN;
+}
+
 interface ComboCostFieldProps {
   operationId: string;
   /** The saved cost, `null` until entered. */
@@ -46,8 +57,7 @@ export function ComboCostField({ operationId, costGyd, completed, onSaved }: Com
 
   function handleSave(event: FormEvent) {
     event.preventDefault();
-    const trimmed = value.trim();
-    const parsed = trimmed === "" ? Number.NaN : Number(trimmed);
+    const parsed = parseCostInput(value);
     if (!Number.isFinite(parsed) || parsed < 0 || parsed >= MAX_COST_GYD) {
       setError(t("comboCost.invalid"));
       return;

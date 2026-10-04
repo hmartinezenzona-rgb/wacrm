@@ -297,3 +297,14 @@ production goes per task after the owner's test.
     - The old 'corrections' assertion fails identically with and without 212 (stale deal fixture), so case 7 covers a
       plain remesa card correction.
   - UI: next.
+  - UI (commits b1b2840 API, 5532b5c panel, 1056b49 unused-import cleanup):
+    - The beneficiary PATCH route whitelists keys and validates address, reference and contact_phone.
+    - combo-beneficiary-edit-fields.tsx: the combo edit form sends only the changed keys; the 25,000 and province
+      hints never block a save.
+    - Edit and Move are shown on combo cards. reassign-targets.ts offers a combo only other open combos, and a
+      non-combo only non-combos.
+    - Tests: the writer saw RED first; operations and API tests pass 35 files / 578 (re-checked by the parent);
+      npm test 150 files / 1915; typecheck clean; lint shows only the known notifications/page.tsx error after the
+      cleanup.
+  - Staging app: release 1056b49, BUILD_ID mvVL43PN8mSJv4YNJ2iKU, served. The test contact was reset. Waiting for
+    the owner's test.

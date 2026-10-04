@@ -203,3 +203,17 @@ production goes per task after the owner's test.
     and lint clean.
   - Staging app redeployed: release 719bc2c, BUILD_ID BkSoDd41i4eJBQMfZSgHf, served by the domain.
   - The owner has not yet said which error text appeared. If it still fails, ask for it.
+- T5 round 3 (2026-10-04 21:48–21:51Z), conversation OK:
+  - Audio "two combos, 30k and 25k" -> one message asking for name, phone, address and reference.
+  - The customer gave one name and a shared address ("sirve para ambos") -> the bot confirmed both combos with Juan
+    Pérez's data and asked only for the contact phone.
+  - "Datos completos": both combos listed, total 55,000 GYD, MMG account, products chosen after payment in a call.
+    No repeated questions, no stray rows (210 holds).
+  - Both combos are under Juan Pérez because the customer gave a single name; the bot said so explicitly.
+- Owner: "al dar en save hace como que guarda y no sale de esa opción".
+  - The cost WAS saved (combo_costo_gyd 40000, audit human_combo_cost_set at 21:58:03, :07 and :20), but the field
+    stayed an open form with no confirmation.
+  - Fix (commit f4a05b8): a saved cost shows as "Combo cost (GYD): 40,000 GYD" with Change and Clear; Change opens the
+    form with Cancel; a save closes the form and toasts "Combo cost saved".
+  - Tests: 3 new cases RED, then 336/336 operations tests; typecheck and lint clean.
+  - Staging release f4a05b8, BUILD_ID _SaPYQyRHTK5-gSWF_Mns, served.

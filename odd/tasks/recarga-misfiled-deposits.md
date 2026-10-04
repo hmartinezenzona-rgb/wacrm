@@ -55,3 +55,14 @@ deposit filed as what it is, not as a recharge.
   - gate109 produccion published (backup cerebro-produccion-antes-109-20261004T170019.json).
   - Yilian's conversation still reads "recarga en curso" because her misfiled op 89f6df7e is still OPEN as a recarga
     (the open-op rule, 204). T4 fixes that.
+- T4a DATA FIX op 89f6df7e (owner go-ahead 2026-10-04 "sí, corrígela así"), production:
+  - One DO block acting as the owner (jwt sub ca797265), guarded on the expected state (recarga /
+    ready_to_transfer / 83,200 / zelle).
+  - The zelle beneficiary's name 'Si Liudis Aguilar Rojas' became 'Liudis Aguilar Rojas', with amount 320 USD. The
+    operation became service_type remesa, destination 320 USD, with a human_correction audit row.
+  - Then crm_cerrar_operacion_manual(p_notify false): completed, closed_manually, muted.
+  - A dry run (forced exception) showed the same result first.
+  - After: calculator ZELLE completed, facturado 83,200, invertido 76,800, retorno 6,400 (20 GYD/USD, as the other
+    Zelle lines). cerebro_recarga_en_curso(Yilian) = false. No message to the customer (0 messages, 0 outbox rows
+    after 23:06Z).
+- T4b op 12510beb (Yusmila, 15,500 GYD, 2026-09-23): still open; waiting for the owner to say what it was.

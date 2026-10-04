@@ -32,9 +32,9 @@ Strict TDD is on (global CLAUDE.md). Runners: SQL assertions (self-reverting DO 
       Assertion `supabase/staging/assertions/promo-notice.sql`: RED on staging before, then GREEN.
 - [x] T2 CRM: a pinned promo banner in the dashboard shell while a promo is pending, with Confirm and Discard (reusing
       /api/promotions/etecsa). Vitest RED → GREEN; deploy to the staging app.
-- [ ] T3 n8n: a "[STAGING] Vigilante - promociones de Etecsa" copy on the staging DB credential, every 3 h. The same
+- [x] T3 n8n: a "[STAGING] Vigilante - promociones de Etecsa" copy on the staging DB credential, every 3 h. The same
       3 h change for prod is prepared and waits for the go-ahead.
-- [ ] T4 Staging end to end: inject a fake upcoming promo through cerebro_promo_revision; the owner sees the
+- [x] T4 Staging end to end: inject a fake upcoming promo through cerebro_promo_revision; the owner sees the
       banner, confirms it, and the bot announces it when the test number asks about recharges.
 - [ ] T5 Production, after the owner's go-ahead: 206, the app, and the 3 h cadence.
 
@@ -57,3 +57,10 @@ Strict TDD is on (global CLAUDE.md). Runners: SQL assertions (self-reverting DO 
   fake promo through cerebro_promo_revision: 600-1250 CUP x5, 8–11 Oct -> "detectada, pendiente de confirmar",
   notice to donhdoll@gmail.com (the staging owner). Before confirming, proxima and vigente are empty.
   Waiting for the owner to confirm in the CRM and test the bot.
+- T3: execution 326237 did finish (success at 17:17:02Z); staging promo_etecsa_ultima_revision moved to
+  2026-10-04 17:19:54Z, so the staging copy reads etecsa.cu and writes to the staging DB.
+- T4 PASSED (owner, 2026-10-04): the banner was confirmed from the CRM (confirmada_por 'crm' at 17:24:39Z); proxima
+  returns the promo (dias_para 4). The test number asked by audio and the bot answered "Hoy no hay recargas, solo se
+  hacen cuando hay promoción de Etecsa. La próxima empieza el 8 de octubre, se recarga el mínimo de 600 CUP y su
+  familiar recibe el x5, por 6,200 GYD." Out-of-scope wording seen in the same reply: "Buenos días" at 13:25 Guyana
+  time, and it asks for the Cuban number although the promo starts on the 8th.

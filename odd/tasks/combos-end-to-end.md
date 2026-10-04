@@ -69,3 +69,27 @@ is well over ~400 authored lines; per the existing practice on this branch, each
 production goes per task after the owner's test.
 
 ## Progress
+- T1a (commit b7b721d, staging): 208_combo_model.
+  - Data model:
+    - remittance_beneficiaries gets 'combo' type, `reference` and `contact_phone`; name, phone, address and amount
+      (GYD) reuse the existing columns.
+    - remittance_operations.combo_costo_gyd.
+  - Bot function crm_registrar_destinatario_combo(conv, nombre, telefono, direccion, referencia, telefono_contacto,
+    monto_gyd) (service_role): opens or updates the combo, partial data allowed, panel lock respected,
+    quoted_source_amount = sum, Spanish "FALTA ... / minimo 25,000 / Datos completos. Total a pagar" replies.
+  - Completeness rule in crm_beneficiarios_completos.
+  - Panel:
+    - crm_operaciones_de_conversacion lists combos and adds beneficiary_reference, beneficiary_contact_phone and
+      operation_combo_costo_gyd (dropped and recreated with the same ACL);
+    - crm_agregar_beneficiario accepts combos;
+    - the crm_cerrar_operacion_manual picker accepts 'combo';
+    - crm_set_combo_costo(op, costo) is new (owner/admin).
+  - cerebro_servicios 'combos': new hechos and notas, requiere_humano false.
+  - Tests:
+    - combo-model.sql: RED ("function crm_registrar_destinatario_combo ... does not exist"), then ALL PASS
+      (re-checked by the parent).
+    - Neighbours ALL PASS: panel-recarga, recarga-model, recarga-numbers, recarga-before-deposit, recarga-by-audio,
+      recharge-only-with-live-promo, manual-close-service, panel-closing-actions, panel-cash-recipient,
+      add-beneficiary, cash-delivery-data, read-rpc.
+    - read-rpc's fixture used 'combo' as an example of an unlisted service; it is now 'visa'.
+  - Gap until T1b: a combo deposit is still filed as a remesa, and closing a combo feeds no calculator line.

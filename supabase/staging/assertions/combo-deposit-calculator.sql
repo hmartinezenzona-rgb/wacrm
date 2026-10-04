@@ -116,6 +116,13 @@ BEGIN
   SELECT * INTO v_e FROM remittance_calculator_entries WHERE operation_id = v_op AND status <> 'void';
   IF v_e.status IS DISTINCT FROM 'verified_pending' OR v_e.missing_inputs IS DISTINCT FROM ARRAY['comboCosto'] THEN
     RAISE EXCEPTION 'case 8: clearing the cost leaves the line pending, got % %', v_e.status, v_e.missing_inputs; END IF;
+  -- 8b. A pending COMBO line is resolved by its cost in the panel, never with rates (crm_resolve_pending_entry refuses).
+  BEGIN
+    PERFORM crm_resolve_pending_entry(v_e.id, '{"usdt_buy_gyd": 230}'::jsonb, 'assert combo resolve');
+    RAISE EXCEPTION 'case 8b: a COMBO line was resolved with rates';
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    IF SQLERRM NOT LIKE '%combo%' THEN RAISE EXCEPTION 'case 8b: refused for another reason: %', SQLERRM; END IF;
+  END;
   PERFORM crm_set_combo_costo(v_op, 0);
   SELECT * INTO v_e FROM remittance_calculator_entries WHERE operation_id = v_op AND status <> 'void';
   IF v_e.status IS DISTINCT FROM 'completed' OR v_e.retorno_gyd IS DISTINCT FROM 30000 THEN

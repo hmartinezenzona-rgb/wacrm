@@ -23,7 +23,7 @@ customer's greeting. That is reported to the owner and not changed here.
   keeps working as before. cerebro_servicio_get's upcoming text forbids asking for the number before the start date.
   Assertion `supabase/staging/assertions/recharge-only-with-live-promo.sql`: RED, then GREEN on staging.
 - T2 Staging: cancel the stray op b5a6d565, reset the test contact, owner re-test by audio.
-- T3 Production after the owner's go-ahead.
+- [x] T3 Production after the owner's go-ahead.
 
 ## TDD
 Strict. SQL assertion (self-reverting DO block ending in RAISE EXCEPTION 'ALL PASS').
@@ -79,3 +79,18 @@ Strict. SQL assertion (self-reverting DO block ending in RAISE EXCEPTION 'ALL PA
   - Seen, not changed: the recharge opened on the first audio, a mere question (204's tool rule "llamala EN CUANTO
     entiendas que quiere RECARGAS"). A customer who only asks leaves an empty recharge open in the panel. The paid
     path (deposit verified on a booked recharge) was not exercised.
+- T3 PRODUCTION (owner go-ahead 2026-10-04 "si, pásalo a producción"):
+  - DB backup ~/wacrm-respaldos/produccion-20261004T180553Z.dump (sha256 be766117bed6e876...; 2132 list entries).
+  - Pre-check: crm_registrar_numeros_recarga b3a6b11d..., cerebro_servicio_get 9a9dc7fe..., cerebro_recarga_anotada_para
+    absent. Temp helper zz_wu5b_exec created.
+  - ~/cerebro-fase1/pruebas/gate105-aplicar-db.py: ensayo md5s equal to staging (382750b1... / 7aedef56... /
+    6ceb1015...); aplicar OK (schema_migrations 20261004180855 207_recharge_only_with_live_promo).
+  - probar: recharge-only-with-live-promo, recarga-by-audio, recarga-before-deposit, recarga-numbers and promo-notice
+    are all ALL PASS (rolled back; no leftover test contacts or promos).
+  - Helper dropped. cerebro_recarga_anotada_para ACL: service_role only.
+  - Cerebro prod jEzlVLCLUaJhVwzs: gate104 produccion (backup cerebro-produccion-antes-104-20261004T121037.json). The
+    dry run's Decisor and agent expressions parse; published (versionId == activeVersionId); ctx, cotiz, decisor and
+    agente markers present.
+  - Production has no promo today (proxima 0, vigente 0): the bot says there is no confirmed promo and offers an
+    operator; no recharge opens.
+  - Pending: the first real recharge chat in production after the change.

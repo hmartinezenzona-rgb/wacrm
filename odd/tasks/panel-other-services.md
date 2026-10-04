@@ -27,13 +27,13 @@ Recargas first, end to end; then the other services one by one in the order the 
 ## Tasks
 - [x] S0 Explore recargas today: who creates the 22 recarga operations and with what data; the recargas service text the
       bot reads; how the manual calculator prices RECARGA / SALDO_MOVIL; what the bot does today when asked for one.
-- [ ] S1 Owner decisions for recargas (one question at a time): data to collect (number(s) to recharge, plan/amount,
+- [x] S1 Owner decisions for recargas (one question at a time): data to collect (number(s) to recharge, plan/amount,
       operator), price and cost for the calculator, what "completed" means, the customer messages.
-- [ ] S2 DB: the recarga's data on the operation (beneficiary row type 'recarga' or equivalent), the panel RPC lists
+- [x] S2 DB: the recarga's data on the operation (beneficiary row type 'recarga' or equivalent), the panel RPC lists
       non-remesa services, the calculator maps a recarga to RECARGA with its price/cost; Yosvany 54c25086 re-filed
       as a recarga and fed. Assertion first.
-- [ ] S3 Bot (Cerebro): a tool to register the recarga data and the "what is missing" context, like efectivo_usd.
-- [ ] S4 Panel: a recarga card (number, plan, amount) with the same actions (verify, complete with bell, close
+- [x] S3 Bot (Cerebro): a tool to register the recarga data and the "what is missing" context, like efectivo_usd.
+- [x] S4 Panel: a recarga card (number, plan, amount) with the same actions (verify, complete with bell, close
       manually, delete).
 - [ ] S5 Staging test with the owner, then production.
 - [ ] S6.. Next services (combos, Mexico, visa, traduccion) in the owner's order, same steps.
@@ -156,3 +156,10 @@ live staging test for n8n changes.
   deal-free-money-rules, deposit-path-without-deals, cash-phone-not-a-card, partial-beneficiary-tools/-auto, recharge,
   cross and cutover assertions ALL PASS. The owner's test conversation: its recharge opened with both numbers through
   crm_registrar_numeros_recarga (what the bot now does on the next number).
+- Owner test on staging PASSED (2026-10-04 00:10-00:25 UTC): the deposit (simulated with cerebro_registrar_deposito,
+  the owner had no 12,400 receipt) landed on the open recharge ('movido'); force-verify (bell on) -> "Su deposito de
+  *12,400 GYD* ya fue verificado. En cuanto quede hecha su recarga le avisamos por aquí."; complete transfer with a
+  screenshot per number (2 images) -> "Listo, su recarga ya fue realizada."; calculator RECARGA 2 REC, facturado 12,400,
+  invertido 11,088, retorno 1,312, snapshot cost 23.1 / sale 6,200 / cup_rate 240 (the owner set the cost in the
+  Calculator). Pending: production (198-202, gate94 + gate95 produccion, app), then Yosvany 54c25086 (completed remesa
+  without rows -> recharge + calculator line) once the production cost is set.

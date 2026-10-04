@@ -31,6 +31,10 @@ $$;
 DO $$
 DECLARE v_conv uuid;
 BEGIN
+  -- (207) A recharge opens only while a promo is running: these cases run with one running promo.
+  INSERT INTO promo_etecsa (min_cup, max_cup, multiplicador, vigente_desde, vigente_hasta, titulo, url, texto_crudo, huella, estado)
+  VALUES (600, 1250, 5, (now() AT TIME ZONE 'America/Guyana')::date - 1, (now() AT TIME ZONE 'America/Guyana')::date + 2,
+          'ASSERT VIGENTE', 'https://assert.invalid/v', 'assert', md5('assert-vigente-204'), 'confirmada');
   -- 1. Without the agent's word, an audio-only chat is not a recharge (unchanged).
   v_conv := pg_temp.conv_t204('01');
   PERFORM crm_registrar_numeros_recarga(v_conv, '53821230');

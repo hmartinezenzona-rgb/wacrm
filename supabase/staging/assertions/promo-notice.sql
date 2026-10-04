@@ -19,6 +19,8 @@ BEGIN
     FROM profiles WHERE account_id = v_account AND account_role IN ('owner', 'admin');
   IF v_account IS NULL OR coalesce(cardinality(v_admins), 0) = 0 THEN
     RAISE EXCEPTION 'setup: no business account or no owner/admin (account %)', v_account; END IF;
+  -- Other promos (real or left over from staging tests) must not compete with the ones registered here.
+  UPDATE promo_etecsa SET estado = 'descartada' WHERE estado IN ('confirmada', 'detectada');
 
   -- 1. An upcoming promo is registered and notifies exactly the business owner and admins.
   v_res := cerebro_promo_revision(jsonb_build_object(

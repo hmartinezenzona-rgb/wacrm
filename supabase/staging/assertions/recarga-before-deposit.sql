@@ -31,6 +31,10 @@ $$;
 DO $$
 DECLARE v_conv uuid; v_out record;
 BEGIN
+  -- (207) A recharge opens only while a promo is running: these cases run with one running promo.
+  INSERT INTO promo_etecsa (min_cup, max_cup, multiplicador, vigente_desde, vigente_hasta, titulo, url, texto_crudo, huella, estado)
+  VALUES (600, 1250, 5, (now() AT TIME ZONE 'America/Guyana')::date - 1, (now() AT TIME ZONE 'America/Guyana')::date + 2,
+          'ASSERT VIGENTE', 'https://assert.invalid/v', 'assert', md5('assert-vigente-202'), 'confirmada');
   -- 1. The owner's test: the numbers arrive (the auto registration runs with one of them) -> a recharge opens with BOTH.
   v_conv := pg_temp.conv_t202('01', ARRAY['Hola buenos días', 'Para poner unas recargas', 'A dos números', '53821230', '53456789']);
   SELECT * INTO v_out FROM cerebro_guardar_beneficiario_auto(v_conv, '', '53821230', '', '53821230', 'test202');

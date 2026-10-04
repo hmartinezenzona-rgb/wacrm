@@ -182,3 +182,14 @@ live staging test for n8n changes.
   method, 6,200 GYD, closed manually 2026-10-03) was re-filed service_type 'recarga' (audited human_correction) and fed
   with calculator_feed_operation: RECARGA 1 REC, facturado 6,200, invertido 5,544, retorno 656 (cost 23.1, sale 6,200,
   rate 240), dated 2026-10-03. Recharges DONE. Next per the owner: the next service; also the audio-only gap and C.
+- Audio-only recharge (2026-10-04, staging): voice-note transcriptions are not stored anywhere in the DB (messages
+  content_text is empty for audio; the turn audit keeps only counts), so the typed-keyword rule cannot see them.
+  Chosen: the agent's word (it understands the audio and already quotes the recharge) rather than persisting
+  transcripts. DB `204_recarga_by_audio.sql` (+ ROLLBACK), commit 9eeae4e: crm_registrar_numeros_recarga(conv, text,
+  p_abrir boolean DEFAULT false) — p_abrir opens the recharge without a typed keyword and even with no number;
+  cerebro_recarga_en_curso is also true while a recharge is open (so the deposit lands on it). Assertion
+  recarga-by-audio.sql (audio-only chat: nothing opens without the agent; the agent opens it with dictated numbers;
+  the deposit lands on it; opened empty before numbers and the deposit still lands) RED -> GREEN; recharge, deposit
+  and cash assertions ALL PASS. Cerebro staging gate99-recarga-audio.py: the tool passes p_abrir => true and the agent is
+  told to call it as soon as it understands a recharge (numbers empty if not given yet). Test number reset for the
+  owner's voice-note test.

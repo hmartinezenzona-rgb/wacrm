@@ -7,7 +7,7 @@ import { useCan } from "@/hooks/use-can";
 import { createClient } from "@/lib/supabase/client";
 import { Skeleton } from "@/components/dashboard/skeleton";
 import { readPrefetchedConversationOperations } from "@/lib/remittance-operations/panel-prefetch";
-import type { ConversationOperationsRead, RemittanceOperationRead } from "@/lib/remittance-operations/types";
+import type { ConversationOperationsRead } from "@/lib/remittance-operations/types";
 import { RemittanceOperationCard } from "./remittance-operation-card";
 import { otherOpenOperationsFor } from "./reassign-targets";
 

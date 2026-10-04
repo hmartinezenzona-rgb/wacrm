@@ -163,3 +163,30 @@ production goes per task after the owner's test.
       the Decisor note say to always send the combo's number. node --check passes on the tool replacement and the
       Decisor; the tool SQL ran on staging.
     - The test contact was reset for round 2.
+- T5 owner test, round 2 (2026-10-04 21:30–21:41Z), FAILED: "es repetitivo, me pidió teléfonos que ya tiene".
+  - Data: the typed phones 53458767, 53821069 and 53845687 went through the typed-number auto registration
+    (cerebro_guardar_beneficiario_auto -> cerebro_escribir_bloque_beneficiario). Each became a 'cuban_card'
+    generation on the combo and turned the combo recipients 'reemplazado' (11 rows, one vigente cuban_card).
+  - The bot also asked one field at a time, saved the shared address and the single contact phone on combo 1 only,
+    and asked for them again.
+  - Fix DB 210_combo_ignores_remesa_writers (+ ROLLBACK, staging, schema_migrations 210):
+    - guardar_beneficiario_auto writes nothing while a combo is open;
+    - the shared writer never writes on a combo and never opens a remesa next to an open combo.
+    - Assertion combo-ignores-remesa-writers.sql: RED ("cuban_card:-:vigente,combo:Juan Perez:reemplazado,..."),
+      then ALL PASS.
+  - Neighbours (beneficiary, reparto, cash, recarga, combo, zelle): run on staging before and after 210 in one
+    transaction, with identical results. Passing: add-beneficiary, beneficiario-parcial-reset,
+    beneficiary-touches-operation, the calculator-* and cash-* suites (except cash-delivery-activation), panel-*,
+    partial-beneficiary-tools, the recarga-* suite, recharge-only-with-live-promo, reparto-tool-usd-rail,
+    deal-free-money-rules, feed-from-beneficiaries, the three combo-* suites.
+  - Pre-existing failures, identical without 210 (stale fixtures on a staging with no conversations or deals;
+    follow-up): beneficiary-proofs, cash-delivery-activation, deal-free-beneficiary-writers,
+    deal-free-panel-verification, partial-beneficiary-auto, reparto-auto, reparto-destino-node-adapters,
+    reparto-guards, reparto-keeps-zelle, reparto-usd-card-rail, zelle-confirmed-name, zelle-remainder-amount.
+    beneficiary-matcher and zelle-holder-name print no result line.
+  - Cerebro gate106c (backup cerebro-staging-antes-106c-*.json):
+    - ask for ALL missing data of ALL combos in ONE message;
+    - a datum the customer says is shared is saved on EACH combo (one call per number);
+    - never ask again for something the tool does not list as missing.
+    - The Decisor passes node --check.
+  - The test contact was reset for round 3.

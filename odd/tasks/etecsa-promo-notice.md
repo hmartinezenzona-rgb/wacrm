@@ -36,7 +36,7 @@ Strict TDD is on (global CLAUDE.md). Runners: SQL assertions (self-reverting DO 
       3 h change for prod is prepared and waits for the go-ahead.
 - [x] T4 Staging end to end: inject a fake upcoming promo through cerebro_promo_revision; the owner sees the
       banner, confirms it, and the bot announces it when the test number asks about recharges.
-- [ ] T5 Production, after the owner's go-ahead: 206, the app, and the 3 h cadence.
+- [x] T5 Production, after the owner's go-ahead: 206, the app, and the 3 h cadence.
 
 ## Progress
 - 2026-10-04: investigation done (Engram cerebro/etecsa-monitor-2026-10-04).
@@ -64,3 +64,16 @@ Strict TDD is on (global CLAUDE.md). Runners: SQL assertions (self-reverting DO 
   hacen cuando hay promoción de Etecsa. La próxima empieza el 8 de octubre, se recarga el mínimo de 600 CUP y su
   familiar recibe el x5, por 6,200 GYD." Out-of-scope wording seen in the same reply: "Buenos días" at 13:25 Guyana
   time, and it asks for the Cuban number although the promo starts on the 8th.
+- T5 PRODUCTION (owner go-ahead 2026-10-04 "si, pásalo a producción"):
+  - DB: backup ~/wacrm-respaldos/produccion-20261004T173058Z.dump (sha256 2c3c5a1c40c6da66...; 2132 list entries).
+    Pre-check: cerebro_promo_registrar md5 bd3c0b56... (the ROLLBACK body). Temp helper zz_wu5b_exec created;
+    ~/cerebro-fase1/pruebas/gate103-aplicar-db.py ensayo OK (resulting md5 e27483c9644c325dea2f81bf4910cb7d, equal to
+    staging), aplicar OK (schema_migrations 20261004173334 206_promo_notice), probar promo-notice ALL PASS (rolled
+    back, no leftover rows or notifications). Helper dropped.
+  - App: release 30f4d75 (app code = 2b9306a), BUILD_ID hMGliubkrNojPobe_JSSr, desplegar-wacrm-produccion.sh; pm2 cwd
+    is the new release; the domain serves the BUILD_ID; the banner text is in the served chunks; anterior -> 38bda2f.
+    privado/master and the feature branch are at 30f4d75.
+  - n8n: vk6aEa4bOZtl5xSz "Cada 3 horas" published (activeVersionId eb8da02b); rollback
+    ~/cerebro-fase1/ROLLBACK-vigilante-etecsa-antes-3h-20261004.json (versionId ca7d5557, 12 h).
+- Left for later: staging fake promo b4f92aa4 is still confirmed on staging (harmless after 11 Oct). The bot wording
+  seen in T4 ("Buenos días" in the afternoon; it asks for the number before the promo starts) is out of scope.

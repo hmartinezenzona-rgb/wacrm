@@ -61,7 +61,7 @@ logic where feasible.
 - [x] T3 Cerebro gate106 (staging): agent tool registrar_combo, Decisor notes, verified line.
 - [x] T4 Notifier: combo completion message (staging).
 - [x] T5 Owner test on staging.
-- [ ] T6 Production after the go-ahead.
+- [x] T6 Production after the go-ahead.
 
 ## Delivery
 Work-unit commits on feat/port-chat-operations-calculator (the branch the deployments are built from). The forecast
@@ -255,3 +255,34 @@ production goes per task after the owner's test.
     - the notifier asks for "la provincia de la direccion" when the address names none.
     - Checks: node --check on the Decisor and the tool; the notifier harness gives "nos falta la provincia de la
       direccion de Ana Perez".
+- T6 PRODUCTION (owner go-ahead 2026-10-04 "si, agrégalo y después pásalo a producción"):
+  - Pre-check: the md5 of every production function redefined by 208/209/210 matched its rollback's pre-state
+    (calculator_feed_operation fb4e6c34, cerebro_registrar_deposito 97db313e, crm_beneficiarios_completos 05378a3b,
+    crm_operaciones_de_conversacion 42946a21, crm_resolve_pending_entry 46b8332a, cerebro_escribir_bloque_beneficiario
+    35235cb3, cerebro_guardar_beneficiario_auto 36e289dc, ...). The new functions were absent.
+  - Backup ~/wacrm-respaldos/produccion-20261004T221233Z.dump (sha256 bd9f58072bd4d561...; 2134 list entries).
+  - Temp helper zz_wu5b_exec. ~/cerebro-fase1/pruebas/gate108-aplicar-db.py (BUNDLE 208+209+210, one transaction):
+    - ensayo state fingerprint equal to staging: functions 03c6bfab1487f3ef067bf6af9420576e, svc 254cb3ab..., chk
+      43412d26...;
+    - aplicar OK (schema_migrations 20261004221516/17/18); the post-apply fingerprint is identical.
+    - A second "ensayo" run by mistake on top failed ("constraint ... exists") and rolled back, with no effect.
+  - probar in production, all passing (ALL PASS, or "ROLLED BACK ON PURPOSE (no failure above)" for the NOTICE-style
+    ones): combo-model, combo-deposit-calculator, combo-ignores-remesa-writers, recarga-model, recarga-numbers,
+    recarga-before-deposit, recarga-by-audio, recharge-only-with-live-promo, promo-notice, calculator-recarga,
+    calculator-cash, panel-recarga, add-beneficiary, read-rpc, manual-close-service, panel-closing-actions,
+    resolve-pending, cash-delivery-data, panel-cash-recipient, partial-beneficiary-tools, deal-free-money-rules,
+    deposit-path-without-deals.
+  - Helper dropped; no leftover test contacts or promos; 0 combo operations; combos requiere_humano false.
+  - Cerebro prod jEzlVLCLUaJhVwzs: gate106, 106b, 106c and 106d/106e; notifier prod wGud0KGR6eMqqfMQ: gate107,
+    107b (in 106d) and 107c (in 106e). All published (versionId == activeVersionId), with backups *-produccion-antes-*.
+    The final Decisor, agent expressions and tool replacement parse (node --check). The production notifier code in
+    the offline harness gives the expected combo, remesa and recarga messages.
+  - App: release 0f008f6 (build 7x2atcONwuYPS5YaVtRTJ, 114 money-path tests passed) via desplegar-wacrm-produccion.sh;
+    pm2 cwd is the new release; the domain serves the BUILD_ID; the combo-cost code is in the served chunks; anterior
+    -> 30f4d75.
+  - Pending: the first real combo chat in production.
+- Follow-ups (not done):
+  - Editing or moving a combo recipient from the panel: crm_corregir/reasignar_beneficiario drop the combo fields, so
+    the buttons are hidden.
+  - 12 stale staging assertions (see round 2).
+  - Outside the 24 h window the completion notice uses the "remesa" Meta template.

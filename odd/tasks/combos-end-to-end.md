@@ -54,12 +54,12 @@ vitest (`npm test`). Cerebro/notifier: dry run + `node --check` of the edited co
 logic where feasible.
 
 ## Tasks
-- [ ] T1 DB `208_combo_model.sql` (+ ROLLBACK, assertion combo-model.sql): beneficiary type and columns, open/save
+- [x] T1 DB `208_combo_model.sql` (+ ROLLBACK, assertion combo-model.sql): beneficiary type and columns, open/save
       function, completeness, deposit routing, panel RPCs, cost field, calculator COMBO feed, service text. Apply to
       staging; neighbour assertions re-run.
-- [ ] T2 Panel UI + calculator UI (vitest), staging app deploy.
-- [ ] T3 Cerebro gate106 (staging): agent tool registrar_combo, Decisor notes, verified line.
-- [ ] T4 Notifier: combo completion message (staging).
+- [x] T2 Panel UI + calculator UI (vitest), staging app deploy.
+- [x] T3 Cerebro gate106 (staging): agent tool registrar_combo, Decisor notes, verified line.
+- [x] T4 Notifier: combo completion message (staging).
 - [ ] T5 Owner test on staging.
 - [ ] T6 Production after the go-ahead.
 
@@ -115,3 +115,33 @@ production goes per task after the owner's test.
       verify-deposit-status-drift, split-deposit-minimums.
   - For T2: crm_resolve_pending_entry would ask for USDT rates on a COMBO line. The UI must not offer "resolve rates"
     for COMBO; it points to the combo cost field instead.
+- T2 (commits 2ffbde7 panel, 3dfd20c cost field + API, 9430c22 calculator view):
+  - The combo card shows recipients with all their fields, the add form (25,000 hint, not blocking), the
+    manual-close picker 'combo', and the owner/admin cost field (also on History cards).
+  - The cost API is POST /api/remittance-operations/{id}/combo-cost with body {costGyd|null}.
+  - The calculator shows "Falta el costo del combo: anótalo en el panel de la conversación" and never offers rate
+    resolution for COMBO.
+  - Writer's checks: RED observed first for every new test; typecheck clean; lint shows only the pre-existing
+    notifications/page.tsx error (re-checked by the parent); npm test 149 files / 1873 tests passed.
+  - Not built: editing or moving a combo recipient. crm_corregir_beneficiario and crm_reasignar_beneficiario only copy
+    the legacy columns and would drop address, reference and contact_phone, so both buttons are hidden on combo cards
+    (follow-up). The panel labels are English, like the rest of the panel (en.json is the only locale).
+- Parent review fix (commit after 9430c22): crm_resolve_pending_entry refuses COMBO lines (22023), added to 209 with
+  its rollback. combo-deposit-calculator case 8b was RED ("refused for another reason: still missing required
+  rate(s)"), then ALL PASS. resolve-pending (10 expectations) and calculator-cash still pass.
+- [x] T3 Cerebro gate106 on staging (~/cerebro-fase1/pruebas/gate106-cerebro-combo.py; backup
+  cerebro-staging-antes-106-20261004T132309.json):
+  - tool registrar_destinatario_combo (amount digits only, so "30.000" = 30000);
+  - Contexto combo_en_curso and combo_completo;
+  - Decisor combo note, falta, sabeDestino, viaSinDefinir, deposit-state wording, no remesa-amount parsing in combo
+    messages;
+  - the agent's tool line and verified line ("una persona del equipo le llama para elegir los productos...").
+  - Checks: node --check on the Decisor, agent expressions and tool replacement; the Contexto SQL and the tool SQL ran
+    on staging.
+- [x] T4 Notifier gate107 on staging (gate107-notificador-combo.py; backup notificador-staging-antes-107-*.json):
+  - Leer secreto adds reference, contact_phone and amount.
+  - ready_to_transfer: the combo "falta" list, or the call line.
+  - completed: "Listo, su combo ya fue enviado. Suele llegar en X a Y días" by the province in the address, or
+    "entre 3 y 15 días, según la provincia" when mixed or unknown.
+  - Offline harness (scratchpad harness107.js): all combo cases are right, and the remesa and recarga messages are
+    unchanged. Outside the 24 h window the Meta template remesa_completada is still the fallback, as for recarga.

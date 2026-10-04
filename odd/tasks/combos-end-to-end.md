@@ -217,3 +217,18 @@ production goes per task after the owner's test.
     form with Cancel; a save closes the form and toasts "Combo cost saved".
   - Tests: 3 new cases RED, then 336/336 operations tests; typecheck and lint clean.
   - Staging release f4a05b8, BUILD_ID _SaPYQyRHTK5-gSWF_Mns, served.
+- Owner, 2026-10-04: "innecesario pedir un 3er numero ... que se pida solamente el de la persona a la que le llegará
+  el combo".
+  - 208 amended (commit a168913): completeness and the bot function's FALTA list no longer require or ask for
+    contact_phone; the column stays as an optional field, kept when given. The combos hechos and notas text dropped it.
+  - combo-model: case 1, case 2 and new case 2b (complete without a contact phone) were RED, then ALL PASS.
+    combo-deposit-calculator passes. combo-ignores-remesa-writers passes after its order-dependent check was fixed
+    (ORDER BY position, not created_at: same-transaction rows share a timestamp).
+  - gate106d (~/cerebro-fase1/pruebas/gate106d-combo-sin-contacto.py; backups cerebro-staging-antes-106d-*,
+    notificador-staging-antes-107b-*): the Decisor note and falta, the tool's description and parameter text ("SOLO si
+    el cliente lo dio, nunca se pide"), and the notifier's falta list. node --check passes on the Decisor and the tool;
+    the notifier harness shows no contact phone asked.
+- Simulated payment (owner: "no tengo un comprobante, simula que llegó"), staging only:
+  cerebro_registrar_deposito(conv, 55000, 'GYD', stage "Por verificar", 'SIMULADO: ...') returned "movido" onto combo
+  dee3268d, which is now deposit_verification, 55,000, cost 40,000, 1 operation in the conversation (no remesa).
+  Next: the owner verifies it in the panel, then completes it.

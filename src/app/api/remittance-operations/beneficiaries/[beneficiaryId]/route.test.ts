@@ -190,4 +190,75 @@ describe("PATCH /api/remittance-operations/beneficiaries/[beneficiaryId]", () =>
       p_cambios: cambios,
     });
   });
+  it("accepts address, reference and contact_phone and forwards them untouched", async () => {
+    const { PATCH } = await import("./route");
+    const callCtx = ctx(ENABLED_PROFILE, { data: BENEFICIARY_ID, error: null });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const cambios = { address: "Calle 1, Habana", reference: null, contact_phone: "53456789" };
+    const response = await PATCH(request({ cambios }), paramsFor(BENEFICIARY_ID));
+
+    expect(response.status).toBe(200);
+    expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_corregir_beneficiario", {
+      p_beneficiary_id: BENEFICIARY_ID,
+      p_cambios: cambios,
+    });
+  });
+
+  it("accepts a null contact_phone (clears it)", async () => {
+    const { PATCH } = await import("./route");
+    const callCtx = ctx(ENABLED_PROFILE, { data: BENEFICIARY_ID, error: null });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await PATCH(request({ cambios: { contact_phone: null } }), paramsFor(BENEFICIARY_ID));
+
+    expect(response.status).toBe(200);
+  });
+
+  it.each([["123"], ["5345 6789"], ["1234567890123456"], [53456789], [true]])(
+    "bad contact_phone %j -> 400, RPC never called",
+    async (contactPhone) => {
+      const { PATCH } = await import("./route");
+      const callCtx = ctx(ENABLED_PROFILE, { data: BENEFICIARY_ID, error: null });
+      requireRole.mockResolvedValueOnce(callCtx);
+
+      const response = await PATCH(request({ cambios: { contact_phone: contactPhone } }), paramsFor(BENEFICIARY_ID));
+
+      expect(response.status).toBe(400);
+      expect(callCtx.supabase.rpc).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([["address"], ["reference"]])("non-string %s -> 400", async (key) => {
+    const { PATCH } = await import("./route");
+    const callCtx = ctx(ENABLED_PROFILE, { data: BENEFICIARY_ID, error: null });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await PATCH(request({ cambios: { [key]: 5 } }), paramsFor(BENEFICIARY_ID));
+
+    expect(response.status).toBe(400);
+    expect(callCtx.supabase.rpc).not.toHaveBeenCalled();
+  });
+
+  it("an unknown key -> 400, RPC never called", async () => {
+    const { PATCH } = await import("./route");
+    const callCtx = ctx(ENABLED_PROFILE, { data: BENEFICIARY_ID, error: null });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await PATCH(request({ cambios: { name: "x", status: "vigente" } }), paramsFor(BENEFICIARY_ID));
+
+    expect(response.status).toBe(400);
+    expect(callCtx.supabase.rpc).not.toHaveBeenCalled();
+  });
+
+  it("a DB refusal of a field that does not apply (22023) still maps to 400", async () => {
+    const { PATCH } = await import("./route");
+    requireRole.mockResolvedValueOnce(
+      ctx(ENABLED_PROFILE, { data: null, error: { code: "22023", message: "field reference is for combo recipients" } }),
+    );
+
+    const response = await PATCH(request({ cambios: { reference: "x" } }), paramsFor(BENEFICIARY_ID));
+
+    expect(response.status).toBe(400);
+  });
 });

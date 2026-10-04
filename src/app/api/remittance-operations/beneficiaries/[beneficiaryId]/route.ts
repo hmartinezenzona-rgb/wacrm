@@ -16,6 +16,45 @@ import {
   rpcErrorResponse,
 } from "@/lib/remittance-operations/route-helpers";
 
+// The keys crm_corregir_beneficiario knows. Which of them apply to which
+// recipient type is the DB's call (22023 -> 400 below); the route only keeps
+// out unknown keys and malformed address/reference/contact_phone values.
+const CORRECTABLE_KEYS: ReadonlySet<string> = new Set([
+  "name",
+  "card_number",
+  "phone",
+  "zelle_account",
+  "delivery_method",
+  "amount",
+  "currency",
+  "beneficiary_type",
+  "address",
+  "reference",
+  "contact_phone",
+]);
+const CONTACT_PHONE_RE = /^[0-9]{8,15}$/;
+
+function cambiosError(cambios: Record<string, unknown>): string | null {
+  for (const key of Object.keys(cambios)) {
+    if (!CORRECTABLE_KEYS.has(key)) return `unknown field: ${key}`;
+  }
+  for (const key of ["address", "reference"]) {
+    const value = cambios[key];
+    if (value !== undefined && value !== null && typeof value !== "string") {
+      return `${key} must be a string or null`;
+    }
+  }
+  const contactPhone = cambios.contact_phone;
+  if (
+    contactPhone !== undefined &&
+    contactPhone !== null &&
+    !(typeof contactPhone === "string" && CONTACT_PHONE_RE.test(contactPhone))
+  ) {
+    return "contact_phone must be 8 to 15 digits or null";
+  }
+  return null;
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ beneficiaryId: string }> },
@@ -49,6 +88,11 @@ export async function PATCH(
         { error: "cambios must be a non-empty object" },
         { status: 400 },
       );
+    }
+
+    const invalid = cambiosError(cambios);
+    if (invalid) {
+      return NextResponse.json({ error: invalid }, { status: 400 });
     }
 
     const { data, error } = await ctx.supabase.rpc("crm_corregir_beneficiario", {

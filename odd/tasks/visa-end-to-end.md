@@ -49,3 +49,28 @@ every promo discarded, since staging keeps a fake promo), vitest for the app, dr
 harness for the n8n code.
 
 ## Progress
+- [x] T1 DB 213_visa_model (commits 75c781f, 6355e62; staging, schema_migrations 213).
+  - Detection: cerebro_visa_en_curso, explicit phrases only (never "visa" alone).
+  - Agent tool: crm_abrir_visa(conv, personas) opens 5,000 x N; it is service_role only and audited as
+    automation_visa_registered.
+  - Deposit routing: the open operation wins; otherwise recarga > combo > visa; a reseller is always a remesa.
+  - Completeness: a visa needs no recipients. Minimum 5,000 per visa.
+  - Panel: the visa row comes with NULL beneficiary columns; the manual-close picker accepts 'visa'.
+  - Calculator: the VISA line is facturado = deposit, invertido = 0, never pending; crm_resolve_pending_entry
+    refuses VISA.
+  - cerebro_avisar_envios_sin_beneficiario skips visas. The visa service text says the assistant takes the order,
+    and the stale resumen (4,000) is fixed.
+  - Found in review, and also affecting COMBO in production (210):
+    - an open combo or visa made the remesa writers drop a later remesa's typed card and phone. Prod had 0
+      combo/visa ops.
+    - 213 now has the resolver never pick a visa or combo as the remesa target. guardar_beneficiario_auto ignores a
+      visa, and blocks for a combo only while collecting_information.
+    - The shared writer never writes on a visa or combo; past collecting it opens a remesa next to it.
+  - Tests:
+    - visa-model RED ("case 1: ... got remesa/deposit_verification/5000"; then "case 7 ... got
+      visa/collecting_information/5000" and "case 7b: a paid combo must not block a remesa"), then ALL PASS.
+    - The writer's 22 neighbours pass as is and with every promo discarded. The parent re-checked visa-model,
+      combo-ignores-remesa-writers, combo-model, combo-edit, partial-beneficiary-tools and recarga-numbers in both
+      modes.
+    - combo-model case 9 and read-rpc used 'visa' as the unlisted-service fixture; both now use 'traduccion'.
+    - ROLLBACK-213 restores 17 functions (md5-checked).

@@ -334,4 +334,15 @@ describe("COMBO ledger lines (migration 209)", () => {
     expect(canResolveWithRates(cup)).toBe(true);
     expect(canResolveWithRates(done)).toBe(false);
   });
+
+  it("never offers rate resolution for VISA, and a completed VISA line maps as facturado = retorno", () => {
+    const pendingVisa = mapLedgerEntry(row({ service: "VISA", status: "verified_pending", missing_inputs: [] }));
+    const visa = mapLedgerEntry(
+      row({ service: "VISA", status: "completed", amount: 15000, amount_currency: "GYD", facturado_gyd: 15000, invertido_gyd: 0, retorno_gyd: 15000 }),
+    );
+
+    expect(canResolveWithRates(pendingVisa)).toBe(false);
+    expect(visa).toMatchObject({ service: "VISA", amountCurrency: "GYD", facturadoGyd: 15000, invertidoGyd: 0, retornoGyd: 15000 });
+    expect(canResolveWithRates(visa)).toBe(false);
+  });
 });

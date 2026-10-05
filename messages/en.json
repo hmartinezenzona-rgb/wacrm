@@ -384,12 +384,15 @@
         "efectivo_usd": "Cash in USD",
         "multiple_distribution": "Multiple distribution",
         "recarga": "Recharge",
-        "combo": "Combo"
+        "combo": "Combo",
+        "visa": "Visa extension"
       },
       "rechargeCountOne": "{count} recharge",
       "rechargeCountMany": "{count} recharges",
       "comboCountOne": "{count} combo",
       "comboCountMany": "{count} combos",
+      "visaCountOne": "{count} extension",
+      "visaCountMany": "{count} extensions",
       "comboMinimumHint": "Minimum 25,000 GYD per combo",
       "comboProvinceHint": "Include the Cuban province in the address",
       "comboCost": {
@@ -454,7 +457,8 @@
           "tropical": "Tropical",
           "efectivo_usd": "Cash in USD",
           "recarga": "Recharge",
-          "combo": "Combo"
+          "combo": "Combo",
+          "visa": "Visa extension"
         }
       },
       "completeTransfer": {

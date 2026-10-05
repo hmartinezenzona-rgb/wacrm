@@ -71,6 +71,10 @@ export interface LedgerEntry {
  *  computed in the database, not by the TS formulas, and has no rates. */
 export const COMBO_SERVICE = "COMBO";
 
+/** The calculator service a visa extension feeds (migration 213): billed in GYD,
+ *  facturado = retorno = the deposit, invertido = 0. Never pending, no rates. */
+export const VISA_SERVICE = "VISA";
+
 /** `missing_inputs` entry of a COMBO line whose cost has not been entered yet. */
 export const COMBO_COST_MISSING_INPUT = "comboCosto";
 
@@ -88,10 +92,10 @@ export function isComboCostPending(entry: PendingShape): boolean {
 }
 
 /** Whether a pending line can be completed by supplying rates
- *  (`crm_resolve_pending_entry`). Never for COMBO: it has no rates, and the
+ *  (`crm_resolve_pending_entry`). Never for COMBO or VISA: they have no rates, and the
  *  procedure would ask for USDT ones. */
 export function canResolveWithRates(entry: PendingShape): boolean {
-  return entry.status === "verified_pending" && entry.service !== COMBO_SERVICE;
+  return entry.status === "verified_pending" && entry.service !== COMBO_SERVICE && entry.service !== VISA_SERVICE;
 }
 
 /** What a pending line is waiting for, in the page's words. */

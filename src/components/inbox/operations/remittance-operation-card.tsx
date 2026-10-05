@@ -2,7 +2,7 @@
 
 import { useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowRightLeft, AtSign, Banknote, ChevronDown, CreditCard, IdCard, Lock, MapPin, Pencil, Phone, ShoppingBasket, Smartphone, Trash2, UserPlus, UserRound, Users } from "lucide-react";
+import { ArrowRightLeft, AtSign, Banknote, ChevronDown, CreditCard, IdCard, Lock, MapPin, Pencil, Phone, ShoppingBasket, Smartphone, Stamp, Trash2, UserPlus, UserRound, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { canForceVerify, type AccountRole } from "@/lib/auth/roles";
 import { corregirBeneficiario } from "@/lib/remittance-operations/commands";
@@ -141,6 +141,7 @@ function destinationLabel(operation: RemittanceOperationRead, t: (key: string) =
   const { deliveryMethod, destinationCurrency, beneficiaries } = operation;
   if (isRecharge(operation)) return t("beneficiaryType.recarga");
   if (isCombo(operation)) return t("beneficiaryType.combo");
+  if (isVisa(operation)) return t("beneficiaryType.visa");
 
   const units = new Set(
     beneficiaries
@@ -200,6 +201,13 @@ function isCombo(operation: RemittanceOperationRead): boolean {
   return operation.serviceType === "combo";
 }
 
+function isVisa(operation: RemittanceOperationRead): boolean {
+  return operation.serviceType === "visa";
+}
+
+/** Price of one visa extension in GYD (migration 213): the operation's amount is this times the people. */
+const VISA_PRICE_GYD = 5000;
+
 function computeSummaryAmount(
   operation: RemittanceOperationRead,
   t: (key: string, params?: Record<string, unknown>) => string,
@@ -216,6 +224,12 @@ function computeSummaryAmount(
     const count = operation.beneficiaries.filter((b) => b.beneficiaryType === "combo").length;
     if (count === 0) return null;
     return { kind: "amount", display: t(count === 1 ? "comboCountOne" : "comboCountMany", { count }) };
+  }
+
+  // A visa has no recipients: the extensions are counted from the amount.
+  if (isVisa(operation)) {
+    const count = Math.max(1, Math.round((operation.quotedSourceAmount ?? 0) / VISA_PRICE_GYD));
+    return { kind: "amount", display: t(count === 1 ? "visaCountOne" : "visaCountMany", { count }) };
   }
 
   if (operation.beneficiaries.length === 1) {
@@ -407,6 +421,7 @@ export function RemittanceOperationCard({
                 <span className="inline-flex items-center gap-1">
                   {isRecharge(operation) && <Smartphone className="size-3.5 shrink-0" aria-hidden="true" />}
                   {isCombo(operation) && <ShoppingBasket className="size-3.5 shrink-0" aria-hidden="true" />}
+                  {isVisa(operation) && <Stamp className="size-3.5 shrink-0" aria-hidden="true" />}
                   {destLabel}
                   {destLocked && lock}
                 </span>
@@ -465,7 +480,7 @@ export function RemittanceOperationCard({
         )}
       </div>
 
-      {quote && !operation.isHistory && !isRecharge(operation) && !isCombo(operation) && (
+      {quote && !operation.isHistory && !isRecharge(operation) && !isCombo(operation) && !isVisa(operation) && (
         <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">
           {quote.destinationAmount !== null && quote.destinationCurrency !== null
             ? t("quotedTo", {
@@ -511,6 +526,7 @@ export function RemittanceOperationCard({
             initialData={initialReceipts}
           />
 
+          {!isVisa(operation) && (
           <div className="pt-3">
             <div className="flex min-h-6 items-center gap-1">
               <h4 className="flex flex-1 items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
@@ -718,6 +734,7 @@ export function RemittanceOperationCard({
               </ul>
             )}
           </div>
+          )}
 
           {canSetComboCost && (
             <ComboCostField
@@ -759,7 +776,7 @@ export function RemittanceOperationCard({
               <OperationClosingControl
                 operationId={operation.id}
                 kind="close"
-                needsService={operation.beneficiaries.length === 0 && !operation.deliveryMethod}
+                needsService={operation.beneficiaries.length === 0 && !operation.deliveryMethod && !isVisa(operation)}
                 onDone={handleChanged}
                 onCancel={() => setOpenForm(null)}
               />

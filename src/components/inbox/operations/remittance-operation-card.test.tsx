@@ -251,6 +251,61 @@ function buttonByText(node: Element, text: string): HTMLButtonElement {
   return Array.from(node.querySelectorAll("button")).find((b) => b.textContent?.trim() === text) as HTMLButtonElement;
 }
 
+describe("RemittanceOperationCard visa", () => {
+  const visaOp = (overrides: Partial<RemittanceOperationRead> = {}) =>
+    operation({
+      serviceType: "visa",
+      status: "ready_to_transfer",
+      quotedSourceAmount: 15000,
+      sourceCurrency: "GYD",
+      beneficiaries: [],
+      ...overrides,
+    });
+
+  it("shows the Visa extension label with its icon and the count from the amount, with no quote line", async () => {
+    const { node, root } = await render(visaOp(), {
+      quote: { gyd: 15000, destinationAmount: 4000, destinationCurrency: "CUP", quotedAt: "2026-10-03T00:00:00Z" },
+    });
+
+    expect(node.querySelector("article")!.textContent).toContain("15,000 GYD");
+    expect(node.querySelector("article")!.textContent).toContain("Visa extension");
+    expect(node.querySelector("article svg.lucide-stamp")).not.toBeNull();
+    expect(node.querySelector('[data-testid="deposit-review-stub"]')!.getAttribute("data-summary-amount")).toContain("3 extensions");
+    expect(node.textContent).not.toContain("Quoted");
+    await act(async () => root.unmount());
+  });
+
+  it("counts a single extension in the singular, and at least one", async () => {
+    for (const amount of [5000, 2000, null]) {
+      const { node, root } = await render(visaOp({ quotedSourceAmount: amount }));
+      const summary = node.querySelector('[data-testid="deposit-review-stub"]')!.getAttribute("data-summary-amount")!;
+      expect(summary).toContain("1 extension");
+      expect(summary).not.toContain("extensions");
+      await act(async () => root.unmount());
+      document.body.replaceChildren();
+    }
+  });
+
+  it("has no beneficiary block, no add-beneficiary control and no missing-beneficiary warning", async () => {
+    const { node, root } = await render(visaOp({ beneficiariesComplete: false }));
+
+    expect(button(node, "Add beneficiary")).toBeNull();
+    expect(node.textContent).not.toContain("Deliver to");
+    expect(node.textContent).not.toContain("No beneficiaries recorded yet");
+    expect(node.textContent).not.toContain("Awaiting beneficiary");
+    await act(async () => root.unmount());
+  });
+
+  it("still offers complete and manual close, without the service picker", async () => {
+    const { node, root } = await render(visaOp(), { role: "owner" });
+
+    expect(buttonByText(node, "Complete transfer")).toBeDefined();
+    await act(async () => buttonByText(node, en.Inbox.operationsPanel.closing.closeButton).click());
+    expect(node.querySelector('[data-testid="closing-stub"]')).not.toBeNull();
+    await act(async () => root.unmount());
+  });
+});
+
 describe("RemittanceOperationCard combo", () => {
   const comboOp = (overrides: Partial<RemittanceOperationRead> = {}) =>
     operation({

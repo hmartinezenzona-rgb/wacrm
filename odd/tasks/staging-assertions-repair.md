@@ -74,3 +74,17 @@ What changed:
 - deposit-review: expectations updated where a later migration changed the behaviour on purpose: 165/172 no longer move deals.stage_id nor notify on deals (case 3 checks the operation status), and 192 made the forced-verification reason optional (case 8b now accepts an empty reason on its own operation, case 8c checks the 500-character cap).
 
 Left alone (outside the listed files, same dependency problem): requested-amount-target, repeated-receipt and target-origin-label need pg_temp.conv_prueba and pg_temp.depositar from split-deposit-minimums, which now return an operation id.
+
+Parent review (2026-10-05):
+- History: the writer rewrote only its own unpushed commits (filter-branch, to drop the commit trailer). The pushed
+  branch (b8efb63) is an ancestor of HEAD. The refs/original backup ref was deleted.
+- deposit-review: the expectation changes match intended migrations: 192 "Force-verify from the panel takes no typed
+  reason"; 165/172 retired the deal stage moves and the deals triggers. Accepted.
+- The three dependents of split-deposit-minimums' helpers (requested-amount-target, repeated-receipt,
+  target-origin-label) failed with the OLD helpers too ("null value in column operation_id"), so the writer did not
+  break them.
+  - With the new helpers, requested-amount-target and repeated-receipt pass.
+  - target-origin-label looked up cerebro_objetivo_envio by deal_id, but depositar now returns the operation id.
+    Fixed to operation_id, with the expectations unchanged.
+  - All three now pass as is and with no promo, run with their helper files prepended (split-deposit-minimums, plus
+    requested-amount-target for target-origin-label).

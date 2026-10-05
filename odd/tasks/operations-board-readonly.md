@@ -29,12 +29,12 @@ Option 1: a separate read-only board page (not a badge in the inbox list).
 - Panel copy in English through messages/en.json, like the rest of the panel.
 
 ## Tasks
-- [ ] T1 DB `214_operations_board.sql` (+ ROLLBACK, assertion operations-board.sql).
+- [x] T1 DB `214_operations_board.sql` (+ ROLLBACK, assertion operations-board.sql).
   - New RPC `crm_tablero_operaciones()`: SECURITY DEFINER, account members only, granted to authenticated.
   - It returns the caller account's open operations plus those completed in the last 24 h: id, conversation_id,
     customer name and phone, service_type, delivery_method, status, quoted_source_amount, created_at, the time of the
     last status change, and the beneficiaries-complete flag.
-- [ ] T2 App:
+- [x] T2 App:
   - the /tablero page (columns, cards, service filter, auto-refresh, the link to the chat);
   - a nav entry and i18n keys;
   - vitest tests. pipelines-removed.test.ts stays green.
@@ -45,3 +45,10 @@ Option 1: a separate read-only board page (not a badge in the inbox list).
 Strict. SQL assertion (self-reverting DO block, fixtures independent of staging data); vitest for the app.
 
 ## Progress
+- 2026-10-05 T1 done (96508b7), staging only. RED: operations-board.sql failed with "No function matches ... crm_tablero_operaciones()". Applied 214 on staging (recorded in schema_migrations). GREEN: the same assertion ended in `ERROR: ALL PASS` (BEGIN ... ROLLBACK).
+  - state_since: completed -> completed_at; else the latest remittance_admin_audit row (field_name 'status') whose after->>'status' is the current status; else updated_at. The audit holds only human status changes and updated_at moves on every edit, so the fallback can under-state the age.
+  - Authorization: caller's account from profiles (auth.uid()), is_account_member(viewer); 42501 otherwise. No account argument.
+- 2026-10-05 T2 done (1dbb201, 6034aa1). Route /tablero, sidebar "Operations board" (Columns3) with no role gate. Data via the session client RPC (src/lib/tablero/fetch.ts), refresh every 20 s and on focus. Tests: 5 new files (board, fetch, operations-board, page, sidebar-nav): RED (modules missing / navItems not exported), then GREEN.
+  - Verification: vitest of new files + pipelines-removed + inbox/operations 28 files / 398 tests pass; npm run typecheck clean; eslint on touched files clean; npm test 155 files / 1951 tests pass.
+  - Not verified: nothing was seen in a browser (layout, horizontal scroll, mobile gutter); staging deploy of the app is T3.
+

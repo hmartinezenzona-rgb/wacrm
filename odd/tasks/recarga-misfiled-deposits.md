@@ -69,3 +69,15 @@ deposit filed as what it is, not as a recharge.
   nada, no mandó más nada, solo el depósito; un admin le preguntó y no respondió, déjalo así por ahora". It stays
   ready_to_transfer as a recarga until the customer writes back. Since 211, her conversation only counts as a
   recharge in progress because this op is open.
+- T5 the 5 closed ops typed 'recarga' (owner, 2026-10-05: "arregla el 1"). Each chat was read first:
+  - 8a1752f8 (Miguel, 08-15, 5,000): "quiero recargar la tarjeta", but gave a card and a phone, so it was a CUP card
+    remesa -> FIXED to service_type remesa.
+  - e6f4bc83 (Rubislandi, 09-19, 14,400): had asked about recharges, then paid "55 dólares a ese zelle" -> FIXED to
+    remesa, zelle, 55 USD.
+  - 8c60dea0 (Zulemys, 09-08, 1,000): a real recharge on an offer the admin confirmed. Left.
+  - 9769c783 (Zuleika, 09-21, 12,520): two real recharges (2 x 6,200) during the 21–26 Sep promo; she says "es la
+    promoción de ETECSA". Left.
+  - 63ebe914 (Marlene, 09-07, 5,000): a cancelled recharge attempt. Left.
+  - The fix was one guarded DO block (expected state checked); a dry run (forced exception) came first. Each op got a
+    human_correction audit row.
+  - No calculator line was created: both predate the calculator (2026-09-28), like every remesa of those dates.

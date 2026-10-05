@@ -1,4 +1,5 @@
 \set ON_ERROR_STOP on
+-- (2026-10-05) Fixture rebuilt deal-free: operations come from cerebro_crear_operacion with a deal linked afterwards (a deal no longer creates one since 161/172/183). Cases 3, 8b-8d follow the intended later behaviour: 165/172 stopped moving deals.stage_id and retired the deals notify trigger; 192 made the forced-verification reason optional (only the 500-character cap remains).
 -- (2026-10-02) Stop at the first error: run outside BEGIN ... ROLLBACK, the SAVEPOINT below fails and nothing is written (operation-receipts.sql once left staging's notify_url on a no-op this way).
 -- deposit-review.sql — self-reverting assertion for
 -- 099_deposit_review_rpcs.sql
@@ -48,6 +49,7 @@ DECLARE
   v_deal_items_id  uuid; v_op_items_id  uuid;
   v_deal_ready_id  uuid; v_op_ready_id  uuid;
   v_deal_force_id  uuid; v_op_force_id  uuid;
+  v_op_force2_id   uuid;
 
   v_message_id     uuid;
 
@@ -59,7 +61,7 @@ DECLARE
   v_notes          text;
   v_deposit_deal   uuid;
   v_deposit_cons   timestamptz;
-  v_body_text      text;
+  v_op_status      text;
 
   v_case_start     timestamptz;
   v_fail_count     integer := 0;
@@ -111,7 +113,8 @@ BEGIN
   INSERT INTO deals (id, user_id, pipeline_id, stage_id, title, account_id, conversation_id, contact_id, value, currency)
   VALUES (gen_random_uuid(), v_owner_user, v_pipeline_id, v_por_verificar, 'deposit review fixture main', v_account_id, v_conv_id, v_contact_id, 25000, 'GYD')
   RETURNING id INTO v_deal_id;
-  SELECT id INTO v_op_id FROM remittance_operations WHERE deal_id = v_deal_id;
+  v_op_id := cerebro_crear_operacion(v_conv_id, 25000, 'GYD', v_por_verificar);
+  UPDATE remittance_operations SET deal_id = v_deal_id WHERE id = v_op_id;
   IF v_op_id IS NULL THEN
     RAISE EXCEPTION 'deposit-review: fixture setup failed — no operation created for deal %', v_deal_id;
   END IF;
@@ -138,7 +141,8 @@ BEGIN
   INSERT INTO deals (id, user_id, pipeline_id, stage_id, title, account_id, conversation_id, contact_id, value, currency)
   VALUES (gen_random_uuid(), v_owner_user, v_pipeline_id, v_por_verificar, 'deposit review fixture x2', v_account_id, v_conv_id, v_contact_id, 25000, 'GYD')
   RETURNING id INTO v_deal_x2_id;
-  SELECT id INTO v_op_x2_id FROM remittance_operations WHERE deal_id = v_deal_x2_id;
+  v_op_x2_id := cerebro_crear_operacion(v_conv_id, 25000, 'GYD', v_por_verificar);
+  UPDATE remittance_operations SET deal_id = v_deal_x2_id WHERE id = v_op_x2_id;
   IF v_op_x2_id IS NULL THEN
     RAISE EXCEPTION 'deposit-review: fixture setup failed — no operation created for deal %', v_deal_x2_id;
   END IF;
@@ -148,7 +152,8 @@ BEGIN
   INSERT INTO deals (id, user_id, pipeline_id, stage_id, title, account_id, conversation_id, contact_id, value, currency)
   VALUES (gen_random_uuid(), v_owner_user, v_pipeline_id, v_por_verificar, 'deposit review fixture x3', v_account_id, v_conv_id, v_contact_id, 10000, 'GYD')
   RETURNING id INTO v_deal_x3_id;
-  SELECT id INTO v_op_x3_id FROM remittance_operations WHERE deal_id = v_deal_x3_id;
+  v_op_x3_id := cerebro_crear_operacion(v_conv_id, 10000, 'GYD', v_por_verificar);
+  UPDATE remittance_operations SET deal_id = v_deal_x3_id WHERE id = v_op_x3_id;
   IF v_op_x3_id IS NULL THEN
     RAISE EXCEPTION 'deposit-review: fixture setup failed — no operation created for deal %', v_deal_x3_id;
   END IF;
@@ -160,7 +165,8 @@ BEGIN
   INSERT INTO deals (id, user_id, pipeline_id, stage_id, title, account_id, conversation_id, contact_id, value, currency)
   VALUES (gen_random_uuid(), v_owner_user, v_pipeline_id, v_por_verificar, 'deposit review fixture items', v_account_id, v_conv_id, v_contact_id, 5000, 'GYD')
   RETURNING id INTO v_deal_items_id;
-  SELECT id INTO v_op_items_id FROM remittance_operations WHERE deal_id = v_deal_items_id;
+  v_op_items_id := cerebro_crear_operacion(v_conv_id, 5000, 'GYD', v_por_verificar);
+  UPDATE remittance_operations SET deal_id = v_deal_items_id WHERE id = v_op_items_id;
   IF v_op_items_id IS NULL THEN
     RAISE EXCEPTION 'deposit-review: fixture setup failed — no operation created for deal %', v_deal_items_id;
   END IF;
@@ -170,7 +176,8 @@ BEGIN
   INSERT INTO deals (id, user_id, pipeline_id, stage_id, title, account_id, conversation_id, contact_id, value, currency)
   VALUES (gen_random_uuid(), v_owner_user, v_pipeline_id, v_lista, 'deposit review fixture ready', v_account_id, v_conv_id, v_contact_id, 5000, 'GYD')
   RETURNING id INTO v_deal_ready_id;
-  SELECT id INTO v_op_ready_id FROM remittance_operations WHERE deal_id = v_deal_ready_id;
+  v_op_ready_id := cerebro_crear_operacion(v_conv_id, 5000, 'GYD', v_lista);
+  UPDATE remittance_operations SET deal_id = v_deal_ready_id WHERE id = v_op_ready_id;
   IF v_op_ready_id IS NULL THEN
     RAISE EXCEPTION 'deposit-review: fixture setup failed — no operation created for deal %', v_deal_ready_id;
   END IF;
@@ -179,7 +186,8 @@ BEGIN
   INSERT INTO deals (id, user_id, pipeline_id, stage_id, title, account_id, conversation_id, contact_id, value, currency)
   VALUES (gen_random_uuid(), v_owner_user, v_pipeline_id, v_por_verificar, 'deposit review fixture force', v_account_id, v_conv_id, v_contact_id, 5000, 'GYD')
   RETURNING id INTO v_deal_force_id;
-  SELECT id INTO v_op_force_id FROM remittance_operations WHERE deal_id = v_deal_force_id;
+  v_op_force_id := cerebro_crear_operacion(v_conv_id, 5000, 'GYD', v_por_verificar);
+  UPDATE remittance_operations SET deal_id = v_deal_force_id WHERE id = v_op_force_id;
   IF v_op_force_id IS NULL THEN
     RAISE EXCEPTION 'deposit-review: fixture setup failed — no operation created for deal %', v_deal_force_id;
   END IF;
@@ -271,23 +279,14 @@ BEGIN
   SELECT stage_id, notes INTO v_stage, v_notes FROM deals WHERE id = v_deal_id;
   SELECT deal_id, consumido_en INTO v_deposit_deal, v_deposit_cons FROM depositos_mmg WHERE trans_id = v_ref_main;
 
-  -- Only the notify payload's NEW-row notes matter for the client-notify
-  -- skip check: old_record legitimately still carries the raw
-  -- pre-rewrite text (it reflects the row before this exact UPDATE), so
-  -- the assertion must look at record.notes specifically, not the whole
-  -- payload.
-  SELECT convert_from(body, 'UTF8')::jsonb -> 'record' ->> 'notes' INTO v_body_text
-    FROM net.http_request_queue
-   WHERE convert_from(body, 'UTF8')::jsonb ->> 'table' = 'deals'
-     AND convert_from(body, 'UTF8')::jsonb ->> 'type' = 'UPDATE'
-     AND (convert_from(body, 'UTF8')::jsonb -> 'record' ->> 'id') = v_deal_id::text
-   ORDER BY id DESC
-   LIMIT 1;
+  -- (2026-10-05) 165/172: the verify no longer moves deals.stage_id (the operation status is the state) and no deals
+  -- notify trigger exists, so the stage and notify-payload checks became the operation status check.
+  SELECT status INTO v_op_status FROM remittance_operations WHERE id = v_op_id;
 
   IF (v_result ->> 'resultado') IS DISTINCT FROM 'verificado'
      OR (v_result ->> 'stage_changed') IS DISTINCT FROM 'true'
      OR (v_result ->> 'new_status') IS DISTINCT FROM 'ready_to_transfer'
-     OR v_stage IS DISTINCT FROM v_lista
+     OR v_op_status IS DISTINCT FROM 'ready_to_transfer'
      OR v_deposit_deal IS DISTINCT FROM v_deal_id
      OR v_deposit_cons IS NULL
      OR v_notes LIKE '%VERIFICADO: casa con el correo de MMG%'
@@ -296,13 +295,11 @@ BEGIN
        SELECT 1 FROM remittance_admin_audit
         WHERE row_id = v_op_id AND action = 'human_deposit_verification' AND created_at >= v_case_start
      )
-     OR v_body_text IS NULL
-     OR v_body_text LIKE '%VERIFICADO: casa con el correo de MMG%'
   THEN
     v_fail_count := v_fail_count + 1;
-    RAISE WARNING 'FAIL [case 3] expected resultado=verificado, stage_changed=true, new_status=ready_to_transfer, deal in LISTA, deposit consumed, notes rewritten, audit row, and a clean notify payload; got result=%, stage=%, deposit_deal=%, deposit_consumed=%, notes=%, body=%', v_result, v_stage, v_deposit_deal, v_deposit_cons, v_notes, v_body_text;
+    RAISE WARNING 'FAIL [case 3] expected resultado=verificado, stage_changed=true, new_status=ready_to_transfer, operation ready_to_transfer, deposit consumed, notes rewritten and an audit row; got result=%, op_status=%, deposit_deal=%, deposit_consumed=%, notes=%', v_result, v_op_status, v_deposit_deal, v_deposit_cons, v_notes;
   ELSE
-    RAISE NOTICE 'PASS [case 3] agent verifies the exact deposit match, moves the deal to LISTA, rewrites notes, and keeps the notify payload free of the skip substring';
+    RAISE NOTICE 'PASS [case 3] agent verifies the exact deposit match, moves the operation to ready_to_transfer and rewrites the deal notes';
   END IF;
 
   -- ---- case 4: read after verify — matched_deposit and consumed list --
@@ -463,37 +460,41 @@ BEGIN
     END IF;
   END;
 
-  -- ---- case 8b: force by admin with empty reason -> 22023 ---------------
-  BEGIN
-    PERFORM set_config('request.jwt.claims', json_build_object('sub', v_owner_user, 'role', 'authenticated')::text, true);
-    PERFORM crm_forzar_verificacion(v_op_force_id, '');
-    PERFORM set_config('request.jwt.claims', '', true);
+  -- ---- case 8b: force by admin with an empty reason ---------------------
+  -- (2026-10-05) 192: the reason is optional now; an empty one verifies and audits the fixed note.
+  v_op_force2_id := cerebro_crear_operacion(v_conv_id, 5000, 'GYD', v_por_verificar);
+  v_case_start := clock_timestamp();
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_owner_user, 'role', 'authenticated')::text, true);
+  SELECT crm_forzar_verificacion(v_op_force2_id, '') INTO v_result;
+  PERFORM set_config('request.jwt.claims', '', true);
+  IF (v_result ->> 'new_status') IS DISTINCT FROM 'ready_to_transfer'
+     OR NOT EXISTS (
+       SELECT 1 FROM remittance_admin_audit
+        WHERE row_id = v_op_force2_id AND action = 'human_forced_verification'
+          AND reason = 'Verified manually from the panel' AND created_at >= v_case_start
+     )
+  THEN
     v_fail_count := v_fail_count + 1;
-    RAISE WARNING 'FAIL [case 8b] expected 22023 for an empty reason, no exception raised';
-  EXCEPTION WHEN OTHERS THEN
-    PERFORM set_config('request.jwt.claims', '', true);
-    IF SQLSTATE = '22023' THEN
-      RAISE NOTICE 'PASS [case 8b] an empty reason is rejected with 22023';
-    ELSE
-      v_fail_count := v_fail_count + 1;
-      RAISE WARNING 'FAIL [case 8b] expected SQLSTATE 22023, got % (%)', SQLSTATE, SQLERRM;
-    END IF;
-  END;
+    RAISE WARNING 'FAIL [case 8b] expected an empty reason to verify with the fixed audited note, got %', v_result;
+  ELSE
+    RAISE NOTICE 'PASS [case 8b] an empty reason verifies and audits the fixed note (192)';
+  END IF;
 
-  -- ---- case 8c: force by admin with too-short reason -> 22023 -----------
+  -- ---- case 8c: force by admin with an over-long reason -> 22023 --------
+  -- (2026-10-05) 192: the only reason validation left is the 500-character cap (the 5-character minimum is gone).
   BEGIN
     PERFORM set_config('request.jwt.claims', json_build_object('sub', v_owner_user, 'role', 'authenticated')::text, true);
-    PERFORM crm_forzar_verificacion(v_op_force_id, 'abc');
+    PERFORM crm_forzar_verificacion(v_op_force_id, repeat('x', 501));
     PERFORM set_config('request.jwt.claims', '', true);
     v_fail_count := v_fail_count + 1;
-    RAISE WARNING 'FAIL [case 8c] expected 22023 for a too-short reason, no exception raised';
+    RAISE WARNING 'FAIL [case 8c] expected 22023 for an over-long reason, no exception raised';
   EXCEPTION WHEN OTHERS THEN
     PERFORM set_config('request.jwt.claims', '', true);
-    IF SQLSTATE = '22023' THEN
-      RAISE NOTICE 'PASS [case 8c] a too-short reason is rejected with 22023';
+    IF SQLSTATE = '22023' AND SQLERRM LIKE '%500 characters%' THEN
+      RAISE NOTICE 'PASS [case 8c] an over-long reason is rejected with 22023';
     ELSE
       v_fail_count := v_fail_count + 1;
-      RAISE WARNING 'FAIL [case 8c] expected SQLSTATE 22023, got % (%)', SQLSTATE, SQLERRM;
+      RAISE WARNING 'FAIL [case 8c] expected SQLSTATE 22023 (500 characters), got % (%)', SQLSTATE, SQLERRM;
     END IF;
   END;
 
@@ -503,10 +504,11 @@ BEGIN
   SELECT crm_forzar_verificacion(v_op_force_id, 'Deposito confirmado por banco') INTO v_result;
   PERFORM set_config('request.jwt.claims', '', true);
 
-  SELECT stage_id, notes INTO v_stage, v_notes FROM deals WHERE id = v_deal_force_id;
+  SELECT notes INTO v_notes FROM deals WHERE id = v_deal_force_id;
+  SELECT status INTO v_op_status FROM remittance_operations WHERE id = v_op_force_id;
 
   IF (v_result ->> 'new_status') IS DISTINCT FROM 'ready_to_transfer'
-     OR v_stage IS DISTINCT FROM v_lista
+     OR v_op_status IS DISTINCT FROM 'ready_to_transfer'
      OR v_notes NOT LIKE '%VERIFICACION FORZADA EN PANEL: Deposito confirmado por banco%'
      OR v_notes LIKE '%VERIFICADO: casa con el correo de MMG%'
      OR NOT EXISTS (
@@ -517,9 +519,9 @@ BEGIN
      OR EXISTS (SELECT 1 FROM depositos_mmg WHERE deal_id = v_deal_force_id)
   THEN
     v_fail_count := v_fail_count + 1;
-    RAISE WARNING 'FAIL [case 8d] expected new_status=ready_to_transfer, deal in LISTA, notes carrying the forced-verification note without the skip substring, an audited reason, and no depositos_mmg consumption; got result=%, stage=%, notes=%', v_result, v_stage, v_notes;
+    RAISE WARNING 'FAIL [case 8d] expected new_status=ready_to_transfer, operation ready_to_transfer, notes carrying the forced-verification note without the skip substring, an audited reason, and no depositos_mmg consumption; got result=%, op_status=%, notes=%', v_result, v_op_status, v_notes;
   ELSE
-    RAISE NOTICE 'PASS [case 8d] an admin can force-verify with a valid reason, moving the deal to LISTA and auditing the reason without touching depositos_mmg';
+    RAISE NOTICE 'PASS [case 8d] an admin can force-verify with a valid reason, moving the operation to ready_to_transfer and auditing the reason without touching depositos_mmg';
   END IF;
 
   -- ---- verdict ----------------------------------------------------------

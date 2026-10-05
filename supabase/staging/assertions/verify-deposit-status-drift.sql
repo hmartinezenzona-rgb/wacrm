@@ -1,4 +1,5 @@
 \set ON_ERROR_STOP on
+-- (2026-10-05) Fixture rebuilt: each operation comes from cerebro_crear_operacion (a deal no longer creates one since 161/172/183) and the deal is linked to it afterwards.
 -- (2026-10-02) Stop at the first error: run outside BEGIN ... ROLLBACK, the SAVEPOINT below fails and nothing is written (operation-receipts.sql once left staging's notify_url on a no-op this way).
 -- verify-deposit-status-drift.sql — self-reverting assertion for
 -- 144_verify_deposit_status_drift.sql
@@ -120,7 +121,9 @@ BEGIN
     FROM conversations v WHERE v.id = v_conv_a
   RETURNING id INTO v_deal_a;
 
-  SELECT id INTO v_op_a FROM remittance_operations WHERE deal_id = v_deal_a;
+  -- (2026-10-05) a deal no longer creates the operation: create it with the deal-free creator and link the deal.
+  v_op_a := cerebro_crear_operacion(v_conv_a, 0, 'GYD', v_solicitada);
+  UPDATE remittance_operations SET deal_id = v_deal_a WHERE id = v_op_a;
   IF v_op_a IS NULL THEN
     RAISE EXCEPTION 'verify-deposit-status-drift: fixture setup failed — no operation created for deal %', v_deal_a;
   END IF;
@@ -174,7 +177,8 @@ BEGIN
     FROM conversations v WHERE v.id = v_conv_b
   RETURNING id INTO v_deal_b;
 
-  SELECT id INTO v_op_b FROM remittance_operations WHERE deal_id = v_deal_b;
+  v_op_b := cerebro_crear_operacion(v_conv_b, 9000, 'GYD', v_por_verificar);
+  UPDATE remittance_operations SET deal_id = v_deal_b WHERE id = v_op_b;
   IF v_op_b IS NULL THEN
     RAISE EXCEPTION 'verify-deposit-status-drift: fixture setup failed — no operation created for deal %', v_deal_b;
   END IF;

@@ -1,4 +1,5 @@
 \set ON_ERROR_STOP on
+-- (2026-10-05) Fixture rebuilt deal-free: the three operations come from cerebro_crear_operacion, not from deals (since 161/172/183 a deal no longer creates an operation).
 -- (2026-10-02) Stop at the first error: run outside BEGIN ... ROLLBACK, the SAVEPOINT below fails and nothing is written (operation-receipts.sql once left staging's notify_url on a no-op this way).
 -- beneficiary-proofs.sql — self-reverting assertion for
 -- 143_beneficiary_delivery_proofs.sql
@@ -74,21 +75,10 @@ BEGIN
   INSERT INTO contacts (id, user_id, phone, account_id, name) VALUES (gen_random_uuid(), v_owner_user, '15550000701', v_account_id, 'Cliente BP') RETURNING id INTO v_contact_id;
   INSERT INTO conversations (id, user_id, contact_id, account_id) VALUES (gen_random_uuid(), v_owner_user, v_contact_id, v_account_id) RETURNING id INTO v_conv_id;
 
-  -- Three LISTA deals -> three ready_to_transfer operations.
-  INSERT INTO deals (id, user_id, pipeline_id, stage_id, title, account_id, conversation_id, contact_id, value, currency)
-  VALUES (gen_random_uuid(), v_owner_user, v_pipeline_id, v_lista, 'bp two', v_account_id, v_conv_id, v_contact_id, 26000, 'GYD')
-  RETURNING id INTO v_deal;
-  SELECT id INTO v_op_two FROM remittance_operations WHERE deal_id = v_deal;
-
-  INSERT INTO deals (id, user_id, pipeline_id, stage_id, title, account_id, conversation_id, contact_id, value, currency)
-  VALUES (gen_random_uuid(), v_owner_user, v_pipeline_id, v_lista, 'bp one', v_account_id, v_conv_id, v_contact_id, 26000, 'GYD')
-  RETURNING id INTO v_deal;
-  SELECT id INTO v_op_one FROM remittance_operations WHERE deal_id = v_deal;
-
-  INSERT INTO deals (id, user_id, pipeline_id, stage_id, title, account_id, conversation_id, contact_id, value, currency)
-  VALUES (gen_random_uuid(), v_owner_user, v_pipeline_id, v_lista, 'bp skip', v_account_id, v_conv_id, v_contact_id, 26000, 'GYD')
-  RETURNING id INTO v_deal;
-  SELECT id INTO v_op_skip FROM remittance_operations WHERE deal_id = v_deal;
+  -- Three LISTA operations, created the deal-free way (161): cerebro_crear_operacion maps the stage to ready_to_transfer.
+  v_op_two  := cerebro_crear_operacion(v_conv_id, 26000, 'GYD', v_lista);
+  v_op_one  := cerebro_crear_operacion(v_conv_id, 26000, 'GYD', v_lista);
+  v_op_skip := cerebro_crear_operacion(v_conv_id, 26000, 'GYD', v_lista);
 
   IF v_op_two IS NULL OR v_op_one IS NULL OR v_op_skip IS NULL THEN
     RAISE EXCEPTION 'beneficiary-proofs: fixture setup failed — an operation was not created';

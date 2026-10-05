@@ -1,4 +1,5 @@
 \set ON_ERROR_STOP on
+-- (2026-10-05) Fixture rebuilt deal-free: operations come from cerebro_crear_operacion (a deal no longer creates one since 161/172/183); only the two operations whose beneficiaries are parsed from notes get a deal linked to them, because cerebro_sync_beneficiarios still reads the linked deal's notes.
 -- (2026-10-02) Stop at the first error: run outside BEGIN ... ROLLBACK, the SAVEPOINT below fails and nothing is written (operation-receipts.sql once left staging's notify_url on a no-op this way).
 -- corrections.sql — self-reverting assertion for
 -- 098_operator_corrections_rpcs.sql
@@ -97,35 +98,22 @@ BEGIN
   INSERT INTO conversations (id, user_id, contact_id, account_id) VALUES (gen_random_uuid(), v_owner_user, v_contact2_id, v_account_id) RETURNING id INTO v_conv2_id;
 
   -- opX: plain operation used for the operation-correction tests (cases 1-3).
-  INSERT INTO deals (id, user_id, pipeline_id, stage_id, title, account_id, conversation_id, contact_id, value, currency)
-  VALUES (gen_random_uuid(), v_owner_user, v_pipeline_id, v_por_verificar, 'corrections fixture X', v_account_id, v_conv1_id, v_contact_id, 100, 'GYD')
-  RETURNING id INTO v_deal_x_id;
-  SELECT id INTO v_op_x_id FROM remittance_operations WHERE deal_id = v_deal_x_id;
-  IF v_op_x_id IS NULL THEN
-    RAISE EXCEPTION 'corrections: fixture setup failed — no operation created for deal %', v_deal_x_id;
-  END IF;
+  v_op_x_id := cerebro_crear_operacion(v_conv1_id, 100, 'GYD', v_por_verificar);
 
   -- opClosed: a second operation, cancelled, for the closed-operation test (case 4).
-  INSERT INTO deals (id, user_id, pipeline_id, stage_id, title, account_id, conversation_id, contact_id, value, currency)
-  VALUES (gen_random_uuid(), v_owner_user, v_pipeline_id, v_por_verificar, 'corrections fixture closed', v_account_id, v_conv1_id, v_contact_id, 100, 'GYD')
-  RETURNING id INTO v_deal_closed_id;
-  SELECT id INTO v_op_closed_id FROM remittance_operations WHERE deal_id = v_deal_closed_id;
-  IF v_op_closed_id IS NULL THEN
-    RAISE EXCEPTION 'corrections: fixture setup failed — no operation created for deal %', v_deal_closed_id;
-  END IF;
+  v_op_closed_id := cerebro_crear_operacion(v_conv1_id, 100, 'GYD', v_por_verificar);
   UPDATE remittance_operations SET status = 'cancelled' WHERE id = v_op_closed_id;
 
   -- opY: operation with a notes-parsed vigente beneficiary, for the
   -- beneficiary-correction tests (cases 5-7). The notes UPDATE happens
   -- after the operation already exists so trg_sync_benef_desde_deal's
   -- cerebro_sync_beneficiarios() call actually finds it.
+  v_op_y_id := cerebro_crear_operacion(v_conv1_id, 100, 'GYD', v_por_verificar);
+  -- the beneficiary sync still reads the notes of the deal linked to the operation: link a deal to it.
   INSERT INTO deals (id, user_id, pipeline_id, stage_id, title, account_id, conversation_id, contact_id, value, currency)
   VALUES (gen_random_uuid(), v_owner_user, v_pipeline_id, v_por_verificar, 'corrections fixture Y', v_account_id, v_conv1_id, v_contact_id, 100, 'GYD')
   RETURNING id INTO v_deal_y_id;
-  SELECT id INTO v_op_y_id FROM remittance_operations WHERE deal_id = v_deal_y_id;
-  IF v_op_y_id IS NULL THEN
-    RAISE EXCEPTION 'corrections: fixture setup failed — no operation created for deal %', v_deal_y_id;
-  END IF;
+  UPDATE remittance_operations SET deal_id = v_deal_y_id WHERE id = v_op_y_id;
   UPDATE deals SET notes = 'BENEFICIARIO (Beneficiario Y)' || E'\n' || 'Tarjeta: 1111222233334444' || E'\n' || 'Celular: 55512345'
    WHERE id = v_deal_y_id;
   SELECT id INTO v_ben_y_id FROM remittance_beneficiaries WHERE operation_id = v_op_y_id AND status = 'vigente';
@@ -136,13 +124,12 @@ BEGIN
   -- opA / opB: same conversation, for the same-conversation reassignment
   -- test (case 8) and its follow-on cross-conversation / unauthorized
   -- attempts (cases 9-10).
+  v_op_a_id := cerebro_crear_operacion(v_conv1_id, 100, 'GYD', v_por_verificar);
+  -- the beneficiary sync still reads the notes of the deal linked to the operation: link a deal to it.
   INSERT INTO deals (id, user_id, pipeline_id, stage_id, title, account_id, conversation_id, contact_id, value, currency)
   VALUES (gen_random_uuid(), v_owner_user, v_pipeline_id, v_por_verificar, 'corrections fixture A', v_account_id, v_conv1_id, v_contact_id, 100, 'GYD')
   RETURNING id INTO v_deal_a_id;
-  SELECT id INTO v_op_a_id FROM remittance_operations WHERE deal_id = v_deal_a_id;
-  IF v_op_a_id IS NULL THEN
-    RAISE EXCEPTION 'corrections: fixture setup failed — no operation created for deal %', v_deal_a_id;
-  END IF;
+  UPDATE remittance_operations SET deal_id = v_deal_a_id WHERE id = v_op_a_id;
   UPDATE deals SET notes = 'BENEFICIARIO (Beneficiario A)' || E'\n' || 'Tarjeta: 5555666677778888' || E'\n' || 'Celular: 55512399'
    WHERE id = v_deal_a_id;
   SELECT id INTO v_ben_a_id FROM remittance_beneficiaries WHERE operation_id = v_op_a_id AND status = 'vigente';
@@ -150,23 +137,11 @@ BEGIN
     RAISE EXCEPTION 'corrections: fixture setup failed — no vigente beneficiary parsed for deal %', v_deal_a_id;
   END IF;
 
-  INSERT INTO deals (id, user_id, pipeline_id, stage_id, title, account_id, conversation_id, contact_id, value, currency)
-  VALUES (gen_random_uuid(), v_owner_user, v_pipeline_id, v_por_verificar, 'corrections fixture B', v_account_id, v_conv1_id, v_contact_id, 100, 'GYD')
-  RETURNING id INTO v_deal_b_id;
-  SELECT id INTO v_op_b_id FROM remittance_operations WHERE deal_id = v_deal_b_id;
-  IF v_op_b_id IS NULL THEN
-    RAISE EXCEPTION 'corrections: fixture setup failed — no operation created for deal %', v_deal_b_id;
-  END IF;
+  v_op_b_id := cerebro_crear_operacion(v_conv1_id, 100, 'GYD', v_por_verificar);
 
   -- opC: a different conversation, target for the cross-conversation
   -- reassignment rejection (case 9).
-  INSERT INTO deals (id, user_id, pipeline_id, stage_id, title, account_id, conversation_id, contact_id, value, currency)
-  VALUES (gen_random_uuid(), v_owner_user, v_pipeline_id, v_por_verificar, 'corrections fixture C', v_account_id, v_conv2_id, v_contact2_id, 100, 'GYD')
-  RETURNING id INTO v_deal_c_id;
-  SELECT id INTO v_op_c_id FROM remittance_operations WHERE deal_id = v_deal_c_id;
-  IF v_op_c_id IS NULL THEN
-    RAISE EXCEPTION 'corrections: fixture setup failed — no operation created for deal %', v_deal_c_id;
-  END IF;
+  v_op_c_id := cerebro_crear_operacion(v_conv2_id, 100, 'GYD', v_por_verificar);
 
   -- ---- case 1: agent corrects quoted_source_amount ---------------------
   v_case_start := clock_timestamp();

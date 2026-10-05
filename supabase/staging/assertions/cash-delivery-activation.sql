@@ -1,4 +1,5 @@
 \set ON_ERROR_STOP on
+-- (2026-10-05) Fixture rebuilt: the operations come from cerebro_crear_operacion and the deal is linked to them (a deal no longer creates one since 161/172/183).
 -- (2026-10-02) Stop at the first error: run outside BEGIN ... ROLLBACK, the SAVEPOINT below fails and nothing is written.
 -- cash-delivery-activation.sql — self-reverting assertion for
 -- 151_cash_delivery_activation.sql
@@ -44,6 +45,8 @@ DECLARE
   v_conv2       uuid;
   v_deal        uuid;
   v_deal2       uuid;
+  v_op          uuid;
+  v_op2         uuid;
   v_method      text;
   v_count       integer;
   v_agent_n     integer;
@@ -85,10 +88,18 @@ BEGIN
   INSERT INTO deals (user_id, account_id, contact_id, conversation_id, pipeline_id, stage_id, title, value, currency, notes, status)
   VALUES (v_owner_user, v_acc, v_ct, v_conv, v_pipeline, v_solicitada, 'Remesa +59900151001', 0, 'GYD', 'ENTREGA EN USD: Efectivo', 'open')
   RETURNING id INTO v_deal;
+  -- (2026-10-05) A deal no longer creates the operation: create it deal-free, link the deal, and re-fire the notes sync (the live
+  -- trg_sync_z_benef_desde_deal, left on purpose by 172) now that the operation exists.
+  v_op := cerebro_crear_operacion(v_conv, 0, 'GYD', v_solicitada);
+  UPDATE remittance_operations SET deal_id = v_deal WHERE id = v_op;
+  UPDATE deals SET notes = notes WHERE id = v_deal;
 
   INSERT INTO deals (user_id, account_id, contact_id, conversation_id, pipeline_id, stage_id, title, value, currency, notes, status)
   VALUES (v_owner_user, v_acc, v_ct2, v_conv2, v_pipeline, v_solicitada, 'Remesa +59900151002', 0, 'GYD', 'ENTREGA EN USD: Clasica', 'open')
   RETURNING id INTO v_deal2;
+  v_op2 := cerebro_crear_operacion(v_conv2, 0, 'GYD', v_solicitada);
+  UPDATE remittance_operations SET deal_id = v_deal2 WHERE id = v_op2;
+  UPDATE deals SET notes = notes WHERE id = v_deal2;
 
   -- ===========================================================================
   -- CASE 1 — "Efectivo" marks the operation efectivo_usd.

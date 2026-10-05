@@ -4,20 +4,28 @@
 -- Case 1 replays Kenia's real note sequence (2026-09-29): Zelle block, two single-card blocks
 -- written as the cards arrived, then the reparto between the two Clasica cards.
 -- =====================================================================
+-- (2026-10-05) Helper rebuilt: a deal no longer creates the operation (161/172/183), so the operation comes from cerebro_crear_operacion and
+-- the deal is linked to it; the notes sync (cerebro_sync_beneficiarios, 175's subject, still driven by deals.notes) is re-fired once the
+-- operation exists. User and account come from whatsapp_config + profiles, not from an existing conversation.
 CREATE OR REPLACE FUNCTION pg_temp.deal_notas(p_tag text, p_notas text[]) RETURNS uuid
 LANGUAGE plpgsql AS $$
-DECLARE v_user uuid; v_acc uuid; v_ct uuid; v_conv uuid; v_deal uuid; v_n text;
+DECLARE v_user uuid; v_acc uuid; v_ct uuid; v_conv uuid; v_deal uuid; v_op uuid;
 BEGIN
-  SELECT user_id, account_id INTO v_user, v_acc FROM conversations LIMIT 1;
+  SELECT p.user_id, p.account_id INTO v_user, v_acc
+    FROM whatsapp_config w JOIN profiles p ON p.account_id = w.account_id
+   ORDER BY (p.account_role = 'owner') DESC LIMIT 1;
   INSERT INTO contacts (user_id, account_id, phone, name) VALUES (v_user, v_acc, '59900175' || p_tag, 'test175' || p_tag) RETURNING id INTO v_ct;
   INSERT INTO conversations (user_id, account_id, contact_id) VALUES (v_user, v_acc, v_ct) RETURNING id INTO v_conv;
+  v_op := cerebro_crear_operacion(v_conv);
   INSERT INTO deals (user_id, account_id, contact_id, conversation_id, pipeline_id, stage_id, title, value, currency, notes, status)
   VALUES (v_user, v_acc, v_ct, v_conv, '78220927-0745-45a8-ba08-a1b33734dbf1', '96cd4fec-21ec-4fe4-8b7f-2cc00f9ff109', 'test175', 0, 'GYD', p_notas[1], 'open')
   RETURNING id INTO v_deal;
+  UPDATE remittance_operations SET deal_id = v_deal WHERE id = v_op;
+  UPDATE deals SET notes = notes WHERE id = v_deal;
   FOR i IN 2 .. cardinality(p_notas) LOOP
     UPDATE deals SET notes = notes || E'\n---\n' || p_notas[i] WHERE id = v_deal;
   END LOOP;
-  RETURN (SELECT id FROM remittance_operations WHERE deal_id = v_deal);
+  RETURN v_op;
 END $$;
 
 DO $$

@@ -1,6 +1,8 @@
 -- =====================================================================
 -- Assertion for migration 127 (cerebro_aplicar_reparto).
 -- Self-reverting: run as  BEGIN; \i this file; ROLLBACK;
+-- (2026-10-05) Fixture rebuilt: each operation comes from cerebro_crear_operacion (a deal no longer creates one since 161/172/183) with the
+-- deal linked to it; the user and account come from whatsapp_config + profiles instead of `FROM conversations LIMIT 1`.
 -- Fixtures reproduce REAL production repartos, verified against the team's
 -- delivery proofs (chat 9e338224, 15-Aug: 143,000 GYD = 550 USD for four
 -- people). Any failure RAISEs; each passing case NOTICEs.
@@ -17,7 +19,9 @@ DECLARE
     {"tipo":"zelle","cuenta":"4633149908","nombre":"Gladys Bellas Gutieres","monto":50,"moneda":"USD"},
     {"tipo":"zelle","cuenta":"9413105654","nombre":"david santillán","monto":300,"moneda":"USD"}]';
 BEGIN
-  SELECT user_id, account_id INTO v_user, v_acc FROM conversations LIMIT 1;
+  SELECT p.user_id, p.account_id INTO v_user, v_acc
+    FROM whatsapp_config w JOIN profiles p ON p.account_id = w.account_id
+   ORDER BY (p.account_role = 'owner') DESC LIMIT 1;
 
   -- A deal in "Lista para transferir" for 143,000 GYD; 125 creates its operation.
   INSERT INTO contacts (user_id, account_id, phone, name) VALUES (v_user, v_acc, '59900127001', 'test127') RETURNING id INTO v_ct;
@@ -25,7 +29,9 @@ BEGIN
   INSERT INTO deals (user_id, account_id, contact_id, conversation_id, pipeline_id, stage_id, title, value, currency, notes, status)
   VALUES (v_user, v_acc, v_ct, v_conv, c_pipeline, c_lista, 'test127', 143000, 'GYD', 'DEPOSITO: 143,000 GYD', 'open')
   RETURNING id INTO v_deal;
-  SELECT id INTO v_op FROM remittance_operations WHERE deal_id = v_deal;
+  v_op := cerebro_crear_operacion(v_conv, 143000, 'GYD', c_lista);
+  UPDATE remittance_operations SET deal_id = v_deal WHERE id = v_op;
+  UPDATE deals SET notes = notes WHERE id = v_deal;  -- re-fire the notes sync now that the operation exists
 
   -- 1. The amounts must add up EXACTLY: 100+100 is not 550 → nothing written.
   v_r := cerebro_aplicar_reparto(v_op, '[{"tipo":"zelle","cuenta":"9542184382","nombre":"A B","monto":100,"moneda":"USD"},
@@ -73,7 +79,9 @@ BEGIN
   VALUES (v_user, v_acc, v_ct, v_conv, c_pipeline, c_lista, 'test127b', 26000, 'GYD',
           E'DEPOSITO: 26,000 GYD\n---\nBENEFICIARIO ZELLE\nNombre: Vanesa Medina\nCuenta Zelle: 6562442588', 'open')
   RETURNING id INTO v_deal;
-  SELECT id INTO v_op FROM remittance_operations WHERE deal_id = v_deal;
+  v_op := cerebro_crear_operacion(v_conv, 26000, 'GYD', c_lista);
+  UPDATE remittance_operations SET deal_id = v_deal WHERE id = v_op;
+  UPDATE deals SET notes = notes WHERE id = v_deal;  -- re-fire the notes sync now that the operation exists
   v_r := cerebro_aplicar_reparto(v_op, '[{"tipo":"zelle","cuenta":"6562442588","nombre":"Vanesa Medina","monto":50,"moneda":"USD"},
                                          {"tipo":"zelle","cuenta":"9413105654","nombre":"david santillán","monto":50,"moneda":"USD"}]');
   SELECT count(*) INTO v_n FROM remittance_beneficiaries WHERE operation_id = v_op AND status = 'vigente';
@@ -87,7 +95,9 @@ BEGIN
   VALUES (v_user, v_acc, v_ct, v_conv, c_pipeline, c_lista, 'test127c', 26000, 'GYD',
           E'DEPOSITO: 26,000 GYD\n---\nBENEFICIARIO ZELLE\nNombre: Otra Persona\nCuenta Zelle: 3050000009', 'open')
   RETURNING id INTO v_deal;
-  SELECT id INTO v_op FROM remittance_operations WHERE deal_id = v_deal;
+  v_op := cerebro_crear_operacion(v_conv, 26000, 'GYD', c_lista);
+  UPDATE remittance_operations SET deal_id = v_deal WHERE id = v_op;
+  UPDATE deals SET notes = notes WHERE id = v_deal;  -- re-fire the notes sync now that the operation exists
   v_r := cerebro_aplicar_reparto(v_op, '[{"tipo":"zelle","cuenta":"6562442588","nombre":"Vanesa Medina","monto":50,"moneda":"USD"},
                                          {"tipo":"zelle","cuenta":"9413105654","nombre":"david santillán","monto":50,"moneda":"USD"}]');
   SELECT count(*) INTO v_n FROM remittance_beneficiaries WHERE operation_id = v_op AND status = 'vigente' AND zelle_account = '3050000009';
@@ -100,7 +110,9 @@ BEGIN
   INSERT INTO deals (user_id, account_id, contact_id, conversation_id, pipeline_id, stage_id, title, value, currency, notes, status)
   VALUES (v_user, v_acc, v_ct, v_conv, c_pipeline, c_lista, 'test127d', 26000, 'GYD', 'DEPOSITO: 26,000 GYD', 'open')
   RETURNING id INTO v_deal;
-  SELECT id INTO v_op FROM remittance_operations WHERE deal_id = v_deal;
+  v_op := cerebro_crear_operacion(v_conv, 26000, 'GYD', c_lista);
+  UPDATE remittance_operations SET deal_id = v_deal WHERE id = v_op;
+  UPDATE deals SET notes = notes WHERE id = v_deal;  -- re-fire the notes sync now that the operation exists
   v_r := cerebro_aplicar_reparto(v_op, '[{"tipo":"zelle","cuenta":"6562442588","nombre":"Vanesa Medina","monto":100,"moneda":"USD"}]');
   IF (v_r->>'aplicado')::boolean OR v_r->>'motivo' <> 'no_es_reparto' THEN
     RAISE EXCEPTION 'case 7: one account is not a reparto, got %', v_r;
@@ -120,7 +132,9 @@ BEGIN
   INSERT INTO deals (user_id, account_id, contact_id, conversation_id, pipeline_id, stage_id, title, value, currency, notes, status)
   VALUES (v_user, v_acc, v_ct, v_conv, c_pipeline, c_lista, 'test129a', 24300, 'GYD', 'DEPOSITO: 24,300 GYD', 'open')
   RETURNING id INTO v_deal;
-  SELECT id INTO v_op FROM remittance_operations WHERE deal_id = v_deal;
+  v_op := cerebro_crear_operacion(v_conv, 24300, 'GYD', c_lista);
+  UPDATE remittance_operations SET deal_id = v_deal WHERE id = v_op;
+  UPDATE deals SET notes = notes WHERE id = v_deal;  -- re-fire the notes sync now that the operation exists
   v_r := cerebro_aplicar_reparto(v_op, '[{"tipo":"cuban_card","cuenta":"9238129972337028","celular":"51292073","monto":15000,"moneda":"CUP"},
                                          {"tipo":"cuban_card","cuenta":"9238959871823862","celular":"51292073","monto":15000,"moneda":"CUP"},
                                          {"tipo":"zelle","cuenta":"3059631942","nombre":"Richel Moreno Ramos","monto":55,"moneda":"USD"}]');
@@ -134,7 +148,9 @@ BEGIN
   INSERT INTO deals (user_id, account_id, contact_id, conversation_id, pipeline_id, stage_id, title, value, currency, notes, status)
   VALUES (v_user, v_acc, v_ct, v_conv, c_pipeline, c_lista, 'test129b', 74000, 'GYD', 'DEPOSITO: 74,000 GYD', 'open')
   RETURNING id INTO v_deal;
-  SELECT id INTO v_op FROM remittance_operations WHERE deal_id = v_deal;
+  v_op := cerebro_crear_operacion(v_conv, 74000, 'GYD', c_lista);
+  UPDATE remittance_operations SET deal_id = v_deal WHERE id = v_op;
+  UPDATE deals SET notes = notes WHERE id = v_deal;  -- re-fire the notes sync now that the operation exists
   v_r := cerebro_aplicar_reparto(v_op, '[{"tipo":"zelle","cuenta":"naranjoraciel@gmail.com","nombre":"Raciel Díaz","monto":226,"moneda":"USD"},
                                          {"tipo":"cuban_card","cuenta":"9224069994566921","celular":"51265782","monto":30000,"moneda":"CUP"},
                                          {"tipo":"cuban_card","cuenta":"9224069996547903","celular":"58192752","monto":15000,"moneda":"CUP"}]');
@@ -145,7 +161,9 @@ BEGIN
   INSERT INTO deals (user_id, account_id, contact_id, conversation_id, pipeline_id, stage_id, title, value, currency, notes, status)
   VALUES (v_user, v_acc, v_ct, v_conv, c_pipeline, c_lista, 'test129c', 74000, 'GYD', 'DEPOSITO: 74,000 GYD', 'open')
   RETURNING id INTO v_deal;
-  SELECT id INTO v_op FROM remittance_operations WHERE deal_id = v_deal;
+  v_op := cerebro_crear_operacion(v_conv, 74000, 'GYD', c_lista);
+  UPDATE remittance_operations SET deal_id = v_deal WHERE id = v_op;
+  UPDATE deals SET notes = notes WHERE id = v_deal;  -- re-fire the notes sync now that the operation exists
   v_r := cerebro_aplicar_reparto(v_op, '[{"tipo":"zelle","cuenta":"naranjoraciel@gmail.com","nombre":"Raciel Díaz","monto":225,"moneda":"USD"},
                                          {"tipo":"cuban_card","cuenta":"9224069994566921","celular":"51265782","monto":30000,"moneda":"CUP"},
                                          {"tipo":"cuban_card","cuenta":"9224069996547903","celular":"58192752","monto":15000,"moneda":"CUP"}]');
@@ -160,7 +178,9 @@ BEGIN
   INSERT INTO deals (user_id, account_id, contact_id, conversation_id, pipeline_id, stage_id, title, value, currency, notes, status)
   VALUES (v_user, v_acc, v_ct, v_conv, c_pipeline, c_lista, 'test130a', 40000, 'GYD', 'DEPOSITO: 40,000 GYD', 'open')
   RETURNING id INTO v_deal;
-  SELECT id INTO v_op FROM remittance_operations WHERE deal_id = v_deal;
+  v_op := cerebro_crear_operacion(v_conv, 40000, 'GYD', c_lista);
+  UPDATE remittance_operations SET deal_id = v_deal WHERE id = v_op;
+  UPDATE deals SET notes = notes WHERE id = v_deal;  -- re-fire the notes sync now that the operation exists
   v_r := cerebro_aplicar_reparto(v_op, '[{"tipo":"cuban_card","cuenta":"9224959876682574","celular":"63691728","monto":60000,"moneda":"CUP"},
                                          {"tipo":"cuban_card","cuenta":"9204959875209704","celular":"+53 5474 3463","monto":60000,"moneda":"CUP"}]');
   SELECT count(*) INTO v_n FROM remittance_beneficiaries WHERE operation_id = v_op AND status = 'vigente'
@@ -173,7 +193,9 @@ BEGIN
   INSERT INTO deals (user_id, account_id, contact_id, conversation_id, pipeline_id, stage_id, title, value, currency, notes, status)
   VALUES (v_user, v_acc, v_ct, v_conv, c_pipeline, c_lista, 'test130b', 40000, 'GYD', 'DEPOSITO: 40,000 GYD', 'open')
   RETURNING id INTO v_deal;
-  SELECT id INTO v_op FROM remittance_operations WHERE deal_id = v_deal;
+  v_op := cerebro_crear_operacion(v_conv, 40000, 'GYD', c_lista);
+  UPDATE remittance_operations SET deal_id = v_deal WHERE id = v_op;
+  UPDATE deals SET notes = notes WHERE id = v_deal;  -- re-fire the notes sync now that the operation exists
   v_r := cerebro_aplicar_reparto(v_op, '[{"tipo":"cuban_card","cuenta":"9224959876682574","celular":"64691728","monto":60000,"moneda":"CUP"},
                                          {"tipo":"cuban_card","cuenta":"9204959875209704","celular":"54743463","monto":60000,"moneda":"CUP"}]');
   SELECT count(*) INTO v_n FROM remittance_beneficiaries WHERE operation_id = v_op;

@@ -9,45 +9,42 @@
 -- `Registrar deposito auto` calls cerebro_registrar_deposito, then `Cruzar deposito con MMG`
 -- calls cerebro_cruzar_depositos with the stages (ok, incidencia, esperado).
 -- =====================================================================
+-- (2026-10-05) Fixture rebuilt deal-free (161/172/183): a deal no longer creates the operation, so conv_prueba creates it with
+-- cerebro_crear_operacion plus a structured beneficiary, and depositar returns the OPERATION id the registrar hands back. The user
+-- and account come from whatsapp_config + profiles (not from whatever conversation happens to exist). The receipt COMP id is a 20-hex
+-- id like the real ones (156's parser), otherwise the second deposit of a conversation is read as a repeat of the first.
 CREATE OR REPLACE FUNCTION pg_temp.conv_prueba(p_tag text, p_benef text) RETURNS uuid
 LANGUAGE plpgsql AS $$
-DECLARE v_user uuid; v_acc uuid; v_ct uuid; v_conv uuid; v_deal uuid; v_op uuid;
+DECLARE v_user uuid; v_acc uuid; v_ct uuid; v_conv uuid; v_op uuid;
 BEGIN
-  SELECT user_id, account_id INTO v_user, v_acc FROM conversations LIMIT 1;
+  SELECT p.user_id, p.account_id INTO v_user, v_acc
+    FROM whatsapp_config w JOIN profiles p ON p.account_id = w.account_id
+   ORDER BY (p.account_role = 'owner') DESC LIMIT 1;
   INSERT INTO contacts (user_id, account_id, phone, name) VALUES (v_user, v_acc, '59900169' || p_tag, 'test169' || p_tag)
   RETURNING id INTO v_ct;
   INSERT INTO conversations (user_id, account_id, contact_id) VALUES (v_user, v_acc, v_ct) RETURNING id INTO v_conv;
-  -- The beneficiary-only deal `Registrar zelle auto` / `Registrar beneficiario auto` open before any deposit.
-  INSERT INTO deals (user_id, account_id, contact_id, conversation_id, pipeline_id, stage_id, title, value, currency, notes, status)
-  VALUES (v_user, v_acc, v_ct, v_conv, '78220927-0745-45a8-ba08-a1b33734dbf1', '96cd4fec-21ec-4fe4-8b7f-2cc00f9ff109',
-          'test169' || p_tag, 0, 'GYD',
-          CASE p_benef WHEN 'zelle' THEN 'BENEFICIARIO ZELLE' || chr(10) || 'Nombre: MDBA SOLUTIONS PNC' || chr(10) || 'Cuenta Zelle: 8133617809'
-                       ELSE 'BENEFICIARIO' || chr(10) || 'Tarjeta: 9227959879614050' || chr(10) || 'Celular: 54363811' END, 'open')
-  RETURNING id INTO v_deal;
-  SELECT id INTO v_op FROM remittance_operations WHERE deal_id = v_deal;
-  IF NOT EXISTS (SELECT 1 FROM remittance_beneficiaries WHERE operation_id = v_op AND status = 'vigente') THEN
-    INSERT INTO remittance_beneficiaries (operation_id, beneficiary_type, name, card_number, phone, zelle_account, position, block_index, source, status)
-    VALUES (v_op, CASE p_benef WHEN 'zelle' THEN 'zelle' ELSE 'cuban_card' END,
-            CASE p_benef WHEN 'zelle' THEN 'MDBA SOLUTIONS PNC' END,
-            CASE p_benef WHEN 'zelle' THEN NULL ELSE '9227959879614050' END,
-            CASE p_benef WHEN 'zelle' THEN NULL ELSE '54363811' END,
-            CASE p_benef WHEN 'zelle' THEN '8133617809' END, 1, 1, 'notes_parse', 'vigente');
-  END IF;
+  v_op := cerebro_crear_operacion(v_conv);
+  INSERT INTO remittance_beneficiaries (operation_id, beneficiary_type, name, card_number, phone, zelle_account, position, block_index, source, status)
+  VALUES (v_op, CASE p_benef WHEN 'zelle' THEN 'zelle' ELSE 'cuban_card' END,
+          CASE p_benef WHEN 'zelle' THEN 'MDBA SOLUTIONS PNC' END,
+          CASE p_benef WHEN 'zelle' THEN NULL ELSE '9227959879614050' END,
+          CASE p_benef WHEN 'zelle' THEN NULL ELSE '54363811' END,
+          CASE p_benef WHEN 'zelle' THEN '8133617809' END, 1, 1, 'notes_parse', 'vigente');
   RETURN v_conv;
 END $$;
 
 CREATE OR REPLACE FUNCTION pg_temp.depositar(p_conv uuid, p_monto numeric, p_ref text, p_stage uuid) RETURNS uuid
 LANGUAGE plpgsql AS $$
-DECLARE v_deal uuid;
+DECLARE v_id uuid;
 BEGIN
   INSERT INTO depositos_mmg (trans_id, monto, moneda, titular, asunto, recibido_en)
   VALUES (p_ref, p_monto, 'GYD', 'Osmany', 'test169', now());
-  SELECT r.deal_id INTO v_deal
+  SELECT r.deal_id INTO v_id
     FROM cerebro_registrar_deposito(p_conv, p_monto, 'GYD', p_stage,
-           'DEPOSITO: ' || to_char(p_monto, 'FM999,999') || ' GYD - EXITOSA' || chr(10) || 'Ref: ' || p_ref, 'COMP-' || p_ref) r;
-  PERFORM cerebro_cruzar_depositos(v_deal, ARRAY[p_ref], ARRAY[p_monto],
+           'DEPOSITO: ' || to_char(p_monto, 'FM999,999') || ' GYD - EXITOSA' || chr(10) || 'Ref: ' || p_ref, 'COMP-' || substr(md5(p_ref), 1, 20)) r;  -- real COMP ids are 20 hex chars (156's parser)
+  PERFORM cerebro_cruzar_depositos(v_id, ARRAY[p_ref], ARRAY[p_monto],
             'f5cf87f8-b570-4d71-b6ea-a3cafd458c63', 'da7b3e24-9222-4150-8be8-d7f7378e16aa', '3cf01654-cd27-47c1-ac92-62abf5435751');
-  RETURN v_deal;
+  RETURN cerebro_resolve_op_id(v_id);
 END $$;
 
 DO $$
@@ -61,9 +58,9 @@ BEGIN
   v_d1 := pg_temp.depositar(v_conv, 3000, '10409990016901', c_inc);
   v_d2 := pg_temp.depositar(v_conv, 10000, '10409990016902', c_esp);
   SELECT count(*) INTO v_n FROM remittance_operations WHERE conversation_id = v_conv AND status <> 'cancelled';
-  SELECT * INTO v_op FROM remittance_operations WHERE deal_id = v_d1;
+  SELECT * INTO v_op FROM remittance_operations WHERE id = v_d1;
   IF v_n <> 1 OR v_d2 IS DISTINCT FROM v_d1 OR v_op.quoted_source_amount <> 13000 OR v_op.status <> 'ready_to_transfer'
-     OR (SELECT count(*) FROM depositos_mmg WHERE trans_id IN ('10409990016901', '10409990016902') AND deal_id = v_d1 AND consumido_en IS NOT NULL) <> 2 THEN
+     OR (SELECT count(*) FROM depositos_mmg WHERE trans_id IN ('10409990016901', '10409990016902') AND operation_id = v_d1 AND consumido_en IS NOT NULL) <> 2 THEN
     RAISE EXCEPTION 'case 1 (Yais 3,000 + 10,000): % ops, same deal %, amount %, status %',
       v_n, v_d2 IS NOT DISTINCT FROM v_d1, v_op.quoted_source_amount, v_op.status;
   END IF;
@@ -72,13 +69,13 @@ BEGIN
   -- 2. Same remesa, other order: 10,000 alone is below the Zelle minimum, so it WAITS; 3,000 completes it.
   v_conv := pg_temp.conv_prueba('02', 'zelle');
   v_d1 := pg_temp.depositar(v_conv, 10000, '10409990016903', c_esp);
-  SELECT * INTO v_op FROM remittance_operations WHERE deal_id = v_d1;
+  SELECT * INTO v_op FROM remittance_operations WHERE id = v_d1;
   IF v_op.status <> 'deposit_verification' THEN
     RAISE EXCEPTION 'case 2: 10,000 for a Zelle must wait for the rest, got status %', v_op.status;
   END IF;
   v_d2 := pg_temp.depositar(v_conv, 3000, '10409990016904', c_esp);
   SELECT count(*) INTO v_n FROM remittance_operations WHERE conversation_id = v_conv AND status <> 'cancelled';
-  SELECT * INTO v_op FROM remittance_operations WHERE deal_id = v_d1;
+  SELECT * INTO v_op FROM remittance_operations WHERE id = v_d1;
   IF v_n <> 1 OR v_d2 IS DISTINCT FROM v_d1 OR v_op.quoted_source_amount <> 13000 OR v_op.status <> 'ready_to_transfer' THEN
     RAISE EXCEPTION 'case 2 (10,000 + 3,000): % ops, amount %, status %', v_n, v_op.quoted_source_amount, v_op.status;
   END IF;
@@ -89,7 +86,7 @@ BEGIN
   v_d1 := pg_temp.depositar(v_conv, 3000, '10409990016905', c_esp);
   v_d2 := pg_temp.depositar(v_conv, 2000, '10409990016906', c_esp);
   SELECT count(*) INTO v_n FROM remittance_operations WHERE conversation_id = v_conv AND status <> 'cancelled';
-  SELECT * INTO v_op FROM remittance_operations WHERE deal_id = v_d1;
+  SELECT * INTO v_op FROM remittance_operations WHERE id = v_d1;
   IF v_n <> 1 OR v_op.quoted_source_amount <> 5000 OR v_op.status <> 'ready_to_transfer' THEN
     RAISE EXCEPTION 'case 3 (CUP 3,000 + 2,000): % ops, amount %, status %', v_n, v_op.quoted_source_amount, v_op.status;
   END IF;
@@ -107,7 +104,7 @@ BEGIN
   v_conv := pg_temp.conv_prueba('05', 'cup');
   v_d1 := pg_temp.depositar(v_conv, 5000, '10409990016909', c_esp);
   v_d2 := pg_temp.depositar(v_conv, 3000, '10409990016910', c_esp);
-  SELECT * INTO v_op FROM remittance_operations WHERE deal_id = v_d1;
+  SELECT * INTO v_op FROM remittance_operations WHERE id = v_d1;
   IF v_d2 = v_d1 OR v_op.quoted_source_amount <> 5000 OR v_op.status <> 'ready_to_transfer' THEN
     RAISE EXCEPTION 'case 5: a ready 5,000 remesa must not absorb a later 3,000, got amount % status %', v_op.quoted_source_amount, v_op.status;
   END IF;

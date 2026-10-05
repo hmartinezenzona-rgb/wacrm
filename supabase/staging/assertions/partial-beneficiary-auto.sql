@@ -1,7 +1,6 @@
 -- =====================================================================
 -- Assertion for migration 180 (the deterministic nodes save partial data too).
 -- Self-reverting: one DO block that ends in RAISE EXCEPTION 'ALL PASS'.
--- Needs pg_temp.conv_vacia / pg_temp.vig (partial-beneficiary-tools.sql).
 --
 -- cerebro_guardar_beneficiario_auto(conv, burst card, burst phone, accumulated card, accumulated phone, exec)
 -- cerebro_guardar_zelle_auto(conv, accumulated holder, accumulated account, exec)
@@ -9,6 +8,30 @@
 --   * without one: a remesa is opened only with the complete pair (as before), so a lone Cuban
 --     phone (a recarga, for instance) never opens a remesa.
 -- =====================================================================
+-- (2026-10-05) conv_vacia and vig are inlined from partial-beneficiary-tools.sql so this file runs alone; conv_vacia takes its user and
+-- account from whatsapp_config + profiles instead of `FROM conversations LIMIT 1` (staging can have no conversation after a test reset).
+CREATE OR REPLACE FUNCTION pg_temp.conv_vacia(p_tag text) RETURNS uuid
+LANGUAGE plpgsql AS $$
+DECLARE v_user uuid; v_acc uuid; v_ct uuid; v_conv uuid;
+BEGIN
+  SELECT p.user_id, p.account_id INTO v_user, v_acc
+    FROM whatsapp_config w JOIN profiles p ON p.account_id = w.account_id
+   ORDER BY (p.account_role = 'owner') DESC LIMIT 1;
+  INSERT INTO contacts (user_id, account_id, phone, name) VALUES (v_user, v_acc, '59900179' || p_tag, 'test179' || p_tag)
+  RETURNING id INTO v_ct;
+  INSERT INTO conversations (user_id, account_id, contact_id) VALUES (v_user, v_acc, v_ct) RETURNING id INTO v_conv;
+  RETURN v_conv;
+END $$;
+
+CREATE OR REPLACE FUNCTION pg_temp.vig(p_conv uuid) RETURNS text
+LANGUAGE sql AS $$
+  SELECT coalesce(string_agg(b.beneficiary_type || ':' || coalesce(b.name, '_') || ':' || coalesce(b.card_number, '_') || ':'
+                             || coalesce(b.phone, '_') || ':' || coalesce(b.zelle_account, '_') || ':'
+                             || coalesce(b.amount::text || ' ' || b.currency, '_'), ' | ' ORDER BY b.position), '')
+    FROM remittance_beneficiaries b JOIN remittance_operations o ON o.id = b.operation_id
+   WHERE o.conversation_id = p_conv AND o.status NOT IN ('completed', 'cancelled') AND b.status = 'vigente'
+$$;
+
 DO $$
 DECLARE
   v_conv uuid; v_r text; v_n int;

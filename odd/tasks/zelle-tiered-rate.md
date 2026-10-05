@@ -78,6 +78,7 @@ the app, offline harness for n8n code.
   (dropdown + value + "Actualizar") and a read-only "Tasas actuales" list.
 - [x] T3 Cerebro tools and context (staging only; one open finding: objective 999 USD, see Progress)
 - [x] T3b DB 217 (staging only): a requested USD amount keeps its own tier price (the 999 USD objective sends 999)
+- [x] T3c DB 218 (staging only): the conversation's recorded USD quote (no objective yet) keeps its tier price
 - [ ] T4 Owner test on staging
 - [ ] T5 Production
 - [ ] T6 Yoandrys correction
@@ -138,3 +139,12 @@ the app, offline harness for n8n code.
   - Open: the Cerebro tool calcular_usd_desde_gyd (T3, n8n) still quotes 1,038 @250 for 259,740 GYD when asked from GYD without an objective (correct per the rule); with an objective set, its text is not changed by 217. Production untouched.
 - 2026-10-05 parent: re-ran zelle-objective-tier on staging (ALL PASS); test contact 529622896918 reset; T4 owner
   WhatsApp test handed over.
+- 2026-10-05 T3c done on staging (migration 218 recorded in schema_migrations, version 218), commit 0e4ec2a.
+  - Finding (owner's staging test): the bot quotes with calcular_usd BEFORE the account is given and cerebro_fijar_objetivo refuses until a beneficiary/receipt exists, so no objective existed; 217 did not apply (999 -> 1,038 @250). The quote is in cerebro_ultima_cotizacion (153).
+  - Rule: only cerebro_zelle_cotizar_op changes. X = open USD objective, else the conversation's USD quote (destino_moneda 'USD', any tool); same match rule floor(gyd/p) = X with p = cerebro_tasa_zelle(X), else the 215/216 best GYD tier. The objective wins over the quote even when it does not match. CUP quotes are ignored.
+  - Recency follows B1.1 (153): quote younger than 24 h counted from the operation's creation (stable, so a late completion bills what the beneficiary got) and newer than the last OTHER closed remesa (the operation itself is excluded, otherwise its own completion would drop the quote in the calculator feed). cerebro_cotizacion_vigente (171, 6 h, GYD quote) is a different table and was not reused.
+  - The five readers of 217 already call the helper (verified in pg_proc); cerebro_aplicar_reparto still uses the GYD tier on purpose.
+  - RED: supabase/staging/assertions/zelle-quote-tier.sql before 218: `case 1: quote 999 + 259,740 GYD must be 999 USD at 260, got 1038 at 250`. GREEN after 218: ALL PASS, as is and with every promo discarded (quote 999 + 259,740 -> 999 @260 and beneficiary 999; 1000 + 250,000 -> 1000 @250; 500 + 130,000; no quote -> 1,038 @250; CUP quote ignored; non-matching deposits 1200/1040/1038/769; objective 500 + quote 999 + 259,740 -> 1,038 @250 (objective wins, no match); objective 999 + quote 500 -> 999 @260; 25 h quote ignored, 23 h applies, quote older than the last closed remesa ignored; calculator ZELLE line 999 billed 259,740 vs 1,038 billed 259,500).
+  - Regressions after 218 (as is and promos discarded): PASS zelle-objective-tier, zelle-tiered-rate, zelle-tier-prices, split-deposit-minimums, requested-amount-target, target-origin-label (run chained with their helpers), reparto-keeps-zelle, reparto-guards, reparto-auto, zelle-remainder-amount, zelle-confirmed-name, resolve-pending, deal-free-money-rules, visa-model, combo-model, rate-versions, ultima-cotizacion, calculator-access/cash/entries-realtime/entry-correction/recarga. reparto-usd-card-rail now fails (`null value in column "conversation_id" of relation "cerebro_destino_pendiente"`, end of the DO block) identically with 218 and 217 rolled back inside the transaction, so it is not caused by 217/218 (it was listed as PASS in the T3b entry; cause not investigated).
+  - Rollback round trip: 218 then ROLLBACK-218 then 218 again in one rolled-back transaction: md5 of cerebro_zelle_cotizar_op 343b6c56... (pre-218, equal to the 217 version) after the rollback, a324e302... applied; privileges (anon no, service_role yes) kept.
+  - Open: the Cerebro tools themselves are not changed; a quote stays usable for 24 h from the operation's creation. Production untouched.

@@ -28,6 +28,17 @@ uses the same rule.
 - The Zelle minimum stays 13,000 GYD (50 x 260).
 - The calculator's invested side keeps usdt_buy_gyd; only the selling rate of a Zelle line is tiered.
 
+## Owner decision (2026-10-05, later)
+- Rates vary, so the Zelle tier prices must be editable where the other rates are: the Calculator. Option 1: three
+  Zelle price fields (one per tier), not a discount relative to the USDT sale rate.
+- Approved layout for "Tarifas Globales": titled groups with equal-width fields, stacked on mobile, one "Guardar
+  tasas" button for everything.
+  - Compra: Compra USDT (GYD).
+  - Venta: Venta USDT (GYD) (renamed from "Venta USDT/Zelle"), Venta USDT (CUP).
+  - Zelle por tramo: a small table "Desde / Precio" with fixed minimums 50, 1,000, 2,000 USD and editable prices.
+  - Cuba: Tarifa CUP global.
+  - Otros: Efectivo USD (GYD por dólar), Recarga: costo (USDT).
+
 ## Scope
 - T1 DB (migration 215 + ROLLBACK + assertion zelle-tiered-rate.sql):
   - the tier config and `cerebro_tasa_zelle(p_usd)` / `cerebro_zelle_usd_desde_gyd(p_gyd)`;
@@ -48,7 +59,10 @@ the app, offline harness for n8n code.
 
 ## Tasks
 - [x] T1 DB 215 (staging only)
-- [ ] T2 App mirror
+- [ ] T1b DB 216: the three Zelle tier prices move to calculator_rate_versions (versioned, admin-edited from the
+  Calculator); the helpers read them from the current rate version instead of cerebro_config.
+- [ ] T2 App: the Calculator "Tarifas Globales" redesign with the Zelle tier table, the rates API, and the
+  document-rates mirror
 - [ ] T3 Cerebro tools and context
 - [ ] T4 Owner test on staging
 - [ ] T5 Production

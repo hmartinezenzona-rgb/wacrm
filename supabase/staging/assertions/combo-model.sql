@@ -191,11 +191,11 @@ BEGIN
   SELECT service_type AS t, delivery_method AS m, status AS s INTO v_r FROM remittance_operations WHERE id = v_op2;
   IF v_r.t IS DISTINCT FROM 'combo' OR v_r.m IS NOT NULL OR v_r.s <> 'completed' THEN
     RAISE EXCEPTION 'case 9: expected combo / no method / completed, got % / % / %', v_r.t, v_r.m, v_r.s; END IF;
-  -- an unknown service is still refused
+  -- an unknown service is still refused (213: 'visa' became a known one, 'traduccion' is not)
   INSERT INTO remittance_operations (account_id, conversation_id, contact_id, status, service_type, source_currency, quoted_source_amount)
   VALUES (v_acc, v_conv, v_ct, 'ready_to_transfer', 'remesa', 'GYD', 30000) RETURNING id INTO v_op2;
   v_ok := false;
-  BEGIN PERFORM crm_cerrar_operacion_manual(v_op2, NULL, false, 'visa'); EXCEPTION WHEN OTHERS THEN v_ok := SQLSTATE = '22023'; END;
+  BEGIN PERFORM crm_cerrar_operacion_manual(v_op2, NULL, false, 'traduccion'); EXCEPTION WHEN OTHERS THEN v_ok := SQLSTATE = '22023'; END;
   IF NOT v_ok THEN RAISE EXCEPTION 'case 9: an unknown service must be refused'; END IF;
 
   -- 10. A completed combo stays in the panel history; the service text no longer hands the payment to a person.

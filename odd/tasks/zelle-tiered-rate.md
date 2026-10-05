@@ -136,3 +136,5 @@ the app, offline harness for n8n code.
   - Regressions after 217 (as is and promos discarded): PASS zelle-tiered-rate, zelle-tier-prices, split-deposit-minimums, requested-amount-target (+split helpers), target-origin-label (+both helpers), reparto-keeps-zelle, reparto-guards, reparto-auto, reparto-usd-card-rail, zelle-remainder-amount, zelle-confirmed-name, resolve-pending, deal-free-money-rules, visa-model, combo-model, rate-versions, calculator-access/cash/entries-realtime/entry-correction/recarga.
   - Rollback round trip: 217 then ROLLBACK-217 in one rolled-back transaction: md5 of the five redefined functions equal the pre-217 ones (feed 291d25bc..., resolver 359123ef..., calcular 5490fdd8..., resto c6d86945..., resolve_pending 36c6892c...); helper gone.
   - Open: the Cerebro tool calcular_usd_desde_gyd (T3, n8n) still quotes 1,038 @250 for 259,740 GYD when asked from GYD without an objective (correct per the rule); with an objective set, its text is not changed by 217. Production untouched.
+- 2026-10-05 parent: re-ran zelle-objective-tier on staging (ALL PASS); test contact 529622896918 reset; T4 owner
+  WhatsApp test handed over.

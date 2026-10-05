@@ -137,11 +137,16 @@ function knownMethodLabel(method: string, t: (key: string) => string): string {
  *  (operation-level, then the first beneficiary's), otherwise the delivery
  *  method's label as a last resort. Never the destination amount — that's not
  *  shown anywhere in the header. */
-function destinationLabel(operation: RemittanceOperationRead, t: (key: string) => string): string | null {
+function destinationLabel(
+  operation: RemittanceOperationRead,
+  t: (key: string, params?: Record<string, unknown>) => string,
+): string | null {
   const { deliveryMethod, destinationCurrency, beneficiaries } = operation;
   if (isRecharge(operation)) return t("beneficiaryType.recarga");
   if (isCombo(operation)) return t("beneficiaryType.combo");
-  if (isVisa(operation)) return t("beneficiaryType.visa");
+  // A visa shows how many extensions from the start (owner test 2026-10-04): the count used to appear only once the
+  // deposit was verified.
+  if (isVisa(operation)) return `${t("beneficiaryType.visa")} · ${visaCountLabel(operation, t)}`;
 
   const units = new Set(
     beneficiaries
@@ -208,6 +213,15 @@ function isVisa(operation: RemittanceOperationRead): boolean {
 /** Price of one visa extension in GYD (migration 213): the operation's amount is this times the people. */
 const VISA_PRICE_GYD = 5000;
 
+/** "N extension(s)": a visa's amount is VISA_PRICE_GYD per person, at least one. */
+function visaCountLabel(
+  operation: RemittanceOperationRead,
+  t: (key: string, params?: Record<string, unknown>) => string,
+): string {
+  const count = Math.max(1, Math.round((operation.quotedSourceAmount ?? 0) / VISA_PRICE_GYD));
+  return t(count === 1 ? "visaCountOne" : "visaCountMany", { count });
+}
+
 function computeSummaryAmount(
   operation: RemittanceOperationRead,
   t: (key: string, params?: Record<string, unknown>) => string,
@@ -228,8 +242,7 @@ function computeSummaryAmount(
 
   // A visa has no recipients: the extensions are counted from the amount.
   if (isVisa(operation)) {
-    const count = Math.max(1, Math.round((operation.quotedSourceAmount ?? 0) / VISA_PRICE_GYD));
-    return { kind: "amount", display: t(count === 1 ? "visaCountOne" : "visaCountMany", { count }) };
+    return { kind: "amount", display: visaCountLabel(operation, t) };
   }
 
   if (operation.beneficiaries.length === 1) {
@@ -346,7 +359,7 @@ export function RemittanceOperationCard({
   }
 
   const source = money(operation.quotedSourceAmount, operation.sourceCurrency);
-  const destLabel = destinationLabel(operation, t as (key: string) => string);
+  const destLabel = destinationLabel(operation, t as (key: string, params?: Record<string, unknown>) => string);
   const destLocked = isLocked("delivery_method") || isLocked("destination_currency") || isLocked("quoted_destination_amount");
 
   const methodLabel = (method: string): string => knownMethodLabel(method, t as (key: string) => string);

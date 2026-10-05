@@ -275,6 +275,17 @@ describe("RemittanceOperationCard visa", () => {
     await act(async () => root.unmount());
   });
 
+  // Owner test 2026-10-04: waiting for the deposit, the card only said "Visa extension" and 10,000 GYD.
+  it("shows the extensions count in the header while the deposit is awaited", async () => {
+    const { node, root } = await render(visaOp({ status: "collecting_information", quotedSourceAmount: 10000 }));
+
+    const header = node.querySelector("article button[aria-expanded]")!.textContent!;
+    expect(header).toContain("10,000 GYD");
+    expect(header).toContain("Visa extension");
+    expect(header).toContain("2 extensions");
+    await act(async () => root.unmount());
+  });
+
   it("counts a single extension in the singular, and at least one", async () => {
     for (const amount of [5000, 2000, null]) {
       const { node, root } = await render(visaOp({ quotedSourceAmount: amount }));

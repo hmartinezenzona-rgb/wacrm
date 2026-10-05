@@ -34,16 +34,17 @@
 :global(.legacyCalc button.legacyIconButton:hover) { background: var(--accent); color: var(--foreground); }
 :global(.legacyCalc .legacyFlex) { display: flex; gap: 12px; flex-wrap: wrap; }
 :global(.legacyCalc .legacyFlex > div) { flex: 1; min-width: 150px; }
-/* Tarifas Globales: titled groups, each field the full width of its group, groups wrap and stack on narrow screens. */
-:global(.legacyCalc .legacyRateGroups) { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px; }
-:global(.legacyCalc .legacyRateGroup) { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--muted); }
-:global(.legacyCalc .legacyRateGroup h3) { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted-foreground); }
-/* Own table (not legacyParsedTable): that one collapses into stacked cards on phones and hides its header. */
-:global(.legacyCalc .legacyTierTable) { width: 100%; border-collapse: collapse; font-size: 13px; }
-:global(.legacyCalc .legacyTierTable th), :global(.legacyCalc .legacyTierTable td) { border: 1px solid var(--border); padding: 6px 8px; text-align: left; background: var(--card); }
-:global(.legacyCalc .legacyTierTable th) { background: var(--muted); color: var(--foreground); }
-:global(.legacyCalc .legacyTierTable td:first-child) { white-space: nowrap; width: 1%; }
-:global(.legacyCalc .legacyTierTable input) { padding: 8px; min-width: 0; }
+/* Tarifas Globales: one-rate editor (select + value + button) that wraps on narrow screens, then a read-only label/value list. */
+:global(.legacyCalc .legacyRateEditor) { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+:global(.legacyCalc .legacyRateEditor > div) { flex: 1 1 200px; min-width: 0; }
+:global(.legacyCalc .legacyRateEditor button) { flex: 0 0 auto; }
+:global(.legacyCalc .legacyNotice) { margin-top: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--muted); color: var(--foreground); }
+:global(.legacyCalc .legacyRatesTitle) { margin: 16px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted-foreground); }
+:global(.legacyCalc .legacyRateList) { display: grid; grid-template-columns: 1fr; margin: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: var(--card-foreground); overflow: hidden; }
+:global(.legacyCalc .legacyRateRow) { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding: 8px 12px; border-top: 1px solid var(--border); }
+:global(.legacyCalc .legacyRateRow:first-child) { border-top: 0; }
+:global(.legacyCalc .legacyRateRow dt) { margin: 0; color: var(--muted-foreground); overflow-wrap: anywhere; }
+:global(.legacyCalc .legacyRateRow dd) { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
 :global(.legacyCalc .legacyTotals) { display: flex; gap: 12px; margin-bottom: 15px; flex-wrap: wrap; }
 :global(.legacyCalc .legacyTotalBox) { flex: 1; min-width: 140px; background: var(--card); color: var(--card-foreground); padding: 12px; border-radius: 10px; text-align: center; border: 1px solid var(--border); }
 :global(.legacyCalc .legacyTopBar) { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; gap: 12px; }

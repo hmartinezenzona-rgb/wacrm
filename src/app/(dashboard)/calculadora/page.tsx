@@ -56,23 +56,39 @@ function renderOperationGroups(operations: WebCalculatorParsedLine[]) {
   return groups;
 }
 
+type RateKey =
+  | "cup_global_rate" | "usdt_buy_gyd" | "usdt_sell_gyd" | "usdt_sell_cup" | "zelle_sell_gyd"
+  | "zelle_sell_gyd_1000" | "zelle_sell_gyd_2000" | "efectivo_usd_gyd" | "recarga_costo_usdt";
+
+// Every global rate, in the order shown in the dropdown and the current-rates list.
+const RATE_FIELDS: ReadonlyArray<{ key: RateKey; label: string; field: keyof CalculatorRates }> = [
+  { key: "cup_global_rate", label: "Tarifa CUP global", field: "cupGlobalRate" },
+  { key: "usdt_buy_gyd", label: "Compra USDT (GYD)", field: "usdtBuyGyd" },
+  { key: "usdt_sell_gyd", label: "Venta USDT (GYD)", field: "usdtSellGyd" },
+  { key: "usdt_sell_cup", label: "Venta USDT (CUP)", field: "usdtSellCup" },
+  { key: "zelle_sell_gyd", label: "Zelle desde 50 USD", field: "zelleSellGyd" },
+  { key: "zelle_sell_gyd_1000", label: "Zelle desde 1,000 USD", field: "zelleSellGyd1000" },
+  { key: "zelle_sell_gyd_2000", label: "Zelle desde 2,000 USD", field: "zelleSellGyd2000" },
+  { key: "efectivo_usd_gyd", label: "Efectivo USD (GYD por dólar)", field: "efectivoUsdGyd" },
+  { key: "recarga_costo_usdt", label: "Recarga: costo (USDT)", field: "recargaCostoUsdt" },
+];
+
+function rateValueOf(rates: CalculatorRates | null, key: RateKey): number | null {
+  const field = RATE_FIELDS.find((f) => f.key === key)!.field;
+  return (rates?.[field] as number | null | undefined) ?? null;
+}
+
 export default function CalculadoraPage() {
   const [rawText, setRawText] = useState("");
   const [periodo, setPeriodo] = useState("");
-  const [tarifa, setTarifa] = useState("");
-  const [compraUsdtGyd, setCompraUsdtGyd] = useState("");
-  const [ventaUsdtGyd, setVentaUsdtGyd] = useState("");
-  const [ventaUsdtCup, setVentaUsdtCup] = useState("");
-  const [efectivoUsdGyd, setEfectivoUsdGyd] = useState("");
-  const [recargaCostoUsdt, setRecargaCostoUsdt] = useState("");
-  // Zelle sale price of the tiers that start at 50, 1,000 and 2,000 USD (migration 216).
-  const [zellePrecio50, setZellePrecio50] = useState("");
-  const [zellePrecio1000, setZellePrecio1000] = useState("");
-  const [zellePrecio2000, setZellePrecio2000] = useState("");
-  const [rateVersionId, setRateVersionId] = useState<string | null>(null);
+  const [rates, setRates] = useState<CalculatorRates | null>(null);
+  const [selectedRate, setSelectedRate] = useState<RateKey>("cup_global_rate");
+  // null = show the selected rate's current value; a string = what the admin typed.
+  const [rateDraft, setRateDraft] = useState<string | null>(null);
   const [ratesLocked, setRatesLocked] = useState(false);
   const [ratesSaving, setRatesSaving] = useState(false);
   const [ratesMessage, setRatesMessage] = useState<string | null>(null);
+  const [ratesMessageKind, setRatesMessageKind] = useState<"ok" | "error">("error");
   const [chatEntries, setChatEntries] = useState<ChatCalculatorEntry[]>([]);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [editFacturado, setEditFacturado] = useState("");
@@ -88,6 +104,9 @@ export default function CalculadoraPage() {
   const [hydrated, setHydrated] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  const tarifa = rates?.cupGlobalRate == null ? "" : String(rates.cupGlobalRate);
+  const selectedRateValue = rateValueOf(rates, selectedRate);
+  const rateInputValue = rateDraft ?? (selectedRateValue == null ? "" : String(selectedRateValue));
   const parsed = useMemo(() => procesarTexto(rawText, Number(tarifa)), [rawText, tarifa]);
   const operationGroups = useMemo(() => renderOperationGroups(parsed.operations), [parsed.operations]);
   const structuredTotals = useMemo(() => chatTotals(chatEntries), [chatEntries]);
@@ -113,17 +132,9 @@ export default function CalculadoraPage() {
     [chatEntries],
   );
 
-  function applyRates(rates: CalculatorRates | null) {
-    setRateVersionId(rates?.id ?? null);
-    setTarifa(rates?.cupGlobalRate == null ? "" : String(rates.cupGlobalRate));
-    setCompraUsdtGyd(rates?.usdtBuyGyd == null ? "" : String(rates.usdtBuyGyd));
-    setVentaUsdtGyd(rates?.usdtSellGyd == null ? "" : String(rates.usdtSellGyd));
-    setVentaUsdtCup(rates?.usdtSellCup == null ? "" : String(rates.usdtSellCup));
-    setEfectivoUsdGyd(rates?.efectivoUsdGyd == null ? "" : String(rates.efectivoUsdGyd));
-    setRecargaCostoUsdt(rates?.recargaCostoUsdt == null ? "" : String(rates.recargaCostoUsdt));
-    setZellePrecio50(rates?.zelleSellGyd == null ? "" : String(rates.zelleSellGyd));
-    setZellePrecio1000(rates?.zelleSellGyd1000 == null ? "" : String(rates.zelleSellGyd1000));
-    setZellePrecio2000(rates?.zelleSellGyd2000 == null ? "" : String(rates.zelleSellGyd2000));
+  function applyRates(next: CalculatorRates | null) {
+    setRates(next);
+    setRateDraft(null);
   }
 
   useEffect(() => {
@@ -197,46 +208,53 @@ export default function CalculadoraPage() {
     },
   });
 
-  async function guardarTasas() {
+  async function actualizarTasa() {
+    const value = Number(rateInputValue);
+    if (rateInputValue.trim() === "" || !Number.isFinite(value) || value <= 0) {
+      setRatesMessageKind("error");
+      setRatesMessage("Escribe un número mayor que 0.");
+      return;
+    }
     setRatesSaving(true);
     setRatesMessage(null);
-    const rates: Record<string, number> = {};
-    if (tarifa.trim() !== "") rates.cup_global_rate = Number(tarifa);
-    if (compraUsdtGyd.trim() !== "") rates.usdt_buy_gyd = Number(compraUsdtGyd);
-    if (ventaUsdtGyd.trim() !== "") rates.usdt_sell_gyd = Number(ventaUsdtGyd);
-    if (ventaUsdtCup.trim() !== "") rates.usdt_sell_cup = Number(ventaUsdtCup);
-    if (efectivoUsdGyd.trim() !== "") rates.efectivo_usd_gyd = Number(efectivoUsdGyd);
-    if (recargaCostoUsdt.trim() !== "") rates.recarga_costo_usdt = Number(recargaCostoUsdt);
-    if (zellePrecio50.trim() !== "") rates.zelle_sell_gyd = Number(zellePrecio50);
-    if (zellePrecio1000.trim() !== "") rates.zelle_sell_gyd_1000 = Number(zellePrecio1000);
-    if (zellePrecio2000.trim() !== "") rates.zelle_sell_gyd_2000 = Number(zellePrecio2000);
     try {
+      // Only the selected rate is sent: the RPC carries every other rate forward from the current version.
       const response = await fetch("/api/calculator/rates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rates, ...(rateVersionId ? { expectedVersionId: rateVersionId } : {}) }),
+        body: JSON.stringify({
+          rates: { [selectedRate]: value },
+          ...(rates?.id ? { expectedVersionId: rates.id } : {}),
+        }),
       });
       if (response.status === 403) {
         setRatesLocked(true);
+        setRatesMessageKind("error");
         setRatesMessage("Solo un administrador puede modificar las tasas.");
         return;
       }
       if (response.status === 409) {
+        setRatesMessageKind("error");
         setRatesMessage("Las tasas se modificaron en otro lugar; recarga la página.");
         return;
       }
       if (!response.ok) {
+        setRatesMessageKind("error");
         setRatesMessage("No se pudieron guardar las tasas.");
         return;
       }
       const data = await response.json() as { rates: CalculatorRates };
       applyRates(data.rates);
+      setRatesMessageKind("ok");
+      setRatesMessage("Tasa actualizada.");
     } catch {
+      setRatesMessageKind("error");
       setRatesMessage("No se pudieron guardar las tasas.");
     } finally {
       setRatesSaving(false);
     }
   }
+
 
   function parseEditAmount(value: string): number | null {
     if (value.trim() === "") return null;
@@ -414,43 +432,41 @@ export default function CalculadoraPage() {
 
         <div className="legacyCard">
           <h2>💱 Tarifas Globales</h2>
-          <div className="legacyRateGroups" id="tarifasGlobales">
-            <section className="legacyRateGroup">
-              <h3>Compra</h3>
-              <div><label htmlFor="compraUsdtGyd">Compra USDT (GYD)</label><input id="compraUsdtGyd" type="number" step="0.01" value={compraUsdtGyd} onChange={(event) => setCompraUsdtGyd(event.target.value)} disabled={ratesLocked} /></div>
-            </section>
-            <section className="legacyRateGroup">
-              <h3>Venta</h3>
-              <div><label htmlFor="ventaUsdtGyd">Venta USDT (GYD)</label><input id="ventaUsdtGyd" type="number" step="0.01" value={ventaUsdtGyd} onChange={(event) => setVentaUsdtGyd(event.target.value)} disabled={ratesLocked} /></div>
-              <div><label htmlFor="ventaUsdtCup">Venta USDT (CUP)</label><input id="ventaUsdtCup" type="number" step="0.01" value={ventaUsdtCup} onChange={(event) => setVentaUsdtCup(event.target.value)} disabled={ratesLocked} /></div>
-            </section>
-            <section className="legacyRateGroup">
-              <h3>Zelle por tramo</h3>
-              <table className="legacyTierTable" id="zelleTramos">
-                <thead><tr><th>Desde</th><th>Precio</th></tr></thead>
-                <tbody>
-                  <tr><td>50 USD</td><td><input id="zellePrecio50" aria-label="Precio Zelle desde 50 USD (GYD)" type="number" step="0.01" value={zellePrecio50} onChange={(event) => setZellePrecio50(event.target.value)} disabled={ratesLocked} /></td></tr>
-                  <tr><td>1,000 USD</td><td><input id="zellePrecio1000" aria-label="Precio Zelle desde 1,000 USD (GYD)" type="number" step="0.01" value={zellePrecio1000} onChange={(event) => setZellePrecio1000(event.target.value)} disabled={ratesLocked} /></td></tr>
-                  <tr><td>2,000 USD</td><td><input id="zellePrecio2000" aria-label="Precio Zelle desde 2,000 USD (GYD)" type="number" step="0.01" value={zellePrecio2000} onChange={(event) => setZellePrecio2000(event.target.value)} disabled={ratesLocked} /></td></tr>
-                </tbody>
-              </table>
-            </section>
-            <section className="legacyRateGroup">
-              <h3>Cuba</h3>
-              <div><label htmlFor="tarifaCupGlobal">Tarifa CUP global</label><input id="tarifaCupGlobal" type="number" step="0.1" value={tarifa} onChange={(event) => setTarifa(event.target.value)} disabled={ratesLocked} /></div>
-            </section>
-            <section className="legacyRateGroup">
-              <h3>Otros</h3>
-              <div><label htmlFor="efectivoUsdGyd">Tasa efectivo USD (GYD por dólar)</label><input id="efectivoUsdGyd" type="number" step="0.01" value={efectivoUsdGyd} onChange={(event) => setEfectivoUsdGyd(event.target.value)} disabled={ratesLocked} /></div>
-              <div><label htmlFor="recargaCostoUsdt">Recarga: costo (USDT)</label><input id="recargaCostoUsdt" type="number" step="0.01" value={recargaCostoUsdt} onChange={(event) => setRecargaCostoUsdt(event.target.value)} disabled={ratesLocked} /></div>
-            </section>
-          </div>
-          <div className="legacyFlex" style={{ marginTop: 10, alignItems: "center" }}>
-            <button type="button" id="guardarTasas" onClick={() => void guardarTasas()} disabled={ratesLocked || ratesSaving} style={{ width: "auto" }}>
-              {ratesSaving ? "Guardando…" : "Guardar tasas"}
+          <div className="legacyRateEditor" id="tarifasGlobales">
+            <div>
+              <label htmlFor="tasaSeleccionada">Tasa a cambiar</label>
+              <select
+                id="tasaSeleccionada"
+                value={selectedRate}
+                onChange={(event) => { setSelectedRate(event.target.value as RateKey); setRateDraft(null); setRatesMessage(null); }}
+                disabled={ratesLocked || ratesSaving}
+              >
+                {RATE_FIELDS.map((field) => <option key={field.key} value={field.key}>{field.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="tasaValor">Nuevo valor</label>
+              <input id="tasaValor" type="number" step="0.01" min="0" value={rateInputValue} onChange={(event) => setRateDraft(event.target.value)} disabled={ratesLocked || ratesSaving} />
+            </div>
+            <button type="button" id="actualizarTasa" onClick={() => void actualizarTasa()} disabled={ratesLocked || ratesSaving} style={{ width: "auto" }}>
+              {ratesSaving ? "Actualizando…" : "Actualizar"}
             </button>
           </div>
-          {ratesMessage && <div className="legacyError">{ratesMessage}</div>}
+          {ratesMessage && (
+            <div id="tasasMensaje" className={ratesMessageKind === "ok" ? "legacyNotice" : "legacyError"} role="status">{ratesMessage}</div>
+          )}
+          <h3 className="legacyRatesTitle">Tasas actuales</h3>
+          <dl className="legacyRateList" id="tasasActuales">
+            {RATE_FIELDS.map((field) => {
+              const value = rateValueOf(rates, field.key);
+              return (
+                <div className="legacyRateRow" key={field.key}>
+                  <dt>{field.label}</dt>
+                  <dd>{value == null ? "—" : String(value)}</dd>
+                </div>
+              );
+            })}
+          </dl>
         </div>
 
         {pendingEntries.length > 0 && (

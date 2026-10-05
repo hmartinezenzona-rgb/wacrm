@@ -5,8 +5,8 @@
 //  - the rate inputs hydrate from GET /api/calculator/rates (never a fake
 //    default like "3.0"), and its `id` is kept as the concurrency token;
 //  - rates no longer ride the debounced POST /api/calculadora save;
-//  - an explicit "Guardar tasas" button POSTs only the filled-in rates
-//    (snake_case) plus expectedVersionId to POST /api/calculator/rates, and
+//  - the single-rate editor (dropdown + value + "Actualizar") POSTs only the
+//    selected rate (snake_case) plus expectedVersionId to POST /api/calculator/rates, and
 //    reacts to 403 (admin-only, disables editing)/409 (stale, reload)/other
 //    failures with Spanish messages;
 //  - a pending banner lists chat entries stuck on verified_pending and the
@@ -188,156 +188,229 @@ afterEach(() => {
   mockRealtime.reset();
 });
 
-describe("calculator global rate inputs (post-ledger)", () => {
-  it("renders the four Spanish-labeled global rate inputs", async () => {
-    const fetchMock = createFetchMock({ ratesGet: { rates: null } });
-    const { node, root } = await renderPage(fetchMock);
+const RATE_OPTIONS = [
+  ["cup_global_rate", "Tarifa CUP global"],
+  ["usdt_buy_gyd", "Compra USDT (GYD)"],
+  ["usdt_sell_gyd", "Venta USDT (GYD)"],
+  ["usdt_sell_cup", "Venta USDT (CUP)"],
+  ["zelle_sell_gyd", "Zelle desde 50 USD"],
+  ["zelle_sell_gyd_1000", "Zelle desde 1,000 USD"],
+  ["zelle_sell_gyd_2000", "Zelle desde 2,000 USD"],
+  ["efectivo_usd_gyd", "Efectivo USD (GYD por dólar)"],
+  ["recarga_costo_usdt", "Recarga: costo (USDT)"],
+] as const;
 
-    expect(node.querySelector('label[for="tarifaCupGlobal"]')?.textContent).toBe("Tarifa CUP global");
-    expect(node.querySelector('label[for="compraUsdtGyd"]')?.textContent).toBe("Compra USDT (GYD)");
-    expect(node.querySelector('label[for="ventaUsdtGyd"]')?.textContent).toBe("Venta USDT (GYD)");
-    expect(node.querySelector('label[for="ventaUsdtCup"]')?.textContent).toBe("Venta USDT (CUP)");
-    expect(node.querySelector('label[for="efectivoUsdGyd"]')?.textContent).toBe("Tasa efectivo USD (GYD por dólar)");
-    expect(node.querySelector('label[for="recargaCostoUsdt"]')?.textContent).toBe("Recarga: costo (USDT)");
-    await act(async () => root.unmount());
-  });
+const FULL_RATES = {
+  id: "rate-1",
+  cupGlobalRate: 3,
+  usdtBuyGyd: 240,
+  usdtSellGyd: 260,
+  usdtSellCup: 975,
+  zelleSellGyd: 260,
+  zelleSellGyd1000: 250,
+  zelleSellGyd2000: 245,
+  efectivoUsdGyd: 290,
+  recargaCostoUsdt: 4.5,
+  effectiveAt: "2026-09-10T00:00:00Z",
+  setBy: null,
+};
 
-  it("groups the rates under titled sections: Compra, Venta, Zelle por tramo, Cuba, Otros", async () => {
-    const fetchMock = createFetchMock({ ratesGet: { rates: null } });
-    const { node, root } = await renderPage(fetchMock);
+function selectRate(node: HTMLElement, key: string) {
+  const select = node.querySelector("#tasaSeleccionada") as HTMLSelectElement;
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value")!.set!;
+  setter.call(select, key);
+  select.dispatchEvent(new Event("change", { bubbles: true }));
+}
 
-    const titles = [...node.querySelectorAll("#tarifasGlobales h3")].map((h) => h.textContent);
-    expect(titles).toEqual(["Compra", "Venta", "Zelle por tramo", "Cuba", "Otros"]);
-    const group = (title: string) =>
-      [...node.querySelectorAll("#tarifasGlobales section")].find((s) => s.querySelector("h3")?.textContent === title)!;
-    const ids = (title: string) => [...group(title).querySelectorAll("input")].map((i) => i.id);
-    expect(ids("Compra")).toEqual(["compraUsdtGyd"]);
-    expect(ids("Venta")).toEqual(["ventaUsdtGyd", "ventaUsdtCup"]);
-    expect(ids("Zelle por tramo")).toEqual(["zellePrecio50", "zellePrecio1000", "zellePrecio2000"]);
-    expect(ids("Cuba")).toEqual(["tarifaCupGlobal"]);
-    expect(ids("Otros")).toEqual(["efectivoUsdGyd", "recargaCostoUsdt"]);
-    // one save button for everything
-    expect(node.querySelectorAll("#guardarTasas").length).toBe(1);
-    await act(async () => root.unmount());
-  });
+function listRows(node: HTMLElement) {
+  return [...node.querySelectorAll("#tasasActuales .legacyRateRow")].map((row) => [
+    row.querySelector("dt")?.textContent,
+    row.querySelector("dd")?.textContent,
+  ]);
+}
 
-  it("renders the Zelle tier table: Desde / Precio with fixed 50, 1,000 and 2,000 USD minimums", async () => {
-    const fetchMock = createFetchMock({ ratesGet: { rates: null } });
-    const { node, root } = await renderPage(fetchMock);
+function updateButton(node: HTMLElement) {
+  return node.querySelector("#actualizarTasa") as HTMLButtonElement;
+}
 
-    const table = node.querySelector("#zelleTramos") as HTMLTableElement;
-    expect([...table.querySelectorAll("thead th")].map((th) => th.textContent)).toEqual(["Desde", "Precio"]);
-    expect([...table.querySelectorAll("tbody tr")].map((tr) => tr.querySelector("td")?.textContent)).toEqual([
-      "50 USD",
-      "1,000 USD",
-      "2,000 USD",
+describe("calculator single-rate editor (Tarifas Globales)", () => {
+  it("the dropdown lists the nine rates in order with their Spanish labels", async () => {
+    const { node, root } = await renderPage(createFetchMock({ ratesGet: { rates: FULL_RATES } }));
+
+    const options = [...node.querySelectorAll("#tasaSeleccionada option")].map((o) => [
+      (o as HTMLOptionElement).value,
+      o.textContent,
     ]);
-    // prices are editable inputs, empty when nothing is saved
-    for (const id of ["zellePrecio50", "zellePrecio1000", "zellePrecio2000"]) {
-      expect(inputValue(node, id)).toBe("");
-      expect((node.querySelector(`#${id}`) as HTMLInputElement).type).toBe("number");
-    }
+    expect(options).toEqual(RATE_OPTIONS.map(([key, label]) => [key, label]));
     await act(async () => root.unmount());
   });
 
-  it("hydrates the Zelle tier prices from the rate version and locks them for non-admins", async () => {
-    const fetchMock = createFetchMock({
-      ratesGet: {
-        rates: {
-          id: "rate-1", cupGlobalRate: 3, usdtBuyGyd: 240, usdtSellGyd: 260, usdtSellCup: 975,
-          zelleSellGyd: 260, zelleSellGyd1000: 250, zelleSellGyd2000: 245,
-          effectiveAt: "2026-09-10T00:00:00Z", setBy: null,
-        },
-      },
-      ratesPost: () => ({ status: 403, body: { error: "Forbidden" } }),
-    });
-    const { node, root } = await renderPage(fetchMock);
+  it("labels the dropdown and the value field", async () => {
+    const { node, root } = await renderPage(createFetchMock({ ratesGet: { rates: FULL_RATES } }));
 
-    expect(inputValue(node, "zellePrecio50")).toBe("260");
-    expect(inputValue(node, "zellePrecio1000")).toBe("250");
-    expect(inputValue(node, "zellePrecio2000")).toBe("245");
-    const button = node.querySelector("#guardarTasas") as HTMLButtonElement;
-    await act(async () => { button.click(); });
-    await flush();
-    for (const id of ["zellePrecio50", "zellePrecio1000", "zellePrecio2000"]) expect(isInputDisabled(node, id)).toBe(true);
+    expect(node.querySelector('label[for="tasaSeleccionada"]')?.textContent).toBe("Tasa a cambiar");
+    expect(node.querySelector('label[for="tasaValor"]')?.textContent).toBe("Nuevo valor");
+    expect((node.querySelector("#tasaValor") as HTMLInputElement).type).toBe("number");
     await act(async () => root.unmount());
   });
 
-  it("Guardar tasas sends the Zelle tier prices (snake_case) together with the other rates", async () => {
+  it("lists every current rate read-only, with a dash for the ones not set", async () => {
+    const { node, root } = await renderPage(
+      createFetchMock({ ratesGet: { rates: { ...FULL_RATES, usdtSellCup: null, efectivoUsdGyd: null } } }),
+    );
+
+    expect(listRows(node)).toEqual([
+      ["Tarifa CUP global", "3"],
+      ["Compra USDT (GYD)", "240"],
+      ["Venta USDT (GYD)", "260"],
+      ["Venta USDT (CUP)", "—"],
+      ["Zelle desde 50 USD", "260"],
+      ["Zelle desde 1,000 USD", "250"],
+      ["Zelle desde 2,000 USD", "245"],
+      ["Efectivo USD (GYD por dólar)", "—"],
+      ["Recarga: costo (USDT)", "4.5"],
+    ]);
+    expect(node.querySelectorAll("#tasasActuales input").length).toBe(0);
+    await act(async () => root.unmount());
+  });
+
+  it("no rates set yet -> every value is a dash and the field is empty, never a fake default", async () => {
+    const { node, root } = await renderPage(createFetchMock({ ratesGet: { rates: null } }));
+
+    expect(listRows(node).map(([, value]) => value)).toEqual(Array(9).fill("—"));
+    expect(inputValue(node, "tasaValor")).toBe("");
+    await act(async () => root.unmount());
+  });
+
+  it("selecting a rate fills the value field with its current value (empty when unset)", async () => {
+    const { node, root } = await renderPage(
+      createFetchMock({ ratesGet: { rates: { ...FULL_RATES, usdtSellCup: null } } }),
+    );
+
+    expect(inputValue(node, "tasaValor")).toBe("3");
+    act(() => selectRate(node, "zelle_sell_gyd_1000"));
+    expect(inputValue(node, "tasaValor")).toBe("250");
+    act(() => selectRate(node, "usdt_sell_cup"));
+    expect(inputValue(node, "tasaValor")).toBe("");
+    await act(async () => root.unmount());
+  });
+
+  it("Actualizar posts only the selected rate with the loaded version id and refreshes the list", async () => {
     let capturedBody: { rates: Record<string, unknown>; expectedVersionId?: string } | undefined;
     const ratesPost = vi.fn((body: { rates: Record<string, unknown>; expectedVersionId?: string }): RatesPostResult => {
       capturedBody = body;
-      return {
-        status: 200,
-        body: { rates: { id: "rate-2", cupGlobalRate: null, usdtBuyGyd: 240, usdtSellGyd: null, usdtSellCup: null, zelleSellGyd: 265, zelleSellGyd1000: 255, zelleSellGyd2000: 250, effectiveAt: "2026-09-16T00:00:00Z", setBy: "user-a" } },
-      };
+      return { status: 200, body: { rates: { ...FULL_RATES, id: "rate-2", zelleSellGyd1000: 255 } } };
     });
-    const fetchMock = createFetchMock({
-      ratesGet: { rates: { id: "rate-1", cupGlobalRate: null, usdtBuyGyd: null, usdtSellGyd: null, usdtSellCup: null, zelleSellGyd: 260, zelleSellGyd1000: 250, zelleSellGyd2000: 245, effectiveAt: "2026-09-10T00:00:00Z", setBy: null } },
-      ratesPost,
-    });
-    const { node, root } = await renderPage(fetchMock);
+    const { node, root } = await renderPage(createFetchMock({ ratesGet: { rates: FULL_RATES }, ratesPost }));
 
-    act(() => setInputValue(node, "compraUsdtGyd", "240"));
-    act(() => setInputValue(node, "zellePrecio50", "265"));
-    act(() => setInputValue(node, "zellePrecio1000", "255"));
-    act(() => setInputValue(node, "zellePrecio2000", "250"));
-    const button = node.querySelector("#guardarTasas") as HTMLButtonElement;
-    await act(async () => { button.click(); });
+    act(() => selectRate(node, "zelle_sell_gyd_1000"));
+    act(() => setInputValue(node, "tasaValor", "255"));
+    await act(async () => { updateButton(node).click(); });
     await flush();
 
     expect(ratesPost).toHaveBeenCalledTimes(1);
-    expect(capturedBody).toEqual({
-      rates: { usdt_buy_gyd: 240, zelle_sell_gyd: 265, zelle_sell_gyd_1000: 255, zelle_sell_gyd_2000: 250 },
-      expectedVersionId: "rate-1",
-    });
-    expect(inputValue(node, "zellePrecio1000")).toBe("255");
+    expect(capturedBody).toEqual({ rates: { zelle_sell_gyd_1000: 255 }, expectedVersionId: "rate-1" });
+    expect(listRows(node)[5]).toEqual(["Zelle desde 1,000 USD", "255"]);
+    expect(inputValue(node, "tasaValor")).toBe("255");
+    expect(node.querySelector("#tasasMensaje")?.textContent).toContain("Tasa actualizada");
     await act(async () => root.unmount());
   });
 
-  it("no rates set yet -> every rate input is empty, never a fake default", async () => {
-    const fetchMock = createFetchMock({ ratesGet: { rates: null } });
-    const { node, root } = await renderPage(fetchMock);
+  it("the next update uses the new version id from the response", async () => {
+    const bodies: Array<{ rates: Record<string, unknown>; expectedVersionId?: string }> = [];
+    const ratesPost = vi.fn((body: { rates: Record<string, unknown>; expectedVersionId?: string }): RatesPostResult => {
+      bodies.push(body);
+      return { status: 200, body: { rates: { ...FULL_RATES, id: `rate-${bodies.length + 1}`, cupGlobalRate: 4 } } };
+    });
+    const { node, root } = await renderPage(createFetchMock({ ratesGet: { rates: FULL_RATES }, ratesPost }));
 
-    expect(inputValue(node, "tarifaCupGlobal")).toBe("");
-    expect(inputValue(node, "compraUsdtGyd")).toBe("");
-    expect(inputValue(node, "ventaUsdtGyd")).toBe("");
-    expect(inputValue(node, "ventaUsdtCup")).toBe("");
-    expect(inputValue(node, "efectivoUsdGyd")).toBe("");
-    expect(inputValue(node, "recargaCostoUsdt")).toBe("");
+    act(() => setInputValue(node, "tasaValor", "4"));
+    await act(async () => { updateButton(node).click(); });
+    await flush();
+    act(() => setInputValue(node, "tasaValor", "5"));
+    await act(async () => { updateButton(node).click(); });
+    await flush();
+
+    expect(bodies.map((b) => b.expectedVersionId)).toEqual(["rate-1", "rate-2"]);
     await act(async () => root.unmount());
   });
 
-  it("hydrates saved rates from GET /api/calculator/rates", async () => {
-    const fetchMock = createFetchMock({
-      ratesGet: {
-        rates: {
-          id: "rate-1",
-          cupGlobalRate: 3.5,
-          usdtBuyGyd: 235,
-          usdtSellGyd: 260,
-          usdtSellCup: 975,
-          efectivoUsdGyd: 290,
-          recargaCostoUsdt: 4.5,
-          effectiveAt: "2026-09-10T00:00:00Z",
-          setBy: "user-a",
-        },
-      },
-    });
-    const { node, root } = await renderPage(fetchMock);
+  it("with no version yet the post carries no expectedVersionId", async () => {
+    const ratesPost = vi.fn((): RatesPostResult => ({ status: 200, body: { rates: { ...FULL_RATES, id: "rate-1", cupGlobalRate: 3 } } }));
+    const { node, root } = await renderPage(createFetchMock({ ratesGet: { rates: null }, ratesPost }));
 
-    expect(inputValue(node, "tarifaCupGlobal")).toBe("3.5");
-    expect(inputValue(node, "compraUsdtGyd")).toBe("235");
-    expect(inputValue(node, "ventaUsdtGyd")).toBe("260");
-    expect(inputValue(node, "ventaUsdtCup")).toBe("975");
-    expect(inputValue(node, "efectivoUsdGyd")).toBe("290");
-    expect(inputValue(node, "recargaCostoUsdt")).toBe("4.5");
+    act(() => setInputValue(node, "tasaValor", "3"));
+    await act(async () => { updateButton(node).click(); });
+    await flush();
+
+    expect(ratesPost).toHaveBeenCalledWith({ rates: { cup_global_rate: 3 } });
+    await act(async () => root.unmount());
+  });
+
+  it.each([["empty", ""], ["zero", "0"], ["negative", "-5"]])(
+    "an invalid value (%s) is not sent and shows a message",
+    async (_name, value) => {
+      const ratesPost = vi.fn((): RatesPostResult => ({ status: 200, body: { rates: FULL_RATES } }));
+      const { node, root } = await renderPage(createFetchMock({ ratesGet: { rates: FULL_RATES }, ratesPost }));
+
+      act(() => setInputValue(node, "tasaValor", value));
+      await act(async () => { updateButton(node).click(); });
+      await flush();
+
+      expect(ratesPost).not.toHaveBeenCalled();
+      expect(node.querySelector("#tasasMensaje")?.textContent).toContain("número mayor que 0");
+      await act(async () => root.unmount());
+    },
+  );
+
+  it("403 shows the admin-only message and disables the dropdown, the field and the button", async () => {
+    const { node, root } = await renderPage(
+      createFetchMock({ ratesGet: { rates: FULL_RATES }, ratesPost: () => ({ status: 403, body: { error: "Forbidden" } }) }),
+    );
+
+    act(() => setInputValue(node, "tasaValor", "4"));
+    await act(async () => { updateButton(node).click(); });
+    await flush();
+
+    expect(node.textContent).toContain("Solo un administrador puede modificar las tasas.");
+    expect((node.querySelector("#tasaSeleccionada") as HTMLSelectElement).disabled).toBe(true);
+    expect(isInputDisabled(node, "tasaValor")).toBe(true);
+    expect(updateButton(node).disabled).toBe(true);
+    await act(async () => root.unmount());
+  });
+
+  it("409 tells the user to reload, without disabling anything", async () => {
+    const { node, root } = await renderPage(
+      createFetchMock({ ratesGet: { rates: FULL_RATES }, ratesPost: () => ({ status: 409, body: { error: "stale" } }) }),
+    );
+
+    act(() => setInputValue(node, "tasaValor", "4"));
+    await act(async () => { updateButton(node).click(); });
+    await flush();
+
+    expect(node.textContent).toContain("Las tasas se modificaron en otro lugar; recarga la página.");
+    expect(isInputDisabled(node, "tasaValor")).toBe(false);
+    expect(updateButton(node).disabled).toBe(false);
+    await act(async () => root.unmount());
+  });
+
+  it("other failures show a generic save-failed message and keep the list", async () => {
+    const { node, root } = await renderPage(
+      createFetchMock({ ratesGet: { rates: FULL_RATES }, ratesPost: () => ({ status: 500, body: { error: "boom" } }) }),
+    );
+
+    act(() => setInputValue(node, "tasaValor", "4"));
+    await act(async () => { updateButton(node).click(); });
+    await flush();
+
+    expect(node.textContent).toContain("No se pudieron guardar las tasas.");
+    expect(listRows(node)[0]).toEqual(["Tarifa CUP global", "3"]);
     await act(async () => root.unmount());
   });
 
   it("the debounced /api/calculadora save no longer carries rate fields", async () => {
     vi.useFakeTimers();
-    const fetchMock = createFetchMock({ ratesGet: { rates: { id: "rate-1", cupGlobalRate: 3, usdtBuyGyd: null, usdtSellGyd: null, usdtSellCup: null, effectiveAt: "2026-09-10T00:00:00Z", setBy: null } } });
+    const fetchMock = createFetchMock({ ratesGet: { rates: FULL_RATES } });
     const { node, root } = await renderPage(fetchMock);
 
     fetchMock.mockClear();
@@ -350,155 +423,6 @@ describe("calculator global rate inputs (post-ledger)", () => {
     expect(postCall).toBeDefined();
     const body = JSON.parse((postCall![1] as RequestInit).body as string);
     expect(body).toEqual({ rawText: "", periodo: "SEMANA 2" });
-    await act(async () => root.unmount());
-  });
-
-  it("Guardar tasas sends only the filled-in rates, snake_case, with the loaded version id", async () => {
-    let capturedBody: { rates: Record<string, unknown>; expectedVersionId?: string } | undefined;
-    const ratesPost = vi.fn(
-      (body: { rates: Record<string, unknown>; expectedVersionId?: string }): RatesPostResult => {
-        capturedBody = body;
-        return {
-          status: 200,
-          body: { rates: { id: "rate-2", cupGlobalRate: 4, usdtBuyGyd: 240, usdtSellGyd: null, usdtSellCup: null, effectiveAt: "2026-09-16T00:00:00Z", setBy: "user-a" } },
-        };
-      },
-    );
-    const fetchMock = createFetchMock({
-      ratesGet: { rates: { id: "rate-1", cupGlobalRate: 3, usdtBuyGyd: null, usdtSellGyd: null, usdtSellCup: null, effectiveAt: "2026-09-10T00:00:00Z", setBy: null } },
-      ratesPost,
-    });
-    const { node, root } = await renderPage(fetchMock);
-
-    act(() => setInputValue(node, "tarifaCupGlobal", "4"));
-    act(() => setInputValue(node, "compraUsdtGyd", "240"));
-    const button = node.querySelector("#guardarTasas") as HTMLButtonElement;
-    await act(async () => { button.click(); });
-    await flush();
-
-    expect(ratesPost).toHaveBeenCalledTimes(1);
-    expect(capturedBody).toEqual({
-      rates: { cup_global_rate: 4, usdt_buy_gyd: 240 },
-      expectedVersionId: "rate-1",
-    });
-    // On success, local state (including the new version id for the next save) updates from the response.
-    expect(inputValue(node, "tarifaCupGlobal")).toBe("4");
-    expect(inputValue(node, "compraUsdtGyd")).toBe("240");
-    await act(async () => root.unmount());
-  });
-
-  it("Guardar tasas sends efectivo_usd_gyd with the version id when the cash rate is edited", async () => {
-    let capturedBody: { rates: Record<string, unknown>; expectedVersionId?: string } | undefined;
-    const ratesPost = vi.fn(
-      (body: { rates: Record<string, unknown>; expectedVersionId?: string }): RatesPostResult => {
-        capturedBody = body;
-        return {
-          status: 200,
-          body: { rates: { id: "rate-2", cupGlobalRate: 3, usdtBuyGyd: null, usdtSellGyd: null, usdtSellCup: null, efectivoUsdGyd: 300, effectiveAt: "2026-09-16T00:00:00Z", setBy: "user-a" } },
-        };
-      },
-    );
-    const fetchMock = createFetchMock({
-      ratesGet: { rates: { id: "rate-1", cupGlobalRate: 3, usdtBuyGyd: null, usdtSellGyd: null, usdtSellCup: null, efectivoUsdGyd: 290, effectiveAt: "2026-09-10T00:00:00Z", setBy: null } },
-      ratesPost,
-    });
-    const { node, root } = await renderPage(fetchMock);
-
-    act(() => setInputValue(node, "efectivoUsdGyd", "300"));
-    const button = node.querySelector("#guardarTasas") as HTMLButtonElement;
-    await act(async () => { button.click(); });
-    await flush();
-
-    expect(capturedBody).toEqual({
-      rates: { cup_global_rate: 3, efectivo_usd_gyd: 300 },
-      expectedVersionId: "rate-1",
-    });
-    expect(inputValue(node, "efectivoUsdGyd")).toBe("300");
-    await act(async () => root.unmount());
-  });
-
-  it("Guardar tasas sends recarga_costo_usdt with the version id when the recharge cost is edited", async () => {
-    let capturedBody: { rates: Record<string, unknown>; expectedVersionId?: string } | undefined;
-    const ratesPost = vi.fn(
-      (body: { rates: Record<string, unknown>; expectedVersionId?: string }): RatesPostResult => {
-        capturedBody = body;
-        return {
-          status: 200,
-          body: { rates: { id: "rate-2", cupGlobalRate: 3, usdtBuyGyd: null, usdtSellGyd: null, usdtSellCup: null, efectivoUsdGyd: null, recargaCostoUsdt: 4.5, effectiveAt: "2026-09-16T00:00:00Z", setBy: "user-a" } },
-        };
-      },
-    );
-    const fetchMock = createFetchMock({
-      ratesGet: { rates: { id: "rate-1", cupGlobalRate: 3, usdtBuyGyd: null, usdtSellGyd: null, usdtSellCup: null, efectivoUsdGyd: null, recargaCostoUsdt: 4, effectiveAt: "2026-09-10T00:00:00Z", setBy: null } },
-      ratesPost,
-    });
-    const { node, root } = await renderPage(fetchMock);
-
-    act(() => setInputValue(node, "recargaCostoUsdt", "4.5"));
-    const button = node.querySelector("#guardarTasas") as HTMLButtonElement;
-    await act(async () => { button.click(); });
-    await flush();
-
-    expect(capturedBody).toEqual({
-      rates: { cup_global_rate: 3, recarga_costo_usdt: 4.5 },
-      expectedVersionId: "rate-1",
-    });
-    expect(inputValue(node, "recargaCostoUsdt")).toBe("4.5");
-    await act(async () => root.unmount());
-  });
-
-  it("403 on Guardar tasas shows the admin-only message and disables rate inputs and the button", async () => {
-    const fetchMock = createFetchMock({
-      ratesGet: { rates: null },
-      ratesPost: () => ({ status: 403, body: { error: "Forbidden" } }),
-    });
-    const { node, root } = await renderPage(fetchMock);
-
-    act(() => setInputValue(node, "tarifaCupGlobal", "4"));
-    const button = node.querySelector("#guardarTasas") as HTMLButtonElement;
-    await act(async () => { button.click(); });
-    await flush();
-
-    expect(node.textContent).toContain("administrador");
-    expect(isInputDisabled(node, "tarifaCupGlobal")).toBe(true);
-    expect(isInputDisabled(node, "compraUsdtGyd")).toBe(true);
-    expect(isInputDisabled(node, "ventaUsdtGyd")).toBe(true);
-    expect(isInputDisabled(node, "ventaUsdtCup")).toBe(true);
-    expect(button.disabled).toBe(true);
-    await act(async () => root.unmount());
-  });
-
-  it("409 on Guardar tasas tells the user to reload, without disabling inputs", async () => {
-    const fetchMock = createFetchMock({
-      ratesGet: { rates: { id: "rate-1", cupGlobalRate: 3, usdtBuyGyd: null, usdtSellGyd: null, usdtSellCup: null, effectiveAt: "2026-09-10T00:00:00Z", setBy: null } },
-      ratesPost: () => ({ status: 409, body: { error: "stale" } }),
-    });
-    const { node, root } = await renderPage(fetchMock);
-
-    act(() => setInputValue(node, "tarifaCupGlobal", "4"));
-    const button = node.querySelector("#guardarTasas") as HTMLButtonElement;
-    await act(async () => { button.click(); });
-    await flush();
-
-    expect(node.textContent.toLowerCase()).toContain("recarg");
-    expect(isInputDisabled(node, "tarifaCupGlobal")).toBe(false);
-    expect(button.disabled).toBe(false);
-    await act(async () => root.unmount());
-  });
-
-  it("other Guardar tasas failures show a generic save-failed message", async () => {
-    const fetchMock = createFetchMock({
-      ratesGet: { rates: null },
-      ratesPost: () => ({ status: 500, body: { error: "boom" } }),
-    });
-    const { node, root } = await renderPage(fetchMock);
-
-    act(() => setInputValue(node, "tarifaCupGlobal", "4"));
-    const button = node.querySelector("#guardarTasas") as HTMLButtonElement;
-    await act(async () => { button.click(); });
-    await flush();
-
-    expect(node.textContent).toContain("No se pudieron guardar las tasas");
     await act(async () => root.unmount());
   });
 });

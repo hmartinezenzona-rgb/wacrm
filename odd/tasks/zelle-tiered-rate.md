@@ -39,6 +39,10 @@ uses the same rule.
   - Cuba: Tarifa CUP global.
   - Otros: Efectivo USD (GYD por dólar), Recarga: costo (USDT).
 
+- A customer who asks for an amount below a tier pays it at its own tier's price (999 USD -> 999 x 260 = 259,740
+  GYD); nobody is rounded up to the next tier. To check in T3/T4: with a 999 USD objective, a 259,740 GYD deposit
+  (1,038 USD at 250 when converted from GYD) must still send 999.
+
 ## Scope
 - T1 DB (migration 215 + ROLLBACK + assertion zelle-tiered-rate.sql):
   - the tier config and `cerebro_tasa_zelle(p_usd)` / `cerebro_zelle_usd_desde_gyd(p_gyd)`;

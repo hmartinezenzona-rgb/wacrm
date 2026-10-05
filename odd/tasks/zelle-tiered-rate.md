@@ -43,6 +43,13 @@ uses the same rule.
   GYD); nobody is rounded up to the next tier. To check in T3/T4: with a 999 USD objective, a 259,740 GYD deposit
   (1,038 USD at 250 when converted from GYD) must still send 999.
 
+## Owner decision (2026-10-05, after seeing staging)
+The grouped layout still looks disorganised. Approved replacement for "Tarifas Globales":
+- a dropdown "Tasa a cambiar" listing every rate (Tarifa CUP global, Compra USDT (GYD), Venta USDT (GYD), Venta USDT
+  (CUP), Zelle desde 50 USD, Zelle desde 1,000 USD, Zelle desde 2,000 USD, Efectivo USD (GYD por dólar), Recarga: costo
+  (USDT)); the value field shows the selected rate's current value; "Actualizar" saves only that rate;
+- below, a read-only "Tasas actuales" list with every rate, refreshed right after an update.
+
 ## Scope
 - T1 DB (migration 215 + ROLLBACK + assertion zelle-tiered-rate.sql):
   - the tier config and `cerebro_tasa_zelle(p_usd)` / `cerebro_zelle_usd_desde_gyd(p_gyd)`;
@@ -67,6 +74,8 @@ the app, offline harness for n8n code.
   Calculator); the helpers read them from the current rate version instead of cerebro_config.
 - [x] T2 App: the Calculator "Tarifas Globales" redesign with the Zelle tier table, the rates API, and the
   document-rates mirror
+- [ ] T2b App: the owner found the grouped layout still messy (staging 4df2cd5). Replace it with a single-rate editor
+  (dropdown + value + "Actualizar") and a read-only "Tasas actuales" list.
 - [ ] T3 Cerebro tools and context
 - [ ] T4 Owner test on staging
 - [ ] T5 Production

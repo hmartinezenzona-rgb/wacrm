@@ -152,3 +152,9 @@ the app, offline harness for n8n code.
   (class b of staging-assertions-repair): its fixture takes `FROM conversations ... LIMIT 1` with no open operation, and
   staging's only conversation was the owner's test chat with an open operation, so v_conv is NULL. Not a 215-218
   regression; fixture follow-up. Test contact reset for the owner's 999 USD test.
+- 2026-10-05 T4 owner test (staging, test number): "quiero mandar 999 dólares" -> bot quoted 999 USD = 259,740 GYD
+  (cerebro_ultima_cotizacion 259740/999 USD); Zelle account by e-mail saved (beneficiary zelle). Simulated deposit
+  259,740 GYD (owner request) -> "movido", operation f42fbf6b deposit_verification 259,740, beneficiary 999 USD (218
+  quote match). Earlier round: 1,000 USD quoted at 250,000. Pending: owner verifies/completes in the panel and checks
+  the calculator ZELLE line (expected billed 259,740 at 260). The bot did not mention the lower price from 1,000 USD
+  (optional by design).

@@ -99,3 +99,6 @@ the app, offline harness for n8n code.
   - RED: document-rates tests (9 failed), rates route tests (4 failed), page tests (5 failed) before the code. GREEN: document-rates 40/40, rates route + read-model, page 32/32.
   - Checks: `npm run typecheck` clean, eslint on touched dirs clean, full `npm test`: 155 files, 1968 tests passed.
   - NOT VERIFIED: the page was not seen in a browser (no visual check of light/dark or phone width); production untouched; the n8n bot (T3) still quotes by its own tools.
+- 2026-10-05 staging app: release 4df2cd5 (BUILD_ID gR4U55B6afspVgjgiP2f5), served by crm.onlinefreedom.site; 0
+  production refs; build contains zellePrecio1000; anterior -> 857a15c. build-wacrm.sh needs /home/onlinefreedom/wacrm/.git
+  mounted in the container (prod-build's .git points there). Waiting for the owner's look at the Calculator layout.

@@ -30,7 +30,7 @@ $$;
 
 DO $$
 DECLARE
-  v_conv uuid; v_conv2 uuid; v_op uuid; v_op2 uuid; v_e record; v_acc uuid; v_admin uuid; v_res text; v_n int; v_row record;
+  v_conv uuid; v_conv2 uuid; v_op uuid; v_op2 uuid; v_op3 uuid; v_e record; v_acc uuid; v_admin uuid; v_res text; v_n int; v_row record;
   v_phrase text; v_exp boolean;
   c_verif constant uuid := '3cf01654-cd27-47c1-ac92-62abf5435751';
 BEGIN
@@ -169,18 +169,57 @@ BEGIN
   IF cerebro_riel_op(v_op) IS DISTINCT FROM 'visa' OR cerebro_minimo_gyd(v_op) IS DISTINCT FROM 5000 THEN
     RAISE EXCEPTION 'case 6: the visa has its own rail and a 5000 minimum, got % / %', cerebro_riel_op(v_op), cerebro_minimo_gyd(v_op); END IF;
 
-  -- 7. Typed Cuban numbers and the remesa tools never write on a visa (they used to hit the combo the same way).
-  INSERT INTO messages (conversation_id, sender_type, content_type, content_text) VALUES (v_conv, 'customer', 'text', '53845687');
-  SELECT accion INTO v_res FROM cerebro_guardar_beneficiario_auto(v_conv, '', '53845687', '', '53845687', 'assert213');
-  IF v_res NOT ILIKE '%visa%' THEN RAISE EXCEPTION 'case 7: the auto registration must say a visa is open, got %', v_res; END IF;
-  PERFORM cerebro_guardar_beneficiario_auto(v_conv, '9225129912345678', '53845687', '9225129912345678', '53845687', 'assert213');
-  PERFORM cerebro_escribir_bloque_beneficiario(v_conv, v_op, E'Tarjeta: 9227069999999999\nCelular: 53845687');
-  PERFORM cerebro_escribir_bloque_beneficiario(v_conv, NULL, E'Tarjeta: 9227069999999999\nCelular: 53845687');
-  PERFORM cerebro_guardar_beneficiario(v_conv, 'X', '', '53845687', 'assert213', v_op, 'assert');
-  IF EXISTS (SELECT 1 FROM remittance_beneficiaries b JOIN remittance_operations o ON o.id = b.operation_id WHERE o.conversation_id = v_conv) THEN
-    RAISE EXCEPTION 'case 7: a remesa writer put a beneficiary on the visa conversation'; END IF;
-  IF pg_temp.ops_t213(v_conv) <> 'visa/deposit_verification/10000' THEN
-    RAISE EXCEPTION 'case 7: a typed number opened another operation, got %', pg_temp.ops_t213(v_conv); END IF;
+  -- 7. A visa collects no beneficiary data, so it NEVER blocks the remesa writers: a card and a phone typed while a visa
+  -- is open open a remesa with them, and the visa is untouched. (The shared writer never writes ON a visa either.)
+  v_conv2 := pg_temp.conv_t213('07', ARRAY['quiero la extension de visa']);
+  PERFORM crm_abrir_visa(v_conv2, 1);
+  v_op3 := (SELECT id FROM remittance_operations WHERE conversation_id = v_conv2 AND service_type = 'visa');
+  INSERT INTO messages (conversation_id, sender_type, content_type, content_text) VALUES (v_conv2, 'customer', 'text', '9227069911112222 53121212');
+  PERFORM cerebro_guardar_beneficiario_auto(v_conv2, '9227069911112222', '53121212', '9227069911112222', '53121212', 'assert213');
+  IF (SELECT count(*) FROM remittance_operations WHERE conversation_id = v_conv2 AND service_type = 'remesa') <> 1 THEN
+    RAISE EXCEPTION 'case 7: a card and phone typed next to an open visa must open a remesa, got %', pg_temp.ops_t213(v_conv2); END IF;
+  IF NOT EXISTS (SELECT 1 FROM remittance_beneficiaries b JOIN remittance_operations o ON o.id = b.operation_id
+                  WHERE o.conversation_id = v_conv2 AND o.service_type = 'remesa' AND b.status = 'vigente'
+                    AND b.card_number = '9227069911112222' AND b.phone LIKE '%53121212') THEN
+    RAISE EXCEPTION 'case 7: the remesa must carry the typed card and phone'; END IF;
+  IF EXISTS (SELECT 1 FROM remittance_beneficiaries WHERE operation_id = v_op3)
+     OR (SELECT status || '/' || quoted_source_amount::int FROM remittance_operations WHERE id = v_op3) <> 'collecting_information/5000' THEN
+    RAISE EXCEPTION 'case 7: the visa must stay untouched'; END IF;
+  -- 7a. The shared writer, called ON the visa: it opens a remesa and writes there.
+  v_conv2 := pg_temp.conv_t213('7a', ARRAY['quiero la extension de visa']);
+  PERFORM crm_abrir_visa(v_conv2, 1);
+  v_op3 := (SELECT id FROM remittance_operations WHERE conversation_id = v_conv2 AND service_type = 'visa');
+  v_res := cerebro_escribir_bloque_beneficiario(v_conv2, v_op3, E'BENEFICIARIO\nTarjeta: 9227069911112222\nCelular: 53121212')::text;
+  IF v_res = v_op3::text OR NOT EXISTS (SELECT 1 FROM remittance_beneficiaries b WHERE b.operation_id = v_res::uuid AND b.status = 'vigente')
+     OR EXISTS (SELECT 1 FROM remittance_beneficiaries WHERE operation_id = v_op3)
+     OR (SELECT service_type FROM remittance_operations WHERE id = v_res::uuid) <> 'remesa' THEN
+    RAISE EXCEPTION 'case 7a: the shared writer must open a remesa next to the visa and write there'; END IF;
+  -- 7b. A combo that already has its deposit is not collecting recipients any more: a typed card and phone are a remesa.
+  v_conv2 := pg_temp.conv_t213('7b', ARRAY['quiero mandar un combo']);
+  PERFORM crm_registrar_destinatario_combo(v_conv2, 'Ana Gil', '53111222', 'Calle 1 #2, Holguin', 'Esquina azul', NULL, 25000);
+  PERFORM cerebro_registrar_deposito(v_conv2, 25000, 'GYD', c_verif, NULL, NULL);
+  v_op3 := (SELECT id FROM remittance_operations WHERE conversation_id = v_conv2 AND service_type = 'combo');
+  UPDATE remittance_operations SET status = 'ready_to_transfer' WHERE id = v_op3;
+  INSERT INTO messages (conversation_id, sender_type, content_type, content_text) VALUES (v_conv2, 'customer', 'text', '9227069911112222 53121212');
+  PERFORM cerebro_guardar_beneficiario_auto(v_conv2, '9227069911112222', '53121212', '9227069911112222', '53121212', 'assert213');
+  IF NOT EXISTS (SELECT 1 FROM remittance_beneficiaries b JOIN remittance_operations o ON o.id = b.operation_id
+                  WHERE o.conversation_id = v_conv2 AND o.service_type = 'remesa' AND b.status = 'vigente'
+                    AND b.card_number = '9227069911112222' AND b.phone LIKE '%53121212') THEN
+    RAISE EXCEPTION 'case 7b: a paid combo must not block a remesa: %', pg_temp.ops_t213(v_conv2); END IF;
+  IF (SELECT string_agg(b.beneficiary_type || ':' || b.name || ':' || b.status, ',') FROM remittance_beneficiaries b WHERE b.operation_id = v_op3)
+     IS DISTINCT FROM 'combo:Ana Gil:vigente' THEN
+    RAISE EXCEPTION 'case 7b: the combo must stay untouched'; END IF;
+  -- 7b2. The shared writer called ON the paid combo opens a remesa instead of returning the combo.
+  v_res := cerebro_escribir_bloque_beneficiario(v_conv2, v_op3, E'BENEFICIARIO\nTarjeta: 9227069933334444\nCelular: 53777666')::text;
+  IF v_res = v_op3::text OR (SELECT service_type FROM remittance_operations WHERE id = v_res::uuid) <> 'remesa' THEN
+    RAISE EXCEPTION 'case 7b2: the shared writer must open a remesa next to a paid combo'; END IF;
+  -- 7c. A combo still collecting its recipients keeps the typed numbers (210): nothing is written, no remesa opens.
+  v_conv2 := pg_temp.conv_t213('7c', ARRAY['quiero mandar un combo']);
+  PERFORM crm_registrar_destinatario_combo(v_conv2, 'Ana Gil', '53111222', NULL, NULL, NULL, NULL);
+  INSERT INTO messages (conversation_id, sender_type, content_type, content_text) VALUES (v_conv2, 'customer', 'text', '53845687');
+  SELECT accion INTO v_res FROM cerebro_guardar_beneficiario_auto(v_conv2, '', '53845687', '', '53845687', 'assert213');
+  IF v_res NOT ILIKE 'combo en curso%' OR EXISTS (SELECT 1 FROM remittance_operations WHERE conversation_id = v_conv2 AND service_type = 'remesa') THEN
+    RAISE EXCEPTION 'case 7c: a collecting combo keeps the typed numbers, got %', v_res; END IF;
 
   -- 8. Completeness: a visa needs no recipients. A remesa with no beneficiary is still incomplete.
   IF NOT crm_beneficiarios_completos(v_op) THEN RAISE EXCEPTION 'case 8: a visa is complete without recipients'; END IF;

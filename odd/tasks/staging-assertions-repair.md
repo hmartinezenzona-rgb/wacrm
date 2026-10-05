@@ -34,8 +34,43 @@ behaviour regression is reported to the parent with evidence, never papered over
   the migration it guards).
 
 ## Tasks
-- [ ] T1 Classify each failing assertion (stale fixture, environment, or real regression) with its first error line.
-- [ ] T2 Repair the stale fixtures; every repaired assertion passes as is and with no promo.
-- [ ] T3 Report the real regressions, if any, with evidence, for a separate decision.
+- [x] T1 Classify each failing assertion (stale fixture, environment, or real regression) with its first error line.
+- [x] T2 Repair the stale fixtures; every repaired assertion passes as is and with no promo.
+- [x] T3 Report the real regressions, if any, with evidence, for a separate decision. Result: none found; every failure was a stale fixture or helper dependency (one group also a stale expectation, see deposit-review).
 
 ## Progress
+
+Run 2026-10-05 on staging, each file inside BEGIN ... ROLLBACK, both "as is" and with every promo discarded. Result: all 18 pass in both modes; no real regression (class c) found.
+
+Classes: (a) stale fixture, (b) environment or missing helper, (c) real regression.
+
+| Assertion | Class | First error before | After (as is / no promo) |
+|---|---|---|---|
+| beneficiary-proofs | a | fixture setup failed, an operation was not created (deal no longer creates one) | pass / pass |
+| cash-delivery-activation | a | FAIL cases 1, 2, 2b, 2c: delivery_method NULL (no operation for the deal) | pass / pass |
+| corrections | a | fixture setup failed, no operation created for deal | pass / pass |
+| deal-free-beneficiary-writers | a | FAIL [card_auto ins_nueva] operation count old=0 new=1 (old side relies on retired trigger 125) | pass / pass (27 cases) |
+| deal-free-panel-verification | a | FAIL [4] the 125 trigger did not create both deal-linked operations | pass / pass |
+| deposit-review | a (+ stale expectations) | fixture setup failed, no operation created for deal | pass / pass (16 expectations) |
+| partial-beneficiary-auto | b | function pg_temp.conv_vacia does not exist (helper lives in another file) | pass / pass |
+| reparto-auto | a | case 1: reparto answered no_existe (operation id NULL) | pass / pass (13 cases) |
+| reparto-destino-node-adapters | a | operation count differs (old side relies on retired trigger 125) | pass / pass (22 parity cases + negative control) |
+| reparto-guards | b | function pg_temp.conv_vacia does not exist | pass / pass |
+| reparto-keeps-zelle | a | case 1: expected the Zelle and both Clasica cards vigente, got NULL (deal_notas helper returned no operation) | pass / pass |
+| reparto-usd-card-rail | none | listed as failing, but it passes unchanged on current staging | pass / pass (unchanged) |
+| split-deposit-minimums | a | operation of the deal NULL, beneficiary insert failed | pass / pass |
+| verify-deposit-status-drift | a | fixture setup failed, no operation created for deal | pass / pass |
+| zelle-confirmed-name | a | case 1: the confirmed name should reach the panel, got NULL | pass / pass (12 cases) |
+| zelle-remainder-amount | b | function pg_temp.deal_notas does not exist (helper lives in another file) | pass / pass |
+| beneficiary-matcher | none | listed as printing no result line, but it prints PASS 1-9 unchanged | pass / pass (unchanged) |
+| zelle-holder-name | none | listed as printing no result line, but it prints PASS 1-4 unchanged | pass / pass (unchanged) |
+
+What changed:
+- Operations come from cerebro_crear_operacion (161); where a case still reads a deal's notes (cerebro_sync_beneficiarios and the live trigger trg_sync_z_benef_desde_deal, kept by 172), a deal is created and linked with remittance_operations.deal_id, then the notes sync is re-fired.
+- Users and accounts come from whatsapp_config + profiles, not `FROM conversations LIMIT 1`.
+- Files that needed another file's pg_temp helpers now carry them (partial-beneficiary-auto, reparto-guards, zelle-remainder-amount).
+- split-deposit-minimums follows the deal-free model of deal-free-money-rules.sql; its receipt COMP id is a 20-hex id, otherwise a second deposit of a conversation is read as a repeat of the first.
+- The two parity harnesses (deal-free-beneficiary-writers, reparto-destino-node-adapters) re-create trigger 125 inside their own savepoint, because their old side is the deal path; ROLLBACK TO SAVEPOINT removes it.
+- deposit-review: expectations updated where a later migration changed the behaviour on purpose: 165/172 no longer move deals.stage_id nor notify on deals (case 3 checks the operation status), and 192 made the forced-verification reason optional (case 8b now accepts an empty reason on its own operation, case 8c checks the 500-character cap).
+
+Left alone (outside the listed files, same dependency problem): requested-amount-target, repeated-receipt and target-origin-label need pg_temp.conv_prueba and pg_temp.depositar from split-deposit-minimums, which now return an operation id.

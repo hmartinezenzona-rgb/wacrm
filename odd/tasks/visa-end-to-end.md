@@ -85,3 +85,5 @@ harness for the n8n code.
 - [x] T3 + T4 on staging: gate112-visa.py (Cerebro and notifier; backups *-staging-antes-112-20261004T184247.json).
   - The script's notifier check and its already-applied guard looked for "VISA (112)"; both now look for
     "VISA (112,". The published code was verified directly.
+- Staging app: release 92d86e4, BUILD_ID iEmtsVqQPl8VZr6nlJN3t, served; 0 production refs. The test contact was
+  reset. Waiting for the owner's T5 test (the payment will be simulated on request, as for combos).

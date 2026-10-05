@@ -87,3 +87,12 @@ harness for the n8n code.
     "VISA (112,". The published code was verified directly.
 - Staging app: release 92d86e4, BUILD_ID iEmtsVqQPl8VZr6nlJN3t, served; 0 production refs. The test contact was
   reset. Waiting for the owner's T5 test (the payment will be simulated on request, as for combos).
+- T5 owner test, round 1 (2026-10-05 01:15Z):
+  - The bot answered "quiero hacer una extensión de visa para mí y mi esposa" with 10,000 GYD (5,000 x 2) paid ahead
+    by MMG, the account, the form link and a request for the receipt, plus the Monday closure note. It asked for no
+    card, phone or recipient.
+  - The panel showed the visa of 10,000, but NOT "2 extensions": the count lived only in the verified-deposit
+    summary.
+  - Fix (commit 8c3dacf): the header label is "Visa extension · N extensions" from the start. A new card test was
+    RED, then the operations suite passed 364/364; typecheck and lint clean.
+  - Staging release 8c3dacf (BUILD_ID CjAWX8sJo6jRWU-Qzl4X9), served.

@@ -38,8 +38,8 @@ Option 1: a separate read-only board page (not a badge in the inbox list).
   - the /tablero page (columns, cards, service filter, auto-refresh, the link to the chat);
   - a nav entry and i18n keys;
   - vitest tests. pipelines-removed.test.ts stays green.
-- [ ] T3 Staging deploy and the owner's check.
-- [ ] T4 Production after the go-ahead.
+- [x] T3 Staging deploy and the owner's check.
+- [x] T4 Production after the go-ahead.
 
 ## TDD
 Strict. SQL assertion (self-reverting DO block, fixtures independent of staging data); vitest for the app.
@@ -57,3 +57,16 @@ Strict. SQL assertion (self-reverting DO block, fixtures independent of staging 
   - no AI trailer in the writer's commits.
 - T3 staging deploy: release 857a15c, BUILD_ID 7yqCezYoulcABvvn_0Wtk, served; the build contains the tablero route;
   0 production refs. Waiting for the owner's check in the browser.
+- T3: owner check on staging: "no se ve mal, se puede mejorar pero mal no se ve, pásalo".
+- T4 PRODUCTION (2026-10-05):
+  - Pre-check: crm_tablero_operaciones absent in production.
+  - Backup produccion-20261005T130307Z.dump (sha256 a3c68afca1acf5fb...; 2152 list entries).
+  - Temp helper. gate114-aplicar-db.py: ensayo md5 facb2cc2 equal to staging; aplicar OK (schema_migrations
+    20261005130555 214_operations_board).
+  - probar in production: operations-board, read-rpc, combo-model and visa-model all pass.
+  - Helper dropped. ACL: anon cannot execute it, authenticated can. No leftover users or contacts.
+  - The ida-y-vuelta check was not needed: the rollback only drops the new function.
+  - App release 8953277 (build FdUDqKgiT1j0yd39zimbv): pm2 cwd is the new release; the domain serves it; anterior ->
+    bac9fa3.
+- Follow-up (owner: "se puede mejorar"): visual polish later. state_since under-states the age when the system
+  (not a person) changed the status.

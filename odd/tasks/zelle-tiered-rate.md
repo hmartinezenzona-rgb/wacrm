@@ -74,7 +74,7 @@ the app, offline harness for n8n code.
   Calculator); the helpers read them from the current rate version instead of cerebro_config.
 - [x] T2 App: the Calculator "Tarifas Globales" redesign with the Zelle tier table, the rates API, and the
   document-rates mirror
-- [ ] T2b App: the owner found the grouped layout still messy (staging 4df2cd5). Replace it with a single-rate editor
+- [x] T2b App: the owner found the grouped layout still messy (staging 4df2cd5). Replace it with a single-rate editor
   (dropdown + value + "Actualizar") and a read-only "Tasas actuales" list.
 - [ ] T3 Cerebro tools and context
 - [ ] T4 Owner test on staging
@@ -111,3 +111,8 @@ the app, offline harness for n8n code.
 - 2026-10-05 staging app: release 4df2cd5 (BUILD_ID gR4U55B6afspVgjgiP2f5), served by crm.onlinefreedom.site; 0
   production refs; build contains zellePrecio1000; anterior -> 857a15c. build-wacrm.sh needs /home/onlinefreedom/wacrm/.git
   mounted in the container (prod-build's .git points there). Waiting for the owner's look at the Calculator layout.
+- 2026-10-05 T2b done, commit a0c96e6.
+  - Calculator "Tarifas Globales" is now the owner-approved single-rate editor: dropdown "Tasa a cambiar" (9 rates, Spanish labels), "Nuevo valor" field filled with the selected rate's current value, "Actualizar" posts only that key (snake_case) plus expectedVersionId (omitted when no version exists; the RPC carries the other rates forward). Below, read-only "Tasas actuales" list (dl, "—" when unset) refreshed from the response, with an "Tasa actualizada." confirmation. Invalid (empty, <= 0, NaN) is not sent. 403/409/generic messages kept; dropdown, field and button disabled while locked or saving. Page state is now one  object (the nine per-rate states and the grouped-fields CSS are gone);  for the manual calculator derives from it.
+  - RED: 14 new page tests failed before the code. GREEN: page.test.tsx 33/33.
+  - Checks: `npm run typecheck` clean, eslint on touched files clean, full `npm test` 155 files / 1969 tests passed (one earlier full run showed 1 failure that did not reproduce in two reruns; not identified).
+  - NOT VERIFIED: browser (light/dark, phone width); staging not redeployed with this commit.

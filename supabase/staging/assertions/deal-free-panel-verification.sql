@@ -1,4 +1,5 @@
 \set ON_ERROR_STOP on
+-- (2026-10-05) Part 4 rebuilt: the deal-linked operations are created with cerebro_crear_operacion and linked to their deals (a deal no longer creates one since 172).
 -- (2026-10-02) Stop at the first error: run outside BEGIN ... ROLLBACK, the SAVEPOINT below fails and nothing is written.
 -- =====================================================================
 -- deal-free-panel-verification.sql — self-reverting assertion for 165
@@ -284,10 +285,13 @@ BEGIN
   VALUES (c_deal2, c_user, c_acct, c_cont, c_conv, c_pipe, c_porver,
           'wu6b assertion 2', 500, 'GYD', c_notes, 'open');
 
-  SELECT id INTO v_opl  FROM remittance_operations WHERE deal_id = c_deal1;
-  SELECT id INTO v_opl2 FROM remittance_operations WHERE deal_id = c_deal2;
+  -- (2026-10-05) 172 retired the trigger that created an operation per deal: create both operations deal-free and link each deal to its own.
+  v_opl  := cerebro_crear_operacion(c_conv, 1000, 'GYD', c_porver);
+  v_opl2 := cerebro_crear_operacion(c_conv,  500, 'GYD', c_porver);
+  UPDATE remittance_operations SET deal_id = c_deal1 WHERE id = v_opl;
+  UPDATE remittance_operations SET deal_id = c_deal2 WHERE id = v_opl2;
   IF v_opl IS NULL OR v_opl2 IS NULL THEN
-    RAISE EXCEPTION 'FAIL [4] the 125 trigger did not create both deal-linked operations';
+    RAISE EXCEPTION 'FAIL [4] the deal-linked operations were not created';
   END IF;
 
   INSERT INTO remittance_operation_receipts

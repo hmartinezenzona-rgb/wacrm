@@ -80,6 +80,14 @@
 
 SAVEPOINT wu4c_parity;
 
+-- (2026-10-05) The OLD side of this parity harness inserts a deal and relies on trigger 125 to create its operation. Migration 172 retired
+-- that trigger from the live schema on purpose (nothing inserts deals any more), so without it the old side creates no operation. Re-create
+-- the trigger for the duration of this savepoint only (its function still exists; the ROLLBACK TO SAVEPOINT at the end removes it again,
+-- nothing persists), so the harness keeps comparing the old node SQL with the new functions.
+DROP TRIGGER IF EXISTS trg_sync_operacion_al_crear_deal ON public.deals;
+CREATE TRIGGER trg_sync_operacion_al_crear_deal AFTER INSERT ON public.deals
+  FOR EACH ROW EXECUTE FUNCTION cerebro_crear_operacion_al_crear_deal();
+
 
 -- ---------------------------------------------------------------------
 -- Canonical projections (same shapes as the WU4b harness)

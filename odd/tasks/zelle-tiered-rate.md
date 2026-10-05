@@ -116,3 +116,5 @@ the app, offline harness for n8n code.
   - RED: 14 new page tests failed before the code. GREEN: page.test.tsx 33/33.
   - Checks: `npm run typecheck` clean, eslint on touched files clean, full `npm test` 155 files / 1969 tests passed (one earlier full run showed 1 failure that did not reproduce in two reruns; not identified).
   - NOT VERIFIED: browser (light/dark, phone width); staging not redeployed with this commit.
+- 2026-10-05 staging app: release 0b9b249 (BUILD_ID Q5C_8vDGw_DvoboE9y6RJ, single-rate editor), served; 0 production
+  refs; anterior -> 4df2cd5. Waiting for the owner's look.

@@ -52,3 +52,8 @@ Strict. SQL assertion (self-reverting DO block, fixtures independent of staging 
   - Verification: vitest of new files + pipelines-removed + inbox/operations 28 files / 398 tests pass; npm run typecheck clean; eslint on touched files clean; npm test 155 files / 1951 tests pass.
   - Not verified: nothing was seen in a browser (layout, horizontal scroll, mobile gutter); staging deploy of the app is T3.
 
+- 2026-10-05 parent review:
+  - re-ran the SQL assertion on staging (ALL PASS) and the board, tablero and layout tests (6 files, 35 tests);
+  - no AI trailer in the writer's commits.
+- T3 staging deploy: release 857a15c, BUILD_ID 7yqCezYoulcABvvn_0Wtk, served; the build contains the tablero route;
+  0 production refs. Waiting for the owner's check in the browser.

@@ -65,6 +65,10 @@ export default function CalculadoraPage() {
   const [ventaUsdtCup, setVentaUsdtCup] = useState("");
   const [efectivoUsdGyd, setEfectivoUsdGyd] = useState("");
   const [recargaCostoUsdt, setRecargaCostoUsdt] = useState("");
+  // Zelle sale price of the tiers that start at 50, 1,000 and 2,000 USD (migration 216).
+  const [zellePrecio50, setZellePrecio50] = useState("");
+  const [zellePrecio1000, setZellePrecio1000] = useState("");
+  const [zellePrecio2000, setZellePrecio2000] = useState("");
   const [rateVersionId, setRateVersionId] = useState<string | null>(null);
   const [ratesLocked, setRatesLocked] = useState(false);
   const [ratesSaving, setRatesSaving] = useState(false);
@@ -117,6 +121,9 @@ export default function CalculadoraPage() {
     setVentaUsdtCup(rates?.usdtSellCup == null ? "" : String(rates.usdtSellCup));
     setEfectivoUsdGyd(rates?.efectivoUsdGyd == null ? "" : String(rates.efectivoUsdGyd));
     setRecargaCostoUsdt(rates?.recargaCostoUsdt == null ? "" : String(rates.recargaCostoUsdt));
+    setZellePrecio50(rates?.zelleSellGyd == null ? "" : String(rates.zelleSellGyd));
+    setZellePrecio1000(rates?.zelleSellGyd1000 == null ? "" : String(rates.zelleSellGyd1000));
+    setZellePrecio2000(rates?.zelleSellGyd2000 == null ? "" : String(rates.zelleSellGyd2000));
   }
 
   useEffect(() => {
@@ -200,6 +207,9 @@ export default function CalculadoraPage() {
     if (ventaUsdtCup.trim() !== "") rates.usdt_sell_cup = Number(ventaUsdtCup);
     if (efectivoUsdGyd.trim() !== "") rates.efectivo_usd_gyd = Number(efectivoUsdGyd);
     if (recargaCostoUsdt.trim() !== "") rates.recarga_costo_usdt = Number(recargaCostoUsdt);
+    if (zellePrecio50.trim() !== "") rates.zelle_sell_gyd = Number(zellePrecio50);
+    if (zellePrecio1000.trim() !== "") rates.zelle_sell_gyd_1000 = Number(zellePrecio1000);
+    if (zellePrecio2000.trim() !== "") rates.zelle_sell_gyd_2000 = Number(zellePrecio2000);
     try {
       const response = await fetch("/api/calculator/rates", {
         method: "POST",
@@ -404,13 +414,36 @@ export default function CalculadoraPage() {
 
         <div className="legacyCard">
           <h2>💱 Tarifas Globales</h2>
-          <div className="legacyFlex">
-            <div><label htmlFor="tarifaCupGlobal">Tarifa CUP global</label><input id="tarifaCupGlobal" type="number" step="0.1" value={tarifa} onChange={(event) => setTarifa(event.target.value)} disabled={ratesLocked} /></div>
-            <div><label htmlFor="compraUsdtGyd">Compra USDT (GYD)</label><input id="compraUsdtGyd" type="number" step="0.01" value={compraUsdtGyd} onChange={(event) => setCompraUsdtGyd(event.target.value)} disabled={ratesLocked} /></div>
-            <div><label htmlFor="ventaUsdtGyd">Venta USDT/Zelle (GYD)</label><input id="ventaUsdtGyd" type="number" step="0.01" value={ventaUsdtGyd} onChange={(event) => setVentaUsdtGyd(event.target.value)} disabled={ratesLocked} /></div>
-            <div><label htmlFor="ventaUsdtCup">Venta USDT (CUP)</label><input id="ventaUsdtCup" type="number" step="0.01" value={ventaUsdtCup} onChange={(event) => setVentaUsdtCup(event.target.value)} disabled={ratesLocked} /></div>
-            <div><label htmlFor="efectivoUsdGyd">Tasa efectivo USD (GYD por dólar)</label><input id="efectivoUsdGyd" type="number" step="0.01" value={efectivoUsdGyd} onChange={(event) => setEfectivoUsdGyd(event.target.value)} disabled={ratesLocked} /></div>
-            <div><label htmlFor="recargaCostoUsdt">Recarga: costo (USDT)</label><input id="recargaCostoUsdt" type="number" step="0.01" value={recargaCostoUsdt} onChange={(event) => setRecargaCostoUsdt(event.target.value)} disabled={ratesLocked} /></div>
+          <div className="legacyRateGroups" id="tarifasGlobales">
+            <section className="legacyRateGroup">
+              <h3>Compra</h3>
+              <div><label htmlFor="compraUsdtGyd">Compra USDT (GYD)</label><input id="compraUsdtGyd" type="number" step="0.01" value={compraUsdtGyd} onChange={(event) => setCompraUsdtGyd(event.target.value)} disabled={ratesLocked} /></div>
+            </section>
+            <section className="legacyRateGroup">
+              <h3>Venta</h3>
+              <div><label htmlFor="ventaUsdtGyd">Venta USDT (GYD)</label><input id="ventaUsdtGyd" type="number" step="0.01" value={ventaUsdtGyd} onChange={(event) => setVentaUsdtGyd(event.target.value)} disabled={ratesLocked} /></div>
+              <div><label htmlFor="ventaUsdtCup">Venta USDT (CUP)</label><input id="ventaUsdtCup" type="number" step="0.01" value={ventaUsdtCup} onChange={(event) => setVentaUsdtCup(event.target.value)} disabled={ratesLocked} /></div>
+            </section>
+            <section className="legacyRateGroup">
+              <h3>Zelle por tramo</h3>
+              <table className="legacyTierTable" id="zelleTramos">
+                <thead><tr><th>Desde</th><th>Precio</th></tr></thead>
+                <tbody>
+                  <tr><td>50 USD</td><td><input id="zellePrecio50" aria-label="Precio Zelle desde 50 USD (GYD)" type="number" step="0.01" value={zellePrecio50} onChange={(event) => setZellePrecio50(event.target.value)} disabled={ratesLocked} /></td></tr>
+                  <tr><td>1,000 USD</td><td><input id="zellePrecio1000" aria-label="Precio Zelle desde 1,000 USD (GYD)" type="number" step="0.01" value={zellePrecio1000} onChange={(event) => setZellePrecio1000(event.target.value)} disabled={ratesLocked} /></td></tr>
+                  <tr><td>2,000 USD</td><td><input id="zellePrecio2000" aria-label="Precio Zelle desde 2,000 USD (GYD)" type="number" step="0.01" value={zellePrecio2000} onChange={(event) => setZellePrecio2000(event.target.value)} disabled={ratesLocked} /></td></tr>
+                </tbody>
+              </table>
+            </section>
+            <section className="legacyRateGroup">
+              <h3>Cuba</h3>
+              <div><label htmlFor="tarifaCupGlobal">Tarifa CUP global</label><input id="tarifaCupGlobal" type="number" step="0.1" value={tarifa} onChange={(event) => setTarifa(event.target.value)} disabled={ratesLocked} /></div>
+            </section>
+            <section className="legacyRateGroup">
+              <h3>Otros</h3>
+              <div><label htmlFor="efectivoUsdGyd">Tasa efectivo USD (GYD por dólar)</label><input id="efectivoUsdGyd" type="number" step="0.01" value={efectivoUsdGyd} onChange={(event) => setEfectivoUsdGyd(event.target.value)} disabled={ratesLocked} /></div>
+              <div><label htmlFor="recargaCostoUsdt">Recarga: costo (USDT)</label><input id="recargaCostoUsdt" type="number" step="0.01" value={recargaCostoUsdt} onChange={(event) => setRecargaCostoUsdt(event.target.value)} disabled={ratesLocked} /></div>
+            </section>
           </div>
           <div className="legacyFlex" style={{ marginTop: 10, alignItems: "center" }}>
             <button type="button" id="guardarTasas" onClick={() => void guardarTasas()} disabled={ratesLocked || ratesSaving} style={{ width: "auto" }}>

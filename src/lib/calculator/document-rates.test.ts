@@ -6,6 +6,9 @@ import {
   deriveAmountFromDeposit,
   missingDocumentRates,
   rateInputForService,
+  zelleQuoteFromDeposit,
+  zelleRateForUsd,
+  zelleTiers,
   type CalculatorDocumentRates,
 } from "./document-rates";
 
@@ -240,5 +243,82 @@ describe("EFECTIVO (cash dollars) — migration 193", () => {
       amount: 100,
       financials: { facturadoGyd: 29_000, invertidoGyd: 24_000, retornoGyd: 5_000 },
     });
+  });
+});
+
+// Migration 216: Zelle is priced by tier of USD received. The minimums are fixed (50, 1,000, 2,000 USD); the three prices
+// come from the rate version (zelleSellGyd, zelleSellGyd1000, zelleSellGyd2000). A missing price falls back: base tier ->
+// usdtSellGyd, 1,000 tier -> base price, 2,000 tier -> 1,000 price. Mirrors cerebro_zelle_cotizar_gyd / cerebro_tasa_zelle.
+describe("ZELLE tiers — migration 216", () => {
+  const tiers = { zelleSellGyd: 260, zelleSellGyd1000: 250, zelleSellGyd2000: 245 };
+
+  it("250,000 GYD reaches the 1,000 USD tier: 1,000 USD at 250", () => {
+    expect(deriveAmountFromDeposit("ZELLE", 250_000, doc(tiers))).toBe(1_000);
+    expect(zelleQuoteFromDeposit(250_000, doc(tiers))).toEqual({ usd: 1_000, rate: 250 });
+  });
+
+  it("249,999 GYD stays on the base tier: 961 USD at 260", () => {
+    expect(deriveAmountFromDeposit("ZELLE", 249_999, doc(tiers))).toBe(961);
+    expect(zelleQuoteFromDeposit(249_999, doc(tiers))).toEqual({ usd: 961, rate: 260 });
+  });
+
+  it("490,000 GYD reaches the 2,000 USD tier: 2,000 USD at 245; 489,999 stays at 250 (1,959 USD)", () => {
+    expect(zelleQuoteFromDeposit(490_000, doc(tiers))).toEqual({ usd: 2_000, rate: 245 });
+    expect(zelleQuoteFromDeposit(489_999, doc(tiers))).toEqual({ usd: 1_959, rate: 250 });
+  });
+
+  it("custom prices 265/255/250: 255,000 -> 1,000 at 255; 250,000 -> 943 at 265; 500,000 -> 2,000 at 250", () => {
+    const custom = doc({ zelleSellGyd: 265, zelleSellGyd1000: 255, zelleSellGyd2000: 250 });
+    expect(zelleQuoteFromDeposit(255_000, custom)).toEqual({ usd: 1_000, rate: 255 });
+    expect(zelleQuoteFromDeposit(250_000, custom)).toEqual({ usd: 943, rate: 265 });
+    expect(zelleQuoteFromDeposit(500_000, custom)).toEqual({ usd: 2_000, rate: 250 });
+  });
+
+  it("below the lowest tier the base price applies; a non-positive deposit has no quote", () => {
+    expect(zelleQuoteFromDeposit(12_999, doc(tiers))).toEqual({ usd: 49, rate: 260 });
+    expect(zelleQuoteFromDeposit(0, doc(tiers))).toBeNull();
+  });
+
+  it("rate for a USD amount: highest tier it reaches", () => {
+    const d = doc(tiers);
+    expect([49, 50, 999, 1_000, 1_999, 2_000, 5_000].map((usd) => zelleRateForUsd(usd, d))).toEqual([
+      260, 260, 260, 250, 250, 245, 245,
+    ]);
+  });
+
+  it("NULL prices fall back: base -> usdtSellGyd, 1,000 -> base, 2,000 -> 1,000", () => {
+    expect(zelleTiers(doc({ usdtSellGyd: 262 }))).toEqual([
+      { minUsd: 50, rateGyd: 262 },
+      { minUsd: 1_000, rateGyd: 262 },
+      { minUsd: 2_000, rateGyd: 262 },
+    ]);
+    expect(zelleTiers(doc({ usdtSellGyd: 262, zelleSellGyd1000: 255 }))).toEqual([
+      { minUsd: 50, rateGyd: 262 },
+      { minUsd: 1_000, rateGyd: 255 },
+      { minUsd: 2_000, rateGyd: 255 },
+    ]);
+    expect(zelleTiers(doc({ zelleSellGyd: 265, zelleSellGyd1000: 255 }))).toEqual([
+      { minUsd: 50, rateGyd: 265 },
+      { minUsd: 1_000, rateGyd: 255 },
+      { minUsd: 2_000, rateGyd: 255 },
+    ]);
+  });
+
+  it("with no Zelle price at all, Zelle still prices at the single rate (no discount)", () => {
+    expect(deriveAmountFromDeposit("ZELLE", 250_000, doc())).toBe(961);
+  });
+
+  it("the snapshot of a 250,000 GYD ZELLE deposit sells at 250: facturado 250,000, invertido 240,000, retorno 10,000", () => {
+    const result = computeAutoCompletionSnapshotFromDeposit("ZELLE", 250_000, doc(tiers));
+    expect(result?.amount).toBe(1_000);
+    expect(result?.financials).toEqual({ facturadoGyd: 250_000, invertidoGyd: 240_000, retornoGyd: 10_000 });
+  });
+
+  it("rateInputForService prices a ZELLE amount by its tier; other services keep usdtSellGyd", () => {
+    expect(rateInputForService("ZELLE", doc(tiers), 1_000)).toEqual({ costGyd: 240, saleGyd: 250 });
+    expect(rateInputForService("ZELLE", doc(tiers), 2_500)).toEqual({ costGyd: 240, saleGyd: 245 });
+    expect(rateInputForService("ZELLE", doc(tiers))).toEqual({ costGyd: 240, saleGyd: 260 });
+    expect(rateInputForService("CLASICA", doc(tiers), 1_000)).toEqual({ costGyd: 240, saleGyd: 260 });
+    expect(deriveAmountFromDeposit("CLASICA", 250_000, doc(tiers))).toBe(961);
   });
 });

@@ -62,6 +62,55 @@ export interface CalculatorDocumentRates {
   /** Cash-dollar (EFECTIVO) sale rate, `efectivo_usd_gyd`. Optional so callers
    * that never price cash need not carry it; absent means "not set". */
   efectivoUsdGyd?: number | null;
+  /** Zelle sale price (GYD per USD) of the tier that starts at 50 USD (migration 216).
+   * Absent/null falls back to `usdtSellGyd`. */
+  zelleSellGyd?: number | null;
+  /** Zelle price of the tier that starts at 1,000 USD. Absent/null falls back to the base tier price. */
+  zelleSellGyd1000?: number | null;
+  /** Zelle price of the tier that starts at 2,000 USD. Absent/null falls back to the 1,000 tier price. */
+  zelleSellGyd2000?: number | null;
+}
+
+/** One Zelle tier: the minimum USD received and the GYD price per USD. The minimums are fixed (owner decision). */
+export interface ZelleTier {
+  minUsd: number;
+  rateGyd: number;
+}
+
+/** The Zelle tiers in force, fallbacks applied, ascending by minimum: base -> usdtSellGyd, 1,000 -> base, 2,000 -> 1,000.
+ * Returns `[]` when not even the single rate exists. Mirrors the SQL `cerebro_zelle_tiers()` (migration 216). */
+export function zelleTiers(doc: CalculatorDocumentRates): ZelleTier[] {
+  const base = doc.zelleSellGyd ?? doc.usdtSellGyd;
+  if (base == null || !(base > 0)) return [];
+  const mid = doc.zelleSellGyd1000 ?? base;
+  const top = doc.zelleSellGyd2000 ?? mid;
+  return [
+    { minUsd: 50, rateGyd: base },
+    { minUsd: 1_000, rateGyd: mid },
+    { minUsd: 2_000, rateGyd: top },
+  ];
+}
+
+/** Zelle rate for an amount of USD received: the highest tier it reaches; below the lowest tier, the base price.
+ * Mirrors `cerebro_tasa_zelle`. `null` when there is no rate or the amount is not positive. */
+export function zelleRateForUsd(usd: number, doc: CalculatorDocumentRates): number | null {
+  const tiers = zelleTiers(doc);
+  if (tiers.length === 0 || !Number.isFinite(usd) || usd <= 0) return null;
+  const reached = [...tiers].reverse().find((tier) => usd >= tier.minUsd);
+  return (reached ?? tiers[0]!).rateGyd;
+}
+
+/** Zelle quote of a GYD deposit: the best tier whose floor(gyd / price) reaches its minimum USD (else the base tier),
+ * USD rounded DOWN. Mirrors `cerebro_zelle_cotizar_gyd`. `null` for a non-positive deposit or when no rate exists. */
+export function zelleQuoteFromDeposit(
+  sourceAmountGyd: number,
+  doc: CalculatorDocumentRates,
+): { usd: number; rate: number } | null {
+  const tiers = zelleTiers(doc);
+  if (tiers.length === 0 || !Number.isFinite(sourceAmountGyd) || sourceAmountGyd <= 0) return null;
+  const reached = [...tiers].reverse().find((tier) => Math.floor(sourceAmountGyd / tier.rateGyd) >= tier.minUsd);
+  const rate = (reached ?? tiers[0]!).rateGyd;
+  return { usd: Math.floor(sourceAmountGyd / rate), rate };
 }
 
 /** Delivery methods a completed structured operation can resolve to. Kept
@@ -109,6 +158,8 @@ export function missingDocumentRates(
 export function rateInputForService(
   service: CalculatorAutoCompletionService,
   doc: CalculatorDocumentRates,
+  /** The service amount. For ZELLE it is the USD received and picks the tier price (migration 216). */
+  amount?: number,
 ): CalculatorEntryRates {
   if (service === "CUP") {
     return {
@@ -121,6 +172,12 @@ export function rateInputForService(
     return {
       costGyd: doc.usdtBuyGyd ?? undefined,
       saleGyd: doc.efectivoUsdGyd ?? undefined,
+    };
+  }
+  if (service === "ZELLE") {
+    return {
+      costGyd: doc.usdtBuyGyd ?? undefined,
+      saleGyd: (amount === undefined ? zelleTiers(doc)[0]?.rateGyd : zelleRateForUsd(amount, doc)) ?? undefined,
     };
   }
   return {
@@ -142,6 +199,7 @@ export function computeAutoCompletionSnapshot(
   service: CalculatorAutoCompletionService,
   amount: number,
   doc: CalculatorDocumentRates,
+  rateInput: CalculatorEntryRates = rateInputForService(service, doc, amount),
 ): CalculatorEntryFinancials {
   const missing = missingDocumentRates(service, doc);
   if (missing.length > 0) {
@@ -154,7 +212,7 @@ export function computeAutoCompletionSnapshot(
   return calculateEntry({
     service: financialService,
     amount,
-    ...rateInputForService(service, doc),
+    ...rateInput,
   });
 }
 
@@ -185,8 +243,18 @@ export function deriveAmountFromDeposit(
     const amount = sourceAmountGyd * doc.cupGlobalRate;
     return Number.isFinite(amount) && amount > 0 ? amount : null;
   }
+  if (service === "ZELLE") {
+    // Migration 216: priced by tier of the deposit (the best tier whose floor(gyd / price) reaches its minimum).
+    const quote = zelleQuoteFromDeposit(sourceAmountGyd, doc);
+    if (quote == null) {
+      throw new CalculatorValidationError(
+        "Missing required document rate: usdtSellGyd",
+        "usdtSellGyd",
+      );
+    }
+    return Number.isFinite(quote.usd) && quote.usd > 0 ? quote.usd : null;
+  }
   if (
-    service === "ZELLE" ||
     service === "CLASICA" ||
     service === "TROPICAL" ||
     service === "EFECTIVO"
@@ -217,6 +285,15 @@ export function computeAutoCompletionSnapshotFromDeposit(
 ): { amount: number; financials: CalculatorEntryFinancials } | null {
   const amount = deriveAmountFromDeposit(service, sourceAmountGyd, doc);
   if (amount == null) return null;
-  const financials = computeAutoCompletionSnapshot(service, amount, doc);
+  // A ZELLE deposit sells at the rate of the tier the DEPOSIT reached, not the tier of the derived amount.
+  const zelleRate = service === "ZELLE" ? zelleQuoteFromDeposit(sourceAmountGyd, doc)?.rate : undefined;
+  const financials = computeAutoCompletionSnapshot(
+    service,
+    amount,
+    doc,
+    zelleRate === undefined
+      ? undefined
+      : { costGyd: doc.usdtBuyGyd ?? undefined, saleGyd: zelleRate },
+  );
   return { amount, financials };
 }

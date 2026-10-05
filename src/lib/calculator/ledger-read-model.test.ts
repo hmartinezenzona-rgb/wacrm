@@ -243,9 +243,19 @@ describe("mapRateVersion", () => {
       usdtSellCup: 1.05,
       efectivoUsdGyd: 290,
       recargaCostoUsdt: 4.5,
+      zelleSellGyd: null,
+      zelleSellGyd1000: null,
+      zelleSellGyd2000: null,
       effectiveAt: "2026-09-10T08:00:00Z",
       setBy: "user-1",
     });
+  });
+
+  it("maps the three Zelle tier prices, coercing numeric strings (migration 216)", () => {
+    const rates = mapRateVersion(
+      rateRow({ zelle_sell_gyd: "260", zelle_sell_gyd_1000: "250.5", zelle_sell_gyd_2000: 245 }),
+    );
+    expect([rates.zelleSellGyd, rates.zelleSellGyd1000, rates.zelleSellGyd2000]).toEqual([260, 250.5, 245]);
   });
 
   it("never substitutes a default for a null rate", () => {

@@ -186,6 +186,10 @@ export interface RateVersionRow {
   efectivo_usd_gyd?: number | string | null;
   /** Cost of one recharge in USDT (migration 198). */
   recarga_costo_usdt?: number | string | null;
+  /** Zelle sale price of the tiers that start at 50, 1,000 and 2,000 USD (migration 216). */
+  zelle_sell_gyd?: number | string | null;
+  zelle_sell_gyd_1000?: number | string | null;
+  zelle_sell_gyd_2000?: number | string | null;
   set_by: string | null;
   effective_at: string;
 }
@@ -199,6 +203,9 @@ export interface CalculatorRates {
   usdtSellCup: number | null;
   efectivoUsdGyd: number | null;
   recargaCostoUsdt: number | null;
+  zelleSellGyd: number | null;
+  zelleSellGyd1000: number | null;
+  zelleSellGyd2000: number | null;
   effectiveAt: string;
   setBy: string | null;
 }
@@ -218,6 +225,9 @@ export function mapRateVersion(row: RateVersionRow): CalculatorRates {
     usdtSellCup: toNullableNumber(row.usdt_sell_cup),
     efectivoUsdGyd: toNullableNumber(row.efectivo_usd_gyd ?? null),
     recargaCostoUsdt: toNullableNumber(row.recarga_costo_usdt ?? null),
+    zelleSellGyd: toNullableNumber(row.zelle_sell_gyd ?? null),
+    zelleSellGyd1000: toNullableNumber(row.zelle_sell_gyd_1000 ?? null),
+    zelleSellGyd2000: toNullableNumber(row.zelle_sell_gyd_2000 ?? null),
     effectiveAt: row.effective_at,
     setBy: row.set_by,
   };

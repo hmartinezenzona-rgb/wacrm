@@ -195,10 +195,103 @@ describe("calculator global rate inputs (post-ledger)", () => {
 
     expect(node.querySelector('label[for="tarifaCupGlobal"]')?.textContent).toBe("Tarifa CUP global");
     expect(node.querySelector('label[for="compraUsdtGyd"]')?.textContent).toBe("Compra USDT (GYD)");
-    expect(node.querySelector('label[for="ventaUsdtGyd"]')?.textContent).toBe("Venta USDT/Zelle (GYD)");
+    expect(node.querySelector('label[for="ventaUsdtGyd"]')?.textContent).toBe("Venta USDT (GYD)");
     expect(node.querySelector('label[for="ventaUsdtCup"]')?.textContent).toBe("Venta USDT (CUP)");
     expect(node.querySelector('label[for="efectivoUsdGyd"]')?.textContent).toBe("Tasa efectivo USD (GYD por dólar)");
     expect(node.querySelector('label[for="recargaCostoUsdt"]')?.textContent).toBe("Recarga: costo (USDT)");
+    await act(async () => root.unmount());
+  });
+
+  it("groups the rates under titled sections: Compra, Venta, Zelle por tramo, Cuba, Otros", async () => {
+    const fetchMock = createFetchMock({ ratesGet: { rates: null } });
+    const { node, root } = await renderPage(fetchMock);
+
+    const titles = [...node.querySelectorAll("#tarifasGlobales h3")].map((h) => h.textContent);
+    expect(titles).toEqual(["Compra", "Venta", "Zelle por tramo", "Cuba", "Otros"]);
+    const group = (title: string) =>
+      [...node.querySelectorAll("#tarifasGlobales section")].find((s) => s.querySelector("h3")?.textContent === title)!;
+    const ids = (title: string) => [...group(title).querySelectorAll("input")].map((i) => i.id);
+    expect(ids("Compra")).toEqual(["compraUsdtGyd"]);
+    expect(ids("Venta")).toEqual(["ventaUsdtGyd", "ventaUsdtCup"]);
+    expect(ids("Zelle por tramo")).toEqual(["zellePrecio50", "zellePrecio1000", "zellePrecio2000"]);
+    expect(ids("Cuba")).toEqual(["tarifaCupGlobal"]);
+    expect(ids("Otros")).toEqual(["efectivoUsdGyd", "recargaCostoUsdt"]);
+    // one save button for everything
+    expect(node.querySelectorAll("#guardarTasas").length).toBe(1);
+    await act(async () => root.unmount());
+  });
+
+  it("renders the Zelle tier table: Desde / Precio with fixed 50, 1,000 and 2,000 USD minimums", async () => {
+    const fetchMock = createFetchMock({ ratesGet: { rates: null } });
+    const { node, root } = await renderPage(fetchMock);
+
+    const table = node.querySelector("#zelleTramos") as HTMLTableElement;
+    expect([...table.querySelectorAll("thead th")].map((th) => th.textContent)).toEqual(["Desde", "Precio"]);
+    expect([...table.querySelectorAll("tbody tr")].map((tr) => tr.querySelector("td")?.textContent)).toEqual([
+      "50 USD",
+      "1,000 USD",
+      "2,000 USD",
+    ]);
+    // prices are editable inputs, empty when nothing is saved
+    for (const id of ["zellePrecio50", "zellePrecio1000", "zellePrecio2000"]) {
+      expect(inputValue(node, id)).toBe("");
+      expect((node.querySelector(`#${id}`) as HTMLInputElement).type).toBe("number");
+    }
+    await act(async () => root.unmount());
+  });
+
+  it("hydrates the Zelle tier prices from the rate version and locks them for non-admins", async () => {
+    const fetchMock = createFetchMock({
+      ratesGet: {
+        rates: {
+          id: "rate-1", cupGlobalRate: 3, usdtBuyGyd: 240, usdtSellGyd: 260, usdtSellCup: 975,
+          zelleSellGyd: 260, zelleSellGyd1000: 250, zelleSellGyd2000: 245,
+          effectiveAt: "2026-09-10T00:00:00Z", setBy: null,
+        },
+      },
+      ratesPost: () => ({ status: 403, body: { error: "Forbidden" } }),
+    });
+    const { node, root } = await renderPage(fetchMock);
+
+    expect(inputValue(node, "zellePrecio50")).toBe("260");
+    expect(inputValue(node, "zellePrecio1000")).toBe("250");
+    expect(inputValue(node, "zellePrecio2000")).toBe("245");
+    const button = node.querySelector("#guardarTasas") as HTMLButtonElement;
+    await act(async () => { button.click(); });
+    await flush();
+    for (const id of ["zellePrecio50", "zellePrecio1000", "zellePrecio2000"]) expect(isInputDisabled(node, id)).toBe(true);
+    await act(async () => root.unmount());
+  });
+
+  it("Guardar tasas sends the Zelle tier prices (snake_case) together with the other rates", async () => {
+    let capturedBody: { rates: Record<string, unknown>; expectedVersionId?: string } | undefined;
+    const ratesPost = vi.fn((body: { rates: Record<string, unknown>; expectedVersionId?: string }): RatesPostResult => {
+      capturedBody = body;
+      return {
+        status: 200,
+        body: { rates: { id: "rate-2", cupGlobalRate: null, usdtBuyGyd: 240, usdtSellGyd: null, usdtSellCup: null, zelleSellGyd: 265, zelleSellGyd1000: 255, zelleSellGyd2000: 250, effectiveAt: "2026-09-16T00:00:00Z", setBy: "user-a" } },
+      };
+    });
+    const fetchMock = createFetchMock({
+      ratesGet: { rates: { id: "rate-1", cupGlobalRate: null, usdtBuyGyd: null, usdtSellGyd: null, usdtSellCup: null, zelleSellGyd: 260, zelleSellGyd1000: 250, zelleSellGyd2000: 245, effectiveAt: "2026-09-10T00:00:00Z", setBy: null } },
+      ratesPost,
+    });
+    const { node, root } = await renderPage(fetchMock);
+
+    act(() => setInputValue(node, "compraUsdtGyd", "240"));
+    act(() => setInputValue(node, "zellePrecio50", "265"));
+    act(() => setInputValue(node, "zellePrecio1000", "255"));
+    act(() => setInputValue(node, "zellePrecio2000", "250"));
+    const button = node.querySelector("#guardarTasas") as HTMLButtonElement;
+    await act(async () => { button.click(); });
+    await flush();
+
+    expect(ratesPost).toHaveBeenCalledTimes(1);
+    expect(capturedBody).toEqual({
+      rates: { usdt_buy_gyd: 240, zelle_sell_gyd: 265, zelle_sell_gyd_1000: 255, zelle_sell_gyd_2000: 250 },
+      expectedVersionId: "rate-1",
+    });
+    expect(inputValue(node, "zellePrecio1000")).toBe("255");
     await act(async () => root.unmount());
   });
 

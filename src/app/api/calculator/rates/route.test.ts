@@ -59,6 +59,9 @@ const RATE_ROW = {
   usdt_sell_cup: "1.05",
   efectivo_usd_gyd: "290",
   recarga_costo_usdt: "4.5",
+  zelle_sell_gyd: "260",
+  zelle_sell_gyd_1000: "250",
+  zelle_sell_gyd_2000: "245",
   set_by: "user-a",
   effective_at: "2026-09-10T08:00:00Z",
 };
@@ -71,6 +74,9 @@ const MAPPED_RATES = {
   usdtSellCup: 1.05,
   efectivoUsdGyd: 290,
   recargaCostoUsdt: 4.5,
+  zelleSellGyd: 260,
+  zelleSellGyd1000: 250,
+  zelleSellGyd2000: 245,
   effectiveAt: "2026-09-10T08:00:00Z",
   setBy: "user-a",
 };
@@ -289,6 +295,38 @@ describe("POST /api/calculator/rates", () => {
       p_rates: { recarga_costo_usdt: 4.5 },
       p_expected_version_id: null,
     });
+  });
+
+  it("accepts and forwards the three Zelle tier prices to the RPC and returns them (migration 216)", async () => {
+    const { POST } = await import("./route");
+    const callCtx = ctx({ data: null, error: null }, { data: RATE_ROW, error: null });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await POST(
+      jsonRequest({ rates: { zelle_sell_gyd: 265, zelle_sell_gyd_1000: 255, zelle_sell_gyd_2000: null } }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_set_calculator_rates", {
+      p_account_id: "account-a",
+      p_rates: { zelle_sell_gyd: 265, zelle_sell_gyd_1000: 255, zelle_sell_gyd_2000: null },
+      p_expected_version_id: null,
+    });
+    expect(body.rates).toMatchObject({ zelleSellGyd: 260, zelleSellGyd1000: 250, zelleSellGyd2000: 245 });
+  });
+
+  it("GET selects the three Zelle price columns", async () => {
+    const { GET } = await import("./route");
+    const callCtx = ctx({ data: RATE_ROW, error: null });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    await GET();
+
+    const columns = (callCtx.builder.select.mock.calls as unknown as string[][])[0]![0]!;
+    expect(columns).toContain("zelle_sell_gyd,");
+    expect(columns).toContain("zelle_sell_gyd_1000");
+    expect(columns).toContain("zelle_sell_gyd_2000");
   });
 
   it("an out-of-range efectivo_usd_gyd rejected by the RPC is not swallowed (no 200)", async () => {

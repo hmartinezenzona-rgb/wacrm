@@ -74,3 +74,14 @@ harness for the n8n code.
       modes.
     - combo-model case 9 and read-rpc used 'visa' as the unlisted-service fixture; both now use 'traduccion'.
     - ROLLBACK-213 restores 17 functions (md5-checked).
+- [x] T2 UI (commit 830c5aa):
+  - the visa card ("Visa extension", Stamp icon, "N extensions" = amount / 5,000), with no "Deliver to" block and no
+    quote line;
+  - the manual-close picker offers 'visa', and the close-manual route accepts it;
+  - ledger-read-model has VISA_SERVICE, and canResolveWithRates is false for VISA.
+  - Tests: RED first (7 failures); operations, calculator and API tests 749 passed (re-checked by the parent);
+    npm test 150 files / 1922; typecheck and eslint clean on the touched files. The card file was not
+    Prettier-formatted before either, so it was not reformatted.
+- [x] T3 + T4 on staging: gate112-visa.py (Cerebro and notifier; backups *-staging-antes-112-20261004T184247.json).
+  - The script's notifier check and its already-applied guard looked for "VISA (112)"; both now look for
+    "VISA (112,". The published code was verified directly.

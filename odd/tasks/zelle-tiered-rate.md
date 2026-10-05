@@ -80,7 +80,7 @@ the app, offline harness for n8n code.
 - [x] T3b DB 217 (staging only): a requested USD amount keeps its own tier price (the 999 USD objective sends 999)
 - [x] T3c DB 218 (staging only): the conversation's recorded USD quote (no objective yet) keeps its tier price
 - [x] T4 Owner test on staging
-- [ ] T5 Production
+- [x] T5 Production
 - [ ] T6 Yoandrys correction
 
 ## Progress
@@ -160,3 +160,37 @@ the app, offline harness for n8n code.
   (optional by design).
 - 2026-10-05 T4 PASSED: owner verified and completed f42fbf6b ("listo, sí quedó así"). Calculator entry ZELLE 999 USD,
   facturado 259,740, invertido 239,760 (240), retorno 19,980, rate version 2a65978c.
+- 2026-10-05 T5 PRODUCTION done (owner go-ahead "si pasalo": migrations 215-218, the app release, Cerebro gate115; nothing else).
+  - DB pre-check: the md5 of the 7 functions 215 redefines equal ROLLBACK-215's pre-215 md5 (calculator_feed_operation 5abd9629...,
+    cerebro_aplicar_reparto 41a3f79b..., etc.) and crm_set_calculator_rates equals the pre-216 md5 (019e7e76...). cerebro_zelle_*,
+    cerebro_tasa_zelle, the 3 calculator_rate_versions columns and cerebro_config 'zelle_tiers' were absent. 215-218 do not touch
+    cerebro_servicios (resumen/palabras_clave not involved).
+  - Backups: produccion-20261005T203704Z.dump (sha256 f7bfb46ef572f76383eb...; public, auth, storage, cron, realtime,
+    respaldos, supabase_migrations, vault; 1,538 TOC entries, 141 table data) and produccion-20261005T203448Z.dump (sha256
+    577a9e42b5ea0485...; the respaldar-base.sh default of public/auth/storage; 1,397 TOC entries, 108 table data).
+  - Helper zz_wu5b_exec created via the Supabase MCP (SECURITY DEFINER, EXECUTE only for postgres/service_role).
+    gate116-aplicar-db.py (BUNDLE 215-218; GATE_BUNDLE=ida-y-vuelta adds the four rollbacks in reverse order):
+    - ensayo (rolled back): fingerprint df99e84f... fn=12 chk=7994851f... equal to staging's current one (same query);
+    - ida-y-vuelta (rolled back): d4e28c2e... fn=7 chk=- cols=- cfg=0, equal to production's pre-215 state;
+    - aplicar {"r":"ok"}: schema_migrations 20261005203959..62 (215-218); production fingerprint now equal to staging's;
+    - probar in production, all pass: zelle-tiered-rate, zelle-tier-prices, zelle-objective-tier, zelle-quote-tier, rate-versions,
+      resolve-pending, calculator-cash, calculator-recarga, deal-free-money-rules, visa-model, combo-model, operations-board,
+      read-rpc, split-deposit-minimums, zelle-remainder-amount, reparto-keeps-zelle, reparto-guards (run one by one).
+    - cerebro_zelle_tiers() = 50/260, 1000/250, 2000/245. The newest rate version (the one 216 appended, 6 versions now)
+      carries the other rates unchanged (cup 3, buy 240, sell 260, sell CUP 1030, cash 290, recarga 23.1).
+    - Helper dropped; ACLs of the 5 new functions: anon and authenticated cannot execute, service_role can; no leftover
+      contacts, conversations, users or operations.
+  - Cerebro jEzlVLCLUaJhVwzs (gate115, --seco first, then applied; notifier untouched): backups
+    cerebro-produccion-antes-115-20261005T144335.json (seco) and ...T144340.json (before the apply). Published: active,
+    versionId == activeVersionId, 122 nodes. Changed nodes vs backup: Decisor, Agente Remesas, Ultima cotizacion,
+    calcular_usd, calcular_usd_desde_gyd; the first four are byte-identical to staging's published ones; Agente Remesas holds
+    the ZELLE POR TRAMOS paragraph (production's prompt differs from staging's, as before). Decisor `node --check` OK.
+    harness115.js can only run against staging (psql-staging.sh), so it was NOT run on production; instead the helpers the
+    tools call were queried in production (read-only): USD 50/500/999/1000/1999/2000 -> 13,000/130,000/259,740/250,000/
+    499,750/490,000 GYD; GYD 13,000/250,000/249,999/259,740/490,000 -> 50/1,000/961/1,038/2,000 USD. The tool nodes
+    themselves were not executed in production.
+  - App release 0b43dac (BUILD_ID EBWrdyPYb0GqksLPeGelE; manifest production / hqztotshnlzaiziwjyzh; 114 money-path tests
+    passed in the build): pm2 wacrm cwd = the new release, wacrm.onlinefreedom.site serves the BUILD_ID, the build contains
+    "Tasa a cambiar", 0 staging refs, anterior -> 8953277. prod-build is left at 0b43dac, clean.
+  - NOT VERIFIED: no real agent turn in production; the production Calculator page was not opened in a browser.
+  - Next: T6 (Yoandrys' 9166f4be) is a separate, not yet authorized task.

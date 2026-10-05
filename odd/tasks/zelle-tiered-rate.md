@@ -118,3 +118,5 @@ the app, offline harness for n8n code.
   - NOT VERIFIED: browser (light/dark, phone width); staging not redeployed with this commit.
 - 2026-10-05 staging app: release 0b9b249 (BUILD_ID Q5C_8vDGw_DvoboE9y6RJ, single-rate editor), served; 0 production
   refs; anterior -> 4df2cd5. Waiting for the owner's look.
+- 2026-10-05 owner checked the single-rate editor on staging: "se ve mejor". Staging tiers back at 260/250/245
+  (cerebro_zelle_tiers()).

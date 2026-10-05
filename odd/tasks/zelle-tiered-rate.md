@@ -79,7 +79,7 @@ the app, offline harness for n8n code.
 - [x] T3 Cerebro tools and context (staging only; one open finding: objective 999 USD, see Progress)
 - [x] T3b DB 217 (staging only): a requested USD amount keeps its own tier price (the 999 USD objective sends 999)
 - [x] T3c DB 218 (staging only): the conversation's recorded USD quote (no objective yet) keeps its tier price
-- [ ] T4 Owner test on staging
+- [x] T4 Owner test on staging
 - [ ] T5 Production
 - [ ] T6 Yoandrys correction
 
@@ -158,3 +158,5 @@ the app, offline harness for n8n code.
   quote match). Earlier round: 1,000 USD quoted at 250,000. Pending: owner verifies/completes in the panel and checks
   the calculator ZELLE line (expected billed 259,740 at 260). The bot did not mention the lower price from 1,000 USD
   (optional by design).
+- 2026-10-05 T4 PASSED: owner verified and completed f42fbf6b ("listo, sí quedó así"). Calculator entry ZELLE 999 USD,
+  facturado 259,740, invertido 239,760 (240), retorno 19,980, rate version 2a65978c.

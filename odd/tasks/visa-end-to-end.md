@@ -41,7 +41,7 @@ uploaded, the customer is told so, and the calculator counts the 5,000 GYD.
 - T3 Cerebro: the agent tool, the Decisor note while a visa is open (no card or beneficiary), the verified-deposit
   line.
 - T4 Notifier: the visa verified and completed messages.
-- T5 Owner test on staging (done). T6 Production after the go-ahead.
+- T5 Owner test on staging (done). T6 Production after the go-ahead (done).
 
 ## TDD
 Strict. SQL assertions (self-reverting DO blocks; fixtures independent of existing conversations; recheck with
@@ -104,3 +104,31 @@ harness for the n8n code.
   - Completed (human_delivery) -> "Listo, su aplicación de extensión de visa ya fue subida. Inmigración le enviará un
     PDF por correo; cuando llegue se lo reenviamos con los pasos a seguir."
   - Calculator: VISA completed, facturado 10,000, invertido 0, retorno 10,000; no "envio_sin_beneficiario" alert.
+- [x] T6 PRODUCTION (owner go-ahead 2026-10-05 "si"):
+  - Pre-check: the md5 of each of the 17 redefined functions in production equals the pre-213 md5 in
+    ROLLBACK-213's header. cerebro_visa_en_curso and crm_abrir_visa were absent.
+  - Backup produccion-20261005T013750Z.dump (sha256 a9aa28c7259835e4...; 2148 list entries).
+  - First ensayo FAILED: "column resumen of relation cerebro_servicios does not exist". Production has no
+    resumen/palabras_clave (staging-only 138 catalog columns).
+  - Fixed in commit bac9fa3: 213 sets resumen only when the column exists. ROLLBACK-213 now removes exactly the
+    sentence 213 appended (production's starting text differs from staging's) and restores resumen only where it
+    exists.
+  - gate113-aplicar-db.py (BUNDLE 213; GATE_BUNDLE=ida-y-vuelta adds the rollback in the same rolled-back run):
+    - ensayo: function and constraint fingerprints equal to staging (28ffacaa... / chk ccf231a0...);
+    - ida-y-vuelta: production's exact pre-213 state comes back (functions bf1dfbc2..., chk 4eaa86dd..., visa
+      text ed885168... / 4a6f5e60...);
+    - aplicar OK (schema_migrations 20261005024331 213_visa_model).
+  - probar in production, 24 passing: visa-model, the combo-* suites, the recarga-* suites,
+    recharge-only-with-live-promo, recarga-needs-promo, calculator-recarga, calculator-cash, panel-recarga,
+    add-beneficiary, read-rpc, manual-close-service, panel-closing-actions, resolve-pending,
+    deposit-path-without-deals, deal-free-money-rules, partial-beneficiary-tools, cash-phone-not-a-card,
+    promo-notice.
+  - Helper dropped; no leftovers; 0 visa ops; the visa text carries "TOMA el pedido"; crm_abrir_visa is not
+    executable by authenticated.
+  - gate112 produccion (Cerebro jEzlVLCLUaJhVwzs + notifier wGud0KGR6eMqqfMQ): published (versionId ==
+    activeVersionId); backups *-produccion-antes-112-20261004T204642.json. The final production Decisor, agent
+    expressions and tool parse; the production notifier code in harness112 gives the visa, remesa and combo messages.
+  - App release bac9fa3 (build SXpWqqF7QxiaBHjtQkWIO): pm2 cwd is the new release; the domain serves it; anterior ->
+    64f1b03.
+  - 213 also changes how a combo behaves in production: an open combo blocks the remesa writers only while it is
+    collecting its recipients.

@@ -11,6 +11,7 @@ import {
   BarChart3,
   Bell,
   Bot,
+  Columns3,
   Crown,
   LayoutDashboard,
   LineChart,
@@ -91,13 +92,14 @@ interface NavItem {
   beta?: boolean;
 }
 
-const navItems: NavItem[] = [
+export const navItems: NavItem[] = [
   { href: "/dashboard", labelKey: "dashboard", icon: LayoutDashboard },
   { href: "/inbox", labelKey: "inbox", icon: MessageSquare },
   { href: "/notifications", labelKey: "notifications", icon: Bell },
   { href: "/contacts", labelKey: "contacts", icon: Users },
   { href: "/resumen", labelKey: "resumen", icon: BarChart3 },
   { href: "/calculadora", labelKey: "controlSemanal", icon: LineChart },
+  { href: "/tablero", labelKey: "tablero", icon: Columns3 },
   { href: "/broadcasts", labelKey: "broadcasts", icon: Radio },
   { href: "/automations", labelKey: "automations", icon: Zap },
   { href: "/flows", labelKey: "flows", icon: Workflow, beta: true },

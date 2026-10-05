@@ -40,7 +40,8 @@
     "menuSettings": "Settings",
     "menuSignOut": "Sign out",
     "resumen": "Resumen",
-    "controlSemanal": "Control Semanal"
+    "controlSemanal": "Control Semanal",
+    "tablero": "Operations board"
   },
   "Header": {
     "dashboard": "Dashboard",
@@ -2087,5 +2088,44 @@
       },
       "exportar": "Exportar CSV"
     }
+  },
+  "Tablero": {
+    "title": "Operations board",
+    "description": "Live state of every chat's operations. Read-only: act from the chat.",
+    "filterLabel": "Service",
+    "filters": {
+      "all": "All",
+      "remesa": "Remittance",
+      "recarga": "Recharge",
+      "combo": "Combo",
+      "visa": "Visa"
+    },
+    "columns": {
+      "requested": "Requested",
+      "depositCheck": "Deposit check",
+      "readyToTransfer": "Ready to transfer",
+      "incident": "Incident",
+      "completed": "Completed (last 24 h)"
+    },
+    "services": {
+      "remesa": "Remittance",
+      "recarga": "Recharge",
+      "combo": "Combo",
+      "visa": "Visa extension"
+    },
+    "unknownContact": "Unknown contact",
+    "missingBeneficiaries": "Recipient details missing",
+    "emptyColumn": "Nothing here",
+    "age": {
+      "lessThanMinute": "< 1 min",
+      "minutes": "{value} min",
+      "hours": "{value} h",
+      "days": "{value} d"
+    },
+    "inState": "In this state for {age}",
+    "openChat": "Open chat with {name}",
+    "loading": "Loading the board...",
+    "loadError": "Could not load the board. Retrying automatically.",
+    "forbidden": "You do not have access to this account's operations."
   }
 }

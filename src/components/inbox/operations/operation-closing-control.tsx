@@ -10,7 +10,7 @@ import { MethodIcon } from "./operation-icons";
 
 /** Clásica, Tropical, cash, recharge, combo and visa share one "cash" kind in MethodIcon (the cards show them alike); the service picker
  *  must tell them apart, so they get their own icons here. CUP card and Zelle keep the cards' icons. */
-const PICKER_ICON: Partial<Record<string, { Icon: LucideIcon; className: string }>> = {
+export const PICKER_ICON: Partial<Record<string, { Icon: LucideIcon; className: string }>> = {
   clasica: { Icon: Landmark, className: "text-indigo-600 dark:text-indigo-300" },
   tropical: { Icon: TreePalm, className: "text-emerald-600 dark:text-emerald-300" },
   efectivo_usd: { Icon: Banknote, className: "text-amber-600 dark:text-amber-300" },

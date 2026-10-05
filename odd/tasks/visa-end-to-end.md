@@ -41,7 +41,7 @@ uploaded, the customer is told so, and the calculator counts the 5,000 GYD.
 - T3 Cerebro: the agent tool, the Decisor note while a visa is open (no card or beneficiary), the verified-deposit
   line.
 - T4 Notifier: the visa verified and completed messages.
-- T5 Owner test on staging. T6 Production after the go-ahead.
+- T5 Owner test on staging (done). T6 Production after the go-ahead.
 
 ## TDD
 Strict. SQL assertions (self-reverting DO blocks; fixtures independent of existing conversations; recheck with
@@ -96,3 +96,11 @@ harness for the n8n code.
   - Fix (commit 8c3dacf): the header label is "Visa extension · N extensions" from the start. A new card test was
     RED, then the operations suite passed 364/364; typecheck and lint clean.
   - Staging release 8c3dacf (BUILD_ID CjAWX8sJo6jRWU-Qzl4X9), served.
+- [x] T5 PASSED (owner, 2026-10-05 01:15–01:36Z):
+  - The agent opened the visa with automation_visa_registered (10,000).
+  - Simulated 10,000 GYD deposit (on request) -> "movido" onto the visa, deposit_verification, 1 operation.
+  - Panel: verified (human_forced_verification) -> the customer got "Su deposito de *10,000 GYD* ya fue verificado.
+    El equipo sube su aplicación de extensión de visa y, una vez subida, le avisamos por acá."
+  - Completed (human_delivery) -> "Listo, su aplicación de extensión de visa ya fue subida. Inmigración le enviará un
+    PDF por correo; cuando llegue se lo reenviamos con los pasos a seguir."
+  - Calculator: VISA completed, facturado 10,000, invertido 0, retorno 10,000; no "envio_sin_beneficiario" alert.

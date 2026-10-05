@@ -1611,7 +1611,14 @@ END $function$;
 -- ---------------------------------------------------------------------
 UPDATE cerebro_servicios SET
   hechos = hechos || ' El asistente TOMA el pedido: manda el enlace del formulario, el cliente paga 5,000 GYD por persona por MMG (todo por adelantado) y manda aqui la captura del deposito; el negocio sube la aplicacion en linea y se lo avisa. El cliente llena el formulario el mismo: no se le piden datos del pasaporte ni de ningun destinatario. Si paga por varias personas, son 5,000 GYD por cada una en un solo pago.',
-  resumen = 'Extension de visa en Guyana: 5,000 GYD por persona, se paga antes por MMG, el cliente llena el formulario en linea y manda aqui la captura; el negocio sube la aplicacion.',
   notas_internas = coalesce(notas_internas, '') || ' || 213 (4-oct-2026): el asistente toma el pedido (crm_abrir_visa); el deposito cae en una operacion visa y la calculadora cuenta los 5,000 GYD como ganancia. Revertir con ROLLBACK-213-visa-model.sql.',
   actualizado = now()
  WHERE clave = 'visa' AND hechos NOT LIKE '%TOMA el pedido%';
+-- The short 'resumen' column exists on staging only (the 138 catalog); production has no such column.
+DO $resumen$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'cerebro_servicios' AND column_name = 'resumen') THEN
+    EXECUTE $q$UPDATE cerebro_servicios SET resumen = 'Extension de visa en Guyana: 5,000 GYD por persona, se paga antes por MMG, el cliente llena el formulario en linea y manda aqui la captura; el negocio sube la aplicacion.' WHERE clave = 'visa'$q$;
+  END IF;
+END $resumen$;

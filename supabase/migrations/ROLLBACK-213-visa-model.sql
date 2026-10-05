@@ -1436,10 +1436,18 @@ ALTER TABLE remittance_admin_audit DROP CONSTRAINT remittance_admin_audit_action
 ALTER TABLE remittance_admin_audit ADD CONSTRAINT remittance_admin_audit_action_chk
   CHECK (action = ANY (ARRAY['automation_write_suppressed', 'automation_completion_suppressed', 'automation_revert_suppressed', 'human_correction', 'human_reassignment', 'human_deposit_verification', 'human_forced_verification', 'human_delivery', 'calculator_feed_failed', 'calculator_pending_resolved', 'human_beneficiary_added', 'automation_reparto_registered', 'human_calculator_correction', 'automation_cash_delivery_data_registered', 'automation_late_deposit_verification', 'human_manual_close', 'human_operation_deleted', 'automation_recharge_numbers_registered', 'automation_combo_recipient_registered', 'human_combo_cost_set']));
 
--- The cerebro_servicios 'visa' row as it was before 213 (staging, last updated 2026-08-19T14:00:18.201809+00:00).
+-- The cerebro_servicios 'visa' row: remove exactly what 213 appended (works on staging and production, whose starting
+-- texts differ). On staging the short 'resumen' (138 catalog column, absent in production) is put back as well.
 UPDATE cerebro_servicios SET
-  hechos = $v$Extension de visa en Guyana. El negocio NO hace el tramite: sube la aplicacion en linea en el sitio de inmigracion. Cuesta 5,000 GYD y se paga ANTES: el ultimo campo del formulario es la foto del recibo de pago. Condiciones: el pasaporte no puede estar vencido. Si han pasado 11 meses o mas sin hacer una extension, inmigracion cobra ademas una multa de 20,000 GYD. Despues de subir la aplicacion, inmigracion manda un PDF por correo y el negocio se lo reenvia con los pasos siguientes: (1) ir a inmigracion con el PDF impreso y pagar alli 5,125 GYD o lo que corresponda segun su tramite. Inmigracion queda aqui: https://g.co/kgs/5cm8mdK ; (2) a las dos semanas escribir para revisar si fue aprobada; (3) al aprobarse se entrega la carta de aprobacion para imprimir; (4) con esa carta, el pasaporte y una copia de la primera pagina, ir a la oficina de pasaporte antes de las 9am y recoger antes de las 4pm; ese paso no cuesta nada. La oficina de pasaporte queda aqui: https://g.co/kgs/D1psrd1 Inmigracion tarda de 1 a 3 semanas. PROHIBIDO ofrecer rebajas, descuentos o precios especiales. Si el cliente pide rebaja, di la tarifa fija y que cualquier rebaja la trata una persona del equipo.$v$,
-  resumen = $v$Extension de visa en Guyana: sube la aplicacion online, 4,000 GYD, pasaporte vigente.$v$,
-  notas_internas = $v$Osmany 8-ago: dijo que subiria a 5,000 GYD "pronto", sin fecha. || 19-AGO-2026: APLICADA LA SUBIDA A 5,000 GYD por decision de Humberto; el precio ya cambio en el negocio. La extension de visa cuesta 5,000 GYD. Revertir con backups/2026-08-19-visa-antes-de-5000.sql. OJO: los 5,125 GYD que se pagan EN inmigracion y la multa de 20,000 GYD son otra cosa, no se tocan.$v$
+  hechos = replace(hechos, $v$ El asistente TOMA el pedido: manda el enlace del formulario, el cliente paga 5,000 GYD por persona por MMG (todo por adelantado) y manda aqui la captura del deposito; el negocio sube la aplicacion en linea y se lo avisa. El cliente llena el formulario el mismo: no se le piden datos del pasaporte ni de ningun destinatario. Si paga por varias personas, son 5,000 GYD por cada una en un solo pago.$v$, ''),
+  notas_internas = replace(notas_internas, $v$ || 213 (4-oct-2026): el asistente toma el pedido (crm_abrir_visa); el deposito cae en una operacion visa y la calculadora cuenta los 5,000 GYD como ganancia. Revertir con ROLLBACK-213-visa-model.sql.$v$, ''),
+  actualizado = now()
  WHERE clave = 'visa';
+DO $resumen$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'cerebro_servicios' AND column_name = 'resumen') THEN
+    EXECUTE $q$UPDATE cerebro_servicios SET resumen = $r$Extension de visa en Guyana: sube la aplicacion online, 4,000 GYD, pasaporte vigente.$r$ WHERE clave = 'visa'$q$;
+  END IF;
+END $resumen$;
 

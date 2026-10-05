@@ -76,7 +76,7 @@ the app, offline harness for n8n code.
   document-rates mirror
 - [x] T2b App: the owner found the grouped layout still messy (staging 4df2cd5). Replace it with a single-rate editor
   (dropdown + value + "Actualizar") and a read-only "Tasas actuales" list.
-- [ ] T3 Cerebro tools and context
+- [x] T3 Cerebro tools and context (staging only; one open finding: objective 999 USD, see Progress)
 - [ ] T4 Owner test on staging
 - [ ] T5 Production
 - [ ] T6 Yoandrys correction
@@ -120,3 +120,10 @@ the app, offline harness for n8n code.
   refs; anterior -> 4df2cd5. Waiting for the owner's look.
 - 2026-10-05 owner checked the single-rate editor on staging: "se ve mejor". Staging tiers back at 260/250/245
   (cerebro_zelle_tiers()).
+- 2026-10-05 T3 done on staging (Cerebro U52y1kSNvhgxvWeb), gate ~/cerebro-fase1/pruebas/gate115-zelle-tiers.py (not repo-tracked, like the other gates). Production Cerebro, notifier and DB untouched.
+  - Backups: cerebro-staging-antes-115-20261005T123026.json (before the gate), cerebro-staging-antes-115b-20261005T123123.json (before the description fix). (antes-115-20261005T122351 is the --seco run, same content as 123026.)
+  - Nodes changed: `calcular_usd` and `calcular_usd_desde_gyd` (new optional $fromAI param `via`: zelle | clasica | tropical | mexico; empty = Zelle; Zelle quotes through cerebro_tasa_zelle / cerebro_zelle_cotizar_gyd, the others keep the single `tasas` rate; new column `aplica_a`; side effects fijar_objetivo / registrar_cotizacion kept); `Ultima cotizacion` (new column zelle_tramos_texto read live from cerebro_zelle_tiers(), no hardcoded price); `Decisor` (TASAS DE HOY lists "Zelle por tramos, GYD por USD: 260 (50-999 USD), 250 (1,000-1,999 USD), 245 (desde 2,000 USD)" and labels the single rate as Clasica, Tropical, Mexico y USDT; the destination-amount note passes via); `Agente Remesas` system message (ZELLE POR TRAMOS paragraph: price applies to the whole amount, split deposit = total, 999 USD pays its own tier price, no rounding up, one brief mention when just below a tier).
+  - RED: harness115.js on the pre-change JSON: 14 FAILED (1,000 -> 260,000, 2,000 -> 520,000, 1,999, 250,000 GYD -> 961, 490,000 -> 1,884, 259,740 -> 999, no tier text). GREEN: same harness on the published workflow: ALL PASS (500 -> 130,000; 1,000 -> 250,000; 2,000 -> 490,000; 999 -> 259,740; 50 -> 13,000; 1,999 -> 499,750; from GYD 250,000 -> 1,000 @250, 249,999 -> 961 @260, 490,000 -> 2,000 @245, 259,740 -> 1,038 @250, 13,000 -> 50; Clasica/Tropical/Mexico unchanged at 260 and 961/1,884). Tool queries run on staging in a rolled-back transaction; Decisor syntax `node --check` OK.
+  - Published via the public API: active True, versionId == activeVersionId, 123 nodes, changes present in the live JSON.
+  - NOT VERIFIED: no real agent turn (the $fromAI `via` param with default '' was not exercised by the LLM); the owner's staging WhatsApp test is T4.
+  - FINDING (owner decision "999 objective sends 999" does NOT hold on staging): with a 999 USD objective (cerebro_objetivo_envio monto 259,740, pedido '999 USD') and a 259,740 GYD deposit, the operation's quoted_destination_amount is 1,038 @250, same as the control without an objective. Nothing reads the objective's `pedido` for the destination: crm_calcular_monto_destino is floor(source / tier rate). Before 215 the same case gave 999 @260 (floor(259,740/260)). Evidence SQL: scratchpad chk115-objetivo999c.sql (self-reverting). No migration written; waiting for the owner.

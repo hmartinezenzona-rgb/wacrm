@@ -41,7 +41,8 @@
     "menuSignOut": "Cerrar sesión",
     "resumen": "Finanzas",
     "controlSemanal": "Control Semanal",
-    "tablero": "Tablero de operaciones"
+    "tablero": "Tablero de operaciones",
+    "primaryNavLabel": "Principal"
   },
   "Header": {
     "dashboard": "Panel",
@@ -223,7 +224,13 @@
       "selectConversation": "Selecciona una conversación",
       "selectConversationHint": "Elige una conversación de la izquierda para empezar a escribir",
       "today": "Hoy",
-      "yesterday": "Ayer"
+      "yesterday": "Ayer",
+      "networkError": "error de red",
+      "sendFailed": "No se pudo enviar: {reason}",
+      "sendTemplateFailed": "No se pudo enviar la plantilla: {reason}",
+      "waitForSending": "Espera a que termine de enviarse el mensaje",
+      "reactionFailed": "No se pudo enviar la reacción: {reason}",
+      "assignmentFailed": "No se pudo actualizar la asignación"
     },
     "sessionTimer": {
       "expired": "Vencida",
@@ -259,7 +266,16 @@
       "send": "Enviar",
       "quickReplyNamePrompt": "Nombre de esta respuesta rápida:",
       "quickReplySaved": "Guardada como respuesta rápida.",
-      "quickReplySaveError": "No se pudo guardar la respuesta rápida."
+      "quickReplySaveError": "No se pudo guardar la respuesta rápida.",
+      "aiNotConfigured": "La IA aún no está configurada: actívala en Configuración → Asistente de IA.",
+      "draftFailed": "No se pudo redactar una respuesta.",
+      "draftEmpty": "El asistente no devolvió ninguna respuesta.",
+      "aiUnreachable": "No se pudo conectar con el asistente de IA.",
+      "fileTooLarge": "El archivo pesa {size} MB: el límite para {kind, select, image {imágenes} video {videos} audio {audios} other {documentos}} es {limit} MB.",
+      "uploadFailed": "No se pudo subir el archivo.",
+      "recordingTooLong": "La grabación es demasiado larga (más de 16 MB).",
+      "recordingUnsupported": "La grabación de voz no es compatible con este navegador.",
+      "micDenied": "Acceso al micrófono denegado o no disponible."
     },
     "bubble": {
       "photo": "Foto",
@@ -273,7 +289,8 @@
       "interactiveReply": "[Respuesta interactiva]",
       "unsupported": "[Tipo de mensaje no admitido]",
       "aiBadge": "IA",
-      "aiBadgeTitle": "Enviado automáticamente por el asistente de IA"
+      "aiBadgeTitle": "Enviado automáticamente por el asistente de IA",
+      "sharedImageAlt": "Imagen compartida"
     },
     "actions": {
       "reply": "Responder",
@@ -565,7 +582,8 @@
       "toastFailedDelete": "No se pudo eliminar el contacto",
       "toastDeleted": "Contacto eliminado",
       "toastBulkFailedDelete": "No se pudieron eliminar los contactos",
-      "toastBulkDeleted": "{count} contactos eliminados"
+      "toastBulkDeleted": "{count} contactos eliminados",
+      "selectAllAria": "Seleccionar todos los contactos de esta página"
     },
     "form": {
       "addTitle": "Agregar contacto",
@@ -598,7 +616,9 @@
       "dupSimilar": "Ya existe un contacto con un número muy similar.",
       "loadingTags": "Cargando etiquetas...",
       "noTagsAvailable": "No hay etiquetas disponibles. Crea etiquetas en Configuración.",
-      "phoneRequired": "El número de teléfono es obligatorio"
+      "phoneRequired": "El número de teléfono es obligatorio",
+      "notAuthenticated": "No has iniciado sesión",
+      "noAccountLinked": "Tu perfil no está vinculado a una cuenta."
     },
     "detailView": {
       "tabs": {
@@ -654,7 +674,9 @@
       "toastCustomFieldsSaved": "Campos personalizados guardados",
       "toastCustomFieldsFailed": "No se pudieron guardar los campos personalizados",
       "toastTemplateSent": "Plantilla \"{name}\" enviada",
-      "toastTemplateFailed": "No se pudo enviar la plantilla: {reason}"
+      "toastTemplateFailed": "No se pudo enviar la plantilla: {reason}",
+      "networkError": "error de red",
+      "sendTemplateFailed": "No se pudo enviar la plantilla: {reason}"
     },
     "importModal": {
       "title": "Importar contactos",
@@ -697,7 +719,9 @@
       "toastSkipped_plural": "{count} duplicados omitidos",
       "toastFailed": "{count} contacto no se pudo importar",
       "toastFailed_plural": "{count} contactos no se pudieron importar",
-      "toastError": "La importación falló"
+      "toastError": "La importación falló",
+      "notAuthenticated": "No has iniciado sesión",
+      "noAccountLinked": "Tu perfil no está vinculado a una cuenta."
     },
     "customFields": {
       "title": "Campos personalizados",
@@ -1546,7 +1570,13 @@
       "removeDialogDesc": "¿Quitar a <bold>{name}</bold> de la cuenta? Se cerrará su sesión en esta cuenta y, en su próximo inicio de sesión, recibirá una cuenta personal nueva. Su acceso no se elimina.",
       "cancel": "Cancelar",
       "removing": "Quitando...",
-      "removeBtn": "Quitar miembro"
+      "removeBtn": "Quitar miembro",
+      "loadMembersFailed": "No se pudieron cargar los miembros",
+      "loadInvitationsFailed": "No se pudieron cargar las invitaciones",
+      "serverUnreachable": "No se pudo conectar con el servidor",
+      "updateRoleFailed": "No se pudo actualizar el rol",
+      "removeFailed": "No se pudo quitar al miembro",
+      "revokeFailed": "No se pudo revocar la invitación"
     },
     "invite": {
       "inviteCreated": "Invitación creada",
@@ -1574,7 +1604,10 @@
       "labelTooLong": "La etiqueta debe tener {max} caracteres o menos",
       "copied": "Enlace de invitación copiado",
       "clipboardBlocked": "Portapapeles bloqueado: copia el enlace manualmente",
-      "whatsappMessage": "Únete a {accountName} en wacrm con este enlace (válido por {expiresInDays} días): {url}"
+      "whatsappMessage": "Únete a {accountName} en wacrm con este enlace (válido por {expiresInDays} días): {url}",
+      "createFailed": "No se pudo crear la invitación",
+      "serverUnreachableRetry": "No se pudo conectar con el servidor. ¿Quieres intentarlo de nuevo?",
+      "defaultAccountName": "nuestra cuenta de wacrm"
     },
     "tagsAndFields": {
       "title": "Campos y etiquetas",
@@ -1705,7 +1738,15 @@
       "toastInvalidImage": "La imagen del encabezado debe ser JPEG o PNG.",
       "toastImageTooLarge": "La imagen pesa {size} MB: el límite de Meta es 5 MB.",
       "toastUploadSuccess": "Imagen subida.",
-      "toastUploadFailed": "No se pudo subir."
+      "toastUploadFailed": "No se pudo subir.",
+      "editFailedHttp": "Falló la edición (HTTP {status})",
+      "submitFailedHttp": "Falló el envío (HTTP {status})",
+      "syncFailedHttp": "Falló la sincronización (HTTP {status})",
+      "deleteFailedHttp": "Falló la eliminación (HTTP {status})",
+      "syncMore": ", +{count} más",
+      "qualityScoreTitle": "Puntuación de calidad de Meta",
+      "headerTextAria": "Texto del encabezado",
+      "headerSampleAlt": "Muestra del encabezado"
     },
     "roles": {
       "admin": "Administrador",
@@ -1781,7 +1822,29 @@
       "step4_3": "Pega la <strong class=\"text-foreground\">URL de callback del webhook</strong> de arriba",
       "step4_4": "Ingresa el mismo <strong class=\"text-foreground\">token de verificación</strong> que configuraste aquí",
       "step4_5": "Suscríbete al campo de webhook \"messages\"",
-      "metaDocs": "Documentación de la API de WhatsApp de Meta"
+      "metaDocs": "Documentación de la API de WhatsApp de Meta",
+      "loadError": "No se pudo cargar la configuración de WhatsApp",
+      "phoneIdRequired": "El ID del número de teléfono es obligatorio",
+      "tokenRequiredInitial": "El token de acceso es obligatorio en la configuración inicial",
+      "tokenReenter": "Vuelve a ingresar el token de acceso para guardar los cambios",
+      "saveFailed": "No se pudo guardar la configuración",
+      "savedNotRegistered": "Se guardó, pero Meta no pudo registrar el número: {error}",
+      "savedRegistrationSkipped": "Credenciales guardadas y verificadas. Se omitió el registro de mensajes entrantes (sin PIN): consulta el estado del registro más abajo.",
+      "savedLive": "En vivo: {name} ya puede recibir eventos.",
+      "savedConnected": "WhatsApp conectado. Los eventos empezarán a llegar en menos de un minuto.",
+      "connectedTo": "Conectado a {name}",
+      "apiConnectionOk": "Conexión con la API exitosa",
+      "apiConnectionFailed": "Falló la conexión con la API",
+      "testFailed": "Falló la prueba de conexión. Revisa la red e inténtalo de nuevo.",
+      "fullyWired": "El número está completamente configurado: Meta está entregando eventos.",
+      "notFullyRegistered": "El número no está completamente registrado. Revisa las comprobaciones de abajo para ver qué paso falló.",
+      "verifyUnreachable": "No se pudo conectar con el servicio de verificación.",
+      "resetConfirm": "Se eliminará la configuración actual de WhatsApp para que puedas ingresarla de nuevo. ¿Continuar?",
+      "resetFailed": "No se pudo restablecer la configuración",
+      "resetDone": "Configuración borrada. Ya puedes ingresar tus credenciales de nuevo.",
+      "webhookCopied": "URL del webhook copiada al portapapeles",
+      "phoneNumberIdPlaceholder": "p. ej. 100234567890123",
+      "wabaIdPlaceholder": "p. ej. 100234567890456"
     },
     "sections": {
       "overview": "Resumen general",
@@ -1849,7 +1912,8 @@
       "cancel": "Cancelar",
       "signingOut": "Cerrando sesión…",
       "signOutEverywhere": "Cerrar sesión en todas partes",
-      "signOutFailed": "No se pudo cerrar la sesión: {message}"
+      "signOutFailed": "No se pudo cerrar la sesión: {message}",
+      "unknownError": "Error desconocido"
     },
     "appearance": {
       "title": "Apariencia",
@@ -1858,7 +1922,8 @@
       "useMode": "Usar modo {mode}",
       "active": "Activo",
       "accentColor": "Color de acento",
-      "useTheme": "Usar el tema {name}"
+      "useTheme": "Usar el tema {name}",
+      "modeAria": "Modo de color"
     },
     "security": {
       "title": "Acceso y seguridad",
@@ -1983,8 +2048,32 @@
       "addDoc": "Agregar documento",
       "reindex": "Reindexar",
       "reindexTooltip": "Volver a generar los embeddings de todos los documentos (p. ej., después de agregar una clave de embeddings)",
-      "loading": "Cargando…"
-    }
+      "loading": "Cargando…",
+      "editTitle": "Editar",
+      "deleteTitle": "Eliminar"
+    },
+    "quickReplies": {
+      "nameRequired": "Ponle un nombre a la respuesta rápida.",
+      "saveFailed": "No se pudo guardar la respuesta rápida.",
+      "updated": "Respuesta rápida actualizada.",
+      "created": "Respuesta rápida creada.",
+      "deleteConfirm": "¿Eliminar esta respuesta rápida?",
+      "deleteFailed": "No se pudo eliminar la respuesta rápida.",
+      "title": "Respuestas rápidas",
+      "description": "Fragmentos reutilizables (texto simple o un mensaje interactivo guardado) que los agentes pueden insertar desde el redactor de la bandeja de entrada.",
+      "newButton": "Nueva respuesta rápida",
+      "empty": "Aún no hay respuestas rápidas. Crea una para reutilizarla en tus conversaciones.",
+      "dialogEdit": "Editar respuesta rápida",
+      "dialogNew": "Nueva respuesta rápida",
+      "nameLabel": "Nombre",
+      "namePlaceholder": "p. ej. Horario de atención",
+      "kindText": "Texto",
+      "kindInteractive": "Interactivo",
+      "textPlaceholder": "El texto del mensaje que se insertará",
+      "cancel": "Cancelar",
+      "save": "Guardar"
+    },
+    "sectionsAria": "Secciones de configuración"
   },
   "Resumen": {
     "page": {
@@ -2137,6 +2226,98 @@
     "cancel": "Cancelar",
     "deleteError": "No se pudo borrar la notificación",
     "deleteAllError": "No se pudieron borrar las notificaciones",
-    "deleteAllDone": "Se borraron todas las notificaciones"
+    "deleteAllDone": "Se borraron todas las notificaciones",
+    "markReadError": "No se pudo marcar la notificación como leída",
+    "markAllError": "No se pudieron marcar todas como leídas",
+    "retry": "Reintentar",
+    "title": "Notificaciones",
+    "description": "Aquí aparecen las conversaciones que te asignan otros compañeros.",
+    "markAllRead": "Marcar todas como leídas",
+    "emptyTitle": "Aún no tienes notificaciones",
+    "emptyDescription": "Verás una alerta aquí cuando alguien te asigne una conversación.",
+    "unread": "Sin leer"
+  },
+  "Join": {
+    "roles": {
+      "admin": "Administrador",
+      "agent": "Agente",
+      "viewer": "Observador"
+    },
+    "fail": {
+      "not_found": {
+        "title": "Invitación no encontrada",
+        "body": "Este enlace no corresponde a una invitación válida. Revisa la dirección o pide a quien te invitó que te envíe una nueva."
+      },
+      "used": {
+        "title": "Invitación ya utilizada",
+        "body": "Esta invitación ya fue aceptada. Si no fuiste tú, pide al administrador de la cuenta que envíe un enlace nuevo."
+      },
+      "expired": {
+        "title": "Invitación vencida",
+        "body": "Esta invitación venció. Pide al administrador de la cuenta que envíe una nueva; se genera en unos segundos."
+      },
+      "server_error": {
+        "title": "Algo salió mal",
+        "body": "No pudimos verificar esta invitación en este momento. Intenta recargar la página en unos instantes."
+      }
+    },
+    "conflictFallback": "Ya perteneces a otra cuenta. Inicia sesión con otro correo para unirte a esta.",
+    "acceptFailed": "No se pudo aceptar la invitación",
+    "welcomeToast": "Te damos la bienvenida al equipo",
+    "serverUnreachable": "No se pudo conectar con el servidor",
+    "signOutFailed": "No se pudo cerrar la sesión. Intenta recargar la página.",
+    "verifying": "Verificando invitación…",
+    "tryAgain": "Intentar de nuevo",
+    "createAccountInstead": "Crear una cuenta nueva",
+    "signIn": "Iniciar sesión",
+    "invitedTo": "Te invitaron a <name>{account}</name>",
+    "joinAs": "Te unirás como <badge>{role}</badge>. Enlace válido hasta el {date}.",
+    "accepting": "Aceptando…",
+    "accept": "Aceptar invitación",
+    "acceptNote": "Al aceptar, tu acceso pasa a <name>{account}</name>. La cuenta personal vacía que se creó al registrarte se eliminará.",
+    "conflictTitle": "No puedes unirte a {account} con esta cuenta",
+    "conflictHelp": "Para unirte a <name>{account}</name>, cierra la sesión y regístrate de nuevo con otro correo electrónico. El enlace de invitación sigue siendo válido mientras no haya vencido.",
+    "staySignedIn": "Mantener la sesión iniciada",
+    "signingOut": "Cerrando sesión…",
+    "signOutUseOther": "Cerrar sesión y usar otro correo",
+    "createAndJoin": "Crear cuenta y unirme",
+    "haveAccount": "Ya tengo una cuenta"
+  },
+  "Signup": {
+    "passwordsMismatch": "Las contraseñas no coinciden",
+    "passwordTooShort": "La contraseña debe tener al menos 6 caracteres",
+    "checkEmailTitle": "Revisa tu correo",
+    "checkEmailDesc": "Enviamos un enlace de confirmación a <hl>{email}</hl>. Revisa tu bandeja de entrada y haz clic en el enlace para verificar tu cuenta.",
+    "backToSignIn": "Volver a iniciar sesión",
+    "titleInvite": "Crear cuenta y unirme",
+    "title": "Crear cuenta",
+    "descInvite": "Verifica tu correo y luego acepta la invitación para unirte a tu equipo.",
+    "desc": "Comienza con Remesas YA",
+    "fullNameLabel": "Nombre completo",
+    "fullNamePlaceholder": "Juan Pérez",
+    "emailLabel": "Correo electrónico",
+    "emailPlaceholder": "tu@ejemplo.com",
+    "passwordLabel": "Contraseña",
+    "passwordPlaceholder": "Al menos 6 caracteres",
+    "confirmLabel": "Confirmar contraseña",
+    "confirmPlaceholder": "Repite tu contraseña",
+    "creating": "Creando cuenta...",
+    "submit": "Crear cuenta",
+    "haveAccount": "¿Ya tienes una cuenta?",
+    "signIn": "Iniciar sesión"
+  },
+  "ForgotPassword": {
+    "checkEmailTitle": "Revisa tu correo",
+    "checkEmailDesc": "Enviamos un enlace para restablecer tu contraseña a <hl>{email}</hl>. Revisa tu bandeja de entrada.",
+    "backToSignIn": "Volver a iniciar sesión",
+    "title": "Restablecer contraseña",
+    "desc": "Ingresa tu correo y te enviaremos un enlace para restablecerla",
+    "emailLabel": "Correo electrónico",
+    "emailPlaceholder": "tu@ejemplo.com",
+    "sending": "Enviando...",
+    "submit": "Enviar enlace"
+  },
+  "Common": {
+    "close": "Cerrar"
   }
 }

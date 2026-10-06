@@ -104,6 +104,17 @@ already Spanish or out of scope.
 Count: roughly 150 occurrences in about 35 files (regex scan; not exhaustive: server-returned error strings and
 multi-line JSX text can be missed).
 
+- 2026-10-06 T5 done: 159 new keys in en.json and es.json (parity test green). New namespaces: Join (32), Signup (21),
+  ForgotPassword (9), Common (close, used by dialog.tsx/sheet.tsx), Settings.quickReplies (19). Keys added to existing
+  namespaces: Notifications, Inbox.{composer,messageThread,sessionTimer,bubble}, Contacts.{form,detailView,importModal,page},
+  Settings.{whatsapp,members,invite,templates,aiKnowledge,appearance,profile,sectionsAria}, Sidebar.primaryNavLabel.
+  Interpolated texts use ICU ({reason}, {name}, {count}, select for the media kind, rich tags for highlighted names).
+  Test: src/i18n/spanish-screens.test.tsx renders forgot-password, signup, join (loading state), quick-replies manager and the
+  dialog close button with es.json and asserts the Spanish text and the absence of the English one. Proof: full suite
+  160 files / 1990 tests pass, tsc clean, eslint on the touched files 0 new problems (the one error, notifications/page.tsx:82
+  setState-in-effect, is on unchanged HEAD code). RED was not observed separately for the new screens test (catalogs and
+  components were converted in the same step); the parity test is the guard for key mismatches.
+
 ## Next step
 T3: staging build with NEXT_PUBLIC_APP_LOCALE=es and the owner's look (needs the owner's go-ahead for any deploy).
 
@@ -113,7 +124,7 @@ T3: staging build with NEXT_PUBLIC_APP_LOCALE=es and the owner's look (needs the
 Move the hard-coded user-visible English strings listed under "Follow-up: hard-coded English" into messages/en.json and
 messages/es.json (next-intl, same conventions), so the Spanish panel has no English left. Copy only: no behaviour change.
 The parity test stays green. Server-returned API errors stay out of scope unless they are shown verbatim in the UI.
-- [ ] T5 Daily-use screens: inbox (message-thread, message-composer, message-bubble), contacts, notifications page,
+- [x] T5 Daily-use screens: inbox (message-thread, message-composer, message-bubble), contacts, notifications page,
   settings (whatsapp-config, members-tab, invite-member-dialog, quick-replies-manager, template-manager, ai-knowledge,
   appearance-panel, profile-form, settings-rail), sidebar, dialog/sheet sr-only "Close", auth pages (signup,
   forgot-password) and join/[token].

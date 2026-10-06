@@ -139,11 +139,11 @@ export default function NotificationsPage() {
         .eq("id", id)
         .is("read_at", null);
       if (updateErr) {
-        toast.error("Failed to mark notification as read");
+        toast.error(t("markReadError"));
         load();
       }
     },
-    [load],
+    [load, t],
   );
 
   const handleClick = useCallback(
@@ -172,10 +172,10 @@ export default function NotificationsPage() {
       .is("read_at", null);
     setMarkingAll(false);
     if (updateErr) {
-      toast.error("Failed to mark all as read");
+      toast.error(t("markAllError"));
       load();
     }
-  }, [unreadIds.length, load]);
+  }, [unreadIds.length, load, t]);
 
   const deleteOne = useCallback(
     async (id: string) => {
@@ -219,7 +219,7 @@ export default function NotificationsPage() {
       <div className="flex h-64 flex-col items-center justify-center gap-2">
         <p className="text-sm text-destructive">{error}</p>
         <Button variant="outline" onClick={() => window.location.reload()}>
-          Retry
+          {t("retry")}
         </Button>
       </div>
     );
@@ -236,8 +236,8 @@ export default function NotificationsPage() {
   return (
     <PageShell>
       <PageHeader
-        title="Notifications"
-        description="Conversations other teammates assign to you show up here."
+        title={t("title")}
+        description={t("description")}
         actions={
           <div className="flex items-center gap-2">
             <Button
@@ -251,7 +251,7 @@ export default function NotificationsPage() {
               ) : (
                 <CheckCheck className="h-4 w-4" />
               )}
-              Mark all as read
+              {t("markAllRead")}
             </Button>
             <Button
               variant="outline"
@@ -269,8 +269,8 @@ export default function NotificationsPage() {
       {notifications.length === 0 ? (
         <EmptyState
           icon={Bell}
-          title="No notifications yet"
-          description="You'll see an alert here when someone assigns you a conversation."
+          title={t("emptyTitle")}
+          description={t("emptyDescription")}
         />
       ) : (
         <ul className="space-y-2">
@@ -323,7 +323,7 @@ export default function NotificationsPage() {
                         </span>
                         {isUnread && (
                           <span
-                            aria-label="Unread"
+                            aria-label={t("unread")}
                             className="h-2 w-2 flex-shrink-0 rounded-full bg-primary"
                           />
                         )}

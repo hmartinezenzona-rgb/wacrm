@@ -51,6 +51,11 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
   GREEN; regressions.
 - [x] T2 App: selector + route + i18n + tests (RED then GREEN); typecheck, lint, full suite.
 - [ ] T3 Staging deploy + owner's look.
+  - 2026-10-06 owner look on staging (release 33fd0e2): works, but the separate selector above "Deliver to" looks bad.
+- [ ] T2b App rework (owner, 2026-10-06): move the service choice INTO the operation card's existing edit mode (the
+  pencil): it appears there next to the other editable fields, coexisting with them; confirm with the check (✓) and
+  cancel with the X, the same controls the other inline edits use. Remove the standalone selector. Keep the warning
+  that the quote is recalculated and the customer is not messaged, in the edit-mode style.
 - [ ] T4 Production with the owner's go-ahead.
 
 ## Progress

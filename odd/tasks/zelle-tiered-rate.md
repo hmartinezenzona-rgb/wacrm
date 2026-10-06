@@ -203,3 +203,6 @@ the app, offline harness for n8n code.
   - REAL RUN: same block without the final exception, no assertion failed. Re-read after: operation completed (version 10, completed_at unchanged 13:22:57), closed_manually, muted 'completed', destination 1000; beneficiary a08f7916 vigente 1000 USD (source admin_correction); one non-void entry 75381479 ZELLE 1000 / 250,000 / 240,000 / 10,000 (sell 250, buy 240); audit human_correction (revert) and human_manual_close by the owner.
   - No-message check after the real run: messages 566 (last 2026-10-04 17:40), message_outbox 62 (last 2026-10-04 16:37), notifications 42 (last 2026-09-21) for the conversation, all unchanged; net.http_request_queue empty (the two posts were drained).
   - NOT VERIFIED: the notifier's own run for the two posts (n8n executions not inspected); an admin-side WhatsApp alert, if the notifier sends one on completion, is not covered by the customer-message check. The entry's rate_version_id moved to the current version (revival rewrite).
+- 2026-10-06 parent check: the two notifier executions for 9166f4be (339062 ready_to_transfer->completed, 339063
+  completed->ready_to_transfer) both stopped at "Filtrar cambio de etapa" with no output, so no message (customer or
+  admin) was sent.

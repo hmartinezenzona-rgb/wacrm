@@ -80,5 +80,13 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
 - Choosing the service the operation already has is a no-op (no audit row). Operations of type traduccion/mexico are refused.
 - Selector options reuse the catalog labels closing.method.* ("Tarjeta CUP", ...); new copy under serviceChange.* (en/es).
 
+- 2026-10-06 T3 staging deployed (owner's look pending; T3 NOT checked off): release 33fd0e2844176466879ab43fcb4add26e422e6c8,
+  BUILD_ID MRoiqtquBpeyWFVM8cTTb, same procedure as 45d6825 (clean prod-build worktree, docker node:20 uid 1000, staging-build.env with
+  NEXT_PUBLIC_APP_LOCALE=es, built off oracle2). Manifest staging / kolppplawzdsjfydwejr, 114 money-path tests passed, 0 production
+  refs / 32 staging refs, sha256 OK. `current` -> 33fd0e2, `anterior` -> 45d6825; pm2 wacrm-staging cwd resolves to the new release,
+  restarts 66 -> 67 and stable; /login 200 with the new BUILD_ID and "Bienvenido de nuevo"; unauthenticated POST
+  /api/remittance-operations/<uuid>/service 401; "No se le escribe al cliente" (es.json serviceChange.warning) present in .next/server.
+  No DB change. Rollback: `ssh oracle2 'ln -sfn /home/ubuntu/wacrm-releases/45d6825ddfedb94d50623d1f195a50816f22e540 ~/wacrm-releases/current && pm2 restart wacrm-staging --update-env'`. Production not touched.
+
 ## Next step
 T3: staging deploy of the app and the owner's look.

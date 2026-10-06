@@ -39,8 +39,9 @@ promo; app via the repo's vitest for src/lib/tablero and src/components/tablero.
   Observed failing on staging before 219.
 - [x] T2 Migration 219 + ROLLBACK-219 on staging; T1 GREEN; operations-board.sql and read-rpc assertions still pass;
   rollback round trip checked; board vitest green.
-- [ ] T3 Owner check of /tablero on staging.
-- [ ] T4 Production DB with the owner's go-ahead.
+- [x] T3 Owner check of /tablero on staging. Skipped by owner decision: staging has one operation and nothing visual changed;
+  the assertions cover the number.
+- [x] T4 Production DB with the owner's go-ahead.
 
 ## Acceptance criteria
 - After 219, a card's age equals the time since the operation's last real status change, whoever made it.
@@ -65,5 +66,21 @@ promo; app via the repo's vitest for src/lib/tablero and src/components/tablero.
     completed operations keep completed_at as state_since (coalesce(completed_at, status_changed_at, updated_at)); backfill disables user
     triggers for its single UPDATE so updated_at/version/notifications do not move.
 
+- 2026-10-06 T4 PRODUCTION (owner: "si"):
+  - Backup ~/wacrm-respaldos/produccion-20261006T042334Z.dump (sha256 39cdd378c413597b...).
+  - Pre-check: crm_tablero_operaciones md5 facb2cc2e6b4c7fc6ee0fb698b45a190 (= ROLLBACK-219 header), no column, no trigger.
+  - ~/cerebro-fase1/pruebas/gate117-aplicar-db.py (copy of gate116; strips ROLLBACK-219's BEGIN;/COMMIT; lines) with a
+    temporary zz_wu5b_exec (EXECUTE only; revoked from PUBLIC, anon, authenticated, service_role):
+    - ensayo: d09ded1e35123fcf13a506dbb9dc0427 col=1 trg=1 stampfn=1 (= staging), rolled back;
+    - ida-y-vuelta: facb2cc2e6b4c7fc6ee0fb698b45a190 col=0 trg=0 stampfn=0, rolled back;
+    - aplicar: OK, schema_migrations 20261006042651 219_board_status_age;
+    - probar: board-status-age ALL PASS, operations-board ALL PASS, read-rpc and operations-realtime no failure (forced
+      rollback).
+  - After: fn md5 d09ded1e..., trigger enabled, no disabled triggers on remittance_operations, 0 NULL stamps over 618
+    operations, 0 leftovers, anon cannot execute the RPC, authenticated can. Helper dropped (first DROP hit an MCP
+    session error and did not run; re-checked, dropped, count 0).
+  - Existing open operations (6 ready_to_transfer) got their stamp from updated_at, so today's ages are unchanged; the
+    fix shows from the next status change on.
+
 ## Next step
-T3 (owner check of /tablero on staging; staging app not redeployed, the RPC alone changed).
+Done. Visual polish of /tablero stays open until the owner names what to change.

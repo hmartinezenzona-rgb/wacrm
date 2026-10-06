@@ -50,14 +50,42 @@ export function triggerMeta(t: AutomationTriggerType | string): TriggerMeta {
   )
 }
 
-export function formatRelative(iso: string | null | undefined): string {
-  if (!iso) return 'never'
+/**
+ * Optional translator for the `Common.relative` catalog namespace. Without it
+ * the function falls back to its English wording (used by callers outside a
+ * next-intl context).
+ */
+export type RelativeTranslator = (
+  key: 'never' | 'justNow' | 'minutesAgo' | 'hoursAgo' | 'daysAgo',
+  values?: { count: number },
+) => string
+
+const ENGLISH_RELATIVE: RelativeTranslator = (key, values) => {
+  switch (key) {
+    case 'never':
+      return 'never'
+    case 'justNow':
+      return 'just now'
+    case 'minutesAgo':
+      return `${values?.count}m ago`
+    case 'hoursAgo':
+      return `${values?.count}h ago`
+    default:
+      return `${values?.count}d ago`
+  }
+}
+
+export function formatRelative(
+  iso: string | null | undefined,
+  t: RelativeTranslator = ENGLISH_RELATIVE,
+): string {
+  if (!iso) return t('never')
   const then = new Date(iso).getTime()
-  if (Number.isNaN(then)) return 'never'
+  if (Number.isNaN(then)) return t('never')
   const diffSec = Math.round((Date.now() - then) / 1000)
-  if (diffSec < 60) return 'just now'
-  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`
-  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`
-  if (diffSec < 2_592_000) return `${Math.floor(diffSec / 86400)}d ago`
+  if (diffSec < 60) return t('justNow')
+  if (diffSec < 3600) return t('minutesAgo', { count: Math.floor(diffSec / 60) })
+  if (diffSec < 86400) return t('hoursAgo', { count: Math.floor(diffSec / 3600) })
+  if (diffSec < 2_592_000) return t('daysAgo', { count: Math.floor(diffSec / 86400) })
   return new Date(iso).toLocaleDateString()
 }

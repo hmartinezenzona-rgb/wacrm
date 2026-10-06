@@ -38,6 +38,23 @@ const KIND_THEME: Record<ActivityKind, KindTheme> = {
 
 import { useTranslations } from 'next-intl'
 
+/** Renders an item in the active locale; items without catalog data keep their stored text. */
+function itemText(it: ActivityItem, t: ReturnType<typeof useTranslations>): string {
+  if (!it.i18n) return it.text
+  const { key, values } = it.i18n
+  const unknownWho = key === 'newMessage' ? t('items.unknown') : t('items.aContact')
+  const status =
+    values.status !== undefined && t.has(`items.status.${values.status}`)
+      ? t(`items.status.${values.status}`)
+      : values.status
+  return t(`items.${key}`, {
+    who: values.who ?? unknownWho,
+    name: values.name ?? t('items.automationDefault'),
+    count: values.count ?? 0,
+    status: status ?? '',
+  })
+}
+
 export function ActivityFeed({ items, loading }: ActivityFeedProps) {
   const t = useTranslations('Dashboard.activityFeed')
   // Start at 5 — a quick scan of the most recent events without
@@ -106,7 +123,7 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
                       un tope de medida el par queda junto y legible de un
                       vistazo, y `mr-auto` conserva el resto del espacio. */}
                   <span className="min-w-0 max-w-prose flex-1 truncate text-sm text-foreground">
-                    {it.text}
+                    {itemText(it, t)}
                   </span>
                   <span className="mr-auto flex-shrink-0 pl-4 text-xs text-muted-foreground tabular-nums">
                     {relativeTime(it.at, t)}

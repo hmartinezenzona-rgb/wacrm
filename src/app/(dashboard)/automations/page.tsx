@@ -65,7 +65,7 @@ export default function AutomationsPage() {
       if (fetchErr) throw fetchErr
       setAutomations((data ?? []) as Automation[])
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load automations")
+      setError(err instanceof Error ? err.message : t("loadFailed"))
     }
   }
 
@@ -272,6 +272,7 @@ function AutomationCard({
   onDelete: () => void
   t: ReturnType<typeof useTranslations>
 }) {
+  const tRel = useTranslations("Common.relative")
   const meta = triggerMeta(automation.trigger_type)
   return (
     <li className="rounded-xl border border-border bg-card transition-colors hover:border-border">
@@ -313,7 +314,7 @@ function AutomationCard({
                 meta.pillClass,
               )}
             >
-              {meta.label}
+              {t.has(`triggerLabels.${automation.trigger_type}`) ? t(`triggerLabels.${automation.trigger_type}`) : meta.label}
             </span>
             <span className="tabular-nums">
               {automation.execution_count === 1
@@ -321,7 +322,7 @@ function AutomationCard({
                 : t("runsPlural", { count: automation.execution_count })}
             </span>
             <span aria-hidden>·</span>
-            <span>{t("lastRun", { time: formatRelative(automation.last_executed_at) })}</span>
+            <span>{t("lastRun", { time: formatRelative(automation.last_executed_at, tRel) })}</span>
           </div>
         </button>
 
@@ -334,7 +335,7 @@ function AutomationCard({
 
           <DropdownMenu>
             <DropdownMenuTrigger
-              aria-label="Open menu"
+              aria-label={t("openMenuAria")}
               className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground data-[popup-open]:bg-muted"
             >
               <MoreVertical className="h-4 w-4" />

@@ -530,10 +530,10 @@ export function TemplateManager() {
                       <Badge
                         className={`text-xs border ${categoryColors[template.category] || ''}`}
                       >
-                        {template.category}
+                        {t.has(`categories.${template.category}`) ? t(`categories.${template.category}`) : template.category}
                       </Badge>
                       <Badge className={`text-xs border ${status.classes}`}>
-                        {status.label}
+                        {t.has(`status.${statusKey}`) ? t(`status.${statusKey}`) : status.label}
                       </Badge>
                       {template.language && (
                         <span className="text-xs text-muted-foreground uppercase">
@@ -698,7 +698,7 @@ export function TemplateManager() {
                         value={cat}
                         className="text-popover-foreground focus:bg-muted focus:text-popover-foreground"
                       >
-                        {cat}
+                        {t(`categories.${cat}`)}
                       </SelectItem>
                     ))}
                   </SelectContent>

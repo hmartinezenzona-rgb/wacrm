@@ -91,7 +91,24 @@
       "timeS": "hace {sec} s",
       "timeM": "hace {min} min",
       "timeH": "hace {hr} h",
-      "timeD": "hace {day} d"
+      "timeD": "hace {day} d",
+      "items": {
+        "newMessage": "Mensaje nuevo de {who}",
+        "newContact": "Contacto nuevo: {who}",
+        "broadcastSent": "Difusión \"{name}\" enviada a {count} contactos",
+        "broadcastOther": "Difusión \"{name}\" {status} ({count} destinatarios)",
+        "automationTriggered": "Automatización \"{name}\" activada para {who}",
+        "automationFailed": "Automatización \"{name}\" falló para {who}",
+        "unknown": "Desconocido",
+        "aContact": "un contacto",
+        "automationDefault": "Automatización",
+        "status": {
+          "draft": "borrador",
+          "scheduled": "programada",
+          "sending": "enviándose",
+          "failed": "fallida"
+        }
+      }
     },
     "conversationsChart": {
       "title": "Conversaciones en el tiempo",
@@ -176,7 +193,8 @@
       "thisWeek": "Esta semana:",
       "lastWeek": "Semana pasada:",
       "noReplies": "Aún no hay respuestas registradas",
-      "noRepliesHint": "Este gráfico se llena a medida que respondes mensajes de clientes."
+      "noRepliesHint": "Este gráfico se llena a medida que respondes mensajes de clientes.",
+      "seriesAvgMinutes": "Minutos promedio"
     },
     "emptyState": {
       "title": "Aún no hay suficientes datos"
@@ -230,7 +248,10 @@
       "sendTemplateFailed": "No se pudo enviar la plantilla: {reason}",
       "waitForSending": "Espera a que termine de enviarse el mensaje",
       "reactionFailed": "No se pudo enviar la reacción: {reason}",
-      "assignmentFailed": "No se pudo actualizar la asignación"
+      "assignmentFailed": "No se pudo actualizar la asignación",
+      "you": "Tú",
+      "customer": "Cliente",
+      "unknownContact": "Desconocido"
     },
     "sessionTimer": {
       "expired": "Vencida",
@@ -721,7 +742,8 @@
       "toastFailed_plural": "{count} contactos no se pudieron importar",
       "toastError": "La importación falló",
       "notAuthenticated": "No has iniciado sesión",
-      "noAccountLinked": "Tu perfil no está vinculado a una cuenta."
+      "noAccountLinked": "Tu perfil no está vinculado a una cuenta.",
+      "toastTagsSkippedMore": " (+{count} más)"
     },
     "customFields": {
       "title": "Campos personalizados",
@@ -925,7 +947,8 @@
         "date": "Fecha"
       },
       "errorLoad": "No se pudieron cargar las difusiones",
-      "retry": "Reintentar"
+      "retry": "Reintentar",
+      "inProgressAria": "Difusión en curso"
     },
     "status": {
       "draft": "Borrador",
@@ -976,7 +999,8 @@
         "failed": "Fallidos"
       },
       "toastFailedDelete": "No se pudo eliminar: {error}",
-      "toastDeleted": "Difusión eliminada"
+      "toastDeleted": "Difusión eliminada",
+      "unknownContact": "Desconocido"
     },
     "new": {
       "title": "Nueva difusión",
@@ -991,7 +1015,8 @@
       "toastNotSignedIn": "No has iniciado sesión.",
       "toastNotLinked": "Tu perfil no está vinculado a una cuenta.",
       "toastFailedDraft": "No se pudo guardar el borrador: {error}",
-      "toastDraftSaved": "Borrador guardado"
+      "toastDraftSaved": "Borrador guardado",
+      "failed": "Falló la difusión"
     },
     "wizard": {
       "next": "Siguiente",
@@ -1086,7 +1111,23 @@
         "preparing": "Preparando...",
         "progressDesc": "Procesando {current} de {total} destinatarios...",
         "toastFailedPreview": "No se pudieron cargar los datos de la vista previa"
-      }
+      },
+      "audienceSummary": "Resumen de la audiencia",
+      "calculating": "Calculando…",
+      "estimatedRecipients": "destinatarios estimados",
+      "selectAudienceHint": "Elige un tipo de audiencia para ver la estimación.",
+      "headerPreviewAlt": "Vista previa del encabezado",
+      "mediaUrlRequired": "Se necesita la URL del archivo para enviar esta plantilla.",
+      "mediaUrlInvalid": "Ingresa una URL http(s) válida.",
+      "valuePlaceholder": "Ingresa un valor...",
+      "loadingFields": "Cargando…",
+      "noCustomFields": "No hay campos personalizados",
+      "selectCustomField": "Elige un campo personalizado…",
+      "estimatedReach": "Alcance estimado",
+      "language": "Idioma",
+      "confirmTitle": "Confirmar difusión",
+      "confirmDesc": "Estás a punto de enviar esta difusión a <b>{count}</b> contactos con la plantilla <b>{template}</b>. Esta acción no se puede deshacer.",
+      "unmappedWarning": "Asigna un valor a cada variable antes de continuar; aún faltan <code>{keys}</code>. De lo contrario, esas variables se enviarán a Meta como texto vacío."
     }
   },
   "Automations": {
@@ -1120,6 +1161,18 @@
         "updateError": "No se pudo actualizar",
         "duplicateError": "No se pudo duplicar",
         "deleteError": "No se pudo eliminar"
+      },
+      "loadFailed": "No se pudieron cargar las automatizaciones",
+      "openMenuAria": "Abrir menú",
+      "triggerLabels": {
+        "new_message_received": "Mensaje nuevo",
+        "first_inbound_message": "Primer mensaje del contacto",
+        "keyword_match": "Coincidencia de palabra clave",
+        "new_contact_created": "Contacto nuevo",
+        "conversation_assigned": "Conversación asignada",
+        "tag_added": "Etiqueta añadida",
+        "time_based": "Programada",
+        "interactive_reply": "Respuesta de botón o lista"
       }
     },
     "edit": {
@@ -1296,7 +1349,15 @@
         "matchContains": "Contiene",
         "matchExact": "Exacta",
         "closeConversationHint": "Establece el estado de la conversación en \"cerrada\". No requiere configuración."
-      }
+      },
+      "stepKind": {
+        "condition": "Condición",
+        "wait": "Espera",
+        "action": "Acción"
+      },
+      "moveUp": "Subir",
+      "moveDown": "Bajar",
+      "schedulePlaceholder": "Expresión cron o HH:mm"
     }
   },
   "Flows": {
@@ -1331,7 +1392,8 @@
       "triggerKeywordNone": "Se activa con una palabra clave (ninguna definida)",
       "triggerKeyword": "Se activa con: {keywords}",
       "triggerFirstInbound": "Se activa con el primer mensaje entrante de un contacto",
-      "triggerManual": "Activación manual"
+      "triggerManual": "Activación manual",
+      "cloneFailedHttp": "Falló la duplicación: {status}"
     },
     "edit": {
       "notFound": "Flujo no encontrado.",
@@ -1440,7 +1502,15 @@
         "filenamePlaceholder": "factura.pdf",
         "advanceAfterSending": "Tras enviar, avanzar a",
         "pickNextNode": "Elige un nodo siguiente…",
-        "none": "— Ninguno —"
+        "none": "— Ninguno —",
+        "removeSection": "Quitar sección",
+        "fieldName": "nombre",
+        "fieldEmail": "correo electrónico",
+        "fieldPhone": "teléfono",
+        "fieldCompany": "empresa",
+        "fileUploaded": "Archivo subido.",
+        "uploadFailed": "No se pudo subir el archivo.",
+        "fileTooLarge": "El archivo pesa {size} MB: el límite es 16 MB."
       },
       "categories": {
         "messaging": "Mensajería",
@@ -1488,19 +1558,85 @@
           "label": "Fin",
           "blurb": "Termina el flujo"
         }
-      }
+      },
+      "editorViewAria": "Vista del editor",
+      "branchTrue": "verdadero",
+      "branchFalse": "falso"
     },
     "validation": {
       "noIssues": "Sin problemas. Listo para activar.",
       "summary": "{errorCount} {errorCount, plural, =1 {error} other {errores}}, {warningCount} {warningCount, plural, =1 {advertencia} other {advertencias}}",
-      "jumpToNode": "Ir al nodo {key}"
+      "jumpToNode": "Ir al nodo {key}",
+      "issues": {
+        "nameRequired": "El flujo necesita un nombre.",
+        "entryRequired": "Elige un nodo de entrada antes de activar.",
+        "needsNode": "Un flujo necesita al menos un nodo antes de activarse.",
+        "entryMissing": "El nodo de entrada \"{key}\" no existe.",
+        "duplicateNodeKey": "El node_key \"{key}\" está duplicado.",
+        "unreachable": "No se puede llegar al nodo \"{key}\" desde el nodo de entrada.",
+        "keywordsRequired": "Los disparadores por palabra clave necesitan al menos una palabra clave.",
+        "blankKeywords": "{count, plural, one {# palabra clave está vacía y no coincidirá con nada.} other {# palabras clave están vacías y no coincidirán con nada.}}",
+        "startNext": "El nodo de inicio debe apuntar a un nodo siguiente.",
+        "startNextMissing": "El nodo de inicio apunta a un nodo inexistente \"{key}\".",
+        "messageText": "El nodo de enviar mensaje necesita un texto.",
+        "messageNext": "El nodo de enviar mensaje debe apuntar a un nodo siguiente.",
+        "messageNextMissing": "El nodo de enviar mensaje apunta a un nodo inexistente \"{key}\".",
+        "mediaType": "El nodo de enviar archivo necesita un tipo (imagen, video o documento).",
+        "mediaFile": "El nodo de enviar archivo necesita un archivo (sube uno antes de activar).",
+        "captionTooLong": "El pie de foto supera los {max} caracteres (límite de WhatsApp).",
+        "mediaNext": "El nodo de enviar archivo debe apuntar a un nodo siguiente.",
+        "mediaNextMissing": "El nodo de enviar archivo apunta a un nodo inexistente \"{key}\".",
+        "buttonsText": "El nodo de enviar botones necesita un texto.",
+        "buttonsMin": "El nodo de enviar botones necesita al menos un botón.",
+        "buttonsMax": "WhatsApp permite como máximo {max} botones por mensaje.",
+        "buttonReplyId": "El botón {n} necesita un ID de respuesta.",
+        "buttonReplyIdDuplicate": "El ID de respuesta de botón \"{id}\" está duplicado.",
+        "buttonTitle": "El botón {n} necesita un título.",
+        "buttonTitleTooLong": "El título del botón {n} supera los {max} caracteres (límite de WhatsApp).",
+        "buttonNext": "El botón {n} necesita un nodo siguiente.",
+        "buttonNextMissing": "El botón {n} apunta a un nodo inexistente \"{key}\".",
+        "listText": "El nodo de enviar lista necesita un texto.",
+        "listButtonLabel": "El nodo de enviar lista necesita un texto de botón (el que despliega la lista).",
+        "listRowsMin": "El nodo de enviar lista necesita al menos una fila.",
+        "listRowsMax": "El nodo de enviar lista permite como máximo {max} filas en total entre todas las secciones.",
+        "rowReplyId": "La fila {row} de la sección {section} necesita un ID de respuesta.",
+        "rowReplyIdDuplicate": "El ID de fila \"{id}\" está duplicado.",
+        "rowTitle": "La fila {n} necesita un título.",
+        "rowTitleTooLong": "El título de la fila {n} supera los {max} caracteres.",
+        "rowDescriptionTooLong": "La descripción de la fila {n} supera los {max} caracteres.",
+        "rowNext": "La fila {n} necesita un nodo siguiente.",
+        "rowNextMissing": "La fila {n} apunta a un nodo inexistente \"{key}\".",
+        "collectPrompt": "El nodo de recopilar datos necesita un mensaje para enviar al cliente.",
+        "collectVarKey": "El nodo de recopilar datos necesita un var_key donde guardar la respuesta.",
+        "collectVarKeyFormat": "El var_key \"{key}\" debe ser alfanumérico con guion bajo y empezar con una letra o un guion bajo.",
+        "collectNext": "El nodo de recopilar datos debe apuntar a un nodo siguiente.",
+        "collectNextMissing": "El nodo de recopilar datos apunta a un nodo inexistente \"{key}\".",
+        "conditionSubject": "La condición necesita un sujeto (var / tag / contact_field).",
+        "conditionSubjectKey": "La condición necesita un subject_key (nombre de variable, ID de etiqueta o nombre de campo).",
+        "conditionOperator": "La condición necesita un operador.",
+        "conditionValue": "El operador \"{operator}\" normalmente espera un valor de comparación: un valor vacío solo coincidirá con sujetos vacíos.",
+        "conditionBranch": "La condición necesita un nodo para la rama \"{branch}\".",
+        "conditionBranchMissing": "La rama \"{branch}\" de la condición apunta a un nodo inexistente \"{key}\".",
+        "tagMode": "El nodo de etiquetar necesita un modo (añadir o quitar).",
+        "tagTag": "El nodo de etiquetar necesita una etiqueta que aplicar.",
+        "tagNext": "El nodo de etiquetar debe apuntar a un nodo siguiente.",
+        "tagNextMissing": "El nodo de etiquetar apunta a un nodo inexistente \"{key}\".",
+        "unknownNodeType": "Tipo de nodo desconocido \"{type}\"."
+      }
     },
     "editorState": {
       "saved": "Guardado.",
       "fixIssues": "Corrige los problemas de abajo antes de activar.",
       "statusActivated": "Flujo activado.",
       "statusArchived": "Archivado.",
-      "statusDraft": "Guardado como borrador."
+      "statusDraft": "Guardado como borrador.",
+      "saveFailedHttp": "Falló el guardado: {status}",
+      "saveFailed": "Falló el guardado",
+      "statusFailedHttp": "Falló la actualización del estado: {status}",
+      "statusFailed": "Falló la actualización del estado",
+      "deleteConfirm": "¿Eliminar \"{name}\"? Las ejecuciones activas terminan de inmediato. No se puede deshacer.",
+      "deleteFailedHttp": "Falló la eliminación: {status}",
+      "deleteFailed": "Falló la eliminación"
     },
     "summary": {
       "options": "{count} {count, plural, =1 {opción} other {opciones}}",
@@ -1519,6 +1655,23 @@
       "modeRemove": "Quitar",
       "tagPicked": "{mode} etiqueta {tag}…",
       "tagNone": "{mode} etiqueta (ninguna elegida)"
+    },
+    "header": {
+      "back": "Volver a Flujos",
+      "namePlaceholder": "Nombre del flujo",
+      "unsaved": "Cambios sin guardar: pulsa Guardar para conservarlos",
+      "edited": "Editado",
+      "runs": "Ejecuciones",
+      "delete": "Eliminar",
+      "pause": "Pausar",
+      "activate": "Activar",
+      "fixIssues": "Corrige los problemas de abajo antes de activar",
+      "save": "Guardar",
+      "descriptionPlaceholder": "Añade una descripción breve (interna: los clientes no la ven)",
+      "descriptionAria": "Descripción del flujo",
+      "statusDraft": "Borrador",
+      "statusActive": "Activo",
+      "statusArchived": "Archivado"
     }
   },
   "Settings": {
@@ -1576,7 +1729,8 @@
       "serverUnreachable": "No se pudo conectar con el servidor",
       "updateRoleFailed": "No se pudo actualizar el rol",
       "removeFailed": "No se pudo quitar al miembro",
-      "revokeFailed": "No se pudo revocar la invitación"
+      "revokeFailed": "No se pudo revocar la invitación",
+      "memberAvatarAlt": "Miembro"
     },
     "invite": {
       "inviteCreated": "Invitación creada",
@@ -1746,7 +1900,22 @@
       "syncMore": ", +{count} más",
       "qualityScoreTitle": "Puntuación de calidad de Meta",
       "headerTextAria": "Texto del encabezado",
-      "headerSampleAlt": "Muestra del encabezado"
+      "headerSampleAlt": "Muestra del encabezado",
+      "status": {
+        "DRAFT": "Borrador",
+        "PENDING": "Pendiente",
+        "APPROVED": "Aprobada",
+        "REJECTED": "Rechazada",
+        "PAUSED": "Pausada",
+        "DISABLED": "Deshabilitada",
+        "IN_APPEAL": "En apelación",
+        "PENDING_DELETION": "Eliminación pendiente"
+      },
+      "categories": {
+        "Marketing": "Marketing",
+        "Utility": "Utilidad",
+        "Authentication": "Autenticación"
+      }
     },
     "roles": {
       "admin": "Administrador",
@@ -1913,7 +2082,8 @@
       "signingOut": "Cerrando sesión…",
       "signOutEverywhere": "Cerrar sesión en todas partes",
       "signOutFailed": "No se pudo cerrar la sesión: {message}",
-      "unknownError": "Error desconocido"
+      "unknownError": "Error desconocido",
+      "avatarAlt": "Avatar"
     },
     "appearance": {
       "title": "Apariencia",
@@ -1923,7 +2093,29 @@
       "active": "Activo",
       "accentColor": "Color de acento",
       "useTheme": "Usar el tema {name}",
-      "modeAria": "Modo de color"
+      "modeAria": "Modo de color",
+      "themes": {
+        "violet": {
+          "name": "Violeta",
+          "tagline": "El predeterminado: seguro y un poco juguetón."
+        },
+        "emerald": {
+          "name": "Esmeralda",
+          "tagline": "Evoca crecimiento y mensajería sin copiar el verde de WhatsApp."
+        },
+        "cobalt": {
+          "name": "Cobalto",
+          "tagline": "El azul limpio de las aplicaciones B2B: sereno y profesional."
+        },
+        "amber": {
+          "name": "Ámbar",
+          "tagline": "Cálido y amable: va bien con equipos de pequeñas empresas."
+        },
+        "rose": {
+          "name": "Rosa",
+          "tagline": "Atrevido y moderno: marcas directas al consumidor, creadores y estilo de vida."
+        }
+      }
     },
     "security": {
       "title": "Acceso y seguridad",
@@ -2111,7 +2303,8 @@
         "operation": "Operación",
         "vacio": "Sin operaciones para esos filtros"
       },
-      "error": "No se pudo cargar: {msg}"
+      "error": "No se pudo cargar: {msg}",
+      "retry": "Reintentar"
     },
     "cierre": {
       "title": "Cierre financiero",
@@ -2318,6 +2511,109 @@
     "submit": "Enviar enlace"
   },
   "Common": {
-    "close": "Cerrar"
+    "close": "Cerrar",
+    "loading": "Cargando...",
+    "relative": {
+      "never": "nunca",
+      "justNow": "justo ahora",
+      "minutesAgo": "hace {count} min",
+      "hoursAgo": "hace {count} h",
+      "daysAgo": "hace {count} d"
+    },
+    "presence": {
+      "online": "En línea — activo ahora",
+      "away": "Ausente — inactivo",
+      "offline": "Desconectado — visto por última vez {when}",
+      "lastSeenUnknown": "hace un tiempo",
+      "lastSeenJustNow": "justo ahora",
+      "lastSeenMinutes": "{count, plural, one {hace # minuto} other {hace # minutos}}",
+      "lastSeenHours": "{count, plural, one {hace # hora} other {hace # horas}}",
+      "lastSeenDays": "{count, plural, one {hace # día} other {hace # días}}"
+    },
+    "currencies": {
+      "GYD": "Dólar guyanés",
+      "CUP": "Peso cubano",
+      "USD": "Dólar estadounidense",
+      "EUR": "Euro",
+      "GBP": "Libra esterlina",
+      "INR": "Rupia india",
+      "AUD": "Dólar australiano",
+      "CAD": "Dólar canadiense",
+      "BRL": "Real brasileño",
+      "JPY": "Yen japonés",
+      "CNY": "Yuan chino",
+      "AED": "Dírham de los EAU",
+      "ZAR": "Rand sudafricano",
+      "NGN": "Naira nigeriano",
+      "SGD": "Dólar de Singapur",
+      "MXN": "Peso mexicano"
+    },
+    "modes": {
+      "light": "claro",
+      "dark": "oscuro"
+    }
+  },
+  "Agents": {
+    "page": {
+      "title": "Agentes de IA",
+      "description": "Tu agente de IA con tu propia clave: configúralo y pruébalo en el área de pruebas antes de que responda a los clientes en la bandeja de entrada.",
+      "tabPlayground": "Pruebas",
+      "tabSetup": "Configuración",
+      "tabUsage": "Uso"
+    },
+    "playground": {
+      "notConfigured": "Aún no hay un agente configurado: primero termina la configuración.",
+      "replyFailed": "No se pudo obtener una respuesta.",
+      "unreachable": "No se pudo conectar con el agente.",
+      "title": "Pruebas",
+      "subtitle": "— prueba las respuestas como si fueras un cliente",
+      "reset": "Reiniciar",
+      "emptyTitle": "Envía un mensaje para ver cómo respondería tu agente.",
+      "emptyHint": "Usa tu base de conocimiento y se comporta igual que el bot de respuesta automática, incluido el traspaso a una persona.",
+      "goToSetup": "¿Aún no está configurado? Ve a Configuración",
+      "handoff": "Aquí pasaría la conversación a una persona",
+      "thinking": "Pensando…",
+      "placeholder": "Escribe un mensaje de cliente…"
+    },
+    "usage": {
+      "loadFailed": "No se pudo cargar el uso",
+      "title": "Uso de tokens",
+      "description": "Tokens gastados con tu clave del proveedor en borradores y en el bot de respuesta automática. Solo se guardan conteos, no el contenido de los mensajes.",
+      "lastDays": "Últimos {days} días",
+      "empty": "Aún no hay uso de IA en los últimos {days} días.",
+      "emptyHint": "Se irá llenando a medida que el asistente redacte y responda automáticamente.",
+      "totalTokens": "Tokens totales",
+      "llmCalls": "Llamadas al modelo",
+      "autoReply": "Respuesta automática",
+      "drafts": "Borradores",
+      "tokensPerDay": "Tokens por día",
+      "byModel": "Por modelo",
+      "modelRow": "{tokens} tok · {calls, plural, one {# llamada} other {# llamadas}}",
+      "truncated": "Se muestra una ventana parcial: el uso es tan alto que aquí solo se resumen los registros más recientes.",
+      "tokensSeries": "Tokens"
+    }
+  },
+  "InteractiveBuilder": {
+    "replyButtons": "Botones de respuesta",
+    "list": "Lista",
+    "body": "Cuerpo",
+    "bodyPlaceholder": "Lo que lee el cliente encima de las opciones",
+    "headerOptional": "Encabezado (opcional)",
+    "footerOptional": "Pie (opcional)",
+    "showIds": "Mostrar los ID de respuesta (avanzado)",
+    "preview": "Vista previa",
+    "buttonsCount": "Botones ({count}/{max})",
+    "buttonLabel": "Texto del botón",
+    "addButton": "Añadir botón",
+    "listButtonLabel": "Texto del botón de la lista",
+    "rowsCount": "Filas ({count}/{max})",
+    "sectionTitleOptional": "Título de la sección (opcional)",
+    "rowTitle": "Título de la fila",
+    "descriptionOptional": "Descripción (opcional)",
+    "addRow": "Añadir fila",
+    "addSection": "Añadir sección",
+    "previewBody": "Cuerpo del mensaje…",
+    "previewButton": "Botón",
+    "previewMenu": "Menú"
   }
 }

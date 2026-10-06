@@ -91,7 +91,24 @@
       "timeS": "{sec}s ago",
       "timeM": "{min}m ago",
       "timeH": "{hr}h ago",
-      "timeD": "{day}d ago"
+      "timeD": "{day}d ago",
+      "items": {
+        "newMessage": "New message from {who}",
+        "newContact": "New contact: {who}",
+        "broadcastSent": "Broadcast \"{name}\" sent to {count} contacts",
+        "broadcastOther": "Broadcast \"{name}\" {status} ({count} recipients)",
+        "automationTriggered": "Automation \"{name}\" triggered for {who}",
+        "automationFailed": "Automation \"{name}\" failed for {who}",
+        "unknown": "Unknown",
+        "aContact": "a contact",
+        "automationDefault": "Automation",
+        "status": {
+          "draft": "draft",
+          "scheduled": "scheduled",
+          "sending": "sending",
+          "failed": "failed"
+        }
+      }
     },
     "conversationsChart": {
       "title": "Conversations Over Time",
@@ -176,7 +193,8 @@
       "thisWeek": "This week:",
       "lastWeek": "Last week:",
       "noReplies": "No replies recorded yet",
-      "noRepliesHint": "This chart fills in as you reply to customer messages."
+      "noRepliesHint": "This chart fills in as you reply to customer messages.",
+      "seriesAvgMinutes": "Avg minutes"
     },
     "emptyState": {
       "title": "Not enough data yet"
@@ -230,7 +248,10 @@
       "sendTemplateFailed": "Failed to send template: {reason}",
       "waitForSending": "Wait for the message to finish sending",
       "reactionFailed": "Reaction failed: {reason}",
-      "assignmentFailed": "Failed to update assignment"
+      "assignmentFailed": "Failed to update assignment",
+      "you": "You",
+      "customer": "Customer",
+      "unknownContact": "Unknown"
     },
     "sessionTimer": {
       "expired": "Expired",
@@ -721,7 +742,8 @@
       "toastFailed_plural": "{count} contacts failed to import",
       "toastError": "Import failed",
       "notAuthenticated": "Not authenticated",
-      "noAccountLinked": "Your profile is not linked to an account."
+      "noAccountLinked": "Your profile is not linked to an account.",
+      "toastTagsSkippedMore": " (+{count} more)"
     },
     "customFields": {
       "title": "Custom fields",
@@ -925,7 +947,8 @@
         "date": "Date"
       },
       "errorLoad": "Failed to load broadcasts",
-      "retry": "Retry"
+      "retry": "Retry",
+      "inProgressAria": "Broadcast in progress"
     },
     "status": {
       "draft": "Draft",
@@ -976,7 +999,8 @@
         "failed": "Failed"
       },
       "toastFailedDelete": "Failed to delete: {error}",
-      "toastDeleted": "Broadcast deleted"
+      "toastDeleted": "Broadcast deleted",
+      "unknownContact": "Unknown"
     },
     "new": {
       "title": "New Broadcast",
@@ -991,7 +1015,8 @@
       "toastNotSignedIn": "Not signed in.",
       "toastNotLinked": "Your profile is not linked to an account.",
       "toastFailedDraft": "Failed to save draft: {error}",
-      "toastDraftSaved": "Draft saved"
+      "toastDraftSaved": "Draft saved",
+      "failed": "Broadcast failed"
     },
     "wizard": {
       "next": "Next",
@@ -1086,7 +1111,23 @@
         "preparing": "Preparing...",
         "progressDesc": "Processing {current} of {total} recipients...",
         "toastFailedPreview": "Failed to load preview data"
-      }
+      },
+      "audienceSummary": "Audience Summary",
+      "calculating": "Calculating…",
+      "estimatedRecipients": "estimated recipients",
+      "selectAudienceHint": "Select an audience type to see the estimate.",
+      "headerPreviewAlt": "Header preview",
+      "mediaUrlRequired": "A media URL is required to send this template.",
+      "mediaUrlInvalid": "Enter a valid http(s) URL.",
+      "valuePlaceholder": "Enter value...",
+      "loadingFields": "Loading…",
+      "noCustomFields": "No custom fields",
+      "selectCustomField": "Select custom field…",
+      "estimatedReach": "Estimated Reach",
+      "language": "Language",
+      "confirmTitle": "Confirm Broadcast",
+      "confirmDesc": "You are about to send this broadcast to <b>{count}</b> contacts using the <b>{template}</b> template. This action cannot be undone.",
+      "unmappedWarning": "Map every placeholder before continuing — still missing <code>{keys}</code>. Otherwise those placeholders will ship to Meta as empty strings."
     }
   },
   "Automations": {
@@ -1120,6 +1161,18 @@
         "updateError": "Failed to update",
         "duplicateError": "Failed to duplicate",
         "deleteError": "Failed to delete"
+      },
+      "loadFailed": "Failed to load automations",
+      "openMenuAria": "Open menu",
+      "triggerLabels": {
+        "new_message_received": "New Message",
+        "first_inbound_message": "First Message from Contact",
+        "keyword_match": "Keyword Match",
+        "new_contact_created": "New Contact",
+        "conversation_assigned": "Conversation Assigned",
+        "tag_added": "Tag Added",
+        "time_based": "Time-Based",
+        "interactive_reply": "Button / List Reply"
       }
     },
     "edit": {
@@ -1296,7 +1349,15 @@
         "matchContains": "Contains",
         "matchExact": "Exact",
         "closeConversationHint": "Sets the conversation status to \"closed\". No configuration needed."
-      }
+      },
+      "stepKind": {
+        "condition": "Condition",
+        "wait": "Wait",
+        "action": "Action"
+      },
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "schedulePlaceholder": "Cron expression or HH:mm"
     }
   },
   "Flows": {
@@ -1331,7 +1392,8 @@
       "triggerKeywordNone": "Triggers on keyword (none set)",
       "triggerKeyword": "Triggers on: {keywords}",
       "triggerFirstInbound": "Triggers on a contact's first-ever inbound message",
-      "triggerManual": "Manual trigger"
+      "triggerManual": "Manual trigger",
+      "cloneFailedHttp": "Clone failed: {status}"
     },
     "edit": {
       "notFound": "Flow not found.",
@@ -1440,7 +1502,15 @@
         "filenamePlaceholder": "invoice.pdf",
         "advanceAfterSending": "After sending, advance to",
         "pickNextNode": "Pick a next node…",
-        "none": "— None —"
+        "none": "— None —",
+        "removeSection": "Remove section",
+        "fieldName": "name",
+        "fieldEmail": "email",
+        "fieldPhone": "phone",
+        "fieldCompany": "company",
+        "fileUploaded": "File uploaded.",
+        "uploadFailed": "Upload failed.",
+        "fileTooLarge": "File is {size} MB — limit is 16 MB."
       },
       "categories": {
         "messaging": "Messaging",
@@ -1488,19 +1558,85 @@
           "label": "End",
           "blurb": "Ends the flow"
         }
-      }
+      },
+      "editorViewAria": "Editor view",
+      "branchTrue": "true",
+      "branchFalse": "false"
     },
     "validation": {
       "noIssues": "No issues. Ready to activate.",
       "summary": "{errorCount} {errorCount, plural, =1 {error} other {errors}}, {warningCount} {warningCount, plural, =1 {warning} other {warnings}}",
-      "jumpToNode": "Jump to node {key}"
+      "jumpToNode": "Jump to node {key}",
+      "issues": {
+        "nameRequired": "Flow name is required.",
+        "entryRequired": "Pick an entry node before activating.",
+        "needsNode": "A flow needs at least one node before activation.",
+        "entryMissing": "Entry node \"{key}\" doesn't exist.",
+        "duplicateNodeKey": "Duplicate node_key \"{key}\".",
+        "unreachable": "Node \"{key}\" is unreachable from the entry node.",
+        "keywordsRequired": "Keyword triggers need at least one keyword.",
+        "blankKeywords": "{count, plural, one {# keyword is blank — it won't match anything.} other {# keywords are blank — they won't match anything.}}",
+        "startNext": "Start node must point to a next node.",
+        "startNextMissing": "Start points to non-existent node \"{key}\".",
+        "messageText": "Send-message node needs a text body.",
+        "messageNext": "Send-message node must point to a next node.",
+        "messageNextMissing": "Send-message points to non-existent node \"{key}\".",
+        "mediaType": "Send-media node needs a media type (image, video, or document).",
+        "mediaFile": "Send-media node needs a file (upload one before activating).",
+        "captionTooLong": "Caption exceeds {max} chars (WhatsApp limit).",
+        "mediaNext": "Send-media node must point to a next node.",
+        "mediaNextMissing": "Send-media points to non-existent node \"{key}\".",
+        "buttonsText": "Send-buttons node needs a text body.",
+        "buttonsMin": "Send-buttons needs at least one button.",
+        "buttonsMax": "WhatsApp allows at most {max} buttons per message.",
+        "buttonReplyId": "Button {n} needs a reply id.",
+        "buttonReplyIdDuplicate": "Duplicate button reply id \"{id}\".",
+        "buttonTitle": "Button {n} needs a title.",
+        "buttonTitleTooLong": "Button {n} title is over {max} chars (WhatsApp limit).",
+        "buttonNext": "Button {n} needs a next node.",
+        "buttonNextMissing": "Button {n} points to non-existent node \"{key}\".",
+        "listText": "Send-list node needs a text body.",
+        "listButtonLabel": "Send-list needs a button label (the tap-to-expand text).",
+        "listRowsMin": "Send-list needs at least one row.",
+        "listRowsMax": "Send-list allows at most {max} rows total across sections.",
+        "rowReplyId": "Row {row} in section {section} needs a reply id.",
+        "rowReplyIdDuplicate": "Duplicate list row id \"{id}\".",
+        "rowTitle": "Row {n} needs a title.",
+        "rowTitleTooLong": "Row {n} title exceeds {max} chars.",
+        "rowDescriptionTooLong": "Row {n} description exceeds {max} chars.",
+        "rowNext": "Row {n} needs a next node.",
+        "rowNextMissing": "Row {n} points to non-existent node \"{key}\".",
+        "collectPrompt": "Collect-input needs a prompt to send the customer.",
+        "collectVarKey": "Collect-input needs a var_key to store the answer under.",
+        "collectVarKeyFormat": "var_key \"{key}\" must be alphanumeric+underscore and start with a letter or underscore.",
+        "collectNext": "Collect-input must point to a next node.",
+        "collectNextMissing": "Collect-input points to non-existent node \"{key}\".",
+        "conditionSubject": "Condition needs a subject (var / tag / contact_field).",
+        "conditionSubjectKey": "Condition needs a subject_key (var name, tag id, or field name).",
+        "conditionOperator": "Condition needs an operator.",
+        "conditionValue": "Operator \"{operator}\" usually expects a comparison value — empty value will only match empty subjects.",
+        "conditionBranch": "Condition needs a node for the \"{branch}\" branch.",
+        "conditionBranchMissing": "Condition's \"{branch}\" points to non-existent node \"{key}\".",
+        "tagMode": "Set-tag needs a mode (add or remove).",
+        "tagTag": "Set-tag needs a tag to apply.",
+        "tagNext": "Set-tag must point to a next node.",
+        "tagNextMissing": "Set-tag points to non-existent node \"{key}\".",
+        "unknownNodeType": "Unknown node type \"{type}\"."
+      }
     },
     "editorState": {
       "saved": "Saved.",
       "fixIssues": "Fix the issues below before activating.",
       "statusActivated": "Flow activated.",
       "statusArchived": "Archived.",
-      "statusDraft": "Saved as draft."
+      "statusDraft": "Saved as draft.",
+      "saveFailedHttp": "Save failed: {status}",
+      "saveFailed": "Save failed",
+      "statusFailedHttp": "Status update failed: {status}",
+      "statusFailed": "Status update failed",
+      "deleteConfirm": "Delete \"{name}\"? Any active runs end immediately. This can't be undone.",
+      "deleteFailedHttp": "Delete failed: {status}",
+      "deleteFailed": "Delete failed"
     },
     "summary": {
       "options": "{count} {count, plural, =1 {option} other {options}}",
@@ -1519,6 +1655,23 @@
       "modeRemove": "Remove",
       "tagPicked": "{mode} tag {tag}…",
       "tagNone": "{mode} tag (none picked)"
+    },
+    "header": {
+      "back": "Back to Flows",
+      "namePlaceholder": "Flow name",
+      "unsaved": "Unsaved changes — hit Save to persist",
+      "edited": "Edited",
+      "runs": "Runs",
+      "delete": "Delete",
+      "pause": "Pause",
+      "activate": "Activate",
+      "fixIssues": "Fix the issues below before activating",
+      "save": "Save",
+      "descriptionPlaceholder": "Add a short description (internal — customers don't see this)",
+      "descriptionAria": "Flow description",
+      "statusDraft": "Draft",
+      "statusActive": "Active",
+      "statusArchived": "Archived"
     }
   },
   "Settings": {
@@ -1576,7 +1729,8 @@
       "serverUnreachable": "Could not reach the server",
       "updateRoleFailed": "Failed to update role",
       "removeFailed": "Failed to remove member",
-      "revokeFailed": "Failed to revoke invitation"
+      "revokeFailed": "Failed to revoke invitation",
+      "memberAvatarAlt": "Member"
     },
     "invite": {
       "inviteCreated": "Invite created",
@@ -1746,7 +1900,22 @@
       "syncMore": ", +{count} more",
       "qualityScoreTitle": "Meta quality score",
       "headerTextAria": "Header text",
-      "headerSampleAlt": "Header sample"
+      "headerSampleAlt": "Header sample",
+      "status": {
+        "DRAFT": "Draft",
+        "PENDING": "Pending",
+        "APPROVED": "Approved",
+        "REJECTED": "Rejected",
+        "PAUSED": "Paused",
+        "DISABLED": "Disabled",
+        "IN_APPEAL": "In Appeal",
+        "PENDING_DELETION": "Pending Deletion"
+      },
+      "categories": {
+        "Marketing": "Marketing",
+        "Utility": "Utility",
+        "Authentication": "Authentication"
+      }
     },
     "roles": {
       "admin": "Admin",
@@ -1913,7 +2082,8 @@
       "signingOut": "Signing out…",
       "signOutEverywhere": "Sign out everywhere",
       "signOutFailed": "Sign-out failed: {message}",
-      "unknownError": "Unknown error"
+      "unknownError": "Unknown error",
+      "avatarAlt": "Avatar"
     },
     "appearance": {
       "title": "Appearance",
@@ -1923,7 +2093,29 @@
       "active": "Active",
       "accentColor": "Accent color",
       "useTheme": "Use {name} theme",
-      "modeAria": "Color mode"
+      "modeAria": "Color mode",
+      "themes": {
+        "violet": {
+          "name": "Violet",
+          "tagline": "The default — confident, slightly playful."
+        },
+        "emerald": {
+          "name": "Emerald",
+          "tagline": "Growth-coded, nods at messaging without copying WhatsApp green."
+        },
+        "cobalt": {
+          "name": "Cobalt",
+          "tagline": "Clean B2B-SaaS blue — calm and product-y."
+        },
+        "amber": {
+          "name": "Amber",
+          "tagline": "Warm and friendly — feels good for SMB teams."
+        },
+        "rose": {
+          "name": "Rose",
+          "tagline": "Bold and modern — D2C, creator-economy, lifestyle."
+        }
+      }
     },
     "security": {
       "title": "Login & security",
@@ -2111,7 +2303,8 @@
         "operation": "Operación",
         "vacio": "Sin operaciones para esos filtros"
       },
-      "error": "No se pudo cargar: {msg}"
+      "error": "No se pudo cargar: {msg}",
+      "retry": "Retry"
     },
     "cierre": {
       "title": "Cierre financiero",
@@ -2318,6 +2511,109 @@
     "submit": "Send reset link"
   },
   "Common": {
-    "close": "Close"
+    "close": "Close",
+    "loading": "Loading...",
+    "relative": {
+      "never": "never",
+      "justNow": "just now",
+      "minutesAgo": "{count}m ago",
+      "hoursAgo": "{count}h ago",
+      "daysAgo": "{count}d ago"
+    },
+    "presence": {
+      "online": "Online — active now",
+      "away": "Away — idle",
+      "offline": "Offline — last seen {when}",
+      "lastSeenUnknown": "a while ago",
+      "lastSeenJustNow": "just now",
+      "lastSeenMinutes": "{count, plural, one {# minute ago} other {# minutes ago}}",
+      "lastSeenHours": "{count, plural, one {# hour ago} other {# hours ago}}",
+      "lastSeenDays": "{count, plural, one {# day ago} other {# days ago}}"
+    },
+    "currencies": {
+      "GYD": "Guyanese Dollar",
+      "CUP": "Cuban Peso",
+      "USD": "US Dollar",
+      "EUR": "Euro",
+      "GBP": "British Pound",
+      "INR": "Indian Rupee",
+      "AUD": "Australian Dollar",
+      "CAD": "Canadian Dollar",
+      "BRL": "Brazilian Real",
+      "JPY": "Japanese Yen",
+      "CNY": "Chinese Yuan",
+      "AED": "UAE Dirham",
+      "ZAR": "South African Rand",
+      "NGN": "Nigerian Naira",
+      "SGD": "Singapore Dollar",
+      "MXN": "Mexican Peso"
+    },
+    "modes": {
+      "light": "light",
+      "dark": "dark"
+    }
+  },
+  "Agents": {
+    "page": {
+      "title": "AI Agents",
+      "description": "Your bring-your-own-key AI agent — set it up, then test it in the playground before it replies to customers in the inbox.",
+      "tabPlayground": "Playground",
+      "tabSetup": "Setup",
+      "tabUsage": "Usage"
+    },
+    "playground": {
+      "notConfigured": "No agent configured yet — finish Setup first.",
+      "replyFailed": "Couldn't get a reply.",
+      "unreachable": "Couldn't reach the agent.",
+      "title": "Playground",
+      "subtitle": "— test replies as if you were a customer",
+      "reset": "Reset",
+      "emptyTitle": "Send a message to see how your agent would reply.",
+      "emptyHint": "It uses your knowledge base and behaves exactly like the auto-reply bot — including handoff.",
+      "goToSetup": "Not set up yet? Go to Setup",
+      "handoff": "Would hand off to a human here",
+      "thinking": "Thinking…",
+      "placeholder": "Type a customer message…"
+    },
+    "usage": {
+      "loadFailed": "Failed to load usage",
+      "title": "Token usage",
+      "description": "Tokens spent on your provider key by drafts and the auto-reply bot. Counts only — no message content is stored here.",
+      "lastDays": "Last {days} days",
+      "empty": "No AI usage in the last {days} days yet.",
+      "emptyHint": "This fills in as the assistant drafts and auto-replies.",
+      "totalTokens": "Total tokens",
+      "llmCalls": "LLM calls",
+      "autoReply": "Auto-reply",
+      "drafts": "Drafts",
+      "tokensPerDay": "Tokens per day",
+      "byModel": "By model",
+      "modelRow": "{tokens} tok · {calls, plural, one {# call} other {# calls}}",
+      "truncated": "Showing a partial window — usage is high enough that only the most recent records are summarized here.",
+      "tokensSeries": "Tokens"
+    }
+  },
+  "InteractiveBuilder": {
+    "replyButtons": "Reply buttons",
+    "list": "List",
+    "body": "Body",
+    "bodyPlaceholder": "What the customer reads above the options",
+    "headerOptional": "Header (optional)",
+    "footerOptional": "Footer (optional)",
+    "showIds": "Show reply IDs (advanced)",
+    "preview": "Preview",
+    "buttonsCount": "Buttons ({count}/{max})",
+    "buttonLabel": "Button label",
+    "addButton": "Add button",
+    "listButtonLabel": "List button label",
+    "rowsCount": "Rows ({count}/{max})",
+    "sectionTitleOptional": "Section title (optional)",
+    "rowTitle": "Row title",
+    "descriptionOptional": "Description (optional)",
+    "addRow": "Add row",
+    "addSection": "Add section",
+    "previewBody": "Message body…",
+    "previewButton": "Button",
+    "previewMenu": "Menu"
   }
 }

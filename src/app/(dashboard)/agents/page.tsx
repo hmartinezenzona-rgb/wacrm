@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Bot, Sparkles, Settings2, BarChart3 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { AiPlayground } from '@/components/agents/ai-playground';
@@ -13,6 +14,7 @@ import { PageHeader, PageShell } from '@/components/layout/page-header';
 type Tab = 'playground' | 'setup' | 'usage';
 
 export default function AgentsPage() {
+  const t = useTranslations('Agents.page');
   const { accountRole } = useAuth();
   const canViewUsage = accountRole ? canEditSettings(accountRole) : false;
   const [tab, setTab] = useState<Tab>('playground');
@@ -40,8 +42,8 @@ export default function AgentsPage() {
   return (
     <PageShell>
       <PageHeader
-        title="AI Agents"
-        description="Your bring-your-own-key AI agent — set it up, then test it in the playground before it replies to customers in the inbox."
+        title={t('title')}
+        description={t('description')}
       />
 
       {decided && (
@@ -52,14 +54,14 @@ export default function AgentsPage() {
         >
           <TabsList>
             <TabsTrigger value="playground">
-              <Sparkles className="mr-1.5 h-4 w-4" /> Playground
+              <Sparkles className="mr-1.5 h-4 w-4" /> {t('tabPlayground')}
             </TabsTrigger>
             <TabsTrigger value="setup">
-              <Settings2 className="mr-1.5 h-4 w-4" /> Setup
+              <Settings2 className="mr-1.5 h-4 w-4" /> {t('tabSetup')}
             </TabsTrigger>
             {canViewUsage && (
               <TabsTrigger value="usage">
-                <BarChart3 className="mr-1.5 h-4 w-4" /> Usage
+                <BarChart3 className="mr-1.5 h-4 w-4" /> {t('tabUsage')}
               </TabsTrigger>
             )}
           </TabsList>

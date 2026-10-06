@@ -166,7 +166,7 @@ export default function FlowsPage() {
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
-        throw new Error(json.error ?? `Clone failed: ${res.status}`);
+        throw new Error(json.error ?? t("cloneFailedHttp", { status: res.status }));
       }
       const json = (await res.json()) as { flow: FlowRow };
       setCreateOpen(false);

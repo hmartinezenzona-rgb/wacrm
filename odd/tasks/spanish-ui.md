@@ -115,6 +115,42 @@ multi-line JSX text can be missed).
   setState-in-effect, is on unchanged HEAD code). RED was not observed separately for the new screens test (catalogs and
   components were converted in the same step); the parity test is the guard for key mismatches.
 
+- 2026-10-06 T6 done: 250 new keys in en.json and es.json (2,217 keys in total, parity test green). New namespaces: Agents (32),
+  InteractiveBuilder (21), Flows.header (15), Flows.validation.issues (54), Common.{currencies,modes,presence,relative,loading}.
+  Besides the listed files, the final scan found visible English coming from helpers, now catalog-driven with an English
+  fallback kept for non-UI callers and tests: lib/flows/validate.ts issues carry `code` + `params` (the English `message`
+  stays for the API); lib/dashboard activity items carry `i18n` (feed renders Spanish); formatRelative (automations) and
+  presenceLabel/formatLastSeen (members, assign menu) take an optional translator; plus template status/category badges,
+  theme names and taglines, currency names, light/dark words in the appearance panel, mode toggle and settings overview, the
+  canvas true/false branch labels, "Loading..." in the dashboard shell, avatar alt texts and the broadcast, flow, automation
+  and interactive-builder strings.
+  Tests: src/i18n/spanish-screens-more.test.tsx (agents playground, interactive builder, flows validation incl. a check that
+  every emitted code exists in both catalogs, dashboard activity feed, presence and relative-time helpers) with es.json.
+  Proof: full suite 161 files / 1998 tests pass, tsc clean, eslint on the touched files 0 errors (notifications/page.tsx:82
+  setState-in-effect, untouched HEAD code, is the only error in the touched set and it predates this work). One full-suite
+  run timed out once on the notifications page test under load (5.9 s); it passes alone and on the re-run.
+  RED was not observed separately for the new tests (conversion and catalogs landed together).
+
+### Intentional leftovers (final scan)
+- Server-returned error strings shown verbatim (`payload.error`, `data.error`) and src/lib/whatsapp/interactive.ts
+  `validateInteractivePayload` messages (shared by the API, the automation engine and their tests): server-side contract, out
+  of scope per the follow-up definition.
+- Date and number formats: date-fns `formatDistanceToNow` / `format` (conversation list, notifications, flow runs, token chart
+  month names), `toLocaleDateString/String()` in broadcast detail. Out of scope in the original Scope; a follow-up could pass the
+  date-fns `es` locale.
+- Default content stored in new flow nodes (flow-editor-state `Yes`, `View options`, `Option 1`; node-config-form `Option`,
+  `Option N`; interactive-builder list button `Menu`): these defaults become customer-facing message content, so changing them changes
+  stored data; owner to decide. (The automation default name "Untitled automation" was translated, it is only an internal name.)
+- Sample data: broadcast preview contact `John Doe` / `Acme Corp` / `john@example.com`, profile placeholder `Ada Lovelace`,
+  `sk-... (OpenAI)`, `en_US`, `reply_id`/`id` field placeholders (code identifiers).
+- Dead English fallbacks that are never rendered: flows/shared.tsx NODE_META labels/blurbs and NODE_CATEGORIES (the UI reads
+  Flows.builder.nodes/categories), flows/[id]/runs STATUS_META labels (UI reads Flows.logs), message-thread STATUS_OPTIONS labels
+  (used as keys), lib/template-status.ts labels (UI reads Settings.templates.status), lib/automations/trigger-meta TRIGGER_META labels
+  (UI reads Automations.list.triggerLabels), errors thrown inside try blocks that are caught and replaced by a catalog toast
+  (flows page load/create/delete, runs page, message-bubble media load).
+- Brand and already-Spanish copy: "Remesas YA", the promo-banner/notifications promo texts, conversation-list hide/pin texts,
+  ownership-icon labels, the Calculadora page.
+
 ## Next step
 T3: staging build with NEXT_PUBLIC_APP_LOCALE=es and the owner's look (needs the owner's go-ahead for any deploy).
 
@@ -128,7 +164,7 @@ The parity test stays green. Server-returned API errors stay out of scope unless
   settings (whatsapp-config, members-tab, invite-member-dialog, quick-replies-manager, template-manager, ai-knowledge,
   appearance-panel, profile-form, settings-rail), sidebar, dialog/sheet sr-only "Close", auth pages (signup,
   forgot-password) and join/[token].
-- [ ] T6 The rest: agents (page, ai-usage, ai-playground), flows (header, flow-editor-shell, node-config-form),
+- [x] T6 The rest: agents (page, ai-usage, ai-playground), flows (header, flow-editor-shell, node-config-form),
   interactive-builder, broadcasts (steps, pages), automations (page, automation-builder); a final scan for any visible
   English left.
 - [ ] T7 Staging deploy + owner's look; production with the owner's go-ahead.

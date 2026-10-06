@@ -27,14 +27,13 @@ import { useTranslations } from 'next-intl'
 // per weekday". Tremor expects categories as the second tuple in
 // the row object, so we shape the buckets into
 // `{ day: 'Mon', 'Avg minutes': 4.2 }` rows below.
-const CATEGORY = 'Avg minutes'
-
 export function ResponseTimeChart({
   data,
   loading,
   thresholdMinutes = 5,
 }: ResponseTimeChartProps) {
   const t = useTranslations('Dashboard.responseTimeChart')
+  const CATEGORY = t('seriesAvgMinutes')
   const hasData = data?.buckets.some((b) => b.avgMinutes != null) ?? false
 
   // Map buckets → Tremor rows. Null `avgMinutes` (no samples)

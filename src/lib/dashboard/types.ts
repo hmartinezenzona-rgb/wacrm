@@ -124,8 +124,23 @@ export type ActivityKind =
 export interface ActivityItem {
   id: string
   kind: ActivityKind
-  /** Primary line of text rendered in the feed. Pre-formatted. */
+  /** Primary line of text rendered in the feed. Pre-formatted (English fallback). */
   text: string
+  /**
+   * Catalog key under `Dashboard.activityFeed.items` plus its values. The feed
+   * renders this in the active locale and falls back to `text` when absent.
+   * A missing `who` / `name` means "unknown" and is filled in at render time.
+   */
+  i18n?: {
+    key:
+      | 'newMessage'
+      | 'newContact'
+      | 'broadcastSent'
+      | 'broadcastOther'
+      | 'automationTriggered'
+      | 'automationFailed'
+    values: { who?: string; name?: string; count?: number; status?: string }
+  }
   /** ISO timestamp the item happened at, drives relative-time + sort. */
   at: string
   /** Optional deep-link for the whole row (not all items have a target). */

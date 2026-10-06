@@ -421,6 +421,7 @@ export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> 
       id: `msg-${m.id}`,
       kind: 'message',
       text: `New message from ${who}`,
+      i18n: { key: 'newMessage', values: { who: contact?.name || contact?.phone || undefined } },
       at: m.created_at,
       href: `/inbox?c=${m.conversation_id}`,
     })
@@ -431,6 +432,7 @@ export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> 
       id: `contact-${c.id}`,
       kind: 'contact',
       text: `New contact: ${c.name || c.phone}`,
+      i18n: { key: 'newContact', values: { who: c.name || c.phone } },
       at: c.created_at,
       href: '/contacts',
     })
@@ -451,6 +453,10 @@ export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> 
       id: `broadcast-${b.id}`,
       kind: 'broadcast',
       text: `Broadcast "${b.name}" ${label}`,
+      i18n:
+        b.status === 'sent'
+          ? { key: 'broadcastSent', values: { name: b.name, count: b.total_recipients } }
+          : { key: 'broadcastOther', values: { name: b.name, status: b.status, count: b.total_recipients } },
       at: b.created_at,
       href: '/broadcasts',
     })
@@ -472,6 +478,13 @@ export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> 
       id: `auto-${l.id}`,
       kind: 'automation',
       text: `Automation "${autoName}" ${l.status === 'failed' ? 'failed for' : 'triggered for'} ${who}`,
+      i18n: {
+        key: l.status === 'failed' ? 'automationFailed' : 'automationTriggered',
+        values: {
+          name: automation?.name || undefined,
+          who: contact?.name || contact?.phone || undefined,
+        },
+      },
       at: l.created_at,
     })
   }

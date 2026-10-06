@@ -99,7 +99,13 @@ Follow-up (2026-10-06): reparto-usd-card-rail
 
 ## Follow-up tasks (owner, 2026-10-06: "si sigue")
 Same Scope and Rules as above (tests only; expectations unchanged unless the parent approves).
-- [ ] T4 destination-amount: rates set through calculator_rate_versions (append-only) instead of the `tasas` view (113);
+- [x] T4 destination-amount: rates set through calculator_rate_versions (append-only) instead of the `tasas` view (113);
   case 5 ("no usd rate -> NULL") reached without DELETE, accounting for Zelle tier pricing (215-218).
+  Evidence (2026-10-06, staging, BEGIN ... ROLLBACK, as is and with no promo): RED `cannot insert into view "tasas"`; GREEN
+  ALL PASS (11 expectations). Rates are appended to calculator_rate_versions (usd 260 as usdt_sell_gyd and as the Zelle tier
+  zelle_sell_gyd, gyd 3). Case 5: an appended NULL version does not hide older ones in the view and rows cannot be deleted
+  (remittance_calculator_entries FK), so the usd rate and the three Zelle tier prices are blanked on every version with the
+  append-only trigger disabled for that one UPDATE inside the transaction (only way found; Zelle then has no tier price and no
+  usd fallback). Expectations unchanged.
 - [ ] T5 rounding-parity: same `tasas` view fix.
 - [ ] T6 deterministic-usd-destination case 2d: operation built without the retired deal path.

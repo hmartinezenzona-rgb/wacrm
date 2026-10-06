@@ -73,10 +73,12 @@ BEGIN
   INSERT INTO conversations (id, user_id, contact_id, account_id) VALUES (gen_random_uuid(), v_owner_user, v_contact_id, v_account_id) RETURNING id INTO v_conv_id;
 
   -- Fixed test rates, dated far in the future so they are always "latest"
-  -- regardless of what real staging data exists.
-  INSERT INTO tasas (fecha, moneda, tasa_cup, fuente, actualizada_at) VALUES
-    (current_date + 1000, 'usd', 260, 'staging_test', now()),
-    (current_date + 1000, 'gyd', 3, 'staging_test', now());
+  -- regardless of what real staging data exists. Since 113 `tasas` is a view
+  -- over calculator_rate_versions (usd = usdt_sell_gyd, gyd = cup_global_rate),
+  -- so the rates are appended there; the Zelle tier price (216) is set too, since
+  -- 215-218 a Zelle beneficiary is priced by cerebro_zelle_cotizar_gyd.
+  INSERT INTO calculator_rate_versions (account_id, cup_global_rate, usdt_sell_gyd, zelle_sell_gyd, set_by, effective_at)
+  VALUES (v_account_id, 3, 260, 260, v_owner_user, now() + interval '1000 days');
 
   -- ---- case 1: zelle, single beneficiary -------------------------------
   INSERT INTO remittance_operations (id, account_id, conversation_id, status, service_type, source_currency, quoted_source_amount)
@@ -169,7 +171,17 @@ BEGIN
   END IF;
 
   -- ---- case 5: no rate on file -> stays NULL, no error -----------------
-  DELETE FROM tasas WHERE moneda = 'usd';
+  -- (113) `tasas` is a view and calculator_rate_versions is append-only, and an
+  -- appended version with NULL rates does not hide the older ones; rows cannot be
+  -- deleted either (remittance_calculator_entries references them). So "no usd
+  -- rate on file" is reached by blanking the usd selling rate and the Zelle tier
+  -- prices of every version, with the append-only trigger switched off for that
+  -- UPDATE only. Zelle then has neither a tier price nor the usd fallback (215-218).
+  -- ROLLBACK restores everything.
+  ALTER TABLE calculator_rate_versions DISABLE TRIGGER calculator_rate_versions_append_only;
+  UPDATE calculator_rate_versions
+     SET usdt_sell_gyd = NULL, zelle_sell_gyd = NULL, zelle_sell_gyd_1000 = NULL, zelle_sell_gyd_2000 = NULL;
+  ALTER TABLE calculator_rate_versions ENABLE TRIGGER calculator_rate_versions_append_only;
 
   INSERT INTO remittance_operations (id, account_id, conversation_id, status, service_type, source_currency, quoted_source_amount)
   VALUES (gen_random_uuid(), v_account_id, v_conv_id, 'deposit_verification', 'remesa', 'GYD', 10000)
@@ -185,7 +197,8 @@ BEGIN
     FROM remittance_beneficiaries WHERE id = v_ben_missing_id;
 
   -- Restore the usd rate for the remaining cases.
-  INSERT INTO tasas (fecha, moneda, tasa_cup, fuente, actualizada_at) VALUES (current_date + 1000, 'usd', 260, 'staging_test', now());
+  INSERT INTO calculator_rate_versions (account_id, cup_global_rate, usdt_sell_gyd, zelle_sell_gyd, set_by, effective_at)
+  VALUES (v_account_id, 3, 260, 260, v_owner_user, now() + interval '1000 days');
 
   IF v_amount IS NOT NULL OR v_origin IS NOT NULL OR v_ben_amount IS NOT NULL OR v_amt_origin IS NOT NULL THEN
     v_fail_count := v_fail_count + 1;

@@ -59,5 +59,13 @@ Strict TDD on (user config). Runners: staging assertion via psql-staging.sh (BEG
   - vitest RED (8 page + hook failures) then GREEN; full suite 159 files / 1985 tests pass; tsc clean; parity test green; eslint on touched
     files: only the pre-existing react-hooks/set-state-in-effect error on `load()` in the page's effect (present on HEAD, untouched).
 
+- 2026-10-06 T3 staging deployed (owner's look pending; T3 NOT checked off): release 555535c538e9b41fd9029699d4670c7ac375ce11,
+  BUILD_ID EHLM-0PiljguKp0KJGOjn, same procedure as 54df1e2 (clean prod-build worktree, docker node:20, staging-build.env with
+  NEXT_PUBLIC_APP_LOCALE=es, built off oracle2). Manifest staging / kolppplawzdsjfydwejr, 114 money-path tests passed, 0 production
+  refs / 32 staging refs, sha256 OK, 2416 files. `current` -> 555535c, `anterior` -> 5959dd2; pm2 cwd = ~/wacrm-releases/current,
+  restarts 64 -> 65 and stable; /login 200 locally and on the domain, serves the new BUILD_ID and "Bienvenido de nuevo".
+  "Borrar todas las notificaciones" is NOT in .next/static: next-intl messages ship in the server chunks / RSC payload (78 files
+  under .next/server). No DB change (220 already on staging). Rollback: relink `current` to `anterior` + `pm2 restart wacrm-staging --update-env`.
+
 ## Next step
 T3 staging deploy (Spanish UI + this); owner's look.

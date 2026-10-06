@@ -37,7 +37,7 @@ Strict TDD on (user config). Runner: vitest (npm test). RED: the parity test fai
   Inbox, Contacts, Settings, Resumen, Tablero; rename Resumen -> Finanzas (es and en).
 - [x] T2 es.json for the remaining sections (Pipelines, Broadcasts, Automations, Flows); parity test GREEN; list the
   hard-coded English strings outside the catalog.
-- [ ] T3 Staging build with NEXT_PUBLIC_APP_LOCALE=es; owner's look.
+- [ ] T3 Staging build with NEXT_PUBLIC_APP_LOCALE=es; owner's look. (Staging deployed 2026-10-06, owner's look pending.)
 - [ ] T4 Production with the owner's go-ahead.
 
 ## Acceptance criteria
@@ -57,6 +57,18 @@ Strict TDD on (user config). Runner: vitest (npm test). RED: the parity test fai
   values, cognates, brand names or placeholders). Parity test GREEN (4/4), request config test 2/2.
   NEXT_PUBLIC_APP_LOCALE=es added to infra/deployment/wacrm.produccion.build.env.example (before the two manifest-checked
   last lines) and the .env.local.example comment; the real build env files were not touched.
+
+- 2026-10-06 T3 staging deployed (owner "dale despliega"): release 5959dd2 (BUILD_ID yglsJ1Tw9FC-6Vy9Qn0G7), served by
+  crm.onlinefreedom.site. Staging build env ~/.config/wacrm/staging-build.env: NEXT_PUBLIC_APP_LOCALE en -> es in place
+  (backup .bak-20261006; the manifest-checked last line WACRM_ENVIRONMENT stays last). Manifest staging / kolppplawzdsjfydwejr,
+  114 money-path tests passed, 0 production refs / 33 staging refs, sha256 OK, 2417 files + DEPLOYED_VERSION. pm2 cwd =
+  `~/wacrm-releases/current` -> 5959dd2, `anterior` -> 225cba2; `/login` 200 locally and on the domain, which serves the new
+  BUILD_ID; restarts 63 -> 64 and stable. The served /login shows "Bienvenido de nuevo", "Correo electronico", "Iniciar
+  sesion" and none of "Welcome back", "Forgot password", "Enter your password".
+  Locale at runtime: pm2 runs node with --env-file=/etc/wacrm-hermes/wacrm.env, which still says NEXT_PUBLIC_APP_LOCALE=en
+  (line 12). It does NOT override: Next inlines process.env.NEXT_PUBLIC_* at build time, so the build env decides (the
+  login page proved it). Left untouched; set it to es there too only for consistency. Rollback: relink `current` to
+  `anterior` + `pm2 restart wacrm-staging --update-env`. Production untouched.
 
 ## Terminology (owner review)
 Dashboard = Panel; Inbox = Bandeja de entrada; Contacts = Contactos; Pipelines = Embudos (stages = Etapas); Deals =

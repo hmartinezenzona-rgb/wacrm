@@ -434,6 +434,14 @@
       "visaCountMany": "{count} extensions",
       "comboMinimumHint": "Minimum 25,000 GYD per combo",
       "comboProvinceHint": "Include the Cuban province in the address",
+      "serviceChange": {
+        "label": "Service",
+        "choose": "Choose a service",
+        "warning": "The quote is recalculated and the recipients that do not fit the new service are removed. The customer is not messaged.",
+        "confirm": "Change service",
+        "saved": "Service changed",
+        "failed": "Could not change the service: {message}"
+      },
       "comboCost": {
         "label": "Combo cost (GYD)",
         "clear": "Clear",

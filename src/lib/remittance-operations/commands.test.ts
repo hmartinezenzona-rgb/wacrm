@@ -13,6 +13,7 @@ import {
   deliverOperation,
   cerrarOperacionManual,
   setComboCosto,
+  cambiarServicio,
   eliminarOperacion,
   registerBeneficiaryProof,
 } from "./commands";
@@ -487,5 +488,35 @@ describe("setComboCosto", () => {
 
     expect(fetch).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ body: JSON.stringify({ costGyd: null }) }));
     expect(response).toEqual({ ok: false, status: 403, error: "Forbidden" });
+  });
+});
+
+describe("cambiarServicio", () => {
+  it("POSTs the service to the service route and unwraps the summary", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ok: true, service: "recarga", changed: true }));
+
+    const response = await cambiarServicio(OPERATION_ID, "recarga");
+
+    expect(fetch).toHaveBeenCalledWith(
+      `/api/remittance-operations/${OPERATION_ID}/service`,
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ servicio: "recarga" }),
+      }),
+    );
+    expect(response).toEqual({ ok: true, service: "recarga", changed: true });
+  });
+
+  it("surfaces a failure's status and message", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ error: "operation is closed" }, 400));
+
+    expect(await cambiarServicio(OPERATION_ID, "zelle")).toEqual({ ok: false, status: 400, error: "operation is closed" });
+  });
+
+  it("a network failure is a status-0 error", async () => {
+    vi.mocked(fetch).mockRejectedValueOnce(new Error("offline"));
+
+    expect(await cambiarServicio(OPERATION_ID, "zelle")).toEqual({ ok: false, status: 0, error: "Network error" });
   });
 });

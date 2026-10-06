@@ -434,6 +434,14 @@
       "visaCountMany": "{count} extensiones",
       "comboMinimumHint": "Mínimo 25,000 GYD por combo",
       "comboProvinceHint": "Incluye la provincia de Cuba en la dirección",
+      "serviceChange": {
+        "label": "Servicio",
+        "choose": "Elige un servicio",
+        "warning": "Se recalcula la cotización y se quitan los destinatarios que no sirven para el nuevo servicio. No se le escribe al cliente.",
+        "confirm": "Cambiar servicio",
+        "saved": "Servicio cambiado",
+        "failed": "No se pudo cambiar el servicio: {message}"
+      },
       "comboCost": {
         "label": "Costo del combo (GYD)",
         "clear": "Borrar",

@@ -19,6 +19,7 @@ import { BeneficiaryAddControl } from "./beneficiary-add-control";
 import { BeneficiaryReassignControl } from "./beneficiary-reassign-control";
 import { ComboBeneficiaryEditFields } from "./combo-beneficiary-edit-fields";
 import { ComboCostField } from "./combo-cost-field";
+import { OperationServiceControl, currentServiceOf } from "./operation-service-control";
 import { CompleteTransferContainer } from "./complete-transfer-container";
 import { CopyChip } from "./copy-chip";
 import { DepositReviewContainer } from "./deposit-review-container";
@@ -538,6 +539,16 @@ export function RemittanceOperationCard({
             refreshToken={refreshToken}
             initialData={initialReceipts}
           />
+
+          {editable && (
+            <OperationServiceControl
+              // Re-keyed on what the operation is now, so a refetch resets the selector to the saved service.
+              key={`${operation.id}:${currentServiceOf(operation) ?? "none"}`}
+              operationId={operation.id}
+              current={currentServiceOf(operation)}
+              onDone={handleChanged}
+            />
+          )}
 
           {!isVisa(operation) && (
           <div className="pt-3">

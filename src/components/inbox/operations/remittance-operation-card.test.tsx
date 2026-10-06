@@ -136,6 +136,20 @@ vi.mock("./operation-closing-control", () => ({
   ),
 }));
 
+vi.mock("./operation-service-control", async () => {
+  const actual = await vi.importActual<typeof import("./operation-service-control")>("./operation-service-control");
+  return {
+    ...actual,
+    OperationServiceControl: ({ current, onDone }: { current: string | null; onDone: () => void }) => (
+      <div data-testid="service-control-stub" data-current={String(current)}>
+        <button type="button" data-testid="service-control-done" onClick={onDone}>
+          done
+        </button>
+      </div>
+    ),
+  };
+});
+
 afterEach(() => {
   document.body.replaceChildren();
   vi.restoreAllMocks();
@@ -2067,6 +2081,50 @@ describe("RemittanceOperationCard closing actions", () => {
     );
 
     expect(node.textContent).toContain(en.Inbox.operationsPanel.history.closedManually);
+    await act(async () => root.unmount());
+  });
+});
+
+describe("RemittanceOperationCard service selector", () => {
+  const stubOf = (node: Element) => node.querySelector('[data-testid="service-control-stub"]');
+
+  it("an editable open operation shows the selector with its current service", async () => {
+    const { node, root } = await render(operation({ deliveryMethod: "clasica" }), { role: "agent" });
+
+    expect(stubOf(node)).not.toBeNull();
+    expect(stubOf(node)!.getAttribute("data-current")).toBe("clasica");
+    await act(async () => root.unmount());
+  });
+
+  it.each(["recarga", "combo", "visa"])("a %s operation names its own service type", async (serviceType) => {
+    const { node, root } = await render(operation({ serviceType }), { role: "agent" });
+
+    expect(stubOf(node)!.getAttribute("data-current")).toBe(serviceType);
+    await act(async () => root.unmount());
+  });
+
+  it("is hidden from a read-only viewer, on a completed or cancelled operation, on a history row and when collapsed", async () => {
+    for (const [op, options] of [
+      [operation(), { canEdit: false, role: "viewer" as const }],
+      [operation({ status: "completed" }), {}],
+      [operation({ status: "cancelled" as unknown as RemittanceOperationStatus }), {}],
+      [operation({ isHistory: true }), {}],
+      [operation(), { expanded: false }],
+    ] as const) {
+      const { node, root } = await render(op, options);
+      expect(stubOf(node)).toBeNull();
+      await act(async () => root.unmount());
+      document.body.replaceChildren();
+    }
+  });
+
+  it("refreshes the panel after a change", async () => {
+    const onChanged = vi.fn();
+    const { node, root } = await render(operation(), { onChanged });
+
+    await act(async () => (node.querySelector('[data-testid="service-control-done"]') as HTMLButtonElement).click());
+
+    expect(onChanged).toHaveBeenCalledTimes(1);
     await act(async () => root.unmount());
   });
 });

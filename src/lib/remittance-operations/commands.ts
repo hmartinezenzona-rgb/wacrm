@@ -290,6 +290,25 @@ export async function setComboCosto(
   return { ok: true, costGyd: response.data.costGyd ?? null };
 }
 
+export type ChangeServiceCommandResult =
+  | { ok: true; service: string; changed: boolean }
+  | { ok: false; status: number; error: string };
+
+/** `crm_cambiar_servicio` (migration 222): switches an open operation to another service. The quote is recalculated
+ *  and the recipients that do not fit are retired; the customer is not messaged. */
+export async function cambiarServicio(
+  operationId: string,
+  servicio: string,
+): Promise<ChangeServiceCommandResult> {
+  const response = await postJsonResult<{ service: string; changed: boolean }>(
+    `/api/remittance-operations/${operationId}/service`,
+    "POST",
+    { servicio },
+  );
+  if (!response.ok) return response;
+  return { ok: true, service: response.data.service, changed: response.data.changed };
+}
+
 export type DeleteOperationCommandResult =
   | { ok: true; newStatus: string }
   | { ok: false; status: number; error: string };

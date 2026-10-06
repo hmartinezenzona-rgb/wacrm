@@ -167,7 +167,7 @@ The parity test stays green. Server-returned API errors stay out of scope unless
 - [x] T6 The rest: agents (page, ai-usage, ai-playground), flows (header, flow-editor-shell, node-config-form),
   interactive-builder, broadcasts (steps, pages), automations (page, automation-builder); a final scan for any visible
   English left.
-- [ ] T7 Staging deploy + owner's look; production with the owner's go-ahead.
+- [x] T7 Staging deploy + owner's look; production with the owner's go-ahead. (Owner looked at staging and approved: "pasalo a produccion", 2026-10-06.)
 
 - 2026-10-06 T7 staging deployed (owner's look pending; T7 NOT checked off): release 45d6825ddfedb94d50623d1f195a50816f22e540,
   BUILD_ID fMr_foqZzYI-JEiiUHg6J, same procedure as 555535c (clean prod-build worktree, docker node:20 uid 1000, staging-build.env with
@@ -176,3 +176,10 @@ The parity test stays green. Server-returned API errors stay out of scope unless
   restarts 65 -> 66 and stable; /login 200 on the domain with the new BUILD_ID and "Bienvenido de nuevo"; /forgot-password 200 with
   "Restablecer contraseña" (es.json) and not "Reset password" (en.json). No DB change. Rollback: relink `current` to `anterior`
   (555535c) + `pm2 restart wacrm-staging --update-env`. Production not touched.
+- 2026-10-06 T7 production app: release 45d6825ddfedb94d50623d1f195a50816f22e540 (BUILD_ID H2ymDA2Bc5KzS_WB6HW8U), owner go-ahead
+  "pasalo a produccion" after checking staging. Same procedure as 555535c (clean prod-build, docker node:20 uid 1000, production build env
+  with NEXT_PUBLIC_APP_LOCALE=es and WACRM_ENVIRONMENT=production, unchanged). Manifest production / hqztotshnlzaiziwjyzh, 114 money-path
+  tests passed, bundle 0 staging refs / 32 production refs, sha256 OK. pm2 wacrm cwd = `current` -> 45d6825, `anterior` -> 555535c;
+  `/login` 200 on wacrm.onlinefreedom.site with the new BUILD_ID and "Bienvenido de nuevo"; `/forgot-password` 200 with
+  "Restablecer contraseña" and not "Reset password"; pm2 restarts 26 -> 27 and stable. prod-build left clean at 45d6825. No DB change.
+  Rollback: `infra/deployment/rollback-wacrm-produccion.sh`.

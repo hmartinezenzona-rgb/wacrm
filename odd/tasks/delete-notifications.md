@@ -38,8 +38,8 @@ Strict TDD on (user config). Runners: staging assertion via psql-staging.sh (BEG
   round trip checked; GREEN.
 - [x] T2 App: X per notification and "Borrar todas" with confirmation; badge stays right; i18n en/es; vitest RED then
   GREEN; typecheck, lint, full suite.
-- [ ] T3 Staging deploy (Spanish UI + this); owner's look.
-- [ ] T4 Production with the owner's go-ahead: DB 220 via gate script, then the app (also releases spanish-ui T4).
+- [x] T3 Staging deploy (Spanish UI + this); owner's look (2026-10-06: "pasalo a produccion").
+- [x] T4 Production with the owner's go-ahead: DB 220 via gate script, then the app (also releases spanish-ui T4).
 
 ## Acceptance criteria
 - After 220 and the app change, the owner removes one notification or all of them and they stay gone after a reload;
@@ -71,3 +71,11 @@ Strict TDD on (user config). Runners: staging assertion via psql-staging.sh (BEG
 T3 staging deploy (Spanish UI + this); owner's look.
 
 - 2026-10-06 production app: release 555535c (BUILD_ID qeG5ojHkJArkrrcbZdzDj), owner go-ahead "pasalo a produccion". Built in prod-build with Node 20 docker + the production build env (NEXT_PUBLIC_APP_LOCALE=es added, backup .bak-20261006, file untracked): manifest production / hqztotshnlzaiziwjyzh, 114 money-path tests passed, bundle 0 staging refs / 32 production refs, sha256 OK. pm2 wacrm cwd = `current` -> release 555535c, `anterior` -> 225cba2; `/login` 200 on wacrm.onlinefreedom.site serving the new BUILD_ID and "Bienvenido de nuevo" (no "Welcome back"); .next/server has "Borrar todas las notificaciones"; pm2 restarts 25 -> 26 and stable. prod-build left clean at 555535c. Rollback: `infra/deployment/rollback-wacrm-produccion.sh`. App part of T4 only; DB 220 evidence and the T4 check are the parent's.
+- 2026-10-06 T4 DB (parent): backup ~/wacrm-respaldos/produccion-20261006T124453Z.dump (sha256 ff95a51ac44b84e6...).
+  Pre-check: policies notifications_select, notifications_update only; 4,932 rows. ~/cerebro-fase1/pruebas/gate118-aplicar-db.py
+  with temporary zz_wu5b_exec (revoked from PUBLIC, anon, authenticated, service_role): ensayo adds notifications_delete
+  (DELETE, auth.uid() = user_id); ida-y-vuelta back to select + update only; aplicar OK (schema_migrations
+  20261006124712 220_notifications_delete_policy); probar delete-notifications ALL PASS (forced rollback). Helper dropped
+  (count 0); notifications_delete is for role authenticated; rows still 4,932.
+- 2026-10-06 parent: production /login 200, BUILD_ID qeG5ojHkJArkrrcbZdzDj, Spanish. The production build env backup was
+  moved out of the repo to ~/.config/wacrm/wacrm.produccion.build.env.bak-20261006 (the *.bak name is not gitignored).

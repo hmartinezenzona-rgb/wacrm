@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { usePromoPendiente } from "@/hooks/use-promo-pendiente";
@@ -13,11 +14,21 @@ import {
   Loader2,
   MessageSquareX,
   Percent,
+  Trash2,
+  X,
   XCircle,
   UserPlus,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
@@ -34,12 +45,15 @@ const TYPE_ICON: Record<Notification["type"], typeof Bell> = {
 
 export default function NotificationsPage() {
   const router = useRouter();
-  const { accountId } = useAuth();
+  const t = useTranslations("Notifications");
+  const { accountId, user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[] | null>(
     null,
   );
   const [error, setError] = useState<string | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
+  const [confirmAllOpen, setConfirmAllOpen] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
   const {
     promo: promoPendiente,
     checked: promoChecked,
@@ -163,6 +177,43 @@ export default function NotificationsPage() {
     }
   }, [unreadIds.length, load]);
 
+  const deleteOne = useCallback(
+    async (id: string) => {
+      // Optimistic, like markRead: the row is gone before the request lands.
+      setNotifications((prev) => prev?.filter((n) => n.id !== id) ?? prev);
+      const supabase = createClient();
+      const { error: deleteErr } = await supabase
+        .from("notifications")
+        .delete()
+        .eq("id", id);
+      if (deleteErr) {
+        toast.error(t("deleteError"));
+        load();
+      }
+    },
+    [load, t],
+  );
+
+  const deleteAll = useCallback(async () => {
+    if (!user) return;
+    setDeletingAll(true);
+    setNotifications([]);
+    const supabase = createClient();
+    // RLS already limits a delete to the caller's rows; the filter states it.
+    const { error: deleteErr } = await supabase
+      .from("notifications")
+      .delete()
+      .eq("user_id", user.id);
+    setDeletingAll(false);
+    setConfirmAllOpen(false);
+    if (deleteErr) {
+      toast.error(t("deleteAllError"));
+      load();
+      return;
+    }
+    toast.success(t("deleteAllDone"));
+  }, [user, load, t]);
+
   if (error) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-2">
@@ -188,19 +239,30 @@ export default function NotificationsPage() {
         title="Notifications"
         description="Conversations other teammates assign to you show up here."
         actions={
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={unreadIds.length === 0 || markingAll}
-            onClick={markAllRead}
-          >
-            {markingAll ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <CheckCheck className="h-4 w-4" />
-            )}
-            Mark all as read
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={unreadIds.length === 0 || markingAll}
+              onClick={markAllRead}
+            >
+              {markingAll ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCheck className="h-4 w-4" />
+              )}
+              Mark all as read
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={notifications.length === 0 || !user}
+              onClick={() => setConfirmAllOpen(true)}
+            >
+              <Trash2 className="h-4 w-4" />
+              {t("deleteAll")}
+            </Button>
+          </div>
         }
       />
 
@@ -219,7 +281,7 @@ export default function NotificationsPage() {
               <li key={n.id}>
                 <div
                   className={cn(
-                    "rounded-xl border transition-colors",
+                    "relative rounded-xl border transition-colors",
                     isUnread
                       ? "border-primary/30 bg-primary/5 hover:border-primary/50"
                       : "border-border bg-card hover:border-border/70",
@@ -231,7 +293,7 @@ export default function NotificationsPage() {
                   <button
                     type="button"
                     onClick={() => handleClick(n)}
-                    className="flex w-full items-start gap-3 p-4 text-left"
+                    className="flex w-full items-start gap-3 p-4 pr-12 text-left"
                   >
                     <div
                       className={cn(
@@ -277,6 +339,20 @@ export default function NotificationsPage() {
                         })}
                       </p>
                     </div>
+                  </button>
+                  {/* Borrar: fuera del botón de la tarjeta (HTML válido) y
+                      sin marcar como leída ni navegar. */}
+                  <button
+                    type="button"
+                    aria-label={t("deleteOne")}
+                    title={t("deleteOne")}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteOne(n.id);
+                    }}
+                    className="absolute right-2 top-2 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" aria-hidden />
                   </button>
                   {/* Acción para la promoción Etecsa pendiente. */}
                   {n.type === "promo_etecsa" &&
@@ -339,6 +415,39 @@ export default function NotificationsPage() {
           })}
         </ul>
       )}
+
+      <Dialog
+        open={confirmAllOpen}
+        onOpenChange={(open) => !deletingAll && setConfirmAllOpen(open)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("deleteAllTitle")}</DialogTitle>
+            <DialogDescription>{t("deleteAllDescription")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setConfirmAllOpen(false)}
+              disabled={deletingAll}
+            >
+              {t("cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={deleteAll}
+              disabled={deletingAll}
+            >
+              {deletingAll ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              {t("deleteAllConfirm")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageShell>
   );
 }

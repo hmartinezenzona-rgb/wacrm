@@ -2127,5 +2127,16 @@
     "loading": "Cargando el tablero...",
     "loadError": "No se pudo cargar el tablero. Reintentando automáticamente.",
     "forbidden": "No tienes acceso a las operaciones de esta cuenta."
+  },
+  "Notifications": {
+    "deleteOne": "Borrar notificación",
+    "deleteAll": "Borrar todas",
+    "deleteAllTitle": "¿Borrar todas las notificaciones?",
+    "deleteAllDescription": "Se borrarán todas tus notificaciones, incluidas las que no has leído. No se puede deshacer.",
+    "deleteAllConfirm": "Borrar todas las notificaciones",
+    "cancel": "Cancelar",
+    "deleteError": "No se pudo borrar la notificación",
+    "deleteAllError": "No se pudieron borrar las notificaciones",
+    "deleteAllDone": "Se borraron todas las notificaciones"
   }
 }

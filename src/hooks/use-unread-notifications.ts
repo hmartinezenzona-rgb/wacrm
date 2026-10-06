@@ -19,16 +19,17 @@ export function useUnreadNotifications(): number {
     const supabase = createClient();
     let cancelled = false;
 
-    (async () => {
-      // head:true skips fetching rows — we only need the `count`
-      // supabase-js returns alongside the (empty) response body.
+    // head:true skips fetching rows — we only need the `count`
+    // supabase-js returns alongside the (empty) response body.
+    const recount = async () => {
       const { count: unreadCount, error } = await supabase
         .from("notifications")
         .select("*", { count: "exact", head: true })
         .is("read_at", null);
       if (cancelled || error) return;
       setCount(unreadCount ?? 0);
-    })();
+    };
+    recount();
 
     const channel = supabase
       .channel("notifications-unread-count")
@@ -59,8 +60,9 @@ export function useUnreadNotifications(): number {
             const newRow = payload.new as Notification;
             if (newRow.read_at) setCount((n) => Math.max(0, n - 1));
           } else if (payload.eventType === "DELETE") {
-            const oldRow = payload.old as Partial<Notification>;
-            if (!oldRow.read_at) setCount((n) => Math.max(0, n - 1));
+            // Realtime does not apply RLS to DELETE events, so the payload
+            // may be another user's row. Recount instead of decrementing.
+            recount();
           }
         },
       )

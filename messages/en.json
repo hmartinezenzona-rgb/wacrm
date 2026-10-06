@@ -2127,5 +2127,16 @@
     "loading": "Loading the board...",
     "loadError": "Could not load the board. Retrying automatically.",
     "forbidden": "You do not have access to this account's operations."
+  },
+  "Notifications": {
+    "deleteOne": "Delete notification",
+    "deleteAll": "Delete all",
+    "deleteAllTitle": "Delete all notifications?",
+    "deleteAllDescription": "All your notifications will be deleted, including the unread ones. This cannot be undone.",
+    "deleteAllConfirm": "Delete all notifications",
+    "cancel": "Cancel",
+    "deleteError": "Failed to delete the notification",
+    "deleteAllError": "Failed to delete the notifications",
+    "deleteAllDone": "All notifications deleted"
   }
 }

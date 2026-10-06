@@ -33,10 +33,10 @@ borrar todas". Confirmation on "Borrar todas" added by Claude (it also removes u
 Strict TDD on (user config). Runners: staging assertion via psql-staging.sh (BEGIN ... ROLLBACK); app via vitest.
 
 ## Tasks
-- [ ] T1 RED: staging assertion delete-notifications.sql (owner deletes own row: gone; deleting another user's row:
+- [x] T1 RED: staging assertion delete-notifications.sql (owner deletes own row: gone; deleting another user's row:
   0 rows affected and still there; anon cannot delete) — fails before 220. Migration 220 + ROLLBACK-220 on staging,
   round trip checked; GREEN.
-- [ ] T2 App: X per notification and "Borrar todas" with confirmation; badge stays right; i18n en/es; vitest RED then
+- [x] T2 App: X per notification and "Borrar todas" with confirmation; badge stays right; i18n en/es; vitest RED then
   GREEN; typecheck, lint, full suite.
 - [ ] T3 Staging deploy (Spanish UI + this); owner's look.
 - [ ] T4 Production with the owner's go-ahead: DB 220 via gate script, then the app (also releases spanish-ui T4).
@@ -48,5 +48,16 @@ Strict TDD on (user config). Runners: staging assertion via psql-staging.sh (BEG
 ## Progress
 - 2026-10-06 document created. Delivery strategy: ask-on-risk.
 
+- 2026-10-06 T1 done on staging (commit 92313a2): assertion supabase/staging/assertions/delete-notifications.sql (4 cases + unfiltered delete).
+  - RED before 220, as is and no promo: `case 1: deleting an own notification affected 0 rows, expected 1`.
+  - Round trip in one rolled-back transaction: policy count 0 -> 1 (DELETE, qual `(auth.uid() = user_id)`) -> 0. Applied to staging with
+    schema_migrations row 220 `220_notifications_delete_policy`. GREEN after: `ALL PASS (rolled back on purpose)` as is and no promo;
+    leftovers 0. notifications has REPLICA IDENTITY FULL ('f') and is in supabase_realtime, so DELETE events carry the whole old row.
+- 2026-10-06 T2 done: page (X per row with aria-label, "Borrar todas" next to "Mark all as read" with a Dialog confirmation, optimistic,
+  toast + reload on error), catalog namespace Notifications (en/es). Unread badge hook now RECOUNTS on a DELETE event instead of
+  decrementing: realtime does not apply RLS to DELETE events, so another user's delete would have lowered this user's badge.
+  - vitest RED (8 page + hook failures) then GREEN; full suite 159 files / 1985 tests pass; tsc clean; parity test green; eslint on touched
+    files: only the pre-existing react-hooks/set-state-in-effect error on `load()` in the page's effect (present on HEAD, untouched).
+
 ## Next step
-T1.
+T3 staging deploy (Spanish UI + this); owner's look.

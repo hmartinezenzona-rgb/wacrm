@@ -108,3 +108,16 @@ multi-line JSX text can be missed).
 T3: staging build with NEXT_PUBLIC_APP_LOCALE=es and the owner's look (needs the owner's go-ahead for any deploy).
 
 - 2026-10-06 production app: release 555535c (BUILD_ID qeG5ojHkJArkrrcbZdzDj), owner go-ahead "pasalo a produccion". Built in prod-build with Node 20 docker + the production build env (NEXT_PUBLIC_APP_LOCALE=es added, backup .bak-20261006, file untracked): manifest production / hqztotshnlzaiziwjyzh, 114 money-path tests passed, bundle 0 staging refs / 32 production refs, sha256 OK. pm2 wacrm cwd = `current` -> release 555535c, `anterior` -> 225cba2; `/login` 200 on wacrm.onlinefreedom.site serving the new BUILD_ID and "Bienvenido de nuevo" (no "Welcome back"); .next/server has "Borrar todas las notificaciones"; pm2 restarts 25 -> 26 and stable. prod-build left clean at 555535c. Rollback: `infra/deployment/rollback-wacrm-produccion.sh`.
+
+## Follow-up tasks (owner, 2026-10-06: "esos 150 textos corrigelos")
+Move the hard-coded user-visible English strings listed under "Follow-up: hard-coded English" into messages/en.json and
+messages/es.json (next-intl, same conventions), so the Spanish panel has no English left. Copy only: no behaviour change.
+The parity test stays green. Server-returned API errors stay out of scope unless they are shown verbatim in the UI.
+- [ ] T5 Daily-use screens: inbox (message-thread, message-composer, message-bubble), contacts, notifications page,
+  settings (whatsapp-config, members-tab, invite-member-dialog, quick-replies-manager, template-manager, ai-knowledge,
+  appearance-panel, profile-form, settings-rail), sidebar, dialog/sheet sr-only "Close", auth pages (signup,
+  forgot-password) and join/[token].
+- [ ] T6 The rest: agents (page, ai-usage, ai-playground), flows (header, flow-editor-shell, node-config-form),
+  interactive-builder, broadcasts (steps, pages), automations (page, automation-builder); a final scan for any visible
+  English left.
+- [ ] T7 Staging deploy + owner's look; production with the owner's go-ahead.

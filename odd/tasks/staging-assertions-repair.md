@@ -107,5 +107,8 @@ Same Scope and Rules as above (tests only; expectations unchanged unless the par
   (remittance_calculator_entries FK), so the usd rate and the three Zelle tier prices are blanked on every version with the
   append-only trigger disabled for that one UPDATE inside the transaction (only way found; Zelle then has no tier price and no
   usd fallback). Expectations unchanged.
-- [ ] T5 rounding-parity: same `tasas` view fix.
+- [x] T5 rounding-parity: same `tasas` view fix.
+  Evidence: RED `cannot insert into view "tasas"`; GREEN ALL PASS (6 expectations) as is and with no promo. One calculator
+  version (crm_set_calculator_rates, now with zelle_sell_gyd 260) feeds panel and ledger; case 5's "rate moves" is a later
+  version at 300 (usd and Zelle tier). Expectations unchanged.
 - [ ] T6 deterministic-usd-destination case 2d: operation built without the retired deal path.

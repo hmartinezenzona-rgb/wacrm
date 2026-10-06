@@ -65,16 +65,14 @@ BEGIN
   VALUES (gen_random_uuid(), v_owner_user, v_contact_id, v_account_id)
   RETURNING id INTO v_conv_id;
 
-  -- The panel reads `tasas`; the ledger reads calculator_rate_versions.
-  -- Both are given 260 for the dollar rail so any difference that shows up
-  -- is the ROUNDING, not the rate.
-  INSERT INTO tasas (fecha, moneda, tasa_cup, fuente, actualizada_at) VALUES
-    (current_date + 1000, 'usd', 260, 'staging_test', now()),
-    (current_date + 1000, 'gyd', 3, 'staging_test', now());
-
+  -- Since 113 `tasas` (the panel's source) is a view over calculator_rate_versions
+  -- (the ledger's source), so one calculator version feeds both. It gives 260 for
+  -- the dollar rail, and also as the Zelle tier price (215-218), so any difference
+  -- that shows up is the ROUNDING, not the rate.
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_owner_user, 'role', 'authenticated')::text, true);
   PERFORM crm_set_calculator_rates(v_account_id, jsonb_build_object(
-    'cup_global_rate', 3, 'usdt_buy_gyd', 240, 'usdt_sell_gyd', 260, 'usdt_sell_cup', 975));
+    'cup_global_rate', 3, 'usdt_buy_gyd', 240, 'usdt_sell_gyd', 260, 'usdt_sell_cup', 975,
+    'zelle_sell_gyd', 260));
   PERFORM set_config('request.jwt.claims', '', true);
 
   -- ---- case 1: the panel rounds a fractional quotient DOWN ----------------
@@ -146,8 +144,8 @@ BEGIN
   -- rate then moves, and the function is asked to recalculate it: a closed
   -- remesa must keep the figure it was actually delivered at, whatever the
   -- rate does afterwards.
-  INSERT INTO tasas (fecha, moneda, tasa_cup, fuente, actualizada_at)
-  VALUES (current_date + 1001, 'usd', 300, 'staging_test', now());
+  INSERT INTO calculator_rate_versions (account_id, cup_global_rate, usdt_sell_gyd, zelle_sell_gyd, set_by, effective_at)
+  VALUES (v_account_id, 3, 300, 300, v_owner_user, now() + interval '1 day');
 
   PERFORM crm_calcular_monto_destino(v_op_frac);
 

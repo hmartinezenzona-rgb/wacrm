@@ -102,5 +102,12 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
   serviceChange.confirm removed (en/es). vitest RED (8 of 14 failed on the old form) then GREEN; typecheck clean; eslint clean;
   full suite 162 files / 2030 tests green. Not yet redeployed to staging.
 
+- 2026-10-06 T2b staging deployed (owner's look pending; T3 NOT checked off): release a4220b9f63e89adccf2185b6dec807a470e7af2b,
+  BUILD_ID TiYac66u-6vn8lJkCe8Ic, same procedure as 33fd0e2. Manifest staging / kolppplawzdsjfydwejr, 114 money-path tests passed,
+  0 production refs / 32 staging refs, sha256 OK, NEXT_PUBLIC_APP_LOCALE=es. `current` -> a4220b9, `anterior` -> 33fd0e2; pm2
+  wacrm-staging cwd resolves to the new release, restarts 67 -> 68 and stable; /login 200 with the new BUILD_ID and "Bienvenido de nuevo";
+  unauthenticated POST /api/remittance-operations/<uuid>/service 401; prod-build worktree clean. No DB change. Production not touched.
+  Rollback: `ssh oracle2 'ln -sfn /home/ubuntu/wacrm-releases/33fd0e2844176466879ab43fcb4add26e422e6c8 ~/wacrm-releases/current && pm2 restart wacrm-staging --update-env'`.
+
 ## Next step
-T3: redeploy to staging with T2b and get the owner's look.
+T3: owner's look at the T2b edit-mode selector on staging (release a4220b9); then check off T3.

@@ -168,3 +168,11 @@ The parity test stays green. Server-returned API errors stay out of scope unless
   interactive-builder, broadcasts (steps, pages), automations (page, automation-builder); a final scan for any visible
   English left.
 - [ ] T7 Staging deploy + owner's look; production with the owner's go-ahead.
+
+- 2026-10-06 T7 staging deployed (owner's look pending; T7 NOT checked off): release 45d6825ddfedb94d50623d1f195a50816f22e540,
+  BUILD_ID fMr_foqZzYI-JEiiUHg6J, same procedure as 555535c (clean prod-build worktree, docker node:20 uid 1000, staging-build.env with
+  NEXT_PUBLIC_APP_LOCALE=es, built off oracle2). Manifest staging / kolppplawzdsjfydwejr, 114 money-path tests passed, 0 production
+  refs / 32 staging refs, sha256 OK. `current` -> 45d6825, `anterior` -> 555535c; pm2 wacrm-staging cwd = ~/wacrm-releases/current,
+  restarts 65 -> 66 and stable; /login 200 on the domain with the new BUILD_ID and "Bienvenido de nuevo"; /forgot-password 200 with
+  "Restablecer contraseña" (es.json) and not "Reset password" (en.json). No DB change. Rollback: relink `current` to `anterior`
+  (555535c) + `pm2 restart wacrm-staging --update-env`. Production not touched.

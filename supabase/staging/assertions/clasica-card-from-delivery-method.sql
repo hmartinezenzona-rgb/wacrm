@@ -121,7 +121,12 @@ BEGIN
   PERFORM cerebro_registrar_deposito(v_conv, 5200, 'GYD', v_stage, 'test221 f', NULL);
   PERFORM cerebro_registrar_beneficiario_auto(v_conv, '9760039001240356', '58528291', 'exec221-f1');
   SELECT o.id INTO v_op FROM remittance_operations o WHERE o.conversation_id = v_conv;
-  UPDATE remittance_operations SET admin_locked_fields = jsonb_build_object('beneficiaries', true) WHERE id = v_op;
+  -- The lock map is immutable for automation (096); a human write is asserted with wacrm.origin = 'admin'.
+  PERFORM set_config('wacrm.origin', 'admin', true);
+  UPDATE remittance_operations SET admin_locked_fields = '{"beneficiaries": {"by": "test"}}'::jsonb WHERE id = v_op;
+  PERFORM set_config('wacrm.origin', '', true);
+  IF NOT (SELECT admin_locked_fields ? 'beneficiaries' FROM remittance_operations WHERE id = v_op) THEN
+    RAISE EXCEPTION 'case f setup: the beneficiaries lock was not stored'; END IF;
   PERFORM cerebro_marcar_destino_usd(v_conv, 'clasica', 'exec221-f2');
   SELECT b.beneficiary_type INTO v_tipo FROM remittance_beneficiaries b WHERE b.operation_id = v_op AND b.status = 'vigente';
   IF v_tipo <> 'cuban_card' THEN RAISE EXCEPTION 'case f: a locked beneficiary must not be re-typed, got %', v_tipo; END IF;

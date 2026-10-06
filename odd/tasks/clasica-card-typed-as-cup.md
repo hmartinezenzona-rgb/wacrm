@@ -39,7 +39,7 @@ deliberate mixed reparto).
 Strict TDD on. Runner: staging assertions via psql-staging.sh (BEGIN ... ROLLBACK), as is and with no promo.
 
 ## Tasks
-- [ ] T1 RED assertion clasica-card-from-delivery-method.sql (card after marcar_destino_usd clasica -> clasica 20 USD
+- [x] T1 RED assertion clasica-card-from-delivery-method.sql (card after marcar_destino_usd clasica -> clasica 20 USD
   for 5,200 GYD; tropical; card before the tool -> re-typed; reparto_auto untouched; efectivo untouched; locked
   respected); migration 221 + rollback on staging; GREEN; regressions (deterministic-usd-destination,
   reparto-usd-card-rail, reparto-destino-node-adapters, reparto-guards, reparto-auto, reparto-keeps-zelle,
@@ -49,5 +49,21 @@ Strict TDD on. Runner: staging assertions via psql-staging.sh (BEGIN ... ROLLBAC
 ## Progress
 - 2026-10-06 document created after root-cause mapping; data fix of 45dde511 done in production.
 
+## T1 evidence (2026-10-06, staging, BEGIN ... ROLLBACK, as is and with every promo discarded)
+- RED before 221: `case a: Clasica card should be clasica/USD/20 with destination USD, got cuban_card / CUP / 15600 / CUP`
+  (the production bug, exactly).
+- Migration 221 + ROLLBACK-221 (no BEGIN/COMMIT). Round trip in one rolled-back transaction:
+  pre md5 trigger 0740887d..., marcar 9f779e60...; after 221 697eb34e... / f239d898...; after rollback back to
+  0740887d... / 9f779e60... Applied for real; schema_migrations row `221 | 221_card_type_from_delivery_method`.
+- GREEN: ALL PASS (cases a, a2, b, c, d, e, f, g) as is and with no promo. Case f stores a real beneficiaries lock
+  (needs `wacrm.origin = 'admin'`, 096 drops lock writes from automation).
+- Regressions pass as is and with no promo: deterministic-usd-destination, reparto-usd-card-rail,
+  reparto-destino-node-adapters (parity with the old marcar, return shape unchanged), reparto-guards,
+  reparto-auto, reparto-keeps-zelle, zelle-tiered-rate, destination-amount, split-deposit-minimums
+  (the ones that end "ALL PASS (rolled back on purpose)" exit 3 by design). Leftovers: 0 test contacts.
+- Design: the trigger falls back to delivery_method only when no recent pending row exists; marcar_destino_usd calls
+  cerebro_registrar_destino(conversation, lower(rail)) for Clasica/Tropical in its three branches (sin cambios,
+  destino marcado, envio nuevo). Side effect (157's "last statement wins"): marcar now also leaves a pending row for 24 h.
+
 ## Next step
-T1.
+T2 (production, with the owner's go-ahead).

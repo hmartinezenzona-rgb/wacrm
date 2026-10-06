@@ -69,3 +69,5 @@ Strict TDD on (user config). Runners: staging assertion via psql-staging.sh (BEG
 
 ## Next step
 T3 staging deploy (Spanish UI + this); owner's look.
+
+- 2026-10-06 production app: release 555535c (BUILD_ID qeG5ojHkJArkrrcbZdzDj), owner go-ahead "pasalo a produccion". Built in prod-build with Node 20 docker + the production build env (NEXT_PUBLIC_APP_LOCALE=es added, backup .bak-20261006, file untracked): manifest production / hqztotshnlzaiziwjyzh, 114 money-path tests passed, bundle 0 staging refs / 32 production refs, sha256 OK. pm2 wacrm cwd = `current` -> release 555535c, `anterior` -> 225cba2; `/login` 200 on wacrm.onlinefreedom.site serving the new BUILD_ID and "Bienvenido de nuevo" (no "Welcome back"); .next/server has "Borrar todas las notificaciones"; pm2 restarts 25 -> 26 and stable. prod-build left clean at 555535c. Rollback: `infra/deployment/rollback-wacrm-produccion.sh`. App part of T4 only; DB 220 evidence and the T4 check are the parent's.

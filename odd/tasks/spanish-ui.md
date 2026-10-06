@@ -38,7 +38,7 @@ Strict TDD on (user config). Runner: vitest (npm test). RED: the parity test fai
 - [x] T2 es.json for the remaining sections (Pipelines, Broadcasts, Automations, Flows); parity test GREEN; list the
   hard-coded English strings outside the catalog.
 - [x] T3 Staging build with NEXT_PUBLIC_APP_LOCALE=es; owner's look (2026-10-06: "si"; production waits for delete-notifications). (Staging deployed 2026-10-06, owner's look pending.)
-- [ ] T4 Production with the owner's go-ahead.
+- [x] T4 Production with the owner's go-ahead.
 
 ## Acceptance criteria
 - With NEXT_PUBLIC_APP_LOCALE=es the panel menus, headers, buttons and messages are in Spanish; the menu shows
@@ -106,3 +106,5 @@ multi-line JSX text can be missed).
 
 ## Next step
 T3: staging build with NEXT_PUBLIC_APP_LOCALE=es and the owner's look (needs the owner's go-ahead for any deploy).
+
+- 2026-10-06 production app: release 555535c (BUILD_ID qeG5ojHkJArkrrcbZdzDj), owner go-ahead "pasalo a produccion". Built in prod-build with Node 20 docker + the production build env (NEXT_PUBLIC_APP_LOCALE=es added, backup .bak-20261006, file untracked): manifest production / hqztotshnlzaiziwjyzh, 114 money-path tests passed, bundle 0 staging refs / 32 production refs, sha256 OK. pm2 wacrm cwd = `current` -> release 555535c, `anterior` -> 225cba2; `/login` 200 on wacrm.onlinefreedom.site serving the new BUILD_ID and "Bienvenido de nuevo" (no "Welcome back"); .next/server has "Borrar todas las notificaciones"; pm2 restarts 25 -> 26 and stable. prod-build left clean at 555535c. Rollback: `infra/deployment/rollback-wacrm-produccion.sh`.

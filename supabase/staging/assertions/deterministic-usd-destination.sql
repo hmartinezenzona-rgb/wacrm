@@ -210,8 +210,15 @@ BEGIN
       RAISE EXCEPTION 'FAIL [case 2c] the fixture conversation should have no operations yet, found %', v_count;
     END IF;
 
-    -- The ordinary n8n beneficiary path, byte for byte what the
+    -- (2026-10-06) Deal-free (161/172/183): a deal no longer creates the operation, so the operation
+    -- comes from cerebro_crear_operacion and the deal is linked to it; the notes sync (still driven by
+    -- deals.notes, 172) is re-fired once the link exists. The notes are byte for byte what the
     -- "Registrar beneficiario auto" node writes into deals.notes.
+    v_op_a_id := cerebro_crear_operacion(v_conv_a);
+    IF v_op_a_id IS NULL THEN
+      RAISE EXCEPTION 'FAIL [case 2d] cerebro_crear_operacion produced no operation for conversation %', v_conv_a;
+    END IF;
+
     INSERT INTO deals (user_id, account_id, contact_id, conversation_id, pipeline_id,
                        stage_id, title, value, currency, notes, status)
     VALUES (v_owner_user, v_account_id, v_contact_a, v_conv_a, v_pipeline_id,
@@ -219,11 +226,8 @@ BEGIN
             E'BENEFICIARIO (auto)\nTarjeta: 9234567890123456\nCelular: 5351234567',
             'open')
     RETURNING id INTO v_deal_id;
-
-    SELECT id INTO v_op_a_id FROM remittance_operations WHERE deal_id = v_deal_id;
-    IF v_op_a_id IS NULL THEN
-      RAISE EXCEPTION 'FAIL [case 2d] deal % produced no operation', v_deal_id;
-    END IF;
+    UPDATE remittance_operations SET deal_id = v_deal_id WHERE id = v_op_a_id;
+    UPDATE deals SET notes = notes WHERE id = v_deal_id;
 
     SELECT count(*) INTO v_count FROM remittance_beneficiaries
      WHERE operation_id = v_op_a_id AND status = 'vigente';

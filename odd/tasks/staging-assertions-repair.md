@@ -111,4 +111,8 @@ Same Scope and Rules as above (tests only; expectations unchanged unless the par
   Evidence: RED `cannot insert into view "tasas"`; GREEN ALL PASS (6 expectations) as is and with no promo. One calculator
   version (crm_set_calculator_rates, now with zelle_sell_gyd 260) feeds panel and ledger; case 5's "rate moves" is a later
   version at 300 (usd and Zelle tier). Expectations unchanged.
-- [ ] T6 deterministic-usd-destination case 2d: operation built without the retired deal path.
+- [x] T6 deterministic-usd-destination case 2d: operation built without the retired deal path.
+  Evidence: RED case 2d `deal ... produced no operation`; GREEN ALL PASS (5 cases) as is and with no promo. The operation
+  comes from cerebro_crear_operacion and the deal (same notes) is linked to it with the notes sync re-fired, the pattern of
+  reparto-keeps-zelle. Using cerebro_registrar_beneficiario_auto instead left delivery_method NULL, so the notes path stays.
+  Expectations unchanged.

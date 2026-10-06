@@ -1,5 +1,8 @@
 # Feature: Zelle share of a mixed reparto priced by its own tier
 
+**Status: PARKED (owner, 2026-10-06).** The rule is decided; build it only when the first large mixed reparto
+appears. Until then a person corrects such an operation by hand.
+
 ## Objective
 In any operation that splits a deposit between Zelle and another rail (Clasica/Tropical in USD, or CUP cards), the
 Zelle share is priced by the tier of the USD sent through Zelle (cerebro_tasa_zelle(zelle USD)). The other rails keep
@@ -54,5 +57,12 @@ promo; bot node via banco-repartos.js with casos-banco-repartos.json / casos-rep
 ## Progress
 - 2026-10-06 document created after mapping (no source change yet). Delivery strategy: ask-on-risk.
 
+- 2026-10-06 production evidence (read-only): since 2026-08-06, 249 operations with Zelle; only 2 mix Zelle with
+  another rail, both at the base tier (10f159be: 39,000 GYD = Zelle 100 + Clasica 30 + 20; 581471b1: 27,500 GYD =
+  Zelle 67 + two CUP cards of 15,000). Only one Zelle operation ever reached 1,000 USD (Zelle only). No real customer
+  would have been priced differently under any of the three rules.
+- 2026-10-06 owner: park it ("si dejalo asi"). No task started.
+
 ## Next step
-T1, after the owner confirms the plan.
+Parked. Resume at T1 when a mixed reparto with a Zelle share of 1,000 USD or more (or a deposit of 250,000 GYD or more
+split between Zelle and another rail) shows up in production.

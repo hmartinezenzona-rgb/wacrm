@@ -96,3 +96,10 @@ Follow-up (2026-10-06): reparto-usd-card-rail
   conversation. Expectations unchanged.
 - RED: the old file, with every conversation given an open operation inside the transaction, reproduces the error.
   GREEN: the new file passes cases 1-5 as is, in that busy state, and with no promo. Nothing left behind on staging.
+
+## Follow-up tasks (owner, 2026-10-06: "si sigue")
+Same Scope and Rules as above (tests only; expectations unchanged unless the parent approves).
+- [ ] T4 destination-amount: rates set through calculator_rate_versions (append-only) instead of the `tasas` view (113);
+  case 5 ("no usd rate -> NULL") reached without DELETE, accounting for Zelle tier pricing (215-218).
+- [ ] T5 rounding-parity: same `tasas` view fix.
+- [ ] T6 deterministic-usd-destination case 2d: operation built without the retired deal path.

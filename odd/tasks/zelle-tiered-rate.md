@@ -206,3 +206,5 @@ the app, offline harness for n8n code.
 - 2026-10-06 parent check: the two notifier executions for 9166f4be (339062 ready_to_transfer->completed, 339063
   completed->ready_to_transfer) both stopped at "Filtrar cambio de etapa" with no output, so no message (customer or
   admin) was sent.
+- 2026-10-06 owner: a tier price cannot be cleared to NULL from the Calculator (page.tsx rejects an empty value; the
+  API and DB accept NULL). Kept as is: typing the price of the tier below gives the same result.

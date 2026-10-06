@@ -28,8 +28,8 @@ function op(over: Partial<BoardOperation> = {}): BoardOperation {
 }
 
 describe("groupBoard", () => {
-  it("orders the columns requested, deposit check, ready to transfer, incident, completed", () => {
-    expect(BOARD_COLUMNS.map((c) => c.id)).toEqual(["requested", "depositCheck", "readyToTransfer", "incident", "completed"]);
+  it("orders the columns requested, deposit check, ready to transfer, completed, incident (last)", () => {
+    expect(BOARD_COLUMNS.map((c) => c.id)).toEqual(["requested", "depositCheck", "readyToTransfer", "completed", "incident"]);
   });
 
   it("puts each status in its column, merging ready_to_transfer and transferring, with counts", () => {
@@ -43,7 +43,7 @@ describe("groupBoard", () => {
     ];
     const cols = groupBoard(ops, "all");
     expect(cols.map((c) => [c.id, c.count])).toEqual([
-      ["requested", 1], ["depositCheck", 1], ["readyToTransfer", 2], ["incident", 1], ["completed", 1],
+      ["requested", 1], ["depositCheck", 1], ["readyToTransfer", 2], ["completed", 1], ["incident", 1],
     ]);
     expect(cols[2].items.map((i) => i.operationId)).toEqual(["c", "d"]);
   });

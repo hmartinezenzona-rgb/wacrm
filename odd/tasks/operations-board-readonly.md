@@ -70,3 +70,6 @@ Strict. SQL assertion (self-reverting DO block, fixtures independent of staging 
     bac9fa3.
 - Follow-up (owner: "se puede mejorar"): visual polish later. state_since under-states the age when the system
   (not a person) changed the status.
+- 2026-10-06 owner: "incidencias sea la ultima". BOARD_COLUMNS order is now requested, depositCheck, readyToTransfer,
+  completed, incident. RED: 3 board tests failed on the new order; GREEN: tablero + layout vitest 7 files / 40 tests,
+  tsc and eslint clean. App only (the RPC order does not matter: groupBoard maps over BOARD_COLUMNS).

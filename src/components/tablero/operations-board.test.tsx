@@ -58,7 +58,7 @@ describe("OperationsBoard", () => {
     ]);
     const headings = Array.from(node.querySelectorAll("section h2")).map((h) => h.textContent);
     expect(headings).toEqual([
-      `${t.columns.requested}1`, `${t.columns.depositCheck}1`, `${t.columns.readyToTransfer}2`, `${t.columns.incident}1`, `${t.columns.completed}1`,
+      `${t.columns.requested}1`, `${t.columns.depositCheck}1`, `${t.columns.readyToTransfer}2`, `${t.columns.completed}1`, `${t.columns.incident}1`,
     ]);
     expect(column(node, t.columns.readyToTransfer).querySelectorAll("a").length).toBe(2);
     expect(column(node, t.columns.completed).querySelectorAll("a").length).toBe(1);

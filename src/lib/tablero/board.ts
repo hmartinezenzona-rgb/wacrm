@@ -25,8 +25,9 @@ export const BOARD_COLUMNS: ReadonlyArray<{ id: BoardColumnId; statuses: Readonl
   { id: "requested", statuses: ["collecting_information"] },
   { id: "depositCheck", statuses: ["deposit_verification"] },
   { id: "readyToTransfer", statuses: ["ready_to_transfer", "transferring"] },
-  { id: "incident", statuses: ["incident"] },
   { id: "completed", statuses: ["completed"] },
+  // Last on purpose (owner, 2026-10-06): the normal flow reads left to right, exceptions at the end.
+  { id: "incident", statuses: ["incident"] },
 ];
 
 export const SERVICE_FILTERS = ["all", "remesa", "recarga", "combo", "visa"] as const;

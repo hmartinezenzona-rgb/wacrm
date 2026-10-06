@@ -80,6 +80,9 @@ BEGIN
   INSERT INTO remittance_admin_audit (account_id, table_name, row_id, field_name, action, actor, before, after, created_at)
   VALUES (v_acc, 'remittance_operations', (v_ops->>'incident')::uuid, 'status', 'human_forced_verification', 'test',
           '{"status":"deposit_verification"}'::jsonb, '{"status":"incident"}'::jsonb, v_since);
+  -- Since 219 state_since reads status_changed_at first; an operation without a stamp (NULL) falls back to the 214
+  -- derivation, which is what this case exercises. The stamp itself is asserted in board-status-age.sql.
+  UPDATE remittance_operations SET status_changed_at = NULL WHERE id = (v_ops->>'incident')::uuid;
 
   -- 1. A member sees the open operations of each status with the right fields.
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_user, 'role', 'authenticated')::text, true);
@@ -96,7 +99,7 @@ BEGIN
   SELECT * INTO v_r FROM crm_tablero_operaciones() t WHERE t.operation_id = v_op;
   IF v_r.service_type <> 'visa' THEN RAISE EXCEPTION 'case 1: the visa is missing'; END IF;
 
-  -- 2. state_since follows the audited status change when there is one.
+  -- 2. With no status_changed_at, state_since follows the audited status change when there is one.
   SELECT * INTO v_r FROM crm_tablero_operaciones() t WHERE t.operation_id = (v_ops->>'incident')::uuid;
   IF abs(extract(epoch FROM (v_r.state_since - v_since))) > 1 THEN
     RAISE EXCEPTION 'case 2: state_since % should be the audit time %', v_r.state_since, v_since; END IF;

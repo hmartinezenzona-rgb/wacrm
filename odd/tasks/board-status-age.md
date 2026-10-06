@@ -34,10 +34,10 @@ Strict TDD on (user config). Runner: staging assertions via psql-staging.sh (BEG
 promo; app via the repo's vitest for src/lib/tablero and src/components/tablero.
 
 ## Tasks
-- [ ] T1 RED: staging assertion board-status-age.sql: a status change by a non-audited writer, then an unrelated edit,
+- [x] T1 RED: staging assertion board-status-age.sql: a status change by a non-audited writer, then an unrelated edit,
   keeps state_since at the status change; insert sets it; a no-op update does not move it; the RPC returns it.
   Observed failing on staging before 219.
-- [ ] T2 Migration 219 + ROLLBACK-219 on staging; T1 GREEN; operations-board.sql and read-rpc assertions still pass;
+- [x] T2 Migration 219 + ROLLBACK-219 on staging; T1 GREEN; operations-board.sql and read-rpc assertions still pass;
   rollback round trip checked; board vitest green.
 - [ ] T3 Owner check of /tablero on staging.
 - [ ] T4 Production DB with the owner's go-ahead.
@@ -48,6 +48,22 @@ promo; app via the repo's vitest for src/lib/tablero and src/components/tablero.
 
 ## Progress
 - 2026-10-06 document created. Delivery strategy: ask-on-risk.
+- 2026-10-06 T1 done (assertion supabase/staging/assertions/board-status-age.sql, 6 cases: insert stamp, bot status change then
+  unrelated edit, same-status update, a later real change, suppressed automation completion, completed = completed_at).
+  - RED on staging before 219 (as is and no promo): `case 1: state_since 2026-10-06 04:16:32.523804+00 is outside the insert window [... 32.934964, ... 32.963252]` (state_since was the transaction's updated_at).
+- 2026-10-06 T2 done on staging (migration 219 recorded in schema_migrations, version 219).
+  - GREEN: board-status-age.sql `ALL PASS (rolled back on purpose)` as is and with promos discarded.
+  - Regressions: read-rpc.sql ALL PASS, operations-realtime.sql ALL PASS, operations-board.sql ALL PASS (as is and no promo) after one
+    intended fixture change: its case 2 (audit-derived state_since) now NULLs status_changed_at on that operation, because the stamp
+    correctly wins over the audit row since 219; the fallback to 214's derivation stays covered.
+  - Round trip in one rolled-back transaction: function md5 pre-219 facb2cc2e6b4c7fc6ee0fb698b45a190, after 219 d09ded1e35123fcf13a506dbb9dc0427,
+    after ROLLBACK-219 facb2cc2e6b4c7fc6ee0fb698b45a190; column gone, trigger gone. Backfill left remittance_operations updated_at/version untouched
+    (fingerprint equal before/after); 0 NULL stamps after backfill; 0 leftovers for test phone 59900219.
+  - vitest src/lib/tablero, src/components/tablero, src/app/(dashboard)/tablero: 4 files, 26 tests passed. App unchanged.
+  - Decisions: trigger named trg_zz_status_changed_at so it fires after the completion guard (which can rewrite NEW.status) and the touch
+    trigger; column left NULLABLE (RPC falls back to 214's derivation on NULL; a NOT NULL would make a stray explicit NULL write fail);
+    completed operations keep completed_at as state_since (coalesce(completed_at, status_changed_at, updated_at)); backfill disables user
+    triggers for its single UPDATE so updated_at/version/notifications do not move.
 
 ## Next step
-T1.
+T3 (owner check of /tablero on staging; staging app not redeployed, the RPC alone changed).

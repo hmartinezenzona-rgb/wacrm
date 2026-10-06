@@ -33,7 +33,7 @@ es.json, so the panel is in English except a few hard-coded Spanish screens.
 Strict TDD on (user config). Runner: vitest (npm test). RED: the parity test fails before es.json exists.
 
 ## Tasks
-- [ ] T1 Parity test (RED) + es.json for the sections in daily use: LoginPage, Sidebar, Header, ModeToggle, Dashboard,
+- [x] T1 Parity test (RED) + es.json for the sections in daily use: LoginPage, Sidebar, Header, ModeToggle, Dashboard,
   Inbox, Contacts, Settings, Resumen, Tablero; rename Resumen -> Finanzas (es and en).
 - [ ] T2 es.json for the remaining sections (Pipelines, Broadcasts, Automations, Flows); parity test GREEN; list the
   hard-coded English strings outside the catalog.
@@ -48,5 +48,10 @@ Strict TDD on (user config). Runner: vitest (npm test). RED: the parity test fai
 ## Progress
 - 2026-10-06 document created. Delivery strategy: ask-on-risk (the translation is data, not authored logic).
 
+- T1 done: RED observed (parity test failed: es.json missing, 1,799 keys missing; 3 of 4 tests failed). es.json holds LoginPage, Sidebar,
+  Header, ModeToggle, Dashboard, Inbox, Contacts, Settings, Resumen, Tablero; the key and ICU tests pass for those
+  sections (only Pipelines, Broadcasts, Automations, Flows keys are still missing). Rename applied in both catalogs
+  (Sidebar.resumen, Header.resumen, Resumen.page.title). src/i18n/request.test.ts proves NEXT_PUBLIC_APP_LOCALE=es loads es.json.
+
 ## Next step
-T1.
+T2.

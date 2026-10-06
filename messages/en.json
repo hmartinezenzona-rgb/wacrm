@@ -39,7 +39,7 @@
     "menuProfile": "Profile",
     "menuSettings": "Settings",
     "menuSignOut": "Sign out",
-    "resumen": "Resumen",
+    "resumen": "Finances",
     "controlSemanal": "Control Semanal",
     "tablero": "Operations board"
   },
@@ -62,7 +62,7 @@
     "menuProfile": "Profile",
     "menuSettings": "Settings",
     "menuSignOut": "Sign out",
-    "resumen": "Resumen"
+    "resumen": "Finances"
   },
   "ModeToggle": {
     "switchMode": "Switch to {mode} mode"
@@ -1988,7 +1988,7 @@
   },
   "Resumen": {
     "page": {
-      "title": "Resumen e historial",
+      "title": "Finances and history",
       "subtitle": "Cuánto se movió en remesas: resumen por periodo e historial de operaciones.",
       "noteDesde": "Datos desde el 3 de agosto de 2026",
       "resumenTitle": "Resumen",

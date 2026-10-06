@@ -81,7 +81,7 @@ the app, offline harness for n8n code.
 - [x] T3c DB 218 (staging only): the conversation's recorded USD quote (no objective yet) keeps its tier price
 - [x] T4 Owner test on staging
 - [x] T5 Production
-- [ ] T6 Yoandrys correction
+- [x] T6 Yoandrys correction
 
 ## Progress
 - 2026-10-05 document created.
@@ -194,3 +194,12 @@ the app, offline harness for n8n code.
     "Tasa a cambiar", 0 staging refs, anterior -> 8953277. prod-build is left at 0b43dac, clean.
   - NOT VERIFIED: no real agent turn in production; the production Calculator page was not opened in a browser.
   - Next: T6 (Yoandrys' 9166f4be) is a separate, not yet authorized task.
+- 2026-10-05 T6 DONE in production (owner authorization "si dale", then the coordinator's go-ahead for the revert), only operation 9166f4be-8688-48ba-ad90-407792156e0d (Yoandrys).
+  - Before: operation completed (closed_manually, muted 'completed', destination 1000); beneficiary f86343e8 vigente 961 USD; calculator entry 75381479 ZELLE 961 USD, facturado 249,860, invertido 230,640, retorno 19,220 (sell 260, buy 240).
+  - Why not the plain RPCs: crm_corregir_beneficiario refuses a completed operation; crm_corregir_entrada_calculadora only changes facturado/invertido (guard 149 locks amount); the panel has no revert-from-completed RPC.
+  - Method: one guarded DO block run as the owner (jwt claims sub ca797265..., role authenticated), asserting the before values first: (1) human status revert completed -> ready_to_transfer as a raw UPDATE (migration 096 completion_guard lets a human through; trigger 104 voids the entry keeping its figures), with customer_notice_muted_for='ready_to_transfer' in the same statement (191 mechanism) and one human_correction audit row for the revert (no panel path writes one); (2) crm_corregir_beneficiario(f86343e8, {"amount":1000}); (3) crm_cerrar_operacion_manual(op, reason, p_notify=false, NULL) (re-complete, closed_manually, muted 'completed'; the revert revived the same entry row from the current operation data).
+  - Notification analysis: trigger notify_operation_status_change posts every status change to the Cerebro notifier through pg_net. The notifier skips the customer notice when customer_notice_muted_for equals the new status. The block asserted every queued post carried that mute for its own status.
+  - DRY RUN (rolled back) result: operation completed/closed_manually/muted completed/dest 1000; new beneficiary 4b41578f amount 1000; entry 75381479 ZELLE 1000, facturado 250,000, invertido 240,000, retorno 10,000, sell 250, buy 240; two pg_net posts (completed->ready_to_transfer muted_for ready_to_transfer; ready_to_transfer->completed muted_for completed); audit rows human_correction (status), human_correction (amount 961->1000), human_manual_close, all by the owner; messages 566/566, message_outbox 62/62, notifications 42/42.
+  - REAL RUN: same block without the final exception, no assertion failed. Re-read after: operation completed (version 10, completed_at unchanged 13:22:57), closed_manually, muted 'completed', destination 1000; beneficiary a08f7916 vigente 1000 USD (source admin_correction); one non-void entry 75381479 ZELLE 1000 / 250,000 / 240,000 / 10,000 (sell 250, buy 240); audit human_correction (revert) and human_manual_close by the owner.
+  - No-message check after the real run: messages 566 (last 2026-10-04 17:40), message_outbox 62 (last 2026-10-04 16:37), notifications 42 (last 2026-09-21) for the conversation, all unchanged; net.http_request_queue empty (the two posts were drained).
+  - NOT VERIFIED: the notifier's own run for the two posts (n8n executions not inspected); an admin-side WhatsApp alert, if the notifier sends one on completion, is not covered by the customer-message check. The entry's rate_version_id moved to the current version (revival rewrite).

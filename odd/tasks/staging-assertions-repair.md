@@ -88,3 +88,11 @@ Parent review (2026-10-05):
     Fixed to operation_id, with the expectations unchanged.
   - All three now pass as is and with no promo, run with their helper files prepended (split-deposit-minimums, plus
     requested-amount-target for target-origin-label).
+
+Follow-up (2026-10-06): reparto-usd-card-rail
+- Its 2026-10-05 failure (`null value in column "conversation_id" of relation "cerebro_destino_pendiente"`) was class b:
+  the fixture picked `FROM conversations` with no open operation, and staging's only chat had one, so v_conv was NULL.
+- Fixed per the Rules: user and account from whatsapp_config + profiles, its own contact (59901690001) and
+  conversation. Expectations unchanged.
+- RED: the old file, with every conversation given an open operation inside the transaction, reproduces the error.
+  GREEN: the new file passes cases 1-5 as is, in that busy state, and with no promo. Nothing left behind on staging.

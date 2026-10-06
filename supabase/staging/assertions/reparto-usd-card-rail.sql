@@ -8,7 +8,7 @@
 -- =====================================================================
 DO $$
 DECLARE
-  v_acc uuid; v_ct uuid; v_conv uuid; v_op uuid;
+  v_user uuid; v_acc uuid; v_ct uuid; v_conv uuid; v_op uuid;
   v_usd numeric := crm_tasa_vigente('usd');
   v_cup numeric := crm_tasa_vigente('gyd');
   v_r jsonb; v_n int; v_tipo text;
@@ -23,11 +23,14 @@ BEGIN
     jsonb_build_object('tipo', 'cuban_card', 'cuenta', '9227959879614050', 'celular', '54363811', 'monto', round(15000 * v_cup), 'moneda', 'CUP'),
     jsonb_build_object('tipo', 'cuban_card', 'cuenta', '9760039001240356', 'celular', '58528291', 'monto', round(50000 * v_cup), 'moneda', 'CUP'));
 
-  SELECT c.account_id, c.contact_id, c.id INTO v_acc, v_ct, v_conv
-    FROM conversations c
-   WHERE NOT EXISTS (SELECT 1 FROM remittance_operations o
-                      WHERE o.conversation_id = c.id AND o.status NOT IN ('completed', 'cancelled'))
-   LIMIT 1;
+  -- Own contact and conversation, user and account from whatsapp_config + profiles: staging may have no
+  -- conversation free of an open operation (or none at all after a test-contact reset).
+  SELECT p.user_id, p.account_id INTO v_user, v_acc
+    FROM whatsapp_config w JOIN profiles p ON p.account_id = w.account_id
+   ORDER BY (p.account_role = 'owner') DESC LIMIT 1;
+  INSERT INTO contacts (user_id, account_id, phone, name) VALUES (v_user, v_acc, '59901690001', 'test169 usd rail')
+  RETURNING id INTO v_ct;
+  INSERT INTO conversations (user_id, account_id, contact_id) VALUES (v_user, v_acc, v_ct) RETURNING id INTO v_conv;
 
   -- 1. The customer named "clasica" (157's pending destination) and the reparto carries one CUP card
   --    and one Clasica card: applied, each row with its own type and currency.

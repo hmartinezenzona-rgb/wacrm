@@ -19,11 +19,20 @@ vi.mock("next-intl", () => ({
 }));
 
 const corregirOperacion = vi.fn();
+const cambiarServicio = vi.fn();
 vi.mock("@/lib/remittance-operations/commands", () => ({
   corregirOperacion: (...args: unknown[]) => corregirOperacion(...args),
+  cambiarServicio: (...args: unknown[]) => cambiarServicio(...args),
 }));
 
+const toast = { success: vi.fn(), error: vi.fn() };
+vi.mock("sonner", () => ({ toast: { success: (...a: unknown[]) => toast.success(...a), error: (...a: unknown[]) => toast.error(...a) } }));
+
 afterEach(() => {
+  corregirOperacion.mockReset();
+  cambiarServicio.mockReset();
+  toast.success.mockReset();
+  toast.error.mockReset();
   document.body.replaceChildren();
   vi.restoreAllMocks();
 });
@@ -134,5 +143,131 @@ describe("OperationCorrectionForm", () => {
     expect(node.textContent).toContain("Amount exceeds limit");
     expect(onDone).not.toHaveBeenCalled();
     await act(async () => root.unmount());
+  });
+
+  describe("service field", () => {
+    const serviceSelect = (node: HTMLElement) => node.querySelector<HTMLSelectElement>("#operation-service")!;
+    const warning = en.Inbox.operationsPanel.serviceChange.warning;
+    const pick = (select: HTMLSelectElement, value: string) =>
+      act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value")!.set!;
+        setter.call(select, value);
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+    const button = (node: HTMLElement, label: string) =>
+      node.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
+
+    it("shows the Servicio select with the current service, in the same field layout as the others", async () => {
+      const { node, root } = await render(operation({ deliveryMethod: "clasica" }));
+
+      expect(serviceSelect(node).value).toBe("clasica");
+      expect(node.querySelector('label[for="operation-service"]')!.textContent).toBe(en.Inbox.operationsPanel.serviceChange.label);
+      expect(node.textContent).not.toContain(warning);
+      await act(async () => root.unmount());
+    });
+
+    it("confirms with a check and cancels with an X (icon buttons)", async () => {
+      const { node, root, onCancel } = await render(operation());
+      const t = en.Inbox.operationsPanel;
+
+      expect(button(node, t.save).querySelector("svg")).not.toBeNull();
+      await act(async () => button(node, t.cancel).click());
+      expect(onCancel).toHaveBeenCalledTimes(1);
+      expect(cambiarServicio).not.toHaveBeenCalled();
+      await act(async () => root.unmount());
+    });
+
+    it("shows the warning only when a different service is chosen", async () => {
+      const { node, root } = await render(operation({ deliveryMethod: "clasica" }));
+
+      await pick(serviceSelect(node), "zelle");
+      expect(node.textContent).toContain(warning);
+      await pick(serviceSelect(node), "clasica");
+      expect(node.textContent).not.toContain(warning);
+      await act(async () => root.unmount());
+    });
+
+    it("the check changes the service first, then sends the other corrections, then finishes", async () => {
+      const order: string[] = [];
+      cambiarServicio.mockImplementation(async () => (order.push("service"), { ok: true }));
+      corregirOperacion.mockImplementation(async () => (order.push("corrections"), { ok: true, id: "op-1" }));
+      const { node, root, onDone } = await render(operation({ deliveryMethod: "clasica" }));
+
+      await pick(serviceSelect(node), "zelle");
+      await act(async () => setValue(node.querySelector<HTMLInputElement>("#operation-quoted-source-amount")!, "12000"));
+      await submit(node);
+
+      expect(cambiarServicio).toHaveBeenCalledWith("op-1", "zelle");
+      expect(corregirOperacion).toHaveBeenCalledWith("op-1", { quoted_source_amount: 12000 });
+      expect(order).toEqual(["service", "corrections"]);
+      expect(toast.success).toHaveBeenCalledTimes(1);
+      expect(onDone).toHaveBeenCalledTimes(1);
+      await act(async () => root.unmount());
+    });
+
+    it("a service-only change does not call corregirOperacion", async () => {
+      cambiarServicio.mockResolvedValue({ ok: true });
+      const { node, root, onDone } = await render(operation({ deliveryMethod: "clasica" }));
+
+      await pick(serviceSelect(node), "recarga");
+      await submit(node);
+
+      expect(cambiarServicio).toHaveBeenCalledWith("op-1", "recarga");
+      expect(corregirOperacion).not.toHaveBeenCalled();
+      expect(onDone).toHaveBeenCalledTimes(1);
+      await act(async () => root.unmount());
+    });
+
+    it("an unchanged service is never sent", async () => {
+      corregirOperacion.mockResolvedValue({ ok: true, id: "op-1" });
+      const { node, root } = await render(operation({ deliveryMethod: "clasica" }));
+
+      await act(async () => setValue(node.querySelector<HTMLInputElement>("#operation-quoted-source-amount")!, "12000"));
+      await submit(node);
+
+      expect(cambiarServicio).not.toHaveBeenCalled();
+      await act(async () => root.unmount());
+    });
+
+    it("a service error shows a toast, restores the select and sends nothing else", async () => {
+      cambiarServicio.mockResolvedValue({ ok: false, status: 422, error: "Not allowed" });
+      const { node, root, onDone } = await render(operation({ deliveryMethod: "clasica" }));
+
+      await pick(serviceSelect(node), "zelle");
+      await act(async () => setValue(node.querySelector<HTMLInputElement>("#operation-quoted-source-amount")!, "12000"));
+      await submit(node);
+
+      expect(toast.error).toHaveBeenCalledTimes(1);
+      expect(serviceSelect(node).value).toBe("clasica");
+      expect(corregirOperacion).not.toHaveBeenCalled();
+      expect(onDone).not.toHaveBeenCalled();
+      await act(async () => root.unmount());
+    });
+
+    it("an invalid other field blocks everything before the service is changed", async () => {
+      const { node, root } = await render(operation({ deliveryMethod: "clasica" }));
+
+      await pick(serviceSelect(node), "zelle");
+      await act(async () => setValue(node.querySelector<HTMLInputElement>("#operation-quoted-source-amount")!, "-1"));
+      await submit(node);
+
+      expect(cambiarServicio).not.toHaveBeenCalled();
+      expect(node.textContent).toContain(en.Inbox.operationsPanel.invalidAmount);
+      await act(async () => root.unmount());
+    });
+
+    it("when the service changed but the other corrections fail, it reports it and refreshes", async () => {
+      cambiarServicio.mockResolvedValue({ ok: true });
+      corregirOperacion.mockResolvedValue({ ok: false, status: 422, error: "Amount exceeds limit" });
+      const { node, root, onDone } = await render(operation({ deliveryMethod: "clasica" }));
+
+      await pick(serviceSelect(node), "zelle");
+      await act(async () => setValue(node.querySelector<HTMLInputElement>("#operation-quoted-source-amount")!, "12000"));
+      await submit(node);
+
+      expect(toast.error).toHaveBeenCalledTimes(1);
+      expect(onDone).toHaveBeenCalledTimes(1);
+      await act(async () => root.unmount());
+    });
   });
 });

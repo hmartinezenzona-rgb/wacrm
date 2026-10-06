@@ -52,7 +52,7 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
 - [x] T2 App: selector + route + i18n + tests (RED then GREEN); typecheck, lint, full suite.
 - [ ] T3 Staging deploy + owner's look.
   - 2026-10-06 owner look on staging (release 33fd0e2): works, but the separate selector above "Deliver to" looks bad.
-- [ ] T2b App rework (owner, 2026-10-06): move the service choice INTO the operation card's existing edit mode (the
+- [x] T2b App rework (owner, 2026-10-06): move the service choice INTO the operation card's existing edit mode (the
   pencil): it appears there next to the other editable fields, coexisting with them; confirm with the check (✓) and
   cancel with the X, the same controls the other inline edits use. Remove the standalone selector. Keep the warning
   that the quote is recalculated and the customer is not messaged, in the edit-mode style.
@@ -93,5 +93,14 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
   /api/remittance-operations/<uuid>/service 401; "No se le escribe al cliente" (es.json serviceChange.warning) present in .next/server.
   No DB change. Rollback: `ssh oracle2 'ln -sfn /home/ubuntu/wacrm-releases/45d6825ddfedb94d50623d1f195a50816f22e540 ~/wacrm-releases/current && pm2 restart wacrm-staging --update-env'`. Production not touched.
 
+- 2026-10-06 T2b done (commit below, see git log): the "Servicio" select now lives in OperationCorrectionForm, the form the card's
+  pencil (editOperation) opens, as its FIRST field (same Label + field row as the others, helper text text-xs muted shown only when a
+  different service is picked). The form's single shared footer is now icon buttons like operation-closing-control: X (outline) cancel,
+  green check confirm. On check: validate the other fields first, then cambiarServicio (if changed), then corregirOperacion (if other
+  fields changed); service error = toast + select restored + nothing else sent; service ok but corrections fail = toast + refetch.
+  Standalone OperationServiceControl removed; currentServiceOf moved to src/lib/remittance-operations/services.ts; unused
+  serviceChange.confirm removed (en/es). vitest RED (8 of 14 failed on the old form) then GREEN; typecheck clean; eslint clean;
+  full suite 162 files / 2030 tests green. Not yet redeployed to staging.
+
 ## Next step
-T3: staging deploy of the app and the owner's look.
+T3: redeploy to staging with T2b and get the owner's look.

@@ -79,3 +79,9 @@ Strict. SQL assertion (self-reverting DO block, fixtures independent of staging 
   `~/wacrm-releases/225cba2...`, `anterior` -> 0b9b249; `/login` 200 locally and on the domain, which serves the new BUILD_ID;
   pm2 restarts 62 -> 63 (the deploy restart) and stable after. Rollback: relink `current` to `anterior` +
   `pm2 restart wacrm-staging --update-env`. Production untouched.
+- 2026-10-06 production app: release 225cba2 (BUILD_ID 60hJ4hYYMGc1RfwsGqQSC, /tablero shows the incident column last), owner go-ahead "pasalo"
+  after the staging check. Built in prod-build with Node 20 docker + the production build env: manifest production /
+  hqztotshnlzaiziwjyzh, 114 money-path tests passed, bundle 0 staging refs / 32 production refs, sha256 OK. No DB change.
+  pm2 wacrm cwd = `~/wacrm-releases/225cba2...`, `anterior` -> 0b43dac; `/login` 200 locally and on wacrm.onlinefreedom.site, which
+  serves the new BUILD_ID; pm2 restarts stable at 25 after the deploy. prod-build left clean at 225cba2. Rollback:
+  `infra/deployment/rollback-wacrm-produccion.sh`.

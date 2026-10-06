@@ -37,7 +37,7 @@ Strict TDD on (user config). Runner: vitest (npm test). RED: the parity test fai
   Inbox, Contacts, Settings, Resumen, Tablero; rename Resumen -> Finanzas (es and en).
 - [x] T2 es.json for the remaining sections (Pipelines, Broadcasts, Automations, Flows); parity test GREEN; list the
   hard-coded English strings outside the catalog.
-- [ ] T3 Staging build with NEXT_PUBLIC_APP_LOCALE=es; owner's look. (Staging deployed 2026-10-06, owner's look pending.)
+- [x] T3 Staging build with NEXT_PUBLIC_APP_LOCALE=es; owner's look (2026-10-06: "si"; production waits for delete-notifications). (Staging deployed 2026-10-06, owner's look pending.)
 - [ ] T4 Production with the owner's go-ahead.
 
 ## Acceptance criteria

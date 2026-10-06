@@ -73,3 +73,9 @@ Strict. SQL assertion (self-reverting DO block, fixtures independent of staging 
 - 2026-10-06 owner: "incidencias sea la ultima". BOARD_COLUMNS order is now requested, depositCheck, readyToTransfer,
   completed, incident. RED: 3 board tests failed on the new order; GREEN: tablero + layout vitest 7 files / 40 tests,
   tsc and eslint clean. App only (the RPC order does not matter: groupBoard maps over BOARD_COLUMNS).
+- 2026-10-06 staging app: release 225cba2 (BUILD_ID VeJew4fyNULCTFSu2fx9z, /tablero shows the incident column last), served by
+  crm.onlinefreedom.site. Built in prod-build with Node 20 docker + the staging build env: manifest staging / kolppplawzdsjfydwejr,
+  114 money-path tests passed, 0 production refs / 32 staging refs, sha256 OK, 2417 files uploaded = unpacked. Served cwd =
+  `~/wacrm-releases/225cba2...`, `anterior` -> 0b9b249; `/login` 200 locally and on the domain, which serves the new BUILD_ID;
+  pm2 restarts 62 -> 63 (the deploy restart) and stable after. Rollback: relink `current` to `anterior` +
+  `pm2 restart wacrm-staging --update-env`. Production untouched.

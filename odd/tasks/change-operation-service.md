@@ -45,16 +45,40 @@ message; the change is recorded in the history.
 Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBACK, as is and with no promo); vitest.
 
 ## Tasks
-- [ ] T1 DB: RED assertion change-operation-service.sql (each target from a CUP remesa; card rail switch keeps the card
+- [x] T1 DB: RED assertion change-operation-service.sql (each target from a CUP remesa; card rail switch keeps the card
   and recomputes USD; to zelle retires the card; to recarga clears destination and recipients; closed operation
   refused; non-member refused; no messages/outbox/notifier posts; audit row); migration 222 + rollback on staging;
   GREEN; regressions.
-- [ ] T2 App: selector + route + i18n + tests (RED then GREEN); typecheck, lint, full suite.
+- [x] T2 App: selector + route + i18n + tests (RED then GREEN); typecheck, lint, full suite.
 - [ ] T3 Staging deploy + owner's look.
 - [ ] T4 Production with the owner's go-ahead.
 
 ## Progress
 - 2026-10-06 document created.
+- 2026-10-06 T1 done (commit 77e2fc7): assertion supabase/staging/assertions/change-operation-service.sql written first; RED before 222:
+  `function crm_cambiar_servicio(uuid, text) does not exist` at case a1 (setup a, the CUP fixture, passed). Migration 222 +
+  ROLLBACK-222 applied on staging (round trip in a rolled-back transaction, rollback drops the RPC; real apply + schema_migrations
+  row 222; anon/public cannot execute, authenticated can). GREEN as is and with promos discarded ("ALL PASS (change-operation-service)",
+  cases a1-a10, b-i). Regressions green as is and with no promo: clasica-card-from-delivery-method, deterministic-usd-destination,
+  destination-amount (11), zelle-tiered-rate, recarga-model, combo-model, visa-model, corrections (10), reparto-guards.
+  Leftovers 0 (contacts 5990222%).
+- 2026-10-06 T2 done (commit below, see git log): POST /api/remittance-operations/[operationId]/service (agent, beta flag, 400/403/404
+  mapping), commands.cambiarServicio, OperationServiceControl ("Servicio" select, confirmation step, success/error toast, refetch)
+  placed in the expanded operation card above "Deliver to", only when the card is editable (open, not history, canEdit). vitest RED
+  (23 failed) then GREEN; typecheck clean; eslint clean on touched paths; full suite 163 files / 2035 tests green.
+
+### Decisions beyond the defaults
+- Card rails re-type the card IN PLACE (same recipient id, so proofs survive) instead of retire + insert; recipients that do not fit are
+  retired (status reemplazado). A lone recipient has amount/currency cleared and is repriced by the existing calculation.
+- Several card shares with their own amounts: kept on a USD rail change (clasica <-> tropical), REFUSED (22023) across CUP <-> USD.
+- The quote is recalculated, so the manual locks on quoted_destination_amount and destination_currency are released; delivery_method and
+  service_type are locked (also for recarga/combo/visa, where delivery_method stays NULL) so the bot's writers cannot flip it back
+  (verified: cerebro_marcar_destino_usd is suppressed and audited).
+- An existing 'beneficiaries' lock is kept and the lone recipient still gets the recalculated amount; no new beneficiaries lock is added
+  (it would freeze the recipient's amount against later deposit changes).
+- Leaving a combo clears combo_costo_gyd. The deposit amount (quoted_source_amount) is never changed.
+- Choosing the service the operation already has is a no-op (no audit row). Operations of type traduccion/mexico are refused.
+- Selector options reuse the catalog labels closing.method.* ("Tarjeta CUP", ...); new copy under serviceChange.* (en/es).
 
 ## Next step
-T1.
+T3: staging deploy of the app and the owner's look.

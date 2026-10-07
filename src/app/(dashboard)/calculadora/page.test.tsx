@@ -16,6 +16,7 @@
 
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
+import { NextIntlClientProvider } from "next-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import CalculadoraPage from "./page";
@@ -198,7 +199,11 @@ async function renderPage(fetchMock: ReturnType<typeof createFetchMock>) {
   const node = document.createElement("div");
   document.body.appendChild(node);
   const root = createRoot(node);
-  await act(async () => root.render(<CalculadoraPage />));
+  await act(async () => root.render(
+    <NextIntlClientProvider locale="es" messages={{ Common: { close: "Cerrar" } }}>
+      <CalculadoraPage />
+    </NextIntlClientProvider>,
+  ));
   await flush();
   return { node, root };
 }
@@ -1056,6 +1061,71 @@ describe("calculator chat operations (admin correction)", () => {
     expect(node.textContent).not.toContain("99999");
     await act(async () => root.unmount());
   });
+
+  it("the edit row uses check and X icon buttons with aria-label and title, not text buttons", async () => {
+    const { node, root } = await renderPage(fixture());
+    await act(async () => { (node.querySelector("#editarEntry-entry-a") as HTMLButtonElement).click(); });
+
+    const save = node.querySelector("#guardarEntry-entry-a") as HTMLButtonElement;
+    const cancel = node.querySelector("#cancelarEntry-entry-a") as HTMLButtonElement;
+    expect(save.getAttribute("aria-label")).toBe("Guardar");
+    expect(save.getAttribute("title")).toBe("Guardar");
+    expect(cancel.getAttribute("aria-label")).toBe("Cancelar");
+    expect(cancel.getAttribute("title")).toBe("Cancelar");
+    for (const button of [save, cancel]) {
+      expect(button.classList.contains("legacyIconButton")).toBe(true);
+      expect(button.querySelector("svg")).not.toBeNull();
+      expect(button.textContent).toBe("");
+    }
+    await act(async () => root.unmount());
+  });
+
+  it("Enter in an edit input saves and Escape cancels", async () => {
+    const fetchMock = fixture();
+    const { node, root } = await renderPage(fetchMock);
+    await act(async () => { (node.querySelector("#editarEntry-entry-a") as HTMLButtonElement).click(); });
+    const key = (id: string, k: string) => act(async () => {
+      node.querySelector(`#${id}`)!.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true }));
+    });
+
+    act(() => setInputValue(node, "editFacturado-entry-a", "99999"));
+    fetchMock.mockClear();
+    await key("editFacturado-entry-a", "Escape");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(node.querySelector("#guardarEntry-entry-a")).toBeNull();
+
+    await act(async () => { (node.querySelector("#editarEntry-entry-a") as HTMLButtonElement).click(); });
+    act(() => setInputValue(node, "editInvertido-entry-a", "24500"));
+    await key("editInvertido-entry-a", "Enter");
+    await flush();
+    expect(calls(fetchMock, "POST", "/api/calculator/entries/entry-a/correct")).toHaveLength(1);
+    await act(async () => root.unmount());
+  });
+
+  it("while saving, both edit buttons are disabled and the check shows a pending cue", async () => {
+    let release: (() => void) | undefined;
+    const fetchMock = fixture();
+    const base = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((input, init) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("/entry-a/correct")) {
+        return new Promise<Response>((resolve) => { release = () => resolve(jsonResponse({ error: "x" }, 500)); });
+      }
+      return base(input, init);
+    });
+    const { node, root } = await renderPage(fetchMock);
+    await act(async () => { (node.querySelector("#editarEntry-entry-a") as HTMLButtonElement).click(); });
+    await act(async () => { (node.querySelector("#guardarEntry-entry-a") as HTMLButtonElement).click(); });
+
+    const save = node.querySelector("#guardarEntry-entry-a") as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    expect(save.getAttribute("aria-busy")).toBe("true");
+    expect(save.querySelector("svg.animate-spin")).not.toBeNull();
+    expect((node.querySelector("#cancelarEntry-entry-a") as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => { release!(); });
+    await flush();
+    await act(async () => root.unmount());
+  });
 });
 
 
@@ -1099,28 +1169,121 @@ describe("calculator chat operations (admin delete)", () => {
     await act(async () => root.unmount());
   });
 
-  it("asks for confirmation naming the operation, and cancelling sends nothing", async () => {
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  function byId(node: HTMLElement, id: string) {
+    return node.querySelector(`#${id}`) as HTMLButtonElement | null;
+  }
+  async function askDelete(node: HTMLElement, id: string) {
+    await act(async () => { byId(node, `eliminarEntry-${id}`)!.click(); });
+  }
+  async function confirmDelete(node: HTMLElement, id: string) {
+    await askDelete(node, id);
+    await act(async () => { byId(node, `confirmarEliminar-${id}`)!.click(); });
+  }
+
+  it("the trash asks inline in that row (X and check), never through window.confirm, and sends nothing yet", async () => {
+    const confirm = vi.spyOn(window, "confirm");
     const fetchMock = fixture();
     const { node, root } = await renderPage(fetchMock);
 
-    await act(async () => { (node.querySelector("#eliminarEntry-entry-a") as HTMLButtonElement).click(); });
+    await askDelete(node, "entry-a");
 
-    expect(confirm).toHaveBeenCalledTimes(1);
-    expect(String(confirm.mock.calls[0]![0])).toContain("Raúl");
-    expect(String(confirm.mock.calls[0]![0])).toContain("Finanzas");
+    const row = byId(node, "confirmarEliminar-entry-a")!.closest("tr")!;
+    expect(row.textContent).toContain("¿Eliminar?");
+    const ok = byId(node, "confirmarEliminar-entry-a")!;
+    const cancel = byId(node, "cancelarEliminar-entry-a")!;
+    expect(ok.getAttribute("aria-label")).toBe("Eliminar");
+    expect(ok.getAttribute("title")).toBe("Eliminar");
+    expect(ok.classList.contains("legacyIconButton")).toBe(true);
+    expect(ok.querySelector("svg")).not.toBeNull();
+    expect(cancel.getAttribute("aria-label")).toBe("Cancelar");
+    expect(cancel.getAttribute("title")).toBe("Cancelar");
+    expect(cancel.classList.contains("legacyIconButton")).toBe(true);
+    // pencil and trash are hidden in that row meanwhile
+    expect(byId(node, "eliminarEntry-entry-a")).toBeNull();
+    expect(byId(node, "editarEntry-entry-a")).toBeNull();
+    // the other row is untouched
+    expect(byId(node, "eliminarEntry-entry-b")).not.toBeNull();
+    expect(confirm).not.toHaveBeenCalled();
     expect(calls(fetchMock, "POST", "/api/calculator/entries")).toHaveLength(0);
     expect(node.textContent).toContain("26000.00");
     await act(async () => root.unmount());
   });
 
+  it("X cancels: the row goes back to pencil and trash and nothing is sent", async () => {
+    const fetchMock = fixture();
+    const { node, root } = await renderPage(fetchMock);
+
+    await askDelete(node, "entry-a");
+    await act(async () => { byId(node, "cancelarEliminar-entry-a")!.click(); });
+
+    expect(byId(node, "confirmarEliminar-entry-a")).toBeNull();
+    expect(byId(node, "eliminarEntry-entry-a")).not.toBeNull();
+    expect(byId(node, "editarEntry-entry-a")).not.toBeNull();
+    expect(node.textContent).not.toContain("¿Eliminar?");
+    expect(calls(fetchMock, "POST", "/api/calculator/entries")).toHaveLength(0);
+    await act(async () => root.unmount());
+  });
+
+  it("Escape cancels the confirmation without a request", async () => {
+    const fetchMock = fixture();
+    const { node, root } = await renderPage(fetchMock);
+
+    await askDelete(node, "entry-a");
+    await act(async () => { document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+
+    expect(byId(node, "confirmarEliminar-entry-a")).toBeNull();
+    expect(byId(node, "eliminarEntry-entry-a")).not.toBeNull();
+    expect(calls(fetchMock, "POST", "/api/calculator/entries")).toHaveLength(0);
+    await act(async () => root.unmount());
+  });
+
+  it("only one row confirms at a time: asking on another row moves the confirmation", async () => {
+    const { node, root } = await renderPage(fixture());
+
+    await askDelete(node, "entry-a");
+    await askDelete(node, "entry-b");
+
+    expect(byId(node, "confirmarEliminar-entry-a")).toBeNull();
+    expect(byId(node, "eliminarEntry-entry-a")).not.toBeNull();
+    expect(byId(node, "confirmarEliminar-entry-b")).not.toBeNull();
+    expect(node.textContent!.match(/¿Eliminar\?/g)).toHaveLength(1);
+    await act(async () => root.unmount());
+  });
+
+  it("while the delete runs both buttons are disabled and the check shows a pending cue", async () => {
+    let release: (() => void) | undefined;
+    const fetchMock = fixture();
+    const base = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((input, init) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("/entry-a/delete")) {
+        return new Promise<Response>((resolve) => { release = () => resolve(jsonResponse({ ok: true })); });
+      }
+      return base(input, init);
+    });
+    const { node, root } = await renderPage(fetchMock);
+
+    await confirmDelete(node, "entry-a");
+
+    expect(byId(node, "confirmarEliminar-entry-a")!.disabled).toBe(true);
+    expect(byId(node, "cancelarEliminar-entry-a")!.disabled).toBe(true);
+    expect(byId(node, "confirmarEliminar-entry-a")!.getAttribute("aria-busy")).toBe("true");
+    expect(byId(node, "confirmarEliminar-entry-a")!.querySelector("svg.animate-spin")).not.toBeNull();
+
+    await act(async () => { release!(); });
+    await flush();
+    expect(byId(node, "confirmarEliminar-entry-a")).toBeNull();
+    expect(byId(node, "eliminarEntry-entry-a")).toBeNull();
+    await act(async () => root.unmount());
+  });
+
   it("confirming deletes the entry: the line disappears and the totals drop it", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const confirm = vi.spyOn(window, "confirm");
     const fetchMock = fixture();
     const { node, root } = await renderPage(fetchMock);
     expect(node.querySelector(".legacyTotalBox")?.textContent).toContain("26000.00");
 
-    await act(async () => { (node.querySelector("#eliminarEntry-entry-a") as HTMLButtonElement).click(); });
+    await confirmDelete(node, "entry-a");
     await flush();
 
     expect(calls(fetchMock, "POST", "/api/calculator/entries/entry-a/delete")).toHaveLength(1);
@@ -1128,44 +1291,48 @@ describe("calculator chat operations (admin delete)", () => {
     expect(node.querySelector("#eliminarEntry-entry-b")).not.toBeNull();
     expect(node.querySelector(".legacyTotalBox")?.textContent).toContain("0.00");
     expect(node.querySelector(".legacyTotalBox")?.textContent).not.toContain("26000.00");
+    expect(confirm).not.toHaveBeenCalled();
     await act(async () => root.unmount());
   });
 
   it("a pending entry can be deleted too", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const confirm = vi.spyOn(window, "confirm");
     const fetchMock = fixture();
     const { node, root } = await renderPage(fetchMock);
 
-    await act(async () => { (node.querySelector("#eliminarEntry-entry-b") as HTMLButtonElement).click(); });
+    await confirmDelete(node, "entry-b");
     await flush();
 
     expect(calls(fetchMock, "POST", "/api/calculator/entries/entry-b/delete")).toHaveLength(1);
     expect(node.querySelector("#eliminarEntry-entry-b")).toBeNull();
     expect(node.querySelector("#pendingBanner")).toBeNull();
+    expect(confirm).not.toHaveBeenCalled();
     await act(async () => root.unmount());
   });
 
   it("a 403 keeps the line and says only an administrator can delete", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const confirm = vi.spyOn(window, "confirm");
     const { node, root } = await renderPage(fixture({ deletePost: () => ({ status: 403, body: { error: "Forbidden" } }) }));
 
-    await act(async () => { (node.querySelector("#eliminarEntry-entry-a") as HTMLButtonElement).click(); });
+    await confirmDelete(node, "entry-a");
     await flush();
 
     expect(node.querySelector("#eliminarEntry-entry-a")).not.toBeNull();
     expect(node.textContent).toContain("Solo un administrador puede eliminar esta operación.");
+    expect(confirm).not.toHaveBeenCalled();
     await act(async () => root.unmount());
   });
 
   it("another failure keeps the line and shows an error", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const confirm = vi.spyOn(window, "confirm");
     const { node, root } = await renderPage(fixture({ deletePost: () => ({ status: 500, body: {} }) }));
 
-    await act(async () => { (node.querySelector("#eliminarEntry-entry-a") as HTMLButtonElement).click(); });
+    await confirmDelete(node, "entry-a");
     await flush();
 
     expect(node.querySelector("#eliminarEntry-entry-a")).not.toBeNull();
     expect(node.textContent).toContain("No se pudo eliminar la operación.");
+    expect(confirm).not.toHaveBeenCalled();
     await act(async () => root.unmount());
   });
 });
@@ -1183,16 +1350,38 @@ describe("calculator weekly cut (Limpiar Todo)", () => {
     return Array.from(node.querySelectorAll("button")).find((b) => b.textContent?.includes("Limpiar Todo")) as HTMLButtonElement;
   }
 
-  it("the confirmation says the week is archived and the history keeps counting; cancelling changes nothing", async () => {
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  function dialogButton(label: string) {
+    return Array.from(document.querySelectorAll("[role=dialog] button")).find((b) => b.textContent?.trim() === label) as HTMLButtonElement | undefined;
+  }
+  async function confirmCut(node: HTMLElement) {
+    await act(async () => { clearButton(node).click(); });
+    await act(async () => { dialogButton("Limpiar todo")!.click(); });
+  }
+
+  it("Limpiar Todo opens the app's own dialog (no window.confirm); Cancelar closes it and sends nothing", async () => {
+    const confirm = vi.spyOn(window, "confirm");
     const fetchMock = fixture();
     const { node, root } = await renderPage(fetchMock);
+    expect(document.querySelector("[role=dialog]")).toBeNull();
 
     await act(async () => { clearButton(node).click(); });
 
-    const text = String(confirm.mock.calls[0]![0]);
-    expect(text).toContain("Semanas anteriores");
-    expect(text).toContain("historial");
+    const dialog = document.querySelector("[role=dialog]")!;
+    expect(dialog).not.toBeNull();
+    expect(dialog.textContent).toContain("¿Limpiar todo y empezar una semana nueva?");
+    expect(dialog.textContent).toContain("Semanas anteriores");
+    expect(dialog.textContent).toContain("Finanzas");
+    expect(dialog.textContent).toContain("historial");
+    // rendered in a portal: outside the page's .legacyCalc scope, so its buttons are not restyled by it
+    expect(node.querySelector("main")!.contains(dialog)).toBe(false);
+    expect(confirm).not.toHaveBeenCalled();
+
+    await act(async () => { dialogButton("Cancelar")!.click(); });
+    await flush();
+
+    expect(document.querySelector("[role=dialog]")).toBeNull();
+    expect(confirm).not.toHaveBeenCalled();
+    expect(calls(fetchMock, "POST", "/api/calculadora/weeks")).toHaveLength(0);
     expect(calls(fetchMock, "POST", "/api/calculadora/weeks")).toHaveLength(0);
     expect((node.querySelector("#rawText") as HTMLTextAreaElement).value).toBe(MANUAL);
     expect(node.textContent).toContain("Raúl");
@@ -1200,12 +1389,11 @@ describe("calculator weekly cut (Limpiar Todo)", () => {
   });
 
   it("confirming archives the week through the server: text, period and the manual totals the page computed", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     const fetchMock = fixture();
     const { node, root } = await renderPage(fetchMock);
     const expected = procesarTexto(MANUAL, FULL_RATES.cupGlobalRate).totals;
 
-    await act(async () => { clearButton(node).click(); });
+    await confirmCut(node);
     await flush();
 
     const posts = calls(fetchMock, "POST", "/api/calculadora/weeks");
@@ -1219,11 +1407,10 @@ describe("calculator weekly cut (Limpiar Todo)", () => {
   });
 
   it("after the cut the week is empty: no text, no period, no completed chat entry; a pending line stays; the keys are cleared", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     const { node, root } = await renderPage(fixture());
     expect(localStorage.getItem("remesas_rawText")).toBe(MANUAL);
 
-    await act(async () => { clearButton(node).click(); });
+    await confirmCut(node);
     await flush();
 
     expect((node.querySelector("#rawText") as HTMLTextAreaElement).value).toBe("");
@@ -1236,10 +1423,9 @@ describe("calculator weekly cut (Limpiar Todo)", () => {
   });
 
   it("a failed cut changes nothing and says so", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     const { node, root } = await renderPage(fixture({ weeksPost: () => ({ status: 500, body: {} }) }));
 
-    await act(async () => { clearButton(node).click(); });
+    await confirmCut(node);
     await flush();
 
     expect((node.querySelector("#rawText") as HTMLTextAreaElement).value).toBe(MANUAL);
@@ -1249,7 +1435,6 @@ describe("calculator weekly cut (Limpiar Todo)", () => {
   });
 
   it("the autosave cannot write the old text back after the cut", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     const fetchMock = fixture();
     const { node, root } = await renderPage(fetchMock);
     vi.useFakeTimers();
@@ -1258,7 +1443,7 @@ describe("calculator weekly cut (Limpiar Todo)", () => {
     const textarea = node.querySelector("#rawText") as HTMLTextAreaElement;
     const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")!.set!;
     await act(async () => { setter.call(textarea, `${MANUAL}\n• Ana 10k CUP (235/980)`); textarea.dispatchEvent(new Event("input", { bubbles: true })); });
-    await act(async () => { clearButton(node).click(); });
+    await confirmCut(node);
     await flush();
     await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
     await flush();
@@ -1266,6 +1451,30 @@ describe("calculator weekly cut (Limpiar Todo)", () => {
     const saves = calls(fetchMock, "POST", "/api/calculadora").filter(([input]) => (typeof input === "string" ? input : input.toString()) === "/api/calculadora");
     const bodies = saves.map(([, init]) => JSON.parse((init as RequestInit).body as string) as { rawText: string; periodo: string });
     expect(bodies.every((body) => body.rawText === "" && body.periodo === "")).toBe(true);
+    await act(async () => root.unmount());
+  });
+
+  it("the dialog closes once the cut succeeds, and while it runs the confirm button is disabled", async () => {
+    let release: (() => void) | undefined;
+    const fetchMock = fixture();
+    const base = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((input, init) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url === "/api/calculadora/weeks" && init?.method === "POST") {
+        return new Promise<Response>((resolve) => { release = () => resolve(jsonResponse({ cutAt: "2026-10-10T12:00:00+00:00" })); });
+      }
+      return base(input, init);
+    });
+    const { node, root } = await renderPage(fetchMock);
+
+    await confirmCut(node);
+    expect(dialogButton("Limpiando…")!.disabled).toBe(true);
+    expect(dialogButton("Cancelar")!.disabled).toBe(true);
+
+    await act(async () => { release!(); });
+    await flush();
+    expect(document.querySelector("[role=dialog]")).toBeNull();
+    expect((node.querySelector("#rawText") as HTMLTextAreaElement).value).toBe("");
     await act(async () => root.unmount());
   });
 });
@@ -1346,7 +1555,6 @@ describe("calculator archived weeks (Semanas anteriores)", () => {
   });
 
   it("a cut adds the new week to the list", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     let cut = false;
     const fetchMock = fixture({
       weeksPost: () => { cut = true; return { status: 200, body: { week: { ...FULL_WEEK, id: "week-2", periodo: "SEMANA 2" }, cutAt: "2026-10-10T12:00:00+00:00" } }; },
@@ -1363,6 +1571,7 @@ describe("calculator archived weeks (Semanas anteriores)", () => {
 
     const clear = Array.from(node.querySelectorAll("button")).find((b) => b.textContent?.includes("Limpiar Todo")) as HTMLButtonElement;
     await act(async () => { clear.click(); });
+    await act(async () => { (Array.from(document.querySelectorAll("[role=dialog] button")).find((b) => b.textContent?.trim() === "Limpiar todo") as HTMLButtonElement).click(); });
     await flush();
 
     expect(node.querySelector("#verSemana-week-2")).not.toBeNull();

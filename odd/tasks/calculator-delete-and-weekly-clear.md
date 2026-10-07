@@ -134,10 +134,18 @@ T4: staging app deploy and the owner's look (including the Acciones column and t
 "Ya sale, pásalo a producción, pero antes: la notificación que sale para confirmar al momento de borrar se ve fea, poco
 profesional." (It is the browser's window.confirm.) Choice: "✓ / X en la fila".
 
-- [ ] T3b Confirmations without window.confirm:
+- [x] T3b Confirmations without window.confirm (done 2026-10-07, app only, not deployed):
   - Delete an entry: inline in the row. The trash turns that row's actions into "¿Eliminar?" with X (cancel) and ✓
     (confirm), same icon-button style as the page's pencil/trash; Escape or X cancels; only one row asks at a time; while
     deleting the ✓ shows a pending cue; errors stay in the row as today.
   - "Limpiar Todo": the app's own dialog (repo Dialog component) with a short title, the text that the week is archived
     in "Semanas anteriores" and the history keeps counting, and Cancel / confirm buttons; no window.confirm.
   - Entry edit row: the "Guardar" / "Cancelar" text buttons become ✓ / X (aria-label + title kept), for consistency.
+  - Evidence: vitest RED first (18 failing in page.test.tsx), then GREEN: calculadora page + src/lib/calculator 251
+    tests; full suite `npx vitest run --testTimeout=20000` 170 files, 2202 tests pass; `tsc --noEmit` clean; eslint on
+    the page directory clean. No window.confirm left in page.tsx; tests assert the spy stays uncalled.
+  - The repo Dialog is driven in jsdom as is (wrapped in NextIntlClientProvider in the test render, since the root layout
+    provides it in the app); no mock. It renders in a portal on body, outside `.legacyCalc`, so the legacy button CSS
+    does not reach it (asserted: the dialog is not inside `main`); no CSS change needed.
+  - Not verified (no browser): look of the inline confirmation (one-line Acciones cell, destructive accent on the check)
+    and of the dialog in light/dark.

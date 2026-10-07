@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { Check, Loader2, Pencil, Trash2, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { procesarTexto, type WebCalculatorErrorLine, type WebCalculatorParsedLine } from "@/lib/calculator/web-calculator";
 import { isComboCostPending, pendingReason, type CalculatorRates } from "@/lib/calculator/ledger-read-model";
 import { calculatorCategoryName, chatEntryAmountText, ledgerServiceLabel } from "@/lib/calculator/entry-display";
@@ -110,6 +112,10 @@ export default function CalculadoraPage() {
   // Weekly cut (227): the latest cut hides the entries it archived; a live event for one of them must not bring it back.
   const [cutAt, setCutAt] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
+  // Inline delete confirmation: one row at a time; `deletingEntryId` is the request in flight.
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+  const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
   const [clearMessage, setClearMessage] = useState<string | null>(null);
   const [weeks, setWeeks] = useState<CalculatorWeekSummary[]>([]);
   const [openWeek, setOpenWeek] = useState<CalculatorWeek | null>(null);
@@ -156,6 +162,16 @@ export default function CalculadoraPage() {
     () => chatEntries.filter((entry) => entry.status === "verified_pending"),
     [chatEntries],
   );
+
+  // Escape cancels the open delete confirmation (not while its request runs).
+  useEffect(() => {
+    if (!confirmingDeleteId || deletingEntryId) return;
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setConfirmingDeleteId(null);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [confirmingDeleteId, deletingEntryId]);
 
   function applyRates(next: CalculatorRates | null) {
     setRates(next);
@@ -316,6 +332,7 @@ export default function CalculadoraPage() {
   function startEditEntry(entry: ChatCalculatorEntry) {
     // Only one row edits at a time -- opening this row's editor discards
     // any other row's in-progress edit and message.
+    setConfirmingDeleteId(null);
     setEditingEntryId(entry.id);
     setEditFacturado(entry.facturadoGyd == null ? "" : String(entry.facturadoGyd));
     setEditInvertido(entry.invertidoGyd == null ? "" : String(entry.invertidoGyd));
@@ -388,6 +405,16 @@ export default function CalculadoraPage() {
     }
   }
 
+  function handleEditKeys(event: KeyboardEvent<HTMLInputElement>, entryId: string) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      if (!editSaving) void saveEditEntry(entryId);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      if (!editSaving) cancelEditEntry();
+    }
+  }
+
   function handleTextChange(event: ChangeEvent<HTMLTextAreaElement>) {
     const textarea = event.currentTarget;
     const cursor = textarea.selectionStart;
@@ -438,10 +465,6 @@ export default function CalculadoraPage() {
 
   async function clearAll() {
     if (clearing) return;
-    if (!window.confirm(
-      "¿Limpiar todo y empezar una semana nueva? La semana actual se guarda en «Semanas anteriores» y el historial " +
-      "(Finanzas, panel) sigue contando. Las operaciones del chat en espera de precio se quedan en pantalla.",
-    )) return;
     setClearing(true);
     setClearMessage(null);
     // Stop the autosave first: neither a pending nor an in-flight save may write the old text after the cut.
@@ -479,16 +502,14 @@ export default function CalculadoraPage() {
     } finally {
       clearingRef.current = false;
       setClearing(false);
+      setClearDialogOpen(false);
     }
   }
 
   async function deleteEntry(entry: ChatCalculatorEntry) {
-    const who = entry.customerName || "Sin nombre";
-    if (!window.confirm(
-      `¿Eliminar la operación de ${who} (${chatEntryAmountText(entry)})? Dejará de contar en la calculadora, en ` +
-      "Finanzas y en el panel. No se puede deshacer.",
-    )) return;
+    if (deletingEntryId) return;
     setEntryActionMessage(null);
+    setDeletingEntryId(entry.id);
     try {
       const response = await fetch(`/api/calculator/entries/${entry.id}/delete`, { method: "POST" });
       if (response.status === 403) {
@@ -503,6 +524,9 @@ export default function CalculadoraPage() {
       setChatEntries((prev) => prev.filter((item) => item.id !== entry.id));
     } catch {
       setEntryActionMessage({ entryId: entry.id, text: "No se pudo eliminar la operación." });
+    } finally {
+      setDeletingEntryId(null);
+      setConfirmingDeleteId(null);
     }
   }
 
@@ -661,6 +685,7 @@ export default function CalculadoraPage() {
                               step="0.01"
                               value={editFacturado}
                               onChange={(event) => setEditFacturado(event.target.value)}
+                              onKeyDown={(event) => handleEditKeys(event, entry.id)}
                             />
                           ) : entry.facturadoGyd == null ? "—" : formatNumber(entry.facturadoGyd)}
                         </td>
@@ -672,6 +697,7 @@ export default function CalculadoraPage() {
                               step="0.01"
                               value={editInvertido}
                               onChange={(event) => setEditInvertido(event.target.value)}
+                              onKeyDown={(event) => handleEditKeys(event, entry.id)}
                             />
                           ) : entry.invertidoGyd == null ? "—" : formatNumber(entry.invertidoGyd)}
                         </td>
@@ -679,56 +705,88 @@ export default function CalculadoraPage() {
                           {editing ? formatNumber(editPreview) : entry.retornoGyd == null ? "—" : formatNumber(entry.retornoGyd)}
                         </td>
                         <td data-label="Acciones" className="legacyActionsCell">
-                          {entry.status === "completed" && (
-                            editing ? (
-                              <div style={{ display: "flex", gap: 6, flexDirection: "column" }}>
-                                <div style={{ display: "flex", gap: 6 }}>
-                                  <button
-                                    type="button"
-                                    id={`guardarEntry-${entry.id}`}
-                                    onClick={() => void saveEditEntry(entry.id)}
-                                    disabled={editSaving}
-                                    style={{ width: "auto" }}
-                                  >
-                                    {editSaving ? "Guardando…" : "Guardar"}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    id={`cancelarEntry-${entry.id}`}
-                                    className="legacySecondary"
-                                    onClick={cancelEditEntry}
-                                    disabled={editSaving}
-                                    style={{ width: "auto" }}
-                                  >
-                                    Cancelar
-                                  </button>
-                                </div>
-                                {rowMessage && <div className="legacyError">{rowMessage}</div>}
+                          {editing ? (
+                            <div style={{ display: "flex", gap: 6, flexDirection: "column" }}>
+                              <div style={{ display: "inline-flex", gap: 6, justifyContent: "center" }}>
+                                <button
+                                  type="button"
+                                  id={`guardarEntry-${entry.id}`}
+                                  className="legacyIconButton"
+                                  onClick={() => void saveEditEntry(entry.id)}
+                                  disabled={editSaving}
+                                  aria-busy={editSaving}
+                                  aria-label="Guardar"
+                                  title="Guardar"
+                                >
+                                  {editSaving ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Check size={16} aria-hidden="true" />}
+                                </button>
+                                <button
+                                  type="button"
+                                  id={`cancelarEntry-${entry.id}`}
+                                  className="legacyIconButton"
+                                  onClick={cancelEditEntry}
+                                  disabled={editSaving}
+                                  aria-label="Cancelar"
+                                  title="Cancelar"
+                                >
+                                  <X size={16} aria-hidden="true" />
+                                </button>
                               </div>
-                            ) : (
+                              {rowMessage && <div className="legacyError">{rowMessage}</div>}
+                            </div>
+                          ) : confirmingDeleteId === entry.id ? (
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
+                              <span>¿Eliminar?</span>
                               <button
                                 type="button"
-                                id={`editarEntry-${entry.id}`}
+                                id={`cancelarEliminar-${entry.id}`}
                                 className="legacyIconButton"
-                                onClick={() => startEditEntry(entry)}
-                                aria-label="Editar"
-                                title="Editar"
+                                onClick={() => setConfirmingDeleteId(null)}
+                                disabled={deletingEntryId === entry.id}
+                                aria-label="Cancelar"
+                                title="Cancelar"
                               >
-                                <Pencil size={16} aria-hidden="true" />
+                                <X size={16} aria-hidden="true" />
                               </button>
-                            )
-                          )}
-                          {!editing && (
-                            <button
-                              type="button"
-                              id={`eliminarEntry-${entry.id}`}
-                              className="legacyIconButton"
-                              onClick={() => void deleteEntry(entry)}
-                              aria-label="Eliminar"
-                              title="Eliminar"
-                            >
-                              <Trash2 size={16} aria-hidden="true" />
-                            </button>
+                              <button
+                                type="button"
+                                id={`confirmarEliminar-${entry.id}`}
+                                className="legacyIconButton"
+                                style={{ color: "var(--destructive)", borderColor: "var(--destructive)" }}
+                                onClick={() => void deleteEntry(entry)}
+                                disabled={deletingEntryId === entry.id}
+                                aria-busy={deletingEntryId === entry.id}
+                                aria-label="Eliminar"
+                                title="Eliminar"
+                              >
+                                {deletingEntryId === entry.id ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Check size={16} aria-hidden="true" />}
+                              </button>
+                            </span>
+                          ) : (
+                            <>
+                              {entry.status === "completed" && (
+                                <button
+                                  type="button"
+                                  id={`editarEntry-${entry.id}`}
+                                  className="legacyIconButton"
+                                  onClick={() => startEditEntry(entry)}
+                                  aria-label="Editar"
+                                  title="Editar"
+                                >
+                                  <Pencil size={16} aria-hidden="true" />
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                id={`eliminarEntry-${entry.id}`}
+                                className="legacyIconButton"
+                                onClick={() => setConfirmingDeleteId(entry.id)}
+                                aria-label="Eliminar"
+                                title="Eliminar"
+                              >
+                                <Trash2 size={16} aria-hidden="true" />
+                              </button>
+                            </>
                           )}
                           {!editing && rowMessage && <div className="legacyError">{rowMessage}</div>}
                         </td>
@@ -741,8 +799,27 @@ export default function CalculadoraPage() {
           )}
         </div>
 
-        <div className="legacyCard legacyFlex"><button type="button" onClick={exportar}>📄 Exportar Reporte (.txt)</button><button type="button" className="legacySecondary" onClick={() => void clearAll()} disabled={clearing}>{clearing ? "Limpiando…" : "🧹 Limpiar Todo"}</button></div>
+        <div className="legacyCard legacyFlex"><button type="button" onClick={exportar}>📄 Exportar Reporte (.txt)</button><button type="button" className="legacySecondary" onClick={() => setClearDialogOpen(true)} disabled={clearing}>{clearing ? "Limpiando…" : "🧹 Limpiar Todo"}</button></div>
         {clearMessage && <div className="legacyError" role="status">{clearMessage}</div>}
+
+        {/* Rendered in a portal on <body>, outside .legacyCalc, so the page's legacy button styles do not reach it. */}
+        <Dialog open={clearDialogOpen} onOpenChange={(open) => { if (!clearing) setClearDialogOpen(open); }}>
+          <DialogContent showCloseButton={false}>
+            <DialogHeader>
+              <DialogTitle>¿Limpiar todo y empezar una semana nueva?</DialogTitle>
+              <DialogDescription>
+                La semana actual se guarda en «Semanas anteriores» y el historial (Finanzas, panel) sigue contando. Las
+                operaciones del chat en espera de precio se quedan en pantalla.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setClearDialogOpen(false)} disabled={clearing}>Cancelar</Button>
+              <Button variant="destructive" onClick={() => void clearAll()} disabled={clearing}>
+                {clearing ? "Limpiando…" : "Limpiar todo"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <div className="legacyCard" id="semanasAnteriores">
           <h2>📚 Semanas anteriores</h2>

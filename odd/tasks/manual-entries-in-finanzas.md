@@ -137,3 +137,9 @@ Rehearsal on staging (account 472917ed, owner feeccc91): the list went through c
 
 ## Next step
 T3: deploy to staging and the owner's look at Calculator, /resumen and the dashboard with Osmany's week.
+
+- 2026-10-07 parent review of the date rule: the writer's resolver looked 400 days back, and its tests pinned
+  "Lunes 6" (typed on Wed 7 Oct, the 6th being a Tuesday) -> 6 July: a mistyped weekday, or a header written ahead of
+  time, would date a day's lines months back, outside the week Finanzas shows. Changed (weekly record): look back 14
+  days only; the exact weekday + number match first, then the number alone; otherwise today. RED 2 failed, GREEN
+  calculator lib + page + API 17 files / 335 tests; tsc and eslint clean.

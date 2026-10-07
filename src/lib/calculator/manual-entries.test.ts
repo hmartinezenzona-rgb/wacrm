@@ -39,13 +39,22 @@ describe("resolveManualDate", () => {
   it("a day number in the future of this month goes back to the previous month", () => {
     expect(resolveManualDate("30", "2026-10-02")).toBe("2026-09-30");
     expect(resolveManualDate("Miércoles 30", "2026-10-02")).toBe("2026-09-30");
-    // 31 skips the 30-day month
-    expect(resolveManualDate("31", "2026-10-02")).toBe("2026-08-31");
   });
 
-  it("the weekday must match when given: the number alone is not enough", () => {
-    // 6 October 2026 is a Tuesday; the most recent Monday that is the 6th is 6 July 2026
-    expect(resolveManualDate("Lunes 6", today)).toBe("2026-07-06");
+  // The document is a WEEKLY record: a header never dates its lines months back, where Finanzas would not show them
+  // in the week being worked on.
+  it("only looks two weeks back: a day number with no recent match is today", () => {
+    // September has 30 days, so there is no 31st within two weeks of 2 October
+    expect(resolveManualDate("31", "2026-10-02")).toBe("2026-10-02");
+    // a header written ahead of time (Thursday the 8th, typed on the 7th) is today, not a Thursday 8th of last year
+    expect(resolveManualDate("Jueves 8", today)).toBe("2026-10-07");
+    expect(resolveManualDate("20", today)).toBe("2026-10-07");
+  });
+
+  it("a mistyped weekday does not move the day: the day number wins", () => {
+    // 6 October 2026 is a Tuesday
+    expect(resolveManualDate("Lunes 6", today)).toBe("2026-10-06");
+    expect(resolveManualDate("Viernes 30", "2026-10-02")).toBe("2026-09-30");
   });
 
   it("a weekday alone resolves to the most recent such day, today included", () => {

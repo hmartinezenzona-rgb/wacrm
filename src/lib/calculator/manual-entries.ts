@@ -49,7 +49,9 @@ export function guyanaToday(now: Date): string {
 }
 
 const DAY_MS = 86_400_000;
-const LOOKBACK_DAYS = 400;
+// The document is a weekly record, so a day header is looked for in the last two weeks only; a header that matches
+// nothing there (written ahead of time, or a day the month does not have) dates its lines today.
+const LOOKBACK_DAYS = 14;
 
 const WEEKDAYS: Record<string, number> = {
   domingo: 0, lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6,
@@ -127,9 +129,12 @@ export function resolveManualDate(header: string | null | undefined, today: stri
   if (number) {
     const day = Number(number[1]);
     const todayMs = toMs(today);
-    for (let back = 0; back <= LOOKBACK_DAYS; back += 1) {
-      const date = new Date(todayMs - back * DAY_MS);
-      if (date.getUTCDate() === day && (weekday === null || date.getUTCDay() === weekday)) return fromMs(date.getTime());
+    // First the exact match (weekday and number); a mistyped weekday must not move the day, so the number alone wins next.
+    for (const needWeekday of weekday === null ? [false] : [true, false]) {
+      for (let back = 0; back <= LOOKBACK_DAYS; back += 1) {
+        const date = new Date(todayMs - back * DAY_MS);
+        if (date.getUTCDate() === day && (!needWeekday || date.getUTCDay() === weekday)) return fromMs(date.getTime());
+      }
     }
     return today;
   }

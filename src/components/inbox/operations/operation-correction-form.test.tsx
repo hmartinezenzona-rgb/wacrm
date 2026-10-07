@@ -25,6 +25,24 @@ vi.mock("@/lib/remittance-operations/commands", () => ({
   cambiarServicio: (...args: unknown[]) => cambiarServicio(...args),
 }));
 
+// The form uses the app's Select (Base UI: a portal popup driven by pointer
+// events, which hangs under jsdom). These tests cover the form's logic, so the
+// control is replaced by a native select with the same value/onValueChange
+// contract; the trigger's label rendering is not under test here.
+vi.mock("@/components/ui/select", () => ({
+  Select: ({ id, value, disabled, onValueChange, children }: {
+    id?: string; value?: string; disabled?: boolean; onValueChange?: (value: string) => void; children?: React.ReactNode;
+  }) => (
+    <select id={id} value={value} disabled={disabled} onChange={(event) => onValueChange?.(event.target.value)}>
+      {children}
+    </select>
+  ),
+  SelectTrigger: () => null,
+  SelectValue: () => null,
+  SelectContent: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+  SelectItem: ({ value, children }: { value: string; children?: React.ReactNode }) => <option value={value}>{children}</option>,
+}));
+
 const toast = { success: vi.fn(), error: vi.fn() };
 vi.mock("sonner", () => ({ toast: { success: (...a: unknown[]) => toast.success(...a), error: (...a: unknown[]) => toast.error(...a) } }));
 

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cambiarServicio, corregirOperacion } from "@/lib/remittance-operations/commands";
 import { OPERATION_SERVICES, currentServiceOf } from "@/lib/remittance-operations/services";
 import type { RemittanceOperationRead } from "@/lib/remittance-operations/types";
@@ -132,24 +133,21 @@ export function OperationCorrectionForm({ operation, onDone, onCancel }: Operati
     <form onSubmit={handleSubmit} className="space-y-2 rounded-md border border-border bg-muted/40 p-2">
       <div className="space-y-1">
         <Label htmlFor="operation-service">{t("serviceChange.label")}</Label>
-        <select
-          id="operation-service"
-          value={service}
-          disabled={pending}
-          onChange={(event) => setService(event.target.value)}
-          className="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm dark:bg-input/30"
-        >
-          {initialService === "" && (
-            <option value="" disabled>
-              {t("serviceChange.choose")}
-            </option>
-          )}
-          {OPERATION_SERVICES.map((option) => (
-            <option key={option} value={option}>
-              {t(`closing.method.${option}`)}
-            </option>
-          ))}
-        </select>
+        <Select id="operation-service" value={service} disabled={pending} onValueChange={(v) => setService(v ?? "")}>
+          <SelectTrigger className="h-8 w-full min-w-0">
+            {/* Base UI paints the raw value unless it is given the label. */}
+            <SelectValue placeholder={t("serviceChange.choose")}>
+              {(v) => (v ? t(`closing.method.${v as string}`) : t("serviceChange.choose"))}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {OPERATION_SERVICES.map((option) => (
+              <SelectItem key={option} value={option}>
+                {t(`closing.method.${option}`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {service !== "" && service !== initialService && (
           <p className="text-xs text-muted-foreground">{t("serviceChange.warning")}</p>
         )}

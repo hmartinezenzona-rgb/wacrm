@@ -111,3 +111,10 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
 
 ## Next step
 T3: owner's look at the T2b edit-mode selector on staging (release a4220b9); then check off T3.
+
+- [x] T2c (owner, 2026-10-06: "las opciones se ven con un fondo en blanco y se ve feo"): the Servicio field was a native
+  <select>, whose option list the browser paints white. It now uses the app's Select (src/components/ui/select.tsx,
+  Base UI, as the Finanzas filters), trigger h-8 full width with the translated label. Evidence: form tests 14/14
+  (the Select is replaced by a native double in that test file: Base UI's portal popup hangs under jsdom; the form
+  logic assertions are unchanged), operations panel + i18n 26 files / 392 tests, tsc and eslint clean. NOT verified in
+  a browser by Claude: the popup's look is for the owner's check on staging.

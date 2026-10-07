@@ -105,6 +105,13 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
   - Owner's staging test row (operation 0595bd28, phone 529622896918): re-applying dropped the saldo_costo_usdt column, so
     the vigente rate version's 1.25 was set again; the op went back to 'saldo' and calculator_feed_operation revived the
     voided line: now 1800 SM, facturado 5000, invertido 1500, retorno 3500 (was 5 REC).
+  - T2b app: new src/lib/calculator/entry-display.ts (chatEntryAmountText, ledgerServiceLabel, calculatorCategoryName). The
+    Calculator's chat lines, pending banner and the weekly close text export read "1,800 SM" / "Saldo Móvil" (a non-multiple
+    pending line reads "5,500 GYD"); the breakdown groups the automatic SALDO_MOVIL under the manual "SALDO MOVIL" category;
+    Resumen close detail and summary print "Saldo Móvil" (amount already printed "1,800 SM" via fmtAmount; CSV keeps raw
+    values); the operation card reads "5 packages · 1,800 SM" (en/es). RECARGA lines unchanged.
+    RED: 2 page tests (page.tsx reverted) and 2 card tests (messages reverted) failed; GREEN: full suite 2059 passed in 164
+    files, tsc clean, eslint clean on touched files.
 
 ## Decisions beyond the defaults (T1)
 - crm_resolve_pending_entry: own branch for RECARGA and SALDO_MOVIL (not an exclusion like COMBO/VISA). Reason: the

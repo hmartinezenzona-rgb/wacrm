@@ -563,6 +563,54 @@ describe("calculator pending-entries banner", () => {
     await act(async () => root.unmount());
   });
 
+  it("a saldo line reads as its saldo amount in SM with the Saldo Móvil label, not '5 SALDO_MOVIL'", async () => {
+    const fetchMock = createFetchMock({
+      calculadoraGet: {
+        rawText: "",
+        periodo: "",
+        chatOperations: {
+          entries: [
+            comboEntry({
+              service: "SALDO_MOVIL",
+              customerName: "Yilian",
+              amount: 1800,
+              amountCurrency: "SM",
+              status: "completed",
+              facturadoGyd: 5000,
+              invertidoGyd: 1500,
+              retornoGyd: 3500,
+              missingRates: [],
+            }),
+          ],
+        },
+      },
+      ratesGet: { rates: null },
+    });
+    const { node, root } = await renderPage(fetchMock);
+
+    expect(node.querySelector('td[data-label="Monto"]')!.textContent).toBe("1,800 SM");
+    expect(node.querySelector('td[data-label="Tipo"]')!.textContent).toBe("Saldo Móvil");
+    expect(node.textContent).not.toContain("SALDO_MOVIL");
+    await act(async () => root.unmount());
+  });
+
+  it("a pending saldo line names the service as Saldo Móvil in the banner", async () => {
+    const fetchMock = createFetchMock({
+      calculadoraGet: {
+        rawText: "",
+        periodo: "",
+        chatOperations: {
+          entries: [comboEntry({ service: "SALDO_MOVIL", customerName: "Yilian", amount: 1800, amountCurrency: "SM", missingRates: ["saldoCostoUsdt"] })],
+        },
+      },
+      ratesGet: { rates: null },
+    });
+    const { node, root } = await renderPage(fetchMock);
+
+    expect(node.querySelector("#pendingBanner")!.textContent).toContain("Yilian (Saldo Móvil)");
+    await act(async () => root.unmount());
+  });
+
   it("shows no banner when there are no pending entries", async () => {
     const fetchMock = createFetchMock({
       calculadoraGet: {

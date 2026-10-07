@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ChangeEvent, type KeyboardEvent } fr
 import { Pencil } from "lucide-react";
 import { procesarTexto, type WebCalculatorErrorLine, type WebCalculatorParsedLine } from "@/lib/calculator/web-calculator";
 import { isComboCostPending, pendingReason, type CalculatorRates } from "@/lib/calculator/ledger-read-model";
+import { calculatorCategoryName, chatEntryAmountText, ledgerServiceLabel } from "@/lib/calculator/entry-display";
 import { applyCalculatorEntryRealtimeEvent, type ChatCalculatorEntry } from "@/lib/calculator/realtime-entry";
 import { useCalculatorEntriesRealtime } from "@/hooks/use-calculator-entries-realtime";
 import "./calculadora.module.css";
@@ -121,11 +122,12 @@ export default function CalculadoraPage() {
     const byService = new Map(parsed.services.map((service) => [service.name, { ...service }]));
     for (const entry of chatEntries) {
       if (entry.status !== "completed") continue;
-      const current = byService.get(entry.service) ?? { name: entry.service, fact: 0, inv: 0, ret: 0 };
+      const category = calculatorCategoryName(entry.service);
+      const current = byService.get(category) ?? { name: category, fact: 0, inv: 0, ret: 0 };
       current.fact += entry.facturadoGyd ?? 0;
       current.inv += entry.invertidoGyd ?? 0;
       current.ret += entry.retornoGyd ?? 0;
-      byService.set(entry.service, current);
+      byService.set(category, current);
     }
     return [...byService.values()];
   }, [chatEntries, parsed.services]);
@@ -400,7 +402,7 @@ export default function CalculadoraPage() {
 
   function exportar() {
     const title = periodo || "Sin_Periodo";
-    const automaticText = chatEntries.map((entry) => `• ${entry.customerName || "Sin nombre"} ${entry.amount} ${entry.service} [${entry.status}]`).join("\n");
+    const automaticText = chatEntries.map((entry) => `• ${entry.customerName || "Sin nombre"} ${chatEntryAmountText(entry)} [${entry.status}]`).join("\n");
     const text = `=== CIERRE SEMANAL DE REMESAS ===\nPERIODO: ${periodo}\n--------------------------------\n\nTOTAL FACTURADO (GYD): ${formatNumber(totals.fact)}\nTOTAL INVERTIDO (GYD): ${formatNumber(totals.inv)}\nRETORNO NETO (GANANCIA): ${formatNumber(totals.ret)}\n\n=== REGISTRO MANUAL EN BRUTO ===\n${rawText}\n\n=== OPERACIONES DEL CHAT (SOLO LECTURA) ===\n${automaticText}`;
     const link = document.createElement("a");
     link.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
@@ -479,7 +481,7 @@ export default function CalculadoraPage() {
             <ul style={{ margin: 0, paddingLeft: 18 }}>
               {pendingEntries.map((entry) => (
                 <li key={entry.id}>
-                  {entry.customerName || "Sin nombre"} ({entry.service}): {pendingReason(entry)}
+                  {entry.customerName || "Sin nombre"} ({ledgerServiceLabel(entry.service)}): {pendingReason(entry)}
                 </li>
               ))}
             </ul>
@@ -530,8 +532,8 @@ export default function CalculadoraPage() {
                       <tr key={entry.id}>
                         <td data-label="Fecha">{entry.entryDate.slice(0, 10)}</td>
                         <td data-label="Cliente"><b>{entry.customerName || "—"}</b></td>
-                        <td data-label="Monto">{entry.amount} {entry.service}</td>
-                        <td data-label="Tipo"><span className="legacyBadge">{entry.service}</span></td>
+                        <td data-label="Monto">{chatEntryAmountText(entry)}</td>
+                        <td data-label="Tipo"><span className="legacyBadge">{ledgerServiceLabel(entry.service)}</span></td>
                         <td data-label="Estado">{entry.status === "completed" ? "Completada" : `Pendiente${entry.missingRates.length ? `: ${pendingReason(entry)}` : ""}`}</td>
                         <td data-label="Fact. (GYD)">
                           {editing ? (

@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import type { CloseEntry, ExcludedEntry, FinancialClose } from "@/lib/financial-close/read-model";
+import { ledgerServiceLabel } from "@/lib/calculator/entry-display";
 import { fmtAmount, fmtGyd, guyanaTime, rateLabel, shortId } from "./financial-close-format";
 
 const DELIVERY_KEYS = ["proof_sent", "no_proof", "skip_proof"] as const;
@@ -22,7 +23,7 @@ export function FinancialCloseDetail({ close }: { close: FinancialClose }) {
         {shortId(e.operationId)}
       </td>
       <td className="px-2 py-1.5">{e.customerName ?? "—"}</td>
-      <td className="px-2 py-1.5">{e.service}</td>
+      <td className="px-2 py-1.5">{ledgerServiceLabel(e.service)}</td>
       <td className="whitespace-nowrap px-2 py-1.5 text-right">{fmtAmount(e.amount, e.amountCurrency)}</td>
       <td className="whitespace-nowrap px-2 py-1.5" title={e.rateVersionId ?? undefined}>
         {rateLabel(e)}

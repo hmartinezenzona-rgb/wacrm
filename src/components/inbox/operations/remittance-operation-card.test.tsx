@@ -733,17 +733,17 @@ describe("RemittanceOperationCard mobile balance (saldo)", () => {
     const header = node.querySelector("article button[aria-expanded]")!.textContent!;
     expect(header).toContain("5,000 GYD");
     expect(header).toContain("Mobile balance");
-    expect(header).toContain("5 packages · 1,800 CUP");
+    expect(header).toContain("5 packages · 1,800 SM");
     expect(node.querySelector("article svg.lucide-coins")).not.toBeNull();
     expect(node.querySelector("article svg.lucide-smartphone")).toBeNull();
-    expect(node.querySelector('[data-testid="deposit-review-stub"]')!.getAttribute("data-summary-amount")).toContain("5 packages · 1,800 CUP");
+    expect(node.querySelector('[data-testid="deposit-review-stub"]')!.getAttribute("data-summary-amount")).toContain("5 packages · 1,800 SM");
     await act(async () => root.unmount());
   });
 
   it("counts a single package in the singular", async () => {
     const { node, root } = await render(saldoOp({ quotedSourceAmount: 1000 }), { quote });
 
-    expect(node.querySelector('[data-testid="deposit-review-stub"]')!.getAttribute("data-summary-amount")).toContain("1 package · 360 CUP");
+    expect(node.querySelector('[data-testid="deposit-review-stub"]')!.getAttribute("data-summary-amount")).toContain("1 package · 360 SM");
     await act(async () => root.unmount());
   });
 

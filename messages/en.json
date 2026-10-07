@@ -434,8 +434,8 @@
       "comboCountMany": "{count} combos",
       "visaCountOne": "{count} extension",
       "visaCountMany": "{count} extensions",
-      "saldoCountOne": "{count} package · {saldo} CUP",
-      "saldoCountMany": "{count} packages · {saldo} CUP",
+      "saldoCountOne": "{count} package · {saldo} SM",
+      "saldoCountMany": "{count} packages · {saldo} SM",
       "comboMinimumHint": "Minimum 25,000 GYD per combo",
       "comboProvinceHint": "Include the Cuban province in the address",
       "serviceChange": {

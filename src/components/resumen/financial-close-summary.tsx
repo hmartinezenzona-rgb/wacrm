@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { BarChart } from "@/components/tremor/bar-chart";
 import { shortDayLabel } from "@/lib/financial-close/periods";
 import type { FinancialClose } from "@/lib/financial-close/read-model";
+import { ledgerServiceLabel } from "@/lib/calculator/entry-display";
 import { fmtGyd, marginPct } from "./financial-close-format";
 
 /** Totals, the per-day chart and the per-service breakdown of one period. */
@@ -87,7 +88,7 @@ export function FinancialCloseSummary({ close }: { close: FinancialClose }) {
                     data-service={s.service}
                     className="border-t border-border tabular-nums"
                   >
-                    <td className="py-1.5 font-medium text-foreground">{s.service}</td>
+                    <td className="py-1.5 font-medium text-foreground">{ledgerServiceLabel(s.service)}</td>
                     <td className="py-1.5 text-right">{s.operations}</td>
                     <td className="py-1.5 text-right">{fmtGyd(s.facturadoGyd)}</td>
                     <td className="py-1.5 text-right">

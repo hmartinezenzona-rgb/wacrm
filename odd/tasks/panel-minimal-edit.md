@@ -152,3 +152,10 @@ etc.: ahí falta el tropical, y en vez de cuban card usar CUP. Está un poco con
   so they no longer fall to the raw-value fallback; the only raw fallback left is a free-form deposit/delivery value outside the
   catalog (e.g. "bank").
 - Not verified: no browser available (look and suffix layout unseen), no staging run.
+- 2026-10-07 T2b staging deployed (owner's look pending; T3 NOT checked off): release 0c6c0e23b446fbb9a3c317123024183b5a042096
+  (0c6c0e2), BUILD_ID HtlXkuWME5Ju0BhbM729t, same procedure as eb35591 (clean prod-build, docker node:20 uid 1000,
+  staging-build.env with NEXT_PUBLIC_APP_LOCALE=es, unchanged). Manifest staging / kolppplawzdsjfydwejr, 114 money-path tests
+  passed, 0 production refs / 32 staging files, sha256 OK, "Se recalcula al guardar" present in .next/server. `current` -> 0c6c0e2,
+  `anterior` -> eb35591; pm2 wacrm-staging restart count 72 -> 73, stable after; /login 200 with the new BUILD_ID and
+  "Bienvenido de nuevo". No DB change. Production not touched.
+  Rollback: `ssh oracle2 'ln -sfn /home/ubuntu/wacrm-releases/eb35591020666e9688f24f3e00e1b6ae9ac5c54e ~/wacrm-releases/current && pm2 restart wacrm-staging --update-env'`

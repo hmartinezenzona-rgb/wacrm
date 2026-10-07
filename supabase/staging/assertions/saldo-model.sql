@@ -211,8 +211,9 @@ BEGIN
   IF v_o.service_type <> 'saldo' OR v_o.status <> 'completed' OR v_o.delivery_method IS NOT NULL THEN
     RAISE EXCEPTION 'case 7: the picker must set service_type saldo, got % / %', v_o.service_type, v_o.status; END IF;
   v_e := pg_temp.t223_line(v_op2);
-  IF v_e.service IS DISTINCT FROM 'SALDO_MOVIL' OR v_e.status IS DISTINCT FROM 'completed' OR v_e.amount IS DISTINCT FROM 5 THEN
-    RAISE EXCEPTION 'case 7: expected SALDO_MOVIL completed 5 units, got % % %', v_e.service, v_e.status, v_e.amount; END IF;
+  IF v_e.service IS DISTINCT FROM 'SALDO_MOVIL' OR v_e.status IS DISTINCT FROM 'completed' OR v_e.amount IS DISTINCT FROM 1800
+     OR v_e.amount_currency IS DISTINCT FROM 'SM' THEN
+    RAISE EXCEPTION 'case 7: expected SALDO_MOVIL completed 1800 SM (5 packages x 360), got % % % %', v_e.service, v_e.status, v_e.amount, v_e.amount_currency; END IF;
   IF v_e.facturado_gyd IS DISTINCT FROM 5000 OR v_e.invertido_gyd IS DISTINCT FROM 1512.5 OR v_e.retorno_gyd IS DISTINCT FROM 3487.5
      OR v_e.basis_gyd IS DISTINCT FROM 5000 THEN
     RAISE EXCEPTION 'case 7: facturado/invertido/retorno must be 5000 / 1512.5 / 3487.5, got % / % / %', v_e.facturado_gyd, v_e.invertido_gyd, v_e.retorno_gyd; END IF;
@@ -225,7 +226,7 @@ BEGIN
   -- the rates asked for
   IF calculator_missing_rates('SALDO_MOVIL', (SELECT r FROM calculator_rate_versions r WHERE r.account_id = v_acc ORDER BY r.effective_at DESC LIMIT 1)) <> ARRAY[]::text[] THEN
     RAISE EXCEPTION 'case 7: nothing missing while the cost and the buy rate are set'; END IF;
-  RAISE NOTICE 'PASS 7: manual close as saldo -> one SALDO_MOVIL line, 5 units, 5000 / 1512.5 / 3487.5';
+  RAISE NOTICE 'PASS 7: manual close as saldo -> one SALDO_MOVIL line, 1800 SM, 5000 / 1512.5 / 3487.5';
 
   -- ---- 8. a completed saldo through the normal completion (with its recipient) ----
   v_op2 := pg_temp.t223_op(v_user, v_acc, '59902230008', 'saldo', NULL, 3000, 'ready_to_transfer');
@@ -233,9 +234,9 @@ BEGIN
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_user, 'role', 'authenticated')::text, true);
   PERFORM crm_cerrar_operacion_manual(v_op2);
   v_e := pg_temp.t223_line(v_op2);
-  IF v_e.service IS DISTINCT FROM 'SALDO_MOVIL' OR v_e.amount IS DISTINCT FROM 3 OR v_e.facturado_gyd IS DISTINCT FROM 3000
-     OR v_e.invertido_gyd IS DISTINCT FROM 907.5 THEN
-    RAISE EXCEPTION 'case 8: a saldo with its recipient prices 3 units 3000 / 907.5, got % % % %', v_e.service, v_e.amount, v_e.facturado_gyd, v_e.invertido_gyd; END IF;
+  IF v_e.service IS DISTINCT FROM 'SALDO_MOVIL' OR v_e.amount IS DISTINCT FROM 1080 OR v_e.amount_currency IS DISTINCT FROM 'SM'
+     OR v_e.facturado_gyd IS DISTINCT FROM 3000 OR v_e.invertido_gyd IS DISTINCT FROM 907.5 THEN
+    RAISE EXCEPTION 'case 8: a saldo with its recipient shows 1080 SM and prices 3 packages 3000 / 907.5, got % % % %', v_e.service, v_e.amount, v_e.facturado_gyd, v_e.invertido_gyd; END IF;
   RAISE NOTICE 'PASS 8: a saldo with its phone recipient reaches the ledger';
 
   -- ---- 9. missing cost: pending, naming the cost; resolve with the cost completes it ----
@@ -245,6 +246,9 @@ BEGIN
   v_e := pg_temp.t223_line(v_op2);
   IF v_e.status IS DISTINCT FROM 'verified_pending' OR NOT ('saldoCostoUsdt' = ANY (v_e.missing_inputs)) OR v_e.facturado_gyd IS NOT NULL THEN
     RAISE EXCEPTION 'case 9: a missing cost leaves the line pending naming saldoCostoUsdt, got % %', v_e.status, v_e.missing_inputs; END IF;
+  -- an exact package count shows its saldo even while pending
+  IF v_e.amount IS DISTINCT FROM 1800 OR v_e.amount_currency IS DISTINCT FROM 'SM' THEN
+    RAISE EXCEPTION 'case 9: a pending saldo line with an exact package count shows 1800 SM, got % %', v_e.amount, v_e.amount_currency; END IF;
   v_id := v_e.id;
   -- resolve: a payload without the cost still asks for it
   v_r := NULL;
@@ -255,9 +259,9 @@ BEGIN
     IF SQLERRM NOT LIKE '%saldo%' THEN RAISE EXCEPTION 'case 9: refused for another reason: %', SQLERRM; END IF;
   END;
   v_e := crm_resolve_pending_entry(v_id, '{"saldo_costo_usdt": 1.25}'::jsonb, 'assert saldo cost');
-  IF v_e.status <> 'completed' OR v_e.amount <> 5 OR v_e.facturado_gyd <> 5000 OR v_e.invertido_gyd <> 1512.5 OR v_e.retorno_gyd <> 3487.5
+  IF v_e.status <> 'completed' OR v_e.amount <> 1800 OR v_e.amount_currency <> 'SM' OR v_e.facturado_gyd <> 5000 OR v_e.invertido_gyd <> 1512.5 OR v_e.retorno_gyd <> 3487.5
      OR v_e.cost_gyd <> 1.25 OR v_e.sale_gyd <> 1000 OR v_e.missing_inputs IS NOT NULL THEN
-    RAISE EXCEPTION 'case 9: resolving with the cost prices 5 units like the feed (5000 / 1512.5), got % % % %', v_e.status, v_e.amount, v_e.facturado_gyd, v_e.invertido_gyd; END IF;
+    RAISE EXCEPTION 'case 9: resolving with the cost shows 1800 SM and prices like the feed (5000 / 1512.5), got % % % %', v_e.status, v_e.amount, v_e.facturado_gyd, v_e.invertido_gyd; END IF;
   RAISE NOTICE 'PASS 9: a missing saldo cost is pending, resolvable with the cost, priced like the feed';
 
   -- ---- 10. not a whole multiple: pending, no silent rounding, and no rate fixes it ----
@@ -268,6 +272,9 @@ BEGIN
   IF v_e.status IS DISTINCT FROM 'verified_pending' OR NOT ('saldoPaquetes' = ANY (v_e.missing_inputs))
      OR v_e.facturado_gyd IS NOT NULL OR v_e.invertido_gyd IS NOT NULL THEN
     RAISE EXCEPTION 'case 10: 5500 is not a whole number of packages: pending naming saldoPaquetes, got % %', v_e.status, v_e.missing_inputs; END IF;
+  -- no exact package count: the raw deposit is shown as GYD, never as SM
+  IF v_e.amount IS DISTINCT FROM 5500 OR v_e.amount_currency IS DISTINCT FROM 'GYD' THEN
+    RAISE EXCEPTION 'case 10: a non-multiple deposit shows 5500 GYD, got % %', v_e.amount, v_e.amount_currency; END IF;
   BEGIN
     PERFORM crm_resolve_pending_entry(v_e.id, '{"saldo_costo_usdt": 1.25, "usdt_buy_gyd": 242}'::jsonb, 'assert saldo multiple');
     RAISE EXCEPTION 'case 10: a non-multiple saldo line was resolved with rates';
@@ -292,7 +299,7 @@ BEGIN
     IF SQLERRM NOT LIKE '%recarga%' THEN RAISE EXCEPTION 'case 11: refused for another reason: %', SQLERRM; END IF;
   END;
   v_e := crm_resolve_pending_entry(v_e.id, '{"recarga_costo_usdt": 23.1}'::jsonb, 'assert recarga cost');
-  IF v_e.status <> 'completed' OR v_e.amount <> 1 OR v_e.facturado_gyd <> 5200 OR round(v_e.invertido_gyd, 1) <> 5590.2
+  IF v_e.status <> 'completed' OR v_e.amount <> 1 OR v_e.amount_currency <> 'REC' OR v_e.facturado_gyd <> 5200 OR round(v_e.invertido_gyd, 1) <> 5590.2
      OR v_e.cost_gyd <> 23.1 OR v_e.sale_gyd <> 5200 OR v_e.usdt_sell_gyd <> 5200 THEN
     RAISE EXCEPTION 'case 11: a recarga resolved with its cost prices like the feed (1 unit, 5200 / 5590.2), got % % % %', v_e.status, v_e.amount, v_e.facturado_gyd, v_e.invertido_gyd; END IF;
   PERFORM crm_set_calculator_rates(v_acc, '{"recarga_costo_usdt": 23.1}'::jsonb, NULL);

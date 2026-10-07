@@ -1,6 +1,6 @@
 -- ROLLBACK of 223_saldo_movil_service.sql: restores the seventeen redefined functions exactly as before 223
 -- (pg_get_functiondef md5 on staging, 2026-10-06: cerebro_riel_op 177218fcfc2b6a9600e696835d9e5dbc, cerebro_minimo_gyd 5dff6505ccb47d97dd1d1405005cbfd2, cerebro_objetivo_minimo 784c6b2c3b2803cd0eecf34cf5094b4b, crm_operaciones_de_conversacion 05e87a5406cf78adba599d3f00ef6dc6, crm_cerrar_operacion_manual f8460e961be1f769a3b19e7ef266962e, crm_cambiar_servicio 6a6eb02ee9b6ae3398829be5e6c9d11e, crm_beneficiarios_completos 04545d10b04654f3e0d8c938f219f881, crm_agregar_beneficiario a1f2445921c23131c301da351a0b5c12, crm_set_calculator_rates c803bc5390f6321d9a68c37831e456ce, calculator_service_for_operation 19fffa8c6713a2f0ed20c9741b105293, calculator_resolve_operation_service 1ffa3ddc0e151a00557c25e941c455c5, calculator_missing_rates 747a54733a12c2e3ac36c00dd891fddb, calculator_feed_operation 2242b76d6e733b46d39c2f86a2ffa7a7, crm_resolve_pending_entry 28e1b332b72dfd82f3a98857460a0ac4, cerebro_escribir_bloque_beneficiario 961248876600714a92234fdee2334b34, cerebro_resolver_operacion_beneficiario a2c58b33acb371a04da3e54c936b8d71, cerebro_avisar_envios_sin_beneficiario f21c0a7c255d70331ba6899d8e539ff8),
--- drops cerebro_saldo_precio and cerebro_saldo_paquetes, drops calculator_rate_versions.saldo_costo_usdt (the rates
+-- drops cerebro_saldo_precio, cerebro_saldo_unidad and cerebro_saldo_paquetes, drops calculator_rate_versions.saldo_costo_usdt (the rates
 -- history loses that column's values), restores remittance_operations_service_chk without 'saldo' and deletes the two
 -- cerebro_config rows. It refuses (and changes nothing) when saldo operations or SALDO_MOVIL calculator lines made from
 -- one exist: they would violate the restored CHECK or lose their meaning; reclassify or void them first.
@@ -1588,6 +1588,7 @@ END;
 $function$;
 
 DROP FUNCTION IF EXISTS public.cerebro_saldo_paquetes(numeric);
+DROP FUNCTION IF EXISTS public.cerebro_saldo_unidad();
 DROP FUNCTION IF EXISTS public.cerebro_saldo_precio();
 ALTER TABLE public.calculator_rate_versions DROP COLUMN IF EXISTS saldo_costo_usdt;
 ALTER TABLE remittance_operations DROP CONSTRAINT remittance_operations_service_chk;

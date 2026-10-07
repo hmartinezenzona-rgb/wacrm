@@ -54,6 +54,8 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
 - [x] T1 DB: RED assertion saldo-model.sql; migration 223 + rollback on staging; GREEN; regressions (recarga-model,
   combo-model, visa-model, change-operation-service, calculator-recarga, resolve-pending, operations-board, corrections).
 - [x] T2 App: lists, selector, card, filters, rates UI, i18n; vitest RED then GREEN; typecheck, lint, full suite.
+- [x] T2b Follow-up (owner 2026-10-06): the automatic ledger line of a saldo shows the saldo amount in SM ("1,800 SM"),
+  not the package count in 'REC'. DB (migration 223 amended in place, staging only) and app, see Progress.
 - [ ] T3 Staging deploy + owner's look.
 - [ ] T4 Production with the owner's go-ahead; then Yilian's operation.
 - [ ] T5 (later, separate go-ahead) Bot: recognise, quote and open saldo; notice text and Meta template.
@@ -81,6 +83,28 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
     operation card (package count + saldo = packages x 360, phone recipient, quote hidden, one-number add control),
     beneficiary add form (phone only), calculator rate "Costo saldo (USDT)" in the UI, rates API whitelist and select,
     resolve API whitelist, read model, i18n en/es.
+- 2026-10-06 T2b DB (staging only, 223 amended in place, no 224).
+  - Owner: "5 SALDO_MOVIL ... ahi va un monto ... el saldo movil es CUP tambien ... puede ser SM".
+  - Change: calculator_feed_operation stores amount = packages x saldo_unidad_cup (new cerebro_saldo_unidad(), 360) and
+    amount_currency 'SM' for SALDO_MOVIL; RECARGA keeps units/'REC'. facturado/invertido/retorno still come from the package
+    count. crm_resolve_pending_entry sets the same amount/'SM' when it resolves a saldo line. No reader derives units from
+    a saldo amount (feed and resolver use the basis and the config); amount_currency only has a 1..12 length CHECK (095).
+  - Pending line: exact package count with the cost missing shows 1,800 SM (amount and currency as if completed, figures
+    NULL); not a whole multiple shows the raw deposit as 'GYD' (never SM; it used to be 'REC'). Resolver refuses the
+    non-multiple as before.
+  - RED: saldo-model.sql (expectations updated first) against the applied 223: `case 7: expected SALDO_MOVIL completed
+    1800 SM (5 packages x 360), got SALDO_MOVIL completed 5 REC`.
+  - Staging re-apply: ROLLBACK-223 from git HEAD (its guard refuses while a saldo op/line exists, so the owner's test row was
+    parked in the same transaction: line voided with figures untouched, op read as 'recarga', session_replication_role
+    replica, guard block skipped), 17 of 17 pre-223 md5 matched the ROLLBACK header (header unchanged: the pre-223
+    definitions did not move). Round trip of the amended pair in one rolled-back transaction: 223 changed 17 functions,
+    rollback restored 17 of 17, 0 saldo functions/column/config left, 5 of 5 CHECKs identical. Amended 223 applied,
+    schema_migrations row 223 re-created once.
+  - GREEN: saldo-model ALL PASS as is and with promos discarded; recarga-model, calculator-recarga, resolve-pending,
+    change-operation-service, combo-model, visa-model, rate-versions all PASS as is and no promo. Leftovers 0.
+  - Owner's staging test row (operation 0595bd28, phone 529622896918): re-applying dropped the saldo_costo_usdt column, so
+    the vigente rate version's 1.25 was set again; the op went back to 'saldo' and calculator_feed_operation revived the
+    voided line: now 1800 SM, facturado 5000, invertido 1500, retorno 3500 (was 5 REC).
 
 ## Decisions beyond the defaults (T1)
 - crm_resolve_pending_entry: own branch for RECARGA and SALDO_MOVIL (not an exclusion like COMBO/VISA). Reason: the
@@ -94,7 +118,7 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
   cerebro_avisar_envios_sin_beneficiario also redefined (a saldo is never the remesa target; the no-recipient customer
   notice skips it). crm_agregar_beneficiario redefined for the phone recipient.
 - Minimum = cerebro_saldo_precio() (derived from precio_saldo_gyd, no separate minimo_gyd_saldo row).
-- Ledger line: amount_currency 'REC' (units), pending reasons saldoCostoUsdt / saldoPaquetes.
+- Ledger line: amount_currency 'SM' (saldo, packages x 360; T2b, was 'REC' units), pending reasons saldoCostoUsdt / saldoPaquetes.
 - (T2) The card mirrors the package price and size as constants (SALDO_PRICE_GYD = 1000, SALDO_UNIT_CUP = 360 in
   services.ts), as VISA_PRICE_GYD does for a visa, instead of reading cerebro_config: no RPC returns those rows to the
   panel today. Change both together if the owner changes the price. A deposit that is not a whole number of packages

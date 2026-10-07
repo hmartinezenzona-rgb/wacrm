@@ -14,8 +14,9 @@
 --        by the app card and the later bot). Price and size are data, not code. Not promo-bound: sold all year.
 --      - calculator_rate_versions.saldo_costo_usdt (USDT cost of one package, NULL until the owner sets it);
 --        crm_set_calculator_rates accepts it, like recarga_costo_usdt.
---      - cerebro_saldo_precio() and cerebro_saldo_paquetes(deposit): the package price, and deposit / price when the
---        deposit is a whole multiple (NULL otherwise: no silent rounding).
+--      - cerebro_saldo_precio(), cerebro_saldo_unidad() and cerebro_saldo_paquetes(deposit): the package price, the saldo
+--        per package (saldo_unidad_cup, 360), and deposit / price when the deposit is a whole multiple (NULL otherwise:
+--        no silent rounding).
 --   B. SERVICE ENUMERATIONS (rail 'saldo', minimum = one package, objetivo 'minimo saldo movil')
 --      - cerebro_riel_op, cerebro_minimo_gyd, cerebro_objetivo_minimo, crm_operaciones_de_conversacion (open and the
 --        last completed ones), crm_cerrar_operacion_manual (picker accepts 'saldo'), crm_cambiar_servicio (a remesa or
@@ -30,8 +31,13 @@
 --      - calculator_service_for_operation / calculator_resolve_operation_service map saldo -> SALDO_MOVIL;
 --        calculator_missing_rates('SALDO_MOVIL') asks for saldoCostoUsdt and usdtBuyGyd.
 --      - calculator_feed_operation, SALDO_MOVIL: units = deposit / price when exact, facturado = units x price,
---        invertido = units x saldo_costo_usdt x usdt_buy_gyd, retorno = the difference; amount currency 'REC' (units),
---        snapshot cup_rate = usdt_buy_gyd, cost_gyd = saldo_costo_usdt, sale_gyd = price (like a RECARGA line). A missing
+--        invertido = units x saldo_costo_usdt x usdt_buy_gyd, retorno = the difference (units = packages). The line AMOUNT is
+--        the saldo itself, packages x saldo_unidad_cup, in the currency 'SM' (5 packages = 1,800 SM; owner 2026-10-06:
+--        "el saldo movil es CUP tambien ... puede ser SM"), not the package count with the units pseudo-currency 'REC'
+--        that RECARGA keeps. A pending line shows the same 1,800 SM when its package count is exact (only the cost is
+--        missing); when the deposit is not a whole multiple there is no saldo to show, so the line keeps the raw deposit
+--        as 'GYD' (never labelled SM). Nothing reads the amount of a SALDO_MOVIL line as units: the figures come from
+--        the basis and the config. Snapshot cup_rate = usdt_buy_gyd, cost_gyd = saldo_costo_usdt, sale_gyd = price (like a RECARGA line). A missing
 --        cost leaves the line pending naming saldoCostoUsdt; a deposit that is not a whole multiple leaves it pending
 --        naming saldoPaquetes.
 --      - GAP FIXED, crm_resolve_pending_entry: it priced EVERY pending line as a USD service (units = floor(deposit /
@@ -85,8 +91,18 @@ AS $function$
               THEN (p_deposito / cerebro_saldo_precio())::integer END;
 $function$;
 
-REVOKE ALL ON FUNCTION public.cerebro_saldo_precio(), public.cerebro_saldo_paquetes(numeric) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.cerebro_saldo_precio(), public.cerebro_saldo_paquetes(numeric) TO authenticated, service_role;
+CREATE OR REPLACE FUNCTION public.cerebro_saldo_unidad()
+ RETURNS numeric
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  -- (223) The saldo (CUP) one package delivers (cerebro_config saldo_unidad_cup; 360 when unset or not positive).
+  SELECT coalesce((SELECT x.v FROM (SELECT nullif(cerebro_config_get('saldo_unidad_cup'), '')::numeric AS v) x WHERE x.v > 0), 360);
+$function$;
+
+REVOKE ALL ON FUNCTION public.cerebro_saldo_precio(), public.cerebro_saldo_unidad(), public.cerebro_saldo_paquetes(numeric) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.cerebro_saldo_precio(), public.cerebro_saldo_unidad(), public.cerebro_saldo_paquetes(numeric) TO authenticated, service_role;
 
 -- ---------------------------------------------------------------------
 -- B, C, D. The redefined functions (current staging definitions + the saldo edits)
@@ -1194,6 +1210,18 @@ BEGIN
       END IF;
     END IF;
 
+    -- (223) The amount of a mobile balance line is the saldo itself (packages x saldo per package) in 'SM'; without an exact
+    -- package count there is no saldo to show, so the raw deposit stays, labelled GYD (never SM). facturado/invertido
+    -- above were already computed from the package count.
+    IF v_part.service = 'SALDO_MOVIL' THEN
+      IF cerebro_saldo_paquetes(v_basis) IS NOT NULL THEN
+        v_amount   := cerebro_saldo_paquetes(v_basis) * cerebro_saldo_unidad();
+        v_currency := 'SM';
+      ELSE
+        v_currency := 'GYD';
+      END IF;
+    END IF;
+
     -- (209) The cost of a combo is entered by hand and can change. Completed lines are append-only (149), so a live COMBO
     -- line whose figures differ is VOIDED here (figures untouched) and the upsert below revives that row with the new
     -- ones, the way a reverted-then-completed operation is re-fed. Identical figures: nothing is touched (idempotent).
@@ -1378,7 +1406,9 @@ BEGIN
     END IF;
     UPDATE remittance_calculator_entries
        SET status          = 'completed',
-           amount          = v_amount,
+           -- (223) a saldo line shows the saldo (packages x saldo per package) in SM; a recharge keeps its units
+           amount          = CASE WHEN v_entry.service = 'SALDO_MOVIL' THEN v_amount * cerebro_saldo_unidad() ELSE v_amount END,
+           amount_currency = CASE WHEN v_entry.service = 'SALDO_MOVIL' THEN 'SM' ELSE amount_currency END,
            cup_rate        = v_buy,
            usdt_buy_gyd    = v_buy,
            usdt_sell_gyd   = v_sell,

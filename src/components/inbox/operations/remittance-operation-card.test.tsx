@@ -51,8 +51,8 @@ vi.mock("@/lib/remittance-operations/commands", () => ({
 // beneficiary-add-control.test.tsx) — stubbed here so this file only
 // asserts on what the card passes down and how it toggles the control.
 const BeneficiaryAddControl = vi.fn(
-  ({ onDone, onCancel, serviceType }: { operationId: string; serviceType?: string; onDone: () => void; onCancel: () => void }) => (
-    <div data-testid="add-beneficiary-stub" data-service-type={serviceType ?? ""}>
+  ({ onDone, onCancel, serviceType, service }: { operationId: string; serviceType?: string; service?: string | null; onDone: () => void; onCancel: () => void }) => (
+    <div data-testid="add-beneficiary-stub" data-service-type={serviceType ?? ""} data-service={service ?? ""}>
       <button type="button" data-testid="add-beneficiary-done" onClick={onDone}>
         done
       </button>
@@ -1597,6 +1597,31 @@ describe("RemittanceOperationCard", () => {
       expect(BeneficiaryAddControl).toHaveBeenCalledWith(
         expect.objectContaining({ operationId: "op-9" }),
       );
+      await act(async () => root.unmount());
+    });
+
+    it("passes the operation's current service so the form shows that service's fields", async () => {
+      const cases: Array<[Partial<RemittanceOperationRead>, string]> = [
+        [{ deliveryMethod: "efectivo_usd", beneficiaries: [] }, "efectivo_usd"],
+        [{ deliveryMethod: "zelle", beneficiaries: [] }, "zelle"],
+        [{ deliveryMethod: null, beneficiaries: [] }, ""],
+      ];
+      for (const [overrides, expected] of cases) {
+        const { node, root } = await render(operation(overrides));
+        await act(async () => button(node, ADD_LABEL)!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+        expect(node.querySelector('[data-testid="add-beneficiary-stub"]')!.getAttribute("data-service")).toBe(expected);
+        await act(async () => root.unmount());
+      }
+    });
+
+    it("hides the add button when a cash operation already has its one recipient", async () => {
+      const { node, root } = await render(
+        operation({
+          deliveryMethod: "efectivo_usd",
+          beneficiaries: [beneficiary({ beneficiaryType: "efectivo_usd", cardNumber: null, address: "Calle 1", phone: "52123456" })],
+        }),
+      );
+      expect(button(node, ADD_LABEL)).toBeNull();
       await act(async () => root.unmount());
     });
 

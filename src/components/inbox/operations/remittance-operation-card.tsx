@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { canForceVerify, type AccountRole } from "@/lib/auth/roles";
 import { corregirBeneficiario } from "@/lib/remittance-operations/commands";
 import { effectiveStatus } from "@/lib/remittance-operations/effective-status";
-import { SALDO_UNIT_CUP, saldoPackages } from "@/lib/remittance-operations/services";
+import { SALDO_UNIT_CUP, currentServiceOf, saldoPackages } from "@/lib/remittance-operations/services";
 import type {
   ConversationQuoteRead,
   OperationDeliveryMode,
@@ -585,7 +585,8 @@ export function RemittanceOperationCard({
                   operation.beneficiaries[0],
                   openForm?.kind === "beneficiary" && openForm.beneficiaryId === operation.beneficiaries[0]!.id,
                 )}
-              {editable && openForm?.kind !== "addBeneficiary" && !(isSaldo(operation) && operation.beneficiaries.length >= 1) && (
+              {editable && openForm?.kind !== "addBeneficiary" && !(isSaldo(operation) && operation.beneficiaries.length >= 1) &&
+                !operation.beneficiaries.some((b) => b.beneficiaryType === "efectivo_usd") && (
                 <Button
                   type="button"
                   variant="ghost"
@@ -603,6 +604,7 @@ export function RemittanceOperationCard({
                 <BeneficiaryAddControl
                   operationId={operation.id}
                   serviceType={operation.serviceType}
+                  service={currentServiceOf(operation)}
                   onDone={handleChanged}
                   onCancel={() => setOpenForm(null)}
                 />

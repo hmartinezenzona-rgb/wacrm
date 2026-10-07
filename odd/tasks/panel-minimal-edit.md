@@ -213,7 +213,7 @@ Cause: ADDABLE_BENEFICIARY_TYPES (beneficiary-add-control.tsx) has no efectivo_u
 (newest 223) refuses it (accepted: cuban_card, zelle, clasica, tropical, multiple_distribution, recarga, combo; address
 only for combo). Only the bot can create a cash recipient today.
 
-- [ ] T2d Add a cash USD recipient from the panel:
+- [x] T2d Add a cash USD recipient from the panel:
   - DB migration 225 (+ ROLLBACK-225, staging first): crm_agregar_beneficiario accepts efectivo_usd with the data the
     cash delivery needs (the same fields the bot's cash path stores and crm_corregir_beneficiario already edits for
     efectivo_usd: name, phone, address ... — take the model from the cash service migrations 137/188 and the bot
@@ -256,3 +256,21 @@ Decisions (migration 225, crm_agregar_beneficiario only):
   saldo-model, corrections, destination-amount, calculator-cash, cash-delivery-activation, cash-delivery-data,
   cash-delivery-rate, cash-phone-not-a-card, panel-cash-recipient, panel-notify-and-cash-name, panel-quote, service-catalog,
   combo-edit, manual-close-service, ultima-cotizacion. Leftovers 0 (contacts, operations, wamid rows).
+
+## Evidence (T2d, app, 2026-10-07)
+- RED first: new tests in beneficiary-add-control.test.tsx and remittance-operation-card.test.tsx -> 17 failed (no `service` prop, no
+  cash form, picker without Cash USD). GREEN after the change; `tsc --noEmit` clean, eslint clean on src/components/inbox/operations,
+  `vitest run src/components/inbox/operations src/i18n --testTimeout=20000`: 27 files, 454 tests; full suite: 166 files, 2119 tests.
+- `BeneficiaryAddControl` takes `service` (card passes `currentServiceOf(operation)`). cuban_card / zelle / clasica / tropical /
+  efectivo_usd -> that service's fields directly, no picker; no service yet -> the picker, now with Cash USD (5 types). Recarga, saldo
+  and combo keep their own forms (decided by `serviceType`, ahead of `service`).
+- Cash form: name (optional), phone, address, a one-line hint "The ID photo comes from the chat" (`cashIdPhotoHint`, en/es), same
+  underline FieldRow + ConfirmCancelButtons, Enter saves (form submit), Escape cancels. Sends `{beneficiary_type: efectivo_usd,
+  phone, address[, name]}` only; phone digits 8-15 and a non-blank address are checked before the request. No amount/currency field:
+  the DB calculates it. The other add forms (card, Zelle, clasica, tropical) still ask for amount + currency because
+  crm_agregar_beneficiario requires them for those types; unchanged.
+- The "add recipient" button is hidden once the operation has its cash recipient (the DB refuses a second one).
+- Not verified: no browser available (look unseen). Staging app release NOT deployed by this task.
+- Open points: the edit form of an existing cash recipient (BeneficiaryEditFields) still shows the card field and no address/name,
+  so a cash recipient's address cannot be corrected from the panel yet even though crm_corregir_beneficiario accepts it; the
+  panel cannot attach the ID photo (comes from the chat). Card/Zelle add forms do not prefill the currency from the service.

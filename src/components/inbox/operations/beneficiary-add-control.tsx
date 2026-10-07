@@ -6,12 +6,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ConfirmCancelButtons, cancelOnEscape } from "./confirm-cancel-buttons";
 import { EDIT_AREA, FieldPair, FieldRow, PairCell, UNDERLINE_SELECT_TRIGGER, UnderlineInput } from "./edit-form-fields";
 import { agregarBeneficiario } from "@/lib/remittance-operations/commands";
+import type { OperationService } from "@/lib/remittance-operations/services";
 
 interface BeneficiaryAddControlProps {
   operationId: string;
   /** `recarga` and `saldo` turn the form into a single Cuban-mobile-number field; `combo`
    *  into a recipient form (name, phone, address, reference, contact phone, amount). */
   serviceType?: string;
+  /** The operation's current service (`currentServiceOf`). When it is a recipient service the form shows that
+   *  service's fields directly; the type picker only appears while the operation has no service yet. */
+  service?: OperationService | null;
   onDone: () => void;
   onCancel: () => void;
 }
@@ -25,7 +29,7 @@ const RECHARGE_PHONE_PATTERN = /^[56]\d{7}$/;
  *  deliberately excluded — splitting one payment across several
  *  beneficiaries is its own bot-driven flow, not a single hand-added
  *  beneficiary (see the feature doc's "Decisions to confirm"). */
-const ADDABLE_BENEFICIARY_TYPES: ReadonlyArray<string> = ["cuban_card", "zelle", "clasica", "tropical"];
+const ADDABLE_BENEFICIARY_TYPES: ReadonlyArray<string> = ["cuban_card", "zelle", "clasica", "tropical", "efectivo_usd"];
 
 /**
  * Inline "Add beneficiary" form for an open remesa: pick a type, fill in
@@ -34,10 +38,10 @@ const ADDABLE_BENEFICIARY_TYPES: ReadonlyArray<string> = ["cuban_card", "zelle",
  * `datos` contract exactly (snake_case keys, amount as a number). Sends
  * only the fields the selected type needs.
  */
-export function BeneficiaryAddControl({ operationId, serviceType, onDone, onCancel }: BeneficiaryAddControlProps) {
+export function BeneficiaryAddControl({ operationId, serviceType, service, onDone, onCancel }: BeneficiaryAddControlProps) {
   const t = useTranslations("Inbox.operationsPanel");
 
-  const [beneficiaryType, setBeneficiaryType] = useState("cuban_card");
+  const [pickedType, setPickedType] = useState("cuban_card");
   const [name, setName] = useState("");
   const [zelleAccount, setZelleAccount] = useState("");
   const [cardNumber, setCardNumber] = useState("");
@@ -50,7 +54,11 @@ export function BeneficiaryAddControl({ operationId, serviceType, onDone, onCanc
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // The operation's service decides the type; the picker only exists while it has none.
+  const serviceFixesType = service != null && ADDABLE_BENEFICIARY_TYPES.includes(service);
+  const beneficiaryType = serviceFixesType ? service : pickedType;
   const isZelle = beneficiaryType === "zelle";
+  const isCash = beneficiaryType === "efectivo_usd";
   // A mobile balance takes its one number through the same phone-only form as a recharge (migration 223).
   const isRecharge = serviceType === "recarga" || serviceType === "saldo";
   const isCombo = serviceType === "combo";
@@ -110,6 +118,31 @@ export function BeneficiaryAddControl({ operationId, serviceType, onDone, onCanc
       if (digitsContact !== "") comboDatos.contact_phone = digitsContact;
       setPending(true);
       const result = await agregarBeneficiario(operationId, comboDatos);
+      setPending(false);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      onDone();
+      return;
+    }
+
+    if (isCash) {
+      // Name optional, phone and address required; the amount is calculated by the database and the ID photo comes
+      // from the chat (migration 225).
+      const digitsPhone = phone.replace(/\D/g, "");
+      if (!PHONE_PATTERN.test(digitsPhone)) {
+        setError(t("invalidPhone"));
+        return;
+      }
+      if (address.trim() === "") {
+        setError(t("cannotBeEmpty"));
+        return;
+      }
+      const cashDatos: Record<string, unknown> = { beneficiary_type: "efectivo_usd", phone: digitsPhone, address: address.trim() };
+      if (name.trim() !== "") cashDatos.name = name.trim();
+      setPending(true);
+      const result = await agregarBeneficiario(operationId, cashDatos);
       setPending(false);
       if (!result.ok) {
         setError(result.error);
@@ -230,10 +263,9 @@ export function BeneficiaryAddControl({ operationId, serviceType, onDone, onCanc
     );
   }
 
-  return (
-    <form {...formProps}>
+  const typePicker = serviceFixesType ? null : (
       <FieldRow label={t("beneficiaryTypeLabel")} htmlFor="add-beneficiary-type">
-        <Select id="add-beneficiary-type" value={beneficiaryType} disabled={pending} onValueChange={(v) => setBeneficiaryType(v ?? "cuban_card")}>
+        <Select id="add-beneficiary-type" value={beneficiaryType} disabled={pending} onValueChange={(v) => setPickedType(v ?? "cuban_card")}>
           <SelectTrigger className={UNDERLINE_SELECT_TRIGGER}>
             {/* Base UI paints the raw value unless it is given the label. */}
             <SelectValue>{(v) => t(`beneficiaryType.${(v as string) || beneficiaryType}`)}</SelectValue>
@@ -247,6 +279,35 @@ export function BeneficiaryAddControl({ operationId, serviceType, onDone, onCanc
           </SelectContent>
         </Select>
       </FieldRow>
+  );
+
+  if (isCash) {
+    return (
+      <form {...formProps}>
+        {typePicker}
+        <FieldRow label={t("name")} htmlFor="add-beneficiary-name">
+          <UnderlineInput id="add-beneficiary-name" value={name} onChange={(event) => setName(event.target.value)} />
+        </FieldRow>
+        <FieldRow label={t("phone")} htmlFor="add-beneficiary-phone">
+          <UnderlineInput
+            id="add-beneficiary-phone"
+            inputMode="numeric"
+            value={phone}
+            onChange={(event) => setPhone(event.target.value)}
+          />
+        </FieldRow>
+        <FieldRow label={t("address")} htmlFor="add-beneficiary-address">
+          <UnderlineInput id="add-beneficiary-address" value={address} onChange={(event) => setAddress(event.target.value)} />
+        </FieldRow>
+        <p className="text-[11px] text-muted-foreground">{t("cashIdPhotoHint")}</p>
+        {actions}
+      </form>
+    );
+  }
+
+  return (
+    <form {...formProps}>
+      {typePicker}
 
       {isZelle ? (
         <>

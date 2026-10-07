@@ -438,6 +438,7 @@
       "saldoCountOne": "{count} package · {saldo} SM",
       "saldoCountMany": "{count} packages · {saldo} SM",
       "comboMinimumHint": "Minimum 25,000 GYD per combo",
+      "cashIdPhotoHint": "The ID photo comes from the chat",
       "comboProvinceHint": "Include the Cuban province in the address",
       "serviceChange": {
         "label": "Service",

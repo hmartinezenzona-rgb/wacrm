@@ -8,6 +8,7 @@ import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import en from "../../../../messages/en.json";
+import type { OperationService } from "@/lib/remittance-operations/services";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -63,13 +64,13 @@ function submit(node: HTMLElement) {
   });
 }
 
-async function render(onDone = vi.fn(), onCancel = vi.fn(), serviceType?: string) {
+async function render(onDone = vi.fn(), onCancel = vi.fn(), serviceType?: string, service?: OperationService | null) {
   const { BeneficiaryAddControl } = await import("./beneficiary-add-control");
   const node = document.createElement("div");
   document.body.appendChild(node);
   const root = createRoot(node);
   await act(async () =>
-    root.render(<BeneficiaryAddControl operationId="op-1" serviceType={serviceType} onDone={onDone} onCancel={onCancel} />),
+    root.render(<BeneficiaryAddControl operationId="op-1" serviceType={serviceType} service={service} onDone={onDone} onCancel={onCancel} />),
   );
   return { node, root, onDone, onCancel };
 }
@@ -447,4 +448,158 @@ describe("BeneficiaryAddControl minimalist edit mode", () => {
     await act(async () => root.unmount());
   });
 });
+});
+
+describe("BeneficiaryAddControl follows the operation's service", () => {
+  const fill = async (node: HTMLElement, values: Record<string, string>) => {
+    for (const [id, value] of Object.entries(values)) {
+      await act(async () => setValue(node.querySelector<HTMLInputElement>(`#add-beneficiary-${id}`)!, value));
+    }
+  };
+
+  it("offers Cash USD in the picker when the operation has no service yet", async () => {
+    const { node, root } = await render(vi.fn(), vi.fn(), "remesa", null);
+    const values = Array.from(node.querySelectorAll("option")).map((o) => o.getAttribute("value"));
+    expect(values).toEqual(["cuban_card", "zelle", "clasica", "tropical", "efectivo_usd"]);
+    await act(async () => root.unmount());
+  });
+
+  it("shows the cash fields once Cash USD is picked: name, phone and address, no card, amount or currency", async () => {
+    const { node, root } = await render(vi.fn(), vi.fn(), "remesa", null);
+
+    await act(async () => selectType(node, "efectivo_usd"));
+
+    for (const id of ["name", "phone", "address"]) expect(node.querySelector(`#add-beneficiary-${id}`), id).not.toBeNull();
+    for (const id of ["card-number", "zelle-account", "amount", "currency"]) {
+      expect(node.querySelector(`#add-beneficiary-${id}`), id).toBeNull();
+    }
+    expect(node.textContent).toContain(en.Inbox.operationsPanel.cashIdPhotoHint);
+    await act(async () => root.unmount());
+  });
+
+  it.each(["cuban_card", "zelle", "clasica", "tropical", "efectivo_usd"] as const)(
+    "shows the %s fields directly, with no type picker, when that is the operation's service",
+    async (service) => {
+      const { node, root } = await render(vi.fn(), vi.fn(), "remesa", service);
+
+      expect(node.querySelector("select")).toBeNull();
+      expect(node.querySelector("#add-beneficiary-type")).toBeNull();
+      const has = (id: string) => node.querySelector(`#add-beneficiary-${id}`) !== null;
+      expect(has("zelle-account")).toBe(service === "zelle");
+      expect(has("card-number")).toBe(service !== "zelle" && service !== "efectivo_usd");
+      expect(has("address")).toBe(service === "efectivo_usd");
+      expect(has("amount")).toBe(service !== "efectivo_usd");
+      await act(async () => root.unmount());
+    },
+  );
+
+  it("sends the service as the recipient type for a clasica operation", async () => {
+    agregarBeneficiario.mockReset();
+    agregarBeneficiario.mockResolvedValue({ ok: true, id: "ben-20", complete: true });
+    const { node, root, onDone } = await render(vi.fn(), vi.fn(), "remesa", "clasica");
+
+    await fill(node, { "card-number": "9205123412349412", phone: "55512345", amount: "100", currency: "USD" });
+    await submit(node);
+
+    expect(agregarBeneficiario).toHaveBeenCalledWith("op-1", {
+      beneficiary_type: "clasica",
+      card_number: "9205123412349412",
+      phone: "55512345",
+      amount: 100,
+      currency: "USD",
+    });
+    expect(onDone).toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
+
+  it("ignores the service on a recharge, a mobile balance and a combo: they keep their own forms", async () => {
+    for (const [serviceType, service, field] of [
+      ["recarga", "recarga", "#add-beneficiary-phone"],
+      ["saldo", "saldo", "#add-beneficiary-phone"],
+      ["combo", "combo", "#add-beneficiary-reference"],
+    ] as const) {
+      const { node, root } = await render(vi.fn(), vi.fn(), serviceType, service);
+      expect(node.querySelector(field), serviceType).not.toBeNull();
+      expect(node.querySelector("#add-beneficiary-address") !== null, serviceType).toBe(serviceType === "combo");
+      await act(async () => root.unmount());
+    }
+  });
+
+  it("sends {efectivo_usd, name, phone, address} for a cash recipient and nothing else", async () => {
+    agregarBeneficiario.mockReset();
+    agregarBeneficiario.mockResolvedValue({ ok: true, id: "ben-21", complete: false });
+    const { node, root, onDone } = await render(vi.fn(), vi.fn(), "remesa", "efectivo_usd");
+
+    await fill(node, { name: " Maria Perez ", phone: "5212-3456", address: " Calle 1 #23, Plaza " });
+    await submit(node);
+
+    expect(agregarBeneficiario).toHaveBeenCalledWith("op-1", {
+      beneficiary_type: "efectivo_usd",
+      name: "Maria Perez",
+      phone: "52123456",
+      address: "Calle 1 #23, Plaza",
+    });
+    expect(onDone).toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
+
+  it("leaves the name out when it is empty (it is optional)", async () => {
+    agregarBeneficiario.mockReset();
+    agregarBeneficiario.mockResolvedValue({ ok: true, id: "ben-22", complete: false });
+    const { node, root } = await render(vi.fn(), vi.fn(), "remesa", "efectivo_usd");
+
+    await fill(node, { phone: "52123456", address: "Calle 1" });
+    await submit(node);
+
+    expect(agregarBeneficiario).toHaveBeenCalledWith("op-1", {
+      beneficiary_type: "efectivo_usd",
+      phone: "52123456",
+      address: "Calle 1",
+    });
+    await act(async () => root.unmount());
+  });
+
+  it.each([
+    ["a bad phone", { phone: "123", address: "Calle 1" }, en.Inbox.operationsPanel.invalidPhone],
+    ["a missing phone", { phone: "", address: "Calle 1" }, en.Inbox.operationsPanel.invalidPhone],
+    ["a missing address", { phone: "52123456", address: "  " }, en.Inbox.operationsPanel.cannotBeEmpty],
+  ])("%s -> error and no request", async (_label, values, message) => {
+    agregarBeneficiario.mockReset();
+    const { node, root } = await render(vi.fn(), vi.fn(), "remesa", "efectivo_usd");
+
+    await fill(node, values);
+    await submit(node);
+
+    expect(agregarBeneficiario).not.toHaveBeenCalled();
+    expect(node.textContent).toContain(message);
+    await act(async () => root.unmount());
+  });
+
+  it("Enter saves (form submit) and Escape cancels on the cash form", async () => {
+    agregarBeneficiario.mockReset();
+    const onCancel = vi.fn();
+    const { node, root } = await render(vi.fn(), onCancel, "remesa", "efectivo_usd");
+
+    const input = node.querySelector<HTMLInputElement>("#add-beneficiary-address")!;
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    });
+
+    expect(onCancel).toHaveBeenCalled();
+    expect(node.querySelector("form")!.querySelector('button[type="submit"]')).not.toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("shows the server error and keeps the form open when the add is refused", async () => {
+    agregarBeneficiario.mockReset();
+    agregarBeneficiario.mockResolvedValue({ ok: false, status: 400, error: "a cash delivery has one recipient: correct it instead of adding another" });
+    const { node, root, onDone } = await render(vi.fn(), vi.fn(), "remesa", "efectivo_usd");
+
+    await fill(node, { phone: "52123456", address: "Calle 1" });
+    await submit(node);
+
+    expect(node.textContent).toContain("a cash delivery has one recipient");
+    expect(onDone).not.toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
 });

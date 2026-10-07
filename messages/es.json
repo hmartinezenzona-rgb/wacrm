@@ -438,6 +438,7 @@
       "saldoCountOne": "{count} paquete · {saldo} SM",
       "saldoCountMany": "{count} paquetes · {saldo} SM",
       "comboMinimumHint": "Mínimo 25,000 GYD por combo",
+      "cashIdPhotoHint": "La foto del carnet llega por el chat",
       "comboProvinceHint": "Incluye la provincia de Cuba en la dirección",
       "serviceChange": {
         "label": "Servicio",

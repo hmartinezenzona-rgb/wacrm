@@ -57,7 +57,7 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
 - [x] T2b Follow-up (owner 2026-10-06): the automatic ledger line of a saldo shows the saldo amount in SM ("1,800 SM"),
   not the package count in 'REC'. DB (migration 223 amended in place, staging only) and app, see Progress.
 - [x] T3 Staging deploy + owner's look.
-- [ ] T4 Production with the owner's go-ahead; then Yilian's operation.
+- [x] T4 Production with the owner's go-ahead; then Yilian's operation.
 - [ ] T5 (later, separate go-ahead) Bot: recognise, quote and open saldo; notice text and Meta template.
 
 ## Progress
@@ -157,3 +157,26 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
 
 ## Next step
 T3: staging app deploy and the owner's look (owner's go-ahead not needed for staging; production waits for T4's go-ahead).
+
+- 2026-10-07 T4 PRODUCTION DB (owner: "pasalo a produccion"), migrations 223 + 224 + 225 in one transaction:
+  - Backup ~/wacrm-respaldos/produccion-20261007T175534Z.dump (sha256 3af1309aa2c3f51a...).
+  - Pre-check: the 17 functions of ROLLBACK-223's header 17/17 equal in production; crm_calcular_monto_destino
+    cbd256e4... (= ROLLBACK-224 header); no saldo column; last migration 222.
+  - ~/cerebro-fase1/pruebas/gate123-aplicar-db.py with temporary zz_wu5b_exec. Fingerprint (md5 over 21 functions,
+    column, config rows, service CHECK, recalc trigger columns): ensayo
+    `fn=1a784c169de9dbd31eaa99ead53e8eb9 n=21 col=1 cfg=2 chk=99bd2f37... trg=delivery_method,quoted_source_amount,service_type,source_currency,status`
+    = staging exactly; ida-y-vuelta `fn=b5b519d6... n=19 col=0 cfg=0 chk=4f065e3a... trg=quoted_source_amount,source_currency,status`
+    = production before; aplicar OK (schema_migrations 20261007175852 223, ...53 224, ...54 225).
+  - probar (forced rollback), 14 assertions pass: saldo-model, quote-from-rail, cash-recipient-add,
+    change-operation-service, recarga-model, calculator-recarga, resolve-pending, destination-amount,
+    clasica-card-from-delivery-method, corrections, combo-model, visa-model, reparto-guards, operations-board.
+  - After: helper dropped, 0 leftovers, no disabled trigger, cerebro_config precio_saldo_gyd=1000 saldo_unidad_cup=360,
+    643 operations, 230 contacts. (The parent's first fingerprint query had a syntax error; nothing ran in production.)
+- 2026-10-07 Yilian's 6709a0cd (production): the team had completed it on 2026-10-07 13:18 UTC as recarga (closed
+  manually, muted; ledger RECARGA verified_pending recargaPrecioGyd). Reclassified silently with
+  gate124-yilian-saldo.py (guarded block as the owner: muted revert + audit, crm_cambiar_servicio -> saldo,
+  crm_agregar_beneficiario phone 58185473, crm_cerrar_operacion_manual notify false). Result: service saldo, completed,
+  recipient 58185473, ledger SALDO_MOVIL 1,800 SM verified_pending (missing saldoCostoUsdt: the owner sets the cost in
+  the Calculator); the old RECARGA line is void; 0 messages / outbox rows; both notifier posts muted. Helper dropped
+  (first DROP hit the MCP session error and did not run; re-checked and dropped, count 0).
+- Open: saldo_costo_usdt is NULL in production until the owner sets it ("Costo saldo (USDT)" in the Calculator).

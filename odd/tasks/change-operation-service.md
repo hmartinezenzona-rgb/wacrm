@@ -109,8 +109,15 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
   unauthenticated POST /api/remittance-operations/<uuid>/service 401; prod-build worktree clean. No DB change. Production not touched.
   Rollback: `ssh oracle2 'ln -sfn /home/ubuntu/wacrm-releases/33fd0e2844176466879ab43fcb4add26e422e6c8 ~/wacrm-releases/current && pm2 restart wacrm-staging --update-env'`.
 
+- 2026-10-06 T2c staging deployed (owner's look pending; T3 NOT checked off): release 1ff1d1330f5c99f184e4254476584b6676cd03d4,
+  BUILD_ID sSU4gs64_IVyYuJy29opm, same procedure as a4220b9. Manifest staging / kolppplawzdsjfydwejr, 114 money-path tests passed,
+  0 production refs / 32 staging files (36 refs), sha256 OK, NEXT_PUBLIC_APP_LOCALE=es. `current` -> 1ff1d13, `anterior` -> a4220b9;
+  pm2 wacrm-staging cwd resolves to the new release, restarts 68 -> 69 and stable; /login 200 with the new BUILD_ID and
+  "Bienvenido de nuevo"; prod-build worktree clean. No DB change. Production not touched.
+  Rollback: `ssh oracle2 'ln -sfn /home/ubuntu/wacrm-releases/a4220b9f63e89adccf2185b6dec807a470e7af2b ~/wacrm-releases/current && pm2 restart wacrm-staging --update-env'`.
+
 ## Next step
-T3: owner's look at the T2b edit-mode selector on staging (release a4220b9); then check off T3.
+T3: owner's look at the T2c themed Servicio dropdown on staging (release 1ff1d13); then check off T3.
 
 - [x] T2c (owner, 2026-10-06: "las opciones se ven con un fondo en blanco y se ve feo"): the Servicio field was a native
   <select>, whose option list the browser paints white. It now uses the app's Select (src/components/ui/select.tsx,

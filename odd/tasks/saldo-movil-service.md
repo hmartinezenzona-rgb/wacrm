@@ -103,5 +103,13 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
 - Not touched: cerebro_registrar_deposito and the bot (a deposit for a conversation with an open saldo still lands as
   a remesa deposit); that is T5.
 
+- 2026-10-06 T3 staging deployed (owner's look pending; T3 NOT checked off): release ae7c92764b9e84722eb4bddd21094a2e6d12a344,
+  BUILD_ID TSQZ7xxZC-1bNfB2-tzxn, same procedure as 1ff1d13 (clean prod-build, docker node:20 uid 1000, staging-build.env with
+  NEXT_PUBLIC_APP_LOCALE=es, unchanged). Manifest staging / kolppplawzdsjfydwejr, 114 money-path tests passed, 0 production refs /
+  32 staging files, sha256 OK. `current` -> ae7c927, `anterior` -> 1ff1d13; pm2 wacrm-staging cwd resolves to the new release,
+  restarts 69 -> 70 and stable; crm.onlinefreedom.site/login 200 with the new BUILD_ID and "Bienvenido de nuevo"; .next/server has
+  "Saldo móvil"; prod-build clean. No DB change (migration 223 already on staging). Production not touched.
+  Rollback: `ssh oracle2 'ln -sfn /home/ubuntu/wacrm-releases/1ff1d1330f5c99f184e4254476584b6676cd03d4 ~/wacrm-releases/current && pm2 restart wacrm-staging --update-env'`.
+
 ## Next step
 T3: staging app deploy and the owner's look (owner's go-ahead not needed for staging; production waits for T4's go-ahead).

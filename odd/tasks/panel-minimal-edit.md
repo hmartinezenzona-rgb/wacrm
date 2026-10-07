@@ -274,3 +274,31 @@ Decisions (migration 225, crm_agregar_beneficiario only):
 - Open points: the edit form of an existing cash recipient (BeneficiaryEditFields) still shows the card field and no address/name,
   so a cash recipient's address cannot be corrected from the panel yet even though crm_corregir_beneficiario accepts it; the
   panel cannot attach the ID photo (comes from the chat). Card/Zelle add forms do not prefill the currency from the service.
+
+- [x] T2e Close the T2d gaps (app only, no DB change):
+  - The recipient edit form follows the recipient's TYPE; a cash recipient is editable (name, phone, address) and shows the
+    ID photo note. The card and Zelle add forms derive the currency from the service and prefill the amount from the quote.
+
+## Evidence (T2e, 2026-10-07)
+- RED first: new edit-form tests failed against the original card component (4 failed: cash showed card field, no
+  name/address); add-control tests failed (no `quote` prop, currency field still asked, 10 failed). GREEN after: `tsc` clean,
+  eslint clean on src/components/inbox/operations, `vitest run src/components/inbox/operations src/i18n`: 27 files, 472 tests;
+  full suite: 166 files, 2137 tests.
+- Field table (checked against crm_corregir_beneficiario 212 and crm_agregar_beneficiario 225):
+  | type | edit form | add form |
+  | efectivo_usd | name (optional, clearable -> null), phone, address; ID photo note | name (optional), phone, address; note |
+  | zelle | name, Zelle account (+ amount when 2+ recipients) | name, Zelle account, amount (USD) |
+  | cuban_card (CUP) | card, phone | card, phone (optional), amount (CUP) |
+  | clasica / tropical | card, phone | card, phone (optional), amount (USD) |
+  | recarga / saldo | phone only | phone only |
+  | combo | its own editor (unchanged) | its own form (unchanged) |
+- RPC rules: address accepted only for combo and efectivo_usd (hidden elsewhere); the cash row can never get card/Zelle keys;
+  name/phone/address sent only when changed; phone 8-15 digits; phone and address cannot be emptied on a cash row (same as add).
+  Nothing the RPC refuses blocked a field.
+- Add forms: crm_agregar_beneficiario STILL REQUIRES amount and currency for cuban_card/zelle/clasica/tropical (225, lines
+  243-253), so both are sent. The currency is derived from the service/picked type (cuban_card CUP; zelle, clasica, tropical USD)
+  and shown in the amount label, no field. The amount is prefilled with the operation's quoted destination amount only when the
+  operation has no recipient yet (the one being added is the lone one) and the quote's currency equals the service's; editable.
+  With 1+ recipients the quote is split, so the amount is left empty.
+- Read view already showed cash name, phone, address (MapPin) and the ID photo link / "ID photo missing" with catalog labels; no change.
+- Not verified: no browser (look unseen); staging app not deployed by this task.

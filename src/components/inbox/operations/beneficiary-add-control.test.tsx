@@ -64,13 +64,19 @@ function submit(node: HTMLElement) {
   });
 }
 
-async function render(onDone = vi.fn(), onCancel = vi.fn(), serviceType?: string, service?: OperationService | null) {
+async function render(
+  onDone = vi.fn(),
+  onCancel = vi.fn(),
+  serviceType?: string,
+  service?: OperationService | null,
+  quote?: { amount: number; currency: string } | null,
+) {
   const { BeneficiaryAddControl } = await import("./beneficiary-add-control");
   const node = document.createElement("div");
   document.body.appendChild(node);
   const root = createRoot(node);
   await act(async () =>
-    root.render(<BeneficiaryAddControl operationId="op-1" serviceType={serviceType} service={service} onDone={onDone} onCancel={onCancel} />),
+    root.render(<BeneficiaryAddControl operationId="op-1" serviceType={serviceType} service={service} quote={quote} onDone={onDone} onCancel={onCancel} />),
   );
   return { node, root, onDone, onCancel };
 }
@@ -175,7 +181,6 @@ describe("BeneficiaryAddControl", () => {
     await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-card-number")!, "9205123412349412"));
     await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-phone")!, "55512345"));
     await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-amount")!, "15000"));
-    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-currency")!, "CUP"));
     await submit(node);
 
     expect(agregarBeneficiario).toHaveBeenCalledWith("op-1", {
@@ -195,7 +200,6 @@ describe("BeneficiaryAddControl", () => {
 
     await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-card-number")!, "9205123412349412"));
     await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-amount")!, "5000"));
-    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-currency")!, "CUP"));
     await submit(node);
 
     expect(agregarBeneficiario).toHaveBeenCalledWith("op-1", {
@@ -214,7 +218,6 @@ describe("BeneficiaryAddControl", () => {
     await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-card-number")!, "9205123412349412"));
     await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-phone")!, "123"));
     await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-amount")!, "5000"));
-    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-currency")!, "CUP"));
     await submit(node);
 
     expect(node.textContent).toContain(en.Inbox.operationsPanel.invalidPhone);
@@ -230,7 +233,6 @@ describe("BeneficiaryAddControl", () => {
     await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-name")!, "Maria Perez"));
     await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-zelle-account")!, "maria@example.com"));
     await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-amount")!, "100"));
-    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-currency")!, "USD"));
     await submit(node);
 
     expect(agregarBeneficiario).toHaveBeenCalledWith("op-1", {
@@ -250,7 +252,6 @@ describe("BeneficiaryAddControl", () => {
     await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-card-number")!, "123"));
     await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-phone")!, "55512345"));
     await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-amount")!, "100"));
-    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-currency")!, "CUP"));
     await submit(node);
 
     expect(agregarBeneficiario).not.toHaveBeenCalled();
@@ -264,25 +265,10 @@ describe("BeneficiaryAddControl", () => {
     await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-card-number")!, "9205123412349412"));
     await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-phone")!, "55512345"));
     await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-amount")!, "0"));
-    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-currency")!, "CUP"));
     await submit(node);
 
     expect(agregarBeneficiario).not.toHaveBeenCalled();
     expect(node.textContent).toContain(en.Inbox.operationsPanel.invalidAmount);
-    await act(async () => root.unmount());
-  });
-
-  it("blocks submit and shows a message when currency doesn't match ^[A-Z]{3}$", async () => {
-    const { node, root } = await render();
-
-    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-card-number")!, "9205123412349412"));
-    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-phone")!, "55512345"));
-    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-amount")!, "100"));
-    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-currency")!, "cup"));
-    await submit(node);
-
-    expect(agregarBeneficiario).not.toHaveBeenCalled();
-    expect(node.textContent).toContain(en.Inbox.operationsPanel.invalidCurrency);
     await act(async () => root.unmount());
   });
 
@@ -291,7 +277,6 @@ describe("BeneficiaryAddControl", () => {
 
     await act(async () => selectType(node, "zelle"));
     await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-amount")!, "100"));
-    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-currency")!, "USD"));
     await submit(node);
 
     expect(agregarBeneficiario).not.toHaveBeenCalled();
@@ -318,12 +303,71 @@ describe("BeneficiaryAddControl", () => {
     await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-card-number")!, "9205123412349412"));
     await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-phone")!, "55512345"));
     await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-amount")!, "100"));
-    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-currency")!, "CUP"));
     await submit(node);
 
     expect(node.textContent).toContain("beneficiaries can only be added to remesa operations");
     expect(onDone).not.toHaveBeenCalled();
     await act(async () => root.unmount());
+  });
+});
+
+describe("BeneficiaryAddControl derives the currency and prefills the amount (T2e)", () => {
+  it.each([
+    ["cuban_card", "CUP"],
+    ["zelle", "USD"],
+    ["clasica", "USD"],
+    ["tropical", "USD"],
+  ] as const)("%s: no currency field, sends %s", async (service, currency) => {
+    agregarBeneficiario.mockResolvedValue({ ok: true, id: "b", complete: true });
+    const { node, root } = await render(vi.fn(), vi.fn(), "remesa", service);
+
+    expect(node.querySelector("#add-beneficiary-currency")).toBeNull();
+    if (service === "zelle") {
+      await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-name")!, "Ana"));
+      await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-zelle-account")!, "a@b.co"));
+    } else {
+      await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-card-number")!, "9205123412349412"));
+    }
+    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-amount")!, "50"));
+    await submit(node);
+
+    expect(agregarBeneficiario).toHaveBeenCalledWith("op-1", expect.objectContaining({ beneficiary_type: service, amount: 50, currency }));
+    await act(async () => root.unmount());
+  });
+
+  it("the picker flow derives the currency from the chosen type", async () => {
+    agregarBeneficiario.mockResolvedValue({ ok: true, id: "b", complete: true });
+    const { node, root } = await render();
+    await act(async () => selectType(node, "zelle"));
+    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-name")!, "Ana"));
+    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-zelle-account")!, "a@b.co"));
+    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-amount")!, "20"));
+    await submit(node);
+    expect(agregarBeneficiario).toHaveBeenCalledWith("op-1", expect.objectContaining({ currency: "USD" }));
+    await act(async () => root.unmount());
+  });
+
+  it("prefills the amount with the operation's quote (editable) and submits it untouched", async () => {
+    agregarBeneficiario.mockResolvedValue({ ok: true, id: "b", complete: true });
+    const { node, root } = await render(vi.fn(), vi.fn(), "remesa", "zelle", { amount: 100, currency: "USD" });
+    const amount = node.querySelector<HTMLInputElement>("#add-beneficiary-amount")!;
+    expect(amount.value).toBe("100");
+    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-name")!, "Ana"));
+    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-zelle-account")!, "a@b.co"));
+    await submit(node);
+    expect(agregarBeneficiario).toHaveBeenCalledWith("op-1", expect.objectContaining({ amount: 100, currency: "USD" }));
+    await act(async () => setValue(amount, "80"));
+    expect(amount.value).toBe("80");
+    await act(async () => root.unmount());
+  });
+
+  it("does not prefill when there is no quote or its currency is not the service's", async () => {
+    const a = await render(vi.fn(), vi.fn(), "remesa", "zelle", null);
+    expect(a.node.querySelector<HTMLInputElement>("#add-beneficiary-amount")!.value).toBe("");
+    await act(async () => a.root.unmount());
+    const b = await render(vi.fn(), vi.fn(), "remesa", "cuban_card", { amount: 100, currency: "USD" });
+    expect(b.node.querySelector<HTMLInputElement>("#add-beneficiary-amount")!.value).toBe("");
+    await act(async () => b.root.unmount());
   });
 });
 
@@ -498,7 +542,7 @@ describe("BeneficiaryAddControl follows the operation's service", () => {
     agregarBeneficiario.mockResolvedValue({ ok: true, id: "ben-20", complete: true });
     const { node, root, onDone } = await render(vi.fn(), vi.fn(), "remesa", "clasica");
 
-    await fill(node, { "card-number": "9205123412349412", phone: "55512345", amount: "100", currency: "USD" });
+    await fill(node, { "card-number": "9205123412349412", phone: "55512345", amount: "100" });
     await submit(node);
 
     expect(agregarBeneficiario).toHaveBeenCalledWith("op-1", {

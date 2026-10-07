@@ -1585,6 +1585,23 @@ describe("RemittanceOperationCard", () => {
       await act(async () => root.unmount());
     });
 
+    it("passes the operation's quote to the add control only when it has no recipient yet", async () => {
+      const first = await render(operation({ id: "op-q", deliveryMethod: "zelle", destinationCurrency: "USD", quotedDestinationAmount: 100 }));
+      await act(async () => button(first.node, ADD_LABEL)!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+      expect(BeneficiaryAddControl).toHaveBeenLastCalledWith(expect.objectContaining({ quote: { amount: 100, currency: "USD" } }));
+      await act(async () => first.root.unmount());
+
+      const second = await render(
+        operation({
+          id: "op-q2", deliveryMethod: "zelle", destinationCurrency: "USD", quotedDestinationAmount: 100,
+          beneficiaries: [beneficiary({ beneficiaryType: "zelle", name: "A", zelleAccount: "a@b.co" })],
+        }),
+      );
+      await act(async () => button(second.node, ADD_LABEL)!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+      expect(BeneficiaryAddControl).toHaveBeenLastCalledWith(expect.objectContaining({ quote: null }));
+      await act(async () => second.root.unmount());
+    });
+
     it("clicking it opens the add-beneficiary control, passing operationId, and hides the button", async () => {
       const { node, root } = await render(operation({ id: "op-9" }));
 
@@ -1657,6 +1674,96 @@ describe("RemittanceOperationCard", () => {
 
       expect(onChanged).toHaveBeenCalledTimes(1);
       expect(button(node, ADD_LABEL)).not.toBeNull();
+      await act(async () => root.unmount());
+    });
+  });
+
+  describe("Beneficiary edit form follows the recipient type (T2e)", () => {
+    async function openEdit(b: Partial<RemittanceBeneficiaryRead>, op: Partial<RemittanceOperationRead> = {}) {
+      const rendered = await render(operation({ beneficiaries: [beneficiary({ id: "ben-1", ...b })], ...op }));
+      await act(async () =>
+        button(rendered.node, en.Inbox.operationsPanel.editBeneficiary)!.dispatchEvent(
+          new MouseEvent("click", { bubbles: true }),
+        ),
+      );
+      return rendered;
+    }
+    const ids = (node: HTMLElement) =>
+      ["name", "card", "phone", "zelle-account", "address"].filter((k) => node.querySelector(`#inline-${k}-ben-1`) !== null);
+    async function save(node: HTMLElement) {
+      await act(async () =>
+        buttonByLabel(node, en.Inbox.operationsPanel.save).dispatchEvent(new MouseEvent("click", { bubbles: true })),
+      );
+    }
+
+    it.each([
+      ["efectivo_usd", ["name", "phone", "address"]],
+      ["zelle", ["name", "zelle-account"]],
+      ["cuban_card", ["card", "phone"]],
+      ["clasica", ["card", "phone"]],
+      ["tropical", ["card", "phone"]],
+      ["recarga", ["phone"]],
+    ])("%s offers exactly its own fields", async (type, expected) => {
+      const { node, root } = await openEdit({ beneficiaryType: type as RemittanceBeneficiaryRead["beneficiaryType"] });
+      expect(ids(node)).toEqual(expected);
+      await act(async () => root.unmount());
+    });
+
+    it("cash: shows the ID photo note and prefilled name, phone and address", async () => {
+      const { node, root } = await openEdit({
+        beneficiaryType: "efectivo_usd", name: "Maria", phone: "5926001111", address: "12 Main St",
+      });
+      expect(node.querySelector<HTMLInputElement>("#inline-name-ben-1")!.value).toBe("Maria");
+      expect(node.querySelector<HTMLInputElement>("#inline-phone-ben-1")!.value).toBe("5926001111");
+      expect(node.querySelector<HTMLInputElement>("#inline-address-ben-1")!.value).toBe("12 Main St");
+      expect(node.textContent).toContain(en.Inbox.operationsPanel.cashIdPhotoHint);
+      await act(async () => root.unmount());
+    });
+
+    it("cash: saving sends only the changed name / phone / address keys", async () => {
+      corregirBeneficiario.mockResolvedValue({ ok: true, id: "n1" });
+      const { node, root } = await openEdit({
+        beneficiaryType: "efectivo_usd", name: "Maria", phone: "5926001111", address: "12 Main St",
+      });
+      await act(async () => setValue(node.querySelector<HTMLInputElement>("#inline-name-ben-1")!, "Maria L"));
+      await act(async () => setValue(node.querySelector<HTMLInputElement>("#inline-phone-ben-1")!, "592 600 2222"));
+      await act(async () => setValue(node.querySelector<HTMLInputElement>("#inline-address-ben-1")!, "14 Water St"));
+      await save(node);
+      expect(corregirBeneficiario).toHaveBeenCalledWith("ben-1", { name: "Maria L", phone: "5926002222", address: "14 Water St" });
+      await act(async () => root.unmount());
+    });
+
+    it("cash: the optional name can be cleared (null) but address and phone cannot be emptied", async () => {
+      corregirBeneficiario.mockClear();
+      corregirBeneficiario.mockResolvedValue({ ok: true, id: "n1" });
+      const { node, root } = await openEdit({
+        beneficiaryType: "efectivo_usd", name: "Maria", phone: "5926001111", address: "12 Main St",
+      });
+      await act(async () => setValue(node.querySelector<HTMLInputElement>("#inline-address-ben-1")!, ""));
+      await save(node);
+      expect(corregirBeneficiario).not.toHaveBeenCalled();
+      expect(node.querySelector('[role="alert"]')?.textContent).toBe(en.Inbox.operationsPanel.cannotBeEmpty);
+      await act(async () => setValue(node.querySelector<HTMLInputElement>("#inline-address-ben-1")!, "12 Main St"));
+      await act(async () => setValue(node.querySelector<HTMLInputElement>("#inline-name-ben-1")!, ""));
+      await save(node);
+      expect(corregirBeneficiario).toHaveBeenCalledWith("ben-1", { name: null });
+      await act(async () => root.unmount());
+    });
+
+    it("cash: a phone that is not 8 to 15 digits is refused before the request", async () => {
+      corregirBeneficiario.mockClear();
+      const { node, root } = await openEdit({ beneficiaryType: "efectivo_usd", phone: "5926001111", address: "x" });
+      await act(async () => setValue(node.querySelector<HTMLInputElement>("#inline-phone-ben-1")!, "123"));
+      await save(node);
+      expect(corregirBeneficiario).not.toHaveBeenCalled();
+      expect(node.querySelector('[role="alert"]')?.textContent).toBe(en.Inbox.operationsPanel.invalidPhone);
+      await act(async () => root.unmount());
+    });
+
+    it("the other types show no address and no ID photo note", async () => {
+      const { node, root } = await openEdit({ beneficiaryType: "cuban_card", cardNumber: "9205123412349412" });
+      expect(node.querySelector("#inline-address-ben-1")).toBeNull();
+      expect(node.textContent).not.toContain(en.Inbox.operationsPanel.cashIdPhotoHint);
       await act(async () => root.unmount());
     });
   });

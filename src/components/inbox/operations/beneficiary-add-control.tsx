@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConfirmCancelButtons, cancelOnEscape } from "./confirm-cancel-buttons";
-import { EDIT_AREA, FieldPair, FieldRow, PairCell, UNDERLINE_SELECT_TRIGGER, UnderlineInput } from "./edit-form-fields";
+import { EDIT_AREA, FieldRow, UNDERLINE_SELECT_TRIGGER, UnderlineInput } from "./edit-form-fields";
 import { agregarBeneficiario } from "@/lib/remittance-operations/commands";
 import type { OperationService } from "@/lib/remittance-operations/services";
 
@@ -16,13 +16,18 @@ interface BeneficiaryAddControlProps {
   /** The operation's current service (`currentServiceOf`). When it is a recipient service the form shows that
    *  service's fields directly; the type picker only appears while the operation has no service yet. */
   service?: OperationService | null;
+  /** The operation's current quoted destination amount, offered only when the recipient being added is the lone one
+   *  (the amount is then what the system already computed). Prefills the amount; the person may change it. */
+  quote?: { amount: number; currency: string } | null;
   onDone: () => void;
   onCancel: () => void;
 }
 
 const CARD_NUMBER_PATTERN = /^\d{16}$/;
 const PHONE_PATTERN = /^\d{8,15}$/;
-const CURRENCY_PATTERN = /^[A-Z]{3}$/;
+
+/** The destination currency each card/Zelle service pays in (crm_agregar_beneficiario still requires it). */
+const SERVICE_CURRENCY: Readonly<Record<string, string>> = { cuban_card: "CUP", zelle: "USD", clasica: "USD", tropical: "USD" };
 const RECHARGE_PHONE_PATTERN = /^[56]\d{7}$/;
 
 /** Types offered by this control. `multiple_distribution` (reparto) is
@@ -38,7 +43,7 @@ const ADDABLE_BENEFICIARY_TYPES: ReadonlyArray<string> = ["cuban_card", "zelle",
  * `datos` contract exactly (snake_case keys, amount as a number). Sends
  * only the fields the selected type needs.
  */
-export function BeneficiaryAddControl({ operationId, serviceType, service, onDone, onCancel }: BeneficiaryAddControlProps) {
+export function BeneficiaryAddControl({ operationId, serviceType, service, quote, onDone, onCancel }: BeneficiaryAddControlProps) {
   const t = useTranslations("Inbox.operationsPanel");
 
   const [pickedType, setPickedType] = useState("cuban_card");
@@ -46,8 +51,7 @@ export function BeneficiaryAddControl({ operationId, serviceType, service, onDon
   const [zelleAccount, setZelleAccount] = useState("");
   const [cardNumber, setCardNumber] = useState("");
   const [phone, setPhone] = useState("");
-  const [amount, setAmount] = useState("");
-  const [currency, setCurrency] = useState("");
+  const [typedAmount, setTypedAmount] = useState<string | null>(null);
   const [address, setAddress] = useState("");
   const [reference, setReference] = useState("");
   const [contactPhone, setContactPhone] = useState("");
@@ -59,6 +63,11 @@ export function BeneficiaryAddControl({ operationId, serviceType, service, onDon
   const beneficiaryType = serviceFixesType ? service : pickedType;
   const isZelle = beneficiaryType === "zelle";
   const isCash = beneficiaryType === "efectivo_usd";
+  const currency = SERVICE_CURRENCY[beneficiaryType] ?? "";
+  // Prefill with the quote only when it is in this service's currency; whatever the person types wins.
+  const prefill = quote && quote.amount > 0 && quote.currency === currency ? String(quote.amount) : "";
+  const amount = typedAmount ?? prefill;
+  const setAmount = setTypedAmount;
   // A mobile balance takes its one number through the same phone-only form as a recharge (migration 223).
   const isRecharge = serviceType === "recarga" || serviceType === "saldo";
   const isCombo = serviceType === "combo";
@@ -187,10 +196,6 @@ export function BeneficiaryAddControl({ operationId, serviceType, service, onDon
     }
     datos.amount = parsedAmount;
 
-    if (!CURRENCY_PATTERN.test(currency)) {
-      setError(t("invalidCurrency"));
-      return;
-    }
     datos.currency = currency;
 
     setPending(true);
@@ -343,23 +348,14 @@ export function BeneficiaryAddControl({ operationId, serviceType, service, onDon
         </>
       )}
 
-      <FieldPair>
-        <PairCell label={t("amount")} htmlFor="add-beneficiary-amount">
-          <UnderlineInput
-            id="add-beneficiary-amount"
-            inputMode="decimal"
-            value={amount}
-            onChange={(event) => setAmount(event.target.value)}
-          />
-        </PairCell>
-        <PairCell label={t("currency")} htmlFor="add-beneficiary-currency">
-          <UnderlineInput
-            id="add-beneficiary-currency"
-            value={currency}
-            onChange={(event) => setCurrency(event.target.value)}
-          />
-        </PairCell>
-      </FieldPair>
+      <FieldRow label={`${t("amount")} (${currency})`} htmlFor="add-beneficiary-amount">
+        <UnderlineInput
+          id="add-beneficiary-amount"
+          inputMode="decimal"
+          value={amount}
+          onChange={(event) => setAmount(event.target.value)}
+        />
+      </FieldRow>
 
       {actions}
     </form>

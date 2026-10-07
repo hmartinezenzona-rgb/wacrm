@@ -605,6 +605,14 @@ export function RemittanceOperationCard({
                   operationId={operation.id}
                   serviceType={operation.serviceType}
                   service={currentServiceOf(operation)}
+                  quote={
+                    operation.beneficiaries.length === 0 &&
+                    operation.quotedDestinationAmount !== null &&
+                    operation.quotedDestinationAmount > 0 &&
+                    operation.destinationCurrency
+                      ? { amount: operation.quotedDestinationAmount, currency: operation.destinationCurrency }
+                      : null
+                  }
                   onDone={handleChanged}
                   onCancel={() => setOpenForm(null)}
                 />
@@ -869,8 +877,10 @@ interface BeneficiaryEditFieldsProps {
  */
 function BeneficiaryEditFields({ beneficiary, amount, showAmountField, t, onCancel, onSaved }: BeneficiaryEditFieldsProps) {
   const isZelle = beneficiary.beneficiaryType === "zelle";
+  const isCash = beneficiary.beneficiaryType === "efectivo_usd";
   const isRecarga = beneficiary.beneficiaryType === "recarga";
   const initialName = beneficiary.name ?? "";
+  const initialAddress = beneficiary.address ?? "";
   const initialZelleAccount = beneficiary.zelleAccount ?? "";
   const initialCardDigits = (beneficiary.cardNumber ?? "").replace(/\D/g, "");
   const initialPhoneDigits = (beneficiary.phone ?? "").replace(/\D/g, "");
@@ -880,6 +890,7 @@ function BeneficiaryEditFields({ beneficiary, amount, showAmountField, t, onCanc
   const [zelleAccount, setZelleAccount] = useState(initialZelleAccount);
   const [cardNumber, setCardNumber] = useState(beneficiary.cardNumber ?? "");
   const [phone, setPhone] = useState(beneficiary.phone ?? "");
+  const [address, setAddress] = useState(initialAddress);
   const [amountValue, setAmountValue] = useState(initialAmount);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -888,7 +899,36 @@ function BeneficiaryEditFields({ beneficiary, amount, showAmountField, t, onCanc
     setError(null);
     const changes: Record<string, unknown> = {};
 
-    if (isZelle) {
+    if (isCash) {
+      // crm_corregir_beneficiario takes name, phone and address for a cash recipient (never a card or Zelle account).
+      // The name is optional (it may be cleared); phone and address are what the delivery needs, so they stay filled.
+      const trimmedName = name.trim();
+      if (trimmedName !== initialName) changes.name = trimmedName === "" ? null : trimmedName;
+
+      const digitsPhone = phone.replace(/\D/g, "");
+      if (digitsPhone !== initialPhoneDigits) {
+        if (digitsPhone === "" && initialPhoneDigits !== "") {
+          setError(t("cannotBeEmpty"));
+          return;
+        }
+        if (digitsPhone !== "") {
+          if (!PHONE_PATTERN.test(digitsPhone)) {
+            setError(t("invalidPhone"));
+            return;
+          }
+          changes.phone = digitsPhone;
+        }
+      }
+
+      const trimmedAddress = address.trim();
+      if (trimmedAddress !== initialAddress) {
+        if (trimmedAddress === "" && initialAddress !== "") {
+          setError(t("cannotBeEmpty"));
+          return;
+        }
+        if (trimmedAddress !== "") changes.address = trimmedAddress;
+      }
+    } else if (isZelle) {
       const trimmedName = name.trim();
       if (trimmedName !== initialName) {
         if (initialName !== "" && trimmedName === "") {
@@ -994,7 +1034,41 @@ function BeneficiaryEditFields({ beneficiary, amount, showAmountField, t, onCanc
         />
       )}
 
-      {isZelle ? (
+      {isCash ? (
+        <>
+          <InlineEditField
+            id={`inline-name-${beneficiary.id}`}
+            icon={<UserRound className="size-3.5" aria-hidden="true" />}
+            value={name}
+            onChange={setName}
+            placeholder={t("name")}
+            ariaLabel={t("name")}
+            disabled={pending}
+            variant="name"
+            autoFocus={!showAmountField}
+          />
+          <InlineEditField
+            id={`inline-phone-${beneficiary.id}`}
+            icon={<Phone className="size-3.5" aria-hidden="true" />}
+            value={phone}
+            onChange={setPhone}
+            placeholder={t("phone")}
+            ariaLabel={t("phone")}
+            disabled={pending}
+            inputMode="numeric"
+          />
+          <InlineEditField
+            id={`inline-address-${beneficiary.id}`}
+            icon={<MapPin className="size-3.5" aria-hidden="true" />}
+            value={address}
+            onChange={setAddress}
+            placeholder={t("address")}
+            ariaLabel={t("address")}
+            disabled={pending}
+          />
+          <p className="text-[11px] text-muted-foreground">{t("cashIdPhotoHint")}</p>
+        </>
+      ) : isZelle ? (
         <>
           <InlineEditField
             id={`inline-name-${beneficiary.id}`}

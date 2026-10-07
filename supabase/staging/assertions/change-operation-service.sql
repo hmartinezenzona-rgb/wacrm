@@ -154,19 +154,22 @@ BEGIN
     RAISE EXCEPTION 'case a3: back to CUP/% expected, got % / % / %', v_cup_amt, pg_temp.t222_one(v_op), v_o.destination_currency, v_o.quoted_destination_amount; END IF;
   RAISE NOTICE 'PASS a3: tropical -> cuban_card, CUP % again', v_cup_amt;
 
-  -- a4. -> zelle: the card is retired, the destination waits for a Zelle recipient
+  -- a4. -> zelle: the card is retired; with no recipient the operation is quoted from its rail (224): the Zelle tier
+  --     price of the deposit, whole USD rounded down. (Before 224 the destination stayed empty until a recipient came.)
   PERFORM pg_temp.t222_call(v_op, 'zelle', v_user);
   SELECT * INTO v_o FROM remittance_operations WHERE id = v_op;
   IF pg_temp.t222_one(v_op) <> 'n=0' OR v_o.delivery_method <> 'zelle' OR v_o.service_type <> 'remesa'
-     OR v_o.quoted_destination_amount IS NOT NULL OR v_o.destination_currency IS NOT NULL
-     OR v_o.quoted_destination_rate IS NOT NULL OR v_o.quoted_destination_origin IS NOT NULL THEN
-    RAISE EXCEPTION 'case a4: zelle with no recipient and no destination expected, got % / % / % / %',
-      pg_temp.t222_one(v_op), v_o.delivery_method, v_o.quoted_destination_amount, v_o.destination_currency; END IF;
+     OR v_o.quoted_destination_amount IS DISTINCT FROM (SELECT z.usd FROM cerebro_zelle_cotizar_gyd(5200) z)
+     OR v_o.destination_currency IS DISTINCT FROM 'USD'
+     OR v_o.quoted_destination_rate IS DISTINCT FROM (SELECT z.tasa FROM cerebro_zelle_cotizar_gyd(5200) z)
+     OR v_o.quoted_destination_origin IS DISTINCT FROM 'calculated' THEN
+    RAISE EXCEPTION 'case a4: zelle with no recipient, quoted from its rail, expected; got % / % / % / % / %',
+      pg_temp.t222_one(v_op), v_o.delivery_method, v_o.quoted_destination_amount, v_o.destination_currency, v_o.quoted_destination_rate; END IF;
   IF (SELECT status FROM remittance_beneficiaries WHERE id = v_ben) <> 'reemplazado'
      OR (SELECT replaced_at FROM remittance_beneficiaries WHERE id = v_ben) IS NULL THEN
     RAISE EXCEPTION 'case a4: the card must be retired (reemplazado)'; END IF;
   IF crm_beneficiarios_completos(v_op) THEN RAISE EXCEPTION 'case a4: a zelle with no recipient must not be complete'; END IF;
-  RAISE NOTICE 'PASS a4: cuban_card -> zelle retires the card and clears the destination';
+  RAISE NOTICE 'PASS a4: cuban_card -> zelle retires the card and quotes the operation from its rail';
 
   -- a5. -> efectivo_usd
   PERFORM pg_temp.t222_call(v_op, 'efectivo_usd', v_user);
@@ -231,9 +234,13 @@ BEGIN
   VALUES (v_op, 'zelle', 'Test Zelle', 'z222@test.invalid', 1, 1, 'notes_parse', 'vigente');
   IF pg_temp.t222_one(v_op) NOT LIKE 'zelle/USD/%' THEN RAISE EXCEPTION 'setup c: the zelle recipient should be priced, got %', pg_temp.t222_one(v_op); END IF;
   PERFORM pg_temp.t222_call(v_op, 'cuban_card', v_user);
-  IF pg_temp.t222_one(v_op) <> 'n=0' OR (SELECT quoted_destination_amount FROM remittance_operations WHERE id = v_op) IS NOT NULL THEN
-    RAISE EXCEPTION 'case c: the zelle recipient should be retired and the zelle quote cleared, got %', pg_temp.t222_one(v_op); END IF;
-  RAISE NOTICE 'PASS c: zelle -> cuban_card retires the zelle recipient';
+  -- (224) No recipient is left, so the operation is quoted from its new rail: the deposit at the CUP rate.
+  SELECT * INTO v_o FROM remittance_operations WHERE id = v_op;
+  IF pg_temp.t222_one(v_op) <> 'n=0' OR v_o.quoted_destination_amount IS DISTINCT FROM round(5200 * v_cup)
+     OR v_o.destination_currency IS DISTINCT FROM 'CUP' OR v_o.quoted_destination_origin IS DISTINCT FROM 'calculated' THEN
+    RAISE EXCEPTION 'case c: the zelle recipient should be retired and the operation quoted in CUP from its rail, got % / % / %',
+      pg_temp.t222_one(v_op), v_o.quoted_destination_amount, v_o.destination_currency; END IF;
+  RAISE NOTICE 'PASS c: zelle -> cuban_card retires the zelle recipient and quotes the operation from its rail';
 
   -- ---- d. a locked-beneficiaries operation and a manual quote are recomputed ----
   v_op := pg_temp.t222_op(v_user, v_acc, '59902220004', 'remesa', 'cuban_card', 5200,

@@ -165,7 +165,7 @@ Cause (staging op 094eb6d6): crm_calcular_monto_destino (217) quotes only when t
 recipient. crm_cambiar_servicio to zelle retires the card, so the operation has no recipient and its destination stays
 NULL (and stays NULL when switched back to CUP, the card being gone). The form preview is right; the stored quote is not.
 
-- [ ] T2c DB migration 224 (+ ROLLBACK-224, staging first): with NO vigente recipient and a known rail
+- [x] T2c DB migration 224 (+ ROLLBACK-224, staging first): with NO vigente recipient and a known rail
   (delivery_method cuban_card / zelle / clasica / tropical / efectivo_usd, service_type remesa, GYD source, open
   operation), crm_calcular_monto_destino quotes from the operation's rail with the same rules as the single-recipient
   case (Zelle through cerebro_zelle_cotizar_op, USD single rate, cash rate, CUP rate; whole USD rounded down).
@@ -189,3 +189,18 @@ NULL (and stays NULL when switched back to CUP, the card being gone). The form p
   change-operation-service.sql case a4 (the zelle switch asserts "no recipient and no destination", i.e. exactly the bug).
   It fails identically with and without promos ("got n=0 / zelle / 20 / USD"). The existing expectation was NOT edited.
 - Real apply to staging and the check of operation 094eb6d6 are pending that decision.
+
+- 2026-10-07 T2c applied on staging by the parent (the writer stopped, correctly, on an existing expectation):
+  - change-operation-service.sql cases a4 (-> zelle) and c (zelle -> cuban_card) asserted "no recipient => no
+    destination". The owner asked for exactly the opposite ("al poner zelle no se recalcula"), so both now expect the
+    rail quote (Zelle tier quote of the deposit / the deposit at the CUP rate, origin calculated). No other expectation
+    changed.
+  - Applied for real: schema_migrations 224 224_quote_from_rail; crm_calcular_monto_destino md5 after
+    2fd07252c7a6b229cc95b84965c3e944 (pre cbd256e4d22bcc34a1a5c604d2311c02, in the ROLLBACK header).
+  - After the apply, as is: quote-from-rail, change-operation-service (also with no promo), destination-amount (11),
+    rounding-parity (6), deterministic-usd-destination, clasica-card-from-delivery-method, zelle-tiered-rate,
+    zelle-tier-prices, zelle-objective-tier, zelle-quote-tier, zelle-remainder-amount, reparto-guards, reparto-auto
+    (13 PASS), reparto-keeps-zelle, reparto-usd-card-rail (5 PASS), split-deposit-minimums, requested-amount-target
+    (+helpers), corrections (10), saldo-model, recarga-model, combo-model, visa-model, operations-board, read-rpc: all pass.
+  - Staging operation 094eb6d6 (zelle, 26,000 GYD, no recipient): recomputed once by hand (existing rows are not
+    touched by the migration): 100 USD at 260, origin calculated.

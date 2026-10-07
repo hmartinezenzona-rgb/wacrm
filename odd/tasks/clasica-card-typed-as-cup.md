@@ -44,7 +44,7 @@ Strict TDD on. Runner: staging assertions via psql-staging.sh (BEGIN ... ROLLBAC
   respected); migration 221 + rollback on staging; GREEN; regressions (deterministic-usd-destination,
   reparto-usd-card-rail, reparto-destino-node-adapters, reparto-guards, reparto-auto, reparto-keeps-zelle,
   zelle-tiered-rate, destination-amount).
-- [ ] T2 Production with the owner's go-ahead.
+- [x] T2 Production with the owner's go-ahead.
 
 ## Progress
 - 2026-10-06 document created after root-cause mapping; data fix of 45dde511 done in production.
@@ -67,3 +67,13 @@ Strict TDD on. Runner: staging assertions via psql-staging.sh (BEGIN ... ROLLBAC
 
 ## Next step
 T2 (production, with the owner's go-ahead).
+
+- 2026-10-06 PRODUCTION DB (owner: "dale pasalo"), migrations 221 + 222 in one transaction:
+  backup ~/wacrm-respaldos/produccion-20261007T025555Z.dump (sha256 057504452c3717ab...); pre-check
+  cerebro_destino_pendiente_antes_insert 0740887d..., cerebro_marcar_destino_usd 9f779e60... (= ROLLBACK-221 header),
+  crm_cambiar_servicio absent; ~/cerebro-fase1/pruebas/gate122-aplicar-db.py with temporary zz_wu5b_exec:
+  ensayo trg 697eb34e... marcar f239d898... cambiar=1 anon=false (= staging); ida-y-vuelta back to 0740887d... /
+  9f779e60... cambiar=0; aplicar OK (schema_migrations 20261007025829 221, 20261007025830 222); probar (forced
+  rollback) clasica-card-from-delivery-method, change-operation-service, deterministic-usd-destination,
+  reparto-usd-card-rail, reparto-guards, corrections: all pass (the gate now strips an assertion's own BEGIN;/ROLLBACK;).
+  Helper dropped; 0 leftovers; 632 operations, 230 contacts. App release 1ff1d13 BUILD_ID EqlTF6kkrIAy1YVnu21f3.

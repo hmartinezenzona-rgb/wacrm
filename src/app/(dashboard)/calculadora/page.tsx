@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { procesarTexto, type WebCalculatorErrorLine, type WebCalculatorParsedLine } from "@/lib/calculator/web-calculator";
 import { isComboCostPending, pendingReason, type CalculatorRates } from "@/lib/calculator/ledger-read-model";
+import { guyanaToday, manualEntriesFromText } from "@/lib/calculator/manual-entries";
 import { calculatorCategoryName, chatEntryAmountText, ledgerServiceLabel } from "@/lib/calculator/entry-display";
 import { applyCalculatorEntryRealtimeEvent, type ChatCalculatorEntry } from "@/lib/calculator/realtime-entry";
 import { useCalculatorEntriesRealtime } from "@/hooks/use-calculator-entries-realtime";
@@ -123,6 +124,7 @@ export default function CalculadoraPage() {
   // The debounced autosave must not race the cut: a pending or in-flight save of the old text would write it back into
   // the document the cut just emptied.
   const clearingRef = useRef(false);
+  const retryTimerRef = useRef<number | null>(null);
   const saveAbortRef = useRef<AbortController | null>(null);
   const [saveNonce, setSaveNonce] = useState(0);
   // No local theme state: the page reads the CRM's design tokens, so it
@@ -138,6 +140,8 @@ export default function CalculadoraPage() {
   const selectedRateValue = rateValueOf(rates, selectedRate);
   const rateInputValue = rateDraft ?? (selectedRateValue == null ? "" : String(selectedRateValue));
   const parsed = useMemo(() => procesarTexto(rawText, Number(tarifa)), [rawText, tarifa]);
+  // Migration 228: lines the ledger cannot hold (unknown service, no amount) are reported, never silently dropped.
+  const skippedManualLines = useMemo(() => manualEntriesFromText(rawText, Number(tarifa), guyanaToday(new Date())).skipped.length, [rawText, tarifa]);
   const operationGroups = useMemo(() => renderOperationGroups(parsed.operations), [parsed.operations]);
   const structuredTotals = useMemo(() => chatTotals(chatEntries), [chatEntries]);
   const totals = useMemo(() => ({
@@ -229,13 +233,26 @@ export default function CalculadoraPage() {
       if (clearingRef.current) return;
       const controller = new AbortController();
       saveAbortRef.current = controller;
+      // Migration 228: the parsed manual lines travel with the text, each dated by its day header (Guyana time), so
+      // the ledger (Finanzas, dashboard, closes) holds the same lines the page shows.
+      const manualLines = manualEntriesFromText(rawText, Number(tarifa), guyanaToday(new Date())).lines;
       void fetch("/api/calculadora", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rawText, periodo }),
+        body: JSON.stringify({ rawText, periodo, manualLines }),
         signal: controller.signal,
-      }).then((response) => {
-        if (!response.ok) throw new Error("calculator document save failed");
+      }).then(async (response) => {
+        if (!response.ok) {
+          const data = (await response.json().catch(() => null)) as { documentSaved?: boolean; entriesSynced?: boolean } | null;
+          // The text is saved but the ledger could not follow: say so, and try again shortly.
+          if (data?.documentSaved && data.entriesSynced === false) {
+            setSaveError("El texto se guardó, pero las entradas manuales no se pudieron registrar en Finanzas. Se reintentará en unos segundos.");
+            if (retryTimerRef.current !== null) window.clearTimeout(retryTimerRef.current);
+            retryTimerRef.current = window.setTimeout(() => setSaveNonce((value) => value + 1), 15_000);
+            return;
+          }
+          throw new Error("calculator document save failed");
+        }
         setSaveError(null);
       }).catch((error: unknown) => {
         if ((error as { name?: string } | null)?.name === "AbortError") return;
@@ -243,7 +260,12 @@ export default function CalculadoraPage() {
       });
     }, 600);
     return () => window.clearTimeout(timer);
-  }, [hydrated, rawText, periodo, saveNonce]);
+    // `tarifa` is a dependency on purpose: the CUP lines' figures follow the global rate, so a new rate re-syncs them.
+  }, [hydrated, rawText, periodo, tarifa, saveNonce]);
+
+  useEffect(() => () => {
+    if (retryTimerRef.current !== null) window.clearTimeout(retryTimerRef.current);
+  }, []);
 
   // Archived weeks ("Semanas anteriores"). A failure here is non-fatal: the list just stays empty.
   async function loadWeeks() {
@@ -479,6 +501,9 @@ export default function CalculadoraPage() {
           rawText,
           periodo,
           manualTotals: { facturadoGyd: parsed.totals.fact, invertidoGyd: parsed.totals.inv, retornoGyd: parsed.totals.ret },
+          // The ledger gets the closing week's lines first (the autosave may lag the textarea); the cut leaves them
+          // in Finanzas and the emptied week then syncs an empty set.
+          manualLines: manualEntriesFromText(rawText, Number(tarifa), guyanaToday(new Date())).lines,
         }),
       });
       if (!response.ok) {
@@ -641,6 +666,13 @@ export default function CalculadoraPage() {
         </div>
 
         {saveError && <div className="legacyError">{saveError}</div>}
+        {skippedManualLines > 0 && (
+          <div className="legacyError">
+            {skippedManualLines === 1
+              ? "1 línea no se registra en Finanzas (servicio no reconocido o importes inválidos)."
+              : `${skippedManualLines} líneas no se registran en Finanzas (servicio no reconocido o importes inválidos).`}
+          </div>
+        )}
 
         <div className="legacyTotals">
           <div className="legacyTotalBox"><h3>💰 Facturado (GYD)</h3><p style={{ fontSize: "1.5em", fontWeight: "bold", margin: "5px 0" }}>{formatNumber(totals.fact)}</p></div>

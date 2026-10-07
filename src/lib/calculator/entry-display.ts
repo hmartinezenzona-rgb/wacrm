@@ -7,10 +7,14 @@
  */
 
 const SALDO_MOVIL = "SALDO_MOVIL";
+/** Ledger service of the manual calculator's direct lines (visa, ext, trabajo, estudiante, trad, combo, pasaje; migration 228). */
+const DIRECTO = "DIRECTO";
 
 /** Human label of a ledger service key; the keys without one print as they are. */
 export function ledgerServiceLabel(service: string): string {
-  return service === SALDO_MOVIL ? "Saldo Móvil" : service;
+  if (service === SALDO_MOVIL) return "Saldo Móvil";
+  if (service === DIRECTO) return "Trámites / Combos / Servicios";
+  return service;
 }
 
 /** The manual calculator's category name for a ledger service, so automatic and manual lines add up together. */

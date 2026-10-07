@@ -458,7 +458,7 @@ describe("calculator single-rate editor (Tarifas Globales)", () => {
     );
     expect(postCall).toBeDefined();
     const body = JSON.parse((postCall![1] as RequestInit).body as string);
-    expect(body).toEqual({ rawText: "", periodo: "SEMANA 2" });
+    expect(body).toEqual({ rawText: "", periodo: "SEMANA 2", manualLines: [] });
     await act(async () => root.unmount());
   });
 });
@@ -1402,6 +1402,8 @@ describe("calculator weekly cut (Limpiar Todo)", () => {
       rawText: MANUAL,
       periodo: "SEMANA 1",
       manualTotals: { facturadoGyd: expected.fact, invertidoGyd: expected.inv, retornoGyd: expected.ret },
+      // the closing week's parsed lines (migration 228); the date depends on the day the test runs
+      manualLines: [expect.objectContaining({ position: 2, dayLabel: "Miércoles 5", customer: "Fran", service: "CUP", amount: 50000, currency: "CUP" })],
     });
     await act(async () => root.unmount());
   });
@@ -1600,6 +1602,113 @@ describe("calculator archived weeks (Semanas anteriores)", () => {
     expect(node.textContent).not.toContain("Vieja Vera");
     act(() => { chan.handler!(live("new", "2026-10-04T10:00:00Z", "Nueva Nora")); });
     expect(node.textContent).toContain("Nueva Nora");
+    await act(async () => root.unmount());
+  });
+});
+
+describe("manual entries in Finanzas (migration 228)", () => {
+  const TEXT = [
+    "Martes 6",
+    "• Gerardo 100 Zelle (240/260)",
+    "esto no tiene formato",
+    "Miércoles 7",
+    "• Ana 10 USDT (240/260)",
+  ].join("\n");
+
+  function postedDocuments(fetchMock: ReturnType<typeof createFetchMock>) {
+    return fetchMock.mock.calls
+      .filter(([input, init]) => (typeof input === "string" ? input : input.toString()) === "/api/calculadora" && (init as RequestInit)?.method === "POST")
+      .map(([, init]) => JSON.parse((init as RequestInit).body as string));
+  }
+
+  it("the autosave sends the parsed manual lines with the day each one belongs to (Guyana time)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-07T16:00:00Z"));
+    const fetchMock = createFetchMock({ calculadoraGet: { rawText: TEXT, periodo: "SEMANA 1" }, ratesGet: { rates: FULL_RATES } });
+    const { root } = await renderPage(fetchMock);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(600); });
+
+    const posts = postedDocuments(fetchMock);
+    expect(posts).toHaveLength(1);
+    expect(posts[0].rawText).toBe(TEXT);
+    expect(posts[0].manualLines).toEqual([
+      {
+        position: 2, date: "2026-10-06", dayLabel: "Martes 6", customer: "Gerardo", service: "ZELLE", amount: 100, currency: "USD",
+        facturadoGyd: 26000, invertidoGyd: 24000, retornoGyd: 2000, rawLine: "• Gerardo 100 Zelle (240/260)",
+      },
+      {
+        position: 5, date: "2026-10-07", dayLabel: "Miércoles 7", customer: "Ana", service: "USDT", amount: 10, currency: "USD",
+        facturadoGyd: 2600, invertidoGyd: 2400, retornoGyd: 200, rawLine: "• Ana 10 USDT (240/260)",
+      },
+    ]);
+    await act(async () => root.unmount());
+  });
+
+  it("a line dated by 'today' uses the Guyana day, not the UTC one", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-08T02:30:00Z")); // still the 7th in Guyana
+    const fetchMock = createFetchMock({ calculadoraGet: { rawText: "• Ana 10 USDT (240/260)", periodo: "" }, ratesGet: { rates: FULL_RATES } });
+    const { root } = await renderPage(fetchMock);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(600); });
+
+    expect(postedDocuments(fetchMock)[0].manualLines[0]).toMatchObject({ date: "2026-10-07", dayLabel: null });
+    await act(async () => root.unmount());
+  });
+
+  it("when the entries could not be registered the page says so (the text is saved)", async () => {
+    vi.useFakeTimers();
+    const fetchMock = createFetchMock({ calculadoraGet: { rawText: TEXT, periodo: "" }, ratesGet: { rates: FULL_RATES } });
+    const base = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((input, init) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url === "/api/calculadora" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({ error: "manual entries sync failed", documentSaved: true, entriesSynced: false }, 500));
+      }
+      return base(input, init);
+    });
+    const { node, root } = await renderPage(fetchMock);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(600); });
+
+    expect(node.textContent).toContain("no se pudieron registrar en Finanzas");
+    await act(async () => root.unmount());
+  });
+
+  it("a parsed line the ledger cannot hold is reported, not silently dropped", async () => {
+    vi.useFakeTimers();
+    const fetchMock = createFetchMock({ calculadoraGet: { rawText: "• Raro 5 xyz\n• Ana 10 USDT (240/260)", periodo: "" }, ratesGet: { rates: FULL_RATES } });
+    const { node, root } = await renderPage(fetchMock);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(600); });
+
+    expect(node.textContent).toContain("1 línea no se registra en Finanzas");
+    await act(async () => root.unmount());
+  });
+
+  it("after Limpiar Todo the autosave of the emptied week sends no manual lines (the closed week's entries are not in play)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-07T16:00:00Z"));
+    const fetchMock = createFetchMock({
+      calculadoraGet: { rawText: TEXT, periodo: "SEMANA 1", chatOperations: { entries: [] } },
+      ratesGet: { rates: FULL_RATES },
+    });
+    const { node, root } = await renderPage(fetchMock);
+    await act(async () => { await vi.advanceTimersByTimeAsync(600); });
+    fetchMock.mockClear();
+
+    await act(async () => { (Array.from(node.querySelectorAll("button")).find((b) => b.textContent?.includes("Limpiar Todo")) as HTMLButtonElement).click(); });
+    await act(async () => { (Array.from(document.querySelectorAll("[role=dialog] button")).find((b) => b.textContent?.trim() === "Limpiar todo") as HTMLButtonElement).click(); });
+    await flush();
+
+    // the cut request carries the lines of the closing week (so the ledger holds the text it archives)
+    const cut = fetchMock.mock.calls.find(([input, init]) => input === "/api/calculadora/weeks" && (init as RequestInit)?.method === "POST")!;
+    expect(JSON.parse((cut[1] as RequestInit).body as string).manualLines).toHaveLength(2);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(600); });
+    const posts = postedDocuments(fetchMock);
+    expect(posts.at(-1)).toMatchObject({ rawText: "", periodo: "", manualLines: [] });
     await act(async () => root.unmount());
   });
 });

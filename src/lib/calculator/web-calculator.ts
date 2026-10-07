@@ -15,6 +15,8 @@ export interface WebCalculatorOperation {
   retorno: number;
   esDirecto: boolean;
   raw: string;
+  /** 1-based line number of this line in the text (identity of the manual ledger entry, migration 228). */
+  linea: number;
 }
 
 export interface WebCalculatorErrorLine {
@@ -22,6 +24,7 @@ export interface WebCalculatorErrorLine {
   dia: string;
   error: true;
   raw: string;
+  linea: number;
 }
 
 export type WebCalculatorParsedLine = WebCalculatorOperation | WebCalculatorErrorLine;
@@ -36,6 +39,7 @@ interface WebCalculatorDraft {
   detalle: string;
   esDirecto: boolean;
   raw: string;
+  linea?: number;
 }
 
 export interface WebCalculatorTotals {
@@ -122,7 +126,7 @@ export function parsearLinea(linea: string, diaActual: string):
   };
 }
 
-function calculateLine(line: WebCalculatorDraft, cupGlobalRate: number): WebCalculatorOperation {
+function calculateLine(line: WebCalculatorDraft & { linea: number }, cupGlobalRate: number): WebCalculatorOperation {
   let fact = 0;
   let inv = 0;
   const params = line.detalle ? line.detalle.split("/") : [];
@@ -169,7 +173,7 @@ export function procesarTexto(text: string, tarifaCupGlobalInput: number): WebCa
   const serviceMap = new Map<string, WebCalculatorTotals>();
   const totals: WebCalculatorTotals = { fact: 0, inv: 0, ret: 0 };
 
-  for (const line of text.split("\n")) {
+  for (const [index, line] of text.split("\n").entries()) {
     const parsed = parsearLinea(line, diaActual);
     if (!parsed) continue;
     if (parsed.esDia) {
@@ -177,11 +181,11 @@ export function procesarTexto(text: string, tarifaCupGlobalInput: number): WebCa
       continue;
     }
     if ("error" in parsed) {
-      operations.push(parsed);
+      operations.push({ ...parsed, linea: index + 1 });
       continue;
     }
 
-    const operation = calculateLine(parsed, cupGlobalRate);
+    const operation = calculateLine({ ...parsed, linea: index + 1 }, cupGlobalRate);
     operations.push(operation);
     totals.fact += operation.fact;
     totals.inv += operation.inv;

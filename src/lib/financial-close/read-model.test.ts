@@ -35,6 +35,29 @@ const RAW: FinancialCloseRpc = {
       delivery_mode: "proof_sent",
       actor_user_id: "u1",
       actor_name: "Humberto",
+      source: "completed_operation",
+    },
+    {
+      id: "m1",
+      operation_id: null,
+      source: "manual",
+      dia: "2026-08-04",
+      completed_at: "2026-08-04T16:00:00+00:00",
+      customer_name: "Gerardo",
+      service: "ZELLE",
+      amount: "100",
+      amount_currency: "USD",
+      cup_rate: null,
+      cup_global_rate: null,
+      usdt_buy_gyd: null,
+      usdt_sell_gyd: null,
+      rate_version_id: null,
+      facturado_gyd: "26000",
+      invertido_gyd: "24000",
+      retorno_gyd: "2000",
+      delivery_mode: null,
+      actor_user_id: "u2",
+      actor_name: "Osmany",
     },
   ],
   excluidas: [
@@ -96,6 +119,17 @@ describe("mapFinancialClose", () => {
       missingInputs: ["cup_rate"],
       voidReason: null,
     });
+  });
+
+  it("keeps the origin of every row: a manual Calculator line has no operation and says so; older payloads read as chat", () => {
+    const close = mapFinancialClose(RAW);
+    expect(close.detail.map((e) => [e.id, e.source, e.operationId])).toEqual([
+      ["e1", "completed_operation", "op1"],
+      ["m1", "manual", null],
+    ]);
+    const { source: _source, ...withoutSource } = RAW.detalle[0]!;
+    void _source;
+    expect(mapFinancialClose({ ...RAW, detalle: [withoutSource], excluidas: [] }).detail[0]!.source).toBe("completed_operation");
   });
 
   it("tolerates empty lists and null totals from an empty period", () => {

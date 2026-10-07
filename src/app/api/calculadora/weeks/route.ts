@@ -12,6 +12,7 @@ import { NextResponse } from "next/server";
 import { getCurrentAccount, toErrorResponse } from "@/lib/auth/account";
 import { canSendMessages } from "@/lib/auth/roles";
 import { rpcErrorResponse } from "@/lib/remittance-operations/route-helpers";
+import { parseManualLines } from "@/lib/calculator/manual-entries";
 import { WEEK_SUMMARY_COLUMNS, mapWeek, mapWeekSummary, type CalculatorWeekRow } from "@/lib/calculator/weeks";
 
 const NO_STORE = { "Cache-Control": "private, no-store" };
@@ -54,6 +55,7 @@ export async function POST(request: Request) {
       rawText?: unknown;
       periodo?: unknown;
       manualTotals?: { facturadoGyd?: unknown; invertidoGyd?: unknown; retornoGyd?: unknown } | null;
+      manualLines?: unknown;
     } | null;
     const totals = body?.manualTotals;
     if (
@@ -64,6 +66,24 @@ export async function POST(request: Request) {
         { error: "rawText, periodo and finite manualTotals (facturadoGyd, invertidoGyd, retornoGyd) are required" },
         { status: 400 },
       );
+    }
+
+    // Migration 228: the lines of the week being closed are synced first, so the ledger holds exactly the text that is
+    // archived (the autosave may lag the textarea). The cut itself never touches the manual entries: they stay in the
+    // ledger and keep counting in Finanzas. If the sync fails nothing is archived or cleared.
+    if (body.manualLines !== undefined) {
+      const manualLines = parseManualLines(body.manualLines);
+      if (!manualLines.ok) return NextResponse.json({ error: "Invalid manual lines" }, { status: 400 });
+      const { error: syncError } = await account.supabase.rpc("crm_sincronizar_entradas_manuales", {
+        p_account_id: account.accountId,
+        p_lineas: manualLines.lines,
+      });
+      if (syncError) {
+        const errorResponse = rpcErrorResponse(syncError);
+        if (errorResponse) return errorResponse;
+        console.error("[calculadora weeks POST] manual entries sync error:", syncError);
+        throw new Error("manual entries sync failed");
+      }
     }
 
     const { data, error } = await account.supabase.rpc("crm_cerrar_semana_calculadora", {

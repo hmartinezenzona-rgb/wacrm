@@ -58,6 +58,7 @@ function close(overrides: Partial<FinancialClose> = {}): FinancialClose {
     detail: [
       {
         id: "e1",
+        source: "completed_operation",
         operationId: "11111111-aaaa-bbbb-cccc-000000000001",
         day: "2026-09-22",
         completedAt: "2026-09-22T15:05:00Z",
@@ -81,6 +82,7 @@ function close(overrides: Partial<FinancialClose> = {}): FinancialClose {
     excluded: [
       {
         id: "e3",
+        source: "completed_operation",
         operationId: "11111111-aaaa-bbbb-cccc-000000000003",
         day: "2026-09-22",
         completedAt: "2026-09-22T16:00:00Z",
@@ -189,6 +191,33 @@ describe("FinancialCloseSection", () => {
     const excluded = node.querySelector("[data-testid='excluded-row']")!;
     expect(excluded.textContent).toContain(T.estado.void);
     expect(excluded.textContent).toContain("cliente cancelo");
+    await act(async () => root.unmount());
+  });
+
+  it("labels the lines typed in the Calculator as manual, next to the bot's operations", async () => {
+    const base = close();
+    const manual = {
+      ...base.detail[0]!,
+      id: "m1",
+      source: "manual" as const,
+      operationId: null,
+      customerName: "Gerardo",
+      service: "DIRECTO",
+      amountCurrency: "GYD",
+      deliveryMode: null,
+      actorName: "Osmany",
+    };
+    loadFinancialClose.mockResolvedValue({ ok: true, data: { ...base, detail: [base.detail[0]!, manual] } });
+    const { node, root } = await render();
+
+    const rows = Array.from(node.querySelectorAll("[data-testid='detail-row']"));
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.textContent).not.toContain(T.manual);
+    expect(rows[1]!.textContent).toContain("Gerardo");
+    expect(rows[1]!.textContent).toContain(T.manual);
+    expect(rows[1]!.textContent).toContain("Trámites / Combos / Servicios");
+    expect(rows[1]!.querySelector("[data-testid='manual-badge']")).not.toBeNull();
+    expect(rows[0]!.querySelector("[data-testid='manual-badge']")).toBeNull();
     await act(async () => root.unmount());
   });
 

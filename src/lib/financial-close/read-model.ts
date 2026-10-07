@@ -16,9 +16,14 @@ interface RpcAggregate {
   retorno_gyd: Num;
 }
 
+/** Where a ledger row came from: a bot operation, or a line typed in the Calculator (migration 228). */
+export type CloseEntrySource = "completed_operation" | "manual";
+
 interface RpcEntry {
   id: string;
   operation_id: string | null;
+  /** Absent in payloads from before migration 228: those rows are all bot operations. */
+  source?: CloseEntrySource;
   dia: string;
   completed_at: string | null;
   customer_name: string | null;
@@ -67,6 +72,7 @@ export interface CloseAggregate {
 export interface CloseEntry {
   id: string;
   operationId: string | null;
+  source: CloseEntrySource;
   day: string;
   completedAt: string | null;
   customerName: string | null;
@@ -124,6 +130,7 @@ function mapEntry(row: RpcEntry): CloseEntry {
   return {
     id: row.id,
     operationId: row.operation_id,
+    source: row.source ?? "completed_operation",
     day: row.dia,
     completedAt: row.completed_at,
     customerName: row.customer_name,

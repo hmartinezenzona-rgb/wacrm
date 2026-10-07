@@ -6,6 +6,7 @@ function entry(overrides: Partial<CloseEntry> = {}): CloseEntry {
   return {
     id: "e1",
     operationId: "op-1",
+    source: "completed_operation",
     day: "2026-09-22",
     completedAt: "2026-09-22T15:05:00Z",
     customerName: "Ana",
@@ -78,6 +79,17 @@ describe("financialCloseToCsv", () => {
     expect(get("usdt_venta_gyd")).toBe("");
     expect(get("entrega")).toBe("proof_sent");
     expect(get("entregado_por")).toBe("Humberto");
+  });
+
+  it("says where each row came from: the bot's operation or a line typed in the Calculator", () => {
+    const [header, chat, manual] = rows(
+      financialCloseToCsv(close([entry(), entry({ id: "m1", operationId: null, source: "manual", deliveryMode: null })])),
+    );
+    const cols = header.split(",");
+    expect(chat.split(",")[cols.indexOf("origen")]).toBe("automatica");
+    const values = manual.split(",");
+    expect(values[cols.indexOf("origen")]).toBe("manual");
+    expect(values[cols.indexOf("operacion_id")]).toBe("");
   });
 
   it("appends voided and pending entries after the completed ones, with their state", () => {

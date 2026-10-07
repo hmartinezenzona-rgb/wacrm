@@ -214,7 +214,8 @@ export async function loadLedgerProfit(db: DB): Promise<LedgerProfitData> {
   const { data, error } = await db
     .from('remittance_calculator_entries')
     .select(LEDGER_ENTRY_COLUMNS)
-    .eq('source', 'completed_operation')
+    // The bot's operations and the manual Calculator lines (migration 228, no operation_id): each counts once.
+    .in('source', ['completed_operation', 'manual'])
     .neq('status', 'void')
     .gte('entry_date', localDayKey(monthStart))
   if (error) throw error

@@ -22,7 +22,18 @@ export function FinancialCloseDetail({ close }: { close: FinancialClose }) {
       <td className="px-2 py-1.5 font-mono text-xs" title={e.operationId ?? undefined}>
         {shortId(e.operationId)}
       </td>
-      <td className="px-2 py-1.5">{e.customerName ?? "—"}</td>
+      <td className="px-2 py-1.5">
+        {e.customerName ?? "—"}
+        {e.source === "manual" && (
+          <span
+            data-testid="manual-badge"
+            title={t("manualHint")}
+            className="ml-1.5 rounded border border-border bg-muted px-1 py-0.5 align-middle text-[10px] font-medium uppercase text-muted-foreground"
+          >
+            {t("manual")}
+          </span>
+        )}
+      </td>
       <td className="px-2 py-1.5">{ledgerServiceLabel(e.service)}</td>
       <td className="whitespace-nowrap px-2 py-1.5 text-right">{fmtAmount(e.amount, e.amountCurrency)}</td>
       <td className="whitespace-nowrap px-2 py-1.5" title={e.rateVersionId ?? undefined}>

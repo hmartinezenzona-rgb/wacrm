@@ -173,3 +173,24 @@ describe("mixed remesas (migration 142)", () => {
     expect(client.facturadoGyd).toBe(75000);
   });
 });
+
+describe("manual Calculator entries (migration 228)", () => {
+  it("each manual line (no operation) counts once for its client, next to the bot's operations", () => {
+    const entries = [
+      entry({ id: "bot", source: "completed_operation", operationId: "op-1", customerName: "Alice", facturadoGyd: 1000 }),
+      entry({ id: "m1", source: "manual", operationId: null, customerName: "Alice", facturadoGyd: 500 }),
+      entry({ id: "m2", source: "manual", operationId: null, customerName: "Alice", facturadoGyd: 250 }),
+    ];
+
+    expect(topClientsFrom(entries)).toEqual([{ customerName: "Alice", operationCount: 3, facturadoGyd: 1750 }]);
+  });
+
+  it("a manual line's currency joins the breakdown", () => {
+    const entries = [
+      entry({ id: "bot", operationId: "op-1", amountCurrency: "CUP", facturadoGyd: 1000 }),
+      entry({ id: "m1", source: "manual", operationId: null, amountCurrency: "CUP", facturadoGyd: 400 }),
+    ];
+
+    expect(destinationBreakdownFrom(entries)).toEqual([{ currency: "CUP", operationCount: 2, facturadoGyd: 1400 }]);
+  });
+});

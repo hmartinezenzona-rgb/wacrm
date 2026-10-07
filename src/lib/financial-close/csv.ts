@@ -10,6 +10,7 @@ import type { CloseEntry, ExcludedEntry, FinancialClose } from "./read-model";
 
 const COLUMNS = [
   "estado",
+  "origen",
   "dia",
   "hora_guyana",
   "completado_utc",
@@ -55,6 +56,7 @@ function cell(value: Cell): string {
 function row(entry: CloseEntry, state: keyof typeof STATE_LABEL, extra: { reason: string | null; missing: string[] }): string {
   const values: Cell[] = [
     STATE_LABEL[state],
+    entry.source === "manual" ? "manual" : "automatica",
     entry.day,
     entry.completedAt ? guyanaTime(entry.completedAt) : null,
     entry.completedAt,

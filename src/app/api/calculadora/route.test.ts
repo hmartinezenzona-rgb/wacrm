@@ -129,6 +129,109 @@ describe("session client only (migration 106)", () => {
   });
 });
 
+describe("POST /api/calculadora with the parsed manual lines (migration 228)", () => {
+  const LINE = {
+    position: 2, date: "2026-10-06", dayLabel: "Martes 6", customer: "Gerardo", service: "ZELLE", amount: 100,
+    currency: "USD", facturadoGyd: 26000, invertidoGyd: 24000, retornoGyd: 2000, rawLine: "• Gerardo 100 Zelle (240/260)",
+  };
+  const RPC_LINE = {
+    position: 2, date: "2026-10-06", day_label: "Martes 6", customer: "Gerardo", service: "ZELLE", amount: 100,
+    currency: "USD", facturado_gyd: 26000, invertido_gyd: 24000, retorno_gyd: 2000, raw_line: "• Gerardo 100 Zelle (240/260)",
+  };
+
+  function clientWith(sync: { data?: unknown; error?: { code?: string; message?: string } | null }) {
+    const client = db();
+    client.rpc.mockImplementation(((name: string) =>
+      Promise.resolve(
+        name === "crm_sincronizar_entradas_manuales"
+          ? { data: sync.data ?? { count: 1 }, error: sync.error ?? null }
+          : { data: { raw_text: "texto", period_label: "sem 1" }, error: null },
+      )) as never);
+    getCurrentAccount.mockResolvedValue({ ...ACCOUNT, supabase: client });
+    return client;
+  }
+
+  it("saves the document, then syncs the manual entries with the same request", async () => {
+    const { POST } = await import("./route");
+    const client = clientWith({});
+
+    const response = await POST(jsonRequest({ rawText: "texto", periodo: "sem 1", manualLines: [LINE] }));
+
+    expect(response.status).toBe(200);
+    expect(client.rpc.mock.calls.map((c: unknown[]) => c[0])).toEqual([
+      "crm_guardar_documento_calculadora",
+      "crm_sincronizar_entradas_manuales",
+    ]);
+    expect(client.rpc).toHaveBeenLastCalledWith("crm_sincronizar_entradas_manuales", {
+      p_account_id: ACCOUNT.accountId,
+      p_lineas: [RPC_LINE],
+    });
+    expect(await response.json()).toMatchObject({ rawText: "texto", periodo: "sem 1" });
+  });
+
+  it("an empty list syncs too (the week has no manual lines: the entries are cleared)", async () => {
+    const { POST } = await import("./route");
+    const client = clientWith({});
+
+    await POST(jsonRequest({ rawText: "", periodo: "", manualLines: [] }));
+
+    expect(client.rpc).toHaveBeenLastCalledWith("crm_sincronizar_entradas_manuales", { p_account_id: ACCOUNT.accountId, p_lineas: [] });
+  });
+
+  it("a request without manualLines (an older page) saves the text and never touches the entries", async () => {
+    const { POST } = await import("./route");
+    const client = clientWith({});
+
+    const response = await POST(jsonRequest({ rawText: "texto", periodo: "sem 1" }));
+
+    expect(response.status).toBe(200);
+    expect(client.rpc.mock.calls.map((c: unknown[]) => c[0])).toEqual(["crm_guardar_documento_calculadora"]);
+  });
+
+  it("malformed manualLines -> 400 and nothing is saved", async () => {
+    const { POST } = await import("./route");
+    const client = clientWith({});
+
+    const response = await POST(jsonRequest({ rawText: "texto", periodo: "sem 1", manualLines: [{ ...LINE, amount: "100" }] }));
+
+    expect(response.status).toBe(400);
+    expect(client.rpc).not.toHaveBeenCalled();
+  });
+
+  it("a refused sync is reported (the text is saved, the entries are not): the page must show an error", async () => {
+    const { POST } = await import("./route");
+    clientWith({ error: { code: "22023", message: "line 2: unknown service" } });
+
+    const response = await POST(jsonRequest({ rawText: "texto", periodo: "sem 1", manualLines: [LINE] }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: "line 2: unknown service", documentSaved: true, entriesSynced: false });
+  });
+
+  it("an unexpected sync failure -> 500 with documentSaved, never a silent success", async () => {
+    const { POST } = await import("./route");
+    clientWith({ error: { code: "XX000", message: "boom" } });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await POST(jsonRequest({ rawText: "texto", periodo: "sem 1", manualLines: [LINE] }));
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toMatchObject({ documentSaved: true, entriesSynced: false });
+  });
+
+  it("a document save failure does not try the sync", async () => {
+    const { POST } = await import("./route");
+    const client = db();
+    client.rpc.mockImplementation((() => Promise.resolve({ data: null, error: { code: "42501", message: "no" } })) as never);
+    getCurrentAccount.mockResolvedValue({ ...ACCOUNT, supabase: client });
+
+    const response = await POST(jsonRequest({ rawText: "texto", periodo: "sem 1", manualLines: [LINE] }));
+
+    expect(response.status).toBe(403);
+    expect(client.rpc).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("GET /api/calculadora", () => {
   it("unauthenticated request -> 401", async () => {
     const { GET } = await import("./route");

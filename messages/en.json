@@ -2355,6 +2355,8 @@
       "sinDatos": "Sin operaciones completadas en este periodo.",
       "detalle": "Detalle de operaciones",
       "excluidas": "Anuladas y pendientes de tasa (no cuentan en los totales)",
+      "manual": "Manual",
+      "manualHint": "Línea escrita a mano en la Calculadora",
       "cols": {
         "dia": "Día",
         "hora": "Hora",

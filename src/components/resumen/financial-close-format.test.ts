@@ -6,6 +6,7 @@ function entry(overrides: Partial<CloseEntry>): CloseEntry {
   return {
     id: "e1",
     operationId: "op-1",
+    source: "completed_operation",
     day: "2026-10-03",
     completedAt: null,
     customerName: "Bruce",

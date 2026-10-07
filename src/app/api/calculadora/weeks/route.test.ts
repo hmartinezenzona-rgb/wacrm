@@ -142,4 +142,49 @@ describe("POST /api/calculadora/weeks (the weekly cut)", () => {
     account({ rpcResult: { data: null, error: { code: "XX000", message: "db down" } } });
     expect((await POST(post(VALID))).status).toBe(500);
   });
+
+  describe("with the parsed manual lines (migration 228)", () => {
+    const LINE = {
+      position: 2, date: "2026-10-06", dayLabel: "Martes 6", customer: "Gerardo", service: "ZELLE", amount: 100,
+      currency: "USD", facturadoGyd: 26000, invertidoGyd: 24000, retornoGyd: 2000, rawLine: "x",
+    };
+
+    it("syncs the manual entries first, so the ledger holds what the archived text says, then cuts", async () => {
+      const { POST } = await import("./route");
+      const { supabase } = account();
+
+      const response = await POST(post({ ...VALID, manualLines: [LINE] }));
+
+      expect(response.status).toBe(200);
+      expect(supabase.rpc.mock.calls.map((c: unknown[]) => c[0])).toEqual([
+        "crm_sincronizar_entradas_manuales",
+        "crm_cerrar_semana_calculadora",
+      ]);
+      expect((supabase.rpc.mock.calls[0] as unknown[])[1]).toMatchObject({ p_account_id: "account-a", p_lineas: [{ position: 2, facturado_gyd: 26000 }] });
+    });
+
+    it("without manualLines only the cut runs (the cut never touches the manual entries)", async () => {
+      const { POST } = await import("./route");
+      const { supabase } = account();
+      await POST(post(VALID));
+      expect(supabase.rpc.mock.calls.map((c: unknown[]) => c[0])).toEqual(["crm_cerrar_semana_calculadora"]);
+    });
+
+    it("malformed manualLines -> 400, nothing runs", async () => {
+      const { POST } = await import("./route");
+      const { supabase } = account();
+      expect((await POST(post({ ...VALID, manualLines: [{ ...LINE, service: "NOPE" }] }))).status).toBe(400);
+      expect(supabase.rpc).not.toHaveBeenCalled();
+    });
+
+    it("a failed sync -> no cut: nothing is archived or cleared", async () => {
+      const { POST } = await import("./route");
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const { supabase } = account();
+      supabase.rpc.mockImplementation((() => Promise.resolve({ data: null, error: { code: "XX000", message: "db down" } })) as never);
+
+      expect((await POST(post({ ...VALID, manualLines: [LINE] }))).status).toBe(500);
+      expect(supabase.rpc).toHaveBeenCalledTimes(1);
+    });
+  });
 });

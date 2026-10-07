@@ -18,6 +18,8 @@ describe("chat entry display", () => {
   it("labels SALDO_MOVIL as the manual calculator does and leaves the rest alone", () => {
     expect(ledgerServiceLabel("SALDO_MOVIL")).toBe("Saldo Móvil");
     expect(ledgerServiceLabel("RECARGA")).toBe("RECARGA");
+    // the manual calculator's group for its direct lines (visa, ext, trabajo, trad, combo, pasaje)
+    expect(ledgerServiceLabel("DIRECTO")).toBe("Trámites / Combos / Servicios");
     expect(calculatorCategoryName("SALDO_MOVIL")).toBe("SALDO MOVIL");
     expect(calculatorCategoryName("CUP")).toBe("CUP");
   });

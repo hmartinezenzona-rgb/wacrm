@@ -19,6 +19,7 @@ import { getCurrentAccount, toErrorResponse } from "@/lib/auth/account";
 import { canSendMessages } from "@/lib/auth/roles";
 import { mapRateVersion, type RateVersionRow } from "@/lib/calculator/ledger-read-model";
 import { rpcErrorResponse } from "@/lib/remittance-operations/route-helpers";
+import { parseManualLines } from "@/lib/calculator/manual-entries";
 
 const RATE_VERSION_COLUMNS =
   "id, account_id, cup_global_rate, usdt_buy_gyd, usdt_sell_gyd, usdt_sell_cup, set_by, effective_at";
@@ -173,6 +174,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid calculator document" }, { status: 400 });
     }
 
+    // Migration 228: the page also sends the parsed manual lines (each with its resolved day) so Finanzas counts them.
+    // Absent (an older page): the entries are left alone. An empty list is a real answer: the week has none.
+    let manualLines: ReturnType<typeof parseManualLines> | null = null;
+    if (body.manualLines !== undefined) {
+      manualLines = parseManualLines(body.manualLines);
+      if (!manualLines.ok) return NextResponse.json({ error: "Invalid manual lines" }, { status: 400 });
+    }
+
     // Rates are written only through POST /api/calculator/rates -- this
     // route persists the manual textarea document alone, through the one
     // function authorized to touch that table (agent+, migration 106).
@@ -189,6 +198,25 @@ export async function POST(request: Request) {
     }
 
     const saved = data as { raw_text: string; period_label: string };
+
+    if (manualLines?.ok) {
+      // Right after the document, in the same request. The text is never lost to a bad line, so it is saved first; if
+      // the sync then fails the response says so (documentSaved) and the page shows an error until a save succeeds.
+      const { error: syncError } = await account.supabase.rpc("crm_sincronizar_entradas_manuales", {
+        p_account_id: account.accountId,
+        p_lineas: manualLines.lines,
+      });
+      if (syncError) {
+        const mapped = rpcErrorResponse(syncError);
+        const failure = { documentSaved: true, entriesSynced: false };
+        if (mapped) {
+          return NextResponse.json({ ...(await mapped.json()), ...failure }, { status: mapped.status });
+        }
+        console.error("[calculadora POST] manual entries sync error:", syncError);
+        return NextResponse.json({ error: "manual entries sync failed", ...failure }, { status: 500 });
+      }
+    }
+
     return NextResponse.json(
       { rawText: saved.raw_text, periodo: saved.period_label },
       { headers: { "Cache-Control": "private, no-store" } },

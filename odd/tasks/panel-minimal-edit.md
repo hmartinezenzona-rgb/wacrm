@@ -318,3 +318,8 @@ Decisions (migration 225, crm_agregar_beneficiario only):
   "Se recalcula la cotización y se quitan los destinatarios..."). Removed from the correction form and from both
   catalogs (serviceChange.warning). RED: the form test now forbids any explanatory text when another service is chosen
   (1 failed); GREEN: operations panel + i18n 27 files / 472 tests, tsc and eslint clean.
+- 2026-10-07 T2f staging deployed (owner's look pending; T3 NOT checked off): release e54f2ea677f038351bdfe4b8eb99f32e4d388077,
+  BUILD_ID UXXmf7uvvDqdj34ENxs4u, same procedure. Manifest staging / kolppplawzdsjfydwejr, 114 money-path tests passed, 0 production
+  refs / 32 staging files, sha256 OK, .next/server has no "se quitan los destinatarios que no sirven". `current` -> e54f2ea,
+  `anterior` -> 6e97fd2; pm2 wacrm-staging restarts 76 (stable), /login 200 with the new BUILD_ID and "Bienvenido de nuevo".
+  Rollback: `ssh oracle2 'ln -sfn /home/ubuntu/wacrm-releases/6e97fd24379e85bc02f1ce94be1f3c7104dcc1ea ~/wacrm-releases/current && pm2 restart wacrm-staging --update-env'`

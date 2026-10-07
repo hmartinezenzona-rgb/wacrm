@@ -59,9 +59,9 @@ B. Production fresh start (data task, owner-authorised, after A is in production
 Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBACK, as is and with no promo); vitest.
 
 ## Tasks
-- [ ] T1 DB (migration 228 + ROLLBACK, staging): manual entries model, sync RPC, guard exception, Finanzas and
+- [x] T1 DB (migration 228 + ROLLBACK, staging): manual entries model, sync RPC, guard exception, Finanzas and
   history readers include manual; RED assertion manual-entries.sql then GREEN; regressions.
-- [ ] T2 App: page sends parsed lines on save, date resolution, Finanzas/close UI shows manual entries, dashboard;
+- [x] T2 App: page sends parsed lines on save, date resolution, Finanzas/close UI shows manual entries, dashboard;
   vitest RED/GREEN; typecheck, lint, full suite.
 - [ ] T3 Staging deploy + owner's look (with Osmany's list loaded on staging as a rehearsal).
 - [ ] T4 Production: migration + app.
@@ -69,6 +69,71 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
 
 ## Progress
 - 2026-10-07 document created after mapping and the owner's decisions.
+- 2026-10-07 T1 done (commit 74d97af): migration 228 applied on staging (schema_migrations 228). T2 done (commit 852f2e3).
+  Osmany's list loaded on staging as a rehearsal (see Evidence). T3 (deploy to staging and the owner's look) is next.
+
+## Evidence
+T1 (staging DB):
+- RED: manual-entries.sql failed before 228 (column line_position / function missing). GREEN after: 7 cases PASS (sync replace /
+  idempotent / remove / change / empty; 17 invalid payloads 22023 with nothing written, viewer / other account / no session 42501,
+  anon cannot execute; Finanzas totals, per-service, per-day and detail count and mark manual rows and equal the bot-only close
+  when there are none; the Calculator view lists only bot entries; weekly cut keeps the closed week's manual rows and a later
+  sync cannot touch them, archived week unchanged; raw UPDATE / DELETE refused, chat delete and correct still 22023; all nine
+  manual services accepted).
+- Round trip in one rolled-back transaction: 228 + assertion + ROLLBACK-228 restored crm_cierre_financiero
+  (b8ea2475...) and the guard (c7c9bd08...) to the exact pre-228 md5s, dropped the RPC and both columns. The rollback refuses
+  while manual entries exist (observed: the assertion leaves the archived week's manual rows, so the first attempt was refused).
+- crm_cierre_financiero before/after on the staging account for 3 date ranges: md5 of the jsonb identical once the new 'source'
+  key is stripped (pre-228 snapshot taken before applying).
+- Unchanged functions re-checked by md5: crm_cerrar_semana_calculadora, crm_guardar_documento_calculadora,
+  crm_eliminar_entrada_calculadora, crm_corregir_entrada_calculadora (same as the 228 header).
+- Regressions as is and with promos discarded, all PASS: financial-close, calculator-entry-delete, calculator-weekly-cut,
+  calculator-entry-correction, feed-matrix, resolve-pending, calculator-recarga, calculator-access, calculator-entries-realtime,
+  saldo-model, combo-model, visa-model, recarga-model, rate-versions, operations-board. feed-mixed (case 5 and case 6) and
+  delivery-feed-evidence (fixture setup) fail exactly as before; feed-mixed re-run with 228 rolled back gives the same two
+  failures, so they are not 228's.
+T2 (app): vitest RED then GREEN for date resolution (manual-entries.test.ts), POST /api/calculadora and /weeks routes, page
+  autosave payload / cut / error banner, Resumen detail badge, CSV origin, read model, dashboard query; typecheck clean; eslint
+  clean on touched files; full suite 172 files / 2251 tests pass (--testTimeout=20000).
+Rehearsal on staging (account 472917ed, owner feeccc91): the list went through crm_guardar_documento_calculadora then
+  crm_sincronizar_entradas_manuales with the lines produced by manualEntriesFromText (today = 2026-10-07; 24 lines on 2026-10-06,
+  7 on 2026-10-07; period label "SEMANA 06/10/2026"). crm_cierre_financiero(2026-10-06, 2026-10-07): manual part 31 entries,
+  facturado 1,157,712.40, invertido 1,023,917.64, retorno 133,794.76 (= parser totals); the staging account's bot entries on those
+  dates: 4 operations, 135,000 / 97,500 / 37,500; the close shows 35 operations, facturado 1,292,712.40, invertido 1,121,417.64,
+  retorno 171,294.76 (the sum of both). The data stays on staging.
+
+## Decisions beyond the defaults
+- No service CHECK change: all nine services the manual calculator produces are already in the ledger CHECK. The parser's direct
+  lines (visa, ext, trabajo, estudiante, trad, combo, pasaje) map to DIRECTO, whose label is "Trámites / Combos / Servicios";
+  "SALDO MOVIL" maps to SALDO_MOVIL. Which direct service it was lives only in raw_line. Manual currencies follow the bot's:
+  CUP -> CUP, RECARGA / SALDO_MOVIL -> REC, DIRECTO -> GYD, the rest USD.
+- Identity of a manual row = line number in the text. source_event_id = 'manual:<cycle>:<position>' where cycle = number of weekly
+  cuts so far; a cut moves the account to a new key space, so a later sync cannot match, update or delete a closed week's rows.
+  The cut (227) is NOT modified. New nullable columns line_position and raw_line.
+- completed_at = midday of the line's Guyana day, so the close files it on that day.
+- The chat delete (226) refuses manual entries (22023, "only a chat-fed entry can be deleted here"): a manual line is edited
+  from the text. The correction (149) keeps refusing them. Raw UPDATE / DELETE need the GUC wacrm.calculator_manual_sync that
+  only the sync RPC sets.
+- crm_cierre_financiero: operaciones = distinct operations + manual entries; every detail / excluded row carries 'source'.
+- Route order: the document is saved first, then the sync, so a bad line never loses the text. If the sync fails the response
+  has documentSaved true / entriesSynced false, the page shows an error and retries after 15 s or on the next edit.
+  The weekly-cut route syncs the closing week's lines first (the autosave may lag the textarea) and cuts only if that worked.
+- Lines the ledger cannot hold (unknown service, amount 0, negative figures) are not sent; the page says "N líneas no se
+  registran en Finanzas". Old pages that send no manualLines leave the entries alone.
+- A day header resolves to the most recent date with that day number AND that weekday (no match within 400 days: today).
+  A header for a future day ("Jueves 8" typed on the 7th) therefore resolves to an old date; the sync accepts dates up to 400
+  days back and 1 day ahead.
+- The page's `tarifa` is an autosave dependency: a new CUP global rate re-syncs the CUP lines' figures.
+- Dashboard: loadLedgerProfit reads the bot's and the manual entries (top clients, currency breakdown).
+- CSV export gains an `origen` column (automatica / manual).
+
+## Open points / not verified
+- No browser: the Calculator page, the manual badge in /resumen and the error banner were verified only through jsdom tests.
+- First page open after the deploy autosaves the stored text and so materialises it (intended); this also happens with any
+  text a user has today.
+- A request of the old text that is still in flight when a cut lands can write it into the new week (same as the document
+  today); the abort on "Limpiar Todo" covers the normal case.
+- Production wipe (Part B) and T3-T5 are not part of this change.
 
 ## Next step
-T1.
+T3: deploy to staging and the owner's look at Calculator, /resumen and the dashboard with Osmany's week.

@@ -51,7 +51,7 @@ precio_recarga, so its ledger line would stay verified_pending (recargaPrecioGyd
 Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBACK, as is and with no promo); vitest.
 
 ## Tasks
-- [ ] T1 DB: RED assertion saldo-model.sql; migration 223 + rollback on staging; GREEN; regressions (recarga-model,
+- [x] T1 DB: RED assertion saldo-model.sql; migration 223 + rollback on staging; GREEN; regressions (recarga-model,
   combo-model, visa-model, change-operation-service, calculator-recarga, resolve-pending, operations-board, corrections).
 - [ ] T2 App: lists, selector, card, filters, rates UI, i18n; vitest RED then GREEN; typecheck, lint, full suite.
 - [ ] T3 Staging deploy + owner's look.
@@ -60,6 +60,33 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
 
 ## Progress
 - 2026-10-06 document created after mapping.
+- 2026-10-06 T1 done on staging (migration 223 applied, schema_migrations row 223; production untouched).
+  - RED: assertion saldo-model.sql before 223 failed at its first statement, `ERROR: unknown rate: saldo_costo_usdt`
+    (crm_set_calculator_rates, DO block line 14).
+  - Round trip (one rolled-back transaction): 223 changed all 17 redefined functions; ROLLBACK-223 restored 17 of 17 to
+    the pre-223 md5, removed cerebro_saldo_precio/cerebro_saldo_paquetes, the column and the two config rows, and the 5
+    remittance_operations CHECKs came back identical.
+  - GREEN: saldo-model.sql ALL PASS as is and with promos discarded (16 cases). Regressions, as is and no promo, all
+    PASS: recarga-model, combo-model, visa-model, change-operation-service, calculator-recarga, resolve-pending,
+    operations-board, corrections, clasica-card-from-delivery-method, destination-amount, zelle-tiered-rate,
+    reparto-guards, rate-versions. Leftovers 0 (contacts, saldo operations/lines, saldo cost versions).
+  - Pre-223 md5 (pg_get_functiondef, staging) are in ROLLBACK-223's header.
+
+## Decisions beyond the defaults (T1)
+- crm_resolve_pending_entry: own branch for RECARGA and SALDO_MOVIL (not an exclusion like COMBO/VISA). Reason: the
+  feed only revives VOID rows, so nothing re-feeds a pending line; a saldo line is pending by default until the owner
+  sets the cost, and excluding it would leave it stuck. The payload gains recarga_costo_usdt / saldo_costo_usdt; what
+  the line recorded wins; a saldo deposit that is not a whole multiple (or a recarga matching no price) is refused.
+  canResolveWithRates therefore stays true for both.
+- Exactly ONE phone recipient per saldo (completeness count = 1; crm_agregar_beneficiario refuses a second).
+- crm_cambiar_servicio to saldo retires every recipient (like to recarga); the owner re-adds the number in the panel.
+- Writers: cerebro_resolver_operacion_beneficiario, cerebro_escribir_bloque_beneficiario and
+  cerebro_avisar_envios_sin_beneficiario also redefined (a saldo is never the remesa target; the no-recipient customer
+  notice skips it). crm_agregar_beneficiario redefined for the phone recipient.
+- Minimum = cerebro_saldo_precio() (derived from precio_saldo_gyd, no separate minimo_gyd_saldo row).
+- Ledger line: amount_currency 'REC' (units), pending reasons saldoCostoUsdt / saldoPaquetes.
+- Not touched: cerebro_registrar_deposito and the bot (a deposit for a conversation with an open saldo still lands as
+  a remesa deposit); that is T5.
 
 ## Next step
-T1.
+T2 (app).

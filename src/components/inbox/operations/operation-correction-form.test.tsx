@@ -5,7 +5,7 @@
 
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import en from "../../../../messages/en.json";
 import type { RemittanceOperationRead } from "@/lib/remittance-operations/types";
 
@@ -20,10 +20,23 @@ vi.mock("next-intl", () => ({
 
 const corregirOperacion = vi.fn();
 const cambiarServicio = vi.fn();
+const fetchCalculatorRates = vi.fn();
 vi.mock("@/lib/remittance-operations/commands", () => ({
   corregirOperacion: (...args: unknown[]) => corregirOperacion(...args),
   cambiarServicio: (...args: unknown[]) => cambiarServicio(...args),
+  fetchCalculatorRates: (...args: unknown[]) => fetchCalculatorRates(...args),
 }));
+
+const RATES = {
+  cupGlobalRate: 3.5,
+  usdtBuyGyd: 250,
+  usdtSellGyd: 260,
+  usdtSellCup: 500,
+  efectivoUsdGyd: 270,
+  zelleSellGyd: 262,
+  zelleSellGyd1000: 258,
+  zelleSellGyd2000: 255,
+};
 
 // The form uses the app's Select (Base UI: a portal popup driven by pointer
 // events, which hangs under jsdom). These tests cover the form's logic, so the
@@ -46,7 +59,12 @@ vi.mock("@/components/ui/select", () => ({
 const toast = { success: vi.fn(), error: vi.fn() };
 vi.mock("sonner", () => ({ toast: { success: (...a: unknown[]) => toast.success(...a), error: (...a: unknown[]) => toast.error(...a) } }));
 
+beforeEach(() => {
+  fetchCalculatorRates.mockResolvedValue(RATES);
+});
+
 afterEach(() => {
+  fetchCalculatorRates.mockReset();
   corregirOperacion.mockReset();
   cambiarServicio.mockReset();
   toast.success.mockReset();
@@ -128,16 +146,177 @@ describe("OperationCorrectionForm", () => {
     await act(async () => root.unmount());
   });
 
-  it("blocks submit and shows a message when the currency doesn't match ^[A-Z]{3}$", async () => {
-    const { node, root } = await render(operation());
+  describe("simplified fields", () => {
+    const pick = (node: HTMLElement, value: string) =>
+      act(async () => {
+        const select = node.querySelector<HTMLSelectElement>("#operation-service")!;
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value")!.set!;
+        setter.call(select, value);
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+    const destination = (node: HTMLElement) => node.querySelector<HTMLInputElement>("#operation-quoted-destination-amount");
+    const source = (node: HTMLElement) => node.querySelector<HTMLInputElement>("#operation-quoted-source-amount")!;
+    const t = en.Inbox.operationsPanel;
 
-    const currencyInput = node.querySelector<HTMLInputElement>("#operation-destination-currency")!;
-    await act(async () => setValue(currencyInput, "usd"));
-    await submit(node);
+    it("no longer has the destination currency or the delivery method inputs", async () => {
+      const { node, root } = await render(operation({ deliveryMethod: "clasica" }));
 
-    expect(corregirOperacion).not.toHaveBeenCalled();
-    expect(node.textContent).toContain(en.Inbox.operationsPanel.invalidCurrency);
-    await act(async () => root.unmount());
+      expect(node.querySelector("#operation-destination-currency")).toBeNull();
+      expect(node.querySelector("#operation-delivery-method")).toBeNull();
+      expect(node.querySelector("#operation-deposit-method")).not.toBeNull();
+      expect(node.textContent).not.toContain("clasica");
+      await act(async () => root.unmount());
+    });
+
+    it("shows the currency of the selected service as a read-only suffix", async () => {
+      const { node, root } = await render(operation({ deliveryMethod: "clasica" }));
+
+      expect(node.querySelector('[data-testid="destination-currency"]')!.textContent).toBe("USD");
+      await pick(node, "cuban_card");
+      expect(node.querySelector('[data-testid="destination-currency"]')!.textContent).toBe("CUP");
+      await act(async () => root.unmount());
+    });
+
+    it.each(["recarga", "saldo", "combo", "visa"])("hides the destination amount for %s", async (service) => {
+      const { node, root } = await render(operation({ deliveryMethod: "clasica" }));
+
+      expect(destination(node)).not.toBeNull();
+      await pick(node, service);
+      expect(destination(node)).toBeNull();
+      expect(node.querySelector('[data-testid="destination-currency"]')).toBeNull();
+      await act(async () => root.unmount());
+    });
+
+    it("recalculates the shown amount when the service changes", async () => {
+      const { node, root } = await render(operation({ deliveryMethod: "clasica", quotedSourceAmount: 26000, quotedDestinationAmount: 100 }));
+
+      await pick(node, "cuban_card");
+      expect(destination(node)!.value).toBe("91000"); // 26000 x 3.5
+      await pick(node, "efectivo_usd");
+      expect(destination(node)!.value).toBe("96"); // floor(26000 / 270)
+      await pick(node, "zelle");
+      expect(destination(node)!.value).toBe("99"); // floor(26000 / 262)
+      await act(async () => root.unmount());
+    });
+
+    it("recalculates the shown amount when the deposit changes", async () => {
+      const { node, root } = await render(operation({ deliveryMethod: "clasica", quotedSourceAmount: 26000, quotedDestinationAmount: 100 }));
+
+      await act(async () => setValue(source(node), "52000"));
+      expect(destination(node)!.value).toBe("200");
+      await act(async () => root.unmount());
+    });
+
+    it("shows the stored amount untouched while nothing changed", async () => {
+      const { node, root } = await render(operation({ deliveryMethod: "clasica", quotedSourceAmount: 26000, quotedDestinationAmount: 99 }));
+
+      expect(destination(node)!.value).toBe("99");
+      await act(async () => root.unmount());
+    });
+
+    it("without rates, a changed service shows a recalculated-on-save hint instead of a guess", async () => {
+      fetchCalculatorRates.mockResolvedValue(null);
+      const { node, root } = await render(operation({ deliveryMethod: "clasica" }));
+
+      await pick(node, "zelle");
+      expect(destination(node)!.value).toBe("");
+      expect(destination(node)!.placeholder).toBe(t.recalculatedOnSave);
+      await act(async () => root.unmount());
+    });
+
+    it("a typed destination amount wins and is the only one sent", async () => {
+      cambiarServicio.mockResolvedValue({ ok: true });
+      corregirOperacion.mockResolvedValue({ ok: true, id: "op-1" });
+      const { node, root } = await render(operation({ deliveryMethod: "clasica", quotedSourceAmount: 26000, quotedDestinationAmount: 100 }));
+
+      await pick(node, "zelle");
+      await act(async () => setValue(destination(node)!, "95"));
+      expect(destination(node)!.value).toBe("95");
+      await submit(node);
+
+      expect(cambiarServicio).toHaveBeenCalledWith("op-1", "zelle");
+      expect(corregirOperacion).toHaveBeenCalledWith("op-1", { quoted_destination_amount: 95 });
+      await act(async () => root.unmount());
+    });
+
+    it("an invalid typed destination amount blocks the save", async () => {
+      const { node, root } = await render(operation({ deliveryMethod: "clasica" }));
+
+      await act(async () => setValue(destination(node)!, "0"));
+      await submit(node);
+
+      expect(corregirOperacion).not.toHaveBeenCalled();
+      expect(node.textContent).toContain(t.invalidAmount);
+      await act(async () => root.unmount());
+    });
+
+    it("without typing, the calculated amount is NOT sent: the database recomputes it", async () => {
+      cambiarServicio.mockResolvedValue({ ok: true });
+      const { node, root } = await render(operation({ deliveryMethod: "clasica", quotedSourceAmount: 26000, quotedDestinationAmount: 100 }));
+
+      await pick(node, "cuban_card");
+      await submit(node);
+
+      expect(cambiarServicio).toHaveBeenCalledWith("op-1", "cuban_card");
+      expect(corregirOperacion).not.toHaveBeenCalled();
+      await act(async () => root.unmount());
+    });
+
+    it("changing only the deposit sends only the deposit", async () => {
+      corregirOperacion.mockResolvedValue({ ok: true, id: "op-1" });
+      const { node, root } = await render(operation({ deliveryMethod: "clasica", quotedSourceAmount: 26000, quotedDestinationAmount: 100 }));
+
+      await act(async () => setValue(source(node), "52000"));
+      await submit(node);
+
+      expect(corregirOperacion).toHaveBeenCalledWith("op-1", { quoted_source_amount: 52000 });
+      await act(async () => root.unmount());
+    });
+
+    it("a manual lock on the destination would freeze a stale amount: the shown recalculation is sent then", async () => {
+      corregirOperacion.mockResolvedValue({ ok: true, id: "op-1" });
+      const lock = { by: "agent", at: "2026-10-01T00:00:00Z" };
+      const { node, root } = await render(
+        operation({
+          deliveryMethod: "clasica",
+          quotedSourceAmount: 26000,
+          quotedDestinationAmount: 100,
+          adminLockedFields: { quoted_destination_amount: lock } as RemittanceOperationRead["adminLockedFields"],
+        }),
+      );
+
+      await act(async () => setValue(source(node), "52000"));
+      await submit(node);
+
+      expect(corregirOperacion).toHaveBeenCalledWith("op-1", { quoted_source_amount: 52000, quoted_destination_amount: 200 });
+      await act(async () => root.unmount());
+    });
+
+    it("never sends destination_currency or delivery_method", async () => {
+      cambiarServicio.mockResolvedValue({ ok: true });
+      corregirOperacion.mockResolvedValue({ ok: true, id: "op-1" });
+      const { node, root } = await render(operation({ deliveryMethod: "clasica", quotedSourceAmount: 26000 }));
+
+      await pick(node, "cuban_card");
+      await act(async () => setValue(source(node), "30000"));
+      await act(async () => setValue(node.querySelector<HTMLInputElement>("#operation-deposit-method")!, "mmg"));
+      await submit(node);
+
+      for (const call of corregirOperacion.mock.calls) {
+        expect(Object.keys(call[1] as object)).not.toContain("destination_currency");
+        expect(Object.keys(call[1] as object)).not.toContain("delivery_method");
+      }
+      expect(corregirOperacion).toHaveBeenCalledWith("op-1", { deposit_method: "mmg", quoted_source_amount: 30000 });
+      await act(async () => root.unmount());
+    });
+  });
+
+  it("names the CUP rail CUP in the service labels, en and es", async () => {
+    const es = (await import("../../../../messages/es.json")).default;
+    expect(en.Inbox.operationsPanel.closing.method.cuban_card).toBe("CUP");
+    expect(es.Inbox.operationsPanel.closing.method.cuban_card).toBe("CUP");
+    expect(en.Inbox.operationsPanel.beneficiaryType.cuban_card).toBe("CUP card");
+    expect(es.Inbox.operationsPanel.beneficiaryType.cuban_card).toBe("Tarjeta CUP");
   });
 
   it("shows noChanges and calls nothing when nothing changed", async () => {

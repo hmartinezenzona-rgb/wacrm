@@ -40,6 +40,7 @@ vi.mock("next-intl", () => ({
 
 const corregirBeneficiario = vi.fn();
 vi.mock("@/lib/remittance-operations/commands", () => ({
+  fetchCalculatorRates: vi.fn().mockResolvedValue(null),
   corregirOperacion: vi.fn(),
   corregirBeneficiario: (...args: unknown[]) => corregirBeneficiario(...args),
   reasignarBeneficiario: vi.fn(),

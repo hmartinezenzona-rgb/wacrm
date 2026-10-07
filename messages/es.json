@@ -411,13 +411,14 @@
       "depositMethodValue": {
         "mmg": "MMG"
       },
-      "quotedSourceAmount": "Monto de origen cotizado",
-      "quotedDestinationAmount": "Monto de destino cotizado",
+      "quotedSourceAmount": "Depósito (GYD)",
+      "quotedDestinationAmount": "Monto de destino",
+      "recalculatedOnSave": "Se recalcula al guardar",
       "name": "Nombre",
       "currency": "Moneda",
       "mixedDestination": "Mixto",
       "beneficiaryType": {
-        "cuban_card": "Tarjeta cubana",
+        "cuban_card": "Tarjeta CUP",
         "zelle": "Zelle",
         "clasica": "Clásica",
         "tropical": "Tropical",
@@ -501,7 +502,7 @@
         "closeConfirm": "Cerrar remesa",
         "deleteConfirm": "Eliminar remesa",
         "method": {
-          "cuban_card": "Tarjeta CUP",
+          "cuban_card": "CUP",
           "zelle": "Zelle",
           "clasica": "Clásica",
           "tropical": "Tropical",

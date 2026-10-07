@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConfirmCancelButtons, cancelOnEscape } from "./confirm-cancel-buttons";
 import { EDIT_AREA, FieldPair, FieldRow, PairCell, UNDERLINE_SELECT_TRIGGER, UnderlineInput } from "./edit-form-fields";
-import { cambiarServicio, corregirOperacion } from "@/lib/remittance-operations/commands";
+import type { CalculatorRates } from "@/lib/calculator/ledger-read-model";
+import { cambiarServicio, corregirOperacion, fetchCalculatorRates } from "@/lib/remittance-operations/commands";
+import { destinationCurrencyOf, previewDestinationAmount } from "@/lib/remittance-operations/destination-quote";
 import { OPERATION_SERVICES, currentServiceOf } from "@/lib/remittance-operations/services";
 import type { RemittanceOperationRead } from "@/lib/remittance-operations/types";
 
@@ -16,23 +18,20 @@ interface OperationCorrectionFormProps {
   onCancel: () => void;
 }
 
-const CURRENCY_PATTERN = /^[A-Z]{3}$/;
-
 /**
- * Inline correction form for an operation's admin-owned fields
- * (service, destination currency, delivery/deposit method, quoted amounts).
- * Sends only the fields the agent actually changed, snake_case, amounts as
- * numbers — mirrors `corregirOperacion`'s `cambios` contract exactly. The
- * service goes through its own command (`cambiarServicio`) and runs first,
- * because it recalculates the quote the other corrections may then adjust.
- * Confirmed with the check, cancelled with the X (as the closing control).
+ * Inline correction form for an operation: service, deposit (GYD), destination amount and deposit method.
+ * The service decides the destination currency and the delivery method (`cambiarServicio` sets both), so neither is
+ * an input; the destination amount shows its currency as a suffix and, when the service or the deposit changes, shows
+ * the amount at that service's rate (rates read from /api/calculator/rates; the database recomputes it on save).
+ * A destination amount the person types wins and is the only one sent: otherwise it is left to the database, so
+ * nothing gets locked to a stale number. Sends only the fields the agent changed, snake_case, amounts as numbers.
+ * The service goes through its own command and runs first, because it recalculates the quote the other corrections
+ * may then adjust. Confirmed with the check, cancelled with the X (as the closing control).
  */
 export function OperationCorrectionForm({ operation, onDone, onCancel }: OperationCorrectionFormProps) {
   const t = useTranslations("Inbox.operationsPanel");
 
   const initialService = currentServiceOf(operation) ?? "";
-  const initialDestinationCurrency = operation.destinationCurrency ?? "";
-  const initialDeliveryMethod = operation.deliveryMethod ?? "";
   const initialDepositMethod = operation.depositMethod ?? "";
   const initialQuotedSourceAmount =
     operation.quotedSourceAmount === null ? "" : String(operation.quotedSourceAmount);
@@ -40,13 +39,43 @@ export function OperationCorrectionForm({ operation, onDone, onCancel }: Operati
     operation.quotedDestinationAmount === null ? "" : String(operation.quotedDestinationAmount);
 
   const [service, setService] = useState<string>(initialService);
-  const [destinationCurrency, setDestinationCurrency] = useState(initialDestinationCurrency);
-  const [deliveryMethod, setDeliveryMethod] = useState(initialDeliveryMethod);
   const [depositMethod, setDepositMethod] = useState(initialDepositMethod);
   const [quotedSourceAmount, setQuotedSourceAmount] = useState(initialQuotedSourceAmount);
-  const [quotedDestinationAmount, setQuotedDestinationAmount] = useState(initialQuotedDestinationAmount);
+  // Only a value the person typed; empty means "not typed": the shown amount is then derived.
+  const [typedDestinationAmount, setTypedDestinationAmount] = useState("");
+  const [rates, setRates] = useState<CalculatorRates | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchCalculatorRates()
+      .then((loaded) => {
+        if (!cancelled) setRates(loaded);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const serviceChanged = service !== "" && service !== initialService;
+  const depositChanged = quotedSourceAmount !== initialQuotedSourceAmount;
+  const destinationCurrency = destinationCurrencyOf(service);
+  const preview =
+    serviceChanged || depositChanged ? previewDestinationAmount(service, Number(quotedSourceAmount), rates) : null;
+  const destinationLocked = Boolean(operation.adminLockedFields?.quoted_destination_amount);
+  const typed =
+    destinationCurrency !== null &&
+    typedDestinationAmount !== "" &&
+    (typedDestinationAmount !== initialQuotedDestinationAmount || serviceChanged || depositChanged);
+  const shownDestinationAmount = typed
+    ? typedDestinationAmount
+    : serviceChanged || depositChanged
+      ? preview === null
+        ? ""
+        : String(preview)
+      : initialQuotedDestinationAmount;
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -54,23 +83,11 @@ export function OperationCorrectionForm({ operation, onDone, onCancel }: Operati
 
     const changes: Record<string, unknown> = {};
 
-    if (destinationCurrency !== initialDestinationCurrency) {
-      if (!CURRENCY_PATTERN.test(destinationCurrency)) {
-        setError(t("invalidCurrency"));
-        return;
-      }
-      changes.destination_currency = destinationCurrency;
-    }
-
-    if (deliveryMethod !== initialDeliveryMethod) {
-      changes.delivery_method = deliveryMethod;
-    }
-
     if (depositMethod !== initialDepositMethod) {
       changes.deposit_method = depositMethod;
     }
 
-    if (quotedSourceAmount !== initialQuotedSourceAmount) {
+    if (depositChanged) {
       const amount = Number(quotedSourceAmount);
       if (!(amount > 0)) {
         setError(t("invalidAmount"));
@@ -79,16 +96,18 @@ export function OperationCorrectionForm({ operation, onDone, onCancel }: Operati
       changes.quoted_source_amount = amount;
     }
 
-    if (quotedDestinationAmount !== initialQuotedDestinationAmount) {
-      const amount = Number(quotedDestinationAmount);
+    if (typed) {
+      const amount = Number(typedDestinationAmount);
       if (!(amount > 0)) {
         setError(t("invalidAmount"));
         return;
       }
       changes.quoted_destination_amount = amount;
+    } else if (depositChanged && !serviceChanged && destinationLocked && preview !== null) {
+      // A manual lock on the destination (an earlier correction) would keep the old amount against the new deposit
+      // (changing the service releases it, a deposit change alone does not): send the recalculation shown instead.
+      changes.quoted_destination_amount = preview;
     }
-
-    const serviceChanged = service !== "" && service !== initialService;
 
     if (!serviceChanged && Object.keys(changes).length === 0) {
       setError(t("noChanges"));
@@ -127,6 +146,14 @@ export function OperationCorrectionForm({ operation, onDone, onCancel }: Operati
     onDone();
   }
 
+  const depositInput = (
+    <UnderlineInput
+      id="operation-quoted-source-amount"
+      value={quotedSourceAmount}
+      onChange={(event) => setQuotedSourceAmount(event.target.value)}
+    />
+  );
+
   return (
     <form onSubmit={handleSubmit} onKeyDown={cancelOnEscape(onCancel)} className={EDIT_AREA}>
       <FieldRow label={t("serviceChange.label")} htmlFor="operation-service">
@@ -149,36 +176,30 @@ export function OperationCorrectionForm({ operation, onDone, onCancel }: Operati
       {service !== "" && service !== initialService && (
         <p className="text-[11px] text-muted-foreground">{t("serviceChange.warning")}</p>
       )}
-      <FieldPair>
-        <PairCell label={t("quotedSourceAmount")} htmlFor="operation-quoted-source-amount">
-          <UnderlineInput
-            id="operation-quoted-source-amount"
-            value={quotedSourceAmount}
-            onChange={(event) => setQuotedSourceAmount(event.target.value)}
-          />
-        </PairCell>
-        <PairCell label={t("quotedDestinationAmount")} htmlFor="operation-quoted-destination-amount">
-          <UnderlineInput
-            id="operation-quoted-destination-amount"
-            value={quotedDestinationAmount}
-            onChange={(event) => setQuotedDestinationAmount(event.target.value)}
-          />
-        </PairCell>
-      </FieldPair>
-      <FieldRow label={t("destinationCurrency")} htmlFor="operation-destination-currency">
-        <UnderlineInput
-          id="operation-destination-currency"
-          value={destinationCurrency}
-          onChange={(event) => setDestinationCurrency(event.target.value)}
-        />
-      </FieldRow>
-      <FieldRow label={t("deliveryMethod")} htmlFor="operation-delivery-method">
-        <UnderlineInput
-          id="operation-delivery-method"
-          value={deliveryMethod}
-          onChange={(event) => setDeliveryMethod(event.target.value)}
-        />
-      </FieldRow>
+      {destinationCurrency === null ? (
+        <FieldRow label={t("quotedSourceAmount")} htmlFor="operation-quoted-source-amount">
+          {depositInput}
+        </FieldRow>
+      ) : (
+        <FieldPair>
+          <PairCell label={t("quotedSourceAmount")} htmlFor="operation-quoted-source-amount">
+            {depositInput}
+          </PairCell>
+          <PairCell label={t("quotedDestinationAmount")} htmlFor="operation-quoted-destination-amount">
+            <div className="flex items-center gap-1">
+              <UnderlineInput
+                id="operation-quoted-destination-amount"
+                value={shownDestinationAmount}
+                placeholder={shownDestinationAmount === "" && (serviceChanged || depositChanged) ? t("recalculatedOnSave") : undefined}
+                onChange={(event) => setTypedDestinationAmount(event.target.value)}
+              />
+              <span data-testid="destination-currency" className="shrink-0 text-xs font-medium text-muted-foreground">
+                {destinationCurrency}
+              </span>
+            </div>
+          </PairCell>
+        </FieldPair>
+      )}
       <FieldRow label={t("depositMethod")} htmlFor="operation-deposit-method">
         <UnderlineInput
           id="operation-deposit-method"

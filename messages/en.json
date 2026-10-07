@@ -411,13 +411,14 @@
       "depositMethodValue": {
         "mmg": "MMG"
       },
-      "quotedSourceAmount": "Quoted source amount",
-      "quotedDestinationAmount": "Quoted destination amount",
+      "quotedSourceAmount": "Deposit (GYD)",
+      "quotedDestinationAmount": "Destination amount",
+      "recalculatedOnSave": "Recalculated on save",
       "name": "Name",
       "currency": "Currency",
       "mixedDestination": "Mixed",
       "beneficiaryType": {
-        "cuban_card": "Cuban card",
+        "cuban_card": "CUP card",
         "zelle": "Zelle",
         "clasica": "Clásica",
         "tropical": "Tropical",
@@ -501,7 +502,7 @@
         "closeConfirm": "Close remesa",
         "deleteConfirm": "Delete remesa",
         "method": {
-          "cuban_card": "CUP card",
+          "cuban_card": "CUP",
           "zelle": "Zelle",
           "clasica": "Clásica",
           "tropical": "Tropical",

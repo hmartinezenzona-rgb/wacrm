@@ -100,4 +100,6 @@ export const KNOWN_BENEFICIARY_TYPES: ReadonlyArray<string> = [
   "multiple_distribution",
   "recarga",
   "combo",
+  "visa",
+  "saldo",
 ];

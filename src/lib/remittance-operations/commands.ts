@@ -10,6 +10,7 @@ import type {
   VerifyDepositItem,
   VerifyDepositResult,
 } from "./types";
+import type { CalculatorRates } from "@/lib/calculator/ledger-read-model";
 import type { DeliveryEvidenceRpc } from "./delivery";
 
 export type CommandResult =
@@ -325,4 +326,12 @@ export async function eliminarOperacion(
   );
   if (!response.ok) return response;
   return { ok: true, newStatus: response.data.newStatus };
+}
+
+/** The account's current calculator rates (any member can read them), or `null` when none are set or the read
+ *  fails. The correction form uses them to preview the destination amount of a service. */
+export async function fetchCalculatorRates(): Promise<CalculatorRates | null> {
+  const result = await getJson("/api/calculator/rates");
+  if (!result.ok) return null;
+  return (result.data as { rates: CalculatorRates | null }).rates ?? null;
 }

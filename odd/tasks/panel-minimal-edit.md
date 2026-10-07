@@ -117,7 +117,7 @@ destino debe recalcularse a la tasa del servicio seleccionado, si aplica. Veo op
 etc.: ahí falta el tropical, y en vez de cuban card usar CUP. Está un poco confuso."
 (Note: the first look failed because staging had no OPEN operation; one was created, 094eb6d6.)
 
-- [ ] T2b Simplify the operation correction form (pencil):
+- [x] T2b Simplify the operation correction form (pencil):
   - Fields: Servicio (select); Deposit (GYD) and Destination amount side by side; Deposit method. Remove the
     "destination currency" and "delivery method" inputs: the service sets both (crm_cambiar_servicio already does).
   - The destination amount shows its currency as a read-only suffix (USD / CUP / SM ...) taken from the selected
@@ -127,3 +127,28 @@ etc.: ahí falta el tropical, y en vez de cuban card usar CUP. Está un poco con
   - Naming: the CUP rail reads "CUP" (not "cuban card" / "Tarjeta cubana") everywhere in the panel, en and es;
     Tropical present in every service/recipient list of the panel.
   - No raw internal values (cuban_card, efectivo_usd ...) visible anywhere in the panel.
+
+## Evidence (T2b, 2026-10-07)
+- RED first: 11 new correction-form tests failed (fields still there, no suffix/hide/recalc, old labels); GREEN after the form,
+  `destination-quote.ts` and the catalog change. `tsc --noEmit` clean, eslint clean on operations + remittance-operations,
+  full `vitest run --testTimeout=20000`: 166 files, 2101 tests pass. App-only: NO DB change.
+- Rates path taken: the form reads the current rates from the existing `GET /api/calculator/rates` (requireRole viewer, so any
+  agent) through the new `fetchCalculatorRates()` in commands.ts, and previews with the TypeScript mirror
+  (`deriveAmountFromDeposit`) via `src/lib/remittance-operations/destination-quote.ts`. If rates are missing or the read fails,
+  the field shows the muted placeholder "Recalculated on save" / "Se recalcula al guardar" and the DB value stands.
+- Destination amount is sent to corregirOperacion ONLY when typed (or, see below, when a manual lock would freeze a stale one).
+  destination_currency and delivery_method are never sent from the form (the service sets them via cambiarServicio).
+- Deposit-only change: trigger trg_zz_recalc_destino_operations (AFTER UPDATE OF quoted_source_amount) recomputes the destination
+  when it is not locked and its origin is 'calculated'. If an earlier manual correction left a lock on quoted_destination_amount,
+  the DB would keep the stale amount; the form then sends the recalculation it shows (only when rates are available). Without
+  rates in that case the stale amount stays: open point.
+- Naming: closing.method.cuban_card = "CUP" (en/es), beneficiaryType.cuban_card = "CUP card" / "Tarjeta CUP"; the dashboard queue
+  already says CUP. Labels renamed "Deposit (GYD)" / "Destination amount" (es "Depósito (GYD)" / "Monto de destino").
+- Tropical / lists audit: Tropical was missing only in the removed free-text delivery-method field. OPERATION_SERVICES, closing
+  control SERVICES, ADDABLE_BENEFICIARY_TYPES and the beneficiaryType catalog all include it. No datalist/autocomplete/suggestion
+  list exists in the panel; the beneficiary edit/add forms do not edit delivery_method. Closing-control picker: cuban_card and
+  zelle use MethodIcon (card / "Z" icons), the others PICKER_ICON, so all render. ADDABLE_BENEFICIARY_TYPES deliberately has no
+  efectivo_usd/recarga/combo/visa/saldo (recharge/combo have their own add forms). KNOWN_BENEFICIARY_TYPES gained visa and saldo
+  so they no longer fall to the raw-value fallback; the only raw fallback left is a free-form deposit/delivery value outside the
+  catalog (e.g. "bank").
+- Not verified: no browser available (look and suffix layout unseen), no staging run.

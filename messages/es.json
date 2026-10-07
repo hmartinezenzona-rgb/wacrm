@@ -443,7 +443,6 @@
       "serviceChange": {
         "label": "Servicio",
         "choose": "Elige un servicio",
-        "warning": "Se recalcula la cotización y se quitan los destinatarios que no sirven para el nuevo servicio. No se le escribe al cliente.",
         "saved": "Servicio cambiado",
         "failed": "No se pudo cambiar el servicio: {message}"
       },

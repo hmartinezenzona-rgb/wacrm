@@ -313,3 +313,8 @@ Decisions (migration 225, crm_agregar_beneficiario only):
   restarts 74 -> 75 and stable; crm.onlinefreedom.site/login 200 with the new BUILD_ID and "Bienvenido de nuevo"; prod-build clean.
   No DB change. Production not touched.
   Rollback: `ssh oracle2 'ln -sfn /home/ubuntu/wacrm-releases/31529b8b262f8e1096f2eeae9202c9a6d3b7b9c2 ~/wacrm-releases/current && pm2 restart wacrm-staging --update-env'`
+
+- 2026-10-07 owner (staging 6e97fd2): "este texto que sale abarca mucho espacio, quítalo" (the service-change note
+  "Se recalcula la cotización y se quitan los destinatarios..."). Removed from the correction form and from both
+  catalogs (serviceChange.warning). RED: the form test now forbids any explanatory text when another service is chosen
+  (1 failed); GREEN: operations panel + i18n 27 files / 472 tests, tsc and eslint clean.

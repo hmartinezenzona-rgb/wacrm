@@ -344,7 +344,7 @@ describe("OperationCorrectionForm", () => {
 
   describe("service field", () => {
     const serviceSelect = (node: HTMLElement) => node.querySelector<HTMLSelectElement>("#operation-service")!;
-    const warning = en.Inbox.operationsPanel.serviceChange.warning;
+    const warning = "The quote is recalculated";
     const pick = (select: HTMLSelectElement, value: string) =>
       act(async () => {
         const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value")!.set!;
@@ -374,13 +374,13 @@ describe("OperationCorrectionForm", () => {
       await act(async () => root.unmount());
     });
 
-    it("shows the warning only when a different service is chosen", async () => {
+    // Owner, 2026-10-07: the explanatory text took too much room; the form stays compact.
+    it("shows no explanatory text when a different service is chosen", async () => {
       const { node, root } = await render(operation({ deliveryMethod: "clasica" }));
 
       await pick(serviceSelect(node), "zelle");
-      expect(node.textContent).toContain(warning);
-      await pick(serviceSelect(node), "clasica");
       expect(node.textContent).not.toContain(warning);
+      expect(node.querySelectorAll("p").length).toBe(0);
       await act(async () => root.unmount());
     });
 

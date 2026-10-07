@@ -173,9 +173,6 @@ export function OperationCorrectionForm({ operation, onDone, onCancel }: Operati
           </SelectContent>
         </Select>
       </FieldRow>
-      {service !== "" && service !== initialService && (
-        <p className="text-[11px] text-muted-foreground">{t("serviceChange.warning")}</p>
-      )}
       {destinationCurrency === null ? (
         <FieldRow label={t("quotedSourceAmount")} htmlFor="operation-quoted-source-amount">
           {depositInput}

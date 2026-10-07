@@ -443,7 +443,6 @@
       "serviceChange": {
         "label": "Service",
         "choose": "Choose a service",
-        "warning": "The quote is recalculated and the recipients that do not fit the new service are removed. The customer is not messaged.",
         "saved": "Service changed",
         "failed": "Could not change the service: {message}"
       },

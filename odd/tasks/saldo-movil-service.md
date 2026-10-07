@@ -141,6 +141,12 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
   restarts 69 -> 70 and stable; crm.onlinefreedom.site/login 200 with the new BUILD_ID and "Bienvenido de nuevo"; .next/server has
   "Saldo móvil"; prod-build clean. No DB change (migration 223 already on staging). Production not touched.
   Rollback: `ssh oracle2 'ln -sfn /home/ubuntu/wacrm-releases/1ff1d1330f5c99f184e4254476584b6676cd03d4 ~/wacrm-releases/current && pm2 restart wacrm-staging --update-env'`.
+- 2026-10-06 T3 staging releases (owner's look pending; T3 NOT checked off): 438c0017274593e61dee836d53ef6cfd29a031e2
+  (BUILD_ID 8z4Ie62JfeHvyzlht8HQH, saldo movil lines show the saldo amount in SM) and then eb35591020666e9688f24f3e00e1b6ae9ac5c54e
+  (BUILD_ID ajGFFfqB6tsxrfdNJNy7k, adds the shared check/X buttons and minimalist edit forms). `current` -> eb35591, `anterior` -> 438c001;
+  114 money-path tests passed, manifest staging, 0 production refs, login 200 with "Bienvenido de nuevo", restarts 71 -> 72 and stable.
+  No DB change. Production not touched.
+  Rollback: `ssh oracle2 'ln -sfn /home/ubuntu/wacrm-releases/438c0017274593e61dee836d53ef6cfd29a031e2 ~/wacrm-releases/current && pm2 restart wacrm-staging --update-env'`
 
 ## Next step
 T3: staging app deploy and the owner's look (owner's go-ahead not needed for staging; production waits for T4's go-ahead).

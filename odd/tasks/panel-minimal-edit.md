@@ -92,6 +92,13 @@ h-8, text-sm, rule turns ring colour on focus + soft ring), `FieldRow` (11px mut
   and X only when a cost already exists; Escape cancels.
 - Deposit review: inputs h-10 -> h-8 underline rows with left labels; force confirm = check/X + bell in a left-ruled area.
 - Closing control, complete-transfer (single, multi): same check/X component; closing control lost its box.
+- 2026-10-06 T3 staging deployed (owner's look pending; T3 NOT checked off): release eb35591020666e9688f24f3e00e1b6ae9ac5c54e,
+  BUILD_ID ajGFFfqB6tsxrfdNJNy7k, same procedure as 438c001 (clean prod-build, docker node:20 uid 1000, staging-build.env with
+  NEXT_PUBLIC_APP_LOCALE=es, unchanged). Manifest staging / kolppplawzdsjfydwejr, 114 money-path tests passed, 0 production refs /
+  32 staging files, sha256 OK. `current` -> eb35591, `anterior` -> 438c001; pm2 wacrm-staging cwd resolves to the new release,
+  restarts 71 -> 72 and stable; crm.onlinefreedom.site/login 200 with the new BUILD_ID and "Bienvenido de nuevo"; prod-build clean.
+  No DB change (migration 223 already on staging). Production not touched.
+  Rollback: `ssh oracle2 'ln -sfn /home/ubuntu/wacrm-releases/438c0017274593e61dee836d53ef6cfd29a031e2 ~/wacrm-releases/current && pm2 restart wacrm-staging --update-env'`
 
 ## Deviations
 - One commit for T1+T2 (see Progress).

@@ -187,3 +187,13 @@ profesional." (It is the browser's window.confirm.) Choice: "✓ / X en la fila"
   shadowing nginx (options: certbot pre/post hooks that lift and restore the rule, or dropping the redirect so port 80
   reaches nginx's 301). Owner decision pending. Staging certificate (crm.onlinefreedom.site) is valid to 2026-11-18;
   its renewal path was not checked.
+- 2026-10-07 22:15-22:23 UTC, permanent fix (owner: "si"), production server only: certbot renewal hooks
+  /etc/letsencrypt/renewal-hooks/pre/wacrm-port80-redirect.sh (lifts the port-80 -> 3000 PREROUTING rules, saves the
+  count in /run/wacrm-port80-redirect.count) and .../post/wacrm-port80-redirect.sh (puts the same number back, removes
+  the file); both log with tag wacrm-certbot. Tested with `certbot renew --cert-name wacrm.onlinefreedom.site
+  --dry-run`: "all renewals succeeded", journal "pre hook: lifted 2 ..." / "post hook: ... restored (2)", 2 rules after,
+  no state file left; certificate still the one valid to 2027-01-05; /login 200 with a valid chain. If the post hook
+  ever fails, port 80 reaches nginx (301 to https), which is harmless.
+- Staging (oracle2, crm.onlinefreedom.site) checked read-only: no NAT redirect (port 80 answers nginx's 301),
+  snap.certbot.renew runs twice a day and succeeds, certificate valid to 2026-11-18 (renewed once on 2026-08-20). No
+  change needed.

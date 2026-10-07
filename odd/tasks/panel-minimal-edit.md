@@ -221,3 +221,38 @@ only for combo). Only the bot can create a cash recipient today.
   - App: the "add recipient" form follows the operation's service: when the operation already has a service
     (cuban_card, zelle, clasica, tropical, efectivo_usd) it shows that service's fields directly, with no type picker;
     the picker appears only when the operation has no service yet. Cash form with its fields; minimalist look; ✓ / X.
+
+## Evidence (T2d, DB, 2026-10-07)
+Cash recipient model found (bot writer `crm_registrar_datos_entrega_efectivo`, 150/191; completeness 188):
+- Row: `beneficiary_type = efectivo_usd`, columns `name` (optional, 191), `phone`, `address`, `id_photo_wamid` (the WhatsApp
+  message id of the ID-card photo; the image stays in `messages.media_url`). No card, no Zelle account. One vigente cash row
+  per operation (the bot replaces it on every change), only on an operation whose `delivery_method = efectivo_usd`.
+- Complete (`crm_beneficiarios_completos`): phone AND address AND `id_photo_wamid` all non-blank. Name is not required.
+- Priced by the existing calculation: `floor(deposit / crm_tasa_vigente('efectivo')) USD` (staging 290: 30,000 GYD -> 103);
+  minimum `cerebro_minimo_efectivo_gyd()` = 100 USD x cash rate (29,000 on staging). The add path never checked the minimum.
+- `crm_corregir_beneficiario` (212) lets address be edited on a cash row; nobody can set the photo from the panel.
+Decisions (migration 225, crm_agregar_beneficiario only):
+- Accepts efectivo_usd with `name` (optional), `phone` (required, digits, a +53 prefix on 10 digits dropped like a combo's, 8-15
+  digits) and `address` (required). Refuses any other key (amount, currency, card_number, zelle_account, delivery_method,
+  reference, contact_phone): the amount is calculated, not given. A panel-added recipient stays incomplete until the customer's
+  ID photo arrives through the chat (same as the bot path, which also needs the photo).
+- Required fields follow the completeness rule minus the photo (the panel cannot supply it); the bot path itself accepts
+  partial data and merges, but a half-empty panel row would be useless, so phone and address are required here.
+- Second cash recipient refused (22023): the bot keeps one. Cash refused on an operation whose rail is another one
+  (zelle ...), allowed when it has no rail yet (like the other types); combo / recarga / saldo operations are already refused
+  by the existing rules. The existing add path has NO rule against a card/Zelle recipient on a cash operation (nor the
+  reverse): left as is, not invented.
+- Amount/currency: the recipient triggers price the operation and the lone recipient; when an earlier correction locked the
+  recipients the function copies the calculated quote to the recipient (as crm_cambiar_servicio does) and releases the
+  calculation's own destination locks. Same `beneficiaries` lock and one `human_beneficiary_added` audit row as the others.
+- RED first: `supabase/staging/assertions/cash-recipient-add.sql` on staging before 225 fails at its first add
+  ("invalid beneficiary_type: efectivo_usd", case a).
+- Migration 225_cash_recipient_add.sql + ROLLBACK-225-cash-recipient-add.sql (pre-225 md5 of crm_agregar_beneficiario
+  a7dfae5d96716f2111af6cc548d96f39 in the header). Round trip in one rolled-back transaction: 225 changes 1 function,
+  ROLLBACK restores 350 of 350 public functions. Applied for real on staging: schema_migrations 225 225_cash_recipient_add;
+  md5 after ee9da2d6f824114674da9355eff122ce; grants unchanged (anon no, authenticated yes).
+- GREEN with 225 (rolled back, then again after the real apply), as is and with promos discarded: cash-recipient-add (all
+  cases a-g) and the regressions add-beneficiary, change-operation-service, quote-from-rail, combo-model, recarga-model,
+  saldo-model, corrections, destination-amount, calculator-cash, cash-delivery-activation, cash-delivery-data,
+  cash-delivery-rate, cash-phone-not-a-card, panel-cash-recipient, panel-notify-and-cash-name, panel-quote, service-catalog,
+  combo-edit, manual-close-service, ultima-cotizacion. Leftovers 0 (contacts, operations, wamid rows).

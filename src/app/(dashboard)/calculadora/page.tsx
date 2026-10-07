@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ChangeEvent, type KeyboardEvent } from "react";
-import { Pencil } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
+import { Pencil, Trash2 } from "lucide-react";
 import { procesarTexto, type WebCalculatorErrorLine, type WebCalculatorParsedLine } from "@/lib/calculator/web-calculator";
 import { isComboCostPending, pendingReason, type CalculatorRates } from "@/lib/calculator/ledger-read-model";
 import { calculatorCategoryName, chatEntryAmountText, ledgerServiceLabel } from "@/lib/calculator/entry-display";
 import { applyCalculatorEntryRealtimeEvent, type ChatCalculatorEntry } from "@/lib/calculator/realtime-entry";
 import { useCalculatorEntriesRealtime } from "@/hooks/use-calculator-entries-realtime";
+import type { CalculatorWeek, CalculatorWeekSummary } from "@/lib/calculator/weeks";
 import "./calculadora.module.css";
 
 const STORAGE_KEYS = {
@@ -34,6 +35,14 @@ function chatTotals(entries: ChatCalculatorEntry[]) {
     },
     { fact: 0, inv: 0, ret: 0 },
   );
+}
+
+// The cut is shown on the Guyana business day, like the rest of the CRM's dates.
+const CUT_DATE_FORMAT = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Guyana", year: "numeric", month: "2-digit", day: "2-digit" });
+
+function cutDate(cutAt: string): string {
+  const date = new Date(cutAt);
+  return Number.isNaN(date.getTime()) ? cutAt.slice(0, 10) : CUT_DATE_FORMAT.format(date);
 }
 
 function lineStart(value: string, cursor: number): number {
@@ -98,6 +107,18 @@ export default function CalculadoraPage() {
   const [editInvertido, setEditInvertido] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [entryActionMessage, setEntryActionMessage] = useState<{ entryId: string; text: string } | null>(null);
+  // Weekly cut (227): the latest cut hides the entries it archived; a live event for one of them must not bring it back.
+  const [cutAt, setCutAt] = useState<string | null>(null);
+  const [clearing, setClearing] = useState(false);
+  const [clearMessage, setClearMessage] = useState<string | null>(null);
+  const [weeks, setWeeks] = useState<CalculatorWeekSummary[]>([]);
+  const [openWeek, setOpenWeek] = useState<CalculatorWeek | null>(null);
+  const [weekMessage, setWeekMessage] = useState<string | null>(null);
+  // The debounced autosave must not race the cut: a pending or in-flight save of the old text would write it back into
+  // the document the cut just emptied.
+  const clearingRef = useRef(false);
+  const saveAbortRef = useRef<AbortController | null>(null);
+  const [saveNonce, setSaveNonce] = useState(0);
   // No local theme state: the page reads the CRM's design tokens, so it
   // follows whatever mode and accent the operator picked in Appearance.
   // The old `dark` boolean and its "🌗 Tema" button were a second switch
@@ -149,6 +170,7 @@ export default function CalculadoraPage() {
         return response.json() as Promise<{
           rawText?: string;
           periodo?: string;
+          cutAt?: string | null;
           chatOperations?: { entries?: ChatCalculatorEntry[] };
         }>;
       }),
@@ -168,6 +190,7 @@ export default function CalculadoraPage() {
         setRawText(data.rawText ?? "");
         setPeriodo(data.periodo ?? "");
         setChatEntries(data.chatOperations?.entries ?? []);
+        setCutAt(data.cutAt ?? null);
         applyRates(ratesData.rates);
         localStorage.setItem(STORAGE_KEYS.raw, data.rawText ?? "");
         localStorage.setItem(STORAGE_KEYS.period, data.periodo ?? "");
@@ -187,17 +210,40 @@ export default function CalculadoraPage() {
     localStorage.setItem(STORAGE_KEYS.raw, rawText);
     localStorage.setItem(STORAGE_KEYS.period, periodo);
     const timer = window.setTimeout(() => {
+      if (clearingRef.current) return;
+      const controller = new AbortController();
+      saveAbortRef.current = controller;
       void fetch("/api/calculadora", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rawText, periodo }),
+        signal: controller.signal,
       }).then((response) => {
         if (!response.ok) throw new Error("calculator document save failed");
         setSaveError(null);
-      }).catch(() => setSaveError("No se pudo guardar en el servidor; los datos siguen guardados localmente."));
+      }).catch((error: unknown) => {
+        if ((error as { name?: string } | null)?.name === "AbortError") return;
+        setSaveError("No se pudo guardar en el servidor; los datos siguen guardados localmente.");
+      });
     }, 600);
     return () => window.clearTimeout(timer);
-  }, [hydrated, rawText, periodo]);
+  }, [hydrated, rawText, periodo, saveNonce]);
+
+  // Archived weeks ("Semanas anteriores"). A failure here is non-fatal: the list just stays empty.
+  async function loadWeeks() {
+    try {
+      const response = await fetch("/api/calculadora/weeks", { cache: "no-store" });
+      if (!response.ok) return;
+      const data = (await response.json()) as { weeks?: CalculatorWeekSummary[] };
+      setWeeks(data.weeks ?? []);
+    } catch {
+      /* keep what is shown */
+    }
+  }
+
+  useEffect(() => {
+    if (hydrated) void loadWeeks();
+  }, [hydrated]);
 
   // B4.2 — live updates for "Operaciones del chat", no page refresh: a
   // remesa completed (or voided) elsewhere folds straight into
@@ -208,7 +254,7 @@ export default function CalculadoraPage() {
   useCalculatorEntriesRealtime({
     enabled: hydrated,
     onEntryEvent: (event) => {
-      setChatEntries((prev) => applyCalculatorEntryRealtimeEvent(prev, event.eventType, event.new, event.old));
+      setChatEntries((prev) => applyCalculatorEntryRealtimeEvent(prev, event.eventType, event.new, event.old, cutAt));
     },
   });
 
@@ -390,14 +436,86 @@ export default function CalculadoraPage() {
     setFullscreen((value) => !value);
   }
 
-  function clearAll() {
-    if (!window.confirm("¿Seguro que deseas borrar el registro de esta semana?")) return;
-    // The global rates are DB-managed (calculator_rate_versions), shared
-    // across weeks -- clearing this week's manual log must not touch them.
-    setRawText("");
-    setPeriodo("");
-    localStorage.removeItem(STORAGE_KEYS.raw);
-    localStorage.removeItem(STORAGE_KEYS.period);
+  async function clearAll() {
+    if (clearing) return;
+    if (!window.confirm(
+      "¿Limpiar todo y empezar una semana nueva? La semana actual se guarda en «Semanas anteriores» y el historial " +
+      "(Finanzas, panel) sigue contando. Las operaciones del chat en espera de precio se quedan en pantalla.",
+    )) return;
+    setClearing(true);
+    setClearMessage(null);
+    // Stop the autosave first: neither a pending nor an in-flight save may write the old text after the cut.
+    clearingRef.current = true;
+    saveAbortRef.current?.abort();
+    try {
+      // The global rates are DB-managed (calculator_rate_versions), shared across weeks -- the cut does not touch them.
+      const response = await fetch("/api/calculadora/weeks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rawText,
+          periodo,
+          manualTotals: { facturadoGyd: parsed.totals.fact, invertidoGyd: parsed.totals.inv, retornoGyd: parsed.totals.ret },
+        }),
+      });
+      if (!response.ok) {
+        setClearMessage("No se pudo limpiar la semana; no se borró nada.");
+        setSaveNonce((value) => value + 1);
+        return;
+      }
+      const data = (await response.json()) as { cutAt?: string | null };
+      setCutAt(data.cutAt ?? new Date().toISOString());
+      // Archived with the week: every completed chat line. A line still waiting for a price is never archived.
+      setChatEntries((prev) => prev.filter((entry) => entry.status === "verified_pending"));
+      setRawText("");
+      setPeriodo("");
+      setOpenWeek(null);
+      localStorage.removeItem(STORAGE_KEYS.raw);
+      localStorage.removeItem(STORAGE_KEYS.period);
+      void loadWeeks();
+    } catch {
+      setClearMessage("No se pudo limpiar la semana; no se borró nada.");
+      setSaveNonce((value) => value + 1);
+    } finally {
+      clearingRef.current = false;
+      setClearing(false);
+    }
+  }
+
+  async function deleteEntry(entry: ChatCalculatorEntry) {
+    const who = entry.customerName || "Sin nombre";
+    if (!window.confirm(
+      `¿Eliminar la operación de ${who} (${chatEntryAmountText(entry)})? Dejará de contar en la calculadora, en ` +
+      "Finanzas y en el panel. No se puede deshacer.",
+    )) return;
+    setEntryActionMessage(null);
+    try {
+      const response = await fetch(`/api/calculator/entries/${entry.id}/delete`, { method: "POST" });
+      if (response.status === 403) {
+        setEntryActionMessage({ entryId: entry.id, text: "Solo un administrador puede eliminar esta operación." });
+        return;
+      }
+      if (!response.ok) {
+        const data = (await response.json().catch(() => ({}))) as { error?: string };
+        setEntryActionMessage({ entryId: entry.id, text: data.error ?? "No se pudo eliminar la operación." });
+        return;
+      }
+      setChatEntries((prev) => prev.filter((item) => item.id !== entry.id));
+    } catch {
+      setEntryActionMessage({ entryId: entry.id, text: "No se pudo eliminar la operación." });
+    }
+  }
+
+  async function openArchivedWeek(weekId: string) {
+    setWeekMessage(null);
+    try {
+      const response = await fetch(`/api/calculadora/weeks/${weekId}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("week read failed");
+      const data = (await response.json()) as { week: CalculatorWeek };
+      setOpenWeek(data.week);
+    } catch {
+      setWeekMessage("No se pudo abrir la semana.");
+    }
   }
 
   function exportar() {
@@ -600,6 +718,18 @@ export default function CalculadoraPage() {
                               </button>
                             )
                           )}
+                          {!editing && (
+                            <button
+                              type="button"
+                              id={`eliminarEntry-${entry.id}`}
+                              className="legacyIconButton"
+                              onClick={() => void deleteEntry(entry)}
+                              aria-label="Eliminar"
+                              title="Eliminar"
+                            >
+                              <Trash2 size={16} aria-hidden="true" />
+                            </button>
+                          )}
                           {!editing && rowMessage && <div className="legacyError">{rowMessage}</div>}
                         </td>
                       </tr>
@@ -611,7 +741,76 @@ export default function CalculadoraPage() {
           )}
         </div>
 
-        <div className="legacyCard legacyFlex"><button type="button" onClick={exportar}>📄 Exportar Reporte (.txt)</button><button type="button" className="legacySecondary" onClick={clearAll}>🧹 Limpiar Todo</button></div>
+        <div className="legacyCard legacyFlex"><button type="button" onClick={exportar}>📄 Exportar Reporte (.txt)</button><button type="button" className="legacySecondary" onClick={() => void clearAll()} disabled={clearing}>{clearing ? "Limpiando…" : "🧹 Limpiar Todo"}</button></div>
+        {clearMessage && <div className="legacyError" role="status">{clearMessage}</div>}
+
+        <div className="legacyCard" id="semanasAnteriores">
+          <h2>📚 Semanas anteriores</h2>
+          <span className="legacySmall">Cada «Limpiar Todo» guarda la semana aquí, solo para consultarla. Sus operaciones siguen contando en Finanzas y en el panel.</span>
+          {weekMessage && <div className="legacyError">{weekMessage}</div>}
+          {weeks.length === 0 ? (
+            <span className="legacySmall">Aún no hay semanas archivadas.</span>
+          ) : (
+            <table className="legacyParsedTable">
+              <thead><tr><th>Corte</th><th>Período</th><th>Fact. (GYD)</th><th>Inv. (GYD)</th><th>Ganancia</th><th className="legacyActionsCell"></th></tr></thead>
+              <tbody>
+                {weeks.map((week) => (
+                  <tr key={week.id}>
+                    <td data-label="Corte">{cutDate(week.cutAt)}</td>
+                    <td data-label="Período"><b>{week.periodo || "Sin período"}</b></td>
+                    <td data-label="Fact. (GYD)">{formatNumber(week.manualTotals.facturadoGyd + week.chatTotals.facturadoGyd)}</td>
+                    <td data-label="Inv. (GYD)">{formatNumber(week.manualTotals.invertidoGyd + week.chatTotals.invertidoGyd)}</td>
+                    <td data-label="Ganancia">{formatNumber(week.manualTotals.retornoGyd + week.chatTotals.retornoGyd)}</td>
+                    <td className="legacyActionsCell">
+                      <button type="button" id={`verSemana-${week.id}`} className="legacySecondary" onClick={() => void openArchivedWeek(week.id)} style={{ width: "auto" }}>Ver</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {openWeek && (
+          <div className="legacyCard" id="semanaArchivada">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 10 }}>
+              <h2 style={{ margin: 0 }}>🗂️ Semana archivada: {openWeek.periodo || "Sin período"} (corte {cutDate(openWeek.cutAt)})</h2>
+              <button type="button" id="cerrarSemana" className="legacySecondary" onClick={() => setOpenWeek(null)} style={{ width: "auto" }}>Cerrar</button>
+            </div>
+            <span className="legacySmall">Solo lectura.</span>
+            <div className="legacyTotals">
+              <div className="legacyTotalBox"><h3>💰 Facturado (GYD)</h3><p style={{ fontSize: "1.5em", fontWeight: "bold", margin: "5px 0" }}>{formatNumber(openWeek.manualTotals.facturadoGyd + openWeek.chatTotals.facturadoGyd)}</p></div>
+              <div className="legacyTotalBox"><h3>🔁 Invertido (GYD)</h3><p style={{ fontSize: "1.5em", fontWeight: "bold", margin: "5px 0" }}>{formatNumber(openWeek.manualTotals.invertidoGyd + openWeek.chatTotals.invertidoGyd)}</p></div>
+              <div className="legacyTotalBox"><h3>📈 Retorno Neto (GYD)</h3><p style={{ fontSize: "1.5em", fontWeight: "bold", color: "#28a745", margin: "5px 0" }}>{formatNumber(openWeek.manualTotals.retornoGyd + openWeek.chatTotals.retornoGyd)}</p></div>
+            </div>
+            <span className="legacySmall">Registro manual: Fact {formatNumber(openWeek.manualTotals.facturadoGyd)} | Inv {formatNumber(openWeek.manualTotals.invertidoGyd)} | Retorno {formatNumber(openWeek.manualTotals.retornoGyd)}. Operaciones del chat: Fact {formatNumber(openWeek.chatTotals.facturadoGyd)} | Inv {formatNumber(openWeek.chatTotals.invertidoGyd)} | Retorno {formatNumber(openWeek.chatTotals.retornoGyd)}.</span>
+            <h3>📝 Registro manual</h3>
+            <pre style={{ whiteSpace: "pre-wrap", fontFamily: "monospace", margin: 0 }}>{openWeek.rawText}</pre>
+            <h3>🔗 Operaciones del chat</h3>
+            {openWeek.entries.length === 0 ? (
+              <span className="legacySmall">Esta semana no tuvo operaciones del chat.</span>
+            ) : (
+              <div style={{ maxHeight: 400, overflowY: "auto" }}>
+                <table className="legacyParsedTable">
+                  <thead><tr><th>Fecha</th><th>Cliente</th><th>Monto</th><th>Tipo</th><th>Fact. (GYD)</th><th>Inv. (GYD)</th><th>Ganancia</th></tr></thead>
+                  <tbody>
+                    {openWeek.entries.map((entry) => (
+                      <tr key={entry.id}>
+                        <td data-label="Fecha">{entry.entryDate.slice(0, 10)}</td>
+                        <td data-label="Cliente"><b>{entry.customerName || "—"}</b></td>
+                        <td data-label="Monto">{chatEntryAmountText(entry)}</td>
+                        <td data-label="Tipo"><span className="legacyBadge">{ledgerServiceLabel(entry.service)}</span></td>
+                        <td data-label="Fact. (GYD)">{entry.facturadoGyd == null ? "—" : formatNumber(entry.facturadoGyd)}</td>
+                        <td data-label="Inv. (GYD)">{entry.invertidoGyd == null ? "—" : formatNumber(entry.invertidoGyd)}</td>
+                        <td data-label="Ganancia">{entry.retornoGyd == null ? "—" : formatNumber(entry.retornoGyd)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </main>
   );

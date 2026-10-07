@@ -28,6 +28,7 @@ function row(overrides: Partial<CalculatorEntryRealtimeRow> = {}): CalculatorEnt
     retorno_gyd: "2000",
     missing_inputs: [],
     source: "completed_operation",
+    completed_at: null,
     ...overrides,
   };
 }
@@ -136,5 +137,45 @@ describe("applyCalculatorEntryRealtimeEvent", () => {
       { id: "a", operationId: "op-a", status: "completed", service: "CUP", customerName: "A", amount: 1, amountCurrency: "CUP", entryDate: "d", facturadoGyd: 1, invertidoGyd: 1, retornoGyd: 0, missingRates: [] },
     ];
     expect(applyCalculatorEntryRealtimeEvent(existing, "DELETE", null, null)).toEqual(existing);
+  });
+});
+
+describe("applyCalculatorEntryRealtimeEvent with the weekly cut", () => {
+  const CUT = "2026-10-03T12:00:00.000Z";
+  const shown: ChatCalculatorEntry = {
+    id: "pending-1", operationId: "op-p", status: "verified_pending", service: "CUP", customerName: "P", amount: 1,
+    amountCurrency: "CUP", entryDate: "2026-09-29", facturadoGyd: null, invertidoGyd: null, retornoGyd: null, missingRates: ["usdtSellCup"],
+  };
+
+  it("ignores a completed entry older than the cut that the page does not show (it was archived)", () => {
+    const next = applyCalculatorEntryRealtimeEvent([], "UPDATE", row({ id: "old", completed_at: "2026-10-01T10:00:00Z" }), { id: "old" }, CUT);
+    expect(next).toEqual([]);
+  });
+
+  it("shows a completed entry completed after the cut", () => {
+    const next = applyCalculatorEntryRealtimeEvent([], "INSERT", row({ id: "new", completed_at: "2026-10-04T10:00:00Z" }), null, CUT);
+    expect(next.map((e) => e.id)).toEqual(["new"]);
+  });
+
+  it("keeps updating an entry the page already shows, however old it is (a pending line resolved after the cut)", () => {
+    const next = applyCalculatorEntryRealtimeEvent([shown], "UPDATE", row({ id: "pending-1", operation_id: "op-p", completed_at: "2026-09-29T10:00:00Z" }), { id: "pending-1" }, CUT);
+    expect(next).toHaveLength(1);
+    expect(next[0]).toMatchObject({ id: "pending-1", status: "completed", facturadoGyd: 26000 });
+  });
+
+  it("shows a pending entry whatever its age (it is never archived)", () => {
+    const next = applyCalculatorEntryRealtimeEvent([], "INSERT", row({ id: "p2", status: "verified_pending", facturado_gyd: null, invertido_gyd: null, retorno_gyd: null, completed_at: null }), null, CUT);
+    expect(next.map((e) => e.id)).toEqual(["p2"]);
+  });
+
+  it("without a cut every completed entry shows, as before", () => {
+    const next = applyCalculatorEntryRealtimeEvent([], "INSERT", row({ id: "x", completed_at: "2020-01-01T00:00:00Z" }), null, null);
+    expect(next.map((e) => e.id)).toEqual(["x"]);
+  });
+
+  it("a deleted entry arrives as an UPDATE to void and leaves the list", () => {
+    const completed: ChatCalculatorEntry = { ...shown, id: "c", status: "completed", facturadoGyd: 1, invertidoGyd: 1, retornoGyd: 0, missingRates: [] };
+    const next = applyCalculatorEntryRealtimeEvent([completed], "UPDATE", row({ id: "c", status: "void" }), { id: "c" }, CUT);
+    expect(next).toEqual([]);
   });
 });

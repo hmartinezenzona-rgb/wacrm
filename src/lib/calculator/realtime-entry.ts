@@ -28,6 +28,8 @@ export interface CalculatorEntryRealtimeRow {
   retorno_gyd: number | string | null;
   missing_inputs: string[] | null;
   source: string;
+  /** Present on a realtime payload (the whole row); the weekly cut compares it with the cut. */
+  completed_at?: string | null;
 }
 
 export interface ChatCalculatorEntry {
@@ -83,6 +85,13 @@ export function mapRealtimeCalculatorEntry(
   };
 }
 
+function isArchivedByCut(row: CalculatorEntryRealtimeRow, cutAt: string | null): boolean {
+  if (!cutAt || row.status !== "completed" || !row.completed_at) return false;
+  const completed = Date.parse(row.completed_at);
+  const cut = Date.parse(cutAt);
+  return Number.isFinite(completed) && Number.isFinite(cut) && completed <= cut;
+}
+
 /**
  * Folds one `postgres_changes` event into the page's existing
  * `chatEntries` array — no refetch involved. An entry that now qualifies
@@ -98,6 +107,7 @@ export function applyCalculatorEntryRealtimeEvent(
   eventType: CalculatorEntryRealtimeEventType,
   newRow: CalculatorEntryRealtimeRow | null,
   oldRow: { id?: string } | null,
+  cutAt: string | null = null,
 ): ChatCalculatorEntry[] {
   if (eventType === "DELETE") {
     const id = oldRow?.id;
@@ -114,7 +124,13 @@ export function applyCalculatorEntryRealtimeEvent(
     return existingIndex === -1 ? entries : entries.filter((entry) => entry.id !== newRow.id);
   }
 
-  if (existingIndex === -1) return [mapped, ...entries];
+  if (existingIndex === -1) {
+    // Weekly cut (227): a completed entry not on the page that was completed before the latest cut was archived with
+    // that week, so it must not reappear. A pending entry is never archived, and an entry already shown keeps updating
+    // (a pending line resolved after the cut stays in the new week).
+    if (isArchivedByCut(newRow, cutAt)) return entries;
+    return [mapped, ...entries];
+  }
 
   const next = entries.slice();
   next[existingIndex] = mapped;

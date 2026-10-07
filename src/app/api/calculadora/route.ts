@@ -87,8 +87,12 @@ export async function GET() {
     const account = await getCurrentAccount();
     if (!canSendMessages(account.role)) return NextResponse.json({ error: "Insufficient role" }, { status: 403 });
     const db = account.supabase;
-    const [{ data, error }, { data: rateRow, error: rateError }, { data: chatRows, error: chatError }] =
-      await Promise.all([
+    const [
+      { data, error },
+      { data: rateRow, error: rateError },
+      { data: chatRows, error: chatError },
+      { data: cutRow, error: cutError },
+    ] = await Promise.all([
         db
           .from("remittance_calculator_documents")
           .select("raw_text,period_label")
@@ -102,18 +106,27 @@ export async function GET() {
           .order("id", { ascending: false })
           .limit(1)
           .maybeSingle(),
+        // Migration 227: the Calculator reads the view of the entries not archived by a weekly cut ("Limpiar todo").
+        // A pending line is never archived. History readers (Finanzas, dashboard) keep reading the table.
         db
-          .from("remittance_calculator_entries")
+          .from("calculator_current_entries")
           .select(CHAT_OPERATION_COLUMNS)
           .eq("account_id", account.accountId)
-          .eq("source", "completed_operation")
           .neq("status", "void")
           .order("entry_date", { ascending: false })
           .order("created_at", { ascending: false }),
+        db
+          .from("remittance_calculator_weeks")
+          .select("cut_at")
+          .eq("account_id", account.accountId)
+          .order("cut_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
       ]);
     if (error) throw new Error("calculator document read failed");
     if (rateError) throw new Error("calculator rates read failed");
     if (chatError) throw new Error("calculator chat operations read failed");
+    if (cutError) throw new Error("calculator weekly cut read failed");
 
     const documentFields = documentFieldsPayload(
       data as { raw_text: string; period_label: string } | null,
@@ -138,7 +151,12 @@ export async function GET() {
     );
 
     return NextResponse.json(
-      { ...documentFields, chatOperations: { entries: chatEntries, totals: chatTotals } },
+      {
+        ...documentFields,
+        // The page ignores a live completed entry older than this cut (it was archived with that week).
+        cutAt: (cutRow as { cut_at?: string } | null)?.cut_at ?? null,
+        chatOperations: { entries: chatEntries, totals: chatTotals },
+      },
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (error) {

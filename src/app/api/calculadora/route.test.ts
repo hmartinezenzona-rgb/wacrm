@@ -46,13 +46,16 @@ function db(
   documentResult: { data: unknown; error: unknown } = { data: null, error: null },
   rateResult: { data: unknown; error: unknown } = { data: null, error: null },
   chatEntriesResult: { data: unknown; error: unknown } = { data: [], error: null },
+  cutResult: { data: unknown; error: unknown } = { data: null, error: null },
 ) {
   const documentBuilder = queryBuilder(documentResult);
   const rateBuilder = queryBuilder(rateResult);
   const chatEntriesBuilder = queryBuilder(chatEntriesResult);
+  const cutBuilder = queryBuilder(cutResult);
   return {
     from: vi.fn((table: string) => {
-      if (table === "remittance_calculator_entries") return chatEntriesBuilder;
+      if (table === "calculator_current_entries") return chatEntriesBuilder;
+      if (table === "remittance_calculator_weeks") return cutBuilder;
       if (table === "calculator_rate_versions") return rateBuilder;
       return documentBuilder;
     }),
@@ -65,6 +68,7 @@ function db(
     documentBuilder,
     rateBuilder,
     chatEntriesBuilder,
+    cutBuilder,
   };
 }
 
@@ -158,6 +162,7 @@ describe("GET /api/calculadora", () => {
       compraUsdtGyd: null,
       ventaUsdtGyd: null,
       ventaUsdtCup: null,
+      cutAt: null,
       chatOperations: { entries: [], totals: { facturadoGyd: 0, invertidoGyd: 0, retornoGyd: 0, count: 0 } },
     });
   });
@@ -179,6 +184,7 @@ describe("GET /api/calculadora", () => {
       compraUsdtGyd: null,
       ventaUsdtGyd: null,
       ventaUsdtCup: null,
+      cutAt: null,
       chatOperations: { entries: [], totals: { facturadoGyd: 0, invertidoGyd: 0, retornoGyd: 0, count: 0 } },
     });
   });
@@ -342,15 +348,44 @@ describe("GET /api/calculadora", () => {
     expect(body.chatOperations.totals).toEqual({ facturadoGyd: 26000, invertidoGyd: 24000, retornoGyd: 2000, count: 1 });
   });
 
-  it("excludes void entries from chatOperations by filtering the query", async () => {
+  it("reads the chat entries from the Calculator view (not void, not archived by a weekly cut), never the raw table", async () => {
     const { GET } = await import("./route");
     const database = db();
     useClient(database);
 
     await GET();
 
-    expect(database.chatEntriesBuilder.eq).toHaveBeenCalledWith("source", "completed_operation");
+    expect(database.from).toHaveBeenCalledWith("calculator_current_entries");
+    expect(database.from).not.toHaveBeenCalledWith("remittance_calculator_entries");
+    expect(database.chatEntriesBuilder.eq).toHaveBeenCalledWith("account_id", "account-a");
     expect(database.chatEntriesBuilder.neq).toHaveBeenCalledWith("status", "void");
+  });
+
+  it("answers the latest weekly cut so the page can filter live events", async () => {
+    const { GET } = await import("./route");
+    const database = db(undefined, undefined, undefined, { data: { cut_at: "2026-10-03T12:00:00+00:00" }, error: null });
+    useClient(database);
+
+    const body = await (await GET()).json();
+
+    expect(database.from).toHaveBeenCalledWith("remittance_calculator_weeks");
+    expect(database.cutBuilder.order).toHaveBeenCalledWith("cut_at", { ascending: false });
+    expect(database.cutBuilder.limit).toHaveBeenCalledWith(1);
+    expect(body.cutAt).toBe("2026-10-03T12:00:00+00:00");
+  });
+
+  it("no cut yet -> cutAt null", async () => {
+    const { GET } = await import("./route");
+    useClient(db());
+
+    expect((await (await GET()).json()).cutAt).toBeNull();
+  });
+
+  it("a cut read failure maps to 500", async () => {
+    const { GET } = await import("./route");
+    useClient(db(undefined, undefined, undefined, { data: null, error: { message: "boom" } }));
+
+    expect((await GET()).status).toBe(500);
   });
 });
 

@@ -19,6 +19,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import CalculadoraPage from "./page";
+import { procesarTexto } from "@/lib/calculator/web-calculator";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -121,10 +122,37 @@ function createFetchMock(config: {
   calculadoraPost?: unknown;
   ratesPost?: (body: { rates: Record<string, unknown>; expectedVersionId?: string }) => RatesPostResult;
   correctPost?: (entryId: string, body: { facturadoGyd: number; invertidoGyd: number }) => CorrectPostResult;
+  deletePost?: (entryId: string) => { status: number; body?: unknown };
+  weeksGet?: { weeks: unknown[] };
+  weeksPost?: (body: Record<string, unknown>) => { status: number; body?: unknown };
+  weekGet?: (weekId: string) => { status: number; body?: unknown };
 }) {
   return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input.toString();
     const method = init?.method ?? "GET";
+    // Archived weeks (migration 227) and entry deletion (226) first: the document routes below match by prefix.
+    if (url === "/api/calculadora/weeks" && method === "GET") {
+      return Promise.resolve(jsonResponse(config.weeksGet ?? { weeks: [] }));
+    }
+    if (url === "/api/calculadora/weeks" && method === "POST") {
+      const body = JSON.parse((init?.body as string) ?? "{}");
+      const result = config.weeksPost
+        ? config.weeksPost(body)
+        : { status: 200, body: { week: { id: "week-new", cutAt: "2026-10-03T12:00:00+00:00" }, cutAt: "2026-10-03T12:00:00+00:00" } };
+      return Promise.resolve(jsonResponse(result.body ?? {}, result.status));
+    }
+    const weekMatch = /^\/api\/calculadora\/weeks\/([^/]+)$/.exec(url);
+    if (weekMatch && method === "GET") {
+      const result = config.weekGet ? config.weekGet(weekMatch[1]!) : { status: 404, body: { error: "Not found" } };
+      return Promise.resolve(jsonResponse(result.body ?? {}, result.status));
+    }
+    const deleteMatch = /^\/api\/calculator\/entries\/([^/]+)\/delete$/.exec(url);
+    if (deleteMatch && method === "POST") {
+      const result = config.deletePost
+        ? config.deletePost(deleteMatch[1]!)
+        : { status: 200, body: { deleted: true, entryId: deleteMatch[1] } };
+      return Promise.resolve(jsonResponse(result.body ?? {}, result.status));
+    }
     if (url.startsWith("/api/calculadora") && method === "GET") {
       return Promise.resolve(jsonResponse(config.calculadoraGet ?? { rawText: "", periodo: "" }));
     }
@@ -513,8 +541,9 @@ describe("calculator pending-entries banner", () => {
     const row = node.querySelector('td[data-label="Estado"]')!;
     expect(row.textContent).toContain("Falta el costo del combo: anótalo en el panel de la conversación");
     expect(row.textContent).not.toContain("comboCosto");
-    // No rates-resolution action on a COMBO line: the Acciones cell stays empty.
-    expect(node.querySelector('td[data-label="Acciones"]')!.querySelector("button")).toBeNull();
+    // No rates-resolution action on a COMBO line: the only action is the delete (migration 226).
+    const actions = [...node.querySelector('td[data-label="Acciones"]')!.querySelectorAll("button")];
+    expect(actions.map((button) => button.getAttribute("aria-label"))).toEqual(["Eliminar"]);
     await act(async () => root.unmount());
   });
 
@@ -1025,6 +1054,343 @@ describe("calculator chat operations (admin correction)", () => {
     expect(node.querySelector("#editarEntry-entry-a")).not.toBeNull();
     expect(node.textContent).toContain("26000.00");
     expect(node.textContent).not.toContain("99999");
+    await act(async () => root.unmount());
+  });
+});
+
+
+function calls(fetchMock: ReturnType<typeof createFetchMock>, method: string, urlPrefix: string) {
+  return fetchMock.mock.calls.filter(([input, init]) => {
+    const url = typeof input === "string" ? input : input.toString();
+    return url.startsWith(urlPrefix) && (init?.method ?? "GET") === method;
+  });
+}
+
+const DEL_COMPLETED = {
+  id: "entry-a", operationId: "op-a", status: "completed", service: "ZELLE", customerName: "Raúl", amount: 100,
+  amountCurrency: "USD", entryDate: "2026-09-12", facturadoGyd: 26000, invertidoGyd: 24000, retornoGyd: 2000, missingRates: [],
+};
+const DEL_PENDING = {
+  id: "entry-b", operationId: "op-b", status: "verified_pending", service: "CUP", customerName: "Bladimir", amount: 30000,
+  amountCurrency: "CUP", entryDate: "2026-09-12", facturadoGyd: null, invertidoGyd: null, retornoGyd: null, missingRates: ["usdtSellCup"],
+};
+
+describe("calculator chat operations (admin delete)", () => {
+  function fixture(overrides: Parameters<typeof createFetchMock>[0] = {}) {
+    return createFetchMock({
+      calculadoraGet: { rawText: "", periodo: "SEMANA 1", chatOperations: { entries: [DEL_COMPLETED, DEL_PENDING] } },
+      ratesGet: { rates: null },
+      ...overrides,
+    });
+  }
+
+  it("shows a trash icon button next to the pencil on completed and on pending entries", async () => {
+    const { node, root } = await renderPage(fixture());
+
+    for (const id of ["entry-a", "entry-b"]) {
+      const button = node.querySelector(`#eliminarEntry-${id}`) as HTMLButtonElement;
+      expect(button).not.toBeNull();
+      expect(button.getAttribute("aria-label")).toBe("Eliminar");
+      expect(button.getAttribute("title")).toBe("Eliminar");
+      expect(button.classList.contains("legacyIconButton")).toBe(true);
+      expect(button.querySelector("svg")).not.toBeNull();
+    }
+    expect(node.querySelector("#editarEntry-entry-a")).not.toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("asks for confirmation naming the operation, and cancelling sends nothing", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const fetchMock = fixture();
+    const { node, root } = await renderPage(fetchMock);
+
+    await act(async () => { (node.querySelector("#eliminarEntry-entry-a") as HTMLButtonElement).click(); });
+
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(String(confirm.mock.calls[0]![0])).toContain("Raúl");
+    expect(String(confirm.mock.calls[0]![0])).toContain("Finanzas");
+    expect(calls(fetchMock, "POST", "/api/calculator/entries")).toHaveLength(0);
+    expect(node.textContent).toContain("26000.00");
+    await act(async () => root.unmount());
+  });
+
+  it("confirming deletes the entry: the line disappears and the totals drop it", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const fetchMock = fixture();
+    const { node, root } = await renderPage(fetchMock);
+    expect(node.querySelector(".legacyTotalBox")?.textContent).toContain("26000.00");
+
+    await act(async () => { (node.querySelector("#eliminarEntry-entry-a") as HTMLButtonElement).click(); });
+    await flush();
+
+    expect(calls(fetchMock, "POST", "/api/calculator/entries/entry-a/delete")).toHaveLength(1);
+    expect(node.querySelector("#eliminarEntry-entry-a")).toBeNull();
+    expect(node.querySelector("#eliminarEntry-entry-b")).not.toBeNull();
+    expect(node.querySelector(".legacyTotalBox")?.textContent).toContain("0.00");
+    expect(node.querySelector(".legacyTotalBox")?.textContent).not.toContain("26000.00");
+    await act(async () => root.unmount());
+  });
+
+  it("a pending entry can be deleted too", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const fetchMock = fixture();
+    const { node, root } = await renderPage(fetchMock);
+
+    await act(async () => { (node.querySelector("#eliminarEntry-entry-b") as HTMLButtonElement).click(); });
+    await flush();
+
+    expect(calls(fetchMock, "POST", "/api/calculator/entries/entry-b/delete")).toHaveLength(1);
+    expect(node.querySelector("#eliminarEntry-entry-b")).toBeNull();
+    expect(node.querySelector("#pendingBanner")).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("a 403 keeps the line and says only an administrator can delete", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const { node, root } = await renderPage(fixture({ deletePost: () => ({ status: 403, body: { error: "Forbidden" } }) }));
+
+    await act(async () => { (node.querySelector("#eliminarEntry-entry-a") as HTMLButtonElement).click(); });
+    await flush();
+
+    expect(node.querySelector("#eliminarEntry-entry-a")).not.toBeNull();
+    expect(node.textContent).toContain("Solo un administrador puede eliminar esta operación.");
+    await act(async () => root.unmount());
+  });
+
+  it("another failure keeps the line and shows an error", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const { node, root } = await renderPage(fixture({ deletePost: () => ({ status: 500, body: {} }) }));
+
+    await act(async () => { (node.querySelector("#eliminarEntry-entry-a") as HTMLButtonElement).click(); });
+    await flush();
+
+    expect(node.querySelector("#eliminarEntry-entry-a")).not.toBeNull();
+    expect(node.textContent).toContain("No se pudo eliminar la operación.");
+    await act(async () => root.unmount());
+  });
+});
+
+describe("calculator weekly cut (Limpiar Todo)", () => {
+  const MANUAL = "Miércoles 5\n• Fran 50k CUP (235/980)";
+  function fixture(overrides: Parameters<typeof createFetchMock>[0] = {}) {
+    return createFetchMock({
+      calculadoraGet: { rawText: MANUAL, periodo: "SEMANA 1", chatOperations: { entries: [DEL_COMPLETED, DEL_PENDING] } },
+      ratesGet: { rates: FULL_RATES },
+      ...overrides,
+    });
+  }
+  function clearButton(node: HTMLElement) {
+    return Array.from(node.querySelectorAll("button")).find((b) => b.textContent?.includes("Limpiar Todo")) as HTMLButtonElement;
+  }
+
+  it("the confirmation says the week is archived and the history keeps counting; cancelling changes nothing", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const fetchMock = fixture();
+    const { node, root } = await renderPage(fetchMock);
+
+    await act(async () => { clearButton(node).click(); });
+
+    const text = String(confirm.mock.calls[0]![0]);
+    expect(text).toContain("Semanas anteriores");
+    expect(text).toContain("historial");
+    expect(calls(fetchMock, "POST", "/api/calculadora/weeks")).toHaveLength(0);
+    expect((node.querySelector("#rawText") as HTMLTextAreaElement).value).toBe(MANUAL);
+    expect(node.textContent).toContain("Raúl");
+    await act(async () => root.unmount());
+  });
+
+  it("confirming archives the week through the server: text, period and the manual totals the page computed", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const fetchMock = fixture();
+    const { node, root } = await renderPage(fetchMock);
+    const expected = procesarTexto(MANUAL, FULL_RATES.cupGlobalRate).totals;
+
+    await act(async () => { clearButton(node).click(); });
+    await flush();
+
+    const posts = calls(fetchMock, "POST", "/api/calculadora/weeks");
+    expect(posts).toHaveLength(1);
+    expect(JSON.parse((posts[0]![1] as RequestInit).body as string)).toEqual({
+      rawText: MANUAL,
+      periodo: "SEMANA 1",
+      manualTotals: { facturadoGyd: expected.fact, invertidoGyd: expected.inv, retornoGyd: expected.ret },
+    });
+    await act(async () => root.unmount());
+  });
+
+  it("after the cut the week is empty: no text, no period, no completed chat entry; a pending line stays; the keys are cleared", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const { node, root } = await renderPage(fixture());
+    expect(localStorage.getItem("remesas_rawText")).toBe(MANUAL);
+
+    await act(async () => { clearButton(node).click(); });
+    await flush();
+
+    expect((node.querySelector("#rawText") as HTMLTextAreaElement).value).toBe("");
+    expect(inputValue(node, "periodo")).toBe("");
+    expect(node.querySelector("#eliminarEntry-entry-a")).toBeNull();
+    expect(node.querySelector("#eliminarEntry-entry-b")).not.toBeNull();
+    expect(node.querySelector("#pendingBanner")).not.toBeNull();
+    expect(node.querySelector(".legacyTotalBox")?.textContent).toContain("0.00");
+    await act(async () => root.unmount());
+  });
+
+  it("a failed cut changes nothing and says so", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const { node, root } = await renderPage(fixture({ weeksPost: () => ({ status: 500, body: {} }) }));
+
+    await act(async () => { clearButton(node).click(); });
+    await flush();
+
+    expect((node.querySelector("#rawText") as HTMLTextAreaElement).value).toBe(MANUAL);
+    expect(node.querySelector("#eliminarEntry-entry-a")).not.toBeNull();
+    expect(node.textContent).toContain("No se pudo limpiar la semana");
+    await act(async () => root.unmount());
+  });
+
+  it("the autosave cannot write the old text back after the cut", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const fetchMock = fixture();
+    const { node, root } = await renderPage(fetchMock);
+    vi.useFakeTimers();
+
+    // typing schedules the debounced save; the cut happens before it fires
+    const textarea = node.querySelector("#rawText") as HTMLTextAreaElement;
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")!.set!;
+    await act(async () => { setter.call(textarea, `${MANUAL}\n• Ana 10k CUP (235/980)`); textarea.dispatchEvent(new Event("input", { bubbles: true })); });
+    await act(async () => { clearButton(node).click(); });
+    await flush();
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
+    await flush();
+
+    const saves = calls(fetchMock, "POST", "/api/calculadora").filter(([input]) => (typeof input === "string" ? input : input.toString()) === "/api/calculadora");
+    const bodies = saves.map(([, init]) => JSON.parse((init as RequestInit).body as string) as { rawText: string; periodo: string });
+    expect(bodies.every((body) => body.rawText === "" && body.periodo === "")).toBe(true);
+    await act(async () => root.unmount());
+  });
+});
+
+describe("calculator archived weeks (Semanas anteriores)", () => {
+  const SUMMARY = {
+    id: "week-1", cutAt: "2026-10-03T12:00:00+00:00", periodo: "SEMANA 1",
+    manualTotals: { facturadoGyd: 1000, invertidoGyd: 800, retornoGyd: 200 },
+    chatTotals: { count: 1, facturadoGyd: 26000, invertidoGyd: 24000, retornoGyd: 2000 },
+  };
+  const FULL_WEEK = {
+    ...SUMMARY,
+    rawText: "• Fran 50k CUP (235/980)",
+    entries: [{ ...DEL_COMPLETED, id: "arch-1", customerName: "Archivada Ana" }],
+  };
+  function fixture(overrides: Parameters<typeof createFetchMock>[0] = {}) {
+    return createFetchMock({
+      calculadoraGet: { rawText: "", periodo: "", chatOperations: { entries: [] } },
+      ratesGet: { rates: null },
+      weeksGet: { weeks: [SUMMARY] },
+      weekGet: (id) => (id === "week-1" ? { status: 200, body: { week: FULL_WEEK } } : { status: 404, body: {} }),
+      ...overrides,
+    });
+  }
+
+  it("lists the archived weeks compactly: cut date, period and totals", async () => {
+    const { node, root } = await renderPage(fixture());
+
+    const card = node.querySelector("#semanasAnteriores") as HTMLElement;
+    expect(card).not.toBeNull();
+    expect(card.textContent).toContain("Semanas anteriores");
+    expect(card.textContent).toContain("SEMANA 1");
+    expect(card.textContent).toContain("2026-10-03");
+    // manual + chat: 1000 + 26000, 800 + 24000, 200 + 2000
+    expect(card.textContent).toContain("27000.00");
+    expect(card.textContent).toContain("24800.00");
+    expect(card.textContent).toContain("2200.00");
+    await act(async () => root.unmount());
+  });
+
+  it("says so when there are no archived weeks", async () => {
+    const { node, root } = await renderPage(fixture({ weeksGet: { weeks: [] } }));
+    expect(node.querySelector("#semanasAnteriores")?.textContent).toContain("Aún no hay semanas archivadas.");
+    await act(async () => root.unmount());
+  });
+
+  it("opens an archived week read-only: text, period, totals and the entries of that week, with no edit or delete", async () => {
+    const { node, root } = await renderPage(fixture());
+
+    await act(async () => { (node.querySelector("#verSemana-week-1") as HTMLButtonElement).click(); });
+    await flush();
+
+    const view = node.querySelector("#semanaArchivada") as HTMLElement;
+    expect(view).not.toBeNull();
+    expect(view.textContent).toContain("SEMANA 1");
+    expect(view.querySelector("pre")?.textContent).toBe("• Fran 50k CUP (235/980)");
+    expect(view.textContent).toContain("Archivada Ana");
+    expect(view.textContent).toContain("26000.00");
+    expect(view.querySelector("textarea, input")).toBeNull();
+    expect(view.querySelector("[id^=eliminarEntry], [id^=editarEntry]")).toBeNull();
+    // the live week is untouched
+    expect(node.querySelector("#eliminarEntry-arch-1")).toBeNull();
+
+    await act(async () => { (node.querySelector("#cerrarSemana") as HTMLButtonElement).click(); });
+    expect(node.querySelector("#semanaArchivada")).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("a week that cannot be read shows an error and no view", async () => {
+    const { node, root } = await renderPage(fixture({ weekGet: () => ({ status: 500, body: {} }) }));
+
+    await act(async () => { (node.querySelector("#verSemana-week-1") as HTMLButtonElement).click(); });
+    await flush();
+
+    expect(node.querySelector("#semanaArchivada")).toBeNull();
+    expect(node.querySelector("#semanasAnteriores")?.textContent).toContain("No se pudo abrir la semana.");
+    await act(async () => root.unmount());
+  });
+
+  it("a cut adds the new week to the list", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    let cut = false;
+    const fetchMock = fixture({
+      weeksPost: () => { cut = true; return { status: 200, body: { week: { ...FULL_WEEK, id: "week-2", periodo: "SEMANA 2" }, cutAt: "2026-10-10T12:00:00+00:00" } }; },
+    });
+    const base = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((input, init) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (cut && url === "/api/calculadora/weeks" && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve(jsonResponse({ weeks: [{ ...SUMMARY, id: "week-2", periodo: "SEMANA 2" }, SUMMARY] }));
+      }
+      return base(input, init);
+    });
+    const { node, root } = await renderPage(fetchMock);
+
+    const clear = Array.from(node.querySelectorAll("button")).find((b) => b.textContent?.includes("Limpiar Todo")) as HTMLButtonElement;
+    await act(async () => { clear.click(); });
+    await flush();
+
+    expect(node.querySelector("#verSemana-week-2")).not.toBeNull();
+    expect(node.querySelector("#verSemana-week-1")).not.toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("a live completed entry older than the latest cut does not reappear; one after it does", async () => {
+    const fetchMock = createFetchMock({
+      calculadoraGet: { rawText: "", periodo: "", cutAt: "2026-10-03T12:00:00+00:00", chatOperations: { entries: [] } },
+      ratesGet: { rates: null },
+    });
+    const { node, root } = await renderPage(fetchMock);
+    const chan = mockRealtime.channels[0]!;
+    const live = (id: string, completedAt: string, name: string) => ({
+      eventType: "UPDATE",
+      new: {
+        id, operation_id: `op-${id}`, status: "completed", service: "ZELLE", customer_name: name, amount: "100", amount_currency: "USD",
+        entry_date: "2026-10-01", facturado_gyd: "26000", invertido_gyd: "24000", retorno_gyd: "2000", missing_inputs: [],
+        source: "completed_operation", completed_at: completedAt,
+      },
+      old: {},
+    });
+
+    act(() => { chan.handler!(live("old", "2026-10-01T10:00:00Z", "Vieja Vera")); });
+    expect(node.textContent).not.toContain("Vieja Vera");
+    act(() => { chan.handler!(live("new", "2026-10-04T10:00:00Z", "Nueva Nora")); });
+    expect(node.textContent).toContain("Nueva Nora");
     await act(async () => root.unmount());
   });
 });

@@ -57,14 +57,74 @@ tests. Out of scope: manual lines counting in Finanzas; undoing a deletion; the 
 Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBACK, as is and with no promo); vitest.
 
 ## Tasks
-- [ ] T1 DB delete: RED assertion calculator-entry-delete.sql; migration 226 part A on staging; GREEN; regressions.
-- [ ] T2 DB weekly cut: RED assertion calculator-weekly-cut.sql; migration 226 part B (or 227); GREEN; regressions.
-- [ ] T3 App: trash button + dialog; "Limpiar todo" through the RPC; cut filter; "Semanas anteriores"; tests.
+- [x] T1 DB delete: RED assertion calculator-entry-delete.sql; migration 226 on staging; GREEN; regressions. (c0f3883)
+- [x] T2 DB weekly cut: RED assertion calculator-weekly-cut.sql; migration 227 (separate from 226) on staging; GREEN; regressions. (5e76733)
+- [x] T3 App: trash button + confirmation; "Limpiar todo" through the RPC; cut filter; "Semanas anteriores"; tests. (dd943a6) Not seen in a browser.
 - [ ] T4 Staging deploy + owner's look.
 - [ ] T5 Production with the owner's go-ahead.
 
+## Decisions beyond the defaults
+- Migrations split: 226 = delete, 227 = weekly cut (one reviewable unit and one rollback each). Both applied on staging
+  only (schema_migrations 226, 227).
+- The new cut RPC is crm_cerrar_semana_calculadora, NOT crm_limpiar_calculadora: that name already exists on staging
+  (crm_limpiar_calculadora(uuid), admin-only, writes remittance_calculator_clearances; no migration in the repo creates
+  either, the app never calls them). Left untouched; a new name avoids overloading the old RPC and any dependence on
+  unknown production rows in the legacy clearances table.
+- Cut read path = a view, not a cut_at filter: calculator_current_entries (security_invoker) = completed_operation, not
+  void, not archived (table remittance_calculator_week_entries, entry_id PK). Why: a cut_at rule (completed_at > cut OR
+  pending) makes a pending line vanish from the Calculator once resolved after the cut (its completed_at is old) and it
+  would be in no archive. With "archived entries" a pending line is never archived, so it stays whatever its age and
+  resolved. route.ts only changes the table to the view; GET also returns cutAt (latest week) for the realtime filter,
+  which ignores a NOT-shown completed entry with completed_at <= cutAt. Known edge: an operation whose transaction
+  started before the cut but committed after has completed_at <= cutAt; the DB view shows it, live events do not until
+  the next reload.
+- The RPC takes the text, period and manual totals from the client (the autosave can lag the textarea) and computes the
+  chat totals and the entry snapshot in SQL from what the Calculator view shows at the cut (not from client-sent ids).
+  An entry completed between page load and the click is therefore archived even if the page did not show it yet.
+- Archive = remittance_calculator_weeks (cut_at, cut_by, raw_text, period_label, manual_totals, chat_totals, entries
+  snapshot); RLS select for members, no client write; any agent+ may cut; viewers refused.
+- Delete: admin+ RPC; the page shows the trash button to everyone who sees the pencil (the page has no role state; the
+  server returns 403 and the page says only an administrator can delete), for completed and pending lines.
+- Confirmations use window.confirm like the page's existing "Limpiar Todo" (the page is a hard-coded-Spanish legacy
+  screen, no next-intl provider, no repo Dialog); copy is hard-coded Spanish like the rest of the page, so
+  messages/en.json and es.json are unchanged.
+- GET /api/calculator/entries (generic ledger listing, no caller in the app) is intentionally NOT cut-filtered: it is
+  a history reader.
+- Rollbacks: ROLLBACK-226 refuses (changes nothing) when a deleted entry or a deletion audit row exists;
+  ROLLBACK-227 refuses when an archived week exists.
+
+## Evidence (staging, 2026-10-07)
+- T1 RED: calculator-entry-delete.sql before 226 -> "case 1: the admin delete failed with 42883" (function missing).
+  GREEN after 226: PASS 1-10 + ALL PASS.
+- T2 RED: calculator-weekly-cut.sql before 227 -> relation "calculator_current_entries" does not exist.
+  GREEN after 227: PASS 1-8 + ALL PASS. Finanzas equality (case 4): crm_cierre_financiero(today, today) of the same
+  account taken before and after the cut is the SAME jsonb (IS NOT DISTINCT FROM), with the archived lines in
+  `detalle`; the cut also leaves the E1/E2/void entry rows byte-identical.
+- Round trips (one rolled-back transaction each): 226 apply -> rollback: md5 restored for calculator_feed_operation
+  (7f985d9d6adeaee998e3a246a530a5e8), calculator_unfed_operations view (cd475518e23ac05d71659378d1ef33fe) and the audit
+  action CHECK (3da4b785eea18913c4bca6b65c9927bb), function and columns gone. 227: three objects + function gone after
+  rollback (nothing redefined). Real apply: 226 (feed md5 after ebd19f921ab0b66f8fcb2770b0d5c543), 227; anon cannot
+  execute either RPC, authenticated can.
+- Regressions after 226 and again after 227, as is AND with promos discarded: calculator-entry-correction, feed-matrix,
+  combo-deposit-calculator, visa-model, combo-model, recarga-model, saldo-model, resolve-pending, calculator-recarga,
+  calculator-access, calculator-entries-realtime, financial-close, rate-versions, operations-board, and both new
+  assertions: all pass. feed-mixed (case 6, "close must count the mixed op once, got 2" + one more) and
+  delivery-feed-evidence (fixture setup: no operation created for the deal) FAIL IDENTICALLY with 226 rolled back inside
+  the transaction, so they are pre-existing and unrelated to this change; they need their own look.
+- Staging left clean (0 weeks, 0 deleted entries, no fixture accounts).
+- T3: vitest RED first (28 failing in the new route/lib files, 16 in the page), then GREEN; full suite
+  `npx vitest run --testTimeout=20000`: 170 files, 2194 tests pass; `tsc --noEmit` clean; eslint on the touched
+  directories clean.
+
+## Not verified
+- No browser: the page was only exercised through jsdom. The delete button, the confirmation texts, the "Semanas
+  anteriores" card and the read-only week view have not been looked at (layout of the Acciones column with two icons in
+  particular).
+- Realtime with a real channel (only the handler is tested); production not touched; no n8n.
+
 ## Progress
 - 2026-10-07 document created after mapping.
+- 2026-10-07 T1, T2, T3 done on staging/branch (commits c0f3883, 5e76733, dd943a6). Nothing pushed.
 
 ## Next step
-T1.
+T4: staging app deploy and the owner's look (including the Acciones column and the weeks card). T5 production with the owner's go-ahead: apply 226 then 227 (rollbacks ready).

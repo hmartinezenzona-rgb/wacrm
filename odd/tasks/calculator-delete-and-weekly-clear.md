@@ -61,7 +61,7 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
 - [x] T2 DB weekly cut: RED assertion calculator-weekly-cut.sql; migration 227 (separate from 226) on staging; GREEN; regressions. (5e76733)
 - [x] T3 App: trash button + confirmation; "Limpiar todo" through the RPC; cut filter; "Semanas anteriores"; tests. (dd943a6) Not seen in a browser.
 - [x] T4 Staging deploy + owner's look.
-- [ ] T5 Production with the owner's go-ahead.
+- [x] T5 Production with the owner's go-ahead.
 
 ## Decisions beyond the defaults
 - Migrations split: 226 = delete, 227 = weekly cut (one reviewable unit and one rollback each). Both applied on staging
@@ -157,3 +157,33 @@ profesional." (It is the browser's window.confirm.) Choice: "✓ / X en la fila"
 - Served (curl -k): /login 200 with the new BUILD_ID and "Bienvenido de nuevo"; POST /api/calculator/entries/<zero-uuid>/delete without session 401; chunk `_next/static/chunks/0i13guu332z_q.js` contains "¿Eliminar?" in the release and as served; pm2 restarts 30 -> 30 stable.
 - INCIDENT, unrelated to the release: the TLS certificate of wacrm.onlinefreedom.site expired 2026-10-07 21:15 GMT (Let's Encrypt, not renewed), so without -k curl fails (000) and the deploy script's served-BUILD_ID check reported failure (exit 1) although the release is live. No rollback (it would not fix it). Needs certificate renewal on oracle.
 - Rollback: ./infra/deployment/rollback-wacrm-produccion.sh (anterior -> e54f2ea).
+
+- 2026-10-07 T5 PRODUCTION DB (owner: "pasalo a produccion"), migrations 226 + 227 in one transaction:
+  - Backup ~/wacrm-respaldos/produccion-20261007T215209Z.dump (sha256 91f4f124e95cdb9f...).
+  - Pre-check: calculator_feed_operation 7f985d9d..., calculator_unfed_operations cd475518..., audit CHECK 3da4b785...
+    (= ROLLBACK-226 header); no new objects; last migration 225.
+  - ~/cerebro-fase1/pruebas/gate125-aplicar-db.py with temporary zz_wu5b_exec. Fingerprint: ensayo
+    `feed=ebd19f92... unfed=8d1c5f95... auditchk=5b3ffc19... cols=2 fns=crm_cerrar_semana_calculadora:3a046742...,crm_eliminar_entrada_calculadora:81ef8a23... view=f7cc9fe7... tables=2`
+    = staging exactly; ida-y-vuelta = production before; aplicar OK (schema_migrations 20261007215443 226,
+    20261007215444 227).
+  - probar (forced rollback), 13 assertions pass: calculator-entry-delete, calculator-weekly-cut,
+    calculator-entry-correction, feed-matrix, resolve-pending, calculator-recarga, saldo-model, combo-model,
+    visa-model, recarga-model, calculator-access, rate-versions, operations-board.
+  - After: helper dropped; 85 live entries, all 85 in the Calculator view, 0 deleted, 0 archived weeks; anon cannot
+    execute the delete RPC; 0 leftovers.
+- 2026-10-07 production app release 7db1561, BUILD_ID hXt4pZDKPqL0Z3XV02gX6 (anterior e54f2ea). The deploy script
+  exited 1 only because its final HTTPS check hit the expired certificate (below); the release was live.
+
+## Incident found during the deploy: production TLS certificate expired (2026-10-07 21:15 UTC)
+- wacrm.onlinefreedom.site's Let's Encrypt certificate (issued 2026-07-09) expired at 21:15:30 UTC. certbot.timer had
+  run and FAILED since 2026-10-06 ("Challenge failed": http-01 got 404).
+- Cause: the server's iptables NAT has `-A PREROUTING -p tcp --dport 80 -j REDIRECT --to-ports 3000` (twice) and the
+  same for OUTPUT to 127.0.0.1, so port 80 never reaches nginx: the ACME challenge is answered by the Next app (404).
+- Fix done with the owner's authorization ("si renuevalo"): the two PREROUTING rules were removed in memory only,
+  `certbot renew --cert-name wacrm.onlinefreedom.site` succeeded (new certificate valid 2026-10-07 21:12 ->
+  2027-01-05 21:12 UTC, nginx reloaded by certbot), and the two rules were put back (trap on exit). After: 2
+  PREROUTING + 1 OUTPUT rules as before, nginx -t OK, pm2 wacrm online (restarts 30), /login 200 with a valid chain.
+- NOT fixed: the automatic renewal will fail again (next expiry 2027-01-05) until the port-80 redirect stops
+  shadowing nginx (options: certbot pre/post hooks that lift and restore the rule, or dropping the redirect so port 80
+  reaches nginx's 301). Owner decision pending. Staging certificate (crm.onlinefreedom.site) is valid to 2026-11-18;
+  its renewal path was not checked.

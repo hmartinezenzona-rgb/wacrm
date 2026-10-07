@@ -60,7 +60,7 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
 - [x] T1 DB delete: RED assertion calculator-entry-delete.sql; migration 226 on staging; GREEN; regressions. (c0f3883)
 - [x] T2 DB weekly cut: RED assertion calculator-weekly-cut.sql; migration 227 (separate from 226) on staging; GREEN; regressions. (5e76733)
 - [x] T3 App: trash button + confirmation; "Limpiar todo" through the RPC; cut filter; "Semanas anteriores"; tests. (dd943a6) Not seen in a browser.
-- [ ] T4 Staging deploy + owner's look.
+- [x] T4 Staging deploy + owner's look.
 - [ ] T5 Production with the owner's go-ahead.
 
 ## Decisions beyond the defaults
@@ -150,3 +150,10 @@ profesional." (It is the browser's window.confirm.) Choice: "✓ / X en la fila"
     does not reach it (asserted: the dialog is not inside `main`); no CSS change needed.
   - Not verified (no browser): look of the inline confirmation (one-line Acciones cell, destructive accent on the check)
     and of the dialog in light/dark.
+
+## Production app (2026-10-07, owner: "pasalo a produccion" after checking staging; T4 checked)
+- Release 7db1561a8ee3a01b6ebebbf4c3ed7bb49e693298, BUILD_ID hXt4pZDKPqL0Z3XV02gX6, same procedure as e54f2ea (clean prod-build, docker node:20 uid 1000, production build env, build-wacrm.sh, desplegar-wacrm-produccion.sh from prod-build). Logs: build-prod11.log, deploy-prod11.log.
+- Build tests 114 passed; manifest environment=production, project hqztotshnlzaiziwjyzh; 0 staging refs, 32 production refs; pm2 process cwd is the new release; anterior -> e54f2ea.
+- Served (curl -k): /login 200 with the new BUILD_ID and "Bienvenido de nuevo"; POST /api/calculator/entries/<zero-uuid>/delete without session 401; chunk `_next/static/chunks/0i13guu332z_q.js` contains "¿Eliminar?" in the release and as served; pm2 restarts 30 -> 30 stable.
+- INCIDENT, unrelated to the release: the TLS certificate of wacrm.onlinefreedom.site expired 2026-10-07 21:15 GMT (Let's Encrypt, not renewed), so without -k curl fails (000) and the deploy script's served-BUILD_ID check reported failure (exit 1) although the release is live. No rollback (it would not fix it). Needs certificate renewal on oracle.
+- Rollback: ./infra/deployment/rollback-wacrm-produccion.sh (anterior -> e54f2ea).

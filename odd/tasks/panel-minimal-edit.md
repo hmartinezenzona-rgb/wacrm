@@ -159,3 +159,15 @@ etc.: ahí falta el tropical, y en vez de cuban card usar CUP. Está un poco con
   `anterior` -> eb35591; pm2 wacrm-staging restart count 72 -> 73, stable after; /login 200 with the new BUILD_ID and
   "Bienvenido de nuevo". No DB change. Production not touched.
   Rollback: `ssh oracle2 'ln -sfn /home/ubuntu/wacrm-releases/eb35591020666e9688f24f3e00e1b6ae9ac5c54e ~/wacrm-releases/current && pm2 restart wacrm-staging --update-env'`
+
+## Owner look on staging (2026-10-07, release 0c6c0e2): "al poner zelle no se recalcula"
+Cause (staging op 094eb6d6): crm_calcular_monto_destino (217) quotes only when the operation has exactly ONE vigente
+recipient. crm_cambiar_servicio to zelle retires the card, so the operation has no recipient and its destination stays
+NULL (and stays NULL when switched back to CUP, the card being gone). The form preview is right; the stored quote is not.
+
+- [ ] T2c DB migration 224 (+ ROLLBACK-224, staging first): with NO vigente recipient and a known rail
+  (delivery_method cuban_card / zelle / clasica / tropical / efectivo_usd, service_type remesa, GYD source, open
+  operation), crm_calcular_monto_destino quotes from the operation's rail with the same rules as the single-recipient
+  case (Zelle through cerebro_zelle_cotizar_op, USD single rate, cash rate, CUP rate; whole USD rounded down).
+  Unchanged: one recipient (as today), several recipients (cleared / reparto rules), manual locks, closed
+  operations, non-GYD sources, recarga/saldo/combo/visa.

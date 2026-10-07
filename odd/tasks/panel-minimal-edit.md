@@ -58,8 +58,8 @@ operation-correction-form.test.tsx does.
 - [x] T1 Shared ✓/X component; replace the 5 copy-pasted pairs and convert the text buttons listed above.
 - [x] T2 Minimalist edit mode for every form in the panel (correction, beneficiary edit, combo edit, add recipient,
   reassign, combo cost, deposit review inputs); app Select everywhere.
-- [ ] T3 Staging deploy + owner's look.
-- [ ] T4 Production with the owner's go-ahead.
+- [x] T3 Staging deploy + owner's look.
+- [x] T4 Production with the owner's go-ahead.
 
 ## Progress
 - 2026-10-06 document created after mapping.
@@ -323,3 +323,10 @@ Decisions (migration 225, crm_agregar_beneficiario only):
   refs / 32 staging files, sha256 OK, .next/server has no "se quitan los destinatarios que no sirven". `current` -> e54f2ea,
   `anterior` -> 6e97fd2; pm2 wacrm-staging restarts 76 (stable), /login 200 with the new BUILD_ID and "Bienvenido de nuevo".
   Rollback: `ssh oracle2 'ln -sfn /home/ubuntu/wacrm-releases/6e97fd24379e85bc02f1ce94be1f3c7104dcc1ea ~/wacrm-releases/current && pm2 restart wacrm-staging --update-env'`
+- 2026-10-07 production app (owner: "pasalo a produccion" after checking staging; T3 and T4 checked off; owner looked at staging and approved): release e54f2ea677f038351bdfe4b8eb99f32e4d388077,
+  BUILD_ID MhhcV158pw8952DsTOdAW, same procedure as 1ff1d13 (clean prod-build, docker node:20 uid 1000, production build env with
+  NEXT_PUBLIC_APP_LOCALE=es and WACRM_ENVIRONMENT=production, unchanged). Manifest production / hqztotshnlzaiziwjyzh, 114 money-path tests
+  passed, bundle 0 staging refs / 36 production refs, sha256 OK. pm2 wacrm cwd = `current` -> e54f2ea, `anterior` -> 1ff1d13; `/login` 200
+  on wacrm.onlinefreedom.site with the new BUILD_ID and "Bienvenido de nuevo"; release .next/server has "Saldo móvil" (79 files) and no
+  "se quitan los destinatarios que no sirven"; pm2 restarts 29 and stable. prod-build left clean at e54f2ea. DB migrations 223-225 were
+  applied before by the parent. Rollback: `infra/deployment/rollback-wacrm-produccion.sh`.

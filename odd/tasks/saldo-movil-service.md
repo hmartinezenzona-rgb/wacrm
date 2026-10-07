@@ -56,7 +56,7 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
 - [x] T2 App: lists, selector, card, filters, rates UI, i18n; vitest RED then GREEN; typecheck, lint, full suite.
 - [x] T2b Follow-up (owner 2026-10-06): the automatic ledger line of a saldo shows the saldo amount in SM ("1,800 SM"),
   not the package count in 'REC'. DB (migration 223 amended in place, staging only) and app, see Progress.
-- [ ] T3 Staging deploy + owner's look.
+- [x] T3 Staging deploy + owner's look.
 - [ ] T4 Production with the owner's go-ahead; then Yilian's operation.
 - [ ] T5 (later, separate go-ahead) Bot: recognise, quote and open saldo; notice text and Meta template.
 
@@ -147,6 +147,13 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
   114 money-path tests passed, manifest staging, 0 production refs, login 200 with "Bienvenido de nuevo", restarts 71 -> 72 and stable.
   No DB change. Production not touched.
   Rollback: `ssh oracle2 'ln -sfn /home/ubuntu/wacrm-releases/438c0017274593e61dee836d53ef6cfd29a031e2 ~/wacrm-releases/current && pm2 restart wacrm-staging --update-env'`
+- 2026-10-07 production app (owner: "pasalo a produccion" after checking staging; T3 checked off): release e54f2ea677f038351bdfe4b8eb99f32e4d388077,
+  BUILD_ID MhhcV158pw8952DsTOdAW, same procedure as 1ff1d13 (clean prod-build, docker node:20 uid 1000, production build env with
+  NEXT_PUBLIC_APP_LOCALE=es and WACRM_ENVIRONMENT=production, unchanged). Manifest production / hqztotshnlzaiziwjyzh, 114 money-path tests
+  passed, bundle 0 staging refs / 36 production refs, sha256 OK. pm2 wacrm cwd = `current` -> e54f2ea, `anterior` -> 1ff1d13; `/login` 200
+  on wacrm.onlinefreedom.site with the new BUILD_ID and "Bienvenido de nuevo"; release .next/server has "Saldo móvil" (79 files) and no
+  "se quitan los destinatarios que no sirven"; pm2 restarts 29 and stable. prod-build left clean at e54f2ea. DB migrations 223-225 were
+  applied before by the parent. Rollback: `infra/deployment/rollback-wacrm-produccion.sh`.
 
 ## Next step
 T3: staging app deploy and the owner's look (owner's go-ahead not needed for staging; production waits for T4's go-ahead).

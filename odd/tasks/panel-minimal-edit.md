@@ -302,3 +302,14 @@ Decisions (migration 225, crm_agregar_beneficiario only):
   With 1+ recipients the quote is split, so the amount is left empty.
 - Read view already showed cash name, phone, address (MapPin) and the ID photo link / "ID photo missing" with catalog labels; no change.
 - Not verified: no browser (look unseen); staging app not deployed by this task.
+- 2026-10-07 T2d staging deployed (owner's look pending; T3 NOT checked off): release 31529b8b262f8e1096f2eeae9202c9a6d3b7b9c2,
+  BUILD_ID v7KAHODid57XwZHNvHxkc, same procedure as before (clean prod-build, docker node:20 uid 1000, staging-build.env with
+  NEXT_PUBLIC_APP_LOCALE=es, unchanged). Manifest staging / kolppplawzdsjfydwejr, 114 money-path tests passed, 0 production refs,
+  sha256 OK; `current` -> 31529b8, `anterior` -> 0c6c0e2; /login 200 with the new BUILD_ID. Migrations 223-225 on staging.
+  Rollback: `ssh oracle2 'ln -sfn /home/ubuntu/wacrm-releases/0c6c0e23b446fbb9a3c317123024183b5a042096 ~/wacrm-releases/current && pm2 restart wacrm-staging --update-env'`
+- 2026-10-07 T2e staging deployed (owner's look pending; T3 NOT checked off): release 6e97fd24379e85bc02f1ce94be1f3c7104dcc1ea,
+  BUILD_ID eDh46vb6sbxun9VIawU6n, same procedure. Manifest staging / kolppplawzdsjfydwejr, 114 money-path tests passed, 0 production
+  refs / 32 staging files, sha256 OK. `current` -> 6e97fd2, `anterior` -> 31529b8; pm2 wacrm-staging cwd resolves to the new release,
+  restarts 74 -> 75 and stable; crm.onlinefreedom.site/login 200 with the new BUILD_ID and "Bienvenido de nuevo"; prod-build clean.
+  No DB change. Production not touched.
+  Rollback: `ssh oracle2 'ln -sfn /home/ubuntu/wacrm-releases/31529b8b262f8e1096f2eeae9202c9a6d3b7b9c2 ~/wacrm-releases/current && pm2 restart wacrm-staging --update-env'`

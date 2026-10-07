@@ -143,3 +143,10 @@ T3: deploy to staging and the owner's look at Calculator, /resumen and the dashb
   time, would date a day's lines months back, outside the week Finanzas shows. Changed (weekly record): look back 14
   days only; the exact weekday + number match first, then the number alone; otherwise today. RED 2 failed, GREEN
   calculator lib + page + API 17 files / 335 tests; tsc and eslint clean.
+
+- 2026-10-07 T3 staging deploy (owner's look pending, T3 stays unchecked): release 75e3a2c
+  (75e3a2cd4ea9b4c207ace7ceafb61ddee5f37824), BUILD_ID 8VQ-2ehjwlkQbtamn1dK0, built in docker node:20 from the clean
+  prod-build worktree with staging-build.env (locale es), manifest environment=staging, 0 production refs, 32 staging
+  refs, 114 money-route tests passed; deployed to oracle2 staging only, pm2 wacrm-staging cwd = the new release,
+  /login 200 with the new BUILD_ID, the Calculator notice chunk served from crm.onlinefreedom.site. Rollback: relink
+  `current` to the 7db1561 release (`anterior`) and `pm2 restart wacrm-staging --update-env`.

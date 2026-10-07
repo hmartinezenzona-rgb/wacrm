@@ -126,6 +126,7 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
 - 2026-10-07 document created after mapping.
 - 2026-10-07 T1, T2, T3 done on staging/branch (commits c0f3883, 5e76733, dd943a6). Nothing pushed.
 - 2026-10-07 T4 staging deployed: release 15e3002838d08bba58da36ab8a7582d2a299759c (app dd943a6), BUILD_ID IQYVehOfutCkkeO0ty_2V, manifest staging, 0 production refs, build tests 114 passed, login 200, delete route 401 without session, bundle has "Semanas anteriores", pm2 restarts 76->77 stable. Rollback: anterior -> e54f2ea. Owner's look pending; T4 not checked.
+- 2026-10-07 T3b staging deployed (app 7db1561): release 7db1561a8ee3a01b6ebebbf4c3ed7bb49e693298, BUILD_ID ngnIEczyMZrCjBhfEaeyG, manifest staging, 0 production refs (32 staging), build tests 114 passed, login 200 with the new BUILD_ID and "Bienvenido de nuevo", chunk `_next/static/chunks/0i13guu332z_q.js` contains "¿Eliminar?" in the release and as served by crm.onlinefreedom.site, pm2 restarts 77->78 stable. Rollback: anterior -> 15e3002. Owner's look pending; T4 not checked.
 
 ## Next step
 T4: staging app deploy and the owner's look (including the Acciones column and the weeks card). T5 production with the owner's go-ahead: apply 226 then 227 (rollbacks ready).

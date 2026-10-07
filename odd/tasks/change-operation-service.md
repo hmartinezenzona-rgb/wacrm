@@ -50,13 +50,13 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
   refused; non-member refused; no messages/outbox/notifier posts; audit row); migration 222 + rollback on staging;
   GREEN; regressions.
 - [x] T2 App: selector + route + i18n + tests (RED then GREEN); typecheck, lint, full suite.
-- [ ] T3 Staging deploy + owner's look.
+- [x] T3 Staging deploy + owner's look.
   - 2026-10-06 owner look on staging (release 33fd0e2): works, but the separate selector above "Deliver to" looks bad.
 - [x] T2b App rework (owner, 2026-10-06): move the service choice INTO the operation card's existing edit mode (the
   pencil): it appears there next to the other editable fields, coexisting with them; confirm with the check (✓) and
   cancel with the X, the same controls the other inline edits use. Remove the standalone selector. Keep the warning
   that the quote is recalculated and the customer is not messaged, in the edit-mode style.
-- [ ] T4 Production with the owner's go-ahead.
+- [x] T4 Production with the owner's go-ahead.
 
 ## Progress
 - 2026-10-06 document created.
@@ -125,3 +125,11 @@ T3: owner's look at the T2c themed Servicio dropdown on staging (release 1ff1d13
   (the Select is replaced by a native double in that test file: Base UI's portal popup hangs under jsdom; the form
   logic assertions are unchanged), operations panel + i18n 26 files / 392 tests, tsc and eslint clean. NOT verified in
   a browser by Claude: the popup's look is for the owner's check on staging.
+
+- 2026-10-06 T3 owner approved on staging ("dale pasalo"); T4 production app: release 1ff1d1330f5c99f184e4254476584b6676cd03d4
+  (BUILD_ID EqlTF6kkrIAy1YVnu21f3), same procedure as 45d6825 (clean prod-build, docker node:20 uid 1000, production build env with
+  NEXT_PUBLIC_APP_LOCALE=es and WACRM_ENVIRONMENT=production, unchanged). Manifest production / hqztotshnlzaiziwjyzh, 114 money-path
+  tests passed, bundle 0 staging refs / 32 production refs, sha256 OK. pm2 wacrm cwd = `current` -> 1ff1d13, `anterior` -> 45d6825;
+  `/login` 200 on wacrm.onlinefreedom.site with the new BUILD_ID and "Bienvenido de nuevo"; unauthenticated POST
+  /api/remittance-operations/<id>/service -> 401; pm2 restarts 27 -> 28 and stable. prod-build left clean at 1ff1d13.
+  Rollback: `infra/deployment/rollback-wacrm-produccion.sh`.

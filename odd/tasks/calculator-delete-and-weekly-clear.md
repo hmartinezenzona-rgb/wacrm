@@ -129,3 +129,15 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
 
 ## Next step
 T4: staging app deploy and the owner's look (including the Acciones column and the weeks card). T5 production with the owner's go-ahead: apply 226 then 227 (rollbacks ready).
+
+## Owner look on staging (2026-10-07, release 15e3002)
+"Ya sale, pásalo a producción, pero antes: la notificación que sale para confirmar al momento de borrar se ve fea, poco
+profesional." (It is the browser's window.confirm.) Choice: "✓ / X en la fila".
+
+- [ ] T3b Confirmations without window.confirm:
+  - Delete an entry: inline in the row. The trash turns that row's actions into "¿Eliminar?" with X (cancel) and ✓
+    (confirm), same icon-button style as the page's pencil/trash; Escape or X cancels; only one row asks at a time; while
+    deleting the ✓ shows a pending cue; errors stay in the row as today.
+  - "Limpiar Todo": the app's own dialog (repo Dialog component) with a short title, the text that the week is archived
+    in "Semanas anteriores" and the history keeps counting, and Cancel / confirm buttons; no window.confirm.
+  - Entry edit row: the "Guardar" / "Cancelar" text buttons become ✓ / X (aria-label + title kept), for consistency.

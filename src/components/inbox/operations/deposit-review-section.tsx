@@ -2,10 +2,10 @@
 
 import { useState, type ChangeEvent } from "react";
 import { useTranslations } from "next-intl";
-import { AlertTriangle, Banknote, Check, CircleCheck, Hash, TriangleAlert, X } from "lucide-react";
+import { AlertTriangle, Banknote, CircleCheck, Hash, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { ConfirmCancelButtons, cancelOnEscape } from "./confirm-cancel-buttons";
+import { FieldRow, UnderlineInput } from "./edit-form-fields";
 import { NotifyToggle } from "./notify-toggle";
 import { ReceiptReviewViewer } from "./receipt-review-viewer";
 import type { DepositReceipt, OperationReceiptsRead, VerifyDepositItem } from "@/lib/remittance-operations/types";
@@ -248,30 +248,27 @@ export function DepositReviewSection({
           {canVerify ? (
             <>
               <div className="space-y-1">
-                <Label htmlFor={`deposit-review-amount-${current.compId}`}>
-                  {t("depositReview.amountDeposited")}
-                </Label>
-                <Input
+                <FieldRow label={t("depositReview.amountDeposited")} htmlFor={`deposit-review-amount-${current.compId}`}>
+                <UnderlineInput
                   id={`deposit-review-amount-${current.compId}`}
-                  className="h-10"
                   inputMode="numeric"
                   value={draft.amount}
                   onChange={(event: ChangeEvent<HTMLInputElement>) =>
                     updateDraft(current.compId, { amount: event.target.value })
                   }
                 />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor={`deposit-review-ref-${current.compId}`}>{t("depositReview.transId")}</Label>
-                <Input
+                </FieldRow>
+                <FieldRow label={t("depositReview.transId")} htmlFor={`deposit-review-ref-${current.compId}`}>
+                <UnderlineInput
                   id={`deposit-review-ref-${current.compId}`}
-                  className="h-10 font-mono"
+                  className="font-mono"
                   inputMode="numeric"
                   value={draft.ref}
                   onChange={(event: ChangeEvent<HTMLInputElement>) =>
                     updateDraft(current.compId, { ref: event.target.value })
                   }
                 />
+                </FieldRow>
               </div>
 
               <div className="flex items-center gap-1">
@@ -321,32 +318,16 @@ export function DepositReviewSection({
           )}
 
           {forcing && (
-            <div className="space-y-1.5 rounded-md border border-border bg-muted/40 p-1.5">
-              <div className="flex items-center justify-end gap-1">
+            <div className="border-l-2 border-border pl-2" onKeyDown={busy ? undefined : cancelOnEscape(cancelForce)}>
+              <ConfirmCancelButtons
+                onCancel={cancelForce}
+                onConfirm={confirmForce}
+                cancelLabel={t("depositReview.cancel")}
+                confirmLabel={t("depositReview.forceConfirm")}
+                pending={busy}
+              >
                 <NotifyToggle notify={notify} onChange={setNotify} disabled={busy} />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  aria-label={t("depositReview.cancel")}
-                  title={t("depositReview.cancel")}
-                  onClick={cancelForce}
-                  disabled={busy}
-                >
-                  <X aria-hidden="true" />
-                </Button>
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  aria-label={t("depositReview.forceConfirm")}
-                  title={t("depositReview.forceConfirm")}
-                  className="bg-green-600 text-white hover:bg-green-700"
-                  disabled={busy}
-                  onClick={confirmForce}
-                >
-                  <Check aria-hidden="true" />
-                </Button>
-              </div>
+              </ConfirmCancelButtons>
             </div>
           )}
         </>

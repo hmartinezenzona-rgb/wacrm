@@ -2,12 +2,10 @@
 
 import { useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
-import { Check, X } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ConfirmCancelButtons, cancelOnEscape } from "./confirm-cancel-buttons";
+import { EDIT_AREA, FieldPair, FieldRow, PairCell, UNDERLINE_SELECT_TRIGGER, UnderlineInput } from "./edit-form-fields";
 import { cambiarServicio, corregirOperacion } from "@/lib/remittance-operations/commands";
 import { OPERATION_SERVICES, currentServiceOf } from "@/lib/remittance-operations/services";
 import type { RemittanceOperationRead } from "@/lib/remittance-operations/types";
@@ -130,11 +128,10 @@ export function OperationCorrectionForm({ operation, onDone, onCancel }: Operati
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-2 rounded-md border border-border bg-muted/40 p-2">
-      <div className="space-y-1">
-        <Label htmlFor="operation-service">{t("serviceChange.label")}</Label>
+    <form onSubmit={handleSubmit} onKeyDown={cancelOnEscape(onCancel)} className={EDIT_AREA}>
+      <FieldRow label={t("serviceChange.label")} htmlFor="operation-service">
         <Select id="operation-service" value={service} disabled={pending} onValueChange={(v) => setService(v ?? "")}>
-          <SelectTrigger className="h-8 w-full min-w-0">
+          <SelectTrigger className={UNDERLINE_SELECT_TRIGGER}>
             {/* Base UI paints the raw value unless it is given the label. */}
             <SelectValue placeholder={t("serviceChange.choose")}>
               {(v) => (v ? t(`closing.method.${v as string}`) : t("serviceChange.choose"))}
@@ -148,75 +145,51 @@ export function OperationCorrectionForm({ operation, onDone, onCancel }: Operati
             ))}
           </SelectContent>
         </Select>
-        {service !== "" && service !== initialService && (
-          <p className="text-xs text-muted-foreground">{t("serviceChange.warning")}</p>
-        )}
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor="operation-destination-currency">{t("destinationCurrency")}</Label>
-        <Input
+      </FieldRow>
+      {service !== "" && service !== initialService && (
+        <p className="text-[11px] text-muted-foreground">{t("serviceChange.warning")}</p>
+      )}
+      <FieldPair>
+        <PairCell label={t("quotedSourceAmount")} htmlFor="operation-quoted-source-amount">
+          <UnderlineInput
+            id="operation-quoted-source-amount"
+            value={quotedSourceAmount}
+            onChange={(event) => setQuotedSourceAmount(event.target.value)}
+          />
+        </PairCell>
+        <PairCell label={t("quotedDestinationAmount")} htmlFor="operation-quoted-destination-amount">
+          <UnderlineInput
+            id="operation-quoted-destination-amount"
+            value={quotedDestinationAmount}
+            onChange={(event) => setQuotedDestinationAmount(event.target.value)}
+          />
+        </PairCell>
+      </FieldPair>
+      <FieldRow label={t("destinationCurrency")} htmlFor="operation-destination-currency">
+        <UnderlineInput
           id="operation-destination-currency"
           value={destinationCurrency}
           onChange={(event) => setDestinationCurrency(event.target.value)}
         />
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor="operation-delivery-method">{t("deliveryMethod")}</Label>
-        <Input
+      </FieldRow>
+      <FieldRow label={t("deliveryMethod")} htmlFor="operation-delivery-method">
+        <UnderlineInput
           id="operation-delivery-method"
           value={deliveryMethod}
           onChange={(event) => setDeliveryMethod(event.target.value)}
         />
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor="operation-deposit-method">{t("depositMethod")}</Label>
-        <Input
+      </FieldRow>
+      <FieldRow label={t("depositMethod")} htmlFor="operation-deposit-method">
+        <UnderlineInput
           id="operation-deposit-method"
           value={depositMethod}
           onChange={(event) => setDepositMethod(event.target.value)}
         />
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor="operation-quoted-source-amount">{t("quotedSourceAmount")}</Label>
-        <Input
-          id="operation-quoted-source-amount"
-          value={quotedSourceAmount}
-          onChange={(event) => setQuotedSourceAmount(event.target.value)}
-        />
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor="operation-quoted-destination-amount">{t("quotedDestinationAmount")}</Label>
-        <Input
-          id="operation-quoted-destination-amount"
-          value={quotedDestinationAmount}
-          onChange={(event) => setQuotedDestinationAmount(event.target.value)}
-        />
-      </div>
+      </FieldRow>
 
-      {error && <p className="text-xs text-destructive">{error}</p>}
-
-      <div className="flex justify-end gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="icon-sm"
-          aria-label={t("cancel")}
-          title={t("cancel")}
-          onClick={onCancel}
-          disabled={pending}
-        >
-          <X aria-hidden="true" />
-        </Button>
-        <Button
-          type="submit"
-          size="icon-sm"
-          aria-label={t("save")}
-          title={t("save")}
-          className="bg-green-600 text-white hover:bg-green-700"
-          disabled={pending}
-        >
-          <Check aria-hidden="true" />
-        </Button>
+      <div className="flex items-center gap-2">
+        {error && <p className="min-w-0 flex-1 text-xs text-destructive">{error}</p>}
+        <ConfirmCancelButtons type="submit" onCancel={onCancel} pending={pending} />
       </div>
     </form>
   );

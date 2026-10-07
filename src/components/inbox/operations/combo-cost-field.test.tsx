@@ -54,8 +54,8 @@ async function render(props: { costGyd?: number | null; completed?: boolean; onS
 }
 
 const input = (node: Element) => node.querySelector<HTMLInputElement>("input")!;
-const buttonByText = (node: Element, text: string) =>
-  Array.from(node.querySelectorAll("button")).find((b) => b.textContent?.trim() === text) as HTMLButtonElement | undefined;
+const buttonByText = (node: Element, label: string) =>
+  (node.querySelector(`button[aria-label="${label}"]`) ?? undefined) as HTMLButtonElement | undefined;
 
 describe("ComboCostField", () => {
   it("labels the numeric input and starts empty with no hint on an open combo", async () => {
@@ -192,5 +192,31 @@ describe("ComboCostField", () => {
     expect(node.textContent).toContain("Forbidden");
     expect(onSaved).not.toHaveBeenCalled();
     await act(async () => root.unmount());
+  });
+
+  it("the opener is the pencil icon button and clear stays an explicit labelled icon button", async () => {
+    const { node, root } = await render({ costGyd: 18000 });
+
+    expect(buttonByText(node, t.change)!.textContent).toBe("");
+    expect(buttonByText(node, t.clear)!.textContent).toBe("");
+    expect(buttonByText(node, t.change)!.getAttribute("title")).toBe(t.change);
+    expect(node.querySelector("form")).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("Escape closes the edit of a saved cost without saving; with no saved cost there is no X", async () => {
+    const { node, root } = await render({ costGyd: 18000 });
+    await act(async () => buttonByText(node, t.change)!.click());
+
+    expect(node.querySelector("form")!.className).not.toContain("bg-muted");
+    await act(async () => input(node).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })));
+    expect(node.querySelector("input")).toBeNull();
+    expect(setComboCosto).not.toHaveBeenCalled();
+    await act(async () => root.unmount());
+
+    const fresh = await render();
+    expect(buttonByText(fresh.node, en.Inbox.operationsPanel.cancel)).toBeUndefined();
+    expect(buttonByText(fresh.node, en.Inbox.operationsPanel.save)).toBeDefined();
+    await act(async () => fresh.root.unmount());
   });
 });

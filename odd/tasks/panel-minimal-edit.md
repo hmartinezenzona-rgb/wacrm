@@ -55,14 +55,49 @@ The app's Select (Base UI) hangs under jsdom: mock "@/components/ui/select" with
 operation-correction-form.test.tsx does.
 
 ## Tasks
-- [ ] T1 Shared ✓/X component; replace the 5 copy-pasted pairs and convert the text buttons listed above.
-- [ ] T2 Minimalist edit mode for every form in the panel (correction, beneficiary edit, combo edit, add recipient,
+- [x] T1 Shared ✓/X component; replace the 5 copy-pasted pairs and convert the text buttons listed above.
+- [x] T2 Minimalist edit mode for every form in the panel (correction, beneficiary edit, combo edit, add recipient,
   reassign, combo cost, deposit review inputs); app Select everywhere.
 - [ ] T3 Staging deploy + owner's look.
 - [ ] T4 Production with the owner's go-ahead.
 
 ## Progress
 - 2026-10-06 document created after mapping.
+- 2026-10-06 T1 + T2 implemented together (one commit: the forms mix both changes in the same files, so a T1-only commit
+  would not be a green state). Browser look NOT verified (no browser available to the writer): owner's look pending in T3.
+
+## Evidence (T1 + T2)
+- RED first: tests moved to aria-label queries, the InlineEditField class assertion moved to the underline look, shared
+  component test added -> `vitest run src/components/inbox/operations`: 46 failed (components still rendered text buttons / boxes).
+- GREEN after implementation: `vitest run src/components/inbox/operations src/i18n --testTimeout=20000`: 27 files, 419 tests pass.
+- Full `npx vitest run --testTimeout=20000`: 165 files, 2078 tests pass. `npx tsc --noEmit -p .`: no errors.
+  `npx eslint src/components/inbox/operations`: no errors, no warnings.
+- grep: no `<select` / `<option` left in src/components/inbox/operations (non-test); the save / cancel / add / confirmMove /
+  comboCost change+clear catalog keys are only used as aria-label / title.
+
+## Final look (per form)
+Shared: `confirm-cancel-buttons.tsx` (X muted, then check emerald, ghost size-8 icon buttons, aria-label + title, spinner
+while pending, `type="submit"` for forms, children slot for the bell) and `cancelOnEscape` (Escape in a field cancels;
+portaled Select popups keep their own Escape). `edit-form-fields.tsx`: underline field (transparent, border-b border-input,
+h-8, text-sm, rule turns ring colour on focus + soft ring), `FieldRow` (11px muted label left, grid 5.5rem/1fr),
+`FieldPair` (two short fields side by side, label on top), `EDIT_AREA` (border-l-2 border-border pl-2, space-y-1).
+- Correction form: service Select row, pair (quoted source | quoted destination), rows currency / delivery / deposit; error
+  left and check/X right on one last row. Select with the underline trigger.
+- Beneficiary edit (card + combo): InlineEditField lost its filled box (bottom rule only); check/X right below, Enter saves,
+  Escape cancels (existing).
+- Add recipient: recharge/saldo = one phone row; combo = five rows + amount (GYD) + hint; card/zelle = type Select row, the
+  type fields, pair (amount | currency). Check is labelled with the add key.
+- Reassign: one Select row (app Select) + check (confirmMove label) locked until a target is chosen.
+- Combo cost: saved value row with pencil (change) and trash (clear) icon buttons; edit = one label+input row with check,
+  and X only when a cost already exists; Escape cancels.
+- Deposit review: inputs h-10 -> h-8 underline rows with left labels; force confirm = check/X + bell in a left-ruled area.
+- Closing control, complete-transfer (single, multi): same check/X component; closing control lost its box.
+
+## Deviations
+- One commit for T1+T2 (see Progress).
+- Deposit review inputs have no Enter-to-verify (verify is a workflow action with a labelled button; not an edit form).
+- NotifyToggle keeps its size-7 hit area (the 32px rule applied to the check/X).
+- Complete-transfer sections keep their outer bordered card (not in the map's "heavy look" list); they gained Escape.
 
 ## Next step
-T1.
+T3 staging deploy + owner's look.

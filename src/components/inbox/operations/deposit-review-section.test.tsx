@@ -439,7 +439,7 @@ describe("DepositReviewSection", () => {
       const bells = Array.from(node.querySelectorAll<HTMLButtonElement>("button[aria-pressed]"));
       expect(bells.some((b) => b.getAttribute("aria-pressed") === "true")).toBe(true);
       expect(forceConfirmButton(node).disabled).toBe(false);
-      expect(forceConfirmButton(node).className).toContain("bg-green-600");
+      expect(forceConfirmButton(node).className).toContain("text-emerald-600");
 
       await act(async () => cancelIconButton(node).dispatchEvent(new MouseEvent("click", { bubbles: true })));
       expect(node.querySelector(`button[aria-label="${T.forceConfirm}"]`)).toBeNull();

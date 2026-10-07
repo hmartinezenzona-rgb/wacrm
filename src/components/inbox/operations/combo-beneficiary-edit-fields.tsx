@@ -3,9 +3,9 @@
 import { useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
 import { Banknote, FileText, MapPin, Phone, Smartphone, UserRound } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { corregirBeneficiario } from "@/lib/remittance-operations/commands";
 import type { RemittanceBeneficiaryRead } from "@/lib/remittance-operations/types";
+import { ConfirmCancelButtons } from "./confirm-cancel-buttons";
 import { InlineEditField } from "./inline-edit-field";
 
 const PHONE_PATTERN = /^\d{8,15}$/;
@@ -118,7 +118,7 @@ export function ComboBeneficiaryEditFields({ beneficiary, onCancel, onSaved }: C
 
   const id = beneficiary.id;
   return (
-    <div className="space-y-1.5" onKeyDown={handleKeyDown}>
+    <div className="space-y-1" onKeyDown={handleKeyDown}>
       <InlineEditField
         id={`inline-amount-${id}`}
         icon={<Banknote className="size-3.5" aria-hidden="true" />}
@@ -187,14 +187,7 @@ export function ComboBeneficiaryEditFields({ beneficiary, onCancel, onSaved }: C
         </p>
       )}
 
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={pending}>
-          {t("cancel")}
-        </Button>
-        <Button type="button" size="sm" onClick={() => void handleSave()} disabled={pending}>
-          {pending ? t("saving") : t("save")}
-        </Button>
-      </div>
+      <ConfirmCancelButtons onCancel={onCancel} onConfirm={() => void handleSave()} pending={pending} />
     </div>
   );
 }

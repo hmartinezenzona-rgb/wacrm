@@ -24,6 +24,7 @@ import { CompleteTransferContainer } from "./complete-transfer-container";
 import { CopyChip } from "./copy-chip";
 import { DepositReviewContainer } from "./deposit-review-container";
 import type { SummaryAmount } from "./deposit-review-section";
+import { ConfirmCancelButtons } from "./confirm-cancel-buttons";
 import { InlineEditField } from "./inline-edit-field";
 import { OperationClosingControl } from "./operation-closing-control";
 import { KNOWN_BENEFICIARY_TYPES, MethodIcon, StatusChip } from "./operation-icons";
@@ -976,7 +977,7 @@ function BeneficiaryEditFields({ beneficiary, amount, showAmountField, t, onCanc
   }
 
   return (
-    <div className="space-y-1.5" onKeyDown={handleKeyDown}>
+    <div className="space-y-1" onKeyDown={handleKeyDown}>
       {showAmountField && (
         <InlineEditField
           id={`inline-amount-${beneficiary.id}`}
@@ -1048,14 +1049,7 @@ function BeneficiaryEditFields({ beneficiary, amount, showAmountField, t, onCanc
         </p>
       )}
 
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={pending}>
-          {t("cancel")}
-        </Button>
-        <Button type="button" size="sm" onClick={() => void handleSave()} disabled={pending}>
-          {pending ? t("saving") : t("save")}
-        </Button>
-      </div>
+      <ConfirmCancelButtons onCancel={onCancel} onConfirm={() => void handleSave()} pending={pending} />
     </div>
   );
 }

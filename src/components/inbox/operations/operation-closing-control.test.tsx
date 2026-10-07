@@ -77,7 +77,7 @@ describe("OperationClosingControl", () => {
     expect(cancel.textContent?.trim()).toBe("");
     expect(confirm.title).toBe(t.closeConfirm);
     expect(confirm.querySelector("svg")).not.toBeNull();
-    expect(confirm.className).toContain("green");
+    expect(confirm.className).toContain("emerald");
     await act(async () => root.unmount());
   });
 
@@ -257,6 +257,19 @@ describe("OperationClosingControl service icons are told apart", () => {
 
     expect(icons).toHaveLength(9);
     expect(new Set(icons).size).toBe(9);
+    await act(async () => root.unmount());
+  });
+
+  it("is an unboxed area and Escape on a control cancels", async () => {
+    const { node, root, onCancel } = await render("close");
+
+    expect(node.firstElementChild!.className).not.toContain("bg-muted");
+    await act(async () =>
+      buttonByLabel(node, t.closeConfirm).dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }),
+      ),
+    );
+    expect(onCancel).toHaveBeenCalledTimes(1);
     await act(async () => root.unmount());
   });
 });

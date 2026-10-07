@@ -23,10 +23,10 @@ interface InlineEditFieldProps {
 /**
  * One inline-editable data row inside a beneficiary's edit mode. Visually
  * replaces a read-only `CopyChip` in the same position: same leading icon,
- * full width, h-8, rounded-md, `bg-muted/50` with a visible input border
- * (padding shaved by 1px so the icon stays on the chip's column) and
- * a focus ring on the wrapper (so clicking the icon area focuses the
- * input too).
+ * full width, h-8, transparent with only a bottom rule (the field reads as
+ * the same row that became editable, not a boxed form), the rule turning to
+ * the ring colour plus a soft ring on the wrapper on focus (so clicking the
+ * icon area focuses the input too).
  */
 export function InlineEditField({
   id,
@@ -43,7 +43,7 @@ export function InlineEditField({
   const textClassName = variant === "name" ? "font-sans text-sm font-medium" : "font-mono text-xs";
 
   return (
-    <div className="flex h-8 w-full items-center gap-1.5 rounded-md border border-input bg-muted/50 px-[7px] focus-within:ring-2 focus-within:ring-ring">
+    <div className="flex h-8 w-full items-center gap-1.5 rounded-sm border-b border-input bg-transparent px-1 transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30">
       <span className="flex size-3.5 shrink-0 items-center justify-center text-muted-foreground" aria-hidden="true">
         {icon}
       </span>

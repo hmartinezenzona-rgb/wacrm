@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Banknote, Check, Coins, Landmark, ShoppingBasket, Smartphone, Stamp, TreePalm, X, type LucideIcon } from "lucide-react";
+import { Banknote, Coins, Landmark, ShoppingBasket, Smartphone, Stamp, TreePalm, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cerrarOperacionManual, eliminarOperacion } from "@/lib/remittance-operations/commands";
+import { ConfirmCancelButtons, cancelOnEscape } from "./confirm-cancel-buttons";
 import { NotifyToggle } from "./notify-toggle";
 import { MethodIcon } from "./operation-icons";
 
@@ -70,7 +71,7 @@ export function OperationClosingControl({ operationId, kind, onDone, onCancel, n
   }
 
   return (
-    <div className="space-y-1.5 rounded-md border border-border bg-muted/40 p-2">
+    <div className="space-y-1 border-l-2 border-border pl-2" onKeyDown={cancelOnEscape(onCancel)}>
       {error && <p className="text-xs text-destructive">{error}</p>}
 
       {askService && (
@@ -107,31 +108,15 @@ export function OperationClosingControl({ operationId, kind, onDone, onCancel, n
         </div>
       )}
 
-      <div className="flex items-center justify-end gap-1">
+      <ConfirmCancelButtons
+        onCancel={onCancel}
+        onConfirm={handleConfirm}
+        confirmLabel={confirmLabel}
+        pending={pending}
+        confirmDisabled={askService && service === null}
+      >
         {isClose && <NotifyToggle notify={notify} onChange={setNotify} disabled={pending} />}
-        <Button
-          type="button"
-          variant="outline"
-          size="icon-sm"
-          aria-label={t("cancel")}
-          title={t("cancel")}
-          onClick={onCancel}
-          disabled={pending}
-        >
-          <X aria-hidden="true" />
-        </Button>
-        <Button
-          type="button"
-          size="icon-sm"
-          aria-label={confirmLabel}
-          title={confirmLabel}
-          className="bg-green-600 text-white hover:bg-green-700"
-          disabled={pending || (askService && service === null)}
-          onClick={handleConfirm}
-        >
-          <Check aria-hidden="true" />
-        </Button>
-      </div>
+      </ConfirmCancelButtons>
     </div>
   );
 }

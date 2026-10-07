@@ -247,6 +247,11 @@ function setValue(input: HTMLInputElement, value: string) {
   input.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
+/** Icon-only buttons (check / X) are found by their accessible name, never by visible text. */
+function buttonByLabel(node: Element, label: string): HTMLButtonElement {
+  return node.querySelector(`button[aria-label="${label}"]`) as HTMLButtonElement;
+}
+
 function buttonByText(node: Element, text: string): HTMLButtonElement {
   return Array.from(node.querySelectorAll("button")).find((b) => b.textContent?.trim() === text) as HTMLButtonElement;
 }
@@ -466,7 +471,7 @@ describe("RemittanceOperationCard combo", () => {
       await act(async () => setValue(field(node, "name"), "  Ana Maria Lopez "));
       await act(async () => setValue(field(node, "address"), "Calle 5, Matanzas"));
       await act(async () => setValue(field(node, "amount"), "27000"));
-      await click(buttonByText(node, P.save));
+      await click(buttonByLabel(node, P.save));
 
       expect(corregirBeneficiario).toHaveBeenCalledWith("c1", {
         name: "Ana Maria Lopez",
@@ -482,7 +487,7 @@ describe("RemittanceOperationCard combo", () => {
       const { node, root } = await openEdit();
       await act(async () => setValue(field(node, "contact-phone"), ""));
       await act(async () => setValue(field(node, "reference"), ""));
-      await click(buttonByText(node, P.save));
+      await click(buttonByLabel(node, P.save));
 
       expect(corregirBeneficiario).toHaveBeenCalledWith("c1", { contact_phone: null, reference: null });
       await act(async () => root.unmount());
@@ -492,7 +497,7 @@ describe("RemittanceOperationCard combo", () => {
       corregirBeneficiario.mockResolvedValue({ ok: true, id: "n1" });
       const { node, root } = await openEdit();
       await act(async () => setValue(field(node, "contact-phone"), "+53 5555 5555"));
-      await click(buttonByText(node, P.save));
+      await click(buttonByLabel(node, P.save));
 
       expect(corregirBeneficiario).toHaveBeenCalledWith("c1", { contact_phone: "5355555555" });
       await act(async () => root.unmount());
@@ -509,7 +514,7 @@ describe("RemittanceOperationCard combo", () => {
       corregirBeneficiario.mockClear();
       const { node, root } = await openEdit();
       await act(async () => setValue(field(node, id), value));
-      await click(buttonByText(node, P.save));
+      await click(buttonByLabel(node, P.save));
 
       expect(corregirBeneficiario).not.toHaveBeenCalled();
       expect(node.querySelector('[role="alert"]')!.textContent).toBe(message);
@@ -520,7 +525,7 @@ describe("RemittanceOperationCard combo", () => {
       corregirBeneficiario.mockResolvedValue({ ok: true, id: "n1" });
       const { node, root } = await openEdit();
       await act(async () => setValue(field(node, "amount"), "20000"));
-      await click(buttonByText(node, P.save));
+      await click(buttonByLabel(node, P.save));
 
       expect(corregirBeneficiario).toHaveBeenCalledWith("c1", { amount: 20000 });
       await act(async () => root.unmount());
@@ -530,7 +535,7 @@ describe("RemittanceOperationCard combo", () => {
       corregirBeneficiario.mockResolvedValue({ ok: true, id: "n1" });
       const { node, root } = await openEdit();
       await act(async () => setValue(field(node, "address"), "Calle 5"));
-      await click(buttonByText(node, P.save));
+      await click(buttonByLabel(node, P.save));
 
       expect(corregirBeneficiario).toHaveBeenCalledWith("c1", { address: "Calle 5" });
       await act(async () => root.unmount());
@@ -539,7 +544,7 @@ describe("RemittanceOperationCard combo", () => {
     it("no changes closes the form without calling the API", async () => {
       corregirBeneficiario.mockClear();
       const { node, root } = await openEdit();
-      await click(buttonByText(node, P.save));
+      await click(buttonByLabel(node, P.save));
 
       expect(corregirBeneficiario).not.toHaveBeenCalled();
       expect(field(node, "name")).toBeNull();
@@ -550,7 +555,7 @@ describe("RemittanceOperationCard combo", () => {
       corregirBeneficiario.mockResolvedValue({ ok: false, status: 400, error: "amount must be greater than 0" });
       const { node, root } = await openEdit();
       await act(async () => setValue(field(node, "amount"), "30000"));
-      await click(buttonByText(node, P.save));
+      await click(buttonByLabel(node, P.save));
 
       expect(node.querySelector('[role="alert"]')!.textContent).toBe("amount must be greater than 0");
       expect(field(node, "amount")).not.toBeNull();
@@ -569,7 +574,7 @@ describe("RemittanceOperationCard combo", () => {
       expect(node.querySelector("#inline-contact-phone-ben-1")).toBeNull();
       expect(node.textContent).not.toContain(P.comboMinimumHint);
       await act(async () => setValue(node.querySelector<HTMLInputElement>("#inline-phone-ben-1")!, "53456789"));
-      await click(buttonByText(node, P.save));
+      await click(buttonByLabel(node, P.save));
 
       expect(corregirBeneficiario).toHaveBeenCalledWith("ben-1", { phone: "53456789" });
       await act(async () => root.unmount());
@@ -1652,12 +1657,15 @@ describe("RemittanceOperationCard", () => {
       expect(accountInput.value).toBe("yaima@example.invalid");
       // The first field takes focus so it is obvious the data is now editable.
       expect(document.activeElement).toBe(nameInput);
-      expect(nameInput.parentElement!.className).toContain("border-input");
+      // Minimalist edit look: a bottom rule on a transparent row, not a filled, fully bordered box.
+      expect(nameInput.parentElement!.className).toContain("border-b");
+      expect(nameInput.parentElement!.className).not.toContain("bg-muted");
+      expect(nameInput.parentElement!.className).not.toContain("rounded-md");
       expect(button(node, "Copy Name")).toBeNull();
       expect(button(node, "Copy Zelle account")).toBeNull();
       expect(node.querySelector("select")).toBeNull();
-      expect(buttonByText(node, en.Inbox.operationsPanel.save)).not.toBeUndefined();
-      expect(buttonByText(node, en.Inbox.operationsPanel.cancel)).not.toBeUndefined();
+      expect(buttonByLabel(node, en.Inbox.operationsPanel.save)).not.toBeUndefined();
+      expect(buttonByLabel(node, en.Inbox.operationsPanel.cancel)).not.toBeUndefined();
 
       await act(async () => root.unmount());
     });
@@ -1682,7 +1690,7 @@ describe("RemittanceOperationCard", () => {
       const nameInput = node.querySelector<HTMLInputElement>("#inline-name-ben-1")!;
       await act(async () => setValue(nameInput, "New Name"));
       await act(async () =>
-        buttonByText(node, en.Inbox.operationsPanel.save).dispatchEvent(new MouseEvent("click", { bubbles: true })),
+        buttonByLabel(node, en.Inbox.operationsPanel.save).dispatchEvent(new MouseEvent("click", { bubbles: true })),
       );
 
       expect(corregirBeneficiario).toHaveBeenCalledWith("ben-1", { name: "New Name" });
@@ -1706,7 +1714,7 @@ describe("RemittanceOperationCard", () => {
         ),
       );
       await act(async () =>
-        buttonByText(node, en.Inbox.operationsPanel.save).dispatchEvent(new MouseEvent("click", { bubbles: true })),
+        buttonByLabel(node, en.Inbox.operationsPanel.save).dispatchEvent(new MouseEvent("click", { bubbles: true })),
       );
 
       expect(corregirBeneficiario).not.toHaveBeenCalled();
@@ -1731,7 +1739,7 @@ describe("RemittanceOperationCard", () => {
       const nameInput = node.querySelector<HTMLInputElement>("#inline-name-ben-1")!;
       await act(async () => setValue(nameInput, "Changed Name"));
       await act(async () =>
-        buttonByText(node, en.Inbox.operationsPanel.cancel).dispatchEvent(new MouseEvent("click", { bubbles: true })),
+        buttonByLabel(node, en.Inbox.operationsPanel.cancel).dispatchEvent(new MouseEvent("click", { bubbles: true })),
       );
 
       expect(corregirBeneficiario).not.toHaveBeenCalled();
@@ -1777,7 +1785,7 @@ describe("RemittanceOperationCard", () => {
       const cardInput = node.querySelector<HTMLInputElement>("#inline-card-ben-1")!;
       await act(async () => setValue(cardInput, "123456789012345"));
       await act(async () =>
-        buttonByText(node, en.Inbox.operationsPanel.save).dispatchEvent(new MouseEvent("click", { bubbles: true })),
+        buttonByLabel(node, en.Inbox.operationsPanel.save).dispatchEvent(new MouseEvent("click", { bubbles: true })),
       );
 
       expect(corregirBeneficiario).not.toHaveBeenCalled();
@@ -1799,7 +1807,7 @@ describe("RemittanceOperationCard", () => {
       const cardInput = node.querySelector<HTMLInputElement>("#inline-card-ben-1")!;
       await act(async () => setValue(cardInput, "1111 2222 3333 4444"));
       await act(async () =>
-        buttonByText(node, en.Inbox.operationsPanel.save).dispatchEvent(new MouseEvent("click", { bubbles: true })),
+        buttonByLabel(node, en.Inbox.operationsPanel.save).dispatchEvent(new MouseEvent("click", { bubbles: true })),
       );
 
       expect(corregirBeneficiario).toHaveBeenCalledWith("ben-1", { card_number: "1111222233334444" });
@@ -1824,7 +1832,7 @@ describe("RemittanceOperationCard", () => {
       const nameInput = node.querySelector<HTMLInputElement>("#inline-name-ben-1")!;
       await act(async () => setValue(nameInput, "New Name"));
       await act(async () =>
-        buttonByText(node, en.Inbox.operationsPanel.save).dispatchEvent(new MouseEvent("click", { bubbles: true })),
+        buttonByLabel(node, en.Inbox.operationsPanel.save).dispatchEvent(new MouseEvent("click", { bubbles: true })),
       );
 
       expect(node.querySelector('[role="alert"]')?.textContent).toBe("Beneficiary locked");
@@ -1870,7 +1878,7 @@ describe("RemittanceOperationCard", () => {
       expect(amountInput.value).toBe("30000");
       await act(async () => setValue(amountInput, "45000"));
       await act(async () =>
-        buttonByText(node, en.Inbox.operationsPanel.save).dispatchEvent(new MouseEvent("click", { bubbles: true })),
+        buttonByLabel(node, en.Inbox.operationsPanel.save).dispatchEvent(new MouseEvent("click", { bubbles: true })),
       );
 
       expect(corregirBeneficiario).toHaveBeenCalledWith("b-1", { amount: 45000 });

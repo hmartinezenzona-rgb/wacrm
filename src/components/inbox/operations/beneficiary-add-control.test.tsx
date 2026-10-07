@@ -23,6 +23,21 @@ vi.mock("@/lib/remittance-operations/commands", () => ({
   agregarBeneficiario: (...args: unknown[]) => agregarBeneficiario(...args),
 }));
 
+// The app's Select (Base UI) hangs under jsdom; a native double keeps the value/onValueChange contract.
+vi.mock("@/components/ui/select", () => ({
+  Select: ({ id, value, disabled, onValueChange, children }: {
+    id?: string; value?: string; disabled?: boolean; onValueChange?: (value: string) => void; children?: React.ReactNode;
+  }) => (
+    <select id={id} value={value} disabled={disabled} onChange={(event) => onValueChange?.(event.target.value)}>
+      {children}
+    </select>
+  ),
+  SelectTrigger: () => null,
+  SelectValue: () => null,
+  SelectContent: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+  SelectItem: ({ value, children }: { value: string; children?: React.ReactNode }) => <option value={value}>{children}</option>,
+}));
+
 afterEach(() => {
   document.body.replaceChildren();
   vi.restoreAllMocks();
@@ -286,8 +301,8 @@ describe("BeneficiaryAddControl", () => {
   it("calls onCancel when cancel is clicked", async () => {
     const { node, root, onCancel } = await render();
 
-    const cancelButton = Array.from(node.querySelectorAll("button")).find(
-      (btn) => btn.textContent === en.Inbox.operationsPanel.cancel,
+    const cancelButton = node.querySelector(
+      `button[aria-label="${en.Inbox.operationsPanel.cancel}"]`,
     ) as HTMLButtonElement;
     await act(async () => cancelButton.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true })));
 
@@ -407,4 +422,29 @@ describe("BeneficiaryAddControl on a combo", () => {
     expect(node.textContent).toContain(en.Inbox.operationsPanel.invalidPhone);
     await act(async () => root.unmount());
   });
+
+describe("BeneficiaryAddControl minimalist edit mode", () => {
+  it("labels the check with the add key, shows no button text, and Escape in a field cancels", async () => {
+    const { node, root, onCancel } = await render();
+
+    const add = node.querySelector(`button[aria-label="${en.Inbox.operationsPanel.add}"]`)!;
+    expect(add.getAttribute("type")).toBe("submit");
+    expect(Array.from(node.querySelectorAll("button")).every((b) => (b.textContent ?? "").trim() === "")).toBe(true);
+    expect(node.querySelector("form")!.className).not.toContain("bg-muted");
+
+    await act(async () => node.querySelector("input")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    await act(async () => root.unmount());
+  });
+
+  it.each(["recarga", "combo"])("the %s form is also an unboxed form with the icon-only add check", async (serviceType) => {
+    const { node, root, onCancel } = await render(vi.fn(), vi.fn(), serviceType);
+
+    expect(node.querySelector("form")!.className).not.toContain("bg-muted");
+    expect(node.querySelector(`button[aria-label="${en.Inbox.operationsPanel.add}"]`)).not.toBeNull();
+    await act(async () => node.querySelector("input")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    await act(async () => root.unmount());
+  });
+});
 });

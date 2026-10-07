@@ -16,7 +16,7 @@
 
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
-import { Check, X } from "lucide-react";
+import { ConfirmCancelButtons, cancelOnEscape } from "./confirm-cancel-buttons";
 import { NotifyToggle } from "./notify-toggle";
 import { DeliveryProofPanel } from "@/components/pipelines/delivery-proof";
 import { PROOF_MAX_BYTES, type ProofImageKind, type ProofRejection } from "@/lib/pipelines/delivery-proof";
@@ -80,7 +80,10 @@ export function CompleteTransferMultiSection({
   const submitLabel = skipChecked ? t("complete") : t("sendAndComplete");
 
   return (
-    <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+    <div
+      className="space-y-2 rounded-lg border border-border bg-muted/30 p-3"
+      onKeyDown={busy ? undefined : cancelOnEscape(onCancel)}
+    >
       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
         {t("title")}
       </p>
@@ -147,31 +150,16 @@ export function CompleteTransferMultiSection({
         </p>
       )}
 
-      <div className="flex items-center justify-end gap-2">
+      <ConfirmCancelButtons
+        onCancel={onCancel}
+        onConfirm={onSubmit}
+        cancelLabel={tCommon("cancel")}
+        confirmLabel={submitLabel}
+        pending={busy}
+        confirmDisabled={!canSend || !canSubmit}
+      >
         {onNotifyChange && <NotifyToggle notify={notify} onChange={onNotifyChange} disabled={locked} />}
-        <Button
-          type="button"
-          variant="outline"
-          size="icon-sm"
-          aria-label={tCommon("cancel")}
-          title={tCommon("cancel")}
-          onClick={onCancel}
-          disabled={busy}
-        >
-          <X aria-hidden="true" />
-        </Button>
-        <Button
-          type="button"
-          size="icon-sm"
-          aria-label={submitLabel}
-          title={submitLabel}
-          className="bg-green-600 text-white hover:bg-green-700"
-          onClick={onSubmit}
-          disabled={locked || !canSubmit}
-        >
-          <Check aria-hidden="true" />
-        </Button>
-      </div>
+      </ConfirmCancelButtons>
 
     </div>
   );

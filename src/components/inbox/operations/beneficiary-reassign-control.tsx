@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ConfirmCancelButtons, cancelOnEscape } from "./confirm-cancel-buttons";
+import { EDIT_AREA, FieldRow, UNDERLINE_SELECT_TRIGGER } from "./edit-form-fields";
 import { reasignarBeneficiario } from "@/lib/remittance-operations/commands";
 
 interface ReassignTarget {
@@ -49,33 +50,39 @@ export function BeneficiaryReassignControl({
   }
 
   return (
-    <div className="space-y-2 rounded-md border border-border bg-muted/40 p-2">
-      <div className="space-y-1">
-        <Label htmlFor="beneficiary-reassign-target">{t("selectTarget")}</Label>
-        <select
+    <div className={EDIT_AREA} onKeyDown={cancelOnEscape(onCancel)}>
+      <FieldRow label={t("selectTarget")} htmlFor="beneficiary-reassign-target">
+        <Select
           id="beneficiary-reassign-target"
           value={targetOperationId}
-          onChange={(event) => setTargetOperationId(event.target.value)}
-          className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+          disabled={pending}
+          onValueChange={(value) => setTargetOperationId(value ?? "")}
         >
-          <option value="">{t("selectTarget")}</option>
-          {targets.map((target) => (
-            <option key={target.id} value={target.id}>
-              {target.label}
-            </option>
-          ))}
-        </select>
-      </div>
+          <SelectTrigger className={UNDERLINE_SELECT_TRIGGER}>
+            {/* Base UI paints the raw value unless it is given the label. */}
+            <SelectValue placeholder={t("selectTarget")}>
+              {(value) => targets.find((target) => target.id === value)?.label ?? t("selectTarget")}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {targets.map((target) => (
+              <SelectItem key={target.id} value={target.id}>
+                {target.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FieldRow>
 
-      {error && <p className="text-xs text-destructive">{error}</p>}
-
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={onCancel} disabled={pending}>
-          {t("cancel")}
-        </Button>
-        <Button type="button" size="sm" disabled={pending || !targetOperationId} onClick={handleConfirm}>
-          {t("confirmMove")}
-        </Button>
+      <div className="flex items-center gap-2">
+        {error && <p className="min-w-0 flex-1 text-xs text-destructive">{error}</p>}
+        <ConfirmCancelButtons
+          onCancel={onCancel}
+          onConfirm={handleConfirm}
+          confirmLabel={t("confirmMove")}
+          pending={pending}
+          confirmDisabled={!targetOperationId}
+        />
       </div>
     </div>
   );

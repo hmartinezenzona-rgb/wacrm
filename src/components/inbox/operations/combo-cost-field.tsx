@@ -2,10 +2,11 @@
 
 import { useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
+import { Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { ConfirmCancelButtons, cancelOnEscape } from "./confirm-cancel-buttons";
+import { EDIT_AREA, FieldRow, UnderlineInput } from "./edit-form-fields";
 import { setComboCosto } from "@/lib/remittance-operations/commands";
 
 /** Same ceiling `crm_set_combo_costo` enforces (exclusive). */
@@ -65,29 +66,39 @@ export function ComboCostField({ operationId, costGyd, completed, onSaved }: Com
 
   if (current !== null && !editing) {
     return (
-      <div className="space-y-1.5 rounded-md border border-border bg-muted/40 p-2">
-        <p className="text-sm">
-          <span className="text-muted-foreground">{t("comboCost.label")}: </span>
+      <div className="flex items-center gap-1 border-l-2 border-border pl-2">
+        <p className="min-w-0 flex-1 text-sm">
+          <span className="text-[11px] text-muted-foreground">{t("comboCost.label")}: </span>
           <span className="font-medium">{current.toLocaleString("en-US")} GYD</span>
         </p>
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" size="sm" onClick={() => void submit(null)} disabled={pending}>
-            {t("comboCost.clear")}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setValue(String(current));
-              setError(null);
-              setEditing(true);
-            }}
-            disabled={pending}
-          >
-            {t("comboCost.change")}
-          </Button>
-        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          aria-label={t("comboCost.change")}
+          title={t("comboCost.change")}
+          className="text-muted-foreground"
+          onClick={() => {
+            setValue(String(current));
+            setError(null);
+            setEditing(true);
+          }}
+          disabled={pending}
+        >
+          <Pencil aria-hidden="true" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          aria-label={t("comboCost.clear")}
+          title={t("comboCost.clear")}
+          className="text-muted-foreground hover:text-destructive"
+          onClick={() => void submit(null)}
+          disabled={pending}
+        >
+          <Trash2 aria-hidden="true" />
+        </Button>
       </div>
     );
   }
@@ -102,34 +113,36 @@ export function ComboCostField({ operationId, costGyd, completed, onSaved }: Com
     void submit(parsed);
   }
 
+  const cancelEdit = current !== null ? () => setEditing(false) : undefined;
+
   return (
-    <form onSubmit={handleSave} className="space-y-1.5 rounded-md border border-border bg-muted/40 p-2">
-      <Label htmlFor={`combo-cost-${operationId}`}>{t("comboCost.label")}</Label>
-      <Input
-        id={`combo-cost-${operationId}`}
-        inputMode="decimal"
-        value={value}
-        onChange={(event) => setValue(event.target.value)}
-        disabled={pending}
-      />
+    <form
+      onSubmit={handleSave}
+      onKeyDown={cancelEdit ? cancelOnEscape(cancelEdit) : undefined}
+      className={EDIT_AREA}
+    >
+      <div className="flex items-center gap-1">
+        <div className="min-w-0 flex-1">
+          <FieldRow label={t("comboCost.label")} htmlFor={`combo-cost-${operationId}`}>
+            <UnderlineInput
+              id={`combo-cost-${operationId}`}
+              inputMode="decimal"
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+              disabled={pending}
+            />
+          </FieldRow>
+        </div>
+        <ConfirmCancelButtons type="submit" onCancel={cancelEdit} pending={pending} />
+      </div>
       {completed && current === null && (
-        <p className="text-xs text-amber-600 dark:text-amber-400">{t("comboCost.missing")}</p>
+        <p className="text-[11px] text-amber-600 dark:text-amber-400">{t("comboCost.missing")}</p>
       )}
       {error && (
         <p role="alert" className="text-xs text-destructive">
           {error}
         </p>
       )}
-      <div className="flex justify-end gap-2">
-        {current !== null && (
-          <Button type="button" variant="ghost" size="sm" onClick={() => setEditing(false)} disabled={pending}>
-            {t("cancel")}
-          </Button>
-        )}
-        <Button type="submit" size="sm" disabled={pending}>
-          {pending ? t("saving") : t("save")}
-        </Button>
-      </div>
     </form>
   );
 }

@@ -396,8 +396,8 @@ describe("OperationsPanelContainer", () => {
     const nameInput = node.querySelector<HTMLInputElement>("#inline-name-ben-1")!;
     await act(async () => setValue(nameInput, "Yaima Perez Updated"));
 
-    const saveButton = Array.from(node.querySelectorAll("button")).find(
-      (btn) => btn.textContent?.trim() === en.Inbox.operationsPanel.save,
+    const saveButton = node.querySelector(
+      `button[aria-label="${en.Inbox.operationsPanel.save}"]`,
     ) as HTMLButtonElement;
     await act(async () => {
       saveButton.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));

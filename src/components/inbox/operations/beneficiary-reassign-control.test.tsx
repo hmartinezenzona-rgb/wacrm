@@ -21,6 +21,21 @@ vi.mock("@/lib/remittance-operations/commands", () => ({
   reasignarBeneficiario: (...args: unknown[]) => reasignarBeneficiario(...args),
 }));
 
+// The app's Select (Base UI) hangs under jsdom; a native double keeps the value/onValueChange contract.
+vi.mock("@/components/ui/select", () => ({
+  Select: ({ id, value, disabled, onValueChange, children }: {
+    id?: string; value?: string; disabled?: boolean; onValueChange?: (value: string) => void; children?: React.ReactNode;
+  }) => (
+    <select id={id} value={value} disabled={disabled} onChange={(event) => onValueChange?.(event.target.value)}>
+      {children}
+    </select>
+  ),
+  SelectTrigger: () => null,
+  SelectValue: () => null,
+  SelectContent: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+  SelectItem: ({ value, children }: { value: string; children?: React.ReactNode }) => <option value={value}>{children}</option>,
+}));
+
 afterEach(() => {
   document.body.replaceChildren();
   vi.restoreAllMocks();
@@ -52,8 +67,8 @@ function selectTarget(node: HTMLElement, value: string) {
 }
 
 function confirmButton(node: HTMLElement) {
-  return Array.from(node.querySelectorAll("button")).find(
-    (btn) => btn.textContent === en.Inbox.operationsPanel.confirmMove,
+  return node.querySelector(
+    `button[aria-label="${en.Inbox.operationsPanel.confirmMove}"]`,
   ) as HTMLButtonElement;
 }
 
@@ -94,6 +109,20 @@ describe("BeneficiaryReassignControl", () => {
 
     expect(node.textContent).toContain("Target operation is closed");
     expect(onDone).not.toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
+
+  it("is an unboxed row with an icon-only confirm that stays locked until a target is picked; Escape cancels", async () => {
+    const { node, root, onCancel } = await render();
+
+    expect(node.firstElementChild!.className).not.toContain("bg-muted");
+    expect(confirmButton(node).textContent).toBe("");
+    expect(confirmButton(node).disabled).toBe(true);
+    await act(async () => selectTarget(node, "op-2"));
+    expect(confirmButton(node).disabled).toBe(false);
+
+    await act(async () => node.querySelector("select")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })));
+    expect(onCancel).toHaveBeenCalledTimes(1);
     await act(async () => root.unmount());
   });
 });

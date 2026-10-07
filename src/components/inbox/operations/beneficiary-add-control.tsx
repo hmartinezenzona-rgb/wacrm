@@ -2,9 +2,9 @@
 
 import { useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ConfirmCancelButtons, cancelOnEscape } from "./confirm-cancel-buttons";
+import { EDIT_AREA, FieldPair, FieldRow, PairCell, UNDERLINE_SELECT_TRIGGER, UnderlineInput } from "./edit-form-fields";
 import { agregarBeneficiario } from "@/lib/remittance-operations/commands";
 
 interface BeneficiaryAddControlProps {
@@ -172,29 +172,26 @@ export function BeneficiaryAddControl({ operationId, serviceType, onDone, onCanc
     onDone();
   }
 
+  const actions = (
+    <div className="flex items-center gap-2">
+      {error && <p className="min-w-0 flex-1 text-xs text-destructive">{error}</p>}
+      <ConfirmCancelButtons type="submit" onCancel={onCancel} confirmLabel={t("add")} pending={pending} />
+    </div>
+  );
+  const formProps = { onSubmit: handleSubmit, onKeyDown: cancelOnEscape(onCancel), className: EDIT_AREA };
+
   if (isRecharge) {
     return (
-      <form onSubmit={handleSubmit} className="space-y-2 rounded-md border border-border bg-muted/40 p-2">
-        <div className="space-y-1">
-          <Label htmlFor="add-beneficiary-phone">{t("phone")}</Label>
-          <Input
+      <form {...formProps}>
+        <FieldRow label={t("phone")} htmlFor="add-beneficiary-phone">
+          <UnderlineInput
             id="add-beneficiary-phone"
             inputMode="numeric"
             value={phone}
             onChange={(event) => setPhone(event.target.value)}
           />
-        </div>
-
-        {error && <p className="text-xs text-destructive">{error}</p>}
-
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={onCancel} disabled={pending}>
-            {t("cancel")}
-          </Button>
-          <Button type="submit" size="sm" disabled={pending}>
-            {pending ? t("adding") : t("add")}
-          </Button>
-        </div>
+        </FieldRow>
+        {actions}
       </form>
     );
   }
@@ -208,127 +205,102 @@ export function BeneficiaryAddControl({ operationId, serviceType, onDone, onCanc
       { id: "contact-phone", label: t("contactPhone"), value: contactPhone, set: setContactPhone, numeric: true },
     ];
     return (
-      <form onSubmit={handleSubmit} className="space-y-2 rounded-md border border-border bg-muted/40 p-2">
+      <form {...formProps}>
         {textFields.map((field) => (
-          <div key={field.id} className="space-y-1">
-            <Label htmlFor={`add-beneficiary-${field.id}`}>{field.label}</Label>
-            <Input
+          <FieldRow key={field.id} label={field.label} htmlFor={`add-beneficiary-${field.id}`}>
+            <UnderlineInput
               id={`add-beneficiary-${field.id}`}
               inputMode={field.numeric ? "numeric" : undefined}
               value={field.value}
               onChange={(event) => field.set(event.target.value)}
             />
-          </div>
+          </FieldRow>
         ))}
-        <div className="space-y-1">
-          <Label htmlFor="add-beneficiary-amount">{t("amount")} (GYD)</Label>
-          <Input
+        <FieldRow label={`${t("amount")} (GYD)`} htmlFor="add-beneficiary-amount">
+          <UnderlineInput
             id="add-beneficiary-amount"
             inputMode="decimal"
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
           />
-          <p className="text-[11px] text-muted-foreground">{t("comboMinimumHint")}</p>
-        </div>
-
-        {error && <p className="text-xs text-destructive">{error}</p>}
-
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={onCancel} disabled={pending}>
-            {t("cancel")}
-          </Button>
-          <Button type="submit" size="sm" disabled={pending}>
-            {pending ? t("adding") : t("add")}
-          </Button>
-        </div>
+        </FieldRow>
+        <p className="text-[11px] text-muted-foreground">{t("comboMinimumHint")}</p>
+        {actions}
       </form>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-2 rounded-md border border-border bg-muted/40 p-2">
-      <div className="space-y-1">
-        <Label htmlFor="add-beneficiary-type">{t("beneficiaryTypeLabel")}</Label>
-        <select
-          id="add-beneficiary-type"
-          value={beneficiaryType}
-          onChange={(event) => setBeneficiaryType(event.target.value)}
-          className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
-        >
-          {ADDABLE_BENEFICIARY_TYPES.map((type) => (
-            <option key={type} value={type}>
-              {t(`beneficiaryType.${type}`)}
-            </option>
-          ))}
-        </select>
-      </div>
+    <form {...formProps}>
+      <FieldRow label={t("beneficiaryTypeLabel")} htmlFor="add-beneficiary-type">
+        <Select id="add-beneficiary-type" value={beneficiaryType} disabled={pending} onValueChange={(v) => setBeneficiaryType(v ?? "cuban_card")}>
+          <SelectTrigger className={UNDERLINE_SELECT_TRIGGER}>
+            {/* Base UI paints the raw value unless it is given the label. */}
+            <SelectValue>{(v) => t(`beneficiaryType.${(v as string) || beneficiaryType}`)}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {ADDABLE_BENEFICIARY_TYPES.map((type) => (
+              <SelectItem key={type} value={type}>
+                {t(`beneficiaryType.${type}`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FieldRow>
 
       {isZelle ? (
         <>
-          <div className="space-y-1">
-            <Label htmlFor="add-beneficiary-name">{t("name")}</Label>
-            <Input id="add-beneficiary-name" value={name} onChange={(event) => setName(event.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="add-beneficiary-zelle-account">{t("zelleAccount")}</Label>
-            <Input
+          <FieldRow label={t("name")} htmlFor="add-beneficiary-name">
+            <UnderlineInput id="add-beneficiary-name" value={name} onChange={(event) => setName(event.target.value)} />
+          </FieldRow>
+          <FieldRow label={t("zelleAccount")} htmlFor="add-beneficiary-zelle-account">
+            <UnderlineInput
               id="add-beneficiary-zelle-account"
               value={zelleAccount}
               onChange={(event) => setZelleAccount(event.target.value)}
             />
-          </div>
+          </FieldRow>
         </>
       ) : (
         <>
-          <div className="space-y-1">
-            <Label htmlFor="add-beneficiary-card-number">{t("card")}</Label>
-            <Input
+          <FieldRow label={t("card")} htmlFor="add-beneficiary-card-number">
+            <UnderlineInput
               id="add-beneficiary-card-number"
               inputMode="numeric"
               value={cardNumber}
               onChange={(event) => setCardNumber(event.target.value)}
             />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="add-beneficiary-phone">{t("phone")}</Label>
-            <Input
+          </FieldRow>
+          <FieldRow label={t("phone")} htmlFor="add-beneficiary-phone">
+            <UnderlineInput
               id="add-beneficiary-phone"
               inputMode="numeric"
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
             />
-          </div>
+          </FieldRow>
         </>
       )}
 
-      <div className="space-y-1">
-        <Label htmlFor="add-beneficiary-amount">{t("amount")}</Label>
-        <Input
-          id="add-beneficiary-amount"
-          inputMode="decimal"
-          value={amount}
-          onChange={(event) => setAmount(event.target.value)}
-        />
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor="add-beneficiary-currency">{t("currency")}</Label>
-        <Input
-          id="add-beneficiary-currency"
-          value={currency}
-          onChange={(event) => setCurrency(event.target.value)}
-        />
-      </div>
+      <FieldPair>
+        <PairCell label={t("amount")} htmlFor="add-beneficiary-amount">
+          <UnderlineInput
+            id="add-beneficiary-amount"
+            inputMode="decimal"
+            value={amount}
+            onChange={(event) => setAmount(event.target.value)}
+          />
+        </PairCell>
+        <PairCell label={t("currency")} htmlFor="add-beneficiary-currency">
+          <UnderlineInput
+            id="add-beneficiary-currency"
+            value={currency}
+            onChange={(event) => setCurrency(event.target.value)}
+          />
+        </PairCell>
+      </FieldPair>
 
-      {error && <p className="text-xs text-destructive">{error}</p>}
-
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={onCancel} disabled={pending}>
-          {t("cancel")}
-        </Button>
-        <Button type="submit" size="sm" disabled={pending}>
-          {pending ? t("adding") : t("add")}
-        </Button>
-      </div>
+      {actions}
     </form>
   );
 }

@@ -288,4 +288,19 @@ describe("OperationCorrectionForm", () => {
       await act(async () => root.unmount());
     });
   });
+
+  it("is an unboxed edit area with icon-only check and X, and Escape in a field cancels", async () => {
+    const { node, root, onCancel } = await render(operation());
+
+    const form = node.querySelector("form")!;
+    expect(form.className).not.toContain("bg-muted");
+    expect(form.className).not.toContain("rounded-md");
+    expect(node.querySelector("input")!.className).toContain("border-b");
+    expect(node.querySelector(`button[aria-label="${en.Inbox.operationsPanel.save}"]`)!.getAttribute("type")).toBe("submit");
+    expect(Array.from(node.querySelectorAll("button")).every((b) => (b.textContent ?? "").trim() === "")).toBe(true);
+
+    await act(async () => node.querySelector("input")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    await act(async () => root.unmount());
+  });
 });

@@ -108,3 +108,22 @@ h-8, text-sm, rule turns ring colour on focus + soft ring), `FieldRow` (11px mut
 
 ## Next step
 T3 staging deploy + owner's look.
+
+## Owner look on staging (2026-10-07, release eb35591)
+"Se ve mejor, pero las opciones a editar las veo redundantes en algunos casos: si selecciono Zelle o cualquier otro
+servicio, la moneda de destino ya la dice el servicio, y el método de entrega también me parece redundante; esos pasos
+por defecto deben llenarse cuando uno selecciona el servicio. Si tengo 26 mil GYD y cambio a otro servicio, el monto de
+destino debe recalcularse a la tasa del servicio seleccionado, si aplica. Veo opciones como cuban card, zelle, clásica,
+etc.: ahí falta el tropical, y en vez de cuban card usar CUP. Está un poco confuso."
+(Note: the first look failed because staging had no OPEN operation; one was created, 094eb6d6.)
+
+- [ ] T2b Simplify the operation correction form (pencil):
+  - Fields: Servicio (select); Deposit (GYD) and Destination amount side by side; Deposit method. Remove the
+    "destination currency" and "delivery method" inputs: the service sets both (crm_cambiar_servicio already does).
+  - The destination amount shows its currency as a read-only suffix (USD / CUP / SM ...) taken from the selected
+    service, and is recalculated when the service or the deposit changes, with that service's rate (CUP rate, single
+    USD rate, Zelle tiers, cash rate); a value typed by the person wins. Services without a destination quote
+    (recarga, saldo, combo, visa) hide the destination amount.
+  - Naming: the CUP rail reads "CUP" (not "cuban card" / "Tarjeta cubana") everywhere in the panel, en and es;
+    Tropical present in every service/recipient list of the panel.
+  - No raw internal values (cuban_card, efectivo_usd ...) visible anywhere in the panel.

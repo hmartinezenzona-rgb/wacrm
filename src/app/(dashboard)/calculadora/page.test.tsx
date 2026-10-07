@@ -198,6 +198,7 @@ const RATE_OPTIONS = [
   ["zelle_sell_gyd_2000", "Zelle desde 2,000 USD"],
   ["efectivo_usd_gyd", "Efectivo USD (GYD por dólar)"],
   ["recarga_costo_usdt", "Recarga: costo (USDT)"],
+  ["saldo_costo_usdt", "Costo saldo (USDT)"],
 ] as const;
 
 const FULL_RATES = {
@@ -211,6 +212,7 @@ const FULL_RATES = {
   zelleSellGyd2000: 245,
   efectivoUsdGyd: 290,
   recargaCostoUsdt: 4.5,
+  saldoCostoUsdt: 1.25,
   effectiveAt: "2026-09-10T00:00:00Z",
   setBy: null,
 };
@@ -234,7 +236,7 @@ function updateButton(node: HTMLElement) {
 }
 
 describe("calculator single-rate editor (Tarifas Globales)", () => {
-  it("the dropdown lists the nine rates in order with their Spanish labels", async () => {
+  it("the dropdown lists the ten rates in order with their Spanish labels", async () => {
     const { node, root } = await renderPage(createFetchMock({ ratesGet: { rates: FULL_RATES } }));
 
     const options = [...node.querySelectorAll("#tasaSeleccionada option")].map((o) => [
@@ -269,6 +271,7 @@ describe("calculator single-rate editor (Tarifas Globales)", () => {
       ["Zelle desde 2,000 USD", "245"],
       ["Efectivo USD (GYD por dólar)", "—"],
       ["Recarga: costo (USDT)", "4.5"],
+      ["Costo saldo (USDT)", "1.25"],
     ]);
     expect(node.querySelectorAll("#tasasActuales input").length).toBe(0);
     await act(async () => root.unmount());
@@ -277,7 +280,7 @@ describe("calculator single-rate editor (Tarifas Globales)", () => {
   it("no rates set yet -> every value is a dash and the field is empty, never a fake default", async () => {
     const { node, root } = await renderPage(createFetchMock({ ratesGet: { rates: null } }));
 
-    expect(listRows(node).map(([, value]) => value)).toEqual(Array(9).fill("—"));
+    expect(listRows(node).map(([, value]) => value)).toEqual(Array(10).fill("—"));
     expect(inputValue(node, "tasaValor")).toBe("");
     await act(async () => root.unmount());
   });

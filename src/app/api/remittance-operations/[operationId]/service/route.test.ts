@@ -115,7 +115,7 @@ describe("POST /api/remittance-operations/[operationId]/service", () => {
     expect((await POST(request({ servicio: "clasica" }), paramsFor(OPERATION_ID))).status).toBe(500);
   });
 
-  it.each(["cuban_card", "zelle", "clasica", "tropical", "efectivo_usd", "recarga", "combo", "visa"])(
+  it.each(["cuban_card", "zelle", "clasica", "tropical", "efectivo_usd", "recarga", "combo", "visa", "saldo"])(
     "changes the service to %s: the RPC gets p_servicio and the summary comes back",
     async (servicio) => {
       const { POST } = await import("./route");

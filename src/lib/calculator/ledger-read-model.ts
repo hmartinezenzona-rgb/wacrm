@@ -93,7 +93,8 @@ export function isComboCostPending(entry: PendingShape): boolean {
 
 /** Whether a pending line can be completed by supplying rates
  *  (`crm_resolve_pending_entry`). Never for COMBO or VISA: they have no rates, and the
- *  procedure would ask for USDT ones. */
+ *  procedure would ask for USDT ones. RECARGA and SALDO_MOVIL lines can: the procedure has their own branch (migration
+ *  223) that prices them with their USDT cost per unit instead of as a USD service. */
 export function canResolveWithRates(entry: PendingShape): boolean {
   return entry.status === "verified_pending" && entry.service !== COMBO_SERVICE && entry.service !== VISA_SERVICE;
 }
@@ -186,6 +187,8 @@ export interface RateVersionRow {
   efectivo_usd_gyd?: number | string | null;
   /** Cost of one recharge in USDT (migration 198). */
   recarga_costo_usdt?: number | string | null;
+  /** Cost of one package of mobile balance in USDT (migration 223). */
+  saldo_costo_usdt?: number | string | null;
   /** Zelle sale price of the tiers that start at 50, 1,000 and 2,000 USD (migration 216). */
   zelle_sell_gyd?: number | string | null;
   zelle_sell_gyd_1000?: number | string | null;
@@ -203,6 +206,7 @@ export interface CalculatorRates {
   usdtSellCup: number | null;
   efectivoUsdGyd: number | null;
   recargaCostoUsdt: number | null;
+  saldoCostoUsdt: number | null;
   zelleSellGyd: number | null;
   zelleSellGyd1000: number | null;
   zelleSellGyd2000: number | null;
@@ -225,6 +229,7 @@ export function mapRateVersion(row: RateVersionRow): CalculatorRates {
     usdtSellCup: toNullableNumber(row.usdt_sell_cup),
     efectivoUsdGyd: toNullableNumber(row.efectivo_usd_gyd ?? null),
     recargaCostoUsdt: toNullableNumber(row.recarga_costo_usdt ?? null),
+    saldoCostoUsdt: toNullableNumber(row.saldo_costo_usdt ?? null),
     zelleSellGyd: toNullableNumber(row.zelle_sell_gyd ?? null),
     zelleSellGyd1000: toNullableNumber(row.zelle_sell_gyd_1000 ?? null),
     zelleSellGyd2000: toNullableNumber(row.zelle_sell_gyd_2000 ?? null),

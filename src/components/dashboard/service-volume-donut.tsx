@@ -15,10 +15,10 @@ interface ServiceVolumeDonutProps {
 
 import { useTranslations } from 'next-intl'
 
-// `traduccion` shares --chart-5 with `mexico` (see queries.ts) — render it
-// at reduced opacity so the two remain visually distinguishable both in
-// the ring and in the legend swatch.
-const REDUCED_OPACITY_SERVICE_TYPES = new Set(['traduccion'])
+// `traduccion` shares --chart-5 with `mexico` and `saldo` shares --chart-3 with
+// `recarga` (see queries.ts) — render them at reduced opacity so each pair
+// remains visually distinguishable both in the ring and in the legend swatch.
+const REDUCED_OPACITY_SERVICE_TYPES = new Set(['traduccion', 'saldo'])
 
 export function ServiceVolumeDonut({ data, loading, currency }: ServiceVolumeDonutProps) {
   const t = useTranslations('Dashboard.serviceVolumeDonut')

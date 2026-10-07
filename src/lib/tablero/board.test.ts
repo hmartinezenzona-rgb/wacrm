@@ -4,6 +4,7 @@ import {
   ageParts,
   chatHref,
   groupBoard,
+  SERVICE_FILTERS,
   showMissingBeneficiaries,
   type BoardOperation,
 } from "./board";
@@ -52,6 +53,12 @@ describe("groupBoard", () => {
     const cols = groupBoard([op({ status: "completed" })], "all");
     expect(cols.find((c) => c.id === "completed")!.count).toBe(1);
     expect(cols.filter((c) => c.id !== "completed").every((c) => c.count === 0)).toBe(true);
+  });
+
+  it("filters a mobile balance by its own service", () => {
+    const ops = [op({ operationId: "r" }), op({ operationId: "s", serviceType: "saldo" })];
+    expect(SERVICE_FILTERS).toContain("saldo");
+    expect(groupBoard(ops, "saldo").flatMap((c) => c.items.map((i) => i.operationId))).toEqual(["s"]);
   });
 
   it("ignores statuses the board does not show", () => {

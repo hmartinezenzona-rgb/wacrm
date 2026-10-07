@@ -72,6 +72,7 @@ const SERVICIOS = [
   "combo",
   "recarga",
   "visa",
+  "saldo",
   "traduccion",
   "mexico",
 ] as const;
@@ -81,6 +82,7 @@ const SERVICIO_LABEL: Record<string, string> = {
   combo: "Combo",
   recarga: "Recarga",
   visa: "Visa",
+  saldo: "Saldo móvil",
   traduccion: "Traducción",
   mexico: "México",
 };

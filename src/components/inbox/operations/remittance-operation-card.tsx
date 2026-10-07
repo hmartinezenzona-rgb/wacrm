@@ -2,11 +2,12 @@
 
 import { useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowRightLeft, AtSign, Banknote, ChevronDown, CreditCard, IdCard, Lock, MapPin, Pencil, Phone, ShoppingBasket, Smartphone, Stamp, Trash2, UserPlus, UserRound, Users } from "lucide-react";
+import { ArrowRightLeft, AtSign, Banknote, ChevronDown, Coins, CreditCard, IdCard, Lock, MapPin, Pencil, Phone, ShoppingBasket, Smartphone, Stamp, Trash2, UserPlus, UserRound, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { canForceVerify, type AccountRole } from "@/lib/auth/roles";
 import { corregirBeneficiario } from "@/lib/remittance-operations/commands";
 import { effectiveStatus } from "@/lib/remittance-operations/effective-status";
+import { SALDO_UNIT_CUP, saldoPackages } from "@/lib/remittance-operations/services";
 import type {
   ConversationQuoteRead,
   OperationDeliveryMode,
@@ -147,6 +148,11 @@ function destinationLabel(
   // A visa shows how many extensions from the start (owner test 2026-10-04): the count used to appear only once the
   // deposit was verified.
   if (isVisa(operation)) return `${t("beneficiaryType.visa")} · ${visaCountLabel(operation, t)}`;
+  // A mobile balance names its packages (and the saldo they carry) once the deposit is a whole number of them.
+  if (isSaldo(operation)) {
+    const label = saldoSummaryLabel(operation, t);
+    return label ? `${t("beneficiaryType.saldo")} · ${label}` : t("beneficiaryType.saldo");
+  }
 
   const units = new Set(
     beneficiaries
@@ -210,6 +216,26 @@ function isVisa(operation: RemittanceOperationRead): boolean {
   return operation.serviceType === "visa";
 }
 
+function isSaldo(operation: RemittanceOperationRead): boolean {
+  return operation.serviceType === "saldo";
+}
+
+/** A recharge and a mobile balance take phone-only recipients, never a card or an amount per recipient. */
+function isPhoneOnly(operation: RemittanceOperationRead): boolean {
+  return isRecharge(operation) || isSaldo(operation);
+}
+
+/** "N package(s) · M CUP": the packages in the deposit (saldoPackages) and the saldo they carry (SALDO_UNIT_CUP each).
+ *  `null` when the deposit is not a whole number of packages: nothing is rounded, the line waits for a person. */
+function saldoSummaryLabel(
+  operation: RemittanceOperationRead,
+  t: (key: string, params?: Record<string, unknown>) => string,
+): string | null {
+  const count = saldoPackages(operation.quotedSourceAmount);
+  if (count === null) return null;
+  return t(count === 1 ? "saldoCountOne" : "saldoCountMany", { count, saldo: (count * SALDO_UNIT_CUP).toLocaleString("en-US") });
+}
+
 /** Price of one visa extension in GYD (migration 213): the operation's amount is this times the people. */
 const VISA_PRICE_GYD = 5000;
 
@@ -231,6 +257,12 @@ function computeSummaryAmount(
     const count = operation.beneficiaries.filter((b) => b.beneficiaryType === "recarga").length;
     if (count === 0) return null;
     return { kind: "amount", display: t(count === 1 ? "rechargeCountOne" : "rechargeCountMany", { count }) };
+  }
+
+  // A mobile balance shows its packages and the saldo they carry; its one recipient is a phone.
+  if (isSaldo(operation)) {
+    const label = saldoSummaryLabel(operation, t);
+    return label ? { kind: "amount", display: label } : null;
   }
 
   // A combo is counted too: each recipient's own GYD amount shows on its row.
@@ -435,6 +467,7 @@ export function RemittanceOperationCard({
                   {isRecharge(operation) && <Smartphone className="size-3.5 shrink-0" aria-hidden="true" />}
                   {isCombo(operation) && <ShoppingBasket className="size-3.5 shrink-0" aria-hidden="true" />}
                   {isVisa(operation) && <Stamp className="size-3.5 shrink-0" aria-hidden="true" />}
+                  {isSaldo(operation) && <Coins className="size-3.5 shrink-0" aria-hidden="true" />}
                   {destLabel}
                   {destLocked && lock}
                 </span>
@@ -493,7 +526,7 @@ export function RemittanceOperationCard({
         )}
       </div>
 
-      {quote && !operation.isHistory && !isRecharge(operation) && !isCombo(operation) && !isVisa(operation) && (
+      {quote && !operation.isHistory && !isRecharge(operation) && !isSaldo(operation) && !isCombo(operation) && !isVisa(operation) && (
         <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">
           {quote.destinationAmount !== null && quote.destinationCurrency !== null
             ? t("quotedTo", {
@@ -551,7 +584,7 @@ export function RemittanceOperationCard({
                   operation.beneficiaries[0],
                   openForm?.kind === "beneficiary" && openForm.beneficiaryId === operation.beneficiaries[0]!.id,
                 )}
-              {editable && openForm?.kind !== "addBeneficiary" && (
+              {editable && openForm?.kind !== "addBeneficiary" && !(isSaldo(operation) && operation.beneficiaries.length >= 1) && (
                 <Button
                   type="button"
                   variant="ghost"
@@ -614,14 +647,14 @@ export function RemittanceOperationCard({
                         <BeneficiaryEditFields
                           beneficiary={beneficiary}
                           amount={amount}
-                          showAmountField={operation.beneficiaries.length >= 2 && amount !== null && !isRecharge(operation)}
+                          showAmountField={operation.beneficiaries.length >= 2 && amount !== null && !isPhoneOnly(operation)}
                           t={t as (key: string) => string}
                           onCancel={() => setOpenForm(null)}
                           onSaved={handleChanged}
                         />
                       ) : (
                         <div className="space-y-1.5">
-                          {(isComboRecipient || operation.beneficiaries.length >= 2) && amount !== null && !isRecharge(operation) && (
+                          {(isComboRecipient || operation.beneficiaries.length >= 2) && amount !== null && !isPhoneOnly(operation) && (
                             <div className="flex items-center gap-2 text-sm leading-5">
                               <span className="flex w-4 shrink-0 items-center justify-center">
                                 <Banknote className="size-3.5 text-muted-foreground" aria-hidden="true" />

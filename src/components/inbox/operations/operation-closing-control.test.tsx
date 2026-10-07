@@ -147,9 +147,9 @@ describe("OperationClosingControl", () => {
 
   describe("service picker (no beneficiary and no delivery method)", () => {
     const m = en.Inbox.operationsPanel.closing.method;
-    const labels = [m.cuban_card, m.zelle, m.clasica, m.tropical, m.efectivo_usd, m.recarga, m.combo, m.visa];
+    const labels = [m.cuban_card, m.zelle, m.clasica, m.tropical, m.efectivo_usd, m.recarga, m.combo, m.visa, m.saldo];
 
-    it("shows eight single-select icon buttons and keeps the check disabled until one is picked", async () => {
+    it("shows nine single-select icon buttons and keeps the check disabled until one is picked", async () => {
       const { node, root } = await render("close", vi.fn(), vi.fn(), true);
 
       for (const label of labels) {
@@ -221,6 +221,20 @@ describe("OperationClosingControl", () => {
       await act(async () => root.unmount());
     });
 
+    it("Mobile balance confirms with deliveryMethod saldo, with an icon of its own", async () => {
+      cerrarOperacionManual.mockResolvedValue({ ok: true, newStatus: "completed", completedAt: null });
+      const { node, root } = await render("close", vi.fn(), vi.fn(), true);
+
+      expect(m.saldo).toBe("Mobile balance");
+      expect(buttonByLabel(node, m.saldo).querySelector("svg.lucide-coins")).not.toBeNull();
+      expect(buttonByLabel(node, m.recarga).querySelector("svg.lucide-coins")).toBeNull();
+      await act(async () => buttonByLabel(node, m.saldo).click());
+      await act(async () => buttonByLabel(node, t.closeConfirm).click());
+
+      expect(cerrarOperacionManual).toHaveBeenCalledWith("op-1", false, "saldo");
+      await act(async () => root.unmount());
+    });
+
     it("shows no icons for delete, nor for close when a beneficiary or method exists", async () => {
       for (const [kind, needs] of [["delete", true], ["close", false], ["close", undefined]] as const) {
         const { node, root } = await render(kind, vi.fn(), vi.fn(), needs);
@@ -233,7 +247,7 @@ describe("OperationClosingControl", () => {
 });
 
 describe("OperationClosingControl service icons are told apart", () => {
-  it("draws a different icon for each of the eight services", async () => {
+  it("draws a different icon for each of the nine services", async () => {
     const { node, root } = await render("close", vi.fn(), vi.fn(), true);
     const methods = t.method as Record<string, string>;
     const icons = Object.values(methods).map((label) => {
@@ -241,8 +255,8 @@ describe("OperationClosingControl service icons are told apart", () => {
       return svg?.getAttribute("class") ?? "";
     });
 
-    expect(icons).toHaveLength(8);
-    expect(new Set(icons).size).toBe(8);
+    expect(icons).toHaveLength(9);
+    expect(new Set(icons).size).toBe(9);
     await act(async () => root.unmount());
   });
 });

@@ -1,7 +1,7 @@
 // ============================================================
 // POST /api/remittance-operations/{operationId}/service
 //
-// Changes an open operation's service (Tarjeta CUP, Zelle, Clásica, Tropical, Efectivo USD, Recarga, Combo or Visa)
+// Changes an open operation's service (Tarjeta CUP, Zelle, Clásica, Tropical, Efectivo USD, Recarga, Combo, Visa or Saldo móvil)
 // via crm_cambiar_servicio (migration 222). The RPC recalculates the quote, retires the recipients that do not fit
 // the new service and messages nobody. Uses the caller's own SESSION Supabase client (never service role) so the RPC
 // sees a real auth.uid() for its authorization and audit trail, same as the sibling routes. Gated behind the
@@ -44,7 +44,7 @@ export async function POST(
     const servicio = (body as { servicio?: unknown } | null)?.servicio;
     if (!isOperationService(servicio)) {
       return NextResponse.json(
-        { error: "servicio must be one of cuban_card, zelle, clasica, tropical, efectivo_usd, recarga, combo, visa" },
+        { error: "servicio must be one of cuban_card, zelle, clasica, tropical, efectivo_usd, recarga, combo, visa, saldo" },
         { status: 400 },
       );
     }

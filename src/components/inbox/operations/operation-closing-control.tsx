@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Banknote, Check, Landmark, ShoppingBasket, Smartphone, Stamp, TreePalm, X, type LucideIcon } from "lucide-react";
+import { Banknote, Check, Coins, Landmark, ShoppingBasket, Smartphone, Stamp, TreePalm, X, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cerrarOperacionManual, eliminarOperacion } from "@/lib/remittance-operations/commands";
 import { NotifyToggle } from "./notify-toggle";
 import { MethodIcon } from "./operation-icons";
 
-/** Clásica, Tropical, cash, recharge, combo and visa share one "cash" kind in MethodIcon (the cards show them alike); the service picker
+/** Clásica, Tropical, cash, recharge, mobile balance, combo and visa share one "cash" kind in MethodIcon (the cards show them alike); the service picker
  *  must tell them apart, so they get their own icons here. CUP card and Zelle keep the cards' icons. */
 export const PICKER_ICON: Partial<Record<string, { Icon: LucideIcon; className: string }>> = {
   clasica: { Icon: Landmark, className: "text-indigo-600 dark:text-indigo-300" },
@@ -17,9 +17,10 @@ export const PICKER_ICON: Partial<Record<string, { Icon: LucideIcon; className: 
   recarga: { Icon: Smartphone, className: "text-rose-600 dark:text-rose-300" },
   combo: { Icon: ShoppingBasket, className: "text-sky-600 dark:text-sky-300" },
   visa: { Icon: Stamp, className: "text-violet-600 dark:text-violet-300" },
+  saldo: { Icon: Coins, className: "text-teal-600 dark:text-teal-300" },
 };
 
-const SERVICES = ["cuban_card", "zelle", "clasica", "tropical", "efectivo_usd", "recarga", "combo", "visa"] as const;
+const SERVICES = ["cuban_card", "zelle", "clasica", "tropical", "efectivo_usd", "recarga", "combo", "visa", "saldo"] as const;
 
 interface OperationClosingControlProps {
   operationId: string;

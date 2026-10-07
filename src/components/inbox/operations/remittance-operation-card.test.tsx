@@ -714,6 +714,82 @@ describe("RemittanceOperationCard recharge", () => {
   });
 });
 
+describe("RemittanceOperationCard mobile balance (saldo)", () => {
+  const saldoOp = (overrides: Partial<RemittanceOperationRead> = {}) =>
+    operation({
+      serviceType: "saldo",
+      status: "ready_to_transfer",
+      quotedSourceAmount: 5000,
+      quotedDestinationAmount: 99,
+      deliveryMethod: null,
+      beneficiaries: [beneficiary({ id: "s1", beneficiaryType: "recarga", phone: "52345678", position: 1 })],
+      ...overrides,
+    });
+  const quote: ConversationQuoteRead = { gyd: 5000, destinationAmount: 4000, destinationCurrency: "CUP", quotedAt: "2026-10-03T00:00:00Z" };
+
+  it("shows the Mobile balance label with its own icon, the package count and the saldo (packages x 360)", async () => {
+    const { node, root } = await render(saldoOp(), { quote });
+
+    const header = node.querySelector("article button[aria-expanded]")!.textContent!;
+    expect(header).toContain("5,000 GYD");
+    expect(header).toContain("Mobile balance");
+    expect(header).toContain("5 packages · 1,800 CUP");
+    expect(node.querySelector("article svg.lucide-coins")).not.toBeNull();
+    expect(node.querySelector("article svg.lucide-smartphone")).toBeNull();
+    expect(node.querySelector('[data-testid="deposit-review-stub"]')!.getAttribute("data-summary-amount")).toContain("5 packages · 1,800 CUP");
+    await act(async () => root.unmount());
+  });
+
+  it("counts a single package in the singular", async () => {
+    const { node, root } = await render(saldoOp({ quotedSourceAmount: 1000 }), { quote });
+
+    expect(node.querySelector('[data-testid="deposit-review-stub"]')!.getAttribute("data-summary-amount")).toContain("1 package · 360 CUP");
+    await act(async () => root.unmount());
+  });
+
+  it("names no count when the deposit is not a whole number of packages (no rounding)", async () => {
+    const { node, root } = await render(saldoOp({ quotedSourceAmount: 5500 }), { quote });
+
+    const header = node.querySelector("article button[aria-expanded]")!.textContent!;
+    expect(header).toContain("Mobile balance");
+    expect(header).not.toContain("package");
+    expect(node.querySelector('[data-testid="deposit-review-stub"]')!.getAttribute("data-summary-amount")).toBe("null");
+    await act(async () => root.unmount());
+  });
+
+  it("hides the quote line and shows its one phone as a copy chip, no card and no amount", async () => {
+    const { node, root } = await render(saldoOp(), { quote });
+
+    expect(node.textContent).not.toContain("Quoted");
+    expect(node.textContent).not.toContain("99");
+    expect(node.textContent).toContain("52345678");
+    expect(node.querySelectorAll('button[aria-label="Copy Phone"]')).toHaveLength(1);
+    expect(button(node, "Copy Card")).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("takes a single number: the add control is offered only while it has none, and gets the service type", async () => {
+    const withNumber = await render(saldoOp());
+    expect(button(withNumber.node, "Add beneficiary")).toBeNull();
+    await act(async () => withNumber.root.unmount());
+    document.body.replaceChildren();
+
+    const empty = await render(saldoOp({ beneficiaries: [], beneficiariesComplete: false }));
+    await act(async () => (button(empty.node, "Add beneficiary") as HTMLButtonElement).click());
+    expect(empty.node.querySelector('[data-testid="add-beneficiary-stub"]')!.getAttribute("data-service-type")).toBe("saldo");
+    await act(async () => empty.root.unmount());
+  });
+
+  it("editing its number shows only the phone field", async () => {
+    const { node, root } = await render(saldoOp());
+    await act(async () => (node.querySelectorAll('button[aria-label="Edit"]')[0] as HTMLButtonElement).click());
+
+    expect(node.querySelector('input[aria-label="Phone"]')).not.toBeNull();
+    expect(node.querySelector('input[aria-label="Card"]')).toBeNull();
+    await act(async () => root.unmount());
+  });
+});
+
 describe("RemittanceOperationCard", () => {
   it("renders the source amount and the status label", async () => {
     const { node, root } = await render(

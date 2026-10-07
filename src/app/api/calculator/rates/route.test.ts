@@ -59,6 +59,7 @@ const RATE_ROW = {
   usdt_sell_cup: "1.05",
   efectivo_usd_gyd: "290",
   recarga_costo_usdt: "4.5",
+  saldo_costo_usdt: "1.25",
   zelle_sell_gyd: "260",
   zelle_sell_gyd_1000: "250",
   zelle_sell_gyd_2000: "245",
@@ -74,6 +75,7 @@ const MAPPED_RATES = {
   usdtSellCup: 1.05,
   efectivoUsdGyd: 290,
   recargaCostoUsdt: 4.5,
+  saldoCostoUsdt: 1.25,
   zelleSellGyd: 260,
   zelleSellGyd1000: 250,
   zelleSellGyd2000: 245,
@@ -295,6 +297,22 @@ describe("POST /api/calculator/rates", () => {
       p_rates: { recarga_costo_usdt: 4.5 },
       p_expected_version_id: null,
     });
+  });
+
+  it("accepts and forwards saldo_costo_usdt to the RPC (migration 223)", async () => {
+    const { POST } = await import("./route");
+    const callCtx = ctx({ data: null, error: null }, { data: RATE_ROW, error: null });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await POST(jsonRequest({ rates: { saldo_costo_usdt: 1.25 } }));
+
+    expect(response.status).toBe(200);
+    expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_set_calculator_rates", {
+      p_account_id: "account-a",
+      p_rates: { saldo_costo_usdt: 1.25 },
+      p_expected_version_id: null,
+    });
+    expect((await response.json()).rates.saldoCostoUsdt).toBe(1.25);
   });
 
   it("accepts and forwards the three Zelle tier prices to the RPC and returns them (migration 216)", async () => {

@@ -9,7 +9,7 @@ import { agregarBeneficiario } from "@/lib/remittance-operations/commands";
 
 interface BeneficiaryAddControlProps {
   operationId: string;
-  /** `recarga` turns the form into a single Cuban-mobile-number field; `combo`
+  /** `recarga` and `saldo` turn the form into a single Cuban-mobile-number field; `combo`
    *  into a recipient form (name, phone, address, reference, contact phone, amount). */
   serviceType?: string;
   onDone: () => void;
@@ -51,7 +51,8 @@ export function BeneficiaryAddControl({ operationId, serviceType, onDone, onCanc
   const [error, setError] = useState<string | null>(null);
 
   const isZelle = beneficiaryType === "zelle";
-  const isRecharge = serviceType === "recarga";
+  // A mobile balance takes its one number through the same phone-only form as a recharge (migration 223).
+  const isRecharge = serviceType === "recarga" || serviceType === "saldo";
   const isCombo = serviceType === "combo";
 
   async function handleSubmit(event: FormEvent) {

@@ -144,6 +144,7 @@
         "combo": "Combo",
         "recarga": "Top-up",
         "visa": "Visa",
+        "saldo": "Mobile balance",
         "traduccion": "Translation",
         "mexico": "Mexico"
       }
@@ -424,7 +425,8 @@
         "multiple_distribution": "Multiple distribution",
         "recarga": "Recharge",
         "combo": "Combo",
-        "visa": "Visa extension"
+        "visa": "Visa extension",
+        "saldo": "Mobile balance"
       },
       "rechargeCountOne": "{count} recharge",
       "rechargeCountMany": "{count} recharges",
@@ -432,6 +434,8 @@
       "comboCountMany": "{count} combos",
       "visaCountOne": "{count} extension",
       "visaCountMany": "{count} extensions",
+      "saldoCountOne": "{count} package · {saldo} CUP",
+      "saldoCountMany": "{count} packages · {saldo} CUP",
       "comboMinimumHint": "Minimum 25,000 GYD per combo",
       "comboProvinceHint": "Include the Cuban province in the address",
       "serviceChange": {
@@ -504,7 +508,8 @@
           "efectivo_usd": "Cash in USD",
           "recarga": "Recharge",
           "combo": "Combo",
-          "visa": "Visa extension"
+          "visa": "Visa extension",
+          "saldo": "Mobile balance"
         }
       },
       "completeTransfer": {
@@ -2387,7 +2392,8 @@
       "remesa": "Remittance",
       "recarga": "Recharge",
       "combo": "Combo",
-      "visa": "Visa"
+      "visa": "Visa",
+      "saldo": "Mobile balance"
     },
     "columns": {
       "requested": "Requested",
@@ -2400,7 +2406,8 @@
       "remesa": "Remittance",
       "recarga": "Recharge",
       "combo": "Combo",
-      "visa": "Visa extension"
+      "visa": "Visa extension",
+      "saldo": "Mobile balance"
     },
     "unknownContact": "Unknown contact",
     "missingBeneficiaries": "Recipient details missing",

@@ -144,6 +144,7 @@
         "combo": "Combo",
         "recarga": "Recarga",
         "visa": "Visa",
+        "saldo": "Saldo móvil",
         "traduccion": "Traducción",
         "mexico": "México"
       }
@@ -424,7 +425,8 @@
         "multiple_distribution": "Distribución múltiple",
         "recarga": "Recarga",
         "combo": "Combo",
-        "visa": "Extensión de visa"
+        "visa": "Extensión de visa",
+        "saldo": "Saldo móvil"
       },
       "rechargeCountOne": "{count} recarga",
       "rechargeCountMany": "{count} recargas",
@@ -432,6 +434,8 @@
       "comboCountMany": "{count} combos",
       "visaCountOne": "{count} extensión",
       "visaCountMany": "{count} extensiones",
+      "saldoCountOne": "{count} paquete · {saldo} CUP",
+      "saldoCountMany": "{count} paquetes · {saldo} CUP",
       "comboMinimumHint": "Mínimo 25,000 GYD por combo",
       "comboProvinceHint": "Incluye la provincia de Cuba en la dirección",
       "serviceChange": {
@@ -504,7 +508,8 @@
           "efectivo_usd": "Efectivo en USD",
           "recarga": "Recarga",
           "combo": "Combo",
-          "visa": "Extensión de visa"
+          "visa": "Extensión de visa",
+          "saldo": "Saldo móvil"
         }
       },
       "completeTransfer": {
@@ -2387,7 +2392,8 @@
       "remesa": "Remesa",
       "recarga": "Recarga",
       "combo": "Combo",
-      "visa": "Visa"
+      "visa": "Visa",
+      "saldo": "Saldo móvil"
     },
     "columns": {
       "requested": "Solicitadas",
@@ -2400,7 +2406,8 @@
       "remesa": "Remesa",
       "recarga": "Recarga",
       "combo": "Combo",
-      "visa": "Extensión de visa"
+      "visa": "Extensión de visa",
+      "saldo": "Saldo móvil"
     },
     "unknownContact": "Contacto desconocido",
     "missingBeneficiaries": "Faltan datos del beneficiario",

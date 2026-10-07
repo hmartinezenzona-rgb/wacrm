@@ -26,7 +26,7 @@ const COLUMN_TONE: Record<BoardColumnId, string> = {
   completed: "bg-primary",
 };
 
-const KNOWN_SERVICES = ["remesa", "recarga", "combo", "visa"] as const;
+const KNOWN_SERVICES = ["remesa", "recarga", "combo", "visa", "saldo"] as const;
 
 function ServiceBadge({ op, label }: { op: BoardOperation; label: string }) {
   // A remittance shows its delivery method icon (as the chat panel does); the

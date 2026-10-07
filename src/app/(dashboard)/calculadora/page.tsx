@@ -58,7 +58,8 @@ function renderOperationGroups(operations: WebCalculatorParsedLine[]) {
 
 type RateKey =
   | "cup_global_rate" | "usdt_buy_gyd" | "usdt_sell_gyd" | "usdt_sell_cup" | "zelle_sell_gyd"
-  | "zelle_sell_gyd_1000" | "zelle_sell_gyd_2000" | "efectivo_usd_gyd" | "recarga_costo_usdt";
+  | "zelle_sell_gyd_1000" | "zelle_sell_gyd_2000" | "efectivo_usd_gyd" | "recarga_costo_usdt"
+  | "saldo_costo_usdt";
 
 // Every global rate, in the order shown in the dropdown and the current-rates list.
 const RATE_FIELDS: ReadonlyArray<{ key: RateKey; label: string; field: keyof CalculatorRates }> = [
@@ -71,6 +72,7 @@ const RATE_FIELDS: ReadonlyArray<{ key: RateKey; label: string; field: keyof Cal
   { key: "zelle_sell_gyd_2000", label: "Zelle desde 2,000 USD", field: "zelleSellGyd2000" },
   { key: "efectivo_usd_gyd", label: "Efectivo USD (GYD por dólar)", field: "efectivoUsdGyd" },
   { key: "recarga_costo_usdt", label: "Recarga: costo (USDT)", field: "recargaCostoUsdt" },
+  { key: "saldo_costo_usdt", label: "Costo saldo (USDT)", field: "saldoCostoUsdt" },
 ];
 
 function rateValueOf(rates: CalculatorRates | null, key: RateKey): number | null {

@@ -142,7 +142,7 @@ export async function loadConversationsSeries(
 
 // --- 3b. Service volume donut -------------------------------------------
 
-// The 6 real `service_type` values (migration 046's CHECK constraint) mapped
+// The real `service_type` values (migration 046's CHECK constraint, `saldo` since 223) mapped
 // onto the design system's 5 theme-aware categorical tokens. `mexico` and
 // `traduccion` are the two most tangential to the core remittance business
 // (a corridor variant and a translation add-on, respectively), so they
@@ -153,6 +153,8 @@ const SERVICE_TYPE_COLORS: Record<string, string> = {
   combo: 'var(--chart-2)',
   recarga: 'var(--chart-3)',
   visa: 'var(--chart-4)',
+  // `saldo` is a recarga sibling: it shares --chart-3 and the component renders it at reduced opacity.
+  saldo: 'var(--chart-3)',
   mexico: 'var(--chart-5)',
   traduccion: 'var(--chart-5)',
 }

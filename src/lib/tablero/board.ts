@@ -30,7 +30,7 @@ export const BOARD_COLUMNS: ReadonlyArray<{ id: BoardColumnId; statuses: Readonl
   { id: "incident", statuses: ["incident"] },
 ];
 
-export const SERVICE_FILTERS = ["all", "remesa", "recarga", "combo", "visa"] as const;
+export const SERVICE_FILTERS = ["all", "remesa", "recarga", "combo", "visa", "saldo"] as const;
 export type ServiceFilter = (typeof SERVICE_FILTERS)[number];
 
 export interface BoardColumn {

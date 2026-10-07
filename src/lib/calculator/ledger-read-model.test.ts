@@ -11,6 +11,7 @@ import {
   ledgerTotals,
   mapLedgerEntry,
   mapRateVersion,
+  pendingReason,
   type LedgerEntry,
   type LedgerEntryRow,
   type RateVersionRow,
@@ -226,6 +227,7 @@ describe("mapRateVersion", () => {
       usdt_sell_cup: 1.05,
       efectivo_usd_gyd: 290,
       recarga_costo_usdt: "4.5",
+      saldo_costo_usdt: "1.25",
       set_by: "user-1",
       effective_at: "2026-09-10T08:00:00Z",
       ...overrides,
@@ -243,6 +245,7 @@ describe("mapRateVersion", () => {
       usdtSellCup: 1.05,
       efectivoUsdGyd: 290,
       recargaCostoUsdt: 4.5,
+      saldoCostoUsdt: 1.25,
       zelleSellGyd: null,
       zelleSellGyd1000: null,
       zelleSellGyd2000: null,
@@ -267,6 +270,7 @@ describe("mapRateVersion", () => {
         usdt_sell_cup: null,
         efectivo_usd_gyd: null,
         recarga_costo_usdt: null,
+        saldo_costo_usdt: null,
       }),
     );
 
@@ -276,6 +280,7 @@ describe("mapRateVersion", () => {
     expect(rates.usdtSellCup).toBeNull();
     expect(rates.efectivoUsdGyd).toBeNull();
     expect(rates.recargaCostoUsdt).toBeNull();
+    expect(rates.saldoCostoUsdt).toBeNull();
   });
 
   it("passes through a null set_by (system-set rate)", () => {
@@ -333,6 +338,17 @@ describe("COMBO ledger lines (migration 209)", () => {
     expect(isComboCostPending(entry)).toBe(true);
     expect(COMBO_COST_PENDING_MESSAGE).toBe("Falta el costo del combo: anótalo en el panel de la conversación");
     expect(ledgerTotals([entry]).count).toBe(0);
+  });
+
+  it("a pending RECARGA or SALDO_MOVIL line can be resolved: the procedure prices them with their own cost (migration 223)", () => {
+    const saldo = mapLedgerEntry(row({ service: "SALDO_MOVIL", status: "verified_pending", missing_inputs: ["saldoCostoUsdt"] }));
+    const recarga = mapLedgerEntry(row({ service: "RECARGA", status: "verified_pending", missing_inputs: ["recargaCostoUsdt"] }));
+    const saldoDone = mapLedgerEntry(row({ service: "SALDO_MOVIL", status: "completed" }));
+
+    expect(canResolveWithRates(saldo)).toBe(true);
+    expect(canResolveWithRates(recarga)).toBe(true);
+    expect(canResolveWithRates(saldoDone)).toBe(false);
+    expect(pendingReason(saldo)).toBe("saldoCostoUsdt");
   });
 
   it("rates resolution is never offered for a COMBO line, only for a pending line of another service", () => {

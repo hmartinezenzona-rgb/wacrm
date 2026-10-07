@@ -172,6 +172,25 @@ describe("POST /api/calculator/entries/[entryId]/resolve", () => {
     });
   });
 
+  it.each(["recarga_costo_usdt", "saldo_costo_usdt"])(
+    "accepts the %s key (a pending RECARGA or SALDO_MOVIL line) and forwards it to the RPC",
+    async (key) => {
+      const { POST } = await import("./route");
+      const callCtx = ctx({ data: RESOLVED_ROW, error: null });
+      requireRole.mockResolvedValueOnce(callCtx);
+      const rates = { [key]: 1.25 };
+
+      const response = await POST(request({ rates, reason: VALID_REASON }), paramsFor(ENTRY_ID));
+
+      expect(response.status).toBe(200);
+      expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_resolve_pending_entry", {
+        p_entry_id: ENTRY_ID,
+        p_rates: rates,
+        p_reason: VALID_REASON,
+      });
+    },
+  );
+
   it("RPC entry not found (P0002) -> 404", async () => {
     const { POST } = await import("./route");
     requireRole.mockResolvedValueOnce(

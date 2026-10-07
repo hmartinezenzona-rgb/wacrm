@@ -34,7 +34,7 @@ function op(over: Partial<BoardOperation> = {}): BoardOperation {
   };
 }
 
-async function render(operations: BoardOperation[], filter: "all" | "remesa" | "recarga" | "combo" | "visa" = "all", onFilterChange = vi.fn()) {
+async function render(operations: BoardOperation[], filter: "all" | "remesa" | "recarga" | "combo" | "visa" | "saldo" = "all", onFilterChange = vi.fn()) {
   const { OperationsBoard } = await import("./operations-board");
   const node = document.createElement("div");
   document.body.appendChild(node);
@@ -99,6 +99,17 @@ describe("OperationsBoard", () => {
     expect(text[0]).toContain(t.services.recarga);
     expect(text[1]).toContain(t.services.combo);
     expect(text[2]).toContain(t.services.visa);
+  });
+
+  it("labels a mobile balance with its own icon and offers its filter", async () => {
+    const { node, onFilterChange } = await render([op({ operationId: "s", serviceType: "saldo", beneficiariesComplete: false })]);
+    const card = node.querySelector("a")!;
+    expect(card.textContent).toContain(t.services.saldo);
+    expect(card.textContent).toContain(t.missingBeneficiaries);
+    expect(card.querySelector("svg.lucide-coins")).not.toBeNull();
+    const saldo = Array.from(node.querySelectorAll("button")).find((b) => b.textContent === t.filters.saldo)!;
+    await act(async () => saldo.click());
+    expect(onFilterChange).toHaveBeenCalledWith("saldo");
   });
 
   it("filters by service and notifies the change", async () => {

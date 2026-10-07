@@ -53,7 +53,7 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
 ## Tasks
 - [x] T1 DB: RED assertion saldo-model.sql; migration 223 + rollback on staging; GREEN; regressions (recarga-model,
   combo-model, visa-model, change-operation-service, calculator-recarga, resolve-pending, operations-board, corrections).
-- [ ] T2 App: lists, selector, card, filters, rates UI, i18n; vitest RED then GREEN; typecheck, lint, full suite.
+- [x] T2 App: lists, selector, card, filters, rates UI, i18n; vitest RED then GREEN; typecheck, lint, full suite.
 - [ ] T3 Staging deploy + owner's look.
 - [ ] T4 Production with the owner's go-ahead; then Yilian's operation.
 - [ ] T5 (later, separate go-ahead) Bot: recognise, quote and open saldo; notice text and Meta template.
@@ -71,6 +71,16 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
     operations-board, corrections, clasica-card-from-delivery-method, destination-amount, zelle-tiered-rate,
     reparto-guards, rate-versions. Leftovers 0 (contacts, saldo operations/lines, saldo cost versions).
   - Pre-223 md5 (pg_get_functiondef, staging) are in ROLLBACK-223's header.
+- 2026-10-06 T2 done (app only, nothing deployed).
+  - RED: with the new tests and the source reverted, vitest showed 24 failed / 2000 passed (services, card, picker,
+    add control, board, rates API, resolve API, read model, calculator rates list).
+  - GREEN: 2053 passed in 163 files (full suite, includes the en/es parity test); tsc --noEmit clean; eslint clean on
+    the touched files.
+  - Touched: services list + saldoPackages, selector/picker (Coins icon, teal, distinct from recarga's Smartphone),
+    close-manual and service route lists, Tablero filter + known services, Finanzas filter, dashboard colour,
+    operation card (package count + saldo = packages x 360, phone recipient, quote hidden, one-number add control),
+    beneficiary add form (phone only), calculator rate "Costo saldo (USDT)" in the UI, rates API whitelist and select,
+    resolve API whitelist, read model, i18n en/es.
 
 ## Decisions beyond the defaults (T1)
 - crm_resolve_pending_entry: own branch for RECARGA and SALDO_MOVIL (not an exclusion like COMBO/VISA). Reason: the
@@ -85,8 +95,13 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
   notice skips it). crm_agregar_beneficiario redefined for the phone recipient.
 - Minimum = cerebro_saldo_precio() (derived from precio_saldo_gyd, no separate minimo_gyd_saldo row).
 - Ledger line: amount_currency 'REC' (units), pending reasons saldoCostoUsdt / saldoPaquetes.
+- (T2) The card mirrors the package price and size as constants (SALDO_PRICE_GYD = 1000, SALDO_UNIT_CUP = 360 in
+  services.ts), as VISA_PRICE_GYD does for a visa, instead of reading cerebro_config: no RPC returns those rows to the
+  panel today. Change both together if the owner changes the price. A deposit that is not a whole number of packages
+  shows the label without a count (no rounding).
+- (T2) Dashboard donut: saldo shares --chart-3 with recarga at reduced opacity (only five chart tokens exist).
 - Not touched: cerebro_registrar_deposito and the bot (a deposit for a conversation with an open saldo still lands as
   a remesa deposit); that is T5.
 
 ## Next step
-T2 (app).
+T3: staging app deploy and the owner's look (owner's go-ahead not needed for staging; production waits for T4's go-ahead).

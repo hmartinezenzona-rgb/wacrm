@@ -95,6 +95,34 @@ describe("BeneficiaryAddControl on a recharge", () => {
   });
 });
 
+describe("BeneficiaryAddControl on a mobile balance (saldo)", () => {
+  it("offers only a phone field, like a recharge, and sends {beneficiary_type: recarga, phone}", async () => {
+    agregarBeneficiario.mockResolvedValue({ ok: true, id: "ben-10", complete: true });
+    const { node, root, onDone } = await render(vi.fn(), vi.fn(), "saldo");
+
+    expect(node.querySelector("select")).toBeNull();
+    expect(node.querySelector("#add-beneficiary-card-number")).toBeNull();
+    expect(node.querySelector("#add-beneficiary-amount")).toBeNull();
+    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-phone")!, "52345678"));
+    await submit(node);
+
+    expect(agregarBeneficiario).toHaveBeenCalledWith("op-1", { beneficiary_type: "recarga", phone: "52345678" });
+    expect(onDone).toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
+
+  it("rejects a number that is not a Cuban mobile", async () => {
+    const { node, root } = await render(vi.fn(), vi.fn(), "saldo");
+
+    await act(async () => setValue(node.querySelector<HTMLInputElement>("#add-beneficiary-phone")!, "12345678"));
+    await submit(node);
+
+    expect(node.textContent).toContain(en.Inbox.operationsPanel.invalidRechargePhone);
+    expect(agregarBeneficiario).not.toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
+});
+
 describe("BeneficiaryAddControl", () => {
   it("on a remesa never offers recarga", async () => {
     const { node, root } = await render(vi.fn(), vi.fn(), "remesa");

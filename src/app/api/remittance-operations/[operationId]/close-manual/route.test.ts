@@ -291,7 +291,7 @@ describe("POST /api/remittance-operations/[operationId]/close-manual", () => {
     expect(callCtx.supabase.rpc).not.toHaveBeenCalled();
   });
 
-  it.each(["cuban_card", "zelle", "clasica", "tropical", "efectivo_usd", "recarga", "combo", "visa"])(
+  it.each(["cuban_card", "zelle", "clasica", "tropical", "efectivo_usd", "recarga", "combo", "visa", "saldo"])(
     "deliveryMethod %s -> RPC gets p_delivery_method",
     async (method) => {
       const { POST } = await import("./route");

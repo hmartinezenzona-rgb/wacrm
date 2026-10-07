@@ -204,3 +204,20 @@ NULL (and stays NULL when switched back to CUP, the card being gone). The form p
     (+helpers), corrections (10), saldo-model, recarga-model, combo-model, visa-model, operations-board, read-rpc: all pass.
   - Staging operation 094eb6d6 (zelle, 26,000 GYD, no recipient): recomputed once by hand (existing rows are not
     touched by the migration): 100 USD at 260, origin calculated.
+
+## Owner look on staging (2026-10-07): cash USD recipient cannot be added
+"Elegí efectivo USD y a la hora de agregar beneficiario no me sale para agregar el USD en efectivo, solo sale Zelle,
+Clásica, Tropical y tarjeta Cuba; no sale para agregar los datos que se piden en la entrega de USD cash. Ahí deberían
+poder llenarse."
+Cause: ADDABLE_BENEFICIARY_TYPES (beneficiary-add-control.tsx) has no efectivo_usd, and crm_agregar_beneficiario
+(newest 223) refuses it (accepted: cuban_card, zelle, clasica, tropical, multiple_distribution, recarga, combo; address
+only for combo). Only the bot can create a cash recipient today.
+
+- [ ] T2d Add a cash USD recipient from the panel:
+  - DB migration 225 (+ ROLLBACK-225, staging first): crm_agregar_beneficiario accepts efectivo_usd with the data the
+    cash delivery needs (the same fields the bot's cash path stores and crm_corregir_beneficiario already edits for
+    efectivo_usd: name, phone, address ... — take the model from the cash service migrations 137/188 and the bot
+    writer), same validations as the bot path, amount computed by the existing calculation.
+  - App: the "add recipient" form follows the operation's service: when the operation already has a service
+    (cuban_card, zelle, clasica, tropical, efectivo_usd) it shows that service's fields directly, with no type picker;
+    the picker appears only when the operation has no service yet. Cash form with its fields; minimalist look; ✓ / X.

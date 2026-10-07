@@ -171,3 +171,21 @@ NULL (and stays NULL when switched back to CUP, the card being gone). The form p
   case (Zelle through cerebro_zelle_cotizar_op, USD single rate, cash rate, CUP rate; whole USD rounded down).
   Unchanged: one recipient (as today), several recipients (cleared / reparto rules), manual locks, closed
   operations, non-GYD sources, recarga/saldo/combo/visa.
+
+## Evidence (T2c, 2026-10-07) - NOT applied, waiting for one decision
+- RED first: supabase/staging/assertions/quote-from-rail.sql on staging before 224 fails at line 99, case a1 ("zelle with no
+  recipient must be quoted 100 USD at 260 (calculated), got -/-/-/-").
+- Migration 224_quote_from_rail.sql + ROLLBACK-224-quote-from-rail.sql written. crm_calcular_monto_destino: v_rail = the lone
+  recipient's type, or with no recipient the operation's delivery_method (same branch, same helpers and rounding); recipient
+  amounts still written only with exactly one recipient. Trigger trg_zz_recalc_destino_operations now also fires on UPDATE OF
+  delivery_method, service_type: the bot (cerebro_marcar_destino_usd) sets the rail without touching the deposit and never calls
+  crm_cambiar_servicio, so a call from crm_cambiar_servicio alone would leave case g unfixed. Pre-224 md5 (staging):
+  crm_calcular_monto_destino cbd256e4d22bcc34a1a5c604d2311c02, crm_cambiar_servicio ee82240e976cd036b8b23b085c8d8ca9 (unchanged),
+  cerebro_marcar_destino_usd f239d898e9533b82a9822f4eb98ee6e7 (unchanged), remittance_operations_recalc_destino_trigger
+  064eb2b54c8c70f48d1cec68c9a8c35d (unchanged). Round trip in one rolled-back transaction: 224 changes 1 function, ROLLBACK
+  restores 4 of 4 md5s and the trigger definition.
+- GREEN (224 applied inside a rolled-back transaction, staging NOT changed): quote-from-rail passes all cases (a-g), as is and
+  with promos discarded. Regressions run the same way, as is and no promo: all listed assertions pass EXCEPT one conflict:
+  change-operation-service.sql case a4 (the zelle switch asserts "no recipient and no destination", i.e. exactly the bug).
+  It fails identically with and without promos ("got n=0 / zelle / 20 / USD"). The existing expectation was NOT edited.
+- Real apply to staging and the check of operation 094eb6d6 are pending that decision.

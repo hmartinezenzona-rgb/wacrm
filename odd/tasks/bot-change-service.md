@@ -72,9 +72,13 @@ Migration `supabase/migrations/230_bot_change_service.sql` (+ `ROLLBACK-230-bot-
 - [x] B2 Precise n8n edit plan (below)
 - [x] B3 Staging test plan (below)
 - [x] B4 Risks and owner go-aheads (below)
-- [x] A6 Migration 231 (deterministic Zelle, v2, creation trigger, tool guard) + ROLLBACK-231 + assertion: staging GREEN (Part C)
-- [ ] C1 (owner go-ahead) n8n edits on the STAGING bot (revised B2) + evals + live staging test
-- [ ] C2 (owner go-ahead) Production: migrations 230 and 231 on `hqztotshnlzaiziwjyzh`, then the production bot workflow + notifier
+- [x] A6 (SUPERSEDED 2026-10-08, see Part D) Migration 231 keyword version (deterministic Zelle, v2, creation trigger, tool guard): staging GREEN, commit c54713d; owner REJECTED it as fragile
+- [x] D1 Replace 231 by the agent-tool design: rolled back on staging (pre-231 md5 verified), new `231_agent_service_change_guards.sql` + `ROLLBACK-231-agent-service-change-guards.sql` + assertion `agent-service-change-guards.sql`
+- [x] D2 RED (assertion failed on the pre-231 detector), GREEN, rollback proof, related assertions, fingerprint (Part D)
+- [x] D3 n8n plan for the STAGING bot and notifier (Part D, read-only)
+- [ ] D4 (owner go-ahead) execute the Part D n8n plan on the STAGING bot `U52y1kSNvhgxvWeb` and run the nine test conversations
+- [ ] C1 SUPERSEDED by D4
+- [ ] C2 (owner go-ahead) Production: migrations 230 and the NEW 231 on `hqztotshnlzaiziwjyzh` (the keyword 231 was never applied there), then the production bot workflow + notifier
 
 ## Evidence (Part A, staging `kolppplawzdsjfydwejr`, 2026-10-08)
 - Drift check BEFORE building (md5 of `pg_get_functiondef`, staging vs the repo's latest definition): `crm_cambiar_servicio` ee82240e976cd036b8b23b085c8d8ca9
@@ -120,7 +124,9 @@ Pre-230 (ROLLBACK targets): `crm_cambiar_servicio` ee82240e976cd036b8b23b085c8d8
 
 ---
 
-# PART C — migration 231 (deterministic Zelle), evidence and design choices
+# PART C — SUPERSEDED (2026-10-08) — migration 231, keyword version (owner rejected it; kept as history, commit c54713d)
+The keyword approach (the customer's words decide Zelle) is REPLACED by Part D. Nothing of it remains on staging or in the repo files except the negation test.
+
 Detector rules, v2 result shape and flow are in the header of `supabase/migrations/231_deterministic_destination_zelle.sql`. Choices: (item 2) v2 `cerebro_registrar_destino_v2(conv, text, execution, only_cards)` RETURNS jsonb + v1 kept as a wrapper returning the tipo text (least risky: the node reads nothing today, so v1 works unchanged and v2 is adopted later); (item 3) the beneficiary trigger is UNCHANGED and ignores a pending zelle (it only reads clasica/tropical), the card stays a card, the pending row is not cleared; (item 4) the tool refuses a rail different from a `cliente` pending row of the last 5 minutes (column `origen` added so rows written by the tool itself never block it); (item 5) card->card and any later change go through the engine when the rail lock is stamped `automation:`; a new AFTER INSERT trigger makes a new remesa zelle when zelle is pending (zelle stated first). Questions: only Zelle is question-filtered in the detector (157 results unchanged); card rails over a Zelle/cash operation also skip questions in the registrar. Cash is not detected (deposit/delivery ambiguity).
 Detector examples: Mejor zelle -> zelle; Quiero zelle -> zelle; No quiero efectivo en cuba -> NULL; no quiero zelle, mejor tropical -> tropical; no zelle -> NULL; zelle o clasica? -> NULL; ¿tienen zelle? -> NULL; cuanto seria por zelle -> NULL; juan.zelle@x.com -> NULL; son pesos cubanos, no dolares -> cuban_card (unchanged).
 Evidence (staging): drift check before building: detectar 174 / registrar 157 / marcar 221 / trigger 221 = staging (no drift). RED: assertion before 231 stopped at `case A: cerebro_detectar_destino('Mejor zelle') = NULL, expected zelle`. 231 applied (`BEGIN; <231>; COMMIT;`). GREEN: `deterministic-destination-zelle` ALL PASS (A-K). Related, same wrapper: deterministic-usd-destination, clasica-card-from-delivery-method, bot-change-service, change-operation-service, quote-from-rail, cash-recipient-add, reparto-usd-card-rail all pass. Rollback proof (rolled-back transaction): after ROLLBACK-231 detectar 31f6d02d599b491c586284251b0502f9, registrar c87c36beafde0cd256a601ee7290d045, marcar f239d898e9533b82a9822f4eb98ee6e7 (pre-231), new objects gone, check restored. Leftovers: 0 fixture contacts, 0 audit rows, 0 pending zelle.
@@ -181,7 +187,7 @@ Decision gaps: (1) a customer sentence that merely mentions Zelle as a statement
   Production edits so far were done by the assistant after the owner's explicit go-ahead; the DB migration goes first (MCP or `gate123-aplicar-db.py`
   style with a forced-rollback rehearsal, fingerprint and `probar` assertions).
 
-## B2. The exact edits, REVISED (owner decision 2026-10-08: no new LLM tool; extend 157's deterministic mechanism)
+## B2. SUPERSEDED twice: first by Part C, now by Part D (the agent DOES get a tool). Kept as history. The exact edits of the keyword plan:
 Superseded: the `cambiar_servicio` agent tool, its prompt block and the Decisor `cambioDeVia` regexes of the first plan. The customer's words now
 change the rail in the DB (migration 231); the bot only has to REPORT the result. New gate, e.g. `gate131-registrar-destino-v2.py staging|produccion [--seco]`,
 same `rep()` / backup / read-back pattern as B1.
@@ -255,3 +261,211 @@ Risks:
 3. Notice hold in the Notifier (B2e) yes/no.
 4. Whether `incident` should be refused (current: refused, hand-over) or allowed.
 5. Whether a switch to `recarga`/`combo`/`visa`/`saldo` should be reachable by the bot at all (the function accepts them like the panel; the proposed tool description lists only the five rails).
+
+---
+
+# PART D — the agent acts with a tool; the database only guards it (owner decision 2026-10-08)
+
+Owner: the keyword approach is fragile ("mi hermano usa zelle" would switch the service). "El agente debe tener capacidad de entender el contexto y de
+usar las herramientas ... el entendio que quiere cambiar a zelle, lo que le falta es actuar". Approved design: (1) the agent acts with
+`cambiar_servicio` (-> `cerebro_cambiar_servicio`, 230) and decides from context; NO detection of the customer's words decides a Zelle or cash switch;
+(2) a safety net that does not guess: if the bot quoted one service and the open operation is on another, the team is alerted, nothing is changed;
+(3) the late/stale turn cannot overwrite the change the bot just made.
+
+## D1. What migration 231 contains now (`231_agent_service_change_guards.sql`; rollback `ROLLBACK-231-agent-service-change-guards.sql`)
+Staging was first brought back to pre-231 by applying the old ROLLBACK-231 for real (detector 31f6d02d599b491c586284251b0502f9, registrar
+c87c36beafde0cd256a601ee7290d045, tool f239d898e9533b82a9822f4eb98ee6e7; v2, question helper, creation trigger gone; 230 kept).
+- **Removed from the old 231**: Zelle (and cash) detection, the e-mail and question filters, `cerebro_registrar_destino_v2`,
+  `cerebro_destino_es_pregunta`, `cerebro_destino_pendiente_op_creada` + `trg_zz_destino_zelle_al_crear` (keyword-fed). `cerebro_registrar_destino` is untouched (never changes zelle/efectivo from text).
+- **Kept from the old 231**: only the negation of the card rails already detected (`cerebro_destino_riel_negado`) + a small `cerebro_destino_riel_afirmado`. The
+  misfire was REAL on the pre-231 function (staging, before -> after):
+  | input | before | after |
+  |---|---|---|
+  | no quiero clasica | clasica | NULL |
+  | sin tropical | tropical | NULL |
+  | no quiero cup | cuban_card | NULL |
+  | clasica no | clasica | NULL |
+  | no quiero clasica, mejor tropical | NULL | tropical |
+  | no es clasica, es tropical | NULL | tropical |
+  | tropical, no clasica | NULL | tropical |
+  | prefiero tropical no clasica | NULL | tropical |
+  | en vez de clasica quiero tropical | NULL | tropical |
+  | no quiero tropical, mejor clasica | NULL | clasica |
+  | ni clasica ni tropical / no se si clasica o tropical / no quiero clasica o tropical | NULL | NULL |
+  | mejor zelle / mi hermano usa zelle / no quiero efectivo en cuba | NULL | NULL |
+  | quiero clasica, tropical, en cup, pesos cubanos no dolares, clasica o tropical, hola ... (all 157/174 inputs) | same | same |
+  Positive detection is 174's own regex on the raw text; the negation runs on folded text only; the surviving rail must be affirmed (written before the rejected one, or after a comma / mejor / pero / sino / prefiero / entonces / ahora / sea / quiero), else NULL (conservative).
+- **b. Pending agent-declared service** (`cerebro_destino_pendiente`: `origen` cliente|agente, `ejecucion`, tipo CHECK = clasica, tropical, cuban_card, zelle, efectivo_usd).
+  `cerebro_cambiar_servicio(p_conversation_id uuid, p_servicio text, p_execution_id text DEFAULT NULL) RETURNS jsonb` (same signature, grants, shape; fields only added):
+  with NO operation at all in the conversation and one of the five rails (aliases cup, efectivo) it records the pending row (24 h) and returns
+  `{"ok":true,"changed":false,"pendiente":true,"servicio":"zelle"}`; tool log outcome `pendiente`. recarga / combo / visa / saldo (and an unknown conversation) return
+  `{"ok":false,"reason":"sin_operacion","pendiente":false}` -- DECISION: pending only makes sense for the remesa rails, because the operation that gets created is a remesa.
+  A new AFTER INSERT trigger `trg_zz_destino_agente_al_crear` on `remittance_operations` (WHEN remesa, no rail, open) applies an `origen='agente'` pending row of the last 24 h when the
+  new remesa is the conversation's single open remesa, through `cerebro_cambiar_servicio` (same core as the panel and the tool: retire/retype recipients, quote, lock, ONE `automation_service_change` audit row,
+  reason `n8n execution pendiente:<declaring execution>`), and consumes the row; a refusal keeps it. DECISION trigger vs creation function: the trigger is the least invasive (no
+  edit of `cerebro_crear_operacion`, which many paths call). A per-conversation advisory lock taken by the tool and by the trigger closes the "pending written while the operation is being created" race
+  (both interleavings are serialized: either the trigger sees the committed row or the tool sees the committed operation). When the operation exists the tool deletes the agent pending row first
+  (otherwise `cerebro_riel_op`, which falls back to the pending row, would read it as the operation's rail). A customer-word rewrite of the row's tipo (157) relabels it `cliente`.
+- **c. Stale-write guard** of `cerebro_marcar_destino_usd` (221 body; signature, grants, rows unchanged): refuses, writing nothing, with `ERROR: ya elegiste <X> ...` when (1) an `agente` pending row of the last 5 minutes differs
+  from what it is asked to mark; or `ERROR: la via vigente de la operacion es <X> (la cambiaste con cambiar_servicio) ...` when (2) the open operation's rail lock is stamped `automation:` and the rail differs; in its
+  operation-creating branch it no longer claims a rail the new operation did not get (`ERROR: se creo el envio pero su via ya es <X> ...`). What 230's lock ALREADY covered (probed on staging): a late `marcar_destino_usd('efectivo')`
+  after a tool change was suppressed by the 096 lock guard (WARNING + `automation_write_suppressed` audit) but the tool still answered "destino marcado: entrega en USD por Efectivo" (the agent was told the opposite of the truth), and
+  the pending case (no operation yet) was not covered at all. 231 adds the honest refusal and the pending case, with nothing written. Calls are now logged with an outcome in `tool_execution_log`: marcado | sin_cambios | rechazado | tipo_invalido | operacion_ambigua.
+- **d. Safety net** `cerebro_verificar_coherencia_servicio(p_conversation_id uuid, p_execution_id text) RETURNS jsonb` (service_role only). HONEST FINDING: neither table recorded the quote's via. Checked on staging: `tool_execution_log`
+  holds only the write tools (no calculation tool writes to it) and `cerebro_ultima_cotizacion` keeps amount + tool name per currency (overwritten, no via). So 231 adds, additively and without touching 153, `cerebro_registrar_via_cotizada(p_conv, p_herramienta, p_via, p_execution_id, p_origen_gyd DEFAULT NULL)`:
+  one `tool_execution_log` line per quote (tool_name = the quote tool, outcome = the normalised via: zelle | clasica | tropical | cuban_card | efectivo_usd | otra_via). The quote tools must call it (D3.5b). Rule: take the LAST quote of the execution; if the conversation has a single open remesa whose rail
+  (`cerebro_riel_op`) differs, and the execution has no successful `cambiar_servicio` (changed | unchanged) or `marcar_destino_usd` (marcado | sin_cambios) to the quoted service, and no `agente` pending row for it -> ONE alert and
+  `{"coherente":false,"cotizado":"zelle","operacion":"efectivo_usd","alert_id":"<uuid>","operation_id":"<uuid>","nueva":true,"resueltas":0}`; otherwise `{"coherente":true,"motivo":<sin_conversacion|sin_operacion|operacion_ambigua|no_remesa|sin_ejecucion|sin_riel|sin_cotizacion|misma_via|via_confirmada|via_declarada>,"resueltas":n}`.
+  Quoted-to-compare vs confirmed-the-switch CANNOT be told apart with bot-side evidence (both = a quote for another rail, no change call), so the behaviour is conservative: neutral text, at most one OPEN alert per operation and pair of services (table `cerebro_alertas_coherencia`, unique partial index),
+  closed by the next check once the operation's rail is no longer the alerted one (they match, moved to a third rail, no open operation): its notifications are marked read. No priority column exists on `notifications`; the neutral wording is the low priority.
+  Alert = one `notifications` row per account member (as migration 134), type `coherencia_servicio` (added to `notifications_type_check` the way 058/059/134/151 added theirs, 13 old types kept), title "Revisar servicio: el bot cotizó Zelle y la operación está en Efectivo en USD",
+  body "... Puede haber sido solo una consulta de precio. Revise si el cliente cambió de servicio y, si es así, cámbielo en el panel. El bot no cambió nada y no escribió al cliente por este aviso." CRM: `src/app/(dashboard)/notifications/page.tsx` renders `title` and `body` straight from the row and falls back to the Bell icon for a type
+  without an entry in `TYPE_ICON` (9 DB-only types already work that way: chat_atascado ... entrega_efectivo_lista), so NO app change, i18n key or parity-test change is needed. Limits: cash quotes (`consultar_servicio('efectivo_usd')`) are not logged, so zelle -> cash is invisible to the net; a panel change leaves the alert open until the next bot turn;
+  a quote tool that does not pass a via records nothing (the check answers coherent, it never guesses a via from an amount); only the LAST quote counts.
+- **e. Grants**: `service_role` only on every new/changed bot function (asserted for anon, authenticated, PUBLIC); internal helpers and trigger functions have no grant at all; `cerebro_alertas_coherencia` is closed to API roles (RLS on, no policy, no grant).
+
+## D2. Staging evidence (kolppplawzdsjfydwejr, 2026-10-08)
+- ROLLBACK-231 (old) applied for real: pre-231 md5 verified (above), new objects gone, 230 kept.
+- RED: `agent-service-change-guards.sql` (wrapped in `BEGIN; ...; ROLLBACK;`) against pre-231: stopped at `case A: cerebro_detectar_destino('zelle o clasica?')` (expectation fixed: that input names clasica, as in 157), then `case A: cerebro_detectar_destino('mejor zelle, no clasica') = clasica, expected NULL`
+  (the negation misfire, the only detector change that remains). GREEN after applying the new 231 (`BEGIN; <231>; COMMIT;`): cases A-I, ALL PASS (A 60 detector inputs; B zelle sentences change and record nothing; C the incident driven by tool calls: efectivo marked, deposit verified, `cambiar_servicio('zelle')` -> 181 USD at 260, ready_to_transfer,
+  one audit row, no message/outbox/http, late `marcar('efectivo')` refused naming Zelle with nothing written; D pending + creation (both the 5-minute refusal and the production-like path where the tool itself creates the operation as cash outside the window); E pending edge cases (recarga/combo/visa/saldo, 24 h, two operations, own rail, relabel);
+  F stale-write guard; G coherence (alert, no duplicate, resolution, excuses, last quote, no-evidence cases); H zelle -> cup -> zelle; I grants/constraints). `bot-change-service.sql` case k1 was updated: zelle with no operation is now `pendiente` (230's other refusals unchanged).
+- Rollback proof (one rolled-back transaction): detector 31f6d02d599b491c586284251b0502f9, tool f239d898e9533b82a9822f4eb98ee6e7, `cerebro_cambiar_servicio` f47c288efed9aa967a90c5487b08c166 (= 230), registrar c87c36beafde0cd256a601ee7290d045; new objects/triggers/table/columns gone; both CHECKs back to their text; then forced ROLLBACK: staging WITH 230 + new 231.
+- Related assertions after the new 231 (same wrapper), all ALL PASS: deterministic-usd-destination, clasica-card-from-delivery-method, bot-change-service, change-operation-service, quote-from-rail, cash-recipient-add, reparto-usd-card-rail (PASS 1-5), delete-notifications and reparto-tool-usd-rail (their "ALL PASS (rolled back on purpose)" exception), plus reparto-destino-node-adapters (22 parity cases) and ultima-cotizacion. (`feed-mixed`, `delivery-feed-evidence` failed before this work; not chased.)
+- Leftovers after all runs: 0 fixture contacts, 0 audit rows, 0 pending rows, 0 alerts, 0 notifications, 0 extra tool-log rows, 8 operations (unchanged).
+Fingerprint (staging, with 230 + new 231):
+```sql
+select p.proname, md5(pg_get_functiondef(p.oid)), p.proacl::text from pg_proc p where pronamespace='public'::regnamespace and proname in ('cerebro_detectar_destino','cerebro_registrar_destino','cerebro_marcar_destino_usd','cerebro_cambiar_servicio','cerebro_destino_riel_negado','cerebro_destino_riel_afirmado','cerebro_servicio_normalizar','cerebro_registrar_via_cotizada','cerebro_verificar_coherencia_servicio','cerebro_coherencia_resolver','cerebro_destino_agente_al_crear','cerebro_destino_pendiente_origen') order by 1;
+select tgname from pg_trigger where tgname in ('trg_zz_destino_agente_al_crear','trg_destino_pendiente_origen','trg_zz_destino_zelle_al_crear');
+select md5(pg_get_constraintdef(oid)) from pg_constraint where conname in ('cerebro_destino_pendiente_tipo_check') ; select md5(pg_get_constraintdef(oid)) from pg_constraint where conname='notifications_type_check';
+```
+| function | md5 | ACL |
+|---|---|---|
+| cerebro_cambiar_servicio | 108249804b3a64690259e1a87bf06236 | postgres, service_role |
+| cerebro_coherencia_resolver | 8ab1541d7269c3c4a79c863a12a74a42 | postgres only |
+| cerebro_destino_agente_al_crear | ebf54651b826da9fc3046556d24ec14f | postgres only |
+| cerebro_destino_pendiente_origen | 01c7888fda2de43665e90a53f4d1af66 | postgres only |
+| cerebro_destino_riel_afirmado | 21941876a6c3bf97642ca3c3226b1134 | postgres, service_role |
+| cerebro_destino_riel_negado | f6b9062f105967cc587ea7997696d56e | postgres, service_role |
+| cerebro_detectar_destino | f039e465f4beb0e2aa0ea71faf60a93c | postgres, service_role |
+| cerebro_marcar_destino_usd | 2aeb6b92ac97997f32523a7e3cf112fb | postgres, service_role |
+| cerebro_registrar_destino | c87c36beafde0cd256a601ee7290d045 (untouched) | postgres, service_role |
+| cerebro_registrar_via_cotizada | ad72f2526e716f92d769327b0f26177e | postgres, service_role |
+| cerebro_servicio_normalizar | af01e77dc076617d955ce712ecf2c897 | postgres, service_role |
+| cerebro_verificar_coherencia_servicio | 5b849da27e0478a0626e0df56331c397 | postgres, service_role |
+Triggers: trg_destino_pendiente_origen, trg_zz_destino_agente_al_crear (trg_zz_destino_zelle_al_crear absent). Constraints md5: cerebro_destino_pendiente_tipo_check 8bd3a0385975e6201caeec84400f5a87, notifications_type_check c68e5f5bb5829822121c6e0a6007ad3f.
+
+## D3. n8n PLAN (read-only; nothing in n8n was edited, activated or executed). Next task executes it on the STAGING bot `U52y1kSNvhgxvWeb` and notifier `OCdJoHTkV6S0aAdk`
+Tooling: a new gate in `~/cerebro-fase1/pruebas/`, e.g. `gate131-agente-cambia-servicio.py staging|produccion [--seco]`, with the pattern of `gate115-zelle-tiers.py` (GET, save `cerebro-<env>-antes-131-<ts>.json` as the rollback, `rep()` asserting each marker occurs exactly once, drift-checked PUT of `name,nodes,connections,settings`, read-back). Migration 230 + the new 231 are already on staging, so no database step is left.
+(The old `gate131-registrar-destino-v2.py` idea of Part B is dropped.) Run the evals first (D3.8), then the PUT, then the live tests.
+
+### D3.1 The 10 "drifted" nodes (staging vs production, measured now, parameters only; connections are byte-identical)
+Not all of it is drift to close: most is the environment, and the three feature nodes carry staging-only work (138 catalog), so DO NOT copy production over staging. Keep staging's value for each, and apply the SAME string edits of D3.3-D3.5 to staging now and to production later (each marker below was checked to occur exactly once in both prompts / queries):
+| node | what differs | action |
+|---|---|---|
+| Webhook WaCRM | `path` `staging-wacrm-cerebro-green-v1` vs `wacrm-cerebro-green-v1` (and webhookId) | keep staging (environment) |
+| Validar evento | `SECRETO` is a literal in staging, `$env.CEREBRO_WEBHOOK_SECRET` in production | keep staging (environment) |
+| Responder por WaCRM / Avisar espera al cliente / Confirmar al admin | `url` `https://crm.onlinefreedom.site/api/v1/messages` vs `https://wacrm.onlinefreedom.site/api/v1/messages` | keep staging (environment) |
+| Despertar al enviador | `workflowId` `WmcobAufVNWURbKc` vs `K4ijL3NzmY1VX7XI` (staging has its own outbox sender) | keep staging (environment) |
+| DeepSeek sin pensamiento (comunidad) | staging sets `model: custom`, `customModel: deepseek-flash`; production has no such parameters | keep staging (model config of the unused community node) |
+| consultar_servicio | `queryReplacement` description: staging "clave EXACTA del servicio segun el catalogo de tu [CONTEXTO] (138)" vs production "combos, recargas, visa, traduccion, mexico o efectivo_usd" | keep staging (138 catalog); production gets 138 only when the owner releases it |
+| Contexto conversacion | staging adds `catalogo_servicios` (138) and `monto_recibe_valor/moneda` (153) and moves `deposito_ya_verificado` earlier; production ends with `deposito_ya_verificado` | keep staging; edit D3.4 applies to both (anchor below) |
+| Agente Remesas | staging "OTROS SERVICIOS" section reads the 138 catalog (production lists combos/recargas/... and keys) and staging carries a stray 4th parameter literally named `options.systemMessage` (a B1.1 prompt n8n never uses; see T3 of align-staging-with-production) | keep staging; the stray key is harmless, do not touch it; edit D3.3 applies to `options.systemMessage` of both |
+Extra node on staging only: "DeepSeek Web Search Chat Model" (123 vs 122 nodes). Credentials: staging "Supabase STAGING" (id np3egGrAcrWkOWd4), production "Supabase Account" (S2CallLPSjzbVXN4); every new node in staging uses np3egGrAcrWkOWd4.
+Decisor, Registrar destino auto, marcar_destino_usd and the four quote tools are identical in both environments (Decisor jsCode byte-identical).
+
+### D3.2 New agent tool node `cambiar_servicio`
+Type `n8n-nodes-base.postgresTool` typeVersion 2.6 (same as `marcar_destino_usd`, whose position is [4880, 912]; put the new one next to it, e.g. [4880, 1040]), credential `Supabase STAGING` (np3egGrAcrWkOWd4), `descriptionType: manual`, connection `{"ai_tool":[[{"node":"Agente Remesas","type":"ai_tool","index":0}]]}`. onError default (the tool must fail loudly into the agent's error handling like the other tools).
+- `query`: `SELECT cerebro_cambiar_servicio($1::uuid, $2::text, $3::text) AS resultado;`
+- `options.queryReplacement`: `={{ [$('Decisor').item.json.conversation_id, $fromAI('servicio', 'a que servicio cambia el cliente: zelle, clasica, tropical, cup (tarjeta en pesos) o efectivo (dolares fisicos en Cuba)', 'string'), $execution.id] }}`
+- `toolDescription` (Spanish, as the agent reads it): "Cambia el servicio con el que el cliente recibe el dinero en su envio abierto: 'zelle', 'clasica', 'tropical', 'cup' (tarjeta en pesos) o 'efectivo' (dolares en efectivo en Cuba). Llamala SOLO cuando el cliente haya DECIDIDO cambiar de servicio para ESTE envio, aunque no use esas palabras ('mejor zelle', 'ponlo en efectivo', 'prefiero la clasica', 'no, en CUP'). NO la llames si solo pregunta un precio o compara ('¿y por zelle cuanto seria?'), si habla de otra persona u otro envio ('mi hermano usa zelle') ni si ya esta en ese servicio. Devuelve JSON con ok, changed y las cifras nuevas (source_amount_gyd, destination_amount, destination_currency, previous), o reason si no se pudo. Si todavia no hay envio abierto devuelve pendiente=true: queda anotado para cuando se registre. Responde siempre con lo que devuelve, nunca con cifras de memoria."
+- `notes`: "Cambio de via por decision del agente (230/231). El sistema NO detecta el cambio en las palabras del cliente: lo decide el agente. Audita automation_service_change."
+
+### D3.3 `Agente Remesas` -> `options.systemMessage` (exact edits, `rep()` each marker exactly once)
+(a) Replace the line (currently line 125 of the staging prompt):
+`- marcar_destino_usd(tipo): marca que la entrega es en DOLARES por tarjeta 'clasica' o 'tropical', o en 'efectivo' (dolares fisicos en Cuba). NO se usa para Zelle.`
+with:
+`- marcar_destino_usd(tipo): marca la via en DOLARES la PRIMERA vez que el cliente la elige: tarjeta 'clasica' o 'tropical', o 'efectivo' (dolares fisicos en Cuba). NO se usa para Zelle ni para CAMBIAR una via ya elegida: para eso esta cambiar_servicio. Si responde ERROR porque la via ya fue elegida con cambiar_servicio, no insistas: la via vigente es la que dice el error.`
+`- cambiar_servicio(servicio): cambia la via de la operacion abierta ('zelle', 'clasica', 'tropical', 'cup' o 'efectivo'). Ver CAMBIO DE VIA.`
+(b) Replace `- Respuesta ambigua a la via ('clasica tropical', 'cualquiera', nombra dos) -> pregunta '¿En cual de las dos: Clasica o Tropical?'. marcar_destino_usd SOLO con una via clara.` by the same text followed by
+` Si el cliente YA tenia una via (el [CONTEXTO] trae `riel_operacion`) y ahora pide otra, NO uses marcar_destino_usd: es un cambio, ver CAMBIO DE VIA.`
+(c) Insert, right before the line `## ESTILO`, this block (marker `## ESTILO` occurs once):
+```
+## CAMBIO DE VIA (el cliente cambia como recibe el dinero)
+Tu decides, con el contexto de la conversacion, si el cliente CAMBIO de via para ESTE envio. Es un cambio cuando lo decide ('mejor zelle', 'ponlo en efectivo', 'prefiero la clasica', 'no, en CUP'), antes o despues del comprobante, antes o despues de que se verifique el deposito. NO es un cambio: una pregunta de precio ('¿y por zelle cuanto seria?'), comparar vias, hablar de otra persona u otro envio ('mi hermano usa zelle'), o nombrar la via que ya tiene (`riel_operacion` del [CONTEXTO]). Si dudas, pregunta: '¿Quiere que se lo cambie a <via>?'.
+Si el cliente cambio: PRIMERO llama cambiar_servicio(servicio), ANTES de escribir la respuesta, y DESPUES responde SOLO con las cifras que devuelve. PROHIBIDO decir que ya cambio si en este turno no llamaste a la herramienta. PROHIBIDO usar calcular_usd, calcular_usd_desde_gyd o marcar_destino_usd para hacer un cambio.
+Segun el resultado:
+- ok=true y changed=true: 'Listo, queda por <via>. Con sus *<source_amount_gyd> GYD* recibe *<destination_amount> <destination_currency>* (antes eran <previous.destination_amount> <previous.destination_currency>).' y pide SOLO los datos de la via nueva (Zelle: nombre y cuenta; tarjeta: tarjeta y celular; efectivo: lo que diga `entrega_efectivo_falta`). Los datos del destinatario anterior ya no sirven.
+- ok=true y pendiente=true: todavia no hay envio abierto; el cambio queda anotado y se aplica cuando se registre. Confirma la via; si cotizas, usa calcular_usd / calcular_usd_desde_gyd con esa via.
+- ok=true y changed=false: ya estaba en esa via; confirmalo sin cifras nuevas.
+- reason=por_debajo_del_minimo: 'Por <via> el minimo es *<minimo_gyd> GYD* y su deposito es de *<source_amount_gyd> GYD*.' Ofrece mantener la via actual o completar la diferencia. No se cambio nada.
+- reason=estado_no_permite, bloqueado_por_humano, tipo_no_soportado o varios_destinatarios: 'Un compañero le ayuda con ese cambio enseguida.' y llama derivar_humano. No prometas el cambio. (Excepcion a la regla 10: aqui SI.)
+- reason=operacion_ambigua: ya viene con derivado=true; NO llames derivar_humano otra vez; di que un compañero le atiende enseguida.
+- reason=sin_operacion (pendiente=false): ese servicio no se cambia sin un envio abierto; sigue la conversacion normal.
+- reason=servicio_desconocido: pregunta a cual via se refiere.
+```
+(d) In rule 10 (marker `NUNCA porque no entendiste algo o una transcripcion salio rara — eso se resuelve PREGUNTANDO.`) append: ` Tambien cuando cambiar_servicio responde estado_no_permite, bloqueado_por_humano, tipo_no_soportado o varios_destinatarios (ver CAMBIO DE VIA).`
+(e) Two examples at the end of `## EJEMPLOS`:
+`C: Mejor zelle (envio abierto en efectivo, deposito verificado, 47,100 GYD) -> [llama cambiar_servicio('zelle')] 'Listo, queda por Zelle. Con sus *47,100 GYD* recibe *181 USD* (antes eran 162 USD en efectivo). ¿A nombre de quien esta la cuenta Zelle y cual es el correo o celular?'  ## primero la herramienta, luego solo las cifras que devolvio`
+`C: Mi hermano usa zelle (envio abierto en efectivo) -> 'Entendido. ¿Quiere que su envio siga siendo en efectivo?'  ## NO es un cambio: no llamas cambiar_servicio`
+(f) The "NO se usa para Zelle" statement also appears in the `notes` of the `marcar_destino_usd` node and in its `toolDescription` ("No es para Zelle."): keep, and append to the toolDescription: ` Para CAMBIAR una via ya elegida usa cambiar_servicio.`
+
+### D3.4 Contexto and Decisor: expose the operation's rail, fix `viaSinDefinir`
+- `Contexto conversacion` (`query`): replace the anchor `\n\nFROM conversations v WHERE v.id = $1::uuid;` (occurs once in both environments) with
+```
+,
+-- (231) VIA ACTUAL de la operacion abierta (cerebro_riel_op) y servicio declarado antes de que exista la operacion.
+(SELECT cerebro_riel_op(o9.id) FROM remittance_operations o9
+  WHERE o9.conversation_id = v.id AND o9.service_type = 'remesa'
+    AND o9.status IN ('collecting_information','awaiting_deposit','deposit_received','deposit_verification','ready_to_transfer','incident')
+  ORDER BY o9.created_at DESC LIMIT 1) AS riel_operacion,
+(SELECT p9.tipo FROM cerebro_destino_pendiente p9
+  WHERE p9.conversation_id = v.id AND p9.origen = 'agente' AND p9.actualizado > now() - interval '24 hours') AS servicio_pendiente
+
+FROM conversations v WHERE v.id = $1::uuid;
+```
+(`riel_operacion` is non-null exactly when the database knows the via: operation rail, recipient type, a 157 pending destination or a partial beneficiary.)
+- `Decisor` (`jsCode`, identical in both): (i) replace
+`const viaSinDefinir = !sabeDestino && !tarjetaCtx && !celularCtx && !s.datos_zelle && !recargaEnCurso && !comboEnCurso && !visaEnCurso;`
+by
+`const rielOp = ctx.riel_operacion ? String(ctx.riel_operacion) : null;\nconst viaSinDefinir = !rielOp && !ctx.servicio_pendiente && !sabeDestino && !tarjetaCtx && !celularCtx && !s.datos_zelle && !recargaEnCurso && !comboEnCurso && !visaEnCurso;`
+so "TODAVIA NO SE SABE POR QUE VIA RECIBE" never appears after a change (the original ignored the operation's rail); (ii) right after that `if (!s.comprobante && viaSinDefinir ...) {...}` block add
+`if (rielOp) { notas.push('VIA ACTUAL DE LA OPERACION: ' + ({zelle:'Zelle',clasica:'tarjeta Clasica',tropical:'tarjeta Tropical',cuban_card:'CUP (tarjeta en pesos)',efectivo_usd:'efectivo en USD',recarga:'recarga',combo:'combo',visa:'visa',saldo:'saldo movil'}[rielOp] || rielOp) + '. Si el cliente DECIDE otra, llama cambiar_servicio; una pregunta de precio o hablar de otra persona NO es un cambio.'); }\nif (ctx.servicio_pendiente) { notas.push('EL CLIENTE YA ELIGIO ' + ctx.servicio_pendiente + ' (anotado, todavia no hay envio abierto): se aplica solo cuando se registre el envio.'); }`
+Add the Decisor harness cases (`candidato-decisor-*.js` / `casos-decisor-*.json`): (1) op efectivo -> note VIA ACTUAL ... efectivo en USD and no TODAVIA NO SE SABE; (2) no op + pending zelle -> the pending note; (3) nothing known -> TODAVIA NO SE SABE as today.
+
+### D3.5 The end-of-turn check, and the evidence it needs
+(a) New node `Verificar coherencia servicio`, `n8n-nodes-base.postgres` 2.6, credential Supabase STAGING, `alwaysOutputData: true`, `onError: continueRegularOutput` (an error must never stop or delay the turn), query `SELECT cerebro_verificar_coherencia_servicio($1::uuid, $2::text) AS coherencia;`, queryReplacement `={{ [$('Decisor').first().json.conversation_id, $execution.id] }}`.
+Place: a connection from `Agente Remesas` (main output; today it goes only to `Renderer conversacional`) added as the FIRST connection, so it runs for every turn the agent handled (answered, silent or handed over) and before the send chain; it has no outgoing connection, nothing reads its result, and it can never message the customer.
+(b) Make the quote tools record the via (the safety net is blind without it), editing the four nodes' `query` + `queryReplacement` (same `rep()` markers in both environments; each `cerebro_registrar_cotizacion(` occurs once per node):
+- `calcular_usd_desde_gyd`: after `... 'USD', 'calcular_usd_desde_gyd') AS r) c ON true` add `LEFT JOIN LATERAL (SELECT cerebro_registrar_via_cotizada($2::uuid, 'calcular_usd_desde_gyd', NULLIF($3, ''), $4::text, t.gyd_depositados) AS v) cv ON true` (the `;` stays at the end) and append `, $execution.id` to the `queryReplacement` array.
+- `calcular_usd`: same with `cerebro_registrar_via_cotizada($2::uuid, 'calcular_usd', NULLIF($3, ''), $4::text, t.gyd)`.
+- `calcular_envio` and `calcular_inverso` (CUP): `cerebro_registrar_via_cotizada($3::uuid, 'calcular_envio', 'cuban_card', $4::text, NULL)` / `(... 'calcular_inverso', 'cuban_card', $4::text, NULL)` and `, $execution.id` appended to their `queryReplacement`.
+An empty `via` (the customer has not said how they receive) records nothing: a generic Zelle price is not a statement about the rail. Efectivo quotes come from `consultar_servicio('efectivo_usd')` (text) and are NOT recorded (documented limit).
+(c) No change to `Registrar destino auto` (it keeps applying clasica / tropical / CUP words through 157, now with negation) and none to `Snapshot final`.
+
+### D3.6 Notifier (`OCdJoHTkV6S0aAdk`, production `wGud0KGR6eMqqfMQ`): NO edit needed
+The text is already built from the rail the database reports AT NOTIFICATION TIME: `Leer secreto` selects `cerebro_riel_op(operation) AS riel` and `Filtrar cambio de etapa` uses `cfg.riel || rec.delivery_method` ("el nombre y la cuenta Zelle de quien recibe" for zelle, "los datos de quien recibe el efectivo en Cuba" for efectivo_usd). The incident's wrong message was true at that instant (the rail was still efectivo_usd). After the bot's switch the same code says the Zelle text; an `automation_service_change` is NOT in the `verificacion_manual` action list, so a switch itself sends nothing. What stays: when "Mejor zelle" arrives AFTER the notifier fired, the customer receives the cash text first and the bot's reply second; the optional hold of Part B (B2e) would remove that and stays optional. Staging notifier differs from production only by the webhook path and the WaCRM url.
+
+### D3.7 Staging test conversations (number 529622896918; run `supabase/staging/reset-test-contact.sql` before EACH; live WhatsApp needs the owner — an agent does not send messages)
+Check after each: `remittance_operations`, `remittance_beneficiaries`, `remittance_admin_audit` (`automation_service_change`), `cerebro_destino_pendiente`, `tool_execution_log` (cambiar_servicio / marcar_destino_usd outcomes, quote lines with via), `notifications` (type coherencia_servicio), `messages` (exactly one bot reply per turn), the n8n execution.
+| # | Customer script | Expected database state | Expected bot reply |
+|---|---|---|---|
+| 1 Carlos | "Voy a mandar 47100 GYD" -> "Puede ser en USD en Bayamo, granma?" (bot quotes cash 162) -> receipt -> "Mejor zelle" within seconds | `zelle`, 181 USD @260, `ready_to_transfer`, cash recipient `reemplazado`, ONE audit row; a late `marcar_destino_usd('efectivo')` refused (outcome `rechazado`); no coherence alert (the execution called cambiar_servicio) | "Listo, queda por Zelle. Con sus *47,100 GYD* recibe *181 USD* (antes eran 162 USD)..." + asks Zelle name and account; NO "faltan los datos del efectivo" |
+| 2 Declared before the operation | "mejor zelle" with no operation (before the receipt turn creates it) -> receipt | pending row (origen agente) then the operation created `zelle` by the trigger, audit row `pendiente:<exec>`, pending consumed; the receipt turn's `marcar('efectivo')` (if any) refused | confirms Zelle, asks the account data |
+| 3 Mi hermano usa zelle | operation in cash; "mi hermano usa zelle" | NOTHING changes, no cambiar_servicio call, no pending row | acknowledges / asks if the cash delivery stands |
+| 4 Price question | cash operation; "¿y por zelle cuanto seria?" | no change; quote line with via zelle in `tool_execution_log`; the end-of-turn check raises ONE alert (honest limit: indistinguishable from a switch) and a second identical question does not duplicate it | quotes Zelle without changing; the alert reads "Revisar servicio: el bot cotizó Zelle y la operación está en Efectivo en USD" |
+| 5 Zelle -> CUP -> Zelle | verified Zelle; "mejor en CUP" then "no, otra vez zelle" | three audit rows, 141,300 CUP then 181 USD; no lock block | each reply with the new amount and the data to ask |
+| 6 Below the minimum | 5,200 GYD in CUP; "mejor zelle" | nothing changed, tool answers `por_debajo_del_minimo` | states the 13,000 GYD minimum and offers to keep CUP |
+| 7 Human lock | operator changes the rail in the panel; "mejor zelle" | nothing changed (`bloqueado_por_humano`) | "Un compañero le ayuda con ese cambio enseguida." + derivar_humano |
+| 8 Negation | CUP card operation; "no quiero clasica" | nothing changes (detector NULL) | continues without changing |
+| 9 Alert resolves | after #4, tell the bot to switch ("sí, cámbialo a zelle") | operation `zelle`; the next turn's check resolves the alert (`resuelta_en` set, notification read) | normal change reply |
+Evals first (`~/cerebro-fase1/pruebas/evals/evaluar.py --workflow U52y1kSNvhgxvWeb`, new `casos/casos-cambio-servicio.json`, recorded results taken from the assertion): "Mejor zelle" with an open operation -> `cambiar_servicio` obligatory, `marcar_destino_usd`/`calcular_usd*` forbidden, answer contains the recorded amounts; "mi hermano usa zelle" and "¿y por zelle cuanto seria?" -> `cambiar_servicio` forbidden; a `por_debajo_del_minimo` result -> the minimum is stated; `bloqueado_por_humano` -> `derivar_humano` obligatory.
+Rollback: PUT the saved `cerebro-staging-antes-131-<ts>.json`; the database side rolls back with `ROLLBACK-231-agent-service-change-guards.sql` only AFTER the two new nodes (and the via lines) are out of the workflow.
+
+## D4. Decision gaps for the owner
+1. A conversation whose latest operation is completed / cancelled and who then says "mejor zelle" BEFORE the new operation exists still gets `estado_no_permite` (230's contract, asserted in bot-change-service case h): the choice is not remembered and the prompt tells the agent to hand over. Repeat customers hit this often. Fix = treat completed / cancelled as "no open operation" for the pending path (changes 230's refusal and its assertion). Not done: needs your call.
+2. The safety net cannot tell a price question from a switch, so a comparison question will raise a (low-wording) alert each time the pair is new; it is also blind to zelle -> cash quotes (cash quotes come from `consultar_servicio`, unrecorded) and inert until the four quote nodes call `cerebro_registrar_via_cotizada`. Accept the noise for the first week and measure?
+3. The pending service is applied at creation with no deposit amount yet, so the Zelle minimum is not checked at that instant (the deposit-time minimum logic and the stale `cerebro_objetivo_envio` risk of B4 still decide); scenario 2 of D3.7 must prove it on staging.
+4. Status after a post-verification switch with no recipient for the new rail (B4), and whether `incident` should be refused: unchanged open points.
+5. Staging carries 138 (service catalog) and the 153 `monto_recibe` columns that production does not run; D3.1 keeps them. Decide whether production gets 138 before or after this feature.
+6. Production: migration 230 and the NEW 231 are still not applied there (the keyword 231 never was).

@@ -114,12 +114,12 @@ describe("OperationsBoard", () => {
     expect(text[2]).toContain(n.visa);
   });
 
-  it("labels a mobile balance with its own icon and offers its filter", async () => {
+  it("labels a mobile balance as plain text and offers its filter", async () => {
     const { node, onFilterChange } = await render([op({ operationId: "s", serviceType: "saldo", beneficiariesComplete: false })]);
     const card = node.querySelector("a")!;
     expect(card.textContent).toContain(n.saldo);
     expect(card.textContent).toContain(t.missingBeneficiaries);
-    expect(card.querySelector("svg.lucide-coins")).not.toBeNull();
+    expect(card.querySelector("svg")).toBeNull();
     const saldo = Array.from(node.querySelectorAll("button")).find((b) => b.textContent === n.saldo)!;
     await act(async () => saldo.click());
     expect(onFilterChange).toHaveBeenCalledWith("saldo");
@@ -144,5 +144,76 @@ describe("OperationsBoard", () => {
     const buttons = Array.from(node.querySelectorAll("button")).map((b) => b.textContent);
     expect(buttons).toEqual([t.filters.all, n.remesa, n.recarga, n.combo, n.visa, n.saldo]);
     expect(node.querySelector("[draggable='true']")).toBeNull();
+  });
+
+  describe("visual pass", () => {
+    const COLUMN_TONES: Array<[string, string, string]> = [
+      ["requested", "collecting_information", "neutral"],
+      ["depositCheck", "deposit_verification", "attention"],
+      ["readyToTransfer", "ready_to_transfer", "attention"],
+      ["completed", "completed", "success"],
+      ["incident", "incident", "danger"],
+    ];
+
+    it.each(COLUMN_TONES)("tints the %s column header (status %s) and stripes it with the %s tone", async (id, status, tone) => {
+      const { node } = await render([op({ status, completedAt: status === "completed" ? "2026-10-05T11:00:00Z" : null })]);
+      const heading = column(node, t.columns[id as keyof typeof t.columns]).querySelector("h2")!;
+      const soft = tone === "neutral" ? "bg-muted" : `bg-status-${tone}-soft`;
+      const stripe = tone === "neutral" ? "bg-muted-foreground" : `bg-status-${tone}`;
+      expect(heading.classList.contains(soft)).toBe(true);
+      expect(heading.querySelector(`[data-stripe].${stripe}`)).not.toBeNull();
+      expect(heading.innerHTML).not.toMatch(/amber-500|emerald-500|red-500|bg-primary/);
+    });
+
+    it("stripes a card with the tone of its own status, not of its column", async () => {
+      const { node } = await render([op({ status: "transferring" }), op({ operationId: "c", status: "ready_to_transfer" })]);
+      const cards = Array.from(column(node, t.columns.readyToTransfer).querySelectorAll("a"));
+      expect(cards[0].querySelector("[data-stripe]")!.className).toContain("bg-status-info");
+      expect(cards[1].querySelector("[data-stripe]")!.className).toContain("bg-status-attention");
+    });
+
+    it("sets the lane darker than the card with a border, and gives the card a light elevation", async () => {
+      const { node } = await render([op()]);
+      const lane = column(node, t.columns.requested);
+      const card = lane.querySelector("a")!;
+      expect(lane.classList.contains("bg-lane")).toBe(true);
+      expect(card.className).toContain("bg-card");
+      expect(card.className).toContain("shadow-[var(--elev-card)]");
+      expect(card.className).toContain("focus-visible:ring-2");
+    });
+
+    it("shows the amount larger and bold", async () => {
+      const { node } = await render([op()]);
+      const amount = Array.from(node.querySelectorAll("a span")).find((e) => e.textContent?.includes("30"))!;
+      expect(amount.className).toContain("font-bold");
+      expect(amount.className).toContain("text-base");
+    });
+
+    it.each([
+      ["1 h 59 min", "2026-10-05T10:01:00Z", "collecting_information", "text-muted-foreground"],
+      ["2 h", "2026-10-05T10:00:00Z", "collecting_information", "text-status-attention"],
+      ["23 h 59 min", "2026-10-04T12:01:00Z", "collecting_information", "text-status-attention"],
+      ["24 h", "2026-10-04T12:00:00Z", "collecting_information", "text-status-danger"],
+      ["a completed operation after 3 days", "2026-10-02T12:00:00Z", "completed", "text-muted-foreground"],
+    ])("colours the age of %s", async (_label, stateSince, status, cls) => {
+      const { node } = await render([op({ stateSince, status })]);
+      const age = node.querySelector("a [title]")!;
+      expect(age.className).toContain(cls);
+      expect(age.getAttribute("title")).toContain(age.textContent!);
+    });
+
+    it("draws the missing-recipient line with the attention tone and a dot, not a triangle", async () => {
+      const { node } = await render([op({ beneficiariesComplete: false })]);
+      const line = Array.from(node.querySelectorAll("a p")).find((p) => p.textContent === t.missingBeneficiaries)!;
+      expect(line.className).toContain("text-status-attention");
+      expect(line.querySelector("svg")).toBeNull();
+      expect(line.querySelector("[data-dot]")).not.toBeNull();
+      expect(line.className).not.toMatch(/amber/);
+    });
+
+    it("has no service icon on the card", async () => {
+      const { node } = await render([op({ serviceType: "recarga" }), op({ operationId: "z", deliveryMethod: "cuban_card" })]);
+      expect(node.querySelectorAll("a svg").length).toBe(0);
+    });
   });
 });

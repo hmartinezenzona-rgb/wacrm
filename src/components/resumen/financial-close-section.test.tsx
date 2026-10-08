@@ -181,10 +181,6 @@ describe("FinancialCloseSection", () => {
     const services = Array.from(node.querySelectorAll("[data-testid='service-row']")).map((r) => r.getAttribute("data-service"));
     expect(services).toEqual(["ZELLE", "CUP"]);
     expect(node.querySelector("[data-testid='bar-chart']")?.getAttribute("data-points")).toBe("2");
-    // The profit ring reads the same loaded period: one legend row per service, best first.
-    expect(text).toContain(T.gananciaServicio.title);
-    const ringRows = Array.from(node.querySelectorAll("[data-testid='ring-row']")).map((r) => r.getAttribute("data-service"));
-    expect(ringRows).toEqual(["ZELLE", "CUP"]);
     // Detail row with Guyana time (15:05 UTC = 11:05 GY), delivery and actor.
     const detail = node.querySelector("[data-testid='detail-row']")!;
     expect(detail.textContent).toContain("Ana Pérez");
@@ -308,7 +304,6 @@ describe("FinancialCloseSection", () => {
     });
     const { node, root } = await render();
     expect(node.textContent).toContain(T.sinDatos);
-    expect(node.textContent).not.toContain(T.gananciaServicio.title);
     expect(node.querySelector("[data-testid='excluded-row']")).toBeNull();
     await act(async () => root.unmount());
   });

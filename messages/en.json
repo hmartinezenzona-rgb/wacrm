@@ -2352,11 +2352,6 @@
       },
       "porDia": "Por día",
       "porServicio": "Por servicio",
-      "gananciaServicio": {
-        "title": "Profit by service",
-        "ariaLabel": "Profit by service for the selected period, total {total}",
-        "total": "Total profit"
-      },
       "sinDatos": "Sin operaciones completadas en este periodo.",
       "detalle": "Detalle de operaciones",
       "excluidas": "Anuladas y pendientes de tasa (no cuentan en los totales)",

@@ -2352,11 +2352,6 @@
       },
       "porDia": "Por día",
       "porServicio": "Por servicio",
-      "gananciaServicio": {
-        "title": "Ganancia por servicio",
-        "ariaLabel": "Ganancia por servicio en el periodo elegido, total {total}",
-        "total": "Ganancia total"
-      },
       "sinDatos": "Sin operaciones completadas en este periodo.",
       "detalle": "Detalle de operaciones",
       "excluidas": "Anuladas y pendientes de tasa (no cuentan en los totales)",

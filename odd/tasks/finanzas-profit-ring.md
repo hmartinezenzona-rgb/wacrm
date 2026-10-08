@@ -38,3 +38,9 @@ Mode: strict TDD on. Source: user global CLAUDE.md. Runner: `npx vitest run <fil
 - With zero operations the existing empty message is shown and the card is not added (it would repeat it). The component itself handles an empty list.
 - Only 5 chart tokens exist; services 6+ reuse them at 55% opacity (legend carries names).
 - Staging deploy (2026-10-08; release a6b0d58ef49006efcb7d925bc1b1dc8f38d4f0a9, BUILD_ID 9GCAOF1cgTjN1QitB9n2Y, app commit a6b0d58): manifest environment=staging, project kolppplawzdsjfydwejr, 0 production refs, 33 staging refs, 114 build tests passed, sha256 OK on oracle2, pm2 wacrm-staging process cwd resolves to the new release, restarts 81 -> 82 and stable (unstable 0, still 82 after 20 s), /login 200 with the new BUILD_ID and "Bienvenido de nuevo", Finanzas ring chunk `_next/static/chunks/0qzgdd_soykhv.js` (contains `gananciaServicio`) served by crm.onlinefreedom.site byte-identical to the build (sha256 f2ac4fa1...ddf00), es messages server chunk holding "Ganancia por servicio" (`messages_es_json_[json]_cjs_04nuj04._.js`) byte-identical on the server (sha256 ca1d1b1a...bd2) and the string is present in the served /login HTML. Rollback: anterior -> be7f281 (`ssh oracle2 'ln -sfn /home/ubuntu/wacrm-releases/be7f281a1c294ee66b5ffc4bd751f210201e4985 ~/wacrm-releases/current && pm2 restart wacrm-staging --update-env'`). Owner's look pending.
+
+## Outcome (2026-10-07): rejected by the owner, removed
+- The owner looked at the ring on staging and did not like how it looked ("no me gustó como quedó"; later "el anillo se
+  va"). It never reached production (production got be7f281, the release before it).
+- Commit a6b0d58 is reverted on the branch; this document stays as the record. If a ring is wanted again it is a new
+  design, not a restore of this one.

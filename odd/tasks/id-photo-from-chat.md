@@ -26,7 +26,7 @@ Mode strict, source user global CLAUDE.md. Runners: DB = staging SQL assertion (
 app = `npx vitest run <files>` (RED then GREEN), `npx tsc --noEmit`, `npx eslint <changed>`.
 
 ## Tasks
-- [ ] P1 - Migration 233 (+ ROLLBACK) and staging assertion `id-photo-from-chat.sql`, RED then GREEN, rollback proof, related assertions.
+- [x] P1 - Migration 233 (+ ROLLBACK) and staging assertion `id-photo-from-chat.sql`, RED then GREEN, rollback proof, related assertions.
 - [ ] P2 - API/command layer: PATCH key, chat-images route, command, tests.
 - [ ] P3 - Picker component and card / edit / add integration, strings es+en, tests.
 - [ ] P4 - Full suite, tsc, eslint, evidence.
@@ -35,3 +35,13 @@ app = `npx vitest run <files>` (RED then GREEN), `npx tsc --noEmit`, `npx eslint
 `chat-media` is a PUBLIC bucket: ID-card photos are reachable by URL to anyone who has it (the URL carries a timestamp and a WhatsApp id, hard to guess but not secret).
 Options: (a) private bucket + signed URLs resolved by an authenticated route (the "Ver ID" link and the thumbnails would go through it); (b) move only identity
 documents to a private bucket at ingestion; (c) keep public and shorten exposure with unguessable object names. (a) is the cleanest; it touches ingestion and every media viewer.
+
+## Evidence - P1 database (staging, 2026-10-08)
+- RED: `id-photo-from-chat.sql` failed at case a (`22023 unknown field`) before 233. 233 applied (`BEGIN; 233; COMMIT;`), assertion GREEN (a-h).
+- Fingerprints on staging after 233: crm_corregir_beneficiario 8200d08f647f817eb5fa8a5fa6b44065, crm_agregar_beneficiario 167b6bc5971c44f80fdd59ee5ee769cb,
+  crm_imagenes_de_conversacion 67ceb0d384c9af6ff455ce1e4afbb5d2. Pre-233 (staging = production, no drift): 43e52676..., ee9da2d6.... Rollback proof: ROLLBACK-233
+  inside a rolled-back transaction restored both md5s and dropped the new function. Staging left WITH 233; no fixture rows.
+- Related assertions with 233: cash-recipient-add, add-beneficiary, corrections, cash-delivery-data, cash-delivery-activation, change-operation-service, saldo-model,
+  reparto-auto, panel-cash-recipient, panel-notify-and-cash-name, cash-delivery-rate, combo-edit, combo-model, panel-closing-actions, panel-recarga, recarga-model, visa-model: PASS.
+  Failing identically WITHOUT 233 (deal-era fixtures): deals-free-views-and-inert-edits, history-readiness, delivery-feed-evidence.
+- Choice: null clears the photo on a correction (the RPC already clears card_number/phone/amount/currency with null); on add, null = none.

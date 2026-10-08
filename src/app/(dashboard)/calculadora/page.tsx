@@ -859,8 +859,9 @@ export default function CalculadoraPage() {
           </DialogContent>
         </Dialog>
 
-        <div className="legacyCard" id="semanasAnteriores">
-          <h2>📚 Semanas anteriores</h2>
+        {/* Collapsed by default (owner, 2026-10-07): the history opens on demand so it does not fill the page. */}
+        <details id="semanasAnteriores">
+          <summary>📚 Semanas anteriores{weeks.length > 0 ? ` (${weeks.length})` : ""}</summary>
           <span className="legacySmall">Cada «Limpiar Todo» guarda la semana aquí, solo para consultarla. Sus operaciones siguen contando en Finanzas y en el panel.</span>
           {weekMessage && <div className="legacyError">{weekMessage}</div>}
           {weeks.length === 0 ? (
@@ -884,7 +885,6 @@ export default function CalculadoraPage() {
               </tbody>
             </table>
           )}
-        </div>
 
         {openWeek && (
           <div className="legacyCard" id="semanaArchivada">
@@ -926,6 +926,7 @@ export default function CalculadoraPage() {
             )}
           </div>
         )}
+        </details>
       </div>
     </main>
   );

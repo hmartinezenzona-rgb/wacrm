@@ -1512,6 +1512,25 @@ describe("calculator archived weeks (Semanas anteriores)", () => {
     });
   }
 
+  // Owner, 2026-10-07: the history must not fill the Calculator; it opens on demand, like the format guide.
+  it("is a collapsed section (details) with the number of weeks in its summary, and holds the open week", async () => {
+    const { node, root } = await renderPage(fixture());
+
+    const section = node.querySelector("#semanasAnteriores") as HTMLDetailsElement;
+    expect(section.tagName).toBe("DETAILS");
+    expect(section.open).toBe(false);
+    const summary = section.querySelector("summary") as HTMLElement;
+    expect(summary.textContent).toContain("Semanas anteriores");
+    expect(summary.textContent).toMatch(/\(\d+\)/);
+    expect(node.querySelector("h2")?.textContent ?? "").not.toContain("Semanas anteriores");
+    expect(Array.from(node.querySelectorAll("h2")).some((h) => (h.textContent ?? "").includes("📚 Semanas anteriores"))).toBe(false);
+
+    await act(async () => { (node.querySelector("#verSemana-week-1") as HTMLButtonElement).click(); });
+    await act(async () => { await Promise.resolve(); });
+    expect(section.querySelector("#semanaArchivada")).not.toBeNull();
+    await act(async () => root.unmount());
+  });
+
   it("lists the archived weeks compactly: cut date, period and totals", async () => {
     const { node, root } = await renderPage(fixture());
 

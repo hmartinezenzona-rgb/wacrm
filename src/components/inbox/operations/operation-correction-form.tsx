@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
+import { useServiceName } from "@/hooks/use-service-name";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConfirmCancelButtons, cancelOnEscape } from "./confirm-cancel-buttons";
@@ -30,6 +31,7 @@ interface OperationCorrectionFormProps {
  */
 export function OperationCorrectionForm({ operation, onDone, onCancel }: OperationCorrectionFormProps) {
   const t = useTranslations("Inbox.operationsPanel");
+  const serviceName = useServiceName();
 
   const initialService = currentServiceOf(operation) ?? "";
   const initialDepositMethod = operation.depositMethod ?? "";
@@ -162,14 +164,14 @@ export function OperationCorrectionForm({ operation, onDone, onCancel }: Operati
             {/* Base UI paints the raw value unless it is given the label. */}
             <SelectValue placeholder={t("serviceChange.choose")}>
               {(v) =>
-                v ? t(`closing.method.${v as string}`) : t("serviceChange.choose")
+                v ? serviceName(v as string) : t("serviceChange.choose")
               }
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {OPERATION_SERVICES.map((option) => (
               <SelectItem key={option} value={option}>
-                {t(`closing.method.${option}`)}
+                {serviceName(option)}
               </SelectItem>
             ))}
           </SelectContent>

@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
+import { useServiceName } from "@/hooks/use-service-name";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConfirmCancelButtons, cancelOnEscape } from "./confirm-cancel-buttons";
 import { EDIT_AREA, FieldRow, UNDERLINE_SELECT_TRIGGER, UnderlineInput } from "./edit-form-fields";
@@ -45,6 +46,7 @@ const ADDABLE_BENEFICIARY_TYPES: ReadonlyArray<string> = ["cuban_card", "zelle",
  */
 export function BeneficiaryAddControl({ operationId, serviceType, service, quote, onDone, onCancel }: BeneficiaryAddControlProps) {
   const t = useTranslations("Inbox.operationsPanel");
+  const serviceName = useServiceName();
 
   const [pickedType, setPickedType] = useState("cuban_card");
   const [name, setName] = useState("");
@@ -273,12 +275,12 @@ export function BeneficiaryAddControl({ operationId, serviceType, service, quote
         <Select id="add-beneficiary-type" value={beneficiaryType} disabled={pending} onValueChange={(v) => setPickedType(v ?? "cuban_card")}>
           <SelectTrigger className={UNDERLINE_SELECT_TRIGGER}>
             {/* Base UI paints the raw value unless it is given the label. */}
-            <SelectValue>{(v) => t(`beneficiaryType.${(v as string) || beneficiaryType}`)}</SelectValue>
+            <SelectValue>{(v) => serviceName((v as string) || beneficiaryType)}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {ADDABLE_BENEFICIARY_TYPES.map((type) => (
               <SelectItem key={type} value={type}>
-                {t(`beneficiaryType.${type}`)}
+                {serviceName(type)}
               </SelectItem>
             ))}
           </SelectContent>

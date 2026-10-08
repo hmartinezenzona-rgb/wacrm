@@ -138,16 +138,7 @@
       "noOperationsTodayHint": "Completed remittance operations will show up here as they happen.",
       "operationCount": "{count} {count, plural, =1 {op} other {ops}}",
       "total": "Total",
-      "ariaLabel": "Remittance volume by service, today",
-      "serviceType": {
-        "remesa": "Remittance",
-        "combo": "Combo",
-        "recarga": "Top-up",
-        "visa": "Visa",
-        "saldo": "Mobile balance",
-        "traduccion": "Translation",
-        "mexico": "Mexico"
-      }
+      "ariaLabel": "Remittance volume by service, today"
     },
     "operationsFunnel": {
       "title": "Operations In Flight",
@@ -416,19 +407,6 @@
       "recalculatedOnSave": "Recalculated on save",
       "name": "Name",
       "currency": "Currency",
-      "mixedDestination": "Mixed",
-      "beneficiaryType": {
-        "cuban_card": "CUP card",
-        "zelle": "Zelle",
-        "clasica": "Clásica",
-        "tropical": "Tropical",
-        "efectivo_usd": "Cash in USD",
-        "multiple_distribution": "Multiple distribution",
-        "recarga": "Recharge",
-        "combo": "Combo",
-        "visa": "Visa extension",
-        "saldo": "Mobile balance"
-      },
       "rechargeCountOne": "{count} recharge",
       "rechargeCountMany": "{count} recharges",
       "comboCountOne": "{count} combo",
@@ -457,7 +435,6 @@
       "reference": "Reference",
       "contactPhone": "Contact phone",
       "invalidRechargePhone": "Enter a Cuban mobile number: 8 digits starting with 5 or 6",
-      "cashUnit": "USD cash",
       "address": "Address",
       "viewIdPhoto": "View ID",
       "idPhotoMissing": "ID photo missing",
@@ -500,18 +477,7 @@
         "deleteButton": "Delete remesa",
         "closeButton": "Close manually",
         "closeConfirm": "Close remesa",
-        "deleteConfirm": "Delete remesa",
-        "method": {
-          "cuban_card": "CUP",
-          "zelle": "Zelle",
-          "clasica": "Clásica",
-          "tropical": "Tropical",
-          "efectivo_usd": "Cash in USD",
-          "recarga": "Recharge",
-          "combo": "Combo",
-          "visa": "Visa extension",
-          "saldo": "Mobile balance"
-        }
+        "deleteConfirm": "Delete remesa"
       },
       "completeTransfer": {
         "title": "Complete transfer",
@@ -2390,12 +2356,7 @@
     "description": "Live state of every chat's operations. Read-only: act from the chat.",
     "filterLabel": "Service",
     "filters": {
-      "all": "All",
-      "remesa": "Remittance",
-      "recarga": "Recharge",
-      "combo": "Combo",
-      "visa": "Visa",
-      "saldo": "Mobile balance"
+      "all": "All"
     },
     "columns": {
       "requested": "Requested",
@@ -2403,13 +2364,6 @@
       "readyToTransfer": "Ready to transfer",
       "incident": "Incident",
       "completed": "Completed (last 24 h)"
-    },
-    "services": {
-      "remesa": "Remittance",
-      "recarga": "Recharge",
-      "combo": "Combo",
-      "visa": "Visa extension",
-      "saldo": "Mobile balance"
     },
     "unknownContact": "Unknown contact",
     "missingBeneficiaries": "Recipient details missing",

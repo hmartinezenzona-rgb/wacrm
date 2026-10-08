@@ -14,6 +14,7 @@ interface ServiceVolumeDonutProps {
 }
 
 import { useTranslations } from 'next-intl'
+import { useServiceName } from '@/hooks/use-service-name'
 
 // `traduccion` shares --chart-5 with `mexico` and `saldo` shares --chart-3 with
 // `recarga` (see queries.ts) — render them at reduced opacity so each pair
@@ -22,6 +23,7 @@ const REDUCED_OPACITY_SERVICE_TYPES = new Set(['traduccion', 'saldo'])
 
 export function ServiceVolumeDonut({ data, loading, currency }: ServiceVolumeDonutProps) {
   const t = useTranslations('Dashboard.serviceVolumeDonut')
+  const serviceName = useServiceName()
   return (
     <section className="flex h-full flex-col rounded-xl border border-border bg-card tarjeta-elevada">
       <header className="border-b border-border px-5 py-4">
@@ -55,7 +57,7 @@ export function ServiceVolumeDonut({ data, loading, currency }: ServiceVolumeDon
                     aria-hidden
                   />
                   <span className="flex-1 truncate text-muted-foreground">
-                    {t(`serviceType.${s.serviceType}`)}
+                    {serviceName(s.serviceType)}
                   </span>
                   <span className="text-muted-foreground tabular-nums">
                     {t('operationCount', { count: s.operationCount })}

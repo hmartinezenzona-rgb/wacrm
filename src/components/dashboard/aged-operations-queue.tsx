@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl'
 import type { AgedOperation } from '@/lib/dashboard/types'
 import { humanizeAge } from '@/lib/dashboard/date-utils'
 import { formatCurrencyShort } from '@/lib/currency'
+import { useServiceName } from '@/hooks/use-service-name'
 import { EmptyState } from './empty-state'
 import { Skeleton } from './skeleton'
 import {
@@ -27,21 +28,6 @@ interface AgedOperationsQueueProps {
 // every other financial widget on this dashboard.
 const LEDGER_CURRENCY = 'GYD'
 
-// Mirrors `calculator_service_for_operation()` (migration 104) exactly
-// — the same delivery_method -> CUP/ZELLE/CLASICA/TROPICAL/EFECTIVO mapping the
-// calculator ledger uses (see ServiceProfitabilityTable). No display
-// mapping for raw `delivery_method` existed anywhere on this dashboard
-// before this widget, so this reuses the ledger's own taxonomy rather
-// than inventing a new one.
-const DELIVERY_METHOD_SERVICE: Record<string, string> = {
-  cuban_card: 'CUP',
-  multiple_distribution: 'CUP',
-  zelle: 'ZELLE',
-  clasica: 'CLASICA',
-  tropical: 'TROPICAL',
-  efectivo_usd: 'EFECTIVO',
-}
-
 // `deliveryMethod` is almost never set yet on a non-terminal operation
 // in this business's real flow (verified against live data: 0 of 4
 // in-flight ops had it, vs 8 of 11 completed ones — it only resolves
@@ -49,9 +35,14 @@ const DELIVERY_METHOD_SERVICE: Record<string, string> = {
 // known this early (verified: all 4 in-flight ops had it) — coarser
 // than the delivery-method service (doesn't distinguish zelle/clasica/
 // tropical within USD) but real, already-decided information, so it's
-// a real fallback, not a guess.
-function serviceLabel(deliveryMethod: string | null, destinationCurrency: string | null): string {
-  if (deliveryMethod) return DELIVERY_METHOD_SERVICE[deliveryMethod] ?? deliveryMethod
+// a real fallback, not a guess. The delivery method is named with the
+// shared canonical service names (an unknown one prints as it is).
+function serviceLabel(
+  deliveryMethod: string | null,
+  destinationCurrency: string | null,
+  serviceName: (key: string) => string,
+): string {
+  if (deliveryMethod) return serviceName(deliveryMethod)
   if (destinationCurrency) return destinationCurrency
   return '—'
 }
@@ -68,6 +59,7 @@ function serviceLabel(deliveryMethod: string | null, destinationCurrency: string
 export function AgedOperationsQueue({ data, loading }: AgedOperationsQueueProps) {
   const t = useTranslations('Dashboard.agedOperations')
   const stageT = useTranslations('Dashboard.operationsFunnel')
+  const serviceName = useServiceName()
   const rows = data ?? []
 
   return (
@@ -101,7 +93,7 @@ export function AgedOperationsQueue({ data, loading }: AgedOperationsQueueProps)
                     {row.contactName || t('unknownClient')}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {serviceLabel(row.deliveryMethod, row.destinationCurrency)}
+                    {serviceLabel(row.deliveryMethod, row.destinationCurrency, serviceName)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-foreground">
                     {row.quotedSourceAmount === null

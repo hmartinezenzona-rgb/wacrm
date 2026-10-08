@@ -268,13 +268,13 @@ describe("RemittanceOperationCard visa", () => {
       ...overrides,
     });
 
-  it("shows the Visa extension label and the count from the amount, with no quote line", async () => {
+  it("shows the Visa label and the count from the amount, with no quote line", async () => {
     const { node, root } = await render(visaOp(), {
       quote: { gyd: 15000, destinationAmount: 4000, destinationCurrency: "CUP", quotedAt: "2026-10-03T00:00:00Z" },
     });
 
     expect(node.querySelector("article")!.textContent).toContain("15\u202f000 GYD");
-    expect(node.querySelector("article")!.textContent).toContain("Visa extension");
+    expect(node.querySelector("article")!.textContent).toContain("Visa · 3 extensions");
     expect(node.querySelector("article svg.lucide-stamp")).toBeNull();
     expect(node.querySelector('[data-testid="deposit-review-stub"]')!.getAttribute("data-summary-amount")).toContain("3 extensions");
     expect(node.textContent).not.toContain("Quoted");
@@ -293,8 +293,7 @@ describe("RemittanceOperationCard visa", () => {
 
     const header = node.querySelector("article button[aria-expanded]")!.textContent!;
     expect(header).toContain("10\u202f000 GYD");
-    expect(header).toContain("Visa extension");
-    expect(header).toContain("2 extensions");
+    expect(header).toContain("Visa · 2 extensions");
     await act(async () => root.unmount());
   });
 
@@ -661,11 +660,11 @@ describe("RemittanceOperationCard recharge", () => {
       ],
     });
 
-  it("shows the Recharge label, the deposit in GYD, and the recharge count", async () => {
+  it("shows the Top-up label, the deposit in GYD, and the recharge count", async () => {
     const { node, root } = await render(rechargeOp(), { quote: { gyd: 10400, destinationAmount: 4000, destinationCurrency: "CUP", quotedAt: "2026-10-03T00:00:00Z" } });
 
     expect(node.textContent).toContain("10\u202f400 GYD");
-    expect(node.textContent).toContain("Recharge");
+    expect(node.textContent).toContain("Top-up");
     expect(node.querySelector("article svg.lucide-smartphone")).toBeNull();
     const summary = node.querySelector('[data-testid="deposit-review-stub"]')!;
     expect(summary.getAttribute("data-summary-amount")).toContain("2 recharges");
@@ -713,14 +712,14 @@ describe("RemittanceOperationCard recharge", () => {
     await act(async () => root.unmount());
   });
 
-  it("a remesa card is unchanged: quote line, no Recharge label", async () => {
+  it("a remesa card is unchanged: quote line, no Top-up label", async () => {
     const { node, root } = await render(
       operation({ beneficiaries: [beneficiary({ cardNumber: "9205123412349412", amount: 100, currency: "CUP" })] }),
       { quote: { gyd: 10400, destinationAmount: 4000, destinationCurrency: "CUP", quotedAt: "2026-10-03T00:00:00Z" } },
     );
 
     expect(node.textContent).toContain("Quoted: 10\u202f400 GYD → 4\u202f000 CUP");
-    expect(node.textContent).not.toContain("Recharge");
+    expect(node.textContent).not.toContain("Top-up");
     expect(node.querySelector("article svg.lucide-smartphone")).toBeNull();
     await act(async () => root.unmount());
   });
@@ -851,7 +850,7 @@ describe("RemittanceOperationCard", () => {
         }),
       );
 
-      expect(node.textContent).toContain(en.Inbox.operationsPanel.mixedDestination);
+      expect(node.textContent).toContain(en.ServiceNames.mixed);
       await act(async () => root.unmount());
     });
 
@@ -868,7 +867,7 @@ describe("RemittanceOperationCard", () => {
       );
 
       expect(node.textContent).toContain("CUP");
-      expect(node.textContent).not.toContain(en.Inbox.operationsPanel.mixedDestination);
+      expect(node.textContent).not.toContain(en.ServiceNames.mixed);
       await act(async () => root.unmount());
     });
 
@@ -878,7 +877,7 @@ describe("RemittanceOperationCard", () => {
       );
 
       expect(node.textContent).toContain("CUP");
-      expect(node.textContent).not.toContain(en.Inbox.operationsPanel.mixedDestination);
+      expect(node.textContent).not.toContain(en.ServiceNames.mixed);
       await act(async () => root.unmount());
     });
   });
@@ -1003,7 +1002,7 @@ describe("RemittanceOperationCard", () => {
     it("shows the phone, address, an ID link opening in a new tab, the USD cash amount and no card line", async () => {
       const { node, root } = await render(cashOperation());
 
-      expect(node.textContent).toContain(en.Inbox.operationsPanel.beneficiaryType.efectivo_usd);
+      expect(node.textContent).toContain(en.ServiceNames.efectivo_usd);
       expect(button(node, "Copy Phone")?.textContent).toContain("5926001111");
       expect(node.textContent).toContain("12 Main St, Georgetown");
       const link = Array.from(node.querySelectorAll("a")).find(
@@ -1014,7 +1013,7 @@ describe("RemittanceOperationCard", () => {
       expect(link.getAttribute("rel")).toContain("noopener");
       expect(button(node, "Copy Card")).toBeNull();
       const summary = node.querySelector('[data-testid="deposit-review-stub"]')!;
-      expect(summary.getAttribute("data-summary-amount")).toContain("100 USD cash");
+      expect(summary.getAttribute("data-summary-amount")).toContain("100 Cash USD");
       await act(async () => root.unmount());
     });
 

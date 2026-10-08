@@ -613,7 +613,7 @@ describe("calculator pending-entries banner", () => {
     await act(async () => root.unmount());
   });
 
-  it("a saldo line reads as its saldo amount in SM with the Saldo Móvil label, not '5 SALDO_MOVIL'", async () => {
+  it("a saldo line reads as its saldo amount in SM with the Saldo móvil label, not '5 SALDO_MOVIL'", async () => {
     const fetchMock = createFetchMock({
       calculadoraGet: {
         rawText: "",
@@ -644,7 +644,7 @@ describe("calculator pending-entries banner", () => {
     await act(async () => root.unmount());
   });
 
-  it("a pending saldo line names the service as Saldo Móvil in the banner", async () => {
+  it("a pending saldo line names the service as Saldo móvil in the banner", async () => {
     const fetchMock = createFetchMock({
       calculadoraGet: {
         rawText: "",

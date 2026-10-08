@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useOperationServiceName, useServiceName } from "@/hooks/use-service-name";
 import { formatCurrency } from "@/lib/currency";
 import {
   SERVICE_FILTERS,
@@ -26,8 +27,6 @@ const COLUMN_TONE: Record<BoardColumnId, string> = {
   completed: "bg-primary",
 };
 
-const KNOWN_SERVICES = ["remesa", "recarga", "combo", "visa", "saldo"] as const;
-
 function ServiceBadge({ op, label }: { op: BoardOperation; label: string }) {
   // A remittance shows its delivery method icon (as the chat panel does); the
   // other services have their own icon, the same ones the panel's picker uses.
@@ -46,10 +45,10 @@ function ServiceBadge({ op, label }: { op: BoardOperation; label: string }) {
 
 function BoardCard({ op, now }: { op: BoardOperation; now: Date }) {
   const t = useTranslations("Tablero");
+  const operationServiceName = useOperationServiceName();
   const name = op.contactName?.trim() || op.contactPhone || t("unknownContact");
-  const serviceLabel = (KNOWN_SERVICES as ReadonlyArray<string>).includes(op.serviceType)
-    ? t(`services.${op.serviceType}`)
-    : op.serviceType;
+  // A remittance reads as its rail (CUP, Zelle...), the generic "Remesa" only when the rail is not known yet.
+  const serviceLabel = operationServiceName({ serviceType: op.serviceType, deliveryMethod: op.deliveryMethod });
   const age = ageParts(op.stateSince, now);
   const ageText = t(`age.${age.unit}`, { value: age.value });
   return (
@@ -93,6 +92,7 @@ interface OperationsBoardProps {
  *  filter. The only interactions are the filter and the link to the chat. */
 export function OperationsBoard({ operations, filter, onFilterChange, now }: OperationsBoardProps) {
   const t = useTranslations("Tablero");
+  const serviceName = useServiceName();
   const columns = groupBoard(operations, filter);
   return (
     <div className="space-y-4">
@@ -110,7 +110,7 @@ export function OperationsBoard({ operations, filter, onFilterChange, now }: Ope
                 : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >
-            {t(`filters.${value}`)}
+            {value === "all" ? t("filters.all") : serviceName(value)}
           </button>
         ))}
       </div>

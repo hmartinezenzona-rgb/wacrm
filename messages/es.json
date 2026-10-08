@@ -138,16 +138,7 @@
       "noOperationsTodayHint": "Las operaciones de remesa completadas aparecerán aquí a medida que ocurran.",
       "operationCount": "{count} {count, plural, =1 {op.} other {ops.}}",
       "total": "Total",
-      "ariaLabel": "Volumen de remesas por servicio, hoy",
-      "serviceType": {
-        "remesa": "Remesa",
-        "combo": "Combo",
-        "recarga": "Recarga",
-        "visa": "Visa",
-        "saldo": "Saldo móvil",
-        "traduccion": "Traducción",
-        "mexico": "México"
-      }
+      "ariaLabel": "Volumen de remesas por servicio, hoy"
     },
     "operationsFunnel": {
       "title": "Operaciones en curso",
@@ -416,19 +407,6 @@
       "recalculatedOnSave": "Se recalcula al guardar",
       "name": "Nombre",
       "currency": "Moneda",
-      "mixedDestination": "Mixto",
-      "beneficiaryType": {
-        "cuban_card": "Tarjeta CUP",
-        "zelle": "Zelle",
-        "clasica": "Clásica",
-        "tropical": "Tropical",
-        "efectivo_usd": "Efectivo en USD",
-        "multiple_distribution": "Distribución múltiple",
-        "recarga": "Recarga",
-        "combo": "Combo",
-        "visa": "Extensión de visa",
-        "saldo": "Saldo móvil"
-      },
       "rechargeCountOne": "{count} recarga",
       "rechargeCountMany": "{count} recargas",
       "comboCountOne": "{count} combo",
@@ -457,7 +435,6 @@
       "reference": "Referencia",
       "contactPhone": "Teléfono de contacto",
       "invalidRechargePhone": "Ingresa un número móvil cubano: 8 dígitos que empiecen con 5 o 6",
-      "cashUnit": "Efectivo en USD",
       "address": "Dirección",
       "viewIdPhoto": "Ver ID",
       "idPhotoMissing": "Falta la foto del ID",
@@ -500,18 +477,7 @@
         "deleteButton": "Eliminar remesa",
         "closeButton": "Cerrar manualmente",
         "closeConfirm": "Cerrar remesa",
-        "deleteConfirm": "Eliminar remesa",
-        "method": {
-          "cuban_card": "CUP",
-          "zelle": "Zelle",
-          "clasica": "Clásica",
-          "tropical": "Tropical",
-          "efectivo_usd": "Efectivo en USD",
-          "recarga": "Recarga",
-          "combo": "Combo",
-          "visa": "Extensión de visa",
-          "saldo": "Saldo móvil"
-        }
+        "deleteConfirm": "Eliminar remesa"
       },
       "completeTransfer": {
         "title": "Completar transferencia",
@@ -2390,12 +2356,7 @@
     "description": "Estado en vivo de las operaciones de cada chat. Solo lectura: actúa desde el chat.",
     "filterLabel": "Servicio",
     "filters": {
-      "all": "Todos",
-      "remesa": "Remesa",
-      "recarga": "Recarga",
-      "combo": "Combo",
-      "visa": "Visa",
-      "saldo": "Saldo móvil"
+      "all": "Todos"
     },
     "columns": {
       "requested": "Solicitadas",
@@ -2403,13 +2364,6 @@
       "readyToTransfer": "Listas para transferir",
       "incident": "Incidencia",
       "completed": "Completadas (últimas 24 h)"
-    },
-    "services": {
-      "remesa": "Remesa",
-      "recarga": "Recarga",
-      "combo": "Combo",
-      "visa": "Extensión de visa",
-      "saldo": "Saldo móvil"
     },
     "unknownContact": "Contacto desconocido",
     "missingBeneficiaries": "Faltan datos del beneficiario",

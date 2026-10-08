@@ -2,6 +2,7 @@
 
 import { useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
+import { useServiceName } from "@/hooks/use-service-name";
 import { ArrowRightLeft, AtSign, Banknote, ChevronDown, CreditCard, IdCard, Lock, MapPin, Pencil, Phone, Trash2, UserPlus, UserRound, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { canForceVerify, type AccountRole } from "@/lib/auth/roles";
@@ -123,11 +124,14 @@ function formatCardNumber(value: string): string {
   return groups.join(" ");
 }
 
+/** Name of a service key (the shared canonical names); an unknown key prints as it is. */
+type ServiceNameOf = (key: string) => string;
+
 /** Human label for a known beneficiary/delivery type, the deposit method
  *  "mmg" special case, or the raw value as a last resort. */
-function knownMethodLabel(method: string, t: (key: string) => string): string {
+function knownMethodLabel(method: string, t: (key: string) => string, name: ServiceNameOf): string {
   return KNOWN_BENEFICIARY_TYPES.includes(method)
-    ? t(`beneficiaryType.${method}`)
+    ? name(method)
     : method === "mmg"
       ? t("depositMethodValue.mmg")
       : method;
@@ -143,32 +147,33 @@ function knownMethodLabel(method: string, t: (key: string) => string): string {
 function destinationLabel(
   operation: RemittanceOperationRead,
   t: (key: string, params?: Record<string, unknown>) => string,
+  name: ServiceNameOf,
 ): string | null {
   const { deliveryMethod, destinationCurrency, beneficiaries } = operation;
-  if (isRecharge(operation)) return t("beneficiaryType.recarga");
-  if (isCombo(operation)) return t("beneficiaryType.combo");
+  if (isRecharge(operation)) return name("recarga");
+  if (isCombo(operation)) return name("combo");
   // A visa shows how many extensions from the start (owner test 2026-10-04): the count used to appear only once the
   // deposit was verified.
-  if (isVisa(operation)) return `${t("beneficiaryType.visa")} · ${visaCountLabel(operation, t)}`;
+  if (isVisa(operation)) return `${name("visa")} · ${visaCountLabel(operation, t)}`;
   // A mobile balance names its packages (and the saldo they carry) once the deposit is a whole number of them.
   if (isSaldo(operation)) {
     const label = saldoSummaryLabel(operation, t);
-    return label ? `${t("beneficiaryType.saldo")} · ${label}` : t("beneficiaryType.saldo");
+    return label ? `${name("saldo")} · ${label}` : name("saldo");
   }
 
   const units = new Set(
     beneficiaries
-      .map((b) => unitLabel(b.beneficiaryType, b.currency ?? destinationCurrency, t))
+      .map((b) => unitLabel(b.beneficiaryType, b.currency ?? destinationCurrency, name))
       .filter((unit): unit is string => unit !== null),
   );
-  if (units.size > 1) return t("mixedDestination");
+  if (units.size > 1) return name("mixed");
   if (units.size === 1) return [...units][0]!;
 
   if (deliveryMethod === "zelle" || deliveryMethod === "clasica" || deliveryMethod === "tropical") {
-    return t(`beneficiaryType.${deliveryMethod}`);
+    return name(deliveryMethod);
   }
   if (destinationCurrency) return destinationCurrency;
-  if (deliveryMethod) return knownMethodLabel(deliveryMethod, t);
+  if (deliveryMethod) return knownMethodLabel(deliveryMethod, t, name);
   return null;
 }
 
@@ -199,10 +204,10 @@ const SERVICE_UNIT_TYPES: ReadonlyArray<string> = ["zelle", "clasica", "tropical
 function unitLabel(
   service: string | null,
   currency: string | null,
-  t: (key: string) => string,
+  name: ServiceNameOf,
 ): string | null {
-  if (service && SERVICE_UNIT_TYPES.includes(service)) return t(`beneficiaryType.${service}`);
-  if (service === "efectivo_usd") return t("cashUnit");
+  if (service && SERVICE_UNIT_TYPES.includes(service)) return name(service);
+  if (service === "efectivo_usd") return name(service);
   return currency;
 }
 
@@ -253,6 +258,7 @@ function visaCountLabel(
 function computeSummaryAmount(
   operation: RemittanceOperationRead,
   t: (key: string, params?: Record<string, unknown>) => string,
+  name: ServiceNameOf,
 ): SummaryAmount | null {
   // A recharge is counted, not priced here: one number per recharge.
   if (isRecharge(operation)) {
@@ -286,14 +292,14 @@ function computeSummaryAmount(
     const currencyLabel = unitLabel(
       beneficiary.beneficiaryType,
       beneficiary.currency ?? operation.destinationCurrency,
-      t,
+      name,
     );
     return { kind: "amount", display: money(amount, currencyLabel)! };
   }
 
   if (operation.beneficiaries.length === 0) {
     if (operation.quotedDestinationAmount === null) return null;
-    const currencyLabel = unitLabel(operation.deliveryMethod, operation.destinationCurrency, t);
+    const currencyLabel = unitLabel(operation.deliveryMethod, operation.destinationCurrency, name);
     return { kind: "amount", display: money(operation.quotedDestinationAmount, currencyLabel)! };
   }
 
@@ -373,6 +379,7 @@ export function RemittanceOperationCard({
   quote,
 }: RemittanceOperationCardProps) {
   const t = useTranslations("Inbox.operationsPanel");
+  const serviceName = useServiceName();
   const [openForm, setOpenForm] = useState<OpenFormState | null>(null);
 
   // A history row is always read-only, on top of (and regardless of) the
@@ -393,10 +400,10 @@ export function RemittanceOperationCard({
   }
 
   const source = money(operation.quotedSourceAmount, operation.sourceCurrency);
-  const destLabel = destinationLabel(operation, t as (key: string, params?: Record<string, unknown>) => string);
+  const destLabel = destinationLabel(operation, t as (key: string, params?: Record<string, unknown>) => string, serviceName);
   const destLocked = isLocked("delivery_method") || isLocked("destination_currency") || isLocked("quoted_destination_amount");
 
-  const methodLabel = (method: string): string => knownMethodLabel(method, t as (key: string) => string);
+  const methodLabel = (method: string): string => knownMethodLabel(method, t as (key: string) => string, serviceName);
 
   const lock = <Lock className="size-3 shrink-0" aria-label={t("lockedByOperator")} />;
 
@@ -410,7 +417,7 @@ export function RemittanceOperationCard({
     isManager && !operation.isHistory && MANUALLY_CLOSABLE_STATUSES.includes(operation.status);
 
   const showCompleteTransfer = status === "ready_to_transfer" && editable;
-  const summaryAmount = computeSummaryAmount(operation, t as (key: string, params?: Record<string, unknown>) => string);
+  const summaryAmount = computeSummaryAmount(operation, t as (key: string, params?: Record<string, unknown>) => string, serviceName);
 
   const beneficiaryActions = (
     beneficiary: RemittanceOperationRead["beneficiaries"][number],
@@ -629,7 +636,7 @@ export function RemittanceOperationCard({
                   const currencyLabel = unitLabel(
                     beneficiary.beneficiaryType,
                     beneficiary.currency ?? (isComboRecipient ? "GYD" : operation.destinationCurrency),
-                    t,
+                    serviceName,
                   );
                   const amountDisplay = amount === null ? null : money(amount, currencyLabel);
 
@@ -713,7 +720,7 @@ export function RemittanceOperationCard({
                           {isCash && (
                             <p className="flex items-center gap-2 px-2 text-xs font-medium text-muted-foreground">
                               <Banknote className="size-3.5" aria-hidden="true" />
-                              {t("beneficiaryType.efectivo_usd")}
+                              {serviceName("efectivo_usd")}
                             </p>
                           )}
                           {!isZelle && !isCash && !isRecarga && !isComboRecipient && beneficiary.cardNumber && (

@@ -24,6 +24,7 @@ afterEach(() => document.body.replaceChildren());
 
 const NOW = new Date("2026-10-05T12:00:00Z");
 const t = en.Tablero;
+const n = en.ServiceNames;
 
 function op(over: Partial<BoardOperation> = {}): BoardOperation {
   return {
@@ -69,9 +70,21 @@ describe("OperationsBoard", () => {
     const card = node.querySelector("a")!;
     expect(card.getAttribute("href")).toBe("/inbox?c=conv-1");
     expect(card.textContent).toContain("Ana Perez");
-    expect(card.textContent).toContain(t.services.remesa);
+    expect(card.textContent).toContain(n.zelle);
     expect(card.textContent?.replace(/\u00a0/g, " ")).toContain("GYD 30\u202f000");
     expect(card.textContent).toContain("2 h");
+  });
+
+  it("names a remittance by its rail: CUP, Zelle, mixed, and the generic remittance when the rail is unknown", async () => {
+    const { node } = await render([
+      op({ operationId: "a", deliveryMethod: "cuban_card" }),
+      op({ operationId: "b", deliveryMethod: "multiple_distribution" }),
+      op({ operationId: "c", deliveryMethod: null }),
+    ]);
+    const text = Array.from(node.querySelectorAll("a")).map((a) => a.textContent);
+    expect(text[0]).toContain(n.cup);
+    expect(text[1]).toContain(n.mixed);
+    expect(text[2]).toContain(n.remesa);
   });
 
   it("falls back to the phone, then to a placeholder, when the contact has no name", async () => {
@@ -96,18 +109,18 @@ describe("OperationsBoard", () => {
   it("labels each service, including recharge and combo", async () => {
     const { node } = await render([op({ serviceType: "recarga" }), op({ operationId: "c", serviceType: "combo" }), op({ operationId: "v", serviceType: "visa" })]);
     const text = Array.from(node.querySelectorAll("a")).map((a) => a.textContent);
-    expect(text[0]).toContain(t.services.recarga);
-    expect(text[1]).toContain(t.services.combo);
-    expect(text[2]).toContain(t.services.visa);
+    expect(text[0]).toContain(n.recarga);
+    expect(text[1]).toContain(n.combo);
+    expect(text[2]).toContain(n.visa);
   });
 
   it("labels a mobile balance with its own icon and offers its filter", async () => {
     const { node, onFilterChange } = await render([op({ operationId: "s", serviceType: "saldo", beneficiariesComplete: false })]);
     const card = node.querySelector("a")!;
-    expect(card.textContent).toContain(t.services.saldo);
+    expect(card.textContent).toContain(n.saldo);
     expect(card.textContent).toContain(t.missingBeneficiaries);
     expect(card.querySelector("svg.lucide-coins")).not.toBeNull();
-    const saldo = Array.from(node.querySelectorAll("button")).find((b) => b.textContent === t.filters.saldo)!;
+    const saldo = Array.from(node.querySelectorAll("button")).find((b) => b.textContent === n.saldo)!;
     await act(async () => saldo.click());
     expect(onFilterChange).toHaveBeenCalledWith("saldo");
   });
@@ -119,17 +132,17 @@ describe("OperationsBoard", () => {
     );
     expect(node.querySelectorAll("a").length).toBe(1);
     expect(column(node, t.columns.requested).querySelector("h2")!.textContent).toContain("1");
-    const visa = Array.from(node.querySelectorAll("button")).find((b) => b.textContent === t.filters.visa)!;
+    const visa = Array.from(node.querySelectorAll("button")).find((b) => b.textContent === n.visa)!;
     await act(async () => visa.click());
     expect(onFilterChange).toHaveBeenCalledWith("visa");
     const pressed = Array.from(node.querySelectorAll("button")).filter((b) => b.getAttribute("aria-pressed") === "true");
-    expect(pressed.map((b) => b.textContent)).toEqual([t.filters.combo]);
+    expect(pressed.map((b) => b.textContent)).toEqual([n.combo]);
   });
 
   it("offers no control that changes an operation", async () => {
     const { node } = await render([op()]);
     const buttons = Array.from(node.querySelectorAll("button")).map((b) => b.textContent);
-    expect(buttons).toEqual(Object.values(t.filters));
+    expect(buttons).toEqual([t.filters.all, n.remesa, n.recarga, n.combo, n.visa, n.saldo]);
     expect(node.querySelector("[draggable='true']")).toBeNull();
   });
 });

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { useServiceName } from "@/hooks/use-service-name";
 import { Banknote, Coins, Landmark, ShoppingBasket, Smartphone, Stamp, TreePalm, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cerrarOperacionManual, eliminarOperacion } from "@/lib/remittance-operations/commands";
@@ -44,6 +45,7 @@ interface OperationClosingControlProps {
  */
 export function OperationClosingControl({ operationId, kind, onDone, onCancel, needsService = false }: OperationClosingControlProps) {
   const t = useTranslations("Inbox.operationsPanel");
+  const serviceName = useServiceName();
   const [notify, setNotify] = useState(false);
   const [service, setService] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -77,7 +79,7 @@ export function OperationClosingControl({ operationId, kind, onDone, onCancel, n
       {askService && (
         <div className="flex items-center justify-end gap-1">
           {SERVICES.map((method) => {
-            const label = t(`closing.method.${method}`);
+            const label = serviceName(method);
             const selected = service === method;
             return (
               <Button

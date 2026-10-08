@@ -63,6 +63,13 @@ async function render(
   return { node, root, onDone, onCancel };
 }
 
+// The picker names its options with the shared service names (src/lib/service-name.ts).
+const SERVICE_LABELS = {
+  cuban_card: en.ServiceNames.cup, zelle: en.ServiceNames.zelle, clasica: en.ServiceNames.clasica,
+  tropical: en.ServiceNames.tropical, efectivo_usd: en.ServiceNames.efectivo_usd, recarga: en.ServiceNames.recarga,
+  combo: en.ServiceNames.combo, visa: en.ServiceNames.visa, saldo: en.ServiceNames.saldo,
+};
+
 describe("OperationClosingControl", () => {
   it("has no reason field and no text buttons, only icon buttons with accessible names", async () => {
     const { node, root } = await render("close");
@@ -146,7 +153,7 @@ describe("OperationClosingControl", () => {
   });
 
   describe("service picker (no beneficiary and no delivery method)", () => {
-    const m = en.Inbox.operationsPanel.closing.method;
+    const m = SERVICE_LABELS;
     const labels = [m.cuban_card, m.zelle, m.clasica, m.tropical, m.efectivo_usd, m.recarga, m.combo, m.visa, m.saldo];
 
     it("shows nine single-select icon buttons and keeps the check disabled until one is picked", async () => {
@@ -189,7 +196,7 @@ describe("OperationClosingControl", () => {
       cerrarOperacionManual.mockResolvedValue({ ok: true, newStatus: "completed", completedAt: null });
       const { node, root } = await render("close", vi.fn(), vi.fn(), true);
 
-      expect(m.recarga).toBe("Recharge");
+      expect(m.recarga).toBe("Top-up");
       await act(async () => buttonByLabel(node, m.recarga).click());
       await act(async () => buttonByLabel(node, t.closeConfirm).click());
 
@@ -213,7 +220,7 @@ describe("OperationClosingControl", () => {
       cerrarOperacionManual.mockResolvedValue({ ok: true, newStatus: "completed", completedAt: null });
       const { node, root } = await render("close", vi.fn(), vi.fn(), true);
 
-      expect(m.visa).toBe("Visa extension");
+      expect(m.visa).toBe("Visa");
       await act(async () => buttonByLabel(node, m.visa).click());
       await act(async () => buttonByLabel(node, t.closeConfirm).click());
 
@@ -249,8 +256,7 @@ describe("OperationClosingControl", () => {
 describe("OperationClosingControl service icons are told apart", () => {
   it("draws a different icon for each of the nine services", async () => {
     const { node, root } = await render("close", vi.fn(), vi.fn(), true);
-    const methods = t.method as Record<string, string>;
-    const icons = Object.values(methods).map((label) => {
+    const icons = Object.values(SERVICE_LABELS).map((label) => {
       const svg = buttonByLabel(node, label)?.querySelector("svg");
       return svg?.getAttribute("class") ?? "";
     });

@@ -315,10 +315,8 @@ describe("OperationCorrectionForm", () => {
 
   it("names the CUP rail CUP in the service labels, en and es", async () => {
     const es = (await import("../../../../messages/es.json")).default;
-    expect(en.Inbox.operationsPanel.closing.method.cuban_card).toBe("CUP");
-    expect(es.Inbox.operationsPanel.closing.method.cuban_card).toBe("CUP");
-    expect(en.Inbox.operationsPanel.beneficiaryType.cuban_card).toBe("CUP card");
-    expect(es.Inbox.operationsPanel.beneficiaryType.cuban_card).toBe("Tarjeta CUP");
+    expect(en.ServiceNames.cup).toBe("CUP");
+    expect(es.ServiceNames.cup).toBe("CUP");
   });
 
   it("shows noChanges and calls nothing when nothing changed", async () => {
@@ -361,7 +359,7 @@ describe("OperationCorrectionForm", () => {
 
       const trigger = node.querySelector('[data-testid="select-trigger"]')!;
       expect(trigger.querySelector("[data-service]")).toBeNull();
-      expect(trigger.textContent).toContain(en.Inbox.operationsPanel.closing.method.clasica);
+      expect(trigger.textContent).toContain(en.ServiceNames.clasica);
       await act(async () => root.unmount());
     });
 

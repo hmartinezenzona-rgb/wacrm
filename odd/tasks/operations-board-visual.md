@@ -26,12 +26,18 @@ amount, and an age that warns when an operation waits too long.
 Mode: strict TDD ON. Source: user global CLAUDE.md. Runner: `npx vitest run <files>`.
 
 ## Tasks
-- [ ] B1 board.ts: age tone constants + function, awaiting_deposit / deposit_received columns, tests
-- [ ] B2 operations-board.tsx: column header, card stripe/elevation/contrast, amount, age colour, no icons, missing-recipient dot
-- [ ] B3 verification and before/after lightness report
+- [x] B1 board.ts: age tone constants + function, awaiting_deposit / deposit_received columns, tests
+- [x] B2 operations-board.tsx: column header, card stripe/elevation/contrast, amount, age colour, no icons, missing-recipient dot
+- [x] B3 verification and before/after lightness report
 
 ## Evidence
-(filled per task)
+- B1 049a21a: ageTone + constants and the two extra statuses: RED then GREEN (boundaries 1 h 59 min, 2 h, 23 h 59 min,
+  24 h, completed).
+- B2 b051724: 14 new/changed board tests RED then GREEN. New token `--lane` (dark L 0.105, light L 0.94).
+  Lightness, column vs card: dark 0.166 vs 0.18 (gap 0.014) -> 0.105 vs 0.18 (gap 0.075); light 0.968 vs 1.0 (gap 0.032)
+  -> 0.94 vs 1.0 (gap 0.060). Muted text on the light lane 4.6:1, on the dark lane 6.3:1.
+- The card uses `shadow-[var(--elev-card)]` (not `.tarjeta-elevada`) so the Tailwind focus ring still composes; the lane
+  has no shadow, so shadows are not nested.
 
 ## Open points
 - The RPC still filters out `awaiting_deposit` and `deposit_received`; a later SQL task must stop doing that (the

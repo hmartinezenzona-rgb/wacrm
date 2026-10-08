@@ -23,13 +23,20 @@ the screen cannot know the rail.
 Mode: strict TDD ON. Source: user global CLAUDE.md. Runner: `npx vitest run <files>`.
 
 ## Tasks
-- [ ] N1 Names module + catalog namespace (es/en) + tests (parity, es table equals es.json)
-- [ ] N2 Calculator, Finanzas close and Finanzas history
-- [ ] N3 Dashboard (donut labels, aged queue), operations board card text, inbox panel
-- [ ] N4 `CalculatorServiceType` gets COMBO and VISA if it is a pure type fix
+- [x] N1 Names module + catalog namespace (es/en) + tests (parity, es table equals es.json)
+- [x] N2 Calculator, Finanzas close and Finanzas history
+- [x] N3 Dashboard (donut labels, aged queue), operations board card text, inbox panel
+- [x] N4 `CalculatorServiceType` gets COMBO and VISA if it is a pure type fix
 
 ## Evidence
-(filled per task)
+- N1 5dfd12b: `service-name.test.ts` RED (module missing) then GREEN; `service-color` resolves through the canonical id.
+- N2 702a124: calculator, close, history. RED observed on 8 calculator tests, then GREEN. History refactor-only (names
+  already matched), covered by the existing tests.
+- N3 acc2930: dashboard aged queue (new test, RED then GREEN), donut, board card text and pills, inbox panel (picker,
+  closing control, correction form, add-beneficiary, card header). RED observed on 10 inbox tests.
+- N4: COMBO and VISA added to `CalculatorServiceType`; tsc and calculator tests unchanged, so a pure type fix.
+- The `use-service-name` hook test was written together with the hook (RED skipped for that tiny hook).
+- Full suite 184 files / 2460 tests green; tsc and eslint clean.
 
 ## Open points
 - Finanzas history still says Remesa for every rail: needs the RPC change (it only receives service_type), next task.

@@ -65,7 +65,7 @@ Strict TDD on. Runners: staging assertions via psql-staging.sh (BEGIN ... ROLLBA
   vitest RED/GREEN; typecheck, lint, full suite.
 - [ ] T3 Staging deploy + owner's look (with Osmany's list loaded on staging as a rehearsal).
 - [ ] T4 Production: migration + app.
-- [ ] T5 Production fresh start: backup, dry run shown to the owner, wipe, load Osmany's list, verify.
+- [x] T5 Production fresh start: backup, dry run shown to the owner, wipe, load Osmany's list, verify.
 
 ## Progress
 - 2026-10-07 document created after mapping and the owner's decisions.
@@ -257,3 +257,28 @@ T2c: build and deploy this release to staging (owner-authorised path) and ask fo
   inside it. RED 1 failed (DIV vs DETAILS), GREEN page tests 83/83, tsc and eslint clean.
 
 - Production app deploy (2026-10-07, owner "pasalo a produccion"; release a6f7175, BUILD_ID ruyw_RQVPSsCnGuoMYUPh): manifest environment=production, project hqztotshnlzaiziwjyzh, 0 staging refs (kolppplawzdsjfydwejr), 32 production refs, 114 build tests passed, pm2 cwd = new release, /login 200 with valid TLS and "Bienvenido de nuevo", Calculator chunk `_next/static/chunks/184h3x-kzrd97.js` served by wacrm.onlinefreedom.site identical to the build (has "Registrar" and "🔗 Operaciones", no "Auditoría de Operaciones por Día"), restarts stable at 31, prod-build clean. Rollback: anterior -> 7db1561 (`infra/deployment/rollback-wacrm-produccion.sh`). T5 (production fresh start) still pending, left to the parent.
+
+## T5 evidence: production fresh start (2026-10-07 Guyana / 2026-10-08 UTC, owner "si confirmo" + "pasalo a produccion")
+- Backups: `~/wacrm-respaldos/produccion-20261008T014724Z.dump` (before migration 228) and
+  `produccion-20261008T015945Z.dump` (after 228, before the wipe). The second one is the restore point of the wipe.
+- Migration 228 applied through gate127 (`20261008015103 228_manual_entries`); ensayo fingerprint equal to staging.
+- Wipe (gate126-fresh-start, dry run then `aplicar`): completed/closed operations and every calculator entry removed.
+  Left: 3 open operations (2 ready_to_transfer, 1 collecting_information), 0 calculator entries. Untouched: 1,023
+  consumed deposits (`depositos_mmg.consumido_en`), 667 `comprobantes_hashes`, 230 contacts, 228 conversations,
+  17,748 messages. Audit note written.
+- Load (gate128-cargar-osmany, dry run then `aplicar` -> `{"r":"OK"}`): `odd/datos/osmany-semana-2026-10-06.txt`
+  parsed with the app's own `manualEntriesFromText`/`parseManualLines`, registered with
+  `crm_registrar_entradas_manuales` as the owner.
+- Read back after the load: 31 entries, all `source = manual`, `status = completed`; 24 on 2026-10-06, 7 on
+  2026-10-07; `calculator_current_entries` = 31; facturado 1,157,712.40, invertido 1,023,917.64, retorno 133,794.76.
+  `crm_cierre_financiero('2026-10-06','2026-10-07')` as the owner: 31 operations, same three totals; by service
+  ZELLE 17, CUP 7, USDT 3, DIRECTO 3, CLASICA 1. Open operations still 3, consumed deposits still 1,023, 0 rows in
+  `message_outbox` in the window, helper `zz_wu5b_exec` dropped (count 0).
+- Note: `crm_cierre_financiero` returns zeros without a caller identity (no JWT claims); it must be read as a member.
+
+## Open points after T5
+- Two of the three open operations (Kirenia `d95b0f22`, 5,000 GYD; Idalmis `dcb5199c`, 65,000 GYD) will be counted by
+  the bot when completed. Osmany's list has lines for the same customers: the owner must confirm they are not the
+  same business, or delete one of the two rows.
+- "Registrar" adds; typing by hand an operation the bot also completes counts it twice.
+- Not pushed. Staging still runs 8fb2b6d (without a6f7175).

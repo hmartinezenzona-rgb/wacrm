@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { OPERATION_STATUSES, statusPillClass, statusTone, type StatusTone } from "./status-tone";
+import { OPERATION_STATUSES, statusPillClass, statusTextClass, statusTone, type StatusTone } from "./status-tone";
 
 describe("statusTone", () => {
   const expected: Record<string, StatusTone> = {
@@ -35,5 +35,17 @@ describe("statusTone", () => {
     expect(statusPillClass.success).toBe("bg-status-success-soft text-status-success");
     expect(statusPillClass.danger).toBe("bg-status-danger-soft text-status-danger");
     expect(statusPillClass.neutral).toBe("bg-muted text-muted-foreground");
+  });
+});
+
+describe("statusTextClass", () => {
+  it("is the text colour of each tone, without the pill background", () => {
+    expect(statusTextClass).toEqual({
+      neutral: "text-muted-foreground",
+      info: "text-status-info",
+      attention: "text-status-attention",
+      success: "text-status-success",
+      danger: "text-status-danger",
+    });
   });
 });

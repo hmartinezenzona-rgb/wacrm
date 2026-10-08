@@ -42,3 +42,12 @@ export const statusPillClass: Record<StatusTone, string> = {
   success: "bg-status-success-soft text-status-success",
   danger: "bg-status-danger-soft text-status-danger",
 };
+
+/** Text colour of a tone alone, for a label that keeps its own shape (the inbox panel's dot + text chip). */
+export const statusTextClass: Record<StatusTone, string> = {
+  neutral: "text-muted-foreground",
+  info: "text-status-info",
+  attention: "text-status-attention",
+  success: "text-status-success",
+  danger: "text-status-danger",
+};

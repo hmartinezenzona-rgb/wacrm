@@ -91,28 +91,20 @@ describe("StatusChip", () => {
     await act(async () => root.unmount());
   });
 
-  it("uses the emerald tone for ready_to_transfer, transferring, and completed", async () => {
-    for (const status of ["ready_to_transfer", "transferring", "completed"]) {
-      const { node, root } = await renderNode(<StatusChip status={status} label={status} />);
-      const chip = node.firstElementChild as HTMLElement;
-      expect(chip.className).toContain("text-emerald-600");
-      await act(async () => root.unmount());
-    }
-  });
-
-  it("uses the amber tone for deposit_verification, deposit_received, awaiting_deposit and awaiting_beneficiary", async () => {
-    for (const status of ["deposit_verification", "deposit_received", "awaiting_deposit", "awaiting_beneficiary"]) {
-      const { node, root } = await renderNode(<StatusChip status={status} label={status} />);
-      const chip = node.firstElementChild as HTMLElement;
-      expect(chip.className).toContain("text-amber-600");
-      await act(async () => root.unmount());
-    }
-  });
-
-  it("uses the red tone for incident", async () => {
-    const { node, root } = await renderNode(<StatusChip status="incident" label="Incident" />);
+  it.each([
+    ["awaiting_deposit", "info"],
+    ["transferring", "info"],
+    ["awaiting_beneficiary", "info"],
+    ["deposit_received", "attention"],
+    ["deposit_verification", "attention"],
+    ["ready_to_transfer", "attention"],
+    ["completed", "success"],
+    ["incident", "danger"],
+  ])("takes the shared %s status tone (%s)", async (status, tone) => {
+    const { node, root } = await renderNode(<StatusChip status={status} label={status} />);
     const chip = node.firstElementChild as HTMLElement;
-    expect(chip.className).toContain("text-red-600");
+    expect(chip.className).toContain(`text-status-${tone}`);
+    expect(chip.className).not.toMatch(/emerald|amber|red-/);
     await act(async () => root.unmount());
   });
 

@@ -149,7 +149,7 @@ export function DepositReviewSection({
       <div className="space-y-1">
         <div className="flex items-center gap-2 text-sm leading-5 text-foreground">
           <span className="flex w-4 shrink-0 items-center justify-center">
-            <CircleCheck className="size-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+            <CircleCheck className="size-3.5 text-status-success" aria-hidden="true" />
           </span>
           {t("depositReview.verified")}
         </div>

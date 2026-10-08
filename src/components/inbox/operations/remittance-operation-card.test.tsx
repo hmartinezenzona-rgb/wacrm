@@ -281,6 +281,23 @@ describe("RemittanceOperationCard visa", () => {
     await act(async () => root.unmount());
   });
 
+  it("puts the service dot before the service name in the header", async () => {
+    const { node, root } = await render(visaOp());
+
+    const header = node.querySelector("article button[aria-expanded]")!;
+    const dot = header.querySelector("[data-service]") as HTMLElement;
+    expect(dot.dataset.service).toBe("visa");
+    expect(dot.nextSibling?.textContent).toContain("Visa extension");
+    await act(async () => root.unmount());
+  });
+
+  it("shows no dot in the header when the operation has no service yet", async () => {
+    const { node, root } = await render(operation({ destinationCurrency: "CUP" }));
+
+    expect(node.querySelector("article button[aria-expanded] [data-service]")).toBeNull();
+    await act(async () => root.unmount());
+  });
+
   // Owner test 2026-10-04: waiting for the deposit, the card only said "Visa extension" and 10 000 GYD.
   it("shows the extensions count in the header while the deposit is awaited", async () => {
     const { node, root } = await render(visaOp({ status: "collecting_information", quotedSourceAmount: 10000 }));

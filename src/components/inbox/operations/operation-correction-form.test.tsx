@@ -42,16 +42,18 @@ const RATES = {
 // events, which hangs under jsdom). These tests cover the form's logic, so the
 // control is replaced by a native select with the same value/onValueChange
 // contract; the trigger's label rendering is not under test here.
+let selectValue = "";
 vi.mock("@/components/ui/select", () => ({
   Select: ({ id, value, disabled, onValueChange, children }: {
     id?: string; value?: string; disabled?: boolean; onValueChange?: (value: string) => void; children?: React.ReactNode;
   }) => (
+    (selectValue = value ?? ""),
     <select id={id} value={value} disabled={disabled} onChange={(event) => onValueChange?.(event.target.value)}>
       {children}
     </select>
   ),
-  SelectTrigger: () => null,
-  SelectValue: () => null,
+  SelectTrigger: ({ children }: { children?: React.ReactNode }) => <span data-testid="select-trigger">{children}</span>,
+  SelectValue: ({ children }: { children?: (value: string) => React.ReactNode }) => <>{typeof children === "function" ? children(selectValue) : null}</>,
   SelectContent: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
   SelectItem: ({ value, children }: { value: string; children?: React.ReactNode }) => <option value={value}>{children}</option>,
 }));
@@ -353,6 +355,23 @@ describe("OperationCorrectionForm", () => {
       });
     const button = (node: HTMLElement, label: string) =>
       node.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
+
+    it("shows the service dot of the current service before its name in the trigger", async () => {
+      const { node, root } = await render(operation({ deliveryMethod: "clasica" }));
+
+      const trigger = node.querySelector('[data-testid="select-trigger"]')!;
+      const dot = trigger.querySelector("[data-service]") as HTMLElement;
+      expect(dot.dataset.service).toBe("clasica");
+      expect(dot.nextSibling?.textContent).toBe(en.Inbox.operationsPanel.closing.method.clasica);
+      await act(async () => root.unmount());
+    });
+
+    it("shows no dot while no service is chosen", async () => {
+      const { node, root } = await render(operation({ deliveryMethod: null }));
+
+      expect(node.querySelector('[data-testid="select-trigger"] [data-service]')).toBeNull();
+      await act(async () => root.unmount());
+    });
 
     it("shows the Servicio select with the current service, in the same field layout as the others", async () => {
       const { node, root } = await render(operation({ deliveryMethod: "clasica" }));

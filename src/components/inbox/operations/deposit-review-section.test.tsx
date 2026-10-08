@@ -149,6 +149,14 @@ describe("DepositReviewSection", () => {
       await act(async () => root.unmount());
     });
 
+    it("paints the verified check with the shared success status tone", async () => {
+      const { node, root } = await render({ data: readModel({ status: "ready_to_transfer", canVerify: false, receipts: [receipt()] }) });
+
+      const check = node.querySelector("svg.lucide-circle-check")!;
+      expect(check.getAttribute("class")).toContain("text-status-success");
+      await act(async () => root.unmount());
+    });
+
     it("also shows the verified rows for a completed (history) operation", async () => {
       const { node, root } = await render({
         data: readModel({

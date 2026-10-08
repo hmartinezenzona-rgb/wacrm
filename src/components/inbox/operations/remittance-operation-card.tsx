@@ -27,6 +27,7 @@ import type { SummaryAmount } from "./deposit-review-section";
 import { ConfirmCancelButtons } from "./confirm-cancel-buttons";
 import { InlineEditField } from "./inline-edit-field";
 import { OperationClosingControl } from "./operation-closing-control";
+import { ServiceDot } from "@/components/service/service-dot";
 import { KNOWN_BENEFICIARY_TYPES, MethodIcon, StatusChip } from "./operation-icons";
 import { formatNumber } from "@/lib/format-number";
 
@@ -394,6 +395,8 @@ export function RemittanceOperationCard({
 
   const source = money(operation.quotedSourceAmount, operation.sourceCurrency);
   const destLabel = destinationLabel(operation, t as (key: string, params?: Record<string, unknown>) => string);
+  // The dot goes before the label only when it names the operation's one service, never on "Mixed".
+  const headerService = destLabel && destLabel !== t("mixedDestination") ? currentServiceOf(operation) : null;
   const destLocked = isLocked("delivery_method") || isLocked("destination_currency") || isLocked("quoted_destination_amount");
 
   const methodLabel = (method: string): string => knownMethodLabel(method, t as (key: string) => string);
@@ -470,6 +473,7 @@ export function RemittanceOperationCard({
                   {isCombo(operation) && <ShoppingBasket className="size-3.5 shrink-0" aria-hidden="true" />}
                   {isVisa(operation) && <Stamp className="size-3.5 shrink-0" aria-hidden="true" />}
                   {isSaldo(operation) && <Coins className="size-3.5 shrink-0" aria-hidden="true" />}
+                  {headerService && <ServiceDot service={headerService} />}
                   {destLabel}
                   {destLocked && lock}
                 </span>

@@ -33,6 +33,8 @@ NOT approved yet (later steps): status badges, per-service colour dots, dashboar
 - [x] T7 Dots applied: Finanzas by-service and detail tables, Finanzas history "Servicio", Calculator Operaciones tables (live and archived week view) and service breakdown
 - [x] T8 Leftover: Calculator "Semanas anteriores" list figures toned (Fact. in, Inv. out, Ganancia by sign)
 - [x] T9 Leftover: "Desglose Semanal" Retorno uses the money token by sign instead of hard-coded green
+- [x] T10 Step 3a: inbox operations panel `StatusChip` takes the shared status tone (`statusTextClass` in `status-tone.ts`, same `--status-*` tokens as StatusPill; shape, dot, size, position unchanged); deposit-review "verified" check uses `text-status-success`
+- [x] T11 Step 3b: `ServiceDot` before the service name in the card header (when it names the operation's service, not on "Mixed" or without a service) and in the "Servicio" selector's displayed value (not inside the option list)
 
 ## Evidence
 - RED observed before each GREEN (helper module missing; calculator and Finanzas tone tests failing on untoned markup).
@@ -67,3 +69,10 @@ Gaps / not touched:
 - Finanzas by-day chart (Tremor blue/rose) untouched.
 - Product choices to confirm: combo/traduccion/mexico share the DIRECTO colour; cuban_card shares CUP; deposit_received and deposit_verification are "attention".
 - Staging deploy (2026-10-08; release fcd41e198ce7feb1becf9ecc6ed7628a019f8743, BUILD_ID vhvONS1aIi6W64HurjlN5, app commit fcd41e1): manifest environment=staging, project kolppplawzdsjfydwejr, 0 production refs, 32 files with staging refs, 114 build tests passed, sha256 OK on oracle2, pm2 wacrm-staging process cwd resolves to the new release, restarts 84 -> 85 and stable (unstable 0, still 85 after 20 s), /login 200 with the new BUILD_ID and "Bienvenido de nuevo", served stylesheet `_next/static/chunks/0.l-9g4-n_rki.css` (contains `--status-success`, `--status-danger`, `--status-attention`, `--status-info`, `--service-zelle`, `--service-cup` and `--money-profit`) byte-identical to the build (sha256 619c6e8a...), Calculator chunk `0l7bha-y8ofou.js` and Finanzas (resumen) chunk `0frn4_~gv7lml.js` served by crm.onlinefreedom.site byte-identical to the build (all 16 chunks listed by the two page manifests match). Rollback: anterior -> 644d67a (`ssh oracle2 'ln -sfn /home/ubuntu/wacrm-releases/644d67a81ddee17a465f831c427f348470c3997e ~/wacrm-releases/current && pm2 restart wacrm-staging --update-env'`).
+
+## Step 3 (inbox operations panel) - decisions and evidence
+Owner: "Los apruebo, solo que quiero que el panel del chat esté acorde también." Only colours of the panel changed.
+Status colour change in the chip (shared mapping wins): ready_to_transfer green -> attention (amber), transferring green -> info (blue), awaiting_deposit and awaiting_beneficiary amber -> info (blue), deposit_received/deposit_verification amber -> attention, completed green -> success, incident red -> danger. Panel colours now match the Finanzas pill.
+Left as they were (not status/money): method-icon badges (blue/amber/violet/teal/emerald Zelle) and the closing picker icons (indigo/emerald/amber/rose/sky/violet/teal), selected picker border (green), confirm/cancel buttons, notify bell, "amount missing"/"not verified" amber warnings, amber warning banners and chips, validation errors, deposit-review success feedback text (emerald-600).
+Gaps: method/picker icons carry a per-method colour that differs from the service dot colour (product decision whether to unify); "not verified" and "amount missing" amber warnings could be the attention tone if the owner wants.
+TDD: RED observed for statusTextClass, StatusChip tones, header dot, selector dot and verified check (check reverted temporarily to observe RED).

@@ -44,7 +44,7 @@ function post(body: unknown, raw?: string) {
   return new Request("http://local/api/calculadora/weeks", { method: "POST", body: raw ?? JSON.stringify(body) });
 }
 
-const VALID = { rawText: "5 zelle 100", periodo: "SEMANA 1", manualTotals: { facturadoGyd: 100, invertidoGyd: 80, retornoGyd: 20 } };
+const VALID = { rawText: "5 zelle 100", periodo: "SEMANA 1" };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -87,7 +87,7 @@ describe("GET /api/calculadora/weeks", () => {
 });
 
 describe("POST /api/calculadora/weeks (the weekly cut)", () => {
-  it("sends the text, the period and the manual totals to crm_cerrar_semana_calculadora and answers with the cut", async () => {
+  it("sends only the text and the period to crm_cerrar_semana_calculadora (the totals are computed in SQL) and answers with the cut", async () => {
     const { POST } = await import("./route");
     const { supabase } = account();
     const response = await POST(post(VALID));
@@ -96,9 +96,6 @@ describe("POST /api/calculadora/weeks (the weekly cut)", () => {
       p_account_id: "account-a",
       p_raw_text: "5 zelle 100",
       p_period_label: "SEMANA 1",
-      p_manual_facturado: 100,
-      p_manual_invertido: 80,
-      p_manual_retorno: 20,
     });
     const body = await response.json();
     expect(body.cutAt).toBe("2026-10-03T12:00:00+00:00");
@@ -117,9 +114,6 @@ describe("POST /api/calculadora/weeks (the weekly cut)", () => {
     ["invalid JSON", undefined, "{nope"],
     ["rawText missing", { ...VALID, rawText: undefined }, undefined],
     ["periodo missing", { ...VALID, periodo: undefined }, undefined],
-    ["manualTotals missing", { ...VALID, manualTotals: undefined }, undefined],
-    ["a manual total not a number", { ...VALID, manualTotals: { ...VALID.manualTotals, retornoGyd: "20" } }, undefined],
-    ["a manual total not finite", { ...VALID, manualTotals: { ...VALID.manualTotals, facturadoGyd: null } }, undefined],
   ])("%s -> 400, RPC never called", async (_label, body, raw) => {
     const { POST } = await import("./route");
     const { supabase } = account();
@@ -143,48 +137,13 @@ describe("POST /api/calculadora/weeks (the weekly cut)", () => {
     expect((await POST(post(VALID))).status).toBe(500);
   });
 
-  describe("with the parsed manual lines (migration 228)", () => {
-    const LINE = {
-      position: 2, date: "2026-10-06", dayLabel: "Martes 6", customer: "Gerardo", service: "ZELLE", amount: 100,
-      currency: "USD", facturadoGyd: 26000, invertidoGyd: 24000, retornoGyd: 2000, rawLine: "x",
-    };
-
-    it("syncs the manual entries first, so the ledger holds what the archived text says, then cuts", async () => {
-      const { POST } = await import("./route");
-      const { supabase } = account();
-
-      const response = await POST(post({ ...VALID, manualLines: [LINE] }));
-
-      expect(response.status).toBe(200);
-      expect(supabase.rpc.mock.calls.map((c: unknown[]) => c[0])).toEqual([
-        "crm_sincronizar_entradas_manuales",
-        "crm_cerrar_semana_calculadora",
-      ]);
-      expect((supabase.rpc.mock.calls[0] as unknown[])[1]).toMatchObject({ p_account_id: "account-a", p_lineas: [{ position: 2, facturado_gyd: 26000 }] });
-    });
-
-    it("without manualLines only the cut runs (the cut never touches the manual entries)", async () => {
-      const { POST } = await import("./route");
-      const { supabase } = account();
-      await POST(post(VALID));
-      expect(supabase.rpc.mock.calls.map((c: unknown[]) => c[0])).toEqual(["crm_cerrar_semana_calculadora"]);
-    });
-
-    it("malformed manualLines -> 400, nothing runs", async () => {
-      const { POST } = await import("./route");
-      const { supabase } = account();
-      expect((await POST(post({ ...VALID, manualLines: [{ ...LINE, service: "NOPE" }] }))).status).toBe(400);
-      expect(supabase.rpc).not.toHaveBeenCalled();
-    });
-
-    it("a failed sync -> no cut: nothing is archived or cleared", async () => {
-      const { POST } = await import("./route");
-      vi.spyOn(console, "error").mockImplementation(() => {});
-      const { supabase } = account();
-      supabase.rpc.mockImplementation((() => Promise.resolve({ data: null, error: { code: "XX000", message: "db down" } })) as never);
-
-      expect((await POST(post({ ...VALID, manualLines: [LINE] }))).status).toBe(500);
-      expect(supabase.rpc).toHaveBeenCalledTimes(1);
-    });
+  it("ignores the totals and lines an older page still sends: the cut is the only RPC and it takes only the text and the period", async () => {
+    const { POST } = await import("./route");
+    const { supabase } = account();
+    const response = await POST(post({ ...VALID, manualTotals: { facturadoGyd: 1, invertidoGyd: 1, retornoGyd: 1 }, manualLines: [{ service: "NOPE" }] }));
+    expect(response.status).toBe(200);
+    expect(supabase.rpc.mock.calls).toEqual([
+      ["crm_cerrar_semana_calculadora", { p_account_id: "account-a", p_raw_text: "5 zelle 100", p_period_label: "SEMANA 1" }],
+    ]);
   });
 });

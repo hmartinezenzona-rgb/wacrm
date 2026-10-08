@@ -37,7 +37,7 @@ describe("mapRealtimeCalculatorEntry", () => {
   it("maps a completed chat-fed row, coercing numeric-string columns to numbers", () => {
     expect(mapRealtimeCalculatorEntry(row())).toEqual<ChatCalculatorEntry>({
       id: "entry-1",
-      operationId: "op-1",
+      operationId: "op-1", source: "completed_operation",
       status: "completed",
       service: "ZELLE",
       customerName: "Raúl",
@@ -63,7 +63,7 @@ describe("mapRealtimeCalculatorEntry", () => {
     );
     expect(mapped).toEqual<ChatCalculatorEntry>({
       id: "entry-1",
-      operationId: "op-1",
+      operationId: "op-1", source: "completed_operation",
       status: "verified_pending",
       service: "ZELLE",
       customerName: "Raúl",
@@ -77,8 +77,14 @@ describe("mapRealtimeCalculatorEntry", () => {
     });
   });
 
-  it("returns null for a manual entry (source <> completed_operation)", () => {
-    expect(mapRealtimeCalculatorEntry(row({ source: "manual" }))).toBeNull();
+  it("maps a manual entry (migration 228): no operation, marked manual", () => {
+    expect(mapRealtimeCalculatorEntry(row({ id: "m1", operation_id: null, source: "manual", service: "DIRECTO", amount_currency: "GYD", amount: 4000 }))).toMatchObject({
+      id: "m1", operationId: null, source: "manual", status: "completed", service: "DIRECTO", amount: 4000, amountCurrency: "GYD",
+    });
+  });
+
+  it("returns null for a row that is neither a chat-fed nor a manual entry", () => {
+    expect(mapRealtimeCalculatorEntry(row({ source: "something_else" }))).toBeNull();
   });
 
   it("returns null for a voided row, mirroring the GET route's status<>'void' filter", () => {
@@ -89,22 +95,46 @@ describe("mapRealtimeCalculatorEntry", () => {
 describe("applyCalculatorEntryRealtimeEvent", () => {
   it("INSERT: prepends a newly-qualifying entry", () => {
     const existing: ChatCalculatorEntry[] = [
-      { id: "old", operationId: "op-old", status: "completed", service: "CUP", customerName: "A", amount: 1, amountCurrency: "CUP", entryDate: "2026-09-28", facturadoGyd: 1, invertidoGyd: 1, retornoGyd: 0, missingRates: [] },
+      { id: "old", operationId: "op-old", source: "completed_operation", status: "completed", service: "CUP", customerName: "A", amount: 1, amountCurrency: "CUP", entryDate: "2026-09-28", facturadoGyd: 1, invertidoGyd: 1, retornoGyd: 0, missingRates: [] },
     ];
     const next = applyCalculatorEntryRealtimeEvent(existing, "INSERT", row({ id: "entry-new" }), null);
     expect(next.map((e) => e.id)).toEqual(["entry-new", "old"]);
   });
 
-  it("INSERT of a manual/voided row is a no-op", () => {
+  it("INSERT of a voided row is a no-op", () => {
     const existing: ChatCalculatorEntry[] = [];
-    const next = applyCalculatorEntryRealtimeEvent(existing, "INSERT", row({ source: "manual" }), null);
+    const next = applyCalculatorEntryRealtimeEvent(existing, "INSERT", row({ status: "void" }), null);
     expect(next).toEqual([]);
+  });
+
+  it("INSERT of a manual entry joins the list at its date (the list is newest day first)", () => {
+    const base = { operationId: "op", source: "completed_operation" as const, status: "completed" as const, service: "CUP", customerName: "X", amount: 1, amountCurrency: "CUP", facturadoGyd: 1, invertidoGyd: 1, retornoGyd: 0, missingRates: [] };
+    const existing: ChatCalculatorEntry[] = [
+      { ...base, id: "today", entryDate: "2026-10-07" },
+      { ...base, id: "monday", entryDate: "2026-10-05" },
+    ];
+    const next = applyCalculatorEntryRealtimeEvent(existing, "INSERT", row({ id: "tue", operation_id: null, source: "manual", entry_date: "2026-10-06", created_at: "2026-10-07T20:00:00Z" }), null);
+    expect(next.map((e) => e.id)).toEqual(["today", "tue", "monday"]);
+    // a newer day goes first, a same-day entry goes before the ones already there (newest first)
+    expect(applyCalculatorEntryRealtimeEvent(existing, "INSERT", row({ id: "later", entry_date: "2026-10-08" }), null).map((e) => e.id)).toEqual(["later", "today", "monday"]);
+    expect(applyCalculatorEntryRealtimeEvent(existing, "INSERT", row({ id: "same", entry_date: "2026-10-07" }), null).map((e) => e.id)).toEqual(["same", "today", "monday"]);
+  });
+
+  it("a manual entry deleted (UPDATE to void) leaves the list", () => {
+    const manual = mapRealtimeCalculatorEntry(row({ id: "m", operation_id: null, source: "manual" }))!;
+    expect(applyCalculatorEntryRealtimeEvent([manual], "UPDATE", row({ id: "m", operation_id: null, source: "manual", status: "void" }), { id: "m" })).toEqual([]);
+  });
+
+  it("a corrected manual entry updates in place", () => {
+    const manual = mapRealtimeCalculatorEntry(row({ id: "m", operation_id: null, source: "manual" }))!;
+    const next = applyCalculatorEntryRealtimeEvent([manual], "UPDATE", row({ id: "m", operation_id: null, source: "manual", facturado_gyd: "30000", retorno_gyd: "6000" }), { id: "m" });
+    expect(next[0]).toMatchObject({ id: "m", source: "manual", facturadoGyd: 30000, retornoGyd: 6000 });
   });
 
   it("UPDATE: replaces an existing entry in place, keeping array position", () => {
     const existing: ChatCalculatorEntry[] = [
-      { id: "a", operationId: "op-a", status: "completed", service: "CUP", customerName: "A", amount: 1, amountCurrency: "CUP", entryDate: "d", facturadoGyd: 1, invertidoGyd: 1, retornoGyd: 0, missingRates: [] },
-      { id: "b", operationId: "op-b", status: "verified_pending", service: "ZELLE", customerName: "B", amount: 100, amountCurrency: "USD", entryDate: "d", facturadoGyd: null, invertidoGyd: null, retornoGyd: null, missingRates: ["usdtSellGyd"] },
+      { id: "a", operationId: "op-a", source: "completed_operation", status: "completed", service: "CUP", customerName: "A", amount: 1, amountCurrency: "CUP", entryDate: "d", facturadoGyd: 1, invertidoGyd: 1, retornoGyd: 0, missingRates: [] },
+      { id: "b", operationId: "op-b", source: "completed_operation", status: "verified_pending", service: "ZELLE", customerName: "B", amount: 100, amountCurrency: "USD", entryDate: "d", facturadoGyd: null, invertidoGyd: null, retornoGyd: null, missingRates: ["usdtSellGyd"] },
     ];
     const next = applyCalculatorEntryRealtimeEvent(
       existing,
@@ -118,7 +148,7 @@ describe("applyCalculatorEntryRealtimeEvent", () => {
 
   it("UPDATE to void removes the entry (the operation was cancelled/voided after being fed)", () => {
     const existing: ChatCalculatorEntry[] = [
-      { id: "a", operationId: "op-a", status: "completed", service: "CUP", customerName: "A", amount: 1, amountCurrency: "CUP", entryDate: "d", facturadoGyd: 1, invertidoGyd: 1, retornoGyd: 0, missingRates: [] },
+      { id: "a", operationId: "op-a", source: "completed_operation", status: "completed", service: "CUP", customerName: "A", amount: 1, amountCurrency: "CUP", entryDate: "d", facturadoGyd: 1, invertidoGyd: 1, retornoGyd: 0, missingRates: [] },
     ];
     const next = applyCalculatorEntryRealtimeEvent(existing, "UPDATE", row({ id: "a", status: "void" }), { id: "a" });
     expect(next).toEqual([]);
@@ -126,7 +156,7 @@ describe("applyCalculatorEntryRealtimeEvent", () => {
 
   it("DELETE removes the entry by the old row's id", () => {
     const existing: ChatCalculatorEntry[] = [
-      { id: "a", operationId: "op-a", status: "completed", service: "CUP", customerName: "A", amount: 1, amountCurrency: "CUP", entryDate: "d", facturadoGyd: 1, invertidoGyd: 1, retornoGyd: 0, missingRates: [] },
+      { id: "a", operationId: "op-a", source: "completed_operation", status: "completed", service: "CUP", customerName: "A", amount: 1, amountCurrency: "CUP", entryDate: "d", facturadoGyd: 1, invertidoGyd: 1, retornoGyd: 0, missingRates: [] },
     ];
     const next = applyCalculatorEntryRealtimeEvent(existing, "DELETE", null, { id: "a" });
     expect(next).toEqual([]);
@@ -134,7 +164,7 @@ describe("applyCalculatorEntryRealtimeEvent", () => {
 
   it("DELETE with no old id is a no-op", () => {
     const existing: ChatCalculatorEntry[] = [
-      { id: "a", operationId: "op-a", status: "completed", service: "CUP", customerName: "A", amount: 1, amountCurrency: "CUP", entryDate: "d", facturadoGyd: 1, invertidoGyd: 1, retornoGyd: 0, missingRates: [] },
+      { id: "a", operationId: "op-a", source: "completed_operation", status: "completed", service: "CUP", customerName: "A", amount: 1, amountCurrency: "CUP", entryDate: "d", facturadoGyd: 1, invertidoGyd: 1, retornoGyd: 0, missingRates: [] },
     ];
     expect(applyCalculatorEntryRealtimeEvent(existing, "DELETE", null, null)).toEqual(existing);
   });
@@ -143,7 +173,7 @@ describe("applyCalculatorEntryRealtimeEvent", () => {
 describe("applyCalculatorEntryRealtimeEvent with the weekly cut", () => {
   const CUT = "2026-10-03T12:00:00.000Z";
   const shown: ChatCalculatorEntry = {
-    id: "pending-1", operationId: "op-p", status: "verified_pending", service: "CUP", customerName: "P", amount: 1,
+    id: "pending-1", operationId: "op-p", source: "completed_operation", status: "verified_pending", service: "CUP", customerName: "P", amount: 1,
     amountCurrency: "CUP", entryDate: "2026-09-29", facturadoGyd: null, invertidoGyd: null, retornoGyd: null, missingRates: ["usdtSellCup"],
   };
 
@@ -166,6 +196,18 @@ describe("applyCalculatorEntryRealtimeEvent with the weekly cut", () => {
   it("shows a pending entry whatever its age (it is never archived)", () => {
     const next = applyCalculatorEntryRealtimeEvent([], "INSERT", row({ id: "p2", status: "verified_pending", facturado_gyd: null, invertido_gyd: null, retorno_gyd: null, completed_at: null }), null, CUT);
     expect(next.map((e) => e.id)).toEqual(["p2"]);
+  });
+
+  // A manual entry is dated on the day typed, so its completed_at (midday of that day) can be older than the cut even when it
+  // was registered after it: for manual rows the moment of registration (created_at) decides.
+  it("a manual entry registered after the cut shows even when its day is older than the cut", () => {
+    const next = applyCalculatorEntryRealtimeEvent([], "INSERT", row({ id: "m", operation_id: null, source: "manual", entry_date: "2026-10-01", completed_at: "2026-10-01T16:00:00Z", created_at: "2026-10-04T10:00:00Z" }), null, CUT);
+    expect(next.map((e) => e.id)).toEqual(["m"]);
+  });
+
+  it("a manual entry registered before the cut was archived with that week and does not come back", () => {
+    const next = applyCalculatorEntryRealtimeEvent([], "UPDATE", row({ id: "m", operation_id: null, source: "manual", entry_date: "2026-10-04", completed_at: "2026-10-04T16:00:00Z", created_at: "2026-10-02T10:00:00Z" }), { id: "m" }, CUT);
+    expect(next).toEqual([]);
   });
 
   it("without a cut every completed entry shows, as before", () => {

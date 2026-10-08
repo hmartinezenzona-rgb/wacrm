@@ -1,8 +1,8 @@
 // ============================================================
 // POST /api/calculator/entries/{entryId}/delete
 //
-// Lets an admin delete a chat-fed calculator entry, completed or pending, via `crm_eliminar_entrada_calculadora`
-// (migration 226). The entry becomes a durable void (the feed never revives it), stops counting in the Calculator,
+// Lets an admin delete a calculator entry, chat-fed (completed or pending) or manual (migration 228), via
+// `crm_eliminar_entrada_calculadora` (migration 226). The entry becomes a durable void (the feed never revives it), stops counting in the Calculator,
 // Finanzas and the dashboard, and the operation is untouched. Uses the caller's own SESSION Supabase client (never
 // service role) so the RPC sees a real `auth.uid()`.
 // ============================================================

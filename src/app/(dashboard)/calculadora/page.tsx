@@ -4,11 +4,10 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEv
 import { Check, Loader2, Pencil, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { procesarTexto, type WebCalculatorErrorLine, type WebCalculatorParsedLine } from "@/lib/calculator/web-calculator";
 import { isComboCostPending, pendingReason, type CalculatorRates } from "@/lib/calculator/ledger-read-model";
-import { guyanaToday, manualEntriesFromText } from "@/lib/calculator/manual-entries";
+import { guyanaToday, manualEntriesFromText, removeRegisteredLines } from "@/lib/calculator/manual-entries";
 import { calculatorCategoryName, chatEntryAmountText, ledgerServiceLabel } from "@/lib/calculator/entry-display";
-import { applyCalculatorEntryRealtimeEvent, type ChatCalculatorEntry } from "@/lib/calculator/realtime-entry";
+import { applyCalculatorEntryRealtimeEvent, insertCalculatorEntry, type ChatCalculatorEntry } from "@/lib/calculator/realtime-entry";
 import { useCalculatorEntriesRealtime } from "@/hooks/use-calculator-entries-realtime";
 import type { CalculatorWeek, CalculatorWeekSummary } from "@/lib/calculator/weeks";
 import "./calculadora.module.css";
@@ -17,10 +16,6 @@ const STORAGE_KEYS = {
   raw: "remesas_rawText",
   period: "remesas_periodo",
 } as const;
-
-function isErrorLine(operation: WebCalculatorParsedLine): operation is WebCalculatorErrorLine {
-  return "error" in operation;
-}
 
 function formatNumber(value: number): string {
   return value.toFixed(2);
@@ -56,17 +51,6 @@ function insertBullet(value: string, cursor: number): { value: string; cursor: n
   const needsBreak = cursor > 0 && value[cursor - 1] !== "\n";
   const insertion = `${needsBreak ? "\n" : ""}• `;
   return { value: `${value.slice(0, cursor)}${insertion}${value.slice(cursor)}`, cursor: cursor + insertion.length };
-}
-
-function renderOperationGroups(operations: WebCalculatorParsedLine[]) {
-  const groups: Array<{ day: string; operations: WebCalculatorParsedLine[] }> = [];
-  for (const operation of operations) {
-    const day = operation.dia;
-    const current = groups.at(-1);
-    if (!current || current.day !== day) groups.push({ day, operations: [operation] });
-    else current.operations.push(operation);
-  }
-  return groups;
 }
 
 type RateKey =
@@ -124,7 +108,6 @@ export default function CalculadoraPage() {
   // The debounced autosave must not race the cut: a pending or in-flight save of the old text would write it back into
   // the document the cut just emptied.
   const clearingRef = useRef(false);
-  const retryTimerRef = useRef<number | null>(null);
   const saveAbortRef = useRef<AbortController | null>(null);
   const [saveNonce, setSaveNonce] = useState(0);
   // No local theme state: the page reads the CRM's design tokens, so it
@@ -135,22 +118,20 @@ export default function CalculadoraPage() {
   const [fullscreen, setFullscreen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // "Registrar": the text box only ADDS operations. `registering` is the request in flight; the box is read-only meanwhile.
+  const [registering, setRegistering] = useState(false);
+  const [registerError, setRegisterError] = useState<string | null>(null);
+  const [registerMessage, setRegisterMessage] = useState<string | null>(null);
 
   const tarifa = rates?.cupGlobalRate == null ? "" : String(rates.cupGlobalRate);
   const selectedRateValue = rateValueOf(rates, selectedRate);
   const rateInputValue = rateDraft ?? (selectedRateValue == null ? "" : String(selectedRateValue));
-  const parsed = useMemo(() => procesarTexto(rawText, Number(tarifa)), [rawText, tarifa]);
-  // Migration 228: lines the ledger cannot hold (unknown service, no amount) are reported, never silently dropped.
-  const skippedManualLines = useMemo(() => manualEntriesFromText(rawText, Number(tarifa), guyanaToday(new Date())).skipped.length, [rawText, tarifa]);
-  const operationGroups = useMemo(() => renderOperationGroups(parsed.operations), [parsed.operations]);
-  const structuredTotals = useMemo(() => chatTotals(chatEntries), [chatEntries]);
-  const totals = useMemo(() => ({
-    fact: parsed.totals.fact + structuredTotals.fact,
-    inv: parsed.totals.inv + structuredTotals.inv,
-    ret: parsed.totals.ret + structuredTotals.ret,
-  }), [parsed.totals, structuredTotals]);
+  // Migration 228: the lines "Registrar" would add (with the Guyana day each belongs to) and the ones that stay in the box.
+  const draft = useMemo(() => manualEntriesFromText(rawText, Number(tarifa), guyanaToday(new Date())), [rawText, tarifa]);
+  // Totals and breakdown count the operations of the table (the bot's and the manual ones); the draft text is not one yet.
+  const totals = useMemo(() => chatTotals(chatEntries), [chatEntries]);
   const serviceTotals = useMemo(() => {
-    const byService = new Map(parsed.services.map((service) => [service.name, { ...service }]));
+    const byService = new Map<string, { name: string; fact: number; inv: number; ret: number }>();
     for (const entry of chatEntries) {
       if (entry.status !== "completed") continue;
       const category = calculatorCategoryName(entry.service);
@@ -161,7 +142,7 @@ export default function CalculadoraPage() {
       byService.set(category, current);
     }
     return [...byService.values()];
-  }, [chatEntries, parsed.services]);
+  }, [chatEntries]);
   const pendingEntries = useMemo(
     () => chatEntries.filter((entry) => entry.status === "verified_pending"),
     [chatEntries],
@@ -225,6 +206,7 @@ export default function CalculadoraPage() {
     return () => { active = false; };
   }, []);
 
+  // The autosave keeps the draft text (and the period); it never registers an operation.
   useEffect(() => {
     if (!hydrated) return;
     localStorage.setItem(STORAGE_KEYS.raw, rawText);
@@ -233,26 +215,13 @@ export default function CalculadoraPage() {
       if (clearingRef.current) return;
       const controller = new AbortController();
       saveAbortRef.current = controller;
-      // Migration 228: the parsed manual lines travel with the text, each dated by its day header (Guyana time), so
-      // the ledger (Finanzas, dashboard, closes) holds the same lines the page shows.
-      const manualLines = manualEntriesFromText(rawText, Number(tarifa), guyanaToday(new Date())).lines;
       void fetch("/api/calculadora", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rawText, periodo, manualLines }),
+        body: JSON.stringify({ rawText, periodo }),
         signal: controller.signal,
-      }).then(async (response) => {
-        if (!response.ok) {
-          const data = (await response.json().catch(() => null)) as { documentSaved?: boolean; entriesSynced?: boolean } | null;
-          // The text is saved but the ledger could not follow: say so, and try again shortly.
-          if (data?.documentSaved && data.entriesSynced === false) {
-            setSaveError("El texto se guardó, pero las entradas manuales no se pudieron registrar en Finanzas. Se reintentará en unos segundos.");
-            if (retryTimerRef.current !== null) window.clearTimeout(retryTimerRef.current);
-            retryTimerRef.current = window.setTimeout(() => setSaveNonce((value) => value + 1), 15_000);
-            return;
-          }
-          throw new Error("calculator document save failed");
-        }
+      }).then((response) => {
+        if (!response.ok) throw new Error("calculator document save failed");
         setSaveError(null);
       }).catch((error: unknown) => {
         if ((error as { name?: string } | null)?.name === "AbortError") return;
@@ -260,12 +229,7 @@ export default function CalculadoraPage() {
       });
     }, 600);
     return () => window.clearTimeout(timer);
-    // `tarifa` is a dependency on purpose: the CUP lines' figures follow the global rate, so a new rate re-syncs them.
-  }, [hydrated, rawText, periodo, tarifa, saveNonce]);
-
-  useEffect(() => () => {
-    if (retryTimerRef.current !== null) window.clearTimeout(retryTimerRef.current);
-  }, []);
+  }, [hydrated, rawText, periodo, saveNonce]);
 
   // Archived weeks ("Semanas anteriores"). A failure here is non-fatal: the list just stays empty.
   async function loadWeeks() {
@@ -283,7 +247,7 @@ export default function CalculadoraPage() {
     if (hydrated) void loadWeeks();
   }, [hydrated]);
 
-  // B4.2 — live updates for "Operaciones del chat", no page refresh: a
+  // B4.2 — live updates for the operations table, no page refresh: a
   // remesa completed (or voided) elsewhere folds straight into
   // `chatEntries` from the realtime payload itself, never a refetch.
   // Gated on `hydrated` so a live event can't race the initial load's own
@@ -497,14 +461,8 @@ export default function CalculadoraPage() {
       const response = await fetch("/api/calculadora/weeks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          rawText,
-          periodo,
-          manualTotals: { facturadoGyd: parsed.totals.fact, invertidoGyd: parsed.totals.inv, retornoGyd: parsed.totals.ret },
-          // The ledger gets the closing week's lines first (the autosave may lag the textarea); the cut leaves them
-          // in Finanzas and the emptied week then syncs an empty set.
-          manualLines: manualEntriesFromText(rawText, Number(tarifa), guyanaToday(new Date())).lines,
-        }),
+        // The totals of both kinds of operation are computed in the database; the draft text is archived as it is.
+        body: JSON.stringify({ rawText, periodo }),
       });
       if (!response.ok) {
         setClearMessage("No se pudo limpiar la semana; no se borró nada.");
@@ -513,7 +471,7 @@ export default function CalculadoraPage() {
       }
       const data = (await response.json()) as { cutAt?: string | null };
       setCutAt(data.cutAt ?? new Date().toISOString());
-      // Archived with the week: every completed chat line. A line still waiting for a price is never archived.
+      // Archived with the week: every completed operation (the bot's and the manual ones). A line still waiting for a price is never archived.
       setChatEntries((prev) => prev.filter((entry) => entry.status === "verified_pending"));
       setRawText("");
       setPeriodo("");
@@ -528,6 +486,50 @@ export default function CalculadoraPage() {
       clearingRef.current = false;
       setClearing(false);
       setClearDialogOpen(false);
+    }
+  }
+
+  async function registrar() {
+    if (registering || clearingRef.current) return;
+    const sent = rawText;
+    const { lines } = manualEntriesFromText(sent, Number(tarifa), guyanaToday(new Date()));
+    if (lines.length === 0) return;
+    setRegistering(true);
+    setRegisterError(null);
+    setRegisterMessage(null);
+    try {
+      const response = await fetch("/api/calculadora/entries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lines: lines.map((line) => ({
+            date: line.date, dayLabel: line.dayLabel, customer: line.customer, service: line.service, amount: line.amount,
+            currency: line.currency, facturadoGyd: line.facturadoGyd, invertidoGyd: line.invertidoGyd,
+            retornoGyd: line.retornoGyd, rawLine: line.rawLine,
+          })),
+        }),
+      });
+      if (!response.ok) {
+        setRegisterError(
+          response.status === 403
+            ? "No tienes permiso para registrar operaciones."
+            : "No se pudieron registrar las operaciones; no se quitó nada del cuadro.",
+        );
+        return;
+      }
+      const data = (await response.json()) as { entries?: ChatCalculatorEntry[] };
+      setChatEntries((prev) => (data.entries ?? []).reduce((list, entry) => insertCalculatorEntry(list, entry), prev));
+      const count = lines.length;
+      setRegisterMessage(count === 1 ? "1 operación registrada." : `${count} operaciones registradas.`);
+      if (rawText === sent) {
+        setRawText(removeRegisteredLines(sent, lines.map((line) => line.line)));
+      } else {
+        setRegisterError("Las operaciones se registraron, pero el cuadro cambió mientras tanto: borra a mano las líneas ya registradas.");
+      }
+    } catch {
+      setRegisterError("No se pudieron registrar las operaciones; no se quitó nada del cuadro.");
+    } finally {
+      setRegistering(false);
     }
   }
 
@@ -569,8 +571,11 @@ export default function CalculadoraPage() {
 
   function exportar() {
     const title = periodo || "Sin_Periodo";
-    const automaticText = chatEntries.map((entry) => `• ${entry.customerName || "Sin nombre"} ${chatEntryAmountText(entry)} [${entry.status}]`).join("\n");
-    const text = `=== CIERRE SEMANAL DE REMESAS ===\nPERIODO: ${periodo}\n--------------------------------\n\nTOTAL FACTURADO (GYD): ${formatNumber(totals.fact)}\nTOTAL INVERTIDO (GYD): ${formatNumber(totals.inv)}\nRETORNO NETO (GANANCIA): ${formatNumber(totals.ret)}\n\n=== REGISTRO MANUAL EN BRUTO ===\n${rawText}\n\n=== OPERACIONES DEL CHAT (SOLO LECTURA) ===\n${automaticText}`;
+    const operationsText = chatEntries
+      .map((entry) => `• ${entry.entryDate.slice(0, 10)} ${entry.customerName || "Sin nombre"} ${chatEntryAmountText(entry)}${entry.source === "manual" ? " (manual)" : ""} [${entry.status}]`)
+      .join("\n");
+    const draftText = rawText.trim() === "" ? "" : `=== REGISTRO MANUAL EN BRUTO (SIN REGISTRAR) ===\n${rawText}\n\n`;
+    const text = `=== CIERRE SEMANAL DE REMESAS ===\nPERIODO: ${periodo}\n--------------------------------\n\nTOTAL FACTURADO (GYD): ${formatNumber(totals.fact)}\nTOTAL INVERTIDO (GYD): ${formatNumber(totals.inv)}\nRETORNO NETO (GANANCIA): ${formatNumber(totals.ret)}\n\n${draftText}=== OPERACIONES ===\n${operationsText}`;
     const link = document.createElement("a");
     link.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
     link.download = `Cierre_${title.replace(/\s/g, "_")}.txt`;
@@ -658,19 +663,22 @@ export default function CalculadoraPage() {
         <div className={`legacyCard${fullscreen ? " legacyFullscreen" : ""}`} id="cardRegistros">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 10 }}>
             <h2 style={{ margin: 0 }}>📝 Registros de la Semana</h2>
-            <button type="button" onClick={toggleFullscreen} style={{ width: "auto", padding: "6px 12px", fontSize: 13, minHeight: 36, background: fullscreen ? "#dc3545" : "var(--legacy-accent)" }}>{fullscreen ? "✕ Salir de Pantalla Completa" : "⛶ Maximizar"}</button>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <button type="button" id="registrarEntradas" onClick={() => void registrar()} disabled={registering || draft.lines.length === 0} aria-busy={registering} style={{ width: "auto", padding: "6px 12px", fontSize: 13, minHeight: 36 }}>Registrar</button>
+              <button type="button" onClick={toggleFullscreen} style={{ width: "auto", padding: "6px 12px", fontSize: 13, minHeight: 36, background: fullscreen ? "#dc3545" : "var(--legacy-accent)" }}>{fullscreen ? "✕ Salir de Pantalla Completa" : "⛶ Maximizar"}</button>
+            </div>
           </div>
           <span className="legacySmall">Usa el botón <b>+ Viñeta</b> o escribe <code>-</code> + <code>Espacio</code>. Presiona <code>Enter</code> para nueva línea.</span>
-          <textarea id="rawText" value={rawText} onChange={handleTextChange} onKeyDown={handleKeys} placeholder={'Miércoles 5\n• Fran 50k CUP (235/980)\n• Josefa 1 rec promo (23.1/6.2k/242)\n• Pedro 150 MLC (30%/240/245)\n• Carlos 2 saldo movil (1.25/1k/242.21)\n• Carlos 1k usdt (235/260)\n• Iza 1 ext visa 5k GYD'} />
+          <textarea id="rawText" value={rawText} readOnly={registering} onChange={handleTextChange} onKeyDown={handleKeys} placeholder={'Miércoles 5\n• Fran 50k CUP (235/980)\n• Josefa 1 rec promo (23.1/6.2k/242)\n• Pedro 150 MLC (30%/240/245)\n• Carlos 2 saldo movil (1.25/1k/242.21)\n• Carlos 1k usdt (235/260)\n• Iza 1 ext visa 5k GYD'} />
           <button type="button" className="legacyBulletButton" onClick={insertManualBullet}>+ Viñeta •</button>
         </div>
 
         {saveError && <div className="legacyError">{saveError}</div>}
-        {skippedManualLines > 0 && (
-          <div className="legacyError">
-            {skippedManualLines === 1
-              ? "1 línea no se registra en Finanzas (servicio no reconocido o importes inválidos)."
-              : `${skippedManualLines} líneas no se registran en Finanzas (servicio no reconocido o importes inválidos).`}
+        {registerError && <div className="legacyError" role="status">{registerError}</div>}
+        {registerMessage && <div className="legacyNotice" role="status">{registerMessage}</div>}
+        {draft.uninterpreted.length > 0 && (
+          <div className="legacyWarning" id="lineasNoInterpretadas">
+            {draft.uninterpreted.map((item) => <p key={item.line} style={{ margin: "0 0 4px 0", color: "orange" }}>⚠️ No interpretado: &quot;{item.raw}&quot;</p>)}
           </div>
         )}
 
@@ -682,12 +690,10 @@ export default function CalculadoraPage() {
 
         <div className="legacyCard"><h2>⚙️ Desglose Semanal por Servicios</h2>{serviceTotals.map((service) => <div className="legacyCard" style={{ marginBottom: 10, padding: 12 }} key={service.name}><div className="legacyBlockRow"><b>Categoría: {service.name}</b><span>Fact: <b>{formatNumber(service.fact)} GYD</b> | Inv: <b>{formatNumber(service.inv)} GYD</b> | Retorno: <b style={{ color: "green" }}>{formatNumber(service.ret)} GYD</b></span></div></div>)}</div>
 
-        <div className="legacyCard"><h2>🔍 Auditoría de Operaciones por Día</h2><div style={{ maxHeight: 400, overflowY: "auto" }}>{operationGroups.map((group) => <div key={group.day}><div className="legacyDayHeader">{group.day}</div><table className="legacyParsedTable"><thead><tr><th>Cliente</th><th>Monto</th><th>Tipo</th><th>Detalle</th><th>Fact. (GYD)</th><th>Inv. (GYD)</th><th>Ganancia</th></tr></thead><tbody>{group.operations.map((operation, index) => <tr key={`${group.day}-${index}`}>{isErrorLine(operation) ? <td colSpan={7} style={{ color: "orange" }}>⚠️ No interpretado: &quot;{operation.raw}&quot;</td> : <><td data-label="Cliente"><b>{operation.cliente}</b></td><td data-label="Monto">{operation.montoOrig}</td><td data-label="Tipo"><span className="legacyBadge">{operation.tipo}</span></td><td data-label="Detalle">{operation.detalle || "-"}</td><td data-label="Fact. (GYD)">{formatNumber(operation.fact)}</td><td data-label="Inv. (GYD)">{formatNumber(operation.inv)}</td><td data-label="Ganancia" style={{ color: "green", fontWeight: "bold" }}>{formatNumber(operation.retorno)}</td></>}</tr>)}</tbody></table></div>)}</div></div>
-
         <div className="legacyCard">
-          <h2>🔗 Operaciones del chat</h2>
+          <h2>🔗 Operaciones</h2>
           {chatEntries.length === 0 ? (
-            <span className="legacySmall">No hay operaciones vinculadas.</span>
+            <span className="legacySmall">No hay operaciones.</span>
           ) : (
             <div style={{ maxHeight: 400, overflowY: "auto" }}>
               <table className="legacyParsedTable">
@@ -707,7 +713,7 @@ export default function CalculadoraPage() {
                         <td data-label="Fecha">{entry.entryDate.slice(0, 10)}</td>
                         <td data-label="Cliente"><b>{entry.customerName || "—"}</b></td>
                         <td data-label="Monto">{chatEntryAmountText(entry)}</td>
-                        <td data-label="Tipo"><span className="legacyBadge">{ledgerServiceLabel(entry.service)}</span></td>
+                        <td data-label="Tipo"><span className="legacyBadge">{ledgerServiceLabel(entry.service)}</span>{entry.source === "manual" && <span className="legacyBadge" title="Registrada a mano" style={{ marginLeft: 6 }}>Manual</span>}</td>
                         <td data-label="Estado">{entry.status === "completed" ? "Completada" : `Pendiente${entry.missingRates.length ? `: ${pendingReason(entry)}` : ""}`}</td>
                         <td data-label="Fact. (GYD)">
                           {editing ? (
@@ -895,9 +901,9 @@ export default function CalculadoraPage() {
             <span className="legacySmall">Registro manual: Fact {formatNumber(openWeek.manualTotals.facturadoGyd)} | Inv {formatNumber(openWeek.manualTotals.invertidoGyd)} | Retorno {formatNumber(openWeek.manualTotals.retornoGyd)}. Operaciones del chat: Fact {formatNumber(openWeek.chatTotals.facturadoGyd)} | Inv {formatNumber(openWeek.chatTotals.invertidoGyd)} | Retorno {formatNumber(openWeek.chatTotals.retornoGyd)}.</span>
             <h3>📝 Registro manual</h3>
             <pre style={{ whiteSpace: "pre-wrap", fontFamily: "monospace", margin: 0 }}>{openWeek.rawText}</pre>
-            <h3>🔗 Operaciones del chat</h3>
+            <h3>🔗 Operaciones</h3>
             {openWeek.entries.length === 0 ? (
-              <span className="legacySmall">Esta semana no tuvo operaciones del chat.</span>
+              <span className="legacySmall">Esta semana no tuvo operaciones.</span>
             ) : (
               <div style={{ maxHeight: 400, overflowY: "auto" }}>
                 <table className="legacyParsedTable">
@@ -908,7 +914,7 @@ export default function CalculadoraPage() {
                         <td data-label="Fecha">{entry.entryDate.slice(0, 10)}</td>
                         <td data-label="Cliente"><b>{entry.customerName || "—"}</b></td>
                         <td data-label="Monto">{chatEntryAmountText(entry)}</td>
-                        <td data-label="Tipo"><span className="legacyBadge">{ledgerServiceLabel(entry.service)}</span></td>
+                        <td data-label="Tipo"><span className="legacyBadge">{ledgerServiceLabel(entry.service)}</span>{entry.source === "manual" && <span className="legacyBadge" title="Registrada a mano" style={{ marginLeft: 6 }}>Manual</span>}</td>
                         <td data-label="Fact. (GYD)">{entry.facturadoGyd == null ? "—" : formatNumber(entry.facturadoGyd)}</td>
                         <td data-label="Inv. (GYD)">{entry.invertidoGyd == null ? "—" : formatNumber(entry.invertidoGyd)}</td>
                         <td data-label="Ganancia">{entry.retornoGyd == null ? "—" : formatNumber(entry.retornoGyd)}</td>

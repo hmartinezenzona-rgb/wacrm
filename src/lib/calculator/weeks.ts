@@ -1,6 +1,7 @@
 /**
- * Archived Calculator weeks (migration 227). A "Limpiar todo" cut stores the manual text and period the client held,
- * the manual totals the client computed, the chat totals computed in SQL and a snapshot of the chat entries shown.
+ * Archived Calculator weeks (migration 227). A "Limpiar todo" cut stores the manual text and period the client held, the
+ * chat and manual totals computed in SQL and a snapshot of the entries shown (migration 228: the bot's and the manual
+ * ones, each with its source; the weeks cut before it hold the totals of the typed text and only the bot's entries).
  * This module only translates the stored row (snake_case, jsonb) into the page's shapes; the routes read the table
  * under the caller's own session (RLS: any member of the account).
  */
@@ -21,7 +22,10 @@ interface TotalsJson {
 
 interface ArchivedEntryJson {
   id: string;
-  operation_id: string;
+  /** Null for a manual entry (weeks cut after migration 228). */
+  operation_id: string | null;
+  /** Absent in the weeks cut before migration 228: they only hold the bot's entries. */
+  source?: "completed_operation" | "manual";
   service: string;
   customer_name: string | null;
   amount: Numeric;
@@ -98,6 +102,7 @@ export function mapWeek(row: CalculatorWeekRow): CalculatorWeek {
     entries: (row.entries ?? []).map((entry) => ({
       id: entry.id,
       operationId: entry.operation_id,
+      source: entry.source === "manual" ? ("manual" as const) : ("completed_operation" as const),
       status: "completed" as const,
       service: entry.service,
       customerName: entry.customer_name,

@@ -1,28 +1,28 @@
 /**
- * Manual Calculator lines as ledger entries (migration 228).
+ * Manual operations as ledger entries (migration 228).
  *
- * The Calculator page parses its text on the client (`procesarTexto`). Together with the autosave it sends the parsed
- * lines, each with the day it belongs to, and `crm_sincronizar_entradas_manuales` keeps the account's manual entries of
- * the current week in step with them, so Finanzas, the dashboard and the closes count them next to the bot's entries.
+ * The Calculator page parses the text box on the client (`procesarTexto`). "Registrar" sends the lines it could interpret,
+ * each with the day it belongs to, to `crm_registrar_entradas_manuales`, which ADDS them to the ledger as rows of the
+ * Calculator's one table (source 'manual'); the registered lines then leave the box. Nothing is registered by the autosave.
  *
- * Pure module: date resolution, the mapping from parsed lines to ledger lines, and the shape check the route runs on
- * what the client sent (the RPC validates again).
+ * Pure module: date resolution, the mapping from parsed lines to ledger lines, the removal of the registered lines from
+ * the text, and the shape check the route runs on what the client sent (the RPC validates again).
  */
 
-import { procesarTexto, type WebCalculatorOperation } from "./web-calculator";
+import { parsearLinea, procesarTexto, type WebCalculatorOperation } from "./web-calculator";
 
-/** Ledger services a manual line can carry; the same set the sync RPC accepts. */
+/** Ledger services a manual line can carry; the same set the add RPC accepts. */
 export const MANUAL_SERVICES = [
   "CUP", "ZELLE", "MLC", "TROPICAL", "CLASICA", "USDT", "SALDO_MOVIL", "RECARGA", "DIRECTO",
 ] as const;
 export type ManualService = (typeof MANUAL_SERVICES)[number];
 
-/** The sync RPC takes at most this many lines. */
-export const MAX_MANUAL_LINES = 3000;
+/** The add RPC takes at most this many lines. */
+export const MAX_MANUAL_LINES = 500;
 
 export interface ManualEntryLine {
-  /** Line number in the Calculator text: the identity of the entry inside the week. */
-  position: number;
+  /** 1-based line number in the text box: which line leaves the box once it is registered. Not sent to the server. */
+  line: number;
   /** Guyana business day, YYYY-MM-DD. */
   date: string;
   /** The day header the line sits under, as typed ("Martes 6"); null before any header. */
@@ -174,28 +174,32 @@ function validFigures(operation: WebCalculatorOperation): boolean {
 
 export interface ManualEntriesResult {
   lines: ManualEntryLine[];
-  /** Parsed lines that cannot become ledger entries (unknown service, no amount, negative figures). */
-  skipped: WebCalculatorOperation[];
+  /** Lines that stay in the box: not interpreted by the parser, or parsed but not holdable by the ledger (unknown service,
+   *  no amount, negative figures). */
+  uninterpreted: Array<{ line: number; raw: string }>;
 }
 
 /**
- * The ledger lines of a Calculator text: the page's own parse (error lines and day headers excluded), each line dated by
- * the header it sits under. Lines the ledger cannot hold are returned apart in `skipped`, never sent.
+ * The ledger lines of a Calculator text: the page's own parse (day headers excluded), each line dated by the header it
+ * sits under. Lines the ledger cannot hold are returned apart in `uninterpreted`, never sent.
  */
 export function manualEntriesFromText(text: string, cupGlobalRate: number, today: string): ManualEntriesResult {
   const lines: ManualEntryLine[] = [];
-  const skipped: WebCalculatorOperation[] = [];
+  const uninterpreted: ManualEntriesResult["uninterpreted"] = [];
 
   for (const operation of procesarTexto(text, cupGlobalRate).operations) {
-    if ("error" in operation) continue;
+    if ("error" in operation) {
+      uninterpreted.push({ line: operation.linea, raw: operation.raw });
+      continue;
+    }
     const service = serviceOf(operation);
     const customer = operation.cliente.trim();
     if (!service || !customer || customer.length > 240 || !validFigures(operation)) {
-      skipped.push(operation);
+      uninterpreted.push({ line: operation.linea, raw: operation.raw });
       continue;
     }
     lines.push({
-      position: operation.linea,
+      line: operation.linea,
       date: resolveManualDate(operation.dia, today),
       dayLabel: operation.dia === "General" ? null : operation.dia,
       customer,
@@ -208,14 +212,56 @@ export function manualEntriesFromText(text: string, cupGlobalRate: number, today
       rawLine: operation.raw,
     });
   }
-  return { lines, skipped };
+  return { lines, uninterpreted };
+}
+
+/**
+ * The text that remains after the lines numbered `registered` were registered: those lines are removed, and so is a day
+ * header that has none of its lines left (a header with no line under it from the start stays). Lines that could not be
+ * interpreted stay, with the header they sit under. Blank-line runs left behind collapse; nothing left gives "".
+ */
+export function removeRegisteredLines(text: string, registered: readonly number[]): string {
+  if (registered.length === 0) return text;
+  const gone = new Set(registered);
+  const lines = text.split("\n");
+  const keep = lines.map((_, index) => !gone.has(index + 1));
+
+  let header = -1;
+  let removed = 0;
+  let remaining = 0;
+  const closeGroup = () => {
+    if (header >= 0 && removed > 0 && remaining === 0) keep[header] = false;
+  };
+  lines.forEach((line, index) => {
+    const parsed = parsearLinea(line, "General");
+    if (!parsed) return;
+    if (parsed.esDia) {
+      closeGroup();
+      header = index;
+      removed = 0;
+      remaining = 0;
+      return;
+    }
+    if (gone.has(index + 1)) removed += 1;
+    else remaining += 1;
+  });
+  closeGroup();
+
+  const out: string[] = [];
+  lines.forEach((line, index) => {
+    if (!keep[index]) return;
+    const blank = line.trim() === "";
+    if (blank && (out.length === 0 || out[out.length - 1]!.trim() === "")) return;
+    out.push(line);
+  });
+  while (out.length > 0 && out[out.length - 1]!.trim() === "") out.pop();
+  return out.join("\n");
 }
 
 // ---------------------------------------------------------------- route side
 
-/** One line as `crm_sincronizar_entradas_manuales` takes it. */
+/** One line as `crm_registrar_entradas_manuales` takes it. */
 export interface ManualEntryRpcLine {
-  position: number;
   date: string;
   day_label: string | null;
   customer: string;
@@ -233,17 +279,17 @@ const isFinite_ = (value: unknown): value is number => typeof value === "number"
 function toRpcLine(input: unknown): ManualEntryRpcLine | null {
   if (typeof input !== "object" || input === null) return null;
   const line = input as Record<string, unknown>;
-  const position = line.position;
-  if (!isFinite_(position) || !Number.isInteger(position) || position < 1) return null;
   if (typeof line.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(line.date)) return null;
   if (typeof line.customer !== "string" || line.customer.trim() === "") return null;
   if (typeof line.service !== "string" || !(MANUAL_SERVICES as readonly string[]).includes(line.service)) return null;
   if (typeof line.currency !== "string" || line.currency === "") return null;
-  if (!isFinite_(line.amount) || !isFinite_(line.facturadoGyd) || !isFinite_(line.invertidoGyd) || !isFinite_(line.retornoGyd)) return null;
+  if (!isFinite_(line.amount) || line.amount <= 0) return null;
+  if (!isFinite_(line.facturadoGyd) || line.facturadoGyd < 0) return null;
+  if (!isFinite_(line.invertidoGyd) || line.invertidoGyd < 0) return null;
+  if (!isFinite_(line.retornoGyd)) return null;
   if (line.dayLabel !== null && line.dayLabel !== undefined && typeof line.dayLabel !== "string") return null;
   if (line.rawLine !== null && line.rawLine !== undefined && typeof line.rawLine !== "string") return null;
   return {
-    position,
     date: line.date,
     day_label: (line.dayLabel as string | null | undefined) ?? null,
     customer: line.customer,
@@ -257,11 +303,11 @@ function toRpcLine(input: unknown): ManualEntryRpcLine | null {
   };
 }
 
-/** Checks what the client sent as `manualLines` and maps it to the RPC's shape; the RPC validates again. */
+/** Checks what the client sent as the lines to register and maps it to the RPC's shape; the RPC validates again. */
 export function parseManualLines(input: unknown):
   | { ok: true; lines: ManualEntryRpcLine[] }
   | { ok: false } {
-  if (!Array.isArray(input) || input.length > MAX_MANUAL_LINES) return { ok: false };
+  if (!Array.isArray(input) || input.length === 0 || input.length > MAX_MANUAL_LINES) return { ok: false };
   const lines: ManualEntryRpcLine[] = [];
   for (const item of input) {
     const line = toRpcLine(item);

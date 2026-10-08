@@ -2,8 +2,8 @@
 // GET/POST /api/calculadora/weeks
 //
 // GET lists the archived Calculator weeks of the account (newest first, summaries only). POST is "Limpiar todo": the
-// weekly cut (`crm_cerrar_semana_calculadora`, migration 227) archives the manual text, the period, the manual totals
-// the page computed and the chat entries shown, records the cut and empties the document. History readers (Finanzas,
+// weekly cut (`crm_cerrar_semana_calculadora`, migrations 227 and 228) archives the draft text, the period and the entries
+// shown (the bot's and the manual ones; both sets of totals are computed in SQL), records the cut and empties the document. History readers (Finanzas,
 // dashboard, closes) are unaffected: no entry row changes. Runs on the CALLER'S session client; agent+ (the role that
 // can save the document).
 // ============================================================
@@ -12,14 +12,9 @@ import { NextResponse } from "next/server";
 import { getCurrentAccount, toErrorResponse } from "@/lib/auth/account";
 import { canSendMessages } from "@/lib/auth/roles";
 import { rpcErrorResponse } from "@/lib/remittance-operations/route-helpers";
-import { parseManualLines } from "@/lib/calculator/manual-entries";
 import { WEEK_SUMMARY_COLUMNS, mapWeek, mapWeekSummary, type CalculatorWeekRow } from "@/lib/calculator/weeks";
 
 const NO_STORE = { "Cache-Control": "private, no-store" };
-
-function finite(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value);
-}
 
 export async function GET() {
   try {
@@ -51,48 +46,15 @@ export async function POST(request: Request) {
     const account = await getCurrentAccount();
     if (!canSendMessages(account.role)) return NextResponse.json({ error: "Insufficient role" }, { status: 403 });
 
-    const body = (await request.json().catch(() => null)) as {
-      rawText?: unknown;
-      periodo?: unknown;
-      manualTotals?: { facturadoGyd?: unknown; invertidoGyd?: unknown; retornoGyd?: unknown } | null;
-      manualLines?: unknown;
-    } | null;
-    const totals = body?.manualTotals;
-    if (
-      !body || typeof body.rawText !== "string" || typeof body.periodo !== "string" || !totals ||
-      !finite(totals.facturadoGyd) || !finite(totals.invertidoGyd) || !finite(totals.retornoGyd)
-    ) {
-      return NextResponse.json(
-        { error: "rawText, periodo and finite manualTotals (facturadoGyd, invertidoGyd, retornoGyd) are required" },
-        { status: 400 },
-      );
-    }
-
-    // Migration 228: the lines of the week being closed are synced first, so the ledger holds exactly the text that is
-    // archived (the autosave may lag the textarea). The cut itself never touches the manual entries: they stay in the
-    // ledger and keep counting in Finanzas. If the sync fails nothing is archived or cleared.
-    if (body.manualLines !== undefined) {
-      const manualLines = parseManualLines(body.manualLines);
-      if (!manualLines.ok) return NextResponse.json({ error: "Invalid manual lines" }, { status: 400 });
-      const { error: syncError } = await account.supabase.rpc("crm_sincronizar_entradas_manuales", {
-        p_account_id: account.accountId,
-        p_lineas: manualLines.lines,
-      });
-      if (syncError) {
-        const errorResponse = rpcErrorResponse(syncError);
-        if (errorResponse) return errorResponse;
-        console.error("[calculadora weeks POST] manual entries sync error:", syncError);
-        throw new Error("manual entries sync failed");
-      }
+    const body = (await request.json().catch(() => null)) as { rawText?: unknown; periodo?: unknown } | null;
+    if (!body || typeof body.rawText !== "string" || typeof body.periodo !== "string") {
+      return NextResponse.json({ error: "rawText and periodo are required" }, { status: 400 });
     }
 
     const { data, error } = await account.supabase.rpc("crm_cerrar_semana_calculadora", {
       p_account_id: account.accountId,
       p_raw_text: body.rawText,
       p_period_label: body.periodo,
-      p_manual_facturado: totals.facturadoGyd,
-      p_manual_invertido: totals.invertidoGyd,
-      p_manual_retorno: totals.retornoGyd,
     });
     if (error) {
       const errorResponse = rpcErrorResponse(error);

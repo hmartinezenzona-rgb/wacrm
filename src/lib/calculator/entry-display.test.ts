@@ -15,6 +15,13 @@ describe("chat entry display", () => {
     expect(chatEntryAmountText({ amount: 100, amountCurrency: "USD", service: "ZELLE" })).toBe("100 ZELLE");
   });
 
+  it("reads a manual line the way the manual calculator wrote it: 100 ZELLE, 45000 CUP, 4000 GYD, 2 SALDO MOVIL", () => {
+    expect(chatEntryAmountText({ amount: 45000, amountCurrency: "CUP", service: "CUP" })).toBe("45000 CUP");
+    expect(chatEntryAmountText({ amount: 4000, amountCurrency: "GYD", service: "DIRECTO" })).toBe("4000 GYD");
+    // packages typed by hand (currency REC), not a saldo amount in SM
+    expect(chatEntryAmountText({ amount: 2, amountCurrency: "REC", service: "SALDO_MOVIL" })).toBe("2 SALDO MOVIL");
+  });
+
   it("labels SALDO_MOVIL as the manual calculator does and leaves the rest alone", () => {
     expect(ledgerServiceLabel("SALDO_MOVIL")).toBe("Saldo Móvil");
     expect(ledgerServiceLabel("RECARGA")).toBe("RECARGA");
@@ -22,5 +29,7 @@ describe("chat entry display", () => {
     expect(ledgerServiceLabel("DIRECTO")).toBe("Trámites / Combos / Servicios");
     expect(calculatorCategoryName("SALDO_MOVIL")).toBe("SALDO MOVIL");
     expect(calculatorCategoryName("CUP")).toBe("CUP");
+    // the breakdown's name for the direct lines, as the manual calculator calls it
+    expect(calculatorCategoryName("DIRECTO")).toBe("TRÁMITES / COMBOS / SERVICIOS");
   });
 });

@@ -2,7 +2,7 @@
 // POST /api/calculator/entries/{entryId}/correct
 //
 // Lets an admin correct `facturado_gyd`/`invertido_gyd` on an
-// already-completed, chat-fed calculator entry via
+// already-completed calculator entry, chat-fed or manual (migration 228), via
 // `crm_corregir_entrada_calculadora`, because exchange rates sometimes get
 // corrected after the fact. `retorno_gyd` is always recomputed server-side
 // (facturado - invertido) -- it is never sent by the client. Uses the

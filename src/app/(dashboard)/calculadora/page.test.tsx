@@ -20,7 +20,6 @@ import { NextIntlClientProvider } from "next-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import CalculadoraPage from "./page";
-import { procesarTexto } from "@/lib/calculator/web-calculator";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -127,6 +126,7 @@ function createFetchMock(config: {
   weeksGet?: { weeks: unknown[] };
   weeksPost?: (body: Record<string, unknown>) => { status: number; body?: unknown };
   weekGet?: (weekId: string) => { status: number; body?: unknown };
+  entriesPost?: (body: { lines: Array<Record<string, unknown>> }) => { status: number; body?: unknown };
 }) {
   return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input.toString();
@@ -140,6 +140,22 @@ function createFetchMock(config: {
       const result = config.weeksPost
         ? config.weeksPost(body)
         : { status: 200, body: { week: { id: "week-new", cutAt: "2026-10-03T12:00:00+00:00" }, cutAt: "2026-10-03T12:00:00+00:00" } };
+      return Promise.resolve(jsonResponse(result.body ?? {}, result.status));
+    }
+    if (url === "/api/calculadora/entries" && method === "POST") {
+      const body = JSON.parse((init?.body as string) ?? "{}") as { lines: Array<Record<string, unknown>> };
+      const result = config.entriesPost
+        ? config.entriesPost(body)
+        : {
+            status: 200,
+            body: {
+              entries: body.lines.map((line, index) => ({
+                id: `man-${index + 1}`, operationId: null, source: "manual", status: "completed", service: line.service,
+                customerName: line.customer, amount: line.amount, amountCurrency: line.currency, entryDate: line.date,
+                facturadoGyd: line.facturadoGyd, invertidoGyd: line.invertidoGyd, retornoGyd: line.retornoGyd, missingRates: [],
+              })),
+            },
+          };
       return Promise.resolve(jsonResponse(result.body ?? {}, result.status));
     }
     const weekMatch = /^\/api\/calculadora\/weeks\/([^/]+)$/.exec(url);
@@ -458,7 +474,7 @@ describe("calculator single-rate editor (Tarifas Globales)", () => {
     );
     expect(postCall).toBeDefined();
     const body = JSON.parse((postCall![1] as RequestInit).body as string);
-    expect(body).toEqual({ rawText: "", periodo: "SEMANA 2", manualLines: [] });
+    expect(body).toEqual({ rawText: "", periodo: "SEMANA 2" });
     await act(async () => root.unmount());
   });
 });
@@ -679,7 +695,7 @@ describe("calculator pending-entries banner", () => {
 });
 
 describe("calculator chat operations (read-only)", () => {
-  it("shows chat operations read-only and combines only completed snapshots", async () => {
+  it("shows the operations table and totals from the completed entries only; the draft text does not count until it is registered", async () => {
     const fetchMock = createFetchMock({
       calculadoraGet: {
         rawText: "• Manual 1 USDT (240/260)",
@@ -721,12 +737,13 @@ describe("calculator chat operations (read-only)", () => {
     });
     const { node, root } = await renderPage(fetchMock);
 
-    expect(node.textContent).toContain("Operaciones del chat");
+    expect(node.textContent).toContain("🔗 Operaciones");
+    expect(node.textContent).not.toContain("Operaciones del chat");
     expect(node.textContent).toContain("Completada");
     expect(node.textContent).toContain("Pendiente: usdtSellCup");
-    expect(node.textContent).toContain("26260.00");
-    expect(node.textContent).toContain("24240.00");
-    expect(node.textContent).toContain("2020.00");
+    // the draft "Manual 1 USDT (240/260)" would add 260 / 240 / 20: it is not an operation yet
+    const boxes = [...node.querySelectorAll(".legacyTotalBox p")].map((p) => p.textContent);
+    expect(boxes).toEqual(["26000.00", "24000.00", "2000.00"]);
     await act(async () => root.unmount());
   });
 
@@ -1388,23 +1405,16 @@ describe("calculator weekly cut (Limpiar Todo)", () => {
     await act(async () => root.unmount());
   });
 
-  it("confirming archives the week through the server: text, period and the manual totals the page computed", async () => {
+  it("confirming archives the week through the server: the draft text and the period (the totals are computed in the database)", async () => {
     const fetchMock = fixture();
     const { node, root } = await renderPage(fetchMock);
-    const expected = procesarTexto(MANUAL, FULL_RATES.cupGlobalRate).totals;
 
     await confirmCut(node);
     await flush();
 
     const posts = calls(fetchMock, "POST", "/api/calculadora/weeks");
     expect(posts).toHaveLength(1);
-    expect(JSON.parse((posts[0]![1] as RequestInit).body as string)).toEqual({
-      rawText: MANUAL,
-      periodo: "SEMANA 1",
-      manualTotals: { facturadoGyd: expected.fact, invertidoGyd: expected.inv, retornoGyd: expected.ret },
-      // the closing week's parsed lines (migration 228); the date depends on the day the test runs
-      manualLines: [expect.objectContaining({ position: 2, dayLabel: "Miércoles 5", customer: "Fran", service: "CUP", amount: 50000, currency: "CUP" })],
-    });
+    expect(JSON.parse((posts[0]![1] as RequestInit).body as string)).toEqual({ rawText: MANUAL, periodo: "SEMANA 1" });
     await act(async () => root.unmount());
   });
 
@@ -1533,6 +1543,7 @@ describe("calculator archived weeks (Semanas anteriores)", () => {
     expect(view).not.toBeNull();
     expect(view.textContent).toContain("SEMANA 1");
     expect(view.querySelector("pre")?.textContent).toBe("• Fran 50k CUP (235/980)");
+    expect(view.textContent).toContain("🔗 Operaciones");
     expect(view.textContent).toContain("Archivada Ana");
     expect(view.textContent).toContain("26000.00");
     expect(view.querySelector("textarea, input")).toBeNull();
@@ -1606,7 +1617,15 @@ describe("calculator archived weeks (Semanas anteriores)", () => {
   });
 });
 
-describe("manual entries in Finanzas (migration 228)", () => {
+describe("manual operations as rows of the one table (migration 228)", () => {
+  const MANUAL_ROW = {
+    id: "man-iza", operationId: null, source: "manual", status: "completed", service: "DIRECTO", customerName: "Iza", amount: 4000,
+    amountCurrency: "GYD", entryDate: "2026-10-06", facturadoGyd: 4000, invertidoGyd: 0, retornoGyd: 4000, missingRates: [],
+  };
+  const MANUAL_ZELLE = {
+    id: "man-pedro", operationId: null, source: "manual", status: "completed", service: "ZELLE", customerName: "Pedro", amount: 100,
+    amountCurrency: "USD", entryDate: "2026-10-07", facturadoGyd: 26000, invertidoGyd: 24000, retornoGyd: 2000, missingRates: [],
+  };
   const TEXT = [
     "Martes 6",
     "• Gerardo 100 Zelle (240/260)",
@@ -1615,100 +1634,431 @@ describe("manual entries in Finanzas (migration 228)", () => {
     "• Ana 10 USDT (240/260)",
   ].join("\n");
 
-  function postedDocuments(fetchMock: ReturnType<typeof createFetchMock>) {
-    return fetchMock.mock.calls
-      .filter(([input, init]) => (typeof input === "string" ? input : input.toString()) === "/api/calculadora" && (init as RequestInit)?.method === "POST")
-      .map(([, init]) => JSON.parse((init as RequestInit).body as string));
+  function fixture(overrides: Parameters<typeof createFetchMock>[0] = {}, rawText = "", entries: unknown[] = [DEL_COMPLETED, MANUAL_ROW]) {
+    return createFetchMock({
+      calculadoraGet: { rawText, periodo: "SEMANA 1", chatOperations: { entries } },
+      ratesGet: { rates: FULL_RATES },
+      ...overrides,
+    });
+  }
+  const textarea = (node: HTMLElement) => node.querySelector("#rawText") as HTMLTextAreaElement;
+  const registrarButton = (node: HTMLElement) => node.querySelector("#registrarEntradas") as HTMLButtonElement;
+  async function typeText(node: HTMLElement, value: string) {
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")!.set!;
+    await act(async () => { setter.call(textarea(node), value); textarea(node).dispatchEvent(new Event("input", { bubbles: true })); });
+  }
+  const totalBoxes = (node: HTMLElement) => [...node.querySelectorAll(".legacyTotalBox p")].map((p) => p.textContent);
+  function operationsCard(node: HTMLElement) {
+    return [...node.querySelectorAll(".legacyCard")].find((card) => card.querySelector("h2")?.textContent === "🔗 Operaciones") as HTMLElement;
+  }
+  const entryRows = (node: HTMLElement) => [...operationsCard(node).querySelectorAll("tbody tr")] as HTMLElement[];
+  const cell = (row: HTMLElement, label: string) => row.querySelector(`td[data-label="${label}"]`) as HTMLElement;
+  function entriesPosts(fetchMock: ReturnType<typeof createFetchMock>) {
+    return calls(fetchMock, "POST", "/api/calculadora/entries").map(([, init]) => JSON.parse((init as RequestInit).body as string) as { lines: Array<Record<string, unknown>> });
   }
 
-  it("the autosave sends the parsed manual lines with the day each one belongs to (Guyana time)", async () => {
+  it("the Auditoría card is gone, even with lines in the box that parse", async () => {
+    const { node, root } = await renderPage(fixture({}, TEXT));
+
+    expect(node.textContent).not.toContain("Auditoría");
+    expect(node.textContent).not.toContain("Detalle");
+    expect(node.querySelector(".legacyDayHeader")).toBeNull();
+    // the box, its help and its bullet button are where they were
+    expect(textarea(node).value).toBe(TEXT);
+    expect(node.textContent).toContain("📝 Registros de la Semana");
+    expect(node.querySelector(".legacyBulletButton")).not.toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("the table keeps its columns and lists the manual operations next to the bot's: date, Manual mark, pencil and trash", async () => {
+    const { node, root } = await renderPage(fixture());
+
+    const headers = [...operationsCard(node).querySelectorAll("thead th")].map((th) => th.textContent);
+    expect(headers).toEqual(["Fecha", "Cliente", "Monto", "Tipo", "Estado", "Fact. (GYD)", "Inv. (GYD)", "Ganancia", "Acciones"]);
+    const [bot, manual] = entryRows(node);
+    expect(cell(bot!, "Fecha").textContent).toBe("2026-09-12");
+    expect(cell(bot!, "Tipo").textContent).toBe("ZELLE");
+    expect(cell(bot!, "Tipo").textContent).not.toContain("Manual");
+
+    expect(cell(manual!, "Fecha").textContent).toBe("2026-10-06");
+    expect(cell(manual!, "Cliente").textContent).toBe("Iza");
+    expect(cell(manual!, "Monto").textContent).toBe("4000 GYD");
+    expect(cell(manual!, "Tipo").textContent).toContain("Trámites / Combos / Servicios");
+    const mark = [...cell(manual!, "Tipo").querySelectorAll(".legacyBadge")].find((badge) => badge.textContent === "Manual");
+    expect(mark).toBeDefined();
+    expect(cell(manual!, "Estado").textContent).toBe("Completada");
+    expect(cell(manual!, "Fact. (GYD)").textContent).toBe("4000.00");
+    expect(cell(manual!, "Ganancia").textContent).toBe("4000.00");
+    expect(manual!.querySelector("#editarEntry-man-iza")).not.toBeNull();
+    expect(manual!.querySelector("#eliminarEntry-man-iza")).not.toBeNull();
+    // no column was added
+    expect(manual!.querySelectorAll("td")).toHaveLength(9);
+    await act(async () => root.unmount());
+  });
+
+  it("the totals and the service breakdown come from the entries shown; the draft text changes nothing", async () => {
+    const { node, root } = await renderPage(fixture({}, TEXT));
+
+    // 26000 + 4000, 24000 + 0, 2000 + 4000: the draft (Gerardo, Ana) is not an operation until it is registered
+    expect(totalBoxes(node)).toEqual(["30000.00", "24000.00", "6000.00"]);
+    const breakdown = [...node.querySelectorAll("h2")].find((h) => h.textContent === "⚙️ Desglose Semanal por Servicios")!.parentElement!;
+    expect(breakdown.textContent).toContain("Categoría: ZELLE");
+    expect(breakdown.textContent).toContain("Categoría: TRÁMITES / COMBOS / SERVICIOS");
+    expect(breakdown.textContent).not.toContain("USDT");
+
+    await typeText(node, `${TEXT}\n• Luis 1k usdt (240/260)`);
+    expect(totalBoxes(node)).toEqual(["30000.00", "24000.00", "6000.00"]);
+    await act(async () => root.unmount());
+  });
+
+  it("with only a draft the totals are zero and there is no breakdown", async () => {
+    const { node, root } = await renderPage(fixture({}, TEXT, []));
+    expect(totalBoxes(node)).toEqual(["0.00", "0.00", "0.00"]);
+    expect(node.textContent).not.toContain("Categoría:");
+    expect(node.textContent).toContain("No hay operaciones.");
+    await act(async () => root.unmount());
+  });
+
+  it("the autosave saves the draft text and registers nothing", async () => {
+    vi.useFakeTimers();
+    const fetchMock = fixture({}, TEXT);
+    const { node, root } = await renderPage(fetchMock);
+    fetchMock.mockClear();
+
+    await typeText(node, `${TEXT}\n• Luis 1k usdt (240/260)`);
+    await act(async () => { await vi.advanceTimersByTimeAsync(700); });
+
+    const saves = calls(fetchMock, "POST", "/api/calculadora").filter(([input]) => input === "/api/calculadora");
+    expect(saves).toHaveLength(1);
+    expect(JSON.parse((saves[0]![1] as RequestInit).body as string)).toEqual({ rawText: `${TEXT}\n• Luis 1k usdt (240/260)`, periodo: "SEMANA 1" });
+    expect(entriesPosts(fetchMock)).toHaveLength(0);
+    await act(async () => root.unmount());
+  });
+
+  it("Registrar is enabled only when the box holds a line that can be registered", async () => {
+    const { node, root } = await renderPage(fixture());
+
+    expect(registrarButton(node)).not.toBeNull();
+    expect(registrarButton(node).textContent).toBe("Registrar");
+    expect(registrarButton(node).disabled).toBe(true);
+    await typeText(node, "esto no tiene formato");
+    expect(registrarButton(node).disabled).toBe(true);
+    await typeText(node, "• Ana 10 USDT (240/260)");
+    expect(registrarButton(node).disabled).toBe(false);
+    await act(async () => root.unmount());
+  });
+
+  it("Registrar sends only the valid lines with their dates, takes them out of the box and keeps the line it could not read", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-07T16:00:00Z"));
-    const fetchMock = createFetchMock({ calculadoraGet: { rawText: TEXT, periodo: "SEMANA 1" }, ratesGet: { rates: FULL_RATES } });
-    const { root } = await renderPage(fetchMock);
+    const fetchMock = fixture({}, TEXT, []);
+    const { node, root } = await renderPage(fetchMock);
+    expect(node.textContent).toContain('⚠️ No interpretado: "esto no tiene formato"');
+    fetchMock.mockClear();
 
-    await act(async () => { await vi.advanceTimersByTimeAsync(600); });
+    await act(async () => { registrarButton(node).click(); });
+    await flush();
 
-    const posts = postedDocuments(fetchMock);
-    expect(posts).toHaveLength(1);
-    expect(posts[0].rawText).toBe(TEXT);
-    expect(posts[0].manualLines).toEqual([
-      {
-        position: 2, date: "2026-10-06", dayLabel: "Martes 6", customer: "Gerardo", service: "ZELLE", amount: 100, currency: "USD",
-        facturadoGyd: 26000, invertidoGyd: 24000, retornoGyd: 2000, rawLine: "• Gerardo 100 Zelle (240/260)",
-      },
-      {
-        position: 5, date: "2026-10-07", dayLabel: "Miércoles 7", customer: "Ana", service: "USDT", amount: 10, currency: "USD",
-        facturadoGyd: 2600, invertidoGyd: 2400, retornoGyd: 200, rawLine: "• Ana 10 USDT (240/260)",
-      },
-    ]);
+    expect(entriesPosts(fetchMock)).toEqual([{
+      lines: [
+        {
+          date: "2026-10-06", dayLabel: "Martes 6", customer: "Gerardo", service: "ZELLE", amount: 100, currency: "USD",
+          facturadoGyd: 26000, invertidoGyd: 24000, retornoGyd: 2000, rawLine: "• Gerardo 100 Zelle (240/260)",
+        },
+        {
+          date: "2026-10-07", dayLabel: "Miércoles 7", customer: "Ana", service: "USDT", amount: 10, currency: "USD",
+          facturadoGyd: 2600, invertidoGyd: 2400, retornoGyd: 200, rawLine: "• Ana 10 USDT (240/260)",
+        },
+      ],
+    }]);
+    // the registered lines (and their now empty day headers) left the box; what could not be read stays, with its warning
+    expect(textarea(node).value).toBe("Martes 6\nesto no tiene formato");
+    expect(node.textContent).toContain('⚠️ No interpretado: "esto no tiene formato"');
+    // they are rows of the table now, newest day first, and they count
+    const rows = entryRows(node);
+    expect(rows.map((row) => cell(row, "Cliente").textContent)).toEqual(["Ana", "Gerardo"]);
+    expect(rows.map((row) => cell(row, "Fecha").textContent)).toEqual(["2026-10-07", "2026-10-06"]);
+    expect(totalBoxes(node)).toEqual(["28600.00", "26400.00", "2200.00"]);
+    expect(node.textContent).toContain("2 operaciones registradas.");
+    // only the remaining text is autosaved, still without registering anything
+    await act(async () => { await vi.advanceTimersByTimeAsync(700); });
+    const saves = calls(fetchMock, "POST", "/api/calculadora").filter(([input]) => input === "/api/calculadora");
+    expect(JSON.parse((saves.at(-1)![1] as RequestInit).body as string).rawText).toBe("Martes 6\nesto no tiene formato");
+    expect(entriesPosts(fetchMock)).toHaveLength(1);
     await act(async () => root.unmount());
   });
 
-  it("a line dated by 'today' uses the Guyana day, not the UTC one", async () => {
+  it("a line without a day header is dated with the Guyana day, not the UTC one", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-08T02:30:00Z")); // still the 7th in Guyana
-    const fetchMock = createFetchMock({ calculadoraGet: { rawText: "• Ana 10 USDT (240/260)", periodo: "" }, ratesGet: { rates: FULL_RATES } });
-    const { root } = await renderPage(fetchMock);
+    const fetchMock = fixture({}, "• Ana 10 USDT (240/260)", []);
+    const { node, root } = await renderPage(fetchMock);
 
-    await act(async () => { await vi.advanceTimersByTimeAsync(600); });
+    await act(async () => { registrarButton(node).click(); });
+    await flush();
 
-    expect(postedDocuments(fetchMock)[0].manualLines[0]).toMatchObject({ date: "2026-10-07", dayLabel: null });
+    expect(entriesPosts(fetchMock)[0]!.lines[0]).toMatchObject({ date: "2026-10-07", dayLabel: null });
+    expect(textarea(node).value).toBe("");
     await act(async () => root.unmount());
   });
 
-  it("when the entries could not be registered the page says so (the text is saved)", async () => {
-    vi.useFakeTimers();
-    const fetchMock = createFetchMock({ calculadoraGet: { rawText: TEXT, periodo: "" }, ratesGet: { rates: FULL_RATES } });
+  it("registering everything empties the box", async () => {
+    const fetchMock = fixture({}, "Martes 6\n• Ana 10 USDT (240/260)\n\nMiércoles 7\n• Bea 5 USDT (240/260)", []);
+    const { node, root } = await renderPage(fetchMock);
+
+    await act(async () => { registrarButton(node).click(); });
+    await flush();
+
+    expect(textarea(node).value).toBe("");
+    expect(registrarButton(node).disabled).toBe(true);
+    await act(async () => root.unmount());
+  });
+
+  it("when registering fails nothing leaves the box, the table is unchanged and an error shows", async () => {
+    const fetchMock = fixture({ entriesPost: () => ({ status: 500, body: { error: "boom" } }) }, TEXT, []);
+    const { node, root } = await renderPage(fetchMock);
+
+    await act(async () => { registrarButton(node).click(); });
+    await flush();
+
+    expect(textarea(node).value).toBe(TEXT);
+    expect(entryRows(node)).toHaveLength(0);
+    expect(totalBoxes(node)).toEqual(["0.00", "0.00", "0.00"]);
+    expect(node.textContent).toContain("No se pudieron registrar las operaciones; no se quitó nada del cuadro.");
+    expect(registrarButton(node).disabled).toBe(false);
+    await act(async () => root.unmount());
+  });
+
+  it("a refused registration (no permission) says so and removes nothing", async () => {
+    const fetchMock = fixture({ entriesPost: () => ({ status: 403, body: { error: "Forbidden" } }) }, TEXT, []);
+    const { node, root } = await renderPage(fetchMock);
+
+    await act(async () => { registrarButton(node).click(); });
+    await flush();
+
+    expect(textarea(node).value).toBe(TEXT);
+    expect(node.textContent).toContain("No tienes permiso para registrar operaciones.");
+    await act(async () => root.unmount());
+  });
+
+  it("while it registers, the button is disabled and busy and the box cannot change; a second click sends nothing", async () => {
+    let release: (() => void) | undefined;
+    const fetchMock = fixture({}, TEXT, []);
     const base = fetchMock.getMockImplementation()!;
     fetchMock.mockImplementation((input, init) => {
-      const url = typeof input === "string" ? input : input.toString();
-      if (url === "/api/calculadora" && init?.method === "POST") {
-        return Promise.resolve(jsonResponse({ error: "manual entries sync failed", documentSaved: true, entriesSynced: false }, 500));
+      if (input === "/api/calculadora/entries") {
+        return new Promise<Response>((resolve) => {
+          release = () => resolve(jsonResponse({ entries: [] }));
+        });
       }
       return base(input, init);
     });
     const { node, root } = await renderPage(fetchMock);
 
-    await act(async () => { await vi.advanceTimersByTimeAsync(600); });
+    await act(async () => { registrarButton(node).click(); });
+    expect(registrarButton(node).disabled).toBe(true);
+    expect(registrarButton(node).getAttribute("aria-busy")).toBe("true");
+    expect(textarea(node).readOnly).toBe(true);
+    await act(async () => { registrarButton(node).click(); });
+    expect(entriesPosts(fetchMock)).toHaveLength(1);
 
-    expect(node.textContent).toContain("no se pudieron registrar en Finanzas");
-    await act(async () => root.unmount());
-  });
-
-  it("a parsed line the ledger cannot hold is reported, not silently dropped", async () => {
-    vi.useFakeTimers();
-    const fetchMock = createFetchMock({ calculadoraGet: { rawText: "• Raro 5 xyz\n• Ana 10 USDT (240/260)", periodo: "" }, ratesGet: { rates: FULL_RATES } });
-    const { node, root } = await renderPage(fetchMock);
-
-    await act(async () => { await vi.advanceTimersByTimeAsync(600); });
-
-    expect(node.textContent).toContain("1 línea no se registra en Finanzas");
-    await act(async () => root.unmount());
-  });
-
-  it("after Limpiar Todo the autosave of the emptied week sends no manual lines (the closed week's entries are not in play)", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-10-07T16:00:00Z"));
-    const fetchMock = createFetchMock({
-      calculadoraGet: { rawText: TEXT, periodo: "SEMANA 1", chatOperations: { entries: [] } },
-      ratesGet: { rates: FULL_RATES },
-    });
-    const { node, root } = await renderPage(fetchMock);
-    await act(async () => { await vi.advanceTimersByTimeAsync(600); });
-    fetchMock.mockClear();
-
-    await act(async () => { (Array.from(node.querySelectorAll("button")).find((b) => b.textContent?.includes("Limpiar Todo")) as HTMLButtonElement).click(); });
-    await act(async () => { (Array.from(document.querySelectorAll("[role=dialog] button")).find((b) => b.textContent?.trim() === "Limpiar todo") as HTMLButtonElement).click(); });
+    await act(async () => { release!(); });
     await flush();
-
-    // the cut request carries the lines of the closing week (so the ledger holds the text it archives)
-    const cut = fetchMock.mock.calls.find(([input, init]) => input === "/api/calculadora/weeks" && (init as RequestInit)?.method === "POST")!;
-    expect(JSON.parse((cut[1] as RequestInit).body as string).manualLines).toHaveLength(2);
-
-    await act(async () => { await vi.advanceTimersByTimeAsync(600); });
-    const posts = postedDocuments(fetchMock);
-    expect(posts.at(-1)).toMatchObject({ rawText: "", periodo: "", manualLines: [] });
+    expect(textarea(node).readOnly).toBe(false);
     await act(async () => root.unmount());
+  });
+
+  it("the old 'N líneas no se registran en Finanzas' notice is gone: what cannot be read is shown as not interpreted", async () => {
+    const { node, root } = await renderPage(fixture({}, "• Raro 5 xyz\n• Ana 10 USDT (240/260)", []));
+
+    expect(node.textContent).not.toContain("no se registra");
+    expect(node.textContent).not.toContain("en Finanzas (servicio");
+    expect(node.textContent).toContain('⚠️ No interpretado: "• Raro 5 xyz"');
+    await act(async () => root.unmount());
+  });
+
+  describe("the pencil and the trash work on a manual row exactly as on a bot row", () => {
+    it("the pencil edits the figures in place and posts to the same correction route", async () => {
+      const fetchMock = fixture();
+      const { node, root } = await renderPage(fetchMock);
+
+      await act(async () => { (node.querySelector("#editarEntry-man-iza") as HTMLButtonElement).click(); });
+      expect(inputValue(node, "editFacturado-man-iza")).toBe("4000");
+      expect(node.querySelector("#guardarEntry-man-iza")).not.toBeNull();
+      expect(node.querySelector("#cancelarEntry-man-iza")).not.toBeNull();
+      act(() => setInputValue(node, "editFacturado-man-iza", "5000"));
+      act(() => setInputValue(node, "editInvertido-man-iza", "500"));
+      await act(async () => { (node.querySelector("#guardarEntry-man-iza") as HTMLButtonElement).click(); });
+      await flush();
+
+      const posts = calls(fetchMock, "POST", "/api/calculator/entries/man-iza/correct");
+      expect(posts).toHaveLength(1);
+      expect(JSON.parse((posts[0]![1] as RequestInit).body as string)).toEqual({ facturadoGyd: 5000, invertidoGyd: 500 });
+      const row = entryRows(node)[1]!;
+      expect(cell(row, "Fact. (GYD)").textContent).toBe("5000.00");
+      expect(cell(row, "Ganancia").textContent).toBe("4500.00");
+      expect(cell(row, "Tipo").textContent).toContain("Manual");
+      expect(totalBoxes(node)).toEqual(["31000.00", "24500.00", "6500.00"]);
+      await act(async () => root.unmount());
+    });
+
+    it("the trash asks inline and, confirmed, posts to the same deletion route: the row leaves and the totals drop it", async () => {
+      const fetchMock = fixture();
+      const { node, root } = await renderPage(fetchMock);
+
+      await act(async () => { (node.querySelector("#eliminarEntry-man-iza") as HTMLButtonElement).click(); });
+      expect(entryRows(node)[1]!.textContent).toContain("¿Eliminar?");
+      expect(calls(fetchMock, "POST", "/api/calculator/entries/man-iza/delete")).toHaveLength(0);
+      await act(async () => { (node.querySelector("#confirmarEliminar-man-iza") as HTMLButtonElement).click(); });
+      await flush();
+
+      expect(calls(fetchMock, "POST", "/api/calculator/entries/man-iza/delete")).toHaveLength(1);
+      expect(node.querySelector("#eliminarEntry-man-iza")).toBeNull();
+      expect(entryRows(node)).toHaveLength(1);
+      expect(totalBoxes(node)).toEqual(["26000.00", "24000.00", "2000.00"]);
+      await act(async () => root.unmount());
+    });
+
+    it("a refusal on a manual row reads like one on a bot row", async () => {
+      const fetchMock = fixture({ deletePost: () => ({ status: 403, body: {} }) });
+      const { node, root } = await renderPage(fetchMock);
+
+      await act(async () => { (node.querySelector("#eliminarEntry-man-iza") as HTMLButtonElement).click(); });
+      await act(async () => { (node.querySelector("#confirmarEliminar-man-iza") as HTMLButtonElement).click(); });
+      await flush();
+
+      expect(node.textContent).toContain("Solo un administrador puede eliminar esta operación.");
+      expect(node.querySelector("#eliminarEntry-man-iza")).not.toBeNull();
+      await act(async () => root.unmount());
+    });
+  });
+
+  describe("live updates", () => {
+    const live = (eventType: string, row: Record<string, unknown>) => ({
+      eventType,
+      new: {
+        id: "man-live", operation_id: null, source: "manual", status: "completed", service: "ZELLE", customer_name: "Vivo Vicente",
+        amount: "100", amount_currency: "USD", entry_date: "2026-10-06", facturado_gyd: "26000", invertido_gyd: "24000",
+        retorno_gyd: "2000", missing_inputs: null, created_at: "2026-10-07T20:00:00Z", completed_at: "2026-10-06T16:00:00Z", ...row,
+      },
+      old: {},
+    });
+
+    it("a manual entry added elsewhere appears with its mark in date order, and leaves when it is deleted", async () => {
+      const { node, root } = await renderPage(fixture({}, "", [MANUAL_ZELLE, MANUAL_ROW]));
+      const chan = mockRealtime.channels[0]!;
+
+      act(() => { chan.handler!(live("INSERT", {})); });
+      expect(entryRows(node).map((row) => cell(row, "Cliente").textContent)).toEqual(["Pedro", "Vivo Vicente", "Iza"]);
+      expect(cell(entryRows(node)[1]!, "Tipo").textContent).toContain("Manual");
+
+      act(() => { chan.handler!(live("UPDATE", { status: "void" })); });
+      expect(entryRows(node).map((row) => cell(row, "Cliente").textContent)).toEqual(["Pedro", "Iza"]);
+      await act(async () => root.unmount());
+    });
+
+    it("the rows registered here are not duplicated when the same events arrive from the channel", async () => {
+      const fetchMock = fixture({}, "• Ana 10 USDT (240/260)", []);
+      const { node, root } = await renderPage(fetchMock);
+
+      await act(async () => { registrarButton(node).click(); });
+      await flush();
+      act(() => { mockRealtime.channels[0]!.handler!(live("INSERT", { id: "man-1", customer_name: "Ana", entry_date: "2026-10-07" })); });
+
+      expect(entryRows(node)).toHaveLength(1);
+      await act(async () => root.unmount());
+    });
+  });
+
+  describe("Limpiar Todo and Semanas anteriores", () => {
+    function clearButton(node: HTMLElement) {
+      return Array.from(node.querySelectorAll("button")).find((b) => b.textContent?.includes("Limpiar Todo")) as HTMLButtonElement;
+    }
+    async function confirmCut(node: HTMLElement) {
+      await act(async () => { clearButton(node).click(); });
+      await act(async () => { (Array.from(document.querySelectorAll("[role=dialog] button")).find((b) => b.textContent?.trim() === "Limpiar todo") as HTMLButtonElement).click(); });
+      await flush();
+    }
+
+    it("the cut sends the draft text and the period only, and the week's manual rows leave the table with the bot's", async () => {
+      const fetchMock = fixture({}, "• Pendiente de registrar 5 xyz");
+      const { node, root } = await renderPage(fetchMock);
+      fetchMock.mockClear();
+
+      await confirmCut(node);
+
+      const cut = calls(fetchMock, "POST", "/api/calculadora/weeks");
+      expect(cut).toHaveLength(1);
+      expect(JSON.parse((cut[0]![1] as RequestInit).body as string)).toEqual({ rawText: "• Pendiente de registrar 5 xyz", periodo: "SEMANA 1" });
+      expect(entryRows(node)).toHaveLength(0);
+      expect(totalBoxes(node)).toEqual(["0.00", "0.00", "0.00"]);
+      // the emptied week saves an empty text and registers nothing
+      expect(entriesPosts(fetchMock)).toHaveLength(0);
+      await act(async () => root.unmount());
+    });
+
+    it("an archived week shows its manual operations with the mark, read only, next to the bot's; the totals are the week's", async () => {
+      const week = {
+        id: "week-9", cutAt: "2026-10-08T12:00:00+00:00", periodo: "SEMANA 9",
+        manualTotals: { facturadoGyd: 4000, invertidoGyd: 0, retornoGyd: 4000 },
+        chatTotals: { count: 1, facturadoGyd: 26000, invertidoGyd: 24000, retornoGyd: 2000 },
+        rawText: "",
+        entries: [DEL_COMPLETED, { ...MANUAL_ROW, id: "arch-man" }],
+      };
+      const { node, root } = await renderPage(fixture({
+        weeksGet: { weeks: [{ ...week, entries: undefined, rawText: undefined }] },
+        weekGet: () => ({ status: 200, body: { week } }),
+      }));
+
+      await act(async () => { (node.querySelector("#verSemana-week-9") as HTMLButtonElement).click(); });
+      await flush();
+
+      const view = node.querySelector("#semanaArchivada") as HTMLElement;
+      const rows = [...view.querySelectorAll("tbody tr")] as HTMLElement[];
+      expect(rows).toHaveLength(2);
+      expect(rows[1]!.querySelector('td[data-label="Tipo"]')!.textContent).toContain("Manual");
+      expect(rows[0]!.querySelector('td[data-label="Tipo"]')!.textContent).not.toContain("Manual");
+      expect(view.textContent).toContain("30000.00");
+      expect(view.querySelector("[id^=eliminarEntry], [id^=editarEntry]")).toBeNull();
+      await act(async () => root.unmount());
+    });
+  });
+
+  describe("the text export", () => {
+    async function exported(node: HTMLElement) {
+      const blobs: Blob[] = [];
+      Object.defineProperty(URL, "createObjectURL", { configurable: true, writable: true, value: (blob: Blob) => { blobs.push(blob); return "blob:test"; } });
+      Object.defineProperty(URL, "revokeObjectURL", { configurable: true, writable: true, value: () => {} });
+      vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+      const button = Array.from(node.querySelectorAll("button")).find((b) => b.textContent?.includes("Exportar Reporte")) as HTMLButtonElement;
+      await act(async () => { button.click(); });
+      return new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.readAsText(blobs[0]!);
+      });
+    }
+
+    it("lists every operation of the table with its date and a manual mark, and leaves out an empty draft", async () => {
+      const { node, root } = await renderPage(fixture());
+
+      const text = await exported(node);
+
+      expect(text).toContain("TOTAL FACTURADO (GYD): 30000.00");
+      expect(text).toContain("=== OPERACIONES ===");
+      expect(text).toContain("• 2026-09-12 Raúl 100 ZELLE [completed]");
+      expect(text).toContain("• 2026-10-06 Iza 4000 GYD (manual) [completed]");
+      expect(text).not.toContain("REGISTRO MANUAL EN BRUTO");
+      await act(async () => root.unmount());
+    });
+
+    it("keeps the raw draft section while text remains in the box", async () => {
+      const { node, root } = await renderPage(fixture({}, "esto no tiene formato"));
+
+      const text = await exported(node);
+
+      expect(text).toContain("=== REGISTRO MANUAL EN BRUTO (SIN REGISTRAR) ===\nesto no tiene formato");
+      await act(async () => root.unmount());
+    });
   });
 });

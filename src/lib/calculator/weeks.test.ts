@@ -40,11 +40,22 @@ describe("mapWeek", () => {
     expect(week.rawText).toBe("5 zelle 100");
     expect(week.entries).toEqual([
       {
-        id: "e1", operationId: "op1", status: "completed", service: "ZELLE", customerName: "Raúl", amount: 100,
+        id: "e1", operationId: "op1", source: "completed_operation", status: "completed", service: "ZELLE", customerName: "Raúl", amount: 100,
         amountCurrency: "USD", entryDate: "2026-10-01", facturadoGyd: 26000, invertidoGyd: 24000, retornoGyd: 2000, missingRates: [],
       },
     ]);
     expect(week.periodo).toBe("SEMANA 1");
+  });
+
+  it("reads the entries of a week cut after migration 228: manual ones have a source and no operation", () => {
+    const week = mapWeek({
+      ...ROW,
+      entries: [
+        { id: "m1", operation_id: null, source: "manual", service: "DIRECTO", customer_name: "Iza", amount: 4000, amount_currency: "GYD", entry_date: "2026-10-06", facturado_gyd: 4000, invertido_gyd: 0, retorno_gyd: 4000 },
+        { id: "e1", operation_id: "op1", source: "completed_operation", service: "ZELLE", customer_name: "Raúl", amount: "100", amount_currency: "USD", entry_date: "2026-10-07", facturado_gyd: 26000, invertido_gyd: 24000, retorno_gyd: 2000 },
+      ],
+    });
+    expect(week.entries.map((e) => [e.id, e.source, e.operationId])).toEqual([["m1", "manual", null], ["e1", "completed_operation", "op1"]]);
   });
 
   it("an archive without entries reads as an empty list", () => {

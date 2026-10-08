@@ -4,6 +4,7 @@ import {
   guyanaToday,
   manualEntriesFromText,
   parseManualLines,
+  removeRegisteredLines,
   resolveManualDate,
 } from "./manual-entries";
 import { procesarTexto } from "./web-calculator";
@@ -98,29 +99,35 @@ describe("manualEntriesFromText", () => {
     "• Raro 5 xyz",
   ].join("\n");
 
-  it("builds one line per parsed operation with its date, position and ledger service", () => {
-    const { lines, skipped } = manualEntriesFromText(text, 3, today);
+  it("builds one line per parsed operation with its date, text line and ledger service", () => {
+    const { lines } = manualEntriesFromText(text, 3, today);
     const byCustomer = Object.fromEntries(lines.map((l) => [l.customer, l]));
 
     expect(lines.map((l) => l.customer)).toEqual(["Gerardo", "Luis Pérez", "Ana", "Lola", "Pedro", "Mario"]);
     expect(byCustomer.Gerardo).toMatchObject({
-      position: 2, date: "2026-10-06", dayLabel: "Martes 6", service: "ZELLE", amount: 100, currency: "USD",
+      line: 2, date: "2026-10-06", dayLabel: "Martes 6", service: "ZELLE", amount: 100, currency: "USD",
       facturadoGyd: 26000, invertidoGyd: 24000, retornoGyd: 2000, rawLine: "• Gerardo 100 Zelle (240/260)",
     });
-    expect(byCustomer["Luis Pérez"]).toMatchObject({ position: 4, service: "CUP", amount: 45000, currency: "CUP", date: "2026-10-06" });
-    expect(byCustomer.Ana).toMatchObject({ position: 6, date: "2026-10-07", dayLabel: "Miércoles 7", service: "USDT", currency: "USD" });
+    expect(byCustomer["Luis Pérez"]).toMatchObject({ line: 4, service: "CUP", amount: 45000, currency: "CUP", date: "2026-10-06" });
+    expect(byCustomer.Ana).toMatchObject({ line: 6, date: "2026-10-07", dayLabel: "Miércoles 7", service: "USDT", currency: "USD" });
     expect(byCustomer.Lola).toMatchObject({ service: "SALDO_MOVIL", currency: "REC" });
     expect(byCustomer.Pedro).toMatchObject({ service: "RECARGA", currency: "REC" });
     expect(byCustomer.Mario).toMatchObject({ service: "DIRECTO", currency: "GYD", amount: 20000, facturadoGyd: 20000, invertidoGyd: 0, retornoGyd: 20000 });
-    // an unknown service is reported, an unparseable line is already an error line of the page
-    expect(skipped.map((s) => s.raw)).toEqual(["• Raro 5 xyz"]);
   });
 
-  it("the lines' figures add up to the page's own totals when nothing is skipped", () => {
+  it("reports what could not be interpreted: unparseable lines and parsed ones the ledger cannot hold", () => {
+    const { uninterpreted } = manualEntriesFromText(text, 3, today);
+    expect(uninterpreted).toEqual([
+      { line: 3, raw: "esto no tiene formato" },
+      { line: 10, raw: "• Raro 5 xyz" },
+    ]);
+  });
+
+  it("the lines' figures add up to the page's own totals when nothing is left out", () => {
     const clean = text.split("\n").filter((l) => !l.includes("xyz") && !l.includes("no tiene")).join("\n");
     const parsed = procesarTexto(clean, 3);
-    const { lines, skipped } = manualEntriesFromText(clean, 3, today);
-    expect(skipped).toEqual([]);
+    const { lines, uninterpreted } = manualEntriesFromText(clean, 3, today);
+    expect(uninterpreted).toEqual([]);
     expect(lines.reduce((s, l) => s + l.facturadoGyd, 0)).toBeCloseTo(parsed.totals.fact, 8);
     expect(lines.reduce((s, l) => s + l.invertidoGyd, 0)).toBeCloseTo(parsed.totals.inv, 8);
     expect(lines.reduce((s, l) => s + l.retornoGyd, 0)).toBeCloseTo(parsed.totals.ret, 8);
@@ -128,22 +135,60 @@ describe("manualEntriesFromText", () => {
 
   it("a line before any header is dated today with no day label", () => {
     const { lines } = manualEntriesFromText("• Ana 10 Zelle (1/2)", 3, today);
-    expect(lines[0]).toMatchObject({ date: today, dayLabel: null, position: 1 });
+    expect(lines[0]).toMatchObject({ date: today, dayLabel: null, line: 1 });
   });
 
-  it("skips a line with a non-positive amount or a negative figure", () => {
-    const { lines, skipped } = manualEntriesFromText("• Ana 0 Zelle (1/2)\n• Bea 10 Zelle (-5/2)", 3, today);
+  it("leaves out a line with a non-positive amount or a negative figure", () => {
+    const { lines, uninterpreted } = manualEntriesFromText("• Ana 0 Zelle (1/2)\n• Bea 10 Zelle (-5/2)", 3, today);
     expect(lines).toEqual([]);
-    expect(skipped).toHaveLength(2);
+    expect(uninterpreted.map((u) => u.line)).toEqual([1, 2]);
   });
 
   it("an empty text gives no lines", () => {
-    expect(manualEntriesFromText("", 3, today)).toEqual({ lines: [], skipped: [] });
+    expect(manualEntriesFromText("", 3, today)).toEqual({ lines: [], uninterpreted: [] });
+  });
+});
+
+describe("removeRegisteredLines", () => {
+  const text = [
+    "Martes 6",
+    "• Gerardo 100 Zelle (240/260)",
+    "esto no tiene formato",
+    "• Luis Pérez 45k cup(240/1030)",
+    "Miércoles 7",
+    "• Ana 150 USDT (240/260)",
+    "• Lola 2 Saldo movil (1/100/250)",
+  ].join("\n");
+
+  it("removes the registered lines and the day headers left with nothing, keeping what could not be interpreted", () => {
+    // lines 2 and 4 (Martes) and 6 and 7 (Miércoles) were registered; line 3 could not be read
+    expect(removeRegisteredLines(text, [2, 4, 6, 7])).toBe("Martes 6\nesto no tiene formato");
+  });
+
+  it("keeps a day header that still has a line under it", () => {
+    expect(removeRegisteredLines(text, [2, 4, 6])).toBe("Martes 6\nesto no tiene formato\nMiércoles 7\n• Lola 2 Saldo movil (1/100/250)");
+  });
+
+  it("registering everything empties the box", () => {
+    const clean = "Martes 6\n• Gerardo 100 Zelle (240/260)\n\nMiércoles 7\n• Ana 150 USDT (240/260)";
+    expect(removeRegisteredLines(clean, [2, 5])).toBe("");
+  });
+
+  it("registering nothing leaves the text exactly as it was", () => {
+    expect(removeRegisteredLines(text, [])).toBe(text);
+  });
+
+  it("a header typed with no line under it yet stays", () => {
+    expect(removeRegisteredLines("Martes 6\n• Ana 10 Zelle (1/2)\nMiércoles 7", [2])).toBe("Miércoles 7");
+  });
+
+  it("a line before any header is removed alone", () => {
+    expect(removeRegisteredLines("• Ana 10 Zelle (1/2)\n• Bea 10 Zelle (1/2)", [1])).toBe("• Bea 10 Zelle (1/2)");
   });
 });
 
 describe("MANUAL_SERVICES", () => {
-  it("is exactly the set the sync RPC accepts (migration 228)", () => {
+  it("is exactly the set the add RPC accepts (migration 228)", () => {
     expect([...MANUAL_SERVICES].sort()).toEqual(
       ["CLASICA", "CUP", "DIRECTO", "MLC", "RECARGA", "SALDO_MOVIL", "TROPICAL", "USDT", "ZELLE"],
     );
@@ -152,7 +197,7 @@ describe("MANUAL_SERVICES", () => {
 
 describe("parseManualLines", () => {
   const good = {
-    position: 2, date: "2026-10-06", dayLabel: "Martes 6", customer: "Gerardo", service: "ZELLE", amount: 100,
+    date: "2026-10-06", dayLabel: "Martes 6", customer: "Gerardo", service: "ZELLE", amount: 100,
     currency: "USD", facturadoGyd: 26000, invertidoGyd: 24000, retornoGyd: 2000, rawLine: "x",
   };
 
@@ -161,14 +206,14 @@ describe("parseManualLines", () => {
     expect(result).toEqual({
       ok: true,
       lines: [{
-        position: 2, date: "2026-10-06", day_label: "Martes 6", customer: "Gerardo", service: "ZELLE", amount: 100,
+        date: "2026-10-06", day_label: "Martes 6", customer: "Gerardo", service: "ZELLE", amount: 100,
         currency: "USD", facturado_gyd: 26000, invertido_gyd: 24000, retorno_gyd: 2000, raw_line: "x",
       }],
     });
   });
 
-  it("accepts an empty array (the week has no manual lines)", () => {
-    expect(parseManualLines([])).toEqual({ ok: true, lines: [] });
+  it("refuses an empty array: there is nothing to register", () => {
+    expect(parseManualLines([]).ok).toBe(false);
   });
 
   it.each([
@@ -176,15 +221,18 @@ describe("parseManualLines", () => {
     ["a non-object line", ["x"]],
     ["a NaN figure", [{ ...good, facturadoGyd: Number.NaN }]],
     ["a string figure", [{ ...good, amount: "100" }]],
+    ["a non-positive amount", [{ ...good, amount: 0 }]],
+    ["a negative facturado", [{ ...good, facturadoGyd: -1 }]],
+    ["a negative invertido", [{ ...good, invertidoGyd: -1 }]],
     ["an unknown service", [{ ...good, service: "SALDO MOVIL" }]],
     ["a missing customer", [{ ...good, customer: "" }]],
     ["a bad date", [{ ...good, date: "6/10/2026" }]],
-    ["a fractional position", [{ ...good, position: 1.5 }]],
   ])("refuses %s", (_label, input) => {
     expect(parseManualLines(input).ok).toBe(false);
   });
 
   it("refuses more lines than the RPC takes", () => {
-    expect(parseManualLines(Array.from({ length: 3001 }, (_, i) => ({ ...good, position: i + 1 }))).ok).toBe(false);
+    expect(parseManualLines(Array.from({ length: 501 }, () => good)).ok).toBe(false);
+    expect(parseManualLines(Array.from({ length: 500 }, () => good)).ok).toBe(true);
   });
 });

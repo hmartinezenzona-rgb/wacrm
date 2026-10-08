@@ -1,8 +1,10 @@
 // ============================================================
 // GET/POST /api/calculadora
 //
-// The manual calculator document (free text + period label) plus the
-// account's current rates and its chat-fed ledger entries.
+// The manual calculator document (free text + period label, the draft the
+// text box holds) plus the account's current rates and the entries of the
+// open week: the bot's and the manual ones (migration 228). The POST saves
+// the draft text ONLY; manual operations are added by POST ./entries.
 //
 // Reads and writes run on the CALLER'S OWN session client, never a
 // service-role client. Migration 106 is what makes that possible: before
@@ -19,17 +21,18 @@ import { getCurrentAccount, toErrorResponse } from "@/lib/auth/account";
 import { canSendMessages } from "@/lib/auth/roles";
 import { mapRateVersion, type RateVersionRow } from "@/lib/calculator/ledger-read-model";
 import { rpcErrorResponse } from "@/lib/remittance-operations/route-helpers";
-import { parseManualLines } from "@/lib/calculator/manual-entries";
 
 const RATE_VERSION_COLUMNS =
   "id, account_id, cup_global_rate, usdt_buy_gyd, usdt_sell_gyd, usdt_sell_cup, set_by, effective_at";
 
 const CHAT_OPERATION_COLUMNS =
-  "id,operation_id,status,service,customer_name,amount,amount_currency,entry_date,facturado_gyd,invertido_gyd,retorno_gyd,missing_inputs";
+  "id,operation_id,source,status,service,customer_name,amount,amount_currency,entry_date,facturado_gyd,invertido_gyd,retorno_gyd,missing_inputs";
 
 interface ChatOperationRow {
   id: string;
-  operation_id: string;
+  /** Null for a manual entry (migration 228). */
+  operation_id: string | null;
+  source: "completed_operation" | "manual";
   status: "completed" | "verified_pending";
   service: string;
   customer_name: string | null;
@@ -52,6 +55,7 @@ function chatOperationPayload(row: ChatOperationRow) {
   return {
     id: row.id,
     operationId: row.operation_id,
+    source: row.source,
     status: row.status,
     service: row.service,
     customerName: row.customer_name,
@@ -107,8 +111,9 @@ export async function GET() {
           .order("id", { ascending: false })
           .limit(1)
           .maybeSingle(),
-        // Migration 227: the Calculator reads the view of the entries not archived by a weekly cut ("Limpiar todo").
-        // A pending line is never archived. History readers (Finanzas, dashboard) keep reading the table.
+        // Migration 227: the Calculator reads the view of the entries not archived by a weekly cut ("Limpiar todo");
+        // migration 228: the bot's entries and the manual ones. A pending line is never archived. History readers
+        // (Finanzas, dashboard) keep reading the table.
         db
           .from("calculator_current_entries")
           .select(CHAT_OPERATION_COLUMNS)
@@ -174,14 +179,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid calculator document" }, { status: 400 });
     }
 
-    // Migration 228: the page also sends the parsed manual lines (each with its resolved day) so Finanzas counts them.
-    // Absent (an older page): the entries are left alone. An empty list is a real answer: the week has none.
-    let manualLines: ReturnType<typeof parseManualLines> | null = null;
-    if (body.manualLines !== undefined) {
-      manualLines = parseManualLines(body.manualLines);
-      if (!manualLines.ok) return NextResponse.json({ error: "Invalid manual lines" }, { status: 400 });
-    }
-
     // Rates are written only through POST /api/calculator/rates -- this
     // route persists the manual textarea document alone, through the one
     // function authorized to touch that table (agent+, migration 106).
@@ -198,24 +195,6 @@ export async function POST(request: Request) {
     }
 
     const saved = data as { raw_text: string; period_label: string };
-
-    if (manualLines?.ok) {
-      // Right after the document, in the same request. The text is never lost to a bad line, so it is saved first; if
-      // the sync then fails the response says so (documentSaved) and the page shows an error until a save succeeds.
-      const { error: syncError } = await account.supabase.rpc("crm_sincronizar_entradas_manuales", {
-        p_account_id: account.accountId,
-        p_lineas: manualLines.lines,
-      });
-      if (syncError) {
-        const mapped = rpcErrorResponse(syncError);
-        const failure = { documentSaved: true, entriesSynced: false };
-        if (mapped) {
-          return NextResponse.json({ ...(await mapped.json()), ...failure }, { status: mapped.status });
-        }
-        console.error("[calculadora POST] manual entries sync error:", syncError);
-        return NextResponse.json({ error: "manual entries sync failed", ...failure }, { status: 500 });
-      }
-    }
 
     return NextResponse.json(
       { rawText: saved.raw_text, periodo: saved.period_label },

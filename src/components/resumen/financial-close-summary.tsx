@@ -6,6 +6,7 @@ import { shortDayLabel } from "@/lib/financial-close/periods";
 import type { FinancialClose } from "@/lib/financial-close/read-model";
 import { ledgerServiceLabel } from "@/lib/calculator/entry-display";
 import { fmtGyd, marginPct } from "./financial-close-format";
+import { FinancialCloseProfitRing } from "./financial-close-profit-ring";
 
 /** Totals, the per-day chart and the per-service breakdown of one period. */
 export function FinancialCloseSummary({ close }: { close: FinancialClose }) {
@@ -104,6 +105,9 @@ export function FinancialCloseSummary({ close }: { close: FinancialClose }) {
               </tbody>
             </table>
           </section>
+          <div className="lg:col-span-5">
+            <FinancialCloseProfitRing byService={close.byService} />
+          </div>
         </div>
       )}
     </div>

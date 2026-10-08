@@ -255,3 +255,5 @@ T2c: build and deploy this release to staging (owner-authorised path) and ask fo
   when touched, like a history, so it does not fill the Calculator. Now a <details id="semanasAnteriores"> collapsed by
   default (same style as the format guide), summary "📚 Semanas anteriores (N)"; the opened archived week renders
   inside it. RED 1 failed (DIV vs DETAILS), GREEN page tests 83/83, tsc and eslint clean.
+
+- Production app deploy (2026-10-07, owner "pasalo a produccion"; release a6f7175, BUILD_ID ruyw_RQVPSsCnGuoMYUPh): manifest environment=production, project hqztotshnlzaiziwjyzh, 0 staging refs (kolppplawzdsjfydwejr), 32 production refs, 114 build tests passed, pm2 cwd = new release, /login 200 with valid TLS and "Bienvenido de nuevo", Calculator chunk `_next/static/chunks/184h3x-kzrd97.js` served by wacrm.onlinefreedom.site identical to the build (has "Registrar" and "🔗 Operaciones", no "Auditoría de Operaciones por Día"), restarts stable at 31, prod-build clean. Rollback: anterior -> 7db1561 (`infra/deployment/rollback-wacrm-produccion.sh`). T5 (production fresh start) still pending, left to the parent.

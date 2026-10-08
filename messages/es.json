@@ -2631,5 +2631,23 @@
     "previewBody": "Cuerpo del mensaje…",
     "previewButton": "Botón",
     "previewMenu": "Menú"
+  },
+  "ServiceNames": {
+    "cup": "CUP",
+    "zelle": "Zelle",
+    "clasica": "Clásica",
+    "tropical": "Tropical",
+    "mlc": "MLC",
+    "usdt": "USDT",
+    "efectivo_usd": "Efectivo USD",
+    "recarga": "Recarga",
+    "saldo": "Saldo móvil",
+    "combo": "Combo",
+    "visa": "Visa",
+    "tramites": "Trámites",
+    "traduccion": "Traducción",
+    "mexico": "México",
+    "mixed": "Remesa mixta",
+    "remesa": "Remesa"
   }
 }

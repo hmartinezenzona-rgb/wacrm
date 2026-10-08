@@ -7,6 +7,8 @@
  * service name, so colour is never the only cue. Class names are written out in full for Tailwind.
  */
 
+import { resolveServiceId, type ServiceId } from "./service-name";
+
 export const SERVICE_COLORS = [
   "cup",
   "zelle",
@@ -25,34 +27,32 @@ export const SERVICE_COLORS = [
 
 export type ServiceColor = (typeof SERVICE_COLORS)[number];
 
-// Keys are lower case; the lookup lower-cases its input. combo / traduccion / mexico are filed under the ledger's
-// DIRECTO ("Trámites / Combos / Servicios"), which is where their money lands.
-const COLOR_BY_SERVICE: Record<string, ServiceColor> = {
+// Colour of each canonical service id (src/lib/service-name.ts resolves either vocabulary to one). combo / traduccion /
+// mexico are filed under the ledger's DIRECTO ("Trámites"), which is where their money lands. A mixed remittance has no
+// colour of its own.
+const COLOR_BY_ID: Record<ServiceId, ServiceColor> = {
   cup: "cup",
-  cuban_card: "cup",
   zelle: "zelle",
   mlc: "mlc",
   tropical: "tropical",
   clasica: "clasica",
   usdt: "usdt",
-  efectivo: "efectivo",
   efectivo_usd: "efectivo",
   recarga: "recarga",
-  saldo_movil: "saldo",
   saldo: "saldo",
-  directo: "directo",
+  tramites: "directo",
   combo: "directo",
   traduccion: "directo",
   mexico: "directo",
   remesa: "remesa",
   visa: "visa",
+  mixed: "other",
 };
 
 /** Colour of a service key; an unknown, empty or missing one is `other` (a neutral dot). */
 export function serviceColor(service: string | null | undefined): ServiceColor {
-  if (!service) return "other";
-  const key = service.toLowerCase();
-  return Object.prototype.hasOwnProperty.call(COLOR_BY_SERVICE, key) ? COLOR_BY_SERVICE[key] : "other";
+  const id = resolveServiceId(service);
+  return id ? COLOR_BY_ID[id] : "other";
 }
 
 /** Background class of the dot. */

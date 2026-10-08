@@ -2631,5 +2631,23 @@
     "previewBody": "Message body…",
     "previewButton": "Button",
     "previewMenu": "Menu"
+  },
+  "ServiceNames": {
+    "cup": "CUP",
+    "zelle": "Zelle",
+    "clasica": "Clásica",
+    "tropical": "Tropical",
+    "mlc": "MLC",
+    "usdt": "USDT",
+    "efectivo_usd": "Cash USD",
+    "recarga": "Top-up",
+    "saldo": "Mobile balance",
+    "combo": "Combo",
+    "visa": "Visa",
+    "tramites": "Paperwork",
+    "traduccion": "Translation",
+    "mexico": "Mexico",
+    "mixed": "Mixed remittance",
+    "remesa": "Remittance"
   }
 }

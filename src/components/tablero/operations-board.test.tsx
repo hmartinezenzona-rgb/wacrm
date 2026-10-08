@@ -70,7 +70,7 @@ describe("OperationsBoard", () => {
     expect(card.getAttribute("href")).toBe("/inbox?c=conv-1");
     expect(card.textContent).toContain("Ana Perez");
     expect(card.textContent).toContain(t.services.remesa);
-    expect(card.textContent?.replace(/\u00a0/g, " ")).toContain("GYD 30,000");
+    expect(card.textContent?.replace(/\u00a0/g, " ")).toContain("GYD 30\u202f000");
     expect(card.textContent).toContain("2 h");
   });
 

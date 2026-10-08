@@ -1,3 +1,5 @@
+import { formatNumber, formatNumberParts } from "@/lib/format-number";
+
 /**
  * Currency — single source of truth for deal-value formatting and
  * the currency picker options.
@@ -20,10 +22,9 @@
  * position of the currency marker both moving. In a product whose whole
  * job is moving money, the numbers have to read the same for everyone.
  *
- * en-US matches what the rest of the app already hard-codes (Resumen's
- * `toLocaleString("en-US")`, the dashboard's compact figures). It
- * changes nothing for GYD or CUP: neither has a symbol in any locale,
- * so both stay "GYD 25,000" / "CUP 1,200" as before.
+ * en-US only fixes the layout (symbol or code position, no symbol for
+ * GYD/CUP). The group and decimal separators are then swapped for the BIPM/RAE
+ * ones by `@/lib/format-number`, so GYD and CUP read "GYD 25 000" / "CUP 1 200".
  */
 const FORMATTING_LOCALE = "en-US";
 
@@ -85,7 +86,7 @@ export const CURRENCIES: CurrencyOption[] = [
  * NO DB CHECK (only `accounts.default_currency` does), so legacy
  * rows, imports, or hand-edited data can hold malformed values like
  * "United States". We never let that crash a render — on a bad code
- * we fall back to "CODE 1,234".
+ * we fall back to "CODE 1 234".
  */
 export function formatCurrency(
   value: number,
@@ -94,24 +95,25 @@ export function formatCurrency(
   const code = (currency || DEFAULT_CURRENCY).trim();
   const amount = Number(value) || 0;
   try {
-    return new Intl.NumberFormat(FORMATTING_LOCALE, {
-      style: "currency",
-      currency: code,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
+    return formatNumberParts(
+      new Intl.NumberFormat(FORMATTING_LOCALE, {
+        style: "currency",
+        currency: code,
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }),
+      amount,
+    );
   } catch {
     // Invalid ISO code — show the raw code + grouped number so the
     // value is still legible instead of throwing.
-    return `${code} ${new Intl.NumberFormat(FORMATTING_LOCALE, {
-      maximumFractionDigits: 0,
-    }).format(amount)}`;
+    return `${code} ${formatNumber(amount, { maximumFractionDigits: 0 })}`;
   }
 }
 
 /**
  * Compact currency for tight spaces (donut center, legend rows):
- * "$1.2M" / "€34.5k" / "₹900". Uses the currency's symbol from
+ * "$1,2M" / "€34,5k" / "₹900". Uses the currency's symbol from
  * CURRENCIES, falling back to the code when we don't carry a symbol.
  */
 export function formatCurrencyShort(
@@ -124,13 +126,14 @@ export function formatCurrencyShort(
 }
 
 /**
- * Compact number for tight spaces (chart tiles, legends): 1_234 → "1.2k",
- * 1_200_000 → "1.2M", 900 → "900". The unit-less core shared with
+ * Compact number for tight spaces (chart tiles, legends): 1_234 → "1,2k",
+ * 1_200_000 → "1,2M", 900 → "900". The unit-less core shared with
  * {@link formatCurrencyShort}.
  */
 export function formatCompactNumber(value: number): string {
   const v = Number(value || 0);
-  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
-  if (v >= 1_000) return `${(v / 1_000).toFixed(1)}k`;
-  return v.toFixed(0);
+  const one = { minimumFractionDigits: 1, maximumFractionDigits: 1 };
+  if (v >= 1_000_000) return `${formatNumber(v / 1_000_000, one)}M`;
+  if (v >= 1_000) return `${formatNumber(v / 1_000, one)}k`;
+  return formatNumber(v, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }

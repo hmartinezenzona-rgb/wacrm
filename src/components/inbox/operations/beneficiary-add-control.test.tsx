@@ -387,7 +387,7 @@ describe("BeneficiaryAddControl on a combo", () => {
     }
     expect(node.querySelector("#add-beneficiary-card-number")).toBeNull();
     expect(node.querySelector("#add-beneficiary-currency")).toBeNull();
-    expect(node.textContent).toContain("25,000");
+    expect(node.textContent).toContain("25\u202f000");
     await act(async () => root.unmount());
   });
 

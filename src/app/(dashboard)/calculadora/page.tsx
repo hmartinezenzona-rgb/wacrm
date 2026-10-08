@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { isComboCostPending, pendingReason, type CalculatorRates } from "@/lib/calculator/ledger-read-model";
 import { guyanaToday, manualEntriesFromText, removeRegisteredLines } from "@/lib/calculator/manual-entries";
-import { calculatorCategoryName, chatEntryAmountText, ledgerServiceLabel } from "@/lib/calculator/entry-display";
+import { formatNumber as formatMoneyNumber } from "@/lib/format-number";
+import { calculatorCategoryName, chatEntryAmountExportText, chatEntryAmountText, ledgerServiceLabel } from "@/lib/calculator/entry-display";
 import { applyCalculatorEntryRealtimeEvent, insertCalculatorEntry, type ChatCalculatorEntry } from "@/lib/calculator/realtime-entry";
 import { useCalculatorEntriesRealtime } from "@/hooks/use-calculator-entries-realtime";
 import type { CalculatorWeek, CalculatorWeekSummary } from "@/lib/calculator/weeks";
@@ -17,7 +18,13 @@ const STORAGE_KEYS = {
   period: "remesas_periodo",
 } as const;
 
+/** Display format of a money figure: "1 157 712,40". */
 function formatNumber(value: number): string {
+  return formatMoneyNumber(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/** The .txt export keeps its plain figures: the owner pastes it elsewhere. */
+function plainNumber(value: number): string {
   return value.toFixed(2);
 }
 
@@ -572,10 +579,10 @@ export default function CalculadoraPage() {
   function exportar() {
     const title = periodo || "Sin_Periodo";
     const operationsText = chatEntries
-      .map((entry) => `• ${entry.entryDate.slice(0, 10)} ${entry.customerName || "Sin nombre"} ${chatEntryAmountText(entry)}${entry.source === "manual" ? " (manual)" : ""} [${entry.status}]`)
+      .map((entry) => `• ${entry.entryDate.slice(0, 10)} ${entry.customerName || "Sin nombre"} ${chatEntryAmountExportText(entry)}${entry.source === "manual" ? " (manual)" : ""} [${entry.status}]`)
       .join("\n");
     const draftText = rawText.trim() === "" ? "" : `=== REGISTRO MANUAL EN BRUTO (SIN REGISTRAR) ===\n${rawText}\n\n`;
-    const text = `=== CIERRE SEMANAL DE REMESAS ===\nPERIODO: ${periodo}\n--------------------------------\n\nTOTAL FACTURADO (GYD): ${formatNumber(totals.fact)}\nTOTAL INVERTIDO (GYD): ${formatNumber(totals.inv)}\nRETORNO NETO (GANANCIA): ${formatNumber(totals.ret)}\n\n${draftText}=== OPERACIONES ===\n${operationsText}`;
+    const text = `=== CIERRE SEMANAL DE REMESAS ===\nPERIODO: ${periodo}\n--------------------------------\n\nTOTAL FACTURADO (GYD): ${plainNumber(totals.fact)}\nTOTAL INVERTIDO (GYD): ${plainNumber(totals.inv)}\nRETORNO NETO (GANANCIA): ${plainNumber(totals.ret)}\n\n${draftText}=== OPERACIONES ===\n${operationsText}`;
     const link = document.createElement("a");
     link.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
     link.download = `Cierre_${title.replace(/\s/g, "_")}.txt`;
@@ -638,7 +645,7 @@ export default function CalculadoraPage() {
               return (
                 <div className="legacyRateRow" key={field.key}>
                   <dt>{field.label}</dt>
-                  <dd>{value == null ? "—" : String(value)}</dd>
+                  <dd>{value == null ? "—" : formatMoneyNumber(value, { maximumFractionDigits: 20 })}</dd>
                 </div>
               );
             })}

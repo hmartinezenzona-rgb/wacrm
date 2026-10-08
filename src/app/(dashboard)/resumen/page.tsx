@@ -17,6 +17,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { FinancialCloseSection } from "@/components/resumen/financial-close-section";
+import { formatNumber } from "@/lib/format-number";
 import { historialDestino } from "@/lib/resumen/historial-destino";
 import {
   Table,
@@ -104,7 +105,7 @@ const PAG_TXT = {
 };
 
 function fmtGyd(n: number | null | undefined): string {
-  return `${(n ?? 0).toLocaleString("en-US")} GYD`;
+  return `${formatNumber(n ?? 0)} GYD`;
 }
 
 /** Centinela para "todos los servicios": el valor real que viaja al RPC es "". */

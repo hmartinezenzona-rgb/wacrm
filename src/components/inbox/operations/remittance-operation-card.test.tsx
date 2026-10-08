@@ -273,7 +273,7 @@ describe("RemittanceOperationCard visa", () => {
       quote: { gyd: 15000, destinationAmount: 4000, destinationCurrency: "CUP", quotedAt: "2026-10-03T00:00:00Z" },
     });
 
-    expect(node.querySelector("article")!.textContent).toContain("15,000 GYD");
+    expect(node.querySelector("article")!.textContent).toContain("15\u202f000 GYD");
     expect(node.querySelector("article")!.textContent).toContain("Visa extension");
     expect(node.querySelector("article svg.lucide-stamp")).not.toBeNull();
     expect(node.querySelector('[data-testid="deposit-review-stub"]')!.getAttribute("data-summary-amount")).toContain("3 extensions");
@@ -281,12 +281,12 @@ describe("RemittanceOperationCard visa", () => {
     await act(async () => root.unmount());
   });
 
-  // Owner test 2026-10-04: waiting for the deposit, the card only said "Visa extension" and 10,000 GYD.
+  // Owner test 2026-10-04: waiting for the deposit, the card only said "Visa extension" and 10 000 GYD.
   it("shows the extensions count in the header while the deposit is awaited", async () => {
     const { node, root } = await render(visaOp({ status: "collecting_information", quotedSourceAmount: 10000 }));
 
     const header = node.querySelector("article button[aria-expanded]")!.textContent!;
-    expect(header).toContain("10,000 GYD");
+    expect(header).toContain("10\u202f000 GYD");
     expect(header).toContain("Visa extension");
     expect(header).toContain("2 extensions");
     await act(async () => root.unmount());
@@ -364,7 +364,7 @@ describe("RemittanceOperationCard combo", () => {
       quote: { gyd: 55000, destinationAmount: 4000, destinationCurrency: "CUP", quotedAt: "2026-10-03T00:00:00Z" },
     });
 
-    expect(node.querySelector("article")!.textContent).toContain("55,000 GYD");
+    expect(node.querySelector("article")!.textContent).toContain("55\u202f000 GYD");
     expect(node.querySelector("article")!.textContent).toContain("Combo");
     expect(node.querySelector("article svg.lucide-shopping-basket")).not.toBeNull();
     expect(node.querySelector('[data-testid="deposit-review-stub"]')!.getAttribute("data-summary-amount")).toContain("2 combos");
@@ -385,8 +385,8 @@ describe("RemittanceOperationCard combo", () => {
     const { node, root } = await render(comboOp());
 
     for (const text of [
-      "Ana Lopez", "52345678", "Calle 1 #2, Habana", "frente a la bodega", "53456789", "25,000 GYD",
-      "Luis Perez", "62345678", "Calle 9, Matanzas", "casa azul", "63456789", "30,000 GYD",
+      "Ana Lopez", "52345678", "Calle 1 #2, Habana", "frente a la bodega", "53456789", "25\u202f000 GYD",
+      "Luis Perez", "62345678", "Calle 9, Matanzas", "casa azul", "63456789", "30\u202f000 GYD",
     ]) {
       expect(node.textContent, text).toContain(text);
     }
@@ -404,7 +404,7 @@ describe("RemittanceOperationCard combo", () => {
     const op = comboOp();
     const { node, root } = await render({ ...op, beneficiaries: [op.beneficiaries[0]!] });
 
-    expect(node.textContent).toContain("25,000 GYD");
+    expect(node.textContent).toContain("25\u202f000 GYD");
     await act(async () => root.unmount());
   });
 
@@ -658,7 +658,7 @@ describe("RemittanceOperationCard recharge", () => {
   it("shows the Recharge label and icon, the deposit in GYD, and the recharge count", async () => {
     const { node, root } = await render(rechargeOp(), { quote: { gyd: 10400, destinationAmount: 4000, destinationCurrency: "CUP", quotedAt: "2026-10-03T00:00:00Z" } });
 
-    expect(node.textContent).toContain("10,400 GYD");
+    expect(node.textContent).toContain("10\u202f400 GYD");
     expect(node.textContent).toContain("Recharge");
     expect(node.querySelector("article svg.lucide-smartphone")).not.toBeNull();
     const summary = node.querySelector('[data-testid="deposit-review-stub"]')!;
@@ -713,7 +713,7 @@ describe("RemittanceOperationCard recharge", () => {
       { quote: { gyd: 10400, destinationAmount: 4000, destinationCurrency: "CUP", quotedAt: "2026-10-03T00:00:00Z" } },
     );
 
-    expect(node.textContent).toContain("Quoted: 10,400 GYD → 4,000 CUP");
+    expect(node.textContent).toContain("Quoted: 10\u202f400 GYD → 4\u202f000 CUP");
     expect(node.textContent).not.toContain("Recharge");
     expect(node.querySelector("article svg.lucide-smartphone")).toBeNull();
     await act(async () => root.unmount());
@@ -737,12 +737,12 @@ describe("RemittanceOperationCard mobile balance (saldo)", () => {
     const { node, root } = await render(saldoOp(), { quote });
 
     const header = node.querySelector("article button[aria-expanded]")!.textContent!;
-    expect(header).toContain("5,000 GYD");
+    expect(header).toContain("5\u202f000 GYD");
     expect(header).toContain("Mobile balance");
-    expect(header).toContain("5 packages · 1,800 SM");
+    expect(header).toContain("5 packages · 1\u202f800 SM");
     expect(node.querySelector("article svg.lucide-coins")).not.toBeNull();
     expect(node.querySelector("article svg.lucide-smartphone")).toBeNull();
-    expect(node.querySelector('[data-testid="deposit-review-stub"]')!.getAttribute("data-summary-amount")).toContain("5 packages · 1,800 SM");
+    expect(node.querySelector('[data-testid="deposit-review-stub"]')!.getAttribute("data-summary-amount")).toContain("5 packages · 1\u202f800 SM");
     await act(async () => root.unmount());
   });
 
@@ -802,7 +802,7 @@ describe("RemittanceOperationCard", () => {
       operation({ quotedSourceAmount: 10000, sourceCurrency: "GYD", status: "deposit_verification" }),
     );
 
-    expect(node.textContent).toContain("10,000 GYD");
+    expect(node.textContent).toContain("10\u202f000 GYD");
     expect(node.textContent).toContain("Deposit verification");
     await act(async () => root.unmount());
   });
@@ -900,7 +900,7 @@ describe("RemittanceOperationCard", () => {
       }),
     );
     const toggleButton = node.querySelector("button[aria-expanded]")!;
-    expect(toggleButton.textContent).toContain("26,000 GYD");
+    expect(toggleButton.textContent).toContain("26\u202f000 GYD");
     expect(toggleButton.textContent).toContain("Zelle");
     expect(toggleButton.textContent).not.toContain("USD");
     expect(toggleButton.textContent).not.toContain("100");
@@ -910,7 +910,7 @@ describe("RemittanceOperationCard", () => {
   it("does not render the destination amount anywhere when there are no beneficiaries", async () => {
     const { node, root } = await render(operation({ quotedDestinationAmount: 150000, destinationCurrency: "CUP" }));
 
-    expect(node.textContent).not.toContain("150,000");
+    expect(node.textContent).not.toContain("150\u202f000");
     await act(async () => root.unmount());
   });
 
@@ -943,7 +943,7 @@ describe("RemittanceOperationCard", () => {
       { expanded: false },
     );
 
-    expect(node.textContent).toContain("10,000 GYD");
+    expect(node.textContent).toContain("10\u202f000 GYD");
     const toggleButton = node.querySelector("button[aria-expanded]")!;
     expect(toggleButton.getAttribute("aria-expanded")).toBe("false");
     expect(node.querySelector("h4")).toBeNull();
@@ -1256,7 +1256,7 @@ describe("RemittanceOperationCard", () => {
     it("passes a currency-labeled amount for a single non-Zelle beneficiary", async () => {
       const { node, root } = await render(operation({ beneficiaries: [beneficiary({ amount: 60000, currency: "CUP" })] }));
 
-      expect(summaryAmountFromStub(node)).toEqual({ kind: "amount", display: "60,000 CUP" });
+      expect(summaryAmountFromStub(node)).toEqual({ kind: "amount", display: "60\u202f000 CUP" });
       await act(async () => root.unmount());
     });
 
@@ -1269,7 +1269,7 @@ describe("RemittanceOperationCard", () => {
         }),
       );
 
-      expect(summaryAmountFromStub(node)).toEqual({ kind: "amount", display: "9,800.5 CUP" });
+      expect(summaryAmountFromStub(node)).toEqual({ kind: "amount", display: "9\u202f800,5 CUP" });
       await act(async () => root.unmount());
     });
 
@@ -1285,7 +1285,7 @@ describe("RemittanceOperationCard", () => {
         operation({ beneficiaries: [], quotedDestinationAmount: 150000, destinationCurrency: "CUP" }),
       );
 
-      expect(summaryAmountFromStub(node)).toEqual({ kind: "amount", display: "150,000 CUP" });
+      expect(summaryAmountFromStub(node)).toEqual({ kind: "amount", display: "150\u202f000 CUP" });
       await act(async () => root.unmount());
     });
 
@@ -2163,7 +2163,7 @@ describe("RemittanceOperationCard — the bot's quote", () => {
   it("shows what the bot quoted, even collapsed", async () => {
     const { node, root } = await render(operation({ quotedSourceAmount: null }), { quote: QUOTE, expanded: false });
 
-    expect(node.textContent).toContain("Quoted: 5,000 GYD → 15,000 CUP");
+    expect(node.textContent).toContain("Quoted: 5\u202f000 GYD → 15\u202f000 CUP");
     await act(async () => root.unmount());
   });
 
@@ -2172,7 +2172,7 @@ describe("RemittanceOperationCard — the bot's quote", () => {
       quote: { ...QUOTE, gyd: 26000, destinationAmount: 100, destinationCurrency: "USD" },
     });
 
-    expect(node.textContent).toContain("Quoted: 26,000 GYD → 100 USD");
+    expect(node.textContent).toContain("Quoted: 26\u202f000 GYD → 100 USD");
     await act(async () => root.unmount());
   });
 
@@ -2181,8 +2181,8 @@ describe("RemittanceOperationCard — the bot's quote", () => {
       quote: { ...QUOTE, destinationAmount: null, destinationCurrency: null },
     });
 
-    expect(node.textContent).toContain("Quoted: 5,000 GYD");
-    expect(node.textContent).not.toContain("Quoted: 5,000 GYD →");
+    expect(node.textContent).toContain("Quoted: 5\u202f000 GYD");
+    expect(node.textContent).not.toContain("Quoted: 5\u202f000 GYD →");
     await act(async () => root.unmount());
   });
 

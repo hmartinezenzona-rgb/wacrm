@@ -437,7 +437,7 @@
       "visaCountMany": "{count} extensiones",
       "saldoCountOne": "{count} paquete · {saldo} SM",
       "saldoCountMany": "{count} paquetes · {saldo} SM",
-      "comboMinimumHint": "Mínimo 25,000 GYD por combo",
+      "comboMinimumHint": "Mínimo 25 000 GYD por combo",
       "cashIdPhotoHint": "La foto del carnet llega por el chat",
       "comboProvinceHint": "Incluye la provincia de Cuba en la dirección",
       "serviceChange": {
@@ -450,7 +450,7 @@
         "label": "Costo del combo (GYD)",
         "clear": "Borrar",
         "missing": "Falta el costo: la calculadora lo está esperando",
-        "invalid": "Ingresa un costo de 0 hasta 999,999,999",
+        "invalid": "Ingresa un costo de 0 hasta 999 999 999",
         "change": "Cambiar",
         "saved": "Costo del combo guardado"
       },

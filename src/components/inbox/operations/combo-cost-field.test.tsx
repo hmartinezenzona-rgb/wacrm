@@ -74,7 +74,7 @@ describe("ComboCostField", () => {
     const { node, root } = await render({ costGyd: 18000 });
 
     expect(node.querySelector("input")).toBeNull();
-    expect(node.textContent).toContain("18,000 GYD");
+    expect(node.textContent).toContain("18\u202f000 GYD");
     expect(buttonByText(node, t.change)).toBeDefined();
     expect(buttonByText(node, t.clear)).toBeDefined();
     expect(node.textContent).not.toContain(t.missing);
@@ -88,7 +88,7 @@ describe("ComboCostField", () => {
     expect(input(node).value).toBe("18000");
     await act(async () => buttonByText(node, en.Inbox.operationsPanel.cancel)!.click());
     expect(node.querySelector("input")).toBeNull();
-    expect(node.textContent).toContain("18,000 GYD");
+    expect(node.textContent).toContain("18\u202f000 GYD");
     expect(setComboCosto).not.toHaveBeenCalled();
     await act(async () => root.unmount());
   });
@@ -101,7 +101,7 @@ describe("ComboCostField", () => {
     await act(async () => buttonByText(node, en.Inbox.operationsPanel.save)!.click());
 
     expect(node.querySelector("input")).toBeNull();
-    expect(node.textContent).toContain("40,000 GYD");
+    expect(node.textContent).toContain("40\u202f000 GYD");
     expect(toastSuccess).toHaveBeenCalledWith(t.saved);
     await act(async () => root.unmount());
   });

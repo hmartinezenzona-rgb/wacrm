@@ -28,6 +28,7 @@ import { ConfirmCancelButtons } from "./confirm-cancel-buttons";
 import { InlineEditField } from "./inline-edit-field";
 import { OperationClosingControl } from "./operation-closing-control";
 import { KNOWN_BENEFICIARY_TYPES, MethodIcon, StatusChip } from "./operation-icons";
+import { formatNumber } from "@/lib/format-number";
 
 const CARD_NUMBER_PATTERN = /^\d{16}$/;
 const PHONE_PATTERN = /^\d{8,15}$/;
@@ -107,7 +108,7 @@ interface OpenFormState {
 
 function money(amount: number | null, currency: string | null): string | null {
   if (amount === null) return null;
-  const formatted = new Intl.NumberFormat("en-US").format(amount);
+  const formatted = formatNumber(amount);
   return currency ? `${formatted} ${currency}` : formatted;
 }
 
@@ -234,7 +235,7 @@ function saldoSummaryLabel(
 ): string | null {
   const count = saldoPackages(operation.quotedSourceAmount);
   if (count === null) return null;
-  return t(count === 1 ? "saldoCountOne" : "saldoCountMany", { count, saldo: (count * SALDO_UNIT_CUP).toLocaleString("en-US") });
+  return t(count === 1 ? "saldoCountOne" : "saldoCountMany", { count, saldo: formatNumber(count * SALDO_UNIT_CUP) });
 }
 
 /** Price of one visa extension in GYD (migration 213): the operation's amount is this times the people. */

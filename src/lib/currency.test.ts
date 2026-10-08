@@ -2,16 +2,19 @@ import { describe, expect, it } from "vitest";
 import {
   CURRENCIES,
   DEFAULT_CURRENCY,
+  formatCompactNumber,
   formatCurrency,
   formatCurrencyShort,
 } from "./currency";
+
+const N = "\u202f"; // narrow no-break space: the group separator of every money figure
 
 describe("formatCurrency", () => {
   it("formats whole amounts with no minor units", () => {
     // Use a non-breaking-space-tolerant check: Intl may insert NBSP.
     const out = formatCurrency(1234, "USD");
-    expect(out).toContain("1,234");
-    expect(out).not.toContain(".00");
+    expect(out).toContain(`1${N}234`);
+    expect(out).not.toContain(",00");
   });
 
   it("defaults to USD when no currency is given", () => {
@@ -30,13 +33,13 @@ describe("formatCurrency", () => {
     // Intl is lenient here — it uses the code as the symbol.
     const out = formatCurrency(1234, "ZZZ");
     expect(out).toContain("ZZZ");
-    expect(out).toContain("1,234");
+    expect(out).toContain(`1${N}234`);
   });
 
   it("never throws on a structurally invalid code (no DB CHECK on deals.currency)", () => {
     for (const bad of ["United States", "US", "USDD", "12", "u$d"]) {
       expect(() => formatCurrency(1234, bad)).not.toThrow();
-      expect(formatCurrency(1234, bad)).toContain("1,234");
+      expect(formatCurrency(1234, bad)).toContain(`1${N}234`);
     }
   });
 
@@ -47,20 +50,28 @@ describe("formatCurrency", () => {
   });
 });
 
+describe("formatCompactNumber", () => {
+  it("writes the decimal with a comma and groups big millions", () => {
+    expect(formatCompactNumber(1_234)).toBe("1,2k");
+    expect(formatCompactNumber(1_500_000_000)).toBe(`1${N}500,0M`);
+    expect(formatCompactNumber(900)).toBe("900");
+  });
+});
+
 describe("formatCurrencyShort", () => {
   it("abbreviates millions and thousands with the currency symbol", () => {
-    expect(formatCurrencyShort(2_500_000, "USD")).toBe("$2.5M");
-    expect(formatCurrencyShort(3_400, "USD")).toBe("$3.4k");
+    expect(formatCurrencyShort(2_500_000, "USD")).toBe("$2,5M");
+    expect(formatCurrencyShort(3_400, "USD")).toBe("$3,4k");
     expect(formatCurrencyShort(900, "USD")).toBe("$900");
   });
 
   it("uses the matching symbol for non-USD currencies", () => {
-    expect(formatCurrencyShort(1_000, "EUR")).toBe("€1.0k");
-    expect(formatCurrencyShort(1_000, "INR")).toBe("₹1.0k");
+    expect(formatCurrencyShort(1_000, "EUR")).toBe("€1,0k");
+    expect(formatCurrencyShort(1_000, "INR")).toBe("₹1,0k");
   });
 
   it("falls back to the code prefix for unknown currencies (no throw)", () => {
-    expect(formatCurrencyShort(1_000, "ZZZ")).toBe("ZZZ 1.0k");
+    expect(formatCurrencyShort(1_000, "ZZZ")).toBe("ZZZ 1,0k");
   });
 });
 
@@ -68,7 +79,7 @@ describe("formatCurrency locale stability", () => {
   // The formatters used to pass `undefined` as the locale, so the same
   // amount rendered differently per viewer. These pin the contract.
   it("renders USD with the symbol, not the browser's guess", () => {
-    expect(formatCurrency(1_618_310, "USD")).toBe("$1,618,310");
+    expect(formatCurrency(1_618_310, "USD")).toBe(`$1${N}618${N}310`);
   });
 
   it("keeps the code for currencies that have no symbol anywhere", () => {
@@ -76,12 +87,12 @@ describe("formatCurrency locale stability", () => {
     // non-breaking space between code and number, so normalise it — the
     // same tolerance the suite above already applies.
     const flat = (s: string) => s.replace(/\u00a0/g, " ");
-    expect(flat(formatCurrency(25_000, "GYD"))).toBe("GYD 25,000");
-    expect(flat(formatCurrency(1_200, "CUP"))).toBe("CUP 1,200");
+    expect(flat(formatCurrency(25_000, "GYD"))).toBe(`GYD 25${N}000`);
+    expect(flat(formatCurrency(1_200, "CUP"))).toBe(`CUP 1${N}200`);
   });
 
-  it("groups with commas regardless of the machine's locale", () => {
-    expect(formatCurrency(1_000_000, "EUR")).toBe("\u20ac1,000,000");
+  it("groups with narrow no-break spaces regardless of the machine's locale", () => {
+    expect(formatCurrency(1_000_000, "EUR")).toBe(`\u20ac1${N}000${N}000`);
   });
 });
 
@@ -105,8 +116,8 @@ describe("the currencies this business actually moves", () => {
 
   it("marks them with their code, never an invented dollar sign", () => {
     // A "$" on CUP would read as US dollars on a board that carries both.
-    expect(formatCurrencyShort(25_000, "GYD")).toBe("GYD 25.0k");
-    expect(formatCurrencyShort(1_200_000, "CUP")).toBe("CUP 1.2M");
+    expect(formatCurrencyShort(25_000, "GYD")).toBe("GYD 25,0k");
+    expect(formatCurrencyShort(1_200_000, "CUP")).toBe("CUP 1,2M");
   });
 
   it("every code still satisfies the accounts.default_currency CHECK", () => {

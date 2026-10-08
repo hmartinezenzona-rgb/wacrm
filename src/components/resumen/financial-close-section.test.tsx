@@ -173,8 +173,8 @@ describe("FinancialCloseSection", () => {
     expect(lastRange()).toEqual({ desde: "2026-09-21", hasta: "2026-09-27" });
     const text = node.textContent ?? "";
     expect(text).toContain(T.title);
-    expect(text).toContain("3,000 GYD");
-    expect(text).toContain("2,200 GYD");
+    expect(text).toContain("3\u202f000 GYD");
+    expect(text).toContain("2\u202f200 GYD");
     expect(text).toContain("800 GYD");
     expect(text).toContain(T.totales.margen.replace("{pct}", "26.7"));
     // By service, in the order the RPC ranked them.
@@ -355,7 +355,7 @@ describe("FinancialCloseSection", () => {
     await click(button(node, T.reintentar));
     expect(loadFinancialClose).toHaveBeenCalledTimes(2);
     expect(lastRange()).toEqual({ desde: "2026-09-21", hasta: "2026-09-27" });
-    expect(node.textContent).toContain("3,000 GYD");
+    expect(node.textContent).toContain("3\u202f000 GYD");
     await act(async () => root.unmount());
   });
 });

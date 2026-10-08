@@ -756,7 +756,7 @@ describe("OperationsPanelContainer — the bot's quote", () => {
     const { node, root } = await renderContainer("conv-1");
     await flush();
 
-    expect(node.textContent).toContain("Quoted: 5,000 GYD → 15,000 CUP");
+    expect(node.textContent).toContain("Quoted: 5\u202f000 GYD → 15\u202f000 CUP");
     await act(async () => root.unmount());
   });
 

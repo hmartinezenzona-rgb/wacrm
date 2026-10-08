@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmCancelButtons, cancelOnEscape } from "./confirm-cancel-buttons";
 import { EDIT_AREA, FieldRow, UnderlineInput } from "./edit-form-fields";
 import { setComboCosto } from "@/lib/remittance-operations/commands";
+import { formatNumber } from "@/lib/format-number";
 
 /** Same ceiling `crm_set_combo_costo` enforces (exclusive). */
 const MAX_COST_GYD = 1e9;
@@ -69,7 +70,7 @@ export function ComboCostField({ operationId, costGyd, completed, onSaved }: Com
       <div className="flex items-center gap-1 border-l-2 border-border pl-2">
         <p className="min-w-0 flex-1 text-sm">
           <span className="text-[11px] text-muted-foreground">{t("comboCost.label")}: </span>
-          <span className="font-medium">{current.toLocaleString("en-US")} GYD</span>
+          <span className="font-medium">{formatNumber(current)} GYD</span>
         </p>
         <Button
           type="button"

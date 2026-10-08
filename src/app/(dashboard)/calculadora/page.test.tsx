@@ -639,7 +639,7 @@ describe("calculator pending-entries banner", () => {
     const { node, root } = await renderPage(fetchMock);
 
     expect(node.querySelector('td[data-label="Monto"]')!.textContent).toBe("1\u202f800 SM");
-    expect(node.querySelector('td[data-label="Tipo"]')!.textContent).toBe("Saldo Móvil");
+    expect(node.querySelector('td[data-label="Tipo"]')!.textContent).toBe("Saldo móvil");
     expect(node.textContent).not.toContain("SALDO_MOVIL");
     await act(async () => root.unmount());
   });
@@ -657,7 +657,7 @@ describe("calculator pending-entries banner", () => {
     });
     const { node, root } = await renderPage(fetchMock);
 
-    expect(node.querySelector("#pendingBanner")!.textContent).toContain("Yilian (Saldo Móvil)");
+    expect(node.querySelector("#pendingBanner")!.textContent).toContain("Yilian (Saldo móvil)");
     await act(async () => root.unmount());
   });
 
@@ -1696,13 +1696,13 @@ describe("manual operations as rows of the one table (migration 228)", () => {
     expect(headers).toEqual(["Fecha", "Cliente", "Monto", "Tipo", "Estado", "Fact. (GYD)", "Inv. (GYD)", "Ganancia", "Acciones"]);
     const [bot, manual] = entryRows(node);
     expect(cell(bot!, "Fecha").textContent).toBe("2026-09-12");
-    expect(cell(bot!, "Tipo").textContent).toBe("ZELLE");
+    expect(cell(bot!, "Tipo").textContent).toBe("Zelle");
     expect(cell(bot!, "Tipo").textContent).not.toContain("Manual");
 
     expect(cell(manual!, "Fecha").textContent).toBe("2026-10-06");
     expect(cell(manual!, "Cliente").textContent).toBe("Iza");
     expect(cell(manual!, "Monto").textContent).toBe("4\u202f000 GYD");
-    expect(cell(manual!, "Tipo").textContent).toContain("Trámites / Combos / Servicios");
+    expect(cell(manual!, "Tipo").textContent).toContain("Trámites");
     const mark = [...cell(manual!, "Tipo").querySelectorAll(".legacyBadge")].find((badge) => badge.textContent === "Manual");
     expect(mark).toBeDefined();
     expect(cell(manual!, "Estado").textContent).toBe("Completada");
@@ -1721,8 +1721,8 @@ describe("manual operations as rows of the one table (migration 228)", () => {
     // 26000 + 4000, 24000 + 0, 2000 + 4000: the draft (Gerardo, Ana) is not an operation until it is registered
     expect(totalBoxes(node)).toEqual(["30\u202f000,00", "24\u202f000,00", "+6\u202f000,00"]);
     const breakdown = [...node.querySelectorAll("h2")].find((h) => h.textContent === "⚙️ Desglose Semanal por Servicios")!.parentElement!;
-    expect(breakdown.textContent).toContain("Categoría: ZELLE");
-    expect(breakdown.textContent).toContain("Categoría: TRÁMITES / COMBOS / SERVICIOS");
+    expect(breakdown.textContent).toContain("Categoría: Zelle");
+    expect(breakdown.textContent).toContain("Categoría: Trámites");
     expect(breakdown.textContent).not.toContain("USDT");
 
     await typeText(node, `${TEXT}\n• Luis 1k usdt (240/260)`);
@@ -2172,7 +2172,7 @@ describe("calculator money tones", () => {
     expect(dotOf(zelle!)?.getAttribute("aria-hidden")).toBe("true");
     expect(dotOf(zelle!)?.className).toContain("bg-service-zelle");
     expect(dotOf(directo!)?.dataset.service).toBe("directo");
-    expect(zelle!.querySelector('td[data-label="Tipo"]')!.textContent).toBe("ZELLE");
+    expect(zelle!.querySelector('td[data-label="Tipo"]')!.textContent).toBe("Zelle");
     expect(zelle!.querySelectorAll("[data-service]")).toHaveLength(1);
     await act(async () => root.unmount());
   });
@@ -2183,7 +2183,7 @@ describe("calculator money tones", () => {
     const breakdown = [...node.querySelectorAll("h2")].find((h) => h.textContent === "⚙️ Desglose Semanal por Servicios")!.parentElement!;
     const rows = [...breakdown.querySelectorAll(".legacyBlockRow")];
     expect(rows.map((r) => r.querySelector("[data-service]")?.getAttribute("data-service"))).toEqual(["zelle", "directo"]);
-    expect(rows.map((r) => r.querySelector("b")!.textContent)).toEqual(["Categoría: ZELLE", "Categoría: TRÁMITES / COMBOS / SERVICIOS"]);
+    expect(rows.map((r) => r.querySelector("b")!.textContent)).toEqual(["Categoría: Zelle", "Categoría: Trámites"]);
     const retorno = rows.map((r) => r.querySelector("b[data-tone]") as HTMLElement);
     expect(retorno.map((b) => b.dataset.tone)).toEqual(["profit", "loss"]);
     expect(retorno[0]!.className).toBe("text-money-profit");

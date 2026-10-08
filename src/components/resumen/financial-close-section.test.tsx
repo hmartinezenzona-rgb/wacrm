@@ -215,7 +215,7 @@ describe("FinancialCloseSection", () => {
     expect(rows[0]!.textContent).not.toContain(T.manual);
     expect(rows[1]!.textContent).toContain("Gerardo");
     expect(rows[1]!.textContent).toContain(T.manual);
-    expect(rows[1]!.textContent).toContain("Trámites / Combos / Servicios");
+    expect(rows[1]!.textContent).toContain(en.ServiceNames.tramites);
     expect(rows[1]!.querySelector("[data-testid='manual-badge']")).not.toBeNull();
     expect(rows[0]!.querySelector("[data-testid='manual-badge']")).toBeNull();
     await act(async () => root.unmount());
@@ -427,7 +427,7 @@ describe("FinancialCloseSection", () => {
 
       const rows = [...node.querySelectorAll("[data-testid='service-row']")];
       expect(rows.map((r) => r.querySelector("td [data-service]")?.getAttribute("data-service"))).toEqual(["zelle", "cup"]);
-      expect(rows[0]!.querySelector("td")!.textContent).toBe("ZELLE");
+      expect(rows[0]!.querySelector("td")!.textContent).toBe("Zelle");
       const detail = node.querySelector("[data-testid='detail-row']")!;
       expect(detail.querySelectorAll("td")[4]!.textContent).toBe("CUP");
       expect(detail.querySelectorAll("td")[4]!.querySelector("[data-service]")?.getAttribute("data-service")).toBe("cup");

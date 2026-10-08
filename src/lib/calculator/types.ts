@@ -19,6 +19,8 @@ export type CalculatorServiceType =
   | "USDT"
   | "RECARGA"
   | "SALDO_MOVIL"
+  | "COMBO"
+  | "VISA"
   | "DIRECTO"
   | "EFECTIVO";
 

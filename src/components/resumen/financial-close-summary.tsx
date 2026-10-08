@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { BarChart } from "@/components/tremor/bar-chart";
 import { shortDayLabel } from "@/lib/financial-close/periods";
 import type { FinancialClose } from "@/lib/financial-close/read-model";
-import { ledgerServiceLabel } from "@/lib/calculator/entry-display";
+import { useServiceName } from "@/hooks/use-service-name";
 import { ServiceDot } from "@/components/service/service-dot";
 import { MoneyTotalFigure } from "@/components/money/money-total-figure";
 import { moneyCellProps, moneyStripeClass, profitTone, totalTone, type TotalKind } from "@/lib/money-tone";
@@ -13,6 +13,7 @@ import { fmtGyd, marginPct } from "./financial-close-format";
 /** Totals, the per-day chart and the per-service breakdown of one period. */
 export function FinancialCloseSummary({ close }: { close: FinancialClose }) {
   const t = useTranslations("Resumen.cierre");
+  const serviceName = useServiceName();
   const { totals } = close;
   const margin = marginPct(totals.facturadoGyd, totals.retornoGyd);
 
@@ -103,7 +104,7 @@ export function FinancialCloseSummary({ close }: { close: FinancialClose }) {
                   >
                     <td className="py-1.5 font-medium text-foreground">
                       <ServiceDot service={s.service} />
-                      {ledgerServiceLabel(s.service)}
+                      {serviceName(s.service)}
                     </td>
                     <td className="py-1.5 text-right">{s.operations}</td>
                     <td {...moneyCellProps("in", "py-1.5 text-right")}>{fmtGyd(s.facturadoGyd)}</td>

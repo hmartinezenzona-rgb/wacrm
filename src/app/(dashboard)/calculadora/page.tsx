@@ -10,7 +10,7 @@ import { formatNumber as formatMoneyNumber } from "@/lib/format-number";
 import { MoneyTotalFigure } from "@/components/money/money-total-figure";
 import { ServiceDot } from "@/components/service/service-dot";
 import { moneyCellProps, moneyStripeClass, profitTone, totalTone } from "@/lib/money-tone";
-import { calculatorCategoryName, chatEntryAmountExportText, chatEntryAmountText, ledgerServiceLabel } from "@/lib/calculator/entry-display";
+import { chatEntryAmountExportText, chatEntryAmountText, ledgerServiceLabel } from "@/lib/calculator/entry-display";
 import { applyCalculatorEntryRealtimeEvent, insertCalculatorEntry, type ChatCalculatorEntry } from "@/lib/calculator/realtime-entry";
 import { useCalculatorEntriesRealtime } from "@/hooks/use-calculator-entries-realtime";
 import type { CalculatorWeek, CalculatorWeekSummary } from "@/lib/calculator/weeks";
@@ -154,7 +154,7 @@ export default function CalculadoraPage() {
     const byService = new Map<string, { name: string; service: string; fact: number; inv: number; ret: number }>();
     for (const entry of chatEntries) {
       if (entry.status !== "completed") continue;
-      const category = calculatorCategoryName(entry.service);
+      const category = ledgerServiceLabel(entry.service);
       const current = byService.get(category) ?? { name: category, service: entry.service, fact: 0, inv: 0, ret: 0 };
       current.fact += entry.facturadoGyd ?? 0;
       current.inv += entry.invertidoGyd ?? 0;

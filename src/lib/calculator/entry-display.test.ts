@@ -24,14 +24,19 @@ describe("chat entry display", () => {
     expect(chatEntryAmountText({ amount: 2, amountCurrency: "REC", service: "SALDO_MOVIL" })).toBe("2 SALDO MOVIL");
   });
 
-  it("labels SALDO_MOVIL as the manual calculator does and leaves the rest alone", () => {
-    expect(ledgerServiceLabel("SALDO_MOVIL")).toBe("Saldo Móvil");
-    expect(ledgerServiceLabel("RECARGA")).toBe("RECARGA");
+  it("names a ledger service with the canonical name and prints an unknown key as it is", () => {
+    expect(ledgerServiceLabel("SALDO_MOVIL")).toBe("Saldo móvil");
+    expect(ledgerServiceLabel("RECARGA")).toBe("Recarga");
+    expect(ledgerServiceLabel("ZELLE")).toBe("Zelle");
+    expect(ledgerServiceLabel("CLASICA")).toBe("Clásica");
+    expect(ledgerServiceLabel("EFECTIVO")).toBe("Efectivo USD");
+    expect(ledgerServiceLabel("CUP")).toBe("CUP");
+    expect(ledgerServiceLabel("XYZ")).toBe("XYZ");
     // the manual calculator's group for its direct lines (visa, ext, trabajo, trad, combo, pasaje)
-    expect(ledgerServiceLabel("DIRECTO")).toBe("Trámites / Combos / Servicios");
+    expect(ledgerServiceLabel("DIRECTO")).toBe("Trámites");
     expect(calculatorCategoryName("SALDO_MOVIL")).toBe("SALDO MOVIL");
     expect(calculatorCategoryName("CUP")).toBe("CUP");
-    // the breakdown's name for the direct lines, as the manual calculator calls it
+    // the text grammar and the .txt export keep the manual calculator's own words
     expect(calculatorCategoryName("DIRECTO")).toBe("TRÁMITES / COMBOS / SERVICIOS");
   });
 });

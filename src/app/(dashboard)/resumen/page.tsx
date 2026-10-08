@@ -21,6 +21,7 @@ import { StatusPill } from "@/components/status/status-pill";
 import { ServiceDot } from "@/components/service/service-dot";
 import { formatNumber } from "@/lib/format-number";
 import { historialDestino } from "@/lib/resumen/historial-destino";
+import { serviceNameEs } from "@/lib/service-name";
 import {
   Table,
   TableBody,
@@ -80,22 +81,12 @@ const SERVICIOS = [
   "mexico",
 ] as const;
 
-const SERVICIO_LABEL: Record<string, string> = {
-  remesa: "Remesa",
-  combo: "Combo",
-  recarga: "Recarga",
-  visa: "Visa",
-  saldo: "Saldo móvil",
-  traduccion: "Traducción",
-  mexico: "México",
-};
-
 // El historial se pide por páginas: crece ~16 filas al día y antes se
 // pedían 200 de un tiro, así que a finales de agosto la tabla habría
 // empezado a cortar en silencio (la 088 lo cuenta entero).
 const TAMANOS_PAGINA = [25, 50, 100] as const;
 
-// En castellano y aquí dentro, como SERVICIO_LABEL y el "Retry" de más
+// En castellano y aquí dentro, como el "Retry" de más
 // abajo: son cuatro etiquetas y no compensa mover messages/en.json
 // entero por ellas.
 const PAG_TXT = {
@@ -301,7 +292,7 @@ export default function ResumenPage() {
                   {(v) =>
                     v === TODOS || !v
                       ? t("filtros.todos")
-                      : (SERVICIO_LABEL[v as string] ?? (v as string))
+                      : (serviceNameEs(v as string) ?? (v as string))
                   }
                 </SelectValue>
               </SelectTrigger>
@@ -309,7 +300,7 @@ export default function ResumenPage() {
                 <SelectItem value={TODOS}>{t("filtros.todos")}</SelectItem>
                 {SERVICIOS.map((s) => (
                   <SelectItem key={s} value={s}>
-                    {SERVICIO_LABEL[s]}
+                    {serviceNameEs(s)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -388,7 +379,7 @@ export default function ResumenPage() {
                     </TableCell>
                     <TableCell className="capitalize">
                       <ServiceDot service={f.service_type} />
-                      {SERVICIO_LABEL[f.service_type] ?? f.service_type}
+                      {serviceNameEs(f.service_type) ?? f.service_type}
                     </TableCell>
                     <TableCell>
                       <StatusPill

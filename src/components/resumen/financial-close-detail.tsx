@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 import type { CloseEntry, ExcludedEntry, FinancialClose } from "@/lib/financial-close/read-model";
 import { moneyCellProps, profitTone } from "@/lib/money-tone";
-import { ledgerServiceLabel } from "@/lib/calculator/entry-display";
+import { useServiceName } from "@/hooks/use-service-name";
 import { ServiceDot } from "@/components/service/service-dot";
 import { fmtAmount, fmtGyd, guyanaTime, rateLabel, shortId } from "./financial-close-format";
 
@@ -14,6 +14,7 @@ const DELIVERY_KEYS = ["proof_sent", "no_proof", "skip_proof"] as const;
  *  ones that never count — the part of the close someone audits line by line. */
 export function FinancialCloseDetail({ close }: { close: FinancialClose }) {
   const t = useTranslations("Resumen.cierre");
+  const serviceName = useServiceName();
 
   const delivery = (mode: string | null) =>
     mode && (DELIVERY_KEYS as readonly string[]).includes(mode) ? t(`entrega.${mode}`) : (mode ?? "—");
@@ -40,7 +41,7 @@ export function FinancialCloseDetail({ close }: { close: FinancialClose }) {
       </td>
       <td className="px-2 py-1.5">
         <ServiceDot service={e.service} />
-        {ledgerServiceLabel(e.service)}
+        {serviceName(e.service)}
       </td>
       <td className="whitespace-nowrap px-2 py-1.5 text-right">{fmtAmount(e.amount, e.amountCurrency)}</td>
       <td className="whitespace-nowrap px-2 py-1.5" title={e.rateVersionId ?? undefined}>

@@ -542,3 +542,20 @@ Limits, stated plainly: the harness's tool schemas are derived by regex and do n
 2. "y si mejor lo hacemos por zelle?" is treated as a decision (changes). Keep (the customer said "mejor") or ask first? The prompt currently says "si dudas, pregunta".
 3. The end-of-turn alert depends on the live agent passing `via` to the quote tools; measure on the first live days (the alert is deliberately neutral/low-priority).
 4. D4 points 2-6 unchanged (alert noise, deposit-time minimum, 138 / 153 in production, migrations 230/231 still absent from production).
+
+## F1. Production database, migrations 230 + 231 (2026-10-08, owner "pasa a produccion")
+- Backup `~/wacrm-respaldos/produccion-20261008T214130Z.dump`. Pre-check: production had the pre-230/231 definitions with
+  no drift (`crm_cambiar_servicio` ee82240e…, detector 31f6d02d…, registrar c87c36be…, tool f239d898…, `cerebro_minimo_gyd`
+  f709f161…), last migration 229.
+- `~/cerebro-fase1/pruebas/gate132-aplicar-db.py` (helper `zz_wu5b_exec` created before, dropped after, count 0):
+  `ensayo` -> every function md5, the two triggers, the three constraints and the pending table columns equal to
+  staging; `GATE_BUNDLE=ida-y-vuelta ensayo` -> the four replaced functions and the three constraints back to their
+  pre-230 md5s, new objects gone; `aplicar` -> `{"r":"OK"}`, recorded as `230_bot_change_service` and
+  `231_agent_service_change_guards`.
+- Assertions on production (rolled back): `agent-service-change-guards` and `change-operation-service` pass.
+  `bot-change-service` passes cases a-l and stops at case m, which expects `crm_cambiar_servicio` to be granted to
+  service_role: production never granted it (pre-existing, stricter than staging; also `cerebro_minimo_gyd`,
+  `cerebro_riel_op`, `crm_calcular_monto_destino`). Not a defect of 230; the bot's credential connects as `postgres`
+  (gate `quien`). The new functions carry the intended grants (bot functions: service_role; core: none).
+- Read back: `cerebro_cambiar_servicio` md5 c45bff5f…, 0 pending rows, 0 coherence alerts, operations and calculator
+  entries untouched by the migration.

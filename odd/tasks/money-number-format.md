@@ -39,6 +39,7 @@ Mode: strict TDD on. Source: user global CLAUDE.md ("Strict TDD Mode: enabled").
   currency/format-number tests; GREEN 25/25. F3 RED: 2 failing (fmtGyd/fmtAmount, rateLabel); GREEN. F4 RED: 4 failing in
   entry-display; GREEN. Page and inbox suites updated deliberately (old `1,234.56` / `26000.00` assertions).
 - Full suite: 174 files, 2304 tests passed. `npx tsc --noEmit` clean. eslint on changed files clean.
+- Staging deploy (2026-10-08; release be7f281a1c294ee66b5ffc4bd751f210201e4985, BUILD_ID 4vrprdVPAmnq7Cpw80oWS, app commit be7f281): manifest environment=staging, project kolppplawzdsjfydwejr, 0 production refs, 32 staging refs, 114 build tests passed, sha256 OK on oracle2, pm2 wacrm-staging cwd resolves to the new release, restarts 80 -> 81 and stable, /login 200 with the new BUILD_ID and "Bienvenido de nuevo", Calculator chunk `_next/static/chunks/0tjv6dwyj1sqi.js` served by crm.onlinefreedom.site byte-identical to the build (sha256 1acb7a77...d4834), served chunk `0ms21-a-7elgk.js` identical to the build and contains the U+202F group separator in `.replace(/[,.]/g,...)`. Rollback: anterior -> 8fb2b6d (`ssh oracle2 'ln -sfn /home/ubuntu/wacrm-releases/8fb2b6d8eb6d60869812204ab25a38ee13ac0b83 ~/wacrm-releases/current && pm2 restart wacrm-staging --update-env'`). Owner's look pending.
 - Commit: see git log (feat(format): money figures ...).
 
 ## Open points (decision gaps, left unchanged)

@@ -180,5 +180,71 @@ T3: deploy to staging and the owner's look at Calculator, /resumen and the dashb
 - Finanzas, dashboard: unchanged from T1/T2 (manual counted, "Manual" badge).
 - Migration 228 is on staging only: amend it in place and re-apply (no 229).
 
-- [ ] T2b Rework to Design v2 (DB amend 228 + app), staging rehearsal with Osmany's 31 lines as 31 rows
-  (24 on 2026-10-06, 7 on 2026-10-07), then staging deploy for the owner's look.
+- [x] T2b Rework to Design v2 (DB amend 228 + app) and staging rehearsal with Osmany's 31 lines as 31 rows (24 on 2026-10-06,
+  7 on 2026-10-07): done 2026-10-07, commits 2fdbf7a (DB) and d558c29 (app); evidence below. Not deployed yet.
+- [ ] T2c Staging deploy of the v2 release and the owner's look (T3 stays open until he has seen it).
+
+## T2b evidence (2026-10-07, staging only; no production, no deploy, no push, no n8n)
+DB (migration 228 amended in place, commit 2fdbf7a):
+- Return to pre-228: the HEAD ROLLBACK-228 ran on staging in one transaction after removing the rehearsal's 31 manual rows (staging
+  only; the guard was opened with its own GUC for that one DELETE) and deleting the schema_migrations row 228. Restored md5 match the
+  old header: crm_cierre_financiero b8ea2475..., guard c7c9bd08....
+- Pre-228 definitions captured for the new ROLLBACK (md5 equal to the old header): cut 3a046742..., corrector dfbd1eb1..., deleter
+  81ef8a23..., view f7cc9fe7..., audit CHECK 5b3ffc19..., void_shape_chk and source_shape_chk text.
+- RED: the new manual-entries.sql against the old 228 (git HEAD~) failed at once: `function crm_registrar_entradas_manuales(uuid, jsonb)
+  does not exist`. GREEN against the amended 228: 9 cases PASS (add / validation / read / correct / delete / guard / cut / Finanzas / services).
+- Round trip in one rolled-back transaction (amended 228, then the new ROLLBACK): the md5 of the six functions, the view, the two CHECKs,
+  the audit CHECK, the column list and the ACLs are identical to the pre-228 snapshot. Real apply: schema_migrations row 228 once.
+- Existing assertions, as is and with promos discarded, all PASS: financial-close (forced-rollback wrapper), calculator-entry-delete,
+  calculator-weekly-cut, calculator-entry-correction, feed-matrix, resolve-pending, calculator-recarga, calculator-access,
+  calculator-entries-realtime, saldo-model, combo-model, visa-model, recarga-model, rate-versions, operations-board (the five that end
+  with `RAISE EXCEPTION 'ALL PASS ...'` are meant to).
+App (commit d558c29): vitest RED then GREEN per layer (lib, routes, page); tsc clean; eslint clean on touched files; full suite 173 files /
+  2292 tests pass (--testTimeout=20000).
+Rehearsal (staging account 472917ed, owner feeccc91): the list went through crm_registrar_entradas_manuales as the app builds it
+  (manualEntriesFromText, today 2026-10-07, CUP rate 3): 31 rows (24 on 2026-10-06, 7 on 2026-10-07), 31 audit rows, the document text
+  EMPTY and the period "SEMANA 06/10/2026". calculator_current_entries: 31 completed rows, facturado 1,157,712.40, invertido
+  1,023,917.64, retorno 133,794.76 (all manual; the account's 4 bot entries of those days were archived by earlier staging cuts).
+  crm_cierre_financiero(2026-10-06, 2026-10-07): 35 operations, facturado 1,292,712.40, invertido 1,121,417.64, retorno 171,294.76 =
+  manual part (31; 1,157,712.40 / 1,023,917.64 / 133,794.76) + bot part (4; 135,000 / 97,500 / 37,500); per day 25 and 10 operations.
+
+## T2b decisions (reasons)
+- Add RPC `crm_registrar_entradas_manuales`: all or none, agent+, 500 lines at most, date within the last 60 days and at most tomorrow
+  (a weekly record; the old sync allowed 400), returns the created rows in the order sent (created_at = clock_timestamp() per row keeps
+  the order), one audit row per entry ('human_calculator_manual_added', new value in the audit CHECK). It is an add: the same lines
+  twice are added twice; the page removes what it registered.
+- Dropped with the sync: `line_position`, the `manual:<cycle>:<position>` key scheme, the sync GUC. Kept: `raw_line`.
+- Guard: a manual row changes only with `wacrm.calculator_correction` (the corrector) or the new `wacrm.calculator_manual_delete` (the
+  deleter); account, date, customer, day label, raw line, completed_at and currency never change; a void manual row never changes again.
+  source_shape_chk also had to allow `void` for a manual row (found by the first assertion run), as void_shape_chk.
+- Weekly cut: signature is now (account, text, period). chat_totals = the bot's entries, manual_totals = the manual entries, both
+  computed in SQL; the snapshot carries each entry's `source`. The old six-argument function is dropped (the ROLLBACK recreates it).
+  Weeks cut before this change keep their shape and open as before (source absent = bot).
+- Page: title "🔗 Operaciones"; "Registrar" sits in the header row of the text-box card (next to "Maximizar") so the bullet button and the
+  box do not move; uninterpreted lines show as "⚠️ No interpretado" under the box (the text the removed card used); the box is read-only
+  while registering; the registered rows are inserted by date (newest day first) and deduplicated against the live channel; a manual
+  row's realtime cut check uses created_at (completed_at is the typed day). Export lists the table rows with their date and "(manual)"
+  and the draft section only while text remains.
+- Amount text: a DIRECTO row reads "4000 GYD", saldo packages typed by hand read "2 SALDO MOVIL"; the breakdown names DIRECTO "TRÁMITES /
+  COMBOS / SERVICIOS" like the old parser.
+
+## T2b existing expectations that changed (and why)
+- calculator-entry-delete.sql case 8: "a manual entry must be refused (22023)" became "an agent must not delete a manual entry (42501)"
+  and a new case 11 asserts an admin deletes it (durable void). Reason: manual rows are deletable now.
+- calculator-entry-correction.sql case 5: "a manual entry is refused (22023)" became "it is corrected like a chat-fed one". Same reason.
+- calculator-weekly-cut.sql: the cut takes three arguments; "manual totals stored as sent" became "zero manual totals when there are no
+  manual entries"; the missing/out-of-range manual-total refusals and the anon check use the new signature. Reason: totals are SQL now.
+- page.test.tsx: "combines only completed snapshots" no longer adds the draft text's totals (the draft is not an operation); the autosave body
+  has no `manualLines`; the cut body has no manual totals or lines; the T2 tests of the sync path were replaced by the registration tests.
+- route tests: POST /api/calculadora and /weeks no longer sync; manual-entries.test.ts: `position` and the sync shape are gone.
+
+## T2b open points / not verified
+- No browser: the page, the Registrar flow, the pencil/trash on manual rows and the archived week were verified through jsdom tests and
+  the staging database only; the owner's look comes after the staging deploy (T2c).
+- Staging runs release 75e3a2c until redeployed: with the amended DB applied, that old release's autosave and cut (they call the
+  removed sync RPC and the six-argument cut) fail against staging until T2c deploys the new release.
+- The audit rows of manual additions make the ROLLBACK refuse as well (like the entries themselves).
+- Production (T4/T5) is untouched; the production fresh start must now load Osmany's list through the add RPC, not the document.
+
+## Next step
+T2c: build and deploy this release to staging (owner-authorised path) and ask for his look at the Calculator (one table with Registrar), /resumen and the dashboard.

@@ -54,6 +54,9 @@ BEGIN
   DELETE FROM cerebro_memoria WHERE session_id IN (SELECT id::text FROM rt_conv);
   UPDATE remittance_calculator_entries SET status = 'void', voided_at = now()
    WHERE operation_id IN (SELECT id FROM rt_ops) AND status = 'completed';
+  -- (227) entries archived in a weekly cut are referenced by remittance_calculator_week_entries.
+  DELETE FROM remittance_calculator_week_entries
+   WHERE entry_id IN (SELECT id FROM remittance_calculator_entries WHERE operation_id IN (SELECT id FROM rt_ops));
   DELETE FROM remittance_calculator_entries WHERE operation_id IN (SELECT id FROM rt_ops);
   DELETE FROM tool_execution_log
    WHERE conversation_id::text IN (SELECT id::text FROM rt_conv)

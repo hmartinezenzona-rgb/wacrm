@@ -18,7 +18,7 @@ import {
 
 // The keys crm_corregir_beneficiario knows. Which of them apply to which
 // recipient type is the DB's call (22023 -> 400 below); the route only keeps
-// out unknown keys and malformed address/reference/contact_phone values.
+// out unknown keys and malformed address/reference/contact_phone/id_photo_wamid values.
 const CORRECTABLE_KEYS: ReadonlySet<string> = new Set([
   "name",
   "card_number",
@@ -31,6 +31,7 @@ const CORRECTABLE_KEYS: ReadonlySet<string> = new Set([
   "address",
   "reference",
   "contact_phone",
+  "id_photo_wamid",
 ]);
 const CONTACT_PHONE_RE = /^[0-9]{8,15}$/;
 
@@ -38,7 +39,7 @@ function cambiosError(cambios: Record<string, unknown>): string | null {
   for (const key of Object.keys(cambios)) {
     if (!CORRECTABLE_KEYS.has(key)) return `unknown field: ${key}`;
   }
-  for (const key of ["address", "reference"]) {
+  for (const key of ["address", "reference", "id_photo_wamid"]) {
     const value = cambios[key];
     if (value !== undefined && value !== null && typeof value !== "string") {
       return `${key} must be a string or null`;

@@ -6,6 +6,7 @@
 // ============================================================
 
 import type {
+  ChatImage,
   OperationReceiptsRead,
   VerifyDepositItem,
   VerifyDepositResult,
@@ -167,6 +168,17 @@ export async function fetchOperationReceipts(
     ok: true,
     data: (result.data as { receipts: OperationReceiptsRead }).receipts,
   };
+}
+
+/** The image messages of a conversation (newest first), for the cash recipient's ID photo picker. */
+export async function fetchChatImages(
+  conversationId: string,
+): Promise<FetchResult<ChatImage[]>> {
+  const result = await getJson(
+    `/api/remittance-operations/chat-images?conversationId=${encodeURIComponent(conversationId)}`,
+  );
+  if (!result.ok) return result;
+  return { ok: true, data: (result.data as { images: ChatImage[] }).images };
 }
 
 export type VerifyDepositCommandResult =

@@ -205,6 +205,31 @@ describe("PATCH /api/remittance-operations/beneficiaries/[beneficiaryId]", () =>
     });
   });
 
+  it("accepts id_photo_wamid as a string or null and forwards it untouched (233)", async () => {
+    const { PATCH } = await import("./route");
+    for (const cambios of [{ id_photo_wamid: "wamid.abc" }, { id_photo_wamid: null }]) {
+      const callCtx = ctx(ENABLED_PROFILE, { data: BENEFICIARY_ID, error: null });
+      requireRole.mockResolvedValueOnce(callCtx);
+      const response = await PATCH(request({ cambios }), paramsFor(BENEFICIARY_ID));
+      expect(response.status).toBe(200);
+      expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_corregir_beneficiario", {
+        p_beneficiary_id: BENEFICIARY_ID,
+        p_cambios: cambios,
+      });
+    }
+  });
+
+  it("rejects a non-string id_photo_wamid with 400, RPC never called", async () => {
+    const { PATCH } = await import("./route");
+    for (const bad of [123, { a: 1 }, true]) {
+      const callCtx = ctx(ENABLED_PROFILE, { data: BENEFICIARY_ID, error: null });
+      requireRole.mockResolvedValueOnce(callCtx);
+      const response = await PATCH(request({ cambios: { id_photo_wamid: bad } }), paramsFor(BENEFICIARY_ID));
+      expect(response.status).toBe(400);
+      expect(callCtx.supabase.rpc).not.toHaveBeenCalled();
+    }
+  });
+
   it("accepts a null contact_phone (clears it)", async () => {
     const { PATCH } = await import("./route");
     const callCtx = ctx(ENABLED_PROFILE, { data: BENEFICIARY_ID, error: null });

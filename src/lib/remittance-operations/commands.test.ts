@@ -8,6 +8,7 @@ import {
   corregirBeneficiario,
   reasignarBeneficiario,
   fetchOperationReceipts,
+  fetchChatImages,
   verifyDeposit,
   forceVerifyDeposit,
   deliverOperation,
@@ -518,5 +519,33 @@ describe("cambiarServicio", () => {
     vi.mocked(fetch).mockRejectedValueOnce(new Error("offline"));
 
     expect(await cambiarServicio(OPERATION_ID, "zelle")).toEqual({ ok: false, status: 0, error: "Network error" });
+  });
+});
+
+describe("fetchChatImages", () => {
+  const CONVERSATION_ID = "44444444-4444-4444-4444-444444444444";
+
+  it("GETs the chat-images endpoint for the conversation and unwraps the images", async () => {
+    const images = [
+      { id: "m1", wamid: "wamid.1", createdAt: "2026-10-08T16:35:00Z", senderType: "customer", mediaUrl: "https://x/1.jpg" },
+    ];
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ images }));
+
+    const result = await fetchChatImages(CONVERSATION_ID);
+
+    expect(fetch).toHaveBeenCalledWith(
+      `/api/remittance-operations/chat-images?conversationId=${CONVERSATION_ID}`,
+    );
+    expect(result).toEqual({ ok: true, data: images });
+  });
+
+  it("maps a non-2xx response to ok:false with status and error message", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ error: "Forbidden" }, 403));
+    expect(await fetchChatImages(CONVERSATION_ID)).toEqual({ ok: false, status: 403, error: "Forbidden" });
+  });
+
+  it("maps a network failure to status 0", async () => {
+    vi.mocked(fetch).mockRejectedValueOnce(new Error("offline"));
+    expect(await fetchChatImages(CONVERSATION_ID)).toEqual({ ok: false, status: 0, error: "Network error" });
   });
 });

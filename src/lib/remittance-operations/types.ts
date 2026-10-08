@@ -368,3 +368,22 @@ export interface VerifyDepositRpcPayload {
   stage_changed: boolean;
   new_status: string;
 }
+
+/** One image message of a conversation the panel may offer as a cash recipient's ID photo
+ *  (`crm_imagenes_de_conversacion`, migration 233). `wamid` is `messages.message_id`, the value stored in
+ *  `remittance_beneficiaries.id_photo_wamid`. */
+export interface ChatImage {
+  id: string;
+  wamid: string;
+  createdAt: string;
+  senderType: string;
+  mediaUrl: string;
+}
+
+export interface ChatImageRpcRow {
+  id: string;
+  message_id: string;
+  created_at: string;
+  sender_type: string;
+  media_url: string;
+}

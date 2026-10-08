@@ -302,8 +302,12 @@ BEGIN
   -- k1. none
   INSERT INTO contacts (user_id, account_id, phone, name) VALUES (v_user, v_acc, '59902300014', 'test230') RETURNING id INTO v_ben;
   INSERT INTO conversations (user_id, account_id, contact_id) VALUES (v_user, v_acc, v_ben) RETURNING id INTO v_conv;
-  v_r := cerebro_cambiar_servicio(v_conv, 'zelle', 'exec230-k1');
+  -- (231) a remesa rail with no operation yet is recorded as the agent's pending service (agent-service-change-guards.sql); the other
+  -- services keep 230's refusal
+  v_r := cerebro_cambiar_servicio(v_conv, 'recarga', 'exec230-k1');
   IF (v_r ->> 'ok') <> 'false' OR (v_r ->> 'reason') <> 'sin_operacion' THEN RAISE EXCEPTION 'case k1: no operation, got %', v_r; END IF;
+  v_r := cerebro_cambiar_servicio(v_conv, 'zelle', 'exec230-k1');
+  IF (v_r ->> 'ok') <> 'true' OR (v_r ->> 'pendiente') <> 'true' OR (v_r ->> 'changed') <> 'false' THEN RAISE EXCEPTION 'case k1: zelle with no operation is pending since 231, got %', v_r; END IF;
   v_r := cerebro_cambiar_servicio(gen_random_uuid(), 'zelle', 'exec230-k1');
   IF (v_r ->> 'reason') <> 'sin_operacion' THEN RAISE EXCEPTION 'case k1: unknown conversation, got %', v_r; END IF;
   -- k2. two open operations: the same hand-over as the bot's other writers, nothing changed

@@ -1,12 +1,24 @@
--- ROLLBACK of 231_deterministic_destination_zelle.sql: restores the pre-231 definitions exactly as staging had them on 2026-10-08
--- (pg_get_functiondef md5): cerebro_detectar_destino 31f6d02d599b491c586284251b0502f9, cerebro_registrar_destino c87c36beafde0cd256a601ee7290d045,
--- cerebro_marcar_destino_usd f239d898e9533b82a9822f4eb98ee6e7 (= 174 / 157 / 221). Drops the v2 function, the two helpers, the operation-created
--- trigger and its function, deletes the pending 'zelle' rows (the restored check refuses them), drops the origen column and restores the
--- tipo check (clasica, tropical, cuban_card). Operations already switched to Zelle by the bot keep their data and audit rows.
--- Run it only after the n8n node no longer calls cerebro_registrar_destino_v2.
+-- ROLLBACK of 231_agent_service_change_guards.sql: restores the pre-231 definitions exactly as staging had them on 2026-10-08
+-- (pg_get_functiondef md5): cerebro_detectar_destino 31f6d02d599b491c586284251b0502f9 (= 174), cerebro_marcar_destino_usd
+-- f239d898e9533b82a9822f4eb98ee6e7 (= 221), cerebro_cambiar_servicio f47c288efed9aa967a90c5487b08c166 (= 230, which stays). 231 did not touch
+-- cerebro_registrar_destino (c87c36beafde0cd256a601ee7290d045). Drops the coherence check, its alert table, the via recorder, the helpers,
+-- the creation trigger and the pending-origin trigger; deletes the pending rows the old check would refuse (zelle, efectivo_usd) and the
+-- coherencia_servicio notifications (the restored type list would refuse them); drops the origen / ejecucion columns; restores both
+-- CHECK constraints. Operations already switched by the agent keep their data and audit rows.
+-- Run it only after the n8n bot no longer calls cerebro_verificar_coherencia_servicio nor cerebro_registrar_via_cotizada.
 
-DROP TRIGGER IF EXISTS trg_zz_destino_zelle_al_crear ON public.remittance_operations;
-DROP FUNCTION IF EXISTS public.cerebro_destino_pendiente_op_creada();
+DROP TRIGGER IF EXISTS trg_zz_destino_agente_al_crear ON public.remittance_operations;
+DROP FUNCTION IF EXISTS public.cerebro_destino_agente_al_crear();
+
+DROP FUNCTION IF EXISTS public.cerebro_verificar_coherencia_servicio(uuid, text);
+DROP FUNCTION IF EXISTS public.cerebro_coherencia_resolver(uuid, uuid, text);
+DROP FUNCTION IF EXISTS public.cerebro_registrar_via_cotizada(uuid, text, text, text, numeric);
+DROP TABLE IF EXISTS public.cerebro_alertas_coherencia;
+DELETE FROM public.notifications WHERE type = 'coherencia_servicio';
+ALTER TABLE public.notifications DROP CONSTRAINT IF EXISTS notifications_type_check;
+ALTER TABLE public.notifications ADD CONSTRAINT notifications_type_check CHECK (type IN (
+  'conversation_assigned', 'deal_incidencia', 'mensaje_fallido', 'promo_etecsa', 'chat_atascado', 'ingesta_caida', 'deposito_sin_cruzar',
+  'mensaje_perdido', 'envio_incompleto', 'pide_mlc', 'envio_sin_beneficiario', 'remesa_abierta_vieja', 'entrega_efectivo_lista'));
 
 CREATE OR REPLACE FUNCTION public.cerebro_marcar_destino_usd(p_conversation_id uuid, p_tipo text, p_execution_id text)
  RETURNS TABLE(id uuid, accion text)
@@ -134,78 +146,151 @@ BEGIN
 END;
 $function$;
 
-CREATE OR REPLACE FUNCTION public.cerebro_registrar_destino(p_conv uuid, p_texto text)
- RETURNS text
+CREATE OR REPLACE FUNCTION public.cerebro_cambiar_servicio(p_conversation_id uuid, p_servicio text, p_execution_id text DEFAULT NULL)
+ RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
 DECLARE
-  v_tipo  text;
-  v_n     integer := 0;
-  v_op_id uuid;
-  v_lock  jsonb;
+  c_actor      constant text := 'automation:cerebro_cambiar_servicio';
+  v_raw        text := lower(btrim(coalesce(p_servicio, '')));
+  v_servicio   text;
+  v_ids        uuid[];
+  v_op         uuid;
+  v_o          remittance_operations%ROWTYPE;
+  v_status     text;
+  v_actual     text;
+  v_key        text;
+  v_core       jsonb;
+  v_result     jsonb;
+  v_min        numeric;
+  v_n          integer;
+  v_prev       jsonb;
+  v_prev_origin text;
+  v_prev_actor  text;
+  v_campo      text;
 BEGIN
-  v_tipo := cerebro_detectar_destino(p_texto);
-  IF v_tipo IS NULL THEN
-    RETURN NULL;
-  END IF;
+  v_servicio := CASE v_raw WHEN 'cup' THEN 'cuban_card' WHEN 'efectivo' THEN 'efectivo_usd' ELSE v_raw END;
 
-  -- Last statement wins. A customer who corrects the rail corrects it.
-  INSERT INTO public.cerebro_destino_pendiente (conversation_id, tipo, actualizado)
-  VALUES (p_conv, v_tipo, now())
-  ON CONFLICT (conversation_id) DO UPDATE
-     SET tipo = EXCLUDED.tipo,
-         actualizado = EXCLUDED.actualizado;
-
-  SELECT count(*) OVER (), o.id, o.admin_locked_fields
-    INTO v_n, v_op_id, v_lock
-    FROM public.remittance_operations o
-   WHERE o.conversation_id = p_conv
-     AND o.service_type = 'remesa'
-     AND o.status NOT IN ('completed', 'cancelled')
-   LIMIT 1;
-
-  IF v_n = 1 THEN
-    v_lock := coalesce(v_lock, '{}'::jsonb);
-
-    -- 'beneficiaries' is 098's lock (a human added or corrected a
-    -- beneficiary), 'delivery_method' is 096's (a human set the rail).
-    -- Either one means a person already decided this on purpose.
-    IF NOT (v_lock ? 'beneficiaries') AND NOT (v_lock ? 'delivery_method') THEN
-      -- Card-rail rows only. zelle, multiple_distribution and efectivo_usd
-      -- are different kinds of delivery and are never re-typed by this.
-      UPDATE public.remittance_beneficiaries
-         SET beneficiary_type = v_tipo
-       WHERE operation_id = v_op_id
-         AND status = 'vigente'
-         AND beneficiary_type IN ('cuban_card', 'clasica', 'tropical');
-
-      UPDATE public.remittance_operations
-         SET delivery_method = v_tipo
-       WHERE id = v_op_id
-         AND (delivery_method IS NULL
-              OR delivery_method IN ('cuban_card', 'clasica', 'tropical'));
-
-      -- The same call 100's recalc triggers make and 111's one-time
-      -- recompute makes. Wrapped like 100's: a calculator failure must not
-      -- throw away the destination the customer actually asked for. The
-      -- re-type above has already re-fired the calculator through
-      -- trg_zz_recalc_destino_beneficiaries; this call is what covers the
-      -- case where the row was already the right type.
-      BEGIN
-        PERFORM crm_calcular_monto_destino(v_op_id);
-      EXCEPTION WHEN OTHERS THEN
-        RAISE WARNING '[wacrm] crm_calcular_monto_destino failed after destino % on operation % (%): %',
-          v_tipo, v_op_id, SQLSTATE, SQLERRM;
-      END;
+  <<flow>>
+  BEGIN
+    IF v_servicio NOT IN ('cuban_card', 'zelle', 'clasica', 'tropical', 'efectivo_usd', 'recarga', 'combo', 'visa', 'saldo') THEN
+      v_result := jsonb_build_object('ok', false, 'reason', 'servicio_desconocido');
+      EXIT flow;
     END IF;
-  END IF;
 
-  RETURN v_tipo;
+    -- The conversation's open operation, the way the bot's other writers find it.
+    SELECT coalesce(array_agg(o.id ORDER BY o.created_at), ARRAY[]::uuid[]) INTO v_ids
+      FROM remittance_operations o
+     WHERE o.conversation_id = p_conversation_id
+       AND o.status IN ('collecting_information', 'awaiting_deposit', 'deposit_received', 'deposit_verification', 'ready_to_transfer', 'incident');
+    IF coalesce(array_length(v_ids, 1), 0) = 0 THEN
+      SELECT o.id, o.status INTO v_op, v_status
+        FROM remittance_operations o WHERE o.conversation_id = p_conversation_id ORDER BY o.created_at DESC LIMIT 1;
+      IF v_op IS NULL THEN
+        v_result := jsonb_build_object('ok', false, 'reason', 'sin_operacion');
+      ELSE
+        v_result := jsonb_build_object('ok', false, 'reason', 'estado_no_permite', 'status', v_status, 'operation_id', v_op);
+      END IF;
+      EXIT flow;
+    END IF;
+    IF array_length(v_ids, 1) > 1 THEN
+      -- The same hand-over as cerebro_marcar_destino_usd: several open operations need a person.
+      SELECT count(*) INTO v_n FROM cerebro_registrar_derivacion(
+        p_conversation_id, 'Hay varias operaciones abiertas y el caso requiere revisión humana.', 'operacion_ambigua', true);
+      v_result := jsonb_build_object('ok', false, 'reason', 'operacion_ambigua', 'derivado', v_n > 0);
+      EXIT flow;
+    END IF;
+    v_op := v_ids[1];
+
+    -- Same row lock as the panel; the status is read again under it.
+    SELECT * INTO v_o FROM remittance_operations WHERE id = v_op FOR UPDATE;
+    IF v_o.status NOT IN ('collecting_information', 'awaiting_deposit', 'deposit_received', 'deposit_verification', 'ready_to_transfer') THEN
+      v_result := jsonb_build_object('ok', false, 'reason', 'estado_no_permite', 'status', v_o.status, 'operation_id', v_op);
+      EXIT flow;
+    END IF;
+    IF v_o.service_type NOT IN ('remesa', 'recarga', 'combo', 'visa', 'saldo') THEN
+      v_result := jsonb_build_object('ok', false, 'reason', 'tipo_no_soportado', 'service_type', v_o.service_type, 'operation_id', v_op);
+      EXIT flow;
+    END IF;
+
+    v_actual := cerebro_riel_op(v_op);
+    v_prev := jsonb_build_object('servicio', v_actual, 'destination_amount', v_o.quoted_destination_amount,
+                                 'destination_currency', v_o.destination_currency, 'rate', v_o.quoted_destination_rate);
+    IF v_actual IS NOT DISTINCT FROM v_servicio THEN
+      v_result := jsonb_build_object('ok', true, 'changed', false, 'operation_id', v_op, 'servicio', v_servicio,
+                                     'source_amount_gyd', v_o.quoted_source_amount, 'destination_amount', v_o.quoted_destination_amount,
+                                     'destination_currency', v_o.destination_currency, 'rate', v_o.quoted_destination_rate,
+                                     'status', v_o.status);
+      EXIT flow;
+    END IF;
+
+    -- A human fixed it: leave it to the team. A lock the automation itself left does not count.
+    SELECT k INTO v_campo
+      FROM unnest(ARRAY['delivery_method', 'service_type', 'quoted_destination_amount']) AS k
+     WHERE coalesce(v_o.admin_locked_fields, '{}'::jsonb) ? k
+       AND coalesce(v_o.admin_locked_fields -> k ->> 'by', '') NOT LIKE 'automation:%'
+     LIMIT 1;
+    IF v_campo IS NOT NULL THEN
+      v_result := jsonb_build_object('ok', false, 'reason', 'bloqueado_por_humano', 'campo', v_campo, 'operation_id', v_op);
+      EXIT flow;
+    END IF;
+
+    -- The change, with the minimum of the NEW service checked on the changed operation; a failure rolls the sub-block back.
+    v_prev_origin := coalesce(current_setting('wacrm.origin', true), '');
+    v_prev_actor  := coalesce(current_setting('wacrm.actor', true), '');
+    BEGIN
+      PERFORM set_config('wacrm.origin', 'admin', true);
+      PERFORM set_config('wacrm.actor', c_actor, true);
+      v_core := _cambiar_servicio_core(v_op, v_servicio, 'automation_service_change', c_actor,
+                                       'n8n execution ' || coalesce(nullif(btrim(p_execution_id), ''), 'unknown'));
+      PERFORM set_config('wacrm.origin', v_prev_origin, true);
+      PERFORM set_config('wacrm.actor', v_prev_actor, true);
+      SELECT * INTO v_o FROM remittance_operations WHERE id = v_op;
+      v_min := cerebro_minimo_gyd(v_op);
+      IF coalesce(v_o.quoted_source_amount, 0) > 0 AND v_min IS NOT NULL AND v_o.quoted_source_amount < v_min THEN
+        RAISE EXCEPTION '%', v_min USING ERRCODE = 'WC230';
+      END IF;
+    EXCEPTION
+      WHEN SQLSTATE 'WC230' THEN
+        PERFORM set_config('wacrm.origin', v_prev_origin, true);
+        PERFORM set_config('wacrm.actor', v_prev_actor, true);
+        v_result := jsonb_build_object('ok', false, 'reason', 'por_debajo_del_minimo', 'servicio', v_servicio, 'operation_id', v_op,
+                                       'minimo_gyd', SQLERRM::numeric, 'source_amount_gyd', v_o.quoted_source_amount);
+      WHEN SQLSTATE '22023' THEN
+        PERFORM set_config('wacrm.origin', v_prev_origin, true);
+        PERFORM set_config('wacrm.actor', v_prev_actor, true);
+        IF SQLERRM NOT LIKE 'several recipients%' THEN RAISE; END IF;
+        v_result := jsonb_build_object('ok', false, 'reason', 'varios_destinatarios', 'operation_id', v_op);
+      WHEN OTHERS THEN
+        PERFORM set_config('wacrm.origin', v_prev_origin, true);
+        PERFORM set_config('wacrm.actor', v_prev_actor, true);
+        RAISE;
+    END;
+    IF v_result IS NOT NULL THEN
+      EXIT flow;
+    END IF;
+
+    SELECT * INTO v_o FROM remittance_operations WHERE id = v_op;
+    v_result := jsonb_build_object('ok', true, 'changed', true, 'operation_id', v_op, 'servicio', v_servicio,
+                                   'source_amount_gyd', v_o.quoted_source_amount, 'destination_amount', v_o.quoted_destination_amount,
+                                   'destination_currency', v_o.destination_currency, 'rate', v_o.quoted_destination_rate,
+                                   'previous', v_prev,
+                                   'retired_recipients', jsonb_array_length(v_core -> 'retired'),
+                                   'retyped_recipients', jsonb_array_length(v_core -> 'retyped'),
+                                   'status', v_o.status);
+  END;
+
+  v_key := coalesce(nullif(btrim(p_execution_id), ''), gen_random_uuid()::text) || ':cambiar_servicio:' || md5(coalesce(v_servicio, ''));
+  INSERT INTO tool_execution_log (idempotency_key, tool_name, execution_id, conversation_id, operation_id, arguments, outcome)
+  VALUES (v_key, 'cambiar_servicio', p_execution_id, p_conversation_id, v_op, jsonb_build_array(to_jsonb(p_servicio)),
+          CASE WHEN (v_result ->> 'ok')::boolean THEN CASE WHEN (v_result ->> 'changed')::boolean THEN 'changed' ELSE 'unchanged' END
+               ELSE v_result ->> 'reason' END)
+  ON CONFLICT (idempotency_key) DO NOTHING;
+
+  RETURN v_result;
 END $function$;
-
-DROP FUNCTION IF EXISTS public.cerebro_registrar_destino_v2(uuid, text, text, boolean);
 
 CREATE OR REPLACE FUNCTION public.cerebro_detectar_destino(p_texto text)
  RETURNS text
@@ -236,11 +321,15 @@ BEGIN
   RETURN NULL;
 END $function$;
 
-DROP FUNCTION IF EXISTS public.cerebro_destino_es_pregunta(text);
+DROP FUNCTION IF EXISTS public.cerebro_destino_riel_afirmado(text, text, text);
 DROP FUNCTION IF EXISTS public.cerebro_destino_riel_negado(text, text);
+DROP FUNCTION IF EXISTS public.cerebro_servicio_normalizar(text);
 
-DELETE FROM public.cerebro_destino_pendiente WHERE tipo = 'zelle';
+DROP TRIGGER IF EXISTS trg_destino_pendiente_origen ON public.cerebro_destino_pendiente;
+DROP FUNCTION IF EXISTS public.cerebro_destino_pendiente_origen();
+DELETE FROM public.cerebro_destino_pendiente WHERE tipo IN ('zelle', 'efectivo_usd');
 ALTER TABLE public.cerebro_destino_pendiente DROP COLUMN IF EXISTS origen;
+ALTER TABLE public.cerebro_destino_pendiente DROP COLUMN IF EXISTS ejecucion;
 ALTER TABLE public.cerebro_destino_pendiente DROP CONSTRAINT cerebro_destino_pendiente_tipo_check;
 ALTER TABLE public.cerebro_destino_pendiente ADD CONSTRAINT cerebro_destino_pendiente_tipo_check
   CHECK (tipo = ANY (ARRAY['clasica'::text, 'tropical'::text, 'cuban_card'::text]));

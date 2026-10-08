@@ -73,3 +73,15 @@ Mode: strict TDD ON. Source: user global CLAUDE.md. Runner: `npx vitest run <fil
 - The history RPC (and its view) have no account filter: any authenticated user reads every account's rows. Pre-existing
   (088), not changed here; a product/security decision.
 - Staging deploy (2026-10-08; release d5dd1b2c5ae22a7007c882a0fcc5c19649cb038c, BUILD_ID hs8nPGSwrAx5ytEWJfDHd, app commit d5dd1b2; migration 229 already applied on staging): manifest environment=staging, project kolppplawzdsjfydwejr, 0 production refs, 32 files with staging refs, 114 build tests passed, sha256 OK on oracle2 and the unpacked release byte-identical to a fresh extraction of the built tarball (2468 files), pm2 wacrm-staging process cwd resolves to the new release, restarts 89 -> 90 and stable (unstable 0, still 90 after 30 s), /login 200 with the new BUILD_ID and "Bienvenido de nuevo", all 14 JS chunks listed by the client-reference manifest of the Finanzas resumen page served by crm.onlinefreedom.site byte-identical to the build, and the page chunk (`0ax2iwgiul.mn.js`) calls `cerebro_dashboard_historial` and reads `e.servicio` from the history rows. Rollback: anterior -> 5233c84 (`ssh oracle2 'ln -sfn /home/ubuntu/wacrm-releases/5233c84436c5f272b30581aa925e650e4170e6a7 ~/wacrm-releases/current && pm2 restart wacrm-staging --update-env'`).
+
+- Production database, migration 229 (2026-10-08, owner "pasalo a produccion"): backup
+  `~/wacrm-respaldos/produccion-20261008T132759Z.dump`. Pre-check: production had the pre-229 definitions
+  (history `4d077dbe…`, board `d09ded1e…`, view `b744d925…`, resolver `3c67bdca…`), last migration 228. Applied
+  through `~/cerebro-fase1/pruebas/gate129-aplicar-db.py` (helper `zz_wu5b_exec` created before, dropped after, count
+  0): `ensayo` fingerprint equal to staging (history `9dbb5a28…`, board `11379ddc…`, view and resolver unchanged);
+  `GATE_BUNDLE=ida-y-vuelta ensayo` gave the pre-229 md5s back; `aplicar` -> `{"r":"OK"}`, recorded as
+  `229_history_service_and_board_statuses`; `probar history-service-and-board-statuses` -> ALL PASS (rolled back).
+  Read back: one `cerebro_dashboard_historial`, its rows carry `servicio` (EFECTIVO, ZELLE, VISA, CUP on the six
+  live rows); 5 operations and 31 calculator entries, as before.
+  Pre-existing difference, not changed: production's `crm_tablero_operaciones` is not granted to service_role
+  (staging's is).

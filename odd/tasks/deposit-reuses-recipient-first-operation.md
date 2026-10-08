@@ -59,3 +59,14 @@ Stale objective (quote 26,000 Zelle vs cash 29,000): reported, not fixed.
   "envio mas de lo hablado" text lives in the bot/n8n, not in these functions (not inspected, out of scope).
 - Non-remesa: the function picks the service from the OPEN operation (recarga > combo > visa), not from the deposit; a zero-amount open visa with a recipient
   now absorbs the deposit as visa (before: a second operation was created as visa). Not changed.
+
+- Production database (2026-10-08, owner "si pasalo a produccion"): backup
+  `~/wacrm-respaldos/produccion-20261008T230834Z.dump`. Pre-check: production had the pre-232/233 definitions
+  (`cerebro_registrar_deposito` e14bc02d…, `crm_corregir_beneficiario` 43e52676…, `crm_agregar_beneficiario` ee9da2d6…),
+  last migration 231. `~/cerebro-fase1/pruebas/gate135-aplicar-db.py` (bundle 232 + 233; helper `zz_wu5b_exec` created
+  before, dropped after, count 0): `ensayo` -> function md5s equal to staging (70f46bff…, 8200d08f…, 167b6bc5…,
+  67ceb0d3…); `GATE_BUNDLE=ida-y-vuelta ensayo` -> the three pre-existing functions back to their old md5s and the
+  picker read gone; `aplicar` -> `{"r":"OK"}`, recorded as `232_deposit_reuses_recipient_first_operation` and
+  `233_id_photo_from_chat`. Assertions on production (rolled back): `deposit-reuses-recipient-first-operation`,
+  `id-photo-from-chat`, `cash-recipient-add` pass. Pre-existing difference kept: production does not grant the two
+  panel RPCs to service_role (staging does).

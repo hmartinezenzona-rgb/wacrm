@@ -55,3 +55,14 @@ documents to a private bucket at ingestion; (c) keep public and shorten exposure
 - Checks: `npx vitest run` full suite 186 files / 2497 tests passed; `npx tsc --noEmit` clean; `npx eslint` on the changed files clean.
 - Not done here: the production application of 232/233 and the app deploy (not authorised); the visual check in a real browser.
 - Staging deploy (2026-10-08; release 7ed8f14a9786d3fea9b92794b758952758f98af8, BUILD_ID TA9KQYcBbpGSr3rPTw4o4, app commit 7ed8f14; migrations 232 and 233 already applied on staging): manifest environment=staging, project kolppplawzdsjfydwejr, 0 production refs, 32 files with staging refs, 114 build tests passed, sha256 OK on oracle2 and the unpacked release byte-identical to a fresh extraction of the built tarball (2477 files), pm2 wacrm-staging process cwd resolves to the new release, restarts 90 -> 91 and stable (unstable 0, still 91 after 30 s), /login 200 with the new BUILD_ID and "Bienvenido de nuevo", all 17 JS chunks listed by the inbox client-reference manifest served by crm.onlinefreedom.site byte-identical to the build, the deployed bundle contains "Elegir del chat" (78 files) and no longer "La foto del carnet llega por el chat", and `/api/remittance-operations/chat-images` is in the route manifest and answers 401 unauthenticated on the live site. Rollback: anterior -> d5dd1b2 (`ssh oracle2 'ln -sfn /home/ubuntu/wacrm-releases/d5dd1b2c5ae22a7007c882a0fcc5c19649cb038c ~/wacrm-releases/current && pm2 restart wacrm-staging --update-env'`).
+
+- Production database (2026-10-08, owner "si pasalo a produccion"): backup
+  `~/wacrm-respaldos/produccion-20261008T230834Z.dump`. Pre-check: production had the pre-232/233 definitions
+  (`cerebro_registrar_deposito` e14bc02d…, `crm_corregir_beneficiario` 43e52676…, `crm_agregar_beneficiario` ee9da2d6…),
+  last migration 231. `~/cerebro-fase1/pruebas/gate135-aplicar-db.py` (bundle 232 + 233; helper `zz_wu5b_exec` created
+  before, dropped after, count 0): `ensayo` -> function md5s equal to staging (70f46bff…, 8200d08f…, 167b6bc5…,
+  67ceb0d3…); `GATE_BUNDLE=ida-y-vuelta ensayo` -> the three pre-existing functions back to their old md5s and the
+  picker read gone; `aplicar` -> `{"r":"OK"}`, recorded as `232_deposit_reuses_recipient_first_operation` and
+  `233_id_photo_from_chat`. Assertions on production (rolled back): `deposit-reuses-recipient-first-operation`,
+  `id-photo-from-chat`, `cash-recipient-add` pass. Pre-existing difference kept: production does not grant the two
+  panel RPCs to service_role (staging does).

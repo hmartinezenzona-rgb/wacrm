@@ -55,6 +55,8 @@ interface HistorialFila {
   operation_id: string;
   /** Filas que hay en TODO el filtro, no en esta página (088). */
   total: number;
+  /** Servicio de la operación en el vocabulario del libro (CUP, ZELLE, MIXTA…), desde la 229. Ausente en una base sin ella. */
+  servicio?: string | null;
 }
 
 // El RPC devuelve los periodos en orden fijo (1..5): hoy, ayer, esta
@@ -71,14 +73,21 @@ const PERIODO_ORDEN: Record<
   5: "mes_anterior",
 };
 
+// Mismos nombres que la Calculadora y el cierre; el valor que viaja al RPC es el del libro (la 229 lo entiende, además de
+// los service_type de siempre).
 const SERVICIOS = [
-  "remesa",
-  "combo",
-  "recarga",
-  "visa",
-  "saldo",
-  "traduccion",
-  "mexico",
+  "CUP",
+  "ZELLE",
+  "CLASICA",
+  "TROPICAL",
+  "EFECTIVO",
+  "RECARGA",
+  "SALDO_MOVIL",
+  "COMBO",
+  "VISA",
+  "MIXTA",
+  "TRADUCCION",
+  "MEXICO",
 ] as const;
 
 // El historial se pide por páginas: crece ~16 filas al día y antes se
@@ -378,8 +387,8 @@ export default function ResumenPage() {
                       {format(new Date(`${f.dia}T00:00:00`), "dd/MM/yy")}
                     </TableCell>
                     <TableCell className="capitalize">
-                      <ServiceDot service={f.service_type} />
-                      {serviceNameEs(f.service_type) ?? f.service_type}
+                      <ServiceDot service={f.servicio ?? f.service_type} />
+                      {serviceNameEs(f.servicio ?? f.service_type) ?? (f.servicio ?? f.service_type)}
                     </TableCell>
                     <TableCell>
                       <StatusPill

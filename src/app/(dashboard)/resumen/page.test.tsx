@@ -23,13 +23,18 @@ vi.mock("next-intl", () => ({
 const rpc = vi.fn();
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ rpc }) }));
 vi.mock("@/components/resumen/financial-close-section", () => ({ FinancialCloseSection: () => null }));
-// Base UI Select hangs jsdom; the filter is not under test.
+// Base UI Select hangs jsdom; a native double keeps the options and the change contract. The first Select on the page is
+// the service filter, the second one the page size.
 vi.mock("@/components/ui/select", () => ({
-  Select: () => null,
-  SelectContent: () => null,
-  SelectItem: () => null,
+  Select: ({ value, onValueChange, children }: { value?: string; onValueChange?: (value: string) => void; children?: React.ReactNode }) => (
+    <select value={value} onChange={(event) => onValueChange?.(event.target.value)}>
+      {children}
+    </select>
+  ),
   SelectTrigger: () => null,
   SelectValue: () => null,
+  SelectContent: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+  SelectItem: ({ value, children }: { value: string; children?: React.ReactNode }) => <option value={value}>{children}</option>,
 }));
 
 import ResumenPage from "./page";
@@ -90,5 +95,59 @@ describe("Finanzas history table", () => {
       ["mystery", "other"],
     ]);
     expect(cells[0]!.firstElementChild!.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("names the specific service of the operation (servicio) and colours the dot after it", async () => {
+    const node = await renderPage([
+      row({ operation_id: "a", servicio: "CUP" }),
+      row({ operation_id: "b", servicio: "ZELLE" }),
+      row({ operation_id: "c", servicio: "SALDO_MOVIL", service_type: "saldo" }),
+      row({ operation_id: "d", servicio: "MIXTA" }),
+      row({ operation_id: "e", servicio: "REMESA" }),
+    ]);
+    const cells = [...node.querySelectorAll("tbody tr")].map((r) => r.querySelectorAll("td")[1]!);
+    expect(cells.map((c) => [c.textContent, c.querySelector("[data-service]")?.getAttribute("data-service")])).toEqual([
+      ["CUP", "cup"],
+      ["Zelle", "zelle"],
+      ["Saldo móvil", "saldo"],
+      ["Remesa mixta", "other"],
+      ["Remesa", "remesa"],
+    ]);
+  });
+
+  it("falls back to the service_type name when the database does not send servicio yet", async () => {
+    const node = await renderPage([row({ operation_id: "a" }), row({ operation_id: "b", servicio: null, service_type: "combo" })]);
+    const cells = [...node.querySelectorAll("tbody tr")].map((r) => r.querySelectorAll("td")[1]!);
+    expect(cells.map((c) => c.textContent)).toEqual(["Remesa", "Combo"]);
+  });
+
+  it("lists the canonical services in the filter, after Todos, and sends the ledger-style value", async () => {
+    const node = await renderPage([row({})]);
+    const filter = node.querySelectorAll("select")[0]!;
+    expect([...filter.options].map((o) => [o.value, o.textContent])).toEqual([
+      ["__todos__", "Todos"],
+      ["CUP", "CUP"],
+      ["ZELLE", "Zelle"],
+      ["CLASICA", "Clásica"],
+      ["TROPICAL", "Tropical"],
+      ["EFECTIVO", "Efectivo USD"],
+      ["RECARGA", "Recarga"],
+      ["SALDO_MOVIL", "Saldo móvil"],
+      ["COMBO", "Combo"],
+      ["VISA", "Visa"],
+      ["MIXTA", "Remesa mixta"],
+      ["TRADUCCION", "Traducción"],
+      ["MEXICO", "México"],
+    ]);
+    rpc.mockClear();
+    await act(async () => {
+      // React tracks a controlled value: go through the prototype setter so the change event is seen.
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!.call(filter, "CUP");
+      filter.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    const apply = [...node.querySelectorAll("button")].find((b) => b.textContent === "Aplicar")!;
+    await act(async () => apply.click());
+    const calls = rpc.mock.calls.filter(([name]) => name === "cerebro_dashboard_historial");
+    expect(calls.at(-1)![1]).toMatchObject({ p_servicio: "CUP", p_desde_fila: 0 });
   });
 });

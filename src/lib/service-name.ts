@@ -79,6 +79,8 @@ const ID_BY_KEY: Record<string, ServiceId> = {
   // the canonical ids that no other key spells
   tramites: "tramites",
   mixed: "mixed",
+  // the history's ledger-style service of a remittance split over several kinds (migration 229)
+  mixta: "mixed",
 };
 
 function normaliseKey(key: string): string {

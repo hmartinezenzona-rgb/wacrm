@@ -38,6 +38,11 @@ describe("resolveServiceId", () => {
     // canonical ids resolve to themselves
     ["tramites", "tramites"],
     ["mixed", "mixed"],
+    // the history's ledger-style service of a remittance split over several kinds (migration 229)
+    ["MIXTA", "mixed"],
+    ["REMESA", "remesa"],
+    ["SALDO_MOVIL", "saldo"],
+    ["EFECTIVO", "efectivo_usd"],
   ])("%s -> %s", (key, id) => {
     expect(resolveServiceId(key)).toBe(id);
   });

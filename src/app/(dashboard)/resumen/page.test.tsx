@@ -76,4 +76,19 @@ describe("Finanzas history table", () => {
       ["brand_new", "neutral"],
     ]);
   });
+
+  it("puts the fixed service dot before the service name, one colour per service", async () => {
+    const node = await renderPage([
+      row({ operation_id: "a", service_type: "remesa" }),
+      row({ operation_id: "b", service_type: "recarga" }),
+      row({ operation_id: "c", service_type: "mystery" }),
+    ]);
+    const cells = [...node.querySelectorAll("tbody tr")].map((r) => r.querySelectorAll("td")[1]!);
+    expect(cells.map((c) => [c.textContent, c.querySelector("[data-service]")?.getAttribute("data-service")])).toEqual([
+      ["Remesa", "remesa"],
+      ["Recarga", "recarga"],
+      ["mystery", "other"],
+    ]);
+    expect(cells[0]!.firstElementChild!.getAttribute("aria-hidden")).toBe("true");
+  });
 });

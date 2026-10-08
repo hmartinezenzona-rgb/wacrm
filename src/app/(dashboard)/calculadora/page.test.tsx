@@ -2161,4 +2161,65 @@ describe("calculator money tones", () => {
     expect(toneOf(row, "Monto")).toBeNull();
     await act(async () => root.unmount());
   });
+
+  // Step 2 and the step 1 leftovers (odd/tasks/semantic-money-colors.md, T7-T9).
+  it("puts the fixed service dot before the service name in the operations table, and nowhere else in the row", async () => {
+    const { node, root } = await renderPage(fixture([DEL_COMPLETED, LOSS]));
+
+    const [zelle, directo] = [...operationsCard(node).querySelectorAll("tbody tr")];
+    const dotOf = (row: Element) => row.querySelector('td[data-label="Tipo"] [data-service]') as HTMLElement | null;
+    expect(dotOf(zelle!)?.dataset.service).toBe("zelle");
+    expect(dotOf(zelle!)?.getAttribute("aria-hidden")).toBe("true");
+    expect(dotOf(zelle!)?.className).toContain("bg-service-zelle");
+    expect(dotOf(directo!)?.dataset.service).toBe("directo");
+    expect(zelle!.querySelector('td[data-label="Tipo"]')!.textContent).toBe("ZELLE");
+    expect(zelle!.querySelectorAll("[data-service]")).toHaveLength(1);
+    await act(async () => root.unmount());
+  });
+
+  it("puts the dot before each category of the service breakdown and tones its Retorno by sign", async () => {
+    const { node, root } = await renderPage(fixture([DEL_COMPLETED, LOSS]));
+
+    const breakdown = [...node.querySelectorAll("h2")].find((h) => h.textContent === "⚙️ Desglose Semanal por Servicios")!.parentElement!;
+    const rows = [...breakdown.querySelectorAll(".legacyBlockRow")];
+    expect(rows.map((r) => r.querySelector("[data-service]")?.getAttribute("data-service"))).toEqual(["zelle", "directo"]);
+    expect(rows.map((r) => r.querySelector("b")!.textContent)).toEqual(["Categoría: ZELLE", "Categoría: TRÁMITES / COMBOS / SERVICIOS"]);
+    const retorno = rows.map((r) => r.querySelector("b[data-tone]") as HTMLElement);
+    expect(retorno.map((b) => b.dataset.tone)).toEqual(["profit", "loss"]);
+    expect(retorno[0]!.className).toBe("text-money-profit");
+    expect(breakdown.innerHTML).not.toContain("green");
+    await act(async () => root.unmount());
+  });
+
+  it("tones the Fact. / Inv. / Ganancia of the archived weeks list", async () => {
+    const { node, root } = await renderPage(fixture([]));
+
+    const row = node.querySelector("#semanasAnteriores tbody tr")!;
+    expect([toneOf(row, "Fact. (GYD)"), toneOf(row, "Inv. (GYD)"), toneOf(row, "Ganancia")]).toEqual(["in", "out", "profit"]);
+    for (const label of ["Corte", "Período"]) expect(toneOf(row, label)).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("shows a loss week of the archived list in the loss tone", async () => {
+    const lossWeek = { ...WEEK, chatTotals: { count: 1, facturadoGyd: 100, invertidoGyd: 300, retornoGyd: -200 } };
+    const { node, root } = await renderPage(createFetchMock({
+      calculadoraGet: { rawText: "", periodo: "", chatOperations: { entries: [] } },
+      ratesGet: { rates: null },
+      weeksGet: { weeks: [lossWeek] },
+      weekGet: () => ({ status: 200, body: { week: lossWeek } }),
+    }));
+
+    expect(toneOf(node.querySelector("#semanasAnteriores tbody tr")!, "Ganancia")).toBe("loss");
+    await act(async () => root.unmount());
+  });
+
+  it("puts the service dot in the archived week view too", async () => {
+    const { node, root } = await renderPage(fixture([]));
+    await act(async () => { (node.querySelector("#verSemana-week-1") as HTMLButtonElement).click(); });
+    await flush();
+
+    const view = node.querySelector("#semanaArchivada") as HTMLElement;
+    expect(view.querySelector('tbody td[data-label="Tipo"] [data-service]')?.getAttribute("data-service")).toBe("zelle");
+    await act(async () => root.unmount());
+  });
 });

@@ -8,6 +8,7 @@ import { isComboCostPending, pendingReason, type CalculatorRates } from "@/lib/c
 import { guyanaToday, manualEntriesFromText, removeRegisteredLines } from "@/lib/calculator/manual-entries";
 import { formatNumber as formatMoneyNumber } from "@/lib/format-number";
 import { MoneyTotalFigure } from "@/components/money/money-total-figure";
+import { ServiceDot } from "@/components/service/service-dot";
 import { moneyCellProps, moneyStripeClass, profitTone, totalTone } from "@/lib/money-tone";
 import { calculatorCategoryName, chatEntryAmountExportText, chatEntryAmountText, ledgerServiceLabel } from "@/lib/calculator/entry-display";
 import { applyCalculatorEntryRealtimeEvent, insertCalculatorEntry, type ChatCalculatorEntry } from "@/lib/calculator/realtime-entry";
@@ -150,11 +151,11 @@ export default function CalculadoraPage() {
   // Totals and breakdown count the operations of the table (the bot's and the manual ones); the draft text is not one yet.
   const totals = useMemo(() => chatTotals(chatEntries), [chatEntries]);
   const serviceTotals = useMemo(() => {
-    const byService = new Map<string, { name: string; fact: number; inv: number; ret: number }>();
+    const byService = new Map<string, { name: string; service: string; fact: number; inv: number; ret: number }>();
     for (const entry of chatEntries) {
       if (entry.status !== "completed") continue;
       const category = calculatorCategoryName(entry.service);
-      const current = byService.get(category) ?? { name: category, fact: 0, inv: 0, ret: 0 };
+      const current = byService.get(category) ?? { name: category, service: entry.service, fact: 0, inv: 0, ret: 0 };
       current.fact += entry.facturadoGyd ?? 0;
       current.inv += entry.invertidoGyd ?? 0;
       current.ret += entry.retornoGyd ?? 0;
@@ -707,7 +708,7 @@ export default function CalculadoraPage() {
           <TotalBox title="📈 Retorno Neto (GYD)" kind="result" value={totals.ret} />
         </div>
 
-        <div className="legacyCard"><h2>⚙️ Desglose Semanal por Servicios</h2>{serviceTotals.map((service) => <div className="legacyCard" style={{ marginBottom: 10, padding: 12 }} key={service.name}><div className="legacyBlockRow"><b>Categoría: {service.name}</b><span>Fact: <b>{formatNumber(service.fact)} GYD</b> | Inv: <b>{formatNumber(service.inv)} GYD</b> | Retorno: <b style={{ color: "green" }}>{formatNumber(service.ret)} GYD</b></span></div></div>)}</div>
+        <div className="legacyCard"><h2>⚙️ Desglose Semanal por Servicios</h2>{serviceTotals.map((service) => <div className="legacyCard" style={{ marginBottom: 10, padding: 12 }} key={service.name}><div className="legacyBlockRow"><b><ServiceDot service={service.service} />Categoría: {service.name}</b><span>Fact: <b>{formatNumber(service.fact)} GYD</b> | Inv: <b>{formatNumber(service.inv)} GYD</b> | Retorno: <b {...moneyCellProps(profitTone(service.ret))}>{formatNumber(service.ret)} GYD</b></span></div></div>)}</div>
 
         <div className="legacyCard">
           <h2>🔗 Operaciones</h2>
@@ -732,7 +733,7 @@ export default function CalculadoraPage() {
                         <td data-label="Fecha">{entry.entryDate.slice(0, 10)}</td>
                         <td data-label="Cliente"><b>{entry.customerName || "—"}</b></td>
                         <td data-label="Monto">{chatEntryAmountText(entry)}</td>
-                        <td data-label="Tipo"><span className="legacyBadge">{ledgerServiceLabel(entry.service)}</span>{entry.source === "manual" && <span className="legacyBadge" title="Registrada a mano" style={{ marginLeft: 6 }}>Manual</span>}</td>
+                        <td data-label="Tipo"><span className="legacyBadge"><ServiceDot service={entry.service} />{ledgerServiceLabel(entry.service)}</span>{entry.source === "manual" && <span className="legacyBadge" title="Registrada a mano" style={{ marginLeft: 6 }}>Manual</span>}</td>
                         <td data-label="Estado">{entry.status === "completed" ? "Completada" : `Pendiente${entry.missingRates.length ? `: ${pendingReason(entry)}` : ""}`}</td>
                         <td data-label="Fact. (GYD)" {...(editing ? {} : moneyCellProps(entry.facturadoGyd == null ? "neutral" : "in"))}>
                           {editing ? (
@@ -893,9 +894,9 @@ export default function CalculadoraPage() {
                   <tr key={week.id}>
                     <td data-label="Corte">{cutDate(week.cutAt)}</td>
                     <td data-label="Período"><b>{week.periodo || "Sin período"}</b></td>
-                    <td data-label="Fact. (GYD)">{formatNumber(week.manualTotals.facturadoGyd + week.chatTotals.facturadoGyd)}</td>
-                    <td data-label="Inv. (GYD)">{formatNumber(week.manualTotals.invertidoGyd + week.chatTotals.invertidoGyd)}</td>
-                    <td data-label="Ganancia">{formatNumber(week.manualTotals.retornoGyd + week.chatTotals.retornoGyd)}</td>
+                    <td data-label="Fact. (GYD)" {...moneyCellProps("in")}>{formatNumber(week.manualTotals.facturadoGyd + week.chatTotals.facturadoGyd)}</td>
+                    <td data-label="Inv. (GYD)" {...moneyCellProps("out")}>{formatNumber(week.manualTotals.invertidoGyd + week.chatTotals.invertidoGyd)}</td>
+                    <td data-label="Ganancia" {...moneyCellProps(profitTone(week.manualTotals.retornoGyd + week.chatTotals.retornoGyd))}>{formatNumber(week.manualTotals.retornoGyd + week.chatTotals.retornoGyd)}</td>
                     <td className="legacyActionsCell">
                       <button type="button" id={`verSemana-${week.id}`} className="legacySecondary" onClick={() => void openArchivedWeek(week.id)} style={{ width: "auto" }}>Ver</button>
                     </td>
@@ -933,7 +934,7 @@ export default function CalculadoraPage() {
                         <td data-label="Fecha">{entry.entryDate.slice(0, 10)}</td>
                         <td data-label="Cliente"><b>{entry.customerName || "—"}</b></td>
                         <td data-label="Monto">{chatEntryAmountText(entry)}</td>
-                        <td data-label="Tipo"><span className="legacyBadge">{ledgerServiceLabel(entry.service)}</span>{entry.source === "manual" && <span className="legacyBadge" title="Registrada a mano" style={{ marginLeft: 6 }}>Manual</span>}</td>
+                        <td data-label="Tipo"><span className="legacyBadge"><ServiceDot service={entry.service} />{ledgerServiceLabel(entry.service)}</span>{entry.source === "manual" && <span className="legacyBadge" title="Registrada a mano" style={{ marginLeft: 6 }}>Manual</span>}</td>
                         <td data-label="Fact. (GYD)" {...moneyCellProps(entry.facturadoGyd == null ? "neutral" : "in")}>{entry.facturadoGyd == null ? "—" : formatNumber(entry.facturadoGyd)}</td>
                         <td data-label="Inv. (GYD)" {...moneyCellProps(entry.invertidoGyd == null ? "neutral" : "out")}>{entry.invertidoGyd == null ? "—" : formatNumber(entry.invertidoGyd)}</td>
                         <td data-label="Ganancia" {...moneyCellProps(profitTone(entry.retornoGyd))}>{entry.retornoGyd == null ? "—" : formatNumber(entry.retornoGyd)}</td>

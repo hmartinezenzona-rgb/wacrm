@@ -18,6 +18,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { FinancialCloseSection } from "@/components/resumen/financial-close-section";
 import { StatusPill } from "@/components/status/status-pill";
+import { ServiceDot } from "@/components/service/service-dot";
 import { formatNumber } from "@/lib/format-number";
 import { historialDestino } from "@/lib/resumen/historial-destino";
 import {
@@ -386,6 +387,7 @@ export default function ResumenPage() {
                       {format(new Date(`${f.dia}T00:00:00`), "dd/MM/yy")}
                     </TableCell>
                     <TableCell className="capitalize">
+                      <ServiceDot service={f.service_type} />
                       {SERVICIO_LABEL[f.service_type] ?? f.service_type}
                     </TableCell>
                     <TableCell>

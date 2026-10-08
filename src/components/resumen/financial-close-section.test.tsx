@@ -420,4 +420,19 @@ describe("FinancialCloseSection", () => {
       await act(async () => root.unmount());
     });
   });
+
+  describe("service dots", () => {
+    it("puts the fixed dot before the service name in the by-service and detail tables", async () => {
+      const { node, root } = await render();
+
+      const rows = [...node.querySelectorAll("[data-testid='service-row']")];
+      expect(rows.map((r) => r.querySelector("td [data-service]")?.getAttribute("data-service"))).toEqual(["zelle", "cup"]);
+      expect(rows[0]!.querySelector("td")!.textContent).toBe("ZELLE");
+      const detail = node.querySelector("[data-testid='detail-row']")!;
+      expect(detail.querySelectorAll("td")[4]!.textContent).toBe("CUP");
+      expect(detail.querySelectorAll("td")[4]!.querySelector("[data-service]")?.getAttribute("data-service")).toBe("cup");
+      expect(detail.querySelectorAll("[data-service]")).toHaveLength(1);
+      await act(async () => root.unmount());
+    });
+  });
 });

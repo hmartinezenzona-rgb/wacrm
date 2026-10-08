@@ -469,3 +469,76 @@ Rollback: PUT the saved `cerebro-staging-antes-131-<ts>.json`; the database side
 4. Status after a post-verification switch with no recipient for the new rail (B4), and whether `incident` should be refused: unchanged open points.
 5. Staging carries 138 (service catalog) and the 153 `monto_recibe` columns that production does not run; D3.1 keeps them. Decide whether production gets 138 before or after this feature.
 6. Production: migration 230 and the NEW 231 are still not applied there (the keyword 231 never was).
+
+---
+
+# PART E — executed on the STAGING bot (2026-10-08; owner go-ahead "sigue", staging only)
+
+Production bot `jEzlVLCLUaJhVwzs`, production notifier and production database were NOT touched. Only workflow `U52y1kSNvhgxvWeb` was written.
+(This document is over Engram's 50,000-char limit: it is NOT mirrored; this file is the record.)
+
+## E1. Database follow-up (gap D4.1, staging only; commit 098ead5)
+Decision: "no OPEN operation" is treated like "no operation". `cerebro_cambiar_servicio`: with no open operation, only an operation in `transferring` still answers
+`estado_no_permite`; a completed / cancelled latest operation (repeat customer) records the pending service (`pendiente:true`, five remesa rails; recarga/combo/visa/saldo stay `sin_operacion`).
+`incident` stays refused (it is open, reached later, refused there). Edited the 231 files in place (231 is not in production, not pushed).
+- RED first: `bot-change-service.sql` case h (completed/cancelled now `pendiente`, nothing written to the old operation, recarga -> `sin_operacion`) failed with `estado_no_permite`;
+  `agent-service-change-guards.sql` case E (new: completed and cancelled -> pending -> `cerebro_crear_operacion` -> the new remittance is born `zelle`, old one untouched, row consumed) failed the same way.
+- Re-applied: `ROLLBACK-231` then 231 (each `BEGIN; ...; COMMIT;`). GREEN: `agent-service-change-guards` ALL PASS, `bot-change-service` ALL PASS, and the D2 related set: change-operation-service, deterministic-usd-destination,
+  clasica-card-from-delivery-method, quote-from-rail, cash-recipient-add, reparto-usd-card-rail, ultima-cotizacion, reparto-destino-node-adapters (22 parity), delete-notifications and reparto-tool-usd-rail (their "ALL PASS (rolled back on purpose)").
+- New fingerprint: `cerebro_cambiar_servicio` md5 `c45bff5f48b88c862f37648d5cbf6593` (was 108249804b3a64690259e1a87bf06236); every other function of the D2 table unchanged (marcar 2aeb6b92..., via_cotizada ad72f252..., coherencia 5b849da2...).
+- Side fix found while resetting the test contact: `reset-test-contact.sql` failed (FK `remittance_calculator_week_entries`) when the contact had calculator entries archived in a weekly cut; it now deletes those link rows first.
+
+## E2. What was changed on the staging bot (script `~/cerebro-fase1/pruebas/gate131-cambiar-servicio-staging.py staging [--seco]`; it asserts the target id before the PUT; every marker matched exactly once; the final texts are byte-exact in that script and equal to D3.2-D3.5)
+- Backup (rollback): `~/cerebro-fase1/pruebas/cerebro-staging-antes-131-20261008T142309.json` (the `...T142235.json` next to it is the dry run's identical copy). versionId BEFORE `d45b5c97-4156-4d08-9c4a-e0ef24a2dd14`, AFTER `e5ca7171-753b-4e63-878f-233c69dc656c` (= activeVersionId, still active, 123 -> 125 nodes). No re-activation needed.
+- New `cambiar_servicio` (postgresTool 2.6, "Supabase STAGING", [4880,1040], `SELECT cerebro_cambiar_servicio($1::uuid,$2::text,$3::text) AS resultado;`, `$fromAI('servicio', ...)`, `$execution.id`, tool description of D3.2) -> `ai_tool` of Agente Remesas.
+- New `Verificar coherencia servicio` (postgres 2.6, `alwaysOutputData`, `onError: continueRegularOutput`, `cerebro_verificar_coherencia_servicio(conversation, $execution.id)`), FIRST main connection of `Agente Remesas` (before `Renderer conversacional`).
+- `Agente Remesas` systemMessage: `marcar_destino_usd` line rewritten + `cambiar_servicio` line (D3.3a), via-change clause in the ambiguous-via rule (b), the `## CAMBIO DE VIA` block before `## ESTILO` (c), rule 10 sentence (d), two examples at the end (e). Prompt iterations needed: ZERO (first wording worked, see E3).
+- `marcar_destino_usd` toolDescription: + "Para CAMBIAR una via ya elegida usa cambiar_servicio."
+- `Contexto conversacion` query: + `riel_operacion`, `servicio_pendiente`. `Decisor`: `viaSinDefinir` ignores a known rail / pending service; notes `VIA ACTUAL DE LA OPERACION: ...` and `EL CLIENTE YA ELIGIO ...`.
+- `calcular_usd`, `calcular_usd_desde_gyd`, `calcular_envio`, `calcular_inverso`: `LEFT JOIN LATERAL cerebro_registrar_via_cotizada(...)` + `$execution.id` appended to `queryReplacement` (the four SQL texts were first run as prepared statements in a rolled-back transaction: lines `calcular_usd | zelle`, `calcular_envio | cuban_card`, `calcular_inverso | cuban_card`; an empty via records nothing).
+- Verified after the PUT (fetched again): every edit present, active, `versionId == activeVersionId`, connections identical to the backup except `Agente Remesas` (+1 edge) and the new `cambiar_servicio`, no credential reference changed (all `Supabase STAGING`, np3egGrAcrWkOWd4). Staging-only nodes (D3.1 drift) untouched.
+- ROLLBACK COMMAND: `cd ~/cerebro-fase1/pruebas && python3 rollback-131-staging.py cerebro-staging-antes-131-20261008T142309.json` (PUTs the backup; refuses any id other than the staging bot). Only AFTER that may `ROLLBACK-231` run on the database.
+
+## E3. Tests (no WhatsApp message was sent to anyone)
+HONEST SCOPE. The staging bot's webhook replies through `crm.onlinefreedom.site` (real WhatsApp), so the live pipeline (webhook -> Snapshot -> Decisor -> agent -> send) was NOT run. Two layers were run instead:
+- LLM layer: `evals/evaluar_cambio_servicio.py` (new; reuses `evaluar.py`: a TEMPORARY workflow with the staging bot's own live prompt, model and tool definitions, tools mocked, deleted in `finally`; nothing reaches the database or WhatsApp). The user message of every case is built by the REAL staging Decisor code run offline with node (`Contexto` fields set per scenario), and the mocked `cambiar_servicio` result is the REAL JSON the database returned in the scenario below. Cases in `evals/casos/casos-cambio-servicio.json` (generator `generar_casos_cambio_servicio.py`); multi-turn `carlos_multiturno.py`. 3 repetitions each.
+- Database layer: scenario script (helpers of the 231 assertion, whole run in `BEGIN ... ROLLBACK`), tool calls made in the order the agent would make them. Test contact 529622896918 reset with `reset-test-contact.sql` before and after (it ends clean: 0 contacts); fixtures used other numbers and were rolled back (0 leftovers).
+| # | Scenario | LLM layer (3 reps) | Database layer (real results) | Verdict |
+|---|---|---|---|---|
+| 1 | Carlos: cash, deposit verified, "Mejor zelle" | 3/3 called `cambiar_servicio('zelle')`, no calcular/marcar; reply "Listo, queda por Zelle. Con sus *47,100 GYD* recibe *181 USD* (antes eran 162 USD en efectivo)" + asks Zelle name/account. Multi-turn Carlos (4 turns, real memory) 3/3 tool call at turn 4, no call at turns 1-3 | tool -> zelle, 181 USD @260, ready_to_transfer, cash recipient `reemplazado`, ONE audit row, log `changed`; late `marcar('efectivo')` -> `rechazado` naming Zelle, nothing written; coherence check: coherent | PASS |
+| 1b | same, "Mejor zelle" before the verification | 3/3 | `marcar('efectivo')` FIRST, `cambiar_servicio` second: zelle, 1 audit row | PASS |
+| 2 | "mejor zelle" before the operation exists | 3/3 tool (+3/3 repeat-customer variant `cs11`) | `pendiente:true`; late `marcar('efectivo')` refused ("ya elegiste Zelle..."); receipt creates the operation: zelle, 181 USD, 1 audit, pending consumed | PASS |
+| 3 | zelle -> "mejor en CUP" after verification | 3/3, reply 141,300 CUP | 141,300 CUP @3, 2 audits after the second change | PASS |
+| 4 | below the minimum (5,200 GYD CUP, "mejor zelle") | 3/3 states the 13,000 GYD minimum, offers to keep CUP, no hand-over | `por_debajo_del_minimo`, nothing changed, 0 audits | PASS |
+| 5 | admin-locked rail | 3/3 `cambiar_servicio` + `derivar_humano`, reply "Un compañero le ayuda con ese cambio enseguida." | `bloqueado_por_humano`, rail unchanged | PASS |
+| 6 | operation transferring | 3/3 tool + `derivar_humano`, same reply | `estado_no_permite` | PASS |
+| 7 | "mi hermano usa zelle" | 3/3 NO tool call, "¿Quiere que su envío siga siendo en efectivo?" | (nothing to write) | PASS |
+| 8 | price question "¿y por zelle cuanto seria?" | 3/3 only `calcular_usd_desde_gyd`, no change, offers "¿Quiere que se lo cambie a Zelle?" | quote with via zelle -> the end-of-turn check raises ONE alert "Revisar servicio: el bot cotizó Zelle y la operación está en Efectivo en USD"; a second identical question: same alert (`nueva:false`), 1 notification row; a quote with empty via records nothing | PASS (alert fires, as designed) |
+| 9 | second change of mind (zelle -> CUP -> zelle) | 3/3 | 3 changes, 2 audits for the CUP/zelle pair, zelle again 181 USD | PASS |
+| 10 | repeat customer (latest operation completed) "mejor zelle" | 6/6 (cs11, two runs) tool, reply "Listo, queda por Zelle. ¿Cuánto desea enviar?" | `pendiente:true` (gap D4.1) | PASS |
+| 11 | "no quiero clasica" (CUP op) / "zelle" when already zelle | 3/3 + 3/3 no tool call | detector NULL (231 assertion) | PASS |
+| 12 | phrasing variants: "cámbialo a zelle por favor", "Mejor por Zelle gracias", English "I want to switch to zelle instead", "mi hermano usa zelle, mejor hazlo por zelle tambien", "ponlo en efectivo" | all 3/3 tool with the right `servicio` | - | PASS |
+| 13 | "no, zelle no, dejalo en efectivo" / "¿que es mejor, zelle o efectivo?" | 6/6 no tool call | - | PASS |
+| 14 | tentative "y si mejor lo hacemos por zelle?" | 4/4 CHANGED to zelle (treated as a decision) | - | observation: arguably a question; kept (see E5 gap 2) |
+Totals: 41/42 on the first batch (the one ROJO, `cs11` rep 1, was a case-spec flaw: the case forbade the quote tools while the same scenario in `cs3` permitted them; the agent made one useless `calcular_usd_desde_gyd` call next to `cambiar_servicio`; spec fixed, re-run 3/3 green), then 21/21 on the fixed + adversarial batch and 3/3 on the multi-turn runs. The agent called the tool in every scenario that needed it and in none that did not (the only deliberate-edge: the tentative question #14).
+Decisor harness (offline, staging Decisor code): `riel_operacion=efectivo_usd` -> `VIA ACTUAL DE LA OPERACION: efectivo en USD...` and no "TODAVIA NO SE SABE"; `servicio_pendiente=zelle` -> `EL CLIENTE YA ELIGIO zelle...`; nothing known -> "TODAVIA NO SE SABE" as before; the pre-change Decisor emits none of the new notes.
+Limits, stated plainly: the harness's tool schemas are derived by regex and do not include the `via` parameter of the quote tools (4-argument `$fromAI`), so the cs9 run could not show whether the live agent passes `via='zelle'`; the alert on a price question therefore fires only when the agent passes a via (the database part is proven). The race "Mejor zelle seconds after the receipt" (two executions in parallel) is covered at the database level in both orders (S1/S1b) but not as two concurrent n8n executions. The end-of-turn node, the new context columns and the via-recording in the live workflow ran only as SQL / offline code, not inside a live execution.
+
+## E4. What remains for the owner's live phone test (staging, from 529622896918; run `reset-test-contact.sql` with `-v phone=529622896918` first)
+1. "Voy a mandar 47100 GYD" -> bot asks currency/via. 2. "Puede ser en USD en Bayamo, granma?" -> bot quotes cash USD (162 USD). 3. send a receipt screenshot (verify the deposit in the panel as admin). 4. "Mejor zelle".
+   Expect: ONE reply "Listo, queda por Zelle. Con sus *47,100 GYD* recibe *181 USD* (antes eran 162 USD en efectivo)..." asking the Zelle account holder and e-mail/phone; the operation shows Zelle / 181 USD / same status, one `automation_service_change` audit row; no "faltan los datos del efectivo"; no team alert.
+5. New reset. "mejor zelle" first, then the amount and receipt -> operation is born Zelle. 6. "mi hermano usa zelle" on a cash operation -> no change. 7. "¿y por zelle cuanto seria?" -> quote only; check the CRM notification list for "Revisar servicio: el bot cotizó Zelle...". 8. "mejor en CUP" after verification -> 141,300 CUP. 9. an operation under 13,000 GYD in CUP then "mejor zelle" -> states the minimum.
+   Queries after each: `remittance_operations`, `remittance_admin_audit` (`automation_service_change`), `tool_execution_log` (`cambiar_servicio`, quote lines with via), `notifications` (`coherencia_servicio`), `cerebro_destino_pendiente`.
+
+## E5. Plan to repeat on production LATER (needs the owner's explicit go-ahead; nothing below was done)
+1. Decide D4.5 first (does production get 138 / 153 before or after: the gate's markers were checked on both prompts, but `consultar_servicio` / context differences stay).
+2. Database: apply 230 then the (final) 231 to `hqztotshnlzaiziwjyzh` the way `gate123-aplicar-db.py` does (`BEGIN; <file>; COMMIT;` after a forced-rollback rehearsal and the pre/post fingerprints of D2 + E1), run the assertions wrapped in rollback, keep `ROLLBACK-231` / `ROLLBACK-230` ready. The database MUST go first (the workflow calls its functions).
+3. Bot: point the same gate at production: add the `produccion` branch to `gate131-cambiar-servicio-staging.py` (CER `jEzlVLCLUaJhVwzs`, credential "Supabase Account" S2CallLPSjzbVXN4 for the two new nodes, hard assert on the id), run `--seco`, diff against D3.1 (production's prompt/context differ in the "OTROS SERVICIOS" section and `consultar_servicio`; markers were measured once in both), then the PUT; read-back as in E2.
+4. Rollback: PUT the saved `cerebro-produccion-antes-131-<ts>.json`; only then `ROLLBACK-231` (then 230 if wanted).
+5. Notifier: no edit (D3.6). Optional hold of the notification while a message is pending (B2e) stays optional.
+
+## E6. Decision gaps
+1. Run the owner's phone test (E4) before production; the live pipeline was not exercised by an agent.
+2. "y si mejor lo hacemos por zelle?" is treated as a decision (changes). Keep (the customer said "mejor") or ask first? The prompt currently says "si dudas, pregunta".
+3. The end-of-turn alert depends on the live agent passing `via` to the quote tools; measure on the first live days (the alert is deliberately neutral/low-priority).
+4. D4 points 2-6 unchanged (alert noise, deposit-time minimum, 138 / 153 in production, migrations 230/231 still absent from production).

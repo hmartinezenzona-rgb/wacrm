@@ -2,7 +2,7 @@
 
 import { useState, type ChangeEvent } from "react";
 import { useTranslations } from "next-intl";
-import { AlertTriangle, Banknote, CircleCheck, Hash, TriangleAlert } from "lucide-react";
+import { AlertTriangle, Banknote, CircleCheck, Hash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmCancelButtons, cancelOnEscape } from "./confirm-cancel-buttons";
 import { FieldRow, UnderlineInput } from "./edit-form-fields";
@@ -204,20 +204,14 @@ export function DepositReviewSection({
 
   return (
     <div className="space-y-2">
-      <div>
-        <p className="flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400">
-          <TriangleAlert className="size-3.5 shrink-0" aria-hidden="true" />
-          {t("depositReview.notVerified")}
+      {result && (
+        <p
+          role="status"
+          className={result.kind === "success" ? "text-xs text-emerald-600" : "text-xs text-destructive"}
+        >
+          {result.message}
         </p>
-        {result && (
-          <p
-            role="status"
-            className={result.kind === "success" ? "text-xs text-emerald-600" : "text-xs text-destructive"}
-          >
-            {result.message}
-          </p>
-        )}
-      </div>
+      )}
 
       {current && draft && (
         <div className="space-y-2">

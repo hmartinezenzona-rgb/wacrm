@@ -290,18 +290,20 @@ describe("DepositReviewSection", () => {
   });
 
   describe("awaiting verification (data.canVerify true)", () => {
-    it("shows the not-verified line and the viewer for the first unmatched receipt", async () => {
+    // The status chip above already says the deposit is under verification; a second notice with a warning icon
+    // repeated it, so the section starts straight at the receipt.
+    it("shows the viewer for the first unmatched receipt, with no not-verified notice", async () => {
       const { node, root } = await render({ data: readModel() });
 
-      expect(node.textContent).toContain(T.notVerified);
+      expect(node.textContent).not.toContain("Deposit not verified");
+      expect(node.querySelector(".lucide-triangle-alert")).toBeNull();
       expect(node.querySelector("img")).not.toBeNull();
       await act(async () => root.unmount());
     });
 
-    it("shows the last verify result's reason message below the not-verified line", async () => {
+    it("shows the last verify result's reason message", async () => {
       const { node, root } = await render({ result: { kind: "error", message: T.results.monto_no_coincide } });
 
-      expect(node.textContent).toContain(T.notVerified);
       expect(node.textContent).toContain(T.results.monto_no_coincide);
       await act(async () => root.unmount());
     });

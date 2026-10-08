@@ -545,7 +545,6 @@
       },
       "depositReview": {
         "verified": "Deposit verified",
-        "notVerified": "Deposit not verified",
         "receipt": "Receipt",
         "receiptPosition": "{current}/{total}",
         "amountDeposited": "Amount deposited",

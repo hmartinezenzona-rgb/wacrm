@@ -142,7 +142,6 @@ describe("DepositReviewContainer", () => {
     await flush();
 
     expect(fetchOperationReceipts).toHaveBeenCalledWith("op-1");
-    expect(node.textContent).toContain(T.notVerified);
     expect(node.querySelector<HTMLInputElement>("#deposit-review-ref-comp-1")!.value).toBe("10412345678901");
   });
 
@@ -376,7 +375,6 @@ describe("DepositReviewContainer", () => {
     await flush();
 
     expect(fetchOperationReceipts).not.toHaveBeenCalled();
-    expect(node.textContent).toContain(T.notVerified);
     expect(node.querySelector<HTMLInputElement>("#deposit-review-ref-comp-1")!.value).toBe("10412345678901");
     await act(async () => root.unmount());
   });

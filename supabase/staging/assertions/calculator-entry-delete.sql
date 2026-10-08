@@ -204,7 +204,8 @@ BEGIN
   -- ---- 8. refusals ----
   IF pg_temp.t226_del(v_admin, v_ev) <> '22023' THEN RAISE EXCEPTION 'case 8: a void entry must be refused (22023)'; END IF;
   IF pg_temp.t226_del(v_admin, v_ea) <> '22023' THEN RAISE EXCEPTION 'case 8: an already deleted entry must be refused (22023)'; END IF;
-  IF pg_temp.t226_del(v_admin, v_em) <> '22023' THEN RAISE EXCEPTION 'case 8: a manual entry must be refused (22023)'; END IF;
+  -- (228) a manual entry is a row of the same table now: only an admin deletes it (it used to be refused here with 22023)
+  IF pg_temp.t226_del(v_agent, v_em) <> '42501' THEN RAISE EXCEPTION 'case 8: an agent must not delete a manual entry (42501)'; END IF;
   IF pg_temp.t226_del(v_admin, v_eo) <> '42501' THEN RAISE EXCEPTION 'case 8: another account''s entry must be refused (42501)'; END IF;
   IF pg_temp.t226_del(v_agent, v_ex) <> '42501' THEN RAISE EXCEPTION 'case 8: an agent must be refused (42501)'; END IF;
   IF pg_temp.t226_del(NULL, v_ex) <> '42501' THEN RAISE EXCEPTION 'case 8: no session must be refused (42501)'; END IF;
@@ -212,7 +213,7 @@ BEGIN
   IF (SELECT status FROM remittance_calculator_entries WHERE id = v_ex) <> 'completed' THEN RAISE EXCEPTION 'case 8: a refused delete changed the entry'; END IF;
   IF has_function_privilege('anon', 'crm_eliminar_entrada_calculadora(uuid)', 'execute') THEN RAISE EXCEPTION 'case 8: anon must not execute the delete'; END IF;
   IF NOT has_function_privilege('authenticated', 'crm_eliminar_entrada_calculadora(uuid)', 'execute') THEN RAISE EXCEPTION 'case 8: authenticated must execute the delete'; END IF;
-  RAISE NOTICE 'PASS 8: void, already deleted, manual, other account, agent, no session, unknown id refused; anon cannot execute';
+  RAISE NOTICE 'PASS 8: void, already deleted, other account, agent (also on a manual entry), no session, unknown id refused; anon cannot execute';
 
   -- ---- 9. a void entry that was NOT deleted is still revived on re-completion (unchanged behaviour) ----
   PERFORM pg_temp.t226_claims(v_agent);
@@ -227,6 +228,13 @@ BEGIN
   IF (SELECT status FROM remittance_calculator_entries WHERE id = v_eo) <> 'completed' THEN RAISE EXCEPTION 'case 10: the other account''s entry changed'; END IF;
   IF pg_temp.t226_side(v_acc) <> v_side THEN RAISE EXCEPTION 'case 10: side effects found'; END IF;
   RAISE NOTICE 'PASS 10: other account untouched, no messages / outbox / notifications';
+
+  -- ---- 11. (228) an admin deletes a manual entry: a durable void, like a chat-fed one ----
+  IF pg_temp.t226_del(v_admin, v_em) <> 'ok' THEN RAISE EXCEPTION 'case 11: an admin must be able to delete a manual entry'; END IF;
+  IF (SELECT status || coalesce(deleted_at::text, '') FROM remittance_calculator_entries WHERE id = v_em) NOT LIKE 'void%'
+     OR (SELECT deleted_by FROM remittance_calculator_entries WHERE id = v_em) IS DISTINCT FROM v_admin THEN
+    RAISE EXCEPTION 'case 11: the manual entry must be a deleted void'; END IF;
+  RAISE NOTICE 'PASS 11: a manual entry can be deleted by an admin (durable void)';
 
   RAISE NOTICE 'calculator-entry-delete: ALL PASS';
 END $$;

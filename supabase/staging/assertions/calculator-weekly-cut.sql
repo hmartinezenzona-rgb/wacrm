@@ -5,8 +5,8 @@
 -- kept). Each passing case NOTICEs. Runs on staging (production after the owner's go-ahead). Builds its own data.
 --
 -- odd/tasks/calculator-delete-and-weekly-clear.md (T2). crm_cerrar_semana_calculadora archives the Calculator week (the
--- manual text and period label the client holds, the manual totals the client computed, the chat totals computed here
--- from the entries shown, a snapshot of those entries), records the cut and empties the manual document. The Calculator
+-- manual text and period label the client holds, the chat and manual totals computed here from the entries shown (228:
+-- no manual totals from the client any more), a snapshot of those entries), records the cut and empties the manual document. The Calculator
 -- reads calculator_current_entries (a view): no completed entry that was archived, every pending one, every entry
 -- completed after the cut. Nothing in remittance_calculator_entries changes, so Finanzas, the dashboard and the closes
 -- give EXACTLY the same numbers before and after.
@@ -37,11 +37,11 @@ CREATE FUNCTION pg_temp.t227_side(p_acc uuid) RETURNS bigint LANGUAGE sql AS $f$
        + (SELECT count(*) FROM notifications n WHERE n.account_id = p_acc);
 $f$;
 
-CREATE FUNCTION pg_temp.t227_cut(p_uid uuid, p_acc uuid, p_text text, p_period text, p_f numeric, p_i numeric, p_r numeric)
+CREATE FUNCTION pg_temp.t227_cut(p_uid uuid, p_acc uuid, p_text text, p_period text)
 RETURNS text LANGUAGE plpgsql AS $f$
 BEGIN
   PERFORM pg_temp.t227_claims(p_uid);
-  PERFORM crm_cerrar_semana_calculadora(p_acc, p_text, p_period, p_f, p_i, p_r);
+  PERFORM crm_cerrar_semana_calculadora(p_acc, p_text, p_period);
   PERFORM pg_temp.t227_claims(NULL);
   RETURN 'ok';
 EXCEPTION WHEN OTHERS THEN
@@ -128,14 +128,15 @@ BEGIN
   v_side := pg_temp.t227_side(v_acc);
 
   -- ---- 2. the cut archives and empties ----
-  v_res := pg_temp.t227_cut(v_agent, v_acc, '5 zelle 100', 'Semana 1', 1300.5, 1200, 100.5);
+  v_res := pg_temp.t227_cut(v_agent, v_acc, '5 zelle 100', 'Semana 1');
   IF v_res <> 'ok' THEN RAISE EXCEPTION 'case 2: the agent cut failed with %', v_res; END IF;
   SELECT * INTO v_w FROM remittance_calculator_weeks WHERE account_id = v_acc;
   IF v_w.raw_text <> '5 zelle 100' OR v_w.period_label <> 'Semana 1' OR v_w.cut_by IS DISTINCT FROM v_agent OR v_w.cut_at IS NULL THEN
     RAISE EXCEPTION 'case 2: the archived week lost the text / period / author: % / % / %', v_w.raw_text, v_w.period_label, v_w.cut_by; END IF;
-  IF (v_w.manual_totals ->> 'facturado_gyd')::numeric <> 1300.5 OR (v_w.manual_totals ->> 'invertido_gyd')::numeric <> 1200
-     OR (v_w.manual_totals ->> 'retorno_gyd')::numeric <> 100.5 THEN
-    RAISE EXCEPTION 'case 2: the manual totals must be stored as sent, got %', v_w.manual_totals; END IF;
+  -- (228) the manual totals are computed here from the account's manual entries (none in this fixture), no longer sent by the client
+  IF (v_w.manual_totals ->> 'count')::int <> 0 OR (v_w.manual_totals ->> 'facturado_gyd')::numeric <> 0 OR (v_w.manual_totals ->> 'invertido_gyd')::numeric <> 0
+     OR (v_w.manual_totals ->> 'retorno_gyd')::numeric <> 0 THEN
+    RAISE EXCEPTION 'case 2: with no manual entries the manual totals must be zero, got %', v_w.manual_totals; END IF;
   IF (v_w.chat_totals ->> 'count')::int <> 2
      OR (v_w.chat_totals ->> 'facturado_gyd')::numeric <> (SELECT sum(facturado_gyd) FROM remittance_calculator_entries WHERE id IN (v_e1, v_e2))
      OR (v_w.chat_totals ->> 'invertido_gyd')::numeric <> (SELECT sum(invertido_gyd) FROM remittance_calculator_entries WHERE id IN (v_e1, v_e2))
@@ -198,19 +199,18 @@ BEGIN
   RAISE NOTICE 'PASS 5: an account member reads the archive (list and one week), another account does not, clients cannot write it';
 
   -- ---- 6. roles ----
-  IF pg_temp.t227_cut(v_viewer, v_acc, 'x', 'y', 0, 0, 0) <> '42501' THEN RAISE EXCEPTION 'case 6: a viewer must be refused (42501)'; END IF;
-  IF pg_temp.t227_cut(v_other, v_acc, 'x', 'y', 0, 0, 0) <> '42501' THEN RAISE EXCEPTION 'case 6: another account''s admin must be refused (42501)'; END IF;
-  IF pg_temp.t227_cut(NULL, v_acc, 'x', 'y', 0, 0, 0) <> '42501' THEN RAISE EXCEPTION 'case 6: no session must be refused (42501)'; END IF;
-  IF pg_temp.t227_cut(v_agent, NULL, 'x', 'y', 0, 0, 0) <> '22023' THEN RAISE EXCEPTION 'case 6: a missing account must be refused (22023)'; END IF;
-  IF pg_temp.t227_cut(v_agent, v_acc, NULL, 'y', 0, 0, 0) <> '22023' OR pg_temp.t227_cut(v_agent, v_acc, 'x', NULL, 0, 0, 0) <> '22023'
-     OR pg_temp.t227_cut(v_agent, v_acc, 'x', 'y', NULL, 0, 0) <> '22023' OR pg_temp.t227_cut(v_agent, v_acc, 'x', 'y', 0, 1e15, 0) <> '22023' THEN
-    RAISE EXCEPTION 'case 6: a missing text / period or a missing / out-of-range manual total must be refused (22023)'; END IF;
-  IF has_function_privilege('anon', 'crm_cerrar_semana_calculadora(uuid,text,text,numeric,numeric,numeric)', 'execute') THEN RAISE EXCEPTION 'case 6: anon must not execute the cut'; END IF;
+  IF pg_temp.t227_cut(v_viewer, v_acc, 'x', 'y') <> '42501' THEN RAISE EXCEPTION 'case 6: a viewer must be refused (42501)'; END IF;
+  IF pg_temp.t227_cut(v_other, v_acc, 'x', 'y') <> '42501' THEN RAISE EXCEPTION 'case 6: another account''s admin must be refused (42501)'; END IF;
+  IF pg_temp.t227_cut(NULL, v_acc, 'x', 'y') <> '42501' THEN RAISE EXCEPTION 'case 6: no session must be refused (42501)'; END IF;
+  IF pg_temp.t227_cut(v_agent, NULL, 'x', 'y') <> '22023' THEN RAISE EXCEPTION 'case 6: a missing account must be refused (22023)'; END IF;
+  IF pg_temp.t227_cut(v_agent, v_acc, NULL, 'y') <> '22023' OR pg_temp.t227_cut(v_agent, v_acc, 'x', NULL) <> '22023' THEN
+    RAISE EXCEPTION 'case 6: a missing text or period must be refused (22023)'; END IF;
+  IF has_function_privilege('anon', 'crm_cerrar_semana_calculadora(uuid,text,text)', 'execute') THEN RAISE EXCEPTION 'case 6: anon must not execute the cut'; END IF;
   IF (SELECT count(*) FROM remittance_calculator_weeks WHERE account_id = v_acc) <> 1 THEN RAISE EXCEPTION 'case 6: a refused cut recorded a week'; END IF;
   RAISE NOTICE 'PASS 6: agent+ can cut; viewer, other account, no session refused; bad input refused; anon cannot execute';
 
   -- ---- 7. two cuts in a row: the second archive has only what came after the first ----
-  v_res := pg_temp.t227_cut(v_admin, v_acc, 'second week', 'Semana 2', 0, 0, 0);
+  v_res := pg_temp.t227_cut(v_admin, v_acc, 'second week', 'Semana 2');
   IF v_res <> 'ok' THEN RAISE EXCEPTION 'case 7: the second cut failed with %', v_res; END IF;
   SELECT * INTO v_w2 FROM remittance_calculator_weeks WHERE account_id = v_acc ORDER BY cut_at DESC LIMIT 1;
   IF v_w2.raw_text <> 'second week' OR v_w2.cut_at <= v_cut1 THEN RAISE EXCEPTION 'case 7: the second week must be the latest'; END IF;

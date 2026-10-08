@@ -13,8 +13,9 @@
 --            pending row cannot hold non-null facturado/invertido).
 --   case 3 — a non-admin (agent) is refused (42501).
 --   case 4 — a VOID'd entry is refused (22023), with a clear error.
---   case 5 — a MANUAL weekly-log entry (source='manual') is refused
---            (22023), with a clear error naming why.
+--   case 5 — a MANUAL entry (source='manual') is corrected like a chat-fed
+--            one (228; it used to be refused with 22023): the three figures
+--            change, retorno recomputes, and the row stays 'manual'.
 --   case 6 — a non-existent entry id is refused (P0002).
 --   case 7 — every correction leaves exactly one 'human_calculator_correction'
 --            audit row with sensible before/after values.
@@ -242,22 +243,23 @@ BEGIN
   END;
 
   -- ===========================================================================
-  -- CASE 5 — a MANUAL weekly-log entry is refused.
+  -- CASE 5 — a MANUAL entry is corrected like a chat-fed one (228).
   -- ===========================================================================
   BEGIN
     PERFORM set_config('request.jwt.claims', v_admin_claims, true);
-    PERFORM crm_corregir_entrada_calculadora(v_entry_manual, 1, 1);
+    PERFORM crm_corregir_entrada_calculadora(v_entry_manual, 14000, 12500);
     PERFORM set_config('request.jwt.claims', '', true);
-    v_fail_count := v_fail_count + 1;
-    RAISE WARNING 'FAIL [case 5] expected 22023 for correcting a manual weekly-log entry';
-  EXCEPTION WHEN OTHERS THEN
-    PERFORM set_config('request.jwt.claims', '', true);
-    IF SQLSTATE = '22023' THEN
-      RAISE NOTICE 'PASS [case 5] a manual weekly-log entry cannot be corrected here (%)', SQLERRM;
+    IF (SELECT facturado_gyd = 14000 AND invertido_gyd = 12500 AND retorno_gyd = 1500 AND status = 'completed' AND source = 'manual'
+          FROM remittance_calculator_entries WHERE id = v_entry_manual) THEN
+      RAISE NOTICE 'PASS [case 5] a manual entry is corrected here (figures change, retorno recomputed, still manual)';
     ELSE
       v_fail_count := v_fail_count + 1;
-      RAISE WARNING 'FAIL [case 5] expected SQLSTATE 22023, got % (%)', SQLSTATE, SQLERRM;
+      RAISE WARNING 'FAIL [case 5] the manual entry was not corrected as expected';
     END IF;
+  EXCEPTION WHEN OTHERS THEN
+    PERFORM set_config('request.jwt.claims', '', true);
+    v_fail_count := v_fail_count + 1;
+    RAISE WARNING 'FAIL [case 5] correcting a manual entry failed: % (%)', SQLSTATE, SQLERRM;
   END;
 
   -- ===========================================================================

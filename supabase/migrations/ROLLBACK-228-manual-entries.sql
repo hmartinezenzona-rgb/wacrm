@@ -1,17 +1,237 @@
--- ROLLBACK of 228_manual_entries.sql: drops crm_sincronizar_entradas_manuales, restores crm_cierre_financiero and
--- remittance_calculator_entries_lock_completed to their exact pre-228 definitions, drops the line_position / raw_line columns.
--- It refuses (and changes nothing) when a manual entry exists: the manual lines (and the Finanzas numbers they feed) would be
--- lost, and the pre-228 guard would let a raw DELETE touch no manual row only because none exist. Export or keep them first.
+-- ROLLBACK of 228_manual_entries.sql (manual operations as ledger entries): restores the pre-228 definitions exactly and drops
+-- crm_registrar_entradas_manuales and the raw_line column.
+-- It refuses (and changes nothing) when a manual entry exists, void or not: the manual operations (and the Finanzas numbers they
+-- feed) would be lost, and the pre-228 guard and void_shape_chk would no longer describe them. Export or keep them first.
 -- Pre-228 md5 (pg_get_functiondef, staging 2026-10-07; restoring must give the same): crm_cierre_financiero
--- b8ea2475a1b89d60c8414d0c381b176c; remittance_calculator_entries_lock_completed c7c9bd08970ad9dba404ce1b650e045b.
+-- b8ea2475a1b89d60c8414d0c381b176c; remittance_calculator_entries_lock_completed c7c9bd08970ad9dba404ce1b650e045b;
+-- crm_cerrar_semana_calculadora 3a046742358202ef4f259be9aba142d8; crm_corregir_entrada_calculadora
+-- dfbd1eb1eec481d9f852b01c143e14f7; crm_eliminar_entrada_calculadora 81ef8a23d752c077a6ee9a0c988b7c8a; calculator_current_entries
+-- (md5 of pg_get_viewdef) f7cc9fe7ef434d9009e27502941f32d6; audit action CHECK (md5 of pg_get_constraintdef)
+-- 5b3ffc19c3658c9e0c55a724e27be369.
+-- Weeks archived after 228 keep their stored jsonb (their entries carry a 'source' key and a null operation_id for manual ones);
+-- the pre-228 cut and the pre-228 page ignore both.
 DO $guard$
 BEGIN
   IF EXISTS (SELECT 1 FROM remittance_calculator_entries WHERE source = 'manual') THEN
     RAISE EXCEPTION 'rollback 228 refused: manual calculator entries exist';
   END IF;
+  IF EXISTS (SELECT 1 FROM remittance_admin_audit WHERE action = 'human_calculator_manual_added') THEN
+    RAISE EXCEPTION 'rollback 228 refused: audit rows of manual additions exist';
+  END IF;
 END $guard$;
 
-DROP FUNCTION IF EXISTS public.crm_sincronizar_entradas_manuales(uuid, jsonb);
+DROP FUNCTION IF EXISTS public.crm_registrar_entradas_manuales(uuid, jsonb);
+DROP FUNCTION IF EXISTS public.crm_cerrar_semana_calculadora(uuid, text, text);
+
+-- The pre-228 corrector, deleter and weekly cut (6 arguments), as they were on staging.
+CREATE OR REPLACE FUNCTION public.crm_corregir_entrada_calculadora(p_entry_id uuid, p_facturado_gyd numeric, p_invertido_gyd numeric)
+ RETURNS remittance_calculator_entries
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_entry  remittance_calculator_entries;
+  v_before jsonb;
+BEGIN
+  SELECT * INTO v_entry FROM remittance_calculator_entries WHERE id = p_entry_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'ledger entry not found' USING ERRCODE = 'P0002';
+  END IF;
+
+  IF NOT is_account_member(v_entry.account_id, 'admin'::account_role_enum) THEN
+    RAISE EXCEPTION 'not authorized to correct calculator entries' USING ERRCODE = '42501';
+  END IF;
+
+  IF v_entry.source <> 'completed_operation' THEN
+    RAISE EXCEPTION 'only a chat-fed entry can be corrected here' USING ERRCODE = '22023';
+  END IF;
+
+  IF v_entry.status NOT IN ('completed', 'verified_pending') THEN
+    RAISE EXCEPTION 'entry is % and cannot be corrected here', v_entry.status USING ERRCODE = '22023';
+  END IF;
+
+  IF p_facturado_gyd IS NULL OR p_facturado_gyd < 0 OR p_facturado_gyd >= 1e15 THEN
+    RAISE EXCEPTION 'facturado_gyd must be zero or greater' USING ERRCODE = '22023';
+  END IF;
+
+  IF p_invertido_gyd IS NULL OR p_invertido_gyd < 0 OR p_invertido_gyd >= 1e15 THEN
+    RAISE EXCEPTION 'invertido_gyd must be zero or greater' USING ERRCODE = '22023';
+  END IF;
+
+  v_before := to_jsonb(v_entry);
+
+  -- Open the append-only guard's narrow hole for exactly this UPDATE.
+  PERFORM set_config('wacrm.calculator_correction', 'true', true);
+
+  UPDATE remittance_calculator_entries
+     SET facturado_gyd  = p_facturado_gyd,
+         invertido_gyd  = p_invertido_gyd,
+         retorno_gyd    = p_facturado_gyd - p_invertido_gyd,
+         status         = 'completed',
+         missing_inputs = NULL
+   WHERE id = p_entry_id
+  RETURNING * INTO v_entry;
+
+  PERFORM set_config('wacrm.calculator_correction', '', true);
+
+  INSERT INTO remittance_admin_audit (account_id, table_name, row_id, field_name, action, actor, before, after)
+  VALUES (v_entry.account_id, 'remittance_calculator_entries', v_entry.id,
+          'facturado_gyd,invertido_gyd,retorno_gyd,status', 'human_calculator_correction',
+          wacrm_current_actor(), v_before, to_jsonb(v_entry));
+
+  RETURN v_entry;
+END;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.crm_eliminar_entrada_calculadora(p_entry_id uuid)
+ RETURNS remittance_calculator_entries
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_entry  remittance_calculator_entries;
+  v_before jsonb;
+  v_actor  text;
+BEGIN
+  SELECT * INTO v_entry FROM remittance_calculator_entries WHERE id = p_entry_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'ledger entry not found' USING ERRCODE = 'P0002';
+  END IF;
+
+  IF NOT is_account_member(v_entry.account_id, 'admin'::account_role_enum) THEN
+    RAISE EXCEPTION 'not authorized to delete calculator entries' USING ERRCODE = '42501';
+  END IF;
+
+  IF v_entry.source <> 'completed_operation' THEN
+    RAISE EXCEPTION 'only a chat-fed entry can be deleted here' USING ERRCODE = '22023';
+  END IF;
+
+  IF v_entry.status NOT IN ('completed', 'verified_pending') THEN
+    RAISE EXCEPTION 'entry is % and cannot be deleted', v_entry.status USING ERRCODE = '22023';
+  END IF;
+
+  v_before := to_jsonb(v_entry);
+  v_actor  := wacrm_current_actor();
+
+  -- completed -> void keeps every figure (the append-only guard checks it); the deletion marker is not a figure.
+  UPDATE remittance_calculator_entries
+     SET status      = 'void',
+         voided_at   = clock_timestamp(),
+         void_reason = 'deleted by ' || coalesce(v_actor, 'unknown'),
+         deleted_at  = clock_timestamp(),
+         deleted_by  = auth.uid()
+   WHERE id = p_entry_id
+  RETURNING * INTO v_entry;
+
+  INSERT INTO remittance_admin_audit (account_id, table_name, row_id, field_name, action, actor, before, after)
+  VALUES (v_entry.account_id, 'remittance_calculator_entries', v_entry.id, 'status,deleted_at',
+          'human_calculator_entry_deleted', v_actor, v_before, to_jsonb(v_entry));
+
+  RETURN v_entry;
+END;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.crm_cerrar_semana_calculadora(p_account_id uuid, p_raw_text text, p_period_label text, p_manual_facturado numeric, p_manual_invertido numeric, p_manual_retorno numeric)
+ RETURNS remittance_calculator_weeks
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_week    remittance_calculator_weeks;
+  v_ids     uuid[];
+  v_entries jsonb;
+  v_totals  jsonb;
+BEGIN
+  IF p_account_id IS NULL THEN
+    RAISE EXCEPTION 'account_id is required' USING ERRCODE = '22023';
+  END IF;
+
+  IF NOT is_account_member(p_account_id, 'agent') THEN
+    RAISE EXCEPTION 'not authorized to clear the calculator' USING ERRCODE = '42501';
+  END IF;
+
+  IF p_raw_text IS NULL OR p_period_label IS NULL THEN
+    RAISE EXCEPTION 'raw_text and period_label are required' USING ERRCODE = '22023';
+  END IF;
+
+  IF p_manual_facturado IS NULL OR p_manual_invertido IS NULL OR p_manual_retorno IS NULL
+     OR abs(p_manual_facturado) >= 1e15 OR abs(p_manual_invertido) >= 1e15 OR abs(p_manual_retorno) >= 1e15 THEN
+    RAISE EXCEPTION 'the manual totals are required and must be below 1e15' USING ERRCODE = '22023';
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtextextended('calculator-cut:' || p_account_id::text, 0));
+
+  -- The entries shown: completed, not void, not archived by an earlier cut. A pending line is never archived.
+  SELECT coalesce(array_agg(c.id ORDER BY c.entry_date, c.created_at, c.id), ARRAY[]::uuid[]),
+         coalesce(jsonb_agg(jsonb_build_object(
+           'id', c.id, 'operation_id', c.operation_id, 'service', c.service, 'customer_name', c.customer_name,
+           'amount', c.amount, 'amount_currency', c.amount_currency, 'entry_date', c.entry_date,
+           'facturado_gyd', c.facturado_gyd, 'invertido_gyd', c.invertido_gyd, 'retorno_gyd', c.retorno_gyd)
+           ORDER BY c.entry_date, c.created_at, c.id), '[]'::jsonb),
+         jsonb_build_object('count', count(*),
+                            'facturado_gyd', coalesce(sum(c.facturado_gyd), 0),
+                            'invertido_gyd', coalesce(sum(c.invertido_gyd), 0),
+                            'retorno_gyd',   coalesce(sum(c.retorno_gyd), 0))
+    INTO v_ids, v_entries, v_totals
+    FROM calculator_current_entries c
+   WHERE c.account_id = p_account_id AND c.status = 'completed';
+
+  INSERT INTO remittance_calculator_weeks (account_id, cut_by, raw_text, period_label, manual_totals, chat_totals, entries)
+  VALUES (p_account_id, auth.uid(), p_raw_text, p_period_label,
+          jsonb_build_object('facturado_gyd', p_manual_facturado, 'invertido_gyd', p_manual_invertido, 'retorno_gyd', p_manual_retorno),
+          v_totals, v_entries)
+  RETURNING * INTO v_week;
+
+  INSERT INTO remittance_calculator_week_entries (entry_id, week_id, account_id)
+  SELECT id, v_week.id, p_account_id FROM unnest(v_ids) AS id;
+
+  INSERT INTO remittance_calculator_documents (account_id, raw_text, period_label, updated_by, updated_at)
+  VALUES (p_account_id, '', '', auth.uid(), clock_timestamp())
+  ON CONFLICT (account_id) DO UPDATE
+    SET raw_text     = '',
+        period_label = '',
+        updated_by   = EXCLUDED.updated_by,
+        updated_at   = EXCLUDED.updated_at;
+
+  RETURN v_week;
+END;
+$function$
+;
+
+REVOKE ALL ON FUNCTION public.crm_cerrar_semana_calculadora(uuid, text, text, numeric, numeric, numeric) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.crm_cerrar_semana_calculadora(uuid, text, text, numeric, numeric, numeric) TO authenticated, service_role;
+
+DROP VIEW IF EXISTS public.calculator_current_entries;
+ALTER TABLE remittance_calculator_entries DROP COLUMN IF EXISTS raw_line;
+CREATE VIEW public.calculator_current_entries WITH (security_invoker = true) AS
+ SELECT e.*
+   FROM remittance_calculator_entries e
+  WHERE e.source = 'completed_operation'
+    AND e.status <> 'void'
+    AND NOT EXISTS (SELECT 1 FROM remittance_calculator_week_entries we WHERE we.entry_id = e.id);
+REVOKE ALL ON public.calculator_current_entries FROM PUBLIC, anon;
+GRANT SELECT ON public.calculator_current_entries TO authenticated, service_role;
+
+ALTER TABLE remittance_calculator_entries DROP CONSTRAINT remittance_calculator_entries_void_shape_chk;
+ALTER TABLE remittance_calculator_entries ADD CONSTRAINT remittance_calculator_entries_void_shape_chk
+  CHECK (status <> 'void' OR (voided_at IS NOT NULL AND operation_id IS NOT NULL));
+
+ALTER TABLE remittance_calculator_entries DROP CONSTRAINT remittance_calculator_entries_source_shape_chk;
+ALTER TABLE remittance_calculator_entries ADD CONSTRAINT remittance_calculator_entries_source_shape_chk
+  CHECK ((source = 'manual' AND operation_id IS NULL AND status = 'completed')
+         OR (source = 'completed_operation' AND operation_id IS NOT NULL));
+
+ALTER TABLE remittance_admin_audit DROP CONSTRAINT remittance_admin_audit_action_chk;
+ALTER TABLE remittance_admin_audit ADD CONSTRAINT remittance_admin_audit_action_chk CHECK (action = ANY (ARRAY[
+  'automation_write_suppressed', 'automation_completion_suppressed', 'automation_revert_suppressed', 'human_correction',
+  'human_reassignment', 'human_deposit_verification', 'human_forced_verification', 'human_delivery', 'calculator_feed_failed',
+  'calculator_pending_resolved', 'human_beneficiary_added', 'automation_reparto_registered', 'human_calculator_correction',
+  'automation_cash_delivery_data_registered', 'automation_late_deposit_verification', 'human_manual_close',
+  'human_operation_deleted', 'automation_recharge_numbers_registered', 'automation_combo_recipient_registered',
+  'human_combo_cost_set', 'automation_visa_registered', 'human_calculator_entry_deleted']));
 
 CREATE OR REPLACE FUNCTION public.remittance_calculator_entries_lock_completed()
  RETURNS trigger
@@ -284,4 +504,3 @@ BEGIN
 END;
 $function$;
 
-ALTER TABLE remittance_calculator_entries DROP COLUMN IF EXISTS line_position, DROP COLUMN IF EXISTS raw_line;

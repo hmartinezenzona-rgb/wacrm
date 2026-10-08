@@ -248,3 +248,5 @@ Rehearsal (staging account 472917ed, owner feeccc91): the list went through crm_
 
 ## Next step
 T2c: build and deploy this release to staging (owner-authorised path) and ask for his look at the Calculator (one table with Registrar), /resumen and the dashboard.
+
+- Staging deploy (release 8fb2b6d, BUILD_ID tSS8ThRJRzCy1beEsy9Wl, app commit d558c29): manifest environment=staging, 0 production refs, 32 staging refs, 114 build tests passed, pm2 cwd = new release, /login 200 with "Bienvenido de nuevo", Calculator chunk `_next/static/chunks/0k5xnzh_c9p-l.js` served by crm.onlinefreedom.site identical to the build (has "Registrar" and "🔗 Operaciones", no "Auditoría de Operaciones por Día"), restarts stable at 80. Rollback: anterior -> 75e3a2c. T2b look pending (owner).

@@ -25,6 +25,15 @@ vi.mock("@/lib/remittance-operations/commands", () => ({
 }));
 
 // The app's Select (Base UI) hangs under jsdom; a native double keeps the value/onValueChange contract.
+// The picker owns its dialog and fetch (id-photo-picker.test.tsx); here it is a button that "chooses" a fixed image.
+vi.mock("./id-photo-picker", () => ({
+  IdPhotoPicker: ({ conversationId, label, onPick }: { conversationId: string; selectedWamid: string | null; label: string; onPick: (wamid: string) => void }) => (
+    <button type="button" data-testid="id-photo-picker" data-conversation={conversationId} onClick={() => onPick("wamid.CHOSEN")}>
+      {label}
+    </button>
+  ),
+}));
+
 vi.mock("@/components/ui/select", () => ({
   Select: ({ id, value, disabled, onValueChange, children }: {
     id?: string; value?: string; disabled?: boolean; onValueChange?: (value: string) => void; children?: React.ReactNode;
@@ -70,13 +79,14 @@ async function render(
   serviceType?: string,
   service?: OperationService | null,
   quote?: { amount: number; currency: string } | null,
+  conversationId?: string,
 ) {
   const { BeneficiaryAddControl } = await import("./beneficiary-add-control");
   const node = document.createElement("div");
   document.body.appendChild(node);
   const root = createRoot(node);
   await act(async () =>
-    root.render(<BeneficiaryAddControl operationId="op-1" serviceType={serviceType} service={service} quote={quote} onDone={onDone} onCancel={onCancel} />),
+    root.render(<BeneficiaryAddControl operationId="op-1" conversationId={conversationId} serviceType={serviceType} service={service} quote={quote} onDone={onDone} onCancel={onCancel} />),
   );
   return { node, root, onDone, onCancel };
 }
@@ -517,7 +527,7 @@ describe("BeneficiaryAddControl follows the operation's service", () => {
     for (const id of ["card-number", "zelle-account", "amount", "currency"]) {
       expect(node.querySelector(`#add-beneficiary-${id}`), id).toBeNull();
     }
-    expect(node.textContent).toContain(en.Inbox.operationsPanel.cashIdPhotoHint);
+    expect(node.textContent).not.toContain("cashIdPhotoHint");
     await act(async () => root.unmount());
   });
 
@@ -585,6 +595,52 @@ describe("BeneficiaryAddControl follows the operation's service", () => {
     });
     expect(onDone).toHaveBeenCalled();
     await act(async () => root.unmount());
+  });
+
+  it("offers the ID photo picker on a cash recipient when the conversation is known, and sends the chosen wamid", async () => {
+    agregarBeneficiario.mockReset();
+    agregarBeneficiario.mockResolvedValue({ ok: true, id: "ben-23", complete: true });
+    const { node, root } = await render(vi.fn(), vi.fn(), "remesa", "efectivo_usd", null, "conv-7");
+
+    const picker = node.querySelector<HTMLButtonElement>('[data-testid="id-photo-picker"]')!;
+    expect(picker.textContent).toBe(en.Inbox.operationsPanel.idPhotoPick);
+    expect(picker.dataset.conversation).toBe("conv-7");
+    expect(node.textContent).toContain(en.Inbox.operationsPanel.idPhotoMissing);
+
+    await fill(node, { phone: "52123456", address: "Calle 1" });
+    await act(async () => picker.click());
+    expect(node.textContent).toContain(en.Inbox.operationsPanel.idPhotoChosen);
+    await submit(node);
+
+    expect(agregarBeneficiario).toHaveBeenCalledWith("op-1", {
+      beneficiary_type: "efectivo_usd",
+      phone: "52123456",
+      address: "Calle 1",
+      id_photo_wamid: "wamid.CHOSEN",
+    });
+    await act(async () => root.unmount());
+  });
+
+  it("without a chosen photo no id_photo_wamid key is sent; without a conversation no picker is offered", async () => {
+    agregarBeneficiario.mockReset();
+    agregarBeneficiario.mockResolvedValue({ ok: true, id: "ben-24", complete: false });
+    const withConversation = await render(vi.fn(), vi.fn(), "remesa", "efectivo_usd", null, "conv-7");
+    await fill(withConversation.node, { phone: "52123456", address: "Calle 1" });
+    await submit(withConversation.node);
+    expect(agregarBeneficiario.mock.calls[0][1]).not.toHaveProperty("id_photo_wamid");
+    await act(async () => withConversation.root.unmount());
+
+    const without = await render(vi.fn(), vi.fn(), "remesa", "efectivo_usd");
+    expect(without.node.querySelector('[data-testid="id-photo-picker"]')).toBeNull();
+    await act(async () => without.root.unmount());
+  });
+
+  it("the other recipient types never offer the picker", async () => {
+    for (const service of ["zelle", "cuban_card"] as const) {
+      const { node, root } = await render(vi.fn(), vi.fn(), "remesa", service, null, "conv-7");
+      expect(node.querySelector('[data-testid="id-photo-picker"]'), service).toBeNull();
+      await act(async () => root.unmount());
+    }
   });
 
   it("leaves the name out when it is empty (it is optional)", async () => {

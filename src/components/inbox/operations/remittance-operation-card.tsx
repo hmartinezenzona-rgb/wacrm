@@ -3,7 +3,7 @@
 import { useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useServiceName } from "@/hooks/use-service-name";
-import { ArrowRightLeft, AtSign, Banknote, ChevronDown, CreditCard, IdCard, Lock, MapPin, Pencil, Phone, Trash2, UserPlus, UserRound, Users } from "lucide-react";
+import { ArrowRightLeft, AtSign, Banknote, ChevronDown, CreditCard, Lock, MapPin, Pencil, Phone, Trash2, UserPlus, UserRound, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { canForceVerify, type AccountRole } from "@/lib/auth/roles";
 import { corregirBeneficiario } from "@/lib/remittance-operations/commands";
@@ -18,6 +18,7 @@ import type {
 } from "@/lib/remittance-operations/types";
 import { OperationCorrectionForm } from "./operation-correction-form";
 import { BeneficiaryAddControl } from "./beneficiary-add-control";
+import { BeneficiaryIdPhoto, IdPhotoFormRow } from "./beneficiary-id-photo";
 import { BeneficiaryReassignControl } from "./beneficiary-reassign-control";
 import { ComboBeneficiaryEditFields } from "./combo-beneficiary-edit-fields";
 import { ComboCostField } from "./combo-cost-field";
@@ -608,6 +609,7 @@ export function RemittanceOperationCard({
               <div className="mt-1.5">
                 <BeneficiaryAddControl
                   operationId={operation.id}
+                  conversationId={conversationId}
                   serviceType={operation.serviceType}
                   service={currentServiceOf(operation)}
                   quote={
@@ -662,6 +664,7 @@ export function RemittanceOperationCard({
                       ) : isEditingBeneficiary ? (
                         <BeneficiaryEditFields
                           beneficiary={beneficiary}
+                          conversationId={conversationId}
                           amount={amount}
                           showAmountField={operation.beneficiaries.length >= 2 && amount !== null && !isPhoneOnly(operation)}
                           t={t as (key: string) => string}
@@ -760,23 +763,16 @@ export function RemittanceOperationCard({
                               ariaLabel={t("copyValue", { label: t("address") })}
                             />
                           )}
-                          {isCash &&
-                            (beneficiary.idPhotoUrl ? (
-                              <a
-                                href={beneficiary.idPhotoUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 px-2 text-xs font-medium text-primary underline-offset-2 hover:underline"
-                              >
-                                <IdCard className="size-3.5" aria-hidden="true" />
-                                {t("viewIdPhoto")}
-                              </a>
-                            ) : (
-                              <p className="flex items-center gap-2 px-2 text-xs text-amber-600 dark:text-amber-400">
-                                <IdCard className="size-3.5" aria-hidden="true" />
-                                {t("idPhotoMissing")}
-                              </p>
-                            ))}
+                          {isCash && (
+                            <BeneficiaryIdPhoto
+                              beneficiaryId={beneficiary.id}
+                              conversationId={conversationId}
+                              idPhotoWamid={beneficiary.idPhotoWamid}
+                              idPhotoUrl={beneficiary.idPhotoUrl}
+                              editable={editable}
+                              onChanged={handleChanged}
+                            />
+                          )}
                         </div>
                       )}
 
@@ -861,6 +857,7 @@ export function RemittanceOperationCard({
 
 interface BeneficiaryEditFieldsProps {
   beneficiary: RemittanceBeneficiaryRead;
+  conversationId: string;
   /** The resolved amount shown by the read-only view (see
    *  `resolveBeneficiaryAmount`); only editable via `showAmountField`. */
   amount: number | null;
@@ -880,7 +877,7 @@ interface BeneficiaryEditFieldsProps {
  * Beneficiary type, delivery method and currency are not editable here —
  * that stays on the (now-removed) stacked correction form's territory.
  */
-function BeneficiaryEditFields({ beneficiary, amount, showAmountField, t, onCancel, onSaved }: BeneficiaryEditFieldsProps) {
+function BeneficiaryEditFields({ beneficiary, conversationId, amount, showAmountField, t, onCancel, onSaved }: BeneficiaryEditFieldsProps) {
   const isZelle = beneficiary.beneficiaryType === "zelle";
   const isCash = beneficiary.beneficiaryType === "efectivo_usd";
   const isRecarga = beneficiary.beneficiaryType === "recarga";
@@ -897,6 +894,7 @@ function BeneficiaryEditFields({ beneficiary, amount, showAmountField, t, onCanc
   const [phone, setPhone] = useState(beneficiary.phone ?? "");
   const [address, setAddress] = useState(initialAddress);
   const [amountValue, setAmountValue] = useState(initialAmount);
+  const [photoWamid, setPhotoWamid] = useState<string | null>(beneficiary.idPhotoWamid);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -933,6 +931,9 @@ function BeneficiaryEditFields({ beneficiary, amount, showAmountField, t, onCanc
         }
         if (trimmedAddress !== "") changes.address = trimmedAddress;
       }
+
+      // The ID photo is chosen from the chat (migration 233): only a different choice is sent.
+      if (photoWamid !== null && photoWamid !== beneficiary.idPhotoWamid) changes.id_photo_wamid = photoWamid;
     } else if (isZelle) {
       const trimmedName = name.trim();
       if (trimmedName !== initialName) {
@@ -1071,7 +1072,7 @@ function BeneficiaryEditFields({ beneficiary, amount, showAmountField, t, onCanc
             ariaLabel={t("address")}
             disabled={pending}
           />
-          <p className="text-[11px] text-muted-foreground">{t("cashIdPhotoHint")}</p>
+          <IdPhotoFormRow conversationId={conversationId} value={photoWamid} disabled={pending} onChange={setPhotoWamid} />
         </>
       ) : isZelle ? (
         <>

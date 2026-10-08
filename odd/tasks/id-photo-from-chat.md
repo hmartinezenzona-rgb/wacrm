@@ -27,9 +27,9 @@ app = `npx vitest run <files>` (RED then GREEN), `npx tsc --noEmit`, `npx eslint
 
 ## Tasks
 - [x] P1 - Migration 233 (+ ROLLBACK) and staging assertion `id-photo-from-chat.sql`, RED then GREEN, rollback proof, related assertions.
-- [ ] P2 - API/command layer: PATCH key, chat-images route, command, tests.
-- [ ] P3 - Picker component and card / edit / add integration, strings es+en, tests.
-- [ ] P4 - Full suite, tsc, eslint, evidence.
+- [x] P2 - API/command layer: PATCH key, chat-images route, command, tests.
+- [x] P3 - Picker component and card / edit / add integration, strings es+en, tests.
+- [x] P4 - Full suite, tsc, eslint, evidence.
 
 ## Follow-up (privacy, NOT fixed here)
 `chat-media` is a PUBLIC bucket: ID-card photos are reachable by URL to anyone who has it (the URL carries a timestamp and a WhatsApp id, hard to guess but not secret).
@@ -45,3 +45,12 @@ documents to a private bucket at ingestion; (c) keep public and shorten exposure
   reparto-auto, panel-cash-recipient, panel-notify-and-cash-name, cash-delivery-rate, combo-edit, combo-model, panel-closing-actions, panel-recarga, recarga-model, visa-model: PASS.
   Failing identically WITHOUT 233 (deal-era fixtures): deals-free-views-and-inert-edits, history-readiness, delivery-feed-evidence.
 - Choice: null clears the photo on a correction (the RPC already clears card_number/phone/amount/currency with null); on add, null = none.
+
+## Evidence - P2-P4 app
+- API: PATCH beneficiary accepts `id_photo_wamid` (string or null, 400 otherwise); `GET /api/remittance-operations/chat-images?conversationId=` (viewer, beta flag,
+  42501 -> 403) over `crm_imagenes_de_conversacion`; `fetchChatImages` command. RED seen first (10 failing tests), then GREEN.
+- UI: `id-photo-picker.tsx` (trigger + Base UI Dialog, 3-column lazy thumbnails, time + sender, aria-pressed on the current one, keys stay inside the dialog),
+  `beneficiary-id-photo.tsx` (card row: Ver ID / missing note + picker that saves at once; `IdPhotoFormRow` for the edit and add forms, whose check sends the
+  choice). The note "La foto del carnet llega por el chat" (`cashIdPhotoHint`) was removed from both catalogs. Strings in es and en; parity test green.
+- Checks: `npx vitest run` full suite 186 files / 2497 tests passed; `npx tsc --noEmit` clean; `npx eslint` on the changed files clean.
+- Not done here: the production application of 232/233 and the app deploy (not authorised); the visual check in a real browser.

@@ -47,6 +47,19 @@ vi.mock("@/lib/remittance-operations/commands", () => ({
   agregarBeneficiario: vi.fn(),
 }));
 
+// The picker owns its dialog and its fetch (id-photo-picker.test.tsx); here it is a button that "chooses" a fixed image,
+// exposing the props the card passes down.
+vi.mock("./id-photo-picker", () => ({
+  IdPhotoPicker: ({ conversationId, selectedWamid, label, disabled, onPick }: {
+    conversationId: string; selectedWamid: string | null; label: string; disabled?: boolean; onPick: (wamid: string) => void;
+  }) => (
+    <button type="button" data-testid="id-photo-picker" data-conversation={conversationId} data-selected={selectedWamid ?? ""}
+      disabled={disabled} onClick={() => onPick("wamid.CHOSEN")}>
+      {label}
+    </button>
+  ),
+}));
+
 // BeneficiaryAddControl owns its own field-level behavior (covered by
 // beneficiary-add-control.test.tsx) — stubbed here so this file only
 // asserts on what the card passes down and how it toggles the control.
@@ -1040,6 +1053,59 @@ describe("RemittanceOperationCard", () => {
       await act(async () => root.unmount());
     });
 
+    const picker = (node: Element) => node.querySelector<HTMLButtonElement>('[data-testid="id-photo-picker"]');
+
+    it("with a photo: Ver ID stays and the picker changes it (marked with the current wamid, this conversation)", async () => {
+      const { node, root } = await render(cashOperation(), { conversationId: "conv-9" });
+
+      expect(Array.from(node.querySelectorAll("a")).some((a) => a.textContent === en.Inbox.operationsPanel.viewIdPhoto)).toBe(true);
+      expect(picker(node)!.textContent).toBe(en.Inbox.operationsPanel.idPhotoChange);
+      expect(picker(node)!.dataset.selected).toBe("wamid.ABC");
+      expect(picker(node)!.dataset.conversation).toBe("conv-9");
+      await act(async () => root.unmount());
+    });
+
+    it("without a photo: the missing note and a picker to choose it from the chat", async () => {
+      const { node, root } = await render(cashOperation({ idPhotoUrl: null, idPhotoWamid: null }));
+
+      expect(node.textContent).toContain(en.Inbox.operationsPanel.idPhotoMissing);
+      expect(picker(node)!.textContent).toBe(en.Inbox.operationsPanel.idPhotoPick);
+      expect(picker(node)!.dataset.selected).toBe("");
+      await act(async () => root.unmount());
+    });
+
+    it("choosing an image stores it on the recipient and refreshes the card", async () => {
+      corregirBeneficiario.mockReset();
+      corregirBeneficiario.mockResolvedValue({ ok: true, id: "n1" });
+      const { node, root, onChanged } = await render(cashOperation({ id: "ben-id", idPhotoUrl: null, idPhotoWamid: null }));
+
+      await act(async () => picker(node)!.click());
+
+      expect(corregirBeneficiario).toHaveBeenCalledWith("ben-id", { id_photo_wamid: "wamid.CHOSEN" });
+      expect(onChanged).toHaveBeenCalledTimes(1);
+      await act(async () => root.unmount());
+    });
+
+    it("a refused choice shows the error and does not refresh", async () => {
+      corregirBeneficiario.mockReset();
+      corregirBeneficiario.mockResolvedValue({ ok: false, status: 400, error: "id_photo_wamid must be the message id of an image of this conversation" });
+      const { node, root, onChanged } = await render(cashOperation({ idPhotoUrl: null, idPhotoWamid: null }));
+
+      await act(async () => picker(node)!.click());
+
+      expect(node.querySelector('[role="alert"]')?.textContent).toBe("id_photo_wamid must be the message id of an image of this conversation");
+      expect(onChanged).not.toHaveBeenCalled();
+      await act(async () => root.unmount());
+    });
+
+    it("a viewer (cannot edit) sees the note but no picker", async () => {
+      const { node, root } = await render(cashOperation({ idPhotoUrl: null, idPhotoWamid: null }), { canEdit: false, role: "viewer" });
+
+      expect(node.textContent).toContain(en.Inbox.operationsPanel.idPhotoMissing);
+      expect(picker(node)).toBeNull();
+      await act(async () => root.unmount());
+    });
+
     it("a cuban_card beneficiary shows no address or ID photo lines", async () => {
       const { node, root } = await render(
         operation({ beneficiaries: [beneficiary({ cardNumber: "9205123412349412", phone: "5350001111" })] }),
@@ -1714,14 +1780,14 @@ describe("RemittanceOperationCard", () => {
       await act(async () => root.unmount());
     });
 
-    it("cash: shows the ID photo note and prefilled name, phone and address", async () => {
+    it("cash: offers the ID photo picker and prefilled name, phone and address", async () => {
       const { node, root } = await openEdit({
         beneficiaryType: "efectivo_usd", name: "Maria", phone: "5926001111", address: "12 Main St",
       });
       expect(node.querySelector<HTMLInputElement>("#inline-name-ben-1")!.value).toBe("Maria");
       expect(node.querySelector<HTMLInputElement>("#inline-phone-ben-1")!.value).toBe("5926001111");
       expect(node.querySelector<HTMLInputElement>("#inline-address-ben-1")!.value).toBe("12 Main St");
-      expect(node.textContent).toContain(en.Inbox.operationsPanel.cashIdPhotoHint);
+      expect(node.querySelector('[data-testid="id-photo-picker"]')).not.toBeNull();
       await act(async () => root.unmount());
     });
 
@@ -1765,10 +1831,37 @@ describe("RemittanceOperationCard", () => {
       await act(async () => root.unmount());
     });
 
-    it("the other types show no address and no ID photo note", async () => {
+    it("cash: choosing a photo in the form is saved with the other changes, and only that key when nothing else changed", async () => {
+      corregirBeneficiario.mockClear();
+      corregirBeneficiario.mockResolvedValue({ ok: true, id: "n1" });
+      const { node, root } = await openEdit({
+        beneficiaryType: "efectivo_usd", name: "Maria", phone: "5926001111", address: "12 Main St", idPhotoWamid: null,
+      });
+      expect(node.textContent).toContain(en.Inbox.operationsPanel.idPhotoMissing);
+      await act(async () => node.querySelector<HTMLButtonElement>('[data-testid="id-photo-picker"]')!.click());
+      expect(corregirBeneficiario).not.toHaveBeenCalled();
+      expect(node.textContent).toContain(en.Inbox.operationsPanel.idPhotoChosen);
+      await save(node);
+      expect(corregirBeneficiario).toHaveBeenCalledWith("ben-1", { id_photo_wamid: "wamid.CHOSEN" });
+      await act(async () => root.unmount());
+    });
+
+    it("cash: an untouched photo is never sent", async () => {
+      corregirBeneficiario.mockClear();
+      corregirBeneficiario.mockResolvedValue({ ok: true, id: "n1" });
+      const { node, root } = await openEdit({
+        beneficiaryType: "efectivo_usd", name: "Maria", phone: "5926001111", address: "12 Main St", idPhotoWamid: "wamid.ABC",
+      });
+      await act(async () => setValue(node.querySelector<HTMLInputElement>("#inline-name-ben-1")!, "Maria L"));
+      await save(node);
+      expect(corregirBeneficiario).toHaveBeenCalledWith("ben-1", { name: "Maria L" });
+      await act(async () => root.unmount());
+    });
+
+    it("the other types show no address and no ID photo picker", async () => {
       const { node, root } = await openEdit({ beneficiaryType: "cuban_card", cardNumber: "9205123412349412" });
       expect(node.querySelector("#inline-address-ben-1")).toBeNull();
-      expect(node.textContent).not.toContain(en.Inbox.operationsPanel.cashIdPhotoHint);
+      expect(node.querySelector('[data-testid="id-photo-picker"]')).toBeNull();
       await act(async () => root.unmount());
     });
   });

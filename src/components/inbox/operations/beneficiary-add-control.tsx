@@ -6,11 +6,14 @@ import { useServiceName } from "@/hooks/use-service-name";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConfirmCancelButtons, cancelOnEscape } from "./confirm-cancel-buttons";
 import { EDIT_AREA, FieldRow, UNDERLINE_SELECT_TRIGGER, UnderlineInput } from "./edit-form-fields";
+import { IdPhotoFormRow } from "./beneficiary-id-photo";
 import { agregarBeneficiario } from "@/lib/remittance-operations/commands";
 import type { OperationService } from "@/lib/remittance-operations/services";
 
 interface BeneficiaryAddControlProps {
   operationId: string;
+  /** The operation's conversation. When given, a cash recipient can take its ID photo from that chat. */
+  conversationId?: string;
   /** `recarga` and `saldo` turn the form into a single Cuban-mobile-number field; `combo`
    *  into a recipient form (name, phone, address, reference, contact phone, amount). */
   serviceType?: string;
@@ -44,7 +47,7 @@ const ADDABLE_BENEFICIARY_TYPES: ReadonlyArray<string> = ["cuban_card", "zelle",
  * `datos` contract exactly (snake_case keys, amount as a number). Sends
  * only the fields the selected type needs.
  */
-export function BeneficiaryAddControl({ operationId, serviceType, service, quote, onDone, onCancel }: BeneficiaryAddControlProps) {
+export function BeneficiaryAddControl({ operationId, conversationId, serviceType, service, quote, onDone, onCancel }: BeneficiaryAddControlProps) {
   const t = useTranslations("Inbox.operationsPanel");
   const serviceName = useServiceName();
 
@@ -57,6 +60,7 @@ export function BeneficiaryAddControl({ operationId, serviceType, service, quote
   const [address, setAddress] = useState("");
   const [reference, setReference] = useState("");
   const [contactPhone, setContactPhone] = useState("");
+  const [photoWamid, setPhotoWamid] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -139,8 +143,8 @@ export function BeneficiaryAddControl({ operationId, serviceType, service, quote
     }
 
     if (isCash) {
-      // Name optional, phone and address required; the amount is calculated by the database and the ID photo comes
-      // from the chat (migration 225).
+      // Name optional, phone and address required; the amount is calculated by the database. The ID photo is optional
+      // and chosen from the chat (migrations 225, 233).
       const digitsPhone = phone.replace(/\D/g, "");
       if (!PHONE_PATTERN.test(digitsPhone)) {
         setError(t("invalidPhone"));
@@ -152,6 +156,7 @@ export function BeneficiaryAddControl({ operationId, serviceType, service, quote
       }
       const cashDatos: Record<string, unknown> = { beneficiary_type: "efectivo_usd", phone: digitsPhone, address: address.trim() };
       if (name.trim() !== "") cashDatos.name = name.trim();
+      if (photoWamid !== null) cashDatos.id_photo_wamid = photoWamid;
       setPending(true);
       const result = await agregarBeneficiario(operationId, cashDatos);
       setPending(false);
@@ -306,7 +311,7 @@ export function BeneficiaryAddControl({ operationId, serviceType, service, quote
         <FieldRow label={t("address")} htmlFor="add-beneficiary-address">
           <UnderlineInput id="add-beneficiary-address" value={address} onChange={(event) => setAddress(event.target.value)} />
         </FieldRow>
-        <p className="text-[11px] text-muted-foreground">{t("cashIdPhotoHint")}</p>
+        {conversationId && <IdPhotoFormRow conversationId={conversationId} value={photoWamid} disabled={pending} onChange={setPhotoWamid} />}
         {actions}
       </form>
     );

@@ -38,6 +38,28 @@
   --color-money-loss: var(--money-loss);
   --color-money-out: var(--money-out);
   --color-money-in: var(--money-in);
+  /* Status tones: text-status-* and bg-status-*-soft. Service dots: bg-service-*. Fixed, not the accent. */
+  --color-status-info: var(--status-info);
+  --color-status-info-soft: var(--status-info-soft);
+  --color-status-attention: var(--status-attention);
+  --color-status-attention-soft: var(--status-attention-soft);
+  --color-status-success: var(--status-success);
+  --color-status-success-soft: var(--status-success-soft);
+  --color-status-danger: var(--status-danger);
+  --color-status-danger-soft: var(--status-danger-soft);
+  --color-service-cup: var(--service-cup);
+  --color-service-zelle: var(--service-zelle);
+  --color-service-mlc: var(--service-mlc);
+  --color-service-tropical: var(--service-tropical);
+  --color-service-clasica: var(--service-clasica);
+  --color-service-usdt: var(--service-usdt);
+  --color-service-efectivo: var(--service-efectivo);
+  --color-service-recarga: var(--service-recarga);
+  --color-service-saldo: var(--service-saldo);
+  --color-service-directo: var(--service-directo);
+  --color-service-remesa: var(--service-remesa);
+  --color-service-visa: var(--service-visa);
+  --color-service-other: var(--service-other);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -124,6 +146,31 @@ html[data-mode="dark"] {
   --money-loss: oklch(0.72 0.17 25);
   --money-out: oklch(0.82 0.15 85);
   --money-in: oklch(0.74 0.12 250);
+  /* Tonos de estado de una operacion (pills) y su fondo suave. Propios, no siguen el
+   * acento. Texto >= 4.5:1 sobre su fondo suave, en --card y en --background. */
+  --status-info: oklch(0.82 0.12 250);
+  --status-info-soft: oklch(0.82 0.12 250 / 0.12);
+  --status-attention: oklch(0.84 0.15 85);
+  --status-attention-soft: oklch(0.84 0.15 85 / 0.12);
+  --status-success: oklch(0.82 0.17 150);
+  --status-success-soft: oklch(0.82 0.17 150 / 0.12);
+  --status-danger: oklch(0.86 0.17 25);
+  --status-danger-soft: oklch(0.86 0.17 25 / 0.12);
+  /* Un color fijo por servicio (punto de 8px junto al nombre). Propios, no siguen el
+   * acento; >= 3:1 sobre --card y --background. */
+  --service-cup: oklch(0.76 0.15 10);
+  --service-zelle: oklch(0.68 0.15 160);
+  --service-mlc: oklch(0.76 0.15 310);
+  --service-tropical: oklch(0.68 0.15 100);
+  --service-clasica: oklch(0.76 0.15 250);
+  --service-usdt: oklch(0.68 0.15 40);
+  --service-efectivo: oklch(0.76 0.15 190);
+  --service-recarga: oklch(0.68 0.15 340);
+  --service-saldo: oklch(0.76 0.15 130);
+  --service-directo: oklch(0.68 0.15 280);
+  --service-remesa: oklch(0.76 0.15 70);
+  --service-visa: oklch(0.68 0.15 220);
+  --service-other: oklch(0.65 0.01 260);
   --border: oklch(0.28 0.01 260);
   --input: oklch(0.28 0.01 260);
   --chart-2: oklch(0.556 0 0);
@@ -164,6 +211,31 @@ html[data-mode="light"] {
   --money-loss: oklch(0.5 0.19 27);
   --money-out: oklch(0.5 0.12 70);
   --money-in: oklch(0.48 0.17 255);
+  /* Tonos de estado de una operacion (pills) y su fondo suave. Propios, no siguen el
+   * acento. Texto >= 4.5:1 sobre su fondo suave, en --card y en --background. */
+  --status-info: oklch(0.48 0.17 255);
+  --status-info-soft: oklch(0.48 0.17 255 / 0.12);
+  --status-attention: oklch(0.5 0.12 70);
+  --status-attention-soft: oklch(0.5 0.12 70 / 0.12);
+  --status-success: oklch(0.45 0.13 150);
+  --status-success-soft: oklch(0.45 0.13 150 / 0.12);
+  --status-danger: oklch(0.5 0.19 27);
+  --status-danger-soft: oklch(0.5 0.19 27 / 0.12);
+  /* Un color fijo por servicio (punto de 8px junto al nombre). Propios, no siguen el
+   * acento; >= 3:1 sobre --card y --background. */
+  --service-cup: oklch(0.58 0.15 10);
+  --service-zelle: oklch(0.5 0.15 160);
+  --service-mlc: oklch(0.58 0.15 310);
+  --service-tropical: oklch(0.5 0.15 100);
+  --service-clasica: oklch(0.58 0.15 250);
+  --service-usdt: oklch(0.5 0.15 40);
+  --service-efectivo: oklch(0.58 0.15 190);
+  --service-recarga: oklch(0.5 0.15 340);
+  --service-saldo: oklch(0.58 0.15 130);
+  --service-directo: oklch(0.5 0.15 280);
+  --service-remesa: oklch(0.58 0.15 70);
+  --service-visa: oklch(0.5 0.15 220);
+  --service-other: oklch(0.55 0.01 260);
   --border: oklch(0.922 0.004 260);
   --input: oklch(0.922 0.004 260);
   --chart-2: oklch(0.6 0.1 260);

@@ -17,6 +17,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { FinancialCloseSection } from "@/components/resumen/financial-close-section";
+import { StatusPill } from "@/components/status/status-pill";
 import { formatNumber } from "@/lib/format-number";
 import { historialDestino } from "@/lib/resumen/historial-destino";
 import {
@@ -131,6 +132,7 @@ function Field({
 
 export default function ResumenPage() {
   const t = useTranslations("Resumen.page");
+  const tStatus = useTranslations("Inbox.operationsPanel.status");
   const [resumen, setResumen] = useState<ResumenPeriodo[] | null>(null);
   const [historial, setHistorial] = useState<HistorialFila[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -386,7 +388,12 @@ export default function ResumenPage() {
                     <TableCell className="capitalize">
                       {SERVICIO_LABEL[f.service_type] ?? f.service_type}
                     </TableCell>
-                    <TableCell className="capitalize">{f.status}</TableCell>
+                    <TableCell>
+                      <StatusPill
+                        status={f.status}
+                        label={tStatus.has(f.status) ? tStatus(f.status) : f.status}
+                      />
+                    </TableCell>
                     <TableCell>{f.cliente}</TableCell>
                     <TableCell>{f.telefono}</TableCell>
                     <TableCell className="font-medium">

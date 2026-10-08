@@ -150,3 +150,35 @@ T3: deploy to staging and the owner's look at Calculator, /resumen and the dashb
   refs, 114 money-route tests passed; deployed to oracle2 staging only, pm2 wacrm-staging cwd = the new release,
   /login 200 with the new BUILD_ID, the Calculator notice chunk served from crm.onlinefreedom.site. Rollback: relink
   `current` to the 7db1561 release (`anterior`) and `pm2 restart wacrm-staging --update-env`.
+
+## Owner look on staging (2026-10-07, release 75e3a2c): the display is wrong for what he wants
+- "Cambiaste cómo se ve la calculadora, no te pedí eso; lo de borrar entradas y editar se queda así como estaba antes,
+  con la fecha en este formato" (he pasted the "Operaciones del chat" table: Fecha, Cliente, Monto, Tipo, Estado,
+  Fact., Inv., Ganancia, Acciones). Then, about "🔍 Auditoría de Operaciones por Día": "¿esto es nuevo en staging? si
+  es así no me gusta que esté ahí, sobra".
+- Verified: nothing in that table changed, and the "Auditoría" section is NOT new (ported 2026-09-13, commit 6055b3f,
+  in every production release); he had never seen it filled because production's manual text has been empty. The
+  rehearsal put Osmany's list in the text, so it showed there, with no date column and no actions.
+- Owner decision ("sí, hazlo así"): one table for every operation, manual ones included, with date, pencil and trash;
+  the "Auditoría" section goes away; the text box only ADDS (a "Registrar" button).
+
+## Design v2 (replaces the "text is the source" part of Design A)
+- Manual entries are first-class ledger rows (source 'manual'), no longer a mirror of the text:
+  - the text box is an input: the person types lines in the usual syntax, presses "Registrar"; the valid lines become
+    entries (date from the day header resolved by the weekly rule, else today) and leave the box; lines that cannot be
+    interpreted stay in the box with the existing warning. Nothing is registered by the autosave.
+  - RPC to ADD manual entries (append, no replace); the "sync/replace" RPC and its key scheme go away.
+  - Pencil: crm_corregir_entrada_calculadora also accepts manual entries (same fields it edits today).
+  - Trash: crm_eliminar_entrada_calculadora also accepts manual entries (durable void; void_shape_chk relaxed for
+    manual rows, which have no operation).
+  - The Calculator view (calculator_current_entries and the realtime handler) lists manual entries of the open week
+    next to the bot's; the weekly cut archives them with the week and they keep counting in history.
+- Calculator page: remove the "🔍 Auditoría de Operaciones por Día" card. The entries table keeps EXACTLY its columns
+  and look (Fecha YYYY-MM-DD, Cliente, Monto, Tipo, Estado, Fact., Inv., Ganancia, Acciones) and its inline
+  edit/delete; its title becomes "Operaciones"; manual rows carry a small "Manual" mark. Totals and the service
+  breakdown come from the entries shown (bot + manual). The weekly close text export and "Semanas anteriores" follow.
+- Finanzas, dashboard: unchanged from T1/T2 (manual counted, "Manual" badge).
+- Migration 228 is on staging only: amend it in place and re-apply (no 229).
+
+- [ ] T2b Rework to Design v2 (DB amend 228 + app), staging rehearsal with Osmany's 31 lines as 31 rows
+  (24 on 2026-10-06, 7 on 2026-10-07), then staging deploy for the owner's look.

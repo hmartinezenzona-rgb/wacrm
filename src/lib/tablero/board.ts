@@ -22,8 +22,10 @@ export interface BoardOperation {
 }
 
 export const BOARD_COLUMNS: ReadonlyArray<{ id: BoardColumnId; statuses: ReadonlyArray<string> }> = [
-  { id: "requested", statuses: ["collecting_information"] },
-  { id: "depositCheck", statuses: ["deposit_verification"] },
+  // awaiting_deposit and deposit_received have no column of their own: they sit with the step they are closest to, so an
+  // operation in either one does not vanish from the board.
+  { id: "requested", statuses: ["collecting_information", "awaiting_deposit"] },
+  { id: "depositCheck", statuses: ["deposit_verification", "deposit_received"] },
   { id: "readyToTransfer", statuses: ["ready_to_transfer", "transferring"] },
   { id: "completed", statuses: ["completed"] },
   // Last on purpose (owner, 2026-10-06): the normal flow reads left to right, exceptions at the end.
@@ -65,6 +67,25 @@ export function ageParts(since: string, now: Date): { unit: AgeUnit; value: numb
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return { unit: "hours", value: hours };
   return { unit: "days", value: Math.floor(hours / 24) };
+}
+
+/** Hours in a status from which the age text asks for attention, and from which it warns. */
+export const AGE_ATTENTION_HOURS = 2;
+export const AGE_DANGER_HOURS = 24;
+
+export type AgeTone = "muted" | "attention" | "danger";
+
+/**
+ * Tone of the "time in this status" text: muted while recent, attention from `AGE_ATTENTION_HOURS`, danger from
+ * `AGE_DANGER_HOURS`. A completed operation is past waiting, so it never escalates. The text itself ("3 h", "2 d")
+ * carries the figure, so colour is never the only cue.
+ */
+export function ageTone(since: string, now: Date, status: string): AgeTone {
+  if (status === "completed") return "muted";
+  const hours = (now.getTime() - new Date(since).getTime()) / 3_600_000;
+  if (hours >= AGE_DANGER_HOURS) return "danger";
+  if (hours >= AGE_ATTENTION_HOURS) return "attention";
+  return "muted";
 }
 
 /** The same deep link the notifications page uses to open a chat. */

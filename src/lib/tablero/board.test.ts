@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   BOARD_COLUMNS,
+  AGE_ATTENTION_HOURS,
+  AGE_DANGER_HOURS,
   ageParts,
+  ageTone,
   chatHref,
   groupBoard,
   SERVICE_FILTERS,
@@ -61,6 +64,15 @@ describe("groupBoard", () => {
     expect(groupBoard(ops, "saldo").flatMap((c) => c.items.map((i) => i.operationId))).toEqual(["s"]);
   });
 
+  it("shows awaiting_deposit under requested and deposit_received under deposit check, so neither vanishes", () => {
+    const cols = groupBoard(
+      [op({ operationId: "a", status: "awaiting_deposit" }), op({ operationId: "d", status: "deposit_received" })],
+      "all",
+    );
+    expect(cols.find((c) => c.id === "requested")!.items.map((i) => i.operationId)).toEqual(["a"]);
+    expect(cols.find((c) => c.id === "depositCheck")!.items.map((i) => i.operationId)).toEqual(["d"]);
+  });
+
   it("ignores statuses the board does not show", () => {
     const cols = groupBoard([op({ status: "cancelled" })], "all");
     expect(cols.every((c) => c.count === 0)).toBe(true);
@@ -103,5 +115,40 @@ describe("ageParts", () => {
 describe("chatHref", () => {
   it("opens the conversation in the inbox", () => {
     expect(chatHref("abc")).toBe("/inbox?c=abc");
+  });
+});
+
+describe("ageTone", () => {
+  const now = new Date("2026-10-05T12:00:00Z");
+  const ago = (hours: number, minutes = 0) => new Date(now.getTime() - (hours * 60 + minutes) * 60_000).toISOString();
+
+  it("names its thresholds: attention from 2 hours, danger from 24 hours", () => {
+    expect(AGE_ATTENTION_HOURS).toBe(2);
+    expect(AGE_DANGER_HOURS).toBe(24);
+  });
+
+  it("is muted while recent (1 h 59 min)", () => {
+    expect(ageTone(ago(1, 59), now, "collecting_information")).toBe("muted");
+  });
+
+  it("turns to attention at exactly 2 h", () => {
+    expect(ageTone(ago(2), now, "collecting_information")).toBe("attention");
+  });
+
+  it("stays attention at 23 h 59 min", () => {
+    expect(ageTone(ago(23, 59), now, "ready_to_transfer")).toBe("attention");
+  });
+
+  it("turns to danger at exactly 24 h", () => {
+    expect(ageTone(ago(24), now, "ready_to_transfer")).toBe("danger");
+  });
+
+  it("never escalates a completed operation", () => {
+    expect(ageTone(ago(2), now, "completed")).toBe("muted");
+    expect(ageTone(ago(30), now, "completed")).toBe("muted");
+  });
+
+  it("is muted on clock skew (a time in the future)", () => {
+    expect(ageTone("2026-10-05T12:30:00Z", now, "incident")).toBe("muted");
   });
 });

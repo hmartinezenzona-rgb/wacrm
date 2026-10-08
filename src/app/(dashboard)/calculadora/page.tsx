@@ -7,6 +7,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { isComboCostPending, pendingReason, type CalculatorRates } from "@/lib/calculator/ledger-read-model";
 import { guyanaToday, manualEntriesFromText, removeRegisteredLines } from "@/lib/calculator/manual-entries";
 import { formatNumber as formatMoneyNumber } from "@/lib/format-number";
+import { MoneyTotalFigure } from "@/components/money/money-total-figure";
+import { moneyCellProps, moneyStripeClass, profitTone, totalTone } from "@/lib/money-tone";
 import { calculatorCategoryName, chatEntryAmountExportText, chatEntryAmountText, ledgerServiceLabel } from "@/lib/calculator/entry-display";
 import { applyCalculatorEntryRealtimeEvent, insertCalculatorEntry, type ChatCalculatorEntry } from "@/lib/calculator/realtime-entry";
 import { useCalculatorEntriesRealtime } from "@/hooks/use-calculator-entries-realtime";
@@ -26,6 +28,16 @@ function formatNumber(value: number): string {
 /** The .txt export keeps its plain figures: the owner pastes it elsewhere. */
 function plainNumber(value: number): string {
   return value.toFixed(2);
+}
+
+/** One of the three totals boxes: accent stripe, icon and figure in the tone of what it stands for. */
+function TotalBox({ title, kind, value }: { title: string; kind: "in" | "out" | "result"; value: number }) {
+  return (
+    <div className={`legacyTotalBox ${moneyStripeClass[totalTone(kind, value)]}`}>
+      <h3>{title}</h3>
+      <p style={{ fontSize: "1.5em", fontWeight: "bold", margin: "5px 0" }}><MoneyTotalFigure kind={kind} value={value} format={formatNumber} /></p>
+    </div>
+  );
 }
 
 function chatTotals(entries: ChatCalculatorEntry[]) {
@@ -690,9 +702,9 @@ export default function CalculadoraPage() {
         )}
 
         <div className="legacyTotals">
-          <div className="legacyTotalBox"><h3>💰 Facturado (GYD)</h3><p style={{ fontSize: "1.5em", fontWeight: "bold", margin: "5px 0" }}>{formatNumber(totals.fact)}</p></div>
-          <div className="legacyTotalBox"><h3>🔁 Invertido (GYD)</h3><p style={{ fontSize: "1.5em", fontWeight: "bold", margin: "5px 0" }}>{formatNumber(totals.inv)}</p></div>
-          <div className="legacyTotalBox"><h3>📈 Retorno Neto (GYD)</h3><p style={{ fontSize: "1.5em", fontWeight: "bold", color: "#28a745", margin: "5px 0" }}>{formatNumber(totals.ret)}</p></div>
+          <TotalBox title="💰 Facturado (GYD)" kind="in" value={totals.fact} />
+          <TotalBox title="🔁 Invertido (GYD)" kind="out" value={totals.inv} />
+          <TotalBox title="📈 Retorno Neto (GYD)" kind="result" value={totals.ret} />
         </div>
 
         <div className="legacyCard"><h2>⚙️ Desglose Semanal por Servicios</h2>{serviceTotals.map((service) => <div className="legacyCard" style={{ marginBottom: 10, padding: 12 }} key={service.name}><div className="legacyBlockRow"><b>Categoría: {service.name}</b><span>Fact: <b>{formatNumber(service.fact)} GYD</b> | Inv: <b>{formatNumber(service.inv)} GYD</b> | Retorno: <b style={{ color: "green" }}>{formatNumber(service.ret)} GYD</b></span></div></div>)}</div>
@@ -722,7 +734,7 @@ export default function CalculadoraPage() {
                         <td data-label="Monto">{chatEntryAmountText(entry)}</td>
                         <td data-label="Tipo"><span className="legacyBadge">{ledgerServiceLabel(entry.service)}</span>{entry.source === "manual" && <span className="legacyBadge" title="Registrada a mano" style={{ marginLeft: 6 }}>Manual</span>}</td>
                         <td data-label="Estado">{entry.status === "completed" ? "Completada" : `Pendiente${entry.missingRates.length ? `: ${pendingReason(entry)}` : ""}`}</td>
-                        <td data-label="Fact. (GYD)">
+                        <td data-label="Fact. (GYD)" {...(editing ? {} : moneyCellProps(entry.facturadoGyd == null ? "neutral" : "in"))}>
                           {editing ? (
                             <input
                               id={`editFacturado-${entry.id}`}
@@ -734,7 +746,7 @@ export default function CalculadoraPage() {
                             />
                           ) : entry.facturadoGyd == null ? "—" : formatNumber(entry.facturadoGyd)}
                         </td>
-                        <td data-label="Inv. (GYD)">
+                        <td data-label="Inv. (GYD)" {...(editing ? {} : moneyCellProps(entry.invertidoGyd == null ? "neutral" : "out"))}>
                           {editing ? (
                             <input
                               id={`editInvertido-${entry.id}`}
@@ -746,7 +758,7 @@ export default function CalculadoraPage() {
                             />
                           ) : entry.invertidoGyd == null ? "—" : formatNumber(entry.invertidoGyd)}
                         </td>
-                        <td data-label="Ganancia">
+                        <td data-label="Ganancia" {...moneyCellProps(profitTone(editing ? editPreview : entry.retornoGyd))}>
                           {editing ? formatNumber(editPreview) : entry.retornoGyd == null ? "—" : formatNumber(entry.retornoGyd)}
                         </td>
                         <td data-label="Acciones" className="legacyActionsCell">
@@ -901,9 +913,9 @@ export default function CalculadoraPage() {
             </div>
             <span className="legacySmall">Solo lectura.</span>
             <div className="legacyTotals">
-              <div className="legacyTotalBox"><h3>💰 Facturado (GYD)</h3><p style={{ fontSize: "1.5em", fontWeight: "bold", margin: "5px 0" }}>{formatNumber(openWeek.manualTotals.facturadoGyd + openWeek.chatTotals.facturadoGyd)}</p></div>
-              <div className="legacyTotalBox"><h3>🔁 Invertido (GYD)</h3><p style={{ fontSize: "1.5em", fontWeight: "bold", margin: "5px 0" }}>{formatNumber(openWeek.manualTotals.invertidoGyd + openWeek.chatTotals.invertidoGyd)}</p></div>
-              <div className="legacyTotalBox"><h3>📈 Retorno Neto (GYD)</h3><p style={{ fontSize: "1.5em", fontWeight: "bold", color: "#28a745", margin: "5px 0" }}>{formatNumber(openWeek.manualTotals.retornoGyd + openWeek.chatTotals.retornoGyd)}</p></div>
+              <TotalBox title="💰 Facturado (GYD)" kind="in" value={openWeek.manualTotals.facturadoGyd + openWeek.chatTotals.facturadoGyd} />
+              <TotalBox title="🔁 Invertido (GYD)" kind="out" value={openWeek.manualTotals.invertidoGyd + openWeek.chatTotals.invertidoGyd} />
+              <TotalBox title="📈 Retorno Neto (GYD)" kind="result" value={openWeek.manualTotals.retornoGyd + openWeek.chatTotals.retornoGyd} />
             </div>
             <span className="legacySmall">Registro manual: Fact {formatNumber(openWeek.manualTotals.facturadoGyd)} | Inv {formatNumber(openWeek.manualTotals.invertidoGyd)} | Retorno {formatNumber(openWeek.manualTotals.retornoGyd)}. Operaciones del chat: Fact {formatNumber(openWeek.chatTotals.facturadoGyd)} | Inv {formatNumber(openWeek.chatTotals.invertidoGyd)} | Retorno {formatNumber(openWeek.chatTotals.retornoGyd)}.</span>
             <h3>📝 Registro manual</h3>
@@ -922,9 +934,9 @@ export default function CalculadoraPage() {
                         <td data-label="Cliente"><b>{entry.customerName || "—"}</b></td>
                         <td data-label="Monto">{chatEntryAmountText(entry)}</td>
                         <td data-label="Tipo"><span className="legacyBadge">{ledgerServiceLabel(entry.service)}</span>{entry.source === "manual" && <span className="legacyBadge" title="Registrada a mano" style={{ marginLeft: 6 }}>Manual</span>}</td>
-                        <td data-label="Fact. (GYD)">{entry.facturadoGyd == null ? "—" : formatNumber(entry.facturadoGyd)}</td>
-                        <td data-label="Inv. (GYD)">{entry.invertidoGyd == null ? "—" : formatNumber(entry.invertidoGyd)}</td>
-                        <td data-label="Ganancia">{entry.retornoGyd == null ? "—" : formatNumber(entry.retornoGyd)}</td>
+                        <td data-label="Fact. (GYD)" {...moneyCellProps(entry.facturadoGyd == null ? "neutral" : "in")}>{entry.facturadoGyd == null ? "—" : formatNumber(entry.facturadoGyd)}</td>
+                        <td data-label="Inv. (GYD)" {...moneyCellProps(entry.invertidoGyd == null ? "neutral" : "out")}>{entry.invertidoGyd == null ? "—" : formatNumber(entry.invertidoGyd)}</td>
+                        <td data-label="Ganancia" {...moneyCellProps(profitTone(entry.retornoGyd))}>{entry.retornoGyd == null ? "—" : formatNumber(entry.retornoGyd)}</td>
                       </tr>
                     ))}
                   </tbody>

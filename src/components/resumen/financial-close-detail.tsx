@@ -2,9 +2,11 @@
 
 import { useTranslations } from "next-intl";
 import type { CloseEntry, ExcludedEntry, FinancialClose } from "@/lib/financial-close/read-model";
+import { moneyCellProps, profitTone } from "@/lib/money-tone";
 import { ledgerServiceLabel } from "@/lib/calculator/entry-display";
 import { fmtAmount, fmtGyd, guyanaTime, rateLabel, shortId } from "./financial-close-format";
 
+const BASE_MONEY_CELL = "whitespace-nowrap px-2 py-1.5 text-right";
 const DELIVERY_KEYS = ["proof_sent", "no_proof", "skip_proof"] as const;
 
 /** Every ledger entry behind the totals, then the voided and rate-pending
@@ -15,7 +17,8 @@ export function FinancialCloseDetail({ close }: { close: FinancialClose }) {
   const delivery = (mode: string | null) =>
     mode && (DELIVERY_KEYS as readonly string[]).includes(mode) ? t(`entrega.${mode}`) : (mode ?? "—");
 
-  const commonCells = (e: CloseEntry) => (
+  /** `toned` colours the facturado / invertido / retorno figures; the voided table keeps them plain. */
+  const commonCells = (e: CloseEntry, toned: boolean) => (
     <>
       <td className="whitespace-nowrap px-2 py-1.5">{e.day}</td>
       <td className="whitespace-nowrap px-2 py-1.5">{guyanaTime(e.completedAt)}</td>
@@ -39,9 +42,9 @@ export function FinancialCloseDetail({ close }: { close: FinancialClose }) {
       <td className="whitespace-nowrap px-2 py-1.5" title={e.rateVersionId ?? undefined}>
         {rateLabel(e)}
       </td>
-      <td className="whitespace-nowrap px-2 py-1.5 text-right">{fmtGyd(e.facturadoGyd)}</td>
-      <td className="whitespace-nowrap px-2 py-1.5 text-right">{fmtGyd(e.invertidoGyd)}</td>
-      <td className="whitespace-nowrap px-2 py-1.5 text-right">{fmtGyd(e.retornoGyd)}</td>
+      <td {...moneyCellProps(toned ? "in" : "neutral", BASE_MONEY_CELL)}>{fmtGyd(e.facturadoGyd)}</td>
+      <td {...moneyCellProps(toned ? "out" : "neutral", BASE_MONEY_CELL)}>{fmtGyd(e.invertidoGyd)}</td>
+      <td {...moneyCellProps(toned ? profitTone(e.retornoGyd) : "neutral", BASE_MONEY_CELL)}>{fmtGyd(e.retornoGyd)}</td>
     </>
   );
 
@@ -82,7 +85,7 @@ export function FinancialCloseDetail({ close }: { close: FinancialClose }) {
               <tbody>
                 {close.detail.map((e) => (
                   <tr key={e.id} data-testid="detail-row" className="border-t border-border">
-                    {commonCells(e)}
+                    {commonCells(e, true)}
                     <td className="whitespace-nowrap px-2 py-1.5">{delivery(e.deliveryMode)}</td>
                     <td className="whitespace-nowrap px-2 py-1.5">{e.actorName ?? "—"}</td>
                   </tr>
@@ -104,7 +107,7 @@ export function FinancialCloseDetail({ close }: { close: FinancialClose }) {
               <tbody>
                 {close.excluded.map((e: ExcludedEntry) => (
                   <tr key={e.id} data-testid="excluded-row" className="border-t border-border">
-                    {commonCells(e)}
+                    {commonCells(e, false)}
                     <td className="whitespace-nowrap px-2 py-1.5">{t(`estado.${e.status}`)}</td>
                     <td className="px-2 py-1.5">
                       {e.status === "void" ? (e.voidReason ?? "—") : e.missingInputs.join(", ") || "—"}

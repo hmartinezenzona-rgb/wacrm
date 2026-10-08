@@ -743,7 +743,7 @@ describe("calculator chat operations (read-only)", () => {
     expect(node.textContent).toContain("Pendiente: usdtSellCup");
     // the draft "Manual 1 USDT (240/260)" would add 260 / 240 / 20: it is not an operation yet
     const boxes = [...node.querySelectorAll(".legacyTotalBox p")].map((p) => p.textContent);
-    expect(boxes).toEqual(["26\u202f000,00", "24\u202f000,00", "2\u202f000,00"]);
+    expect(boxes).toEqual(["26\u202f000,00", "24\u202f000,00", "+2\u202f000,00"]);
     await act(async () => root.unmount());
   });
 
@@ -1719,14 +1719,14 @@ describe("manual operations as rows of the one table (migration 228)", () => {
     const { node, root } = await renderPage(fixture({}, TEXT));
 
     // 26000 + 4000, 24000 + 0, 2000 + 4000: the draft (Gerardo, Ana) is not an operation until it is registered
-    expect(totalBoxes(node)).toEqual(["30\u202f000,00", "24\u202f000,00", "6\u202f000,00"]);
+    expect(totalBoxes(node)).toEqual(["30\u202f000,00", "24\u202f000,00", "+6\u202f000,00"]);
     const breakdown = [...node.querySelectorAll("h2")].find((h) => h.textContent === "⚙️ Desglose Semanal por Servicios")!.parentElement!;
     expect(breakdown.textContent).toContain("Categoría: ZELLE");
     expect(breakdown.textContent).toContain("Categoría: TRÁMITES / COMBOS / SERVICIOS");
     expect(breakdown.textContent).not.toContain("USDT");
 
     await typeText(node, `${TEXT}\n• Luis 1k usdt (240/260)`);
-    expect(totalBoxes(node)).toEqual(["30\u202f000,00", "24\u202f000,00", "6\u202f000,00"]);
+    expect(totalBoxes(node)).toEqual(["30\u202f000,00", "24\u202f000,00", "+6\u202f000,00"]);
     await act(async () => root.unmount());
   });
 
@@ -1797,7 +1797,7 @@ describe("manual operations as rows of the one table (migration 228)", () => {
     const rows = entryRows(node);
     expect(rows.map((row) => cell(row, "Cliente").textContent)).toEqual(["Ana", "Gerardo"]);
     expect(rows.map((row) => cell(row, "Fecha").textContent)).toEqual(["2026-10-07", "2026-10-06"]);
-    expect(totalBoxes(node)).toEqual(["28\u202f600,00", "26\u202f400,00", "2\u202f200,00"]);
+    expect(totalBoxes(node)).toEqual(["28\u202f600,00", "26\u202f400,00", "+2\u202f200,00"]);
     expect(node.textContent).toContain("2 operaciones registradas.");
     // only the remaining text is autosaved, still without registering anything
     await act(async () => { await vi.advanceTimersByTimeAsync(700); });
@@ -1917,7 +1917,7 @@ describe("manual operations as rows of the one table (migration 228)", () => {
       expect(cell(row, "Fact. (GYD)").textContent).toBe("5\u202f000,00");
       expect(cell(row, "Ganancia").textContent).toBe("4\u202f500,00");
       expect(cell(row, "Tipo").textContent).toContain("Manual");
-      expect(totalBoxes(node)).toEqual(["31\u202f000,00", "24\u202f500,00", "6\u202f500,00"]);
+      expect(totalBoxes(node)).toEqual(["31\u202f000,00", "24\u202f500,00", "+6\u202f500,00"]);
       await act(async () => root.unmount());
     });
 
@@ -1934,7 +1934,7 @@ describe("manual operations as rows of the one table (migration 228)", () => {
       expect(calls(fetchMock, "POST", "/api/calculator/entries/man-iza/delete")).toHaveLength(1);
       expect(node.querySelector("#eliminarEntry-man-iza")).toBeNull();
       expect(entryRows(node)).toHaveLength(1);
-      expect(totalBoxes(node)).toEqual(["26\u202f000,00", "24\u202f000,00", "2\u202f000,00"]);
+      expect(totalBoxes(node)).toEqual(["26\u202f000,00", "24\u202f000,00", "+2\u202f000,00"]);
       await act(async () => root.unmount());
     });
 
@@ -2079,5 +2079,86 @@ describe("manual operations as rows of the one table (migration 228)", () => {
       expect(text).toContain("=== REGISTRO MANUAL EN BRUTO (SIN REGISTRAR) ===\nesto no tiene formato");
       await act(async () => root.unmount());
     });
+  });
+});
+
+// Step 1 of the semantic money colours (odd/tasks/semantic-money-colors.md): facturado is blue, invertido amber,
+// the result green or red with a sign. Only the three money columns and the totals carry a tone.
+describe("calculator money tones", () => {
+  const LOSS = {
+    id: "loss-1", operationId: null, source: "manual", status: "completed", service: "DIRECTO", customerName: "Pérdida", amount: 500,
+    amountCurrency: "GYD", entryDate: "2026-10-06", facturadoGyd: 500, invertidoGyd: 1000, retornoGyd: -500, missingRates: [],
+  };
+  const WEEK = {
+    id: "week-1", cutAt: "2026-10-03T12:00:00+00:00", periodo: "SEMANA 1", rawText: "",
+    manualTotals: { facturadoGyd: 0, invertidoGyd: 0, retornoGyd: 0 },
+    chatTotals: { count: 1, facturadoGyd: 26000, invertidoGyd: 24000, retornoGyd: 2000 },
+    entries: [{ ...DEL_COMPLETED, id: "arch-1" }],
+  };
+  function fixture(entries: unknown[]) {
+    return createFetchMock({
+      calculadoraGet: { rawText: "", periodo: "", chatOperations: { entries } },
+      ratesGet: { rates: null },
+      weeksGet: { weeks: [WEEK] },
+      weekGet: () => ({ status: 200, body: { week: WEEK } }),
+    });
+  }
+  const tones = (root: ParentNode) => [...root.querySelectorAll(".legacyTotalBox p [data-tone]")].map((el) => (el as HTMLElement).dataset.tone);
+  const operationsCard = (node: HTMLElement) =>
+    [...node.querySelectorAll(".legacyCard")].find((card) => card.querySelector("h2")?.textContent === "🔗 Operaciones") as HTMLElement;
+  const toneOf = (row: Element, label: string) => row.querySelector(`td[data-label="${label}"]`)?.getAttribute("data-tone") ?? null;
+
+  it("colours the totals blue / amber / green, with the sign on the result and a stripe on each box", async () => {
+    const { node, root } = await renderPage(fixture([DEL_COMPLETED]));
+
+    expect(tones(node)).toEqual(["in", "out", "profit"]);
+    const figures = [...node.querySelectorAll(".legacyTotalBox p [data-tone]")] as HTMLElement[];
+    expect(figures.map((f) => f.className)).toEqual(["text-money-in", "text-money-out", "text-money-profit"]);
+    expect(figures.every((f) => f.querySelector("svg"))).toBe(true);
+    const boxes = [...node.querySelectorAll(".legacyTotalBox")] as HTMLElement[];
+    expect(boxes.map((b) => b.className)).toEqual([
+      expect.stringContaining("--money-in"), expect.stringContaining("--money-out"), expect.stringContaining("--money-profit"),
+    ]);
+    await act(async () => root.unmount());
+  });
+
+  it("shows a negative result in red with a true minus sign, and a zero result neutral without a sign", async () => {
+    const loss = await renderPage(fixture([LOSS]));
+    expect(tones(loss.node)).toEqual(["in", "out", "loss"]);
+    expect(loss.node.querySelectorAll(".legacyTotalBox p")[2]!.textContent).toBe("−500,00");
+    await act(async () => loss.root.unmount());
+
+    const empty = await renderPage(fixture([]));
+    expect(tones(empty.node)).toEqual(["in", "out", "neutral"]);
+    expect(empty.node.querySelectorAll(".legacyTotalBox p")[2]!.textContent).toBe("0,00");
+    await act(async () => empty.root.unmount());
+  });
+
+  it("tones only the Fact. / Inv. / Ganancia cells of the operations table", async () => {
+    const { node, root } = await renderPage(fixture([DEL_COMPLETED, LOSS, DEL_PENDING]));
+
+    const [ok, loss, pending] = [...operationsCard(node).querySelectorAll("tbody tr")];
+    expect([toneOf(ok!, "Fact. (GYD)"), toneOf(ok!, "Inv. (GYD)"), toneOf(ok!, "Ganancia")]).toEqual(["in", "out", "profit"]);
+    expect(toneOf(loss!, "Ganancia")).toBe("loss");
+    // a missing figure is a plain dash
+    expect([toneOf(pending!, "Fact. (GYD)"), toneOf(pending!, "Inv. (GYD)"), toneOf(pending!, "Ganancia")]).toEqual([null, null, null]);
+    for (const label of ["Fecha", "Cliente", "Monto", "Tipo", "Estado"]) expect(toneOf(ok!, label)).toBeNull();
+    // table figures are not signed
+    expect(ok!.querySelector('td[data-label="Ganancia"]')!.textContent).toBe("2 000,00");
+    await act(async () => root.unmount());
+  });
+
+  it("applies the same tones inside the archived week view", async () => {
+    const { node, root } = await renderPage(fixture([]));
+    await act(async () => { (node.querySelector("#verSemana-week-1") as HTMLButtonElement).click(); });
+    await flush();
+
+    const view = node.querySelector("#semanaArchivada") as HTMLElement;
+    expect(tones(view)).toEqual(["in", "out", "profit"]);
+    expect(view.querySelectorAll(".legacyTotalBox p")[2]!.textContent).toBe("+2 000,00");
+    const row = view.querySelector("tbody tr")!;
+    expect([toneOf(row, "Fact. (GYD)"), toneOf(row, "Inv. (GYD)"), toneOf(row, "Ganancia")]).toEqual(["in", "out", "profit"]);
+    expect(toneOf(row, "Monto")).toBeNull();
+    await act(async () => root.unmount());
   });
 });

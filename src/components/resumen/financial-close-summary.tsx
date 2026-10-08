@@ -5,6 +5,8 @@ import { BarChart } from "@/components/tremor/bar-chart";
 import { shortDayLabel } from "@/lib/financial-close/periods";
 import type { FinancialClose } from "@/lib/financial-close/read-model";
 import { ledgerServiceLabel } from "@/lib/calculator/entry-display";
+import { MoneyTotalFigure } from "@/components/money/money-total-figure";
+import { moneyCellProps, moneyStripeClass, profitTone, totalTone, type TotalKind } from "@/lib/money-tone";
 import { fmtGyd, marginPct } from "./financial-close-format";
 import { FinancialCloseProfitRing } from "./financial-close-profit-ring";
 
@@ -14,15 +16,16 @@ export function FinancialCloseSummary({ close }: { close: FinancialClose }) {
   const { totals } = close;
   const margin = marginPct(totals.facturadoGyd, totals.retornoGyd);
 
-  const tiles = [
-    { label: t("totales.facturado"), value: fmtGyd(totals.facturadoGyd) },
-    { label: t("totales.invertido"), value: fmtGyd(totals.invertidoGyd) },
+  const tiles: { label: string; kind?: TotalKind; value: number; note?: string | null }[] = [
+    { label: t("totales.facturado"), kind: "in", value: totals.facturadoGyd },
+    { label: t("totales.invertido"), kind: "out", value: totals.invertidoGyd },
     {
       label: t("totales.retorno"),
-      value: fmtGyd(totals.retornoGyd),
+      kind: "result",
+      value: totals.retornoGyd,
       note: margin === null ? null : t("totales.margen", { pct: margin }),
     },
-    { label: t("totales.operaciones"), value: totals.operations.toLocaleString("en-US") },
+    { label: t("totales.operaciones"), value: totals.operations },
   ];
 
   // Two series in the same unit (GYD) on one axis. Blue/pink validated
@@ -39,9 +42,18 @@ export function FinancialCloseSummary({ close }: { close: FinancialClose }) {
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {tiles.map((tile) => (
-          <div key={tile.label} className="rounded-xl border border-border bg-card p-4">
+          <div
+            key={tile.label}
+            className={`rounded-xl border border-border bg-card p-4 ${tile.kind ? moneyStripeClass[totalTone(tile.kind, tile.value)] : ""}`}
+          >
             <p className="text-xs font-medium text-muted-foreground">{tile.label}</p>
-            <p className="mt-2 text-xl font-bold tabular-nums text-foreground">{tile.value}</p>
+            <p className="mt-2 text-xl font-bold tabular-nums text-foreground">
+              {tile.kind ? (
+                <MoneyTotalFigure kind={tile.kind} value={tile.value} format={fmtGyd} />
+              ) : (
+                tile.value.toLocaleString("en-US")
+              )}
+            </p>
             {tile.note && <p className="mt-1 text-xs text-muted-foreground">{tile.note}</p>}
           </div>
         ))}
@@ -91,8 +103,8 @@ export function FinancialCloseSummary({ close }: { close: FinancialClose }) {
                   >
                     <td className="py-1.5 font-medium text-foreground">{ledgerServiceLabel(s.service)}</td>
                     <td className="py-1.5 text-right">{s.operations}</td>
-                    <td className="py-1.5 text-right">{fmtGyd(s.facturadoGyd)}</td>
-                    <td className="py-1.5 text-right">
+                    <td {...moneyCellProps("in", "py-1.5 text-right")}>{fmtGyd(s.facturadoGyd)}</td>
+                    <td {...moneyCellProps(profitTone(s.retornoGyd), "py-1.5 text-right")}>
                       {fmtGyd(s.retornoGyd)}
                       {marginPct(s.facturadoGyd, s.retornoGyd) !== null && (
                         <span className="ml-1 text-xs text-muted-foreground">

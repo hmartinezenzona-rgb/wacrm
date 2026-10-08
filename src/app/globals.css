@@ -33,6 +33,11 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  /* Money tones: text-money-profit / -loss / -out / -in. Fixed meaning, not the accent. */
+  --color-money-profit: var(--money-profit);
+  --color-money-loss: var(--money-loss);
+  --color-money-out: var(--money-out);
+  --color-money-in: var(--money-in);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -113,6 +118,12 @@ html[data-mode="dark"] {
   --accent: oklch(0.22 0.01 260);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.577 0.245 27.325);
+  /* Money tones (profit / loss / money out / money in). They do not follow the
+   * accent theme. >= 4.5:1 as text on --card and --background. */
+  --money-profit: oklch(0.78 0.17 150);
+  --money-loss: oklch(0.72 0.17 25);
+  --money-out: oklch(0.82 0.15 85);
+  --money-in: oklch(0.74 0.12 250);
   --border: oklch(0.28 0.01 260);
   --input: oklch(0.28 0.01 260);
   --chart-2: oklch(0.556 0 0);
@@ -147,6 +158,12 @@ html[data-mode="light"] {
   --accent: oklch(0.96 0.004 260);
   --accent-foreground: oklch(0.25 0.01 260);
   --destructive: oklch(0.577 0.245 27.325);
+  /* Money tones (profit / loss / money out / money in). They do not follow the
+   * accent theme. >= 4.5:1 as text on --card and --background. */
+  --money-profit: oklch(0.45 0.13 150);
+  --money-loss: oklch(0.5 0.19 27);
+  --money-out: oklch(0.5 0.12 70);
+  --money-in: oklch(0.48 0.17 255);
   --border: oklch(0.922 0.004 260);
   --input: oklch(0.922 0.004 260);
   --chart-2: oklch(0.6 0.1 260);

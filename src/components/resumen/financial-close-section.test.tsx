@@ -363,4 +363,66 @@ describe("FinancialCloseSection", () => {
     expect(node.textContent).toContain("3\u202f000 GYD");
     await act(async () => root.unmount());
   });
+
+  // Step 1 of the semantic money colours (odd/tasks/semantic-money-colors.md).
+  describe("money tones", () => {
+    const tile = (node: Element, label: string) =>
+      Array.from(node.querySelectorAll("p")).find((p) => p.textContent === label)!.parentElement as HTMLElement;
+    const toneOf = (el: Element | null) => el?.querySelector("[data-tone]")?.getAttribute("data-tone") ?? null;
+    const cellTone = (row: Element, index: number) => row.querySelectorAll("td")[index]!.getAttribute("data-tone");
+
+    it("colours the facturado / invertido / retorno tiles blue / amber / green, with a + on the result and a stripe", async () => {
+      const { node, root } = await render();
+
+      expect(toneOf(tile(node, T.totales.facturado))).toBe("in");
+      expect(toneOf(tile(node, T.totales.invertido))).toBe("out");
+      expect(toneOf(tile(node, T.totales.retorno))).toBe("profit");
+      expect(tile(node, T.totales.retorno).textContent).toContain("+800 GYD");
+      expect(tile(node, T.totales.facturado).textContent).toContain("3\u202f000 GYD");
+      expect(tile(node, T.totales.facturado).textContent).not.toContain("+3");
+      expect(tile(node, T.totales.facturado).className).toContain("--money-in");
+      expect(tile(node, T.totales.retorno).className).toContain("--money-profit");
+      // the operations count is not money
+      expect(toneOf(tile(node, T.totales.operaciones))).toBeNull();
+      expect(tile(node, T.totales.operaciones).className).not.toContain("--money");
+      await act(async () => root.unmount());
+    });
+
+    it("shows a loss in red with a true minus and a zero result neutral and unsigned", async () => {
+      const base = close();
+      loadFinancialClose.mockResolvedValue({ ok: true, data: { ...base, totals: { ...base.totals, retornoGyd: -250 } } });
+      const loss = await render();
+      expect(toneOf(tile(loss.node, T.totales.retorno))).toBe("loss");
+      expect(tile(loss.node, T.totales.retorno).textContent).toContain("\u2212250 GYD");
+      await act(async () => loss.root.unmount());
+
+      loadFinancialClose.mockResolvedValue({ ok: true, data: { ...base, totals: { ...base.totals, retornoGyd: 0 } } });
+      const zero = await render();
+      expect(toneOf(tile(zero.node, T.totales.retorno))).toBe("neutral");
+      expect(tile(zero.node, T.totales.retorno).textContent).toContain("0 GYD");
+      expect(tile(zero.node, T.totales.retorno).textContent).not.toMatch(/[+\u2212]0/);
+      await act(async () => zero.root.unmount());
+    });
+
+    it("tones only the facturado and retorno cells of the by-service table", async () => {
+      const { node, root } = await render();
+
+      const row = node.querySelector("[data-testid='service-row']")!;
+      expect([0, 1, 2, 3].map((i) => cellTone(row, i))).toEqual([null, null, "in", "profit"]);
+      // the table figures carry no sign
+      expect(row.querySelectorAll("td")[3]!.textContent).toContain("500 GYD");
+      expect(row.querySelectorAll("td")[3]!.textContent).not.toContain("+");
+      await act(async () => root.unmount());
+    });
+
+    it("tones the three money columns of the detail table but not the voided entries", async () => {
+      const { node, root } = await render();
+
+      const detail = node.querySelector("[data-testid='detail-row']")!;
+      expect([5, 7, 8, 9].map((i) => cellTone(detail, i))).toEqual([null, "in", "out", "profit"]);
+      const excluded = node.querySelector("[data-testid='excluded-row']")!;
+      expect([7, 8, 9].map((i) => cellTone(excluded, i))).toEqual([null, null, null]);
+      await act(async () => root.unmount());
+    });
+  });
 });

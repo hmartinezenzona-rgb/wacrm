@@ -268,37 +268,26 @@ describe("RemittanceOperationCard visa", () => {
       ...overrides,
     });
 
-  it("shows the Visa extension label with its icon and the count from the amount, with no quote line", async () => {
+  it("shows the Visa extension label and the count from the amount, with no quote line", async () => {
     const { node, root } = await render(visaOp(), {
       quote: { gyd: 15000, destinationAmount: 4000, destinationCurrency: "CUP", quotedAt: "2026-10-03T00:00:00Z" },
     });
 
     expect(node.querySelector("article")!.textContent).toContain("15\u202f000 GYD");
     expect(node.querySelector("article")!.textContent).toContain("Visa extension");
-    expect(node.querySelector("article svg.lucide-stamp")).not.toBeNull();
+    expect(node.querySelector("article svg.lucide-stamp")).toBeNull();
     expect(node.querySelector('[data-testid="deposit-review-stub"]')!.getAttribute("data-summary-amount")).toContain("3 extensions");
     expect(node.textContent).not.toContain("Quoted");
     await act(async () => root.unmount());
   });
 
-  it("puts the service dot before the service name in the header", async () => {
+  it("has no service dot in the header for visa", async () => {
     const { node, root } = await render(visaOp());
 
-    const header = node.querySelector("article button[aria-expanded]")!;
-    const dot = header.querySelector("[data-service]") as HTMLElement;
-    expect(dot.dataset.service).toBe("visa");
-    expect(dot.nextSibling?.textContent).toContain("Visa extension");
+    expect(node.querySelector("article [data-service]")).toBeNull();
     await act(async () => root.unmount());
   });
 
-  it("shows no dot in the header when the operation has no service yet", async () => {
-    const { node, root } = await render(operation({ destinationCurrency: "CUP" }));
-
-    expect(node.querySelector("article button[aria-expanded] [data-service]")).toBeNull();
-    await act(async () => root.unmount());
-  });
-
-  // Owner test 2026-10-04: waiting for the deposit, the card only said "Visa extension" and 10 000 GYD.
   it("shows the extensions count in the header while the deposit is awaited", async () => {
     const { node, root } = await render(visaOp({ status: "collecting_information", quotedSourceAmount: 10000 }));
 
@@ -376,14 +365,14 @@ describe("RemittanceOperationCard combo", () => {
       ...overrides,
     });
 
-  it("shows the Combo label with its icon and the combo count, and no remesa quote line", async () => {
+  it("shows the Combo label and the combo count, and no remesa quote line", async () => {
     const { node, root } = await render(comboOp(), {
       quote: { gyd: 55000, destinationAmount: 4000, destinationCurrency: "CUP", quotedAt: "2026-10-03T00:00:00Z" },
     });
 
     expect(node.querySelector("article")!.textContent).toContain("55\u202f000 GYD");
     expect(node.querySelector("article")!.textContent).toContain("Combo");
-    expect(node.querySelector("article svg.lucide-shopping-basket")).not.toBeNull();
+    expect(node.querySelector("article svg.lucide-shopping-basket")).toBeNull();
     expect(node.querySelector('[data-testid="deposit-review-stub"]')!.getAttribute("data-summary-amount")).toContain("2 combos");
     expect(node.textContent).not.toContain("Quoted");
     await act(async () => root.unmount());
@@ -672,12 +661,12 @@ describe("RemittanceOperationCard recharge", () => {
       ],
     });
 
-  it("shows the Recharge label and icon, the deposit in GYD, and the recharge count", async () => {
+  it("shows the Recharge label, the deposit in GYD, and the recharge count", async () => {
     const { node, root } = await render(rechargeOp(), { quote: { gyd: 10400, destinationAmount: 4000, destinationCurrency: "CUP", quotedAt: "2026-10-03T00:00:00Z" } });
 
     expect(node.textContent).toContain("10\u202f400 GYD");
     expect(node.textContent).toContain("Recharge");
-    expect(node.querySelector("article svg.lucide-smartphone")).not.toBeNull();
+    expect(node.querySelector("article svg.lucide-smartphone")).toBeNull();
     const summary = node.querySelector('[data-testid="deposit-review-stub"]')!;
     expect(summary.getAttribute("data-summary-amount")).toContain("2 recharges");
     await act(async () => root.unmount());
@@ -750,14 +739,14 @@ describe("RemittanceOperationCard mobile balance (saldo)", () => {
     });
   const quote: ConversationQuoteRead = { gyd: 5000, destinationAmount: 4000, destinationCurrency: "CUP", quotedAt: "2026-10-03T00:00:00Z" };
 
-  it("shows the Mobile balance label with its own icon, the package count and the saldo (packages x 360)", async () => {
+  it("shows the Mobile balance label, the package count and the saldo (packages x 360)", async () => {
     const { node, root } = await render(saldoOp(), { quote });
 
     const header = node.querySelector("article button[aria-expanded]")!.textContent!;
     expect(header).toContain("5\u202f000 GYD");
     expect(header).toContain("Mobile balance");
     expect(header).toContain("5 packages · 1\u202f800 SM");
-    expect(node.querySelector("article svg.lucide-coins")).not.toBeNull();
+    expect(node.querySelector("article svg.lucide-coins")).toBeNull();
     expect(node.querySelector("article svg.lucide-smartphone")).toBeNull();
     expect(node.querySelector('[data-testid="deposit-review-stub"]')!.getAttribute("data-summary-amount")).toContain("5 packages · 1\u202f800 SM");
     await act(async () => root.unmount());
@@ -2301,6 +2290,85 @@ describe("RemittanceOperationCard closing actions", () => {
     );
 
     expect(node.textContent).toContain(en.Inbox.operationsPanel.history.closedManually);
+    await act(async () => root.unmount());
+  });
+});
+
+describe("RemittanceOperationCard header layout", () => {
+  const ICONS = ["smartphone", "shopping-basket", "stamp", "coins"];
+  const actionsRow = (node: Element) => {
+    const first = node.querySelector("article")!.firstElementChild!;
+    return first.querySelector("button[aria-expanded]") ? null : first;
+  };
+  const amountRow = (node: Element) => node.querySelector("article button[aria-expanded]")!.parentElement!;
+
+  it("puts edit then delete in their own row above the amount row when expanded", async () => {
+    const { node, root } = await render(operation(), { role: "owner" });
+
+    const row = actionsRow(node)!;
+    expect(row).not.toBeNull();
+    expect(Array.from(row.querySelectorAll("button")).map((b) => b.getAttribute("aria-label"))).toEqual([
+      en.Inbox.operationsPanel.closing.deleteButton,
+      en.Inbox.operationsPanel.editOperation,
+    ]);
+    expect(row.className).toContain("justify-end");
+    expect(amountRow(node).querySelector('button[aria-label="' + en.Inbox.operationsPanel.editOperation + '"]')).toBeNull();
+    expect(amountRow(node).querySelector('button[aria-label="' + en.Inbox.operationsPanel.closing.deleteButton + '"]')).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("has no actions row when the card is collapsed", async () => {
+    const { node, root } = await render(operation(), { role: "owner", expanded: false });
+
+    expect(actionsRow(node)).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("has no actions row when neither button applies", async () => {
+    const { node, root } = await render(operation(), { canEdit: false, role: "agent" });
+
+    expect(actionsRow(node)).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("keeps only the pencil in the row for a non-manager", async () => {
+    const { node, root } = await render(operation(), { role: "agent" });
+
+    const labels = Array.from(actionsRow(node)!.querySelectorAll("button")).map((b) => b.getAttribute("aria-label"));
+    expect(labels).toEqual([en.Inbox.operationsPanel.editOperation]);
+    await act(async () => root.unmount());
+  });
+
+  it.each([
+    ["recarga", { serviceType: "recarga" }],
+    ["combo", { serviceType: "combo" }],
+    ["visa", { serviceType: "visa" }],
+    ["saldo", { serviceType: "saldo" }],
+    ["remittance", {}],
+  ])("the amount row has no service icon or dot for %s", async (_name, overrides) => {
+    const { node, root } = await render(
+      operation({ quotedSourceAmount: 26000, sourceCurrency: "GYD", ...(overrides as Partial<RemittanceOperationRead>) }),
+    );
+
+    const row = node.querySelector("article button[aria-expanded]")!;
+    for (const icon of ICONS) expect(row.querySelector(`svg.lucide-${icon}`)).toBeNull();
+    expect(row.querySelector("[data-service]")).toBeNull();
+    expect(row.textContent).toContain("26\u202f000 GYD");
+    await act(async () => root.unmount());
+  });
+
+  it("shows the deposit method as plain muted text after the status, with no pill or icon", async () => {
+    const { node, root } = await render(operation({ depositMethod: "mmg", status: "deposit_verification" }));
+
+    const statusRow = amountRow(node).nextElementSibling!;
+    const method = Array.from(statusRow.querySelectorAll("span")).find((s) => s.textContent?.includes("MMG"))!;
+    expect(statusRow.textContent).toContain("·");
+    expect(method.className).toContain("text-muted-foreground");
+    expect(method.className).not.toContain("rounded-full");
+    expect(method.className).not.toContain("border");
+    expect(method.querySelector("svg")).toBeNull();
+    expect(method.querySelector(".sr-only")!.textContent).toContain(en.Inbox.operationsPanel.depositMethod);
+    expect(method.getAttribute("title")).toBe(en.Inbox.operationsPanel.depositMethod);
     await act(async () => root.unmount());
   });
 });

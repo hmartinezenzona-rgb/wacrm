@@ -356,20 +356,12 @@ describe("OperationCorrectionForm", () => {
     const button = (node: HTMLElement, label: string) =>
       node.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
 
-    it("shows the service dot of the current service before its name in the trigger", async () => {
+    it("shows the service name in the trigger with no dot", async () => {
       const { node, root } = await render(operation({ deliveryMethod: "clasica" }));
 
       const trigger = node.querySelector('[data-testid="select-trigger"]')!;
-      const dot = trigger.querySelector("[data-service]") as HTMLElement;
-      expect(dot.dataset.service).toBe("clasica");
-      expect(dot.nextSibling?.textContent).toBe(en.Inbox.operationsPanel.closing.method.clasica);
-      await act(async () => root.unmount());
-    });
-
-    it("shows no dot while no service is chosen", async () => {
-      const { node, root } = await render(operation({ deliveryMethod: null }));
-
-      expect(node.querySelector('[data-testid="select-trigger"] [data-service]')).toBeNull();
+      expect(trigger.querySelector("[data-service]")).toBeNull();
+      expect(trigger.textContent).toContain(en.Inbox.operationsPanel.closing.method.clasica);
       await act(async () => root.unmount());
     });
 

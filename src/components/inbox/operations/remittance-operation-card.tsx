@@ -2,7 +2,7 @@
 
 import { useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowRightLeft, AtSign, Banknote, ChevronDown, Coins, CreditCard, IdCard, Lock, MapPin, Pencil, Phone, ShoppingBasket, Smartphone, Stamp, Trash2, UserPlus, UserRound, Users } from "lucide-react";
+import { ArrowRightLeft, AtSign, Banknote, ChevronDown, CreditCard, IdCard, Lock, MapPin, Pencil, Phone, Trash2, UserPlus, UserRound, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { canForceVerify, type AccountRole } from "@/lib/auth/roles";
 import { corregirBeneficiario } from "@/lib/remittance-operations/commands";
@@ -27,8 +27,7 @@ import type { SummaryAmount } from "./deposit-review-section";
 import { ConfirmCancelButtons } from "./confirm-cancel-buttons";
 import { InlineEditField } from "./inline-edit-field";
 import { OperationClosingControl } from "./operation-closing-control";
-import { ServiceDot } from "@/components/service/service-dot";
-import { KNOWN_BENEFICIARY_TYPES, MethodIcon, StatusChip } from "./operation-icons";
+import { KNOWN_BENEFICIARY_TYPES, StatusChip } from "./operation-icons";
 import { formatNumber } from "@/lib/format-number";
 
 const CARD_NUMBER_PATTERN = /^\d{16}$/;
@@ -395,8 +394,6 @@ export function RemittanceOperationCard({
 
   const source = money(operation.quotedSourceAmount, operation.sourceCurrency);
   const destLabel = destinationLabel(operation, t as (key: string, params?: Record<string, unknown>) => string);
-  // The dot goes before the label only when it names the operation's one service, never on "Mixed".
-  const headerService = destLabel && destLabel !== t("mixedDestination") ? currentServiceOf(operation) : null;
   const destLocked = isLocked("delivery_method") || isLocked("destination_currency") || isLocked("quoted_destination_amount");
 
   const methodLabel = (method: string): string => knownMethodLabel(method, t as (key: string) => string);
@@ -451,6 +448,34 @@ export function RemittanceOperationCard({
 
   return (
     <article className="rounded-lg border border-border bg-card px-2 py-2.5">
+      {expanded && (canDelete || editable) && (
+        <div className="mb-1 flex items-center justify-end gap-1">
+          {canDelete && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              aria-label={t("closing.deleteButton")}
+              title={t("closing.deleteButton")}
+              onClick={() => toggleForm({ kind: "delete" })}
+            >
+              <Trash2 aria-hidden="true" />
+            </Button>
+          )}
+          {editable && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              aria-label={t("editOperation")}
+              title={t("editOperation")}
+              onClick={() => toggleForm({ kind: "operation" })}
+            >
+              <Pencil aria-hidden="true" />
+            </Button>
+          )}
+        </div>
+      )}
       <div className="flex items-center gap-1">
         <button
           type="button"
@@ -469,11 +494,6 @@ export function RemittanceOperationCard({
                   →
                 </span>
                 <span className="inline-flex items-center gap-1">
-                  {isRecharge(operation) && <Smartphone className="size-3.5 shrink-0" aria-hidden="true" />}
-                  {isCombo(operation) && <ShoppingBasket className="size-3.5 shrink-0" aria-hidden="true" />}
-                  {isVisa(operation) && <Stamp className="size-3.5 shrink-0" aria-hidden="true" />}
-                  {isSaldo(operation) && <Coins className="size-3.5 shrink-0" aria-hidden="true" />}
-                  {headerService && <ServiceDot service={headerService} />}
                   {destLabel}
                   {destLocked && lock}
                 </span>
@@ -485,40 +505,13 @@ export function RemittanceOperationCard({
             aria-hidden="true"
           />
         </button>
-        {expanded && canDelete && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            aria-label={t("closing.deleteButton")}
-            title={t("closing.deleteButton")}
-            onClick={() => toggleForm({ kind: "delete" })}
-          >
-            <Trash2 aria-hidden="true" />
-          </Button>
-        )}
-        {expanded && editable && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            aria-label={t("editOperation")}
-            title={t("editOperation")}
-            onClick={() => toggleForm({ kind: "operation" })}
-          >
-            <Pencil aria-hidden="true" />
-          </Button>
-        )}
       </div>
 
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
         <StatusChip status={status} label={t(`status.${status}`)} />
         {(operation.depositMethod !== null || isLocked("deposit_method")) && (
-          <span
-            className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 py-0.5 pl-0.5 pr-2 text-[11px] font-medium text-foreground"
-            title={t("depositMethod")}
-          >
-            <MethodIcon method={operation.depositMethod} label={t("depositMethod")} />
+          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title={t("depositMethod")}>
+            <span aria-hidden="true">·</span>
             <span className="sr-only">{t("depositMethod")}: </span>
             {operation.depositMethod ? methodLabel(operation.depositMethod) : "—"}
             {isLocked("deposit_method") && lock}

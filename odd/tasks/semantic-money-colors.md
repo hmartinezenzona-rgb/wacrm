@@ -83,3 +83,21 @@ TDD: RED observed for statusTextClass, StatusChip tones, header dot, selector do
   loud. The not-verified notice and its catalog key are removed from `deposit-review-section.tsx`; the verify result
   message stays. RED 1 failed (notice still rendered), GREEN inbox operations + i18n 482/482, tsc and eslint clean.
 - Staging deploy (2026-10-08; release aea1e2912456bae464b7b5b9767df26d003f048b, BUILD_ID DKzHk0PJoO_aGYp6NVnMM, app commit aea1e29): manifest environment=staging, project kolppplawzdsjfydwejr, 0 production refs, 32 files with staging refs, 114 build tests passed, sha256 OK on oracle2, pm2 wacrm-staging process cwd resolves to the new release, restarts 86 -> 87 and stable (unstable 0, still 87 after 20 s), /login 200 with the new BUILD_ID and "Bienvenido de nuevo", 0 occurrences of "Depósito no verificado" in the /login HTML and in the deployed release (server messages included), and all 17 JS chunks listed by the inbox page client-reference manifest served by crm.onlinefreedom.site byte-identical to the build, none containing `depositReview.notVerified`. Rollback: anterior -> 69e863f (`ssh oracle2 'ln -sfn /home/ubuntu/wacrm-releases/69e863fd824c83fb3932af74fb707c6e1d29daa0 ~/wacrm-releases/current && pm2 restart wacrm-staging --update-env'`).
+
+## Panel header reorganisation (2026-10-08)
+Owner (summary): "no saturar el panel" - no colours to tell a recarga from a remesa, do not overuse icons, the edit and delete icons must not compete for space with the amount and the service; organise the card so it reads easily. Decided layout (inbox operation card):
+
+```
+                                  pencil  trash   <- row 0: actions only, right-aligned, only when expanded
+26 000 GYD -> Recarga                  chevron    <- row 1: amount -> service, text only
+(dot) Verificacion del deposito . MMG             <- row 2: status chip and deposit method as plain text
+```
+The status tone colour stays as the only semantic colour in the header. `ServiceDot` is gone from the panel (card header and the Servicio selector trigger); `service-dot.tsx`, `service-color.ts` and their Finanzas/Calculator use are untouched (owner undecided).
+
+Tasks:
+- [x] PH-1 Move edit/delete buttons to their own row above the amount row (same buttons, order, handlers, rules; row absent when none applies).
+- [x] PH-2 Amount row: remove service icons and ServiceDot; keep lock indicators and chevron.
+- [x] PH-3 Status row: deposit method as muted plain text after a middle dot, no pill, no MethodIcon; sr-only text, title, "-" for locked null and lock kept.
+- [x] PH-4 Remove ServiceDot from the Servicio selector trigger.
+
+Evidence: TDD runner vitest. RED: 13 failed (12 in the card test, 1 in the correction form test). GREEN: `src/components/inbox` 488/488, full suite 2393/2393, tsc and eslint clean. Tests updated deliberately: the four icon assertions (stamp, shopping-basket, smartphone, coins) now assert absence; the visa "service dot before the name" test became "no service dot in the header"; the "no dot when no service yet" test was dropped (covered by the new no-dot cases); the correction form "dot before its name" test became "name with no dot" and "no dot while no service is chosen" was dropped.

@@ -3,7 +3,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { ServiceDot } from "@/components/service/service-dot";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConfirmCancelButtons, cancelOnEscape } from "./confirm-cancel-buttons";
 import { EDIT_AREA, FieldPair, FieldRow, PairCell, UNDERLINE_SELECT_TRIGGER, UnderlineInput } from "./edit-form-fields";
@@ -163,14 +162,7 @@ export function OperationCorrectionForm({ operation, onDone, onCancel }: Operati
             {/* Base UI paints the raw value unless it is given the label. */}
             <SelectValue placeholder={t("serviceChange.choose")}>
               {(v) =>
-                v ? (
-                  <>
-                    <ServiceDot service={v as string} />
-                    {t(`closing.method.${v as string}`)}
-                  </>
-                ) : (
-                  t("serviceChange.choose")
-                )
+                v ? t(`closing.method.${v as string}`) : t("serviceChange.choose")
               }
             </SelectValue>
           </SelectTrigger>

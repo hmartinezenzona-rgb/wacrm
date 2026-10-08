@@ -248,7 +248,7 @@ BEGIN
   RAISE NOTICE 'PASS g: a human lock on the rail, the service type or the quote answers bloqueado_por_humano and writes nothing';
 
   -- ---- h. statuses ----
-  FOREACH v_t IN ARRAY ARRAY['transferring', 'incident', 'completed', 'cancelled'] LOOP
+  FOREACH v_t IN ARRAY ARRAY['transferring', 'incident'] LOOP
     v_op := pg_temp.t230_op(v_user, v_acc, '59902300008', 'cuban_card', 47100, v_t);
     v_before := pg_temp.t230_state(v_op);
     v_r := cerebro_cambiar_servicio(pg_temp.t230_conv(v_op), 'zelle', 'exec230-h');
@@ -264,7 +264,23 @@ BEGIN
        OR (SELECT status FROM remittance_operations WHERE id = v_op) <> v_t THEN
       RAISE EXCEPTION 'case h: status % must allow the change and keep its status, got %', v_t, v_r; END IF;
   END LOOP;
-  RAISE NOTICE 'PASS h: transferring, incident, completed and cancelled are refused; the five open statuses change and keep their status';
+  -- (231, gap D4.1) a latest operation that is completed / cancelled is "no OPEN operation": the choice of a service for the NEW remittance is
+  -- recorded as the agent-declared pending service (remesa rails only), nothing is written to the old operation.
+  FOREACH v_t IN ARRAY ARRAY['completed', 'cancelled'] LOOP
+    v_op := pg_temp.t230_op(v_user, v_acc, '59902300008', 'cuban_card', 47100, v_t);
+    v_before := pg_temp.t230_state(v_op);
+    v_r := cerebro_cambiar_servicio(pg_temp.t230_conv(v_op), 'zelle', 'exec230-h');
+    IF v_r IS DISTINCT FROM jsonb_build_object('ok', true, 'changed', false, 'pendiente', true, 'servicio', 'zelle') THEN
+      RAISE EXCEPTION 'case h: status % must answer pendiente (no open operation), got %', v_t, v_r; END IF;
+    IF pg_temp.t230_state(v_op) <> v_before OR EXISTS (SELECT 1 FROM remittance_admin_audit WHERE row_id = v_op AND field_name = 'service') THEN
+      RAISE EXCEPTION 'case h: nothing may be written to the % operation', v_t; END IF;
+    IF NOT EXISTS (SELECT 1 FROM cerebro_destino_pendiente WHERE conversation_id = pg_temp.t230_conv(v_op) AND tipo = 'zelle' AND origen = 'agente') THEN
+      RAISE EXCEPTION 'case h: the agent pending row must exist for status %', v_t; END IF;
+    v_r := cerebro_cambiar_servicio(pg_temp.t230_conv(v_op), 'recarga', 'exec230-h');
+    IF (v_r ->> 'reason') <> 'sin_operacion' OR (v_r ->> 'pendiente') <> 'false' THEN
+      RAISE EXCEPTION 'case h: recarga with only a % operation is sin_operacion, got %', v_t, v_r; END IF;
+  END LOOP;
+  RAISE NOTICE 'PASS h: transferring and incident are refused; completed and cancelled count as no open operation (pending); the five open statuses change and keep their status';
 
   -- ---- i. below the minimum of the new service ----
   v_op := pg_temp.t230_op(v_user, v_acc, '59902300010', 'cuban_card', 5200);

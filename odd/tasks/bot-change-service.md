@@ -341,7 +341,7 @@ select md5(pg_get_constraintdef(oid)) from pg_constraint where conname in ('cere
 ```
 | function | md5 | ACL |
 |---|---|---|
-| cerebro_cambiar_servicio | 108249804b3a64690259e1a87bf06236 | postgres, service_role |
+| cerebro_cambiar_servicio | c45bff5f48b88c862f37648d5cbf6593 (was 108249804b3a64690259e1a87bf06236 before gap D4.1, 2026-10-08) | postgres, service_role |
 | cerebro_coherencia_resolver | 8ab1541d7269c3c4a79c863a12a74a42 | postgres only |
 | cerebro_destino_agente_al_crear | ebf54651b826da9fc3046556d24ec14f | postgres only |
 | cerebro_destino_pendiente_origen | 01c7888fda2de43665e90a53f4d1af66 | postgres only |
@@ -463,7 +463,7 @@ Evals first (`~/cerebro-fase1/pruebas/evals/evaluar.py --workflow U52y1kSNvhgxvW
 Rollback: PUT the saved `cerebro-staging-antes-131-<ts>.json`; the database side rolls back with `ROLLBACK-231-agent-service-change-guards.sql` only AFTER the two new nodes (and the via lines) are out of the workflow.
 
 ## D4. Decision gaps for the owner
-1. A conversation whose latest operation is completed / cancelled and who then says "mejor zelle" BEFORE the new operation exists still gets `estado_no_permite` (230's contract, asserted in bot-change-service case h): the choice is not remembered and the prompt tells the agent to hand over. Repeat customers hit this often. Fix = treat completed / cancelled as "no open operation" for the pending path (changes 230's refusal and its assertion). Not done: needs your call.
+1. RESOLVED 2026-10-08 (owner: treat "no OPEN operation" like "no operation"; see Part E1). Was: a conversation whose latest operation is completed / cancelled and who then says "mejor zelle" BEFORE the new operation exists still gets `estado_no_permite` (230's contract, asserted in bot-change-service case h): the choice is not remembered and the prompt tells the agent to hand over. Repeat customers hit this often. Fix = treat completed / cancelled as "no open operation" for the pending path (changes 230's refusal and its assertion). Not done: needs your call.
 2. The safety net cannot tell a price question from a switch, so a comparison question will raise a (low-wording) alert each time the pair is new; it is also blind to zelle -> cash quotes (cash quotes come from `consultar_servicio`, unrecorded) and inert until the four quote nodes call `cerebro_registrar_via_cotizada`. Accept the noise for the first week and measure?
 3. The pending service is applied at creation with no deposit amount yet, so the Zelle minimum is not checked at that instant (the deposit-time minimum logic and the stale `cerebro_objetivo_envio` risk of B4 still decide); scenario 2 of D3.7 must prove it on staging.
 4. Status after a post-verification switch with no recipient for the new rail (B4), and whether `incident` should be refused: unchanged open points.

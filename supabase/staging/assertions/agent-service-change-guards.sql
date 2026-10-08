@@ -309,7 +309,7 @@ BEGIN
   v_r := cerebro_cambiar_servicio(v_conv2, 'zelle', 'exec231-e6');
   IF (v_r ->> 'changed') <> 'true' OR (v_r ? 'pendiente') AND (v_r ->> 'pendiente') = 'true' OR EXISTS (SELECT 1 FROM cerebro_destino_pendiente WHERE conversation_id = v_conv2) THEN
     RAISE EXCEPTION 'case E: with an operation the change applies and no agent pending row is left, got %', v_r; END IF;
-  -- estado_no_permite for a closed latest operation is unchanged (230)
+  -- estado_no_permite stays for an open operation whose state forbids the change (transferring)
   v_conv2 := pg_temp.t231_conv(v_user, v_acc);
   v_op2 := pg_temp.t231_op(v_conv2, 'efectivo_usd', 47100, 'ready_to_transfer');
   PERFORM set_config('wacrm.origin', 'admin', true);
@@ -317,6 +317,24 @@ BEGIN
   PERFORM set_config('wacrm.origin', '', true);
   v_r := cerebro_cambiar_servicio(v_conv2, 'zelle', 'exec231-e7');
   IF (v_r ->> 'reason') <> 'estado_no_permite' OR EXISTS (SELECT 1 FROM cerebro_destino_pendiente WHERE conversation_id = v_conv2) THEN RAISE EXCEPTION 'case E: transferring stays estado_no_permite, got %', v_r; END IF;
+  -- (gap D4.1) a repeat customer: the latest operation is completed / cancelled, the customer picks a service for the NEW remittance before it
+  -- exists -> pending (not estado_no_permite), and the operation created next takes it
+  FOREACH v_text IN ARRAY ARRAY['completed', 'cancelled'] LOOP
+    v_conv2 := pg_temp.t231_conv(v_user, v_acc);
+    v_op2 := pg_temp.t231_op(v_conv2, 'efectivo_usd', 47100, 'ready_to_transfer');
+    PERFORM set_config('wacrm.origin', 'admin', true);
+    UPDATE remittance_operations SET status = v_text WHERE id = v_op2;
+    PERFORM set_config('wacrm.origin', '', true);
+    v_r := cerebro_cambiar_servicio(v_conv2, 'zelle', 'exec231-e8');
+    IF v_r IS DISTINCT FROM jsonb_build_object('ok', true, 'changed', false, 'pendiente', true, 'servicio', 'zelle')
+       OR NOT EXISTS (SELECT 1 FROM cerebro_destino_pendiente WHERE conversation_id = v_conv2 AND tipo = 'zelle' AND origen = 'agente') THEN
+      RAISE EXCEPTION 'case E: with only a % operation the choice is pending, got %', v_text, v_r; END IF;
+    v_op := cerebro_crear_operacion(v_conv2, 47100, 'GYD');
+    SELECT * INTO v_o FROM remittance_operations WHERE id = v_op;
+    IF v_op = v_op2 OR v_o.delivery_method IS DISTINCT FROM 'zelle' OR EXISTS (SELECT 1 FROM cerebro_destino_pendiente WHERE conversation_id = v_conv2)
+       OR (SELECT delivery_method FROM remittance_operations WHERE id = v_op2) <> 'efectivo_usd' THEN
+      RAISE EXCEPTION 'case E: the new remittance after a % one is born zelle, the old one is untouched, the row consumed', v_text; END IF;
+  END LOOP;
   -- the table accepts exactly the five rails
   BEGIN
     INSERT INTO cerebro_destino_pendiente (conversation_id, tipo) VALUES (v_conv2, 'recarga');

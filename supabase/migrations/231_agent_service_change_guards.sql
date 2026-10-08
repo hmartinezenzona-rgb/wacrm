@@ -22,6 +22,9 @@
 --    the AGENT-declared service is recorded as the pending destination (24 h, as 157) and the tool returns
 --    {ok:true, changed:false, pendiente:true, servicio}. recarga / combo / visa / saldo get {ok:false, reason:'sin_operacion',
 --    pendiente:false}: a pending service only makes sense for the remesa rails, because the operation that will be created is a remesa.
+--    "No operation" includes "no OPEN operation": when the conversation's operations are all completed / cancelled (a repeat customer who
+--    picks a service for the NEW remittance before it exists) the choice is recorded as pending too; estado_no_permite stays for an operation
+--    that is open but forbids the change (transferring; incident is reached later and refused there).
 --    A new AFTER INSERT trigger on remittance_operations applies a pending agent-declared service when a remesa is created without a rail and
 --    it is the conversation's single open remesa, through the SAME core as the panel and the tool (audit row included), and consumes the
 --    row. A per-conversation advisory lock taken by the tool and the trigger makes "pending written while the operation is being created"
@@ -324,8 +327,10 @@ BEGIN
      WHERE o.conversation_id = p_conversation_id
        AND o.status IN ('collecting_information', 'awaiting_deposit', 'deposit_received', 'deposit_verification', 'ready_to_transfer', 'incident');
     IF coalesce(array_length(v_ids, 1), 0) = 0 THEN
+      -- (231) No OPEN operation. Only an operation that is open but in a state that forbids the change (transferring) refuses; a completed /
+      -- cancelled one (a repeat customer) is "no operation": the choice is for the NEW remittance and is recorded below.
       SELECT o.id, o.status INTO v_op, v_status
-        FROM remittance_operations o WHERE o.conversation_id = p_conversation_id ORDER BY o.created_at DESC LIMIT 1;
+        FROM remittance_operations o WHERE o.conversation_id = p_conversation_id AND o.status = 'transferring' ORDER BY o.created_at DESC LIMIT 1;
       IF v_op IS NULL THEN
         IF v_servicio IN ('cuban_card', 'zelle', 'clasica', 'tropical', 'efectivo_usd')
            AND EXISTS (SELECT 1 FROM conversations c WHERE c.id = p_conversation_id) THEN

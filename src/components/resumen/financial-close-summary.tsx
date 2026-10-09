@@ -5,6 +5,7 @@ import { BarChart } from "@/components/tremor/bar-chart";
 import { shortDayLabel } from "@/lib/financial-close/periods";
 import type { FinancialClose } from "@/lib/financial-close/read-model";
 import { useServiceName } from "@/hooks/use-service-name";
+import { ServiceDot } from "@/components/service/service-dot";
 import { MoneyTotalFigure } from "@/components/money/money-total-figure";
 import { moneyCellProps, moneyStripeClass, profitTone, totalTone, type TotalKind } from "@/lib/money-tone";
 import { fmtGyd, marginPct } from "./financial-close-format";
@@ -102,6 +103,7 @@ export function FinancialCloseSummary({ close }: { close: FinancialClose }) {
                     className="border-t border-border tabular-nums"
                   >
                     <td className="py-1.5 font-medium text-foreground">
+                      <ServiceDot service={s.service} />
                       {serviceName(s.service)}
                     </td>
                     <td className="py-1.5 text-right">{s.operations}</td>

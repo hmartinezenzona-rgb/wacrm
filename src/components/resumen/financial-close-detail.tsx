@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import type { CloseEntry, FinancialClose } from "@/lib/financial-close/read-model";
 import { moneyCellProps, profitTone } from "@/lib/money-tone";
 import { useServiceName } from "@/hooks/use-service-name";
+import { ServiceDot } from "@/components/service/service-dot";
 import { fmtAmount, fmtGyd, guyanaTime, rateLabel, shortId } from "./financial-close-format";
 
 const BASE_MONEY_CELL = "whitespace-nowrap px-2 py-1.5 text-right";
@@ -38,6 +39,7 @@ export function FinancialCloseDetail({ close }: { close: FinancialClose }) {
         )}
       </td>
       <td className="px-2 py-1.5">
+        <ServiceDot service={e.service} />
         {serviceName(e.service)}
       </td>
       <td className="whitespace-nowrap px-2 py-1.5 text-right">{fmtAmount(e.amount, e.amountCurrency)}</td>

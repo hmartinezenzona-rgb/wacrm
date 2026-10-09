@@ -82,16 +82,37 @@ describe("Finanzas history table", () => {
     ]);
   });
 
-  it("shows the service as plain text, with no colour dot, in the history table", async () => {
+  it("puts the fixed service dot before the service name, one colour per service", async () => {
     const node = await renderPage([
-      row({ operation_id: "a", servicio: "CUP" }),
-      row({ operation_id: "b", servicio: "SALDO_MOVIL", service_type: "saldo" }),
-      row({ operation_id: "c", servicio: "MIXTA" }),
-      row({ operation_id: "d", service_type: "mystery" }),
+      row({ operation_id: "a", service_type: "remesa" }),
+      row({ operation_id: "b", service_type: "recarga" }),
+      row({ operation_id: "c", service_type: "mystery" }),
     ]);
     const cells = [...node.querySelectorAll("tbody tr")].map((r) => r.querySelectorAll("td")[1]!);
-    expect(cells.map((c) => c.textContent)).toEqual(["CUP", "Saldo móvil", "Remesa mixta", "mystery"]);
-    expect(node.querySelectorAll("[data-service]")).toHaveLength(0);
+    expect(cells.map((c) => [c.textContent, c.querySelector("[data-service]")?.getAttribute("data-service")])).toEqual([
+      ["Remesa", "remesa"],
+      ["Recarga", "recarga"],
+      ["mystery", "other"],
+    ]);
+    expect(cells[0]!.firstElementChild!.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("names the specific service of the operation (servicio) and colours the dot after it", async () => {
+    const node = await renderPage([
+      row({ operation_id: "a", servicio: "CUP" }),
+      row({ operation_id: "b", servicio: "ZELLE" }),
+      row({ operation_id: "c", servicio: "SALDO_MOVIL", service_type: "saldo" }),
+      row({ operation_id: "d", servicio: "MIXTA" }),
+      row({ operation_id: "e", servicio: "REMESA" }),
+    ]);
+    const cells = [...node.querySelectorAll("tbody tr")].map((r) => r.querySelectorAll("td")[1]!);
+    expect(cells.map((c) => [c.textContent, c.querySelector("[data-service]")?.getAttribute("data-service")])).toEqual([
+      ["CUP", "cup"],
+      ["Zelle", "zelle"],
+      ["Saldo móvil", "saldo"],
+      ["Remesa mixta", "other"],
+      ["Remesa", "remesa"],
+    ]);
   });
 
   it("falls back to the service_type name when the database does not send servicio yet", async () => {

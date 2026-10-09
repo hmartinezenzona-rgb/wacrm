@@ -607,11 +607,11 @@ export default function CalculadoraPage() {
     <main className="legacyCalc">
       <div className="legacyContainer">
         <div className="legacyTopBar">
-          <h1>📊 Cierre Semanal PRO</h1>
+          <h1>Cierre Semanal PRO</h1>
         </div>
 
         <details>
-          <summary>❓ Guía Rápida de Formatos de Registro</summary>
+          <summary>Guía Rápida de Formatos de Registro</summary>
           <table className="legacyHelpTable"><thead><tr><th>Servicio</th><th>Ejemplo</th><th>Cálculo</th></tr></thead><tbody>
             <tr><td><b>CUP</b></td><td><code>• Fran 50k CUP (235/980)</code></td><td>Tarifa global para venta; paréntesis para costo.</td></tr>
             <tr><td><b>Zelle / MLC / Clásica / Tropical</b></td><td><code>• Pedro 150 MLC (30%/240/245)</code><br /><code>• Julié 2.8k Zelle (3%/235/250)</code></td><td>Aplica % descuento (si hay) y costo/venta en GYD.</td></tr>
@@ -627,7 +627,7 @@ export default function CalculadoraPage() {
         </div>
 
         <div className="legacyCard">
-          <h2>💱 Tarifas Globales</h2>
+          <h2>Tarifas Globales</h2>
           <div className="legacyRateEditor" id="tarifasGlobales">
             <div>
               <label htmlFor="tasaSeleccionada">Tasa a cambiar</label>
@@ -682,10 +682,10 @@ export default function CalculadoraPage() {
 
         <div className={`legacyCard${fullscreen ? " legacyFullscreen" : ""}`} id="cardRegistros">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 10 }}>
-            <h2 style={{ margin: 0 }}>📝 Registros de la Semana</h2>
+            <h2 style={{ margin: 0 }}>Registros de la Semana</h2>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <button type="button" id="registrarEntradas" onClick={() => void registrar()} disabled={registering || draft.lines.length === 0} aria-busy={registering} style={{ width: "auto", padding: "6px 12px", fontSize: 13, minHeight: 36 }}>Registrar</button>
-              <button type="button" onClick={toggleFullscreen} style={{ width: "auto", padding: "6px 12px", fontSize: 13, minHeight: 36, background: fullscreen ? "#dc3545" : "var(--legacy-accent)" }}>{fullscreen ? "✕ Salir de Pantalla Completa" : "⛶ Maximizar"}</button>
+              <button type="button" onClick={toggleFullscreen} style={{ width: "auto", padding: "6px 12px", fontSize: 13, minHeight: 36, background: fullscreen ? "#dc3545" : "var(--legacy-accent)" }}>{fullscreen ? "✕ Salir de Pantalla Completa" : "Maximizar"}</button>
             </div>
           </div>
           <span className="legacySmall">Usa el botón <b>+ Viñeta</b> o escribe <code>-</code> + <code>Espacio</code>. Presiona <code>Enter</code> para nueva línea.</span>
@@ -698,20 +698,20 @@ export default function CalculadoraPage() {
         {registerMessage && <div className="legacyNotice" role="status">{registerMessage}</div>}
         {draft.uninterpreted.length > 0 && (
           <div className="legacyWarning" id="lineasNoInterpretadas">
-            {draft.uninterpreted.map((item) => <p key={item.line} style={{ margin: "0 0 4px 0", color: "orange" }}>⚠️ No interpretado: &quot;{item.raw}&quot;</p>)}
+            {draft.uninterpreted.map((item) => <p key={item.line} style={{ margin: "0 0 4px 0", color: "orange" }}>No interpretado: &quot;{item.raw}&quot;</p>)}
           </div>
         )}
 
         <div className="legacyTotals">
-          <TotalBox title="💰 Facturado (GYD)" kind="in" value={totals.fact} />
-          <TotalBox title="🔁 Invertido (GYD)" kind="out" value={totals.inv} />
-          <TotalBox title="📈 Retorno Neto (GYD)" kind="result" value={totals.ret} />
+          <TotalBox title="Facturado (GYD)" kind="in" value={totals.fact} />
+          <TotalBox title="Invertido (GYD)" kind="out" value={totals.inv} />
+          <TotalBox title="Retorno Neto (GYD)" kind="result" value={totals.ret} />
         </div>
 
-        <div className="legacyCard"><h2>⚙️ Desglose Semanal por Servicios</h2>{serviceTotals.map((service) => <div className="legacyCard" style={{ marginBottom: 10, padding: 12 }} key={service.name}><div className="legacyBlockRow"><b><ServiceDot service={service.service} />Categoría: {service.name}</b><span>Fact: <b>{formatNumber(service.fact)} GYD</b> | Inv: <b>{formatNumber(service.inv)} GYD</b> | Retorno: <b {...moneyCellProps(profitTone(service.ret))}>{formatNumber(service.ret)} GYD</b></span></div></div>)}</div>
+        <div className="legacyCard"><h2>Desglose Semanal por Servicios</h2>{serviceTotals.map((service) => <div className="legacyCard" style={{ marginBottom: 10, padding: 12 }} key={service.name}><div className="legacyBlockRow"><b><ServiceDot service={service.service} />Categoría: {service.name}</b><span>Fact: <b>{formatNumber(service.fact)} GYD</b> | Inv: <b>{formatNumber(service.inv)} GYD</b> | Retorno: <b {...moneyCellProps(profitTone(service.ret))}>{formatNumber(service.ret)} GYD</b></span></div></div>)}</div>
 
         <div className="legacyCard">
-          <h2>🔗 Operaciones</h2>
+          <h2>Operaciones</h2>
           {chatEntries.length === 0 ? (
             <span className="legacySmall">No hay operaciones.</span>
           ) : (
@@ -857,7 +857,7 @@ export default function CalculadoraPage() {
           )}
         </div>
 
-        <div className="legacyCard legacyFlex"><button type="button" onClick={exportar}>📄 Exportar Reporte (.txt)</button><button type="button" className="legacySecondary" onClick={() => setClearDialogOpen(true)} disabled={clearing}>{clearing ? "Limpiando…" : "🧹 Limpiar Todo"}</button></div>
+        <div className="legacyCard legacyFlex"><button type="button" onClick={exportar}>Exportar Reporte (.txt)</button><button type="button" className="legacySecondary" onClick={() => setClearDialogOpen(true)} disabled={clearing}>{clearing ? "Limpiando…" : "Limpiar Todo"}</button></div>
         {clearMessage && <div className="legacyError" role="status">{clearMessage}</div>}
 
         {/* Rendered in a portal on <body>, outside .legacyCalc, so the page's legacy button styles do not reach it. */}
@@ -881,7 +881,7 @@ export default function CalculadoraPage() {
 
         {/* Collapsed by default (owner, 2026-10-07): the history opens on demand so it does not fill the page. */}
         <details id="semanasAnteriores">
-          <summary>📚 Semanas anteriores{weeks.length > 0 ? ` (${weeks.length})` : ""}</summary>
+          <summary>Semanas anteriores{weeks.length > 0 ? ` (${weeks.length})` : ""}</summary>
           <span className="legacySmall">Cada «Limpiar Todo» guarda la semana aquí, solo para consultarla. Sus operaciones siguen contando en Finanzas y en el panel.</span>
           {weekMessage && <div className="legacyError">{weekMessage}</div>}
           {weeks.length === 0 ? (
@@ -909,19 +909,19 @@ export default function CalculadoraPage() {
         {openWeek && (
           <div className="legacyCard" id="semanaArchivada">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 10 }}>
-              <h2 style={{ margin: 0 }}>🗂️ Semana archivada: {openWeek.periodo || "Sin período"} (corte {cutDate(openWeek.cutAt)})</h2>
+              <h2 style={{ margin: 0 }}>Semana archivada: {openWeek.periodo || "Sin período"} (corte {cutDate(openWeek.cutAt)})</h2>
               <button type="button" id="cerrarSemana" className="legacySecondary" onClick={() => setOpenWeek(null)} style={{ width: "auto" }}>Cerrar</button>
             </div>
             <span className="legacySmall">Solo lectura.</span>
             <div className="legacyTotals">
-              <TotalBox title="💰 Facturado (GYD)" kind="in" value={openWeek.manualTotals.facturadoGyd + openWeek.chatTotals.facturadoGyd} />
-              <TotalBox title="🔁 Invertido (GYD)" kind="out" value={openWeek.manualTotals.invertidoGyd + openWeek.chatTotals.invertidoGyd} />
-              <TotalBox title="📈 Retorno Neto (GYD)" kind="result" value={openWeek.manualTotals.retornoGyd + openWeek.chatTotals.retornoGyd} />
+              <TotalBox title="Facturado (GYD)" kind="in" value={openWeek.manualTotals.facturadoGyd + openWeek.chatTotals.facturadoGyd} />
+              <TotalBox title="Invertido (GYD)" kind="out" value={openWeek.manualTotals.invertidoGyd + openWeek.chatTotals.invertidoGyd} />
+              <TotalBox title="Retorno Neto (GYD)" kind="result" value={openWeek.manualTotals.retornoGyd + openWeek.chatTotals.retornoGyd} />
             </div>
             <span className="legacySmall">Registro manual: Fact {formatNumber(openWeek.manualTotals.facturadoGyd)} | Inv {formatNumber(openWeek.manualTotals.invertidoGyd)} | Retorno {formatNumber(openWeek.manualTotals.retornoGyd)}. Operaciones del chat: Fact {formatNumber(openWeek.chatTotals.facturadoGyd)} | Inv {formatNumber(openWeek.chatTotals.invertidoGyd)} | Retorno {formatNumber(openWeek.chatTotals.retornoGyd)}.</span>
-            <h3>📝 Registro manual</h3>
+            <h3>Registro manual</h3>
             <pre style={{ whiteSpace: "pre-wrap", fontFamily: "monospace", margin: 0 }}>{openWeek.rawText}</pre>
-            <h3>🔗 Operaciones</h3>
+            <h3>Operaciones</h3>
             {openWeek.entries.length === 0 ? (
               <span className="legacySmall">Esta semana no tuvo operaciones.</span>
             ) : (

@@ -737,7 +737,7 @@ describe("calculator chat operations (read-only)", () => {
     });
     const { node, root } = await renderPage(fetchMock);
 
-    expect(node.textContent).toContain("🔗 Operaciones");
+    expect(node.textContent).toContain("Operaciones");
     expect(node.textContent).not.toContain("Operaciones del chat");
     expect(node.textContent).toContain("Completada");
     expect(node.textContent).toContain("Pendiente: usdtSellCup");
@@ -1523,7 +1523,7 @@ describe("calculator archived weeks (Semanas anteriores)", () => {
     expect(summary.textContent).toContain("Semanas anteriores");
     expect(summary.textContent).toMatch(/\(\d+\)/);
     expect(node.querySelector("h2")?.textContent ?? "").not.toContain("Semanas anteriores");
-    expect(Array.from(node.querySelectorAll("h2")).some((h) => (h.textContent ?? "").includes("📚 Semanas anteriores"))).toBe(false);
+    expect(Array.from(node.querySelectorAll("h2")).some((h) => (h.textContent ?? "").includes("Semanas anteriores"))).toBe(false);
 
     await act(async () => { (node.querySelector("#verSemana-week-1") as HTMLButtonElement).click(); });
     await act(async () => { await Promise.resolve(); });
@@ -1562,7 +1562,7 @@ describe("calculator archived weeks (Semanas anteriores)", () => {
     expect(view).not.toBeNull();
     expect(view.textContent).toContain("SEMANA 1");
     expect(view.querySelector("pre")?.textContent).toBe("• Fran 50k CUP (235/980)");
-    expect(view.textContent).toContain("🔗 Operaciones");
+    expect(view.textContent).toContain("Operaciones");
     expect(view.textContent).toContain("Archivada Ana");
     expect(view.textContent).toContain("26\u202f000,00");
     expect(view.querySelector("textarea, input")).toBeNull();
@@ -1668,7 +1668,7 @@ describe("manual operations as rows of the one table (migration 228)", () => {
   }
   const totalBoxes = (node: HTMLElement) => [...node.querySelectorAll(".legacyTotalBox p")].map((p) => p.textContent);
   function operationsCard(node: HTMLElement) {
-    return [...node.querySelectorAll(".legacyCard")].find((card) => card.querySelector("h2")?.textContent === "🔗 Operaciones") as HTMLElement;
+    return [...node.querySelectorAll(".legacyCard")].find((card) => card.querySelector("h2")?.textContent === "Operaciones") as HTMLElement;
   }
   const entryRows = (node: HTMLElement) => [...operationsCard(node).querySelectorAll("tbody tr")] as HTMLElement[];
   const cell = (row: HTMLElement, label: string) => row.querySelector(`td[data-label="${label}"]`) as HTMLElement;
@@ -1684,7 +1684,7 @@ describe("manual operations as rows of the one table (migration 228)", () => {
     expect(node.querySelector(".legacyDayHeader")).toBeNull();
     // the box, its help and its bullet button are where they were
     expect(textarea(node).value).toBe(TEXT);
-    expect(node.textContent).toContain("📝 Registros de la Semana");
+    expect(node.textContent).toContain("Registros de la Semana");
     expect(node.querySelector(".legacyBulletButton")).not.toBeNull();
     await act(async () => root.unmount());
   });
@@ -1720,7 +1720,7 @@ describe("manual operations as rows of the one table (migration 228)", () => {
 
     // 26000 + 4000, 24000 + 0, 2000 + 4000: the draft (Gerardo, Ana) is not an operation until it is registered
     expect(totalBoxes(node)).toEqual(["30\u202f000,00", "24\u202f000,00", "+6\u202f000,00"]);
-    const breakdown = [...node.querySelectorAll("h2")].find((h) => h.textContent === "⚙️ Desglose Semanal por Servicios")!.parentElement!;
+    const breakdown = [...node.querySelectorAll("h2")].find((h) => h.textContent === "Desglose Semanal por Servicios")!.parentElement!;
     expect(breakdown.textContent).toContain("Categoría: Zelle");
     expect(breakdown.textContent).toContain("Categoría: Trámites");
     expect(breakdown.textContent).not.toContain("USDT");
@@ -1772,7 +1772,7 @@ describe("manual operations as rows of the one table (migration 228)", () => {
     vi.setSystemTime(new Date("2026-10-07T16:00:00Z"));
     const fetchMock = fixture({}, TEXT, []);
     const { node, root } = await renderPage(fetchMock);
-    expect(node.textContent).toContain('⚠️ No interpretado: "esto no tiene formato"');
+    expect(node.textContent).toContain('No interpretado: "esto no tiene formato"');
     fetchMock.mockClear();
 
     await act(async () => { registrarButton(node).click(); });
@@ -1792,7 +1792,7 @@ describe("manual operations as rows of the one table (migration 228)", () => {
     }]);
     // the registered lines (and their now empty day headers) left the box; what could not be read stays, with its warning
     expect(textarea(node).value).toBe("Martes 6\nesto no tiene formato");
-    expect(node.textContent).toContain('⚠️ No interpretado: "esto no tiene formato"');
+    expect(node.textContent).toContain('No interpretado: "esto no tiene formato"');
     // they are rows of the table now, newest day first, and they count
     const rows = entryRows(node);
     expect(rows.map((row) => cell(row, "Cliente").textContent)).toEqual(["Ana", "Gerardo"]);
@@ -1892,7 +1892,7 @@ describe("manual operations as rows of the one table (migration 228)", () => {
 
     expect(node.textContent).not.toContain("no se registra");
     expect(node.textContent).not.toContain("en Finanzas (servicio");
-    expect(node.textContent).toContain('⚠️ No interpretado: "• Raro 5 xyz"');
+    expect(node.textContent).toContain('No interpretado: "• Raro 5 xyz"');
     await act(async () => root.unmount());
   });
 
@@ -2105,7 +2105,7 @@ describe("calculator money tones", () => {
   }
   const tones = (root: ParentNode) => [...root.querySelectorAll(".legacyTotalBox p [data-tone]")].map((el) => (el as HTMLElement).dataset.tone);
   const operationsCard = (node: HTMLElement) =>
-    [...node.querySelectorAll(".legacyCard")].find((card) => card.querySelector("h2")?.textContent === "🔗 Operaciones") as HTMLElement;
+    [...node.querySelectorAll(".legacyCard")].find((card) => card.querySelector("h2")?.textContent === "Operaciones") as HTMLElement;
   const toneOf = (row: Element, label: string) => row.querySelector(`td[data-label="${label}"]`)?.getAttribute("data-tone") ?? null;
 
   it("colours the totals blue / amber / green, with the sign on the result and a stripe on each box", async () => {
@@ -2180,7 +2180,7 @@ describe("calculator money tones", () => {
   it("puts the dot before each category of the service breakdown and tones its Retorno by sign", async () => {
     const { node, root } = await renderPage(fixture([DEL_COMPLETED, LOSS]));
 
-    const breakdown = [...node.querySelectorAll("h2")].find((h) => h.textContent === "⚙️ Desglose Semanal por Servicios")!.parentElement!;
+    const breakdown = [...node.querySelectorAll("h2")].find((h) => h.textContent === "Desglose Semanal por Servicios")!.parentElement!;
     const rows = [...breakdown.querySelectorAll(".legacyBlockRow")];
     expect(rows.map((r) => r.querySelector("[data-service]")?.getAttribute("data-service"))).toEqual(["zelle", "directo"]);
     expect(rows.map((r) => r.querySelector("b")!.textContent)).toEqual(["Categoría: Zelle", "Categoría: Trámites"]);
@@ -2220,6 +2220,62 @@ describe("calculator money tones", () => {
 
     const view = node.querySelector("#semanaArchivada") as HTMLElement;
     expect(view.querySelector('tbody td[data-label="Tipo"] [data-service]')?.getAttribute("data-service")).toBe("zelle");
+    await act(async () => root.unmount());
+  });
+});
+
+describe("calculator shows no emojis", () => {
+  const EMOJI = /\p{Extended_Pictographic}/u;
+  const SUMMARY = {
+    id: "week-1", cutAt: "2026-10-03T12:00:00+00:00", periodo: "SEMANA 1",
+    manualTotals: { facturadoGyd: 1000, invertidoGyd: 800, retornoGyd: 200 },
+    chatTotals: { count: 1, facturadoGyd: 26000, invertidoGyd: 24000, retornoGyd: 2000 },
+  };
+  const MANUAL_ROW = {
+    id: "man-iza", operationId: null, source: "manual", status: "completed", service: "DIRECTO", customerName: "Iza", amount: 4000,
+    amountCurrency: "GYD", entryDate: "2026-10-06", facturadoGyd: 4000, invertidoGyd: 0, retornoGyd: 4000, missingRates: [],
+  };
+  const TEXT = "Martes 6\n• Gerardo 100 Zelle (240/260)\nesto no tiene formato";
+
+  function fixture(rawText: string, entries: unknown[], overrides: Parameters<typeof createFetchMock>[0] = {}) {
+    return createFetchMock({
+      calculadoraGet: { rawText, periodo: "SEMANA 1", chatOperations: { entries } },
+      ratesGet: { rates: FULL_RATES },
+      weeksGet: { weeks: [SUMMARY] },
+      weekGet: () => ({ status: 200, body: { week: { ...SUMMARY, rawText: "• Fran 50k CUP (235/980)", entries: [{ ...DEL_COMPLETED, id: "arch-1" }] } } }),
+      ...overrides,
+    });
+  }
+
+  it("the open week with bot and manual rows, an uninterpreted line and the format guide", async () => {
+    const { node, root } = await renderPage(fixture(TEXT, [DEL_COMPLETED, MANUAL_ROW]));
+    expect(node.textContent).toContain("Facturado (GYD)");
+    expect(node.textContent).toContain("No interpretado");
+    expect(node.textContent).not.toMatch(EMOJI);
+    await act(async () => root.unmount());
+  });
+
+  it("an empty Calculator", async () => {
+    const { node, root } = await renderPage(fixture("", []));
+    expect(node.textContent).not.toMatch(EMOJI);
+    await act(async () => root.unmount());
+  });
+
+  it("an archived week opened from the history", async () => {
+    const { node, root } = await renderPage(fixture("", []));
+    await act(async () => { (node.querySelector("#verSemana-week-1") as HTMLButtonElement).click(); });
+    await flush();
+    expect(node.querySelector("#semanaArchivada")).not.toBeNull();
+    expect(node.textContent).not.toMatch(EMOJI);
+    await act(async () => root.unmount());
+  });
+
+  it("the Limpiar Todo dialog", async () => {
+    const { node, root } = await renderPage(fixture(TEXT, [DEL_COMPLETED]));
+    const clear = Array.from(node.querySelectorAll("button")).find((b) => b.textContent?.includes("Limpiar Todo")) as HTMLButtonElement;
+    await act(async () => { clear.click(); });
+    expect(document.querySelector("[role=dialog]")).not.toBeNull();
+    expect(document.body.textContent).not.toMatch(EMOJI);
     await act(async () => root.unmount());
   });
 });

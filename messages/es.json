@@ -2328,7 +2328,6 @@
       "porServicio": "Por servicio",
       "sinDatos": "Sin operaciones completadas en este periodo.",
       "detalle": "Detalle de operaciones",
-      "excluidas": "Anuladas y pendientes de tasa (no cuentan en los totales)",
       "manual": "Manual",
       "manualHint": "Línea escrita a mano en la Calculadora",
       "cols": {
@@ -2344,18 +2343,12 @@
         "retorno": "Retorno",
         "entrega": "Entrega",
         "entregadoPor": "Entregado por",
-        "estado": "Estado",
-        "motivo": "Motivo",
         "operaciones": "Ops"
       },
       "entrega": {
         "proof_sent": "Con captura",
         "no_proof": "Sin captura",
         "skip_proof": "Sin captura (ventana cerrada)"
-      },
-      "estado": {
-        "void": "Anulada",
-        "verified_pending": "Pendiente de tasa"
       },
       "exportar": "Exportar CSV"
     }

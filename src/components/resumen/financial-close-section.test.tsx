@@ -187,10 +187,18 @@ describe("FinancialCloseSection", () => {
     expect(detail.textContent).toContain("11:05");
     expect(detail.textContent).toContain(T.entrega.proof_sent);
     expect(detail.textContent).toContain("Humberto");
-    // Voided entry in its own section, with the reason.
-    const excluded = node.querySelector("[data-testid='excluded-row']")!;
-    expect(excluded.textContent).toContain(T.estado.void);
-    expect(excluded.textContent).toContain("cliente cancelo");
+    await act(async () => root.unmount());
+  });
+
+  it("does not render the voided / rate-pending table, yet the export still carries those lines", async () => {
+    const { node, root } = await render();
+    // The fixture has a voided entry: it must not appear on screen.
+    expect(close().excluded.length).toBeGreaterThan(0);
+    expect(node.querySelector("[data-testid='excluded-row']")).toBeNull();
+    expect(node.textContent).not.toContain("cliente cancelo");
+    expect(node.textContent).not.toContain("Anuladas y pendientes");
+    // The export button is still there because of the excluded rows.
+    expect(button(node, T.exportar)).toBeTruthy();
     await act(async () => root.unmount());
   });
 
@@ -410,28 +418,25 @@ describe("FinancialCloseSection", () => {
       await act(async () => root.unmount());
     });
 
-    it("tones the three money columns of the detail table but not the voided entries", async () => {
+    it("tones the three money columns of the detail table", async () => {
       const { node, root } = await render();
 
       const detail = node.querySelector("[data-testid='detail-row']")!;
       expect([5, 7, 8, 9].map((i) => cellTone(detail, i))).toEqual([null, "in", "out", "profit"]);
-      const excluded = node.querySelector("[data-testid='excluded-row']")!;
-      expect([7, 8, 9].map((i) => cellTone(excluded, i))).toEqual([null, null, null]);
       await act(async () => root.unmount());
     });
   });
 
-  describe("service dots", () => {
-    it("puts the fixed dot before the service name in the by-service and detail tables", async () => {
+  describe("no service dots", () => {
+    it("prints the service name as plain text in the by-service and detail tables", async () => {
       const { node, root } = await render();
 
       const rows = [...node.querySelectorAll("[data-testid='service-row']")];
-      expect(rows.map((r) => r.querySelector("td [data-service]")?.getAttribute("data-service"))).toEqual(["zelle", "cup"]);
-      expect(rows[0]!.querySelector("td")!.textContent).toBe("Zelle");
+      expect(rows.map((r) => r.querySelector("td")!.textContent)).toEqual(["Zelle", "CUP"]);
       const detail = node.querySelector("[data-testid='detail-row']")!;
       expect(detail.querySelectorAll("td")[4]!.textContent).toBe("CUP");
-      expect(detail.querySelectorAll("td")[4]!.querySelector("[data-service]")?.getAttribute("data-service")).toBe("cup");
-      expect(detail.querySelectorAll("[data-service]")).toHaveLength(1);
+      // the rows carry data-service themselves; no element inside a cell does
+      expect(node.querySelectorAll("td [data-service]")).toHaveLength(0);
       await act(async () => root.unmount());
     });
   });

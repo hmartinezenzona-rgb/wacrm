@@ -22,7 +22,7 @@ vi.mock("next-intl", () => ({
 
 const rpc = vi.fn();
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ rpc }) }));
-vi.mock("@/components/resumen/financial-close-section", () => ({ FinancialCloseSection: () => null }));
+vi.mock("@/components/resumen/financial-close-section", () => ({ FinancialCloseSection: () => <section data-testid="close" /> }));
 // Base UI Select hangs jsdom; a native double keeps the options and the change contract. The first Select on the page is
 // the service filter, the second one the page size.
 vi.mock("@/components/ui/select", () => ({
@@ -82,37 +82,16 @@ describe("Finanzas history table", () => {
     ]);
   });
 
-  it("puts the fixed service dot before the service name, one colour per service", async () => {
-    const node = await renderPage([
-      row({ operation_id: "a", service_type: "remesa" }),
-      row({ operation_id: "b", service_type: "recarga" }),
-      row({ operation_id: "c", service_type: "mystery" }),
-    ]);
-    const cells = [...node.querySelectorAll("tbody tr")].map((r) => r.querySelectorAll("td")[1]!);
-    expect(cells.map((c) => [c.textContent, c.querySelector("[data-service]")?.getAttribute("data-service")])).toEqual([
-      ["Remesa", "remesa"],
-      ["Recarga", "recarga"],
-      ["mystery", "other"],
-    ]);
-    expect(cells[0]!.firstElementChild!.getAttribute("aria-hidden")).toBe("true");
-  });
-
-  it("names the specific service of the operation (servicio) and colours the dot after it", async () => {
+  it("shows the service as plain text, with no colour dot, in the history table", async () => {
     const node = await renderPage([
       row({ operation_id: "a", servicio: "CUP" }),
-      row({ operation_id: "b", servicio: "ZELLE" }),
-      row({ operation_id: "c", servicio: "SALDO_MOVIL", service_type: "saldo" }),
-      row({ operation_id: "d", servicio: "MIXTA" }),
-      row({ operation_id: "e", servicio: "REMESA" }),
+      row({ operation_id: "b", servicio: "SALDO_MOVIL", service_type: "saldo" }),
+      row({ operation_id: "c", servicio: "MIXTA" }),
+      row({ operation_id: "d", service_type: "mystery" }),
     ]);
     const cells = [...node.querySelectorAll("tbody tr")].map((r) => r.querySelectorAll("td")[1]!);
-    expect(cells.map((c) => [c.textContent, c.querySelector("[data-service]")?.getAttribute("data-service")])).toEqual([
-      ["CUP", "cup"],
-      ["Zelle", "zelle"],
-      ["Saldo móvil", "saldo"],
-      ["Remesa mixta", "other"],
-      ["Remesa", "remesa"],
-    ]);
+    expect(cells.map((c) => c.textContent)).toEqual(["CUP", "Saldo móvil", "Remesa mixta", "mystery"]);
+    expect(node.querySelectorAll("[data-service]")).toHaveLength(0);
   });
 
   it("falls back to the service_type name when the database does not send servicio yet", async () => {
@@ -149,5 +128,39 @@ describe("Finanzas history table", () => {
     await act(async () => apply.click());
     const calls = rpc.mock.calls.filter(([name]) => name === "cerebro_dashboard_historial");
     expect(calls.at(-1)![1]).toMatchObject({ p_servicio: "CUP", p_desde_fila: 0 });
+  });
+});
+
+describe("Finanzas section order", () => {
+  const periods = [1, 2, 3, 4, 5].map((orden) => ({
+    orden,
+    periodo: `p${orden}`,
+    desde: "2026-10-01",
+    hasta: "2026-10-02",
+    operaciones: 4,
+    volumen_gyd: 12000,
+    ticket_medio_gyd: 3000,
+  }));
+
+  async function renderWithPeriods() {
+    rpc.mockImplementation(async (name: string) => ({
+      data: name === "cerebro_dashboard_historial" ? [row({})] : periods,
+      error: null,
+    }));
+    const node = document.createElement("div");
+    document.body.appendChild(node);
+    await act(async () => createRoot(node).render(<ResumenPage />));
+    await act(async () => {});
+    return node;
+  }
+
+  it("puts Resumen first, then the financial close, then Historial", async () => {
+    const node = await renderWithPeriods();
+    const resumen = node.querySelector("[data-testid='resumen-section']")!;
+    const cierre = node.querySelector("[data-testid='close']")!;
+    const historial = node.querySelector("[data-testid='historial-section']")!;
+    const follows = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(follows(resumen, cierre)).toBe(true);
+    expect(follows(cierre, historial)).toBe(true);
   });
 });

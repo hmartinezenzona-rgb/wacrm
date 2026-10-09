@@ -18,7 +18,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { FinancialCloseSection } from "@/components/resumen/financial-close-section";
 import { StatusPill } from "@/components/status/status-pill";
-import { ServiceDot } from "@/components/service/service-dot";
 import { formatNumber } from "@/lib/format-number";
 import { historialDestino } from "@/lib/resumen/historial-destino";
 import { serviceNameEs } from "@/lib/service-name";
@@ -238,12 +237,8 @@ export default function ResumenPage() {
     <PageShell>
       <PageHeader title={t("title")} description={t("subtitle")} />
 
-      {/* Cierre financiero: lo facturado/invertido/ganado segun el libro de
-          la calculadora (121). Va primero; volumen e historial debajo. */}
-      <FinancialCloseSection />
-
       {/* Resumen por periodo */}
-      <section className="space-y-2">
+      <section data-testid="resumen-section" className="space-y-2">
         <h2 className="text-sm font-semibold text-foreground">
           {t("resumenTitle")}
         </h2>
@@ -278,8 +273,12 @@ export default function ResumenPage() {
         <p className="text-[11px] text-muted-foreground/70">{t("noteDesde")}</p>
       </section>
 
+      {/* Cierre financiero: lo facturado/invertido/ganado segun el libro de
+          la calculadora (121). Va despues del resumen; el historial debajo. */}
+      <FinancialCloseSection />
+
       {/* Historial */}
-      <section className="space-y-3">
+      <section data-testid="historial-section" className="space-y-3">
         <h2 className="text-sm font-semibold text-foreground">
           {t("historialTitle")}
         </h2>
@@ -387,7 +386,6 @@ export default function ResumenPage() {
                       {format(new Date(`${f.dia}T00:00:00`), "dd/MM/yy")}
                     </TableCell>
                     <TableCell className="capitalize">
-                      <ServiceDot service={f.servicio ?? f.service_type} />
                       {serviceNameEs(f.servicio ?? f.service_type) ?? (f.servicio ?? f.service_type)}
                     </TableCell>
                     <TableCell>

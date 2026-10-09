@@ -33,7 +33,8 @@ export function BrandMark({
       height={size}
       // La marca esta sobre el pliegue en todas las pantallas donde sale.
       priority
-      className={cn("shrink-0 rounded-lg object-cover", className)}
+      // Fondo transparente: `object-contain` para que el monograma no se recorte.
+      className={cn("shrink-0 object-contain", className)}
     />
   );
 }

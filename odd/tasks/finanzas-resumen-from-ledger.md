@@ -135,3 +135,21 @@ Mode strict, source user global CLAUDE.md. Runners: DB = staging SQL assertion r
 - Production drift to know before applying: `cerebro_resumen_volumen` deparse differs staging/production (cosmetic); `crm_cierre_financiero` and the feed have no `service_role` grant on production
   (staging has it); neither blocks 234 / 235. Production migrations 234 and 235 were NOT applied (no production write authorised).
 - `feed-mixed` (cases 5, 6) and `delivery-feed-evidence` (fixture setup) were already failing before this work.
+
+## Production (2026-10-08, owner "si corrigelo ... hecho eso pasa a produccion")
+- Backup `~/wacrm-respaldos/produccion-20261009T024034Z.dump`. Pre-check: production had the pre-234/235 definitions
+  (`cerebro_dashboard_resumen` 84ba499d…, `calculator_feed_operation` ebd19f92…, `crm_resolve_pending_entry` 452b976a…),
+  last migration 233.
+- `~/cerebro-fase1/pruebas/gate136-aplicar-db.py` (bundle 234 + 235; helper `zz_wu5b_exec` created before, dropped after,
+  count 0): `ensayo` -> the five function md5s and the `cerebro_volumen_diario` view md5 equal to staging;
+  `GATE_BUNDLE=ida-y-vuelta ensayo` -> the three replaced functions back to their old md5s; `aplicar` -> `{"r":"OK"}`,
+  recorded as `234_resumen_from_ledger` and `235_ledger_bills_the_deposit`.
+- Assertions on production (rolled back): `ledger-bills-the-deposit` passes. `resumen-from-ledger` cannot run there: its
+  fixture uses staging's account ids (FK error on insert, nothing written). Checked directly instead, as the owner: every
+  Resumen period equals `crm_cierre_financiero` over the same dates (hoy 4 / 130,060; ayer 7 / 191,900; semana and mes
+  35 / 1,287,772.40; mes pasado 0) before the line correction below.
+- Carlos Sangles' line `c9efb97e` (operation 27fc3d2f, fed before 235): corrected with the panel's own
+  `crm_corregir_entrada_calculadora(entry, 47100, 43440)` through `gate137-carlos-sobrante.py` (dry run, then applied):
+  47,060 / 43,440 / 3,620 -> 47,100 / 43,440 / 3,660; one live line for the operation; no outbox rows.
+- Read back after both: hoy 4 operations, Resumen 130,100 = Cierre 130,100, ganancia 11,164.85; ayer 191,900 = 191,900;
+  esta semana 1,287,812.40 = 1,287,812.40.

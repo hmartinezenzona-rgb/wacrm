@@ -685,7 +685,7 @@ export default function CalculadoraPage() {
             <h2 style={{ margin: 0 }}>Registros de la Semana</h2>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <button type="button" id="registrarEntradas" onClick={() => void registrar()} disabled={registering || draft.lines.length === 0} aria-busy={registering} style={{ width: "auto", padding: "6px 12px", fontSize: 13, minHeight: 36 }}>Registrar</button>
-              <button type="button" onClick={toggleFullscreen} style={{ width: "auto", padding: "6px 12px", fontSize: 13, minHeight: 36, background: fullscreen ? "#dc3545" : "var(--legacy-accent)" }}>{fullscreen ? "✕ Salir de Pantalla Completa" : "Maximizar"}</button>
+              <button type="button" onClick={toggleFullscreen} style={{ width: "auto", padding: "6px 12px", fontSize: 13, minHeight: 36, background: fullscreen ? "#dc3545" : "var(--legacy-accent)" }}>{fullscreen ? "Salir de Pantalla Completa" : "Maximizar"}</button>
             </div>
           </div>
           <span className="legacySmall">Usa el botón <b>+ Viñeta</b> o escribe <code>-</code> + <code>Espacio</code>. Presiona <code>Enter</code> para nueva línea.</span>

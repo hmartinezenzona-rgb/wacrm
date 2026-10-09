@@ -2261,6 +2261,16 @@ describe("calculator shows no emojis", () => {
     await act(async () => root.unmount());
   });
 
+  // Text glyphs are not emoji for the Unicode property, so the fullscreen button is checked by its exact label.
+  it("the fullscreen button carries words only, maximised or not", async () => {
+    const { node, root } = await renderPage(fixture("", []));
+    const button = () => [...node.querySelectorAll("button")].find((b) => /Maximizar|Pantalla Completa/.test(b.textContent ?? ""))!;
+    expect(button().textContent).toBe("Maximizar");
+    await act(async () => button().click());
+    expect(button().textContent).toBe("Salir de Pantalla Completa");
+    await act(async () => root.unmount());
+  });
+
   it("an archived week opened from the history", async () => {
     const { node, root } = await renderPage(fixture("", []));
     await act(async () => { (node.querySelector("#verSemana-week-1") as HTMLButtonElement).click(); });

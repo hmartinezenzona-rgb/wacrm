@@ -52,9 +52,11 @@ export function FinancialCloseDetail({ close }: { close: FinancialClose }) {
     </>
   );
 
+  const RIGHT_ALIGNED = [t("cols.monto"), t("cols.facturado"), t("cols.invertido"), t("cols.retorno")];
+
   const head = () => (
     <thead>
-      <tr className="text-left text-xs text-muted-foreground">
+      <tr className="bg-muted/50 text-left text-xs text-muted-foreground">
         {[
           t("cols.dia"),
           t("cols.hora"),
@@ -69,7 +71,7 @@ export function FinancialCloseDetail({ close }: { close: FinancialClose }) {
           t("cols.entrega"),
           t("cols.entregadoPor"),
         ].map((label) => (
-          <th key={label} className="whitespace-nowrap px-2 py-1.5 font-medium">
+          <th key={label} className={`whitespace-nowrap px-2 py-1.5 font-medium ${RIGHT_ALIGNED.includes(label) ? "text-right" : ""}`}>
             {label}
           </th>
         ))}
@@ -80,7 +82,7 @@ export function FinancialCloseDetail({ close }: { close: FinancialClose }) {
   return (
     <div className="space-y-3">
       {close.detail.length > 0 && (
-        <section className="rounded-xl border border-border bg-card p-4">
+        <section className="rounded-xl border border-border bg-card tarjeta-elevada p-4">
           <h3 className="mb-2 text-sm font-semibold text-foreground">
             {t("detalle")} ({close.detail.length})
           </h3>
@@ -89,7 +91,7 @@ export function FinancialCloseDetail({ close }: { close: FinancialClose }) {
               {head()}
               <tbody>
                 {close.detail.map((e) => (
-                  <tr key={e.id} data-testid="detail-row" className="border-t border-border">
+                  <tr key={e.id} data-testid="detail-row" className="border-t border-border transition-colors hover:bg-muted/50">
                     {commonCells(e)}
                     <td className="whitespace-nowrap px-2 py-1.5">{delivery(e.deliveryMode)}</td>
                     <td className="whitespace-nowrap px-2 py-1.5">{e.actorName ?? "—"}</td>

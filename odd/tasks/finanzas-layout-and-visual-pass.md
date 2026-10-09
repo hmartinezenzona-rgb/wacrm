@@ -19,11 +19,11 @@ Enabled. Source: user global CLAUDE.md. Runner: `npx vitest run <files>`.
 - [x] T1 (cancelled) dots removed in 412d980, restored in the follow-up commit
 - [x] T2 Structure: remove the excluded section (export untouched), clean catalog keys
 - [x] T3 Structure: Resumen on top
-- [ ] T4 Visual: Resumen cards (volume in money-in tone, elevation/stripe)
-- [ ] T5 Visual: by-day chart with money-tone colours + legend
-- [ ] T6 Visual: section headings and spacing, elevated cards
-- [ ] T7 Visual: table headers, right-aligned numerics
-- [ ] T8 Visual: history filter bar and pagination
+- [x] T4 Visual: Resumen cards (volume in money-in tone, elevation/stripe)
+- [x] T5 Visual: by-day chart with money-tone colours + legend
+- [x] T6 Visual: section headings and spacing, elevated cards
+- [x] T7 Visual: table headers, right-aligned numerics
+- [x] T8 Visual: history filter bar and pagination
 
 ## Evidence
 - Structure: RED observed (5 failing tests: dots present, excluded table rendered, section order), then GREEN. Tests changed deliberately: section test "opens on the current Guyana week..." (excluded assertions moved to a new "does not render the voided table" test), "tones the three money columns..." (voided-row tone assertions dropped), "service dots" replaced by "no service dots"; page test: the three dot tests replaced by one plain-text test, new section order test. Dead catalog keys removed: Resumen.cierre.excluidas, cols.estado, cols.motivo, estado.*.
@@ -31,3 +31,8 @@ Enabled. Source: user global CLAUDE.md. Runner: `npx vitest run <files>`.
 ## Open points
 - Which element is "el círculo que pusimos"? Awaiting the owner.
 - Rate-pending lines are no longer visible on this screen (still in the CSV export).
+
+## Visual pass evidence
+- RED observed (7 failing tests) before GREEN. Full suite 187 files / 2511 tests pass, tsc and eslint clean.
+- Chart: `money-in` / `money-profit` added to `chartColors` (opt-in; `AvailableChartColors` default palette unchanged, asserted in `chart-colors.test.ts`).
+- New text/background pairs: header row `text-muted-foreground` on `bg-muted/50` over card: dark 5.58, light 5.26 (both >= 4.5). Money text reuses approved pairs.

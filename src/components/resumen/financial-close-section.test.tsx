@@ -32,7 +32,14 @@ vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({}) }));
 // Tremor's chart needs ResizeObserver/SVG layout jsdom doesn't have; the
 // chart itself is vendored and not under test here.
 vi.mock("@/components/tremor/bar-chart", () => ({
-  BarChart: (props: { data: unknown[] }) => <div data-testid="bar-chart" data-points={props.data.length} />,
+  BarChart: (props: { data: unknown[]; colors?: string[]; showLegend?: boolean }) => (
+    <div
+      data-testid="bar-chart"
+      data-points={props.data.length}
+      data-colors={(props.colors ?? []).join(",")}
+      data-legend={String(props.showLegend !== false)}
+    />
+  ),
 }));
 
 const loadFinancialClose = vi.fn();
@@ -423,6 +430,34 @@ describe("FinancialCloseSection", () => {
 
       const detail = node.querySelector("[data-testid='detail-row']")!;
       expect([5, 7, 8, 9].map((i) => cellTone(detail, i))).toEqual([null, "in", "out", "profit"]);
+      await act(async () => root.unmount());
+    });
+  });
+
+  describe("visual pass", () => {
+    it("draws the by-day chart in the money tones (facturado blue, retorno green) with a named legend", async () => {
+      const { node, root } = await render();
+      const chart = node.querySelector("[data-testid='bar-chart']")!;
+      expect(chart.getAttribute("data-colors")).toBe("money-in,money-profit");
+      expect(chart.getAttribute("data-legend")).toBe("true");
+      await act(async () => root.unmount());
+    });
+
+    it("uses the elevated card family for the total tiles", async () => {
+      const { node, root } = await render();
+      const tile = Array.from(node.querySelectorAll("p")).find((p) => p.textContent === T.totales.operaciones)!.parentElement!;
+      expect(tile.className).toContain("tarjeta-elevada");
+      await act(async () => root.unmount());
+    });
+
+    it("distinguishes the table header rows and right-aligns the money headers", async () => {
+      const { node, root } = await render();
+      const heads = [...node.querySelectorAll("thead tr")];
+      expect(heads.length).toBeGreaterThanOrEqual(2);
+      heads.forEach((h) => expect(h.className).toContain("bg-muted/50"));
+      const detailHeads = [...node.querySelector("[data-testid='detail-row']")!.closest("table")!.querySelectorAll("th")];
+      expect(detailHeads[7]!.className).toContain("text-right");
+      expect(detailHeads[9]!.className).toContain("text-right");
       await act(async () => root.unmount());
     });
   });

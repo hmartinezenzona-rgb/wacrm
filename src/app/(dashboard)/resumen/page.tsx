@@ -19,6 +19,8 @@ import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { FinancialCloseSection } from "@/components/resumen/financial-close-section";
 import { StatusPill } from "@/components/status/status-pill";
 import { ServiceDot } from "@/components/service/service-dot";
+import { MoneyTotalFigure } from "@/components/money/money-total-figure";
+import { moneyStripeElevatedClass } from "@/lib/money-tone";
 import { formatNumber } from "@/lib/format-number";
 import { historialDestino } from "@/lib/resumen/historial-destino";
 import { serviceNameEs } from "@/lib/service-name";
@@ -240,7 +242,7 @@ export default function ResumenPage() {
 
       {/* Resumen por periodo */}
       <section data-testid="resumen-section" className="space-y-2">
-        <h2 className="text-sm font-semibold text-foreground">
+        <h2 className="text-base font-semibold tracking-tight text-foreground">
           {t("resumenTitle")}
         </h2>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
@@ -250,21 +252,26 @@ export default function ResumenPage() {
             return (
               <div
                 key={p.orden}
-                className="rounded-xl border border-border bg-card p-4"
+                data-testid="resumen-card"
+                className={`rounded-xl border border-border bg-card p-4 ${moneyStripeElevatedClass.in}`}
               >
                 <p className="text-xs font-medium text-muted-foreground">
                   {label}
                 </p>
-                <p className="mt-2 text-2xl font-bold text-foreground">
-                  {p.operaciones}
+                <p className="mt-2 text-xl font-bold tabular-nums text-foreground">
+                  <MoneyTotalFigure
+                    kind="in"
+                    value={p.volumen_gyd}
+                    format={fmtGyd}
+                  />
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {t("operaciones")}
+                <p className="mt-2 text-sm font-semibold tabular-nums text-foreground">
+                  {p.operaciones}{" "}
+                  <span className="text-xs font-normal text-muted-foreground">
+                    {t("operaciones")}
+                  </span>
                 </p>
-                <p className="mt-2 text-sm font-semibold text-foreground">
-                  {fmtGyd(p.volumen_gyd)}
-                </p>
-                <p className="mt-0.5 text-[11px] text-muted-foreground/70">
+                <p className="mt-0.5 text-[11px] tabular-nums text-muted-foreground">
                   {t("ticketMedio")}: {fmtGyd(p.ticket_medio_gyd)}
                 </p>
               </div>
@@ -280,7 +287,7 @@ export default function ResumenPage() {
 
       {/* Historial */}
       <section data-testid="historial-section" className="space-y-3">
-        <h2 className="text-sm font-semibold text-foreground">
+        <h2 className="text-base font-semibold tracking-tight text-foreground">
           {t("historialTitle")}
         </h2>
         {/* Los cuatro controles eran <select>/<input> nativos sin estilar,
@@ -288,7 +295,7 @@ export default function ResumenPage() {
             que no separa nada: la etiqueta acababa pegada al control, en
             la misma linea. Ahora son los mismos primitivos que usa el
             resto de la app, con la etiqueta encima. */}
-        <div className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-3">
+        <div className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card tarjeta-elevada p-3">
           <Field label={t("filtros.servicio")}>
             <Select
               value={servicio || TODOS}
@@ -363,19 +370,19 @@ export default function ResumenPage() {
           <EmptyState icon={BarChart3} title={t("tabla.vacio")} />
         ) : (
           <div
-            className={`overflow-x-auto rounded-xl border border-border ${
+            className={`overflow-x-auto rounded-xl border border-border bg-card tarjeta-elevada ${
               cargando ? "opacity-60" : ""
             }`}
           >
             <Table>
-              <TableHeader>
-                <TableRow>
+              <TableHeader className="bg-muted/50">
+                <TableRow className="hover:bg-transparent">
                   <TableHead>{t("tabla.dia")}</TableHead>
                   <TableHead>{t("tabla.servicio")}</TableHead>
                   <TableHead>{t("tabla.status")}</TableHead>
                   <TableHead>{t("tabla.cliente")}</TableHead>
                   <TableHead>{t("tabla.telefono")}</TableHead>
-                  <TableHead>{t("tabla.monto")}</TableHead>
+                  <TableHead className="text-right">{t("tabla.monto")}</TableHead>
                   <TableHead>{t("tabla.destino")}</TableHead>
                   <TableHead>{t("tabla.operation")}</TableHead>
                 </TableRow>
@@ -398,7 +405,7 @@ export default function ResumenPage() {
                     </TableCell>
                     <TableCell>{f.cliente}</TableCell>
                     <TableCell>{f.telefono}</TableCell>
-                    <TableCell className="font-medium">
+                    <TableCell className="text-right font-medium tabular-nums">
                       {fmtGyd(f.monto_gyd)}
                     </TableCell>
                     <TableCell>{historialDestino(f)}</TableCell>
@@ -413,7 +420,7 @@ export default function ResumenPage() {
         )}
 
         {total > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card tarjeta-elevada px-3 py-2">
             <p className="text-xs text-muted-foreground">
               {PAG_TXT.mostrando(primeraFila, ultimaFila, total)}
             </p>

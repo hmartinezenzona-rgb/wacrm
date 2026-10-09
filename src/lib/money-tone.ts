@@ -30,6 +30,15 @@ export const moneyStripeClass: Record<MoneyTone, string> = {
   neutral: "",
 };
 
+/** Stripe plus the dashboard card elevation in ONE shadow (two shadow utilities would override each other). */
+export const moneyStripeElevatedClass: Record<MoneyTone, string> = {
+  profit: "shadow-[inset_3px_0_0_var(--money-profit),var(--elev-card)]",
+  loss: "shadow-[inset_3px_0_0_var(--money-loss),var(--elev-card)]",
+  out: "shadow-[inset_3px_0_0_var(--money-out),var(--elev-card)]",
+  in: "shadow-[inset_3px_0_0_var(--money-in),var(--elev-card)]",
+  neutral: "tarjeta-elevada",
+};
+
 /** Money figures are shown to the cent, so the sign is judged on the cents that will be printed. */
 function cents(value: number): number {
   return Math.round(value * 100);

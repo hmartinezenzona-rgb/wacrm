@@ -7,7 +7,7 @@ import type { FinancialClose } from "@/lib/financial-close/read-model";
 import { useServiceName } from "@/hooks/use-service-name";
 import { ServiceDot } from "@/components/service/service-dot";
 import { MoneyTotalFigure } from "@/components/money/money-total-figure";
-import { moneyCellProps, moneyStripeClass, profitTone, totalTone, type TotalKind } from "@/lib/money-tone";
+import { moneyCellProps, moneyStripeElevatedClass, profitTone, totalTone, type TotalKind } from "@/lib/money-tone";
 import { fmtGyd, marginPct } from "./financial-close-format";
 
 /** Totals, the per-day chart and the per-service breakdown of one period. */
@@ -29,8 +29,8 @@ export function FinancialCloseSummary({ close }: { close: FinancialClose }) {
     { label: t("totales.operaciones"), value: totals.operations },
   ];
 
-  // Two series in the same unit (GYD) on one axis. Blue/pink validated
-  // (dataviz validate_palette.js) in light and dark mode.
+  // Two series in the same unit (GYD) on one axis, in the money tones: facturado = money in (blue), retorno = profit
+  // (green). The chart's legend names both series, so colour is not the only cue.
   const facturadoLabel = t("totales.facturado");
   const retornoLabel = t("totales.retorno");
   const chartData = close.byDay.map((d) => ({
@@ -45,7 +45,7 @@ export function FinancialCloseSummary({ close }: { close: FinancialClose }) {
         {tiles.map((tile) => (
           <div
             key={tile.label}
-            className={`rounded-xl border border-border bg-card p-4 ${tile.kind ? moneyStripeClass[totalTone(tile.kind, tile.value)] : ""}`}
+            className={`rounded-xl border border-border bg-card p-4 ${moneyStripeElevatedClass[tile.kind ? totalTone(tile.kind, tile.value) : "neutral"]}`}
           >
             <p className="text-xs font-medium text-muted-foreground">{tile.label}</p>
             <p className="mt-2 text-xl font-bold tabular-nums text-foreground">
@@ -61,19 +61,19 @@ export function FinancialCloseSummary({ close }: { close: FinancialClose }) {
       </div>
 
       {totals.operations === 0 ? (
-        <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+        <p className="rounded-xl border border-dashed border-border bg-card px-4 py-6 text-center text-sm text-muted-foreground">
           {t("sinDatos")}
         </p>
       ) : (
         <div className="grid gap-3 lg:grid-cols-5">
           {close.byDay.length > 1 && (
-            <section className="rounded-xl border border-border bg-card p-4 lg:col-span-3">
+            <section className="rounded-xl border border-border bg-card tarjeta-elevada p-4 lg:col-span-3">
               <h3 className="mb-2 text-sm font-semibold text-foreground">{t("porDia")}</h3>
               <BarChart
                 data={chartData}
                 index="day"
                 categories={[facturadoLabel, retornoLabel]}
-                colors={["blue", "pink"]}
+                colors={["money-in", "money-profit"]}
                 valueFormatter={(v) => fmtGyd(v)}
                 yAxisWidth={84}
                 className="h-[240px]"
@@ -82,16 +82,16 @@ export function FinancialCloseSummary({ close }: { close: FinancialClose }) {
           )}
 
           <section
-            className={`rounded-xl border border-border bg-card p-4 ${close.byDay.length > 1 ? "lg:col-span-2" : "lg:col-span-5"}`}
+            className={`rounded-xl border border-border bg-card tarjeta-elevada p-4 ${close.byDay.length > 1 ? "lg:col-span-2" : "lg:col-span-5"}`}
           >
             <h3 className="mb-2 text-sm font-semibold text-foreground">{t("porServicio")}</h3>
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-muted-foreground">
-                  <th className="py-1 font-medium">{t("cols.servicio")}</th>
-                  <th className="py-1 text-right font-medium">{t("cols.operaciones")}</th>
-                  <th className="py-1 text-right font-medium">{t("cols.facturado")}</th>
-                  <th className="py-1 text-right font-medium">{t("cols.retorno")}</th>
+                <tr className="bg-muted/50 text-left text-xs text-muted-foreground">
+                  <th className="rounded-l-md px-2 py-1.5 font-medium">{t("cols.servicio")}</th>
+                  <th className="px-2 py-1.5 text-right font-medium">{t("cols.operaciones")}</th>
+                  <th className="px-2 py-1.5 text-right font-medium">{t("cols.facturado")}</th>
+                  <th className="rounded-r-md px-2 py-1.5 text-right font-medium">{t("cols.retorno")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -100,15 +100,15 @@ export function FinancialCloseSummary({ close }: { close: FinancialClose }) {
                     key={s.service}
                     data-testid="service-row"
                     data-service={s.service}
-                    className="border-t border-border tabular-nums"
+                    className="border-t border-border tabular-nums transition-colors hover:bg-muted/50"
                   >
-                    <td className="py-1.5 font-medium text-foreground">
+                    <td className="px-2 py-1.5 font-medium text-foreground">
                       <ServiceDot service={s.service} />
                       {serviceName(s.service)}
                     </td>
-                    <td className="py-1.5 text-right">{s.operations}</td>
-                    <td {...moneyCellProps("in", "py-1.5 text-right")}>{fmtGyd(s.facturadoGyd)}</td>
-                    <td {...moneyCellProps(profitTone(s.retornoGyd), "py-1.5 text-right")}>
+                    <td className="px-2 py-1.5 text-right">{s.operations}</td>
+                    <td {...moneyCellProps("in", "px-2 py-1.5 text-right")}>{fmtGyd(s.facturadoGyd)}</td>
+                    <td {...moneyCellProps(profitTone(s.retornoGyd), "px-2 py-1.5 text-right")}>
                       {fmtGyd(s.retornoGyd)}
                       {marginPct(s.facturadoGyd, s.retornoGyd) !== null && (
                         <span className="ml-1 text-xs text-muted-foreground">

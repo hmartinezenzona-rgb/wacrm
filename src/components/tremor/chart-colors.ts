@@ -68,6 +68,19 @@ export const chartColors = {
     fill: "fill-fuchsia-500",
     text: "text-fuchsia-500",
   },
+  // Money tones (--money-* in globals.css): fixed meaning, used by the Finanzas close chart.
+  "money-in": {
+    bg: "bg-money-in",
+    stroke: "stroke-money-in",
+    fill: "fill-money-in",
+    text: "text-money-in",
+  },
+  "money-profit": {
+    bg: "bg-money-profit",
+    stroke: "stroke-money-profit",
+    fill: "fill-money-profit",
+    text: "text-money-profit",
+  },
 } as const satisfies {
   [color: string]: {
     [key in ColorUtility]: string
@@ -76,9 +89,10 @@ export const chartColors = {
 
 export type AvailableChartColorsKeys = keyof typeof chartColors
 
-export const AvailableChartColors: AvailableChartColorsKeys[] = Object.keys(
-  chartColors,
-) as Array<AvailableChartColorsKeys>
+// The default palette of charts that pass no colours: the money tones are opt-in only.
+export const AvailableChartColors: AvailableChartColorsKeys[] = (
+  Object.keys(chartColors) as Array<AvailableChartColorsKeys>
+).filter((color) => !color.startsWith("money-"))
 
 export const constructCategoryColors = (
   categories: string[],

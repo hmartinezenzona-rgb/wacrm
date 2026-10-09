@@ -184,4 +184,23 @@ describe("Finanzas section order", () => {
     expect(follows(resumen, cierre)).toBe(true);
     expect(follows(cierre, historial)).toBe(true);
   });
+
+  it("shows the volume of each period as the main figure in the money-in tone, keeping every number", async () => {
+    const node = await renderWithPeriods();
+    const cards = [...node.querySelectorAll("[data-testid='resumen-card']")];
+    expect(cards).toHaveLength(5);
+    const volume = cards[0]!.querySelector("[data-tone]")!;
+    expect(volume.getAttribute("data-tone")).toBe("in");
+    expect(volume.textContent).toContain("12\u202f000 GYD");
+    expect(cards[0]!.textContent).toContain("4");
+    expect(cards[0]!.textContent).toContain("3\u202f000 GYD");
+    expect(cards[0]!.className).toContain("--money-in");
+  });
+
+  it("gives the three top-level sections the same stronger heading", async () => {
+    const node = await renderWithPeriods();
+    const headings = ["resumen-section", "historial-section"].map((id) => node.querySelector(`[data-testid='${id}'] h2`)!.className);
+    expect(headings[0]).toBe(headings[1]);
+    expect(headings[0]).toContain("text-base");
+  });
 });

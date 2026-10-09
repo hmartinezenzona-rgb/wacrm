@@ -77,7 +77,7 @@ export function FinancialCloseSection() {
     <section className="space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 className="text-sm font-semibold text-foreground">{t("title")}</h2>
+          <h2 className="text-base font-semibold tracking-tight text-foreground">{t("title")}</h2>
           <p className="text-xs text-muted-foreground">{t("subtitle")}</p>
         </div>
         {state.status === "loaded" && state.data.detail.length + state.data.excluded.length > 0 && (
@@ -108,7 +108,7 @@ export function FinancialCloseSection() {
       )}
 
       {state.status === "error" && (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-card p-4">
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-card tarjeta-elevada p-4">
           <p className="text-sm text-destructive">{t("loadError")}</p>
           <Button type="button" variant="outline" size="sm" onClick={() => setAttempt((n) => n + 1)}>
             {t("reintentar")}

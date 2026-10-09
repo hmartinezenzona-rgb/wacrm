@@ -14,7 +14,7 @@
 -- THE NUMBERS (rates 1.5 / 250 / 265 / 400 chosen so every result is exact
 -- in numeric, no float tolerance needed):
 --   CUP      basis 75000 -> amount 112500, facturado 75000, invertido 70312.5, retorno 4687.5
---   ZELLE    basis 26000 -> amount 98 (floor 98.11), facturado 25970, invertido 24500, retorno 1470
+--   ZELLE    basis 26000 -> amount 98 (floor 98.11), facturado 26000 (235: the deposit; was 25970 = 98 x 265), invertido 24500, retorno 1500 (was 1470)
 --   CLASICA  basis 26000 -> same as ZELLE
 --   TROPICAL basis 53000 -> amount 200, facturado 53000, invertido 50000, retorno 3000
 --
@@ -125,11 +125,11 @@ BEGIN
   SELECT * INTO v_e FROM remittance_calculator_entries WHERE operation_id = v_op_zelle;
   IF v_e.status IS DISTINCT FROM 'completed' OR v_e.service IS DISTINCT FROM 'ZELLE'
      OR v_e.amount IS DISTINCT FROM 98 OR v_e.amount_currency IS DISTINCT FROM 'USD'
-     OR v_e.facturado_gyd IS DISTINCT FROM 25970 OR v_e.invertido_gyd IS DISTINCT FROM 24500
-     OR v_e.retorno_gyd IS DISTINCT FROM 1470
+     OR v_e.facturado_gyd IS DISTINCT FROM 26000 OR v_e.invertido_gyd IS DISTINCT FROM 24500
+     OR v_e.retorno_gyd IS DISTINCT FROM 1500
   THEN
     v_fail_count := v_fail_count + 1;
-    RAISE WARNING 'FAIL [case 2] ZELLE expected 98 USD / 25970 / 24500 / 1470; got status=% service=% amount=% f=% i=% r=%',
+    RAISE WARNING 'FAIL [case 2] ZELLE expected 98 USD / 26000 / 24500 / 1500; got status=% service=% amount=% f=% i=% r=%',
       v_e.status, v_e.service, v_e.amount, v_e.facturado_gyd, v_e.invertido_gyd, v_e.retorno_gyd;
   ELSE
     RAISE NOTICE 'PASS [case 2] ZELLE rounds 98.11 units down to 98 and prices them';
@@ -141,9 +141,9 @@ BEGIN
   PERFORM set_config('request.jwt.claims', '', true);
 
   SELECT * INTO v_e FROM remittance_calculator_entries WHERE operation_id = v_op_clasica;
-  IF v_e.service IS DISTINCT FROM 'CLASICA' OR v_e.amount IS DISTINCT FROM 98 OR v_e.retorno_gyd IS DISTINCT FROM 1470 THEN
+  IF v_e.service IS DISTINCT FROM 'CLASICA' OR v_e.amount IS DISTINCT FROM 98 OR v_e.retorno_gyd IS DISTINCT FROM 1500 THEN
     v_fail_count := v_fail_count + 1;
-    RAISE WARNING 'FAIL [case 3] CLASICA expected 98 / 1470; got service=% amount=% r=%', v_e.service, v_e.amount, v_e.retorno_gyd;
+    RAISE WARNING 'FAIL [case 3] CLASICA expected 98 / 1500; got service=% amount=% r=%', v_e.service, v_e.amount, v_e.retorno_gyd;
   ELSE
     RAISE NOTICE 'PASS [case 3] CLASICA is priced on the dollar-rail formula';
   END IF;
@@ -217,10 +217,10 @@ BEGIN
 
   SELECT * INTO v_e FROM remittance_calculator_entries WHERE operation_id = v_op_revert;
   IF v_e.status IS DISTINCT FROM 'void' OR v_e.voided_at IS NULL OR v_e.void_reason IS NULL
-     OR v_e.facturado_gyd IS DISTINCT FROM 25970 OR v_e.retorno_gyd IS DISTINCT FROM 1470
+     OR v_e.facturado_gyd IS DISTINCT FROM 26000 OR v_e.retorno_gyd IS DISTINCT FROM 1500
   THEN
     v_fail_count := v_fail_count + 1;
-    RAISE WARNING 'FAIL [case 8] expected void with figures intact (25970/1470); got status=% voided_at=% reason=% f=% r=%',
+    RAISE WARNING 'FAIL [case 8] expected void with figures intact (26000/1500); got status=% voided_at=% reason=% f=% r=%',
       v_e.status, v_e.voided_at, v_e.void_reason, v_e.facturado_gyd, v_e.retorno_gyd;
   ELSE
     RAISE NOTICE 'PASS [case 8] a human revert voids the entry without erasing what it recorded';
@@ -236,13 +236,13 @@ BEGIN
   PERFORM set_config('request.jwt.claims', '', true);
 
   SELECT * INTO v_e FROM remittance_calculator_entries WHERE operation_id = v_op_revert;
-  -- floor(26000/300) = 86; 86*300 = 25800; 86*250 = 21500; retorno 4300
+  -- floor(26000/300) = 86; facturado = the deposit 26000 (235; was 86*300 = 25800); 86*250 = 21500; retorno 4500 (was 4300)
   IF v_e.status IS DISTINCT FROM 'completed' OR v_e.amount IS DISTINCT FROM 86
-     OR v_e.facturado_gyd IS DISTINCT FROM 25800 OR v_e.retorno_gyd IS DISTINCT FROM 4300
+     OR v_e.facturado_gyd IS DISTINCT FROM 26000 OR v_e.retorno_gyd IS DISTINCT FROM 4500
      OR v_e.voided_at IS NOT NULL
   THEN
     v_fail_count := v_fail_count + 1;
-    RAISE WARNING 'FAIL [case 9] revival expected 86 / 25800 / 4300 at the new rate; got status=% amount=% f=% r=% voided_at=%',
+    RAISE WARNING 'FAIL [case 9] revival expected 86 / 26000 / 4500 at the new rate; got status=% amount=% f=% r=% voided_at=%',
       v_e.status, v_e.amount, v_e.facturado_gyd, v_e.retorno_gyd, v_e.voided_at;
   ELSE
     RAISE NOTICE 'PASS [case 9] re-completing revives the entry at the rates in force now, not the original ones';
@@ -250,9 +250,9 @@ BEGIN
 
   -- ---- case 10: a live entry is frozen against later rate changes -------
   SELECT * INTO v_e FROM remittance_calculator_entries WHERE operation_id = v_op_zelle;
-  IF v_e.facturado_gyd IS DISTINCT FROM 25970 OR v_e.usdt_sell_gyd IS DISTINCT FROM 265 THEN
+  IF v_e.facturado_gyd IS DISTINCT FROM 26000 OR v_e.usdt_sell_gyd IS DISTINCT FROM 265 THEN
     v_fail_count := v_fail_count + 1;
-    RAISE WARNING 'FAIL [case 10] expected the case-2 entry untouched at 25970 / rate 265; got f=% rate=%',
+    RAISE WARNING 'FAIL [case 10] expected the case-2 entry untouched at 26000 / rate 265; got f=% rate=%',
       v_e.facturado_gyd, v_e.usdt_sell_gyd;
   ELSE
     RAISE NOTICE 'PASS [case 10] changing the rates never reaches back into an entry already written';
@@ -401,7 +401,7 @@ BEGIN
     RAISE WARNING 'FAIL [case 19] replaying over a live entry should touch nothing, got entry %', v_entry_id;
   ELSE
     SELECT count(*) INTO v_count FROM remittance_calculator_entries
-     WHERE operation_id = v_op_zelle AND facturado_gyd = 25970 AND status = 'completed';
+     WHERE operation_id = v_op_zelle AND facturado_gyd = 26000 AND status = 'completed';
     IF v_count <> 1 THEN
       v_fail_count := v_fail_count + 1;
       RAISE WARNING 'FAIL [case 19] the live entry changed after a replay';

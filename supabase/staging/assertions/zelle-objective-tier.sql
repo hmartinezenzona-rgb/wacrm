@@ -130,8 +130,8 @@ BEGIN
   SELECT * INTO v_r FROM pg_temp.zo_op('13', 259740); v_op := v_r.o_op;
   PERFORM crm_cerrar_operacion_manual(v_op);
   SELECT * INTO v_e FROM remittance_calculator_entries WHERE operation_id = v_op AND status <> 'void';
-  IF v_e.amount IS DISTINCT FROM 1038 OR v_e.usdt_sell_gyd IS DISTINCT FROM 250 OR v_e.facturado_gyd IS DISTINCT FROM 259500 THEN
-    RAISE EXCEPTION 'case 8: no objective, ZELLE line must be 1038 USD billed 259500 at 250, got % % %', v_e.amount, v_e.usdt_sell_gyd, v_e.facturado_gyd; END IF;
+  IF v_e.amount IS DISTINCT FROM 1038 OR v_e.usdt_sell_gyd IS DISTINCT FROM 250 OR v_e.facturado_gyd IS DISTINCT FROM 259740 THEN
+    RAISE EXCEPTION 'case 8: no objective, ZELLE line must be 1038 USD billed 259740 (235: the deposit; was 1038 x 250 = 259500) at 250, got % % %', v_e.amount, v_e.usdt_sell_gyd, v_e.facturado_gyd; END IF;
 
   -- 9. A pending ZELLE line resolved later follows the objective too.
   SELECT * INTO v_r FROM pg_temp.zo_op('14', 259740, 999); v_op := v_r.o_op;

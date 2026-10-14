@@ -48,8 +48,8 @@ Owner decisions:
 - [x] T1 Migration 236 RPC + rollback + staging assertion file (commit b05acd8; SQL assertion written, NOT run: pending staging run in T4)
 - [x] T2 API route + route test (commit be3de6a; RED 21 failed -> GREEN 21 passed)
 - [x] T3 Editar UI: show snapshot rates, edit both investment rates, recompute preview; read-model mapping + tests (commit 9104d23)
-- [ ] T4 Apply 236 on staging, deploy staging, owner checks (236 applied and app deployed to staging 2026-10-14; waiting for owner check)
-- [ ] T5 Production (needs owner go-ahead)
+- [x] T4 Apply 236 on staging, deploy staging, owner checks (owner checked staging 2026-10-14: CUP entry edited to 1060 -> invertido 6792.45; Zelle entry edited to 238 -> invertido 23800; figures correct)
+- [x] T5 Production (owner go-ahead 2026-10-14 "pasa a producción"; done 2026-10-14, evidence below)
 
 ## Acceptance criteria
 - Editing a CUP entry from 1060 to 960 changes only its invertido/retorno; facturado unchanged.
@@ -104,6 +104,23 @@ DELETE FROM contacts WHERE id = '56588e14-691f-4698-88a9-e7c3985c5d23';
 COMMIT;
 ```
 
+- 2026-10-14 T5 production (owner go-ahead "pasa a producción"):
+  - Backup `~/wacrm-respaldos/produccion-20261014T220911Z.dump` (supabase/cutover/respaldar-base.sh produccion; 111 data tables, 318 functions, sha256 316959b7889f5f56...).
+  - Recon: function absent; last migration 235 (20261009024301); lock trigger remittance_calculator_entries_append_only -> ..._lock_completed present with the
+    wacrm.calculator_correction hole; week tables and calculator_current_entries present. Template crm_corregir_entrada_calculadora ACL in production is
+    postgres + authenticated only, same as 236's GRANT (authenticated; REVOKE PUBLIC, anon).
+  - `~/cerebro-fase1/pruebas/gate138-aplicar-db.py` (copy of gate136, bundle 236 only, bundle md5 4bbca791636a02577dd32be07bcd997e): `quien` -> role postgres;
+    `ensayo` (rolled back) -> new fn md5 4332dccb71c56d9c59dbaa2f775ca134, ACL {postgres,authenticated}, six untouched functions identical to before
+    (calculator_feed_operation 31c256da, calculator_invertido fb30194d, cerebro_dashboard_resumen 3827c120, crm_cierre_financiero c903a471,
+    crm_corregir_entrada_calculadora 5fb1c6d4, is_account_member cea73e60); `aplicar` -> {"r":"OK"}, row 20261014221208 / 236_calculator_entry_investment_rates.
+  - After: fn md5 4332dccb..., SECURITY DEFINER, anon false, authenticated true. remittance_calculator_entries before = after: 122 rows, facturado 4536577.40,
+    invertido 4111483.0781553398064480, retorno 425094.3218446602358520. Helper zz_wu5b_exec dropped (count 0); temp n8n workflows deleted.
+  - The staging assertion was NOT run in production: its header says staging only, never production, and it builds auth.users/accounts fixtures.
+  - App: release 5e912131267bcdbb660e70f8280722a671564b73 built in prod-build (Node 20.20.2, production env; manifest environment production, ref
+    hqztotshnlzaiziwjyzh, 32 production refs / 0 staging refs), BUILD_ID O6hPDeIZw9Wf23jcfcYfH. Deployed with desplegar-wacrm-produccion.sh: pm2 wacrm online,
+    cwd = the new release, domain serves the BUILD_ID, /login 200. Rollback target (anterior): 4930fe58af0de0600546f320d779d285ee8aeb7a
+    (rollback-wacrm-produccion.sh; DB: ROLLBACK-236 through gate138). prod-build left at 5e91213. Build note: needed NEXT_PRIVATE_OUTPUT_TRACE_ROOT=$PWD
+    because the stray ~/package-lock.json made Next nest the standalone output.
+
 ## Next step
-T4: owner checks the Editar rates flow on staging (crm.onlinefreedom.site).
-Then T5 production (needs the owner's go-ahead).
+Owner checks Editar rates on production (wacrm.onlinefreedom.site). Staging test entries (PRUEBA TASAS) are still to be deleted when the owner says (cleanup SQL above).

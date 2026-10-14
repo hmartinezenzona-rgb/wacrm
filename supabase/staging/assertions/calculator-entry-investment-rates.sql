@@ -13,12 +13,19 @@
 --   case 6  cup_rate on a non-CUP service is refused (22023).
 --   case 7  non-positive / NaN / no rates at all are refused (22023).
 --   case 8  non-admin (agent) refused (42501).
---   case 9  missing entry (P0002); void entry (22023); pending entry (22023); manual entry (22023).
+--   case 9  missing entry (P0002); void entry (22023); pending entry (22023).
 --   case 10 an entry archived by a weekly cut is refused (22023) and keeps its figures.
 --   case 11 NO audit row is written by the edit.
 --   case 12 the guard's hole stays narrow: a raw UPDATE of the same completed row is still refused (42501).
+--   (237, manual rows; production-shaped fixtures with NULL cup_rate / usdt_buy_gyd / cup_global_rate)
+--   case 13 manual CUP (15000 CUP, facturado 5000): needs BOTH rates (22023 with one); with 960 and 240 stores both and gives
+--           invertido 3750 / retorno 1250; facturado, raw_line, date, customer untouched; a later edit with one rate keeps the other.
+--   case 14 manual ZELLE: buy only -> invertido = amount * buy, cup_rate stays NULL; no buy -> 22023; cup_rate -> 22023.
+--   case 15 manual RECARGA, DIRECTO and a discounted ("%") manual ZELLE are refused (22023).
+--   case 16 non-admin on a manual row (42501); a manual row of an archived week (22023).
+--   case 17 the manual edits wrote no audit row and a raw UPDATE of a manual row is still refused (42501).
 --
--- MUST run inside an already-open transaction that ends in ROLLBACK (BEGIN ... \i 236 ... \i this file ... ROLLBACK), on STAGING only.
+-- MUST run inside an already-open transaction that ends in ROLLBACK (BEGIN ... \i 236 ... \i 237 ... \i this file ... ROLLBACK), on STAGING only.
 -- Never COMMIT. Never run against production. Builds its own fixtures (entries are inserted directly: the fixtures need no live rates).
 
 SAVEPOINT calculator_entry_investment_rates;
@@ -39,7 +46,7 @@ DECLARE
   v_op          uuid;
   v_op_void     uuid;
   v_op_pending  uuid;
-  v_cup uuid; v_zelle uuid; v_recarga uuid; v_saldo uuid; v_combo uuid; v_visa uuid; v_void uuid; v_pending uuid; v_manual uuid;
+  v_cup uuid; v_zelle uuid; v_recarga uuid; v_saldo uuid; v_combo uuid; v_visa uuid; v_void uuid; v_pending uuid; v_manual uuid; v_man_zelle uuid; v_man_recarga uuid; v_man_directo uuid; v_man_disc uuid; v_man_arch uuid;
   v_archived    uuid;
   v_op_arch     uuid;
   v_week        uuid;
@@ -132,11 +139,31 @@ BEGIN
     missing_inputs)
   VALUES (v_account_id, 'completed_operation', 'verified_pending', v_op_pending, current_date, 'PEND CIR', 'ZELLE', 100, 'USD',
     ARRAY['usdtSellGyd']) RETURNING id INTO v_pending;
-  -- Manual entry.
+  -- Manual entries as production holds them (228): no snapshot at all, figures as typed.
   INSERT INTO remittance_calculator_entries (account_id, source, status, entry_date, customer_name, service, amount, amount_currency,
-    cup_rate, usdt_buy_gyd, facturado_gyd, invertido_gyd, retorno_gyd, completed_at)
-  VALUES (v_account_id, 'manual', 'completed', current_date, 'Manual CIR', 'CUP', 106000, 'CUP',
-    1060, 205, 35333, 20500, 14833, now()) RETURNING id INTO v_manual;
+    facturado_gyd, invertido_gyd, retorno_gyd, completed_at, raw_line)
+  VALUES (v_account_id, 'manual', 'completed', current_date, 'Manual CIR', 'CUP', 15000, 'CUP',
+    5000, 3750, 1250, now(), '• Manual CIR 15k CUP (240/960)') RETURNING id INTO v_manual;
+  INSERT INTO remittance_calculator_entries (account_id, source, status, entry_date, customer_name, service, amount, amount_currency,
+    facturado_gyd, invertido_gyd, retorno_gyd, completed_at, raw_line)
+  VALUES (v_account_id, 'manual', 'completed', current_date, 'Manual Zelle CIR', 'ZELLE', 100, 'USD',
+    26000, 24000, 2000, now(), '• Manual Zelle CIR 100 Zelle (240/260)') RETURNING id INTO v_man_zelle;
+  INSERT INTO remittance_calculator_entries (account_id, source, status, entry_date, customer_name, service, amount, amount_currency,
+    facturado_gyd, invertido_gyd, retorno_gyd, completed_at, raw_line)
+  VALUES (v_account_id, 'manual', 'completed', current_date, 'Manual Recarga CIR', 'RECARGA', 2, 'REC',
+    2000, 600, 1400, now(), '• Manual Recarga CIR 2 Recarga (1.5/1000/200)') RETURNING id INTO v_man_recarga;
+  INSERT INTO remittance_calculator_entries (account_id, source, status, entry_date, customer_name, service, amount, amount_currency,
+    facturado_gyd, invertido_gyd, retorno_gyd, completed_at, raw_line)
+  VALUES (v_account_id, 'manual', 'completed', current_date, 'Manual Directo CIR', 'DIRECTO', 4000, 'GYD',
+    4000, 0, 4000, now(), '• Manual Directo CIR visa 4000') RETURNING id INTO v_man_directo;
+  INSERT INTO remittance_calculator_entries (account_id, source, status, entry_date, customer_name, service, amount, amount_currency,
+    facturado_gyd, invertido_gyd, retorno_gyd, completed_at, raw_line)
+  VALUES (v_account_id, 'manual', 'completed', current_date, 'Manual Desc CIR', 'ZELLE', 110, 'USD',
+    28600, 24000, 4600, now(), '• Manual Desc CIR 110 Zelle (10%/240/260)') RETURNING id INTO v_man_disc;
+  INSERT INTO remittance_calculator_entries (account_id, source, status, entry_date, customer_name, service, amount, amount_currency,
+    facturado_gyd, invertido_gyd, retorno_gyd, completed_at, raw_line)
+  VALUES (v_account_id, 'manual', 'completed', current_date, 'Manual Arch CIR', 'ZELLE', 50, 'USD',
+    13000, 12000, 1000, now(), '• Manual Arch CIR 50 Zelle (240/260)') RETURNING id INTO v_man_arch;
   -- An entry archived by a weekly cut.
   INSERT INTO remittance_calculator_entries (account_id, source, status, operation_id, entry_date, customer_name, service, amount, amount_currency,
     cup_global_rate, cup_rate, usdt_buy_gyd, usdt_sell_gyd, rate_version_id, facturado_gyd, invertido_gyd, retorno_gyd, completed_at)
@@ -145,6 +172,7 @@ BEGIN
   INSERT INTO remittance_calculator_weeks (account_id, manual_totals, chat_totals)
   VALUES (v_account_id, '{}'::jsonb, '{}'::jsonb) RETURNING id INTO v_week;
   INSERT INTO remittance_calculator_week_entries (entry_id, week_id, account_id) VALUES (v_archived, v_week, v_account_id);
+  INSERT INTO remittance_calculator_week_entries (entry_id, week_id, account_id) VALUES (v_man_arch, v_week, v_account_id);
 
   SELECT count(*) INTO v_audits_before FROM remittance_admin_audit WHERE account_id = v_account_id;
 
@@ -293,13 +321,13 @@ BEGIN
   END;
 
   -- ===========================================================================
-  -- CASE 9 -- missing (P0002), void, pending, manual (22023).
+  -- CASE 9 -- missing (P0002), void, pending (22023).
   -- ===========================================================================
-  FOR v_count IN 1..4 LOOP
+  FOR v_count IN 1..3 LOOP
     BEGIN
       PERFORM set_config('request.jwt.claims', v_admin_claims, true);
       PERFORM crm_corregir_tasas_entrada_calculadora(
-        CASE v_count WHEN 1 THEN gen_random_uuid() WHEN 2 THEN v_void WHEN 3 THEN v_pending ELSE v_manual END, 100, NULL);
+        CASE v_count WHEN 1 THEN gen_random_uuid() WHEN 2 THEN v_void ELSE v_pending END, 100, NULL);
       PERFORM set_config('request.jwt.claims', '', true);
       v_fail_count := v_fail_count + 1;
       RAISE WARNING 'FAIL [case 9.%] expected a refusal', v_count;
@@ -347,6 +375,137 @@ BEGIN
   EXCEPTION WHEN OTHERS THEN
     IF SQLSTATE = '42501' THEN RAISE NOTICE 'PASS [case 12] a raw UPDATE is still refused';
     ELSE v_fail_count := v_fail_count + 1; RAISE WARNING 'FAIL [case 12] expected 42501, got % (%)', SQLSTATE, SQLERRM; END IF;
+  END;
+
+
+  -- ===========================================================================
+  -- CASE 13 -- manual CUP without a snapshot (237): both rates required, stored, figures recomputed.
+  -- ===========================================================================
+  SELECT count(*) INTO v_audits_before FROM remittance_admin_audit WHERE account_id = v_account_id;
+  SELECT * INTO v_before FROM remittance_calculator_entries WHERE id = v_manual;
+  FOR v_count IN 1..2 LOOP
+    BEGIN
+      PERFORM set_config('request.jwt.claims', v_admin_claims, true);
+      IF v_count = 1 THEN PERFORM crm_corregir_tasas_entrada_calculadora(v_manual, 240, NULL);
+      ELSE PERFORM crm_corregir_tasas_entrada_calculadora(v_manual, NULL, 960); END IF;
+      PERFORM set_config('request.jwt.claims', '', true);
+      v_fail_count := v_fail_count + 1;
+      RAISE WARNING 'FAIL [case 13.%] expected 22023 (a manual CUP row needs both rates)', v_count;
+    EXCEPTION WHEN OTHERS THEN
+      PERFORM set_config('request.jwt.claims', '', true);
+      IF SQLSTATE = '22023' THEN RAISE NOTICE 'PASS [case 13.%] one rate is not enough (%)', v_count, SQLERRM;
+      ELSE v_fail_count := v_fail_count + 1; RAISE WARNING 'FAIL [case 13.%] expected 22023, got % (%)', v_count, SQLSTATE, SQLERRM; END IF;
+    END;
+  END LOOP;
+
+  PERFORM set_config('request.jwt.claims', v_admin_claims, true);
+  v_e := crm_corregir_tasas_entrada_calculadora(v_manual, 240, 960);
+  PERFORM set_config('request.jwt.claims', '', true);
+  IF v_e.usdt_buy_gyd = 240 AND v_e.cup_rate = 960 AND v_e.invertido_gyd = 3750 AND v_e.retorno_gyd = 1250
+     AND v_e.facturado_gyd = v_before.facturado_gyd AND v_e.raw_line IS NOT DISTINCT FROM v_before.raw_line
+     AND v_e.entry_date = v_before.entry_date AND v_e.customer_name = v_before.customer_name AND v_e.amount = 15000
+     AND v_e.source = 'manual' AND v_e.cup_global_rate IS NULL AND v_e.status = 'completed' THEN
+    RAISE NOTICE 'PASS [case 13] manual CUP stored 240/960 -> invertido 3750, retorno 1250, the rest untouched';
+  ELSE
+    v_fail_count := v_fail_count + 1;
+    RAISE WARNING 'FAIL [case 13] manual CUP row after the edit: %', to_jsonb(v_e);
+  END IF;
+
+  PERFORM set_config('request.jwt.claims', v_admin_claims, true);
+  v_e := crm_corregir_tasas_entrada_calculadora(v_manual, NULL, 1060);
+  PERFORM set_config('request.jwt.claims', '', true);
+  IF v_e.usdt_buy_gyd = 240 AND v_e.cup_rate = 1060 AND abs(v_e.invertido_gyd - (15000 / 1060.0) * 240) < 0.000001 THEN
+    RAISE NOTICE 'PASS [case 13b] a later edit with one rate keeps the stored other one';
+  ELSE
+    v_fail_count := v_fail_count + 1;
+    RAISE WARNING 'FAIL [case 13b] manual CUP second edit: %', to_jsonb(v_e);
+  END IF;
+
+  -- ===========================================================================
+  -- CASE 14 -- manual ZELLE: buy only; cup_rate stays NULL.
+  -- ===========================================================================
+  BEGIN
+    PERFORM set_config('request.jwt.claims', v_admin_claims, true);
+    PERFORM crm_corregir_tasas_entrada_calculadora(v_man_zelle, NULL, 960);
+    PERFORM set_config('request.jwt.claims', '', true);
+    v_fail_count := v_fail_count + 1;
+    RAISE WARNING 'FAIL [case 14.1] expected 22023 (cup_rate on a non-CUP manual row)';
+  EXCEPTION WHEN OTHERS THEN
+    PERFORM set_config('request.jwt.claims', '', true);
+    IF SQLSTATE = '22023' THEN RAISE NOTICE 'PASS [case 14.1] cup_rate refused off CUP';
+    ELSE v_fail_count := v_fail_count + 1; RAISE WARNING 'FAIL [case 14.1] expected 22023, got % (%)', SQLSTATE, SQLERRM; END IF;
+  END;
+  PERFORM set_config('request.jwt.claims', v_admin_claims, true);
+  v_e := crm_corregir_tasas_entrada_calculadora(v_man_zelle, 238, NULL);
+  PERFORM set_config('request.jwt.claims', '', true);
+  IF v_e.usdt_buy_gyd = 238 AND v_e.cup_rate IS NULL AND v_e.invertido_gyd = 23800 AND v_e.retorno_gyd = 2200 AND v_e.facturado_gyd = 26000 THEN
+    RAISE NOTICE 'PASS [case 14] manual ZELLE at 238 -> invertido 23800, retorno 2200, cup_rate stays NULL';
+  ELSE
+    v_fail_count := v_fail_count + 1;
+    RAISE WARNING 'FAIL [case 14] manual ZELLE row after the edit: %', to_jsonb(v_e);
+  END IF;
+
+  -- ===========================================================================
+  -- CASE 15 -- manual services whose formula cannot be rebuilt from the row.
+  -- ===========================================================================
+  FOR v_count IN 1..3 LOOP
+    BEGIN
+      PERFORM set_config('request.jwt.claims', v_admin_claims, true);
+      PERFORM crm_corregir_tasas_entrada_calculadora(
+        CASE v_count WHEN 1 THEN v_man_recarga WHEN 2 THEN v_man_directo ELSE v_man_disc END, 200, NULL);
+      PERFORM set_config('request.jwt.claims', '', true);
+      v_fail_count := v_fail_count + 1;
+      RAISE WARNING 'FAIL [case 15.%] expected 22023', v_count;
+    EXCEPTION WHEN OTHERS THEN
+      PERFORM set_config('request.jwt.claims', '', true);
+      IF SQLSTATE = '22023' THEN RAISE NOTICE 'PASS [case 15.%] refused (%)', v_count, SQLERRM;
+      ELSE v_fail_count := v_fail_count + 1; RAISE WARNING 'FAIL [case 15.%] expected 22023, got % (%)', v_count, SQLSTATE, SQLERRM; END IF;
+    END;
+  END LOOP;
+
+  -- ===========================================================================
+  -- CASE 16 -- a non-admin on a manual row (42501); a manual row of an archived week (22023).
+  -- ===========================================================================
+  BEGIN
+    PERFORM set_config('request.jwt.claims', v_agent_claims, true);
+    PERFORM crm_corregir_tasas_entrada_calculadora(v_man_zelle, 200, NULL);
+    PERFORM set_config('request.jwt.claims', '', true);
+    v_fail_count := v_fail_count + 1;
+    RAISE WARNING 'FAIL [case 16.1] expected 42501 for an agent on a manual row';
+  EXCEPTION WHEN OTHERS THEN
+    PERFORM set_config('request.jwt.claims', '', true);
+    IF SQLSTATE = '42501' THEN RAISE NOTICE 'PASS [case 16.1] admin+ only on manual rows';
+    ELSE v_fail_count := v_fail_count + 1; RAISE WARNING 'FAIL [case 16.1] expected 42501, got % (%)', SQLSTATE, SQLERRM; END IF;
+  END;
+  BEGIN
+    PERFORM set_config('request.jwt.claims', v_admin_claims, true);
+    PERFORM crm_corregir_tasas_entrada_calculadora(v_man_arch, 200, NULL);
+    PERFORM set_config('request.jwt.claims', '', true);
+    v_fail_count := v_fail_count + 1;
+    RAISE WARNING 'FAIL [case 16.2] expected 22023 for a manual row of an archived week';
+  EXCEPTION WHEN OTHERS THEN
+    PERFORM set_config('request.jwt.claims', '', true);
+    IF SQLSTATE = '22023' THEN RAISE NOTICE 'PASS [case 16.2] archived-week manual row refused';
+    ELSE v_fail_count := v_fail_count + 1; RAISE WARNING 'FAIL [case 16.2] expected 22023, got % (%)', SQLSTATE, SQLERRM; END IF;
+  END;
+
+  -- ===========================================================================
+  -- CASE 17 -- no audit row from the manual edits; a raw UPDATE of a manual row is still refused.
+  -- ===========================================================================
+  SELECT count(*) INTO v_count FROM remittance_admin_audit WHERE account_id = v_account_id;
+  IF v_count <> v_audits_before THEN
+    v_fail_count := v_fail_count + 1;
+    RAISE WARNING 'FAIL [case 17.1] expected no audit rows from the manual rate edits, found %', v_count - v_audits_before;
+  ELSE
+    RAISE NOTICE 'PASS [case 17.1] the manual rate edits wrote no audit row';
+  END IF;
+  BEGIN
+    UPDATE remittance_calculator_entries SET usdt_buy_gyd = 1, invertido_gyd = 1 WHERE id = v_manual;
+    v_fail_count := v_fail_count + 1;
+    RAISE WARNING 'FAIL [case 17.2] expected the guard to refuse a raw UPDATE of a manual row';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLSTATE = '42501' THEN RAISE NOTICE 'PASS [case 17.2] a raw UPDATE of a manual row is still refused';
+    ELSE v_fail_count := v_fail_count + 1; RAISE WARNING 'FAIL [case 17.2] expected 42501, got % (%)', SQLSTATE, SQLERRM; END IF;
   END;
 
   IF v_fail_count > 0 THEN

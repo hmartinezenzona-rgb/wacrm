@@ -51,6 +51,17 @@ Owner decisions:
 - [x] T4 Apply 236 on staging, deploy staging, owner checks (owner checked staging 2026-10-14: CUP entry edited to 1060 -> invertido 6792.45; Zelle entry edited to 238 -> invertido 23800; figures correct)
 - [x] T5 Production (owner go-ahead 2026-10-14 "pasa a producción"; done 2026-10-14, evidence below)
 
+### Extension: manual entries (owner request 2026-10-14)
+Owner tried Editar on a production CUP entry and saw no rates: every CUP entry of the current week is MANUAL
+(production current week: 3 chat ZELLE with snapshot; 30 manual rows - 3 CUP, 26 ZELLE, 1 CLASICA - with NULL
+cup_rate / usdt_buy_gyd / cup_global_rate). Owner: "extiéndelo a las manuales también". Editar on a manual row
+prefills the CURRENT global investment rates (no snapshot exists), recomputes invertido/retorno on change, and stores
+the chosen rates on the row from then on. facturado untouched. Still no audit row.
+- [ ] T6 Migration 237 (+ROLLBACK, assertion): rate edit accepts manual rows; stores the rates on the row
+- [ ] T7 Route/UI/read model: manual rows editable, prefill from current global rates when the row has none (+tests)
+- [ ] T8 Staging apply + deploy + owner check (needs owner authorization)
+- [ ] T9 Production (needs owner go-ahead)
+
 ## Acceptance criteria
 - Editing a CUP entry from 1060 to 960 changes only its invertido/retorno; facturado unchanged.
 - Control Semanal totals and Finanzas Resumen reflect the new figures.

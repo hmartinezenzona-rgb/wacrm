@@ -21,9 +21,15 @@
 --   case 13 manual CUP (15000 CUP, facturado 5000): needs BOTH rates (22023 with one); with 960 and 240 stores both and gives
 --           invertido 3750 / retorno 1250; facturado, raw_line, date, customer untouched; a later edit with one rate keeps the other.
 --   case 14 manual ZELLE: buy only -> invertido = amount * buy, cup_rate stays NULL; no buy -> 22023; cup_rate -> 22023.
---   case 15 manual RECARGA, DIRECTO and a discounted ("%") manual ZELLE are refused (22023).
+--   case 15 manual RECARGA and DIRECTO are refused (22023); so are discount forms the parser cannot be reproduced for (238).
 --   case 16 non-admin on a manual row (42501); a manual row of an archived week (22023).
 --   case 17 the manual edits wrote no audit row and a raw UPDATE of a manual row is still refused (42501).
+--   (238, production-shaped manual lines; the rates live in raw_line)
+--   case 18 "• Marlene 15,000 cup (240/960)" CUP, "• Michel 50 Zelle (238/260)" ZELLE: edits give 3750 and 11900.
+--   case 19 "• Zulemys 76 Clásica (3%/238/260)": discounted CLASICA re-costed with buy 230 -> 76/1.03*230; the original 238 -> 76/1.03*238
+--           (17561.165...); "(10%/240/260)" ZELLE; "3.5%" -> 3.5; "3,5%" -> 3 (the parser's parseFloat); "0%" -> no discount;
+--           a discount on a CUP / USDT line is ignored; a "%" outside the first slot is no discount.
+--   case 20 discount forms refused (22023): "-5%", "+5%", "abc%", "3e1%", "%" alone, and a discount line with no buy rate to keep.
 --
 -- MUST run inside an already-open transaction that ends in ROLLBACK (BEGIN ... \i 236 ... \i 237 ... \i this file ... ROLLBACK), on STAGING only.
 -- Never COMMIT. Never run against production. Builds its own fixtures (entries are inserted directly: the fixtures need no live rates).
@@ -46,7 +52,7 @@ DECLARE
   v_op          uuid;
   v_op_void     uuid;
   v_op_pending  uuid;
-  v_cup uuid; v_zelle uuid; v_recarga uuid; v_saldo uuid; v_combo uuid; v_visa uuid; v_void uuid; v_pending uuid; v_manual uuid; v_man_zelle uuid; v_man_recarga uuid; v_man_directo uuid; v_man_disc uuid; v_man_arch uuid;
+  v_cup uuid; v_zelle uuid; v_recarga uuid; v_saldo uuid; v_combo uuid; v_visa uuid; v_void uuid; v_pending uuid; v_manual uuid; v_man_zelle uuid; v_man_recarga uuid; v_man_directo uuid; v_man_disc uuid; v_man_arch uuid; v_p_cup uuid; v_p_zelle uuid; v_p_clasica uuid; v_d uuid;
   v_archived    uuid;
   v_op_arch     uuid;
   v_week        uuid;
@@ -448,11 +454,11 @@ BEGIN
   -- ===========================================================================
   -- CASE 15 -- manual services whose formula cannot be rebuilt from the row.
   -- ===========================================================================
-  FOR v_count IN 1..3 LOOP
+  FOR v_count IN 1..2 LOOP
     BEGIN
       PERFORM set_config('request.jwt.claims', v_admin_claims, true);
       PERFORM crm_corregir_tasas_entrada_calculadora(
-        CASE v_count WHEN 1 THEN v_man_recarga WHEN 2 THEN v_man_directo ELSE v_man_disc END, 200, NULL);
+        CASE v_count WHEN 1 THEN v_man_recarga ELSE v_man_directo END, 200, NULL);
       PERFORM set_config('request.jwt.claims', '', true);
       v_fail_count := v_fail_count + 1;
       RAISE WARNING 'FAIL [case 15.%] expected 22023', v_count;
@@ -507,6 +513,119 @@ BEGIN
     IF SQLSTATE = '42501' THEN RAISE NOTICE 'PASS [case 17.2] a raw UPDATE of a manual row is still refused';
     ELSE v_fail_count := v_fail_count + 1; RAISE WARNING 'FAIL [case 17.2] expected 42501, got % (%)', SQLSTATE, SQLERRM; END IF;
   END;
+
+
+  -- ===========================================================================
+  -- CASE 18 -- production-shaped manual lines (238): the rates live in raw_line.
+  -- ===========================================================================
+  INSERT INTO remittance_calculator_entries (account_id, source, status, entry_date, customer_name, service, amount, amount_currency,
+    facturado_gyd, invertido_gyd, retorno_gyd, completed_at, raw_line)
+  VALUES (v_account_id, 'manual', 'completed', current_date, 'Marlene', 'CUP', 15000, 'CUP',
+    5000, 3750, 1250, now(), '• Marlene 15,000 cup (240/960)') RETURNING id INTO v_p_cup;
+  INSERT INTO remittance_calculator_entries (account_id, source, status, entry_date, customer_name, service, amount, amount_currency,
+    facturado_gyd, invertido_gyd, retorno_gyd, completed_at, raw_line)
+  VALUES (v_account_id, 'manual', 'completed', current_date, 'Michel', 'ZELLE', 50, 'USD',
+    13000, 11900, 1100, now(), '• Michel 50 Zelle (238/260)') RETURNING id INTO v_p_zelle;
+  INSERT INTO remittance_calculator_entries (account_id, source, status, entry_date, customer_name, service, amount, amount_currency,
+    facturado_gyd, invertido_gyd, retorno_gyd, completed_at, raw_line)
+  VALUES (v_account_id, 'manual', 'completed', current_date, 'Zulemys', 'CLASICA', 76, 'USD',
+    19760, 76 / 1.03 * 238, 19760 - 76 / 1.03 * 238, now(), '• Zulemys 76 Clásica (3%/238/260)') RETURNING id INTO v_p_clasica;
+
+  PERFORM set_config('request.jwt.claims', v_admin_claims, true);
+  v_e := crm_corregir_tasas_entrada_calculadora(v_p_cup, 240, 960);
+  IF v_e.invertido_gyd = 3750 AND v_e.cup_rate = 960 AND v_e.usdt_buy_gyd = 240 THEN RAISE NOTICE 'PASS [case 18.1] Marlene CUP 240/960 -> 3750';
+  ELSE v_fail_count := v_fail_count + 1; RAISE WARNING 'FAIL [case 18.1] %', to_jsonb(v_e); END IF;
+  v_e := crm_corregir_tasas_entrada_calculadora(v_p_zelle, 238, NULL);
+  IF v_e.invertido_gyd = 11900 AND v_e.retorno_gyd = 1100 THEN RAISE NOTICE 'PASS [case 18.2] Michel Zelle 238 -> 11900';
+  ELSE v_fail_count := v_fail_count + 1; RAISE WARNING 'FAIL [case 18.2] %', to_jsonb(v_e); END IF;
+  PERFORM set_config('request.jwt.claims', '', true);
+
+  -- ===========================================================================
+  -- CASE 19 -- discount read from raw_line, same rule as parseManualLineRates / procesarTexto:
+  --   the detail is the text between the first "(" and the final ")"; its FIRST slot (split on "/") holding a "%" is the discount;
+  --   the number is the leading decimal of the slot (parseFloat: "3,5" -> 3, ".5" -> 0.5); invertido = amount / (1 + pct / 100) * buy.
+  --   Only ZELLE, MLC, CLASICA and TROPICAL take a discount; a "%" outside the first slot is none.
+  -- ===========================================================================
+  PERFORM set_config('request.jwt.claims', v_admin_claims, true);
+  v_e := crm_corregir_tasas_entrada_calculadora(v_p_clasica, 230, NULL);
+  IF abs(v_e.invertido_gyd - 76 / 1.03 * 230) < 0.000001 AND v_e.usdt_buy_gyd = 230 AND v_e.facturado_gyd = 19760
+     AND abs(v_e.retorno_gyd - (19760 - 76 / 1.03 * 230)) < 0.000001 THEN RAISE NOTICE 'PASS [case 19.1] Zulemys CLASICA (3%%) buy 230 -> 76/1.03*230 = %', v_e.invertido_gyd;
+  ELSE v_fail_count := v_fail_count + 1; RAISE WARNING 'FAIL [case 19.1] %', to_jsonb(v_e); END IF;
+  v_e := crm_corregir_tasas_entrada_calculadora(v_p_clasica, 238, NULL);
+  IF abs(v_e.invertido_gyd - 76 / 1.03 * 238) < 0.000001 AND abs(v_e.invertido_gyd - 17561.165) < 0.001 THEN RAISE NOTICE 'PASS [case 19.2] the quoted 238 -> 17561.165...';
+  ELSE v_fail_count := v_fail_count + 1; RAISE WARNING 'FAIL [case 19.2] %', to_jsonb(v_e); END IF;
+  PERFORM set_config('request.jwt.claims', '', true);
+
+  DECLARE
+    v_case record;
+    v_new  uuid;
+    v_got  numeric;
+    v_ok   boolean;
+  BEGIN
+    FOR v_case IN
+      SELECT * FROM (VALUES
+        -- raw_line,                                     service,   amount, buy arg, cup arg, expected invertido (NULL = refused 22023)
+        (1,  '• A 100 Zelle (10%/240/260)',               'ZELLE',    100::numeric, 230::numeric, NULL::numeric, 100 / 1.10 * 230),
+        (2,  '• A 100 MLC (3.5%/238/260)',                'MLC',      100, 230, NULL, 100 / 1.035 * 230),
+        (3,  '• A 100 Tropical (3,5%/238/260)',           'TROPICAL', 100, 230, NULL, 100 / 1.03 * 230),
+        (4,  '• A 100 Zelle (0%/238/260)',                'ZELLE',    100, 230, NULL, 100 * 230),
+        (5,  '• A 100 Zelle (.5%/238/260)',               'ZELLE',    100, 230, NULL, 100 / 1.005 * 230),
+        (6,  '• A 100 Zelle ( 3 % /238/260 )',            'ZELLE',    100, 230, NULL, 100 / 1.03 * 230),
+        (7,  '• A 100 Zelle (240/260/5%)',                'ZELLE',    100, 230, NULL, 100 * 230),
+        (8,  '• A 15k CUP (3%/240/960)',                  'CUP',      15000, 240, 960, (15000 / 960.0) * 240),
+        (9,  '• A 100 USDT (5%/240/260)',                 'USDT',     100, 230, NULL, 100 * 230),
+        (10, '• A 100 Zelle (-5%/240/260)',               'ZELLE',    100, 230, NULL, NULL),
+        (11, '• A 100 Zelle (+5%/240/260)',               'ZELLE',    100, 230, NULL, NULL),
+        (12, '• A 100 Zelle (abc%/240/260)',              'ZELLE',    100, 230, NULL, NULL),
+        (13, '• A 100 Zelle (3e1%/240/260)',              'ZELLE',    100, 230, NULL, NULL),
+        (14, '• A 100 Zelle (%/240/260)',                 'ZELLE',    100, 230, NULL, NULL)
+      ) AS t(n, raw, service, amount, buy, cup, expected)
+    LOOP
+      INSERT INTO remittance_calculator_entries (account_id, source, status, entry_date, customer_name, service, amount, amount_currency,
+        facturado_gyd, invertido_gyd, retorno_gyd, completed_at, raw_line)
+      VALUES (v_account_id, 'manual', 'completed', current_date, 'Disc ' || v_case.n, v_case.service, v_case.amount, 'USD',
+        1000000, 1, 999999, now(), v_case.raw) RETURNING id INTO v_new;
+      BEGIN
+        PERFORM set_config('request.jwt.claims', v_admin_claims, true);
+        v_e := crm_corregir_tasas_entrada_calculadora(v_new, v_case.buy, v_case.cup);
+        PERFORM set_config('request.jwt.claims', '', true);
+        v_got := v_e.invertido_gyd;
+        v_ok := v_case.expected IS NOT NULL AND abs(v_got - v_case.expected) < 0.000001;
+        IF v_ok THEN RAISE NOTICE 'PASS [case 19/20.%] % -> %', v_case.n, v_case.raw, v_got;
+        ELSE v_fail_count := v_fail_count + 1; RAISE WARNING 'FAIL [case 19/20.%] % gave % (expected %)', v_case.n, v_case.raw, v_got, v_case.expected; END IF;
+      EXCEPTION WHEN OTHERS THEN
+        PERFORM set_config('request.jwt.claims', '', true);
+        IF v_case.expected IS NULL AND SQLSTATE = '22023' THEN RAISE NOTICE 'PASS [case 19/20.%] % refused (%)', v_case.n, v_case.raw, SQLERRM;
+        ELSE v_fail_count := v_fail_count + 1; RAISE WARNING 'FAIL [case 19/20.%] % unexpected % (%)', v_case.n, v_case.raw, SQLSTATE, SQLERRM; END IF;
+      END;
+    END LOOP;
+  END;
+
+  -- A discounted line with no buy rate given and none stored keeps the API contract: refused (22023).
+  BEGIN
+    INSERT INTO remittance_calculator_entries (account_id, source, status, entry_date, customer_name, service, amount, amount_currency,
+      facturado_gyd, invertido_gyd, retorno_gyd, completed_at, raw_line)
+    VALUES (v_account_id, 'manual', 'completed', current_date, 'Disc none', 'CLASICA', 76, 'USD',
+      19760, 1, 19759, now(), '• Disc none 76 Clásica (3%/238/260)') RETURNING id INTO v_d;
+    PERFORM set_config('request.jwt.claims', v_admin_claims, true);
+    PERFORM crm_corregir_tasas_entrada_calculadora(v_d, NULL, NULL);
+    PERFORM set_config('request.jwt.claims', '', true);
+    v_fail_count := v_fail_count + 1;
+    RAISE WARNING 'FAIL [case 20] expected 22023 (at least one rate is required)';
+  EXCEPTION WHEN OTHERS THEN
+    PERFORM set_config('request.jwt.claims', '', true);
+    IF SQLSTATE = '22023' THEN RAISE NOTICE 'PASS [case 20] no rate at all is still refused';
+    ELSE v_fail_count := v_fail_count + 1; RAISE WARNING 'FAIL [case 20] expected 22023, got % (%)', SQLSTATE, SQLERRM; END IF;
+  END;
+
+  -- The 238 edits wrote no audit row either.
+  SELECT count(*) INTO v_count FROM remittance_admin_audit WHERE account_id = v_account_id;
+  IF v_count <> v_audits_before THEN
+    v_fail_count := v_fail_count + 1;
+    RAISE WARNING 'FAIL [case 20.audit] expected no audit rows, found %', v_count - v_audits_before;
+  ELSE
+    RAISE NOTICE 'PASS [case 20.audit] the discount edits wrote no audit row';
+  END IF;
 
   IF v_fail_count > 0 THEN
     RAISE EXCEPTION 'calculator-entry-investment-rates: % expectation(s) FAILED -- see WARNINGs above', v_fail_count;

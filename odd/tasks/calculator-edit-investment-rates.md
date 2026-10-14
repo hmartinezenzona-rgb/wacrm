@@ -60,8 +60,8 @@ the chosen rates on the row from then on. facturado untouched. Still no audit ro
 - [x] T6 Migration 237 (+ROLLBACK, assertion): rate edit accepts manual rows; stores the rates on the row (commit d5538ea; assertion cases 13-17 written, NOT run: pending staging run T8)
 - [x] T7 Route/UI/read model: manual rows editable, prefill from current global rates when the row has none (+tests) (commit 8d6b7f0; RED entry-rates 2 failed + page 4 failed -> GREEN 18 / 111)
 - [x] T7b Correction: manual rows carry their quoted rates in raw_line. Editar prefills from the line (parseManualLineRates, shares the detail rules with procesarTexto; global rates only for a line without rates; stored rates win), and discounted manual lines are re-costed amount / (1 + pct / 100) * buy; migration 238 (+ROLLBACK) reads the discount from raw_line (commits 981e932 TS, 037c366 SQL; RED web-calculator 6 + entry-rates 3 + page 2 + realtime 1 + route 1 failed -> GREEN, npm test 189 files / 2581 tests; assertion cases 18-20 RED on staging -> GREEN)
-- [ ] T8 Staging apply + deploy + owner check (237 applied and f9df7ab deployed; superseded on staging by 238 + 037c366, see T7b evidence to staging 2026-10-14, owner authorized; test manual entries created; waiting for owner check)
-- [ ] T9 Production (needs owner go-ahead)
+- [x] T8 Staging apply + deploy + owner check (237 applied and f9df7ab deployed; superseded on staging by 238 + 037c366, see T7b evidence to staging 2026-10-14, owner authorized; test manual entries created; owner did not exercise the manual UI on staging before the production go-ahead; SQL assertion cases 1-20 + dry runs passed)
+- [x] T9 Production (owner go-ahead 2026-10-14 "pasalo a produccion"; done 2026-10-14, evidence below)
 
 ## Acceptance criteria
 - Editing a CUP entry from 1060 to 960 changes only its invertido/retorno; facturado unchanged.
@@ -187,5 +187,14 @@ COMMIT;
   - Deployed to staging: release 037c366a8e72040453ad0b3a6b1e8fc80749f5d4, BUILD_ID Zqf-TGpMXAcuZXGlXXmQR (server, pm2 cwd and crm.onlinefreedom.site match, /login 200). anterior -> f9df7ab5c570a0b2152a18c473e4cf263e167aad.
     Manifest staging, kolppplawzdsjfydwejr, 0 production refs, sha256 ok. Built WITH the tests step (114 pipeline tests passed in node:20). prod-build restored to 5e91213, env copy deleted.
 
+- 2026-10-14 T9 production (237 + 238 + app 16b6436):
+  - Backup `~/wacrm-respaldos/produccion-20261014T225703Z.dump` (111 data tables, 320 functions, sha256 f761c21ef9286d82...).
+  - Recon: fn md5 4332dccb71c56d9c59dbaa2f775ca134 (236), last row 236, ACL postgres + authenticated, helper absent; entries 122 rows, facturado 4536577.40, invertido 4111483.0781553398064480, retorno 425094.3218446602358520.
+  - `~/cerebro-fase1/pruebas/gate139-aplicar-db.py` (copy of gate138, bundle 237 then 238, bundle md5 1ab0486421e67531ccc5e1fed4d0fa17): `quien` -> postgres; `ensayo` (rolled back) -> new fn md5 b0e9796223974f842b2cd866591eb3b2,
+    ACL {postgres,authenticated}, the six untouched functions identical (31c256da, fb30194d, 3827c120, c903a471, 5fb1c6d4, cea73e60), entries identical; `aplicar` -> {"r":"OK"}, rows 20261014225918 / 237_calculator_rates_manual_entries and 20261014225919 / 238_calculator_rates_manual_discount.
+  - After: fn md5 b0e97962..., SECURITY DEFINER, ACL postgres + authenticated (no anon, no service_role), entries identical to before, helper zz_wu5b_exec dropped (count 0), temp n8n workflows deleted. Assertion file NOT run in production (staging only). The optional SQL sanity on the three "(240/960)" rows was skipped (no rolled-back call route for a single entry).
+  - App: release 16b64366e61919d90ea271c32a355a2254af81cf built in prod-build (Node 20.20.2, NEXT_PRIVATE_OUTPUT_TRACE_ROOT=$PWD, with tests; manifest production, ref hqztotshnlzaiziwjyzh), BUILD_ID trlYmeRCGc-Psh1NMbx_O. Deployed with desplegar-wacrm-produccion.sh: pm2 wacrm online, /proc cwd = the release, domain serves the BUILD_ID, /login 200.
+    Rollback: anterior -> 5e912131267bcdbb660e70f8280722a671564b73 (rollback-wacrm-produccion.sh); DB ROLLBACK-238 then ROLLBACK-237 through the gate route. prod-build left at 16b6436, env copy deleted.
+
 ## Next step
-T8: owner checks Editar rates on /calculadora in staging (manual rows show their quoted rates; discounted CLASICA/ZELLE re-costed). Then T9 production only with the owner's go-ahead. Staging test entries (PRUEBA TASAS) are still to be deleted when the owner says (cleanup SQL above).
+Owner checks Editar on the manual rows in production (/calculadora). Staging test entries (PRUEBA TASAS, cleanup SQL above) to delete when the owner says.

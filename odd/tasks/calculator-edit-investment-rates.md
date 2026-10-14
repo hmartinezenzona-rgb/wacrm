@@ -57,8 +57,8 @@ Owner tried Editar on a production CUP entry and saw no rates: every CUP entry o
 cup_rate / usdt_buy_gyd / cup_global_rate). Owner: "extiéndelo a las manuales también". Editar on a manual row
 prefills the CURRENT global investment rates (no snapshot exists), recomputes invertido/retorno on change, and stores
 the chosen rates on the row from then on. facturado untouched. Still no audit row.
-- [ ] T6 Migration 237 (+ROLLBACK, assertion): rate edit accepts manual rows; stores the rates on the row
-- [ ] T7 Route/UI/read model: manual rows editable, prefill from current global rates when the row has none (+tests)
+- [x] T6 Migration 237 (+ROLLBACK, assertion): rate edit accepts manual rows; stores the rates on the row (commit d5538ea; assertion cases 13-17 written, NOT run: pending staging run T8)
+- [x] T7 Route/UI/read model: manual rows editable, prefill from current global rates when the row has none (+tests) (commit 8d6b7f0; RED entry-rates 2 failed + page 4 failed -> GREEN 18 / 111)
 - [ ] T8 Staging apply + deploy + owner check (needs owner authorization)
 - [ ] T9 Production (needs owner go-ahead)
 
@@ -133,5 +133,19 @@ COMMIT;
     (rollback-wacrm-produccion.sh; DB: ROLLBACK-236 through gate138). prod-build left at 5e91213. Build note: needed NEXT_PRIVATE_OUTPUT_TRACE_ROOT=$PWD
     because the stray ~/package-lock.json made Next nest the standalone output.
 
+- 2026-10-14 T6-T7 (manual rows), findings:
+  - (a) Manual rows are INSERTED once by crm_registrar_entradas_manuales (228) when the admin presses Registrar; the registered lines then leave the text box.
+    The textarea autosave only stores raw text and never re-generates rows, so a rate edit is not overwritten. Nothing to fix.
+  - (b) Lock trigger (228) lets a manual row change under wacrm.calculator_correction while it stays completed; it freezes account/date/customer/day_label/raw_line/
+    completed_at/currency and (149 hole) amount/service/operation/rate_version. The rate columns are free, so 237 needs no trigger change.
+  - (c) Manual formulas (web-calculator.ts calculateLine): CUP (amount/cup)*buy and USDT amount*buy equal the SQL; ZELLE/MLC/CLASICA/TROPICAL are
+    (amount/(1+pct))*cost, equal to amount*buy only without a discount ("%" in the typed line). The discount is not stored in a column, so a discounted
+    manual line is refused by 237 (raw_line contains "%").
+  - (d) Manual services: CUP, ZELLE, MLC, TROPICAL, CLASICA, USDT, SALDO_MOVIL, RECARGA, DIRECTO (COMBO/VISA lines are typed as DIRECTO, no investment).
+    RECARGA/SALDO_MOVIL manual: amount*unitCost*buy with the unit cost only in the typed line (cost_gyd NULL) -> refused. COMBO/VISA stay refused.
+  - Editar: a manual row without snapshot prefills the CURRENT global usdt_buy_gyd / usdt_sell_cup (from the rates the page already loads, no new fetch); a
+    change sends the full set the formula needs and the database stores it on the row; untouched prefill = plain figures edit.
+  - Verification: npm test 189 files / 2566 tests, tsc 0, eslint 0. SQL (237 + assertion cases 13-17) NOT run: pending staging run (T8).
+
 ## Next step
-Owner checks Editar rates on production (wacrm.onlinefreedom.site). Staging test entries (PRUEBA TASAS) are still to be deleted when the owner says (cleanup SQL above).
+T8: apply 237 on staging, run the assertion (cases 1-17) and deploy staging: needs the owner's explicit authorization. Then T9 production only with the owner's go-ahead. Staging test entries (PRUEBA TASAS) are still to be deleted when the owner says (cleanup SQL above).

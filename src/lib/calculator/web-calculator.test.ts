@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseMonto, procesarTexto } from "./web-calculator";
+import { parseManualLineRates, parseMonto, procesarTexto } from "./web-calculator";
 
 describe("native legacy web calculator", () => {
   it("parses k suffixes and thousands separators like the reference calculator", () => {
@@ -27,5 +27,38 @@ describe("native legacy web calculator", () => {
     expect(result.operations).toHaveLength(1);
     expect(result.operations[0]).toMatchObject({ error: true, raw: "esto no tiene formato" });
     expect(result.totals).toEqual({ fact: 0, inv: 0, ret: 0 });
+  });
+});
+
+describe("parseManualLineRates (the rates a typed line was quoted with)", () => {
+  it("reads buy and CUP rate from a CUP line", () => {
+    expect(parseManualLineRates("• Marlene 15,000 cup (240/960)")).toEqual({ buy: 240, sell: null, cupRate: 960, discountPct: 0 });
+  });
+
+  it("reads buy and sale from a Zelle line", () => {
+    expect(parseManualLineRates("• Michel 50 Zelle (238/260)")).toEqual({ buy: 238, sell: 260, cupRate: null, discountPct: 0 });
+  });
+
+  it("reads the discount of a discounted line and shifts the rates behind it", () => {
+    expect(parseManualLineRates("• Zulemys 76 Clásica (3%/238/260)")).toEqual({ buy: 238, sell: 260, cupRate: null, discountPct: 3 });
+  });
+
+  it("reads decimal discounts the way the calculator does (parseFloat: 3.5 and 3,5 -> 3)", () => {
+    expect(parseManualLineRates("• A 100 Zelle (3.5%/238/260)")?.discountPct).toBe(3.5);
+    expect(parseManualLineRates("• A 100 Zelle (3,5%/238/260)")?.discountPct).toBe(3);
+  });
+
+  it("returns null for a line without rates, a day header, an error line or a direct service", () => {
+    expect(parseManualLineRates("• Iza 100 Zelle")).toBeNull();
+    expect(parseManualLineRates("Martes 6")).toBeNull();
+    expect(parseManualLineRates("esto no tiene formato")).toBeNull();
+    expect(parseManualLineRates("• Iza visa 4000")).toBeNull();
+    expect(parseManualLineRates(null)).toBeNull();
+  });
+
+  it("agrees with procesarTexto on the discounted line", () => {
+    const rates = parseManualLineRates("• Zulemys 76 Clásica (3%/238/260)")!;
+    const op = procesarTexto("• Zulemys 76 Clásica (3%/238/260)", 3).operations[0] as { inv: number };
+    expect(op.inv).toBeCloseTo((76 / (1 + rates.discountPct / 100)) * rates.buy!, 9);
   });
 });

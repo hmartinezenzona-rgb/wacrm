@@ -27,7 +27,7 @@ const RATE_VERSION_COLUMNS =
   "id, account_id, cup_global_rate, usdt_buy_gyd, usdt_sell_gyd, usdt_sell_cup, set_by, effective_at";
 
 const CHAT_OPERATION_COLUMNS =
-  "id,operation_id,source,status,service,customer_name,amount,amount_currency,entry_date,facturado_gyd,invertido_gyd,retorno_gyd,missing_inputs,cup_global_rate,cup_rate,usdt_buy_gyd,usdt_sell_gyd,cost_gyd,basis_gyd,sale_gyd";
+  "id,operation_id,source,status,service,customer_name,amount,amount_currency,entry_date,facturado_gyd,invertido_gyd,retorno_gyd,missing_inputs,cup_global_rate,cup_rate,usdt_buy_gyd,usdt_sell_gyd,cost_gyd,basis_gyd,sale_gyd,raw_line";
 
 interface ChatOperationRow extends EntryRateSnapshotRow {
   id: string;
@@ -44,6 +44,8 @@ interface ChatOperationRow extends EntryRateSnapshotRow {
   invertido_gyd: number | string | null;
   retorno_gyd: number | string | null;
   missing_inputs: string[] | null;
+  /** Manual entries only (228): the typed line, which carries the rates the operation was quoted with. */
+  raw_line?: string | null;
 }
 
 function toNullableNumber(value: number | string | null): number | null {
@@ -72,6 +74,7 @@ function chatOperationPayload(row: ChatOperationRow) {
     missingRates: row.missing_inputs ?? [],
     // The rates the entry was costed with (migration 104/199): the Editar form shows and edits the investment ones.
     ...mapEntryRateSnapshot(row),
+    ...(row.source === "manual" ? { rawLine: row.raw_line ?? null } : {}),
   };
 }
 

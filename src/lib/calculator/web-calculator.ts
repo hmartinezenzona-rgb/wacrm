@@ -126,10 +126,20 @@ export function parsearLinea(linea: string, diaActual: string):
   };
 }
 
+/** The numbers of a line's parenthesised detail, read ONCE for both the formulas and the rates a line is quoted with. */
+function detailParams(tipo: string, detalle: string) {
+  const params = detalle ? detalle.split("/") : [];
+  // ZELLE / MLC / CLASICA / TROPICAL: an optional leading "N%" discount shifts the rates one place (parseFloat, so "3,5%" is 3).
+  const discounted = (tipo === "ZELLE" || tipo === "MLC" || tipo === "CLASICA" || tipo === "TROPICAL") && !!params[0]?.includes("%");
+  const discountPct = discounted ? parseFloat(params[0].replace("%", "")) : 0;
+  const index = discounted ? 1 : 0;
+  return { params, discountPct: discountPct > 0 ? discountPct : 0, index };
+}
+
 function calculateLine(line: WebCalculatorDraft & { linea: number }, cupGlobalRate: number): WebCalculatorOperation {
   let fact = 0;
   let inv = 0;
-  const params = line.detalle ? line.detalle.split("/") : [];
+  const { params, discountPct, index } = detailParams(line.tipo, line.detalle);
 
   if (line.esDirecto) {
     fact = line.monto;
@@ -139,15 +149,9 @@ function calculateLine(line: WebCalculatorDraft & { linea: number }, cupGlobalRa
     fact = line.monto / cupGlobalRate;
     inv = (line.monto / tasaCupUsdt) * costoUsdtGyd;
   } else if (line.tipo === "ZELLE" || line.tipo === "MLC" || line.tipo === "CLASICA" || line.tipo === "TROPICAL") {
-    let pct = 0;
-    let index = 0;
-    if (params[0]?.includes("%")) {
-      pct = parseFloat(params[0].replace("%", "")) / 100;
-      index = 1;
-    }
     const costoGyd = parseFloat(params[index]) || 0;
     const ventaGyd = parseFloat(params[index + 1]) || 0;
-    const usdtUsados = pct > 0 ? line.monto / (1 + pct) : line.monto;
+    const usdtUsados = discountPct > 0 ? line.monto / (1 + discountPct / 100) : line.monto;
     inv = usdtUsados * costoGyd;
     fact = line.monto * ventaGyd;
   } else if (line.tipo === "USDT") {
@@ -164,6 +168,42 @@ function calculateLine(line: WebCalculatorDraft & { linea: number }, cupGlobalRa
   }
 
   return { ...line, fact, inv, retorno: fact - inv };
+}
+
+/** The rates a typed manual line was quoted with. */
+export interface ManualLineRates {
+  /** "Compra USDT (GYD)": cost per USDT, first rate of the detail. */
+  buy: number | null;
+  /** Sale rate of the line (Zelle-like services and USDT); null for CUP. */
+  sell: number | null;
+  /** "Venta USDT (CUP)": CUP per USDT of the investment (CUP lines only). */
+  cupRate: number | null;
+  /** Discount in percent of a ZELLE / MLC / CLASICA / TROPICAL line ("3%/..." -> 3); 0 when none. */
+  discountPct: number;
+}
+
+function positiveOrNull(value: string | undefined): number | null {
+  const number = parseFloat(value ?? "");
+  return Number.isFinite(number) && number > 0 ? number : null;
+}
+
+/**
+ * The rates a manual line carries in its text, read with the SAME parser and the SAME detail rules `procesarTexto` costs
+ * it with. `null` when the text is not an operation of a rated service (day header, unreadable line, direct service,
+ * RECARGA / SALDO MOVIL) or carries no buy rate.
+ */
+export function parseManualLineRates(rawLine: string | null | undefined): ManualLineRates | null {
+  if (!rawLine) return null;
+  const parsed = parsearLinea(rawLine, "");
+  if (!parsed || parsed.esDia || "error" in parsed || parsed.esDirecto) return null;
+  const tipo = parsed.tipo;
+  if (!["CUP", "ZELLE", "MLC", "CLASICA", "TROPICAL", "USDT"].includes(tipo)) return null;
+
+  const { params, discountPct, index } = detailParams(tipo, parsed.detalle);
+  const buy = positiveOrNull(params[index]);
+  if (buy === null) return null;
+  if (tipo === "CUP") return { buy, sell: null, cupRate: positiveOrNull(params[1]), discountPct: 0 };
+  return { buy, sell: positiveOrNull(params[index + 1]), cupRate: null, discountPct };
 }
 
 export function procesarTexto(text: string, tarifaCupGlobalInput: number): WebCalculatorResult {

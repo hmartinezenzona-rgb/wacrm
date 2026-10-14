@@ -160,3 +160,29 @@ describe("recomputeInvestment on a manual row (no stored snapshot)", () => {
     }
   });
 });
+
+describe("recomputeInvestment on a discounted manual line", () => {
+  const manual = (overrides: Partial<EntryRateInput> = {}): EntryRateInput =>
+    entry({ source: "manual", service: "CLASICA", amount: 76, facturadoGyd: 19760, cupRate: null, usdtBuyGyd: null, discountPct: 3, ...overrides });
+
+  it("uses the manual formula amount / (1 + pct / 100) * buy, retorno = facturado - invertido", () => {
+    const result = recomputeInvestment(manual(), { usdtBuyGyd: 230 });
+    expect(result?.invertidoGyd).toBeCloseTo((76 / 1.03) * 230, 9);
+    expect(result?.retornoGyd).toBeCloseTo(19760 - (76 / 1.03) * 230, 9);
+  });
+
+  it("applies to ZELLE, MLC and TROPICAL too, and ignores a discount on CUP and USDT", () => {
+    for (const service of ["ZELLE", "MLC", "TROPICAL"]) {
+      expect(recomputeInvestment(manual({ service }), { usdtBuyGyd: 230 })?.invertidoGyd).toBeCloseTo((76 / 1.03) * 230, 9);
+    }
+    expect(recomputeInvestment(manual({ service: "USDT" }), { usdtBuyGyd: 230 })?.invertidoGyd).toBeCloseTo(76 * 230, 9);
+    expect(recomputeInvestment(manual({ service: "CUP", amount: 15000, cupRate: 960 }), { usdtBuyGyd: 240 })?.invertidoGyd).toBeCloseTo(3750, 9);
+  });
+
+  it("no discount or a zero one keeps amount * buy; a chat-fed entry never takes a discount", () => {
+    expect(recomputeInvestment(manual({ discountPct: 0 }), { usdtBuyGyd: 230 })?.invertidoGyd).toBeCloseTo(76 * 230, 9);
+    expect(recomputeInvestment(manual({ discountPct: null }), { usdtBuyGyd: 230 })?.invertidoGyd).toBeCloseTo(76 * 230, 9);
+    expect(recomputeInvestment(entry({ source: "completed_operation", service: "CLASICA", amount: 76, usdtBuyGyd: 238, discountPct: 3 }), {})?.invertidoGyd)
+      .toBeCloseTo(76 * 238, 9);
+  });
+});

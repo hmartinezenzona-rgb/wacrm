@@ -11,6 +11,7 @@ import { MoneyTotalFigure } from "@/components/money/money-total-figure";
 import { ServiceDot } from "@/components/service/service-dot";
 import { moneyCellProps, moneyStripeClass, profitTone, totalTone } from "@/lib/money-tone";
 import { canEditEntryRates, recomputeInvestment } from "@/lib/calculator/entry-rates";
+import { parseManualLineRates } from "@/lib/calculator/web-calculator";
 import { chatEntryAmountExportText, chatEntryAmountText, ledgerServiceLabel } from "@/lib/calculator/entry-display";
 import { applyCalculatorEntryRealtimeEvent, insertCalculatorEntry, type ChatCalculatorEntry } from "@/lib/calculator/realtime-entry";
 import { useCalculatorEntriesRealtime } from "@/hooks/use-calculator-entries-realtime";
@@ -359,13 +360,19 @@ export default function CalculadoraPage() {
   }
 
   /**
-   * The rates the editor starts from. A row that has a snapshot starts from its own. A manual row has none (migration 237 stores
-   * the chosen rates on it), so it starts from the CURRENT global investment rates; with none loaded the fields start empty.
+   * The rates the editor starts from. A row that has a snapshot (or rates stored by an earlier edit) starts from its own. A manual row
+   * with none starts from the rates its typed line was quoted with (read by the Calculator's own line parser); only a line that
+   * carries none falls back to the CURRENT global investment rates, and with none loaded the fields start empty.
    */
-  function prefillRates(entry: ChatCalculatorEntry): { buy: number | null; cup: number | null; fromGlobal: boolean } {
-    const fromGlobal = entry.source === "manual" && entry.usdtBuyGyd == null;
-    if (!fromGlobal) return { buy: entry.usdtBuyGyd ?? null, cup: entry.cupRate ?? null, fromGlobal };
-    return { buy: rates?.usdtBuyGyd ?? null, cup: rates?.usdtSellCup ?? null, fromGlobal };
+  function prefillRates(entry: ChatCalculatorEntry): { buy: number | null; cup: number | null; unstored: boolean } {
+    const unstored = entry.source === "manual" && entry.usdtBuyGyd == null;
+    if (!unstored) return { buy: entry.usdtBuyGyd ?? null, cup: entry.cupRate ?? null, unstored };
+    const line = parseManualLineRates(entry.rawLine);
+    return {
+      buy: line?.buy ?? rates?.usdtBuyGyd ?? null,
+      cup: line?.cupRate ?? rates?.usdtSellCup ?? null,
+      unstored,
+    };
   }
 
   function closeEditor() {
@@ -393,8 +400,8 @@ export default function CalculadoraPage() {
     const changed: { usdtBuyGyd?: number; cupRate?: number } = {};
     let invalid = false;
     const base = prefillRates(entry);
-    // A manual row's prefill is not a stored rate: an empty field means "no rate change" there, not an invalid one.
-    const optional = base.fromGlobal;
+    // A manual row's prefill is not a stored rate (it is the line's quote or the global one): an empty field means "no rate change" there, not an invalid one.
+    const optional = base.unstored;
     if (editable.buy) {
       const buy = parseEditRate(editBuy);
       if (buy === null) invalid = invalid || !(optional && editBuy.trim() === "");
@@ -419,6 +426,7 @@ export default function CalculadoraPage() {
             source: entry.source, status: entry.status, service: entry.service, amount: entry.amount, facturadoGyd: entry.facturadoGyd,
             cupRate: entry.cupRate ?? null, usdtBuyGyd: entry.usdtBuyGyd ?? null, costGyd: entry.costGyd ?? null,
             basisGyd: entry.basisGyd ?? null, saleGyd: entry.saleGyd ?? null,
+            discountPct: entry.source === "manual" ? (parseManualLineRates(entry.rawLine)?.discountPct ?? null) : null,
           },
           changed,
         )

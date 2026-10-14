@@ -26,7 +26,7 @@ const RPC_LINE = {
 const CREATED_ROW = {
   id: "m1", account_id: "account-a", source: "manual", status: "completed", operation_id: null, entry_date: "2026-10-06",
   customer_name: "Gerardo", service: "ZELLE", amount: "100", amount_currency: "USD", facturado_gyd: "26000",
-  invertido_gyd: "24000", retorno_gyd: "2000", missing_inputs: null, created_at: "2026-10-07T20:00:00Z",
+  invertido_gyd: "24000", retorno_gyd: "2000", missing_inputs: null, created_at: "2026-10-07T20:00:00Z", raw_line: "• Gerardo 100 Zelle (240/260)",
 };
 
 function account(rpcResult: { data: unknown; error: unknown } = { data: [CREATED_ROW], error: null }) {
@@ -58,6 +58,7 @@ describe("POST /api/calculadora/entries", () => {
       entries: [{
         id: "m1", operationId: null, source: "manual", status: "completed", service: "ZELLE", customerName: "Gerardo", amount: 100,
         amountCurrency: "USD", entryDate: "2026-10-06", facturadoGyd: 26000, invertidoGyd: 24000, retornoGyd: 2000, missingRates: [], cupGlobalRate: null, cupRate: null, usdtBuyGyd: null, usdtSellGyd: null, costGyd: null, basisGyd: null, saleGyd: null,
+        rawLine: "• Gerardo 100 Zelle (240/260)",
       }],
     });
   });

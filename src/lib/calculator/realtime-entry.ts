@@ -35,6 +35,8 @@ export interface CalculatorEntryRealtimeRow extends EntryRateSnapshotRow {
   completed_at?: string | null;
   /** Present on a realtime payload (the whole row); a manual entry's registration moment, compared with the cut. */
   created_at?: string | null;
+  /** Manual entries only (migration 228): the line as typed, which carries the rates the operation was quoted with. */
+  raw_line?: string | null;
 }
 
 export interface ChatCalculatorEntry extends Partial<EntryRateSnapshot> {
@@ -53,6 +55,8 @@ export interface ChatCalculatorEntry extends Partial<EntryRateSnapshot> {
   invertidoGyd: number | null;
   retornoGyd: number | null;
   missingRates: string[];
+  /** Manual entries only: the line as typed ("• Michel 50 Zelle (238/260)"); Editar reads the quoted rates from it. */
+  rawLine?: string | null;
 }
 
 export type CalculatorEntryRealtimeEventType = "INSERT" | "UPDATE" | "DELETE";
@@ -90,6 +94,7 @@ export function mapRealtimeCalculatorEntry(
     retornoGyd: toNullableNumber(row.retorno_gyd),
     missingRates: row.missing_inputs ?? [],
     ...mapEntryRateSnapshot(row),
+    ...(row.source === "manual" ? { rawLine: row.raw_line ?? null } : {}),
   };
 }
 

@@ -76,16 +76,24 @@ export interface EntryRateInput {
   costGyd: number | null;
   basisGyd: number | null;
   saleGyd: number | null;
+  /**
+   * Discount in percent of a MANUAL ZELLE / MLC / CLASICA / TROPICAL line, read from its typed text (`parseManualLineRates`);
+   * the manual formula divides the amount by (1 + pct / 100) first. Ignored for any other entry.
+   */
+  discountPct?: number | null;
 }
 
 const NO_RATES_SERVICES = new Set(["COMBO", "VISA"]);
 
 /**
  * Services a MANUAL row (migration 237) may take rates for: the ones the manual calculator costs with the same plain formula
- * as the ledger (CUP: (amount / cup) * buy; the others: amount * buy). A manual RECARGA / SALDO_MOVIL stores no unit cost,
- * DIRECTO has no investment, and a discounted manual line is refused by the database.
+ * as the ledger (CUP: (amount / cup) * buy; the others: amount * buy, or amount / (1 + pct / 100) * buy with a typed discount,
+ * migration 238). A manual RECARGA / SALDO_MOVIL stores no unit cost and DIRECTO has no investment.
  */
 const MANUAL_RATE_SERVICES = new Set(["CUP", "ZELLE", "MLC", "CLASICA", "TROPICAL", "USDT"]);
+
+/** Manual services whose typed line may carry a leading "N%" discount (same set as calculateEntry's discountPct). */
+const MANUAL_DISCOUNT_SERVICES = new Set(["ZELLE", "MLC", "CLASICA", "TROPICAL"]);
 
 function hasRates(entry: Pick<EntryRateInput, "source" | "service">): boolean {
   if (NO_RATES_SERVICES.has(entry.service)) return false;
@@ -136,7 +144,8 @@ export function recomputeInvestment(
     if (Math.abs(packages - Math.round(packages)) > 1e-9) return null;
     invertidoGyd = Math.round(packages) * entry.costGyd * buy;
   } else {
-    invertidoGyd = entry.amount * buy;
+    const discounted = entry.source === "manual" && MANUAL_DISCOUNT_SERVICES.has(entry.service) && (entry.discountPct ?? 0) > 0;
+    invertidoGyd = (discounted ? entry.amount / (1 + (entry.discountPct as number) / 100) : entry.amount) * buy;
   }
 
   if (!Number.isFinite(invertidoGyd) || invertidoGyd < 0 || invertidoGyd >= 1e15) return null;

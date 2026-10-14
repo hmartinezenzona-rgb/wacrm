@@ -2548,6 +2548,82 @@ describe("calculator manual entries (investment rates, migration 237)", () => {
     await act(async () => root.unmount());
   });
 
+  describe("a manual row shows the rates its typed line was quoted with (production-shaped lines)", () => {
+    const LINE_CUP = { ...MANUAL_CUP, id: "line-cup", amount: 15000, rawLine: "• Marlene 15,000 cup (240/960)" };
+    const LINE_ZELLE = { ...MANUAL_ZELLE, id: "line-zelle", amount: 50, rawLine: "• Michel 50 Zelle (238/260)", facturadoGyd: 13000, invertidoGyd: 11900, retornoGyd: 1100 };
+    const LINE_CLASICA = {
+      ...MANUAL_ZELLE, id: "line-clasica", service: "CLASICA", amount: 76, rawLine: "• Zulemys 76 Clásica (3%/238/260)",
+      facturadoGyd: 19760, invertidoGyd: 17561.17, retornoGyd: 2198.83,
+    };
+    const lineFixture = (overrides?: Parameters<typeof createFetchMock>[0]) =>
+      createFetchMock({
+        calculadoraGet: { rawText: "", periodo: "SEMANA 1", chatOperations: { entries: [LINE_CUP, LINE_ZELLE, LINE_CLASICA] } },
+        ratesGet: { rates: FULL_RATES },
+        ...overrides,
+      });
+
+    it("prefills from the line, not from the current global rates", async () => {
+      const { node, root } = await renderPage(lineFixture());
+      await openEditor(node, "line-cup");
+      expect(inputValue(node, "editCompraUsdt-line-cup")).toBe("240");
+      expect(inputValue(node, "editVentaUsdtCup-line-cup")).toBe("960");
+      await openEditor(node, "line-zelle");
+      expect(inputValue(node, "editCompraUsdt-line-zelle")).toBe("238");
+      await openEditor(node, "line-clasica");
+      expect(inputValue(node, "editCompraUsdt-line-clasica")).toBe("238");
+      await act(async () => root.unmount());
+    });
+
+    it("a discounted line previews amount / (1 + pct / 100) * buy and saves the buy rate", async () => {
+      const fetchMock = lineFixture({
+        ratesEntryPost: (entryId) => ({
+          status: 200,
+          body: { entry: { id: entryId, status: "completed", facturadoGyd: 19760, invertidoGyd: (76 / 1.03) * 230, retornoGyd: 19760 - (76 / 1.03) * 230, cupGlobalRate: null, cupRate: null, usdtBuyGyd: 230, usdtSellGyd: null, costGyd: null, basisGyd: null, saleGyd: null } },
+        }),
+      });
+      const { node, root } = await renderPage(fetchMock);
+      await openEditor(node, "line-clasica");
+      act(() => setInputValue(node, "editCompraUsdt-line-clasica", "230"));
+      expect(inputValue(node, "editInvertido-line-clasica")).toBe(((76 / 1.03) * 230).toFixed(2));
+      await save(node, "line-clasica");
+      const calls = callsTo(fetchMock, "/api/calculator/entries/line-clasica/rates");
+      expect(calls).toHaveLength(1);
+      expect(JSON.parse((calls[0]![1] as RequestInit).body as string)).toEqual({ usdtBuyGyd: 230 });
+      await act(async () => root.unmount());
+    });
+
+    it("leaving the line's own rates alone does not call the rates route", async () => {
+      const fetchMock = lineFixture();
+      const { node, root } = await renderPage(fetchMock);
+      await openEditor(node, "line-zelle");
+      act(() => setInputValue(node, "editFacturado-line-zelle", "13100"));
+      await save(node, "line-zelle");
+      expect(callsTo(fetchMock, "/api/calculator/entries/line-zelle/rates")).toHaveLength(0);
+      expect(callsTo(fetchMock, "/api/calculator/entries/line-zelle/correct")).toHaveLength(1);
+      await act(async () => root.unmount());
+    });
+
+    it("once rates are stored on the row, the stored ones win over the line", async () => {
+      const stored = { ...LINE_ZELLE, id: "stored-zelle", usdtBuyGyd: 236, cupRate: null };
+      const { node, root } = await renderPage(
+        createFetchMock({ calculadoraGet: { rawText: "", periodo: "SEMANA 1", chatOperations: { entries: [stored] } }, ratesGet: { rates: FULL_RATES } }),
+      );
+      await openEditor(node, "stored-zelle");
+      expect(inputValue(node, "editCompraUsdt-stored-zelle")).toBe("236");
+      await act(async () => root.unmount());
+    });
+
+    it("a line without rates falls back to the current global rates", async () => {
+      const bare = { ...MANUAL_ZELLE, id: "bare", rawLine: "• Iza 100 Zelle" };
+      const { node, root } = await renderPage(
+        createFetchMock({ calculadoraGet: { rawText: "", periodo: "SEMANA 1", chatOperations: { entries: [bare] } }, ratesGet: { rates: FULL_RATES } }),
+      );
+      await openEditor(node, "bare");
+      expect(inputValue(node, "editCompraUsdt-bare")).toBe(String(FULL_RATES.usdtBuyGyd));
+      await act(async () => root.unmount());
+    });
+  });
+
   it("a manual RECARGA shows no rate editor", async () => {
     const { node, root } = await renderPage(fixture());
     await openEditor(node, "man-rec");

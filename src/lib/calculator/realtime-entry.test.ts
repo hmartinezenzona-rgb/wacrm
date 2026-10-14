@@ -94,6 +94,13 @@ describe("mapRealtimeCalculatorEntry", () => {
     });
   });
 
+  it("a manual entry carries its typed line (the rates it was quoted with); a chat-fed one does not", () => {
+    const typed = "• Zulemys 76 Clásica (3%/238/260)";
+    expect(mapRealtimeCalculatorEntry(row({ id: "m2", operation_id: null, source: "manual", raw_line: typed }))?.rawLine).toBe(typed);
+    expect(mapRealtimeCalculatorEntry(row({ id: "m3", operation_id: null, source: "manual", raw_line: null }))?.rawLine).toBeNull();
+    expect(mapRealtimeCalculatorEntry(row({ raw_line: typed }))).not.toHaveProperty("rawLine");
+  });
+
   it("returns null for a row that is neither a chat-fed nor a manual entry", () => {
     expect(mapRealtimeCalculatorEntry(row({ source: "something_else" }))).toBeNull();
   });

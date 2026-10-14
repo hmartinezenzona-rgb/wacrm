@@ -396,7 +396,7 @@ describe("GET /api/calculadora", () => {
     const { GET } = await import("./route");
     const database = db(undefined, undefined, {
       data: [
-        { id: "m1", operation_id: null, source: "manual", status: "completed", service: "DIRECTO", customer_name: "Iza", amount: "4000", amount_currency: "GYD", entry_date: "2026-10-06", facturado_gyd: "4000", invertido_gyd: "0", retorno_gyd: "4000", missing_inputs: null },
+        { id: "m1", operation_id: null, source: "manual", status: "completed", service: "DIRECTO", customer_name: "Iza", amount: "4000", amount_currency: "GYD", entry_date: "2026-10-06", facturado_gyd: "4000", invertido_gyd: "0", retorno_gyd: "4000", missing_inputs: null, raw_line: "• Iza visa 4000" },
         { id: "e1", operation_id: "op-1", source: "completed_operation", status: "completed", service: "ZELLE", customer_name: "Raúl", amount: "100", amount_currency: "USD", entry_date: "2026-10-05", facturado_gyd: "26000", invertido_gyd: "24000", retorno_gyd: "2000", missing_inputs: null },
       ],
       error: null,
@@ -406,11 +406,13 @@ describe("GET /api/calculadora", () => {
     const body = await (await GET()).json();
 
     expect(body.chatOperations.entries).toMatchObject([
-      { id: "m1", operationId: null, source: "manual", service: "DIRECTO", amount: 4000, amountCurrency: "GYD", entryDate: "2026-10-06", facturadoGyd: 4000, retornoGyd: 4000 },
+      { id: "m1", operationId: null, source: "manual", service: "DIRECTO", amount: 4000, amountCurrency: "GYD", entryDate: "2026-10-06", facturadoGyd: 4000, retornoGyd: 4000, rawLine: "• Iza visa 4000" },
       { id: "e1", operationId: "op-1", source: "completed_operation" },
     ]);
+    expect(body.chatOperations.entries[1]).not.toHaveProperty("rawLine");
     expect(body.chatOperations.totals).toEqual({ facturadoGyd: 30000, invertidoGyd: 24000, retornoGyd: 6000, count: 2 });
     expect(database.chatEntriesBuilder.select).toHaveBeenCalledWith(expect.stringContaining("source"));
+    expect(database.chatEntriesBuilder.select).toHaveBeenCalledWith(expect.stringContaining("raw_line"));
   });
 
   it("reads the chat entries from the Calculator view (not void, not archived by a weekly cut), never the raw table", async () => {

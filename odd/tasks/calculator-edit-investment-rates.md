@@ -59,7 +59,7 @@ prefills the CURRENT global investment rates (no snapshot exists), recomputes in
 the chosen rates on the row from then on. facturado untouched. Still no audit row.
 - [x] T6 Migration 237 (+ROLLBACK, assertion): rate edit accepts manual rows; stores the rates on the row (commit d5538ea; assertion cases 13-17 written, NOT run: pending staging run T8)
 - [x] T7 Route/UI/read model: manual rows editable, prefill from current global rates when the row has none (+tests) (commit 8d6b7f0; RED entry-rates 2 failed + page 4 failed -> GREEN 18 / 111)
-- [ ] T8 Staging apply + deploy + owner check (needs owner authorization)
+- [ ] T8 Staging apply + deploy + owner check (237 applied and f9df7ab deployed to staging 2026-10-14, owner authorized; test manual entries created; waiting for owner check)
 - [ ] T9 Production (needs owner go-ahead)
 
 ## Acceptance criteria
@@ -147,5 +147,31 @@ COMMIT;
     change sends the full set the formula needs and the database stores it on the row; untouched prefill = plain figures edit.
   - Verification: npm test 189 files / 2566 tests, tsc 0, eslint 0. SQL (237 + assertion cases 13-17) NOT run: pending staging run (T8).
 
+- 2026-10-14 T8 staging run (owner-authorized, staging only):
+  - Recon: staging schema_migrations at 236; staging fn md5 1e58847c2e799f21fe74d7c3e3cd369f = md5 of the 236 file body (the 237 header quotes
+    4332dccb..., the production-recorded md5, which differs from the file's: same source, presumably a whitespace difference in transport; 237 replaces the body either way).
+  - RED: assertion in BEGIN..ROLLBACK: cases 1-12 PASS, case 13 failed ("only a chat-fed entry has investment rates to correct"); nothing persisted.
+  - 237 applied with --single-transaction at 2026-10-14 22:31 UTC; row ('237','237_calculator_rates_manual_entries') inserted. New fn md5
+    a111e1b5010f6ad4cf32f84230daa045, SECURITY DEFINER, ACL postgres + service_role + authenticated (as 236 on staging), anon false.
+  - GREEN: assertion rolled back: ALL PASS (cases 1-17). remittance_calculator_entries before = after (39 rows, sum invertido 1188910.0916651401354480,
+    retorno 186802.3083348599080520, facturado 1375712.3999999999930000).
+  - Deployed to staging: release f9df7ab5c570a0b2152a18c473e4cf263e167aad, BUILD_ID 9wXt-_3IOtBfZ93wpj6ee (server and crm.onlinefreedom.site match, pm2 cwd = the
+    release, /login 200). anterior -> 0d7b78d5412c4c8fff278a251df22246a6661799. Manifest staging, kolppplawzdsjfydwejr, 0 production refs, sha256 ok.
+    Built with --sin-tests (the pipelines tests were not run for this artifact); needed the .git of the main checkout mounted in docker (worktree). prod-build restored to 5e91213, env copy deleted.
+  - Test MANUAL entries (account 472917ed..., registered by crm_registrar_entradas_manuales under the owner claim, NULL cup_rate / usdt_buy_gyd / cup_global_rate):
+    CUP 15,000 "PRUEBA TASAS manual CUP" (240/1060) -> 6e9c086d-eef4-4612-8968-5dfa2c7ae9a6 (facturado 5000, invertido 3396.2264, retorno 1603.7736);
+    ZELLE 100 "PRUEBA TASAS manual ZELLE" (240/260) -> 8b8b0c5a-1129-4451-a7d1-e4ae23dc6aea (facturado 26000, invertido 24000, retorno 2000);
+    CLASICA 100 with 10% "PRUEBA TASAS manual CLASICA" (10%/240/260) -> e84dd50c-90fe-42c6-a5ed-5f87bf3dd36e (facturado 26000, invertido 21818.18, retorno 4181.82; Editar rates must refuse it).
+  - Dry run (rolled back): CUP cup_rate 960 + buy 240 -> invertido 3750, retorno 1250, facturado 5000; ZELLE buy 238 -> invertido 23800, retorno 2200; CLASICA refused 22023
+    (discount). Entries table back to 42 rows after ROLLBACK.
+  - Cleanup SQL of the three manual rows (staging only; verified in a rolled-back dry run: 3 + 3 audit rows deleted, 42 -> 39):
+```sql
+BEGIN;
+SET LOCAL session_replication_role = replica; -- completed entries are append-only
+DELETE FROM remittance_calculator_entries WHERE id IN ('6e9c086d-eef4-4612-8968-5dfa2c7ae9a6','8b8b0c5a-1129-4451-a7d1-e4ae23dc6aea','e84dd50c-90fe-42c6-a5ed-5f87bf3dd36e');
+DELETE FROM remittance_admin_audit WHERE row_id IN ('6e9c086d-eef4-4612-8968-5dfa2c7ae9a6','8b8b0c5a-1129-4451-a7d1-e4ae23dc6aea','e84dd50c-90fe-42c6-a5ed-5f87bf3dd36e');
+COMMIT;
+```
+
 ## Next step
-T8: apply 237 on staging, run the assertion (cases 1-17) and deploy staging: needs the owner's explicit authorization. Then T9 production only with the owner's go-ahead. Staging test entries (PRUEBA TASAS) are still to be deleted when the owner says (cleanup SQL above).
+T8: owner checks Editar rates on /calculadora in staging (manual CUP, ZELLE, CLASICA refused). Then T9 production only with the owner's go-ahead. Staging test entries (PRUEBA TASAS) are still to be deleted when the owner says (cleanup SQL above).

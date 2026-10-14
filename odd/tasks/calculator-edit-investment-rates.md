@@ -81,6 +81,29 @@ Owner decisions:
     GtZ2kSH0wSbAm8cQzRcOQ (server and domain match, pm2 cwd = the new release). anterior -> d39a3613b5883da4f9a0f4618b7b1fd4abd1f683.
     Manifest staging, ref kolppplawzdsjfydwejr, 0 production refs, sha256 ok. prod-build restored to 4930fe5.
 
+- 2026-10-14 staging test entries (owner-authorized, staging only) so the owner can try Editar rates on /calculadora:
+  - Why the page showed nothing: the owner cut the week ("Limpiar todo") at 2026-10-14 18:40 UTC (remittance_calculator_weeks), which moved
+    all 37 entries into remittance_calculator_week_entries; calculator_current_entries (the GET source) excludes them, so 0 current entries.
+  - Created through the real path (contact PRUEBA TASAS, two remittance_operations moved to completed under the owner claim, trigger ran
+    calculator_feed_operation with rate version ded565f7: global 3, buy 240, sell 260, sell CUP 975):
+    CUP 30,000 -> entry b3c3f377-95f0-472d-a583-3647572ffba4 (facturado 10000, invertido 7384.615, retorno 2615.385);
+    ZELLE 100 -> entry b2788df5-0b3e-4719-bf95-952df774ef42 (facturado 26000, invertido 24000, retorno 2000).
+  - Ids: contact 56588e14-691f-4698-88a9-e7c3985c5d23, conversation aa1a1fad-e2a1-4d78-b680-6dce937e59a5, operations
+    cfe38f3f-fac0-4b09-9e28-6e08064668a8 (CUP) and 91a9b37e-1f8a-41a7-8089-e1532fc76b10 (ZELLE).
+  - Dry run (rolled back): CUP cup_rate 975 -> 960 gave invertido 7384.615 -> 7500, retorno 2615.385 -> 2500; nothing persisted.
+  - Cleanup SQL (staging only, run later; delete this data before the next weekly cut matters):
+```sql
+BEGIN;
+SET LOCAL session_replication_role = replica; -- completed entries are append-only (149/228 guard); verified in a rolled-back dry run
+DELETE FROM remittance_calculator_entries WHERE operation_id IN ('cfe38f3f-fac0-4b09-9e28-6e08064668a8','91a9b37e-1f8a-41a7-8089-e1532fc76b10');
+DELETE FROM remittance_admin_audit WHERE row_id IN ('cfe38f3f-fac0-4b09-9e28-6e08064668a8','91a9b37e-1f8a-41a7-8089-e1532fc76b10');
+DELETE FROM remittance_beneficiaries WHERE operation_id IN ('cfe38f3f-fac0-4b09-9e28-6e08064668a8','91a9b37e-1f8a-41a7-8089-e1532fc76b10');
+DELETE FROM remittance_operations WHERE id IN ('cfe38f3f-fac0-4b09-9e28-6e08064668a8','91a9b37e-1f8a-41a7-8089-e1532fc76b10');
+DELETE FROM conversations WHERE id = 'aa1a1fad-e2a1-4d78-b680-6dce937e59a5';
+DELETE FROM contacts WHERE id = '56588e14-691f-4698-88a9-e7c3985c5d23';
+COMMIT;
+```
+
 ## Next step
 T4: owner checks the Editar rates flow on staging (crm.onlinefreedom.site).
 Then T5 production (needs the owner's go-ahead).

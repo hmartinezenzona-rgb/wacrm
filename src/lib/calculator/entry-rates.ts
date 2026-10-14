@@ -80,17 +80,28 @@ export interface EntryRateInput {
 
 const NO_RATES_SERVICES = new Set(["COMBO", "VISA"]);
 
+/**
+ * Services a MANUAL row (migration 237) may take rates for: the ones the manual calculator costs with the same plain formula
+ * as the ledger (CUP: (amount / cup) * buy; the others: amount * buy). A manual RECARGA / SALDO_MOVIL stores no unit cost,
+ * DIRECTO has no investment, and a discounted manual line is refused by the database.
+ */
+const MANUAL_RATE_SERVICES = new Set(["CUP", "ZELLE", "MLC", "CLASICA", "TROPICAL", "USDT"]);
+
+function hasRates(entry: Pick<EntryRateInput, "source" | "service">): boolean {
+  if (NO_RATES_SERVICES.has(entry.service)) return false;
+  return entry.source === "manual" ? MANUAL_RATE_SERVICES.has(entry.service) : entry.source === "completed_operation";
+}
+
 function isRate(value: number | null | undefined): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0 && value < 1e9;
 }
 
-/** Which investment rates the admin may change on this entry: only a completed chat-fed entry that has rates. */
+/** Which investment rates the admin may change on this entry: a completed chat-fed entry, or a manual one of a plain-formula service. */
 export function canEditEntryRates(entry: Pick<EntryRateInput, "source" | "status" | "service">): {
   buy: boolean;
   cup: boolean;
 } {
-  const editable =
-    entry.source === "completed_operation" && entry.status === "completed" && !NO_RATES_SERVICES.has(entry.service);
+  const editable = entry.status === "completed" && hasRates(entry);
   return { buy: editable, cup: editable && entry.service === "CUP" };
 }
 
@@ -103,7 +114,7 @@ export function recomputeInvestment(
   entry: EntryRateInput,
   rates: { usdtBuyGyd?: number | null; cupRate?: number | null },
 ): { invertidoGyd: number; retornoGyd: number } | null {
-  if (NO_RATES_SERVICES.has(entry.service) || entry.facturadoGyd === null) return null;
+  if (!hasRates(entry) || entry.facturadoGyd === null) return null;
   if (rates.usdtBuyGyd != null && !isRate(rates.usdtBuyGyd)) return null;
   if (rates.cupRate != null && !isRate(rates.cupRate)) return null;
   if (rates.cupRate != null && entry.service !== "CUP") return null;

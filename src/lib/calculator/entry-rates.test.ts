@@ -120,7 +120,43 @@ describe("canEditEntryRates", () => {
     const none = { buy: false, cup: false };
     expect(canEditEntryRates(entry({ service: "COMBO" }))).toEqual(none);
     expect(canEditEntryRates(entry({ service: "VISA" }))).toEqual(none);
-    expect(canEditEntryRates(entry({ source: "manual" }))).toEqual(none);
     expect(canEditEntryRates(entry({ status: "verified_pending" }))).toEqual(none);
+  });
+
+  it("manual rows are editable for the services the manual calculator costs with the plain formulas", () => {
+    expect(canEditEntryRates(entry({ source: "manual", service: "CUP" }))).toEqual({ buy: true, cup: true });
+    for (const service of ["ZELLE", "CLASICA", "MLC", "TROPICAL", "USDT"]) {
+      expect(canEditEntryRates(entry({ source: "manual", service }))).toEqual({ buy: true, cup: false });
+    }
+  });
+
+  it("manual RECARGA, SALDO_MOVIL, DIRECTO, EFECTIVO, COMBO and VISA stay refused", () => {
+    for (const service of ["RECARGA", "SALDO_MOVIL", "DIRECTO", "EFECTIVO", "COMBO", "VISA"]) {
+      expect(canEditEntryRates(entry({ source: "manual", service }))).toEqual({ buy: false, cup: false });
+    }
+  });
+});
+
+describe("recomputeInvestment on a manual row (no stored snapshot)", () => {
+  const manual = (overrides: Partial<EntryRateInput> = {}) =>
+    entry({ source: "manual", cupRate: null, usdtBuyGyd: null, ...overrides });
+
+  it("CUP needs both rates: 15000 CUP at 960 and 240 GYD gives 3750 and retorno 1250", () => {
+    const row = manual({ amount: 15000, facturadoGyd: 5000 });
+    expect(recomputeInvestment(row, { usdtBuyGyd: 240, cupRate: 960 })).toEqual({ invertidoGyd: 3750, retornoGyd: 1250 });
+    expect(recomputeInvestment(row, { usdtBuyGyd: 240 })).toBeNull();
+    expect(recomputeInvestment(row, { cupRate: 960 })).toBeNull();
+  });
+
+  it("ZELLE needs the buy rate: amount * buy", () => {
+    const row = manual({ service: "ZELLE", amount: 100, facturadoGyd: 26000 });
+    expect(recomputeInvestment(row, { usdtBuyGyd: 240 })).toEqual({ invertidoGyd: 24000, retornoGyd: 2000 });
+    expect(recomputeInvestment(row, {})).toBeNull();
+  });
+
+  it("manual services outside the supported set recompute to null", () => {
+    for (const service of ["RECARGA", "SALDO_MOVIL", "DIRECTO", "EFECTIVO"]) {
+      expect(recomputeInvestment(manual({ service, costGyd: 1.5, basisGyd: 1000, saleGyd: 500 }), { usdtBuyGyd: 240 })).toBeNull();
+    }
   });
 });

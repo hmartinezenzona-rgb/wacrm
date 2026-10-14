@@ -352,9 +352,20 @@ export default function CalculadoraPage() {
     setEditingEntryId(entry.id);
     setEditFacturado(entry.facturadoGyd == null ? "" : String(entry.facturadoGyd));
     setEditInvertido(entry.invertidoGyd == null ? "" : String(entry.invertidoGyd));
-    setEditBuy(entry.usdtBuyGyd == null ? "" : String(entry.usdtBuyGyd));
-    setEditCup(entry.cupRate == null ? "" : String(entry.cupRate));
+    const prefill = prefillRates(entry);
+    setEditBuy(prefill.buy == null ? "" : String(prefill.buy));
+    setEditCup(prefill.cup == null ? "" : String(prefill.cup));
     setEntryActionMessage(null);
+  }
+
+  /**
+   * The rates the editor starts from. A row that has a snapshot starts from its own. A manual row has none (migration 237 stores
+   * the chosen rates on it), so it starts from the CURRENT global investment rates; with none loaded the fields start empty.
+   */
+  function prefillRates(entry: ChatCalculatorEntry): { buy: number | null; cup: number | null; fromGlobal: boolean } {
+    const fromGlobal = entry.source === "manual" && entry.usdtBuyGyd == null;
+    if (!fromGlobal) return { buy: entry.usdtBuyGyd ?? null, cup: entry.cupRate ?? null, fromGlobal };
+    return { buy: rates?.usdtBuyGyd ?? null, cup: rates?.usdtSellCup ?? null, fromGlobal };
   }
 
   function closeEditor() {
@@ -381,15 +392,25 @@ export default function CalculadoraPage() {
     const editable = canEditEntryRates(entry);
     const changed: { usdtBuyGyd?: number; cupRate?: number } = {};
     let invalid = false;
+    const base = prefillRates(entry);
+    // A manual row's prefill is not a stored rate: an empty field means "no rate change" there, not an invalid one.
+    const optional = base.fromGlobal;
     if (editable.buy) {
       const buy = parseEditRate(editBuy);
-      if (buy === null) invalid = true;
-      else if (buy !== entry.usdtBuyGyd) changed.usdtBuyGyd = buy;
+      if (buy === null) invalid = invalid || !(optional && editBuy.trim() === "");
+      else if (buy !== base.buy) changed.usdtBuyGyd = buy;
     }
     if (editable.cup) {
       const cup = parseEditRate(editCup);
-      if (cup === null) invalid = true;
-      else if (cup !== entry.cupRate) changed.cupRate = cup;
+      if (cup === null) invalid = invalid || !(optional && editCup.trim() === "");
+      else if (cup !== base.cup) changed.cupRate = cup;
+    }
+    // A row without a snapshot needs every rate its formula uses, so a change sends the whole set (CUP: both; others: buy).
+    if (optional && Object.keys(changed).length > 0) {
+      const buy = parseEditRate(editBuy);
+      const cup = parseEditRate(editCup);
+      if (editable.buy && buy !== null) changed.usdtBuyGyd = buy;
+      if (editable.cup && cup !== null) changed.cupRate = cup;
     }
     const hasChange = Object.keys(changed).length > 0;
     const recomputed = hasChange && !invalid

@@ -2510,3 +2510,96 @@ describe("calculator chat operations (investment rates of one entry)", () => {
     await act(async () => root.unmount());
   });
 });
+
+describe("calculator manual entries (investment rates, migration 237)", () => {
+  // As production holds them: typed figures, no snapshot at all.
+  const MANUAL_CUP = {
+    id: "man-cup", operationId: null, source: "manual", status: "completed", service: "CUP", customerName: "Yaima", amount: 15000,
+    amountCurrency: "CUP", entryDate: "2026-10-14", facturadoGyd: 5000, invertidoGyd: 3750, retornoGyd: 1250, missingRates: [],
+  };
+  const MANUAL_ZELLE = { ...MANUAL_CUP, id: "man-zelle", service: "ZELLE", amount: 100, amountCurrency: "USD", facturadoGyd: 26000, invertidoGyd: 24000, retornoGyd: 2000 };
+  const MANUAL_RECARGA = { ...MANUAL_CUP, id: "man-rec", service: "RECARGA", amount: 2, amountCurrency: "REC" };
+
+  function fixture(overrides?: Parameters<typeof createFetchMock>[0]) {
+    return createFetchMock({
+      calculadoraGet: { rawText: "", periodo: "SEMANA 1", chatOperations: { entries: [MANUAL_CUP, MANUAL_ZELLE, MANUAL_RECARGA] } },
+      ratesGet: { rates: FULL_RATES },
+      ...overrides,
+    });
+  }
+  async function openEditor(node: HTMLElement, entryId: string) {
+    await act(async () => { (node.querySelector(`#editarEntry-${entryId}`) as HTMLButtonElement).click(); });
+  }
+  async function save(node: HTMLElement, entryId: string) {
+    await act(async () => { (node.querySelector(`#guardarEntry-${entryId}`) as HTMLButtonElement).click(); });
+    await flush();
+  }
+  const callsTo = (fetchMock: ReturnType<typeof createFetchMock>, url: string) =>
+    fetchMock.mock.calls.filter(([input]) => (typeof input === "string" ? input : input.toString()) === url);
+
+  it("Editar on a manual row prefills the rates with the CURRENT global investment rates", async () => {
+    const { node, root } = await renderPage(fixture());
+    await openEditor(node, "man-cup");
+    expect(inputValue(node, "editCompraUsdt-man-cup")).toBe(String(FULL_RATES.usdtBuyGyd));
+    expect(inputValue(node, "editVentaUsdtCup-man-cup")).toBe(String(FULL_RATES.usdtSellCup));
+    await openEditor(node, "man-zelle");
+    expect(inputValue(node, "editCompraUsdt-man-zelle")).toBe(String(FULL_RATES.usdtBuyGyd));
+    expect(node.querySelector("#editVentaUsdtCup-man-zelle")).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("a manual RECARGA shows no rate editor", async () => {
+    const { node, root } = await renderPage(fixture());
+    await openEditor(node, "man-rec");
+    expect(node.querySelector("#tasasEntry-man-rec")).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("changing a rate previews the recomputed invertido and saving sends BOTH rates the formula needs", async () => {
+    const fetchMock = fixture({
+      ratesEntryPost: (entryId) => ({
+        status: 200,
+        body: { entry: { id: entryId, status: "completed", facturadoGyd: 5000, invertidoGyd: 3750, retornoGyd: 1250, cupGlobalRate: null, cupRate: 960, usdtBuyGyd: FULL_RATES.usdtBuyGyd, usdtSellGyd: null, costGyd: null, basisGyd: null, saleGyd: null } },
+      }),
+    });
+    const { node, root } = await renderPage(fetchMock);
+    await openEditor(node, "man-cup");
+    act(() => setInputValue(node, "editVentaUsdtCup-man-cup", "960"));
+    expect(inputValue(node, "editInvertido-man-cup")).toBe(((15000 / 960) * FULL_RATES.usdtBuyGyd).toFixed(2));
+    await save(node, "man-cup");
+
+    const calls = callsTo(fetchMock, "/api/calculator/entries/man-cup/rates");
+    expect(calls).toHaveLength(1);
+    expect(JSON.parse((calls[0]![1] as RequestInit).body as string)).toEqual({ usdtBuyGyd: FULL_RATES.usdtBuyGyd, cupRate: 960 });
+    await openEditor(node, "man-cup");
+    expect(inputValue(node, "editVentaUsdtCup-man-cup")).toBe("960");
+    await act(async () => root.unmount());
+  });
+
+  it("leaving the prefilled rates alone keeps the figures edit working and never calls the rates route", async () => {
+    const fetchMock = fixture();
+    const { node, root } = await renderPage(fetchMock);
+    await openEditor(node, "man-zelle");
+    act(() => setInputValue(node, "editFacturado-man-zelle", "27000"));
+    await save(node, "man-zelle");
+
+    expect(callsTo(fetchMock, "/api/calculator/entries/man-zelle/rates")).toHaveLength(0);
+    const correct = callsTo(fetchMock, "/api/calculator/entries/man-zelle/correct");
+    expect(correct).toHaveLength(1);
+    expect(JSON.parse((correct[0]![1] as RequestInit).body as string)).toEqual({ facturadoGyd: 27000, invertidoGyd: 24000 });
+    await act(async () => root.unmount());
+  });
+
+  it("without global rates loaded the fields start empty and the figures edit is not blocked", async () => {
+    const fetchMock = fixture({ ratesGet: { rates: null } });
+    const { node, root } = await renderPage(fetchMock);
+    await openEditor(node, "man-cup");
+    expect(inputValue(node, "editCompraUsdt-man-cup")).toBe("");
+    act(() => setInputValue(node, "editFacturado-man-cup", "5100"));
+    await save(node, "man-cup");
+    expect(callsTo(fetchMock, "/api/calculator/entries/man-cup/rates")).toHaveLength(0);
+    expect(callsTo(fetchMock, "/api/calculator/entries/man-cup/correct")).toHaveLength(1);
+    await act(async () => root.unmount());
+  });
+});
+

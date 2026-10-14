@@ -3,6 +3,7 @@ import {
   ACCOUNT_ROLES,
   type AccountRole,
   canDeleteAccount,
+  canExportContacts,
   canEditSettings,
   canForceVerify,
   canManageMembers,
@@ -134,5 +135,12 @@ describe("capability predicates", () => {
     expect(canForceVerify("admin")).toBe(true);
     expect(canForceVerify("agent")).toBe(false);
     expect(canForceVerify("viewer")).toBe(false);
+  });
+
+  it("canExportContacts: admin+ only", () => {
+    expect(canExportContacts("owner")).toBe(true);
+    expect(canExportContacts("admin")).toBe(true);
+    expect(canExportContacts("agent")).toBe(false);
+    expect(canExportContacts("viewer")).toBe(false);
   });
 });

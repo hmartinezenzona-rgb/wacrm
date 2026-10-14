@@ -96,7 +96,6 @@ export function buildVCard(
 /** "contactos-<safe prefix>.vcf"; accents kept, FS-unsafe characters removed. */
 export function exportFileName(prefix: string): string {
   const safe = prefix
-    // eslint-disable-next-line no-control-regex
     .replace(/[\\/:*?"<>|\u0000-\u001f]/g, "")
     .trim();
   return safe ? `contactos-${safe}.vcf` : "contactos.vcf";
@@ -104,4 +103,20 @@ export function exportFileName(prefix: string): string {
 
 export function defaultPrefix(selectedTagNames: string[]): string {
   return selectedTagNames.join(" ").trim();
+}
+
+/** PostgREST caps a response at ~1000 rows. */
+export const EXPORT_BATCH_SIZE = 1000;
+
+/** Collect every row of a paged source; stops at the first short batch. */
+export async function fetchAllInBatches<T>(
+  fetchPage: (offset: number, limit: number) => Promise<{ rows: T[] }>,
+  batchSize: number = EXPORT_BATCH_SIZE,
+): Promise<T[]> {
+  const all: T[] = [];
+  for (let offset = 0; ; offset += batchSize) {
+    const { rows } = await fetchPage(offset, batchSize);
+    all.push(...rows);
+    if (rows.length < batchSize) return all;
+  }
 }

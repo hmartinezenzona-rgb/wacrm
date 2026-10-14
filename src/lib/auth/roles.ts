@@ -106,6 +106,11 @@ export function canForceVerify(role: AccountRole): boolean {
   return hasMinRole(role, "admin");
 }
 
+/** Owner / admin: export the contact list (vCard download). */
+export function canExportContacts(role: AccountRole): boolean {
+  return hasMinRole(role, "admin");
+}
+
 /** Owner only: irreversible destructive operations. */
 export function canDeleteAccount(role: AccountRole): boolean {
   return role === "owner";

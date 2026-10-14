@@ -30,8 +30,8 @@ un grupo."
 - Conventional Commits, no AI trailer. Staging first; production only with explicit go-ahead. Do not restyle.
 
 ## Tasks
-- [ ] T1 src/lib/contacts/export-contacts.ts (vCard builder, prefix, phone format, file name) + tests
-- [ ] T2 Contacts page: admin-only Exportar button + dialog + batched fetch of the filtered set + i18n es/en
+- [x] T1 src/lib/contacts/export-contacts.ts (vCard builder, prefix, phone format, file name) + tests (a07c725)
+- [x] T2 Contacts page: admin-only Exportar button + dialog + batched fetch of the filtered set + i18n es/en (94207d4)
 - [ ] T3 Staging deploy + owner check (needs authorization)
 - [ ] T4 Production (needs go-ahead)
 
@@ -43,5 +43,9 @@ un grupo."
 ## Progress / evidence
 - 2026-10-14: document created, exploration done.
 
+- 2026-10-14: T1 RED (module missing) -> GREEN 11 tests. T2 RED (canExportContacts, fetchAllInBatches missing) -> GREEN.
+  Gate: new capability 'export-contacts' (canExportContacts = admin+) in roles.ts/use-can.ts. buildVCard returns
+  {vcf, exported, skipped}. TDD runner: vitest. npm test 191 files/2596 tests pass; tsc clean; eslint 0 errors.
+
 ## Next step
-T1.
+T3 staging deploy + owner check: needs explicit owner authorization (destination, operation, credentials).

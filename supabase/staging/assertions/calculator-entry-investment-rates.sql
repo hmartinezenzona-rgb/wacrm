@@ -305,7 +305,7 @@ BEGIN
       RAISE WARNING 'FAIL [case 9.%] expected a refusal', v_count;
     EXCEPTION WHEN OTHERS THEN
       PERFORM set_config('request.jwt.claims', '', true);
-      IF SQLSTATE = CASE v_count WHEN 1 THEN 'P0002' ELSE '22023' END THEN RAISE NOTICE 'PASS [case 9.%] refused (%)', v_count, SQLERRM;
+      IF SQLSTATE = (CASE v_count WHEN 1 THEN 'P0002' ELSE '22023' END) THEN RAISE NOTICE 'PASS [case 9.%] refused (%)', v_count, SQLERRM;
       ELSE v_fail_count := v_fail_count + 1; RAISE WARNING 'FAIL [case 9.%] unexpected % (%)', v_count, SQLSTATE, SQLERRM; END IF;
     END;
   END LOOP;

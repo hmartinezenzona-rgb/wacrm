@@ -59,7 +59,8 @@ prefills the CURRENT global investment rates (no snapshot exists), recomputes in
 the chosen rates on the row from then on. facturado untouched. Still no audit row.
 - [x] T6 Migration 237 (+ROLLBACK, assertion): rate edit accepts manual rows; stores the rates on the row (commit d5538ea; assertion cases 13-17 written, NOT run: pending staging run T8)
 - [x] T7 Route/UI/read model: manual rows editable, prefill from current global rates when the row has none (+tests) (commit 8d6b7f0; RED entry-rates 2 failed + page 4 failed -> GREEN 18 / 111)
-- [ ] T8 Staging apply + deploy + owner check (237 applied and f9df7ab deployed to staging 2026-10-14, owner authorized; test manual entries created; waiting for owner check)
+- [x] T7b Correction: manual rows carry their quoted rates in raw_line. Editar prefills from the line (parseManualLineRates, shares the detail rules with procesarTexto; global rates only for a line without rates; stored rates win), and discounted manual lines are re-costed amount / (1 + pct / 100) * buy; migration 238 (+ROLLBACK) reads the discount from raw_line (commits 981e932 TS, 037c366 SQL; RED web-calculator 6 + entry-rates 3 + page 2 + realtime 1 + route 1 failed -> GREEN, npm test 189 files / 2581 tests; assertion cases 18-20 RED on staging -> GREEN)
+- [ ] T8 Staging apply + deploy + owner check (237 applied and f9df7ab deployed; superseded on staging by 238 + 037c366, see T7b evidence to staging 2026-10-14, owner authorized; test manual entries created; waiting for owner check)
 - [ ] T9 Production (needs owner go-ahead)
 
 ## Acceptance criteria
@@ -173,5 +174,18 @@ DELETE FROM remittance_admin_audit WHERE row_id IN ('6e9c086d-eef4-4612-8968-5df
 COMMIT;
 ```
 
+- 2026-10-14 T7b (correction found by the parent from production lines: "• Marlene 15,000 cup (240/960)", "• Michel 50 Zelle (238/260)", "• Zulemys 76 Clásica (3%/238/260)"):
+  - T7 prefilled manual rows with the CURRENT global rates and 237 refused discounted lines, but raw_line holds the quote. Now: GET /api/calculadora and the realtime/registration mapping
+    carry rawLine for manual rows; Editar prefills buy / cup from parseManualLineRates (web-calculator.ts; calculateLine was refactored to share detailParams, no second parser);
+    rows with stored rates show those; global rates only when the line has none. recomputeInvestment takes discountPct (manual ZELLE/MLC/CLASICA/TROPICAL).
+  - 238 SQL discount rule: detail = text between first "(" and final ")" of raw_line; first "/" slot containing "%"; percent = leading decimal as parseFloat ("3%", "3.5%", ".5%", " 3 % " ok;
+    "3,5%" -> 3 like the calculator; "0%" none); a "%" in another slot is none; CUP/USDT ignore it. REFUSED 22023: sign ("-5%", "+5%"), non-numeric ("abc%", "%"), exponent ("3e1%").
+    Not done: taking an omitted rate from raw_line in SQL (API contract kept; the UI sends the full set).
+  - Staging: md5 of the 237 body a111e1b5010f6ad4cf32f84230daa045 (queried). RED: assertion failed at case 19.1 (discount refused). 238 applied with --single-transaction, row ('238','238_calculator_rates_manual_discount');
+    new fn md5 60bc617f0e0a508afef549526ee2ff1c, ACL postgres + service_role + authenticated (service_role from staging history, not granted by the migration), anon false.
+    GREEN: assertion rolled back: ALL PASS (cases 1-20), entries before = after. Dry run (rolled back) on e84dd50c-90fe-42c6-a5ed-5f87bf3dd36e ("(10%/240/260)", amount 100) with buy 230 -> invertido 20909.0909 = 100/1.10*230, retorno 5090.91; row back to 21818.18.
+  - Deployed to staging: release 037c366a8e72040453ad0b3a6b1e8fc80749f5d4, BUILD_ID Zqf-TGpMXAcuZXGlXXmQR (server, pm2 cwd and crm.onlinefreedom.site match, /login 200). anterior -> f9df7ab5c570a0b2152a18c473e4cf263e167aad.
+    Manifest staging, kolppplawzdsjfydwejr, 0 production refs, sha256 ok. Built WITH the tests step (114 pipeline tests passed in node:20). prod-build restored to 5e91213, env copy deleted.
+
 ## Next step
-T8: owner checks Editar rates on /calculadora in staging (manual CUP, ZELLE, CLASICA refused). Then T9 production only with the owner's go-ahead. Staging test entries (PRUEBA TASAS) are still to be deleted when the owner says (cleanup SQL above).
+T8: owner checks Editar rates on /calculadora in staging (manual rows show their quoted rates; discounted CLASICA/ZELLE re-costed). Then T9 production only with the owner's go-ahead. Staging test entries (PRUEBA TASAS) are still to be deleted when the owner says (cleanup SQL above).

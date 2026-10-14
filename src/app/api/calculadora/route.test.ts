@@ -366,6 +366,32 @@ describe("GET /api/calculadora", () => {
     expect(body.chatOperations.totals).toEqual({ facturadoGyd: 26000, invertidoGyd: 24000, retornoGyd: 2000, count: 1 });
   });
 
+  it("carries the rate snapshot of each entry (the rates it was costed with) and asks the view for those columns", async () => {
+    const { GET } = await import("./route");
+    const database = db(
+      { data: { raw_text: "", period_label: "" }, error: null },
+      { data: null, error: null },
+      {
+        data: [
+          {
+            id: "e-cup", operation_id: "op-1", source: "completed_operation", status: "completed", service: "CUP", customer_name: "Yaima",
+            amount: "106000", amount_currency: "CUP", entry_date: "2026-10-14", facturado_gyd: "35333", invertido_gyd: "20500",
+            retorno_gyd: "14833", missing_inputs: null, cup_global_rate: "3", cup_rate: "1060", usdt_buy_gyd: "205", usdt_sell_gyd: "215",
+            cost_gyd: null, basis_gyd: "106000", sale_gyd: null,
+          },
+        ],
+        error: null,
+      },
+    );
+    useClient(database);
+
+    const body = await (await GET()).json();
+
+    expect(body.chatOperations.entries[0]).toMatchObject({
+      cupGlobalRate: 3, cupRate: 1060, usdtBuyGyd: 205, usdtSellGyd: 215, costGyd: null, basisGyd: 106000, saleGyd: null,
+    });
+  });
+
   it("lists the manual entries of the open week next to the bot's: source, no operation, same figures", async () => {
     const { GET } = await import("./route");
     const database = db(undefined, undefined, {

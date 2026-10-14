@@ -19,6 +19,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentAccount, toErrorResponse } from "@/lib/auth/account";
 import { canSendMessages } from "@/lib/auth/roles";
+import { mapEntryRateSnapshot, type EntryRateSnapshotRow } from "@/lib/calculator/entry-rates";
 import { mapRateVersion, type RateVersionRow } from "@/lib/calculator/ledger-read-model";
 import { rpcErrorResponse } from "@/lib/remittance-operations/route-helpers";
 
@@ -26,9 +27,9 @@ const RATE_VERSION_COLUMNS =
   "id, account_id, cup_global_rate, usdt_buy_gyd, usdt_sell_gyd, usdt_sell_cup, set_by, effective_at";
 
 const CHAT_OPERATION_COLUMNS =
-  "id,operation_id,source,status,service,customer_name,amount,amount_currency,entry_date,facturado_gyd,invertido_gyd,retorno_gyd,missing_inputs";
+  "id,operation_id,source,status,service,customer_name,amount,amount_currency,entry_date,facturado_gyd,invertido_gyd,retorno_gyd,missing_inputs,cup_global_rate,cup_rate,usdt_buy_gyd,usdt_sell_gyd,cost_gyd,basis_gyd,sale_gyd";
 
-interface ChatOperationRow {
+interface ChatOperationRow extends EntryRateSnapshotRow {
   id: string;
   /** Null for a manual entry (migration 228). */
   operation_id: string | null;
@@ -69,6 +70,8 @@ function chatOperationPayload(row: ChatOperationRow) {
     // entry's missing rates are what was missing when it was fed into the
     // ledger (historical fact), never recomputed against today's rates.
     missingRates: row.missing_inputs ?? [],
+    // The rates the entry was costed with (migration 104/199): the Editar form shows and edits the investment ones.
+    ...mapEntryRateSnapshot(row),
   };
 }
 

@@ -171,6 +171,7 @@ describe("GET /api/calculator/entries", () => {
       voidedAt: null,
       voidReason: null,
       completedAt: "2026-09-12T12:00:00Z",
+      cupGlobalRate: null, cupRate: null, usdtBuyGyd: 240, usdtSellGyd: 260, costGyd: null, basisGyd: null, saleGyd: null,
     });
     expect(body.entries[1].missingRates).toEqual(["usdtSellGyd"]);
     expect(body.entries[2].voidReason).toBe("duplicate entry");

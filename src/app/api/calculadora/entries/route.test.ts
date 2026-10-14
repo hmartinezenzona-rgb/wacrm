@@ -57,7 +57,7 @@ describe("POST /api/calculadora/entries", () => {
     expect(await response.json()).toEqual({
       entries: [{
         id: "m1", operationId: null, source: "manual", status: "completed", service: "ZELLE", customerName: "Gerardo", amount: 100,
-        amountCurrency: "USD", entryDate: "2026-10-06", facturadoGyd: 26000, invertidoGyd: 24000, retornoGyd: 2000, missingRates: [],
+        amountCurrency: "USD", entryDate: "2026-10-06", facturadoGyd: 26000, invertidoGyd: 24000, retornoGyd: 2000, missingRates: [], cupGlobalRate: null, cupRate: null, usdtBuyGyd: null, usdtSellGyd: null, costGyd: null, basisGyd: null, saleGyd: null,
       }],
     });
   });

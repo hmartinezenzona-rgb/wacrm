@@ -77,6 +77,7 @@ describe("mapLedgerEntry", () => {
       voidedAt: null,
       voidReason: null,
       completedAt: "2026-09-10T12:00:00Z",
+      cupGlobalRate: 3, cupRate: 1.05, usdtBuyGyd: 145, usdtSellGyd: 148, costGyd: null, basisGyd: null, saleGyd: null,
     });
   });
 

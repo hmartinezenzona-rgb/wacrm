@@ -271,6 +271,7 @@ describe("POST /api/calculator/entries/[entryId]/resolve", () => {
       voidedAt: null,
       voidReason: null,
       completedAt: "2026-09-12T12:00:00Z",
+      cupGlobalRate: null, cupRate: null, usdtBuyGyd: 145, usdtSellGyd: 148, costGyd: null, basisGyd: null, saleGyd: null,
     });
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
   });

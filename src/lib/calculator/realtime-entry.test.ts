@@ -48,6 +48,16 @@ describe("mapRealtimeCalculatorEntry", () => {
       invertidoGyd: 24000,
       retornoGyd: 2000,
       missingRates: [],
+      cupGlobalRate: null, cupRate: null, usdtBuyGyd: null, usdtSellGyd: null, costGyd: null, basisGyd: null, saleGyd: null,
+    });
+  });
+
+  it("carries the rate snapshot of the row (numeric strings coerced, absent columns null)", () => {
+    const mapped = mapRealtimeCalculatorEntry(
+      row({ service: "CUP", cup_global_rate: "3", cup_rate: "960", usdt_buy_gyd: 205, usdt_sell_gyd: "215", cost_gyd: null, basis_gyd: "106000" }),
+    );
+    expect(mapped).toMatchObject({
+      cupGlobalRate: 3, cupRate: 960, usdtBuyGyd: 205, usdtSellGyd: 215, costGyd: null, basisGyd: 106000, saleGyd: null,
     });
   });
 
@@ -74,6 +84,7 @@ describe("mapRealtimeCalculatorEntry", () => {
       invertidoGyd: null,
       retornoGyd: null,
       missingRates: ["usdtSellCup"],
+      cupGlobalRate: null, cupRate: null, usdtBuyGyd: null, usdtSellGyd: null, costGyd: null, basisGyd: null, saleGyd: null,
     });
   });
 

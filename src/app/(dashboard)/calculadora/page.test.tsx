@@ -20,6 +20,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import CalculadoraPage from "./page";
+import { formatNumber as formatMoneyNumber } from "@/lib/format-number";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -123,6 +124,7 @@ function createFetchMock(config: {
   ratesPost?: (body: { rates: Record<string, unknown>; expectedVersionId?: string }) => RatesPostResult;
   correctPost?: (entryId: string, body: { facturadoGyd: number; invertidoGyd: number }) => CorrectPostResult;
   deletePost?: (entryId: string) => { status: number; body?: unknown };
+  ratesEntryPost?: (entryId: string, body: { usdtBuyGyd?: number; cupRate?: number }) => { status: number; body?: unknown };
   weeksGet?: { weeks: unknown[] };
   weeksPost?: (body: Record<string, unknown>) => { status: number; body?: unknown };
   weekGet?: (weekId: string) => { status: number; body?: unknown };
@@ -184,6 +186,13 @@ function createFetchMock(config: {
       const result = config.ratesPost
         ? config.ratesPost(body)
         : { status: 200, body: { rates: { id: "rate-1", ...body.rates } } };
+      return Promise.resolve(jsonResponse(result.body ?? {}, result.status));
+    }
+    const entryRatesMatch = /^\/api\/calculator\/entries\/([^/]+)\/rates$/.exec(url);
+    if (entryRatesMatch && method === "POST") {
+      const entryId = entryRatesMatch[1]!;
+      const body = JSON.parse((init?.body as string) ?? "{}");
+      const result = config.ratesEntryPost ? config.ratesEntryPost(entryId, body) : { status: 500, body: { error: "unexpected" } };
       return Promise.resolve(jsonResponse(result.body ?? {}, result.status));
     }
     const correctMatch = /^\/api\/calculator\/entries\/([^/]+)\/correct$/.exec(url);
@@ -2286,6 +2295,218 @@ describe("calculator shows no emojis", () => {
     await act(async () => { clear.click(); });
     expect(document.querySelector("[role=dialog]")).not.toBeNull();
     expect(document.body.textContent).not.toMatch(EMOJI);
+    await act(async () => root.unmount());
+  });
+});
+
+describe("calculator chat operations (investment rates of one entry)", () => {
+  const CUP_ENTRY = {
+    id: "entry-cup",
+    operationId: "op-cup",
+    source: "completed_operation",
+    status: "completed",
+    service: "CUP",
+    customerName: "Yaima",
+    amount: 106000,
+    amountCurrency: "CUP",
+    entryDate: "2026-10-14",
+    facturadoGyd: 35000,
+    invertidoGyd: 20500,
+    retornoGyd: 14500,
+    missingRates: [],
+    cupGlobalRate: 3,
+    cupRate: 1060,
+    usdtBuyGyd: 205,
+    usdtSellGyd: 215,
+    costGyd: null,
+    basisGyd: 106000,
+    saleGyd: null,
+  };
+  const ZELLE_ENTRY = {
+    ...CUP_ENTRY,
+    id: "entry-zelle",
+    service: "ZELLE",
+    amount: 100,
+    amountCurrency: "USD",
+    facturadoGyd: 21500,
+    invertidoGyd: 20500,
+    retornoGyd: 1000,
+    cupRate: 1060,
+  };
+  const COMBO_ENTRY = {
+    ...CUP_ENTRY,
+    id: "entry-combo",
+    service: "COMBO",
+    cupGlobalRate: null,
+    cupRate: null,
+    usdtBuyGyd: null,
+    usdtSellGyd: null,
+  };
+
+  function fixture(overrides?: Parameters<typeof createFetchMock>[0]) {
+    return createFetchMock({
+      calculadoraGet: { rawText: "", periodo: "SEMANA 1", chatOperations: { entries: [CUP_ENTRY, ZELLE_ENTRY, COMBO_ENTRY] } },
+      ratesGet: { rates: null },
+      ...overrides,
+    });
+  }
+
+  async function openEditor(node: HTMLElement, entryId: string) {
+    const editButton = node.querySelector(`#editarEntry-${entryId}`) as HTMLButtonElement;
+    await act(async () => { editButton.click(); });
+  }
+
+  async function save(node: HTMLElement, entryId: string) {
+    const saveButton = node.querySelector(`#guardarEntry-${entryId}`) as HTMLButtonElement;
+    await act(async () => { saveButton.click(); });
+    await flush();
+  }
+
+  function callsTo(fetchMock: ReturnType<typeof createFetchMock>, url: string) {
+    return fetchMock.mock.calls.filter(([input]) => (typeof input === "string" ? input : input.toString()) === url);
+  }
+
+  it("shows the rates the entry was costed with and edits both investment rates of a CUP entry", async () => {
+    const { node, root } = await renderPage(fixture());
+    await openEditor(node, "entry-cup");
+
+    expect(inputValue(node, "editCompraUsdt-entry-cup")).toBe("205");
+    expect(inputValue(node, "editVentaUsdtCup-entry-cup")).toBe("1060");
+    const rates = node.querySelector("#tasasEntry-entry-cup") as HTMLElement;
+    expect(rates.textContent).toContain("Tarifa CUP");
+    expect(rates.textContent).toContain("3");
+    expect(rates.textContent).toContain("215");
+    await act(async () => root.unmount());
+  });
+
+  it("a non-CUP entry edits only Compra USDT (GYD)", async () => {
+    const { node, root } = await renderPage(fixture());
+    await openEditor(node, "entry-zelle");
+
+    expect(inputValue(node, "editCompraUsdt-entry-zelle")).toBe("205");
+    expect(node.querySelector("#editVentaUsdtCup-entry-zelle")).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("an entry without rates (COMBO) shows no rate editor", async () => {
+    const { node, root } = await renderPage(fixture());
+    await openEditor(node, "entry-combo");
+
+    expect(node.querySelector("#tasasEntry-entry-combo")).toBeNull();
+    expect(node.querySelector("#editCompraUsdt-entry-combo")).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("previews the recomputed invertido and ganancia while the rate is typed, without any network call", async () => {
+    const fetchMock = fixture();
+    const { node, root } = await renderPage(fetchMock);
+    await openEditor(node, "entry-cup");
+    fetchMock.mockClear();
+
+    act(() => setInputValue(node, "editVentaUsdtCup-entry-cup", "960"));
+
+    const expectedInvertido = (106000 / 960) * 205;
+    expect(inputValue(node, "editInvertido-entry-cup")).toBe(expectedInvertido.toFixed(2));
+    expect(isInputDisabled(node, "editInvertido-entry-cup")).toBe(true);
+    expect(node.textContent).toContain(formatMoneyNumber(35000 - Number(expectedInvertido.toFixed(2)), { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+    expect(fetchMock).not.toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
+
+  it("saving a changed rate calls the rates route only and shows the stored figures and rates", async () => {
+    const fetchMock = fixture({
+      ratesEntryPost: (entryId) => ({
+        status: 200,
+        body: {
+          entry: {
+            id: entryId, status: "completed", facturadoGyd: 35000, invertidoGyd: 22000, retornoGyd: 13000,
+            cupGlobalRate: 3, cupRate: 960, usdtBuyGyd: 205, usdtSellGyd: 215, costGyd: null, basisGyd: 106000, saleGyd: null,
+          },
+        },
+      }),
+    });
+    const { node, root } = await renderPage(fetchMock);
+    await openEditor(node, "entry-cup");
+    act(() => setInputValue(node, "editVentaUsdtCup-entry-cup", "960"));
+    await save(node, "entry-cup");
+
+    const ratesCalls = callsTo(fetchMock, "/api/calculator/entries/entry-cup/rates");
+    expect(ratesCalls).toHaveLength(1);
+    expect(JSON.parse((ratesCalls[0]![1] as RequestInit).body as string)).toEqual({ cupRate: 960 });
+    expect(callsTo(fetchMock, "/api/calculator/entries/entry-cup/correct")).toHaveLength(0);
+    expect(node.querySelector("#guardarEntry-entry-cup")).toBeNull();
+    expect(node.textContent).toContain(formatMoneyNumber(22000, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+    await openEditor(node, "entry-cup");
+    expect(inputValue(node, "editVentaUsdtCup-entry-cup")).toBe("960");
+    await act(async () => root.unmount());
+  });
+
+  it("an unchanged rate never calls the rates route: the figures edit keeps working as before", async () => {
+    const fetchMock = fixture();
+    const { node, root } = await renderPage(fetchMock);
+    await openEditor(node, "entry-zelle");
+    act(() => setInputValue(node, "editFacturado-entry-zelle", "22000"));
+    act(() => setInputValue(node, "editInvertido-entry-zelle", "20000"));
+    await save(node, "entry-zelle");
+
+    expect(callsTo(fetchMock, "/api/calculator/entries/entry-zelle/rates")).toHaveLength(0);
+    const correct = callsTo(fetchMock, "/api/calculator/entries/entry-zelle/correct");
+    expect(correct).toHaveLength(1);
+    expect(JSON.parse((correct[0]![1] as RequestInit).body as string)).toEqual({ facturadoGyd: 22000, invertidoGyd: 20000 });
+    await act(async () => root.unmount());
+  });
+
+  it("a changed rate plus a changed facturado saves the rates first, then corrects the facturado over the stored invertido", async () => {
+    const fetchMock = fixture({
+      ratesEntryPost: (entryId) => ({
+        status: 200,
+        body: {
+          entry: {
+            id: entryId, status: "completed", facturadoGyd: 21500, invertidoGyd: 19000, retornoGyd: 2500,
+            cupGlobalRate: 3, cupRate: 1060, usdtBuyGyd: 190, usdtSellGyd: 215, costGyd: null, basisGyd: 106000, saleGyd: null,
+          },
+        },
+      }),
+    });
+    const { node, root } = await renderPage(fetchMock);
+    await openEditor(node, "entry-zelle");
+    act(() => setInputValue(node, "editCompraUsdt-entry-zelle", "190"));
+    act(() => setInputValue(node, "editFacturado-entry-zelle", "22000"));
+    await save(node, "entry-zelle");
+
+    expect(callsTo(fetchMock, "/api/calculator/entries/entry-zelle/rates")).toHaveLength(1);
+    const correct = callsTo(fetchMock, "/api/calculator/entries/entry-zelle/correct");
+    expect(correct).toHaveLength(1);
+    expect(JSON.parse((correct[0]![1] as RequestInit).body as string)).toEqual({ facturadoGyd: 22000, invertidoGyd: 19000 });
+    expect(node.querySelector("#guardarEntry-entry-zelle")).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("a refused rates save (400) shows the server message and keeps the editor open", async () => {
+    const fetchMock = fixture({
+      ratesEntryPost: () => ({ status: 400, body: { error: "entry belongs to an archived week and cannot be corrected" } }),
+    });
+    const { node, root } = await renderPage(fetchMock);
+    await openEditor(node, "entry-cup");
+    act(() => setInputValue(node, "editVentaUsdtCup-entry-cup", "960"));
+    await save(node, "entry-cup");
+
+    expect(node.textContent).toContain("entry belongs to an archived week and cannot be corrected");
+    expect(node.querySelector("#guardarEntry-entry-cup")).not.toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("rejects a non-positive rate client-side without a network call", async () => {
+    const fetchMock = fixture();
+    const { node, root } = await renderPage(fetchMock);
+    await openEditor(node, "entry-cup");
+    act(() => setInputValue(node, "editVentaUsdtCup-entry-cup", "0"));
+    fetchMock.mockClear();
+    await save(node, "entry-cup");
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(node.textContent).toContain("mayores que 0");
+    expect(node.querySelector("#guardarEntry-entry-cup")).not.toBeNull();
     await act(async () => root.unmount());
   });
 });

@@ -6,18 +6,20 @@
 // routes that call it.
 // ============================================================
 
+import { mapEntryRateSnapshot, type EntryRateSnapshot, type EntryRateSnapshotRow } from "./entry-rates";
+
 /** Column list matching `LedgerEntryRow` exactly — kept next to the type
  *  it feeds so a schema change can't update one without the other. Every
  *  caller that queries `remittance_calculator_entries` for a row destined
  *  for `mapLedgerEntry` should select this, not hand-roll its own list. */
 export const LEDGER_ENTRY_COLUMNS =
-  "id, account_id, source, status, operation_id, entry_date, customer_name, service, amount, amount_currency, facturado_gyd, invertido_gyd, retorno_gyd, cup_global_rate, cup_rate, usdt_buy_gyd, usdt_sell_gyd, rate_version_id, missing_inputs, delivery_mode, voided_at, void_reason, completed_at, created_at";
+  "id, account_id, source, status, operation_id, entry_date, customer_name, service, amount, amount_currency, facturado_gyd, invertido_gyd, retorno_gyd, cup_global_rate, cup_rate, usdt_buy_gyd, usdt_sell_gyd, cost_gyd, basis_gyd, sale_gyd, rate_version_id, missing_inputs, delivery_mode, voided_at, void_reason, completed_at, created_at";
 
 /** Raw `remittance_calculator_entries` row shape. Numerics may arrive as
  * `number | string` (Postgres numeric columns round-trip through
  * postgres-js/PostgREST as strings), and every column the DB allows NULL
  * on is typed nullable here too. */
-export interface LedgerEntryRow {
+export interface LedgerEntryRow extends EntryRateSnapshotRow {
   id: string;
   account_id: string;
   source: "manual" | "completed_operation";
@@ -45,7 +47,7 @@ export interface LedgerEntryRow {
 }
 
 /** camelCase ledger entry payload returned by the calculator HTTP routes. */
-export interface LedgerEntry {
+export interface LedgerEntry extends Partial<EntryRateSnapshot> {
   id: string;
   operationId: string | null;
   source: "manual" | "completed_operation";
@@ -143,6 +145,7 @@ export function mapLedgerEntry(row: LedgerEntryRow): LedgerEntry {
     voidedAt: row.voided_at,
     voidReason: row.void_reason,
     completedAt: row.completed_at,
+    ...mapEntryRateSnapshot(row),
   };
 }
 

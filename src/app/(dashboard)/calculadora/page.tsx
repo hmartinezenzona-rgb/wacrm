@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { Check, Loader2, Pencil, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -10,6 +10,7 @@ import { formatNumber as formatMoneyNumber } from "@/lib/format-number";
 import { MoneyTotalFigure } from "@/components/money/money-total-figure";
 import { ServiceDot } from "@/components/service/service-dot";
 import { moneyCellProps, moneyStripeClass, profitTone, totalTone } from "@/lib/money-tone";
+import { canEditEntryRates, recomputeInvestment } from "@/lib/calculator/entry-rates";
 import { chatEntryAmountExportText, chatEntryAmountText, ledgerServiceLabel } from "@/lib/calculator/entry-display";
 import { applyCalculatorEntryRealtimeEvent, insertCalculatorEntry, type ChatCalculatorEntry } from "@/lib/calculator/realtime-entry";
 import { useCalculatorEntriesRealtime } from "@/hooks/use-calculator-entries-realtime";
@@ -97,6 +98,12 @@ function rateValueOf(rates: CalculatorRates | null, key: RateKey): number | null
   return (rates?.[field] as number | null | undefined) ?? null;
 }
 
+/** What the correction routes answer for one entry (the rate snapshot is present on the ledger payload). */
+type StoredEntryFigures = Pick<ChatCalculatorEntry, "id" | "facturadoGyd" | "invertidoGyd" | "retornoGyd"> &
+  Partial<Pick<ChatCalculatorEntry, "cupGlobalRate" | "cupRate" | "usdtBuyGyd" | "usdtSellGyd" | "costGyd" | "basisGyd" | "saleGyd">> & {
+    status: string;
+  };
+
 export default function CalculadoraPage() {
   const [rawText, setRawText] = useState("");
   const [periodo, setPeriodo] = useState("");
@@ -112,6 +119,9 @@ export default function CalculadoraPage() {
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [editFacturado, setEditFacturado] = useState("");
   const [editInvertido, setEditInvertido] = useState("");
+  // Investment rates of the entry being edited (what the admin typed), see crm_corregir_tasas_entrada_calculadora (236).
+  const [editBuy, setEditBuy] = useState("");
+  const [editCup, setEditCup] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [entryActionMessage, setEntryActionMessage] = useState<{ entryId: string; text: string } | null>(null);
   // Weekly cut (227): the latest cut hides the entries it archived; a live event for one of them must not bring it back.
@@ -342,6 +352,8 @@ export default function CalculadoraPage() {
     setEditingEntryId(entry.id);
     setEditFacturado(entry.facturadoGyd == null ? "" : String(entry.facturadoGyd));
     setEditInvertido(entry.invertidoGyd == null ? "" : String(entry.invertidoGyd));
+    setEditBuy(entry.usdtBuyGyd == null ? "" : String(entry.usdtBuyGyd));
+    setEditCup(entry.cupRate == null ? "" : String(entry.cupRate));
     setEntryActionMessage(null);
   }
 
@@ -349,6 +361,48 @@ export default function CalculadoraPage() {
     setEditingEntryId(null);
     setEditFacturado("");
     setEditInvertido("");
+    setEditBuy("");
+    setEditCup("");
+  }
+
+  /** A rate field: null when empty or not a number above zero. */
+  function parseEditRate(value: string): number | null {
+    if (value.trim() === "") return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  /**
+   * The investment rates typed for `entry` against the ones it was costed with. `invalid` is a typed rate that is not above
+   * zero; `changed` carries only the rates that differ (what the rates route gets); `recomputed` is the invertido the
+   * database will store for them.
+   */
+  function editedRates(entry: ChatCalculatorEntry) {
+    const editable = canEditEntryRates(entry);
+    const changed: { usdtBuyGyd?: number; cupRate?: number } = {};
+    let invalid = false;
+    if (editable.buy) {
+      const buy = parseEditRate(editBuy);
+      if (buy === null) invalid = true;
+      else if (buy !== entry.usdtBuyGyd) changed.usdtBuyGyd = buy;
+    }
+    if (editable.cup) {
+      const cup = parseEditRate(editCup);
+      if (cup === null) invalid = true;
+      else if (cup !== entry.cupRate) changed.cupRate = cup;
+    }
+    const hasChange = Object.keys(changed).length > 0;
+    const recomputed = hasChange && !invalid
+      ? recomputeInvestment(
+          {
+            source: entry.source, status: entry.status, service: entry.service, amount: entry.amount, facturadoGyd: entry.facturadoGyd,
+            cupRate: entry.cupRate ?? null, usdtBuyGyd: entry.usdtBuyGyd ?? null, costGyd: entry.costGyd ?? null,
+            basisGyd: entry.basisGyd ?? null, saleGyd: entry.saleGyd ?? null,
+          },
+          changed,
+        )
+      : null;
+    return { editable, changed, hasChange, invalid, recomputed };
   }
 
   function cancelEditEntry() {
@@ -365,6 +419,18 @@ export default function CalculadoraPage() {
         text: "Ingresa valores numéricos válidos (mayores o iguales a 0).",
       });
       return;
+    }
+    const target = chatEntries.find((entry) => entry.id === entryId);
+    const rates = target ? editedRates(target) : null;
+    if (target && rates) {
+      if (rates.invalid) {
+        setEntryActionMessage({ entryId, text: "Las tasas deben ser números mayores que 0." });
+        return;
+      }
+      if (rates.hasChange) {
+        await saveEditRates(target, rates.changed, facturadoGyd);
+        return;
+      }
     }
     setEditSaving(true);
     try {
@@ -386,22 +452,8 @@ export default function CalculadoraPage() {
         });
         return;
       }
-      const data = (await response.json()) as {
-        entry: { id: string; facturadoGyd: number | null; invertidoGyd: number | null; retornoGyd: number | null; status: string };
-      };
-      setChatEntries((prev) =>
-        prev.map((entry) =>
-          entry.id === data.entry.id
-            ? {
-                ...entry,
-                facturadoGyd: data.entry.facturadoGyd,
-                invertidoGyd: data.entry.invertidoGyd,
-                retornoGyd: data.entry.retornoGyd,
-                status: data.entry.status as ChatCalculatorEntry["status"],
-              }
-            : entry,
-        ),
-      );
+      const data = (await response.json()) as { entry: StoredEntryFigures };
+      applyStoredEntry(data.entry);
       setEntryActionMessage(null);
       closeEditor();
     } catch {
@@ -409,6 +461,83 @@ export default function CalculadoraPage() {
     } finally {
       setEditSaving(false);
     }
+  }
+
+  /**
+   * Saves the investment rates of an entry (the database recomputes invertido and retorno). If the admin also changed the
+   * facturado, it is then corrected over the invertido the rates produced, with the existing figures route.
+   */
+  async function saveEditRates(entry: ChatCalculatorEntry, changed: { usdtBuyGyd?: number; cupRate?: number }, facturadoGyd: number) {
+    const entryId = entry.id;
+    setEditSaving(true);
+    try {
+      const response = await fetch(`/api/calculator/entries/${entryId}/rates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(changed),
+      });
+      if (response.status === 403) {
+        setEntryActionMessage({ entryId, text: "Solo un administrador puede corregir las tasas de esta operación." });
+        closeEditor();
+        return;
+      }
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}) as { error?: string });
+        setEntryActionMessage({
+          entryId,
+          text: (data as { error?: string }).error ?? "No se pudieron corregir las tasas de la operación.",
+        });
+        return;
+      }
+      const data = (await response.json()) as { entry: StoredEntryFigures };
+      applyStoredEntry(data.entry);
+      if (facturadoGyd !== entry.facturadoGyd) {
+        const correction = await fetch(`/api/calculator/entries/${entryId}/correct`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ facturadoGyd, invertidoGyd: data.entry.invertidoGyd }),
+        });
+        if (!correction.ok) {
+          const failure = await correction.json().catch(() => ({}) as { error?: string });
+          setEntryActionMessage({
+            entryId,
+            text: `Las tasas se guardaron, pero no se pudo corregir el facturado: ${(failure as { error?: string }).error ?? "error desconocido"}`,
+          });
+          closeEditor();
+          return;
+        }
+        applyStoredEntry(((await correction.json()) as { entry: StoredEntryFigures }).entry);
+      }
+      setEntryActionMessage(null);
+      closeEditor();
+    } catch {
+      setEntryActionMessage({ entryId, text: "No se pudieron corregir las tasas de la operación." });
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  /** Folds the row the server answered (figures, status and, when present, the rate snapshot) into the table. */
+  function applyStoredEntry(stored: StoredEntryFigures) {
+    setChatEntries((prev) =>
+      prev.map((entry) =>
+        entry.id === stored.id
+          ? {
+              ...entry,
+              facturadoGyd: stored.facturadoGyd,
+              invertidoGyd: stored.invertidoGyd,
+              retornoGyd: stored.retornoGyd,
+              status: stored.status as ChatCalculatorEntry["status"],
+              ...(stored.usdtBuyGyd !== undefined
+                ? {
+                    cupGlobalRate: stored.cupGlobalRate, cupRate: stored.cupRate, usdtBuyGyd: stored.usdtBuyGyd,
+                    usdtSellGyd: stored.usdtSellGyd, costGyd: stored.costGyd, basisGyd: stored.basisGyd, saleGyd: stored.saleGyd,
+                  }
+                : {}),
+            }
+          : entry,
+      ),
+    );
   }
 
   function handleEditKeys(event: KeyboardEvent<HTMLInputElement>, entryId: string) {
@@ -727,9 +856,13 @@ export default function CalculadoraPage() {
                   {chatEntries.map((entry) => {
                     const editing = editingEntryId === entry.id;
                     const rowMessage = entryActionMessage?.entryId === entry.id ? entryActionMessage.text : null;
-                    const editPreview = (Number(editFacturado) || 0) - (Number(editInvertido) || 0);
+                    const editedRate = editing ? editedRates(entry) : null;
+                    // A changed rate drives invertido (the database recomputes it); otherwise the typed figure does.
+                    const shownInvertido = editedRate?.recomputed ? editedRate.recomputed.invertidoGyd.toFixed(2) : editInvertido;
+                    const editPreview = (Number(editFacturado) || 0) - (Number(shownInvertido) || 0);
                     return (
-                      <tr key={entry.id}>
+                      <Fragment key={entry.id}>
+                      <tr>
                         <td data-label="Fecha">{entry.entryDate.slice(0, 10)}</td>
                         <td data-label="Cliente"><b>{entry.customerName || "—"}</b></td>
                         <td data-label="Monto">{chatEntryAmountText(entry)}</td>
@@ -753,7 +886,9 @@ export default function CalculadoraPage() {
                               id={`editInvertido-${entry.id}`}
                               type="number"
                               step="0.01"
-                              value={editInvertido}
+                              value={shownInvertido}
+                              readOnly={Boolean(editedRate?.recomputed)}
+                              disabled={Boolean(editedRate?.recomputed)}
                               onChange={(event) => setEditInvertido(event.target.value)}
                               onKeyDown={(event) => handleEditKeys(event, entry.id)}
                             />
@@ -849,6 +984,44 @@ export default function CalculadoraPage() {
                           {!editing && rowMessage && <div className="legacyError">{rowMessage}</div>}
                         </td>
                       </tr>
+                      {editing && editedRate && (editedRate.editable.buy || editedRate.editable.cup) && (
+                        <tr id={`tasasEntry-${entry.id}`}>
+                          <td colSpan={9}>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
+                              <span className="legacySmall">Tasas de esta operación:</span>
+                              {entry.cupGlobalRate != null && <span className="legacySmall">Tarifa CUP: <b>{entry.cupGlobalRate}</b></span>}
+                              {entry.usdtSellGyd != null && <span className="legacySmall">Venta USDT (GYD): <b>{entry.usdtSellGyd}</b></span>}
+                              {editedRate.editable.cup && (
+                                <label className="legacySmall" htmlFor={`editVentaUsdtCup-${entry.id}`}>
+                                  Venta USDT (CUP)
+                                  <input
+                                    id={`editVentaUsdtCup-${entry.id}`}
+                                    type="number"
+                                    step="any"
+                                    value={editCup}
+                                    onChange={(event) => setEditCup(event.target.value)}
+                                    onKeyDown={(event) => handleEditKeys(event, entry.id)}
+                                  />
+                                </label>
+                              )}
+                              {editedRate.editable.buy && (
+                                <label className="legacySmall" htmlFor={`editCompraUsdt-${entry.id}`}>
+                                  Compra USDT (GYD)
+                                  <input
+                                    id={`editCompraUsdt-${entry.id}`}
+                                    type="number"
+                                    step="any"
+                                    value={editBuy}
+                                    onChange={(event) => setEditBuy(event.target.value)}
+                                    onKeyDown={(event) => handleEditKeys(event, entry.id)}
+                                  />
+                                </label>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      </Fragment>
                     );
                   })}
                 </tbody>

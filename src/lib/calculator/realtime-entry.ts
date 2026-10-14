@@ -14,7 +14,9 @@
  * translation, so it's testable without mocking a channel.
  */
 
-export interface CalculatorEntryRealtimeRow {
+import { mapEntryRateSnapshot, type EntryRateSnapshot, type EntryRateSnapshotRow } from "./entry-rates";
+
+export interface CalculatorEntryRealtimeRow extends EntryRateSnapshotRow {
   id: string;
   /** Null for a manual entry (migration 228). */
   operation_id: string | null;
@@ -35,7 +37,7 @@ export interface CalculatorEntryRealtimeRow {
   created_at?: string | null;
 }
 
-export interface ChatCalculatorEntry {
+export interface ChatCalculatorEntry extends Partial<EntryRateSnapshot> {
   id: string;
   /** Null for a manual entry (migration 228). */
   operationId: string | null;
@@ -87,6 +89,7 @@ export function mapRealtimeCalculatorEntry(
     invertidoGyd: toNullableNumber(row.invertido_gyd),
     retornoGyd: toNullableNumber(row.retorno_gyd),
     missingRates: row.missing_inputs ?? [],
+    ...mapEntryRateSnapshot(row),
   };
 }
 

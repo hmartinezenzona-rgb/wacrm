@@ -48,7 +48,7 @@ Owner decisions:
 - [x] T1 Migration 236 RPC + rollback + staging assertion file (commit b05acd8; SQL assertion written, NOT run: pending staging run in T4)
 - [x] T2 API route + route test (commit be3de6a; RED 21 failed -> GREEN 21 passed)
 - [x] T3 Editar UI: show snapshot rates, edit both investment rates, recompute preview; read-model mapping + tests (commit 9104d23)
-- [ ] T4 Apply 236 on staging, deploy staging, owner checks (needs owner authorization)
+- [ ] T4 Apply 236 on staging, deploy staging, owner checks (236 applied and app deployed to staging 2026-10-14; waiting for owner check)
 - [ ] T5 Production (needs owner go-ahead)
 
 ## Acceptance criteria
@@ -68,7 +68,19 @@ Owner decisions:
   (basis_gyd/sale_gyd)*cost_gyd*buy (amount is saldo units; cup_rate kept equal to buy); ZELLE/MLC/CLASICA/TROPICAL/USDT/EFECTIVO/DIRECTO
   amount*buy; COMBO/VISA refused (no rates); manual, void, pending and archived-week entries refused; cup_rate refused off CUP.
 - Verification: new/changed vitest files green (route 21, entry-rates 13, page 106), npm test 189 files / 2556 tests, tsc 0, eslint 0.
+- 2026-10-14 T4 staging run (owner-authorized, staging only):
+  - Staging schema_migrations was at 228 (convention: version '228', name '228_manual_entries'); 229-235 are not recorded there.
+    Function did not exist before 236.
+  - RED: the assertion first failed with a plpgsql syntax error in case 9 (unparenthesized CASE inside `IF SQLSTATE = CASE ... THEN`),
+    a fixture bug, fixed in 0d7b78d (parenthesized). Rerun then failed as expected: function crm_corregir_tasas_entrada_calculadora does not exist.
+  - Migration 236 applied with --single-transaction at 2026-10-14 21:56 UTC; row ('236','236_calculator_entry_investment_rates') inserted
+    in supabase_migrations.schema_migrations. SECURITY DEFINER; EXECUTE for postgres, service_role, authenticated; anon false.
+  - GREEN: assertion in BEGIN..ROLLBACK: ALL PASS (cases 1-12). remittance_calculator_entries before and after identical
+    (37 rows, sum invertido 1158317.6388349514562, retorno 181394.7611650485873, facturado 1339712.4).
+  - Deployed to staging (crm.onlinefreedom.site, pm2 wacrm-staging online): release 0d7b78d5412c4c8fff278a251df22246a6661799, BUILD_ID
+    GtZ2kSH0wSbAm8cQzRcOQ (server and domain match, pm2 cwd = the new release). anterior -> d39a3613b5883da4f9a0f4618b7b1fd4abd1f683.
+    Manifest staging, ref kolppplawzdsjfydwejr, 0 production refs, sha256 ok. prod-build restored to 4930fe5.
 
 ## Next step
-T4: apply migration 236 on staging, run the assertion inside BEGIN..ROLLBACK, deploy staging, owner checks (needs owner authorization).
+T4: owner checks the Editar rates flow on staging (crm.onlinefreedom.site).
 Then T5 production (needs the owner's go-ahead).

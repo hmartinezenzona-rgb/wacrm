@@ -20,7 +20,7 @@ rate in CUP per USDT), the daily transfer limit, and which card to use next.
 Claude defaults (stated to the owner):
 - A manual rate edit on an entry (236-238) changes only that entry's profit; inventory untouched.
 - An inventory failure never passes silently: alert.
-- Manual lines cannot be deleted today, so their CUP cannot be returned yet (later).
+- Manual lines CAN be deleted since 228 (crm_eliminar_entrada_calculadora accepts source manual): deleting one returns its CUP.
 - Cards are stored by name + optional last 4 digits (no full card number).
 
 ## Current state (mapped 2026-10-14)
@@ -144,7 +144,8 @@ COMMIT;
     Replaced-body md5s (migration text) are in the 240 header. Assertion: supabase/staging/assertions/cup-inventory-consumption.sql.
   - Correction to the plan: manual entries CAN be deleted since 228 (crm_eliminar_entrada_calculadora accepts source manual), so they
     return their CUP too.
-  - OPEN: crm_resolve_pending_entry (a CUP line pending at completion, resolved later) does not consume; owner to decide.
+  - Owner rule "every completed CUP operation consumes inventory": crm_resolve_pending_entry (235 body, md5 51ceb370...) is hooked in 240 too (same
+    consume/rate/alert logic, never aborts the resolve, idempotent per entry); assertion case 11.
   - T7 strict TDD: RED 4 failed (read-model + page) then GREEN; npx vitest run (cup-inventory, page, api, i18n) 14 files / 151 tests pass;
     npm test 201 files / 2730 pass; tsc and eslint clean.
 

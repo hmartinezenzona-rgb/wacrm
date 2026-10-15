@@ -25,7 +25,9 @@
 --           an inactive card (priority 0, with a lot) is skipped; account 1's activity never touched account 2's lots (isolation).
 --   case 10 an inventory failure never aborts the feed: with a poisoned lot constraint the CUP line is still written with the GLOBAL rate and an
 --           'inventario_cup' error notification is raised; the failed consumption left nothing behind.
---   case 11 grants: cup_consumir / cup_devolver / cup_alertar are executable by neither authenticated nor anon.
+--   case 11 a PENDING CUP line resolved by an admin (crm_resolve_pending_entry) consumes like the feed: lot rate becomes the line's cup_rate,
+--           invertido follows, and resolving never runs twice on the same entry (a second resolve is refused, nothing more is taken).
+--   case 12 grants: cup_consumir / cup_devolver / cup_alertar are executable by neither authenticated nor anon.
 --
 -- MUST run inside an already-open transaction that ends in ROLLBACK (BEGIN ... \i 239 ... \i 240 ... \i this file ... ROLLBACK), on STAGING only.
 -- Never COMMIT. Never run against production. Builds its own fixtures.
@@ -78,6 +80,19 @@ CREATE FUNCTION pg_temp.cic_used(p_card uuid, p_day date) RETURNS numeric LANGUA
   SELECT coalesce(sum(amount_cup), 0) FROM cup_lot_consumptions WHERE card_id = p_card AND cuba_day = p_day;
 $f$;
 
+CREATE FUNCTION pg_temp.cic_expect_state(p_sql text, p_state text, p_uid uuid) RETURNS boolean LANGUAGE plpgsql AS $f$
+BEGIN
+  PERFORM pg_temp.cic_claims(p_uid);
+  BEGIN
+    EXECUTE p_sql;
+    PERFORM pg_temp.cic_claims(NULL);
+    RETURN false;
+  EXCEPTION WHEN OTHERS THEN
+    PERFORM pg_temp.cic_claims(NULL);
+    RETURN SQLSTATE = p_state;
+  END;
+END $f$;
+
 DO $$
 DECLARE
   v_owner uuid := gen_random_uuid(); v_admin uuid := gen_random_uuid(); v_agent uuid := gen_random_uuid();
@@ -88,7 +103,7 @@ DECLARE
   v_la cup_lots; v_lb cup_lots; v_l1 cup_lots; v_l2 cup_lots; v_ld cup_lots; v_lf cup_lots;
   v_op1 uuid; v_op2 uuid; v_op5 uuid; v_op5b uuid; v_opf uuid;
   v_e1 remittance_calculator_entries; v_e2 remittance_calculator_entries; v_e5 remittance_calculator_entries; v_e5b remittance_calculator_entries;
-  v_ef remittance_calculator_entries;
+  v_ef remittance_calculator_entries; v_ep remittance_calculator_entries; v_opp uuid; v_pend uuid;
   v_man uuid; v_man_y uuid;
   v_today date; v_gy_today date; v_gy_yday date;
   v_usdt numeric; v_n numeric; v_cnt integer; v_before numeric; v_after numeric;
@@ -302,8 +317,27 @@ BEGIN
   v_fail := v_fail + pg_temp.cic_chk('10.an error notification was raised',
     EXISTS (SELECT 1 FROM notifications WHERE account_id = v_acc2 AND type = 'inventario_cup' AND title = 'Error en el inventario CUP'));
 
-  -- ---- case 11: grants ---------------------------------------------------------------------------------------------------------------------------
-  v_fail := v_fail + pg_temp.cic_chk('11.internal functions are not executable by authenticated / anon',
+  -- ---- case 11: a pending CUP line resolved later consumes ---------------------------------------------------------------------------------------
+  v_opp := pg_temp.cic_op(v_acc2, v_conv2, 25000);
+  INSERT INTO remittance_calculator_entries (account_id, source, status, operation_id, entry_date, customer_name, service, amount, amount_currency,
+    basis_gyd, missing_inputs, completed_at)
+  VALUES (v_acc2, 'completed_operation', 'verified_pending', v_opp, current_date, 'Pend CIC', 'CUP', 25000, 'CUP', 25000,
+    ARRAY['cupGlobalRate', 'usdtSellCup', 'usdtBuyGyd'], now()) RETURNING id INTO v_pend;
+  v_fail := v_fail + pg_temp.cic_chk('11.a pending line consumes nothing', NOT EXISTS (SELECT 1 FROM cup_lot_consumptions WHERE calculator_entry_id = v_pend));
+  PERFORM pg_temp.cic_claims(v_admin2);
+  PERFORM crm_resolve_pending_entry(v_pend, jsonb_build_object('cup_global_rate', 2, 'usdt_buy_gyd', 240, 'usdt_sell_cup', 1100), 'resolve with rates');
+  PERFORM pg_temp.cic_claims(NULL);
+  SELECT * INTO v_ep FROM remittance_calculator_entries WHERE id = v_pend;
+  v_fail := v_fail + pg_temp.cic_chk('11.resolved: completed, 50,000 CUP taken from lot F, cup_rate = 950, invertido = 50000/950*240',
+    v_ep.status = 'completed' AND v_ep.amount = 50000 AND pg_temp.cic_near(v_ep.cup_rate, 950) AND pg_temp.cic_near(v_ep.invertido_gyd, 50000::numeric / 950 * 240)
+    AND (SELECT coalesce(sum(amount_cup), 0) FROM cup_lot_consumptions WHERE calculator_entry_id = v_pend AND lot_id = v_lf.id) = 50000,
+    format('status=%s amount=%s cup_rate=%s', v_ep.status, v_ep.amount, v_ep.cup_rate));
+  v_fail := v_fail + pg_temp.cic_chk('11.a second resolve is refused and takes nothing more',
+    pg_temp.cic_expect_state(format('SELECT crm_resolve_pending_entry(%L, ''{"usdt_buy_gyd": 240}''::jsonb, ''second resolve'')', v_pend), '22023', v_admin2)
+    AND (SELECT coalesce(sum(amount_cup), 0) FROM cup_lot_consumptions WHERE calculator_entry_id = v_pend) = 50000);
+
+  -- ---- case 12: grants ---------------------------------------------------------------------------------------------------------------------------
+  v_fail := v_fail + pg_temp.cic_chk('12.internal functions are not executable by authenticated / anon',
     NOT has_function_privilege('authenticated', 'public.cup_consumir(uuid, numeric, uuid, uuid, timestamptz, date)', 'EXECUTE')
     AND NOT has_function_privilege('anon', 'public.cup_consumir(uuid, numeric, uuid, uuid, timestamptz, date)', 'EXECUTE')
     AND NOT has_function_privilege('authenticated', 'public.cup_devolver(uuid, uuid)', 'EXECUTE')

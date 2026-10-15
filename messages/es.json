@@ -2672,6 +2672,16 @@
       "rate": "Tasa (CUP por USDT)",
       "note": "Nota (opcional)"
     },
+    "movements": {
+      "title": "Movimientos de hoy",
+      "empty": "Sin movimientos hoy",
+      "time": "Hora",
+      "amount": "Monto (CUP)",
+      "rate": "Tasa del lote",
+      "destination": "Usado en",
+      "operation": "Operación",
+      "manual": "Línea manual"
+    },
     "actions": {
       "save": "Guardar",
       "cancel": "Cancelar",

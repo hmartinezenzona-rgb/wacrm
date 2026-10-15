@@ -111,6 +111,39 @@ export function CardPanel({ card, isFirst, isLast, onMove, onEdit, onLoadLot, on
           </Table>
         )}
       </div>
+
+      <div className="flex flex-col gap-2">
+        <h3 className="text-muted-foreground text-xs font-medium">{t("movements.title")}</h3>
+        {card.consumptionsToday.length === 0 ? (
+          <p className="text-muted-foreground text-sm">{t("movements.empty")}</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("movements.time")}</TableHead>
+                <TableHead className="text-right">{t("movements.amount")}</TableHead>
+                <TableHead className="text-right">{t("movements.rate")}</TableHead>
+                <TableHead>{t("movements.destination")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {card.consumptionsToday.map((move) => (
+                <TableRow key={move.id}>
+                  <TableCell className="tabular-nums">{format(new Date(move.consumedAt), "HH:mm")}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCup(move.amountCup)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatRate(move.lotRateCupPerUsdt)}</TableCell>
+                  <TableCell className="max-w-56 truncate">
+                    <span className="text-muted-foreground text-xs">
+                      {move.source === "manual" ? t("movements.manual") : t("movements.operation")}
+                    </span>{" "}
+                    {move.customerName}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </div>
     </section>
   );
 }

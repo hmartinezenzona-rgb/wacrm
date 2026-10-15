@@ -12,6 +12,20 @@ export interface InventoryLot {
   editable: boolean;
 }
 
+/** One take of CUP from a lot, today (Cuba day): by a completed operation or a manual line. */
+export interface InventoryConsumption {
+  id: string;
+  consumedAt: string;
+  amountCup: number;
+  lotId: string;
+  lotRateCupPerUsdt: number;
+  operationId: string | null;
+  entryId: string | null;
+  /** 'completed_operation' (chat) or 'manual'; null when the entry is unknown. */
+  source: string | null;
+  customerName: string | null;
+}
+
 export interface InventoryCard {
   id: string;
   name: string;
@@ -24,6 +38,8 @@ export interface InventoryCard {
   remainingLimitTodayCup: number;
   /** FIFO: oldest first. */
   lots: InventoryLot[];
+  /** Today's movements (Cuba day), newest first. */
+  consumptionsToday: InventoryConsumption[];
 }
 
 export interface InventoryReport {
@@ -50,6 +66,20 @@ export function mapLot(row: Row): InventoryLot {
   };
 }
 
+export function mapConsumption(row: Row): InventoryConsumption {
+  return {
+    id: String(row.id),
+    consumedAt: String(row.consumed_at),
+    amountCup: num(row.amount_cup),
+    lotId: String(row.lot_id),
+    lotRateCupPerUsdt: num(row.lot_rate_cup_per_usdt),
+    operationId: (row.operation_id as string | null | undefined) ?? null,
+    entryId: (row.entry_id as string | null | undefined) ?? null,
+    source: (row.source as string | null | undefined) ?? null,
+    customerName: (row.customer_name as string | null | undefined) ?? null,
+  };
+}
+
 export function mapCard(row: Row): InventoryCard {
   return {
     id: String(row.id),
@@ -62,6 +92,7 @@ export function mapCard(row: Row): InventoryCard {
     usedTodayCup: num(row.used_today_cup),
     remainingLimitTodayCup: num(row.remaining_limit_today_cup),
     lots: Array.isArray(row.lots) ? (row.lots as Row[]).map(mapLot) : [],
+    consumptionsToday: Array.isArray(row.consumptions_today) ? (row.consumptions_today as Row[]).map(mapConsumption) : [],
   };
 }
 

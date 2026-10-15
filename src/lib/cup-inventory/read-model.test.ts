@@ -24,6 +24,30 @@ const CARD_ROW = {
   used_today_cup: 0,
   remaining_limit_today_cup: "120000",
   lots: [LOT_ROW],
+  consumptions_today: [
+    {
+      id: "k-1",
+      consumed_at: "2026-10-14T15:30:00Z",
+      amount_cup: "50000",
+      lot_id: "lot-1",
+      lot_rate_cup_per_usdt: "960",
+      operation_id: "op-1",
+      entry_id: "entry-1",
+      source: "completed_operation",
+      customer_name: "Cliente Uno",
+    },
+    {
+      id: "k-2",
+      consumed_at: "2026-10-14T16:00:00Z",
+      amount_cup: 15000,
+      lot_id: "lot-1",
+      lot_rate_cup_per_usdt: 960,
+      operation_id: null,
+      entry_id: "entry-2",
+      source: "manual",
+      customer_name: null,
+    },
+  ],
 };
 
 describe("mapLot", () => {
@@ -62,6 +86,38 @@ describe("mapCard", () => {
     });
     expect(card.lots).toHaveLength(1);
     expect(card.lots[0].rateCupPerUsdt).toBe(960);
+  });
+
+  it("maps today's consumptions with time, amount, lot rate, source and customer", () => {
+    const { consumptionsToday } = mapCard(CARD_ROW);
+    expect(consumptionsToday).toEqual([
+      {
+        id: "k-1",
+        consumedAt: "2026-10-14T15:30:00Z",
+        amountCup: 50000,
+        lotId: "lot-1",
+        lotRateCupPerUsdt: 960,
+        operationId: "op-1",
+        entryId: "entry-1",
+        source: "completed_operation",
+        customerName: "Cliente Uno",
+      },
+      {
+        id: "k-2",
+        consumedAt: "2026-10-14T16:00:00Z",
+        amountCup: 15000,
+        lotId: "lot-1",
+        lotRateCupPerUsdt: 960,
+        operationId: null,
+        entryId: "entry-2",
+        source: "manual",
+        customerName: null,
+      },
+    ]);
+  });
+
+  it("a card from an older report without consumptions has none", () => {
+    expect(mapCard({ ...CARD_ROW, consumptions_today: undefined }).consumptionsToday).toEqual([]);
   });
 
   it("tolerates a card without lots and without last4", () => {

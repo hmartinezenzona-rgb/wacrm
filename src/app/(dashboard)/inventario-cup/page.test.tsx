@@ -5,6 +5,7 @@
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { format } from "date-fns";
 import en from "../../../../messages/en.json";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -32,7 +33,7 @@ const lot = (over: Record<string, unknown> = {}) => ({
 });
 const card = (over: Record<string, unknown> = {}) => ({
   id: "card-a", name: "Tarjeta A", last4: "1234", priority: 1, active: true, dailyLimitCup: 120000, balanceCup: 500000,
-  usedTodayCup: 0, remainingLimitTodayCup: 120000, lots: [lot()], ...over,
+  usedTodayCup: 0, remainingLimitTodayCup: 120000, lots: [lot()], consumptionsToday: [], ...over,
 });
 const REPORT = {
   cubaDay: "2026-10-14",
@@ -89,6 +90,37 @@ describe("Inventario CUP page", () => {
     expect(text).toContain("compra A");
     expect(text).toContain("14/10/2026");
     expect(text).toContain(t.card.remainingToday);
+  });
+
+  it("lists today's movements of each card with time, amount, rate and where the CUP went", async () => {
+    const movements = [
+      { id: "k-2", consumedAt: "2026-10-14T16:00:00Z", amountCup: 15000, lotId: "lot-a", lotRateCupPerUsdt: 960, operationId: null, entryId: "e-2", source: "manual", customerName: "Marlene" },
+      { id: "k-1", consumedAt: "2026-10-14T15:30:00Z", amountCup: 50000, lotId: "lot-a", lotRateCupPerUsdt: 960, operationId: "op-1", entryId: "e-1", source: "completed_operation", customerName: "Cliente Uno" },
+    ];
+    fetchMock.mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ ...REPORT, cards: [card({ usedTodayCup: 65000, consumptionsToday: movements })] }),
+    }));
+    const node = await mount();
+    const text = node.textContent ?? "";
+
+    expect(text).toContain(t.movements.title);
+    expect(text).toContain("Cliente Uno");
+    expect(text).toContain("Marlene");
+    expect(text).toContain(`50${NBSP}000`);
+    expect(text).toContain(`15${NBSP}000`);
+    expect(text).toContain(format(new Date("2026-10-14T15:30:00Z"), "HH:mm"));
+    expect(text).toContain(t.movements.operation);
+    expect(text).toContain(t.movements.manual);
+    // newest first, as the RPC returns them
+    expect(text.indexOf("Marlene")).toBeLessThan(text.indexOf("Cliente Uno"));
+    expect(text).not.toContain(t.movements.empty);
+  });
+
+  it("a card with no movements today says so", async () => {
+    const node = await mount();
+    expect(node.textContent).toContain(t.movements.empty);
   });
 
   it("moving the first card down saves the two changed priorities", async () => {

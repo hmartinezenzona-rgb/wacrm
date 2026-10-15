@@ -2672,6 +2672,16 @@
       "rate": "Rate (CUP per USDT)",
       "note": "Note (optional)"
     },
+    "movements": {
+      "title": "Today's movements",
+      "empty": "No movements today",
+      "time": "Time",
+      "amount": "Amount (CUP)",
+      "rate": "Lot rate",
+      "destination": "Used for",
+      "operation": "Operation",
+      "manual": "Manual line"
+    },
     "actions": {
       "save": "Save",
       "cancel": "Cancel",

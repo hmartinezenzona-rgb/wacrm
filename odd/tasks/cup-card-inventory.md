@@ -78,7 +78,7 @@ Rules (owner decisions above) + Claude defaults stated to the owner 2026-10-15:
 - [x] T6 Migration 240: consume/return functions, hooks in feed + manual registration + void paths, alert; rollback;
       staging assertion (b71f3cd; SQL NOT run, pending staging run in T8)
 - [x] T7 Page shows consumptions per lot/card (used today real) + API/read model + tests (de53cb9)
-- [ ] T8 Staging apply + deploy + owner check (240 applied, assertion green, deployed e16953e + demo data on staging 2026-10-15; WAITING FOR THE OWNER'S CHECK, do not tick until he confirms)
+- [x] T8 Staging apply + deploy + owner check (240 applied, assertion green, deployed e16953e + demo data on staging 2026-10-15; owner saw the movements 2026-10-15)
 - [ ] T9 Production (needs go-ahead; owner confirms real balances first)
 
 ### Phase 3: delivery panel (owner go-ahead 2026-10-15)
@@ -95,7 +95,7 @@ card has limit, the panel only WARNS and still lets the operator complete.
       RPC for the panel (plan for an operation + consumptions of a completed one); rollback; staging assertion
       (20ba4db; SQL NOT run, pending staging run in T12)
 - [x] T11 Panel UI in the CUP delivery sections + API + tests (1bc6568)
-- [ ] T12 Staging apply + deploy + owner check (241 applied, both assertions green, deployed d529d75 + demo plan on staging 2026-10-15; WAITING FOR THE OWNER'S CHECK, do not tick until he confirms)
+- [x] T12 Staging apply + deploy + owner check (241 applied, both assertions green, deployed d529d75 + demo plan on staging 2026-10-15; owner saw the plan in the panel 2026-10-15 after the demo op was completed with destination currency/amount/contact and beneficiary card + phone)
 - [ ] T13 Production together with phase 2 (needs go-ahead; owner confirms real balances first)
 
 ## Acceptance criteria (phase 1)

@@ -23,6 +23,7 @@ import { BeneficiaryReassignControl } from "./beneficiary-reassign-control";
 import { ComboBeneficiaryEditFields } from "./combo-beneficiary-edit-fields";
 import { ComboCostField } from "./combo-cost-field";
 import { CompleteTransferContainer } from "./complete-transfer-container";
+import { CupPlanBlock } from "./cup-plan-block";
 import { CopyChip } from "./copy-chip";
 import { DepositReviewContainer } from "./deposit-review-container";
 import type { SummaryAmount } from "./deposit-review-section";
@@ -804,6 +805,8 @@ export function RemittanceOperationCard({
               onSaved={onChanged}
             />
           )}
+
+          {operation.status === "completed" && <CupPlanBlock operationId={operation.id} />}
 
           {showCompleteTransfer &&
             (openForm?.kind === "complete" ? (

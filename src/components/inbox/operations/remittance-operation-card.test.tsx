@@ -107,6 +107,10 @@ vi.mock("./complete-transfer-container", () => ({
   CompleteTransferContainer: (props: unknown) => CompleteTransferContainer(props as never),
 }));
 
+vi.mock("./cup-plan-block", () => ({
+  CupPlanBlock: ({ operationId }: { operationId: string }) => <div data-testid="cup-plan-stub" data-operation={operationId} />,
+}));
+
 vi.mock("./deposit-review-container", () => ({
   DepositReviewContainer: ({
     operationId,
@@ -838,6 +842,16 @@ describe("RemittanceOperationCard", () => {
 
     expect(button(node, en.Inbox.operationsPanel.editOperation)).toBeNull();
     await act(async () => root.unmount());
+  });
+
+  it("shows the CUP inventory block (what the CUP left from) on a completed operation, and not on an open one", async () => {
+    const done = await render(operation({ status: "completed" as RemittanceOperationStatus, id: "op-done" }));
+    expect(done.node.querySelector('[data-testid="cup-plan-stub"]')?.getAttribute("data-operation")).toBe("op-done");
+    await act(async () => done.root.unmount());
+
+    const open = await render(operation({ status: "verified" as RemittanceOperationStatus }));
+    expect(open.node.querySelector('[data-testid="cup-plan-stub"]')).toBeNull();
+    await act(async () => open.root.unmount());
   });
 
   it("hides the edit-operation affordance when the operation status is terminal", async () => {

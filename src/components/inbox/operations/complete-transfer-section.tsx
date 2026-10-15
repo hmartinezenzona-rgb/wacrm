@@ -7,6 +7,7 @@
 // owns the draft, the network calls, and the `deliverDeal` run.
 // ============================================================
 
+import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { ConfirmCancelButtons, cancelOnEscape } from "./confirm-cancel-buttons";
@@ -47,6 +48,8 @@ export interface CompleteTransferSectionProps {
   /** Notify-customer bell; rendered only when `onNotifyChange` is given. */
   notify?: boolean;
   onNotifyChange?: (notify: boolean) => void;
+  /** Optional block under the title (the CUP inventory plan); the section never depends on it. */
+  extra?: ReactNode;
 }
 
 export function CompleteTransferSection({
@@ -67,6 +70,7 @@ export function CompleteTransferSection({
   onSubmit,
   notify = true,
   onNotifyChange,
+  extra,
 }: CompleteTransferSectionProps) {
   const t = useTranslations("Inbox.operationsPanel.completeTransfer");
   const tCommon = useTranslations("Inbox.operationsPanel");
@@ -81,6 +85,8 @@ export function CompleteTransferSection({
       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
         {t("title")}
       </p>
+
+      {extra}
 
       <DeliveryProofPanel
         file={file}

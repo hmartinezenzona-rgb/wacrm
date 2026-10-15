@@ -14,6 +14,7 @@
 // owns the per-beneficiary drafts and the send/register/deliver run.
 // ============================================================
 
+import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { ConfirmCancelButtons, cancelOnEscape } from "./confirm-cancel-buttons";
@@ -59,6 +60,8 @@ export interface CompleteTransferMultiSectionProps {
   /** Notify-customer bell; rendered only when `onNotifyChange` is given. */
   notify?: boolean;
   onNotifyChange?: (notify: boolean) => void;
+  /** Optional block under the title (the CUP inventory plan); the section never depends on it. */
+  extra?: ReactNode;
 }
 
 export function CompleteTransferMultiSection({
@@ -73,6 +76,7 @@ export function CompleteTransferMultiSection({
   onSubmit,
   notify = true,
   onNotifyChange,
+  extra,
 }: CompleteTransferMultiSectionProps) {
   const t = useTranslations("Inbox.operationsPanel.completeTransfer");
   const tCommon = useTranslations("Inbox.operationsPanel");
@@ -87,6 +91,8 @@ export function CompleteTransferMultiSection({
       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
         {t("title")}
       </p>
+
+      {extra}
 
       <div className="space-y-3">
         {items.map((item) => (

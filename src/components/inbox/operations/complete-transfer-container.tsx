@@ -52,6 +52,7 @@ import { deliverOperation, registerBeneficiaryProof } from "@/lib/remittance-ope
 import { evidenceToRpc } from "@/lib/remittance-operations/delivery";
 import type { ConversationOperationsRead } from "@/lib/remittance-operations/types";
 import { CompleteTransferSection, type CompleteTransferBanner } from "./complete-transfer-section";
+import { CupPlanBlock } from "./cup-plan-block";
 import { CompleteTransferMultiSection, type CompleteTransferProofItem } from "./complete-transfer-multi-section";
 
 /** A current beneficiary, as far as this container needs to know: which
@@ -629,6 +630,7 @@ export function CompleteTransferContainer({
         onSubmit={() => void (skipChecked ? run({ skip: true }) : runMulti())}
         notify={notify}
         onNotifyChange={setNotify}
+        extra={<CupPlanBlock operationId={operationId} />}
       />
     );
   }
@@ -652,6 +654,7 @@ export function CompleteTransferContainer({
       onSubmit={() => void run({ skip: skipChecked })}
       notify={notify}
       onNotifyChange={setNotify}
+      extra={<CupPlanBlock operationId={operationId} />}
     />
   );
 }

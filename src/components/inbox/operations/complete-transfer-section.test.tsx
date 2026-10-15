@@ -110,3 +110,12 @@ describe("CompleteTransferSection confirms with icons (owner, 2026-10-03)", () =
     await act(async () => root.unmount());
   });
 });
+
+describe("CompleteTransferSection extra slot", () => {
+  it("renders the extra block under the title, and nothing when it is absent", async () => {
+    const withExtra = await render({ extra: <div data-testid="extra-block">plan</div> });
+    expect(withExtra.node.querySelector('[data-testid="extra-block"]')).not.toBeNull();
+    const without = await render();
+    expect(without.node.querySelector('[data-testid="extra-block"]')).toBeNull();
+  });
+});

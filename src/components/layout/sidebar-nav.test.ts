@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 import en from "../../../messages/en.json";
+import es from "../../../messages/es.json";
 import { navItems } from "./sidebar";
 
 describe("sidebar navigation", () => {
@@ -20,5 +21,14 @@ describe("sidebar navigation", () => {
     const item = navItems.find((i) => i.href === "/tablero")!;
     expect((en.Sidebar as Record<string, string>)[item.labelKey]).toBe("Operations board");
     expect(Object.keys(item).sort()).toEqual(["href", "icon", "labelKey"]);
+  });
+
+  it("links the CUP inventory for owner/admin only, with es and en labels", () => {
+    const item = navItems.find((i) => i.href === "/inventario-cup")!;
+    expect(item).toBeDefined();
+    expect(item.capability).toBe("manage-cup-inventory");
+    expect(item.icon).toBeDefined();
+    expect((es.Sidebar as Record<string, string>)[item.labelKey]).toBe("Inventario CUP");
+    expect((en.Sidebar as Record<string, string>)[item.labelKey]).toBe("CUP inventory");
   });
 });

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { useCan, type CanAction } from "@/hooks/use-can";
 import { useTotalUnread } from "@/hooks/use-total-unread";
 import { useUnreadNotifications } from "@/hooks/use-unread-notifications";
 import {
@@ -12,6 +13,7 @@ import {
   Bell,
   Bot,
   Columns3,
+  CreditCard,
   Crown,
   LayoutDashboard,
   LineChart,
@@ -90,6 +92,8 @@ interface NavItem {
    * Purely informational — doesn't affect routing or access.
    */
   beta?: boolean;
+  /** When set, the row only shows for roles that hold this capability (the page and its API enforce it too). */
+  capability?: CanAction;
 }
 
 export const navItems: NavItem[] = [
@@ -99,6 +103,7 @@ export const navItems: NavItem[] = [
   { href: "/contacts", labelKey: "contacts", icon: Users },
   { href: "/resumen", labelKey: "resumen", icon: BarChart3 },
   { href: "/calculadora", labelKey: "controlSemanal", icon: LineChart },
+  { href: "/inventario-cup", labelKey: "cupInventory", icon: CreditCard, capability: "manage-cup-inventory" },
   { href: "/tablero", labelKey: "tablero", icon: Columns3 },
   { href: "/broadcasts", labelKey: "broadcasts", icon: Radio },
   { href: "/automations", labelKey: "automations", icon: Zap },
@@ -122,6 +127,10 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const t = useTranslations("Sidebar");
   const pathname = usePathname();
   const { profile, profileLoading, account, accountRole, signOut } = useAuth();
+  const canManageCupInventory = useCan("manage-cup-inventory");
+  const visibleNavItems = navItems.filter(
+    (item) => item.capability !== "manage-cup-inventory" || canManageCupInventory,
+  );
   const totalUnread = useTotalUnread();
   const unreadNotifications = useUnreadNotifications();
   // Only surface the account-name strip when it actually carries
@@ -214,7 +223,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         {/* Main navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           <ul className="flex flex-col gap-1">
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const isActive =
                 pathname === item.href ||
                 (item.href !== "/dashboard" && pathname.startsWith(item.href));

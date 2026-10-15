@@ -41,6 +41,7 @@
     "menuSignOut": "Cerrar sesión",
     "resumen": "Finanzas",
     "controlSemanal": "Control Semanal",
+    "cupInventory": "Inventario CUP",
     "tablero": "Tablero de operaciones",
     "primaryNavLabel": "Principal"
   },
@@ -2617,5 +2618,78 @@
     "mexico": "México",
     "mixed": "Remesa mixta",
     "remesa": "Remesa"
+  },
+  "CupInventory": {
+    "title": "Inventario CUP",
+    "description": "Tus tarjetas de envío, los lotes de CUP cargados en cada una y cuánto límite diario les queda. Solo administradores.",
+    "cubaDay": "Hoy en Cuba: {date}",
+    "cubaDayHint": "El límite diario se renueva a medianoche de Cuba.",
+    "loading": "Cargando inventario...",
+    "loadError": "No se pudo cargar el inventario.",
+    "forbidden": "Solo los administradores pueden ver el inventario de CUP.",
+    "empty": "Aún no hay tarjetas",
+    "emptyHint": "Crea la primera tarjeta y carga los lotes de CUP que tiene.",
+    "newCard": "Nueva tarjeta",
+    "showInactive": "Mostrar tarjetas inactivas",
+    "card": {
+      "inactive": "Inactiva",
+      "priority": "Prioridad {n}",
+      "balance": "Saldo",
+      "dailyLimit": "Límite diario",
+      "usedToday": "Usado hoy",
+      "remainingToday": "Límite restante hoy",
+      "moveUp": "Subir prioridad",
+      "moveDown": "Bajar prioridad",
+      "edit": "Editar tarjeta",
+      "loadLot": "Cargar lote"
+    },
+    "lots": {
+      "title": "Lotes (el más antiguo se usa primero)",
+      "empty": "Sin lotes con saldo",
+      "loadedAt": "Cargado",
+      "amount": "Monto (CUP)",
+      "remaining": "Restante (CUP)",
+      "rate": "Tasa (CUP por USDT)",
+      "note": "Nota",
+      "consumed": "Ya se usó parte: no se puede editar",
+      "edit": "Editar lote",
+      "delete": "Eliminar lote",
+      "confirmDelete": "¿Eliminar este lote? Solo es posible mientras no se haya usado."
+    },
+    "cardForm": {
+      "titleNew": "Nueva tarjeta",
+      "titleEdit": "Editar tarjeta",
+      "name": "Nombre",
+      "last4": "Últimos 4 dígitos (opcional)",
+      "dailyLimit": "Límite diario (CUP)",
+      "active": "Tarjeta activa"
+    },
+    "lotForm": {
+      "titleNew": "Cargar lote en {card}",
+      "titleEdit": "Editar lote de {card}",
+      "amount": "Monto (CUP)",
+      "rate": "Tasa (CUP por USDT)",
+      "note": "Nota (opcional)"
+    },
+    "actions": {
+      "save": "Guardar",
+      "cancel": "Cancelar",
+      "saving": "Guardando..."
+    },
+    "errors": {
+      "nameRequired": "Escribe el nombre de la tarjeta.",
+      "nameTooLong": "El nombre admite hasta 60 caracteres.",
+      "invalidLast4": "Escribe exactamente 4 dígitos o déjalo vacío.",
+      "invalidLimit": "Escribe un límite diario mayor que cero.",
+      "invalidAmount": "Escribe un monto mayor que cero.",
+      "invalidRate": "Escribe una tasa mayor que cero.",
+      "noteTooLong": "La nota admite hasta 500 caracteres.",
+      "saveError": "No se pudo guardar."
+    },
+    "toasts": {
+      "cardSaved": "Tarjeta guardada",
+      "lotSaved": "Lote guardado",
+      "lotDeleted": "Lote eliminado"
+    }
   }
 }

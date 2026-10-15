@@ -5,6 +5,7 @@ import {
   canDeleteAccount,
   canEditSettings,
   canExportContacts,
+  canManageCupInventory,
   canManageMembers,
   canSendMessages,
   canTransferOwnership,
@@ -24,7 +25,8 @@ export type CanAction =
   | "view-only"
   | "delete-account"
   | "transfer-ownership"
-  | "export-contacts";
+  | "export-contacts"
+  | "manage-cup-inventory";
 
 /**
  * Inline alternative to `<RequireRole>` for places that need a
@@ -58,6 +60,8 @@ export function useCan(action: CanAction): boolean {
       return canTransferOwnership(accountRole);
     case "export-contacts":
       return canExportContacts(accountRole);
+    case "manage-cup-inventory":
+      return canManageCupInventory(accountRole);
     default: {
       // Exhaustiveness check — adding a new `CanAction` without a
       // case here fails the typecheck because TS narrows `action`

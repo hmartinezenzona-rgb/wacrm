@@ -41,6 +41,7 @@
     "menuSignOut": "Sign out",
     "resumen": "Finances",
     "controlSemanal": "Control Semanal",
+    "cupInventory": "CUP inventory",
     "tablero": "Operations board",
     "primaryNavLabel": "Primary"
   },
@@ -2617,5 +2618,78 @@
     "mexico": "Mexico",
     "mixed": "Mixed remittance",
     "remesa": "Remittance"
+  },
+  "CupInventory": {
+    "title": "CUP inventory",
+    "description": "Your sending cards, the CUP lots loaded on each, and how much of the daily limit is left. Admins only.",
+    "cubaDay": "Today in Cuba: {date}",
+    "cubaDayHint": "The daily limit resets at midnight Cuba time.",
+    "loading": "Loading inventory...",
+    "loadError": "Could not load the inventory.",
+    "forbidden": "Only admins can see the CUP inventory.",
+    "empty": "No cards yet",
+    "emptyHint": "Create the first card and load the CUP lots it holds.",
+    "newCard": "New card",
+    "showInactive": "Show inactive cards",
+    "card": {
+      "inactive": "Inactive",
+      "priority": "Priority {n}",
+      "balance": "Balance",
+      "dailyLimit": "Daily limit",
+      "usedToday": "Used today",
+      "remainingToday": "Limit left today",
+      "moveUp": "Raise priority",
+      "moveDown": "Lower priority",
+      "edit": "Edit card",
+      "loadLot": "Load lot"
+    },
+    "lots": {
+      "title": "Lots (oldest is used first)",
+      "empty": "No lots with balance",
+      "loadedAt": "Loaded",
+      "amount": "Amount (CUP)",
+      "remaining": "Remaining (CUP)",
+      "rate": "Rate (CUP per USDT)",
+      "note": "Note",
+      "consumed": "Partly used already: it cannot be edited",
+      "edit": "Edit lot",
+      "delete": "Delete lot",
+      "confirmDelete": "Delete this lot? This is only possible while nothing was used from it."
+    },
+    "cardForm": {
+      "titleNew": "New card",
+      "titleEdit": "Edit card",
+      "name": "Name",
+      "last4": "Last 4 digits (optional)",
+      "dailyLimit": "Daily limit (CUP)",
+      "active": "Active card"
+    },
+    "lotForm": {
+      "titleNew": "Load a lot on {card}",
+      "titleEdit": "Edit a lot of {card}",
+      "amount": "Amount (CUP)",
+      "rate": "Rate (CUP per USDT)",
+      "note": "Note (optional)"
+    },
+    "actions": {
+      "save": "Save",
+      "cancel": "Cancel",
+      "saving": "Saving..."
+    },
+    "errors": {
+      "nameRequired": "Enter the card name.",
+      "nameTooLong": "The name allows up to 60 characters.",
+      "invalidLast4": "Enter exactly 4 digits or leave it empty.",
+      "invalidLimit": "Enter a daily limit greater than zero.",
+      "invalidAmount": "Enter an amount greater than zero.",
+      "invalidRate": "Enter a rate greater than zero.",
+      "noteTooLong": "The note allows up to 500 characters.",
+      "saveError": "Could not save."
+    },
+    "toasts": {
+      "cardSaved": "Card saved",
+      "lotSaved": "Lot saved",
+      "lotDeleted": "Lot deleted"
+    }
   }
 }

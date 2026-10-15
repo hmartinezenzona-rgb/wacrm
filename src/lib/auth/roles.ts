@@ -111,6 +111,11 @@ export function canExportContacts(role: AccountRole): boolean {
   return hasMinRole(role, "admin");
 }
 
+/** Owner / admin: manage the CUP inventory (sending cards and the lots loaded on them). */
+export function canManageCupInventory(role: AccountRole): boolean {
+  return hasMinRole(role, "admin");
+}
+
 /** Owner only: irreversible destructive operations. */
 export function canDeleteAccount(role: AccountRole): boolean {
   return role === "owner";

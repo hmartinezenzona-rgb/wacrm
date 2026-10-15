@@ -4,6 +4,7 @@ import {
   type AccountRole,
   canDeleteAccount,
   canExportContacts,
+  canManageCupInventory,
   canEditSettings,
   canForceVerify,
   canManageMembers,
@@ -135,6 +136,13 @@ describe("capability predicates", () => {
     expect(canForceVerify("admin")).toBe(true);
     expect(canForceVerify("agent")).toBe(false);
     expect(canForceVerify("viewer")).toBe(false);
+  });
+
+  it("canManageCupInventory: admin+ only", () => {
+    expect(canManageCupInventory("owner")).toBe(true);
+    expect(canManageCupInventory("admin")).toBe(true);
+    expect(canManageCupInventory("agent")).toBe(false);
+    expect(canManageCupInventory("viewer")).toBe(false);
   });
 
   it("canExportContacts: admin+ only", () => {

@@ -248,5 +248,7 @@ COMMIT;
     pm2 wacrm-staging online, /proc cwd = the release, /login 200. prod-build restored to b6f1a1c, env copy deleted. UI only, no DB change.
     Rollback: ln -sfn ~/wacrm-releases/1c2419dce18238505c108da717edc5c43ac51638 current + pm2 restart wacrm-staging --update-env.
 
+- 2026-10-15: owner approved the one-line panel block on staging (e80f236): "quedó bien".
+
 ## Next step
 T12 is deployed on staging: the owner checks the delivery panel on operation 008deb15 (ready_to_transfer). T8/T9/T13 wait on the owner's check and real balances.

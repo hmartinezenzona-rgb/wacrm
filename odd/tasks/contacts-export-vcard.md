@@ -32,8 +32,8 @@ un grupo."
 ## Tasks
 - [x] T1 src/lib/contacts/export-contacts.ts (vCard builder, prefix, phone format, file name) + tests (a07c725)
 - [x] T2 Contacts page: admin-only Exportar button + dialog + batched fetch of the filtered set + i18n es/en (94207d4)
-- [ ] T3 Staging deploy + owner check (deployed to staging 2026-10-14, waiting for owner check)
-- [ ] T4 Production (needs go-ahead)
+- [x] T3 Staging deploy + owner check (deployed to staging 2026-10-14; owner tested on staging 2026-10-14)
+- [x] T4 Production (owner go-ahead 2026-10-14 "probado en staging, pasalo a produccion"; done 2026-10-14, evidence below)
 
 ## Acceptance criteria
 - Tag "Nuevos" selected -> only those contacts exported, all of them (not just the visible page).
@@ -53,5 +53,10 @@ un grupo."
     Rollback: current -> 037c366a8e72040453ad0b3a6b1e8fc80749f5d4 and pm2 restart wacrm-staging --update-env.
   - Staging tags of the owner account (read-only): Nuevo 2, Recurrentes 1, Admin 0, Cliente 0 (3 contacts in total). Try "Nuevo".
 
+- 2026-10-14 T4 production (app only, no migration):
+  - Release 97ae254ab8a8bd7bd53e06e668b834a22b382469 (code identical to staging 7e62096 plus docs), BUILD_ID xVXl-gGpioH2EPSND4Mz1. Built in docker node:20 uid 1000 from prod-build (production build env read from mejora-legacy, no env copy created; .git of the main checkout mounted read-only; NEXT_PRIVATE_OUTPUT_TRACE_ROOT=$PWD), with tests (114 passed). Manifest production, ref hqztotshnlzaiziwjyzh, 0 staging refs (kolppplawzdsjfydwejr), sha256 ok.
+  - Deployed with desplegar-wacrm-produccion.sh: pm2 wacrm online (restarts 40, unstable 0, same pid after 20 s), /proc cwd = the release, domain serves the BUILD_ID, /login 200.
+    Rollback: anterior -> 16b64366e61919d90ea271c32a355a2254af81cf (rollback-wacrm-produccion.sh). prod-build left at 97ae254.
+
 ## Next step
-Owner checks the Exportar button on staging (admin sees it; tag "Nuevo"; import the .vcf on the phone). Production (T4) only with go-ahead.
+Owner checks the Exportar button in production (admin only).

@@ -54,9 +54,9 @@ Claude defaults (stated to the owner):
 - RDD off.
 
 ## Tasks
-- [ ] T1 Migration 239 tables + RPCs + rollback + staging assertion
-- [ ] T2 API routes + tests
-- [ ] T3 "Inventario CUP" admin page + sidebar + i18n (+ tests for pure logic)
+- [x] T1 Migration 239 tables + RPCs + rollback + staging assertion (07b3fda; SQL NOT run, pending staging run in T4)
+- [x] T2 API routes + tests (fcf8040)
+- [x] T3 "Inventario CUP" admin page + sidebar + i18n (+ tests for pure logic) (7310a83)
 - [ ] T4 Staging apply + deploy + owner check (needs authorization)
 - [ ] T5 Production (needs go-ahead)
 - [ ] Phase 2 and 3: planned after phase 1 is in use
@@ -67,7 +67,12 @@ Claude defaults (stated to the owner):
 - Agents/viewers cannot see the page nor call the write RPCs.
 
 ## Progress / evidence
-- 2026-10-14: document created after design Q&A and exploration.
+- 2026-10-14: document created after design Q&A and exploration (16102fe).
+- 2026-10-14 T1-T3 done. T2/T3 strict TDD: RED observed (missing modules) then GREEN. Final: npx vitest on new files green
+  (routes+lib 100 tests, page+lib 95), npm test 201 files / 2724 tests pass, npx tsc --noEmit clean, eslint on changed dirs clean.
+  Migration 239 and assertion cup-card-inventory.sql were written without a SQL engine (psql unavailable): UNVERIFIED until T4.
+  Open choices made by default: report RPC is admin+ (not any member); lots fully consumed drop out of the report; inactive
+  cards hidden unless includeInactive=1; decimal parsing treats a lone "." + 3 digits as thousands (es habit).
 
 ## Next step
-T1.
+T4: apply 239 to staging and run the assertion (needs owner authorization), deploy, owner check.

@@ -59,7 +59,27 @@ Claude defaults (stated to the owner):
 - [x] T3 "Inventario CUP" admin page + sidebar + i18n (+ tests for pure logic) (7310a83)
 - [x] T4 Staging apply + deploy + owner check (239 applied, owner checked staging 2026-10-14; delete dialog fixed in 54a7831)
 - [x] T5 Production (owner go-ahead 2026-10-14 "pasalo a produccion"; done 2026-10-14, evidence below)
-- [ ] Phase 2 and 3: planned after phase 1 is in use
+- [x] Phase 2 and 3: planned after phase 1 is in use (phase 2 started 2026-10-15)
+
+### Phase 2: automatic deduction (owner go-ahead 2026-10-15 "podemos seguir con la fase 2")
+Owner loaded his real cards and lots in production but is not sure of their current balances: lots stay editable
+only while unconsumed, so balances must be confirmed BEFORE phase 2 reaches production.
+Rules (owner decisions above) + Claude defaults stated to the owner 2026-10-15:
+- Consume on CUP chat entry creation by calculator_feed_operation (op completed) and on manual CUP registration
+  (crm_registrar_entradas_manuales). One shared SQL function; advisory lock per account; Cuba day of the completion
+  time (manual line dated another day counts toward that day's limit).
+- Per card available = min(balance, daily_limit - used that Cuba day); cards by priority, lots FIFO; split.
+- CRM entries: cup_rate = amount / sum(part_cup / lot_rate) (exact invertido); manual entries keep the typed rate.
+- Insufficient inventory/limit: consume what is available, the rest uses the global rate, and an ALERT is raised
+  (existing notifications mechanism). Never silent, never blocks the completion (the feed trigger swallows errors:
+  a consumption failure must also alert).
+- Void (op leaves completed -> entry void, 104 trigger; entry delete 226): consumed CUP returns to its lots.
+- Manual rate edit (236-238) changes only that entry's profit; inventory untouched.
+- [ ] T6 Migration 240: consume/return functions, hooks in feed + manual registration + void paths, alert; rollback;
+      staging assertion
+- [ ] T7 Page shows consumptions per lot/card (used today real) + API/read model + tests
+- [ ] T8 Staging apply + deploy + owner check (needs authorization)
+- [ ] T9 Production (needs go-ahead; owner confirms real balances first)
 
 ## Acceptance criteria (phase 1)
 - Admin creates cards A (priority 1) and B (priority 2), loads 500,000 CUP at 960 on A and 250,000 at 1060 on B,

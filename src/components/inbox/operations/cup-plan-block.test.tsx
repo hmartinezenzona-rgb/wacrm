@@ -69,39 +69,59 @@ async function mount(node: React.ReactNode) {
   return host;
 }
 
+const norm = (s: string | null) => (s ?? "").replace(/\u202f/g, " ");
 const text = (host: HTMLElement) => (host.textContent ?? "").replace(/ /g, " ");
 
 describe("CupPlanView", () => {
-  it("before completion: titled as an estimate, one line per beneficiary and card (a straddling beneficiary has two)", async () => {
+  it("before completion: grouped by card, card header with total, indented beneficiary rows", async () => {
     const host = await mount(<CupPlanView read={mapCupPanel(PLAN)!} />);
     const t = text(host);
-    expect(t).toContain("Transfiere desde (estimado)");
-    expect(t).toContain("Ana — 100 000 CUP → Tarjeta A (…1111)");
-    expect(t).toContain("Beneficiario 2 — 20 000 CUP → Tarjeta A (…1111)");
-    expect(t).toContain("Beneficiario 2 — 30 000 CUP → Tarjeta B (…2222)");
+    expect(t).toContain("Transfiere desde · estimado");
+    const cards = [...host.querySelectorAll('[data-testid="cup-plan-card"]')].map((c) => norm(c.textContent));
+    expect(cards).toHaveLength(2);
+    expect(cards[0]).toContain("Tarjeta A");
+    expect(cards[0]).toContain("·1111");
+    expect(cards[0]).toContain("120 000 CUP");
+    expect(cards[0]).toContain("→ Ana");
+    expect(cards[0]).toContain("→ Beneficiario 2");
+    expect(cards[1]).toContain("Tarjeta B");
+    expect(cards[1]).toContain("30 000 CUP");
     expect(t).not.toContain("Faltan");
+    expect(host.querySelector("[role=status]")).toBeNull();
   });
 
-  it("warns, without a button or any blocking, when CUP is left without a card today", async () => {
+  it("warns, without a button or any blocking, with one line per beneficiary short of CUP", async () => {
     const short = mapCupPanel({
       ...PLAN,
-      missing_cup: 70000,
-      planned_cup: 80000,
-      beneficiaries: [{ ...PLAN.beneficiaries[0], amount_cup: 150000, missing_cup: 70000, lines: [line("A", "Tarjeta A", "1111", 80000, 960)] }],
+      missing_cup: 90000,
+      beneficiaries: [
+        { ...PLAN.beneficiaries[0], amount_cup: 150000, missing_cup: 70000, lines: [line("A", "Tarjeta A", "1111", 80000, 960)] },
+        { ...PLAN.beneficiaries[1], amount_cup: 50000, missing_cup: 20000, lines: [line("A", "Tarjeta A", "1111", 30000, 960)] },
+      ],
     })!;
     const host = await mount(<CupPlanView read={short} />);
-    expect(text(host)).toContain("Faltan 70 000 CUP sin tarjeta con límite hoy: queda para mañana");
-    expect(text(host)).toContain("Ana — 70 000 CUP → sin tarjeta con límite hoy");
+    const warn = host.querySelector("[role=status]");
+    expect(warn).not.toBeNull();
+    const w = norm(warn!.textContent);
+    expect(w).toContain("Faltan 70 000 CUP (Ana)");
+    expect(w).toContain("Faltan 20 000 CUP (Beneficiario 2)");
+    expect(w).toContain("Sin tarjeta con límite hoy · queda para mañana");
+    expect(w.match(/Sin tarjeta/g)).toHaveLength(1);
     expect(host.querySelector("button")).toBeNull();
   });
 
-  it("after completion: where it left from, with each lot's rate, and the resulting rate", async () => {
+  it("after completion: grouped by card with lot-rate rows, and the resulting rate at the bottom", async () => {
     const host = await mount(<CupPlanView read={mapCupPanel(DONE)!} />);
     const t = text(host);
     expect(t).toContain("Salió de");
-    expect(t).toContain("Tarjeta A (…1111) — 70 000 CUP (lote a 960)");
-    expect(t).toContain("Tarjeta B (…2222) — 30 000 CUP (lote a 1 060)");
-    expect(t).toContain("Tasa resultante: 987,96 CUP por USDT");
+    const cards = [...host.querySelectorAll('[data-testid="cup-used-card"]')].map((c) => norm(c.textContent));
+    expect(cards).toHaveLength(2);
+    expect(cards[0]).toContain("Tarjeta A");
+    expect(cards[0]).toContain("·1111");
+    expect(cards[0]).toContain("70 000 CUP");
+    expect(cards[0]).toContain("a 960 CUP/USDT");
+    expect(cards[1]).toContain("a 1 060 CUP/USDT");
+    expect(t).toContain("Tasa resultante: 987,96");
   });
 
   it("renders nothing for the empty states", async () => {
@@ -118,7 +138,7 @@ describe("CupPlanBlock", () => {
     vi.stubGlobal("fetch", fetchMock);
     const host = await mount(<CupPlanBlock operationId="op-1" />);
     expect(fetchMock).toHaveBeenCalledWith("/api/remittance-operations/op-1/cup-plan", expect.objectContaining({ cache: "no-store" }));
-    expect(text(host)).toContain("Ana — 100 000 CUP → Tarjeta A (…1111)");
+    expect(text(host)).toContain("→ Ana");
   });
 
   it("shows nothing (no error, no throw) when the request fails, answers an error or the network is down", async () => {

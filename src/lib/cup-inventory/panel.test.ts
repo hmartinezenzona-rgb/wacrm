@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildPlanLines,
-  buildUsedLines,
-  cardLabel,
+  groupConsumptionsByCard,
+  groupPlanByCard,
   mapCupPanel,
   visibleCupPanel,
   type CupPanelPlan,
@@ -43,14 +42,6 @@ const planPayload = {
   ],
 };
 
-describe("cardLabel", () => {
-  it("adds the last 4 digits when there are some", () => {
-    expect(cardLabel("Tarjeta A", "1111")).toBe("Tarjeta A (…1111)");
-    expect(cardLabel("Tarjeta B", null)).toBe("Tarjeta B");
-    expect(cardLabel("Tarjeta B", "")).toBe("Tarjeta B");
-  });
-});
-
 describe("mapCupPanel", () => {
   it("maps a plan to camelCase", () => {
     const read = mapCupPanel(planPayload) as CupPanelPlan;
@@ -84,19 +75,24 @@ describe("mapCupPanel", () => {
   });
 });
 
-describe("buildPlanLines", () => {
+describe("groupPlanByCard", () => {
   const plan = mapCupPanel(planPayload) as CupPanelPlan;
 
-  it("shows one line per card, so a beneficiary across two cards has two lines", () => {
-    const lines = buildPlanLines(plan);
-    expect(lines.map((l) => [l.position, l.beneficiary, l.amountText, l.card])).toEqual([
-      [1, "Ana", sp("100 000"), "Tarjeta A (…1111)"],
-      [2, null, sp("20 000"), "Tarjeta A (…1111)"],
-      [2, null, sp("30 000"), "Tarjeta B"],
+  it("groups by card in order of first appearance, with the card total and one row per beneficiary", () => {
+    const { cards, shortages } = groupPlanByCard(plan);
+    expect(cards.map((c) => [c.name, c.last4, c.totalText])).toEqual([
+      ["Tarjeta A", "1111", sp("120 000")],
+      ["Tarjeta B", null, sp("30 000")],
     ]);
+    expect(cards[0].rows.map((r) => [r.position, r.beneficiary, r.amountText])).toEqual([
+      [1, "Ana", sp("100 000")],
+      [2, null, sp("20 000")],
+    ]);
+    expect(cards[1].rows.map((r) => [r.position, r.beneficiary, r.amountText])).toEqual([[2, null, sp("30 000")]]);
+    expect(shortages).toEqual([]);
   });
 
-  it("merges two lots of the same card into one line", () => {
+  it("merges two lots of the same card and beneficiary into one row", () => {
     const merged = mapCupPanel({
       ...planPayload,
       beneficiaries: [
@@ -109,36 +105,44 @@ describe("buildPlanLines", () => {
         },
       ],
     }) as CupPanelPlan;
-    expect(buildPlanLines(merged).map((l) => l.amountText)).toEqual([sp("100 000")]);
+    const { cards } = groupPlanByCard(merged);
+    expect(cards).toHaveLength(1);
+    expect(cards[0].rows.map((r) => r.amountText)).toEqual([sp("100 000")]);
   });
 
-  it("adds a no-card line for the part of a beneficiary the plan could not place", () => {
+  it("lists one shortage per beneficiary with CUP missing", () => {
     const short = mapCupPanel({
       ...planPayload,
       missing_cup: 70000,
       beneficiaries: [{ ...planPayload.beneficiaries[0], amount_cup: 120000, missing_cup: 70000, lines: [{ ...planPayload.beneficiaries[0].lines[0], amount_cup: 50000 }] }],
     }) as CupPanelPlan;
-    const lines = buildPlanLines(short);
-    expect(lines).toHaveLength(2);
-    expect(lines[1]).toMatchObject({ card: null, amountText: sp("70 000") });
+    const { cards, shortages } = groupPlanByCard(short);
+    expect(cards[0].totalText).toBe(sp("50 000"));
+    expect(shortages.map((x) => [x.position, x.beneficiary, x.amountText])).toEqual([[1, "Ana", sp("70 000")]]);
   });
 });
 
-describe("buildUsedLines", () => {
-  it("lists card, amount and lot rate per consumption", () => {
+describe("groupConsumptionsByCard", () => {
+  it("groups the consumptions by card with its total and one row per lot rate", () => {
     const done = mapCupPanel({
       state: "completed",
       consumed_cup: 100000,
       cup_rate: 987.9612,
       lines: [
         { card_id: "A", card_name: "Tarjeta A", last4: "1111", lot_id: "l1", amount_cup: 70000, lot_rate: 960, consumed_at: "x" },
-        { card_id: "B", card_name: "Tarjeta B", last4: "2222", lot_id: "l2", amount_cup: 30000, lot_rate: 1060, consumed_at: "x" },
+        { card_id: "B", card_name: "Tarjeta B", last4: "2222", lot_id: "l2", amount_cup: 20000, lot_rate: 1060, consumed_at: "x" },
+        { card_id: "B", card_name: "Tarjeta B", last4: "2222", lot_id: "l3", amount_cup: 10000, lot_rate: 1070, consumed_at: "x" },
       ],
     });
     if (!done || done.state !== "completed") throw new Error("expected completed");
-    expect(buildUsedLines(done).map((l) => [l.card, l.amountText, l.rateText])).toEqual([
-      ["Tarjeta A (…1111)", sp("70 000"), "960"],
-      ["Tarjeta B (…2222)", sp("30 000"), sp("1 060")],
+    const cards = groupConsumptionsByCard(done);
+    expect(cards.map((c) => [c.name, c.last4, c.totalText])).toEqual([
+      ["Tarjeta A", "1111", sp("70 000")],
+      ["Tarjeta B", "2222", sp("30 000")],
+    ]);
+    expect(cards[1].rows.map((r) => [r.rateText, r.amountText])).toEqual([
+      [sp("1 060"), sp("20 000")],
+      [sp("1 070"), sp("10 000")],
     ]);
   });
 });

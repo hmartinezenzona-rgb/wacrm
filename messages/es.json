@@ -514,14 +514,15 @@
         }
       },
       "cupPlan": {
-        "planTitle": "Transfiere desde (estimado)",
+        "planTitle": "Transfiere desde · estimado",
         "usedTitle": "Salió de",
         "beneficiaryN": "Beneficiario {n}",
-        "planLine": "{beneficiary} — {amount} CUP → {card}",
-        "noCard": "sin tarjeta con límite hoy",
-        "missing": "Faltan {amount} CUP sin tarjeta con límite hoy: queda para mañana",
-        "usedLine": "{card} — {amount} CUP (lote a {rate})",
-        "resultingRate": "Tasa resultante: {rate} CUP por USDT"
+        "cardTotal": "{amount} CUP",
+        "beneficiaryRow": "→ {beneficiary}",
+        "missing": "⚠ Faltan {amount} CUP ({beneficiary})",
+        "missingNote": "Sin tarjeta con límite hoy · queda para mañana",
+        "lotRate": "a {rate} CUP/USDT",
+        "resultingRate": "Tasa resultante: {rate}"
       },
       "viewer": {
         "zoomOut": "Alejar",

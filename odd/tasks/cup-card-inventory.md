@@ -81,6 +81,22 @@ Rules (owner decisions above) + Claude defaults stated to the owner 2026-10-15:
 - [ ] T8 Staging apply + deploy + owner check (240 applied, assertion green, deployed e16953e + demo data on staging 2026-10-15; WAITING FOR THE OWNER'S CHECK, do not tick until he confirms)
 - [ ] T9 Production (needs go-ahead; owner confirms real balances first)
 
+### Phase 3: delivery panel (owner go-ahead 2026-10-15)
+Owner saw the movements on staging and asked that the chat panel of a CUP remesa show it. Owner decision: when no
+card has limit, the panel only WARNS and still lets the operator complete.
+- Before completion (ready_to_transfer / transferring CUP ops): "Transfiere desde" plan computed read-only with the
+  same algorithm as cup_consumir (priority, FIFO, limit of the Cuba day, split), segmented per beneficiary in
+  beneficiary order (same greedy fill as consuming the total). Labelled as an estimate: the real deduction happens
+  at completion.
+- Shortfall: "Faltan X CUP sin tarjeta con límite hoy: queda para mañana" warning; completion not blocked.
+- After completion: consumptions of the op's entries (card, lot rate, amount) and the resulting cup_rate.
+- Visible to the roles that already see/complete the operation panel; card names + last4 only.
+- [ ] T10 Migration 241: read-only plan function shared with cup_consumir (refactor so both use one allocator),
+      RPC for the panel (plan for an operation + consumptions of a completed one); rollback; staging assertion
+- [ ] T11 Panel UI in the CUP delivery sections + API + tests
+- [ ] T12 Staging apply + deploy + owner check (needs authorization)
+- [ ] T13 Production together with phase 2 (needs go-ahead; owner confirms real balances first)
+
 ## Acceptance criteria (phase 1)
 - Admin creates cards A (priority 1) and B (priority 2), loads 500,000 CUP at 960 on A and 250,000 at 1060 on B,
   sees balances and 120,000 remaining limit for today (Cuba day) on each.

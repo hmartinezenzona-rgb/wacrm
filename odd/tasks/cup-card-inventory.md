@@ -78,7 +78,7 @@ Rules (owner decisions above) + Claude defaults stated to the owner 2026-10-15:
 - [x] T6 Migration 240: consume/return functions, hooks in feed + manual registration + void paths, alert; rollback;
       staging assertion (b71f3cd; SQL NOT run, pending staging run in T8)
 - [x] T7 Page shows consumptions per lot/card (used today real) + API/read model + tests (de53cb9)
-- [ ] T8 Staging apply + deploy + owner check (needs authorization)
+- [ ] T8 Staging apply + deploy + owner check (240 applied, assertion green, deployed e16953e + demo data on staging 2026-10-15; WAITING FOR THE OWNER'S CHECK, do not tick until he confirms)
 - [ ] T9 Production (needs go-ahead; owner confirms real balances first)
 
 ## Acceptance criteria (phase 1)
@@ -149,6 +149,40 @@ COMMIT;
   - T7 strict TDD: RED 4 failed (read-model + page) then GREEN; npx vitest run (cup-inventory, page, api, i18n) 14 files / 151 tests pass;
     npm test 201 files / 2730 pass; tsc and eslint clean.
 
+- 2026-10-15 T8 staging run (owner-authorized, staging only kolppplawzdsjfydwejr; production, MCP, push untouched):
+  - Recon: schema_migrations top 239. md5(prosrc) on staging equals the 240 header for all six replaced functions (calculator_feed_operation 1a9b5bc1, crm_registrar_entradas_manuales 1390c523,
+    crm_eliminar_entrada_calculadora 497ed115, remittance_operations_calculator_feed 71ecdeaa, crm_inventario_cup a76c03d6, crm_resolve_pending_entry 51ceb370): no drift.
+    Snapshot: entries 42, facturado 1432712.3999999999930000, invertido 1238124.4998984162911480, retorno 194587.9001015837523520; one lot only (A 500000/500000) and 0 consumptions: the
+    phase 1 lot of PRUEBA Tarjeta B (14b0f9b2...) no longer existed (deleted by the owner during his phase 1 check).
+  - RED: assertion in BEGIN..ROLLBACK failed (FAILs, then ERROR function cup_consumir(...) does not exist).
+  - 240 applied (--single-transaction, ON_ERROR_STOP) + row ('240','240_cup_inventory_consumption'). cup_consumir / cup_devolver / cup_alertar: EXECUTE false for anon, authenticated and service_role.
+  - GREEN: first run 2 FAIL, both fixture arithmetic (case 8: A remaining is 370000 = 500000 - 120000 today - 10000 yesterday, not 380000; B after deleting the manual line is
+    250000-30000-15000-75000+15000 = 145000, the formula forgot the 15000). The migration was right; fixture-only fix e16953e. Re-run: 50 PASS, 0 FAIL, rc 0.
+    Snapshot after = before (entries and lots identical, 0 consumptions).
+  - Deploy: release e16953e61c5dbe4924d0bd13a2773e9ffce303bb (code identical to c5f5f7a, plus the assertion fixture), built in prod-build with node:20 docker, WITH the whole suite (201 files / 2730 tests passed),
+    BUILD_ID ArLq7lOIP-tj1dMKVb9jo served by crm.onlinefreedom.site. Manifest staging, kolppplawzdsjfydwejr, 0 production refs, sha256 2864b7c1d04040cd6a891e1289aeae9e527943caffc2b916d8a29a9a2ad97c88.
+    oracle2: current -> e16953e, anterior -> 54a78315158c9b6ae7f58a0a16af3b65d72b0605; pm2 wacrm-staging online, /proc cwd = the release, /login 200, /inventario-cup 200.
+    prod-build restored to b6f1a1c97be75ed95d84397d326d643d9e8ac5fa, env copy deleted.
+    Rollback app: ln -sfn ~/wacrm-releases/54a78315158c9b6ae7f58a0a16af3b65d72b0605 current + pm2 restart wacrm-staging --update-env. DB: supabase/migrations/ROLLBACK-240-cup-inventory-consumption.sql (and delete schema_migrations row 240).
+  - Demo data (persisting; real paths under the owner claim feeccc91..., account 472917ed...; contact PRUEBA TASAS 56588e14..., conversation aa1a1fad...; a new lot 250000 @1060 on B,
+    98e92c82-b79b-474f-b5df-92ab69bcd01f, was loaded through crm_cargar_lote_cup because the old one was gone). Operations inserted ready_to_transfer with a 'PRUEBA INVENTARIO' beneficiary and moved to completed:
+    (a) 50,000 CUP, op 53083958-2c31-438a-b6d7-5411f574a0a9, entry db1ddef5-7a70-42c3-b900-2e8186b83ac1: 50,000 from A @960; cup_rate 960, facturado 16666.67, invertido 12500, retorno 4166.67.
+        After: A balance 450,000, used today 50,000, remaining limit 70,000; B untouched.
+    (b) 100,000 CUP, op 12ef2f85-d6af-4d04-bda9-8e045102cbc3, entry 51fe985c-4a4f-4dd5-b9ba-58b0904cbe46: 70,000 from A @960 (its limit) + 30,000 from B @1060; cup_rate 987.9612 (= 100000/(70000/960+30000/1060)),
+        facturado 33333.33, invertido 24292.45, retorno 9040.88. After: A 380,000 / used 120,000 / limit 0; B 220,000 / used 30,000 / limit 90,000.
+    (c) manual "• PRUEBA INVENTARIO manual 15,000 cup (240/1000)", entry 9b237b66-caba-45a5-8eb0-90c7df288814 (date 2026-10-14): 15,000 from B @1060; cup_rate stays NULL, typed invertido 3600 kept (facturado 5000, retorno 1400).
+        After: B 205,000 / used 45,000 / limit 75,000.
+    Amounts carry a 1e-12 residue (50000.000000000001, 99999.999999999999) because the test ops were quoted in GYD with the global rate 3 (16666.67 x 3). The notifications table has 0 'inventario_cup' rows and no new rows: no alert fired.
+    entries 42 -> 45; cup_lot_consumptions: 4 rows (af2cd978, 68aff475, 1dd20596, 2dc7c2cc).
+  - Cleanup SQL of the demo (staging only; verified in a rolled-back dry run: the three entries become void/deleted, every consumption returned, A 500000, B 250000, 0 consumptions):
+```sql
+BEGIN;
+SELECT set_config('request.jwt.claims', json_build_object('sub','feeccc91-5c2d-446e-8366-21e97ceeb23f','role','authenticated')::text, true);
+SELECT crm_eliminar_entrada_calculadora(x) FROM unnest(ARRAY['db1ddef5-7a70-42c3-b900-2e8186b83ac1','51fe985c-4a4f-4dd5-b9ba-58b0904cbe46','9b237b66-caba-45a5-8eb0-90c7df288814']::uuid[]) x;
+-- optional, once the lot is back to 250000 (then editable): SELECT crm_eliminar_lote_cup(...) / the phase 1 cleanup above
+COMMIT;
+```
+
 ## Next step
-T8: staging apply of 240 + the assertion + deploy, needs the owner's authorization. Production (T9) needs the owner's go-ahead AND
+T8 is deployed on staging with demo data: the owner checks /inventario-cup (cards A/B show the consumptions) and then the entries in /calculadora. Production (T9) needs the owner's go-ahead AND
 his real card/lot balances confirmed first (a lot stops being editable once it is consumed).

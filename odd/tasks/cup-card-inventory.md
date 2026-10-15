@@ -91,9 +91,10 @@ card has limit, the panel only WARNS and still lets the operator complete.
 - Shortfall: "Faltan X CUP sin tarjeta con límite hoy: queda para mañana" warning; completion not blocked.
 - After completion: consumptions of the op's entries (card, lot rate, amount) and the resulting cup_rate.
 - Visible to the roles that already see/complete the operation panel; card names + last4 only.
-- [ ] T10 Migration 241: read-only plan function shared with cup_consumir (refactor so both use one allocator),
+- [x] T10 Migration 241: read-only plan function shared with cup_consumir (refactor so both use one allocator),
       RPC for the panel (plan for an operation + consumptions of a completed one); rollback; staging assertion
-- [ ] T11 Panel UI in the CUP delivery sections + API + tests
+      (20ba4db; SQL NOT run, pending staging run in T12)
+- [x] T11 Panel UI in the CUP delivery sections + API + tests (1bc6568)
 - [ ] T12 Staging apply + deploy + owner check (needs authorization)
 - [ ] T13 Production together with phase 2 (needs go-ahead; owner confirms real balances first)
 
@@ -199,6 +200,17 @@ SELECT crm_eliminar_entrada_calculadora(x) FROM unnest(ARRAY['db1ddef5-7a70-42c3
 COMMIT;
 ```
 
+- 2026-10-15 T10/T11 (phase 3), written locally without a SQL engine: 241 UNVERIFIED until the T12 staging run.
+  - 241: cup_planificar(account, amount, cuba_day) is the single allocator (read-only, internal, revoked from all roles); cup_consumir (240 body, md5 0e6e3a21...) now only
+    writes the parts it returns. diff of the two bodies shows only the allocation block changed; equivalence argument in the 241 header (same advisory lock held, same
+    ordering, per-lot FOR UPDATE kept). ROLLBACK-241 restores the 240 text (md5 verified 0e6e3a21...). RPC crm_inventario_cup_operacion(op): agent+ of the account (viewer refused),
+    states plan | completed | no_inventory | no_amounts | not_cup | unavailable; plan segmented per beneficiary by cumulative ranges over ONE plan of the total of the CUP
+    beneficiaries' amounts (position order); grants EXECUTE postgres + authenticated. Assertion: supabase/staging/assertions/cup-inventory-panel.sql (8 cases).
+  - T11 strict TDD: RED (panel lib 0 tests/module missing, route 8 failed, wiring 3 failed) then GREEN. GET /api/remittance-operations/[operationId]/cup-plan (agent+, beta flag);
+    src/lib/cup-inventory/panel.ts; src/components/inbox/operations/cup-plan-block.tsx wired through an optional `extra` slot of both complete-transfer sections (container
+    passes it) and in remittance-operation-card.tsx for completed operations; i18n Inbox.operationsPanel.cupPlan es/en (add-only). The block shows nothing on any failure.
+    npm test 204 files / 2758 pass, tsc and eslint clean.
+
 ## Next step
-T8 is deployed on staging with demo data: the owner checks /inventario-cup (cards A/B show the consumptions) and then the entries in /calculadora. Production (T9) needs the owner's go-ahead AND
-his real card/lot balances confirmed first (a lot stops being editable once it is consumed).
+T12: staging apply of 241 (after 240 is owner-checked), run cup-inventory-panel.sql and re-run cup-inventory-consumption.sql (must still pass), deploy, owner check. It needs the owner's
+explicit authorization (staging DB + deploy). T8/T9 are still waiting on the owner's check and real balances.

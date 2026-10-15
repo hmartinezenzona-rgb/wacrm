@@ -57,7 +57,7 @@ Claude defaults (stated to the owner):
 - [x] T1 Migration 239 tables + RPCs + rollback + staging assertion (07b3fda; SQL NOT run, pending staging run in T4)
 - [x] T2 API routes + tests (fcf8040)
 - [x] T3 "Inventario CUP" admin page + sidebar + i18n (+ tests for pure logic) (7310a83)
-- [ ] T4 Staging apply + deploy + owner check (needs authorization)
+- [ ] T4 Staging apply + deploy + owner check (239 applied and b23afa9 deployed to staging 2026-10-14, owner-authorized; waiting for the owner check on staging)
 - [ ] T5 Production (needs go-ahead)
 - [ ] Phase 2 and 3: planned after phase 1 is in use
 
@@ -74,5 +74,28 @@ Claude defaults (stated to the owner):
   Open choices made by default: report RPC is admin+ (not any member); lots fully consumed drop out of the report; inactive
   cards hidden unless includeInactive=1; decimal parsing treats a lone "." + 3 digits as thousands (es habit).
 
+- 2026-10-14 T4 staging run (owner-authorized, staging only):
+  - Recon: schema_migrations top 238; no cup_* tables; remittance_calculator_entries 42 rows, facturado 1432712.3999999999930000, invertido 1238124.4998984162911480, retorno 194587.9001015837523520.
+  - RED: assertion in BEGIN..ROLLBACK failed: type "cup_cards" does not exist.
+  - 239 applied (--single-transaction); row ('239','239_cup_card_inventory') inserted. cup_cards / cup_lots / cup_lot_consumptions: RLS enabled, one SELECT policy each, authenticated SELECT only (no anon grants).
+    RPCs crm_guardar_tarjeta_cup, crm_cargar_lote_cup, crm_corregir_lote_cup, crm_eliminar_lote_cup, crm_inventario_cup: SECURITY DEFINER, EXECUTE postgres + service_role + authenticated, no anon. cup_cuba_day is a plain helper.
+  - First GREEN attempt failed ONE expectation, case 3.priority: the fixture expected the new card at priority 3, but the migration (by design, "max active priority + 1") gives 2 after case 2 moved B to 0.
+    Fixture-only fix (b23afa9, test(cup-inventory)); migration unchanged. Re-run: ALL PASS (52 checks); cup_* empty after; entries before = after.
+  - Deployed to staging: release b23afa944626b86430bff9a52612b06dc496642b (code identical to 80e8332 plus the fixture), BUILD_ID o49Mmpy6ay0MmpLizEhFm (served by crm.onlinefreedom.site, pm2 cwd = the release, wacrm-staging online, /login 200,
+    /inventario-cup 200 page for an unauthenticated request). anterior -> 7e62096f35818f7a50ab9ae25765230efeafdc15. Manifest staging, kolppplawzdsjfydwejr, 0 production refs, sha256 ok. Built WITH the tests (114 passed in node:20).
+    prod-build restored to 97ae254, env copy deleted. Transfer used scp + tar (not rsync).
+    Rollback: current -> 7e62096f35818f7a50ab9ae25765230efeafdc15 + pm2 restart wacrm-staging --update-env; DB: supabase/migrations/ROLLBACK-239-cup-card-inventory.sql (and delete the schema_migrations row 239).
+  - Test data (owner-authorized, through the real RPCs under the owner claim feeccc91..., account 472917ed-fca5-4679-b64c-e76a54089a16):
+    PRUEBA Tarjeta A (1111, priority 1, limit 120000) e8d43d7b-cfed-479d-be00-2a4552cea31e, lot 500000 CUP @ 960 5ba110da-ff29-4f8b-98bd-fa568ceb8cb0;
+    PRUEBA Tarjeta B (2222, priority 2, limit 120000) d8fd481d-9ffb-4c2b-acaa-716e3eb71401, lot 250000 CUP @ 1060 14b0f9b2-c8af-4698-a6c0-3dae4a4633b7.
+    crm_inventario_cup returns both: balances 500000 / 250000, used_today 0, remaining_limit_today 120000 each, cuba_day 2026-10-14.
+    Cleanup SQL (staging only):
+```sql
+BEGIN;
+DELETE FROM cup_lots WHERE id IN ('5ba110da-ff29-4f8b-98bd-fa568ceb8cb0','14b0f9b2-c8af-4698-a6c0-3dae4a4633b7');
+DELETE FROM cup_cards WHERE id IN ('e8d43d7b-cfed-479d-be00-2a4552cea31e','d8fd481d-9ffb-4c2b-acaa-716e3eb71401');
+COMMIT;
+```
+
 ## Next step
-T4: apply 239 to staging and run the assertion (needs owner authorization), deploy, owner check.
+Owner checks "Inventario CUP" on staging (crm.onlinefreedom.site/inventario-cup, admin): the two PRUEBA cards are loaded. Then T5 production only with an explicit go-ahead.

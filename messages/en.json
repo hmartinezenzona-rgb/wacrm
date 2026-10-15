@@ -2654,7 +2654,8 @@
       "consumed": "Partly used already: it cannot be edited",
       "edit": "Edit lot",
       "delete": "Delete lot",
-      "confirmDelete": "Delete this lot? This is only possible while nothing was used from it."
+      "confirmDelete": "Delete this lot? This is only possible while nothing was used from it.",
+      "confirmDeleteTitle": "Delete lot from {card}"
     },
     "cardForm": {
       "titleNew": "New card",
@@ -2674,7 +2675,8 @@
     "actions": {
       "save": "Save",
       "cancel": "Cancel",
-      "saving": "Saving..."
+      "saving": "Saving...",
+      "delete": "Delete"
     },
     "errors": {
       "nameRequired": "Enter the card name.",

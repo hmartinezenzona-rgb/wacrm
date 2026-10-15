@@ -12,6 +12,7 @@ import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { CardDialog, type CardFormValue } from "@/components/inventario-cup/card-dialog";
 import { CardPanel } from "@/components/inventario-cup/card-panel";
 import { LotDialog, type LotFormValue } from "@/components/inventario-cup/lot-dialog";
+import { DeleteLotDialog } from "@/components/inventario-cup/delete-lot-dialog";
 import { useAuth } from "@/hooks/use-auth";
 import { useCan } from "@/hooks/use-can";
 import { moveCardPriorities } from "@/lib/cup-inventory/format";
@@ -53,6 +54,7 @@ export default function InventarioCupPage() {
   const [showInactive, setShowInactive] = useState(false);
   const [cardDialog, setCardDialog] = useState<{ card: InventoryCard | null } | null>(null);
   const [lotDialog, setLotDialog] = useState<{ card: InventoryCard; lot: InventoryLot | null } | null>(null);
+  const [deletingLot, setDeletingLot] = useState<{ card: InventoryCard; lot: InventoryLot } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -122,13 +124,13 @@ export default function InventarioCupPage() {
   }
 
   async function deleteLot(lot: InventoryLot) {
-    if (!window.confirm(t("lots.confirmDelete"))) return;
     const failure = await send(`/api/inventario-cup/lots/${lot.id}`, "DELETE");
     if (failure) {
       toast.error(failure === "network" ? t("errors.saveError") : failure);
     } else {
       toast.success(t("toasts.lotDeleted"));
     }
+    setDeletingLot(null);
     await load();
   }
 
@@ -191,7 +193,7 @@ export default function InventarioCupPage() {
               onEdit={() => setCardDialog({ card })}
               onLoadLot={() => setLotDialog({ card, lot: null })}
               onEditLot={(lot) => setLotDialog({ card, lot })}
-              onDeleteLot={(lot) => void deleteLot(lot)}
+              onDeleteLot={(lot) => setDeletingLot({ card, lot })}
             />
           ))}
         </div>
@@ -202,6 +204,12 @@ export default function InventarioCupPage() {
         card={cardDialog?.card ?? null}
         onClose={() => setCardDialog(null)}
         onSave={(value) => saveCard(cardDialog?.card ?? null, value)}
+      />
+      <DeleteLotDialog
+        open={deletingLot !== null}
+        cardName={deletingLot?.card.name ?? ""}
+        onClose={() => setDeletingLot(null)}
+        onConfirm={() => (deletingLot ? deleteLot(deletingLot.lot) : Promise.resolve())}
       />
       <LotDialog
         open={lotDialog !== null}

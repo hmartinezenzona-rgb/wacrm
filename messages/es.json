@@ -2654,7 +2654,8 @@
       "consumed": "Ya se usó parte: no se puede editar",
       "edit": "Editar lote",
       "delete": "Eliminar lote",
-      "confirmDelete": "¿Eliminar este lote? Solo es posible mientras no se haya usado."
+      "confirmDelete": "¿Eliminar este lote? Solo es posible mientras no se haya usado.",
+      "confirmDeleteTitle": "Eliminar lote de {card}"
     },
     "cardForm": {
       "titleNew": "Nueva tarjeta",
@@ -2674,7 +2675,8 @@
     "actions": {
       "save": "Guardar",
       "cancel": "Cancelar",
-      "saving": "Guardando..."
+      "saving": "Guardando...",
+      "delete": "Eliminar"
     },
     "errors": {
       "nameRequired": "Escribe el nombre de la tarjeta.",

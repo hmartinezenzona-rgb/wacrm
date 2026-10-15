@@ -116,6 +116,43 @@ describe("Inventario CUP page", () => {
     expect(downs[1].disabled).toBe(true);
   });
 
+  it("deleting a lot asks in a dialog, not a browser prompt, and only deletes after confirming", async () => {
+    const confirmSpy = vi.fn(() => true);
+    vi.stubGlobal("confirm", confirmSpy);
+    const node = await mount();
+    const del = node.querySelector(`button[aria-label="${t.lots.delete}"]`) as HTMLButtonElement;
+    await act(async () => del.click());
+    await act(async () => {});
+
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain(t.lots.confirmDelete);
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === "DELETE")).toBe(false);
+
+    const confirmButton = [...document.querySelectorAll("button")].find(
+      (b) => b.textContent === t.actions.delete,
+    ) as HTMLButtonElement;
+    await act(async () => confirmButton.click());
+    await act(async () => {});
+
+    const deletes = fetchMock.mock.calls.filter(([, init]) => init?.method === "DELETE").map(([url]) => url);
+    expect(deletes).toEqual(["/api/inventario-cup/lots/lot-a"]);
+  });
+
+  it("cancelling the delete dialog deletes nothing", async () => {
+    const node = await mount();
+    const del = node.querySelector(`button[aria-label="${t.lots.delete}"]`) as HTMLButtonElement;
+    await act(async () => del.click());
+    await act(async () => {});
+    const cancel = [...document.querySelectorAll("button")].find(
+      (b) => b.textContent === t.actions.cancel,
+    ) as HTMLButtonElement;
+    await act(async () => cancel.click());
+    await act(async () => {});
+
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === "DELETE")).toBe(false);
+    expect(document.body.textContent).not.toContain(t.lots.confirmDelete);
+  });
+
   it("a lot already used shows no edit or delete actions", async () => {
     fetchMock.mockImplementation(async () => ({
       ok: true,

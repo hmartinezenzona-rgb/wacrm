@@ -97,5 +97,7 @@ DELETE FROM cup_cards WHERE id IN ('e8d43d7b-cfed-479d-be00-2a4552cea31e','d8fd4
 COMMIT;
 ```
 
+- 2026-10-14: owner checked staging; asked that deleting a lot use a dialog like editing instead of the browser prompt. Fixed: DeleteLotDialog (src/components/inventario-cup/delete-lot-dialog.tsx); page tests RED 2 -> GREEN 9; npm test 2726 pass; tsc/eslint clean.
+
 ## Next step
 Owner checks "Inventario CUP" on staging (crm.onlinefreedom.site/inventario-cup, admin): the two PRUEBA cards are loaded. Then T5 production only with an explicit go-ahead.

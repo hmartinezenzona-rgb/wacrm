@@ -2,7 +2,7 @@
 -- Stop at the first error: run outside BEGIN ... ROLLBACK, the SAVEPOINT below fails and nothing is written.
 -- cup-card-inventory.sql -- self-reverting assertion for 239_cup_card_inventory.sql
 --
--- STATUS: written, pending staging run (T4). It has NOT been executed yet.
+-- STATUS: run on staging 2026-10-14 (T4), ALL PASS.
 --
 -- Proves the CUP inventory (phase 1):
 --   case 1  admin creates card A (priority 1) and B (priority 2); loads 500,000 CUP @960 on A and 250,000 @1060 on B; the report lists
@@ -109,9 +109,9 @@ BEGIN
 
   -- ---- case 3: priority defaults last; FIFO order ---------------------------------------------------------------------
   v_c := crm_guardar_tarjeta_cup(v_acc, NULL, '  Tarjeta C  ', NULL, NULL, NULL, NULL);
-  IF v_c.priority <> 3 OR v_c.name <> 'Tarjeta C' THEN
+  IF v_c.priority <> 2 OR v_c.name <> 'Tarjeta C' THEN
     v_fail := v_fail + 1; RAISE WARNING 'FAIL [case 3.priority] priority %, name "%"', v_c.priority, v_c.name;
-  ELSE RAISE NOTICE 'PASS [case 3.priority] new card goes last (3), name trimmed'; END IF;
+  ELSE RAISE NOTICE 'PASS [case 3.priority] new card goes last (max priority 1 + 1 = 2; B was reordered to 0), name trimmed'; END IF;
   v_l1 := crm_cargar_lote_cup(v_acc, v_c.id, 1000, 970, 'segundo', now() - interval '1 hour');
   v_l2 := crm_cargar_lote_cup(v_acc, v_c.id, 2000, 980, 'primero', now() - interval '2 hours');
   v_rep := crm_inventario_cup(v_acc);

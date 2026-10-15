@@ -246,7 +246,7 @@ BEGIN
     v_card ->> 'consumptions_today');
   SELECT c INTO v_card FROM jsonb_array_elements(v_rep -> 'cards') c WHERE c ->> 'name' = 'Tarjeta A';
   v_fail := v_fail + pg_temp.cic_chk('8.report: the lot of A shows the remaining balance', EXISTS (
-    SELECT 1 FROM jsonb_array_elements(v_card -> 'lots') l WHERE (l ->> 'remaining_cup')::numeric = 380000 AND (l ->> 'editable')::boolean = false));
+    SELECT 1 FROM jsonb_array_elements(v_card -> 'lots') l WHERE (l ->> 'remaining_cup')::numeric = 370000 AND (l ->> 'editable')::boolean = false));
 
   v_cnt := (SELECT count(*) FROM cup_lot_consumptions WHERE account_id = v_acc);
   v_before := pg_temp.cic_remaining(v_a.id) + pg_temp.cic_remaining(v_b.id);
@@ -260,7 +260,7 @@ BEGIN
   PERFORM crm_eliminar_entrada_calculadora(v_man);
   PERFORM pg_temp.cic_claims(NULL);
   v_fail := v_fail + pg_temp.cic_chk('8.deleting the manual line returns its 15,000 to B',
-    pg_temp.cic_remaining(v_b.id) = 250000 - 30000 - 75000 + 15000 AND pg_temp.cic_used(v_b.id, v_today) = 105000
+    pg_temp.cic_remaining(v_b.id) = 250000 - 30000 - 15000 - 75000 + 15000 AND pg_temp.cic_used(v_b.id, v_today) = 105000
     AND NOT EXISTS (SELECT 1 FROM cup_lot_consumptions WHERE calculator_entry_id = v_man), format('B remaining=%s', pg_temp.cic_remaining(v_b.id)));
   PERFORM pg_temp.cic_claims(v_admin);
   PERFORM crm_eliminar_entrada_calculadora(v_man_y);

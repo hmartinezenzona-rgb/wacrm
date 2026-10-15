@@ -208,7 +208,10 @@ BEGIN
   PERFORM pg_temp.cip_ben(v_opz, 1, 'Zelle', 50, 'zelle');
   v_fail := v_fail + pg_temp.cip_chk('5.zelle-only operation -> not_cup', pg_temp.cip_panel(v_opz, v_agent)->>'state' = 'not_cup');
   v_opn := pg_temp.cip_op(v_acc, v_conv, 1000);
+  -- Two CUP beneficiaries without an amount: a LONE one takes the operation's quoted CUP by design (the trigger quotes this fixture at 2000), so
+  -- 'no amounts' needs at least two.
   PERFORM pg_temp.cip_ben(v_opn, 1, 'Sin monto', NULL);
+  PERFORM pg_temp.cip_ben(v_opn, 2, 'Sin monto 2', NULL);
   v_fail := v_fail + pg_temp.cip_chk('5.CUP beneficiary without amount -> no_amounts', pg_temp.cip_panel(v_opn, v_agent)->>'state' = 'no_amounts');
   v_opx := pg_temp.cip_op(v_acc, v_conv, 1000, 'cancelled');
   PERFORM pg_temp.cip_ben(v_opx, 1, 'Cancelada', 2000);

@@ -75,9 +75,9 @@ Rules (owner decisions above) + Claude defaults stated to the owner 2026-10-15:
   a consumption failure must also alert).
 - Void (op leaves completed -> entry void, 104 trigger; entry delete 226): consumed CUP returns to its lots.
 - Manual rate edit (236-238) changes only that entry's profit; inventory untouched.
-- [ ] T6 Migration 240: consume/return functions, hooks in feed + manual registration + void paths, alert; rollback;
-      staging assertion
-- [ ] T7 Page shows consumptions per lot/card (used today real) + API/read model + tests
+- [x] T6 Migration 240: consume/return functions, hooks in feed + manual registration + void paths, alert; rollback;
+      staging assertion (b71f3cd; SQL NOT run, pending staging run in T8)
+- [x] T7 Page shows consumptions per lot/card (used today real) + API/read model + tests (de53cb9)
 - [ ] T8 Staging apply + deploy + owner check (needs authorization)
 - [ ] T9 Production (needs go-ahead; owner confirms real balances first)
 
@@ -134,5 +134,20 @@ COMMIT;
     BUILD_ID CLs9uvPcwCjBlTN-NgTV2. Deployed with desplegar-wacrm-produccion.sh: pm2 wacrm online, /proc cwd = the release, domain serves the BUILD_ID, /login 200, /inventario-cup 200.
     Rollback: anterior -> 97ae254ab8a8bd7bd53e06e668b834a22b382469 (rollback-wacrm-produccion.sh); DB ROLLBACK-239 through the gate route. prod-build left at b6f1a1c.
 
+- 2026-10-15 T6/T7 (phase 2), written locally without a SQL engine (psql unavailable): UNVERIFIED until the T8 staging run.
+  - 240: cup_consumir / cup_devolver / cup_alertar (internal, revoked from authenticated/anon/service_role); alert = notifications type
+    'inventario_cup' (check carried forward from 231) to owners/admins. Hooks: calculator_feed_operation (consumes BEFORE the INSERT of a
+    fully priced CUP line that will be inserted/revived; links the consumptions after; exception caught inside -> global rate + alert),
+    crm_registrar_entradas_manuales (typed rate kept; Cuba day = line date if not today), void trigger 104 (cup_devolver per voided CUP
+    line, own subtransaction + alert), crm_eliminar_entrada_calculadora 228 (returns CUP; failure fails the delete),
+    crm_inventario_cup (+consumptions_today). Return deletes the consumption rows. Rate edits 236-238 untouched.
+    Replaced-body md5s (migration text) are in the 240 header. Assertion: supabase/staging/assertions/cup-inventory-consumption.sql.
+  - Correction to the plan: manual entries CAN be deleted since 228 (crm_eliminar_entrada_calculadora accepts source manual), so they
+    return their CUP too.
+  - OPEN: crm_resolve_pending_entry (a CUP line pending at completion, resolved later) does not consume; owner to decide.
+  - T7 strict TDD: RED 4 failed (read-model + page) then GREEN; npx vitest run (cup-inventory, page, api, i18n) 14 files / 151 tests pass;
+    npm test 201 files / 2730 pass; tsc and eslint clean.
+
 ## Next step
-Owner loads his real cards and lots in production (/inventario-cup). Then phase 2 (automatic deduction).
+T8: staging apply of 240 + the assertion + deploy, needs the owner's authorization. Production (T9) needs the owner's go-ahead AND
+his real card/lot balances confirmed first (a lot stops being editable once it is consumed).

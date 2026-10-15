@@ -239,5 +239,14 @@ COMMIT;
     /proc cwd = the release, /login 200. prod-build restored to b6f1a1c, env copy deleted. UI only, no DB change.
     Rollback: ln -sfn ~/wacrm-releases/d529d758ffdbfccf34bb2d04ce7265a2611ffcb9 current + pm2 restart wacrm-staging --update-env.
 
+- 2026-10-15 T12 simplification (owner chose the simplest layout, staging only): the block is now "Transferir desde" (plain small muted label) and one row per card (name ·last4, total
+  right-aligned tabular-nums), then a single amber line with a dot, "Faltan 20 000 CUP · queda para mañana" (total missing across beneficiaries; no box, no icon). "Salió de" the same, one row per card;
+  no beneficiary rows, no lot rates, no resulting-rate line. groupPlanByCard now returns {cards, missingText}; unused view-model fields and i18n keys removed. Strict TDD: RED (6 failed) then GREEN;
+  npm test 204 files / 2757, tsc and eslint clean. Commit e80f23679711935bf66d4a4eba3f78fa0fdeb4d4.
+  - Redeploy: release e80f23679711935bf66d4a4eba3f78fa0fdeb4d4 built in prod-build (node:20 docker, WITH money-route 114), BUILD_ID oZLgib_ITjdiq5RVfPU0y served by crm.onlinefreedom.site,
+    manifest staging / kolppplawzdsjfydwejr / 0 production refs (32 files with staging refs), sha256 5914a491d7b8862c1119093d50a22c885e43046c019dccfbcb8780a3c1ea17d0. oracle2: current -> e80f236, anterior -> 1c2419d;
+    pm2 wacrm-staging online, /proc cwd = the release, /login 200. prod-build restored to b6f1a1c, env copy deleted. UI only, no DB change.
+    Rollback: ln -sfn ~/wacrm-releases/1c2419dce18238505c108da717edc5c43ac51638 current + pm2 restart wacrm-staging --update-env.
+
 ## Next step
 T12 is deployed on staging: the owner checks the delivery panel on operation 008deb15 (ready_to_transfer). T8/T9/T13 wait on the owner's check and real balances.

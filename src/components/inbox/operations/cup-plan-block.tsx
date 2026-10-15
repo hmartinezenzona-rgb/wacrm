@@ -2,10 +2,9 @@
 
 // ============================================================
 // CUP inventory block of the delivery panel (phase 3).
-//   * before completion: "Transfiere desde · estimado" — grouped by card, which beneficiaries' CUP will leave from each (the real
-//     deduction happens at completion), and a warning when part of it has no card with limit today. Only a warning:
-//     completing is never blocked.
-//   * after completion: "Salió de" — the cards and lot rates the CUP really left from.
+//   * before completion: "Transferir desde" — one row per card with the CUP that will leave from it (the real deduction happens
+//     at completion) and, when part of it has no card with limit today, one plain amber line. Only a warning: completing is never blocked.
+//   * after completion: "Salió de" — one row per card with the CUP that really left from it.
 // `CupPlanView` is presentational; `CupPlanBlock` reads GET /api/remittance-operations/{id}/cup-plan and renders nothing at
 // all when the operation is not CUP, there is no inventory, or the request fails: completing a transfer never depends on it.
 // ============================================================
@@ -16,25 +15,27 @@ import {
   groupConsumptionsByCard,
   groupPlanByCard,
   visibleCupPanel,
+  type CupCardTotal,
   type CupPanelRead,
 } from "@/lib/cup-inventory/panel";
-import { formatRate } from "@/lib/cup-inventory/format";
 
-const TITLE = "text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground";
-const HEADER = "flex items-baseline justify-between gap-2 text-xs font-semibold text-foreground";
-const ROW = "flex items-baseline justify-between gap-2 pl-3 text-[11px] text-muted-foreground";
-const AMOUNT = "shrink-0 tabular-nums";
+const TITLE = "text-xs font-medium text-muted-foreground";
+const ROW = "flex items-baseline justify-between gap-2 text-xs text-foreground";
 
-function CardHeader({ name, last4, total }: { name: string; last4: string | null; total: string }) {
+function CardRows({ cards, testId }: { cards: CupCardTotal[]; testId: string }) {
   const t = useTranslations("Inbox.operationsPanel.cupPlan");
   return (
-    <div className={HEADER}>
-      <span className="min-w-0 truncate">
-        {name}
-        {last4 ? <span className="font-normal text-muted-foreground"> ·{last4}</span> : null}
-      </span>
-      <span className={`${AMOUNT} text-right`}>{t("cardTotal", { amount: total })}</span>
-    </div>
+    <>
+      {cards.map((card) => (
+        <div key={card.key} className={ROW} data-testid={testId}>
+          <span className="min-w-0 truncate">
+            {card.name}
+            {card.last4 ? <span className="text-muted-foreground"> ·{card.last4}</span> : null}
+          </span>
+          <span className="shrink-0 text-right tabular-nums">{t("cardTotal", { amount: card.totalText })}</span>
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -44,54 +45,25 @@ export function CupPlanView({ read }: { read: CupPanelRead }) {
   if (!visible) return null;
 
   if (visible.state === "plan") {
-    const { cards, shortages } = groupPlanByCard(visible);
+    const { cards, missingText } = groupPlanByCard(visible);
     return (
-      <div className="space-y-1.5" data-testid="cup-plan">
+      <div className="space-y-1" data-testid="cup-plan">
         <p className={TITLE}>{t("planTitle")}</p>
-        {cards.map((card) => (
-          <div key={card.key} className="space-y-0.5" data-testid="cup-plan-card">
-            <CardHeader name={card.name} last4={card.last4} total={card.totalText} />
-            {card.rows.map((r) => (
-              <div key={r.key} className={ROW}>
-                <span className="min-w-0 truncate">
-                  {t("beneficiaryRow", { beneficiary: r.beneficiary ?? t("beneficiaryN", { n: r.position }) })}
-                </span>
-                <span className={`${AMOUNT} text-right`}>{r.amountText}</span>
-              </div>
-            ))}
-          </div>
-        ))}
-        {shortages.length > 0 && (
-          <div role="status" className="space-y-0.5 rounded-md bg-amber-500/10 px-2 py-1.5 text-[11px] leading-relaxed text-amber-500">
-            {shortages.map((s) => (
-              <p key={s.key} className="font-medium">
-                {t("missing", { amount: s.amountText, beneficiary: s.beneficiary ?? t("beneficiaryN", { n: s.position }) })}
-              </p>
-            ))}
-            <p>{t("missingNote")}</p>
-          </div>
+        <CardRows cards={cards} testId="cup-plan-card" />
+        {missingText !== null && (
+          <p role="status" className="flex items-center gap-1.5 text-[11px] text-amber-500">
+            <span aria-hidden="true" data-testid="cup-plan-dot" className="size-1.5 shrink-0 rounded-full bg-current" />
+            {t("missing", { amount: missingText })}
+          </p>
         )}
       </div>
     );
   }
 
   return (
-    <div className="space-y-1.5" data-testid="cup-used">
+    <div className="space-y-1" data-testid="cup-used">
       <p className={TITLE}>{t("usedTitle")}</p>
-      {groupConsumptionsByCard(visible).map((card) => (
-        <div key={card.key} className="space-y-0.5" data-testid="cup-used-card">
-          <CardHeader name={card.name} last4={card.last4} total={card.totalText} />
-          {card.rows.map((r) => (
-            <div key={r.key} className={ROW}>
-              <span className="min-w-0 truncate">{t("lotRate", { rate: r.rateText })}</span>
-              <span className={`${AMOUNT} text-right`}>{r.amountText}</span>
-            </div>
-          ))}
-        </div>
-      ))}
-      {visible.cupRate !== null && (
-        <p className="border-t border-border pt-1 text-[11px] text-muted-foreground">{t("resultingRate", { rate: formatRate(visible.cupRate) })}</p>
-      )}
+      <CardRows cards={groupConsumptionsByCard(visible)} testId="cup-used-card" />
     </div>
   );
 }

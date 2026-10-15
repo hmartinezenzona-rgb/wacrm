@@ -1,6 +1,6 @@
 // Read model of the CUP inventory block in the delivery panel (phase 3). Pure: no I/O.
 // The RPC crm_inventario_cup_operacion (migration 241) returns snake_case jsonb; this maps it and builds the display lines.
-import { formatCup, formatRate } from "./format";
+import { formatCup } from "./format";
 
 export interface CupPanelLine {
   cardId: string;
@@ -136,88 +136,44 @@ export function mapCupPanel(raw: unknown): CupPanelRead | null {
   return null;
 }
 
-export interface PlanBeneficiaryRow {
-  key: string;
-  position: number;
-  /** null when the beneficiary has no name: the caller writes "Beneficiario N". */
-  beneficiary: string | null;
-  amountText: string;
-}
-
-export interface PlanCardGroup {
+/** One row of the block: a card and the CUP that leaves (or left) from it. */
+export interface CupCardTotal {
   key: string;
   name: string;
   /** Last 4 digits only, never a full number. */
   last4: string | null;
   totalText: string;
-  rows: PlanBeneficiaryRow[];
 }
 
 export interface PlanGrouped {
   /** Cards in order of first appearance in the plan (= priority order). */
-  cards: PlanCardGroup[];
-  /** One entry per beneficiary with CUP no card can take today. */
-  shortages: PlanBeneficiaryRow[];
+  cards: CupCardTotal[];
+  /** CUP no card can take today, added up across beneficiaries; null when nothing is missing. */
+  missingText: string | null;
 }
 
-/** The plan grouped by card: card total, and one row per beneficiary (two lots of one card are one row). */
-export function groupPlanByCard(plan: CupPanelPlan): PlanGrouped {
-  const byCard = new Map<string, { name: string; last4: string | null; total: number; rows: Map<string, { row: PlanBeneficiaryRow; amount: number }> }>();
-  const shortages: PlanBeneficiaryRow[] = [];
-  for (const b of plan.beneficiaries) {
-    const bKey = b.beneficiaryId || String(b.position);
-    for (const l of b.lines) {
-      let card = byCard.get(l.cardId);
-      if (!card) {
-        card = { name: l.cardName, last4: l.last4, total: 0, rows: new Map() };
-        byCard.set(l.cardId, card);
-      }
-      card.total += l.amountCup;
-      const prev = card.rows.get(bKey);
-      if (prev) prev.amount += l.amountCup;
-      else card.rows.set(bKey, { row: { key: `${l.cardId}:${bKey}`, position: b.position, beneficiary: b.name, amountText: "" }, amount: l.amountCup });
-    }
-    if (b.missingCup > 0) {
-      shortages.push({ key: `${bKey}:missing`, position: b.position, beneficiary: b.name, amountText: formatCup(b.missingCup) });
-    }
+function totalsByCard(lines: CupPanelLine[]): CupCardTotal[] {
+  const byCard = new Map<string, { name: string; last4: string | null; total: number }>();
+  for (const l of lines) {
+    const card = byCard.get(l.cardId);
+    if (card) card.total += l.amountCup;
+    else byCard.set(l.cardId, { name: l.cardName, last4: l.last4, total: l.amountCup });
   }
-  const cards = [...byCard].map(([key, c]) => ({
-    key,
-    name: c.name,
-    last4: c.last4,
-    totalText: formatCup(c.total),
-    rows: [...c.rows.values()].map(({ row, amount }) => ({ ...row, amountText: formatCup(amount) })),
-  }));
-  return { cards, shortages };
+  return [...byCard].map(([key, c]) => ({ key, name: c.name, last4: c.last4, totalText: formatCup(c.total) }));
 }
 
-export interface UsedLotRow {
-  key: string;
-  rateText: string;
-  amountText: string;
+/** The plan as one total per card, plus the CUP that is missing in all (a card may serve several beneficiaries). */
+export function groupPlanByCard(plan: CupPanelPlan): PlanGrouped {
+  const missing = plan.beneficiaries.reduce((sum, b) => sum + (b.missingCup > 0 ? b.missingCup : 0), 0);
+  return {
+    cards: totalsByCard(plan.beneficiaries.flatMap((b) => b.lines)),
+    missingText: missing > 0 ? formatCup(missing) : null,
+  };
 }
 
-export interface UsedCardGroup {
-  key: string;
-  name: string;
-  last4: string | null;
-  totalText: string;
-  rows: UsedLotRow[];
-}
-
-/** After completion: consumptions grouped by card (first appearance), card total, one row per lot rate. */
-export function groupConsumptionsByCard(done: CupPanelCompleted): UsedCardGroup[] {
-  const byCard = new Map<string, { name: string; last4: string | null; total: number; rows: UsedLotRow[] }>();
-  done.lines.forEach((l, i) => {
-    let card = byCard.get(l.cardId);
-    if (!card) {
-      card = { name: l.cardName, last4: l.last4, total: 0, rows: [] };
-      byCard.set(l.cardId, card);
-    }
-    card.total += l.amountCup;
-    card.rows.push({ key: `${l.lotId}:${i}`, rateText: formatRate(l.lotRate), amountText: formatCup(l.amountCup) });
-  });
-  return [...byCard].map(([key, c]) => ({ key, name: c.name, last4: c.last4, totalText: formatCup(c.total), rows: c.rows }));
+/** After completion: what left from each card (first appearance), one total per card. */
+export function groupConsumptionsByCard(done: CupPanelCompleted): CupCardTotal[] {
+  return totalsByCard(done.lines);
 }
 
 /** What the block shows for a read: nothing for the empty states (and when there is nothing to list). */

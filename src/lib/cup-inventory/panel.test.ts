@@ -78,21 +78,17 @@ describe("mapCupPanel", () => {
 describe("groupPlanByCard", () => {
   const plan = mapCupPanel(planPayload) as CupPanelPlan;
 
-  it("groups by card in order of first appearance, with the card total and one row per beneficiary", () => {
-    const { cards, shortages } = groupPlanByCard(plan);
+  it("groups by card in order of first appearance: one total per card, no beneficiary rows", () => {
+    const { cards, missingText } = groupPlanByCard(plan);
     expect(cards.map((c) => [c.name, c.last4, c.totalText])).toEqual([
       ["Tarjeta A", "1111", sp("120 000")],
       ["Tarjeta B", null, sp("30 000")],
     ]);
-    expect(cards[0].rows.map((r) => [r.position, r.beneficiary, r.amountText])).toEqual([
-      [1, "Ana", sp("100 000")],
-      [2, null, sp("20 000")],
-    ]);
-    expect(cards[1].rows.map((r) => [r.position, r.beneficiary, r.amountText])).toEqual([[2, null, sp("30 000")]]);
-    expect(shortages).toEqual([]);
+    expect(cards[0]).not.toHaveProperty("rows");
+    expect(missingText).toBeNull();
   });
 
-  it("merges two lots of the same card and beneficiary into one row", () => {
+  it("adds up two lots of the same card into one total", () => {
     const merged = mapCupPanel({
       ...planPayload,
       beneficiaries: [
@@ -107,23 +103,26 @@ describe("groupPlanByCard", () => {
     }) as CupPanelPlan;
     const { cards } = groupPlanByCard(merged);
     expect(cards).toHaveLength(1);
-    expect(cards[0].rows.map((r) => r.amountText)).toEqual([sp("100 000")]);
+    expect(cards[0].totalText).toBe(sp("100 000"));
   });
 
-  it("lists one shortage per beneficiary with CUP missing", () => {
+  it("sums the CUP missing across beneficiaries into one text", () => {
     const short = mapCupPanel({
       ...planPayload,
-      missing_cup: 70000,
-      beneficiaries: [{ ...planPayload.beneficiaries[0], amount_cup: 120000, missing_cup: 70000, lines: [{ ...planPayload.beneficiaries[0].lines[0], amount_cup: 50000 }] }],
+      missing_cup: 90000,
+      beneficiaries: [
+        { ...planPayload.beneficiaries[0], amount_cup: 120000, missing_cup: 70000, lines: [{ ...planPayload.beneficiaries[0].lines[0], amount_cup: 50000 }] },
+        { ...planPayload.beneficiaries[1], amount_cup: 50000, missing_cup: 20000, lines: [{ ...planPayload.beneficiaries[1].lines[0], amount_cup: 30000 }] },
+      ],
     }) as CupPanelPlan;
-    const { cards, shortages } = groupPlanByCard(short);
-    expect(cards[0].totalText).toBe(sp("50 000"));
-    expect(shortages.map((x) => [x.position, x.beneficiary, x.amountText])).toEqual([[1, "Ana", sp("70 000")]]);
+    const { cards, missingText } = groupPlanByCard(short);
+    expect(cards[0].totalText).toBe(sp("80 000"));
+    expect(missingText).toBe(sp("90 000"));
   });
 });
 
 describe("groupConsumptionsByCard", () => {
-  it("groups the consumptions by card with its total and one row per lot rate", () => {
+  it("groups the consumptions by card with its total only", () => {
     const done = mapCupPanel({
       state: "completed",
       consumed_cup: 100000,
@@ -140,10 +139,7 @@ describe("groupConsumptionsByCard", () => {
       ["Tarjeta A", "1111", sp("70 000")],
       ["Tarjeta B", "2222", sp("30 000")],
     ]);
-    expect(cards[1].rows.map((r) => [r.rateText, r.amountText])).toEqual([
-      [sp("1 060"), sp("20 000")],
-      [sp("1 070"), sp("10 000")],
-    ]);
+    expect(cards[1]).not.toHaveProperty("rows");
   });
 });
 

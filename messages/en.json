@@ -514,15 +514,10 @@
         }
       },
       "cupPlan": {
-        "planTitle": "Transfer from · estimate",
+        "planTitle": "Transfer from",
         "usedTitle": "Left from",
-        "beneficiaryN": "Beneficiary {n}",
         "cardTotal": "{amount} CUP",
-        "beneficiaryRow": "→ {beneficiary}",
-        "missing": "⚠ {amount} CUP short ({beneficiary})",
-        "missingNote": "No card with a limit today · waits until tomorrow",
-        "lotRate": "at {rate} CUP/USDT",
-        "resultingRate": "Resulting rate: {rate}"
+        "missing": "{amount} CUP short · waits until tomorrow"
       },
       "viewer": {
         "zoomOut": "Zoom out",

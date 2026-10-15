@@ -73,24 +73,21 @@ const norm = (s: string | null) => (s ?? "").replace(/\u202f/g, " ");
 const text = (host: HTMLElement) => (host.textContent ?? "").replace(/ /g, " ");
 
 describe("CupPlanView", () => {
-  it("before completion: grouped by card, card header with total, indented beneficiary rows", async () => {
+  it("before completion: a plain title and one row per card with its total, no beneficiary rows", async () => {
     const host = await mount(<CupPlanView read={mapCupPanel(PLAN)!} />);
     const t = text(host);
-    expect(t).toContain("Transfiere desde · estimado");
+    expect(t).toContain("Transferir desde");
+    expect(t).not.toContain("estimado");
+    expect(host.querySelector("p")?.className).not.toContain("uppercase");
     const cards = [...host.querySelectorAll('[data-testid="cup-plan-card"]')].map((c) => norm(c.textContent));
-    expect(cards).toHaveLength(2);
-    expect(cards[0]).toContain("Tarjeta A");
-    expect(cards[0]).toContain("·1111");
-    expect(cards[0]).toContain("120 000 CUP");
-    expect(cards[0]).toContain("→ Ana");
-    expect(cards[0]).toContain("→ Beneficiario 2");
-    expect(cards[1]).toContain("Tarjeta B");
-    expect(cards[1]).toContain("30 000 CUP");
+    expect(cards).toEqual(["Tarjeta A ·1111120 000 CUP", "Tarjeta B ·222230 000 CUP"]);
+    expect(t).not.toContain("→");
+    expect(t).not.toContain("Ana");
     expect(t).not.toContain("Faltan");
     expect(host.querySelector("[role=status]")).toBeNull();
   });
 
-  it("warns, without a button or any blocking, with one line per beneficiary short of CUP", async () => {
+  it("warns with one plain line and a dot (no icon, no box) with the total CUP missing", async () => {
     const short = mapCupPanel({
       ...PLAN,
       missing_cup: 90000,
@@ -100,28 +97,24 @@ describe("CupPlanView", () => {
       ],
     })!;
     const host = await mount(<CupPlanView read={short} />);
-    const warn = host.querySelector("[role=status]");
+    const warn = host.querySelector("[role=status]") as HTMLElement;
     expect(warn).not.toBeNull();
-    const w = norm(warn!.textContent);
-    expect(w).toContain("Faltan 70 000 CUP (Ana)");
-    expect(w).toContain("Faltan 20 000 CUP (Beneficiario 2)");
-    expect(w).toContain("Sin tarjeta con límite hoy · queda para mañana");
-    expect(w.match(/Sin tarjeta/g)).toHaveLength(1);
+    expect(norm(warn.textContent)).toBe("Faltan 90 000 CUP · queda para mañana");
+    expect(warn.className).toContain("text-amber");
+    expect(warn.className).not.toMatch(/\bbg-|border|rounded-md|\bp[xy]?-/);
+    expect(warn.querySelector("svg")).toBeNull();
+    expect(warn.querySelector('[data-testid="cup-plan-dot"]')).not.toBeNull();
     expect(host.querySelector("button")).toBeNull();
   });
 
-  it("after completion: grouped by card with lot-rate rows, and the resulting rate at the bottom", async () => {
+  it("after completion: title and one row per card with its total, no lot rates, no resulting rate", async () => {
     const host = await mount(<CupPlanView read={mapCupPanel(DONE)!} />);
     const t = text(host);
     expect(t).toContain("Salió de");
     const cards = [...host.querySelectorAll('[data-testid="cup-used-card"]')].map((c) => norm(c.textContent));
-    expect(cards).toHaveLength(2);
-    expect(cards[0]).toContain("Tarjeta A");
-    expect(cards[0]).toContain("·1111");
-    expect(cards[0]).toContain("70 000 CUP");
-    expect(cards[0]).toContain("a 960 CUP/USDT");
-    expect(cards[1]).toContain("a 1 060 CUP/USDT");
-    expect(t).toContain("Tasa resultante: 987,96");
+    expect(cards).toEqual(["Tarjeta A ·111170 000 CUP", "Tarjeta B ·222230 000 CUP"]);
+    expect(t).not.toContain("CUP/USDT");
+    expect(t).not.toContain("Tasa resultante");
   });
 
   it("renders nothing for the empty states", async () => {
@@ -138,7 +131,7 @@ describe("CupPlanBlock", () => {
     vi.stubGlobal("fetch", fetchMock);
     const host = await mount(<CupPlanBlock operationId="op-1" />);
     expect(fetchMock).toHaveBeenCalledWith("/api/remittance-operations/op-1/cup-plan", expect.objectContaining({ cache: "no-store" }));
-    expect(text(host)).toContain("→ Ana");
+    expect(text(host)).toContain("Tarjeta A");
   });
 
   it("shows nothing (no error, no throw) when the request fails, answers an error or the network is down", async () => {

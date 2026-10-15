@@ -231,5 +231,13 @@ COMMIT;
     Completed op 12ef2f85 (T8 b): state completed, Salio de B 30000 @1060 + A 70000 @960 (69999.999999999999), cup_rate 987.96; op 53083958 (T8 a): A 50000 @960, cup_rate 960.
     Cleanup: DELETE FROM remittance_beneficiaries WHERE operation_id='008deb15-fc2e-43ac-bd32-9d4c1aa8b01e'; DELETE FROM remittance_operations WHERE id='008deb15-fc2e-43ac-bd32-9d4c1aa8b01e'; (staging only; plus the T8 cleanup above).
 
+- 2026-10-15 T12 follow-up (owner layout choice, staging only): the CUP plan block is grouped by card (card header with total, indented beneficiary rows, amber shortage box with one line per
+  beneficiary; "Salio de" the same with a row per lot rate and the resulting rate at the bottom). Pure groupPlanByCard / groupConsumptionsByCard in panel.ts; i18n cupPlan es/en.
+  Strict TDD: RED (8 failed) then GREEN; npm test 204 files / 2757, tsc and eslint clean. Commit 1c2419dce18238505c108da717edc5c43ac51638.
+  - Redeploy: release 1c2419dce18238505c108da717edc5c43ac51638 built in prod-build (node:20 docker, WITH suite 2757 + money-route 114), BUILD_ID M1vcY_o2S0S1LwGPbBcCu served by crm.onlinefreedom.site,
+    manifest staging / kolppplawzdsjfydwejr / 0 production refs, sha256 b54f7ed01e3f62efd57374d5cee966e33ecca30402cacfa8bb2cd1c135b5f8aa. oracle2: current -> 1c2419d, anterior -> d529d75; pm2 wacrm-staging online,
+    /proc cwd = the release, /login 200. prod-build restored to b6f1a1c, env copy deleted. UI only, no DB change.
+    Rollback: ln -sfn ~/wacrm-releases/d529d758ffdbfccf34bb2d04ce7265a2611ffcb9 current + pm2 restart wacrm-staging --update-env.
+
 ## Next step
 T12 is deployed on staging: the owner checks the delivery panel on operation 008deb15 (ready_to_transfer). T8/T9/T13 wait on the owner's check and real balances.

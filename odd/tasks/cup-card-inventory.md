@@ -95,7 +95,7 @@ card has limit, the panel only WARNS and still lets the operator complete.
       RPC for the panel (plan for an operation + consumptions of a completed one); rollback; staging assertion
       (20ba4db; SQL NOT run, pending staging run in T12)
 - [x] T11 Panel UI in the CUP delivery sections + API + tests (1bc6568)
-- [ ] T12 Staging apply + deploy + owner check (needs authorization)
+- [ ] T12 Staging apply + deploy + owner check (241 applied, both assertions green, deployed d529d75 + demo plan on staging 2026-10-15; WAITING FOR THE OWNER'S CHECK, do not tick until he confirms)
 - [ ] T13 Production together with phase 2 (needs go-ahead; owner confirms real balances first)
 
 ## Acceptance criteria (phase 1)
@@ -211,6 +211,25 @@ COMMIT;
     passes it) and in remittance-operation-card.tsx for completed operations; i18n Inbox.operationsPanel.cupPlan es/en (add-only). The block shows nothing on any failure.
     npm test 204 files / 2758 pass, tsc and eslint clean.
 
+- 2026-10-15 T12 staging run (owner-authorized, staging only kolppplawzdsjfydwejr; production, MCP, push untouched):
+  - Recon: schema_migrations top 240; md5(prosrc) cup_consumir on staging = 0e6e3a2111e798735c4ba4c681054504, equal to the 241 header: no drift.
+    Snapshot: entries 45, facturado_gyd 1487712.3999999999930000, invertido_gyd 1278516.95272860497039600000, retorno_gyd 209195.44727139507310400000; lots A 380000 / B 205000; 4 consumptions.
+  - RED: cup-inventory-panel.sql in BEGIN..ROLLBACK failed (function crm_inventario_cup_operacion(uuid) does not exist).
+  - 241 applied (--single-transaction, ON_ERROR_STOP) + row ('241','241_cup_inventory_panel'). cup_consumir md5 now 6686341131868928e9a89a14808bcd1b.
+    cup_planificar: EXECUTE false for anon, authenticated, service_role. crm_inventario_cup_operacion: authenticated true, anon false, service_role false.
+  - GREEN: first run 1 FAIL, case 5 "CUP beneficiary without amount -> no_amounts": the fixture operation is quoted at 2000 CUP by the trigger and a LONE CUP beneficiary
+    takes the quoted CUP by design (state plan, total 2000). Migration right; fixture-only fix d529d75 (two beneficiaries without amount). Re-run: cup-inventory-panel ALL PASS and
+    the phase 2 cup-inventory-consumption ALL PASS (regression of the cup_consumir refactor), both rolled back; snapshot after = before.
+  - Deploy: release d529d758ffdbfccf34bb2d04ce7265a2611ffcb9 (code = a7a9fb6 plus the fixture), built in prod-build with node:20 docker WITH the whole suite (204 files / 2758 tests) and the build's own money-route tests (114),
+    BUILD_ID L7ewpv0yW7GW1ztpmwkr1 served by crm.onlinefreedom.site. Manifest staging, kolppplawzdsjfydwejr, 0 production refs, sha256 032c9fd18a072f5adcbef69777d187e28d5a50ac7c89a651807c37c26fda8e51.
+    oracle2: current -> d529d75, anterior -> e16953e61c5dbe4924d0bd13a2773e9ffce303bb; pm2 wacrm-staging online, /proc cwd = the release, /login 200. prod-build restored to b6f1a1c, env copy deleted.
+    Rollback app: ln -sfn ~/wacrm-releases/e16953e61c5dbe4924d0bd13a2773e9ffce303bb current + pm2 restart wacrm-staging --update-env. DB: supabase/migrations/ROLLBACK-241-cup-inventory-panel.sql (and delete schema_migrations row 241).
+  - Beta flag: the cup-plan route needs profiles.beta_features to contain operations_panel; the owner profile feeccc91... already has {operations_panel}. Nothing changed.
+  - Demo (persisting): the Cuba day rolled over (2026-10-15) so card limits are fresh (A 120000, B 120000); the 60,000 + 50,000 example would not show a shortfall, so the amounts are 150,000 + 110,000.
+    Operation 008deb15-fc2e-43ac-bd32-9d4c1aa8b01e (conversation aa1a1fad..., ready_to_transfer, NOT completed), beneficiaries 514c6e39-9196-406c-b414-bf11c3941f08 (150,000) and b6297f15-7239-4999-b196-2d19dc1c6f13 (110,000).
+    Panel RPC: state plan, estimate true, total 260000, planned 240000, missing 20000, effective_rate 1007.52; beneficiary 1: A 120000 + B 30000; beneficiary 2: B 90000, missing 20000. Nothing written (entries 45, consumptions 4).
+    Completed op 12ef2f85 (T8 b): state completed, Salio de B 30000 @1060 + A 70000 @960 (69999.999999999999), cup_rate 987.96; op 53083958 (T8 a): A 50000 @960, cup_rate 960.
+    Cleanup: DELETE FROM remittance_beneficiaries WHERE operation_id='008deb15-fc2e-43ac-bd32-9d4c1aa8b01e'; DELETE FROM remittance_operations WHERE id='008deb15-fc2e-43ac-bd32-9d4c1aa8b01e'; (staging only; plus the T8 cleanup above).
+
 ## Next step
-T12: staging apply of 241 (after 240 is owner-checked), run cup-inventory-panel.sql and re-run cup-inventory-consumption.sql (must still pass), deploy, owner check. It needs the owner's
-explicit authorization (staging DB + deploy). T8/T9 are still waiting on the owner's check and real balances.
+T12 is deployed on staging: the owner checks the delivery panel on operation 008deb15 (ready_to_transfer). T8/T9/T13 wait on the owner's check and real balances.

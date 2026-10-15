@@ -32,7 +32,7 @@ un grupo."
 ## Tasks
 - [x] T1 src/lib/contacts/export-contacts.ts (vCard builder, prefix, phone format, file name) + tests (a07c725)
 - [x] T2 Contacts page: admin-only Exportar button + dialog + batched fetch of the filtered set + i18n es/en (94207d4)
-- [ ] T3 Staging deploy + owner check (needs authorization)
+- [ ] T3 Staging deploy + owner check (deployed to staging 2026-10-14, waiting for owner check)
 - [ ] T4 Production (needs go-ahead)
 
 ## Acceptance criteria
@@ -47,5 +47,11 @@ un grupo."
   Gate: new capability 'export-contacts' (canExportContacts = admin+) in roles.ts/use-can.ts. buildVCard returns
   {vcf, exported, skipped}. TDD runner: vitest. npm test 191 files/2596 tests pass; tsc clean; eslint 0 errors.
 
+- 2026-10-14 T3 staging deploy (owner-authorized, staging only, no migration):
+  - Release 7e62096f35818f7a50ab9ae25765230efeafdc15, BUILD_ID J7IHWXegbL9PwnZa35pWB (server, pm2 cwd and crm.onlinefreedom.site match, /login 200). anterior -> 037c366a8e72040453ad0b3a6b1e8fc80749f5d4.
+    Manifest staging, kolppplawzdsjfydwejr, 0 production refs, sha256 ok. Built WITH the tests step (114 pipeline tests passed in node:20). pm2 wacrm-staging online. prod-build restored to 16b6436, env copy deleted.
+    Rollback: current -> 037c366a8e72040453ad0b3a6b1e8fc80749f5d4 and pm2 restart wacrm-staging --update-env.
+  - Staging tags of the owner account (read-only): Nuevo 2, Recurrentes 1, Admin 0, Cliente 0 (3 contacts in total). Try "Nuevo".
+
 ## Next step
-T3 staging deploy + owner check: needs explicit owner authorization (destination, operation, credentials).
+Owner checks the Exportar button on staging (admin sees it; tag "Nuevo"; import the .vcf on the phone). Production (T4) only with go-ahead.

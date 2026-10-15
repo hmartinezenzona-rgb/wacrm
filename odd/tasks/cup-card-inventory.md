@@ -57,8 +57,8 @@ Claude defaults (stated to the owner):
 - [x] T1 Migration 239 tables + RPCs + rollback + staging assertion (07b3fda; SQL NOT run, pending staging run in T4)
 - [x] T2 API routes + tests (fcf8040)
 - [x] T3 "Inventario CUP" admin page + sidebar + i18n (+ tests for pure logic) (7310a83)
-- [ ] T4 Staging apply + deploy + owner check (239 applied and b23afa9 deployed to staging 2026-10-14, owner-authorized; waiting for the owner check on staging)
-- [ ] T5 Production (needs go-ahead)
+- [x] T4 Staging apply + deploy + owner check (239 applied, owner checked staging 2026-10-14; delete dialog fixed in 54a7831)
+- [x] T5 Production (owner go-ahead 2026-10-14 "pasalo a produccion"; done 2026-10-14, evidence below)
 - [ ] Phase 2 and 3: planned after phase 1 is in use
 
 ## Acceptance criteria (phase 1)
@@ -102,5 +102,17 @@ COMMIT;
 
 - 2026-10-14: owner checked staging; asked that deleting a lot use a dialog like editing instead of the browser prompt. Fixed: DeleteLotDialog (src/components/inventario-cup/delete-lot-dialog.tsx); page tests RED 2 -> GREEN 9; npm test 2726 pass; tsc/eslint clean.
 
+- 2026-10-14 T5 production (239 + app b6f1a1c, code = staging release 54a7831):
+  - Backup `~/wacrm-respaldos/produccion-20261015T030158Z.dump` (111 data tables, 320 functions, sha256 18cbca43d9ee92d0...).
+  - Recon: last schema_migrations row 20261014225919 / 238; no cup_* objects; helper absent; ACL convention postgres + authenticated; entries 122 rows, facturado 4536577.40, invertido 4111053.0781553398064480, retorno 425524.3218446602358520.
+  - `~/cerebro-fase1/pruebas/gate140-aplicar-db.py` (copy of gate139, bundle 239 only, bundle md5 4bee891078e7b3176772fa47d741d41e): `quien` -> postgres; `ensayo` (rolled back) -> 3 tables, RLS true on all, new RPC md5s
+    (crm_cargar_lote_cup 150a093e, crm_corregir_lote_cup 8b9a3ad7, crm_eliminar_lote_cup c51d7c25, crm_guardar_tarjeta_cup 20100bf1, crm_inventario_cup b2227744, cup_cuba_day 573730aa), untouched functions identical
+    (calculator_feed_operation 31c256da, crm_cierre_financiero c903a471, crm_corregir_tasas_entrada_calculadora b0e97962, crm_registrar_entradas_manuales d1f2b48c, is_account_member cea73e60), entries identical; `aplicar` -> {"r":"OK"}, row 20261015030414 / 239_cup_card_inventory.
+  - After: RLS enabled + one SELECT policy per table; authenticated SELECT only on tables (no anon); the 5 RPCs SECURITY DEFINER, anon false, authenticated true; cup_cuba_day plain, same grants.
+    cup_cards/cup_lots/cup_lot_consumptions EMPTY (0/0/0; no test data in production, the owner loads his real cards); entries identical to before; helper zz_wu5b_exec dropped (count 0); temp n8n workflows deleted. Assertion NOT run in production.
+  - App: release b6f1a1c97be75ed95d84397d326d643d9e8ac5fa built in prod-build (node:20 docker, NEXT_PRIVATE_OUTPUT_TRACE_ROOT=$PWD, main .git mounted read-only, WITH tests: 114 passed; manifest production, hqztotshnlzaiziwjyzh, 0 staging refs),
+    BUILD_ID CLs9uvPcwCjBlTN-NgTV2. Deployed with desplegar-wacrm-produccion.sh: pm2 wacrm online, /proc cwd = the release, domain serves the BUILD_ID, /login 200, /inventario-cup 200.
+    Rollback: anterior -> 97ae254ab8a8bd7bd53e06e668b834a22b382469 (rollback-wacrm-produccion.sh); DB ROLLBACK-239 through the gate route. prod-build left at b6f1a1c.
+
 ## Next step
-Owner checks "Inventario CUP" on staging (crm.onlinefreedom.site/inventario-cup, admin): the two PRUEBA cards are loaded. Then T5 production only with an explicit go-ahead.
+Owner loads his real cards and lots in production (/inventario-cup). Then phase 2 (automatic deduction).

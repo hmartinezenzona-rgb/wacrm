@@ -84,6 +84,9 @@ Claude defaults (stated to the owner):
   - Deployed to staging: release b23afa944626b86430bff9a52612b06dc496642b (code identical to 80e8332 plus the fixture), BUILD_ID o49Mmpy6ay0MmpLizEhFm (served by crm.onlinefreedom.site, pm2 cwd = the release, wacrm-staging online, /login 200,
     /inventario-cup 200 page for an unauthenticated request). anterior -> 7e62096f35818f7a50ab9ae25765230efeafdc15. Manifest staging, kolppplawzdsjfydwejr, 0 production refs, sha256 ok. Built WITH the tests (114 passed in node:20).
     prod-build restored to 97ae254, env copy deleted. Transfer used scp + tar (not rsync).
+  - Staging redeploy (UI-only fix, no migration): release 54a78315158c9b6ae7f58a0a16af3b65d72b0605 (confirm lot deletion in a dialog), BUILD_ID FDWEDwYnvbbUDsW_G_Nce served by crm.onlinefreedom.site,
+    pm2 wacrm-staging online, cwd = the release, /login 200, /inventario-cup 200. anterior -> b23afa944626b86430bff9a52612b06dc496642b. Manifest staging, kolppplawzdsjfydwejr, 0 production refs, sha256 ok, built WITH the tests (6 files passed in node:20).
+    prod-build restored to 97ae254, env copy deleted. Rollback: current -> b23afa944626b86430bff9a52612b06dc496642b + pm2 restart wacrm-staging --update-env.
     Rollback: current -> 7e62096f35818f7a50ab9ae25765230efeafdc15 + pm2 restart wacrm-staging --update-env; DB: supabase/migrations/ROLLBACK-239-cup-card-inventory.sql (and delete the schema_migrations row 239).
   - Test data (owner-authorized, through the real RPCs under the owner claim feeccc91..., account 472917ed-fca5-4679-b64c-e76a54089a16):
     PRUEBA Tarjeta A (1111, priority 1, limit 120000) e8d43d7b-cfed-479d-be00-2a4552cea31e, lot 500000 CUP @ 960 5ba110da-ff29-4f8b-98bd-fa568ceb8cb0;

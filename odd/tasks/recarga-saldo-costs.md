@@ -40,7 +40,7 @@ operation (provider discount, cheaper provider), recomputing invertido/retorno e
 - [x] T2 Migration 242: 500-tier cost rate + feed uses the tier; rollback; assertion (991c368; SQL assertions pending staging run T5)
 - [x] T3 Same migration 242: crm_corregir_tasas_entrada_calculadora(+p_costo_usdt), chat + manual (991c368; pending staging run T5)
 - [x] T4 UI: rates panel field + Editar cost fields + read model + tests (4837440)
-- [ ] T5 Staging apply + deploy + owner check (242 applied, assertions green, deployed 4f4e1f6 + demo data on staging 2026-10-17; deployed to staging, waiting for owner check)
+- [x] T5 Staging apply + deploy + owner check (owner checked 2026-10-17: global rates 600 cost 22.8 and saldo 2 saved; Editar on 600-tier entry a2fc9712 -> cost 22.8, invertido 5,472 / retorno 728; manual saldo 69abe03e -> cost 2, invertido 960 / retorno 1,040; facturado unchanged; no server errors)
 - [ ] T6 Production (needs go-ahead)
 
 ## Acceptance criteria

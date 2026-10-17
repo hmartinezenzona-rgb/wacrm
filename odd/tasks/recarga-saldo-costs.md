@@ -36,7 +36,7 @@ operation (provider discount, cheaper provider), recomputing invertido/retorno e
 - Conventional Commits, no AI trailer. Do not restyle. Next migration number after 241.
 
 ## Tasks
-- [x] T1 Map the recharge / saldo cost flow (feed, manual lines, rates UI) and confirm the tier rule (findings below; recorded in 4837440's doc commit)
+- [x] T1 Map the recharge / saldo cost flow (feed, manual lines, rates UI) and confirm the tier rule (findings below)
 - [x] T2 Migration 242: 500-tier cost rate + feed uses the tier; rollback; assertion (991c368; SQL assertions pending staging run T5)
 - [x] T3 Same migration 242: crm_corregir_tasas_entrada_calculadora(+p_costo_usdt), chat + manual (991c368; pending staging run T5)
 - [x] T4 UI: rates panel field + Editar cost fields + read model + tests (4837440)

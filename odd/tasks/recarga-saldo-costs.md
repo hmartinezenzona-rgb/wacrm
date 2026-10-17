@@ -40,7 +40,7 @@ operation (provider discount, cheaper provider), recomputing invertido/retorno e
 - [x] T2 Migration 242: 500-tier cost rate + feed uses the tier; rollback; assertion (991c368; SQL assertions pending staging run T5)
 - [x] T3 Same migration 242: crm_corregir_tasas_entrada_calculadora(+p_costo_usdt), chat + manual (991c368; pending staging run T5)
 - [x] T4 UI: rates panel field + Editar cost fields + read model + tests (4837440)
-- [ ] T5 Staging apply + deploy + owner check (needs authorization)
+- [ ] T5 Staging apply + deploy + owner check (242 applied, assertions green, deployed 4f4e1f6 + demo data on staging 2026-10-17; deployed to staging, waiting for owner check)
 - [ ] T6 Production (needs go-ahead)
 
 ## Acceptance criteria
@@ -77,5 +77,39 @@ operation (provider discount, cheaper provider), recomputing invertido/retorno e
   change, not pending); the rate fallback is visible in the entry's cost_gyd snapshot. Pending lines resolved with crm_resolve_pending_entry
   are not tiered.
 
+- 2026-10-17 T5 staging run (owner-authorized, staging only kolppplawzdsjfydwejr; production, MCP, push untouched):
+  - Recon: schema_migrations top 241; md5(prosrc) on staging equals the 242 header (calculator_feed_operation fcd4fff9, crm_set_calculator_rates 1dd94c00,
+    crm_corregir_tasas_entrada_calculadora 60bc617f): no drift. Snapshot: entries 46, facturado 1516712.3999999999930000, invertido 1302516.95272860497039600000,
+    retorno 214195.44727139507310400000; cup_lots 2, consumptions 4, cards 2.
+  - RED: recarga-tier-cost.sql in BEGIN..ROLLBACK failed (unknown rate: recarga_costo_usdt_500).
+  - 242 applied (--single-transaction, ON_ERROR_STOP) + row ('242','242_recarga_tier_cost') in supabase_migrations.schema_migrations. The 3-arg crm_corregir_tasas_entrada_calculadora is gone;
+    the 4-arg has EXECUTE authenticated true, anon false.
+  - GREEN: recarga-tier-cost ALL PASS, cup-inventory-consumption ALL PASS, cup-inventory-panel ALL PASS, all rolled back; snapshot after = before (data). calculator-entry-investment-rates
+    failed case 15.1 (expected 22023 for a manual RECARGA): the 238 refusal that 242 lifts by design (header: "A manual RECARGA / SALDO_MOVIL is accepted now"). Migration right; fixture-only
+    fix 4f4e1f6 (case 15 keeps only DIRECTO refused). Re-run: ALL PASS.
+  - Deploy: release 4f4e1f683de2de590145b7a17d15fd0c3d01c257, built in prod-build (node:20 docker, build-wacrm.sh, money-route tests 114 passed), BUILD_ID QksCJOBc2QYY3ldof98D9 served by
+    crm.onlinefreedom.site. Manifest staging / kolppplawzdsjfydwejr / 0 production refs, sha256 a9f05e8be6513f57a3563e13777be4ed3e649d747e05054e0d84c34d789bc16a. oracle2: current -> 4f4e1f6,
+    anterior -> e80f23679711935bf66d4a4eba3f78fa0fdeb4d4; pm2 wacrm-staging online, /proc cwd = the release, /login 200. prod-build restored to b6f1a1c, env copy deleted.
+    Rollback app: ln -sfn ~/wacrm-releases/e80f23679711935bf66d4a4eba3f78fa0fdeb4d4 current + pm2 restart wacrm-staging --update-env. DB: supabase/migrations/ROLLBACK-242-recarga-tier-cost.sql (and delete schema_migrations row 242).
+  - Rates (crm_set_calculator_rates under the owner claim): before version ded565f7 recarga_costo_usdt 23.1, recarga_costo_usdt_500 NULL, saldo_costo_usdt 1.25, usdt_buy_gyd 240 (others unchanged);
+    after version 311a2e94 recarga_costo_usdt_500 19.5, everything else identical.
+  - Demo (persisting; PRUEBA TASAS contact 56588e14..., conversation aa1a1fad..., last message updated; recharge beneficiary 'recarga' with a Cuban mobile, confirmed; completed with crm_cerrar_operacion_manual):
+    (a) 500 tier 5,200 GYD, op 6267d3c4-25b2-4772-b1e6-480c3593ef1f, entry a835206b-87b2-43a8-966f-8f3d3948ac70: facturado 5200, invertido 4680, retorno 520, cost 19.5.
+    (b) 600 tier 6,200 GYD, op 9fee0cb1-57ac-4e1b-b0cc-7dffc8e94bae, entry a2fc9712-3ef7-4f6a-a2bc-8192c781d94f: facturado 6200, invertido 5544, retorno 656, cost 23.1.
+    (c) manual lines (crm_registrar_entradas_manuales, payload from manualEntriesFromText): "• PRUEBA COSTOS 1 rec promo(19.5/5.2k/240)" entry d19641ac-2bb5-4dc1-9d22-b75d2a4cc7c3 (5200/4680/520);
+        "• PRUEBA COSTOS 2 saldo movil (1.6/1k/240)" entry 69abe03e-f385-4d2f-a488-bc02f5d83276 (2000/768/1232). entries 46 -> 50.
+  - Dry runs (rolled back): 600 entry p_costo_usdt 22.8 -> invertido 5472 (22.8 x 240), retorno 728, facturado 6200; saldo manual line with 1.6 -> unchanged (already 1.6: 768/1232);
+    extra: manual recharge with 19 -> invertido 4560, retorno 640.
+  - Cleanup SQL of the demo (staging only):
+```sql
+BEGIN;
+SELECT set_config('request.jwt.claims', json_build_object('sub','feeccc91-5c2d-446e-8366-21e97ceeb23f','role','authenticated')::text, true);
+SELECT crm_eliminar_entrada_calculadora(x) FROM unnest(ARRAY['a835206b-87b2-43a8-966f-8f3d3948ac70','a2fc9712-3ef7-4f6a-a2bc-8192c781d94f','d19641ac-2bb5-4dc1-9d22-b75d2a4cc7c3','69abe03e-f385-4d2f-a488-bc02f5d83276']::uuid[]) x;
+-- optional: the two completed operations and their beneficiaries
+-- DELETE FROM remittance_beneficiaries WHERE operation_id IN ('6267d3c4-25b2-4772-b1e6-480c3593ef1f','9fee0cb1-57ac-4e1b-b0cc-7dffc8e94bae');
+COMMIT;
+```
+  - The 500 rate (19.5) stays set on staging; to unset: crm_set_calculator_rates(account, '{"recarga_costo_usdt_500": null}').
+
 ## Next step
-T5: staging apply of 242 + run recarga-tier-cost.sql + deploy + owner check -- needs explicit owner authorization (no remote work done).
+T5: owner checks staging (crm.onlinefreedom.site, chat PRUEBA TASAS, Calculadora rates + Editar). Then T6 production on explicit go-ahead.

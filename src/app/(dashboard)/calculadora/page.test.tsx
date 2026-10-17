@@ -255,8 +255,9 @@ const RATE_OPTIONS = [
   ["zelle_sell_gyd_1000", "Zelle desde 1,000 USD"],
   ["zelle_sell_gyd_2000", "Zelle desde 2,000 USD"],
   ["efectivo_usd_gyd", "Efectivo USD (GYD por dólar)"],
-  ["recarga_costo_usdt", "Recarga: costo (USDT)"],
+  ["recarga_costo_usdt", "Costo recarga desde 600 (USDT)"],
   ["saldo_costo_usdt", "Costo saldo (USDT)"],
+  ["recarga_costo_usdt_500", "Costo recarga desde 500 (USDT)"],
 ] as const;
 
 const FULL_RATES = {
@@ -271,6 +272,7 @@ const FULL_RATES = {
   efectivoUsdGyd: 290,
   recargaCostoUsdt: 4.5,
   saldoCostoUsdt: 1.25,
+  recargaCostoUsdt500: 19.5,
   effectiveAt: "2026-09-10T00:00:00Z",
   setBy: null,
 };
@@ -294,7 +296,7 @@ function updateButton(node: HTMLElement) {
 }
 
 describe("calculator single-rate editor (Tarifas Globales)", () => {
-  it("the dropdown lists the ten rates in order with their Spanish labels", async () => {
+  it("the dropdown lists the eleven rates in order with their Spanish labels", async () => {
     const { node, root } = await renderPage(createFetchMock({ ratesGet: { rates: FULL_RATES } }));
 
     const options = [...node.querySelectorAll("#tasaSeleccionada option")].map((o) => [
@@ -328,8 +330,9 @@ describe("calculator single-rate editor (Tarifas Globales)", () => {
       ["Zelle desde 1,000 USD", "250"],
       ["Zelle desde 2,000 USD", "245"],
       ["Efectivo USD (GYD por dólar)", "—"],
-      ["Recarga: costo (USDT)", "4,5"],
+      ["Costo recarga desde 600 (USDT)", "4,5"],
       ["Costo saldo (USDT)", "1,25"],
+      ["Costo recarga desde 500 (USDT)", "19,5"],
     ]);
     expect(node.querySelectorAll("#tasasActuales input").length).toBe(0);
     await act(async () => root.unmount());
@@ -338,7 +341,7 @@ describe("calculator single-rate editor (Tarifas Globales)", () => {
   it("no rates set yet -> every value is a dash and the field is empty, never a fake default", async () => {
     const { node, root } = await renderPage(createFetchMock({ ratesGet: { rates: null } }));
 
-    expect(listRows(node).map(([, value]) => value)).toEqual(Array(10).fill("—"));
+    expect(listRows(node).map(([, value]) => value)).toEqual(Array(11).fill("—"));
     expect(inputValue(node, "tasaValor")).toBe("");
     await act(async () => root.unmount());
   });
@@ -2624,10 +2627,12 @@ describe("calculator manual entries (investment rates, migration 237)", () => {
     });
   });
 
-  it("a manual RECARGA shows no rate editor", async () => {
+  it("a manual RECARGA whose line carries no cost shows the cost field empty (migration 242)", async () => {
     const { node, root } = await renderPage(fixture());
     await openEditor(node, "man-rec");
-    expect(node.querySelector("#tasasEntry-man-rec")).toBeNull();
+    expect(node.querySelector("#tasasEntry-man-rec")).not.toBeNull();
+    expect(inputValue(node, "editCostoUsdt-man-rec")).toBe("");
+    expect(inputValue(node, "editCompraUsdt-man-rec")).toBe(String(FULL_RATES.usdtBuyGyd));
     await act(async () => root.unmount());
   });
 
@@ -2679,3 +2684,132 @@ describe("calculator manual entries (investment rates, migration 237)", () => {
   });
 });
 
+
+describe("per-operation cost of a recharge or saldo entry (migration 242)", () => {
+  const REC_ENTRY = {
+    id: "rec-500", operationId: "op-rec", source: "completed_operation", status: "completed", service: "RECARGA", customerName: "Josefa",
+    amount: 1, amountCurrency: "REC", entryDate: "2026-10-17", facturadoGyd: 5200, invertidoGyd: 4680, retornoGyd: 520, missingRates: [],
+    cupGlobalRate: 3, cupRate: 240, usdtBuyGyd: 240, usdtSellGyd: 5200, costGyd: 19.5, basisGyd: 5200, saleGyd: 5200,
+  };
+  const SALDO_ENTRY = {
+    ...REC_ENTRY, id: "saldo-1", operationId: "op-saldo", service: "SALDO_MOVIL", customerName: "Carlos", amount: 1080, amountCurrency: "SM",
+    facturadoGyd: 3000, invertidoGyd: 1440, retornoGyd: 1560, usdtSellGyd: 1000, costGyd: 2, basisGyd: 3000, saleGyd: 1000,
+  };
+  const MANUAL_REC = {
+    id: "man-line", operationId: null, source: "manual", status: "completed", service: "RECARGA", customerName: "Onaisy", amount: 1,
+    amountCurrency: "REC", entryDate: "2026-10-17", facturadoGyd: 6200, invertidoGyd: 5544, retornoGyd: 656, missingRates: [],
+    rawLine: "• Onaisy 1 rec promo(23.1/6.2k/240)",
+  };
+
+  function fixture(overrides?: Parameters<typeof createFetchMock>[0]) {
+    return createFetchMock({
+      calculadoraGet: { rawText: "", periodo: "SEMANA 1", chatOperations: { entries: [REC_ENTRY, SALDO_ENTRY, MANUAL_REC] } },
+      ratesGet: { rates: FULL_RATES },
+      ...overrides,
+    });
+  }
+  async function openEditor(node: HTMLElement, entryId: string) {
+    await act(async () => { (node.querySelector(`#editarEntry-${entryId}`) as HTMLButtonElement).click(); });
+  }
+  async function save(node: HTMLElement, entryId: string) {
+    await act(async () => { (node.querySelector(`#guardarEntry-${entryId}`) as HTMLButtonElement).click(); });
+    await flush();
+  }
+  const callsTo = (fetchMock: ReturnType<typeof createFetchMock>, url: string) =>
+    fetchMock.mock.calls.filter(([input]) => (typeof input === "string" ? input : input.toString()) === url);
+  const labelOf = (node: HTMLElement, id: string) => node.querySelector(`label[for="${id}"]`)?.textContent ?? "";
+
+  it("a chat recharge shows 'Costo por recarga (USDT)' and Compra USDT (GYD), prefilled from the entry snapshot", async () => {
+    const { node, root } = await renderPage(fixture());
+    await openEditor(node, "rec-500");
+    expect(labelOf(node, "editCostoUsdt-rec-500")).toContain("Costo por recarga (USDT)");
+    expect(inputValue(node, "editCostoUsdt-rec-500")).toBe("19.5");
+    expect(inputValue(node, "editCompraUsdt-rec-500")).toBe("240");
+    expect(node.querySelector("#editVentaUsdtCup-rec-500")).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("a saldo entry labels the cost per 360 CUP", async () => {
+    const { node, root } = await renderPage(fixture());
+    await openEditor(node, "saldo-1");
+    expect(labelOf(node, "editCostoUsdt-saldo-1")).toContain("Costo por 360 CUP (USDT)");
+    expect(inputValue(node, "editCostoUsdt-saldo-1")).toBe("2");
+    await act(async () => root.unmount());
+  });
+
+  it("previews invertido and ganancia while the cost is typed (saldo 1.6 -> 1,152 and 1,848), with no network call", async () => {
+    const fetchMock = fixture();
+    const { node, root } = await renderPage(fetchMock);
+    await openEditor(node, "saldo-1");
+    fetchMock.mockClear();
+    act(() => setInputValue(node, "editCostoUsdt-saldo-1", "1.6"));
+    expect(inputValue(node, "editInvertido-saldo-1")).toBe("1152.00");
+    expect(node.textContent).toContain(formatMoneyNumber(1848, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+    expect(fetchMock).not.toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
+
+  it("saving a changed cost posts costoUsdt only to the rates route", async () => {
+    const fetchMock = fixture({
+      ratesEntryPost: (entryId) => ({
+        status: 200,
+        body: { entry: { id: entryId, status: "completed", facturadoGyd: 5200, invertidoGyd: 4560, retornoGyd: 640, cupGlobalRate: 3, cupRate: 240, usdtBuyGyd: 240, usdtSellGyd: 5200, costGyd: 19, basisGyd: 5200, saleGyd: 5200 } },
+      }),
+    });
+    const { node, root } = await renderPage(fetchMock);
+    await openEditor(node, "rec-500");
+    act(() => setInputValue(node, "editCostoUsdt-rec-500", "19"));
+    expect(inputValue(node, "editInvertido-rec-500")).toBe("4560.00");
+    await save(node, "rec-500");
+    const calls = callsTo(fetchMock, "/api/calculator/entries/rec-500/rates");
+    expect(calls).toHaveLength(1);
+    expect(JSON.parse((calls[0]![1] as RequestInit).body as string)).toEqual({ costoUsdt: 19 });
+    expect(callsTo(fetchMock, "/api/calculator/entries/rec-500/correct")).toHaveLength(0);
+    await openEditor(node, "rec-500");
+    expect(inputValue(node, "editCostoUsdt-rec-500")).toBe("19");
+    await act(async () => root.unmount());
+  });
+
+  it("a manual recharge line is prefilled from its typed line and a change sends the cost AND the buy rate", async () => {
+    const fetchMock = fixture({
+      ratesEntryPost: (entryId) => ({
+        status: 200,
+        body: { entry: { id: entryId, status: "completed", facturadoGyd: 6200, invertidoGyd: 5472, retornoGyd: 728, cupGlobalRate: null, cupRate: 240, usdtBuyGyd: 240, usdtSellGyd: null, costGyd: 22.8, basisGyd: null, saleGyd: null } },
+      }),
+    });
+    const { node, root } = await renderPage(fetchMock);
+    await openEditor(node, "man-line");
+    expect(inputValue(node, "editCostoUsdt-man-line")).toBe("23.1");
+    expect(inputValue(node, "editCompraUsdt-man-line")).toBe("240");
+    act(() => setInputValue(node, "editCostoUsdt-man-line", "22.8"));
+    expect(inputValue(node, "editInvertido-man-line")).toBe("5472.00");
+    await save(node, "man-line");
+    const calls = callsTo(fetchMock, "/api/calculator/entries/man-line/rates");
+    expect(calls).toHaveLength(1);
+    expect(JSON.parse((calls[0]![1] as RequestInit).body as string)).toEqual({ costoUsdt: 22.8, usdtBuyGyd: 240 });
+    await act(async () => root.unmount());
+  });
+
+  it("an unchanged cost never calls the rates route", async () => {
+    const fetchMock = fixture();
+    const { node, root } = await renderPage(fetchMock);
+    await openEditor(node, "rec-500");
+    act(() => setInputValue(node, "editFacturado-rec-500", "5300"));
+    await save(node, "rec-500");
+    expect(callsTo(fetchMock, "/api/calculator/entries/rec-500/rates")).toHaveLength(0);
+    expect(callsTo(fetchMock, "/api/calculator/entries/rec-500/correct")).toHaveLength(1);
+    await act(async () => root.unmount());
+  });
+
+  it("a cost that is not above zero is rejected client-side", async () => {
+    const fetchMock = fixture();
+    const { node, root } = await renderPage(fetchMock);
+    await openEditor(node, "rec-500");
+    act(() => setInputValue(node, "editCostoUsdt-rec-500", "0"));
+    fetchMock.mockClear();
+    await save(node, "rec-500");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(node.textContent).toContain("mayores que 0");
+    await act(async () => root.unmount());
+  });
+});

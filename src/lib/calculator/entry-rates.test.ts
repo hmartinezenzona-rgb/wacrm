@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  canEditEntryCost,
   canEditEntryRates,
   mapEntryRateSnapshot,
   recomputeInvestment,
@@ -130,8 +131,11 @@ describe("canEditEntryRates", () => {
     }
   });
 
-  it("manual RECARGA, SALDO_MOVIL, DIRECTO, EFECTIVO, COMBO and VISA stay refused", () => {
-    for (const service of ["RECARGA", "SALDO_MOVIL", "DIRECTO", "EFECTIVO", "COMBO", "VISA"]) {
+  it("manual RECARGA and SALDO_MOVIL take the buy rate too (migration 242); DIRECTO, EFECTIVO, COMBO and VISA stay refused", () => {
+    for (const service of ["RECARGA", "SALDO_MOVIL"]) {
+      expect(canEditEntryRates(entry({ source: "manual", service }))).toEqual({ buy: true, cup: false });
+    }
+    for (const service of ["DIRECTO", "EFECTIVO", "COMBO", "VISA"]) {
       expect(canEditEntryRates(entry({ source: "manual", service }))).toEqual({ buy: false, cup: false });
     }
   });
@@ -155,7 +159,7 @@ describe("recomputeInvestment on a manual row (no stored snapshot)", () => {
   });
 
   it("manual services outside the supported set recompute to null", () => {
-    for (const service of ["RECARGA", "SALDO_MOVIL", "DIRECTO", "EFECTIVO"]) {
+    for (const service of ["DIRECTO", "EFECTIVO"]) {
       expect(recomputeInvestment(manual({ service, costGyd: 1.5, basisGyd: 1000, saleGyd: 500 }), { usdtBuyGyd: 240 })).toBeNull();
     }
   });
@@ -184,5 +188,64 @@ describe("recomputeInvestment on a discounted manual line", () => {
     expect(recomputeInvestment(manual({ discountPct: null }), { usdtBuyGyd: 230 })?.invertidoGyd).toBeCloseTo(76 * 230, 9);
     expect(recomputeInvestment(entry({ source: "completed_operation", service: "CLASICA", amount: 76, usdtBuyGyd: 238, discountPct: 3 }), {})?.invertidoGyd)
       .toBeCloseTo(76 * 238, 9);
+  });
+});
+
+describe("per-operation cost (migration 242): recomputeInvestment with costUsdt", () => {
+  const recarga = (overrides: Partial<EntryRateInput> = {}) =>
+    entry({ service: "RECARGA", amount: 1, facturadoGyd: 5200, costGyd: 19.5, cupRate: 240, usdtBuyGyd: 240, ...overrides });
+
+  it("a 500-tier recharge costed 19.5 at 240 gives invertido 4,680 and retorno 520 on 5,200", () => {
+    expect(recomputeInvestment(recarga(), { costUsdt: 19.5 })).toEqual({ invertidoGyd: 4680, retornoGyd: 520 });
+    expect(recomputeInvestment(recarga(), {})).toEqual({ invertidoGyd: 4680, retornoGyd: 520 });
+  });
+
+  it("editing a 600-tier recharge to 22.8 recomputes invertido 22.8 x buy and keeps facturado", () => {
+    const row = recarga({ facturadoGyd: 6200, costGyd: 23.1 });
+    const result = recomputeInvestment(row, { costUsdt: 22.8 });
+    expect(result?.invertidoGyd).toBeCloseTo(5472, 6);
+    expect(result?.retornoGyd).toBeCloseTo(728, 6);
+  });
+
+  it("cost and buy rate change together", () => {
+    expect(recomputeInvestment(recarga(), { costUsdt: 19, usdtBuyGyd: 238 })?.invertidoGyd).toBeCloseTo(4522, 6);
+  });
+
+  it("a chat saldo entry edited to 1.6 per package: packages x 1.6 x buy", () => {
+    const row = entry({ service: "SALDO_MOVIL", amount: 1080, facturadoGyd: 3000, costGyd: 2, basisGyd: 3000, saleGyd: 1000, usdtBuyGyd: 240 });
+    const result = recomputeInvestment(row, { costUsdt: 1.6 });
+    expect(result?.invertidoGyd).toBeCloseTo(1152, 6);
+    expect(result?.retornoGyd).toBeCloseTo(1848, 6);
+  });
+
+  it("a manual RECARGA / SALDO_MOVIL uses the typed number x cost x buy (no snapshot: cost and buy must be given or read from the line)", () => {
+    const manualRecarga = entry({ source: "manual", service: "RECARGA", amount: 2, facturadoGyd: 12400, cupRate: null, usdtBuyGyd: null, costGyd: null });
+    expect(recomputeInvestment(manualRecarga, { costUsdt: 22.8, usdtBuyGyd: 240 })?.invertidoGyd).toBeCloseTo(10944, 6);
+    expect(recomputeInvestment(manualRecarga, { usdtBuyGyd: 240 })).toBeNull();
+    const manualSaldo = entry({ source: "manual", service: "SALDO_MOVIL", amount: 3, facturadoGyd: 3000, cupRate: null, usdtBuyGyd: null, costGyd: 2, basisGyd: null, saleGyd: null });
+    expect(recomputeInvestment(manualSaldo, { costUsdt: 1.6, usdtBuyGyd: 240 })?.invertidoGyd).toBeCloseTo(1152, 6);
+  });
+
+  it("a cost that is not above zero, or on a service without unit cost, -> null", () => {
+    expect(recomputeInvestment(recarga(), { costUsdt: 0 })).toBeNull();
+    expect(recomputeInvestment(recarga(), { costUsdt: Number.NaN })).toBeNull();
+    expect(recomputeInvestment(entry({ service: "ZELLE", amount: 100 }), { costUsdt: 1 })).toBeNull();
+  });
+});
+
+describe("canEditEntryCost", () => {
+  it("completed RECARGA and SALDO_MOVIL rows, chat or manual", () => {
+    for (const source of ["completed_operation", "manual"]) {
+      for (const service of ["RECARGA", "SALDO_MOVIL"]) {
+        expect(canEditEntryCost(entry({ source, service }))).toBe(true);
+      }
+    }
+  });
+
+  it("no other service, and nothing that is not completed", () => {
+    for (const service of ["CUP", "ZELLE", "USDT", "COMBO", "VISA", "DIRECTO"]) {
+      expect(canEditEntryCost(entry({ service }))).toBe(false);
+    }
+    expect(canEditEntryCost(entry({ service: "RECARGA", status: "verified_pending" }))).toBe(false);
   });
 });

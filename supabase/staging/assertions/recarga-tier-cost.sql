@@ -12,7 +12,7 @@
 --   case 6 edit a chat saldo (3 packages, 1,000 each) to 1.6: invertido 3 x 1.6 x 240 = 1,152, retorno 1,848
 --   case 7 manual lines: "rec promo(23.1/6.2k/240)" x1 with buy 240 and no cost -> cost read from the line (5,544); explicit 22.8 -> 5,472;
 --          manual saldo "(2/1k/240)" x3 edited to 1.6 -> 1,152; an unreadable line with no cost -> 22023
---   case 8 refusals: cost on a ZELLE entry (22023), non-positive cost (22023), non-admin (42501)
+--   case 8 refusals: non-positive cost (22023), non-admin (42501)
 --   case 9 crm_set_calculator_rates accepts recarga_costo_usdt_500, carries it forward, refuses <= 0
 -- =====================================================================
 CREATE OR REPLACE FUNCTION pg_temp.op_t242(p_tag text, p_gyd numeric, p_numbers text[]) RETURNS uuid

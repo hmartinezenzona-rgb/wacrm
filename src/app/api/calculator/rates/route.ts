@@ -21,7 +21,7 @@ import {
 import { mapRateVersion, type RateVersionRow } from "@/lib/calculator/ledger-read-model";
 
 const RATE_VERSION_COLUMNS =
-  "id, account_id, cup_global_rate, usdt_buy_gyd, usdt_sell_gyd, usdt_sell_cup, efectivo_usd_gyd, recarga_costo_usdt, saldo_costo_usdt, zelle_sell_gyd, zelle_sell_gyd_1000, zelle_sell_gyd_2000, set_by, effective_at";
+  "id, account_id, cup_global_rate, usdt_buy_gyd, usdt_sell_gyd, usdt_sell_cup, efectivo_usd_gyd, recarga_costo_usdt, saldo_costo_usdt, recarga_costo_usdt_500, zelle_sell_gyd, zelle_sell_gyd_1000, zelle_sell_gyd_2000, set_by, effective_at";
 
 /** The only keys `crm_set_calculator_rates`'s `p_rates` jsonb argument
  * accepts. Mirrors the RPC contract exactly -- an unknown key is rejected
@@ -35,6 +35,8 @@ const RATE_KEYS = [
   "recarga_costo_usdt",
   // Cost of one package of mobile balance in USDT (migration 223).
   "saldo_costo_usdt",
+  // Cost of one recharge of the 500 CUP promotion tier in USDT (migration 242); recarga_costo_usdt is the 600 CUP tier.
+  "recarga_costo_usdt_500",
   // Zelle sale price of each tier (migration 216): tiers start at 50, 1,000 and 2,000 USD.
   "zelle_sell_gyd",
   "zelle_sell_gyd_1000",

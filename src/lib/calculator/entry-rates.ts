@@ -4,8 +4,10 @@
  * form can preview what the database will store; the database remains the authority.
  *
  *   CUP                              (amount / cup_rate) * usdt_buy_gyd
- *   RECARGA                          amount * cost_gyd * usdt_buy_gyd
- *   SALDO_MOVIL                      (basis_gyd / sale_gyd) * cost_gyd * usdt_buy_gyd   (amount is saldo units)
+ *   RECARGA                          amount * cost * usdt_buy_gyd
+ *   SALDO_MOVIL (chat)               (basis_gyd / sale_gyd) * cost * usdt_buy_gyd   (amount is saldo units)
+ *   RECARGA / SALDO_MOVIL (manual)   amount * cost * usdt_buy_gyd                   (the manual calculator's formula)
+ *   where cost = the edited costUsdt, else the stored cost_gyd (migration 242: USDT per recharge / per 360 CUP package)
  *   ZELLE, MLC, CLASICA, TROPICAL,
  *   USDT, EFECTIVO, DIRECTO          amount * usdt_buy_gyd
  *   COMBO, VISA                      no rates: not editable
@@ -88,9 +90,12 @@ const NO_RATES_SERVICES = new Set(["COMBO", "VISA"]);
 /**
  * Services a MANUAL row (migration 237) may take rates for: the ones the manual calculator costs with the same plain formula
  * as the ledger (CUP: (amount / cup) * buy; the others: amount * buy, or amount / (1 + pct / 100) * buy with a typed discount,
- * migration 238). A manual RECARGA / SALDO_MOVIL stores no unit cost and DIRECTO has no investment.
+ * migration 238; RECARGA / SALDO_MOVIL: amount * cost * buy, migration 242). DIRECTO has no investment.
  */
-const MANUAL_RATE_SERVICES = new Set(["CUP", "ZELLE", "MLC", "CLASICA", "TROPICAL", "USDT"]);
+const MANUAL_RATE_SERVICES = new Set(["CUP", "ZELLE", "MLC", "CLASICA", "TROPICAL", "USDT", "RECARGA", "SALDO_MOVIL"]);
+
+/** Services costed per unit: the cost of one recharge / of one 360 CUP saldo package is editable (migration 242). */
+const UNIT_COST_SERVICES = new Set(["RECARGA", "SALDO_MOVIL"]);
 
 /** Manual services whose typed line may carry a leading "N%" discount (same set as calculateEntry's discountPct). */
 const MANUAL_DISCOUNT_SERVICES = new Set(["ZELLE", "MLC", "CLASICA", "TROPICAL"]);
@@ -113,6 +118,11 @@ export function canEditEntryRates(entry: Pick<EntryRateInput, "source" | "status
   return { buy: editable, cup: editable && entry.service === "CUP" };
 }
 
+/** Whether the admin may change the USDT cost per recharge / per saldo package of this entry (completed, chat-fed or manual). */
+export function canEditEntryCost(entry: Pick<EntryRateInput, "source" | "status" | "service">): boolean {
+  return entry.status === "completed" && UNIT_COST_SERVICES.has(entry.service) && hasRates(entry);
+}
+
 /**
  * The invertido / retorno the entry gets with the new rates (an omitted or null rate keeps the stored one), or `null`
  * when the database would refuse it: nothing editable, a rate that is not > 0, a cup_rate on a non-CUP service, or a
@@ -120,12 +130,13 @@ export function canEditEntryRates(entry: Pick<EntryRateInput, "source" | "status
  */
 export function recomputeInvestment(
   entry: EntryRateInput,
-  rates: { usdtBuyGyd?: number | null; cupRate?: number | null },
+  rates: { usdtBuyGyd?: number | null; cupRate?: number | null; costUsdt?: number | null },
 ): { invertidoGyd: number; retornoGyd: number } | null {
   if (!hasRates(entry) || entry.facturadoGyd === null) return null;
   if (rates.usdtBuyGyd != null && !isRate(rates.usdtBuyGyd)) return null;
   if (rates.cupRate != null && !isRate(rates.cupRate)) return null;
   if (rates.cupRate != null && entry.service !== "CUP") return null;
+  if (rates.costUsdt != null && (!isRate(rates.costUsdt) || !UNIT_COST_SERVICES.has(entry.service))) return null;
 
   const buy = rates.usdtBuyGyd ?? entry.usdtBuyGyd;
   if (!isRate(buy)) return null;
@@ -135,14 +146,17 @@ export function recomputeInvestment(
     const cup = rates.cupRate ?? entry.cupRate;
     if (!isRate(cup)) return null;
     invertidoGyd = (entry.amount / cup) * buy;
-  } else if (entry.service === "RECARGA") {
-    if (entry.costGyd === null) return null;
-    invertidoGyd = entry.amount * entry.costGyd * buy;
-  } else if (entry.service === "SALDO_MOVIL") {
-    if (entry.costGyd === null || entry.basisGyd === null || !isRate(entry.saleGyd)) return null;
-    const packages = entry.basisGyd / entry.saleGyd;
-    if (Math.abs(packages - Math.round(packages)) > 1e-9) return null;
-    invertidoGyd = Math.round(packages) * entry.costGyd * buy;
+  } else if (entry.service === "RECARGA" || entry.service === "SALDO_MOVIL") {
+    const cost = rates.costUsdt ?? entry.costGyd;
+    if (!isRate(cost)) return null;
+    if (entry.service === "RECARGA" || entry.source === "manual") {
+      invertidoGyd = entry.amount * cost * buy;
+    } else {
+      if (entry.basisGyd === null || !isRate(entry.saleGyd)) return null;
+      const packages = entry.basisGyd / entry.saleGyd;
+      if (Math.abs(packages - Math.round(packages)) > 1e-9) return null;
+      invertidoGyd = Math.round(packages) * cost * buy;
+    }
   } else {
     const discounted = entry.source === "manual" && MANUAL_DISCOUNT_SERVICES.has(entry.service) && (entry.discountPct ?? 0) > 0;
     invertidoGyd = (discounted ? entry.amount / (1 + (entry.discountPct as number) / 100) : entry.amount) * buy;

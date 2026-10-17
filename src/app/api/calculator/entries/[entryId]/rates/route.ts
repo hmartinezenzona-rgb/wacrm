@@ -42,14 +42,17 @@ export async function POST(
 
     const usdtBuyGyd = (body as { usdtBuyGyd?: unknown } | null)?.usdtBuyGyd ?? null;
     const cupRate = (body as { cupRate?: unknown } | null)?.cupRate ?? null;
+    // USDT cost of one recharge / of one 360 CUP saldo package (migration 242): same bound as the cost columns (> 0 AND < 1e6).
+    const costoUsdt = (body as { costoUsdt?: unknown } | null)?.costoUsdt ?? null;
 
     if (
-      (usdtBuyGyd === null && cupRate === null) ||
+      (usdtBuyGyd === null && cupRate === null && costoUsdt === null) ||
       (usdtBuyGyd !== null && !isValidRate(usdtBuyGyd)) ||
-      (cupRate !== null && !isValidRate(cupRate))
+      (cupRate !== null && !isValidRate(cupRate)) ||
+      (costoUsdt !== null && !(isValidRate(costoUsdt) && costoUsdt < 1e6))
     ) {
       return NextResponse.json(
-        { error: "usdtBuyGyd and cupRate must be finite numbers > 0, and at least one is required" },
+        { error: "usdtBuyGyd, cupRate and costoUsdt must be finite numbers > 0, and at least one is required" },
         { status: 400 },
       );
     }
@@ -58,6 +61,8 @@ export async function POST(
       p_entry_id: entryId,
       p_usdt_buy_gyd: usdtBuyGyd,
       p_cup_rate: cupRate,
+      // Sent only when given, so the route keeps working against a database that has not got migration 242 yet.
+      ...(costoUsdt !== null ? { p_costo_usdt: costoUsdt } : {}),
     });
     if (error) {
       const errorResponse = rpcErrorResponse(error);

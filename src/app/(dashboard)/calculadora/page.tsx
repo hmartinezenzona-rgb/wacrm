@@ -10,8 +10,8 @@ import { formatNumber as formatMoneyNumber } from "@/lib/format-number";
 import { MoneyTotalFigure } from "@/components/money/money-total-figure";
 import { ServiceDot } from "@/components/service/service-dot";
 import { moneyCellProps, moneyStripeClass, profitTone, totalTone } from "@/lib/money-tone";
-import { canEditEntryRates, recomputeInvestment } from "@/lib/calculator/entry-rates";
-import { parseManualLineRates } from "@/lib/calculator/web-calculator";
+import { canEditEntryCost, canEditEntryRates, recomputeInvestment } from "@/lib/calculator/entry-rates";
+import { parseManualLineRates, parseManualUnitLine } from "@/lib/calculator/web-calculator";
 import { chatEntryAmountExportText, chatEntryAmountText, ledgerServiceLabel } from "@/lib/calculator/entry-display";
 import { applyCalculatorEntryRealtimeEvent, insertCalculatorEntry, type ChatCalculatorEntry } from "@/lib/calculator/realtime-entry";
 import { useCalculatorEntriesRealtime } from "@/hooks/use-calculator-entries-realtime";
@@ -78,7 +78,7 @@ function insertBullet(value: string, cursor: number): { value: string; cursor: n
 type RateKey =
   | "cup_global_rate" | "usdt_buy_gyd" | "usdt_sell_gyd" | "usdt_sell_cup" | "zelle_sell_gyd"
   | "zelle_sell_gyd_1000" | "zelle_sell_gyd_2000" | "efectivo_usd_gyd" | "recarga_costo_usdt"
-  | "saldo_costo_usdt";
+  | "saldo_costo_usdt" | "recarga_costo_usdt_500";
 
 // Every global rate, in the order shown in the dropdown and the current-rates list.
 const RATE_FIELDS: ReadonlyArray<{ key: RateKey; label: string; field: keyof CalculatorRates }> = [
@@ -90,8 +90,9 @@ const RATE_FIELDS: ReadonlyArray<{ key: RateKey; label: string; field: keyof Cal
   { key: "zelle_sell_gyd_1000", label: "Zelle desde 1,000 USD", field: "zelleSellGyd1000" },
   { key: "zelle_sell_gyd_2000", label: "Zelle desde 2,000 USD", field: "zelleSellGyd2000" },
   { key: "efectivo_usd_gyd", label: "Efectivo USD (GYD por dólar)", field: "efectivoUsdGyd" },
-  { key: "recarga_costo_usdt", label: "Recarga: costo (USDT)", field: "recargaCostoUsdt" },
+  { key: "recarga_costo_usdt", label: "Costo recarga desde 600 (USDT)", field: "recargaCostoUsdt" },
   { key: "saldo_costo_usdt", label: "Costo saldo (USDT)", field: "saldoCostoUsdt" },
+  { key: "recarga_costo_usdt_500", label: "Costo recarga desde 500 (USDT)", field: "recargaCostoUsdt500" },
 ];
 
 function rateValueOf(rates: CalculatorRates | null, key: RateKey): number | null {
@@ -123,6 +124,8 @@ export default function CalculadoraPage() {
   // Investment rates of the entry being edited (what the admin typed), see crm_corregir_tasas_entrada_calculadora (236).
   const [editBuy, setEditBuy] = useState("");
   const [editCup, setEditCup] = useState("");
+  // USDT cost of one recharge / of one 360 CUP saldo package (RECARGA, SALDO_MOVIL), migration 242.
+  const [editCost, setEditCost] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [entryActionMessage, setEntryActionMessage] = useState<{ entryId: string; text: string } | null>(null);
   // Weekly cut (227): the latest cut hides the entries it archived; a live event for one of them must not bring it back.
@@ -356,6 +359,7 @@ export default function CalculadoraPage() {
     const prefill = prefillRates(entry);
     setEditBuy(prefill.buy == null ? "" : String(prefill.buy));
     setEditCup(prefill.cup == null ? "" : String(prefill.cup));
+    setEditCost(prefill.cost == null ? "" : String(prefill.cost));
     setEntryActionMessage(null);
   }
 
@@ -364,13 +368,16 @@ export default function CalculadoraPage() {
    * with none starts from the rates its typed line was quoted with (read by the Calculator's own line parser); only a line that
    * carries none falls back to the CURRENT global investment rates, and with none loaded the fields start empty.
    */
-  function prefillRates(entry: ChatCalculatorEntry): { buy: number | null; cup: number | null; unstored: boolean } {
+  function prefillRates(entry: ChatCalculatorEntry): { buy: number | null; cup: number | null; cost: number | null; unstored: boolean } {
     const unstored = entry.source === "manual" && entry.usdtBuyGyd == null;
-    if (!unstored) return { buy: entry.usdtBuyGyd ?? null, cup: entry.cupRate ?? null, unstored };
+    if (!unstored) return { buy: entry.usdtBuyGyd ?? null, cup: entry.cupRate ?? null, cost: entry.costGyd ?? null, unstored };
     const line = parseManualLineRates(entry.rawLine);
+    // A manual RECARGA / SALDO MOVIL line is quoted "(cost / sale / buy)": its own cost and buy rate (parseManualUnitLine).
+    const unit = parseManualUnitLine(entry.rawLine);
     return {
-      buy: line?.buy ?? rates?.usdtBuyGyd ?? null,
+      buy: line?.buy ?? unit?.buy ?? rates?.usdtBuyGyd ?? null,
       cup: line?.cupRate ?? rates?.usdtSellCup ?? null,
+      cost: entry.costGyd ?? unit?.cost ?? null,
       unstored,
     };
   }
@@ -381,6 +388,7 @@ export default function CalculadoraPage() {
     setEditInvertido("");
     setEditBuy("");
     setEditCup("");
+    setEditCost("");
   }
 
   /** A rate field: null when empty or not a number above zero. */
@@ -396,8 +404,8 @@ export default function CalculadoraPage() {
    * database will store for them.
    */
   function editedRates(entry: ChatCalculatorEntry) {
-    const editable = canEditEntryRates(entry);
-    const changed: { usdtBuyGyd?: number; cupRate?: number } = {};
+    const editable = { ...canEditEntryRates(entry), cost: canEditEntryCost(entry) };
+    const changed: { usdtBuyGyd?: number; cupRate?: number; costoUsdt?: number } = {};
     let invalid = false;
     const base = prefillRates(entry);
     // A manual row's prefill is not a stored rate (it is the line's quote or the global one): an empty field means "no rate change" there, not an invalid one.
@@ -412,23 +420,30 @@ export default function CalculadoraPage() {
       if (cup === null) invalid = invalid || !(optional && editCup.trim() === "");
       else if (cup !== base.cup) changed.cupRate = cup;
     }
-    // A row without a snapshot needs every rate its formula uses, so a change sends the whole set (CUP: both; others: buy).
+    if (editable.cost) {
+      const cost = parseEditRate(editCost);
+      if (cost === null) invalid = invalid || !(optional && editCost.trim() === "");
+      else if (cost !== base.cost) changed.costoUsdt = cost;
+    }
+    // A row without a snapshot needs every rate its formula uses, so a change sends the whole set (CUP: both; others: buy; recharge / saldo: cost and buy).
     if (optional && Object.keys(changed).length > 0) {
       const buy = parseEditRate(editBuy);
       const cup = parseEditRate(editCup);
+      const cost = parseEditRate(editCost);
       if (editable.buy && buy !== null) changed.usdtBuyGyd = buy;
       if (editable.cup && cup !== null) changed.cupRate = cup;
+      if (editable.cost && cost !== null) changed.costoUsdt = cost;
     }
     const hasChange = Object.keys(changed).length > 0;
     const recomputed = hasChange && !invalid
       ? recomputeInvestment(
           {
             source: entry.source, status: entry.status, service: entry.service, amount: entry.amount, facturadoGyd: entry.facturadoGyd,
-            cupRate: entry.cupRate ?? null, usdtBuyGyd: entry.usdtBuyGyd ?? null, costGyd: entry.costGyd ?? null,
+            cupRate: entry.cupRate ?? null, usdtBuyGyd: entry.usdtBuyGyd ?? null, costGyd: base.cost,
             basisGyd: entry.basisGyd ?? null, saleGyd: entry.saleGyd ?? null,
             discountPct: entry.source === "manual" ? (parseManualLineRates(entry.rawLine)?.discountPct ?? null) : null,
           },
-          changed,
+          { usdtBuyGyd: changed.usdtBuyGyd, cupRate: changed.cupRate, costUsdt: changed.costoUsdt },
         )
       : null;
     return { editable, changed, hasChange, invalid, recomputed };
@@ -496,7 +511,7 @@ export default function CalculadoraPage() {
    * Saves the investment rates of an entry (the database recomputes invertido and retorno). If the admin also changed the
    * facturado, it is then corrected over the invertido the rates produced, with the existing figures route.
    */
-  async function saveEditRates(entry: ChatCalculatorEntry, changed: { usdtBuyGyd?: number; cupRate?: number }, facturadoGyd: number) {
+  async function saveEditRates(entry: ChatCalculatorEntry, changed: { usdtBuyGyd?: number; cupRate?: number; costoUsdt?: number }, facturadoGyd: number) {
     const entryId = entry.id;
     setEditSaving(true);
     try {
@@ -1013,7 +1028,7 @@ export default function CalculadoraPage() {
                           {!editing && rowMessage && <div className="legacyError">{rowMessage}</div>}
                         </td>
                       </tr>
-                      {editing && editedRate && (editedRate.editable.buy || editedRate.editable.cup) && (
+                      {editing && editedRate && (editedRate.editable.buy || editedRate.editable.cup || editedRate.editable.cost) && (
                         <tr id={`tasasEntry-${entry.id}`}>
                           <td colSpan={9}>
                             <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
@@ -1029,6 +1044,19 @@ export default function CalculadoraPage() {
                                     step="any"
                                     value={editCup}
                                     onChange={(event) => setEditCup(event.target.value)}
+                                    onKeyDown={(event) => handleEditKeys(event, entry.id)}
+                                  />
+                                </label>
+                              )}
+                              {editedRate.editable.cost && (
+                                <label className="legacySmall" htmlFor={`editCostoUsdt-${entry.id}`}>
+                                  {entry.service === "SALDO_MOVIL" ? "Costo por 360 CUP (USDT)" : "Costo por recarga (USDT)"}
+                                  <input
+                                    id={`editCostoUsdt-${entry.id}`}
+                                    type="number"
+                                    step="any"
+                                    value={editCost}
+                                    onChange={(event) => setEditCost(event.target.value)}
                                     onKeyDown={(event) => handleEditKeys(event, entry.id)}
                                   />
                                 </label>

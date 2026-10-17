@@ -120,6 +120,12 @@ describe("POST /api/calculator/entries/[entryId]/rates", () => {
     ["usdtBuyGyd Infinity", { usdtBuyGyd: Number.POSITIVE_INFINITY }],
     ["cupRate beyond the column limit", { cupRate: 1e9 }],
     ["valid usdtBuyGyd but invalid cupRate", { usdtBuyGyd: 206, cupRate: 0 }],
+    ["costoUsdt not a number", { costoUsdt: "19.5" }],
+    ["costoUsdt zero", { costoUsdt: 0 }],
+    ["costoUsdt negative", { costoUsdt: -2 }],
+    ["costoUsdt NaN", { costoUsdt: Number.NaN }],
+    ["costoUsdt beyond the column limit", { costoUsdt: 1e6 }],
+    ["valid costoUsdt but invalid usdtBuyGyd", { costoUsdt: 19.5, usdtBuyGyd: 0 }],
   ])("%s -> 400, RPC never called", async (_label, body) => {
     const { POST } = await import("./route");
     const callCtx = ctx({ data: null, error: null });
@@ -213,6 +219,37 @@ describe("POST /api/calculator/entries/[entryId]/rates", () => {
       p_entry_id: ENTRY_ID,
       p_usdt_buy_gyd: 206.8,
       p_cup_rate: 960,
+    });
+  });
+
+  it("costoUsdt alone is enough -> RPC gets p_costo_usdt (migration 242)", async () => {
+    const { POST } = await import("./route");
+    const callCtx = ctx({ data: CUP_ROW, error: null });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await POST(request({ costoUsdt: 22.8 }), paramsFor(ENTRY_ID));
+
+    expect(response.status).toBe(200);
+    expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_corregir_tasas_entrada_calculadora", {
+      p_entry_id: ENTRY_ID,
+      p_usdt_buy_gyd: null,
+      p_cup_rate: null,
+      p_costo_usdt: 22.8,
+    });
+  });
+
+  it("costoUsdt with the buy rate -> RPC gets both", async () => {
+    const { POST } = await import("./route");
+    const callCtx = ctx({ data: CUP_ROW, error: null });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    await POST(request({ costoUsdt: 19.5, usdtBuyGyd: 240 }), paramsFor(ENTRY_ID));
+
+    expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_corregir_tasas_entrada_calculadora", {
+      p_entry_id: ENTRY_ID,
+      p_usdt_buy_gyd: 240,
+      p_cup_rate: null,
+      p_costo_usdt: 19.5,
     });
   });
 });

@@ -192,6 +192,8 @@ export interface RateVersionRow {
   recarga_costo_usdt?: number | string | null;
   /** Cost of one package of mobile balance in USDT (migration 223). */
   saldo_costo_usdt?: number | string | null;
+  /** Cost of one recharge of the 500 CUP promotion tier in USDT (migration 242; recarga_costo_usdt is the 600 CUP tier). */
+  recarga_costo_usdt_500?: number | string | null;
   /** Zelle sale price of the tiers that start at 50, 1,000 and 2,000 USD (migration 216). */
   zelle_sell_gyd?: number | string | null;
   zelle_sell_gyd_1000?: number | string | null;
@@ -210,6 +212,8 @@ export interface CalculatorRates {
   efectivoUsdGyd: number | null;
   recargaCostoUsdt: number | null;
   saldoCostoUsdt: number | null;
+  /** Cost of one recharge of the 500 CUP tier (migration 242). */
+  recargaCostoUsdt500: number | null;
   zelleSellGyd: number | null;
   zelleSellGyd1000: number | null;
   zelleSellGyd2000: number | null;
@@ -233,6 +237,7 @@ export function mapRateVersion(row: RateVersionRow): CalculatorRates {
     efectivoUsdGyd: toNullableNumber(row.efectivo_usd_gyd ?? null),
     recargaCostoUsdt: toNullableNumber(row.recarga_costo_usdt ?? null),
     saldoCostoUsdt: toNullableNumber(row.saldo_costo_usdt ?? null),
+    recargaCostoUsdt500: toNullableNumber(row.recarga_costo_usdt_500 ?? null),
     zelleSellGyd: toNullableNumber(row.zelle_sell_gyd ?? null),
     zelleSellGyd1000: toNullableNumber(row.zelle_sell_gyd_1000 ?? null),
     zelleSellGyd2000: toNullableNumber(row.zelle_sell_gyd_2000 ?? null),

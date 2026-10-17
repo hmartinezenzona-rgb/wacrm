@@ -247,12 +247,18 @@ describe("mapRateVersion", () => {
       efectivoUsdGyd: 290,
       recargaCostoUsdt: 4.5,
       saldoCostoUsdt: 1.25,
+      recargaCostoUsdt500: null,
       zelleSellGyd: null,
       zelleSellGyd1000: null,
       zelleSellGyd2000: null,
       effectiveAt: "2026-09-10T08:00:00Z",
       setBy: "user-1",
     });
+  });
+
+  it("maps the 500 CUP tier recharge cost (migration 242), absent = null", () => {
+    expect(mapRateVersion(rateRow({ recarga_costo_usdt_500: "19.5" })).recargaCostoUsdt500).toBe(19.5);
+    expect(mapRateVersion(rateRow({})).recargaCostoUsdt500).toBeNull();
   });
 
   it("maps the three Zelle tier prices, coercing numeric strings (migration 216)", () => {

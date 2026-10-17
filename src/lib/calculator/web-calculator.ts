@@ -206,6 +206,36 @@ export function parseManualLineRates(rawLine: string | null | undefined): Manual
   return { buy, sell: positiveOrNull(params[index + 1]), cupRate: null, discountPct };
 }
 
+/** What a typed RECARGA / SALDO MOVIL line was quoted with: "• Josefa 1 rec promo (23.1/6.2k/242)" = cost / sale / buy. */
+export interface ManualUnitLine {
+  /** USDT cost of one recharge / of one saldo package (first slot). */
+  cost: number | null;
+  /** Sale price per unit in GYD (second slot, "k" honoured). */
+  sale: number | null;
+  /** "Compra USDT (GYD)" (third slot). */
+  buy: number | null;
+}
+
+/**
+ * The unit cost, sale price and buy rate of a typed RECARGA / SALDO MOVIL line, read with the SAME parser and detail rules
+ * `calculateLine` costs it with (parseFloat of each "/" slot). `null` for any other service, a day header, an unreadable line
+ * or a line with no parenthesised detail.
+ */
+export function parseManualUnitLine(rawLine: string | null | undefined): ManualUnitLine | null {
+  if (!rawLine) return null;
+  const parsed = parsearLinea(rawLine, "");
+  if (!parsed || parsed.esDia || "error" in parsed || parsed.esDirecto) return null;
+  if (parsed.tipo !== "RECARGA" && parsed.tipo !== "SALDO MOVIL") return null;
+  if (!parsed.detalle) return null;
+  const params = parsed.detalle.split("/");
+  const sale = params[1] === undefined ? NaN : parseMonto(params[1]);
+  return {
+    cost: positiveOrNull(params[0]),
+    sale: Number.isFinite(sale) && sale > 0 ? sale : null,
+    buy: positiveOrNull(params[2]),
+  };
+}
+
 export function procesarTexto(text: string, tarifaCupGlobalInput: number): WebCalculatorResult {
   const cupGlobalRate = Number.isFinite(tarifaCupGlobalInput) && tarifaCupGlobalInput !== 0 ? tarifaCupGlobalInput : 3;
   let diaActual = "General";

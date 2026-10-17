@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseManualLineRates, parseMonto, procesarTexto } from "./web-calculator";
+import { parseManualLineRates, parseManualUnitLine, parseMonto, procesarTexto } from "./web-calculator";
 
 describe("native legacy web calculator", () => {
   it("parses k suffixes and thousands separators like the reference calculator", () => {
@@ -60,5 +60,28 @@ describe("parseManualLineRates (the rates a typed line was quoted with)", () => 
     const rates = parseManualLineRates("• Zulemys 76 Clásica (3%/238/260)")!;
     const op = procesarTexto("• Zulemys 76 Clásica (3%/238/260)", 3).operations[0] as { inv: number };
     expect(op.inv).toBeCloseTo((76 / (1 + rates.discountPct / 100)) * rates.buy!, 9);
+  });
+});
+
+describe("parseManualUnitLine (cost and buy rate of a typed RECARGA / SALDO MOVIL line)", () => {
+  it("reads cost, sale and buy from a recharge line", () => {
+    expect(parseManualUnitLine("• Onaisy 1 rec promo(23.1/6.2k/240)")).toEqual({ cost: 23.1, sale: 6200, buy: 240 });
+  });
+
+  it("reads a saldo line", () => {
+    expect(parseManualUnitLine("• Carlos 2 saldo movil (1.25/1k/242.21)")).toEqual({ cost: 1.25, sale: 1000, buy: 242.21 });
+  });
+
+  it("a slot that is missing or not above zero is null", () => {
+    expect(parseManualUnitLine("• Raro 1 rec promo")).toBeNull();
+    expect(parseManualUnitLine("• Onaisy 1 rec promo(23.1)")).toEqual({ cost: 23.1, sale: null, buy: null });
+    expect(parseManualUnitLine("• Onaisy 1 rec promo(0/6.2k/240)")).toEqual({ cost: null, sale: 6200, buy: 240 });
+  });
+
+  it("is null for any other service, a day header or an unreadable line", () => {
+    expect(parseManualUnitLine("• Marlene 15,000 cup (240/960)")).toBeNull();
+    expect(parseManualUnitLine("Miércoles 5")).toBeNull();
+    expect(parseManualUnitLine("esto no tiene formato")).toBeNull();
+    expect(parseManualUnitLine(null)).toBeNull();
   });
 });

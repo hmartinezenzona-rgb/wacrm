@@ -21,7 +21,8 @@
 --   case 13 manual CUP (15000 CUP, facturado 5000): needs BOTH rates (22023 with one); with 960 and 240 stores both and gives
 --           invertido 3750 / retorno 1250; facturado, raw_line, date, customer untouched; a later edit with one rate keeps the other.
 --   case 14 manual ZELLE: buy only -> invertido = amount * buy, cup_rate stays NULL; no buy -> 22023; cup_rate -> 22023.
---   case 15 manual RECARGA and DIRECTO are refused (22023); so are discount forms the parser cannot be reproduced for (238).
+--   case 15 manual DIRECTO is refused (22023); so are discount forms the parser cannot be reproduced for (238). Manual RECARGA is accepted since 242
+--           (its cost is read from raw_line; covered by recarga-tier-cost.sql), so it is no longer refused here.
 --   case 16 non-admin on a manual row (42501); a manual row of an archived week (22023).
 --   case 17 the manual edits wrote no audit row and a raw UPDATE of a manual row is still refused (42501).
 --   (238, production-shaped manual lines; the rates live in raw_line)
@@ -454,7 +455,7 @@ BEGIN
   -- ===========================================================================
   -- CASE 15 -- manual services whose formula cannot be rebuilt from the row.
   -- ===========================================================================
-  FOR v_count IN 1..2 LOOP
+  FOR v_count IN 2..2 LOOP
     BEGIN
       PERFORM set_config('request.jwt.claims', v_admin_claims, true);
       PERFORM crm_corregir_tasas_entrada_calculadora(

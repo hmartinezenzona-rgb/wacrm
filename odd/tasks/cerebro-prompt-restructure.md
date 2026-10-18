@@ -185,6 +185,44 @@ Three things noticed while doing it, all pre-existing and none fixed here:
 - `visa`'s `resumen` says 4,000 GYD while its own `hechos` and the prompt say 5,000. Stale summary,
   recorded for the sweep, not touched.
 
+### T2b is BLOCKED, and it is much bigger than "accept one more value" (2026-10-18)
+Investigated before writing anything, and nothing was changed.
+
+**Mexico does not exist as an operation on any axis.**
+- `remittance_operations.service_type` accepts `remesa`, `recarga`, `combo`, `visa`, `saldo`. No
+  `mexico`.
+- `delivery_method` accepts `cuban_card`, `clasica`, `tropical`, plus the service rails `recarga`,
+  `combo`, `visa`, `saldo` (and `efectivo_usd`). No `mexico`.
+- `'mexico'` appears in migrations only as a `cerebro_servicios` catalogue key and inside an old
+  pipeline list from migration 046 (`('remesa','combo','recarga','visa','traduccion','mexico')`),
+  from the previous model. The current operations table cannot hold a Mexico operation.
+
+So today Mexico is DESCRIBE-and-QUOTE only, and that part already works: the catalogue row answers
+questions and the USD single rate (260) quotes it. What cannot happen is FILING the operation —
+which is exactly what "the bot sets it" would require.
+
+Adding `mexico` to `cerebro_cambiar_servicio` alone would therefore write a service the operations
+table rejects, or worse, pass the CHECK on some other axis and produce a half-formed money
+operation. That is why this stops here.
+
+**Three decisions only the owner can make, because guessing would put wrong numbers on real money:**
+1. **Which axis.** Is Mexico a `remesa` with a new `delivery_method = 'mexico'` (it is a remittance
+   that happens to be delivered in Mexico, like cash in Cuba), or its own `service_type = 'mexico'`
+   the way saldo and visa each got one? The first is cheaper and matches how it is sold.
+2. **What goes in `destination_amount` / `destination_currency`.** There is NO stored USD->MXN rate:
+   the business quotes in USD at 260 GYD/USD and a human converts at the day's rate. So does the
+   operation store USD (what was actually quoted and agreed) with the MXN conversion left to the
+   admin, or MXN with no amount until the admin fills it? `_cambiar_servicio_core` re-quotes on every
+   change, so it needs a defined answer.
+3. **What recipient data Mexico needs.** The prompt's routing keywords are `mexico`, `clabe`,
+   `coppel`, `bbva`, so it is an account at a Mexican bank. There is no beneficiary row type for that
+   today — the existing ones are Cuban card, phone, Zelle account and cash delivery. A new type means
+   touching the beneficiary model, its parser and the panel.
+
+**This does NOT block the restructure.** If Mexico stays "quote, answer, collect the data and hand
+the filing to the admin", the restructured prompt can describe it honestly today, and T2b becomes a
+separate feature with its own document. Only "the bot FILES a Mexico operation" needs T2b.
+
 ## Progress
 - 2026-10-18: audit done. Rates confirmed as only gyd=3 and usd=260; six active services; five
   receive rails; the `mexico`/`saldo` mismatches found; six obsolete prompt items identified with

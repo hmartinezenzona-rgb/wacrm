@@ -182,11 +182,48 @@ smoke after the fix: `evaluar.py --solo doble-pregunta-tasa-y-calculo-inverso` -
 recorded `['calcular_inverso', 'consultar_tasas']`, temp workflow cleaned up, report
 `informes/informe-20261017-171218.json`.
 
-### T2 — baseline running
-Launched 2026-10-17 ~17:13Z: `casos-conversaciones.json` (75 cases) twice against the production
-prompt, for `comparar_informes.py` to separate real reds from model variance. Consumes DeepSeek
-credit (relevant to the parked balance-alert item in the handoff). Log:
-`scratchpad/baseline-t2.log`.
+### T1b — the harness crashed on a transient timeout and leaked a workflow (fixed 2026-10-17)
+Found by running T2, not by inspection. In `correr_caso` and `correr_caso_multiturno` the
+`POST /api/v1/workflows` that creates the temp workflow sat OUTSIDE the `try`, and the `finally`
+could only clean up by `wf['id']`. Consequences, both observed: a `TimeoutError` on that POST
+killed run B at case 51 of 60 (losing the run) and left the orphan workflow `p9D31AoI05c9KSzK`
+"ZZ EVAL temporal (se borra solo) reg-32742-otros" in the PRODUCTION n8n (inactive, 0 triggers,
+22 nodes). Deleted through the harness's own `api()` after asserting the name prefix and that it
+was inactive; `search_workflows "ZZ EVAL"` then returned 0.
+
+Fix: the POST moved inside the `try` with `wf = None` first, plus a new `_borrar_temporal(wf,
+nombre)` that cleans by id when there is one and otherwise SWEEPS BY EXACT NAME (the name carries
+the case id), never propagating. A failed create is now a recorded case error instead of a dead
+run. Public signatures of both functions unchanged, so the four external callers
+(`evaluar_cambio_servicio{,_prod}.py:21`, `carlos_multiturno.py:22`,
+`carlos_multiturno_prod.py:19`) are unaffected.
+
+Proof with a stubbed `api` (no n8n touched): with an id -> deactivate + delete by id and NO sweep;
+without an id -> sweeps, deletes only the orphan and does NOT touch
+`Cerebro v2 — LEGACY OPTIMIZED V1` sitting in the same listing; the sweep itself failing -> warns
+and does not propagate. All 8 scripts compile.
+
+Caveat recorded in the docstring: the multi-turn temp name is NOT unique per case, so its
+name-sweep is only safe while two runs are not in flight at once.
+
+### T2 — baseline, run A done, run B relaunched
+Run A (2026-10-17 17:26Z, `informes/informe-20261017-172650.json`): **44 VERDE / 4 ROJO /
+12 SALTADO of 60 countable** (the 12 skipped need a reconstructed `historial`; the remaining 15 of
+the 75 ids are multi-turn cases, which carry no verdict by design).
+
+The 4 reds — 3 of 4 sit in the area the lead candidate touches:
+| case | failure |
+|---|---|
+| `reg-27065-multi-herramienta` | did not call `calcular_envio`; figure 90000 missing |
+| `reg-27486-calculo-con-herramienta` | did not call `calcular_usd`; figure 13000 missing |
+| `reg-30178-calculo-con-herramienta` | figures 90000 and 115 missing |
+| `reg-32598-otros` | wording only, unrelated |
+
+NOT yet a conclusion: with one run these cannot be told apart from model variance, which is
+exactly what `comparar_informes.py` exists for. Run B relaunched 2026-10-17 ~23:50Z on the
+hardened harness; the baseline number and the red list stay provisional until it lands. Consumes
+DeepSeek credit (relevant to the parked balance-alert item in the handoff). Logs:
+`scratchpad/baseline-t2.log`, `scratchpad/baseline-t2-runB.log`.
 
 ### Analysis
 - 2026-10-17: read-only analysis of the production Cerebro (126 nodes, 16 tools, 373-line prompt)

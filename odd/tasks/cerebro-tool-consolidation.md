@@ -139,7 +139,7 @@ Strict TDD is on globally. Applied per layer, following `tool-reliability-test.m
       `cambiar_servicio`, `registrar_datos_entrega_efectivo`, `registrar_numeros_recarga`,
       `registrar_destinatario_combo` and `abrir_extension_visa` INVISIBLE in the report, so any
       baseline involving them is wrong. Derive the set from the live contract.
-- [ ] T2 Baseline: the gold battery against the current production prompt (score + cost), plus a
+- [x] T2 Baseline: the gold battery against the current production prompt (score + cost), plus a
       second run through `comparar_informes.py` to separate real reds from model variance. Advances
       T2 of `odd/tasks/cerebro-context-prompt.md`.
 - [ ] T3 (owner re-confirmation after the ranking change) Lead candidate: one `cotizar` replacing
@@ -219,11 +219,45 @@ The 4 reds — 3 of 4 sit in the area the lead candidate touches:
 | `reg-30178-calculo-con-herramienta` | figures 90000 and 115 missing |
 | `reg-32598-otros` | wording only, unrelated |
 
-NOT yet a conclusion: with one run these cannot be told apart from model variance, which is
-exactly what `comparar_informes.py` exists for. Run B relaunched 2026-10-17 ~23:50Z on the
-hardened harness; the baseline number and the red list stay provisional until it lands. Consumes
-DeepSeek credit (relevant to the parked balance-alert item in the handoff). Logs:
-`scratchpad/baseline-t2.log`, `scratchpad/baseline-t2-runB.log`.
+Run B (2026-10-18 01:33Z, `informes/informe-20261017-193341.json`, on the hardened harness, zero
+execution errors): **46 VERDE / 2 ROJO / 12 SALTADO of 60**.
+
+`comparar_informes.py` over the two runs — **60 common cases, 58 stable, 2 unstable, stability
+97%**. Both unstable cases went ROJO -> VERDE: `reg-27065-multi-herramienta` and
+`reg-32598-otros`. Their red in run A is therefore model variance, not a defect.
+
+### BASELINE OF RECORD (T2 done)
+- Score: **44/60 and 46/60**, stability 97%.
+- **Stable reds: exactly 2, and BOTH are calculator cases** —
+  `reg-27486-calculo-con-herramienta` (run A: did not call `calcular_usd`, 13000 missing; run B:
+  "no pregunta nada") and `reg-30178-calculo-con-herramienta` (figure 115 missing in both).
+- 12 SALTADO are a known limitation (they need a `historial` reconstructed from `cerebro_memoria`),
+  not a failure.
+- T3 acceptance, now concrete: at least 46/60 with the same 97% stability, and those two stable
+  reds must not get worse. Any single red must be re-run before it is read as a regression.
+
+This is the measured case for the lead candidate: the ONLY two stable failures in the whole gold
+battery are in the four calculators being merged. Logs: `scratchpad/baseline-t2.log`,
+`scratchpad/baseline-t2-runB.log`.
+
+### T3 design decided (not yet implemented)
+One SQL function `cerebro_cotizar(p_conv, p_monto, p_direccion, p_moneda_destino, p_via,
+p_execution_id)` holding the four existing branches VERBATIM — same rounding per branch (round /
+ceil-to-20 / floor), same Zelle tier helpers, `cerebro_fijar_objetivo` still only on the USD-send
+direction — behind ONE uniform output shape, with the n8n tool as a thin
+`SELECT cerebro_cotizar(...)`. Migration 243 (production DB through 239, staging through 242).
+- Output unified to stable generic names (`deposita_gyd`, `recibe_monto`, `recibe_moneda`, `tasa`,
+  `aplica_a`) rather than today's six different column sets (`cup_a_entregar`,
+  `monto_a_depositar`, `usd_a_enviar`, `gyd_a_depositar`, `usd_a_recibir`,
+  `gyd_exactos_para_esos_usd`). Collapsing the prompt's routing is the whole point; leaving six
+  shapes would keep it.
+- The per-direction tool LABEL is preserved when calling `cerebro_registrar_cotizacion` and
+  `cerebro_registrar_via_cotizada`, so those rows and
+  `cerebro_verificar_coherencia_servicio` keep their current meaning.
+- Efectivo is refused by the function itself instead of by three prompt lines.
+- TDD: a parity assertion proving each branch returns, for the same inputs, exactly what the old
+  tool returned today — the same shape of proof as the panel-vs-bot parity in
+  `bot-change-service.md` case e.
 
 ### Analysis
 - 2026-10-17: read-only analysis of the production Cerebro (126 nodes, 16 tools, 373-line prompt)

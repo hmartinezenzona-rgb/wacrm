@@ -142,7 +142,8 @@ Strict TDD is on globally. Applied per layer, following `tool-reliability-test.m
 - [x] T2 Baseline: the gold battery against the current production prompt (score + cost), plus a
       second run through `comparar_informes.py` to separate real reds from model variance. Advances
       T2 of `odd/tasks/cerebro-context-prompt.md`.
-- [ ] T3 (owner re-confirmation after the ranking change) Lead candidate: one `cotizar` replacing
+- [~] T3 (files written, locally syntax-checked; RED/GREEN on staging pending) Lead candidate:
+      one `cotizar` replacing
       the four calculators, preserving the per-direction tool label for
       `cerebro_registrar_cotizacion` / `cerebro_registrar_via_cotizada` and the coherence net; SQL
       assertions RED then GREEN; prompt lines 101-117 rewritten; battery equal or better than T2.
@@ -258,6 +259,46 @@ direction — behind ONE uniform output shape, with the n8n tool as a thin
 - TDD: a parity assertion proving each branch returns, for the same inputs, exactly what the old
   tool returned today — the same shape of proof as the panel-vs-bot parity in
   `bot-change-service.md` case e.
+
+### T3 — files written 2026-10-17, NOT yet proven
+Three files, nothing applied anywhere:
+- `supabase/migrations/243_cerebro_cotizar.sql` — `cerebro_cotizar(p_conv, p_monto, p_direccion,
+  p_moneda_destino, p_via, p_execution_id) RETURNS jsonb`, service_role only. PURELY ADDITIVE: it
+  creates one function and alters nothing, so the Cerebro behaves exactly as today until the n8n
+  workflow is edited (a separate, PUT-reversible step).
+- `supabase/migrations/ROLLBACK-243-cerebro-cotizar.sql` — one `DROP FUNCTION`, no data lost. Notes
+  the ordering trap: if the workflow already points at the merged tool, PUT the workflow back FIRST.
+- `supabase/staging/assertions/cerebro-cotizar.sql` — 13 expectations. Parity is measured by running
+  each ORIGINAL expression inline against the SAME live `tasas` row and demanding the merged
+  function return exactly that. No fixture rate is created: `tasas` is a VIEW and rejects INSERT
+  (tasas-derives.sql case 5), and parity is relative anyway, so comparing both sides under the real
+  rate is the stronger test.
+
+Local verification done (throwaway `postgres:17` container, nothing remote): 243 reaches
+`CREATE FUNCTION` + `COMMENT` cleanly — with `check_function_bodies` on, that is a real syntax check
+of the plpgsql body — and the only error is `role "anon" does not exist`, expected without the
+Supabase roles. The assertion's `DO` body was converted into a function so plpgsql would parse it
+without executing: it parses clean. That check caught a genuine bug while writing (a duplicated
+`INTO` in case h3), now fixed.
+
+NOT done, and it is the part that answers "does it actually improve anything": RED/GREEN needs 243
+applied to the staging database, and the real proof needs the n8n tool swapped on staging and the
+gold battery re-run against the >= 46/60 at 97% stability bar. Both are remote mutations and wait
+for the owner's go-ahead.
+
+Helper signatures the function calls (all declared with the `public.` prefix, which is why a first
+grep without it found nothing): `cerebro_tasa_zelle(p_usd numeric) RETURNS numeric`;
+`cerebro_zelle_cotizar_gyd(p_gyd numeric) RETURNS TABLE(usd numeric, tasa numeric)`;
+`cerebro_fijar_objetivo(p_conv uuid, p_monto numeric, p_moneda text DEFAULT 'GYD') RETURNS TABLE(...)`;
+`cerebro_registrar_cotizacion(uuid, numeric, numeric, text, text) RETURNS void`;
+`cerebro_registrar_via_cotizada(uuid, text, text, text, numeric DEFAULT NULL) RETURNS void`.
+
+### A latent bug found while writing it
+Today `via='efectivo'` does NOT match the single-rate regex `^(cl[aá]sica|tropical|m[eé]xico|usdt)`
+in `calcular_usd` / `calcular_usd_desde_gyd`, so cash falls into the Zelle branch and is quoted BY
+TIERS — the wrong rate, with nothing to show anything went wrong. That is exactly what the prompt
+tries to prevent in three separate places (lines 106, 163, 179). The merged function refuses it in
+SQL instead, and case h of the assertion proves both the refusal and the old premise.
 
 ### Analysis
 - 2026-10-17: read-only analysis of the production Cerebro (126 nodes, 16 tools, 373-line prompt)

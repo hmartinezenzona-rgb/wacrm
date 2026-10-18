@@ -223,6 +223,42 @@ operation. That is why this stops here.
 the filing to the admin", the restructured prompt can describe it honestly today, and T2b becomes a
 separate feature with its own document. Only "the bot FILES a Mexico operation" needs T2b.
 
+#### Owner's answer (2026-10-18): Mexico is one more DELIVERY RAIL
+"es una via mas de entrega de dinero": the customer deposits GYD into the business account in
+Guyana, and then the business pays the relative in MEXICAN PESOS in Mexico, through the channels
+available there. Structurally identical to cash in Cuba: one deposit in GYD, a payout in the
+destination currency, performed by a human.
+
+That settles decisions 1 and 2:
+1. **Axis: `delivery_method = 'mexico'` on a `remesa`.** NOT its own `service_type`. A Mexico
+   remittance is a remesa whose payout happens in Mexico, exactly as `efectivo_usd` is a remesa
+   whose payout happens in cash in Cuba.
+2. **Amount: stored in USD.** Not a choice so much as the only honest option — the single `usd` rate
+   (260 GYD/USD) is the only rate that exists, it is already what the prompt quotes for Mexico, and
+   there is no stored USD->MXN rate. So the agreed figure is the USD one and the peso amount is set
+   by the admin at payout, the same division of labour the business already uses. A stored MXN
+   amount would be a number nobody computed.
+
+Decision 3 is the only one left, and it is narrow. Today's beneficiary types are
+`cuban_card`, `zelle`, `clasica`, `tropical`, `multiple_distribution`, `efectivo_usd`, `recarga`
+and `combo`. None of them holds a Mexican bank account. Note the precedent: `saldo` has NO type of
+its own, it reuses the phone-only `recarga` row (migration 223). And `zelle`'s shape — holder name
+plus one account string — is structurally identical to name plus CLABE, so reuse is technically
+possible, though it would show the wrong label to the operator who has to make the payout.
+Recommendation: a new `mexico` beneficiary type, because the panel and the parser display it to
+whoever pays.
+
+What is still needed from the owner is only WHAT TO COLLECT: name plus CLABE, or name plus bank plus
+account number, and whether the payout channel varies (the prompt's keywords are `clabe`, `coppel`,
+`bbva`, which suggests it might). That answer defines the row and the questions the bot asks.
+
+#### Scope of T2b, now that the shape is known
+No longer "accept one more value". It is: `delivery_method` CHECK gains `mexico`; `rb_type_chk`
+gains a Mexico recipient type; `cerebro_cambiar_servicio` accepts `mexico` and re-quotes it with the
+single USD rate; the beneficiary parser and the panel learn the new type; plus the usual RED/GREEN
+assertion, rollback and fingerprint, on a function that carries rail locks and audit rows. Its own
+feature document, not a prerequisite tweak.
+
 ## Progress
 - 2026-10-18: audit done. Rates confirmed as only gyd=3 and usd=260; six active services; five
   receive rails; the `mexico`/`saldo` mismatches found; six obsolete prompt items identified with

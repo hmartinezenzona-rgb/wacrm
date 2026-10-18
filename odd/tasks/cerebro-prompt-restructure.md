@@ -48,7 +48,35 @@ There is no separate rate row for Clasica, Tropical, saldo or recargas. Everythi
 `cerebro_servicios` holds exactly six, all active: combos, efectivo_usd, mexico, recargas,
 traduccion, visa. `requiere_humano` is true for efectivo_usd, mexico and recargas.
 
-### Two inconsistencies in the SYSTEM, not the prompt — owner decisions
+### Owner's decision on scope (2026-10-18)
+The bot must be able to SELL and SET every service, including saldo movil and Mexico: quote, answer
+questions, collect the data, and fix the operation's service. What it must NOT do is move money —
+and that is already correct today, because the system has no transfer tool at all; the admin does
+every transfer. So the boundary is not "bot vs human per service", it is "everything up to the
+transfer is the bot's, the transfer is the admin's".
+
+This makes the two mismatches below PREREQUISITES of the restructure, not side notes: the prompt
+cannot be told to set Mexico while the function rejects it, nor to describe saldo while nothing can
+describe it.
+
+### CORRECTION to this audit: saldo movil is fully modelled, just invisible to the bot
+My first pass said saldo was barely modelled. Wrong. Migration **223 `saldo_movil_service`** models
+it completely, as its own operation service:
+- `remittance_operations_service_chk` accepts `saldo`; the recipient is the phone-only row type,
+  exactly ONE Cuban number per saldo operation.
+- Price and size are DATA in `cerebro_config`, verified live on staging 2026-10-18:
+  **`precio_saldo_gyd` = 1000 and `saldo_unidad_cup` = 360**, i.e. 1,000 GYD buys a package of 360
+  CUP of saldo. Sold all year, not promo-bound.
+- `calculator_rate_versions.saldo_costo_usdt` carries its USDT cost (1.6 or 2 per package depending
+  on the provider, per migration 242).
+
+So the sale price never needed asking — it is data. And the 223 header already anticipated this
+exact gap: the config values are "read by the app card and **the later bot**". The bot half was
+never built. What is missing is ONLY the `cerebro_servicios` row and the prompt copy.
+
+(Also verified live: `zelle_minimo_gyd` = 13000.)
+
+### Two inconsistencies in the SYSTEM, not the prompt — now prerequisites
 1. **`mexico` is an active service but cannot be set as the operation's service.**
    `cerebro_cambiar_servicio` accepts nine values — cuban_card, zelle, clasica, tropical,
    efectivo_usd, recarga, combo, visa, saldo (plus aliases `cup` and `efectivo`) — and `mexico` is
@@ -107,8 +135,17 @@ restructured prompt — otherwise it rewards the old shape, which is what it did
 
 ## Tasks
 - [x] T1 Audit what the system supports today (this document)
-- [ ] T2 (owner confirmation) Agree the target SHAPE: rail chosen first, CUP as one option among
-      five, pricing attached per rail
+- [x] T2 Scope settled by the owner: the bot sells and sets everything; only the transfer is the
+      admin's, which the system already enforces by having no transfer tool
+- [ ] T2a PREREQUISITE — `saldo` gains a `cerebro_servicios` row so `consultar_servicio('saldo')`
+      can describe it. Content derived from data, not invented: 1,000 GYD per package of 360 CUP,
+      one Cuban phone per operation. Migration 223 anticipated this ("the later bot")
+- [ ] T2b PREREQUISITE — `cerebro_cambiar_servicio` accepts `mexico`, so the bot can set it as it
+      can already set the other eight. Touches a function with rail locks and audit rows, so it
+      needs its own RED/GREEN assertion and a rollback, like 230/231 did
+- [ ] T2c Target SHAPE agreed before writing copy: rail chosen first and never assumed, CUP as one
+      option among five, the pricing rule attached to each rail, and the services the bot can now
+      sell listed as first-class rather than as exceptions
 - [ ] T3 Sweep the gold battery for other expectations frozen before the USD rails, the way the
       three above were found
 - [ ] T4 Restructured prompt candidate, measured against the swept battery with a variance run

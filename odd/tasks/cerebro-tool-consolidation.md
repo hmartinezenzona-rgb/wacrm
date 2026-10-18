@@ -419,6 +419,53 @@ called a tool" metric is NO LONGER MEASURABLE; that window had to use a proxy. A
 investigation of invocation rate in production needs that telemetry fixed first. Listed there as a
 pending follow-up.
 
+### Fixing the stale tests, and three prompt fixes that did NOT work (2026-10-18)
+Chosen first because a knowingly-wrong test makes every later measurement uninterpretable.
+
+**Three gold cases were stale, not one.** A sweep found `reg-27065`, `reg-28021` and `reg-30178` all
+expecting the CUP figure 90000 for messages whose destination currency was never stated. The prompt
+carries all three messages as worked examples prescribing the opposite (lines 351, 353, 355), and
+`reg-27065`/`reg-28021` demanded `calcular_envio` as OBLIGATORIA — they actively required the
+behaviour line 113 forbids. Corrected to: `consultar_tasas` obligatory when the customer asks the
+rate, the four calculators PROHIBIDAS, no `cifras_exactas`, must ask something, must mention the
+currency. Derived from the owner's own rule, not invented. Previous expectation preserved in
+`esperado_pre_regla_113` on each case; backups `casos-conversaciones.json.bak-20261018` and
+`.antes-correccion-113`.
+
+Immediate result: **`reg-30178` went to VERDE 2/2** with the untouched production prompt. One of the
+two "stable reds" of the baseline of record was never a bot defect at all — it was a bad test. The
+baseline's red count was inflated.
+
+And the contradiction was caught live: with the corrected expectations, `reg-28021` answered by
+ASKING the currency on one run and by QUOTING 90,000 CUP on the next — same message, same prompt.
+
+**Then three prompt candidates, each tested on the three cases, none of which changed the
+behaviour** (`reg-27065` and `reg-28021` stayed ROJO 3/3, `reg-30178` stayed VERDE 3/3):
+1. line 108 aligned with 113 (it said "quote BOTH currencies" while citing 113, which says quote
+   neither; it was pre-change behaviour never removed).
+2. + rule 4 disambiguated. Its "No preguntes moneda" meant the currency the customer DEPOSITS, but
+   now reads as forbidding the destination-currency question; line 114 had already been patched for
+   the "30mil gy" spelling, which is exactly why `reg-30178` behaves correctly and the bare-number
+   variant does not.
+3. + line 105 corrected. It claimed "en Cuba siempre se reciben CUP", categorically false since the
+   USD rails exist, and it sits two lines above the routing rules.
+
+All three are real defects and worth fixing on their own merits. But none of them drives the
+behaviour, and that is the finding: **editing the rules does not move it.**
+
+**What does drive it, on the evidence:** line 116 `COMO DECIRLO` hands the model the filled-in
+template `'Por *30,000 GYD* llegan *60,000 CUP* a Cuba.'` — the same amount as these cases — and the
+bot's reply is that template with the number swapped: `'Por *30,000 GYD* llegan *90,000 CUP* a
+Cuba.'` A worked example showing the answer beats a conditional rule telling it not to answer. Which
+is the project's own lesson, written inside `calcular_usd`: a prompt instruction is not a control.
+So the lever is the EXAMPLES, or a deterministic guard — not more rule prose.
+
+**A product question for the owner before going further.** The reply those two cases produce is
+`'Hoy 1 GYD = *3 CUP*. Por *30,000 GYD* llegan *90,000 CUP* a Cuba. ¿Desde dónde va a depositar?'` —
+rate, quote and next step. Per the written rule 113 that is wrong, because nobody said the currency.
+In practice it looks helpful. Whether rule 113 should really apply to "cuanto llega si envio 30 mil"
+is the owner's call, and it decides whether this is a bug to fix or a rule to relax.
+
 ### Where this leaves the feature
 The SQL (243) is worth keeping on its own merits: it closes the cash-quoted-as-Zelle bug and is
 additive and reversible. The TOOL SWAP in n8n is not justified by this evidence — it buys

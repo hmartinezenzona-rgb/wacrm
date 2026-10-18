@@ -376,6 +376,49 @@ produced false conclusions:
    `E.cifra_presente`, which allows a separator between every digit. Re-scored from the saved report
    with no extra model calls: 27/34 -> 29/34.
 
+### Why the model does not call the tools — root cause of the two stable reds (2026-10-18)
+Owner asked for the causes. Neither red is a tool problem, and one is not a bot problem at all.
+
+**`reg-30178` is a STALE TEST. The bot is right and the case is wrong.**
+Message: `Voy a tranferir 30mil gy a las 5 pm`. The case expects the figures 90000 and 115, recorded
+from production in 2026-08. The CURRENT prompt forbids producing them:
+- line 113 `COTIZACION SIN MONEDA DE DESTINO`: a GYD amount with nobody having said the destination
+  currency -> "TODAVIA NO calcules ni des cifras", ask the currency first, "PROHIBIDO asumir CUP".
+- line 355 carries THIS EXACT MESSAGE as a worked example, and the prescribed answer is the one the
+  model gave: ask which currency and where they will deposit.
+So the model obeyed a rule the owner added after the case was frozen. The expectation is outdated,
+exactly the hazard `cerebro-context-prompt.md` warned about ("stale expectations in those files").
+
+**The prompt CONTRADICTS ITSELF on that same scenario — and this one is a real defect.**
+- line 108: "Misma frase, moneda de destino NO dicha -> calcular_envio(monto, gyd) Y
+  calcular_usd_desde_gyd(monto), respondes con las DOS (ver COTIZACION SIN MONEDA DE DESTINO)"
+- line 113: same situation -> "TODAVIA NO calcules ni des cifras", ask instead.
+Line 108 says quote BOTH and cites line 113 as its reference; line 113 says quote NEITHER. Line 108
+is the pre-change behaviour that was never removed. A contradictory instruction makes invocation
+depend on which rule wins on a given run, which is a plausible mechanism for exactly the kind of
+flip seen in `reg-28021` (stable green in both baseline runs, green/red in the candidate).
+
+**`reg-27486` is an ambiguous customer message, not a missed tool.**
+Message: `Amigo deposite en su cuenta para 50 zelle`. Without the accent, "deposite" reads either as
+the imperative or as "deposité" (already deposited). The arbitration of 2026-08-12 chose "deposits
+GYD for 50 USD" -> quote 13,000. The candidate read it as a deposit ALREADY MADE and moved the
+conversation on: "¿A nombre de quién está la cuenta Zelle...? Y envíenos la captura de su depósito".
+Under that reading, not quoting is correct. Production in 2026-08 did call a calculator but replied
+"no le entendí bien"; the current reply is arguably more useful. One defensible reading scored
+against another, not a capability failure.
+
+**Already-settled evidence that this is not a capability problem.** Gate 76 measured the model
+calling its write tools 24/24 with the production prompt. Gate 77 found the real historical cause of
+non-invocation was a FALSE CONTEXT SENTENCE telling the model the datum was already registered and
+there was no tool to call (fixed in T5/T6, 0 -> 83% alone, 100% with the prompt rule).
+
+**A measurement blocker to fix before chasing this in production.**
+`partial-beneficiary-tools.md` T5 records `cerebro_telemetria_turno.model_calls` as NULL on every
+turn since 2026-09-29 23:44 (and on 699 of 905 baseline turns), so the original "3.4% of turns
+called a tool" metric is NO LONGER MEASURABLE; that window had to use a proxy. Any real
+investigation of invocation rate in production needs that telemetry fixed first. Listed there as a
+pending follow-up.
+
 ### Where this leaves the feature
 The SQL (243) is worth keeping on its own merits: it closes the cash-quoted-as-Zelle bug and is
 additive and reversible. The TOOL SWAP in n8n is not justified by this evidence — it buys

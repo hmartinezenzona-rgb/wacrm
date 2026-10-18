@@ -352,6 +352,46 @@ Derived from the audit and from what was measured, not from taste.
 Not yet written. T4 writes the candidate and measures it, which cannot begin honestly until the
 owner's group answers from T3 exist — otherwise the swept battery still rewards the August shape.
 
+### The governing principle, from the owner (2026-10-18) — and my framing was wrong
+The owner, asked to arbitrate three "decisions", answered with a principle instead and said plainly
+that he did not understand the decisions as I had posed them. That is a fair criticism: I framed
+them as test archaeology ("what August expected versus what rule 113 says"), which forces him to
+hold the project's history in his head. He thinks in terms of the business.
+
+His principle, in his words: to quote you have to know what the customer wants; if you do not know,
+you cannot quote, and if you do not know you can ASK, and then you would know — which is what a
+human would do, and what he would do. **The bot must not guess. If it is asked something it knows,
+it answers; if it does not know, it invents nothing.**
+
+Reframed that way, all three "decisions" dissolve:
+1. **Quoting without a stated rail — answered by the principle.** Do not guess the destination
+   currency; ask. The 2 remaining cases get the same correction as the 3 already done, and those 3
+   are confirmed rather than at risk of reversal.
+2. **Partial registration — the owner had ALREADY decided this**, on 2026-10-01: "las herramientas
+   deben ser capaces de registrar datos a medias y en el orden que lleguen"
+   (`odd/tasks/partial-beneficiary-tools.md`). A human writes down what arrives so it is not lost.
+   The 12 cases are frozen before his own instruction. Nothing to ask.
+3. **Service prices — never a decision, an internal inconsistency.** `visa`'s `resumen` says 4,000
+   GYD while its own `hechos` and the prompt say 5,000. `hechos` is the authoritative
+   customer-facing text, so the summary is simply stale and should be made to agree with it.
+
+So ZERO owner decisions remain. I had been asking him to re-decide things he had already decided,
+dressed up as test archaeology.
+
+#### This replaces point 1 of the target shape
+T2c opened with "the customer always deposits GYD; what the beneficiary receives is chosen, never
+assumed". The principle is better, because it is not an enumeration: it covers every rail and every
+service, including ones added later, and it covers questions as well as quotes. The restructured
+prompt should open with it:
+
+> No adivines. Para cotizar hay que saber que quiere el cliente: si no lo sabes, preguntas. Si te
+> preguntan algo que sabes, lo respondes; si no lo sabes, no inventas nada.
+
+Everything measured in this document is an instance of that principle being violated by the prompt's
+own structure: line 105 asserts a destination instead of asking, line 116 demonstrates a guess, and
+the 108/113/rule-4 tangle argues about when guessing is allowed. One principle replaces the
+argument.
+
 ## Progress
 - 2026-10-18: audit done. Rates confirmed as only gyd=3 and usd=260; six active services; five
   receive rails; the `mexico`/`saldo` mismatches found; six obsolete prompt items identified with

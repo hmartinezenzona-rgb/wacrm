@@ -252,6 +252,33 @@ What is still needed from the owner is only WHAT TO COLLECT: name plus CLABE, or
 account number, and whether the payout channel varies (the prompt's keywords are `clabe`, `coppel`,
 `bbva`, which suggests it might). That answer defines the row and the questions the bot asks.
 
+#### Decision 3 was already answered by the system — I should have looked before asking
+The owner pushed back: those details might already be in the Cerebro, its tools or Engram. He was
+right. Engram had nothing and `Datos del negocio` no longer even has a `mexico` key (the Albo
+account was removed in the vision change of 2026-10-17), but the `mexico` row of
+`cerebro_servicios` specifies the recipient model in full:
+
+**Two ways to receive in Mexico**
+1. **Bank account** — needs CLABE, bank and the account holder's name. THREE fields.
+2. **Cardless withdrawal** — needs to know whether they have a **Coppel** or a **BBVA** nearby,
+   the only two banks handled. It does NOT pay fractions and only accepts **multiples of 100**.
+
+And three facts that were missing from the audit:
+- rate 260 GYD/USD and a **minimum of 13,000 GYD (50 USD)** — the same floor as Zelle
+  (`zelle_minimo_gyd` = 13000);
+- no maximum, but large amounts must be flagged in advance;
+- paid out the same day, usually minutes after the payment is verified.
+
+So no owner decision is pending. The recipient model is richer than any existing beneficiary type:
+`zelle`'s single account string cannot hold holder + bank + CLABE, and the cardless variant stores a
+bank CHOICE rather than an account. Two sub-shapes under one `mexico` type.
+
+**The multiples-of-100 rule is a QUOTING constraint, not just recipient data.** If the customer
+picks cardless withdrawal, the USD figure has to be a multiple of 100. Neither the four calculators
+nor the merged `cerebro_cotizar` of migration 243 knows that, so a cardless Mexico quote can produce
+an amount that cannot be paid out. Recorded here as a defect to cover in T2b, found while reading
+the catalogue rather than from any failure.
+
 #### Scope of T2b, now that the shape is known
 No longer "accept one more value". It is: `delivery_method` CHECK gains `mexico`; `rb_type_chk`
 gains a Mexico recipient type; `cerebro_cambiar_servicio` accepts `mexico` and re-quotes it with the

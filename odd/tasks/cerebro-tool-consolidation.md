@@ -325,6 +325,64 @@ TIERS — the wrong rate, with nothing to show anything went wrong. That is exac
 tries to prevent in three separate places (lines 106, 163, 179). The merged function refuses it in
 SQL instead, and case h of the assertion proves both the refusal and the old premise.
 
+### T3 experiment result — THE HYPOTHESIS DID NOT HOLD (2026-10-18)
+Option 2 chosen by the owner: a bounded arm instead of rewriting 55 gold cases. Harness
+`~/cerebro-fase1/pruebas/evals/cotizar_arm.py`. Design: ONE variable changes — the four calculators
+become `cotizar(monto, direccion, moneda_destino, via)` — and the prompt PROSE is left identical,
+only the call forms mechanically rewritten, so a change in outcome cannot be blamed on a new prompt.
+The mock invents no rates: it dispatches on ARGUMENTS and returns the case's own arbitrated numbers
+translated to the new shape (the recorded mocks use inconsistent rates — 3 for envio, 2.8 for
+inverso, 260 flat for USD — so one global simulator could not reproduce the expected figures).
+`cifras_exactas` untouched.
+
+Result over the calculation families, 17 cases x 2 reps: **29/34 green**.
+
+Case-by-case against the two baseline runs:
+| case | base A | base B | candidate |
+|---|---|---|---|
+| 12 stable cases | VERDE | VERDE | VERDE (no regression) |
+| `reg-27065-multi-herramienta` | ROJO | VERDE | VERDE (was already unstable, no credit claimed) |
+| `reg-27486-calculo-con-herramienta` | ROJO | ROJO | **ROJO** |
+| `reg-30178-calculo-con-herramienta` | ROJO | ROJO | **ROJO** |
+| `reg-28021-multi-herramienta` | VERDE | VERDE | ROJO/VERDE (new instability) |
+
+**The merge did NOT fix either stable red.** And the evidence says why: in both, the candidate called
+no quote tool AT ALL (`pidio=[]`), exactly as the baseline called no calculator. The failure was
+never "picked the wrong tool out of four" — it is "did not realise it had to quote". Merging cannot
+fix a choice the model never reaches. The inference that led here — the only stable reds are
+calculator cases, therefore the four-way split causes them — was wrong: it confused the AREA of the
+failure with its CAUSE.
+
+What the merge did deliver, and still stands:
+- No regression on the 12 stable green cases: one parameterised tool handles them as well as four.
+- The cash bug is closed in SQL (proven by the staging assertion), independently of ergonomics.
+- 16 -> 13 tools. The prompt prose was deliberately NOT shrunk in this experiment, so that saving
+  is still only potential.
+
+Honest caveat on the measuring stick: this arm scores directions + `cifras_exactas` only, while the
+full battery also checks forbidden text, `debe_preguntar_algo` and forbidden tools. It is a WEAKER
+scorer, so its green count is not comparable to 46/60 and no improvement should be read from it.
+
+`reg-28021` going from stable green to unstable is one data point over two reps, inside the
+baseline's own ~3% flip rate. Not callable as a regression, not dismissable either.
+
+Two of my own harness bugs were found and fixed while running this, both of which would have
+produced false conclusions:
+1. `cotizar` calls were INVISIBLE to the scorer (the same class as T1: the arm adds the tool after
+   `contrato_vivo()` syncs `HERRAMIENTAS`). Uncaught, this arm would have reported 0/34 and I would
+   have told the owner the merge breaks everything.
+2. A home-made `cifras_exactas` matcher split card numbers, which the prompt requires written in
+   groups of four, giving `reg-32899` a false ROJO on both reps. Replaced by the project's own
+   `E.cifra_presente`, which allows a separator between every digit. Re-scored from the saved report
+   with no extra model calls: 27/34 -> 29/34.
+
+### Where this leaves the feature
+The SQL (243) is worth keeping on its own merits: it closes the cash-quoted-as-Zelle bug and is
+additive and reversible. The TOOL SWAP in n8n is not justified by this evidence — it buys
+simplification, not reliability. The two stable failures need a different lever: both are
+non-invocation, which points at the prompt and the context, not at the tool surface. That is what
+T2/T3 of `odd/tasks/cerebro-context-prompt.md` were always about.
+
 ### Analysis
 - 2026-10-17: read-only analysis of the production Cerebro (126 nodes, 16 tools, 373-line prompt)
   and of 5 Cerebro ODD docs. Candidate ranking CORRECTED: the `marcar_destino_usd` +

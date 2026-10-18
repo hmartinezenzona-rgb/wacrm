@@ -281,10 +281,35 @@ Supabase roles. The assertion's `DO` body was converted into a function so plpgs
 without executing: it parses clean. That check caught a genuine bug while writing (a duplicated
 `INTO` in case h3), now fixed.
 
-NOT done, and it is the part that answers "does it actually improve anything": RED/GREEN needs 243
-applied to the staging database, and the real proof needs the n8n tool swapped on staging and the
-gold battery re-run against the >= 46/60 at 97% stability bar. Both are remote mutations and wait
-for the owner's go-ahead.
+### T3 SQL proven on STAGING (owner go-ahead 2026-10-17 "si aplica y corre la assertion")
+Runner: docker `postgres:17` psql against `CRM_STAGING_DATABASE_URL` (in `.env.staging`), every
+assertion run wrapped in `BEGIN; ...; ROLLBACK;` — never plain `psql -1`, which can COMMIT a fixture.
+
+- **RED** before the migration: `function cerebro_cotizar(uuid, integer, unknown, unknown, unknown,
+  unknown) does not exist`, raised at case a. The fixture built fine up to that point.
+- **Rehearsal**: 243 and the assertion applied in ONE transaction and rolled back ->
+  `ALL PASS (13 expectations)`, nothing committed. Observed parity figures, against the live staging
+  rates: 30,000 GYD -> 90,000 CUP at 3; 100,000 CUP <- 33,340 GYD (a multiple of 20); 115 USD <-
+  29,900 GYD at 260; 30,000 GYD -> 115 USD. Those are the very figures the two stable baseline reds
+  were missing (reg-27065 wanted 90000, reg-30178 wanted 90000 and 115) — the merged function
+  computes them correctly.
+- **Applied for real** (`BEGIN; <243>; COMMIT;`), then the assertion re-run on the committed state:
+  13/13 PASS again.
+- **Fingerprint**: `cerebro_cotizar` md5 `8262fc8f010694202f6e7b4cfce993ad`, ACL
+  `{postgres=X/postgres,service_role=X/postgres}` — service_role only, no anon, no authenticated.
+- **Rollback proof** in a reverted transaction: ROLLBACK-243 drops it (count 0); after that
+  transaction rolled back staging still has it (count 1).
+- **Leftovers: none.** 0 contacts `59900243001`, 0 accounts `cerebro cotizar test account`.
+
+Staging is left WITH 243. Production untouched.
+
+STILL NOT DONE, and it is the part that answers "does it actually improve anything": the n8n tool
+has to be swapped on the STAGING Cerebro and the gold battery re-run against the bar (>= 46/60 at
+97% stability). The SQL being green only proves the arithmetic is identical and the cash bug is
+closed; it says nothing yet about whether the model picks the merged tool better than it picked one
+of four. That needs the owner's go-ahead, and note the drift warning in `bot-change-service.md` B2:
+10 staging nodes differ from production, `Agente Remesas` among them, so a staging battery run must
+either use `--workflow` against production's prompt or the drift must be closed first.
 
 Helper signatures the function calls (all declared with the `public.` prefix, which is why a first
 grep without it found nothing): `cerebro_tasa_zelle(p_usd numeric) RETURNS numeric`;

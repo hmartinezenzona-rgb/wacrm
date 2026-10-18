@@ -143,10 +143,10 @@ restructured prompt — otherwise it rewards the old shape, which is what it did
 - [ ] T2b PREREQUISITE — `cerebro_cambiar_servicio` accepts `mexico`, so the bot can set it as it
       can already set the other eight. Touches a function with rail locks and audit rows, so it
       needs its own RED/GREEN assertion and a rollback, like 230/231 did
-- [ ] T2c Target SHAPE agreed before writing copy: rail chosen first and never assumed, CUP as one
+- [x] T2c Target SHAPE agreed before writing copy: rail chosen first and never assumed, CUP as one
       option among five, the pricing rule attached to each rail, and the services the bot can now
       sell listed as first-class rather than as exceptions
-- [ ] T3 Sweep the gold battery for other expectations frozen before the USD rails, the way the
+- [x] T3 Sweep the gold battery for other expectations frozen before the USD rails, the way the
       three above were found
 - [ ] T4 Restructured prompt candidate, measured against the swept battery with a variance run
 - [ ] T5 Staging, then production with the owner's go-ahead
@@ -285,6 +285,72 @@ gains a Mexico recipient type; `cerebro_cambiar_servicio` accepts `mexico` and r
 single USD rate; the beneficiary parser and the panel learn the new type; plus the usual RED/GREEN
 assertion, rollback and fingerprint, on a function that carries rail locks and audit rows. Its own
 feature document, not a prerequisite tweak.
+
+### T3 — battery sweep (2026-10-18)
+**The whole battery is a snapshot of August 2026.** All 60 cases have `origen.fecha` in 2026-08, and
+58 of them carry `arbitrado: humberto 2026-08-12` (2 are unarbitrated). Everything below shipped
+AFTER that date: the cash service (137, 2026-09-28), saldo movil (223, 2026-10-06), the tiered Zelle
+pricing (215/217, 2026-10-05), the service-change tool (230/231, 2026-10-08), the partial-data
+beneficiary tools (179/180, 2026-10-01), and the `COTIZACION SIN MONEDA DE DESTINO` rule.
+
+Exposure by what the expectation depends on:
+| cases | area | families |
+|---|---|---|
+| 28 | quoting: rates, tiers, destination currency | calculo, calculo-con-herramienta, calculo-desde-contexto, multi-herramienta, saldo-envio |
+| 10 | rail / beneficiary | beneficiario-zelle, reparto-multiple |
+| 7 | services: prices and conditions | servicios, promo |
+| 15 | style and behaviour, probably survives | comprobante, derivar-humano, formato, ingles, otros, saludo-despedida |
+
+**45 of 60 touch something the new reality changed.** 3 are already corrected.
+
+**But the FIGURES still hold today, and I nearly reported otherwise.** The recorded mocks quote Zelle
+at a flat 260, and Zelle is now tiered, so two cases expecting 500 USD = 130,000 GYD and 510 USD =
+132,600 GYD looked stale. Checked against the database: `cerebro_tasa_zelle` returns **260 for 50,
+115, 500 and 510 USD alike**, so `gyd_hoy = gyd_a_260` in every one. The tiers exist structurally but
+currently sit at the same price. No figure in the battery is wrong because of them.
+
+So the precise conclusion is narrower and more useful than "45 cases are rotten":
+- What is stale is not the NUMBERS but the BEHAVIOURAL expectations — which tool, whether to quote at
+  all, which rail — exactly the shape of the three already found and corrected.
+- The battery is structurally FRAGILE rather than currently wrong: its figures are frozen against
+  rates that are now data (`tasas`, the Zelle tier table, `cerebro_config`). The day a tier price or
+  the CUP rate changes, dozens of cases silently go red for a reason that has nothing to do with the
+  bot.
+
+**Re-arbitration of the 45 is the owner's call, not mine.** The field is literally
+`arbitrado: humberto`. For the three already corrected I derived the answer mechanically from his own
+written rule and his own worked examples, which is defensible; doing that across 45 cases would be
+me rewriting the product spec. What I can do, and what T4 should start with, is hand him the exposed
+cases grouped by the single decision each group needs, so he answers per group instead of per case.
+
+### T2c — the target shape of the restructured prompt
+Derived from the audit and from what was measured, not from taste.
+
+1. **Open with the real premise, not a CUP one.** The customer always deposits GYD; what the
+   beneficiary receives is CHOSEN and never assumed. This replaces line 105, which asserts the
+   opposite as a fact.
+2. **One rail table instead of three scattered sections.** Per rail: what it is, what prices it (or
+   which tool returns the price), what data to collect, and its minimum. This absorbs today's
+   `TOOLS DE CALCULO`, `VIA USD` and `OTROS SERVICIOS`, where the same rail is described in two or
+   three places and sometimes contradicts itself.
+3. **One quoting rule.** Never quote before the rail is known; the tool computes and the model never
+   does arithmetic. Said once, not re-derived per phrasing, which is what produced the 108/113/rule-4
+   tangle.
+4. **Examples must demonstrate the new shape — this is the lever, and it is measured.** Line 116
+   currently hands the model the filled-in CUP sentence for the very amount the examples use, and the
+   bot reproduces it verbatim; three rule-level fixes did not move that. So: one worked example per
+   rail, and the CUP template loses its privileged position. A worked example beats a rule, which is
+   the project's own lesson written inside `calcular_usd`.
+5. **Facts live in the catalogue, not in the prompt.** Prices and conditions come from
+   `consultar_servicio`; the prompt says where to look and never carries the number. This is the
+   structural fix for staleness: `efectivo_usd`'s 290 rate and the Mexico minimum are prose inside
+   service text today, and 244 deliberately avoided repeating that mistake for saldo.
+6. **Keep what works, untouched.** The SKIP rules, the style rules, the registration golden rule
+   (which gate 78 measured from 0 to 100% on the real cases), the security rule and the handoff rule.
+   None of them is implicated in any finding here.
+
+Not yet written. T4 writes the candidate and measures it, which cannot begin honestly until the
+owner's group answers from T3 exist — otherwise the swept battery still rewards the August shape.
 
 ## Progress
 - 2026-10-18: audit done. Rates confirmed as only gyd=3 and usd=260; six active services; five

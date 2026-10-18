@@ -137,7 +137,7 @@ restructured prompt — otherwise it rewards the old shape, which is what it did
 - [x] T1 Audit what the system supports today (this document)
 - [x] T2 Scope settled by the owner: the bot sells and sets everything; only the transfer is the
       admin's, which the system already enforces by having no transfer tool
-- [ ] T2a PREREQUISITE — `saldo` gains a `cerebro_servicios` row so `consultar_servicio('saldo')`
+- [x] T2a PREREQUISITE — `saldo` gains a `cerebro_servicios` row so `consultar_servicio('saldo')`
       can describe it. Content derived from data, not invented: 1,000 GYD per package of 360 CUP,
       one Cuban phone per operation. Migration 223 anticipated this ("the later bot")
 - [ ] T2b PREREQUISITE — `cerebro_cambiar_servicio` accepts `mexico`, so the bot can set it as it
@@ -150,6 +150,40 @@ restructured prompt — otherwise it rewards the old shape, which is what it did
       three above were found
 - [ ] T4 Restructured prompt candidate, measured against the swept battery with a variance run
 - [ ] T5 Staging, then production with the owner's go-ahead
+
+## Progress / evidence
+
+### T2a done on staging — saldo movil is visible to the bot (2026-10-18)
+Migration `244_saldo_movil_catalog.sql` + `ROLLBACK-244-saldo-movil-catalog.sql`.
+
+It does TWO things, and the second was the real bug: **`saldo` was in the KEYWORDS of `recargas`**
+(migration 138 set `ARRAY['recarga','saldo','etecsa','cubacel']`), so every customer question about
+saldo was routed to the Etecsa-promotion recharge service — a different product, a different price,
+and one that does not exist outside a promotion. A catalogue row alone would have left that intact.
+
+Price is composed at insert time FROM `cerebro_config`, not retyped, so the row cannot disagree with
+the configured price on the day it ships.
+
+| | before | after |
+|---|---|---|
+| `saldo` row | absent | present, `requiere_humano = false` (the bot sells and sets it) |
+| `recargas` keywords | `{recarga,saldo,etecsa,cubacel}` | `{recarga,etecsa,cubacel}` |
+| `saldo` keywords | — | `{saldo,"saldo movil","recargar saldo","poner saldo"}` |
+
+Functional check: `cerebro_servicio_get('saldo')` returns the service with "1000 GYD por cada
+paquete de 360 CUP de saldo", which is what the bot will read. Staging keeps 244; production
+untouched.
+
+Three things noticed while doing it, all pre-existing and none fixed here:
+- `cerebro_servicio_get` returns `notas_internas` TO THE MODEL, so maintainer notes (file paths,
+  migration numbers) land in its context as noise. Every existing row does this, `efectivo_usd`
+  most heavily. Candidate for the restructure, not for a quiet change now.
+- `efectivo_usd`'s rate lives as PROSE inside its `hechos`: "290 GYD por cada 1 USD ... minimo 100
+  USD". So the cash rate is 290, not the 260 of Zelle/Clasica/Tropical, and it is NOT in `tasas` —
+  changing it means editing service text by hand. That is why the prompt forbids the USD
+  calculators for cash, and it is a second instance of the fragility 244 deliberately avoided.
+- `visa`'s `resumen` says 4,000 GYD while its own `hechos` and the prompt say 5,000. Stale summary,
+  recorded for the sweep, not touched.
 
 ## Progress
 - 2026-10-18: audit done. Rates confirmed as only gyd=3 and usd=260; six active services; five

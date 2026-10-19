@@ -646,6 +646,66 @@ one** — the voice section and the rate rule cost that, and it is a real cost, 
 Only the rate and the quoting idiom are done. The other ~35 examples are still my prose; rewriting
 them from the author-stamped corpus is T10.
 
+### THE HEADLINE SCORE IS NOISE — the most important measurement of the day
+Six full-battery runs were compared case by case. **9 of 60 cases change sign between runs.** Four
+of them are pure coin flips with no change in between: `reg-25682` (V V R V V ·), `reg-32454`
+(V V V V V R), `reg-32635` (V V R V R R) and `reg-32598` (R V R R V R).
+
+Run totals today: base **43**, candidate **45**, candidate with the voice work **42**, final
+candidate **44**. Every one of those sits inside a **±4 noise band**.
+
+So the "45/60 vs 43/60" I reported as the restructure's result **is not supportable by this
+instrument**, and neither is the later 42 as a regression. The only green the final run lost against
+the base is `reg-32454`, the tool-failure case that has shown "demora con la tasa" in five runs.
+
+What the instrument CAN support is replicated per-case measurement, which is what the handoff lesson
+already said and what the two real results rest on:
+- `reg-27486`: **1 green / 6 runs** on the live prompt, **7 / 8** on the candidate, with an EMPTY
+  tool list in every baseline red.
+- `reg-27065` + `reg-28021`: **0 / 3 each** with the old note, **6 / 6** with the regenerated one.
+
+This also explains the owner's "I feel like I am starting over": for months the number has been
+moving on noise, so work looked undone and undone work looked done. Any future claim about this
+battery must be per case and replicated, never a delta in the total.
+
+The four reds of the final run: `reg-27065` and `reg-28021` (cannot pass here — the battery replays
+the August context; already proven 6/6 with the new node), `reg-32635` and `reg-32454` (both flaky).
+
+### The rate the bot quotes comes from the USDT treasury column (owner's hunch, confirmed)
+The owner said the CRM calculator is where the rates live and that this tool "has always been
+failing". He was right. Chain, read-only from production:
+
+| rail | where the price comes from | correct? |
+|---|---|---|
+| CUP | `cup_global_rate` | yes |
+| Zelle | `cerebro_tasa_zelle` -> `cerebro_zelle_tiers()` -> `zelle_sell_gyd` 260 / 250 / 245 | yes |
+| cash | `efectivo_usd_gyd` = 290 | yes |
+| **Clasica, Tropical, Mexico** | `crm_tasa_vigente('usd')` -> view `tasas` -> **`usdt_sell_gyd`** | **NO** |
+
+`calculator_rate_versions` carries `zelle_sell_gyd`, `zelle_sell_gyd_1000`, `zelle_sell_gyd_2000`,
+`efectivo_usd_gyd`, `usdt_buy_gyd`, `usdt_sell_gyd`, `usdt_sell_cup`, `cup_global_rate`. The `tasas`
+view maps `moneda='usd'` to `usdt_sell_gyd`, so the single-USD-rate path prices customer quotes off
+the USDT selling price. **Today both are 260, so nothing is visibly wrong** — the day the USDT price
+moves, Clasica, Tropical and Mexico move with it, silently.
+
+The code admits the cause. The comment inside `crm_tasa_vigente` says the view is kept at exactly
+two rows BECAUSE `consultar_tasas` and the admin "ver tasas" list every row as `1 <MONEDA> = x CUP`
+and the cash rate would print as a CUP rate. So the view's shape is a workaround for a DISPLAY
+format, and the customer price got wired to a treasury column as collateral.
+
+Two consequences beyond the mispricing risk:
+- `consultar_tasas` cannot tell a customer the tiers (250 from 1,000 USD, 245 from 2,000) nor the
+  cash rate, while the humans in the corpus do exactly that: "si es de 1000 dólares en adelante el
+  precio baja", "por esa cantidad sería a 245". The bot is worse than a person here because of the
+  wiring, not the prompt.
+- The label lies in one line: the tool prints `1 USD por Zelle = 260 GYD` while reading
+  `usdt_sell_gyd`.
+
+**Pending the owner's business decision**, asked and not guessed: should Clasica, Tropical and Mexico
+follow the Zelle customer price (`zelle_sell_gyd`), or do they deliberately track the USDT selling
+price? If the former it is a latent pricing defect and needs a migration with a rollback; if the
+latter, only the label and what `consultar_tasas` can say need fixing. NOTHING was changed.
+
 ## Progress
 - 2026-10-18: audit done. Rates confirmed as only gyd=3 and usd=260; six active services; five
   receive rails; the `mexico`/`saldo` mismatches found; six obsolete prompt items identified with

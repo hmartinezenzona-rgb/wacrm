@@ -135,7 +135,10 @@ describe('la remesa no lleva reloj (decision del dueno, 2026-10-03)', () => {
 
   it('ninguna nota ORDENA prometer tiempo, en ningun turno', () => {
     const turnos: Array<[string, Entradas]> = [
-      ['comprobante', { snapshot: { texto_completo: 'ahi va el comprobante' } }],
+      [
+        'comprobante',
+        { snapshot: { texto_completo: 'ahi va el comprobante' } },
+      ],
       ['como va lo mio', { snapshot: { texto_completo: 'como va lo mio?' } }],
       [
         'cuanto llega',

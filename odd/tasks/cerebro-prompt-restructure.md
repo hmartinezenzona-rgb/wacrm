@@ -157,6 +157,13 @@ restructured prompt — otherwise it rewards the old shape, which is what it did
 - [ ] T6 `Decisor` node stops asserting CUP and stops dictating the quote sentence when no rail is
       known. This is the measured driver of the two remaining systematic reds; the prompt cannot
       reach it. n8n production change: owner's go-ahead, staging first, own feature document
+- [ ] T8 Last home of the CUP default: the `Decisor` reparto note says "CUANTOS CUP recibe cada
+      persona". NOT folded into the Decisor fix on purpose — it changes reparto behaviour, which has
+      its own feature document and gold cases (`reg-30478`), and doing it in the same breath is the
+      very habit that caused today's mess. Needs its own test
+- [ ] T9 Regenerate BOTH frozen layers of the battery: the baked `[CONTEXTO]` (6 cases, with the
+      `doble-pregunta` caveat in the Decisor doc) and the recorded tool results, starting with
+      `consultar_tasas`. Then one full-battery run of prompt + Decisor together
 - [ ] T7 `visa.resumen` says 4,000 GYD while its own `hechos` and the prompt say 5,000. Now that
       the prompt carries no price, the catalogue is the only authority, so the bot would quote the
       stale 4,000. Small migration + rollback, and `reg-25682`'s expectation revisited with it
@@ -540,6 +547,51 @@ The queued fix is narrow and specific: the `Decisor` note must stop asserting a 
 dictating the sentence — when no rail is known it should say the amount is what the client deposits
 and that the destination must be asked. It is an n8n production change, so it needs the owner's
 go-ahead and staging first, and it gets its own feature document. Nothing was touched.
+
+### The owner found a FIFTH home of the CUP default, in my own candidate
+He read one bot reply — `Hoy 1 GYD = *3 CUP*. ¿En qué moneda quiere que le llegue...?` — and named
+the contradiction: giving the CUP rate already chooses CUP, and if something justified choosing it
+then the question is redundant. Either you know and you do not ask, or you do not know and you do
+not choose.
+
+The culprit was **rule 2, which I carried forward verbatim** under "keep what works, untouched":
+
+> `2. Tasa sin moneda: asume GYD: 'Hoy 1 GYD = *X CUP*. ¿Cuánto desea enviar?'`
+
+It says *asume* and hands over a pre-filled CUP sentence — the same defect as lines 105 and 116,
+which I had just removed, and which I then reproduced in THREE of my own worked examples (263, 379,
+384). "Keep untouched" was a category I invented and applied without measuring; "I did not change
+it" is not evidence that it works. That is also the answer to his "I feel like I am starting over":
+the defect had several homes and I was finding them one at a time, so every fix looked like the bug
+coming back.
+
+#### Exhaustive sweep, so the count replaces the findings
+Every surface that can speak to the model, swept at once instead of one at a time:
+
+| surface | instances | state |
+|---|---|---|
+| prompt premise (105) + template (116) | 2 | removed in the candidate |
+| prompt rule 2 + three rate examples | 4 | fixed now |
+| `Decisor` quoting note + the `destino SIEMPRE CUP` comment | 2 | fixed, on staging |
+| `Decisor` reparto note, "CUANTOS CUP recibe cada persona" | 1 | PENDING, see T8 |
+| rest of the workflow | 0 | false positives: `Normalizar formato` ("se asume primer intento", retries), `Medir la semantica` (a telemetry comment), the four `Vision` nodes (Transfermovil screenshots that are NOT receipts), `cambiar_servicio` ("no, en CUP" as an example phrase) |
+
+#### Owner's decision on the rate (2026-10-18), applied
+Asked without naming a currency -> give BOTH rates that exist. Asked naming one -> only that one.
+Rule 2 rewritten accordingly and the three examples now read
+`Hoy 1 GYD = *3 CUP* y 1 USD = *260 GYD*.`
+
+#### Measuring it exposed a second frozen layer in the battery
+First measurement said the fix did nothing: 4 reps, CUP rate only. The prompt was not the problem —
+**the battery mocks the tools**. `consultar_tasas` is recorded as ONE row,
+`{"tasa": "1 GYD = 3 CUP"}`, while the live query returns TWO (verified read-only against
+production: `1 GYD = 3 CUP` and `1 USD por Zelle = 260 GYD que deposita el cliente`). The bot could
+not name a rate nobody handed it. With the mock corrected to the live two-row output: **4/4 green**,
+answering exactly as the owner specified.
+
+So the battery freezes August in TWO layers, not one: the baked `[CONTEXTO]` and the recorded tool
+results. Both need regenerating from the real node and the real query before any further verdict —
+and both are system output, mechanically derived, never a re-arbitration of `arbitrado: humberto`.
 
 ## Progress
 - 2026-10-18: audit done. Rates confirmed as only gyd=3 and usd=260; six active services; five

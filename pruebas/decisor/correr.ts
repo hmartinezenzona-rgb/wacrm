@@ -5,16 +5,31 @@
 // the tools — no `Decisor` — and every gold case carries its `[CONTEXTO]` baked into the message,
 // recorded in August. So the battery replays whatever the node said back then, forever.
 //
-// `decisor.js` is the node's `jsCode`, verbatim. It is a bare script: top-level `const` and a
+// `decisor.jscode` is the node's `jsCode`, verbatim. It is a bare script: top-level `const` and a
 // trailing `return`, which is a syntax error in a module, so it is wrapped with `new Function`.
 // The node only ever touches `$('Name').first().json` and `$('Datos del negocio').params.jsonOutput`.
+//
+// The `.jscode` extension is deliberate: it is a deployed payload, not project source. As `.js`,
+// prettier reformatted all 1720 lines of it on 2026-10-18 and the md5 stopped matching the live
+// workflow, destroying the one property that makes the copy useful — being comparable to n8n.
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+/** md5 of the node code as vendored from n8n before any change (prod and staging agreed). */
 export const DECISOR_MD5_AL_FIJARLO = 'c2ed1d13c177dc368fbfd63150e706e7';
 
-const ORIGEN = join(dirname(fileURLToPath(import.meta.url)), 'decisor.js');
+/**
+ * md5 of the copy in this repo as it stands. Deployed to staging `U52y1kSNvhgxvWeb` on 2026-10-18.
+ * A test asserts the file still hashes to this, so a formatter run or a half-applied edit fails
+ * loudly instead of silently diverging from the workflow.
+ */
+export const DECISOR_MD5_ESPERADO = 'e6b0cc77be5cb8e020cd337ab05af55c';
+
+export const ORIGEN = join(
+  dirname(fileURLToPath(import.meta.url)),
+  'decisor.jscode'
+);
 
 type Fila = Record<string, unknown>;
 
@@ -83,7 +98,9 @@ function stub(e: Entradas) {
     }
     const json = tabla[nombre];
     if (json === undefined) {
-      throw new Error(`el Decisor pidio un nodo que el arnes no stubea: ${nombre}`);
+      throw new Error(
+        `el Decisor pidio un nodo que el arnes no stubea: ${nombre}`
+      );
     }
     return { first: () => ({ json }) };
   };
@@ -95,7 +112,9 @@ function stub(e: Entradas) {
  */
 export function correrDecisor(entradas: Entradas = {}): Salida {
   const codigo = readFileSync(ORIGEN, 'utf8');
-  const nodo = new Function('$', codigo) as (dolar: ReturnType<typeof stub>) => [{ json: Salida }];
+  const nodo = new Function('$', codigo) as (
+    dolar: ReturnType<typeof stub>
+  ) => [{ json: Salida }];
   const salida = nodo(stub(entradas))[0].json;
   const mensaje = salida.mensaje ?? '';
   const notas = mensaje

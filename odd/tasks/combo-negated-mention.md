@@ -49,15 +49,15 @@ Out of scope (follow-ups, owner's decision):
 
 ## Tasks
 - [x] C1 — Assertion (Yoandy sequence end to end + rule cases + unchanged behaviours), RED on staging.
-- [x] C2 — Migration 246 + ROLLBACK; apply on staging, GREEN; rollback proof; related combo assertions rerun.
-- [x] C4 — 247: shared negation rule; cerebro_recarga_en_curso per message
+- [x] C2 — Migration 247 + ROLLBACK; apply on staging, GREEN; rollback proof; related combo assertions rerun.
+- [x] C4 — 248: shared negation rule; cerebro_recarga_en_curso per message
       (`supabase/staging/assertions/recarga-negated-mention.sql`).
-- [x] C5 — 248: crm_cerrar_operacion_manual maps the chosen service like _cambiar_servicio_core
+- [x] C5 — 249: crm_cerrar_operacion_manual maps the chosen service like _cambiar_servicio_core
       (remesa rail -> service_type 'remesa'; combo_costo_gyd cleared unless combo; service change audited).
       Today choosing Zelle on a misfiled combo keeps service_type 'combo'.
-- [x] C6 — 249: a re-save of the payee an operation already holds stays on it
+- [x] C6 — 250: a re-save of the payee an operation already holds stays on it
       (`cerebro_resolver_operacion_beneficiario`, 'misma_cuenta'); assertion `zelle-payee-resave.sql`.
-- [ ] C3 — Production (246-249) with the owner's go-ahead; md5 equal to staging.
+- [ ] C3 — Production (247-250) with the owner's go-ahead; md5 equal to staging.
 
 ## Acceptance criteria
 - The Yoandy message alone: `cerebro_combo_en_curso` FALSE and the deposit opens a `remesa`.
@@ -77,46 +77,58 @@ Out of scope (follow-ups, owner's decision):
   `case 1: a negated "combo" in pasted Zelle instructions must not be a combo in progress`.
   The first fixture of case 7 (an operation inserted as completed) was coerced to incident by
   `remittance_operations_completion_guard`; case 7 now closes the window with a cancelled one.
-- 2026-10-19 C2: dry run (246 + assertion, rolled back) `ALL PASS`. 36 related assertions run without
-  and with 246 in rolled-back transactions: identical outcomes. Pre-existing failures, unchanged by
-  246: deal-insert-creates-operation (case 1), n8n-repoint (fixture setup), operation-incident-reason
+- 2026-10-19 C2: dry run (247 + assertion, rolled back) `ALL PASS`. 36 related assertions run without
+  and with 247 in rolled-back transactions: identical outcomes. Pre-existing failures, unchanged by
+  247: deal-insert-creates-operation (case 1), n8n-repoint (fixture setup), operation-incident-reason
   (1 expectation), repeated-receipt (missing pg_temp.conv_prueba).
-  246 applied on staging (committed). Assertion GREEN: `ALL PASS`. md5 after 246:
+  247 applied on staging (committed). Assertion GREEN: `ALL PASS`. md5 after 247:
   combo_en_curso 68b6ca38dd4a254206904623d567b8bb, texto_pide_combo aa4951d64887136ec30c3d831509d3ee,
   textos_cliente_desde 4464de581b88bfa3f0b789375b25d21a, textos_cliente_recientes
   f5a8cd444b1cac3f57c2668299a629d6. ACLs: existing ones kept; new helpers service_role only.
-  Rollback proof in a rolled-back transaction restored 18a50de6… and 1172a095… exactly; staging left WITH 246.
+  Rollback proof in a rolled-back transaction restored 18a50de6… and 1172a095… exactly; staging left WITH 247.
 
 - 2026-10-19 C1/C2 commit: 5534565.
 - 2026-10-19 C4: assertion RED on staging (`case 1: "no quiero recarga" must not be a recharge in
   progress`). Dry run ALL PASS. 28 related assertions (combo, recarga, promo, deposit, textos) without
-  and with 247: identical outcomes (pre-existing failures as in C2, plus deals-free-views-and-inert-edits,
-  rekey-shipment-alerts-onto-operations and saldo-model case 11, all unchanged by 247). Applied on
-  staging; assertion GREEN. md5 after 247: quitar_menciones_negadas fe9ca0ba5f3741a6baaa2dd23cefba87,
+  and with 248: identical outcomes (pre-existing failures as in C2, plus deals-free-views-and-inert-edits,
+  rekey-shipment-alerts-onto-operations and saldo-model case 11, all unchanged by 248). Applied on
+  staging; assertion GREEN. md5 after 248: quitar_menciones_negadas fe9ca0ba5f3741a6baaa2dd23cefba87,
   recarga_en_curso e90f049870e260fd8581d0a8f919444c, texto_pide_combo 2cd8e5b8806e78ab86d0d06476e95afb,
   texto_pide_recarga 3afcf006e5f55ed7e1ef8c9811b5e3c1. Rollback proof restored 4146aaff… and aa4951d6….
 
 - 2026-10-19 C4 commit: 594ff34.
 - 2026-10-19 C5: assertion `manual-close-service-type.sql` RED on staging (`case 1 ... got
   completed/combo/zelle/28600`). Dry run ALL PASS. 22 related assertions (manual close, combo cost,
-  calculator feed) without and with 248: identical outcomes (delivery-feed-evidence fixture failure is
+  calculator feed) without and with 249: identical outcomes (delivery-feed-evidence fixture failure is
   pre-existing, only its random uuid differs; saldo-model case 11 pre-existing). Applied on staging;
   assertion GREEN; md5 7cefd4e763141b51c90019b34c614b28, ACL unchanged. Rollback proof restored
   00e19f83… exactly. App: close-manual route tests 30/30 (API unchanged).
 
 - 2026-10-19 C5 commit: 1be1e66.
-- 2026-10-19 C6: replay of the production sequence on staging with 246-248 (rolled back): Santialv no
+- 2026-10-19 C6: replay of the production sequence on staging with 247-249 (rolled back): Santialv no
   longer replaced, but the auto node's re-save of Santialv after receipt 2 went to the newest, empty
   operation by rule C (amount ties at equal deposits, proximity sees both), so Santialv sat on both
-  operations and Orlansys went to a person ('operacion_ambigua'). Fix 249: an account that is already
+  operations and Orlansys went to a person ('operacion_ambigua'). Fix 250: an account that is already
   the vigente payee of exactly one open remesa, not typed since that row was written, is a re-save of
   it. Assertion RED (`case 1a ... got Santialv LLC|Santialv LLC`), dry run ALL PASS. Related run (77
-  assertions: beneficiaries, Zelle, reparto, calculator) with and without 249: one real DIFF,
+  assertions: beneficiaries, Zelle, reparto, calculator) with and without 250: one real DIFF,
   beneficiary-matcher case 9, a fixture artifact: its old payee row was dated now() although the case
   models a payee written 4 days earlier, before the account was typed again. Fixture row now dated
-  `t0 - 4 days`; beneficiary-matcher 9/9 with and without 249. Applied on staging; GREEN; md5
+  `t0 - 4 days`; beneficiary-matcher 9/9 with and without 250. Applied on staging; GREEN; md5
   fac21833a4dfc2b054cec390aeca8e91; rollback proof restored 80597ea9490b4d87fa93694f3000350c.
-  Full replay with 246-249: two remesas, one receipt and one Zelle payee each (Santialv | Orlansys).
+  Full replay with 247-250: two remesas, one receipt and one Zelle payee each (Santialv | Orlansys).
+
+- 2026-10-19 RENUMBERED 246-249 -> 247-250: another session in this worktree shipped its own
+  `246_telemetria_acepta_uso_tardio` to production at 19:27 (commit 087d006). Content tags and file names
+  shifted by one; the md5s recorded above for 246-249 are history. Staging re-applied 247-250 in order;
+  assertions combo-negated-mention, recarga-negated-mention, manual-close-service-type,
+  zelle-payee-resave ALL PASS; beneficiary-matcher 9/9; full replay: Santialv | Orlansys. Staging md5
+  (reference for production): combo_en_curso cc9c50e4ff8104ffc59c4c6cc20be041, quitar_menciones_negadas
+  bd0aae0aa3b4668c90ab7b3ef4719cc6, recarga_en_curso 71efb1003fd54b9626a8b180583f0f6c,
+  resolver_operacion_beneficiario ff0559595339daf73dfbe65df3a44833, texto_pide_combo
+  86cdb85b0d81c249188a622057acf4d8, texto_pide_recarga e1c26ec6b2cea8607184d781f5fe4f85,
+  textos_cliente_desde 044b883518205fde1585d2d213ddd0a7, textos_cliente_recientes
+  472fa8993639e76cd92231174315dde3, crm_cerrar_operacion_manual de2656032e562e264b020ce223f5812a.
 
 ## Next step
-C3: production (246, 247, 248, 249 in order) with the owner's go-ahead; check production md5s equal the staging pre-change md5s first.
+C3: production (247, 248, 249, 250 in order) with the owner's go-ahead; check production md5s equal the staging pre-change md5s first.

@@ -1,11 +1,11 @@
 \set ON_ERROR_STOP on
 BEGIN;
 -- =====================================================================
--- Assertion for migration 249 (re-saving the payee an operation already holds does not copy it onto another one).
+-- Assertion for migration 250 (re-saving the payee an operation already holds does not copy it onto another one).
 -- Self-reverting: BEGIN ... ROLLBACK is in this file; any failure RAISEs. Run it wrapped as
 --   BEGIN; <this file without its own BEGIN/ROLLBACK/\set>; ROLLBACK;
 -- (never plain psql -1: it can COMMIT the fixture).
--- Production 2026-10-19 (conversation c2bb35c0), replayed with 246-248: two receipts of 28,600 GYD for two Zelle payees.
+-- Production 2026-10-19 (conversation c2bb35c0), replayed with 247-249: two receipts of 28,600 GYD for two Zelle payees.
 -- "Registrar zelle auto" re-saves the accumulated payee (Santialv) on every burst; after the second receipt rule C sent that
 -- re-save to the newest, empty operation, so Santialv sat on both and the real second payee (Orlansys) went to a person.
 -- Rule asserted: an account that is already the vigente payee of exactly one open operation, and that the customer has not

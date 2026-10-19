@@ -1,4 +1,4 @@
--- ROLLBACK of 248_manual_close_names_the_service.sql: restores crm_cerrar_operacion_manual exactly as staging and production
+-- ROLLBACK of 249_manual_close_names_the_service.sql: restores crm_cerrar_operacion_manual exactly as staging and production
 -- had it on 2026-10-19 (pg_get_functiondef md5 00e19f83e6169081f52707140d7bcca6, the 196/223 body). The ACL is untouched by
 -- CREATE OR REPLACE. Operations already closed keep the service they were closed with.
 

@@ -1,21 +1,5 @@
--- =====================================================================
--- 249 -- Re-saving the payee an operation already holds does not copy it onto another one
---
--- Production 2026-10-19 (conversation c2bb35c0), replayed on staging with 246-248: two MMG receipts of 28,600 GYD for two
--- Zelle payees. "Registrar zelle auto" (cerebro_guardar_zelle_auto) re-sends the accumulated payee on every burst. After
--- the second receipt, the re-save of the first payee (Santialv) reached cerebro_resolver_operacion_beneficiario with two
--- open remesas: the amount step ties (equal deposits), proximity sees both, and rule C picked the newest, empty
--- operation. Santialv then sat on both, and the real second payee (Orlansys) found no free operation and went to a person.
---
--- cerebro_resolver_operacion_beneficiario, several-operations path, right after the anchor: when the account is already
--- the vigente Zelle payee of exactly one open remesa and the customer has not typed it since it was written there (the
--- anchor message is not newer than the payee row), that operation is the target ('misma_cuenta'). An account typed again
--- keeps the 133 behaviour (a customer reusing an account for a new remesa). Cards are out of this rule. 0/1 operation,
--- the reparto guard and every other step are unchanged.
---
--- ACL untouched by CREATE OR REPLACE. Assertion: supabase/staging/assertions/zelle-payee-resave.sql.
--- Rollback: ROLLBACK-249-zelle-payee-resave.sql. odd/tasks/combo-negated-mention.md (C6).
--- =====================================================================
+-- ROLLBACK of 250_zelle_payee_resave.sql: restores cerebro_resolver_operacion_beneficiario exactly as staging had it on
+-- 2026-10-19 (the 223 body). The ACL is untouched by CREATE OR REPLACE. Payees already written stay where they are.
 
 CREATE OR REPLACE FUNCTION public.cerebro_resolver_operacion_beneficiario(p_conversation_id uuid, p_estados text[], p_cuenta text)
  RETURNS TABLE(resultado text, operation_id uuid, candidatas integer, metodo text)
@@ -41,7 +25,6 @@ DECLARE
   v_hits      integer;
   v_cand      boolean;
   v_newest    uuid;
-  v_resave    uuid;
 BEGIN
   -- (213) A visa and a combo are never the remesa target (the writers refuse them): they are not candidates here.
   -- (223) Nor is a mobile balance.
@@ -93,25 +76,6 @@ BEGIN
     SELECT b.i, b.t INTO v_anchor_i, v_anchor_t FROM cerebro_mensajes_cliente_normalizados(p_conversation_id, v_desde) b WHERE b.tipo = 'image' ORDER BY b.i DESC LIMIT 1;
   END IF;
   IF v_anchor_i IS NULL THEN v_anchor_t := now(); END IF;
-
-  -- (249) A re-save, not a new payee: the account is already the vigente payee of exactly ONE open operation, and the
-  -- customer has not typed it since it was written there ("Registrar zelle auto" re-sends the accumulated payee on every
-  -- burst). It stays there; rule C would otherwise copy it onto the newest, empty operation (c2bb35c0, 2026-10-19).
-  -- Typed again after that, it is a new remesa's payee and the steps below decide (133).
-  IF NOT v_es_tarjeta THEN
-    SELECT min(o.id::text)::uuid INTO v_resave FROM remittance_operations o
-     WHERE o.conversation_id = p_conversation_id AND o.service_type = 'remesa' AND o.status NOT IN ('completed','cancelled')
-       AND (p_estados IS NULL OR o.status = ANY(p_estados))
-       AND EXISTS (SELECT 1 FROM remittance_beneficiaries rb
-                    WHERE rb.operation_id = o.id AND rb.status = 'vigente'
-                      AND (lower(coalesce(rb.zelle_account,'')) = v_cuenta
-                           OR regexp_replace(coalesce(rb.zelle_account, ''), '\D', '', 'g') IN (v_cuenta, '1' || v_cuenta))
-                      AND (v_anchor_i IS NULL OR rb.created_at >= v_anchor_t))
-    HAVING count(*) = 1;
-    IF v_resave IS NOT NULL THEN
-      RETURN QUERY SELECT 'unica'::text, v_resave, v_total, 'misma_cuenta'::text; RETURN;
-    END IF;
-  END IF;
 
   -- 4. Amount written next to the account.
   IF v_anchor_i IS NOT NULL THEN
@@ -191,6 +155,7 @@ BEGIN
   END IF;
 
   RETURN QUERY SELECT 'ambigua'::text, NULL::uuid, v_total, 'sin_evidencia'::text;
-END $function$;
+END $function$
+;
 
 NOTIFY pgrst, 'reload schema';

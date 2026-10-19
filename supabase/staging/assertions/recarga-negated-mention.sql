@@ -1,11 +1,11 @@
 \set ON_ERROR_STOP on
 BEGIN;
 -- =====================================================================
--- Assertion for migration 247 (a negated "recarga" is not a recharge order; one negation rule for combo and recarga).
+-- Assertion for migration 248 (a negated "recarga" is not a recharge order; one negation rule for combo and recarga).
 -- Self-reverting: BEGIN ... ROLLBACK is in this file; any failure RAISEs. Run it wrapped as
 --   BEGIN; <this file without its own BEGIN/ROLLBACK/\set>; ROLLBACK;
 -- (never plain psql -1: it can COMMIT the fixture).
--- cerebro_recarga_en_curso (202/211) has the bare-word shape 246 removed from the combo rule: "no quiero recarga" was a
+-- cerebro_recarga_en_curso (202/211) has the bare-word shape 247 removed from the combo rule: "no quiero recarga" was a
 -- recharge order. Rule asserted: per message, a mention negated in the same clause does not count; the Zelle guard and
 -- the promo condition are unchanged. odd/tasks/combo-negated-mention.md.
 -- =====================================================================
@@ -38,7 +38,7 @@ BEGIN
   -- (211) A typed recharge needs a promo running: these cases run with one.
   INSERT INTO promo_etecsa (min_cup, max_cup, multiplicador, vigente_desde, vigente_hasta, titulo, url, texto_crudo, huella, estado)
   VALUES (600, 1250, 5, (now() AT TIME ZONE 'America/Guyana')::date - 1, (now() AT TIME ZONE 'America/Guyana')::date + 2,
-          'ASSERT VIGENTE', 'https://assert.invalid/v', 'assert', md5('assert-vigente-247'), 'confirmada');
+          'ASSERT VIGENTE', 'https://assert.invalid/v', 'assert', md5('assert-vigente-248'), 'confirmada');
 
   -- 1. A negated recharge is not an order, and the deposit that follows opens a remesa.
   v_conv := pg_temp.conv_t247('01', ARRAY['no quiero recarga, quiero mandar dinero a una tarjeta']);
@@ -67,7 +67,7 @@ BEGIN
   v_conv := pg_temp.conv_t247('07', ARRAY['quiero una recarga', 'mejor por zelle']);
   IF cerebro_recarga_en_curso(v_conv) THEN RAISE EXCEPTION 'case 5: Zelle typed must still block the recharge'; END IF;
 
-  -- 6. The combo rule keeps 246's behaviour on the shared negation rule.
+  -- 6. The combo rule keeps 247's behaviour on the shared negation rule.
   IF cerebro_texto_pide_combo('⚠️NO ESCRIBIR NADA DE CUBA REMESAS NI COMBO ECT ⚠️') THEN RAISE EXCEPTION 'case 6a: negated combo'; END IF;
   IF NOT cerebro_texto_pide_combo('quiero mandar un combo') THEN RAISE EXCEPTION 'case 6b: combo order'; END IF;
   IF NOT cerebro_texto_pide_combo('No, quiero mandar comida') THEN RAISE EXCEPTION 'case 6c: comida order after a clause break'; END IF;

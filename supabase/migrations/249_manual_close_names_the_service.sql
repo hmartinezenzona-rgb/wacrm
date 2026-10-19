@@ -1,7 +1,7 @@
 -- =====================================================================
--- 248 -- A manual close names the service the way the panel's service change does
+-- 249 -- A manual close names the service the way the panel's service change does
 --
--- Production 2026-10-19 (operation 02a2d634): a Zelle deposit misfiled as a combo (fixed upstream by 246). The panel
+-- Production 2026-10-19 (operation 02a2d634): a Zelle deposit misfiled as a combo (fixed upstream by 247). The panel
 -- asks the service when closing an operation without recipient and method (196). crm_cerrar_operacion_manual only set
 -- service_type for recarga/combo/visa/saldo (200/208/213/223); a remesa rail only set delivery_method. So closing that
 -- combo as 'zelle' would have left a COMBO with method zelle, billed by the calculator as COMBO: there was no correct
@@ -14,7 +14,7 @@
 --   - a change of service_type is audited in the same human_manual_close row (service_type, service_type_before).
 -- No chosen service: nothing about the service changes. Signature, ACL, guards and the calculator feed are unchanged.
 --
--- Assertion: supabase/staging/assertions/manual-close-service-type.sql. Rollback: ROLLBACK-248-manual-close-names-the-service.sql.
+-- Assertion: supabase/staging/assertions/manual-close-service-type.sql. Rollback: ROLLBACK-249-manual-close-names-the-service.sql.
 -- odd/tasks/combo-negated-mention.md
 -- =====================================================================
 
@@ -57,7 +57,7 @@ BEGIN
     RAISE EXCEPTION 'only a verified operation can be closed manually (status %)', v_status_before USING ERRCODE = '22023';
   END IF;
 
-  -- (248) The chosen service IS the operation's service, as in _cambiar_servicio_core (222): a remesa rail makes a remesa.
+  -- (249) The chosen service IS the operation's service, as in _cambiar_servicio_core (222): a remesa rail makes a remesa.
   v_service_after := CASE WHEN p_delivery_method IS NULL THEN v_service_before
                           WHEN p_delivery_method IN ('recarga', 'combo', 'visa', 'saldo') THEN p_delivery_method
                           ELSE 'remesa' END;
@@ -69,7 +69,7 @@ BEGIN
          -- (200) 'recarga' is a kind of operation, not a delivery method: it sets service_type. (208) So is 'combo'. (213) And 'visa'. (223) And 'saldo'.
          delivery_method = CASE WHEN p_delivery_method IN ('recarga', 'combo', 'visa', 'saldo') THEN delivery_method ELSE coalesce(p_delivery_method, delivery_method) END,
          service_type = v_service_after,
-         -- (248) A combo cost belongs to a combo only.
+         -- (249) A combo cost belongs to a combo only.
          combo_costo_gyd = CASE WHEN v_service_after = 'combo' THEN combo_costo_gyd END,
          -- (191) Silent by default (p_notify false); the bell on the panel can turn the notice on.
          customer_notice_muted_for = CASE WHEN p_notify THEN NULL ELSE 'completed' END
@@ -81,7 +81,7 @@ BEGIN
           v_motivo, jsonb_build_object('status', v_status_before),
           jsonb_build_object('status', 'completed', 'delivery_mode', 'closed_manually', 'notify', p_notify)
             || CASE WHEN p_delivery_method IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('delivery_method', p_delivery_method) END
-            -- (248) A change of service is visible in the audit row.
+            -- (249) A change of service is visible in the audit row.
             || CASE WHEN v_service_after IS DISTINCT FROM v_service_before
                     THEN jsonb_build_object('service_type', v_service_after, 'service_type_before', v_service_before)
                     ELSE '{}'::jsonb END);

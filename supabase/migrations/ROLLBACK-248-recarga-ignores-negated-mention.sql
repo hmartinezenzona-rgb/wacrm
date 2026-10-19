@@ -1,7 +1,7 @@
--- ROLLBACK of 247_recarga_ignores_negated_mention.sql: restores cerebro_recarga_en_curso exactly as staging and production had
+-- ROLLBACK of 248_recarga_ignores_negated_mention.sql: restores cerebro_recarga_en_curso exactly as staging and production had
 -- it on 2026-10-19 (pg_get_functiondef md5 4146aaff4172c6c049d07442ef889675, the 202/211 body) and cerebro_texto_pide_combo
--- as 246 left it (md5 aa4951d64887136ec30c3d831509d3ee), then drops the two helpers 247 added. ACLs are untouched by
--- CREATE OR REPLACE. 246 stays in place.
+-- as 247 left it (md5 aa4951d64887136ec30c3d831509d3ee), then drops the two helpers 248 added. ACLs are untouched by
+-- CREATE OR REPLACE. 247 stays in place.
 
 CREATE OR REPLACE FUNCTION public.cerebro_recarga_en_curso(p_conv uuid)
  RETURNS boolean
@@ -32,7 +32,7 @@ CREATE OR REPLACE FUNCTION public.cerebro_texto_pide_combo(p_texto text)
  IMMUTABLE
  SET search_path TO 'public'
 AS $function$
-  -- (246) The 209 rule (combo/combos, or mandar/enviar comida) on one message, after dropping negated mentions.
+  -- (247) The 209 rule (combo/combos, or mandar/enviar comida) on one message, after dropping negated mentions.
   SELECT coalesce(
            regexp_replace(p_texto,
                           '\m(no|ni|nada|sin|nunca|tampoco)\M[^.,;:!?¡¿\n]{0,60}\m(combos?|comida)\M', ' ', 'gi')

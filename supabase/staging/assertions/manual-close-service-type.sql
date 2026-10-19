@@ -1,7 +1,7 @@
 \set ON_ERROR_STOP on
 BEGIN;
 -- =====================================================================
--- Assertion for migration 248 (a manual close names the service the way the panel's service change does).
+-- Assertion for migration 249 (a manual close names the service the way the panel's service change does).
 -- Self-reverting: BEGIN ... ROLLBACK is in this file; any failure RAISEs. Run it wrapped as
 --   BEGIN; <this file without its own BEGIN/ROLLBACK/\set>; ROLLBACK;
 -- (never plain psql -1: it can COMMIT the fixture).

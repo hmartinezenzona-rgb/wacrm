@@ -1,6 +1,6 @@
--- ROLLBACK of 246_combo_ignores_negated_mention.sql: restores cerebro_combo_en_curso and cerebro_textos_cliente_recientes
+-- ROLLBACK of 247_combo_ignores_negated_mention.sql: restores cerebro_combo_en_curso and cerebro_textos_cliente_recientes
 -- exactly as staging and production had them on 2026-10-19 (pg_get_functiondef md5 18a50de6dbc7bffb63cde956b3348d59 = 209
--- body and 1172a0956f32cb06b5b32ecb0beccdf6 = 202 body), then drops the two helpers 246 added. ACLs are untouched by
+-- body and 1172a0956f32cb06b5b32ecb0beccdf6 = 202 body), then drops the two helpers 247 added. ACLs are untouched by
 -- CREATE OR REPLACE. Operations already opened keep their service_type.
 
 CREATE OR REPLACE FUNCTION public.cerebro_combo_en_curso(p_conv uuid)

@@ -1,5 +1,5 @@
 -- =====================================================================
--- 246 -- A negated "combo" is not a combo order
+-- 247 -- A negated "combo" is not a combo order
 --
 -- Production 2026-10-19 (conversation c2bb35c0): the customer pasted Zelle payee instructions ending in
 -- "NO ESCRIBIR NADA DE CUBA REMESAS NI COMBO ECT". cerebro_combo_en_curso (209) matched the bare word "combo"
@@ -16,7 +16,7 @@
 --     The pending-card guard and the open-combo branch are unchanged.
 --
 -- ACLs: CREATE OR REPLACE keeps the existing ones; the new functions are service_role only.
--- Assertion: supabase/staging/assertions/combo-negated-mention.sql. Rollback: ROLLBACK-246-combo-ignores-negated-mention.sql.
+-- Assertion: supabase/staging/assertions/combo-negated-mention.sql. Rollback: ROLLBACK-247-combo-ignores-negated-mention.sql.
 -- odd/tasks/combo-negated-mention.md
 -- =====================================================================
 
@@ -26,7 +26,7 @@ CREATE OR REPLACE FUNCTION public.cerebro_texto_pide_combo(p_texto text)
  IMMUTABLE
  SET search_path TO 'public'
 AS $function$
-  -- (246) The 209 rule (combo/combos, or mandar/enviar comida) on one message, after dropping negated mentions.
+  -- (247) The 209 rule (combo/combos, or mandar/enviar comida) on one message, after dropping negated mentions.
   SELECT coalesce(
            regexp_replace(p_texto,
                           '\m(no|ni|nada|sin|nunca|tampoco)\M[^.,;:!?¡¿\n]{0,60}\m(combos?|comida)\M', ' ', 'gi')
@@ -40,7 +40,7 @@ CREATE OR REPLACE FUNCTION public.cerebro_textos_cliente_desde(p_conv uuid)
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  -- (202, 246) The customer's recent texts start after the last closed operation, at most 24 h back (079/160).
+  -- (202, 247) The customer's recent texts start after the last closed operation, at most 24 h back (079/160).
   SELECT GREATEST(now() - interval '24 hours',
            COALESCE((SELECT max(op.updated_at) FROM remittance_operations op
                       WHERE op.conversation_id = p_conv AND op.status IN ('completed','cancelled')),
@@ -54,7 +54,7 @@ CREATE OR REPLACE FUNCTION public.cerebro_textos_cliente_recientes(p_conv uuid)
  SET search_path TO 'public'
 AS $function$
   -- (202) What the customer TYPED since the last closed operation, at most 24 h back (the recharge window, 079/160).
-  -- (246) The window comes from cerebro_textos_cliente_desde.
+  -- (247) The window comes from cerebro_textos_cliente_desde.
   SELECT string_agg(m.content_text, ' ' ORDER BY m.created_at)
     FROM messages m
    WHERE m.conversation_id = p_conv AND m.sender_type = 'customer'
@@ -69,7 +69,7 @@ CREATE OR REPLACE FUNCTION public.cerebro_combo_en_curso(p_conv uuid)
 AS $function$
   -- (209) The customer asked for a combo in the recent window (combo/combos, or mandar/enviar comida) and no card is
   -- pending: the same rule shape as cerebro_recarga_en_curso.
-  -- (246) Message by message, and a negated mention ("ni combo") is not an order.
+  -- (247) Message by message, and a negated mention ("ni combo") is not an order.
   SELECT (EXISTS (SELECT 1 FROM messages m
                    WHERE m.conversation_id = p_conv AND m.sender_type = 'customer'
                      AND m.created_at > cerebro_textos_cliente_desde(p_conv)

@@ -52,7 +52,7 @@ Out of scope (follow-ups, owner's decision):
 - [x] C2 — Migration 246 + ROLLBACK; apply on staging, GREEN; rollback proof; related combo assertions rerun.
 - [x] C4 — 247: shared negation rule; cerebro_recarga_en_curso per message
       (`supabase/staging/assertions/recarga-negated-mention.sql`).
-- [ ] C5 — 248: crm_cerrar_operacion_manual maps the chosen service like _cambiar_servicio_core
+- [x] C5 — 248: crm_cerrar_operacion_manual maps the chosen service like _cambiar_servicio_core
       (remesa rail -> service_type 'remesa'; combo_costo_gyd cleared unless combo; service change audited).
       Today choosing Zelle on a misfiled combo keeps service_type 'combo'.
 - [ ] C6 — Second Zelle payee: replay the Yoandy sequence on staging with 246 (cerebro_registrar_deposito x2 +
@@ -99,5 +99,13 @@ Out of scope (follow-ups, owner's decision):
   recarga_en_curso e90f049870e260fd8581d0a8f919444c, texto_pide_combo 2cd8e5b8806e78ab86d0d06476e95afb,
   texto_pide_recarga 3afcf006e5f55ed7e1ef8c9811b5e3c1. Rollback proof restored 4146aaff… and aa4951d6….
 
+- 2026-10-19 C4 commit: 594ff34.
+- 2026-10-19 C5: assertion `manual-close-service-type.sql` RED on staging (`case 1 ... got
+  completed/combo/zelle/28600`). Dry run ALL PASS. 22 related assertions (manual close, combo cost,
+  calculator feed) without and with 248: identical outcomes (delivery-feed-evidence fixture failure is
+  pre-existing, only its random uuid differs; saldo-model case 11 pre-existing). Applied on staging;
+  assertion GREEN; md5 7cefd4e763141b51c90019b34c614b28, ACL unchanged. Rollback proof restored
+  00e19f83… exactly. App: close-manual route tests 30/30 (API unchanged).
+
 ## Next step
-C5 RED on staging, then C6, then C3.
+C6: replay the Yoandy sequence on staging, then C3.

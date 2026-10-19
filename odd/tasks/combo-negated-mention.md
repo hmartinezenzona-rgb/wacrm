@@ -130,5 +130,17 @@ Out of scope (follow-ups, owner's decision):
   textos_cliente_desde 044b883518205fde1585d2d213ddd0a7, textos_cliente_recientes
   472fa8993639e76cd92231174315dde3, crm_cerrar_operacion_manual de2656032e562e264b020ce223f5812a.
 
+- 2026-10-19 C3 PRODUCTION (owner: "si dale, aplícalo en producción"): renumber commit a7e6859.
+  Pre-check: the 5 target functions still at the pre-change md5s; helpers absent. Applied with Supabase
+  apply_migration on hqztotshnlzaiziwjyzh, in order: 247_combo_ignores_negated_mention,
+  248_recarga_ignores_negated_mention, 249_manual_close_names_the_service, 250_zelle_payee_resave
+  (all success). After: all 9 functions byte-equal (md5) to staging, listed above; ACLs unchanged
+  (combo_en_curso keeps its default ACL; crm_cerrar_operacion_manual keeps authenticated; new helpers
+  service_role only). Read-only checks on production: the Yoandy text is not a combo, "quiero mandar un
+  combo" and "No, quiero un combo" are, "no quiero recarga" is not a recharge; conversation c2bb35c0
+  no longer reports a combo in progress. Postgres logs: no error mentioning these functions.
+  Not done (owner's decision): operation 02a2d634 keeps its saldo/combo-cost data; the commits are
+  not pushed.
+
 ## Next step
-C3: production (247, 248, 249, 250 in order) with the owner's go-ahead; check production md5s equal the staging pre-change md5s first.
+None for this feature. Optional: correct operation 02a2d634 (owner's decision); push the branch (owner's decision).

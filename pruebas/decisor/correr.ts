@@ -95,7 +95,6 @@ function stub(e: Entradas) {
  */
 export function correrDecisor(entradas: Entradas = {}): Salida {
   const codigo = readFileSync(ORIGEN, 'utf8');
-  // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-new-func
   const nodo = new Function('$', codigo) as (dolar: ReturnType<typeof stub>) => [{ json: Salida }];
   const salida = nodo(stub(entradas))[0].json;
   const mensaje = salida.mensaje ?? '';

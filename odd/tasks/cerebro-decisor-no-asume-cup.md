@@ -93,12 +93,11 @@ Verification therefore has two parts:
 - The vendored copy in the repo carries the md5 above so drift from n8n is detectable.
 
 ## Tasks
-- [ ] T1 Vendor the live node code into the repo and build the offline harness that runs it with
-      stubbed n8n globals
-- [ ] T2 RED: tests asserting the current node orders a CUP quote and dictates the sentence with no
-      rail known, and that it can co-occur with the "no se sabe por que via" note
-- [ ] T3 GREEN: the two branches state the SIDE, name the rail's calculator when `rielOp` is known,
-      and forbid guessing otherwise. Fix the obsolete comment on line 498
+- [x] T1 Vendor the live node code into the repo and build the offline harness that runs it with
+      stubbed n8n globals — `pruebas/decisor/decisor.js` + `correr.ts`; `vitest.config.ts` now also
+      includes `pruebas/**/*.test.ts` (commit 87da530)
+- [x] T2 RED: 6 of 11 failing, and the 5 passing were exactly what had to survive (commit 87da530)
+- [x] T3 GREEN: 11/11, with a differential proving only the quoting note changed
 - [ ] T4 Apply to staging `U52y1kSNvhgxvWeb`, verify the live node matches the candidate, owner
       checks a real conversation
 - [ ] T5 Regenerate the baked `[CONTEXTO]` of the affected gold cases from the new node, then
@@ -107,3 +106,28 @@ Verification therefore has two parts:
 
 ## Progress
 - 2026-10-18: defect located and scoped read-only. Nothing changed in staging or production.
+
+### T3 done — what the note says now, and the proof it changed nothing else
+The block keeps deciding the SIDE and stops deciding the currency. With no rail:
+
+> `LADO DEL MONTO (lo resolvio el sistema, no lo replantees): el cliente pregunta CUANTO LLEGA, o
+> sea el monto que dijo es lo que EL DEPOSITA, en GYD... La VIA NO SE SABE: nadie ha dicho por donde
+> recibe quien recibe, y hay varias. PROHIBIDO asumir una y PROHIBIDO dar una cifra todavia.
+> Pregunta primero en que moneda quiere que le llegue y, cuando lo diga, cotiza con la herramienta
+> de ESA via.`
+
+With a rail already chosen it names that rail's calculator in the right direction, from a `VIAS`
+table covering the six remittance rails (`cuban_card`, `zelle`, `clasica`, `tropical`,
+`efectivo_usd`, `mexico`). `rielOp` was hoisted from line 910 to the top of the block; the later
+declaration became a comment so `viaSinDefinir` keeps working.
+
+Verification, beyond the 11 green tests: a differential ran the node BEFORE and AFTER over 15 turns
+and diffed every note. **6 turns differ and in all 6 the only difference is the quoting note; 9 are
+byte-identical**, including both gate-83 shapes, recarga, combo, greeting, pure acknowledgement,
+card+phone, the rate question and a bare amount. Full suite 2797/2797, typecheck and lint clean.
+
+One deliberate behaviour change found by that differential: with a **recarga** in progress the node
+used to order a CUP quote (`calcular_envio` + the dictated sentence) and now emits no quoting note
+at all. That is a fix, not a loss — a top-up is priced from `precio_recarga`, never from the CUP
+rate, so the old note was wrong there too. The `OPERACION EN CURSO: RECARGA DE SALDO` note owns
+that amount. Same for combo, visa and saldo.

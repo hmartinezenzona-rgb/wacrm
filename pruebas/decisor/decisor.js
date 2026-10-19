@@ -493,9 +493,19 @@ if (g83Destinos.length === 1) {
       + ' desde 1,000 USD tienen otra tarifa (llama de nuevo con via=clasica o via=tropical si la elige). Dila y pregunta por cual lo quiere (en efectivo la tasa es otra).') + ' PROHIBIDO calcular_usd_desde_gyd con ese numero.');
   }
 }
-// DIRECCION DEL CALCULO: la decide el CODIGO leyendo lo que pregunta el cliente,
-// para no pedirle al modelo que delibere sobre que tool usar.
-// Origen SIEMPRE es GYD (o MXN/USD); destino SIEMPRE CUP. Nadie envia CUP.
+// LADO DEL MONTO: el CODIGO decide de que lado de la cotizacion esta la cifra, leyendo lo que
+// pregunta el cliente, para no pedirle al modelo que delibere. Eso SI es deducible de la frase.
+//
+// Lo que el codigo NO puede decidir es la MONEDA DE DESTINO. El cliente deposita siempre GYD, pero
+// lo que RECIBE quien recibe lo ELIGE el, y hay varias vias: tarjeta en pesos cubanos, Zelle,
+// Clasica, Tropical, efectivo en Cuba, Mexico. Hasta el 18-oct-2026 esta nota asumia CUP y DICTABA
+// la frase ("Por *X GYD* llegan *Y CUP* a Cuba."), que es exactamente lo que el bot repetia en los
+// casos de oro reg-27065 y reg-28021 — y contradecia, en el MISMO contexto, a la nota de mas abajo
+// "TODAVIA NO SE SABE POR QUE VIA RECIBE". El comentario que presidia este bloque ("destino SIEMPRE
+// CUP") era la premisa de cuando el negocio se probaba y solo habia una via.
+// Principio del dueno: "No adivines. Para cotizar hay que saber que quiere el cliente: si no lo
+// sabes, preguntas."
+const rielOp = ctx.riel_operacion ? String(ctx.riel_operacion) : null;
 try {
   const t = texto.toLowerCase();
   const pideLlegada = /(cuanto|cuánto|que|qué)\s+(le\s+)?(llega|llegan|llegaria|llegaría|llegarian|llegarían|recibe|reciben|recibiria|recibiría)/.test(t) || /(llega|llegan|recibe)\s+(a\s+cuba|alla|allá)/.test(t);
@@ -503,10 +513,26 @@ try {
   const numeros = (texto.replace(/(?<=\d)[ ,.](?=\d)/g, '').match(/\b\d{3,7}\b/g) || []);
   const mil = /(\d+)\s*(mil|k)\b/i.test(t);
   if (!g83Destinos.length && (pideLlegada || pideDeposito) && (numeros.length || mil)) {
-    if (pideDeposito && !pideLlegada) {
-      notas.push('CALCULO A HACER (ya resuelto por el sistema, no lo replantees): el cliente pide que LLEGUEN ese monto a Cuba, o sea es el monto de DESTINO en CUP. Usa calcular_inverso con ese numero. Al responder di: "Para que lleguen *X CUP* necesita depositar *Y GYD*."');
-    } else if (pideLlegada) {
-      notas.push('CALCULO A HACER (ya resuelto por el sistema, no lo replantees): el cliente pregunta CUANTO LLEGA, o sea el monto que dijo es lo que EL DEPOSITA, en GYD, aunque la transcripcion diga otra moneda. Usa calcular_envio con ese numero. Al responder di: "Por *X GYD* llegan *Y CUP* a Cuba."');
+    // Las vias de REMESA y su calculador en cada sentido. Las otras operaciones (recarga, combo,
+    // visa, saldo) no se cotizan asi: sus propias notas son duenas de sus montos.
+    const VIAS = {
+      cuban_card: { nombre: 'la tarjeta en pesos cubanos (CUP)', deposita: 'calcular_envio con ese numero', destino: 'calcular_inverso con ese numero' },
+      zelle: { nombre: 'Zelle', deposita: 'calcular_usd_desde_gyd con via=zelle', destino: 'calcular_usd con via=zelle' },
+      clasica: { nombre: 'la tarjeta Clasica', deposita: 'calcular_usd_desde_gyd con via=clasica', destino: 'calcular_usd con via=clasica' },
+      tropical: { nombre: 'la tarjeta Tropical', deposita: 'calcular_usd_desde_gyd con via=tropical', destino: 'calcular_usd con via=tropical' },
+      efectivo_usd: { nombre: 'efectivo en Cuba', deposita: "consultar_servicio('efectivo_usd') y SOLO lo que devuelva, que tiene su propia tasa", destino: "consultar_servicio('efectivo_usd') y SOLO lo que devuelva, que tiene su propia tasa" },
+      mexico: { nombre: 'la entrega en Mexico', deposita: 'calcular_usd_desde_gyd con via=mexico', destino: 'calcular_usd con via=mexico' },
+    };
+    const via = rielOp ? VIAS[rielOp] : null;
+    const esDestino = pideDeposito && !pideLlegada;
+    const lado = esDestino
+      ? 'el cliente pide que LLEGUEN ese monto, o sea es el monto de DESTINO, NO lo que deposita'
+      : 'el cliente pregunta CUANTO LLEGA, o sea el monto que dijo es lo que EL DEPOSITA, en GYD, aunque la transcripcion diga otra moneda';
+    if (!rielOp || via) {
+      const base = 'LADO DEL MONTO (lo resolvio el sistema, no lo replantees): ' + lado + '. ';
+      notas.push(via
+        ? base + 'La via de esta operacion ya esta elegida: ' + via.nombre + '. Cotiza con ' + (esDestino ? via.destino : via.deposita) + '.'
+        : base + 'La VIA NO SE SABE: nadie ha dicho por donde recibe quien recibe, y hay varias. PROHIBIDO asumir una y PROHIBIDO dar una cifra todavia. Pregunta primero en que moneda quiere que le llegue y, cuando lo diga, cotiza con la herramienta de ESA via.');
     }
   }
 } catch (e) {}
@@ -907,7 +933,7 @@ if (hayOperacionNueva) {
 // en la mano. El 11-ago un cliente que aun no habia depositado recibio "la tarjeta
 // y el celular de quien recibe en Cuba" y tuvo que corregir: "Es por zell".
 // De 9 beneficiarios reales medidos, 4 eran Zelle.
-const rielOp = ctx.riel_operacion ? String(ctx.riel_operacion) : null;
+// `rielOp` se declara mas arriba, junto a la nota de LADO DEL MONTO, que tambien lo necesita.
 const viaSinDefinir = !rielOp && !ctx.servicio_pendiente && !sabeDestino && !tarjetaCtx && !celularCtx && !s.datos_zelle && !recargaEnCurso && !comboEnCurso && !visaEnCurso;
 if (!s.comprobante && viaSinDefinir && (abiertos > 0 || esPregunta)) {
   if (esperaTercero) {

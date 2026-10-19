@@ -1,0 +1,76 @@
+{
+  "name": "Cerebro - Recolector de tokens",
+  "settings": { "executionOrder": "v1" },
+  "nodes": [
+    {
+      "id": "cron",
+      "name": "Cada 10 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "parameters": { "rule": { "interval": [{ "field": "minutes", "minutesInterval": 10 }] } }
+    },
+    {
+      "id": "pendientes",
+      "name": "Turnos sin tokens",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [220, 0],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Turnos cuya fila de telemetria existe pero no tiene el uso del modelo.\n-- LIMIT 20 a proposito: cada ejecucion de n8n pesa ~600 KB con includeData,\n-- asi que 20 por pasada (120/hora) cubre el volumen real (~150 turnos/dia)\n-- sin traerse decenas de MB de una vez.\n-- La ventana de 2 dias evita reintentar para siempre ejecuciones ya purgadas\n-- por la retencion de n8n.\nSELECT execution_id\n  FROM cerebro_telemetria_turno\n WHERE prompt_tokens IS NULL\n   AND modelo_llamado IS TRUE\n   AND started_at > now() - interval '2 days'\n ORDER BY started_at DESC\n LIMIT 20;",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "REEMPLAZAR", "name": "Supabase Account" } }
+    },
+    {
+      "id": "traer",
+      "name": "Traer la ejecucion de n8n",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 0],
+      "parameters": {
+        "url": "=https://automatizaciones-n8n.ttjgax.easypanel.host/api/v1/executions/{{ $json.execution_id }}?includeData=true",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": { "timeout": 30000 }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "Necesita una credencial httpHeaderAuth con nombre de cabecera X-N8N-API-KEY y la clave de API de n8n. onError continua: una ejecucion purgada o un fallo de red no debe tumbar la pasada."
+    },
+    {
+      "id": "extraer",
+      "name": "Extraer tokenUsage",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// El uso del modelo vive en los datos de ejecucion, no en los items del turno:\n//   runData['<nodo del modelo>'][0].data.ai_languageModel[0][0].json.tokenUsage\n// Por eso el nodo `Medir el turno` del Cerebro lo deja en null y lo documenta.\n// Aqui se lee desde fuera, despues del turno, y se devuelve al mismo\n// execution_id. Requiere la migracion 246: antes de ella la rama\n// ON CONFLICT DO UPDATE no tocaba estos campos y la escritura se perdia EN\n// SILENCIO.\n//\n// Se suman TODAS las llamadas al modelo del turno (el agente puede llamar\n// varias veces si usa herramientas), y se cuentan en model_calls.\nconst salida = [];\n\nfor (const item of $input.all()) {\n  const j = item.json || {};\n  const id = String(j.id ?? '');\n  if (!id) continue;\n\n  const runData = j?.data?.resultData?.runData;\n  if (!runData) continue;  // ejecucion purgada o sin datos: se omite, no se inventa\n\n  let prompt = 0, completion = 0, llamadas = 0;\n\n  for (const corridas of Object.values(runData)) {\n    for (const corrida of (corridas || [])) {\n      const ramas = corrida?.data?.ai_languageModel;\n      if (!Array.isArray(ramas)) continue;\n      for (const rama of ramas) {\n        for (const salidaModelo of (rama || [])) {\n          const u = salidaModelo?.json?.tokenUsage;\n          if (!u) continue;\n          prompt += Number(u.promptTokens || 0);\n          completion += Number(u.completionTokens || 0);\n          llamadas += 1;\n        }\n      }\n    }\n  }\n\n  // Sin ninguna llamada medida no se escribe nada: un 0 seria una medicion\n  // inventada y la columna debe poder distinguir \"no medido\" de \"cero\".\n  if (llamadas === 0) continue;\n\n  salida.push({\n    json: {\n      execution_id: id,\n      datos: {\n        model_calls: llamadas,\n        prompt_tokens: prompt,\n        completion_tokens: completion,\n      },\n    },\n  });\n}\n\nreturn salida;"
+      }
+    },
+    {
+      "id": "guardar",
+      "name": "Guardar el uso",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [880, 0],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT cerebro_telemetria_registrar($1, $2::jsonb);",
+        "options": {
+          "queryReplacement": "={{ [ $json.execution_id, JSON.stringify($json.datos) ] }}"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "credentials": { "postgres": { "id": "REEMPLAZAR", "name": "Supabase Account" } },
+      "notes": "La funcion traga cualquier fallo por diseno (EXCEPTION WHEN others THEN RETURN): la telemetria no puede costarle nada a nadie."
+    }
+  ],
+  "connections": {
+    "Cada 10 minutos": { "main": [[{ "node": "Turnos sin tokens", "type": "main", "index": 0 }]] },
+    "Turnos sin tokens": { "main": [[{ "node": "Traer la ejecucion de n8n", "type": "main", "index": 0 }]] },
+    "Traer la ejecucion de n8n": { "main": [[{ "node": "Extraer tokenUsage", "type": "main", "index": 0 }]] },
+    "Extraer tokenUsage": { "main": [[{ "node": "Guardar el uso", "type": "main", "index": 0 }]] }
+  }
+}

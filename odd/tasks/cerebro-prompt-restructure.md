@@ -148,8 +148,18 @@ restructured prompt — otherwise it rewards the old shape, which is what it did
       sell listed as first-class rather than as exceptions
 - [x] T3 Sweep the gold battery for other expectations frozen before the USD rails, the way the
       three above were found
-- [ ] T4 Restructured prompt candidate, measured against the swept battery with a variance run
-- [ ] T5 Staging, then production with the owner's go-ahead
+- [x] T4 Restructured prompt candidate, measured against the swept battery with a variance run.
+      `odd/artifacts/cerebro-prompt-candidato-vias.txt`. 45/60 vs 43/60 base, zero regressions;
+      `reg-27486` 7/8 green vs 1/6 on the live prompt. Found and fixed my own `=` defect that
+      disabled every n8n expression. Found the real CUP driver in the `Decisor` node (T6)
+- [ ] T5 Staging, then production with the owner's go-ahead. BLOCKED on migration 244 reaching
+      production first, because the candidate routes `'saldo'` to `consultar_servicio('saldo')`
+- [ ] T6 `Decisor` node stops asserting CUP and stops dictating the quote sentence when no rail is
+      known. This is the measured driver of the two remaining systematic reds; the prompt cannot
+      reach it. n8n production change: owner's go-ahead, staging first, own feature document
+- [ ] T7 `visa.resumen` says 4,000 GYD while its own `hechos` and the prompt say 5,000. Now that
+      the prompt carries no price, the catalogue is the only authority, so the bot would quote the
+      stale 4,000. Small migration + rollback, and `reg-25682`'s expectation revisited with it
 
 ## Progress / evidence
 
@@ -391,6 +401,145 @@ Everything measured in this document is an instance of that principle being viol
 own structure: line 105 asserts a destination instead of asking, line 116 demonstrates a guess, and
 the 108/113/rule-4 tangle argues about when guessing is allowed. One principle replaces the
 argument.
+
+### T4 — two more contradictions, found by reading the stable red instead of the rules
+The candidate lives at `odd/artifacts/cerebro-prompt-candidato-vias.txt` (versioned on purpose: the
+five August candidates live outside git in `~/cerebro-fase1/pruebas/evals/`, which is part of why
+this work is hard to audit).
+
+Before writing it, `reg-27486` was read as evidence rather than as a score. Its message is
+**"Amigo deposite en su cuenta para 50 zelle"**, and it fires TWO prompt rules in opposite
+directions on one sentence:
+- line 106: a monto with the rail attached ('120 Zelle') is what the beneficiary RECEIVES ->
+  `calcular_usd`;
+- line 107: a phrase with 'depositar' + monto is what the client DEPOSITS -> `calcular_envio`.
+
+The bot resolves the contradiction by asking instead of quoting: observed reply "¿Depositó 50 GYD o
+quiere enviar 50 dólares por Zelle?". That is why `reg-26685` ("Para comprale 120 Zelle") is green
+and this one is red — not the amount, the VERB. Rules keyed on phrasing cannot be made consistent by
+adding more phrasings, which is the same shape as the three failed rule-level fixes.
+
+A second one, same class: **rule 3 (line 226) vs line 106**. Rule 3 says 'pesos'/'CUP' does NOT
+imply `calcular_inverso` and that only 'que lleguen'/'que reciba' does; line 106 says '15 mil CUP'
+DOES go to `calcular_inverso`. Two rules, opposite answers, both live.
+
+So the single quoting rule needed a third part nobody had written down: **which SIDE the amount is
+on**. The candidate states it once, with explicit precedence — a rail or destination currency glued
+to the amount makes it the destination amount, and the verb never overrides that. Rules 3 and 4 now
+point at that rule instead of restating it.
+
+What the candidate does, against T2c: the principle opens it verbatim; `TOOLS DE CALCULO`, `VIA USD`
+and `OTROS SERVICIOS` collapse into one `LAS VIAS` table (six rails, CUP as row one of six, not the
+default) plus one `COMO COTIZAR` of four steps; the `COMO DECIRLO` template of line 116 is GONE as a
+pre-filled sentence and the examples carry one worked quote per rail, with CUP no longer first;
+every price left the prose (including visa's "5,000 GYD por persona", now read from
+`consultar_servicio('visa')`). Kept untouched: SKIP, ENTRADA, the style rules, the registration
+golden rule, rule 10, rule 13.
+
+Structural check before measuring: all 7 distinct n8n expressions survive, none invented, none lost
+(one `negocio.nombre` dropped from an internal `##` note, not from customer-facing text).
+**The candidate GROWS the prompt 4.5%** (51,154 -> 53,457 chars). Consolidation saved less than the
+principle, the rail table, Mexico/saldo and five new examples cost. Recorded rather than paid for by
+deleting examples to hit a number nobody set as a criterion.
+
+Two dependencies the candidate creates, both for T5 and neither for T4:
+1. It routes `'saldo'` to `consultar_servicio('saldo')`, which exists only from migration 244.
+   Production is at 239, so **the prompt cannot ship to production before 244 does**. No gold case
+   touches saldo movil (the `saldo-envio` family is about a remaining balance), so the measurement
+   is unaffected.
+2. `visa`'s stale `resumen` (4,000 GYD vs 5,000 in its own `hechos` and in today's prompt) now
+   matters more, not less: with the number out of the prompt the catalogue is the only authority, so
+   the bot would quote 4,000 for a 5,000 service. Its own small task, deliberately NOT folded in
+   here — mixing a catalogue fix into the prompt measurement would blur which change moved what,
+   which is the lesson this whole feature has been paying for.
+
+#### The leading `=` is load-bearing, and removing it broke every expression
+My first candidate dropped the stray `=` that opens the live prompt (`=## ROL`), judging it cosmetic
+noise. It is not: in n8n a parameter whose string value starts with `=` IS AN EXPRESSION, and
+without it the value is a literal. Removing one character disabled interpolation for all 7
+expressions at once, so the bot answered a customer with the raw template:
+
+    *Account holder:* {{ JSON.parse($('Datos del negocio').params.jsonOutput).agente.titular }}
+
+Caught by exactly ONE gold case, `reg-26602-ingles`, which is the only one whose expectation pins a
+literal interpolated value (`6762167`, the MMG account). The subset of 14 I measured first would
+never have caught it: the leak is invisible to every case that does not assert an account number,
+and it scored 44/60 while broken. That is the argument for running the whole battery even when the
+subset looks clean, and it is also a gap in the battery worth naming — one case stands between this
+class of defect and production.
+
+The structural check I ran before measuring (all expressions present, none invented, none lost) was
+necessary and not sufficient: it compared the SET of expressions, not whether n8n would evaluate
+them. A character outside any expression decided that.
+
+Also found while picking the measurement set: **`reg-26966` and `reg-27123`, the last two cases of
+T3's decision 1, are SALTADO** — both carry `historial_requerido` with no historial, so they have
+never run. Correcting them to the principle is bookkeeping with no measurable effect, which is worth
+knowing before claiming the sweep changed a score.
+
+#### T4 measurement of record (2026-10-18)
+Baseline and candidate were both run TODAY against the corrected battery, so the comparison is not
+against yesterday's reports. Full battery, 60 cases, 12 SALTADO in every run.
+
+| run | result | report |
+|---|---|---|
+| base, live prompt | **43/60**, 5 reds | `informe-20261018-181331.json` |
+| candidate, `=` missing (invalid) | 44/60 | `informe-20261018-183120.json` |
+| candidate, corrected | **45/60**, 3 reds | `informe-20261018-184926.json` |
+
+**Zero regressions**: no case green on the baseline went red on the corrected candidate. Raw-template
+leaks in the corrected run: 0 of 60.
+
+The honest reading of +2 is weaker than the number looks. `reg-32598` is known flaky (green in the
+stage-A baseline and both stage-A candidate reps, red in the full baseline, green in the full
+candidate), so it is noise, not a gain. `reg-25682-servicios` is a plausible causal gain: it is the
+visa case, and removing visa's price from the prompt prose is exactly what lets the bot answer from
+`consultar_servicio('visa')`. One run each is not enough to call either stable.
+
+**The replicated result is `reg-27486`**, measured on purpose because a headline of 60 cases cannot
+see a single case move:
+- live prompt: **1 green / 6 runs** (both of yesterday's runs, the stage-A baseline, two single-case
+  reps, and the full baseline — the only green);
+- candidate: **7 greens / 8 runs**.
+In every baseline red the tool list is EMPTY and the failure is `no llamó calcular_usd`; in every
+candidate green it calls `calcular_usd` and quotes 13,000. That is the amount-side precedence rule
+doing the work, and it is the first thing in this feature to move the non-invocation failure at all.
+An earlier claim in this session that "the stable red fell" was made on ONE rep and was wrong: the
+second rep was red. The case is unstable in both arms, just overwhelmingly greener in the candidate.
+
+### The CUP default is CODE, not prose — the real driver, one level below the prompt
+Two of the three remaining reds (`reg-27065`, `reg-28021`) fail identically,
+`llamó la PROHIBIDA calcular_envio`, and both answer with this, word for word:
+
+> Por *30,000 GYD* llegan *90,000 CUP* a Cuba.
+
+That sentence is not the model improvising, and it is not prompt line 116. It is dictated by the
+**`Decisor` code node** of the production workflow (`jEzlVLCLUaJhVwzs`), which injects into the
+context, precisely when the client asks how much arrives and NO rail was detected
+(`!g83Destinos.length`):
+
+> `CALCULO A HACER (ya resuelto por el sistema, no lo replantees): el cliente pregunta CUANTO LLEGA,
+> o sea el monto que dijo es lo que EL DEPOSITA, en GYD... Usa calcular_envio con ese numero.
+> Al responder di: "Por *X GYD* llegan *Y CUP* a Cuba."`
+
+(The sibling branch does the same for `calcular_inverso` and "Para que lleguen *X CUP*...".)
+
+This explains the whole history of this feature. The CUP default is asserted in the premise (105),
+demonstrated in the template (116), AND ordered by code with "no lo replantees" attached, in exactly
+the case where the rail is unknown — the case the owner's principle says must be a question. No
+prompt can outrank an explicit system instruction in its own context, which is why three rule-level
+fixes moved nothing and why line 116 looked like the lever: it is the same sentence in two places.
+The remaining one lives in a node.
+
+`reg-27065` and `reg-28021` are therefore correctly RED: their corrected expectations encode the
+owner's principle, and they measure a defect the prompt cannot reach. The third red,
+`reg-32635-calculo-desde-contexto`, is flaky (red in base, green in the invalid run, red in the
+corrected one) and unrelated.
+
+The queued fix is narrow and specific: the `Decisor` note must stop asserting a destination and stop
+dictating the sentence — when no rail is known it should say the amount is what the client deposits
+and that the destination must be asked. It is an n8n production change, so it needs the owner's
+go-ahead and staging first, and it gets its own feature document. Nothing was touched.
 
 ## Progress
 - 2026-10-18: audit done. Rates confirmed as only gyd=3 and usd=260; six active services; five

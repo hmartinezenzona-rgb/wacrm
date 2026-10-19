@@ -593,6 +593,59 @@ So the battery freezes August in TWO layers, not one: the baked `[CONTEXTO]` and
 results. Both need regenerating from the real node and the real query before any further verdict —
 and both are system output, mechanically derived, never a re-arbitration of `arbitrado: humberto`.
 
+### Mining the real corpus: THREE contamination layers, and the column that solves it
+The owner proposed tuning the prompt from production history instead of my judgement. He was right,
+and it immediately beat everything I had reasoned — but the corpus is not minable naively, and three
+separate traps each produce a confident wrong answer:
+
+1. **`ai_generated=false` is NOT a human.** Messages flagged human include the bot verbatim:
+   "Listo, su remesa fue completada. Gracias por confiar en nosotros.", "Su depósito de *26,000 GYD*
+   ha sido verificado.", and even line 116's template, "Perfecto. Por *16,000 GYD* llegan
+   *44,800 CUP* a Cuba." The team re-sends bot text from the panel. Mining this teaches the BOT's
+   voice back and presents it as the team's.
+2. **Not every `agent` message is customer service.** Much of it is the owner talking ABOUT a
+   customer to a colleague, in tú: "Que veo que escribió ayer y le respondió el bot", "No le he
+   podido poner un CUP a un cliente", "Le dices que Osmany Pozo". The `le` is third person.
+3. **"Before the bot" is not clean either** — my own proposed fix, and it failed. Messages before
+   2026-08-08 already say "le atiende el asistente virtual de *Remesas Ya*": an assistant existed
+   earlier and its text is flagged human, because `ai_generated` only began being populated that
+   day.
+
+**The column that solves it is `sender_id`:**
+
+| who | messages | period |
+|---|---|---|
+| bot (`ai_generated`, `sender_id` NULL) | 4,898 | 2026-08-08 -> today |
+| **a logged-in person in the panel (`sender_id` NOT NULL)** | **2,864** | **2026-09-07 -> today** |
+| unlabelled, before the author stamp | 2,840 | 2026-08-05 -> 2026-09-05 |
+
+Authorship, not heuristics. Still worth excluding known bot templates on top, since a person can
+paste them.
+
+### The house voice, mined from the author-stamped set
+| pattern | evidence |
+|---|---|
+| **"Serían X"** is THE quoting idiom | "Serían 135,200 GYD" · "Para 150 MLC serían 36,750 GYD" · "Para dolares en efectivo serían 290 por dolar" · "Serían 1000 guyaneses por cada 360 d saldo en Cuba" |
+| **"enseguida"**, not "en breve" | "Enseguida le hacemos la transferencia" · "Enseguida le mando a poner el Zelle" · "Ya está comprobado, enseguida le ponemos su remesa" |
+| **"poner"** is the verb for executing a send | "le ponemos su remesa" · "le mando a poner el Zelle" |
+| apology without ceremony | "Disculpe la confusión" · "Gracias por su paciencia y una disculpa por la demora" |
+| merchant voice | "lo tenemos a" · "La tenemos por" · "doy" · "cobramos" · "Esa la pondríamos por" |
+
+And the cost of the robotic voice, written by the team to a customer:
+**"No le hagas caso al bot que a veces tiene sus locuras."**
+
+Added to the candidate as a `VOZ DE LA CASA` section — vocabulary to vary, explicitly NOT a new
+template, since replacing a bad default with a rigid template is the mistake that produced the
+mechanical rate reply in the first place. Two quote examples now use "serían".
+
+Measured: 12/14 on the stage-A subset, identical to before the voice change, **zero regressions**.
+The two reds are known and unrelated (`reg-27065` needs the regenerated context; `reg-32454` is the
+tool-failure case, red in every run today). The prompt is now 57,014 chars, **+11.4% over the live
+one** — the voice section and the rate rule cost that, and it is a real cost, not a rounding error.
+
+Only the rate and the quoting idiom are done. The other ~35 examples are still my prose; rewriting
+them from the author-stamped corpus is T10.
+
 ## Progress
 - 2026-10-18: audit done. Rates confirmed as only gyd=3 and usd=260; six active services; five
   receive rails; the `mexico`/`saldo` mismatches found; six obsolete prompt items identified with

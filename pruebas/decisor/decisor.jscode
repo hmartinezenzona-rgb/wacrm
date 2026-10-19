@@ -712,7 +712,7 @@ if (s.comprobante && !s.comprobante_duplicado) {
   const datos = JSON.stringify(s.comprobante);
 
   if (varios && !(sumables && cruceOK)) {
-    notas.push('EL CLIENTE MANDO VARIOS COMPROBANTES EN LA MISMA RAFAGA y el sistema NO ha podido sumarlos y verificarlos automaticamente. No se ha dado por bueno ni uno solo. PROHIBIDO decir ninguna cifra. PROHIBIDO decir que el deposito fue recibido, verificado o confirmado. PROHIBIDO pedirle que los reenvie. Dile solo esto: que recibiste sus comprobantes, que una persona esta sumando el total y que en breve le confirman. El envio ya esta en Incidencia.');
+    notas.push('EL CLIENTE MANDO VARIOS COMPROBANTES EN LA MISMA RAFAGA y el sistema NO ha podido sumarlos y verificarlos automaticamente. No se ha dado por bueno ni uno solo. PROHIBIDO decir ninguna cifra. PROHIBIDO decir que el deposito fue recibido, verificado o confirmado. PROHIBIDO pedirle que los reenvie. Dile solo esto: que recibiste sus comprobantes, que una persona esta sumando el total y que le confirman en cuanto quede. El envio ya esta en Incidencia.');
   } else if (importeDudoso) {
     notas.push('COMPROBANTE ILEGIBLE. El importe NO se pudo leer con seguridad y el envio ya esta en Incidencia para que lo mire una persona. PROHIBIDO decir ninguna cifra. PROHIBIDO decir que el deposito fue recibido, verificado o confirmado. Dile solo esto: que recibiste su imagen, que no se lee bien, y que una persona la esta revisando. Si lo que mando no era un comprobante, pidele la captura del comprobante. Datos leidos, NO se los repitas al cliente: ' + datos);
   } else if (veredicto === 'verificado_incompleto') {
@@ -732,7 +732,7 @@ if (s.comprobante && !s.comprobante_duplicado) {
   } else if (veredicto === 'deposito_antiguo') {
     notas.push('EL DEPOSITO ES DEMASIADO ANTIGUO y el envio esta en Incidencia para que lo mire una persona. PROHIBIDO confirmarle el deposito. PROHIBIDO decirle que se le va a transferir. Dile solo que recibiste su comprobante y que una persona lo esta revisando. Datos: ' + datos);
   } else {
-    notas.push('Comprobante leido y REGISTRADO en el tablero, pero TODAVIA NO esta verificado. Acusale recibo de su comprobante y dile que lo estan verificando y que en breve le confirman. PROHIBIDO decir que ya esta verificado o confirmado. PROHIBIDO decirle que el dinero ya se le va a transferir. Datos: ' + datos);
+    notas.push('Comprobante leido y REGISTRADO en el tablero, pero TODAVIA NO esta verificado. Acusale recibo de su comprobante y dile que lo estan verificando y que le confirman en cuanto quede. PROHIBIDO decir que ya esta verificado o confirmado. PROHIBIDO decirle que el dinero ya se le va a transferir. Datos: ' + datos);
   }
   if (veredicto === 'verificado') { esteTurnoVerificado = true; }
 
@@ -891,11 +891,11 @@ if (s.comprobante_duplicado) {
   } else if (dupEtapa === 'Lista para transferir') {
     notas.push(base + ' ESE DEPOSITO YA ESTA VERIFICADO y la transferencia esta pendiente de hacerse. PROHIBIDO decir que lo estas verificando. Dile que ya esta verificado y que una vez hecha su remesa le notificamos por aca. PROHIBIDO decir "en breve", "enseguida" o dar un plazo, y PROHIBIDO repetirle la tarjeta o el celular.');
   } else if (dupEtapa === 'Incidencia') {
-    notas.push(base + ' ESE ENVIO ESTA EN REVISION POR UNA PERSONA. PROHIBIDO confirmarle el deposito. Dile que una persona lo esta revisando y le confirma en breve.');
+    notas.push(base + ' ESE ENVIO ESTA EN REVISION POR UNA PERSONA. PROHIBIDO confirmarle el deposito. Dile que una persona lo esta revisando y le confirma en cuanto lo tenga. PROHIBIDO prometer tiempo.');
   } else if (dupEtapa) {
-    notas.push(base + ' Ese deposito esta registrado y TODAVIA en verificacion. Acusale recibo y dile que lo estan verificando y que en breve le confirman.');
+    notas.push(base + ' Ese deposito esta registrado y TODAVIA en verificacion. Acusale recibo y dile que lo estan verificando y que le confirman en cuanto quede.');
   } else {
-    notas.push(base + ' Acusale recibo de su comprobante y dile que lo estan revisando y que en breve le confirman.');
+    notas.push(base + ' Acusale recibo de su comprobante y dile que lo estan revisando y que le confirman en cuanto quede.');
   }
 }
 (s.alertas || []).forEach(a => notas.push('Alerta: ' + a));
@@ -952,7 +952,7 @@ if (h && h.etapa_envio_abierto) {
   if (et === 'Solicitada') { est = 'ESTADO REAL DEL ENVIO EN CURSO: anotado, pero su deposito TODAVIA NO HA LLEGADO. Si el cliente pregunta como va lo suyo, dile que estan pendientes de recibir el deposito. NO digas que se esta verificando: no hay nada que verificar aun.'; }
   else if (et === 'Por verificar') { est = 'ESTADO REAL DEL ENVIO EN CURSO' + monto + ': el deposito YA LLEGO y esta EN VERIFICACION. Si el cliente pregunta como va lo suyo, dile que lo estan verificando y que apenas quede le hacen la transferencia.'; }
   else if (et === 'Lista para transferir') { est = 'ESTADO REAL DEL ENVIO EN CURSO' + monto + ': el deposito YA FUE VERIFICADO y la transferencia esta por hacerse. Si el cliente pregunta como va lo suyo, dile que ya quedo verificado y que la transferencia sale enseguida. SIGUE sin poder confirmar que ya se envio: eso lo confirma el operador.'; }
-  else if (et === 'Incidencia') { est = 'ESTADO REAL DEL ENVIO EN CURSO' + monto + ': hay una INCIDENCIA y un operador la esta revisando. Si el cliente pregunta como va lo suyo, dile con calma que lo estan revisando y que en breve le confirman. NO inventes el motivo ni prometas tiempos.'; }
+  else if (et === 'Incidencia') { est = 'ESTADO REAL DEL ENVIO EN CURSO' + monto + ': hay una INCIDENCIA y un operador la esta revisando. Si el cliente pregunta como va lo suyo, dile con calma que lo estan revisando y que le confirman en cuanto quede. NO inventes el motivo ni prometas tiempos.'; }
   // NO CONTRADECIR LA GUARDA DE BENEFICIARIO.
   // El 10-ago esta nota decia "la transferencia sale enseguida" mientras la
   // guarda de mas arriba decia "PROHIBIDO decir que le vas a hacer la

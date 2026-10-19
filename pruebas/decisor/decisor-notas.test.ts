@@ -126,6 +126,42 @@ describe('el contexto no puede llevar dos ordenes opuestas', () => {
   });
 });
 
+describe('la remesa no lleva reloj (decision del dueno, 2026-10-03)', () => {
+  // "una remesa puede hacerse rapido o demorar un poco, entonces el 'en breve' promete algo que la
+  // mayoria de veces no se cumple". La forma decidida no promete CUANDO, promete AVISO.
+  // El nodo tenia 6 notas que ordenaban justo lo contrario: "dile que en breve le confirman".
+  const ORDENA_TIEMPO =
+    /(dile|digale|di) que[^.]{0,60}\b(en breve|enseguida|en unos minutos|hoy mismo)\b|\bconfirman? en breve\b/i;
+
+  it('ninguna nota ORDENA prometer tiempo, en ningun turno', () => {
+    const turnos: Array<[string, Entradas]> = [
+      ['comprobante', { snapshot: { texto_completo: 'ahi va el comprobante' } }],
+      ['como va lo mio', { snapshot: { texto_completo: 'como va lo mio?' } }],
+      [
+        'cuanto llega',
+        { snapshot: { texto_completo: 'cuanto llega si envio 30 mil?' } },
+      ],
+      ['gracias', { snapshot: { texto_completo: 'ok gracias' } }],
+      [
+        'recarga',
+        { snapshot: { texto_completo: 'quiero una recarga de 500 CUP' } },
+      ],
+    ];
+    for (const [etiqueta, e] of turnos) {
+      for (const n of correrDecisor(e).notas) {
+        expect(n, `${etiqueta}: ${n.slice(0, 90)}`).not.toMatch(ORDENA_TIEMPO);
+      }
+    }
+  });
+
+  it('las prohibiciones de prometer tiempo siguen en pie', () => {
+    const codigo = readFileSync(ORIGEN, 'utf8');
+    expect(codigo).toMatch(
+      /PROHIBIDO decir "en breve le hacemos la transferencia"/
+    );
+  });
+});
+
 describe('el gate 83 no se toca: con la moneda pegada al monto la via SI se sabe', () => {
   it('"quiero enviar 15 mil CUP" sigue siendo monto de destino con calcular_inverso', () => {
     const n = nota(turno('quiero enviar 15 mil CUP'), 'MONTO DE DESTINO');

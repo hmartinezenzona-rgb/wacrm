@@ -139,8 +139,15 @@ Out of scope (follow-ups, owner's decision):
   service_role only). Read-only checks on production: the Yoandy text is not a combo, "quiero mandar un
   combo" and "No, quiero un combo" are, "no quiero recarga" is not a recharge; conversation c2bb35c0
   no longer reports a combo in progress. Postgres logs: no error mentioning these functions.
-  Not done (owner's decision): operation 02a2d634 keeps its saldo/combo-cost data; the commits are
-  not pushed.
+  Not pushed (owner's decision).
+
+- 2026-10-19 DATA FIX on production (owner: "corrige también la operación de Yoandy"), audited as
+  human_correction by `claude-code:owner-request` at 21:40:44: operation 02a2d634 saldo -> remesa
+  Zelle, combo_costo_gyd cleared, 110 USD (origin manual), new vigente payee Santialv LLC 7862955183
+  (first receipt, ref 10403589357209). Status and completion dates untouched, so the calculator feed
+  (AFTER UPDATE OF status) did not fire: zero new lines. The ledger was already right: ZELLE 110 for
+  e8fc616c (payee Orlansys Rodríguez), the operator's manual line 1ec8eee9 "Yoandy 110 Zelle", and the
+  SALDO_MOVIL line bf5f39e2 voided by the operator at 19:05. Two dry runs (rolled back) before the write.
 
 ## Next step
-None for this feature. Optional: correct operation 02a2d634 (owner's decision); push the branch (owner's decision).
+None for this feature. Optional: push the branch (owner's decision).

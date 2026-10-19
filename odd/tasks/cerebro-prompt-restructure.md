@@ -710,3 +710,40 @@ latter, only the label and what `consultar_tasas` can say need fixing. NOTHING w
 - 2026-10-18: audit done. Rates confirmed as only gyd=3 and usd=260; six active services; five
   receive rails; the `mexico`/`saldo` mismatches found; six obsolete prompt items identified with
   line numbers, one of them measured as the actual driver (line 116).
+
+### MEASURED: the context is re-injected up to 27 times per call — the prompt was never the main cost
+Read from `inputOverride` of real production executions via the n8n API:
+
+| | 476184 | 476231 | 476011 |
+|---|---|---|---|
+| message chars | 144,848 | 141,152 | 65,918 |
+| promptTokens | **49,993** | 49,130 | 25,157 |
+| `## ROL` (the system prompt) | **1** | 1 | 1 |
+| `[CONTEXTO DEL SISTEMA` | **27** | — | 9 |
+| `HISTORIAL de este cliente` | 20 | — | 0 |
+| model node runs | 1 | 1 | 1 |
+
+ONE model call. The prompt appears once; the context block appears 9 to 27 times.
+
+Mechanism CONFIRMED, not inferred: the memory node is `memoryPostgresChat` on
+`cerebro_memoria` with **`contextWindowLength: 30`**, and the agent's `text` is
+`{{ $json.mensaje }}` — the client's text WITH its whole `[CONTEXTO]` block. So every
+past turn was stored with its full block: `cerebro_memoria` holds 10,404 messages of
+which **4,721 contain `CONTEXTO DEL SISTEMA`**, averaging 1,573 chars. Memory replays up
+to 30 of them, so the block is re-sent once per remembered turn.
+
+Two consequences, and the second is worse than the first:
+1. **Cost.** At the measured 2.9 chars/token for Spanish the system prompt is ~19,400
+   tokens, under 40% of an expensive turn. The other ~88,000 chars are DUPLICATED context.
+   Every discussion about shortening the prompt was aimed at the smaller half: today's trim
+   saved 3,500 chars where the duplication adds 88,000.
+2. **Correctness.** Those stale copies carry stale ORDERS — including, until today, the
+   Decisor's `CALCULO A HACER ... "Por *X GYD* llegan *Y CUP* a Cuba."`. **The Decisor fix
+   shipped today stays contradicted by memory until those messages age out of the window of
+   30.** That is a large part of why the CUP default was so stubborn.
+
+Proposed fix, NOT applied because it is the owner's call and a production change: strip the
+`[CONTEXTO DEL SISTEMA...]` block before WRITING to memory, keeping only the client's text.
+The current turn still receives its full block, so no context is sacrificed — only stale
+copies stop being re-sent. Note the owner closed memory/context token work on 2026-09-26
+("does not want to sacrifice context"); this is not that, and must be put to him as such.

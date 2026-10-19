@@ -98,8 +98,12 @@ Verification therefore has two parts:
       includes `pruebas/**/*.test.ts` (commit 87da530)
 - [x] T2 RED: 6 of 11 failing, and the 5 passing were exactly what had to survive (commit 87da530)
 - [x] T3 GREEN: 11/11, with a differential proving only the quoting note changed
-- [ ] T4 Apply to staging `U52y1kSNvhgxvWeb`, verify the live node matches the candidate, owner
-      checks a real conversation
+- [x] T4a Applied to staging `U52y1kSNvhgxvWeb` and verified: live node md5 `e6b0cc77be5c`
+      (94,896 chars) equals the repo copy, 127 nodes, still active. Rollback at
+      `~/cerebro-fase1/ROLLBACK-staging-antes-decisor-lado-del-monto.json`. Production
+      `jEzlVLCLUaJhVwzs` re-checked and UNTOUCHED, still `c2ed1d13c177`
+- [ ] T4b Owner checks a real staging conversation ("cuanto llega si envio 30 mil" from a chat with
+      no rail) and confirms the bot asks the currency instead of quoting CUP
 - [ ] T5 Regenerate the baked `[CONTEXTO]` of the affected gold cases from the new node, then
       re-measure the prompt candidate of `cerebro-prompt-restructure.md` T4
 - [ ] T6 Production `jEzlVLCLUaJhVwzs` with the owner's go-ahead, with a rollback copy first

@@ -50,7 +50,17 @@ Out of scope (follow-ups, owner's decision):
 ## Tasks
 - [x] C1 — Assertion (Yoandy sequence end to end + rule cases + unchanged behaviours), RED on staging.
 - [x] C2 — Migration 246 + ROLLBACK; apply on staging, GREEN; rollback proof; related combo assertions rerun.
-- [ ] C3 — Production with the owner's go-ahead; md5 equal to staging.
+- [x] C4 — 247: shared negation rule; cerebro_recarga_en_curso per message
+      (`supabase/staging/assertions/recarga-negated-mention.sql`).
+- [ ] C5 — 248: crm_cerrar_operacion_manual maps the chosen service like _cambiar_servicio_core
+      (remesa rail -> service_type 'remesa'; combo_costo_gyd cleared unless combo; service change audited).
+      Today choosing Zelle on a misfiled combo keeps service_type 'combo'.
+- [ ] C6 — Second Zelle payee: replay the Yoandy sequence on staging with 246 (cerebro_registrar_deposito x2 +
+      cerebro_guardar_zelle_auto x3) to see whether the resolver now pairs correctly; if not, tie-break in
+      cerebro_resolver_operacion_beneficiario (equal-amount deposits) + assertion in beneficiary-matcher.sql.
+      Mapper finding: replacement is by design (cerebro_escribir_bloque_beneficiario retires older blocks); the
+      combo misfile left one candidate op ('unica'); with two equal remesas the amount step ties (v_hits = 2).
+- [ ] C3 — Production (246 + the rest) with the owner's go-ahead; md5 equal to staging.
 
 ## Acceptance criteria
 - The Yoandy message alone: `cerebro_combo_en_curso` FALSE and the deposit opens a `remesa`.
@@ -80,5 +90,14 @@ Out of scope (follow-ups, owner's decision):
   f5a8cd444b1cac3f57c2668299a629d6. ACLs: existing ones kept; new helpers service_role only.
   Rollback proof in a rolled-back transaction restored 18a50de6… and 1172a095… exactly; staging left WITH 246.
 
+- 2026-10-19 C1/C2 commit: 5534565.
+- 2026-10-19 C4: assertion RED on staging (`case 1: "no quiero recarga" must not be a recharge in
+  progress`). Dry run ALL PASS. 28 related assertions (combo, recarga, promo, deposit, textos) without
+  and with 247: identical outcomes (pre-existing failures as in C2, plus deals-free-views-and-inert-edits,
+  rekey-shipment-alerts-onto-operations and saldo-model case 11, all unchanged by 247). Applied on
+  staging; assertion GREEN. md5 after 247: quitar_menciones_negadas fe9ca0ba5f3741a6baaa2dd23cefba87,
+  recarga_en_curso e90f049870e260fd8581d0a8f919444c, texto_pide_combo 2cd8e5b8806e78ab86d0d06476e95afb,
+  texto_pide_recarga 3afcf006e5f55ed7e1ef8c9811b5e3c1. Rollback proof restored 4146aaff… and aa4951d6….
+
 ## Next step
-C3: production, only with the owner's go-ahead.
+C5 RED on staging, then C6, then C3.

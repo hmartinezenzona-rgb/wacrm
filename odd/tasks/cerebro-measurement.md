@@ -49,8 +49,8 @@ touch `~/cerebro-fase1/pruebas/evals/` until this document says done (engram #49
 - [x] E0 — Harness under git, current state as the first commit.
 - [x] E1 — Replication, tokens, metadata, aggregator (unit tests RED -> GREEN, one real run).
 - [ ] E2 — Replicated baseline of the production prompt.
-- [ ] E3 — T9 frozen layers regenerated.
-- [ ] E4 — New cases for the 2026-10-19 bug classes.
+- [ ] E3 — Fresh cases from current traffic: generator + sheet DONE; owner arbitration PENDING.
+- [x] E4 — 2026-10-19 bug classes: DB layer covered by staging assertions (247-250); the real model turn (reg-475460) is in the arbitration sheet.
 
 ## Acceptance criteria
 - A run with `--reps N` produces one row per case and repetition, with tokens when measured.
@@ -83,5 +83,19 @@ touch `~/cerebro-fase1/pruebas/evals/` until this document says done (engram #49
 - 2026-10-19 E2 started: `evaluar.py --reps 5` on the production prompt, log
   `informes/linea-base-20261019.log`.
 
+- 2026-10-19 harvest: 187 executions saved (2026-10-19 12:28-22:55; 115 agent turns with input and
+  output; 0 errors). n8n keeps only ~10 h of Cerebro executions, so the daily timer lost most traffic
+  even before it broke: `cerebro-cosecha.timer` now runs every 2 h (OnCalendar=*-*-* 00/2:15:00;
+  previous unit file kept in the session scratchpad). Local config, not versioned.
+- 2026-10-19 E3: `generar_casos.py --desde` (commit c550fa5, tests 24/24) writes dated files and
+  refuses to overwrite (PARA-ARBITRAR-evals.md is the 12-Aug record). First sheet:
+  `PARA-ARBITRAR-2026-10-19.md`, 60 candidates in 11 families incl. the new `recarga`; cases in
+  `casos/casos-regresion-2026-10-19.json`. They carry today's real [CONTEXTO]. Contains real customer
+  messages: local only.
+- 2026-10-19 E4: Yoandy's only agent turn in the harvest (475460, "dos transferencias") is candidate
+  reg-475460-beneficiario-zelle: the model followed the tool's handoff result correctly; the defect was
+  in the DB layer, already covered by the 247-250 staging assertions. No invented expectations.
+
 ## Next step
-E2 results; then E3 = arbitration sheet from the fresh harvest (owner's time needed).
+E2 results. Then the owner arbitrates PARA-ARBITRAR-2026-10-19.md; arbitrated cases join the gold
+battery and the replicated baseline is rerun on the new battery.

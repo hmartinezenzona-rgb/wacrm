@@ -38,7 +38,7 @@ receives each turn's block once (fresh) instead of up to 30 stale copies.
 - [x] M1 — Assertion RED on staging (appended block stripped; system note kept; AI rules unchanged).
 - [x] M2 — 251 + ROLLBACK on staging, GREEN, rollback proof; related memory assertions rerun.
 - [x] M3 — 252 cleanup + backup + ROLLBACK on staging (count, idempotence, restore proof).
-- [ ] M4 — Production: 251 then 252; verify counts, md5, and a real conversation's next stored turn.
+- [x] M4 — Production: 251 then 252; verify counts, md5, and a real conversation's next stored turn.
 
 ## Acceptance criteria
 - A new human message `texto\n\n[CONTEXTO DEL SISTEMA...]...` is stored as `texto`.
@@ -62,5 +62,17 @@ receives each turn's block once (fresh) instead of up to 30 stale copies.
   text 25,086 -> 8,367 bytes, backup 4 rows, second run cuts 0, rollback proof restores 4 and 25,086
   bytes exactly; staging left WITH 252.
 
+- 2026-10-19 M4 PRODUCTION (owner: "las dos partes, dale"). Pre-check: no 251/252 by anyone, trigger
+  function still 8cc5f5f8…, 4,592 appended rows, 140 notes, 10,440 rows, 16,413,653 bytes.
+  251 applied: md5 154fcb6910d1d1b3effcf2f918b4046a (= staging), ACL unchanged (default).
+  252 applied: 4,592 rows cut, 0 appended left, 140 notes untouched; backup
+  respaldos.cerebro_memoria_bloques_20261019 = 4,592 rows, each equal to its cut row's original
+  (verified by recomputing the cut from the backup), ACL postgres only; memory text 16.4 MB -> 3.8 MB.
+  Live: human rows 19454 and 19458 arrived after 252 (not in the backup) and were stored with 44 and 2
+  chars, no block; Cerebro turns 21:47-21:53 ran on the agent route with no error_type.
+  Not measured: the token drop per call (the token collector workflow is still inactive; it needs
+  the owner's n8n API key credential, see engram #489).
+
 ## Next step
-M4: production, 251 then 252.
+None. Optional: drop the backup table once no rollback is needed; activate the token collector
+to measure the saving.

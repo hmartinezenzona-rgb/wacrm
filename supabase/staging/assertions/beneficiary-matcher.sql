@@ -195,7 +195,9 @@ BEGIN
   INSERT INTO conversations (user_id, account_id, contact_id) VALUES (v_user, v_acc, v_a) RETURNING id INTO v_conv;
   INSERT INTO remittance_operations (account_id, conversation_id, status, service_type, quoted_source_amount, source_currency, created_at)
   VALUES (v_acc, v_conv, 'ready_to_transfer', 'remesa', 39000, 'GYD', t0 - interval '4 days') RETURNING id INTO v_a;
-  INSERT INTO remittance_beneficiaries (operation_id, beneficiary_type, name, zelle_account) VALUES (v_a, 'zelle', 'DTZ SOLUTION LLC', '2294563108');
+  -- (249) The old remesa's payee row is dated when it was written (14-Sep), before the account was typed again.
+  INSERT INTO remittance_beneficiaries (operation_id, beneficiary_type, name, zelle_account, created_at)
+  VALUES (v_a, 'zelle', 'DTZ SOLUTION LLC', '2294563108', t0 - interval '4 days');
   INSERT INTO remittance_operations (account_id, conversation_id, status, service_type, quoted_source_amount, source_currency, created_at)
   VALUES (v_acc, v_conv, 'ready_to_transfer', 'remesa', 26200, 'GYD', t0 + interval '70 minutes') RETURNING id INTO v_b;
   INSERT INTO messages (conversation_id, sender_type, content_type, content_text, created_at) VALUES

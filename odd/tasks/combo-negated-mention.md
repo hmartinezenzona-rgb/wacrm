@@ -55,12 +55,9 @@ Out of scope (follow-ups, owner's decision):
 - [x] C5 — 248: crm_cerrar_operacion_manual maps the chosen service like _cambiar_servicio_core
       (remesa rail -> service_type 'remesa'; combo_costo_gyd cleared unless combo; service change audited).
       Today choosing Zelle on a misfiled combo keeps service_type 'combo'.
-- [ ] C6 — Second Zelle payee: replay the Yoandy sequence on staging with 246 (cerebro_registrar_deposito x2 +
-      cerebro_guardar_zelle_auto x3) to see whether the resolver now pairs correctly; if not, tie-break in
-      cerebro_resolver_operacion_beneficiario (equal-amount deposits) + assertion in beneficiary-matcher.sql.
-      Mapper finding: replacement is by design (cerebro_escribir_bloque_beneficiario retires older blocks); the
-      combo misfile left one candidate op ('unica'); with two equal remesas the amount step ties (v_hits = 2).
-- [ ] C3 — Production (246 + the rest) with the owner's go-ahead; md5 equal to staging.
+- [x] C6 — 249: a re-save of the payee an operation already holds stays on it
+      (`cerebro_resolver_operacion_beneficiario`, 'misma_cuenta'); assertion `zelle-payee-resave.sql`.
+- [ ] C3 — Production (246-249) with the owner's go-ahead; md5 equal to staging.
 
 ## Acceptance criteria
 - The Yoandy message alone: `cerebro_combo_en_curso` FALSE and the deposit opens a `remesa`.
@@ -107,5 +104,19 @@ Out of scope (follow-ups, owner's decision):
   assertion GREEN; md5 7cefd4e763141b51c90019b34c614b28, ACL unchanged. Rollback proof restored
   00e19f83… exactly. App: close-manual route tests 30/30 (API unchanged).
 
+- 2026-10-19 C5 commit: 1be1e66.
+- 2026-10-19 C6: replay of the production sequence on staging with 246-248 (rolled back): Santialv no
+  longer replaced, but the auto node's re-save of Santialv after receipt 2 went to the newest, empty
+  operation by rule C (amount ties at equal deposits, proximity sees both), so Santialv sat on both
+  operations and Orlansys went to a person ('operacion_ambigua'). Fix 249: an account that is already
+  the vigente payee of exactly one open remesa, not typed since that row was written, is a re-save of
+  it. Assertion RED (`case 1a ... got Santialv LLC|Santialv LLC`), dry run ALL PASS. Related run (77
+  assertions: beneficiaries, Zelle, reparto, calculator) with and without 249: one real DIFF,
+  beneficiary-matcher case 9, a fixture artifact: its old payee row was dated now() although the case
+  models a payee written 4 days earlier, before the account was typed again. Fixture row now dated
+  `t0 - 4 days`; beneficiary-matcher 9/9 with and without 249. Applied on staging; GREEN; md5
+  fac21833a4dfc2b054cec390aeca8e91; rollback proof restored 80597ea9490b4d87fa93694f3000350c.
+  Full replay with 246-249: two remesas, one receipt and one Zelle payee each (Santialv | Orlansys).
+
 ## Next step
-C6: replay the Yoandy sequence on staging, then C3.
+C3: production (246, 247, 248, 249 in order) with the owner's go-ahead; check production md5s equal the staging pre-change md5s first.

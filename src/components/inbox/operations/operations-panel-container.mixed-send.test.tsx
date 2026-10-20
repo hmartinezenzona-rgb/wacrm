@@ -109,4 +109,63 @@ describe("OperationsPanelContainer mixed send", () => {
     expect(node.querySelectorAll("article")).toHaveLength(1);
     await act(async () => root.unmount());
   });
+
+  describe("history", () => {
+    const done = (id: string, amount: number, extra: Record<string, unknown> = {}) =>
+      op(id, amount, { status: "completed", isHistory: true, completedAt: "2026-10-20T01:00:00Z", ...extra });
+
+    async function openHistory(node: HTMLElement) {
+      const toggle = Array.from(node.querySelectorAll("button")).find((button) =>
+        button.textContent?.startsWith(en.Inbox.operationsPanel.historyTitle),
+      ) as HTMLButtonElement;
+      await act(async () => toggle.click());
+    }
+
+    it("shows the completed members of a group together under one header inside Historial", async () => {
+      const { node, root } = await renderWith([
+        done("a", 18200, { mixedGroupId: "a" }),
+        done("b", 6200, { mixedGroupId: "a", serviceType: "recarga", deliveryMethod: null }),
+      ]);
+      await openHistory(node);
+
+      const sections = node.querySelectorAll("section");
+      expect(sections).toHaveLength(1);
+      expect(sections[0]!.textContent).toContain(t.title);
+      expect(sections[0]!.textContent).toContain(t.total.replace("{amount}", formatNumber(24400)));
+      expect(sections[0]!.querySelectorAll("article")).toHaveLength(2);
+      await act(async () => root.unmount());
+    });
+
+    it("leaves ungrouped history operations and a lone completed member as plain cards", async () => {
+      const { node, root } = await renderWith([
+        done("lone", 700),
+        done("a", 18200, { mixedGroupId: "a" }),
+        op("open", 6200, { mixedGroupId: "a" }),
+      ]);
+      await openHistory(node);
+
+      // The only header is the open block of the group; the completed member stays a plain history card.
+      const sections = node.querySelectorAll("section");
+      expect(sections).toHaveLength(1);
+      expect(sections[0]!.querySelectorAll("article")).toHaveLength(1);
+      expect(node.querySelectorAll("article")).toHaveLength(3);
+      await act(async () => root.unmount());
+    });
+
+    it("never splits a history group across the show-more limit", async () => {
+      const singles = ["s1", "s2", "s3", "s4"].map((id) => done(id, 100));
+      const { node, root } = await renderWith([
+        ...singles,
+        done("a", 18200, { mixedGroupId: "a" }),
+        done("b", 6200, { mixedGroupId: "a" }),
+        done("s5", 100),
+      ]);
+      await openHistory(node);
+
+      expect(node.querySelectorAll("section")).toHaveLength(1);
+      expect(node.querySelectorAll("section article")).toHaveLength(2);
+      expect(node.querySelectorAll("article")).toHaveLength(6);
+      await act(async () => root.unmount());
+    });
+  });
 });

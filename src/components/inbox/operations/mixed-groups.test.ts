@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupOpenOperations, mixedGroupMembers, mixedGroupTotal } from "./mixed-groups";
+import { groupOpenOperations, groupOperations, limitBlocks, mixedGroupMembers, mixedGroupTotal } from "./mixed-groups";
 import type { RemittanceOperationRead } from "@/lib/remittance-operations/types";
 
 function op(id: string, amount: number | null, mixedGroupId: string | null = null, status = "ready_to_transfer"): RemittanceOperationRead {
@@ -63,5 +63,57 @@ describe("groupOpenOperations", () => {
     expect(block!.grouped).toBe(true);
     expect(block!.operations).toEqual([a]);
     expect(block!.members).toEqual([a, done]);
+  });
+});
+
+describe("groupOperations over history", () => {
+  it("gathers the completed members of a group at the place of its first member and keeps the others single", () => {
+    const a = op("a", 18200, "g", "completed");
+    const lone = op("l", 700, null, "completed");
+    const b = op("b", 6200, "g", "completed");
+
+    const blocks = groupOperations([a, lone, b], [a, lone, b]);
+
+    expect(blocks.map((block) => block.operations.map((o) => o.id))).toEqual([["a", "b"], ["l"]]);
+    expect(blocks[0]!.grouped).toBe(true);
+    expect(blocks[0]!.members).toEqual([a, b]);
+  });
+
+  it("renders a group of one completed member as a plain block when its siblings are not in the list", () => {
+    const done = op("a", 18200, "g", "completed");
+    const open = op("b", 6200, "g");
+
+    expect(groupOperations([done], [done])).toEqual([{ grouped: false, operations: [done], members: [done] }]);
+    expect(groupOperations([done], [done, open])[0]!.members).toEqual([done, open]);
+  });
+
+  it("keeps groupOpenOperations as the same arrangement", () => {
+    const a = op("a", 1, "g");
+    const b = op("b", 2, "g");
+
+    expect(groupOpenOperations([a, b], [a, b])).toEqual(groupOperations([a, b], [a, b]));
+  });
+});
+
+describe("limitBlocks", () => {
+  const single = (id: string) => ({ grouped: false, operations: [op(id, 1)], members: [op(id, 1)] });
+  const group = (...ids: string[]) => {
+    const members = ids.map((id) => op(id, 1, "g"));
+    return { grouped: true, operations: members, members };
+  };
+
+  it("counts a group as one entry and never cuts it in half", () => {
+    const blocks = [single("1"), group("2", "3"), single("4"), single("5")];
+
+    const { visible, hiddenOperations } = limitBlocks(blocks, 2);
+
+    expect(visible.map((block) => block.operations.map((o) => o.id))).toEqual([["1"], ["2", "3"]]);
+    expect(hiddenOperations).toBe(2);
+  });
+
+  it("shows everything when the limit covers every block", () => {
+    const blocks = [single("1"), group("2", "3")];
+
+    expect(limitBlocks(blocks, 5)).toEqual({ visible: blocks, hiddenOperations: 0 });
   });
 });

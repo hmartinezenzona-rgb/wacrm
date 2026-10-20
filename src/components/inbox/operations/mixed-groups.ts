@@ -19,21 +19,22 @@ export function mixedGroupTotal(members: RemittanceOperationRead[]): number {
 export interface OperationBlock {
   /** True when `members` are two or more operations of one mixed send, so the panel puts a header over them. */
   grouped: boolean;
-  /** The open operations to render as cards, in panel order. */
+  /** The operations to render as cards, in panel order. */
   operations: RemittanceOperationRead[];
-  /** Every operation of the group (history included), for the header and the split editor. */
+  /** Every operation of the group visible in `all`, for the header and the split editor. */
   members: RemittanceOperationRead[];
 }
 
-/** Arranges the open operations for display: a group's open members sit together at the place of its first member,
- *  every other operation stays a block of its own. `all` is every operation of the conversation, history included. */
-export function groupOpenOperations(
-  open: RemittanceOperationRead[],
+/** Arranges `list` for display: a group's members in `list` sit together at the place of its first member, every
+ *  other operation stays a block of its own. `all` is where the group's members are looked up: every operation of the
+ *  conversation for the open list (history included), the history list itself for the history section. */
+export function groupOperations(
+  list: RemittanceOperationRead[],
   all: RemittanceOperationRead[],
 ): OperationBlock[] {
   const blocks: OperationBlock[] = [];
   const blockByGroup = new Map<string, OperationBlock>();
-  for (const operation of open) {
+  for (const operation of list) {
     const members = mixedGroupMembers(operation, all);
     if (members.length < 2) {
       blocks.push({ grouped: false, operations: [operation], members });
@@ -49,4 +50,18 @@ export function groupOpenOperations(
     blocks.push(block);
   }
   return blocks;
+}
+
+/** The open operations arranged for display (`all` is every operation of the conversation, history included). */
+export const groupOpenOperations = groupOperations;
+
+/** The first `limit` blocks: a group counts as one entry, so it is never cut in half. `hiddenOperations` counts the
+ *  operations of the blocks left out. */
+export function limitBlocks(
+  blocks: OperationBlock[],
+  limit: number,
+): { visible: OperationBlock[]; hiddenOperations: number } {
+  const visible = blocks.slice(0, limit);
+  const hiddenOperations = blocks.slice(limit).reduce((sum, block) => sum + block.operations.length, 0);
+  return { visible, hiddenOperations };
 }

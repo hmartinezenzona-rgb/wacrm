@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Skeleton } from "@/components/dashboard/skeleton";
 import { readPrefetchedConversationOperations } from "@/lib/remittance-operations/panel-prefetch";
 import type { ConversationOperationsRead } from "@/lib/remittance-operations/types";
-import { groupOpenOperations } from "./mixed-groups";
+import { groupOperations, limitBlocks } from "./mixed-groups";
 import { MixedSendBlock } from "./mixed-send-block";
 import { RemittanceOperationCard } from "./remittance-operation-card";
 import { otherOpenOperationsFor } from "./reassign-targets";
@@ -254,10 +254,13 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
   const historyOperations = data.operations.filter((operation) => operation.isHistory);
   const historyOpen = historyOpenFor !== null && historyOpenFor === conversationId;
   const historyShowAll = historyShowAllFor !== null && historyShowAllFor === conversationId;
-  const visibleHistory = historyShowAll
-    ? historyOperations
-    : historyOperations.slice(0, HISTORY_VISIBLE_COUNT);
-  const hiddenHistoryCount = historyOperations.length - visibleHistory.length;
+  // A completed mixed send reads as one block; its members are looked up among the history only, so the header lists
+  // exactly the cards under it. The limit counts a block as one entry, so a group is never cut in half.
+  const historyBlocks = groupOperations(historyOperations, historyOperations);
+  const { visible: visibleHistory, hiddenOperations: hiddenHistoryCount } = limitBlocks(
+    historyBlocks,
+    historyShowAll ? historyBlocks.length : HISTORY_VISIBLE_COUNT,
+  );
 
   const toggleHandlerFor = (operationId: string) => () =>
     setExpandedId((current) => (current === operationId ? null : operationId));
@@ -272,7 +275,7 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
             {t("title")}
           </h3>
           <div className="space-y-2">
-            {groupOpenOperations(openOperations, data.operations).map((block) => {
+            {groupOperations(openOperations, data.operations).map((block) => {
               const cards = block.operations.map((operation) => (
                 <RemittanceOperationCard
                   key={operation.id}
@@ -318,25 +321,34 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
           </h3>
           {historyOpen && (
             <div className="space-y-2">
-              {visibleHistory.map((operation) => (
-                <RemittanceOperationCard
-                  key={operation.id}
-                  operation={operation}
-                  // A history op must never be passed editable/canForce —
-                  // the card itself also guards on `operation.isHistory`,
-                  // this is the same invariant enforced at the boundary too.
-                  canEdit={false}
-                  role={null}
-                  costRole={accountRole}
-                  otherOpenOperations={[]}
-                  onChanged={() => silentLoad(conversationId)}
-                  expanded={expandedId === operation.id}
-                  onToggle={toggleHandlerFor(operation.id)}
-                  conversationId={conversationId}
-                  refreshToken={refreshToken}
-                  initialReceipts={data.receiptsByOperationId?.[operation.id]}
-                />
-              ))}
+              {visibleHistory.map((block) => {
+                const cards = block.operations.map((operation) => (
+                  <RemittanceOperationCard
+                    key={operation.id}
+                    operation={operation}
+                    // A history op must never be passed editable/canForce —
+                    // the card itself also guards on `operation.isHistory`,
+                    // this is the same invariant enforced at the boundary too.
+                    canEdit={false}
+                    role={null}
+                    costRole={accountRole}
+                    otherOpenOperations={[]}
+                    onChanged={() => silentLoad(conversationId)}
+                    expanded={expandedId === operation.id}
+                    onToggle={toggleHandlerFor(operation.id)}
+                    conversationId={conversationId}
+                    refreshToken={refreshToken}
+                    initialReceipts={data.receiptsByOperationId?.[operation.id]}
+                  />
+                ));
+                return block.grouped ? (
+                  <MixedSendBlock key={block.members[0]!.mixedGroupId} members={block.members}>
+                    {cards}
+                  </MixedSendBlock>
+                ) : (
+                  cards
+                );
+              })}
               {hiddenHistoryCount > 0 && (
                 <button
                   type="button"

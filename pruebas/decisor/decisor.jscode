@@ -730,7 +730,13 @@ if (s.comprobante && !s.comprobante_duplicado) {
     if (propioDeMas !== 'combo' && (ctx.combo_en_curso || /combo/i.test(previosDeMas))) { otrosDeMas.push('combo de comida'); }
     if (propioDeMas !== 'visa' && (ctx.visa_en_curso || /visa|inmigraci/i.test(previosDeMas))) { otrosDeMas.push('visa'); }
     if (propioDeMas !== 'saldo' && /saldo\s+m.vil/i.test(previosDeMas)) { otrosDeMas.push('saldo movil'); }
-    if (otrosDeMas.length > 0) {
+    // S6: the conversation already has a mixed send (ctx.envio_mixto, from `Contexto conversacion`): never "mando de mas".
+    const mixtoDeMas = !!(ctx.envio_mixto && Array.isArray(ctx.envio_mixto.partes) && ctx.envio_mixto.partes.length > 1);
+    if (mixtoDeMas) {
+      notas.push('EL CLIENTE DEPOSITO MAS DE LO QUE DIJO QUE IBA A ENVIAR: dijo *'
+        + fmtG(objetivoEnvio) + ' ' + monedaRafaga + '* y lleva *' + fmtG(depositado) + ' ' + monedaRafaga
+        + '*, o sea ' + fmtG(Math.abs(saldo)) + ' de mas. Esta conversacion ya es un ENVIO MIXTO (un solo deposito repartido entre varios servicios, ver la nota ENVIO MIXTO). NO le digas que mando de mas ni que es un error. Confirma con el cliente como queda repartido ese deposito entre los servicios (cuantos GYD para cada uno) y, cuando te lo diga, llama repartir_envio con TODAS las partes; las partes tienen que sumar exactamente lo depositado. Responde con lo que devuelva la tool, sin inventar cifras. PROHIBIDO decirle que se le va a transferir antes de que la tool confirme el reparto.');
+    } else if (otrosDeMas.length > 0) {
       notas.push('EL CLIENTE DEPOSITO MAS DE LO QUE DIJO QUE IBA A ENVIAR: dijo *'
         + fmtG(objetivoEnvio) + ' ' + monedaRafaga + '* y lleva *' + fmtG(depositado) + ' ' + monedaRafaga
         + '*, o sea ' + fmtG(Math.abs(saldo)) + ' de mas. Ese dinero de mas PROBABLEMENTE es para otro servicio que ya pidio (' + otrosDeMas.join(', ')
@@ -961,6 +967,16 @@ if (!s.comprobante && viaSinDefinir && (abiertos > 0 || esPregunta)) {
 }
 if (rielOp) { notas.push('VIA ACTUAL DE LA OPERACION: ' + ({zelle:'Zelle',clasica:'tarjeta Clasica',tropical:'tarjeta Tropical',cuban_card:'CUP (tarjeta en pesos)',efectivo_usd:'efectivo en USD',recarga:'recarga',combo:'combo',visa:'visa',saldo:'saldo movil'}[rielOp] || rielOp) + '. Si el cliente DECIDE otra, llama cambiar_servicio; una pregunta de precio o hablar de otra persona NO es un cambio.'); }
 if (ctx.servicio_pendiente) { notas.push('EL CLIENTE YA ELIGIO ' + ctx.servicio_pendiente + ' (anotado, todavia no hay envio abierto): se aplica solo cuando se registre el envio.'); }
+// ENVIO MIXTO (S6): operations grouped by remittance_operations.mixed_group_id (253). `envio_mixto` = { total, partes: [{ servicio, monto_gyd, destino, moneda, status }] }
+// for the open members, NULL when the conversation has no group. The destination amount is only said for remesa rails, and only when known.
+if (ctx.envio_mixto && Array.isArray(ctx.envio_mixto.partes) && ctx.envio_mixto.partes.length > 1) {
+  const gydMixto = (n) => Number(n ?? 0).toLocaleString('en-US');
+  const partesMixto = ctx.envio_mixto.partes.map((p) => {
+    const sv = String(p.servicio || 'servicio');
+    const llega = (!['recarga', 'combo', 'visa', 'saldo'].includes(sv) && Number(p.destino) > 0 && p.moneda) ? ' (llegan ' + gydMixto(p.destino) + ' ' + p.moneda + ')' : '';
+    return sv + ' ' + gydMixto(p.monto_gyd) + ' GYD' + llega;
+  });
+  notas.push('ENVIO MIXTO: el cliente hizo UN SOLO deposito de ' + gydMixto(ctx.envio_mixto.total) + ' GYD repartido entre varios servicios: ' + partesMixto.join(' + ') + '. NO es una sola remesa: cada servicio es su propia operacion con su parte. NO le digas que mando de mas ni que se equivoco con el monto. Pidele por separado los datos que falten de cada servicio (por ejemplo tarjeta y celular de quien recibe la Clasica, y el numero de Cuba de la recarga). Usa repartir_envio SOLO si el cliente cambia el reparto.'); }
 // Estado exacto del envio abierto: para responder con precision a "como va lo mio"
 if (h && h.etapa_envio_abierto) {
   const et = h.etapa_envio_abierto;

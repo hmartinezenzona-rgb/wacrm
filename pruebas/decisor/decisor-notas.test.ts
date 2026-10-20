@@ -262,3 +262,86 @@ describe('un deposito de mas por un segundo servicio no se trata como error del 
     expect(n).not.toMatch(/repartir_envio/);
   });
 });
+
+describe('un envio mixto (un deposito repartido entre servicios) se lo dice al modelo', () => {
+  // S6: the grouped operations come from `Contexto conversacion` as `envio_mixto`
+  // ({ total, partes: [{ servicio, monto_gyd, destino, moneda, status }] }, NULL when ungrouped).
+  const envioMixto = {
+    total: 24400,
+    partes: [
+      {
+        servicio: 'clasica',
+        monto_gyd: 18200,
+        destino: 70,
+        moneda: 'USD',
+        status: 'ready_to_transfer',
+      },
+      {
+        servicio: 'recarga',
+        monto_gyd: 6200,
+        destino: null,
+        moneda: null,
+        status: 'collecting_information',
+      },
+    ],
+  };
+  const PREFIJO_MIXTO = 'ENVIO MIXTO';
+
+  it('agrupado: lista cada servicio con su parte, el total y que es UN solo deposito', () => {
+    const n = nota(
+      correrDecisor({
+        ctx: { riel_operacion: 'clasica', envio_mixto: envioMixto },
+        snapshot: { texto_completo: 'ya lo mande' },
+      }),
+      PREFIJO_MIXTO
+    ) as string;
+    expect(n).toBeDefined();
+    expect(n).toMatch(/clasica[^,;]*18,200/);
+    expect(n).toMatch(/70 USD/);
+    expect(n).toMatch(/recarga[^,;]*6,200/);
+    expect(n).toMatch(/24,400/);
+    expect(n).toMatch(/UN SOLO deposito/i);
+  });
+
+  it('manda tratar cada servicio por separado y repartir solo si el cliente cambia el reparto', () => {
+    const n = nota(
+      correrDecisor({
+        ctx: { envio_mixto: envioMixto },
+        snapshot: { texto_completo: 'hola' },
+      }),
+      PREFIJO_MIXTO
+    ) as string;
+    expect(n).toMatch(/NO es una sola remesa/i);
+    expect(n).toMatch(/NO le digas que mando de mas/i);
+    expect(n).toMatch(/tarjeta/i);
+    expect(n).toMatch(/numero de Cuba|celular/i);
+    expect(n).toMatch(/repartir_envio/);
+    expect(n).toMatch(/solo si el cliente cambia/i);
+  });
+
+  it('sin grupo no hay nota de envio mixto', () => {
+    for (const envio_mixto of [undefined, null]) {
+      const s = correrDecisor({
+        ctx: { riel_operacion: 'clasica', envio_mixto },
+        snapshot: { texto_completo: 'hola' },
+      });
+      expect(nota(s, PREFIJO_MIXTO)).toBeUndefined();
+    }
+  });
+
+  it('agrupado con un deposito de mas: nunca dice que mando de mas', () => {
+    const s = correrDecisor({
+      ctx: { riel_operacion: 'clasica', envio_mixto: envioMixto },
+      snapshot: {
+        texto_completo: 'ahi va',
+        comprobante: { estado: 'LEGIBLE', monto: 30000, moneda: 'GYD', alertas: [] },
+      },
+      mmg: { resultado: 'verificado_de_mas', objetivo: 24400, depositado: 30000, saldo: -5600 },
+    });
+    const n = nota(s, 'EL CLIENTE DEPOSITO MAS DE LO QUE DIJO') as string;
+    expect(n).toBeDefined();
+    expect(n).not.toMatch(/mando mas de lo que habiais hablado/);
+    expect(n).toMatch(/NO le digas que mando de mas/i);
+    expect(n).toMatch(/repartir_envio/);
+  });
+});

@@ -182,6 +182,16 @@ S1, S2+S3, S4, S5.
   docker node:20 (host has node 26), manifest production / hqztotshnlzaiziwjyzh. Deployed with
   desplegar-wacrm-produccion.sh: production serves BUILD_ID 7xTCgSpcx-n4AaUh_l-Ye; rollback release b6f1a1c kept
   (`anterior`).
+- 2026-10-20 S6 DONE on STAGING: the Decisor reads `$('Contexto conversacion')`, an INLINE SQL query of that Postgres node (no DB
+  function; the query is versioned only in the workflow JSON, so the fragment is also kept in the assertion
+  `supabase/staging/assertions/contexto-envio-mixto.sql`). New output column `envio_mixto` (jsonb {total, partes[{servicio
+  (cerebro_riel_op), monto_gyd, destino, moneda, status}]} for the OPEN members of the conversation's mixed_group_id; NULL when
+  ungrouped or < 2 open members). Decisor: new "ENVIO MIXTO: ..." note (parts, total, ONE deposit, not a single remesa, never
+  "mando de mas", ask each service's missing data separately, repartir_envio only if the split changes); in the
+  verificado_de_mas branch a grouped conversation gets a note without "mando de mas" (2a branch kept). Tests RED 3/4 new
+  (ungrouped trivially green) -> GREEN 24/24; md5 pin af1e5e40. Staging PUT: versionId = activeVersionId 344ba784, 128
+  nodes, only Contexto conversacion + Decisor changed, Decisor md5 == repo; the live query ran (rolled back) on staging DB.
+  Backups: scratchpad staging-cerebro-before-S6.json / after-S6.json. Not verified: a real model turn.
 
 ## Next step
 S6 on staging (ENVIO MIXTO note), then production n8n: tool repartir_envio + Decisor (S4b + S6) on

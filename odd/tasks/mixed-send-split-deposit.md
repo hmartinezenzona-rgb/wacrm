@@ -208,5 +208,11 @@ S1, S2+S3, S4, S5.
   retorno 656). Owner then saw them as TWO operations in the panel: grouping applied only to OPEN operations
   (groupOpenOperations); completed ones render one by one in "Historial". -> S7.
 
+- 2026-10-20 S7 code DONE (ad75f61 on the feature branch): groupOperations(list, all) generalizes groupOpenOperations
+  (kept as alias); history renders completed members of a group under MixedSendBlock, read-only; limitBlocks counts a
+  group as one entry. RED 8 new tests -> GREEN; vitest 211 files / 2866 pass; tsc + eslint clean. Cherry-picked onto
+  release/prod-mixed-send as 6265edf: vitest 207 / 2782 pass, tsc clean; artifact built (docker node:20) BUILD_ID
+  S094S6Fe0Z1zgyQVGbesr, manifest production / hqztotshnlzaiziwjyzh. NOT deployed yet (waiting for the owner).
+
 ## Next step
-S7 (TDD, feature branch), cherry-pick onto release/prod-mixed-send, build, deploy after the owner's go-ahead.
+Deploy 6265edf to production with desplegar-wacrm-produccion.sh after the owner's go-ahead; then tick S7.

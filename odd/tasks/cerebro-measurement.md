@@ -108,5 +108,5 @@ touch `~/cerebro-fase1/pruebas/evals/` until this document says done (engram #49
   expectations rather than model faults, to be checked against the arbitrated battery.
 
 ## Next step
-Owner arbitration of PARA-ARBITRAR-2026-10-19.md. Then the owner arbitrates PARA-ARBITRAR-2026-10-19.md; arbitrated cases join the gold
+Owner arbitrates PARA-ARBITRAR-2026-10-19.md; arbitrated cases join the gold
 battery and the replicated baseline is rerun on the new battery.

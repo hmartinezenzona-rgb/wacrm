@@ -151,6 +151,9 @@ export interface RemittanceOperationRead {
   /** Combo operations only (migration 208): the total cost the admin entered, in
    *  GYD. `null` until entered. Absent on responses that predate the column. */
   comboCostoGyd?: number | null;
+  /** Mixed send (migration 253): the id of the anchor operation of the group that shares one deposit, the same on
+   *  every member. `null` when the operation is not grouped. Always set by the mapper; optional so fixtures need not. */
+  mixedGroupId?: string | null;
   beneficiaries: RemittanceBeneficiaryRead[];
 }
 
@@ -257,6 +260,7 @@ export interface RemittanceOperationsRpcRow {
   beneficiary_reference?: string | null;
   beneficiary_contact_phone?: string | null;
   operation_combo_costo_gyd?: number | string | null;
+  operation_mixed_group_id?: string | null;
 }
 
 // ============================================================

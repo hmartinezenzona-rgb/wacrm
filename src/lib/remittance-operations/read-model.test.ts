@@ -126,6 +126,26 @@ describe("mapRemittanceOperationsRows (combo)", () => {
   });
 });
 
+describe("mapRemittanceOperationsRows (mixed send)", () => {
+  it("carries the group id of the operations that share one deposit", () => {
+    const { operations } = mapRemittanceOperationsRows([
+      row({ operation_id: "op-a", operation_status: "ready_to_transfer", operation_service_type: "remesa", operation_mixed_group_id: "op-a" }),
+      row({ operation_id: "op-b", operation_status: "ready_to_transfer", operation_service_type: "recarga", operation_mixed_group_id: "op-a" }),
+    ]);
+
+    expect(operations.map((op) => op.mixedGroupId)).toEqual(["op-a", "op-a"]);
+  });
+
+  it("keeps the group id null when the operation is not grouped or the column is absent", () => {
+    const { operations } = mapRemittanceOperationsRows([
+      row({ operation_id: "op-a", operation_status: "collecting_information", operation_mixed_group_id: null }),
+      row({ operation_id: "op-b", operation_status: "collecting_information" }),
+    ]);
+
+    expect(operations.map((op) => op.mixedGroupId)).toEqual([null, null]);
+  });
+});
+
 describe("mapRemittanceOperationsRows", () => {
   it("maps a conversation with two open remesas, one with two beneficiaries", () => {
     const rows: RemittanceOperationsRpcRow[] = [

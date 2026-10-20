@@ -64,6 +64,7 @@ export function mapRemittanceOperationsRows(
         deliveryMode: row.operation_delivery_mode ?? null,
         deliveredAt: row.operation_delivered_at ?? null,
         comboCostoGyd: toNullableNumber(row.operation_combo_costo_gyd ?? null),
+        mixedGroupId: row.operation_mixed_group_id ?? null,
         beneficiaries: [],
       };
       operationsById.set(row.operation_id, operation);

@@ -86,7 +86,7 @@ option A was one operation holding several services.
   a wrong sum is refused; ungrouped operations behave exactly as before.
 - [x] S2 — Read model: `crm_operaciones_de_conversacion` returns `mixed_group_id`; panel types.
 - [x] S3 — Panel: group display and the split editor, plus the API route (vitest RED -> GREEN).
-- [ ] S4 — Bot (S4a DB wrapper DONE 119e710; S4b n8n tool + Decisor pending): `cerebro_repartir_envio` wrapper keyed by conversation, the n8n tool on staging
+- [x] S4 — Bot (S4a 119e710, S4b d74fd5b; on staging): `cerebro_repartir_envio` wrapper keyed by conversation, the n8n tool on staging
   Cerebro, and the Decisor note. Staging run of the f8b7779c conversation.
 - [ ] S5 — Production: apply 253+ to production, deploy the panel, n8n tool to production
   (owner confirms first).
@@ -150,6 +150,18 @@ S1, S2+S3, S4, S5.
   5,200, saldo 0. Fixture deleted afterwards (0 rows left). UX note for later: the mixed-send header shows GYD only,
   not the destination amount (70/73 USD).
 
+- 2026-10-20 S4b DONE on STAGING (d74fd5b): staging Cerebro U52y1kSNvhgxvWeb 127 -> 128 nodes, new postgresTool
+  `repartir_envio` (clone of cambiar_servicio, credential Supabase STAGING, query
+  `SELECT cerebro_repartir_envio($1::uuid, $2::text, $3::text)`, $fromAI 'partes'), ai_tool to Agente Remesas. Decisor:
+  in the verificado_de_mas branch, when the customer's recent texts or the *_en_curso flags show a second service
+  (reused detectors; a small new one for saldo movil), the "mando de mas" note becomes "the extra is probably for that
+  service: confirm the split and call repartir_envio; do not say they sent too much". Otherwise unchanged. 2b (ENVIO
+  MIXTO note) skipped: the Decisor gets no mixed_group_id (would need the "Contexto conversacion" SQL). Decisor tests
+  RED 4/6 new -> GREEN 20/20 (parent rerun 20/20); md5 pin c8044de0. Post-PUT: only Decisor changed + new node;
+  versionId = activeVersionId f1b55fb3 (parent check). Backup: scratchpad staging-cerebro-before-S4b.json (version
+  08ae4ef7). Not verified: a real model turn calling the tool.
+
 ## Next step
-S4b: bot wrapper keyed by conversation (must run with a human/admin context so the 096 guard locks the shares), n8n
+S5 production, after the owner confirms: apply 253, 254, 255 to production (md5 must equal staging), deploy the panel,
+then the n8n tool + Decisor on the production Cerebro. Optional before: a real chat turn on staging. bot wrapper keyed by conversation (must run with a human/admin context so the 096 guard locks the shares), n8n
 tool on staging Cerebro, Decisor note. Coordinate with the prompt session before editing the staging workflow.

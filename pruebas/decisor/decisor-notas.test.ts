@@ -181,3 +181,84 @@ describe('el gate 83 no se toca: con la moneda pegada al monto la via SI se sabe
     expect(n).toMatch(/calcular_usd\(100, via=zelle\)/);
   });
 });
+
+describe('un deposito de mas por un segundo servicio no se trata como error del cliente', () => {
+  // 2026-10-20 (f8b7779c): the customer deposited 24,400 for 18,200 (Clasica) + 6,200 (recarga). The
+  // node told the model "ves que mando mas de lo que habiais hablado", which is wrong when the extra
+  // money is a second service. The tool `repartir_envio` (migration 255) splits one deposit.
+  const cruceDeMas = {
+    resultado: 'verificado_de_mas',
+    objetivo: 18200,
+    depositado: 24400,
+    saldo: -6200,
+  };
+  function conComprobante(ctx: Entradas['ctx'], previos = '', texto = 'ahi va') {
+    return correrDecisor({
+      ctx: { riel_operacion: 'clasica', muestra_idioma: previos, ...ctx },
+      snapshot: {
+        texto_completo: texto,
+        comprobante: { estado: 'LEGIBLE', monto: 24400, moneda: 'GYD', alertas: [] },
+      },
+      mmg: cruceDeMas,
+    });
+  }
+  const PREFIJO = 'EL CLIENTE DEPOSITO MAS DE LO QUE DIJO';
+
+  it('sin segundo servicio, la nota sigue siendo la de siempre', () => {
+    const n = nota(conComprobante({}), PREFIJO);
+    expect(n).toBeDefined();
+    expect(n).toMatch(/mando mas de lo que habiais hablado/);
+    expect(n).not.toMatch(/repartir_envio/);
+  });
+
+  it('si ya hablo de una recarga, manda confirmar el reparto y llamar repartir_envio', () => {
+    const n = nota(
+      conComprobante({}, 'quiero enviar 70 usd y ademas una recarga de 6200'),
+      PREFIJO
+    );
+    expect(n).toBeDefined();
+    expect(n).toMatch(/repartir_envio/);
+    expect(n).toMatch(/recarga/i);
+    expect(n).toMatch(/18,200/);
+    expect(n).toMatch(/24,400/);
+  });
+
+  it('no le dice al cliente que mando de mas ni deja la orden de esperar a una persona', () => {
+    const n = nota(
+      conComprobante({}, 'tambien quiero una recarga etecsa'),
+      PREFIJO
+    ) as string;
+    expect(n).not.toMatch(/mando mas de lo que habiais hablado/);
+    expect(n).not.toMatch(/una persona le confirma/);
+    expect(n).toMatch(/NO le digas que mando de mas/i);
+  });
+
+  it('lo detecta tambien en el mensaje de este turno y en combo, visa o saldo movil', () => {
+    for (const [previos, texto, servicio] of [
+      ['', 'y otros 6200 para una recarga', 'recarga'],
+      ['', 'tambien un combo de comida', 'combo'],
+      ['quiero extender mi visa tambien', '', 'visa'],
+      ['', 'y 6200 de saldo movil', 'saldo'],
+    ]) {
+      const n = nota(conComprobante({}, previos, texto), PREFIJO);
+      expect(n, servicio).toMatch(/repartir_envio/);
+    }
+  });
+
+  it('usa el indicador de la base cuando la conversacion ya tiene una recarga abierta', () => {
+    const n = nota(conComprobante({ recarga_en_curso: true }), PREFIJO);
+    expect(n).toMatch(/repartir_envio/);
+  });
+
+  it('si el servicio de la propia operacion es la recarga, no cuenta como segundo servicio', () => {
+    const n = nota(
+      conComprobante(
+        { riel_operacion: 'recarga', recarga_en_curso: true },
+        'quiero una recarga'
+      ),
+      PREFIJO
+    );
+    expect(n).toBeDefined();
+    expect(n).not.toMatch(/repartir_envio/);
+  });
+});

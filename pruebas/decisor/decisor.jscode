@@ -720,9 +720,26 @@ if (s.comprobante && !s.comprobante_duplicado) {
       + fmtG(objetivoEnvio) + ' ' + monedaRafaga + '* y hasta ahora lleva *' + fmtG(depositado) + ' ' + monedaRafaga
       + '*: FALTAN *' + fmtG(saldo) + ' ' + monedaRafaga + '*. Confirmale que recibiste lo que mando, DILE CUANTO LLEVA Y CUANTO FALTA con esas tres cifras exactas, y dile que quedas esperando el resto para completar el envio. PROHIBIDO sumar ni restar tu nada: las cifras ya vienen calculadas. PROHIBIDO decir que ya se le va a transferir. PROHIBIDO decir que el envio esta completo. PROHIBIDO pedirle que reenvie lo que ya mando.');
   } else if (veredicto === 'verificado_de_mas') {
-    notas.push('EL CLIENTE DEPOSITO MAS DE LO QUE DIJO QUE IBA A ENVIAR: dijo *'
+    // ENVIO MIXTO (255): the extra money is often a SECOND service the customer already asked for (Clasica + recarga on one
+    // deposit, f8b7779c). Same detectors as above (recarga|etecsa|cubacel, combo, visa|inmigraci) over this turn's text and the
+    // customer's recent texts, plus the database flags; the operation's own service never counts as the "other" one.
+    const previosDeMas = String(ctx.muestra_idioma || '') + ' ' + texto;
+    const propioDeMas = String(ctx.riel_operacion || '');
+    const otrosDeMas = [];
+    if (propioDeMas !== 'recarga' && (ctx.recarga_en_curso || /recarga|etecsa|cubacel/i.test(previosDeMas))) { otrosDeMas.push('recarga'); }
+    if (propioDeMas !== 'combo' && (ctx.combo_en_curso || /combo/i.test(previosDeMas))) { otrosDeMas.push('combo de comida'); }
+    if (propioDeMas !== 'visa' && (ctx.visa_en_curso || /visa|inmigraci/i.test(previosDeMas))) { otrosDeMas.push('visa'); }
+    if (propioDeMas !== 'saldo' && /saldo\s+m.vil/i.test(previosDeMas)) { otrosDeMas.push('saldo movil'); }
+    if (otrosDeMas.length > 0) {
+      notas.push('EL CLIENTE DEPOSITO MAS DE LO QUE DIJO QUE IBA A ENVIAR: dijo *'
+        + fmtG(objetivoEnvio) + ' ' + monedaRafaga + '* y lleva *' + fmtG(depositado) + ' ' + monedaRafaga
+        + '*, o sea ' + fmtG(Math.abs(saldo)) + ' de mas. Ese dinero de mas PROBABLEMENTE es para otro servicio que ya pidio (' + otrosDeMas.join(', ')
+        + '). NO le digas que mando de mas ni que es un error. Confirma con el cliente como se reparte ESE deposito entre los servicios (cuantos GYD para cada uno) y, cuando te lo diga, llama repartir_envio con TODAS las partes, por ejemplo "clasica 18200, recarga 6200"; las partes tienen que sumar exactamente lo depositado. Responde con lo que devuelva la tool, sin inventar cifras. PROHIBIDO decirle que se le va a transferir antes de que la tool confirme el reparto.');
+    } else {
+      notas.push('EL CLIENTE DEPOSITO MAS DE LO QUE DIJO QUE IBA A ENVIAR: dijo *'
       + fmtG(objetivoEnvio) + ' ' + monedaRafaga + '* y lleva *' + fmtG(depositado) + ' ' + monedaRafaga
       + '*, o sea ' + fmtG(Math.abs(saldo)) + ' de mas. El envio esta en Incidencia y lo revisa una persona. PROHIBIDO decirle que se le va a transferir. PROHIBIDO decidir tu que se hace con el dinero de mas. Dile solo que recibiste su deposito, que ves que mando mas de lo que habiais hablado, y que una persona le confirma en breve como lo resuelve.');
+    }
   } else if (veredicto === 'verificado' && varios) {
     notas.push('EL CLIENTE MANDO ' + nComp + ' COMPROBANTES EN LA MISMA RAFAGA. El sistema los ha SUMADO y ha verificado los ' + nComp + ' contra el libro del banco, uno por uno, y se han dado por buenos los ' + nComp + '. EL TOTAL ES *' + totalRafaga.toLocaleString('en-US') + ' ' + monedaRafaga + '* y esa es la UNICA cifra que le puedes decir. PROHIBIDO decirle los importes por separado. PROHIBIDO sumar tu ninguna cantidad y PROHIBIDO comprobar si cuadra: la suma ya viene hecha y ya esta verificada. NO hay ninguna tool que llamar PARA LOS COMPROBANTES: solo confirmale ese TOTAL al cliente con palabras. Datos de los ' + nComp + ' comprobantes, NO se los repitas al cliente: ' + JSON.stringify(s.comprobantes));
   } else if (veredicto === 'verificado') {

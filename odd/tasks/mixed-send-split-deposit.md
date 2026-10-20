@@ -92,7 +92,7 @@ option A was one operation holding several services.
   (owner confirms first).
 
 - [x] S6 — The Decisor tells the model when the conversation has a mixed send (staging a7e3237, production n8n).
-- [ ] S7 — Panel history: completed members of a mixed send render together under the "Envío mixto" header (owner 2026-10-20, seen on f8b7779c).
+- [x] S7 — Panel history: completed members of a mixed send render together under the "Envío mixto" header (owner 2026-10-20, seen on f8b7779c).
 
 ## Acceptance criteria
 - The f8b7779c sequence ends with a Clasica operation of 18,200 GYD -> 70 USD and a recarga
@@ -214,5 +214,8 @@ S1, S2+S3, S4, S5.
   release/prod-mixed-send as 6265edf: vitest 207 / 2782 pass, tsc clean; artifact built (docker node:20) BUILD_ID
   S094S6Fe0Z1zgyQVGbesr, manifest production / hqztotshnlzaiziwjyzh. NOT deployed yet (waiting for the owner).
 
+- 2026-10-20 S7 DEPLOYED (owner "si pasalo"): production serves release 6265edf, BUILD_ID S094S6Fe0Z1zgyQVGbesr;
+  rollback release f596064 (`anterior`). release/prod-mixed-send pushed to privado.
+
 ## Next step
-Deploy 6265edf to production with desplegar-wacrm-produccion.sh after the owner's go-ahead; then tick S7.
+Owner checks f8b7779c in the production panel history (one "Envio mixto" block). Watch the first real mixed send.

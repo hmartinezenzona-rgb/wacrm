@@ -86,7 +86,7 @@ option A was one operation holding several services.
   a wrong sum is refused; ungrouped operations behave exactly as before.
 - [x] S2 — Read model: `crm_operaciones_de_conversacion` returns `mixed_group_id`; panel types.
 - [x] S3 — Panel: group display and the split editor, plus the API route (vitest RED -> GREEN).
-- [ ] S4 — Bot: `cerebro_repartir_envio` wrapper keyed by conversation, the n8n tool on staging
+- [ ] S4 — Bot (S4a DB wrapper DONE 119e710; S4b n8n tool + Decisor pending): `cerebro_repartir_envio` wrapper keyed by conversation, the n8n tool on staging
   Cerebro, and the Decisor note. Staging run of the f8b7779c conversation.
 - [ ] S5 — Production: apply 253+ to production, deploy the panel, n8n tool to production
   (owner confirms first).
@@ -129,6 +129,20 @@ S1, S2+S3, S4, S5.
   touched dirs; parent spot check 55 files / 911 tests pass. Not verified: the UI in a browser; Cancel/Escape of the
   form in the card tests.
 
+- 2026-10-20 S4a DONE on STAGING (119e710, migration 255): `cerebro_repartir_envio(p_conv, p_partes text,
+  p_execution)` parses "clasica 18200, recarga 6200" (also "18.200 clasica y 6,200 recarga", saldo movil -> saldo),
+  finds the anchor (grouped / with deposit / newest with amount), and answers in Spanish (summary with destination
+  amounts and group state; refusals with the server reason; "no entendi"; no deposit). Reuses the 230/231 pattern:
+  body moved to internal `_repartir_envio_core` (all API roles revoked); `crm_repartir_envio` keeps signature/grants
+  and its membership check; the wrapper sets wacrm.origin=admin + wacrm.actor=automation:cerebro_repartir_envio for the
+  call only, so shares are locked by the bot and audited as `automation_mixed_split` (added to the audit CHECK). One
+  tool_execution_log row per call. RED seen (function missing); GREEN; related 11 SAME. Parent spot check: the 253, 254
+  and 255 assertions all ALL PASS on staging. Staging md5: cerebro_repartir_envio 7ca841b8, _repartir_envio_core
+  9dd93c98, crm_repartir_envio 5f70660f. Limits: amounts up to 999,999 with separators.
+- 2026-10-20 owner authorized testing the panel on staging; run locally (localhost:3100) against staging Supabase,
+  fixture conversation "PRUEBA envio mixto" (763c248e: remesa 32faf8f9 24,400 incident / 93 USD, recarga cf76cdee) —
+  delete after the test.
+
 ## Next step
-S4: bot wrapper keyed by conversation (must run with a human/admin context so the 096 guard locks the shares), n8n
+Panel test in the browser (owner logs in), then S4b: bot wrapper keyed by conversation (must run with a human/admin context so the 096 guard locks the shares), n8n
 tool on staging Cerebro, Decisor note. Coordinate with the prompt session before editing the staging workflow.

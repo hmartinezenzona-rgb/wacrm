@@ -48,7 +48,7 @@ touch `~/cerebro-fase1/pruebas/evals/` until this document says done (engram #49
 ## Tasks
 - [x] E0 — Harness under git, current state as the first commit.
 - [x] E1 — Replication, tokens, metadata, aggregator (unit tests RED -> GREEN, one real run).
-- [ ] E2 — Replicated baseline of the production prompt.
+- [x] E2 — Replicated baseline of the production prompt (informe-20261019-181016).
 - [ ] E3 — Fresh cases from current traffic: generator + sheet DONE; owner arbitration PENDING.
 - [x] E4 — 2026-10-19 bug classes: DB layer covered by staging assertions (247-250); the real model turn (reg-475460) is in the arbitration sheet.
 
@@ -96,6 +96,17 @@ touch `~/cerebro-fase1/pruebas/evals/` until this document says done (engram #49
   reg-475460-beneficiario-zelle: the model followed the tool's handoff result correctly; the defect was
   in the DB layer, already covered by the 247-250 staging assertions. No invented expectations.
 
+- 2026-10-19 E2 DONE: `informe-20261019-181016` (+ .meta.json). 48 runnable cases x 5 reps = 240 runs,
+  0 execution errors. Prompt md5 e58316d2 (56,126 chars), workflow jEzlVLCLUaJhVwzs version ec50cade,
+  battery md5 6bab9431, model deepseek-flash, harness c550fa5. Duration 77 min.
+  Result: 40 stable green, 4 unstable, 4 stable red.
+  Stable red (0/5): reg-27065 and reg-28021 multi-herramienta (call the forbidden calcular_envio),
+  reg-32454 calculo-desde-contexto (missing 30000), reg-32635 (never calls registrar_beneficiario_zelle).
+  Unstable: reg-32598-otros 1/5; reg-24612, reg-25682 servicios and reg-27129 beneficiario-zelle 4/5.
+  Tokens: 7,981,974 in / 107,664 out; mean 33,258 input tokens per run (range ~21k-66k per case).
+  Caveat: these cases still carry August contexts (see E3 analysis); stable reds may be stale
+  expectations rather than model faults, to be checked against the arbitrated battery.
+
 ## Next step
-E2 results. Then the owner arbitrates PARA-ARBITRAR-2026-10-19.md; arbitrated cases join the gold
+Owner arbitration of PARA-ARBITRAR-2026-10-19.md. Then the owner arbitrates PARA-ARBITRAR-2026-10-19.md; arbitrated cases join the gold
 battery and the replicated baseline is rerun on the new battery.

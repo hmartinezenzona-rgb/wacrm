@@ -389,11 +389,16 @@ BEGIN
       v_target := v_anchor_id;
     ELSE
       -- An open operation of that service in the conversation, not in another group: the group's own first, then the newest.
+      -- An ungrouped one that already holds money of its own (a deposit or a receipt) is never reused: its money would
+      -- join the group and be re-priced. A fresh operation is created instead.
       SELECT o.id INTO v_target
         FROM remittance_operations o
        WHERE o.conversation_id = v_anchor.conversation_id
          AND o.status NOT IN ('completed', 'cancelled')
-         AND (o.mixed_group_id IS NULL OR o.mixed_group_id = v_anchor_id)
+         AND (o.mixed_group_id = v_anchor_id
+              OR (o.mixed_group_id IS NULL
+                  AND NOT EXISTS (SELECT 1 FROM depositos_mmg d WHERE d.operation_id = o.id AND d.anulado_en IS NULL)
+                  AND NOT EXISTS (SELECT 1 FROM remittance_operation_receipts rr WHERE rr.operation_id = o.id)))
          AND cerebro_riel_op(o.id) = v_key
        ORDER BY (o.mixed_group_id IS NOT NULL) DESC, o.created_at DESC
        LIMIT 1

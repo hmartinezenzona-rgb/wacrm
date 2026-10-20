@@ -247,6 +247,26 @@ BEGIN
   IF v_cr.resultado <> 'verificado_incompleto' OR (SELECT status FROM remittance_operations WHERE id = v_rec) <> 'collecting_information' THEN
     RAISE EXCEPTION 'case 6b: a partial payment must leave the sibling untouched, got % / %', v_cr.resultado, (SELECT status FROM remittance_operations WHERE id = v_rec); END IF;
 
+  -- ---- 7. AN OPERATION WITH ITS OWN MONEY IS NEVER REUSED ---------------------------------------------------------------
+  -- A recarga already paid by its own deposit must keep its money: the split creates a fresh recarga instead of
+  -- re-pricing it (otherwise its deposit joins the group and the group saldo goes negative).
+  SELECT * INTO c FROM pg_temp.t253_conv(30);
+  v_rem := pg_temp.t253_op(c, 'incident', 'remesa', 'clasica', 24400);
+  PERFORM pg_temp.t253_dep(v_rem, 24400, 30, true);
+  v_rec := pg_temp.t253_op(c, 'ready_to_transfer', 'recarga', NULL, 6200);
+  PERFORM pg_temp.t253_dep(v_rec, 6200, 31, true);
+  PERFORM pg_temp.t253_as(c.usr);
+  v_r := crm_repartir_envio(v_rem, '[{"servicio":"clasica","monto_gyd":18200},{"servicio":"recarga","monto_gyd":6200}]'::jsonb);
+  SELECT * INTO v_o FROM remittance_operations WHERE id = v_rec;
+  IF v_o.mixed_group_id IS NOT NULL OR v_o.quoted_source_amount <> 6200 OR v_o.status <> 'ready_to_transfer' THEN
+    RAISE EXCEPTION 'case 7: the paid recarga must stay outside the group, untouched: % % %', v_o.mixed_group_id, v_o.quoted_source_amount, v_o.status; END IF;
+  IF NOT EXISTS (SELECT 1 FROM jsonb_array_elements(v_r -> 'partes') p
+                  WHERE p ->> 'servicio' = 'recarga' AND (p ->> 'creada')::boolean AND (p ->> 'operation_id')::uuid <> v_rec) THEN
+    RAISE EXCEPTION 'case 7: a fresh recarga must be created: %', v_r; END IF;
+  SELECT * INTO v_s FROM cerebro_saldo_operacion(v_rem);
+  IF v_s.saldo <> 0 OR v_s.depositado <> 24400 THEN
+    RAISE EXCEPTION 'case 7: the group must hold only its own deposit, got %/%', v_s.depositado, v_s.saldo; END IF;
+
   RAISE EXCEPTION 'ALL PASS (rolled back on purpose)';
 END $$;
 ROLLBACK;

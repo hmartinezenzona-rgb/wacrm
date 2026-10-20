@@ -84,8 +84,8 @@ option A was one operation holding several services.
   `crm_repartir_envio`, sibling status in `cerebro_cruzar_depositos`. Assertion replays f8b7779c:
   24,400 split into 18,200 Clasica (70 USD) and 6,200 recarga leaves both ready, with no incident;
   a wrong sum is refused; ungrouped operations behave exactly as before.
-- [ ] S2 — Read model: `crm_operaciones_de_conversacion` returns `mixed_group_id`; panel types.
-- [ ] S3 — Panel: group display and the split editor, plus the API route (vitest RED -> GREEN).
+- [x] S2 — Read model: `crm_operaciones_de_conversacion` returns `mixed_group_id`; panel types.
+- [x] S3 — Panel: group display and the split editor, plus the API route (vitest RED -> GREEN).
 - [ ] S4 — Bot: `cerebro_repartir_envio` wrapper keyed by conversation, the n8n tool on staging
   Cerebro, and the Decisor note. Staging run of the f8b7779c conversation.
 - [ ] S5 — Production: apply 253+ to production, deploy the panel, n8n tool to production
@@ -118,5 +118,17 @@ S1, S2+S3, S4, S5.
   without it (pre-existing). Audit uses action human_correction, field_name mixed_split.
   Open for S4: the bot path must run with a human/admin context or the 096 guard will not lock the shares.
 
+- 2026-10-20 S2 DONE (260b1c2): migration 254 (crm_operaciones_de_conversacion returns mixed_group_id) + ROLLBACK +
+  assertion `operaciones-mixed-group-id.sql`, applied on STAGING (md5 720398ef); read-model `mixedGroupId`.
+- 2026-10-20 S3 DONE (5957c86): POST /api/remittance-operations/[operationId]/split -> crm_repartir_envio
+  (22023->400, 42501->403, 404); command `repartirEnvio`; mixed-send block (header with total + shares); split form
+  (rows of service + GYD, live assigned/total, submit only when exact and >=2 rows; "20.000" read as 20000); "Split"
+  action on every open editable card. A first writer was stopped by accident mid-task; the second resumed its files.
+  RED seen for the block, card-split and container-grouping tests (route/command/helpers/form tests were already
+  written by the first writer). Checks: npm test 211 files / 2848 tests pass; tsc --noEmit clean; eslint clean on the
+  touched dirs; parent spot check 55 files / 911 tests pass. Not verified: the UI in a browser; Cancel/Escape of the
+  form in the card tests.
+
 ## Next step
-S2+S3: read model returns mixed_group_id; panel group display and split editor with its API route.
+S4: bot wrapper keyed by conversation (must run with a human/admin context so the 096 guard locks the shares), n8n
+tool on staging Cerebro, Decisor note. Coordinate with the prompt session before editing the staging workflow.

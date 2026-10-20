@@ -50,7 +50,8 @@ touch `~/cerebro-fase1/pruebas/evals/` until this document says done (engram #49
 - [x] E1 — Replication, tokens, metadata, aggregator (unit tests RED -> GREEN, one real run).
 - [x] E2 — Replicated baseline of the production prompt (informe-20261019-181016).
 - [x] E3 — Fresh cases from current traffic: generator, sheet, owner arbitration, promotion (harness 5c2a296).
-- [ ] E5 — Replicated baseline of the 57 promoted cases (running).
+- [x] E5 — Replicated baseline of the 57 promoted cases (informe-20261019-213524).
+- [ ] E6 — Review the 7 stable reds and 9 unstable of E5: expectation too literal vs missing history vs real fault.
 - [x] E4 — 2026-10-19 bug classes: DB layer covered by staging assertions (247-250); the real model turn (reg-475460) is in the arbitration sheet.
 
 ## Acceptance criteria
@@ -120,5 +121,16 @@ touch `~/cerebro-fase1/pruebas/evals/` until this document says done (engram #49
 - 2026-10-19 E5 started: only the 57 new cases x 5 (the 48 old ones already have today's baseline
   on the same prompt version), log `informes/linea-base-nuevos-20261019.log`.
 
+- 2026-10-19 E5 DONE: `informe-20261019-213524`, 57 cases x 5 = 285 runs, 0 errors, 86 min, same prompt
+  (e58316d2) and workflow version (ec50cade) as E2. 41 stable green, 9 unstable, 7 stable red.
+  Tokens 8,807,438 in / 176,654 out (mean 30,903 per run). Pure "Ok" SKIP cases: 477913 and 477901 5/5;
+  478178 1/5 (answers despite the Decisor SKIP note: a real model fault, reproducible).
+  Stable reds read against the production answer: most eval answers are acceptable, the failure is the
+  pre-annotation (it requires EVERY tool and figure seen in production: 476167, 478153, 477206) or the
+  missing conversation history (477891 "100", 474015 "los 600 zelle", 474079). Not counted as model
+  faults until E6.
+  Battery baseline = E2 + E5 reports (48 + 57 runnable cases).
+
 ## Next step
-E5 results; together with informe-20261019-181016 they form the baseline of the 117-case battery.
+E6: per stable red / unstable case, decide expectation fix (drop non-essential obligatorias and cifras),
+history needed (mark historial_requerido), or real fault (keep).

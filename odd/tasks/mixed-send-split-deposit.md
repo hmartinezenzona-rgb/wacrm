@@ -88,8 +88,10 @@ option A was one operation holding several services.
 - [x] S3 — Panel: group display and the split editor, plus the API route (vitest RED -> GREEN).
 - [x] S4 — Bot (S4a 119e710, S4b d74fd5b; on staging): `cerebro_repartir_envio` wrapper keyed by conversation, the n8n tool on staging
   Cerebro, and the Decisor note. Staging run of the f8b7779c conversation.
-- [ ] S5 — Production: apply 253+ to production, deploy the panel, n8n tool to production
+- [~] S5 — Production (DB + panel DONE 2026-10-20; n8n pending with S6): apply 253+ to production, deploy the panel, n8n tool to production
   (owner confirms first).
+
+- [ ] S6 — The Decisor tells the model when the conversation has a mixed send (staging first, then production n8n).
 
 ## Acceptance criteria
 - The f8b7779c sequence ends with a Clasica operation of 18,200 GYD -> 70 USD and a recarga
@@ -161,7 +163,28 @@ S1, S2+S3, S4, S5.
   versionId = activeVersionId f1b55fb3 (parent check). Backup: scratchpad staging-cerebro-before-S4b.json (version
   08ae4ef7). Not verified: a real model turn calling the tool.
 
+- 2026-10-20 S6 added (owner): the system must tell the bot when a conversation has a mixed send ("ENVIO MIXTO" note;
+  the Decisor needs mixed_group_id from the "Contexto conversacion" query).
+- 2026-10-20 S5 DB DONE (owner: "pasa a produccion, dale"): before applying, production bodies of
+  cerebro_saldo_operacion / cerebro_cruzar_depositos equal staging's pre-253 (d47a1000 / 8fd96685);
+  crm_operaciones_de_conversacion differs only in whitespace (normalized md5 06dfdc09 both); audit CHECK equal
+  (c275d981); dependencies equal (normalized md5 of riel_op, calcular_monto_destino, objetivo_cerrar_op,
+  current_actor, is_account_member, lock_guard, cambiar_servicio). Applied 253, 254, 255 via Supabase MCP
+  (schema_migrations 20261020222555 / 222846 / 223018). After: all 7 functions equal staging md5 + grants
+  (saldo 1d55e05a, cruzar 435289d4, operaciones 720398ef, crm_repartir 5f70660f, core 9dd93c98, cerebro_repartir
+  7ca841b8, parse cd41fbd6). No postgres errors since. No dump was taken before (changes are function
+  replacements + one nullable column; ROLLBACK files exist).
+- 2026-10-20 S5 APP DONE: HEAD could NOT ship as is — it also carries CUP inventory phases 2/3 + recharge cost UI
+  (4837440, e80f236, 1c2419d, 1bc6568, de53cb9) whose migrations 240-242 are NOT in production and are blocked on
+  Osmany's real CUP balances (handoff #483). Built a release branch `release/prod-mixed-send` in
+  ~/wacrm-worktrees/prod-build = b6f1a1c (production) + cherry-picks of 260b1c2 and 5957c86 (no conflicts) =
+  f596064. Checks there: vitest 207 files / 2774 tests pass; tsc clean (after clearing stale .next/types). Built in
+  docker node:20 (host has node 26), manifest production / hqztotshnlzaiziwjyzh. Deployed with
+  desplegar-wacrm-produccion.sh: production serves BUILD_ID 7xTCgSpcx-n4AaUh_l-Ye; rollback release b6f1a1c kept
+  (`anterior`).
+
 ## Next step
-S5 production, after the owner confirms: apply 253, 254, 255 to production (md5 must equal staging), deploy the panel,
+S6 on staging (ENVIO MIXTO note), then production n8n: tool repartir_envio + Decisor (S4b + S6) on
+jEzlVLCLUaJhVwzs with a backup first. Owner confirmed production for this feature on 2026-10-20.: apply 253, 254, 255 to production (md5 must equal staging), deploy the panel,
 then the n8n tool + Decisor on the production Cerebro. Optional before: a real chat turn on staging. bot wrapper keyed by conversation (must run with a human/admin context so the 096 guard locks the shares), n8n
 tool on staging Cerebro, Decisor note. Coordinate with the prompt session before editing the staging workflow.

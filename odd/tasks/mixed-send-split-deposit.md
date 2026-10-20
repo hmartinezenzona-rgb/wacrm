@@ -92,6 +92,7 @@ option A was one operation holding several services.
   (owner confirms first).
 
 - [x] S6 — The Decisor tells the model when the conversation has a mixed send (staging a7e3237, production n8n).
+- [ ] S7 — Panel history: completed members of a mixed send render together under the "Envío mixto" header (owner 2026-10-20, seen on f8b7779c).
 
 ## Acceptance criteria
 - The f8b7779c sequence ends with a Clasica operation of 18,200 GYD -> 70 USD and a recarga
@@ -202,7 +203,10 @@ S1, S2+S3, S4, S5.
   af1e5e40 == repo, versionId == activeVersionId cb36f03b. Backup: scratchpad prod-cerebro-before-S4b-S6-20261020-164052.json
   (version ec50cade). Watching the first production execution after the deploy.
 
+- 2026-10-20 production data fix of f8b7779c (engram #513): Clasica 18,200 -> 70 USD, recarga 6,200 to 55359776,
+  grouped; ledger CLASICA voided + re-fed (70 USD, retorno 1,400); recarga closed manually silently (RECARGA line
+  retorno 656). Owner then saw them as TWO operations in the panel: grouping applied only to OPEN operations
+  (groupOpenOperations); completed ones render one by one in "Historial". -> S7.
+
 ## Next step
-Confirm the first production executions after cb36f03b run without errors (Contexto conversacion, Decisor). Then:
-watch the first real mixed send (tool_execution_log tool 'repartir_envio', audit automation_mixed_split). UX later:
-show the destination amount (USD) in the mixed-send header.
+S7 (TDD, feature branch), cherry-pick onto release/prod-mixed-send, build, deploy after the owner's go-ahead.

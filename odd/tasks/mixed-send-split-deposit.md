@@ -88,10 +88,10 @@ option A was one operation holding several services.
 - [x] S3 — Panel: group display and the split editor, plus the API route (vitest RED -> GREEN).
 - [x] S4 — Bot (S4a 119e710, S4b d74fd5b; on staging): `cerebro_repartir_envio` wrapper keyed by conversation, the n8n tool on staging
   Cerebro, and the Decisor note. Staging run of the f8b7779c conversation.
-- [~] S5 — Production (DB + panel DONE 2026-10-20; n8n pending with S6): apply 253+ to production, deploy the panel, n8n tool to production
+- [x] S5 — Production (DB, panel and n8n, 2026-10-20): apply 253+ to production, deploy the panel, n8n tool to production
   (owner confirms first).
 
-- [ ] S6 — The Decisor tells the model when the conversation has a mixed send (staging first, then production n8n).
+- [x] S6 — The Decisor tells the model when the conversation has a mixed send (staging a7e3237, production n8n).
 
 ## Acceptance criteria
 - The f8b7779c sequence ends with a Clasica operation of 18,200 GYD -> 70 USD and a recarga
@@ -193,8 +193,16 @@ S1, S2+S3, S4, S5.
   nodes, only Contexto conversacion + Decisor changed, Decisor md5 == repo; the live query ran (rolled back) on staging DB.
   Backups: scratchpad staging-cerebro-before-S6.json / after-S6.json. Not verified: a real model turn.
 
+- 2026-10-20 S5 n8n DONE: production Cerebro jEzlVLCLUaJhVwzs via scratchpad deploy_prod_s4b_s6.py. Guards: prod Decisor
+  md5 before 755d484d (= staging pre-S4b); repartir_envio cloned from PRODUCTION's cambiar_servicio (credential
+  "Supabase Account"). Production "Contexto conversacion" query is NOT identical to staging's (staging has extra fields
+  catalogo_servicios / monto_recibe; different order) but has the same alias `v` and the `AS servicio_pendiente` anchor;
+  the envio_mixto fragment was run on the production DB in a minimal query with alias v (returns null for an ungrouped
+  conversation) before the PUT. Result: 126 -> 127 nodes, changed only Contexto conversacion + Decisor, Decisor md5
+  af1e5e40 == repo, versionId == activeVersionId cb36f03b. Backup: scratchpad prod-cerebro-before-S4b-S6-20261020-164052.json
+  (version ec50cade). Watching the first production execution after the deploy.
+
 ## Next step
-S6 on staging (ENVIO MIXTO note), then production n8n: tool repartir_envio + Decisor (S4b + S6) on
-jEzlVLCLUaJhVwzs with a backup first. Owner confirmed production for this feature on 2026-10-20.: apply 253, 254, 255 to production (md5 must equal staging), deploy the panel,
-then the n8n tool + Decisor on the production Cerebro. Optional before: a real chat turn on staging. bot wrapper keyed by conversation (must run with a human/admin context so the 096 guard locks the shares), n8n
-tool on staging Cerebro, Decisor note. Coordinate with the prompt session before editing the staging workflow.
+Confirm the first production executions after cb36f03b run without errors (Contexto conversacion, Decisor). Then:
+watch the first real mixed send (tool_execution_log tool 'repartir_envio', audit automation_mixed_split). UX later:
+show the destination amount (USD) in the mixed-send header.

@@ -51,7 +51,8 @@ touch `~/cerebro-fase1/pruebas/evals/` until this document says done (engram #49
 - [x] E2 — Replicated baseline of the production prompt (informe-20261019-181016).
 - [x] E3 — Fresh cases from current traffic: generator, sheet, owner arbitration, promotion (harness 5c2a296).
 - [x] E5 — Replicated baseline of the 57 promoted cases (informe-20261019-213524).
-- [ ] E6 — Review the 7 stable reds and 9 unstable of E5: expectation too literal vs missing history vs real fault.
+- [x] E6 — Review of the E5 reds: expectations fixed, history cases marked, real faults kept (harness 4e5de31, next commit).
+- [ ] E7 — Owner replays the remaining real faults by chat in staging (pending: staging prompt differs from production).
 - [x] E4 — 2026-10-19 bug classes: DB layer covered by staging assertions (247-250); the real model turn (reg-475460) is in the arbitration sheet.
 
 ## Acceptance criteria
@@ -131,6 +132,22 @@ touch `~/cerebro-fase1/pruebas/evals/` until this document says done (engram #49
   faults until E6.
   Battery baseline = E2 + E5 reports (48 + 57 runnable cases).
 
+- 2026-10-20 E6 DONE. Family label fix (harness 4e5de31, tests 38/38): tool-less turns were all called
+  `calculo-desde-contexto` (rule: no tool + a digit; TASAS DE HOY is in every context). Now
+  `datos-ya-guardados` (Decisor says YA ESTA REGISTRADO), `calculo-desde-contexto` (CALCULO A HACER),
+  `numeros-sin-herramienta`; the 11 promoted cases relabelled (ids unchanged).
+  KEY FINDING, verified in production: in every "did not call the registration tool" red
+  (476167, 476166, 477206, 477535, 474455, 474509, 474285) the data had ALREADY been saved by the system
+  (remittance_beneficiaries source notes_parse / reparto_auto); for 476167 the Decisor even said "NO hay
+  ninguna tool". Production's tool call was redundant; the pre-annotation copied it as obligatory.
+  Expectation fixes (previous one kept as `esperado_antes_e6`): registration tools to permitidas, the
+  saved datum must appear in the answer; non-essential figures dropped (13000, 100, 29000, phone
+  format); 478153 must ask (no numbers in the message). History required (skipped): 477891, 474015, 474079.
+  Rescored E5 answers without rerunning: 49 stable green, 5 unstable, 3 skipped, 0 stable red.
+  Real faults left: 478178 (answers a pure "Ok" despite the SKIP note) 1/5; 474455 ("Luis Proenza" not
+  taken as the Zelle holder) 2/5; 475982 ("cinco mil pesos": asks CUP or GYD instead of assuming) 1/5 —
+  this one may be the prompt's ambiguity rule, owner to decide; 475593, 474949 4/5.
+
 ## Next step
-E6: per stable red / unstable case, decide expectation fix (drop non-essential obligatorias and cifras),
-history needed (mark historial_requerido), or real fault (keep).
+E7: the owner replays 478178, 474455 and 475982 by chat in staging. Blocker: the staging Cerebro prompt
+(22df00c2, 51,622 chars) is not production's (c509c572, 56,545 chars); Decisor and tools are equal.

@@ -80,7 +80,7 @@ option A was one operation holding several services.
   `npm test` (vitest).
 
 ## Tasks
-- [ ] S1 — DB core (migration 253): `mixed_group_id`, group-aware `cerebro_saldo_operacion`,
+- [x] S1 — DB core (migration 253): `mixed_group_id`, group-aware `cerebro_saldo_operacion`,
   `crm_repartir_envio`, sibling status in `cerebro_cruzar_depositos`. Assertion replays f8b7779c:
   24,400 split into 18,200 Clasica (70 USD) and 6,200 recarga leaves both ready, with no incident;
   a wrong sum is refused; ungrouped operations behave exactly as before.
@@ -108,5 +108,15 @@ S1, S2+S3, S4, S5.
   `cerebro_saldo_operacion`, `cerebro_cruzar_depositos`, `crm_corregir_operacion` and
   `cerebro_estado_desde_etapa`.
 
+- 2026-10-20 S1 DONE on STAGING (not production): commits cabcd65 + fix (reuse guard). Migration 253 +
+  ROLLBACK-253 + assertion `mixed-send-split-deposit.sql` (cases: f8b7779c replay, refusals, creation of a missing
+  operation, re-split through a member, ungrouped saldo unchanged, 42501 for non-members, late cross-check readies the
+  siblings and a partial payment does not, an operation with its own deposit/receipt is never reused). RED observed
+  (function missing; then case 7 RED before the reuse guard), GREEN after; rollback proven inside a rolled-back
+  transaction. Staging md5: cerebro_saldo_operacion 1d55e05a, cerebro_cruzar_depositos 435289d4, crm_repartir_envio
+  be970c57. Related assertions (86, with/without 253): no regression; several fail identically on staging with or
+  without it (pre-existing). Audit uses action human_correction, field_name mixed_split.
+  Open for S4: the bot path must run with a human/admin context or the 096 guard will not lock the shares.
+
 ## Next step
-S1.
+S2+S3: read model returns mixed_group_id; panel group display and split editor with its API route.

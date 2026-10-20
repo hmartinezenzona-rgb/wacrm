@@ -49,7 +49,8 @@ touch `~/cerebro-fase1/pruebas/evals/` until this document says done (engram #49
 - [x] E0 — Harness under git, current state as the first commit.
 - [x] E1 — Replication, tokens, metadata, aggregator (unit tests RED -> GREEN, one real run).
 - [x] E2 — Replicated baseline of the production prompt (informe-20261019-181016).
-- [ ] E3 — Fresh cases from current traffic: generator + sheet DONE; owner arbitration PENDING.
+- [x] E3 — Fresh cases from current traffic: generator, sheet, owner arbitration, promotion (harness 5c2a296).
+- [ ] E5 — Replicated baseline of the 57 promoted cases (running).
 - [x] E4 — 2026-10-19 bug classes: DB layer covered by staging assertions (247-250); the real model turn (reg-475460) is in the arbitration sheet.
 
 ## Acceptance criteria
@@ -107,6 +108,17 @@ touch `~/cerebro-fase1/pruebas/evals/` until this document says done (engram #49
   Caveat: these cases still carry August contexts (see E3 analysis); stable reds may be stale
   expectations rather than model faults, to be checked against the arbitrated battery.
 
+- 2026-10-19 E3 DONE (harness 5c2a296, tests 33/33): owner answered 59/60. `ascender_arbitraje.py`
+  (pure, refuses a candidate without verdict or an id already in gold) + `casos/veredictos-2026-10-19.json`.
+  Gold 60 -> 117: 54 as-is, 3 corrected to SKIP (pure "Ok": 477913, 477901, 478178 — the last one
+  ignored a Decisor SKIP note), 3 pending (478137 no answer, 478635 owner wants detail, 475460 context
+  came from the DB bug fixed in 247-250). The 12 "did not use tools" remarks: verified in production that
+  the system had already saved those data (remittance_beneficiaries source notes_parse/reparto_auto)
+  and the Decisor told the model so; not a fault. 474505: the number arrived 18 s later in a separate
+  message (evidence for one-turn-per-burst). Sheet marked PROCESSED. Pre-promotion gold kept in the
+  session scratchpad.
+- 2026-10-19 E5 started: only the 57 new cases x 5 (the 48 old ones already have today's baseline
+  on the same prompt version), log `informes/linea-base-nuevos-20261019.log`.
+
 ## Next step
-Owner arbitrates PARA-ARBITRAR-2026-10-19.md; arbitrated cases join the gold
-battery and the replicated baseline is rerun on the new battery.
+E5 results; together with informe-20261019-181016 they form the baseline of the 117-case battery.

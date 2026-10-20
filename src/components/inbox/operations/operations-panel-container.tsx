@@ -8,6 +8,8 @@ import { createClient } from "@/lib/supabase/client";
 import { Skeleton } from "@/components/dashboard/skeleton";
 import { readPrefetchedConversationOperations } from "@/lib/remittance-operations/panel-prefetch";
 import type { ConversationOperationsRead } from "@/lib/remittance-operations/types";
+import { groupOpenOperations } from "./mixed-groups";
+import { MixedSendBlock } from "./mixed-send-block";
 import { RemittanceOperationCard } from "./remittance-operation-card";
 import { otherOpenOperationsFor } from "./reassign-targets";
 
@@ -270,24 +272,34 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
             {t("title")}
           </h3>
           <div className="space-y-2">
-            {openOperations.map((operation, index) => (
-              <RemittanceOperationCard
-                key={operation.id}
-                operation={operation}
-                canEdit={canEdit}
-                role={accountRole}
-                otherOpenOperations={otherOpenOperationsFor(operation, openOperations)}
-                onChanged={() => silentLoad(conversationId)}
-                expanded={expandedId === operation.id}
-                onToggle={toggleHandlerFor(operation.id)}
-                conversationId={conversationId}
-                refreshToken={refreshToken}
-                initialReceipts={data.receiptsByOperationId?.[operation.id]}
-                // The quote belongs to the conversation, not to one
-                // operation: show it once, on the newest open card.
-                quote={index === 0 ? data.quote : null}
-              />
-            ))}
+            {groupOpenOperations(openOperations, data.operations).map((block) => {
+              const cards = block.operations.map((operation) => (
+                <RemittanceOperationCard
+                  key={operation.id}
+                  operation={operation}
+                  canEdit={canEdit}
+                  role={accountRole}
+                  otherOpenOperations={otherOpenOperationsFor(operation, openOperations)}
+                  onChanged={() => silentLoad(conversationId)}
+                  expanded={expandedId === operation.id}
+                  onToggle={toggleHandlerFor(operation.id)}
+                  conversationId={conversationId}
+                  refreshToken={refreshToken}
+                  initialReceipts={data.receiptsByOperationId?.[operation.id]}
+                  mixedMembers={block.members}
+                  // The quote belongs to the conversation, not to one
+                  // operation: show it once, on the newest open card.
+                  quote={operation.id === openOperations[0]?.id ? data.quote : null}
+                />
+              ));
+              return block.grouped ? (
+                <MixedSendBlock key={block.members[0]!.mixedGroupId} members={block.members}>
+                  {cards}
+                </MixedSendBlock>
+              ) : (
+                cards
+              );
+            })}
           </div>
         </>
       )}

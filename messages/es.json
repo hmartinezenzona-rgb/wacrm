@@ -424,6 +424,23 @@
         "saved": "Servicio cambiado",
         "failed": "No se pudo cambiar el servicio: {message}"
       },
+      "mixedSend": {
+        "title": "Envío mixto",
+        "total": "Depósito de {amount} GYD",
+        "share": "{service} · {amount} GYD"
+      },
+      "splitDeposit": {
+        "button": "Repartir depósito",
+        "title": "Repartir depósito",
+        "service": "Servicio",
+        "amount": "Monto (GYD)",
+        "addPart": "Agregar un servicio",
+        "removePart": "Quitar este servicio",
+        "assigned": "Asignado {assigned} de {total} GYD",
+        "confirm": "Repartir",
+        "saved": "Depósito repartido",
+        "failed": "No se pudo repartir el depósito: {message}"
+      },
       "comboCost": {
         "label": "Costo del combo (GYD)",
         "clear": "Borrar",

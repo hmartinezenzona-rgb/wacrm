@@ -3,7 +3,7 @@
 import { useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useServiceName } from "@/hooks/use-service-name";
-import { ArrowRightLeft, AtSign, Banknote, ChevronDown, CreditCard, Lock, MapPin, Pencil, Phone, Trash2, UserPlus, UserRound, Users } from "lucide-react";
+import { ArrowRightLeft, AtSign, Banknote, ChevronDown, CreditCard, Lock, MapPin, Pencil, Phone, Split, Trash2, UserPlus, UserRound, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { canForceVerify, type AccountRole } from "@/lib/auth/roles";
 import { corregirBeneficiario } from "@/lib/remittance-operations/commands";
@@ -30,6 +30,7 @@ import type { SummaryAmount } from "./deposit-review-section";
 import { ConfirmCancelButtons } from "./confirm-cancel-buttons";
 import { InlineEditField } from "./inline-edit-field";
 import { OperationClosingControl } from "./operation-closing-control";
+import { SplitDepositForm } from "./split-deposit-form";
 import { KNOWN_BENEFICIARY_TYPES, StatusChip } from "./operation-icons";
 import { formatNumber } from "@/lib/format-number";
 
@@ -88,6 +89,8 @@ interface RemittanceOperationCardProps {
    *  before any deposit. The container hands it to a single open card;
    *  never rendered on a history operation. */
   quote?: ConversationQuoteRead | null;
+  /** The operations sharing this one's deposit (a mixed send), for the split editor; the operation alone when omitted. */
+  mixedMembers?: RemittanceOperationRead[];
 }
 
 /** The RPC never returns these (see types.ts), but the correction API can
@@ -102,7 +105,7 @@ const NOT_DELETABLE_STATUSES: ReadonlyArray<string> = ["completed", "cancelled",
  *  (`crm_cerrar_operacion_manual`, migration 190). */
 const MANUALLY_CLOSABLE_STATUSES: ReadonlyArray<string> = ["ready_to_transfer", "transferring"];
 
-type OpenFormKind = "operation" | "beneficiary" | "reassign" | "complete" | "addBeneficiary" | "close" | "delete";
+type OpenFormKind = "operation" | "beneficiary" | "reassign" | "complete" | "addBeneficiary" | "close" | "delete" | "split";
 
 interface OpenFormState {
   kind: OpenFormKind;
@@ -379,6 +382,7 @@ export function RemittanceOperationCard({
   refreshToken,
   initialReceipts,
   quote,
+  mixedMembers,
 }: RemittanceOperationCardProps) {
   const t = useTranslations("Inbox.operationsPanel");
   const serviceName = useServiceName();
@@ -476,6 +480,18 @@ export function RemittanceOperationCard({
               type="button"
               variant="ghost"
               size="icon-xs"
+              aria-label={t("splitDeposit.button")}
+              title={t("splitDeposit.button")}
+              onClick={() => toggleForm({ kind: "split" })}
+            >
+              <Split aria-hidden="true" />
+            </Button>
+          )}
+          {editable && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
               aria-label={t("editOperation")}
               title={t("editOperation")}
               onClick={() => toggleForm({ kind: "operation" })}
@@ -558,6 +574,15 @@ export function RemittanceOperationCard({
         <div className="mt-[22px] space-y-2.5">
           {openForm?.kind === "operation" && (
             <OperationCorrectionForm operation={operation} onDone={handleChanged} onCancel={() => setOpenForm(null)} />
+          )}
+
+          {openForm?.kind === "split" && (
+            <SplitDepositForm
+              operationId={operation.id}
+              members={mixedMembers ?? [operation]}
+              onDone={handleChanged}
+              onCancel={() => setOpenForm(null)}
+            />
           )}
 
           {openForm?.kind === "delete" && (

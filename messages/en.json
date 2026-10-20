@@ -424,6 +424,23 @@
         "saved": "Service changed",
         "failed": "Could not change the service: {message}"
       },
+      "mixedSend": {
+        "title": "Mixed send",
+        "total": "{amount} GYD deposit",
+        "share": "{service} · {amount} GYD"
+      },
+      "splitDeposit": {
+        "button": "Split deposit",
+        "title": "Split deposit",
+        "service": "Service",
+        "amount": "Amount (GYD)",
+        "addPart": "Add a service",
+        "removePart": "Remove this service",
+        "assigned": "Assigned {assigned} of {total} GYD",
+        "confirm": "Split",
+        "saved": "Deposit split",
+        "failed": "Could not split the deposit: {message}"
+      },
       "comboCost": {
         "label": "Combo cost (GYD)",
         "clear": "Clear",

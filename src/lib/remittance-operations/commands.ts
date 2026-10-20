@@ -322,6 +322,39 @@ export async function cambiarServicio(
   return { ok: true, service: response.data.service, changed: response.data.changed };
 }
 
+export interface SplitDepositPart {
+  service: string;
+  amountGyd: number;
+}
+
+export interface SplitDepositSummary {
+  /** The group id: the id of the operation that holds the deposit. */
+  group: string | null;
+  deposited: number | null;
+  balance: number | null;
+  parts: Array<{ operationId: string; service: string; amountGyd: number; created: boolean; status: string }>;
+}
+
+export type SplitDepositCommandResult =
+  | ({ ok: true } & SplitDepositSummary)
+  | { ok: false; status: number; error: string };
+
+/** `crm_repartir_envio` (migration 253): splits one deposit across several services. The parts must add up exactly
+ *  to the group's current total; operations that are missing are created and the customer is not messaged. */
+export async function repartirEnvio(
+  operationId: string,
+  parts: SplitDepositPart[],
+): Promise<SplitDepositCommandResult> {
+  const response = await postJsonResult<SplitDepositSummary>(
+    `/api/remittance-operations/${operationId}/split`,
+    "POST",
+    { parts },
+  );
+  if (!response.ok) return response;
+  const { group, deposited, balance, parts: splitParts } = response.data;
+  return { ok: true, group, deposited, balance, parts: splitParts };
+}
+
 export type DeleteOperationCommandResult =
   | { ok: true; newStatus: string }
   | { ok: false; status: number; error: string };

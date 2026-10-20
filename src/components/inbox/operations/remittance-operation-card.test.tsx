@@ -2408,13 +2408,14 @@ describe("RemittanceOperationCard header layout", () => {
   };
   const amountRow = (node: Element) => node.querySelector("article button[aria-expanded]")!.parentElement!;
 
-  it("puts edit then delete in their own row above the amount row when expanded", async () => {
+  it("puts delete, split and edit in their own row above the amount row when expanded", async () => {
     const { node, root } = await render(operation(), { role: "owner" });
 
     const row = actionsRow(node)!;
     expect(row).not.toBeNull();
     expect(Array.from(row.querySelectorAll("button")).map((b) => b.getAttribute("aria-label"))).toEqual([
       en.Inbox.operationsPanel.closing.deleteButton,
+      en.Inbox.operationsPanel.splitDeposit.button,
       en.Inbox.operationsPanel.editOperation,
     ]);
     expect(row.className).toContain("justify-end");
@@ -2437,11 +2438,11 @@ describe("RemittanceOperationCard header layout", () => {
     await act(async () => root.unmount());
   });
 
-  it("keeps only the pencil in the row for a non-manager", async () => {
+  it("keeps only split and the pencil in the row for a non-manager", async () => {
     const { node, root } = await render(operation(), { role: "agent" });
 
     const labels = Array.from(actionsRow(node)!.querySelectorAll("button")).map((b) => b.getAttribute("aria-label"));
-    expect(labels).toEqual([en.Inbox.operationsPanel.editOperation]);
+    expect(labels).toEqual([en.Inbox.operationsPanel.splitDeposit.button, en.Inbox.operationsPanel.editOperation]);
     await act(async () => root.unmount());
   });
 

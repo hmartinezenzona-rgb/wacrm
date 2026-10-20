@@ -15,6 +15,7 @@ import {
   cerrarOperacionManual,
   setComboCosto,
   cambiarServicio,
+  repartirEnvio,
   eliminarOperacion,
   registerBeneficiaryProof,
 } from "./commands";
@@ -519,6 +520,47 @@ describe("cambiarServicio", () => {
     vi.mocked(fetch).mockRejectedValueOnce(new Error("offline"));
 
     expect(await cambiarServicio(OPERATION_ID, "zelle")).toEqual({ ok: false, status: 0, error: "Network error" });
+  });
+});
+
+describe("repartirEnvio", () => {
+  const PARTS = [
+    { service: "clasica", amountGyd: 18200 },
+    { service: "recarga", amountGyd: 6200 },
+  ];
+  const SUMMARY = {
+    group: OPERATION_ID,
+    deposited: 24400,
+    balance: 0,
+    parts: [{ operationId: OPERATION_ID, service: "clasica", amountGyd: 18200, created: false, status: "ready_to_transfer" }],
+  };
+
+  it("POSTs the parts to the split route and unwraps the summary", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ok: true, ...SUMMARY }));
+
+    const response = await repartirEnvio(OPERATION_ID, PARTS);
+
+    expect(fetch).toHaveBeenCalledWith(
+      `/api/remittance-operations/${OPERATION_ID}/split`,
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ parts: PARTS }),
+      }),
+    );
+    expect(response).toEqual({ ok: true, ...SUMMARY });
+  });
+
+  it("surfaces a failure's status and message", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ error: "parts add up to 24000" }, 400));
+
+    expect(await repartirEnvio(OPERATION_ID, PARTS)).toEqual({ ok: false, status: 400, error: "parts add up to 24000" });
+  });
+
+  it("a network failure is a status-0 error", async () => {
+    vi.mocked(fetch).mockRejectedValueOnce(new Error("offline"));
+
+    expect(await repartirEnvio(OPERATION_ID, PARTS)).toEqual({ ok: false, status: 0, error: "Network error" });
   });
 });
 

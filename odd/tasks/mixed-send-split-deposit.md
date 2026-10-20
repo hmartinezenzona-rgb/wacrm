@@ -143,6 +143,13 @@ S1, S2+S3, S4, S5.
   fixture conversation "PRUEBA envio mixto" (763c248e: remesa 32faf8f9 24,400 incident / 93 USD, recarga cf76cdee) —
   delete after the test.
 
+- 2026-10-20 BROWSER TEST on staging (local next dev :3100, owner logged in): the owner split the fixture from the
+  panel (audit 22:11:07, his user): remesa 24,400/93 USD/incident -> 18,200 GYD -> 70 USD ready; recarga -> 6,200
+  ready; grouped; group saldo 0; objective closed; both shares locked. Then the parent drove the form: a sum of
+  23,200/24,400 keeps "Repartir" disabled; a re-split 19,200 + 5,200 saved, the panel refreshed, DB 19,200 -> 73 USD,
+  5,200, saldo 0. Fixture deleted afterwards (0 rows left). UX note for later: the mixed-send header shows GYD only,
+  not the destination amount (70/73 USD).
+
 ## Next step
-Panel test in the browser (owner logs in), then S4b: bot wrapper keyed by conversation (must run with a human/admin context so the 096 guard locks the shares), n8n
+S4b: bot wrapper keyed by conversation (must run with a human/admin context so the 096 guard locks the shares), n8n
 tool on staging Cerebro, Decisor note. Coordinate with the prompt session before editing the staging workflow.

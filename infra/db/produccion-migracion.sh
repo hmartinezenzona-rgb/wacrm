@@ -24,28 +24,6 @@ uso() { sed -n '2,6p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 2; }
 
 TRABAJO=$(mktemp -d "$LOG_DIR/prod-mig-XXXXXX"); trap 'rm -rf "$TRABAJO"' EXIT
 
-# ─── token y API ────────────────────────────────────────────────────────────
-cargar_token() {
-    command -v jq >/dev/null || die "hace falta jq"
-    command -v curl >/dev/null || die "hace falta curl"
-    [[ -f "$TOKEN_FILE" ]] || die "falta el fichero del token: $TOKEN_FILE (con SUPABASE_ACCESS_TOKEN=...)"
-    local modo; modo=$(stat -c %a "$TOKEN_FILE")
-    [[ "$modo" == 600 ]] || die "$TOKEN_FILE tiene permisos $modo y tienen que ser 600 (chmod 600)"
-    TOKEN=$(grep -m1 '^SUPABASE_ACCESS_TOKEN=' "$TOKEN_FILE" | cut -d= -f2- | tr -d '"'"'"'\r')
-    [[ -n "$TOKEN" ]] || die "$TOKEN_FILE no tiene SUPABASE_ACCESS_TOKEN="
-}
-
-# POST <ruta> <fichero-json>: deja el codigo en API_CODE y la respuesta en API_RESP.
-api_post() {
-    API_RESP="$TRABAJO/resp.$RANDOM"
-    API_CODE=$(curl -sS -o "$API_RESP" -w '%{http_code}' \
-        -K <(printf 'header = "Authorization: Bearer %s"\n' "$TOKEN") \
-        -X POST -H 'Content-Type: application/json' --data-binary "@$2" "$API$1") || API_CODE=000
-    { echo "### POST $1 -> $API_CODE"; head -c 2000 "$API_RESP" 2>/dev/null; echo; } >> "$LOG"
-}
-api_ok() { [[ "$API_CODE" == 2* ]]; }
-api_mensaje() { jq -r '.message // .error // .' "$API_RESP" 2>/dev/null | head -3; }
-
 # SQL de lectura contra produccion; imprime la respuesta JSON.
 consulta_prod() {
     jq -n --arg q "$1" '{query: $q}' > "$TRABAJO/q.json"

@@ -13,6 +13,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib-migracion.sh"
 REF="hqztotshnlzaiziwjyzh"
 API="https://api.supabase.com/v1/projects/$REF"
 TOKEN_FILE="$HOME/.config/wacrm/supabase-token.env"
+SELLO="$(date +%Y%m%d%H%M%S)"
+LOG="${TMPDIR:-/tmp}/correccion-produccion-$SELLO.log"
 
 uso() { echo "uso: correccion-produccion.sh <correccion.sql> --confirmar" >&2; exit 2; }
 
@@ -38,25 +40,14 @@ if grep -qiE 'DROP[[:space:]]+(TABLE|SCHEMA)|TRUNCATE|ALTER[[:space:]]+TABLE[[:s
     die "el fichero contiene DROP TABLE, TRUNCATE, DROP SCHEMA o ALTER TABLE ... DROP COLUMN; eso es esquema y va por una migracion"
 fi
 
-# ─── token y API (mismo criterio que produccion-migracion.sh) ───────────────
-command -v jq >/dev/null || die "hace falta jq"
-command -v curl >/dev/null || die "hace falta curl"
-[[ -f "$TOKEN_FILE" ]] || die "falta el fichero del token: $TOKEN_FILE (con SUPABASE_ACCESS_TOKEN=...)"
-MODO=$(stat -c %a "$TOKEN_FILE")
-[[ "$MODO" == 600 ]] || die "$TOKEN_FILE tiene permisos $MODO y tienen que ser 600 (chmod 600)"
-TOKEN=$(grep -m1 '^SUPABASE_ACCESS_TOKEN=' "$TOKEN_FILE" | cut -d= -f2- | tr -d '"'"'"'\r')
-[[ -n "$TOKEN" ]] || die "$TOKEN_FILE no tiene SUPABASE_ACCESS_TOKEN="
-
+# ─── token y API (lib-migracion.sh) ────────────────────────────────────────
+cargar_token
 TRABAJO=$(mktemp -d); trap 'rm -rf "$TRABAJO"' EXIT
 jq -Rs '{query: .}' "$RUTA" > "$TRABAJO/q.json" || die "no pude leer $RUTA"
 
-CODIGO=$(curl -sS -o "$TRABAJO/resp.json" -w '%{http_code}' \
-    -K <(printf 'header = "Authorization: Bearer %s"\n' "$TOKEN") \
-    -X POST -H 'Content-Type: application/json' --data-binary "@$TRABAJO/q.json" \
-    "$API/database/query") || CODIGO=000
-
-if [[ "$CODIGO" != 2* ]]; then
-    echo "ERROR (HTTP $CODIGO): $(jq -r '.message // .error // .' "$TRABAJO/resp.json" 2>/dev/null | head -3)"
+api_post /database/query "$TRABAJO/q.json"
+if ! api_ok; then
+    echo "ERROR (HTTP $API_CODE): $(api_mensaje)"
     exit 1
 fi
-jq -c . "$TRABAJO/resp.json" 2>/dev/null || cat "$TRABAJO/resp.json"
+jq -c . "$API_RESP" 2>/dev/null || cat "$API_RESP"

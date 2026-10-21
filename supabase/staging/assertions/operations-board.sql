@@ -61,7 +61,7 @@ BEGIN
   VALUES (v_acc, v_conv, v_ct, 'ready_to_transfer', 'remesa', 'GYD', 40000, 'zelle') RETURNING id INTO v_op_new;
   -- A completion is only accepted from a logged-in human (the status guard suppresses automation ones).
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_user, 'role', 'authenticated')::text, true);
-  UPDATE remittance_operations SET status = 'completed', completed_at = now() - interval '2 hours' WHERE id = v_op_new;
+  UPDATE remittance_operations SET status = 'completed', completed_at = now() - interval '1 second' WHERE id = v_op_new;
   PERFORM set_config('request.jwt.claims', '', true);
   INSERT INTO remittance_operations (account_id, conversation_id, contact_id, status, service_type, source_currency, quoted_source_amount, delivery_method)
   VALUES (v_acc, v_conv, v_ct, 'ready_to_transfer', 'remesa', 'GYD', 41000, 'zelle') RETURNING id INTO v_op_old;
@@ -104,7 +104,7 @@ BEGIN
   IF abs(extract(epoch FROM (v_r.state_since - v_since))) > 1 THEN
     RAISE EXCEPTION 'case 2: state_since % should be the audit time %', v_r.state_since, v_since; END IF;
 
-  -- 3. Completed: inside 24 h appears (state_since = completed_at); older does not.
+  -- 3. Completed: a recent one appears (state_since = completed_at); one from 30 h ago does not (258 cuts at the last opening).
   SELECT * INTO v_r FROM crm_tablero_operaciones() t WHERE t.operation_id = v_op_new;
   IF v_r.operation_id IS NULL OR v_r.status <> 'completed' OR v_r.completed_at IS NULL OR v_r.state_since <> v_r.completed_at THEN
     RAISE EXCEPTION 'case 3: the recently completed operation: %', to_jsonb(v_r); END IF;

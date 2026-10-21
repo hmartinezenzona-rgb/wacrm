@@ -104,7 +104,7 @@ BEGIN
   INSERT INTO remittance_operations (account_id, conversation_id, contact_id, status, service_type, source_currency, quoted_source_amount, delivery_method)
   VALUES (v_acc, v_conv, v_ct, 'ready_to_transfer', 'remesa', 'GYD', 32000, 'zelle') RETURNING id INTO v_op2;
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_user, 'role', 'authenticated')::text, true);
-  UPDATE remittance_operations SET status = 'completed', completed_at = now() - interval '2 hours' WHERE id = v_op2;
+  UPDATE remittance_operations SET status = 'completed', completed_at = now() - interval '1 second' WHERE id = v_op2;
   SELECT * INTO v_r FROM crm_tablero_operaciones() t WHERE t.operation_id = v_op2;
   PERFORM set_config('request.jwt.claims', '', true);
   IF v_r.status <> 'completed' OR v_r.completed_at IS NULL OR v_r.state_since IS DISTINCT FROM v_r.completed_at THEN

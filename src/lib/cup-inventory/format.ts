@@ -17,9 +17,10 @@ const GROUPED = (sep: string) => new RegExp(`^\\d{1,3}(\\${sep}\\d{3})+$`);
  * Reads a number typed by the owner. Blanks are ignored; with both separators the last one is the decimal mark
  * ("1.157.712,40", "1,157,712.40"); a lone "." followed by exactly three digits groups thousands ("500.000", the Spanish
  * habit) and any other lone "." is a decimal; a lone "," is a decimal ("960,5"). Returns null unless the result is a finite
- * number > 0.
+ * number > 0 (>= 0 with `allowZero`, used where zero is a real balance). With `commaThousands` a lone "," followed by
+ * exactly three digits also groups thousands ("222,840"), for whole-peso balances where a 3-digit decimal is not plausible.
  */
-export function parseCupNumber(text: string): number | null {
+export function parseCupNumber(text: string, options: { allowZero?: boolean; commaThousands?: boolean } = {}): number | null {
   const raw = text.replace(/\s/g, "");
   if (!/^[\d.,]+$/.test(raw)) return null;
 
@@ -41,15 +42,19 @@ export function parseCupNumber(text: string): number | null {
       normalized = raw;
     }
   } else if (commas > 0) {
-    if (commas > 1) return null;
-    normalized = raw.replace(",", ".");
+    if (commas > 1 || (options.commaThousands && GROUPED(",").test(raw))) {
+      if (!GROUPED(",").test(raw)) return null;
+      normalized = raw.split(",").join("");
+    } else {
+      normalized = raw.replace(",", ".");
+    }
   } else {
     normalized = raw;
   }
 
   if (!/^\d+(\.\d+)?$/.test(normalized)) return null;
   const value = Number(normalized);
-  return Number.isFinite(value) && value > 0 ? value : null;
+  return Number.isFinite(value) && (value > 0 || (options.allowZero === true && value === 0)) ? value : null;
 }
 
 export interface PriorityPatch {

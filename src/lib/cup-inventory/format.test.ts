@@ -81,3 +81,32 @@ describe("moveCardPriorities", () => {
     ]);
   });
 });
+
+describe("parseCupNumber allowZero (balance adjustments)", () => {
+  it("zero is accepted only when asked for", () => {
+    expect(parseCupNumber("0")).toBeNull();
+    expect(parseCupNumber("0", { allowZero: true })).toBe(0);
+    expect(parseCupNumber("0,00", { allowZero: true })).toBe(0);
+  });
+
+  it.each([
+    ["222,840", 222840],
+    ["222.840", 222840],
+    ["222 840", 222840],
+    ["222840", 222840],
+  ])("reads %j as %d", (text, expected) => {
+    expect(parseCupNumber(text, { allowZero: true, commaThousands: true })).toBe(expected);
+  });
+
+  it("a lone comma stays a decimal unless commaThousands is asked for", () => {
+    expect(parseCupNumber("222,840", { allowZero: true })).toBeCloseTo(222.84, 6);
+    expect(parseCupNumber("960,5", { allowZero: true, commaThousands: true })).toBe(960.5);
+    expect(parseCupNumber("1,157,712", { allowZero: true, commaThousands: true })).toBe(1157712);
+  });
+
+  it("still rejects blanks and junk", () => {
+    expect(parseCupNumber("", { allowZero: true })).toBeNull();
+    expect(parseCupNumber("abc", { allowZero: true })).toBeNull();
+    expect(parseCupNumber("-5", { allowZero: true })).toBeNull();
+  });
+});

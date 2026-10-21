@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Label } from "@/components/ui/label";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { CardDialog, type CardFormValue } from "@/components/inventario-cup/card-dialog";
+import { BalanceDialog, type BalanceFormValue } from "@/components/inventario-cup/balance-dialog";
 import { CardPanel } from "@/components/inventario-cup/card-panel";
 import { LotDialog, type LotFormValue } from "@/components/inventario-cup/lot-dialog";
 import { DeleteLotDialog } from "@/components/inventario-cup/delete-lot-dialog";
@@ -54,6 +55,7 @@ export default function InventarioCupPage() {
   const [showInactive, setShowInactive] = useState(false);
   const [cardDialog, setCardDialog] = useState<{ card: InventoryCard | null } | null>(null);
   const [lotDialog, setLotDialog] = useState<{ card: InventoryCard; lot: InventoryLot | null } | null>(null);
+  const [balanceDialog, setBalanceDialog] = useState<{ card: InventoryCard } | null>(null);
   const [deletingLot, setDeletingLot] = useState<{ card: InventoryCard; lot: InventoryLot } | null>(null);
 
   const load = useCallback(async () => {
@@ -119,6 +121,15 @@ export default function InventarioCupPage() {
     if (failure) return failure === "network" ? t("errors.saveError") : failure;
     toast.success(t("toasts.lotSaved"));
     setLotDialog(null);
+    await load();
+    return null;
+  }
+
+  async function saveBalance(card: InventoryCard, value: BalanceFormValue): Promise<string | null> {
+    const failure = await send(`/api/inventario-cup/cards/${card.id}/balance`, "POST", value);
+    if (failure) return failure === "network" ? t("errors.saveError") : failure;
+    toast.success(t("toasts.balanceAdjusted"));
+    setBalanceDialog(null);
     await load();
     return null;
   }
@@ -192,6 +203,7 @@ export default function InventarioCupPage() {
               onMove={(direction) => void moveCard(card, direction)}
               onEdit={() => setCardDialog({ card })}
               onLoadLot={() => setLotDialog({ card, lot: null })}
+              onAdjustBalance={() => setBalanceDialog({ card })}
               onEditLot={(lot) => setLotDialog({ card, lot })}
               onDeleteLot={(lot) => setDeletingLot({ card, lot })}
             />
@@ -204,6 +216,13 @@ export default function InventarioCupPage() {
         card={cardDialog?.card ?? null}
         onClose={() => setCardDialog(null)}
         onSave={(value) => saveCard(cardDialog?.card ?? null, value)}
+      />
+      <BalanceDialog
+        open={balanceDialog !== null}
+        cardName={balanceDialog?.card.name ?? ""}
+        currentBalanceCup={balanceDialog?.card.balanceCup ?? 0}
+        onClose={() => setBalanceDialog(null)}
+        onSave={(value) => (balanceDialog ? saveBalance(balanceDialog.card, value) : Promise.resolve(null))}
       />
       <DeleteLotDialog
         open={deletingLot !== null}

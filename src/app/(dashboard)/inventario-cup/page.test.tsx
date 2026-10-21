@@ -29,7 +29,8 @@ const t = en.CupInventory;
 const NBSP = " ";
 
 const lot = (over: Record<string, unknown> = {}) => ({
-  id: "lot-a", amountCup: 500000, remainingCup: 500000, rateCupPerUsdt: 960, loadedAt: "2026-10-14T12:00:00Z", note: "compra A", editable: true, ...over,
+  id: "lot-a", amountCup: 500000, remainingCup: 500000, rateCupPerUsdt: 960, loadedAt: "2026-10-14T12:00:00Z", note: "compra A", editable: true,
+  exhausted: false, adjusted: false, adjustmentNetCup: 0, ...over,
 });
 const card = (over: Record<string, unknown> = {}) => ({
   id: "card-a", name: "Tarjeta A", last4: "1234", priority: 1, active: true, dailyLimitCup: 120000, balanceCup: 500000,
@@ -215,3 +216,180 @@ describe("Inventario CUP page", () => {
     expect(node.textContent).toContain(t.loadError);
   });
 });
+
+// ---- Migration 256: current balance, adjust dialog, lot history -------------------------------------------------------------------------
+
+/** Types into a controlled React input the way a user does. */
+async function type(input: HTMLInputElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+  await act(async () => {
+    setter.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
+const buttonByText = (text: string) => [...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === text) as HTMLButtonElement | undefined;
+
+const ELIABA = card({
+  id: "card-e",
+  name: "Eliaba",
+  last4: "6118",
+  balanceCup: 222840,
+  lots: [
+    lot({ id: "lot-old", amountCup: 250000, remainingCup: 0, rateCupPerUsdt: 960, note: "primer lote", editable: false, exhausted: true, adjusted: true, adjustmentNetCup: 12000 }),
+    lot({ id: "lot-new", amountCup: 240000, remainingCup: 222840, rateCupPerUsdt: 1015, note: "segundo lote", editable: false }),
+  ],
+});
+
+describe("Inventario CUP page: current balance and lot history", () => {
+  beforeEach(() => {
+    fetchMock.mockImplementation(async (url: string, init?: { method?: string }) => ({
+      ok: true,
+      status: 200,
+      json: async () => (!init?.method || init.method === "GET" ? { ...REPORT, cards: [ELIABA] } : {}),
+    }));
+  });
+
+  it("shows the current balance of the card prominently, with the Adjust balance action", async () => {
+    const node = await mount();
+    const text = node.textContent ?? "";
+    const figure = [...node.querySelectorAll("dt")].find((dt) => dt.textContent === t.card.balance) as HTMLElement;
+
+    expect(figure).toBeTruthy();
+    expect(figure.nextElementSibling?.textContent).toBe(`222${NBSP}840`);
+    // bigger than the other figures
+    expect(figure.nextElementSibling?.className).toMatch(/text-(2xl|3xl)/);
+    expect(figure.parentElement?.className ?? "").not.toBe("");
+    expect(text).toContain(t.card.adjustBalance);
+    expect(buttonByText(t.card.adjustBalance)).toBeTruthy();
+  });
+
+  it("lists every lot, the used-up one muted with an Agotado label", async () => {
+    const node = await mount();
+    const rows = [...node.querySelectorAll("tbody tr")].filter((r) => r.textContent?.includes("lote"));
+    const used = rows.find((r) => r.textContent?.includes("primer lote")) as HTMLElement;
+    const live = rows.find((r) => r.textContent?.includes("segundo lote")) as HTMLElement;
+
+    expect(rows).toHaveLength(2);
+    expect(used.textContent).toContain(t.lots.exhausted);
+    expect(used.textContent).toContain(`250${NBSP}000`);
+    expect(used.className).toMatch(/text-muted-foreground|opacity/);
+    expect(live.textContent).not.toContain(t.lots.exhausted);
+    expect(live.textContent).toContain(`222${NBSP}840`);
+    expect(live.textContent).toContain(`240${NBSP}000`);
+  });
+
+  it("shows adjustments in the movements labelled Ajuste with the reason", async () => {
+    fetchMock.mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ...REPORT,
+        cards: [
+          {
+            ...ELIABA,
+            consumptionsToday: [
+              { id: "k-a", consumedAt: "2026-10-14T16:00:00Z", amountCup: 17160, lotId: "lot-new", lotRateCupPerUsdt: 1015, operationId: null, entryId: null, source: null, customerName: null, kind: "ajuste", reason: "conteo real" },
+              { id: "k-b", consumedAt: "2026-10-14T15:00:00Z", amountCup: 5000, lotId: "lot-new", lotRateCupPerUsdt: 1015, operationId: "op-1", entryId: "e-1", source: "completed_operation", customerName: "Cliente Uno", kind: "operacion", reason: null },
+            ],
+          },
+        ],
+      }),
+    }));
+    const node = await mount();
+    const text = node.textContent ?? "";
+
+    expect(text).toContain(t.movements.adjustment);
+    expect(text).toContain("conteo real");
+    expect(text).toContain("Cliente Uno");
+    expect(text).toContain(t.movements.operation);
+    expect(text).toContain(`17${NBSP}160`);
+  });
+
+  it("Adjust balance opens a dialog with the current balance; it submits only a changed, valid balance and shows the live difference", async () => {
+    const node = await mount();
+    await act(async () => buttonByText(t.card.adjustBalance)!.click());
+    await act(async () => {});
+
+    const dialog = document.querySelector('[role="dialog"]') as HTMLElement;
+    expect(dialog.textContent).toContain(t.balanceForm.current);
+    expect(dialog.textContent).toContain(`222${NBSP}840`);
+    const submit = () => buttonByText(t.balanceForm.submit)!;
+    const input = dialog.querySelector("#cup-balance-value") as HTMLInputElement;
+    expect(input).toBeTruthy();
+
+    // unchanged / empty / invalid -> disabled
+    expect(submit().disabled).toBe(true);
+    await type(input, "222.840");
+    expect(submit().disabled).toBe(true);
+    await type(input, "abc");
+    expect(submit().disabled).toBe(true);
+
+    // a Spanish-typed lower balance: the difference shows live, the button is enabled
+    await type(input, "200 000");
+    expect(submit().disabled).toBe(false);
+    expect(dialog.textContent).toContain(t.balanceForm.difference);
+    expect(dialog.textContent).toContain(`\u221222${NBSP}840`);
+    await type(input, "250,000");
+    expect(dialog.textContent).toContain(`+27${NBSP}160`);
+
+    const reason = dialog.querySelector("#cup-balance-reason") as HTMLInputElement;
+    await type(input, "222.000");
+    await type(reason, "conteo real");
+    await act(async () => submit().click());
+    await act(async () => {});
+
+    const posts = fetchMock.mock.calls.filter(([, init]) => init?.method === "POST");
+    expect(posts).toHaveLength(1);
+    expect(posts[0][0]).toBe("/api/inventario-cup/cards/card-e/balance");
+    expect(JSON.parse(posts[0][1].body)).toEqual({ balanceCup: 222000, reason: "conteo real" });
+    // closed and reloaded
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(fetchMock.mock.calls.filter(([, init]) => !init?.method).length).toBeGreaterThanOrEqual(2);
+    node.remove();
+  });
+
+  it("zero is allowed and no reason is sent when it is blank", async () => {
+    await mount();
+    await act(async () => buttonByText(t.card.adjustBalance)!.click());
+    await act(async () => {});
+    const input = document.querySelector("#cup-balance-value") as HTMLInputElement;
+    await type(input, "0");
+    await act(async () => buttonByText(t.balanceForm.submit)!.click());
+    await act(async () => {});
+
+    const post = fetchMock.mock.calls.find(([, init]) => init?.method === "POST")!;
+    expect(JSON.parse(post[1].body)).toEqual({ balanceCup: 0 });
+  });
+
+  it("a server refusal stays in the dialog as an error and nothing closes", async () => {
+    fetchMock.mockImplementation(async (url: string, init?: { method?: string }) => {
+      if (init?.method === "POST") {
+        return { ok: false, status: 400, json: async () => ({ error: "the balance cannot exceed what was loaded on the card (490000 CUP): load a new lot" }) };
+      }
+      return { ok: true, status: 200, json: async () => ({ ...REPORT, cards: [ELIABA] }) };
+    });
+    await mount();
+    await act(async () => buttonByText(t.card.adjustBalance)!.click());
+    await act(async () => {});
+    await type(document.querySelector("#cup-balance-value") as HTMLInputElement, "900000");
+    await act(async () => buttonByText(t.balanceForm.submit)!.click());
+    await act(async () => {});
+
+    const dialog = document.querySelector('[role="dialog"]') as HTMLElement;
+    expect(dialog).toBeTruthy();
+    expect(dialog.querySelector('[role="alert"]')?.textContent).toContain("load a new lot");
+  });
+
+  it("cancelling the dialog sends nothing", async () => {
+    await mount();
+    await act(async () => buttonByText(t.card.adjustBalance)!.click());
+    await act(async () => {});
+    await act(async () => buttonByText(t.actions.cancel)!.click());
+    await act(async () => {});
+
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+});
+

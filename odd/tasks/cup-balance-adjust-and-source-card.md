@@ -48,9 +48,9 @@ Strict (user global CLAUDE.md). Runners: staging assertions (`supabase/staging/a
 .env.staging) and `npm test` (vitest).
 
 ## Tasks
-- [ ] B1 — Migration 256: consumption kind (operacion / manual / ajuste), `crm_ajustar_saldo_cup(card, saldo, motivo)`,
+- [x] B1 — Migration 256 (4986870; applied on staging 2026-10-20, assertion green): consumption kind (operacion / manual / ajuste), `crm_ajustar_saldo_cup(card, saldo, motivo)`,
   report lists all lots + used today excludes adjustments; rollback; assertion. Staging.
-- [ ] B2 — API route + page UI: "Saldo actual" + "Ajustar saldo" dialog + full lot history; vitest. Staging deploy +
+- [x] B2 — (built, not yet deployed to staging; owner check pending) API route + page UI: "Saldo actual" + "Ajustar saldo" dialog + full lot history; vitest. Staging deploy +
   owner check.
 - [ ] B3 — Source-card choice at CUP completion (DB allocator start card + panel picker + tests). Staging + owner check.
 - [ ] B4 — Production bundle (240, 241, 242, 256+, app) after the owner's go-ahead; express the Eliaba fix as
@@ -64,5 +64,11 @@ Strict (user global CLAUDE.md). Runners: staging assertions (`supabase/staging/a
 ## Progress
 - 2026-10-20: mapped (report hides used-up lots; lots frozen once touched); Eliaba production data fixed (see Problem).
 
+- 2026-10-20 B1: assertion RED (column kind does not exist) then GREEN; 256 applied on staging; rollback proof restores the 241/240 bodies
+  (md5 d9d34bb0 / 45bf0f7d / 38ab75fc). Sign convention: increases are NEGATIVE ajuste rows (240 deletes on void; an adjustment is an
+  audit fact and is appended, never deleted).
+- 2026-10-20 B2: route POST /api/inventario-cup/cards/[cardId]/balance, read model (exhausted/adjusted/kind/reason), Saldo actual +
+  Ajustar saldo dialog, full lot history; vitest 212 files / 2911 tests, tsc and eslint clean. UI not seen in a browser yet.
+
 ## Next step
-B1.
+Deploy B2 to staging for the owner's check, then B3.

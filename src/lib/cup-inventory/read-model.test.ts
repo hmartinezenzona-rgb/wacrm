@@ -1,7 +1,7 @@
 // The report RPC speaks snake_case jsonb with numerics that may arrive as numbers or strings;
 // the app speaks camelCase numbers.
 import { describe, expect, it } from "vitest";
-import { mapCard, mapLot, mapReport } from "./read-model";
+import { mapBalanceResult, mapCard, mapConsumption, mapLot, mapReport } from "./read-model";
 
 const LOT_ROW = {
   id: "lot-1",
@@ -60,6 +60,9 @@ describe("mapLot", () => {
       loadedAt: "2026-10-14T12:00:00Z",
       note: "compra A",
       editable: true,
+      exhausted: false,
+      adjusted: false,
+      adjustmentNetCup: 0,
     });
   });
 
@@ -101,6 +104,8 @@ describe("mapCard", () => {
         entryId: "entry-1",
         source: "completed_operation",
         customerName: "Cliente Uno",
+        kind: "operacion",
+        reason: null,
       },
       {
         id: "k-2",
@@ -112,6 +117,8 @@ describe("mapCard", () => {
         entryId: "entry-2",
         source: "manual",
         customerName: null,
+        kind: "operacion",
+        reason: null,
       },
     ]);
   });
@@ -139,5 +146,36 @@ describe("mapReport", () => {
 
   it("an empty or null payload is an empty report", () => {
     expect(mapReport(null)).toEqual({ cubaDay: null, cards: [] });
+  });
+});
+
+describe("lot history (migration 256)", () => {
+  it("a used-up lot is exhausted; an adjusted lot carries its net adjustment", () => {
+    expect(mapLot({ ...LOT_ROW, remaining_cup: 0, editable: false, agotado: true, adjusted: true, adjustment_net_cup: "17160" })).toMatchObject({
+      remainingCup: 0,
+      exhausted: true,
+      adjusted: true,
+      adjustmentNetCup: 17160,
+    });
+  });
+
+  it("older payloads (no agotado / adjusted) still map: exhausted comes from remaining 0, adjusted is false", () => {
+    expect(mapLot(LOT_ROW)).toMatchObject({ exhausted: false, adjusted: false, adjustmentNetCup: 0 });
+    expect(mapLot({ ...LOT_ROW, remaining_cup: 0 })).toMatchObject({ exhausted: true });
+  });
+
+  it("a movement carries its kind and reason; no kind means an operation", () => {
+    const base = { id: "k", consumed_at: "2026-10-14T15:30:00Z", amount_cup: "5000", lot_id: "lot-1", lot_rate_cup_per_usdt: 960 };
+    expect(mapConsumption({ ...base, kind: "ajuste", reason: "conteo real" })).toMatchObject({ kind: "ajuste", reason: "conteo real", amountCup: 5000 });
+    expect(mapConsumption({ ...base, kind: "manual" })).toMatchObject({ kind: "manual", reason: null });
+    expect(mapConsumption(base)).toMatchObject({ kind: "operacion", reason: null });
+    expect(mapConsumption({ ...base, amount_cup: "-8000", kind: "ajuste" }).amountCup).toBe(-8000);
+  });
+
+  it("maps the adjustment result", () => {
+    expect(
+      mapBalanceResult({ card_id: "c1", saldo_anterior: "240000", saldo_nuevo: 222840, movimientos: [{ lot_id: "l1", amount_cup: "-17160" }] }),
+    ).toEqual({ cardId: "c1", previousBalanceCup: 240000, newBalanceCup: 222840, movements: [{ lotId: "l1", amountCup: -17160 }] });
+    expect(mapBalanceResult({ card_id: "c1", saldo_anterior: 5, saldo_nuevo: 5 }).movements).toEqual([]);
   });
 });

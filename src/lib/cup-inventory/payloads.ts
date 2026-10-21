@@ -152,3 +152,29 @@ export function parseLotPatchBody(body: unknown): Parsed<LotPatch> {
   if (Object.keys(value).length === 0) return fail("Nothing to update");
   return { ok: true, value };
 }
+
+export interface BalanceInput {
+  balanceCup: number;
+  reason?: string;
+}
+
+/** Body of POST .../cards/{cardId}/balance: the real balance of the card (zero allowed) and an optional reason. */
+export function parseBalanceBody(body: unknown): Parsed<BalanceInput> {
+  if (!isObject(body)) return fail("Body must be a JSON object");
+  const extra = unknownKey(body, ["balanceCup", "reason"]);
+  if (extra) return fail(`Unknown field: ${extra}`);
+
+  const balance = body.balanceCup;
+  if (typeof balance !== "number" || !Number.isFinite(balance) || balance < 0 || balance >= AMOUNT_LIMIT) {
+    return fail("balanceCup must be a number of zero or more");
+  }
+  const value: BalanceInput = { balanceCup: balance };
+
+  if (body.reason !== undefined && body.reason !== null) {
+    if (typeof body.reason !== "string") return fail("reason must be text");
+    const reason = body.reason.trim();
+    if (reason.length > NOTE_MAX) return fail(`reason must be at most ${NOTE_MAX} characters`);
+    if (reason !== "") value.reason = reason;
+  }
+  return { ok: true, value };
+}

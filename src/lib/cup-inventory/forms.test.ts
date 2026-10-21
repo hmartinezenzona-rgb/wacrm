@@ -1,6 +1,6 @@
 // Validation of what the owner types in the card and lot dialogs, before anything is sent.
 import { describe, expect, it } from "vitest";
-import { validateCardForm, validateLotForm } from "./forms";
+import { balanceDifference, validateBalanceForm, validateCardForm, validateLotForm } from "./forms";
 
 describe("validateLotForm", () => {
   it("reads Spanish-typed numbers", () => {
@@ -57,5 +57,48 @@ describe("validateCardForm", () => {
     ["A", "", "", "invalidLimit"],
   ])("name %j last4 %j limit %j -> %s", (name, last4, dailyLimit, errorKey) => {
     expect(validateCardForm({ name, last4, dailyLimit })).toEqual({ ok: false, errorKey });
+  });
+});
+
+describe("validateBalanceForm", () => {
+  it("reads Spanish-typed numbers and trims the reason", () => {
+    expect(validateBalanceForm({ balance: "222.840", reason: " conteo ", currentBalanceCup: 240000 })).toEqual({
+      ok: true,
+      value: { balanceCup: 222840, reason: "conteo" },
+    });
+    expect(validateBalanceForm({ balance: "222,840", reason: "", currentBalanceCup: 240000 })).toEqual({
+      ok: true,
+      value: { balanceCup: 222840 },
+    });
+  });
+
+  it("zero is a valid balance", () => {
+    expect(validateBalanceForm({ balance: "0", reason: "", currentBalanceCup: 100 })).toEqual({ ok: true, value: { balanceCup: 0 } });
+  });
+
+  it.each([
+    ["", "invalidBalance"],
+    ["abc", "invalidBalance"],
+    ["-5", "invalidBalance"],
+    ["1000000000000", "invalidBalance"],
+    ["240000", "balanceUnchanged"],
+    ["240.000", "balanceUnchanged"],
+  ])("balance %j -> %s", (balance, errorKey) => {
+    expect(validateBalanceForm({ balance, reason: "", currentBalanceCup: 240000 })).toEqual({ ok: false, errorKey });
+  });
+
+  it("a reason over 500 characters is refused", () => {
+    expect(validateBalanceForm({ balance: "1", reason: "x".repeat(501), currentBalanceCup: 240000 })).toEqual({ ok: false, errorKey: "reasonTooLong" });
+  });
+});
+
+describe("balanceDifference", () => {
+  it("is the signed change, null while the text is not a number", () => {
+    expect(balanceDifference("222.840", 240000)).toBe(-17160);
+    expect(balanceDifference("250000", 240000)).toBe(10000);
+    expect(balanceDifference("240000", 240000)).toBe(0);
+    expect(balanceDifference("0", 240000)).toBe(-240000);
+    expect(balanceDifference("", 240000)).toBeNull();
+    expect(balanceDifference("abc", 240000)).toBeNull();
   });
 });

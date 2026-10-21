@@ -2657,18 +2657,19 @@
     "card": {
       "inactive": "Inactiva",
       "priority": "Prioridad {n}",
-      "balance": "Saldo",
+      "balance": "Saldo actual",
       "dailyLimit": "Límite diario",
       "usedToday": "Usado hoy",
       "remainingToday": "Límite restante hoy",
       "moveUp": "Subir prioridad",
       "moveDown": "Bajar prioridad",
       "edit": "Editar tarjeta",
-      "loadLot": "Cargar lote"
+      "loadLot": "Cargar lote",
+      "adjustBalance": "Ajustar saldo"
     },
     "lots": {
-      "title": "Lotes (el más antiguo se usa primero)",
-      "empty": "Sin lotes con saldo",
+      "title": "Historial de lotes (el más antiguo se usa primero)",
+      "empty": "Aún sin lotes",
       "loadedAt": "Cargado",
       "amount": "Monto (CUP)",
       "remaining": "Restante (CUP)",
@@ -2678,7 +2679,8 @@
       "edit": "Editar lote",
       "delete": "Eliminar lote",
       "confirmDelete": "¿Eliminar este lote? Solo es posible mientras no se haya usado.",
-      "confirmDeleteTitle": "Eliminar lote de {card}"
+      "confirmDeleteTitle": "Eliminar lote de {card}",
+      "exhausted": "Agotado"
     },
     "cardForm": {
       "titleNew": "Nueva tarjeta",
@@ -2703,7 +2705,8 @@
       "rate": "Tasa del lote",
       "destination": "Usado en",
       "operation": "Operación",
-      "manual": "Línea manual"
+      "manual": "Línea manual",
+      "adjustment": "Ajuste"
     },
     "actions": {
       "save": "Guardar",
@@ -2719,12 +2722,25 @@
       "invalidAmount": "Escribe un monto mayor que cero.",
       "invalidRate": "Escribe una tasa mayor que cero.",
       "noteTooLong": "La nota admite hasta 500 caracteres.",
-      "saveError": "No se pudo guardar."
+      "saveError": "No se pudo guardar.",
+      "invalidBalance": "Escribe el saldo como número, cero o más.",
+      "balanceUnchanged": "Ese ya es el saldo actual.",
+      "reasonTooLong": "El motivo admite hasta 500 caracteres."
     },
     "toasts": {
       "cardSaved": "Tarjeta guardada",
       "lotSaved": "Lote guardado",
-      "lotDeleted": "Lote eliminado"
+      "lotDeleted": "Lote eliminado",
+      "balanceAdjusted": "Saldo ajustado"
+    },
+    "balanceForm": {
+      "title": "Ajustar saldo de {card}",
+      "current": "Saldo actual",
+      "balance": "Saldo real (CUP)",
+      "difference": "Diferencia",
+      "reason": "Motivo (opcional)",
+      "hint": "Si baja: se descuenta de los lotes más antiguos. Si sube: se devuelve a los lotes más nuevos, sin pasar de lo cargado.",
+      "submit": "Ajustar"
     }
   }
 }

@@ -31,3 +31,24 @@ export function validateCardForm(input: { name: string; last4: string; dailyLimi
   if (dailyLimitCup === null || dailyLimitCup >= 1e12) return { ok: false, errorKey: "invalidLimit" };
   return { ok: true, value: { name, last4, dailyLimitCup } };
 }
+
+const BALANCE_NUMBER = { allowZero: true, commaThousands: true } as const;
+
+/** What the owner typed in the "Ajustar saldo" dialog: the real balance (zero allowed) and an optional reason. */
+export function validateBalanceForm(input: { balance: string; reason: string; currentBalanceCup: number }): FormResult<{
+  balanceCup: number;
+  reason?: string;
+}> {
+  const balanceCup = parseCupNumber(input.balance, BALANCE_NUMBER);
+  if (balanceCup === null || balanceCup >= 1e12) return { ok: false, errorKey: "invalidBalance" };
+  if (balanceCup === input.currentBalanceCup) return { ok: false, errorKey: "balanceUnchanged" };
+  const reason = input.reason.trim();
+  if (reason.length > 500) return { ok: false, errorKey: "reasonTooLong" };
+  return { ok: true, value: reason === "" ? { balanceCup } : { balanceCup, reason } };
+}
+
+/** Signed change the typed balance would make to the current one; null while the text is not a number. */
+export function balanceDifference(balance: string, currentBalanceCup: number): number | null {
+  const value = parseCupNumber(balance, BALANCE_NUMBER);
+  return value === null ? null : value - currentBalanceCup;
+}

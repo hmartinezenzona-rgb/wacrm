@@ -16,6 +16,7 @@ interface CardPanelProps {
   onMove: (direction: "up" | "down") => void;
   onEdit: () => void;
   onLoadLot: () => void;
+  onAdjustBalance: () => void;
   onEditLot: (lot: InventoryLot) => void;
   onDeleteLot: (lot: InventoryLot) => void;
 }
@@ -29,7 +30,7 @@ function Figure({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function CardPanel({ card, isFirst, isLast, onMove, onEdit, onLoadLot, onEditLot, onDeleteLot }: CardPanelProps) {
+export function CardPanel({ card, isFirst, isLast, onMove, onEdit, onLoadLot, onAdjustBalance, onEditLot, onDeleteLot }: CardPanelProps) {
   const t = useTranslations("CupInventory");
 
   return (
@@ -58,11 +59,21 @@ export function CardPanel({ card, isFirst, isLast, onMove, onEdit, onLoadLot, on
         </div>
       </header>
 
-      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Figure label={t("card.balance")} value={formatCup(card.balanceCup)} />
-        <Figure label={t("card.dailyLimit")} value={formatCup(card.dailyLimitCup)} />
-        <Figure label={t("card.usedToday")} value={formatCup(card.usedTodayCup)} />
-        <Figure label={t("card.remainingToday")} value={formatCup(card.remainingLimitTodayCup)} />
+      <dl className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="min-w-0">
+            <dt className="text-muted-foreground text-xs">{t("card.balance")}</dt>
+            <dd className="text-foreground text-3xl font-semibold tabular-nums">{formatCup(card.balanceCup)}</dd>
+          </div>
+          <Button variant="outline" size="sm" onClick={onAdjustBalance}>
+            {t("card.adjustBalance")}
+          </Button>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <Figure label={t("card.dailyLimit")} value={formatCup(card.dailyLimitCup)} />
+          <Figure label={t("card.usedToday")} value={formatCup(card.usedTodayCup)} />
+          <Figure label={t("card.remainingToday")} value={formatCup(card.remainingLimitTodayCup)} />
+        </div>
       </dl>
 
       <div className="flex flex-col gap-2">
@@ -83,14 +94,16 @@ export function CardPanel({ card, isFirst, isLast, onMove, onEdit, onLoadLot, on
             </TableHeader>
             <TableBody>
               {card.lots.map((lot) => (
-                <TableRow key={lot.id}>
+                <TableRow key={lot.id} className={lot.exhausted ? "text-muted-foreground" : undefined}>
                   <TableCell className="tabular-nums">{format(new Date(lot.loadedAt), "dd/MM/yyyy")}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCup(lot.amountCup)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCup(lot.remainingCup)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatRate(lot.rateCupPerUsdt)}</TableCell>
                   <TableCell className="text-muted-foreground max-w-48 truncate">{lot.note}</TableCell>
                   <TableCell className="text-right">
-                    {lot.editable ? (
+                    {lot.exhausted ? (
+                      <span className="text-xs">{t("lots.exhausted")}</span>
+                    ) : lot.editable ? (
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" size="icon-sm" aria-label={t("lots.edit")} title={t("lots.edit")} onClick={() => onEditLot(lot)}>
                           <Pencil className="size-3.5" />
@@ -134,9 +147,13 @@ export function CardPanel({ card, isFirst, isLast, onMove, onEdit, onLoadLot, on
                   <TableCell className="text-right tabular-nums">{formatRate(move.lotRateCupPerUsdt)}</TableCell>
                   <TableCell className="max-w-56 truncate">
                     <span className="text-muted-foreground text-xs">
-                      {move.source === "manual" ? t("movements.manual") : t("movements.operation")}
+                      {move.kind === "ajuste"
+                        ? t("movements.adjustment")
+                        : move.source === "manual" || move.kind === "manual"
+                          ? t("movements.manual")
+                          : t("movements.operation")}
                     </span>{" "}
-                    {move.customerName}
+                    {move.kind === "ajuste" ? move.reason : move.customerName}
                   </TableCell>
                 </TableRow>
               ))}

@@ -1,6 +1,6 @@
 // Body validation shared by the inventory routes: strict shapes, finite numbers in range, nothing unknown.
 import { describe, expect, it } from "vitest";
-import { parseCardBody, parseLotBody, parseLotPatchBody } from "./payloads";
+import { parseBalanceBody, parseCardBody, parseLotBody, parseLotPatchBody } from "./payloads";
 
 describe("parseCardBody", () => {
   it("create: name is required; the rest is optional", () => {
@@ -87,5 +87,30 @@ describe("parseLotPatchBody", () => {
     ["note number", { note: 3 }],
   ])("rejects %s", (_label, body) => {
     expect(parseLotPatchBody(body).ok).toBe(false);
+  });
+});
+
+describe("parseBalanceBody", () => {
+  it("balanceCup is required; zero is valid; the reason is trimmed and optional", () => {
+    expect(parseBalanceBody({ balanceCup: 222840 })).toEqual({ ok: true, value: { balanceCup: 222840 } });
+    expect(parseBalanceBody({ balanceCup: 0 })).toEqual({ ok: true, value: { balanceCup: 0 } });
+    expect(parseBalanceBody({ balanceCup: 10, reason: "  conteo real " })).toEqual({ ok: true, value: { balanceCup: 10, reason: "conteo real" } });
+    expect(parseBalanceBody({ balanceCup: 10, reason: "   " })).toEqual({ ok: true, value: { balanceCup: 10 } });
+    expect(parseBalanceBody({ balanceCup: 10, reason: null })).toEqual({ ok: true, value: { balanceCup: 10 } });
+  });
+
+  it.each([
+    ["non-object", "x"],
+    ["array", []],
+    ["missing", {}],
+    ["negative", { balanceCup: -1 }],
+    ["text", { balanceCup: "10" }],
+    ["NaN", { balanceCup: Number.NaN }],
+    ["too big", { balanceCup: 1e12 }],
+    ["reason not text", { balanceCup: 1, reason: 5 }],
+    ["reason too long", { balanceCup: 1, reason: "x".repeat(501) }],
+    ["unknown key", { balanceCup: 1, note: "x" }],
+  ])("rejects %s", (_label, body) => {
+    expect(parseBalanceBody(body).ok).toBe(false);
   });
 });

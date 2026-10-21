@@ -2657,18 +2657,19 @@
     "card": {
       "inactive": "Inactive",
       "priority": "Priority {n}",
-      "balance": "Balance",
+      "balance": "Current balance",
       "dailyLimit": "Daily limit",
       "usedToday": "Used today",
       "remainingToday": "Limit left today",
       "moveUp": "Raise priority",
       "moveDown": "Lower priority",
       "edit": "Edit card",
-      "loadLot": "Load lot"
+      "loadLot": "Load lot",
+      "adjustBalance": "Adjust balance"
     },
     "lots": {
-      "title": "Lots (oldest is used first)",
-      "empty": "No lots with balance",
+      "title": "Lot history (oldest is used first)",
+      "empty": "No lots yet",
       "loadedAt": "Loaded",
       "amount": "Amount (CUP)",
       "remaining": "Remaining (CUP)",
@@ -2678,7 +2679,8 @@
       "edit": "Edit lot",
       "delete": "Delete lot",
       "confirmDelete": "Delete this lot? This is only possible while nothing was used from it.",
-      "confirmDeleteTitle": "Delete lot from {card}"
+      "confirmDeleteTitle": "Delete lot from {card}",
+      "exhausted": "Used up"
     },
     "cardForm": {
       "titleNew": "New card",
@@ -2703,7 +2705,8 @@
       "rate": "Lot rate",
       "destination": "Used for",
       "operation": "Operation",
-      "manual": "Manual line"
+      "manual": "Manual line",
+      "adjustment": "Adjustment"
     },
     "actions": {
       "save": "Save",
@@ -2719,12 +2722,25 @@
       "invalidAmount": "Enter an amount greater than zero.",
       "invalidRate": "Enter a rate greater than zero.",
       "noteTooLong": "The note allows up to 500 characters.",
-      "saveError": "Could not save."
+      "saveError": "Could not save.",
+      "invalidBalance": "Enter the balance as a number, zero or more.",
+      "balanceUnchanged": "That is already the current balance.",
+      "reasonTooLong": "The reason allows up to 500 characters."
     },
     "toasts": {
       "cardSaved": "Card saved",
       "lotSaved": "Lot saved",
-      "lotDeleted": "Lot deleted"
+      "lotDeleted": "Lot deleted",
+      "balanceAdjusted": "Balance adjusted"
+    },
+    "balanceForm": {
+      "title": "Adjust balance of {card}",
+      "current": "Current balance",
+      "balance": "Real balance (CUP)",
+      "difference": "Difference",
+      "reason": "Reason (optional)",
+      "hint": "Lower: taken from the oldest lots first. Higher: returned to the newest lots, never above what was loaded.",
+      "submit": "Adjust"
     }
   }
 }

@@ -38,7 +38,7 @@ unfinished (the customer is still writing).
       on this one (unfinished) vs no customer message within 2 min after the bot answered (finished).
 - [x] J3 Runner `jev/medir_jev.py` (pure parts tested): build state/questions, call Jev once per case, record
       probability, tokens and errors; cost cap.
-- [ ] J4 Run both datasets; metrics per threshold (0.5/0.7/0.8/0.9/0.95): precision/recall, confusion, cost, latency.
+- [x] J4 Run both datasets; metrics per threshold (0.5/0.7/0.8/0.9/0.95): precision/recall, confusion, cost, latency.
 - [ ] J5 Arbitration sheet for Dataset A disagreements (Jev vs bot); report with recommendation.
 
 ## Acceptance criteria
@@ -62,6 +62,18 @@ unfinished (the customer is still writing).
 - 2026-10-21 J3: `jev/medir_jev.py` + `tests/test_medir_jev.py` (evals 331bf18). RED observed (ImportError), GREEN
   12/12, full evals suite 98/98. Question instructions in English (Jev's strongest language), state in Spanish.
 
+- 2026-10-21 key is a TypeSafe key (console.typesafe.ai): runner now calls https://api.typesafe.ai/v1/systemone
+  (evals ddd7b33, tests 13/13); jev-ai.pro rejects it (401). Models on the account: jev-latest (1.13.0), jev-preview
+  (1.14.0); no Laya.
+- 2026-10-21 J4: 1,079 calls, 0 errors, 516k input tokens, median 0.28 s.
+  B (unfinished, timing labels): weak. Best preview u=0.8 precision 0.76 recall 0.31; latest u=0.9 predicts nothing.
+  Not usable as a debounce signal (labels are noisy, but the signal is weak either way).
+  A (silence, proxy = bot was silent): preview u=0.9 precision 0.82 recall 0.26 vs the proxy. Manual review of the
+  10 cases Jev silences at >=0.8 while the bot replied: 9 are pure thanks/acks after "su remesa ya fue completada"
+  or similar (silence is fine); 1 risky: "Ya" after "Dale, aqui estoy pendiente" (0.85, could mean "deposited").
+  At >=0.9 all 7 are pure thanks. The proxy is misleading the other way: many "Hola"/"Buenos dias" the bot left
+  unanswered (paused/outside hours) are correctly marked as needing a reply. Max p_callar 0.95.
+
 ## Next step
 
-J4 once the key exists: a 5-call smoke run, then datasets B and A with jev-latest and laya-multilingual.
+Owner decision on J5: arbitration sheet of the 0.8-0.95 band, and whether a silence gate on pure thanks is worth it.

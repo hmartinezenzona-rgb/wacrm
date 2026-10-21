@@ -81,3 +81,14 @@ const NOTIFY_ERROR = "notify must be a boolean";
 export function invalidNotifyResponse(): NextResponse {
   return NextResponse.json({ error: NOTIFY_ERROR }, { status: 400 });
 }
+
+/** The optional CUP sending card chosen when completing a CUP transfer (migration 257): `undefined` when absent or
+ *  null (allocation by priority), `null` (the caller answers 400) when present but not a UUID. */
+export function parseCupSourceCardId(value: unknown): string | null | undefined {
+  if (value === undefined || value === null) return undefined;
+  return typeof value === "string" && UUID_RE.test(value) ? value : null;
+}
+
+export function invalidCupSourceCardResponse(): NextResponse {
+  return NextResponse.json({ error: "cupSourceCardId, when sent, must be a UUID" }, { status: 400 });
+}

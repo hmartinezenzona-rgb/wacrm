@@ -224,11 +224,13 @@ export async function deliverOperation(
   operationId: string,
   evidence: DeliveryEvidenceRpc,
   notify = true,
+  cupSourceCardId?: string | null,
 ): Promise<DeliverOperationCommandResult> {
+  // (257) cupSourceCardId: the sending card the operator chose for a CUP transfer; left out = allocation by priority.
   const response = await postJsonResult<{ newStatus: string; completedAt: string | null }>(
     `/api/remittance-operations/${operationId}/deliver`,
     "POST",
-    { evidence, notify },
+    cupSourceCardId ? { evidence, notify, cupSourceCardId } : { evidence, notify },
   );
   if (!response.ok) return response;
   return { ok: true, newStatus: response.data.newStatus, completedAt: response.data.completedAt };
@@ -274,11 +276,12 @@ export async function cerrarOperacionManual(
   operationId: string,
   notify = false,
   deliveryMethod?: string,
+  cupSourceCardId?: string | null,
 ): Promise<ManualCloseCommandResult> {
   const response = await postJsonResult<{ newStatus: string; completedAt: string | null }>(
     `/api/remittance-operations/${operationId}/close-manual`,
     "POST",
-    deliveryMethod ? { notify, deliveryMethod } : { notify },
+    { notify, ...(deliveryMethod ? { deliveryMethod } : {}), ...(cupSourceCardId ? { cupSourceCardId } : {}) },
   );
   if (!response.ok) return response;
   return { ok: true, newStatus: response.data.newStatus, completedAt: response.data.completedAt };

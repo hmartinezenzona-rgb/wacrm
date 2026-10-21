@@ -534,7 +534,11 @@
         "planTitle": "Transfer from",
         "usedTitle": "Left from",
         "cardTotal": "{amount} CUP",
-        "missing": "{amount} CUP short · waits until tomorrow"
+        "missing": "{amount} CUP short · waits until tomorrow",
+        "sourceCardLabel": "Source card",
+        "sourceCardAuto": "Automatic (by priority)",
+        "sourceCardOption": "{name} ·{last4} · {amount} CUP",
+        "sourceCardOptionNoLast4": "{name} · {amount} CUP"
       },
       "viewer": {
         "zoomOut": "Zoom out",

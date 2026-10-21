@@ -534,7 +534,11 @@
         "planTitle": "Transferir desde",
         "usedTitle": "Salió de",
         "cardTotal": "{amount} CUP",
-        "missing": "Faltan {amount} CUP · queda para mañana"
+        "missing": "Faltan {amount} CUP · queda para mañana",
+        "sourceCardLabel": "Tarjeta de origen",
+        "sourceCardAuto": "Automática (por prioridad)",
+        "sourceCardOption": "{name} ·{last4} · {amount} CUP",
+        "sourceCardOptionNoLast4": "{name} · {amount} CUP"
       },
       "viewer": {
         "zoomOut": "Alejar",

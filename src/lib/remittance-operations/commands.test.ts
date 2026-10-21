@@ -591,3 +591,30 @@ describe("fetchChatImages", () => {
     expect(await fetchChatImages(CONVERSATION_ID)).toEqual({ ok: false, status: 0, error: "Network error" });
   });
 });
+
+describe("CUP source card (migration 257)", () => {
+  const CARD_ID = "22222222-2222-2222-2222-222222222222";
+
+  it("deliverOperation sends cupSourceCardId only when a card was chosen", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(jsonResponse({ ok: true, newStatus: "completed", completedAt: null }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, newStatus: "completed", completedAt: null }));
+
+    await deliverOperation(OPERATION_ID, { mode: "no_proof" }, true, CARD_ID);
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0]![1]!.body as string)).toEqual({
+      evidence: { mode: "no_proof" },
+      notify: true,
+      cupSourceCardId: CARD_ID,
+    });
+
+    await deliverOperation(OPERATION_ID, { mode: "no_proof" }, true, null);
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[1]![1]!.body as string)).toEqual({ evidence: { mode: "no_proof" }, notify: true });
+  });
+
+  it("cerrarOperacionManual sends cupSourceCardId only when a card was chosen", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ok: true, newStatus: "completed", completedAt: null }));
+
+    await cerrarOperacionManual(OPERATION_ID, false, undefined, CARD_ID);
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0]![1]!.body as string)).toEqual({ notify: false, cupSourceCardId: CARD_ID });
+  });
+});

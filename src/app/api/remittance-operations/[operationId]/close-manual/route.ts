@@ -14,8 +14,10 @@ import { NextResponse } from "next/server";
 import { requireRole, toErrorResponse } from "@/lib/auth/account";
 import {
   UUID_RE,
+  invalidCupSourceCardResponse,
   invalidNotifyResponse,
   isOperationsPanelEnabled,
+  parseCupSourceCardId,
   parseNotify,
   rpcErrorResponse,
 } from "@/lib/remittance-operations/route-helpers";
@@ -91,11 +93,16 @@ export async function POST(
       );
     }
 
+    // (257) Optional: the sending card the CUP leaves from. Absent = priority allocation, and the RPC call keeps its old shape.
+    const cupSourceCardId = parseCupSourceCardId((body as { cupSourceCardId?: unknown } | null)?.cupSourceCardId);
+    if (cupSourceCardId === null) return invalidCupSourceCardResponse();
+
     const { data, error } = await ctx.supabase.rpc("crm_cerrar_operacion_manual", {
       p_operation_id: operationId,
       p_motivo: reason ?? null,
       p_notify: notify,
       ...(deliveryMethod ? { p_delivery_method: deliveryMethod } : {}),
+      ...(cupSourceCardId ? { p_cup_source_card_id: cupSourceCardId } : {}),
     });
     if (error) {
       const errorResponse = rpcErrorResponse(error);

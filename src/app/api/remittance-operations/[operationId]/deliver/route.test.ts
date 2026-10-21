@@ -292,3 +292,61 @@ describe("POST /api/remittance-operations/[operationId]/deliver", () => {
     expect(callCtx.supabase.rpc).not.toHaveBeenCalled();
   });
 });
+
+describe("POST /api/remittance-operations/[operationId]/deliver: optional CUP source card (migration 257)", () => {
+  const CARD_ID = "22222222-2222-2222-2222-222222222222";
+
+  it("cupSourceCardId in the body -> the RPC gets p_cup_source_card_id", async () => {
+    const { POST } = await import("./route");
+    const callCtx = ctx(ENABLED_PROFILE, { data: DELIVER_RPC_RESULT, error: null });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await POST(request({ ...VALID_EVIDENCE, cupSourceCardId: CARD_ID }), paramsFor(OPERATION_ID));
+
+    expect(response.status).toBe(200);
+    expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_entregar_operacion", {
+      p_operation_id: OPERATION_ID,
+      p_evidence: { mode: "proof_sent", wamid: "wamid.ABC", path: "account-1/x.png" },
+      p_notify: true,
+      p_cup_source_card_id: CARD_ID,
+    });
+  });
+
+  it.each([
+    ["absent", undefined],
+    ["null", null],
+  ])("cupSourceCardId %s -> the RPC call has no p_cup_source_card_id key (priority allocation, old call shape)", async (_label, value) => {
+    const { POST } = await import("./route");
+    const callCtx = ctx(ENABLED_PROFILE, { data: DELIVER_RPC_RESULT, error: null });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await POST(request({ ...VALID_EVIDENCE, cupSourceCardId: value }), paramsFor(OPERATION_ID));
+
+    expect(response.status).toBe(200);
+    const args = (callCtx.supabase.rpc.mock.calls[0] as unknown[])[1] as Record<string, unknown>;
+    expect("p_cup_source_card_id" in args).toBe(false);
+  });
+
+  it.each([["not-a-uuid"], [42], [""], [{}]])("cupSourceCardId %j -> 400 and the RPC is never called", async (value) => {
+    const { POST } = await import("./route");
+    const callCtx = ctx(ENABLED_PROFILE, { data: null, error: null });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await POST(request({ ...VALID_EVIDENCE, cupSourceCardId: value }), paramsFor(OPERATION_ID));
+
+    expect(response.status).toBe(400);
+    expect(callCtx.supabase.rpc).not.toHaveBeenCalled();
+  });
+
+  it("a card the RPC refuses (22023) -> 400 with its message", async () => {
+    const { POST } = await import("./route");
+    requireRole.mockResolvedValueOnce(
+      ctx(ENABLED_PROFILE, { data: null, error: { code: "22023", message: "the CUP source card must be one of the account's active cards" } }),
+    );
+
+    const response = await POST(request({ ...VALID_EVIDENCE, cupSourceCardId: CARD_ID }), paramsFor(OPERATION_ID));
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toContain("active cards");
+  });
+});

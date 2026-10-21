@@ -20,6 +20,15 @@ export interface CupPanelBeneficiary {
   lines: CupPanelLine[];
 }
 
+/** An active sending card offered by the picker (migration 257): current balance and what is left of today's limit. */
+export interface CupPickerCard {
+  id: string;
+  name: string;
+  last4: string | null;
+  balanceCup: number;
+  remainingLimitTodayCup: number;
+}
+
 /** Before completion: an estimate of where the CUP will leave from. */
 export interface CupPanelPlan {
   state: "plan";
@@ -29,6 +38,10 @@ export interface CupPanelPlan {
   plannedCup: number;
   missingCup: number;
   effectiveRate: number | null;
+  /** The card the plan starts from (the operator's choice); null = by priority. */
+  sourceCardId: string | null;
+  /** The account's active cards for the picker, by priority. */
+  cards: CupPickerCard[];
   beneficiaries: CupPanelBeneficiary[];
 }
 
@@ -87,6 +100,21 @@ function mapLines(raw: unknown): CupPanelLine[] | null {
   return lines.every((l): l is CupPanelLine => l !== null) ? (lines as CupPanelLine[]) : null;
 }
 
+function mapPickerCards(raw: unknown): CupPickerCard[] {
+  if (!Array.isArray(raw)) return [];
+  const cards: CupPickerCard[] = [];
+  for (const c of raw) {
+    if (!isRecord(c)) continue;
+    const id = str(c.id);
+    const name = str(c.name);
+    const balanceCup = num(c.balance_cup);
+    const remainingLimitTodayCup = num(c.remaining_limit_today_cup);
+    if (id === null || name === null || balanceCup === null || remainingLimitTodayCup === null) continue;
+    cards.push({ id, name, last4: str(c.last4), balanceCup, remainingLimitTodayCup });
+  }
+  return cards;
+}
+
 /** Maps the RPC/API payload; null when it is not a known shape (the caller then shows nothing). */
 export function mapCupPanel(raw: unknown): CupPanelRead | null {
   if (!isRecord(raw)) return null;
@@ -130,6 +158,8 @@ export function mapCupPanel(raw: unknown): CupPanelRead | null {
       plannedCup,
       missingCup,
       effectiveRate: num(raw.effective_rate),
+      sourceCardId: str(raw.source_card_id),
+      cards: mapPickerCards(raw.cards),
       beneficiaries,
     };
   }

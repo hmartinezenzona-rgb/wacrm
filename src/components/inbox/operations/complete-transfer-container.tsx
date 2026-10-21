@@ -110,6 +110,13 @@ export function CompleteTransferContainer({
     notifyRef.current = value;
     setNotifyState(value);
   }, []);
+  // (257) The sending card the CUP leaves from; null = automatic (by priority). Read through a ref by `buildDeps` like `notify`.
+  const [cupSourceCardId, setCupSourceCardIdState] = useState<string | null>(null);
+  const cupSourceCardRef = useRef<string | null>(null);
+  const setCupSourceCardId = useCallback((value: string | null) => {
+    cupSourceCardRef.current = value;
+    setCupSourceCardIdState(value);
+  }, []);
   const [banner, setBanner] = useState<CompleteTransferBanner | null>(null);
   // The last `skip` a run actually used — a plain (no-proof) stage
   // failure has no wamid to retry from, so "Retry" just repeats the
@@ -341,7 +348,9 @@ export function CompleteTransferContainer({
         await deleteAccountMedia(CHAT_MEDIA_BUCKET, path);
       },
       moveToDelivered: async (_id, evidence) => {
-        const result = await deliverOperation(operationId, evidenceToRpc(evidence), notifyRef.current);
+        const result = cupSourceCardRef.current
+          ? await deliverOperation(operationId, evidenceToRpc(evidence), notifyRef.current, cupSourceCardRef.current)
+          : await deliverOperation(operationId, evidenceToRpc(evidence), notifyRef.current);
         return result.ok ? { ok: true } : { ok: false, message: result.error };
       },
     }),
@@ -630,7 +639,7 @@ export function CompleteTransferContainer({
         onSubmit={() => void (skipChecked ? run({ skip: true }) : runMulti())}
         notify={notify}
         onNotifyChange={setNotify}
-        extra={<CupPlanBlock operationId={operationId} />}
+        extra={<CupPlanBlock operationId={operationId} sourceCardId={cupSourceCardId} onSourceCardChange={setCupSourceCardId} />}
       />
     );
   }
@@ -654,7 +663,7 @@ export function CompleteTransferContainer({
       onSubmit={() => void run({ skip: skipChecked })}
       notify={notify}
       onNotifyChange={setNotify}
-      extra={<CupPlanBlock operationId={operationId} />}
+      extra={<CupPlanBlock operationId={operationId} sourceCardId={cupSourceCardId} onSourceCardChange={setCupSourceCardId} />}
     />
   );
 }

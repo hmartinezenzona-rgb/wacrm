@@ -152,3 +152,30 @@ describe("visibleCupPanel", () => {
     expect(visibleCupPanel(mapCupPanel(planPayload))?.state).toBe("plan");
   });
 });
+
+describe("mapCupPanel: source card choice (migration 257)", () => {
+  const withCards = {
+    ...planPayload,
+    source_card_id: "B",
+    cards: [
+      { id: "A", name: "Tarjeta A", last4: "1111", balance_cup: 380000, remaining_limit_today_cup: 20000 },
+      { id: "B", name: "Tarjeta B", last4: null, balance_cup: "250000", remaining_limit_today_cup: 120000 },
+      { id: "", name: "broken" },
+    ],
+  };
+
+  it("maps the chosen card and the picker's cards (broken entries dropped, numeric strings read)", () => {
+    const read = mapCupPanel(withCards) as CupPanelPlan;
+    expect(read.sourceCardId).toBe("B");
+    expect(read.cards).toEqual([
+      { id: "A", name: "Tarjeta A", last4: "1111", balanceCup: 380000, remainingLimitTodayCup: 20000 },
+      { id: "B", name: "Tarjeta B", last4: null, balanceCup: 250000, remainingLimitTodayCup: 120000 },
+    ]);
+  });
+
+  it("an older payload without cards / source_card_id maps to no choice and no cards", () => {
+    const read = mapCupPanel(planPayload) as CupPanelPlan;
+    expect(read.sourceCardId).toBeNull();
+    expect(read.cards).toEqual([]);
+  });
+});

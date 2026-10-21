@@ -341,3 +341,46 @@ describe("POST /api/remittance-operations/[operationId]/close-manual", () => {
     },
   );
 });
+
+describe("POST /api/remittance-operations/[operationId]/close-manual: optional CUP source card (migration 257)", () => {
+  const CARD_ID = "22222222-2222-2222-2222-222222222222";
+  const closed = { data: { new_status: "completed", completed_at: null }, error: null };
+
+  it("cupSourceCardId in the body -> the RPC gets p_cup_source_card_id", async () => {
+    const { POST } = await import("./route");
+    const callCtx = ctx(ENABLED_PROFILE, closed);
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await POST(request({ cupSourceCardId: CARD_ID }), paramsFor(OPERATION_ID));
+
+    expect(response.status).toBe(200);
+    expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_cerrar_operacion_manual", {
+      p_operation_id: OPERATION_ID,
+      p_motivo: null,
+      p_notify: false,
+      p_cup_source_card_id: CARD_ID,
+    });
+  });
+
+  it("no cupSourceCardId -> the RPC call has no p_cup_source_card_id key", async () => {
+    const { POST } = await import("./route");
+    const callCtx = ctx(ENABLED_PROFILE, closed);
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    await POST(request({ notify: true }), paramsFor(OPERATION_ID));
+
+    const args = (callCtx.supabase.rpc.mock.calls[0] as unknown[])[1] as Record<string, unknown>;
+    expect("p_cup_source_card_id" in args).toBe(false);
+  });
+
+  it("a malformed cupSourceCardId -> 400 and the RPC is never called", async () => {
+    const { POST } = await import("./route");
+    const callCtx = ctx(ENABLED_PROFILE, closed);
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await POST(request({ cupSourceCardId: "nope" }), paramsFor(OPERATION_ID));
+
+    expect(response.status).toBe(400);
+    expect(callCtx.supabase.rpc).not.toHaveBeenCalled();
+  });
+});

@@ -33,7 +33,7 @@ function ctx(profileResult: { data: unknown; error: unknown }, rpcResult: { data
   return { supabase: { from, rpc }, userId: "user-a", accountId: "account-a", role: "agent" as const };
 }
 
-const request = () => new Request(`http://local/api/remittance-operations/${OPERATION_ID}/cup-plan`);
+const request = (query = "") => new Request(`http://local/api/remittance-operations/${OPERATION_ID}/cup-plan${query}`);
 const paramsFor = (operationId: string) => ({ params: Promise.resolve({ operationId }) });
 
 beforeEach(() => {
@@ -129,5 +129,56 @@ describe("GET /api/remittance-operations/[operationId]/cup-plan", () => {
     const { GET } = await import("./route");
     requireRole.mockResolvedValueOnce(ctx(ENABLED_PROFILE, { data: { state: "mystery" }, error: null }));
     expect((await GET(request(), paramsFor(OPERATION_ID))).status).toBe(502);
+  });
+});
+
+describe("GET /api/remittance-operations/[operationId]/cup-plan: optional source card (migration 257)", () => {
+  const CARD_ID = "22222222-2222-2222-2222-222222222222";
+  const PLAN = {
+    state: "plan", total_cup: 50000, planned_cup: 50000, missing_cup: 0, cuba_day: "2026-10-20", effective_rate: 1060, source_card_id: CARD_ID,
+    cards: [{ id: CARD_ID, name: "Tarjeta B", last4: "2222", balance_cup: 250000, remaining_limit_today_cup: 120000 }],
+    beneficiaries: [{ beneficiary_id: "b1", position: 1, name: "Ana", amount_cup: 50000, missing_cup: 0,
+      lines: [{ card_id: CARD_ID, card_name: "Tarjeta B", last4: "2222", lot_id: "l1", amount_cup: 50000, lot_rate: 1060 }] }],
+  };
+
+  it("?card=<uuid> -> the RPC gets p_source_card_id and the picker's cards come back mapped", async () => {
+    const { GET } = await import("./route");
+    const c = ctx(ENABLED_PROFILE, { data: PLAN, error: null });
+    requireRole.mockResolvedValueOnce(c);
+
+    const response = await GET(request(`?card=${CARD_ID}`), paramsFor(OPERATION_ID));
+
+    expect(response.status).toBe(200);
+    expect(c.supabase.rpc).toHaveBeenCalledWith("crm_inventario_cup_operacion", { p_operation_id: OPERATION_ID, p_source_card_id: CARD_ID });
+    const body = await response.json();
+    expect(body.cupPlan.sourceCardId).toBe(CARD_ID);
+    expect(body.cupPlan.cards).toEqual([
+      { id: CARD_ID, name: "Tarjeta B", last4: "2222", balanceCup: 250000, remainingLimitTodayCup: 120000 },
+    ]);
+  });
+
+  it("no ?card -> the RPC call is exactly the old one", async () => {
+    const { GET } = await import("./route");
+    const c = ctx(ENABLED_PROFILE, { data: { ...PLAN, source_card_id: null }, error: null });
+    requireRole.mockResolvedValueOnce(c);
+
+    await GET(request(), paramsFor(OPERATION_ID));
+
+    expect(c.supabase.rpc).toHaveBeenCalledWith("crm_inventario_cup_operacion", { p_operation_id: OPERATION_ID });
+  });
+
+  it("a malformed ?card -> 400 and the RPC is not called", async () => {
+    const { GET } = await import("./route");
+    const c = ctx(ENABLED_PROFILE, { data: PLAN, error: null });
+    requireRole.mockResolvedValueOnce(c);
+
+    expect((await GET(request("?card=nope"), paramsFor(OPERATION_ID))).status).toBe(400);
+    expect(c.supabase.rpc).not.toHaveBeenCalled();
+  });
+
+  it("a card the RPC refuses (22023) -> 400", async () => {
+    const { GET } = await import("./route");
+    requireRole.mockResolvedValueOnce(ctx(ENABLED_PROFILE, { data: null, error: { code: "22023", message: "bad card" } }));
+    expect((await GET(request(`?card=${CARD_ID}`), paramsFor(OPERATION_ID))).status).toBe(400);
   });
 });

@@ -16,11 +16,12 @@ import { mapCupPanel } from "@/lib/cup-inventory/panel";
 import {
   UUID_RE,
   isOperationsPanelEnabled,
+  parseCupSourceCardId,
   rpcErrorResponse,
 } from "@/lib/remittance-operations/route-helpers";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ operationId: string }> },
 ) {
   try {
@@ -36,8 +37,15 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    // (257) Optional ?card=<uuid>: plan as if the operator picked that sending card (migration 257).
+    const card = parseCupSourceCardId(new URL(request.url).searchParams.get("card") ?? undefined);
+    if (card === null) {
+      return NextResponse.json({ error: "card, when sent, must be a UUID" }, { status: 400 });
+    }
+
     const { data, error } = await ctx.supabase.rpc("crm_inventario_cup_operacion", {
       p_operation_id: operationId,
+      ...(card ? { p_source_card_id: card } : {}),
     });
     if (error) {
       const errorResponse = rpcErrorResponse(error);

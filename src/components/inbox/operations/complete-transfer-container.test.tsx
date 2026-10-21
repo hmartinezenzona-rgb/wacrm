@@ -542,3 +542,86 @@ describe("CompleteTransferContainer — 2+ beneficiaries", () => {
     await act(async () => root.unmount());
   });
 });
+
+describe("CompleteTransferContainer: CUP source card (migration 257)", () => {
+  async function cupPlan() {
+    const { mapCupPanel } = await import("@/lib/cup-inventory/panel");
+    return mapCupPanel({
+      state: "plan", total_cup: 50000, planned_cup: 50000, missing_cup: 0, cuba_day: "2026-10-20", effective_rate: 960, source_card_id: null,
+      cards: [
+        { id: "card-a", name: "Tarjeta A", last4: "1111", balance_cup: 380000, remaining_limit_today_cup: 20000 },
+        { id: "card-b", name: "Tarjeta B", last4: "2222", balance_cup: 250000, remaining_limit_today_cup: 120000 },
+      ],
+      beneficiaries: [{ beneficiary_id: "b1", position: 1, name: "Ana", amount_cup: 50000, missing_cup: 0,
+        lines: [{ card_id: "card-a", card_name: "Tarjeta A", last4: "1111", lot_id: "l1", amount_cup: 50000, lot_rate: 960 }] }],
+    });
+  }
+
+  async function stubFetch() {
+    const plan = await cupPlan();
+    const fetchMock = vi.fn((url: string) =>
+      url.includes("/cup-plan")
+        ? Promise.resolve(new Response(JSON.stringify({ cupPlan: plan }), { status: 200 }))
+        : Promise.resolve(readyOperationsResponse()),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  function pick(node: Element, value: string) {
+    const el = node.querySelector("select") as HTMLSelectElement;
+    return act(async () => {
+      el.value = value;
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+      await Promise.resolve();
+    });
+  }
+
+  it("defaults to automatic: completing sends no source card (the old call)", async () => {
+    await stubFetch();
+    deliverOperation.mockResolvedValue({ ok: true, newStatus: "completed", completedAt: null });
+    const { node, root } = await renderContainer();
+    await flush();
+    expect((node.querySelector("select") as HTMLSelectElement).value).toBe("");
+
+    await act(async () => submitButton(node).dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await flush();
+
+    expect(deliverOperation).toHaveBeenCalledWith(OPERATION_ID, { mode: "no_proof" }, true);
+    await act(async () => root.unmount());
+  });
+
+  it("choosing a card re-reads the plan from that card and completing sends the choice", async () => {
+    const fetchMock = await stubFetch();
+    deliverOperation.mockResolvedValue({ ok: true, newStatus: "completed", completedAt: null });
+    const { node, root } = await renderContainer();
+    await flush();
+
+    await pick(node, "card-b");
+    await flush();
+    expect(fetchMock).toHaveBeenCalledWith(`/api/remittance-operations/${OPERATION_ID}/cup-plan?card=card-b`, expect.anything());
+
+    await act(async () => submitButton(node).dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await flush();
+
+    expect(deliverOperation).toHaveBeenCalledWith(OPERATION_ID, { mode: "no_proof" }, true, "card-b");
+    await act(async () => root.unmount());
+  });
+
+  it("going back to automatic completes without a source card again", async () => {
+    await stubFetch();
+    deliverOperation.mockResolvedValue({ ok: true, newStatus: "completed", completedAt: null });
+    const { node, root } = await renderContainer();
+    await flush();
+
+    await pick(node, "card-b");
+    await flush();
+    await pick(node, "");
+    await flush();
+    await act(async () => submitButton(node).dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await flush();
+
+    expect(deliverOperation).toHaveBeenCalledWith(OPERATION_ID, { mode: "no_proof" }, true);
+    await act(async () => root.unmount());
+  });
+});

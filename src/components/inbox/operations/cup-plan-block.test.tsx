@@ -148,3 +148,108 @@ describe("CupPlanBlock", () => {
     expect((await mount(<CupPlanBlock operationId="op-1" />)).textContent).toBe("");
   });
 });
+
+describe("CupPlanView: source card picker (migration 257)", () => {
+  const PLAN_WITH_CARDS = {
+    ...PLAN,
+    source_card_id: null,
+    cards: [
+      { id: "A", name: "Tarjeta A", last4: "1111", balance_cup: 380000, remaining_limit_today_cup: 20000 },
+      { id: "B", name: "Tarjeta B", last4: "2222", balance_cup: 250000, remaining_limit_today_cup: 120000 },
+    ],
+  };
+  const select = (host: HTMLElement) => host.querySelector("select") as HTMLSelectElement | null;
+
+  it("shows a small select 'Tarjeta de origen' with 'Automática (por prioridad)' first and each active card with its balance", async () => {
+    const host = await mount(<CupPlanView read={mapCupPanel(PLAN_WITH_CARDS)!} selectedCardId={null} onSelectCard={() => {}} />);
+    const el = select(host)!;
+    expect(el).not.toBeNull();
+    expect(el.getAttribute("aria-label")).toBe("Tarjeta de origen");
+    const options = [...el.options].map((o) => [o.value, norm(o.textContent)]);
+    expect(options).toEqual([
+      ["", "Automática (por prioridad)"],
+      ["A", "Tarjeta A ·1111 · 380 000 CUP"],
+      ["B", "Tarjeta B ·2222 · 250 000 CUP"],
+    ]);
+    expect(el.value).toBe("");
+  });
+
+  it("reflects the selected card and reports a change (null for automatic)", async () => {
+    const onSelectCard = vi.fn();
+    const host = await mount(<CupPlanView read={mapCupPanel(PLAN_WITH_CARDS)!} selectedCardId="B" onSelectCard={onSelectCard} />);
+    const el = select(host)!;
+    expect(el.value).toBe("B");
+    await act(async () => {
+      el.value = "A";
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(onSelectCard).toHaveBeenLastCalledWith("A");
+    await act(async () => {
+      el.value = "";
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(onSelectCard).toHaveBeenLastCalledWith(null);
+  });
+
+  it("no picker without a handler, without cards, or after completion", async () => {
+    expect(select(await mount(<CupPlanView read={mapCupPanel(PLAN_WITH_CARDS)!} />))).toBeNull();
+    expect(select(await mount(<CupPlanView read={mapCupPanel(PLAN)!} selectedCardId={null} onSelectCard={() => {}} />))).toBeNull();
+    expect(select(await mount(<CupPlanView read={mapCupPanel(DONE)!} selectedCardId={null} onSelectCard={() => {}} />))).toBeNull();
+  });
+});
+
+describe("CupPlanBlock: source card (migration 257)", () => {
+  const PLAN_WITH_CARDS = {
+    ...PLAN,
+    cards: [{ id: "A", name: "Tarjeta A", last4: "1111", balance_cup: 380000, remaining_limit_today_cup: 20000 }],
+  };
+  const ok = (body: unknown) => Promise.resolve(new Response(JSON.stringify({ cupPlan: mapCupPanel(body) }), { status: 200 }));
+
+  it("asks for the plan with ?card= when a card is chosen, and again when the choice changes", async () => {
+    const fetchMock = vi.fn(() => ok(PLAN_WITH_CARDS));
+    vi.stubGlobal("fetch", fetchMock);
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    await act(async () => root.render(<CupPlanBlock operationId="op-1" sourceCardId={null} onSourceCardChange={() => {}} />));
+    await act(async () => { await Promise.resolve(); });
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/remittance-operations/op-1/cup-plan", expect.anything());
+    await act(async () => root.render(<CupPlanBlock operationId="op-1" sourceCardId="A" onSourceCardChange={() => {}} />));
+    await act(async () => { await Promise.resolve(); });
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/remittance-operations/op-1/cup-plan?card=A", expect.anything());
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("the picker reports the operator's choice through onSourceCardChange", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => ok(PLAN_WITH_CARDS)));
+    const onSourceCardChange = vi.fn();
+    const host = await mount(<CupPlanBlock operationId="op-1" sourceCardId={null} onSourceCardChange={onSourceCardChange} />);
+    const el = host.querySelector("select") as HTMLSelectElement;
+    await act(async () => {
+      el.value = "A";
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(onSourceCardChange).toHaveBeenCalledWith("A");
+  });
+
+  it("keeps showing the last plan and the picker when the re-fetch for a new choice fails", async () => {
+    const fetchMock = vi.fn()
+      .mockImplementationOnce(() => ok(PLAN_WITH_CARDS))
+      .mockImplementationOnce(() => Promise.resolve(new Response("{}", { status: 400 })));
+    vi.stubGlobal("fetch", fetchMock);
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    await act(async () => root.render(<CupPlanBlock operationId="op-1" sourceCardId={null} onSourceCardChange={() => {}} />));
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => root.render(<CupPlanBlock operationId="op-1" sourceCardId="A" onSourceCardChange={() => {}} />));
+    await act(async () => { await Promise.resolve(); });
+    expect(host.querySelector("select")).not.toBeNull();
+    expect(text(host)).toContain("Tarjeta A");
+  });
+
+  it("without onSourceCardChange (a completed operation) there is no picker", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => ok(PLAN_WITH_CARDS)));
+    expect((await mount(<CupPlanBlock operationId="op-1" />)).querySelector("select")).toBeNull();
+  });
+});

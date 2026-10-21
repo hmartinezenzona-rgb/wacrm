@@ -2405,7 +2405,7 @@
       "depositCheck": "Deposit check",
       "readyToTransfer": "Ready to transfer",
       "incident": "Incident",
-      "completed": "Completed (last 24 h)"
+      "completed": "Completed (since opening)"
     },
     "unknownContact": "Unknown contact",
     "missingBeneficiaries": "Recipient details missing",

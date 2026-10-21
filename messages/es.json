@@ -2405,7 +2405,7 @@
       "depositCheck": "Verificación de depósito",
       "readyToTransfer": "Listas para transferir",
       "incident": "Incidencia",
-      "completed": "Completadas (últimas 24 h)"
+      "completed": "Completadas (desde la apertura)"
     },
     "unknownContact": "Contacto desconocido",
     "missingBeneficiaries": "Faltan datos del beneficiario",

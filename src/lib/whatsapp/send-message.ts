@@ -46,6 +46,11 @@ import {
 import type { MessageTemplate } from '@/types';
 import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard';
 import { renderTemplateBody } from '@/lib/whatsapp/template-send-builder';
+import { parseChatMediaPath } from '@/lib/storage/chat-media';
+import {
+  downloadChatMedia,
+  signChatMediaUrl,
+} from '@/lib/storage/chat-media-server';
 
 export const MEDIA_KINDS = ['image', 'video', 'document', 'audio'] as const;
 export const VALID_MESSAGE_TYPES = [
@@ -229,6 +234,89 @@ export function validateSendMessageParams(params: {
  */
 const MAX_META_UPLOAD_BYTES = 16 * 1024 * 1024;
 
+/** Lifetime of the signed `link` fallback for private chat-media. */
+const MEDIA_LINK_TTL_SECONDS = 24 * 60 * 60;
+
+/**
+ * The URL Meta should pull when the upload path is not used. A stored
+ * chat-media URL stops working anonymously once the bucket is private, so
+ * it is swapped for a signed one; every other URL is sent as-is.
+ */
+export async function mediaLinkForSend(mediaUrl: string): Promise<string> {
+  if (!parseChatMediaPath(mediaUrl)) return mediaUrl;
+  return signChatMediaUrl(mediaUrl, MEDIA_LINK_TTL_SECONDS);
+}
+
+/**
+ * Get the bytes + content-type of the media to send, or `undefined` (after
+ * logging why) when the caller should fall back to the link. chat-media
+ * objects are read with the service role; any other URL is fetched
+ * anonymously, exactly as before.
+ */
+async function fetchMediaBytes(
+  mediaUrl: string,
+): Promise<{ bytes: ArrayBuffer; mimeType: string } | undefined> {
+  const chatMediaPath = parseChatMediaPath(mediaUrl);
+  let bytes: ArrayBuffer;
+  let mimeType: string;
+
+  if (chatMediaPath) {
+    const media = await downloadChatMedia(chatMediaPath);
+    if (!media) {
+      console.error(
+        '[send-message] could not read chat-media object to upload; sending as link'
+      );
+      return undefined;
+    }
+    mimeType = media.contentType.split(';')[0].trim();
+    if (!hasUsableMimeType(mimeType)) return undefined;
+    bytes = media.bytes;
+  } else {
+    const res = await fetch(mediaUrl);
+    if (!res.ok) {
+      console.error(
+        `[send-message] could not fetch media to upload (${res.status}); sending as link`
+      );
+      return undefined;
+    }
+
+    // Trust the declared length first so an oversized object is not
+    // buffered at all; re-check after reading, since it may be absent.
+    const declared = Number(res.headers.get('content-length') ?? '');
+    if (Number.isFinite(declared) && declared > MAX_META_UPLOAD_BYTES) {
+      console.warn(
+        `[send-message] media is ${declared} bytes, over the upload cap; sending as link`
+      );
+      return undefined;
+    }
+
+    mimeType = (res.headers.get('content-type') ?? '').split(';')[0].trim();
+    if (!hasUsableMimeType(mimeType)) return undefined;
+    bytes = await res.arrayBuffer();
+  }
+
+  if (bytes.byteLength > MAX_META_UPLOAD_BYTES) {
+    console.warn(
+      `[send-message] media is ${bytes.byteLength} bytes, over the upload cap; sending as link`
+    );
+    return undefined;
+  }
+  return { bytes, mimeType };
+}
+
+/**
+ * Meta rejects a generic content-type, and guessing one from the
+ * extension is how you send a .png labelled as a .jpeg. If the object
+ * cannot tell us what it is, the link path can still work.
+ */
+function hasUsableMimeType(mimeType: string): boolean {
+  if (mimeType && mimeType !== 'application/octet-stream') return true;
+  console.warn(
+    `[send-message] media has no usable content-type ("${mimeType}"); sending as link`
+  );
+  return false;
+}
+
 /**
  * Fetch the media we are about to send and hand the bytes to Meta,
  * returning the `media_id`. Returns `undefined` when that could not be
@@ -248,44 +336,9 @@ export async function uploadMediaForSend(
   filename?: string,
 ): Promise<string | undefined> {
   try {
-    const res = await fetch(mediaUrl);
-    if (!res.ok) {
-      console.error(
-        `[send-message] could not fetch media to upload (${res.status}); sending as link`
-      );
-      return undefined;
-    }
-
-    // Trust the declared length first so an oversized object is not
-    // buffered at all; re-check after reading, since it may be absent.
-    const declared = Number(res.headers.get('content-length') ?? '');
-    if (Number.isFinite(declared) && declared > MAX_META_UPLOAD_BYTES) {
-      console.warn(
-        `[send-message] media is ${declared} bytes, over the upload cap; sending as link`
-      );
-      return undefined;
-    }
-
-    // Meta rejects a generic content-type, and guessing one from the
-    // extension is how you send a .png labelled as a .jpeg. If the
-    // object cannot tell us what it is, the link path can still work.
-    const mimeType = (res.headers.get('content-type') ?? '')
-      .split(';')[0]
-      .trim();
-    if (!mimeType || mimeType === 'application/octet-stream') {
-      console.warn(
-        `[send-message] media has no usable content-type ("${mimeType}"); sending as link`
-      );
-      return undefined;
-    }
-
-    const bytes = await res.arrayBuffer();
-    if (bytes.byteLength > MAX_META_UPLOAD_BYTES) {
-      console.warn(
-        `[send-message] media is ${bytes.byteLength} bytes, over the upload cap; sending as link`
-      );
-      return undefined;
-    }
+    const fetched = await fetchMediaBytes(mediaUrl);
+    if (!fetched) return undefined;
+    const { bytes, mimeType } = fetched;
 
     const { mediaId } = await uploadMediaToMeta({
       phoneNumberId,
@@ -518,7 +571,7 @@ export async function sendMessageToConversation(
         accessToken,
         to: phone,
         kind: messageType as MediaKind,
-        link: mediaUrl!,
+        link: metaMediaId ? mediaUrl! : await mediaLinkForSend(mediaUrl!),
         mediaId: metaMediaId,
         caption: contentText || undefined,
         filename: filename || undefined,

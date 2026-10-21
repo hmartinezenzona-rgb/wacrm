@@ -39,17 +39,14 @@ Strict. Runners: staging assertion via `infra/db/staging-migracion.sh aplicar`; 
 - [ ] T4 — Production: migration (previa/aplicar/verificar) then panel publish, with go-ahead.
 
 ## Progress
-- T1 (migration 258 on staging, assertion `board-informative-fields.sql`, rollback md5-verified): done (cf9f169), staging applied; md5 of crm_tablero_operaciones 4643febaa70c7477f99944f5370aa82f.
-- T2 (board read model + card UI + tests): done, full vitest/tsc/eslint green; browser check is T3.
+- T1 (migration 258, cf9f169) and T2 (board read model + card UI) were implemented and checked on staging (local :3100).
+- 2026-10-21 owner check: GYD too large and CUP amount missing; adjusted in 92847c4.
 
-- 2026-10-21 T3 parent browser check on staging (local :3100): the ready CUP op card shows rail "CUP" (not "Remesa"),
-  "GYD 86 667 → 260 000 CUP" and recipient "PRUEBA INVENTARIO beneficiario 1 +1". Layout: in the narrow column the
-  amount line wraps ("260 000 / CUP"). Owner to check; production pending go-ahead.
-
-- 2026-10-21 owner: "no sale el monto en CUP" (he was looking at crm.onlinefreedom.site, the deployed staging app,
-  which does not have this branch) and "el número en GYD sale muy grande" -> 92847c4: GYD text-sm font-semibold; the
-  recipient's amount on its own line ("→ 260 000 CUP", text-sm bold); RED 2 -> GREEN 62 board tests; tsc + eslint clean.
-  Browser (localhost:3100): card shows CUP / GYD 86 667 / → 260 000 CUP / recipient +1.
+## Status: CANCELLED by the owner (2026-10-21)
+Owner: "déjalo como está ahora el de producción, no me gustó ese cambio que le hicimos al panel".
+- Production never touched (no migration 258, no panel publish).
+- Staging: ROLLBACK-258 applied; crm_tablero_operaciones md5 back to 11379ddcbc226d516f4a422ab1f95ca5 (pre-258).
+- Branch: commits cf9f169, f288d42, 92847c4 reverted.
 
 ## Next step
-Owner check on localhost:3100/tablero, then T4 with wacrm-migraciones (258) + wacrm-publicar-panel.
+None.

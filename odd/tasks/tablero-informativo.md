@@ -38,5 +38,8 @@ Strict. Runners: staging assertion via `infra/db/staging-migracion.sh aplicar`; 
 - [ ] T3 — Browser check on staging (PRUEBA fixture), owner check.
 - [ ] T4 — Production: migration (previa/aplicar/verificar) then panel publish, with go-ahead.
 
+## Progress
+- T1 (migration 258 on staging, assertion `board-informative-fields.sql`, rollback md5-verified): done, commit pending tick by the parent.
+
 ## Next step
-T1.
+T2.

@@ -31,11 +31,20 @@ Claude model (owner decision 2026-10-21: Haiku), reviewed by the parent.
 Strict for scripts. Runners: `python3 -m unittest discover -s infra/db/tests` (or bash tests like infra/db/tests).
 
 ## Tasks
-- [ ] R1 — wacrm-investigar-conversacion (script + tests + skill).
-- [ ] R2 — wacrm-corregir-produccion (script + tests + skill).
-- [ ] R3 — wacrm-medir-bot (skill + reference).
-- [ ] R4 — wacrm-probar-staging (skill + fixture/cleanup templates).
-- [ ] R5 — AGENTS.md lines + global symlinks; real read-only run of R1 on a known conversation.
+- [x] R1 — wacrm-investigar-conversacion (script + tests + skill).
+- [x] R2 — wacrm-corregir-produccion (script + tests + skill).
+- [x] R3 — wacrm-medir-bot (skill + reference).
+- [x] R4 — wacrm-probar-staging (skill + fixture/cleanup templates).
+- [x] R5 — AGENTS.md lines + global symlinks; real read-only run of R1 on a known conversation.
+
+## Progress
+- 2026-10-21 (4 Haiku agents in parallel, default effort): R1 2ada4dc (conversacion.py, 18 tests; input validated and
+  passed as psql variables; cards masked twice; real read-only run on f8b7779c correct), R2 97db52a (correccion-
+  produccion.sh --confirmar, 22 checks; refuses schema-destructive statements; note: crm_ajustar_saldo_cup likely fails
+  via the API — no JWT), R3 79fde45 (medir-bot; harness 38 tests OK; found arbitration sheets/cases with real customer
+  messages tracked in the local evals git repo — no remote), R4 d8d82f7 (probar-staging fixture/cleanup validated in
+  rolled-back transactions; cleanup refuses non-PRUEBA). R5 by the parent: AGENTS.md lines + global symlinks +
+  __pycache__ ignored. Token helper dedup delegated (lib-migracion.sh).
 
 ## Next step
-R1.
+Use the skills: check production bot traffic and first CUP deduction; investigate the Zelle holder-name issue.

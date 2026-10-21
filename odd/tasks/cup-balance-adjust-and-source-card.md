@@ -52,7 +52,7 @@ Strict (user global CLAUDE.md). Runners: staging assertions (`supabase/staging/a
   report lists all lots + used today excludes adjustments; rollback; assertion. Staging.
 - [x] B2 — (built, not yet deployed to staging; owner check pending) API route + page UI: "Saldo actual" + "Ajustar saldo" dialog + full lot history; vitest. Staging deploy +
   owner check.
-- [ ] B3 — Source-card choice at CUP completion (DB allocator start card + panel picker + tests). Staging + owner check.
+- [x] B3 — Source-card choice at CUP completion (DB allocator start card + panel picker + tests). Staging + owner check.
 - [ ] B4 — Production bundle (240, 241, 242, 256+, app) after the owner's go-ahead; express the Eliaba fix as
   adjustments; adjust Osmany's card when known.
 
@@ -86,5 +86,16 @@ Strict (user global CLAUDE.md). Runners: staging assertions (`supabase/staging/a
   GREEN. Staging apply + md5s in the commit report; the UI has a "Tarjeta de origen" select in the Transferir desde block (deliver path only;
   manual close supports the card in route/command/RPC but its confirmation control has no picker). Browser check pending.
 
+- 2026-10-20 owner: balance at the size of the other figures and green -> 4499f57 (Figure valueClassName =
+  moneyTextClass.profit, "Ajustar saldo" moved to the card header; RED -> GREEN, page tests 18/18, tsc + eslint clean).
+  A formatter (not ours) later rewrote card-panel.tsx and page.test.tsx with single quotes / wrapped lines; verified
+  formatting-only and restored to 4499f57.
+- 2026-10-20 B3 verified by the parent: staging assertion cup-source-card ALL PASS; operations panel + remittance routes
+  vitest 47 files / 835 pass. BROWSER on staging (op 008deb15, 260,000 CUP, ready_to_transfer): "Transferir desde" shows
+  the "Tarjeta de origen" select (Automática + both cards with balance); choosing PRUEBA Tarjeta B re-read the plan with B
+  first (B 120,000, A 120,000, "Faltan 20 000 CUP"); not completed (keeps the demo op). Manual close has no picker (RPC
+  and route accept it) — ask the owner if wanted.
+
 ## Next step
-B3 (source-card choice) on staging; owner checks B1/B2 on the page.
+B4 production bundle (240, 241, 242, 256, 257 + app at the feature branch) after the owner's go-ahead; then express
+the Eliaba fix as adjustments and adjust Osmany's card when known.

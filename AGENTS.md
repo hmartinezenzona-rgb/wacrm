@@ -13,3 +13,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - `wacrm-corregir-produccion` (`.claude/skills/wacrm-corregir-produccion/SKILL.md`): correct production data with an audited atomic block; ledger and silent-close rules.
 - `wacrm-medir-bot` (`.claude/skills/wacrm-medir-bot/SKILL.md`): measure the Cerebro bot with the eval battery (harvest, arbitration, replicated runs, per-case comparison).
 - `wacrm-probar-staging` (`.claude/skills/wacrm-probar-staging/SKILL.md`): check a change in the browser against staging with PRUEBA fixtures and cleanup.
+
+## Codebase navigation
+
+- This project uses graphify, not CodeGraph. This overrides the global CodeGraph guidance: do not run `gentle-ai codegraph init` or any `codegraph` command here, and do not recreate `.codegraph/`.
+- For structural questions about the panel code, query the graph first: `graphify query "<question>" --budget 1500`, `graphify explain "<symbol>"`, `graphify path "<a>" "<b>"`. The graph lives in `graphify-out/` (gitignored).
+- After code changes, refresh it with `graphify update .` (no LLM cost). Check freshness against the commit in `graphify-out/GRAPH_REPORT.md`.
+- The graph has no SQL (Supabase migrations and functions) and no n8n workflows: read `supabase/migrations/` directly and use the `wacrm-migraciones` and `wacrm-cerebro-n8n` skills.

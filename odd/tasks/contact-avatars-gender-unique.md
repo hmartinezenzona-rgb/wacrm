@@ -35,9 +35,9 @@ avatar.
 
 ## Tasks
 
-- [ ] A1 Migration 263 (columns, `crm_avatar_genero`, per-gender seq trigger, backfill) + ROLLBACK + assertion; staging.
-- [ ] A2 App: pools + mapping + ContactAvatar uses avatar_gender/avatar_seq; queries expose the columns; tests.
-- [ ] A3 Staging deploy, owner check; production migration then panel (separate go-aheads).
+- [x] A1 Migration 263 (columns, `crm_avatar_genero`, per-gender seq trigger, backfill) + ROLLBACK + assertion; staging.
+- [x] A2 App: pools + mapping + ContactAvatar uses avatar_gender/avatar_seq; queries expose the columns; tests.
+- [x] A3 Staging deploy, owner check; production migration then panel (separate go-aheads).
 
 ## Acceptance criteria
 
@@ -48,6 +48,14 @@ avatar.
 
 - 2026-10-21 created. Production: 246 contacts, none with a photo, 16 names without letters.
 
+- 2026-10-21 A1 92ed9d9 (migration 263; assertion RED then GREEN; staging cycle OK, rollback md5-equal). Rules widened
+  after a read-only production estimate (first pass: 78 neutral of 246; after: f 113, m 104, n 29).
+- 2026-10-21 A2 31309a3 (writer, TDD): pools, mapping, gender/seq props at the 4 call sites; vitest 3036, tsc clean.
+- 2026-10-21 A3: staging 31309a3 (BUILD_ID Upf9N8tDPlSc3MHhNd4PR). Owner go-ahead ("sí, aplica la migración y publica
+  el panel"): 263 in production 22:38Z (20261021223821), verificar 2/2; backfill f 113 / m 104 / n 29, 0 missing,
+  0 repeated. Panel release/prod-avatars-gender 233cfec (served f7ebf9c + 31309a3), BUILD_ID go9tKHYf_XbPCAjQ-9CCp,
+  rollback f7ebf9c.
+
 ## Next step
 
-A1.
+Done. If a group nears its capacity (192 f / 264 m / 56 n), add backgrounds to the palette.

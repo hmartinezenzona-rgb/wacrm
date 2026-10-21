@@ -25,6 +25,20 @@ set -a
 # shellcheck disable=SC1090
 . "$ENV_STAGING"
 set +a
+
+# Optional STAGING service key (0600, written by the owner): server routes that read
+# private storage (/api/chat-media) need it. Never printed; refused if readable by others.
+ENV_SERVICIO="$HOME/.config/wacrm/staging-service.env"
+if [[ -f "$ENV_SERVICIO" ]]; then
+    [[ "$(stat -c %a "$ENV_SERVICIO")" == 600 ]] || {
+        echo "ERROR: $ENV_SERVICIO debe tener permisos 600." >&2
+        exit 1
+    }
+    set -a
+    # shellcheck disable=SC1090
+    . "$ENV_SERVICIO"
+    set +a
+fi
 export NEXT_PUBLIC_SITE_URL="http://localhost:$PUERTO"
 
 echo "Panel local contra staging en $NEXT_PUBLIC_SITE_URL (Ctrl+C para parar)"

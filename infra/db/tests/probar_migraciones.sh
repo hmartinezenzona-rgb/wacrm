@@ -25,6 +25,9 @@ n=$(ls "$TMP_REGISTRO/sql" | wc -l); n=$((n+1))
 f="$TMP_REGISTRO/sql/$(printf '%03d' "$n").sql"
 cat > "$f"
 printf '%s\n' "$*" >> "$TMP_REGISTRO/docker.args"
+if grep -q 'INVENTARIO' "$f"; then
+    [[ -f "$TMP_REGISTRO/stg_rows.tsv" ]] && cat "$TMP_REGISTRO/stg_rows.tsv"; exit 0
+fi
 if grep -q 'FAKE_MIG_ERROR' "$f"; then
     echo "psql:<stdin>:3: ERROR:  syntax error at or near \"boom\""; exit 3
 fi
@@ -51,20 +54,57 @@ if grep -q 'pg_get_functiondef' "$f"; then
 fi
 exit 0
 FIN
+
+cat > "$TMP/bin/curl" <<'FIN'
+#!/usr/bin/env bash
+# Postizo de curl: apunta lo que se le pide y contesta segun la URL y el cuerpo.
+printf '%s\n' "$*" >> "$TMP_REGISTRO/curl.args"
+out=""; body=""; prev=""; url=""
+for a in "$@"; do
+    case "$prev" in -o) out="$a" ;; --data-binary) body="${a#@}" ;; -K) cfg="$a" ;; esac
+    prev="$a"; url="$a"
+done
+mkdir -p "$TMP_REGISTRO/api"
+n=$(ls "$TMP_REGISTRO/api" | wc -l); n=$((n+1))
+cp "$body" "$TMP_REGISTRO/api/$(printf '%03d' "$n").json" 2>/dev/null
+[[ -n "${cfg:-}" ]] && grep -q 'Bearer ' "$cfg" && echo "auth" >> "$TMP_REGISTRO/curl.auth"
+respuesta() { printf '%s' "$2" > "$out"; printf '%s' "$1"; exit 0; }
+if [[ "$url" == */database/migrations ]]; then
+    grep -q 'BOOM' "$body" && respuesta 400 '{"message":"boom: syntax error at or near BOOM"}'
+    respuesta 201 '[]'
+fi
+if grep -q 'INVENTARIO' "$body"; then
+    jq -Rn '[inputs | {r: .}]' < "$TMP_REGISTRO/prod_rows.tsv" > "$TMP_REGISTRO/inv.json" 2>/dev/null || echo '[]' > "$TMP_REGISTRO/inv.json"
+    respuesta 201 "$(cat "$TMP_REGISTRO/inv.json")"
+fi
+if grep -q 'select version' "$body"; then respuesta 201 '[{"version":"20261021000000"}]'; fi
+if grep -q 'schema_migrations' "$body"; then respuesta 201 "${FAKE_RECORDED:-[]}"; fi
+respuesta 201 '[]'
+FIN
 chmod +x "$TMP/bin/"*
 export PATH="$TMP/bin:$PATH"
 export TMP_REGISTRO="$TMP"
 
 # ─── un repo de mentira con los scripts dentro ──────────────────────────────
 nuevo_repo() {
-    REPO="$TMP/repo"; rm -rf "$REPO" "$TMP/sql" "$TMP"/*.args "$TMPDIR"/*
+    REPO="$TMP/repo"; rm -rf "$REPO" "$TMP/sql" "$TMP/api" "$TMP"/*.args "$TMPDIR"/*
     mkdir -p "$REPO/infra/db" "$REPO/supabase/migrations" "$REPO/supabase/staging/assertions"
-    cp "$RAIZ_DB"/*.sh "$REPO/infra/db/" 2>/dev/null
+    cp "$RAIZ_DB"/*.sh "$RAIZ_DB"/*.py "$REPO/infra/db/" 2>/dev/null
     echo 'CRM_STAGING_DATABASE_URL=postgres://falso' > "$REPO/.env.staging"
     M="$REPO/supabase/migrations"; A="$REPO/supabase/staging/assertions"
     printf -- '-- MIGRATED_MARK\nCREATE FUNCTION fn_a() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;\n' > "$M/900_prueba.sql"
     printf -- '-- ROLLBACK_MARK\nDROP FUNCTION fn_a();\n' > "$M/ROLLBACK-900-prueba.sql"
     printf '\\set ON_ERROR_STOP on\n-- ALL_PASS_OK\nBEGIN;\nSELECT 1;\nROLLBACK;\n' > "$A/prueba.sql"
+    # para produccion: dos migraciones que se encadenan y un HOME con el token
+    printf -- '-- 900 MIGRATED_MARK\nCREATE OR REPLACE FUNCTION public.fn_a() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;\n' > "$M/900_prueba.sql"
+    printf -- '-- 901\nCREATE OR REPLACE FUNCTION public.fn_b(x int) RETURNS int LANGUAGE sql AS $$ SELECT x $$;\nALTER TABLE public.tabla_t ADD COLUMN IF NOT EXISTS c int;\n' > "$M/901_segunda.sql"
+    printf -- '-- ROLLBACK_MARK_900\nDROP FUNCTION public.fn_a();\n' > "$M/ROLLBACK-900-prueba.sql"
+    printf -- '-- ROLLBACK_MARK_901\nDROP FUNCTION public.fn_b(int);\n' > "$M/ROLLBACK-901-segunda.sql"
+    export HOME="$TMP/home"; rm -rf "$HOME"; mkdir -p "$HOME/.config/wacrm"
+    echo 'SUPABASE_ACCESS_TOKEN=TOKEN_SECRETO_123' > "$HOME/.config/wacrm/supabase-token.env"
+    chmod 600 "$HOME/.config/wacrm/supabase-token.env"
+    rm -f "$TMP/stg_rows.tsv" "$TMP/prod_rows.tsv" "$TMP/curl.auth"
+    unset FAKE_RECORDED
 }
 
 correr() {   # $1 script (staging|produccion) · resto args. La salida va a $TMP/salida
@@ -96,6 +136,10 @@ nodice() {
 cierto() {   # $1 nombre · resto: comando que debe salir bien
     local n="$1"; shift
     if "$@"; then echo "  ok      $n"; else echo "  FALLO   $n"; fallos=$((fallos+1)); fi
+}
+enviados() { ls "$TMP/api" 2>/dev/null | wc -l; }
+fila() {   # $1 kind · $2 key · $3 md5 · $4 md5 normalizado · $5 cuerpo
+    printf '%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$(printf '%s' "$5" | base64 -w0)"
 }
 sql_enviado() { cat "$TMP"/sql/*.sql 2>/dev/null; }
 sin_commit() { ! grep -q '^COMMIT;' <(sql_enviado); }
@@ -168,6 +212,119 @@ cierto "la otra va rollback, migracion, aserto (en ese orden)" bash -c "grep -o 
 
 nuevo_repo
 probar "ya aplicada sin el fichero rollback" "RECHAZA" staging relacionadas "$M/900_prueba.sql" foo --ya-aplicada
+
+echo
+echo "=== produccion-migracion.sh: el token ==="
+
+nuevo_repo
+rm "$HOME/.config/wacrm/supabase-token.env"
+for c in aplicar verificar; do
+    probar "$c sin fichero de token" "RECHAZA" produccion $c "$M/900_prueba.sql"
+done
+dice "dice donde tiene que estar" "supabase-token\.env"
+cierto "y no llamo a la red" test ! -e "$TMP/curl.args"
+
+nuevo_repo
+chmod 644 "$HOME/.config/wacrm/supabase-token.env"
+probar "aplicar con el token en 0644" "RECHAZA" produccion aplicar "$M/900_prueba.sql"
+dice "pide 600" "600"
+nodice "no imprime el token" "TOKEN_SECRETO_123"
+cierto "y no llamo a la red" test ! -e "$TMP/curl.args"
+probar "previa con el token en 0644" "RECHAZA" produccion previa "$M/900_prueba.sql"
+probar "verificar con el token en 0640" "RECHAZA" produccion verificar "$M/900_prueba.sql"
+
+echo
+echo "=== produccion-migracion.sh previa ==="
+
+nuevo_repo
+FAKE_RECORDED='[{"name":"900_prueba"}]' probar "previa con un nombre ya registrado" "RECHAZA" produccion previa "$M/900_prueba.sql" "$M/901_segunda.sql"
+dice "dice RECORDED y el nombre" "RECORDED.*900_prueba"
+cierto "y no toco staging" test ! -e "$TMP/docker.args"
+
+nuevo_repo
+fila fn 'public.fn_a()' m1 n1 'cuerpo a' > "$TMP/stg_rows.tsv"; cp "$TMP/stg_rows.tsv" "$TMP/prod_rows.tsv"
+fila fn 'public.fn_b(integer)' m2 n2 'cuerpo b' >> "$TMP/stg_rows.tsv"; fila fn 'public.fn_b(integer)' m2 n2 'cuerpo b' >> "$TMP/prod_rows.tsv"
+probar "previa con todo igual" "pasa" produccion previa "$M/900_prueba.sql" "$M/901_segunda.sql"
+dice "EQUAL" "^EQUAL +fn +public\.fn_a\(\)"
+dice "veredicto SEGURO" "^VEREDICTO: SEGURO"
+cierto "un solo docker (una transaccion de staging)" test "$(wc -l < "$TMP/docker.args")" -eq 1
+cierto "los rollbacks van en orden inverso" bash -c "grep -o -E 'ROLLBACK_MARK_90[01]' '$TMP/sql/001.sql' | tr '\n' ' ' | grep -q 'ROLLBACK_MARK_901 ROLLBACK_MARK_900'"
+cierto "y la transaccion termina en ROLLBACK" bash -c "tail -n1 '$TMP/sql/001.sql' | grep -qx 'ROLLBACK;'"
+cierto "ni una sola escritura en produccion" bash -c "! grep -q '/database/migrations' '$TMP/curl.args'"
+nodice "no imprime el token" "TOKEN_SECRETO_123"
+
+nuevo_repo
+fila fn 'public.fn_a()' m1 n1 'SELECT   1' > "$TMP/stg_rows.tsv"; fila fn 'public.fn_a()' mX n1 'SELECT 1' > "$TMP/prod_rows.tsv"
+probar "previa con diferencia solo de espacios" "pasa" produccion previa "$M/900_prueba.sql"
+dice "EQUAL-NORMALIZED" "^EQUAL-NORMALIZED +fn +public\.fn_a\(\)"
+dice "sigue siendo SEGURO" "^VEREDICTO: SEGURO"
+
+nuevo_repo
+fila fn 'public.fn_a()' m1 n1 'cuerpo staging' > "$TMP/stg_rows.tsv"; fila fn 'public.fn_a()' mZ nZ 'cuerpo produccion' > "$TMP/prod_rows.tsv"
+fila fn 'public.fn_b(integer)' m2 n2 'solo staging' >> "$TMP/stg_rows.tsv"
+fila fn 'public.fn_extra()' m3 n3 'solo produccion' >> "$TMP/prod_rows.tsv"
+probar "previa con diferencias" "RECHAZA" produccion previa "$M/900_prueba.sql" "$M/901_segunda.sql"
+dice "DIFFERENT" "^DIFFERENT +fn +public\.fn_a\(\)"
+dice "MISSING-IN-PROD" "^MISSING-IN-PROD +fn +public\.fn_b"
+dice "EXTRA-IN-PROD" "^EXTRA-IN-PROD +fn +public\.fn_extra"
+dice "veredicto REVISAR con el numero" "^VEREDICTO: REVISAR \(3 diferencias\)"
+dice "ruta del diff" "diff: .*previa-diff.*\.txt"
+dif=$(sed -n 's/^diff: //p' "$TMP/salida" | head -1)
+cierto "el diff trae ambos cuerpos" bash -c "grep -q 'cuerpo staging' '$dif' && grep -q 'cuerpo produccion' '$dif'"
+
+nuevo_repo
+rm "$M/ROLLBACK-901-segunda.sql"
+probar "previa sin el ROLLBACK de una migracion" "RECHAZA" produccion previa "$M/900_prueba.sql" "$M/901_segunda.sql"
+dice "dice cual falta" "ROLLBACK-901"
+
+echo
+echo "=== produccion-migracion.sh aplicar ==="
+
+nuevo_repo
+FAKE_RECORDED='[{"name":"901_segunda"}]' probar "aplicar con un nombre ya registrado" "RECHAZA" produccion aplicar "$M/900_prueba.sql" "$M/901_segunda.sql"
+dice "dice RECORDED" "RECORDED.*901_segunda"
+cierto "y no envio NADA (ni la primera)" bash -c "! grep -q '/database/migrations' '$TMP/curl.args'"
+
+nuevo_repo
+echo '-- BOOM' >> "$M/900_prueba.sql"
+probar "aplicar para en el primer error de la API" "RECHAZA" produccion aplicar "$M/900_prueba.sql" "$M/901_segunda.sql"
+dice "muestra el mensaje de la API" "boom: syntax error"
+dice "dice cual fichero" "900_prueba"
+cierto "no mando la segunda" bash -c "[ \$(grep -c '/database/migrations' '$TMP/curl.args') -eq 1 ]"
+cierto "ninguna peticion llevo la segunda" bash -c "! grep -l '901_segunda' \$(grep -l '\"name\"' '$TMP'/api/*.json)"
+nodice "no imprime el token" "TOKEN_SECRETO_123"
+cierto "el token nunca estuvo en argv" bash -c "! grep -q TOKEN_SECRETO_123 '$TMP/curl.args'"
+
+nuevo_repo
+probar "aplicar dos migraciones" "pasa" produccion aplicar "$M/900_prueba.sql" "$M/901_segunda.sql"
+dice "OK nombre y version" "^OK 900_prueba 20261021000000"
+dice "OK de la segunda" "^OK 901_segunda 20261021000000"
+cierto "envio el fichero tal cual y con su nombre" bash -c "jq -e '.name==\"900_prueba\" and (.query|test(\"fn_a\"))' '$TMP/api/002.json' >/dev/null"
+cierto "con el token en la cabecera (no en argv)" bash -c "test -s '$TMP/curl.auth' && ! grep -q TOKEN_SECRETO_123 '$TMP/curl.args'"
+nodice "no imprime el token" "TOKEN_SECRETO_123"
+
+echo
+echo "=== produccion-migracion.sh verificar ==="
+
+nuevo_repo
+fila fn 'public.fn_a()' m1 n1 'a' > "$TMP/stg_rows.tsv"; fila fn 'public.fn_b(integer)' m2 n2 'b' >> "$TMP/stg_rows.tsv"
+cp "$TMP/stg_rows.tsv" "$TMP/prod_rows.tsv"
+probar "verificar con todo igual" "pasa" produccion verificar "$M/900_prueba.sql" "$M/901_segunda.sql"
+dice "cuenta 2/2" "^VERIFICADO: 2/2 iguales"
+dice "tabla con el dueno final" "public\.fn_b\(integer\) +901_segunda +EQUAL"
+
+nuevo_repo
+fila fn 'public.fn_a()' m1 n1 'a' > "$TMP/stg_rows.tsv"; fila fn 'public.fn_b(integer)' m2 n2 'b' >> "$TMP/stg_rows.tsv"
+fila fn 'public.fn_a()' m1 n1 'a' > "$TMP/prod_rows.tsv"; fila fn 'public.fn_b(integer)' mMAL nMAL 'b2' >> "$TMP/prod_rows.tsv"
+probar "verificar con un md5 distinto" "RECHAZA" produccion verificar "$M/900_prueba.sql" "$M/901_segunda.sql"
+dice "lista el que difiere" "public\.fn_b\(integer\) +901_segunda +DIFFERENT"
+dice "cuenta 1/2" "^NO VERIFICADO: 1/2 iguales"
+
+nuevo_repo
+fila fn 'public.fn_a()' m1 n1 'a' > "$TMP/stg_rows.tsv"
+: > "$TMP/prod_rows.tsv"
+probar "verificar con una funcion que falta en produccion" "RECHAZA" produccion verificar "$M/900_prueba.sql"
+dice "la marca" "public\.fn_a\(\) +900_prueba +MISSING-IN-PROD"
 
 echo
 echo "=================================================="

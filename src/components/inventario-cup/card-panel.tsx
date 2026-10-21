@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatCup, formatRate } from "@/lib/cup-inventory/format";
+import { moneyTextClass } from "@/lib/money-tone";
+import { cn } from "@/lib/utils";
 import type { InventoryCard, InventoryLot } from "@/lib/cup-inventory/read-model";
 
 interface CardPanelProps {
@@ -21,11 +23,11 @@ interface CardPanelProps {
   onDeleteLot: (lot: InventoryLot) => void;
 }
 
-function Figure({ label, value }: { label: string; value: string }) {
+function Figure({ label, value, valueClassName }: { label: string; value: string; valueClassName?: string }) {
   return (
     <div className="min-w-0">
       <dt className="text-muted-foreground text-xs">{label}</dt>
-      <dd className="text-foreground text-base font-semibold tabular-nums">{value}</dd>
+      <dd className={cn("text-foreground text-base font-semibold tabular-nums", valueClassName)}>{value}</dd>
     </div>
   );
 }
@@ -52,6 +54,9 @@ export function CardPanel({ card, isFirst, isLast, onMove, onEdit, onLoadLot, on
           <Button variant="ghost" size="icon" aria-label={t("card.edit")} title={t("card.edit")} onClick={onEdit}>
             <Pencil className="size-4" />
           </Button>
+          <Button variant="outline" size="sm" onClick={onAdjustBalance}>
+            {t("card.adjustBalance")}
+          </Button>
           <Button variant="outline" size="sm" onClick={onLoadLot} disabled={!card.active}>
             <Plus className="size-4" aria-hidden="true" />
             {t("card.loadLot")}
@@ -59,21 +64,11 @@ export function CardPanel({ card, isFirst, isLast, onMove, onEdit, onLoadLot, on
         </div>
       </header>
 
-      <dl className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div className="min-w-0">
-            <dt className="text-muted-foreground text-xs">{t("card.balance")}</dt>
-            <dd className="text-foreground text-3xl font-semibold tabular-nums">{formatCup(card.balanceCup)}</dd>
-          </div>
-          <Button variant="outline" size="sm" onClick={onAdjustBalance}>
-            {t("card.adjustBalance")}
-          </Button>
-        </div>
-        <div className="grid grid-cols-3 gap-3">
-          <Figure label={t("card.dailyLimit")} value={formatCup(card.dailyLimitCup)} />
-          <Figure label={t("card.usedToday")} value={formatCup(card.usedTodayCup)} />
-          <Figure label={t("card.remainingToday")} value={formatCup(card.remainingLimitTodayCup)} />
-        </div>
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Figure label={t("card.balance")} value={formatCup(card.balanceCup)} valueClassName={moneyTextClass.profit} />
+        <Figure label={t("card.dailyLimit")} value={formatCup(card.dailyLimitCup)} />
+        <Figure label={t("card.usedToday")} value={formatCup(card.usedTodayCup)} />
+        <Figure label={t("card.remainingToday")} value={formatCup(card.remainingLimitTodayCup)} />
       </dl>
 
       <div className="flex flex-col gap-2">

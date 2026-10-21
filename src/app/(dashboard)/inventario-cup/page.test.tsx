@@ -250,16 +250,19 @@ describe("Inventario CUP page: current balance and lot history", () => {
     }));
   });
 
-  it("shows the current balance of the card prominently, with the Adjust balance action", async () => {
+  it("shows the current balance of the card in green, the same size as the other figures, with the Adjust balance action", async () => {
     const node = await mount();
     const text = node.textContent ?? "";
     const figure = [...node.querySelectorAll("dt")].find((dt) => dt.textContent === t.card.balance) as HTMLElement;
+    const limit = [...node.querySelectorAll("dt")].find((dt) => dt.textContent === t.card.dailyLimit) as HTMLElement;
 
     expect(figure).toBeTruthy();
     expect(figure.nextElementSibling?.textContent).toBe(`222${NBSP}840`);
-    // bigger than the other figures
-    expect(figure.nextElementSibling?.className).toMatch(/text-(2xl|3xl)/);
-    expect(figure.parentElement?.className ?? "").not.toBe("");
+    // owner 2026-10-20: same size as the other figures (as in production), coloured green
+    expect(figure.nextElementSibling?.className).toContain("text-money-profit");
+    expect(figure.nextElementSibling?.className).toContain("text-base");
+    expect(figure.nextElementSibling?.className).not.toMatch(/text-(2xl|3xl)/);
+    expect(limit.nextElementSibling?.className).not.toContain("text-money-profit");
     expect(text).toContain(t.card.adjustBalance);
     expect(buttonByText(t.card.adjustBalance)).toBeTruthy();
   });

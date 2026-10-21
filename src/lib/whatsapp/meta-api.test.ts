@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+const { signChatMediaUrl } = vi.hoisted(() => ({ signChatMediaUrl: vi.fn() }));
+vi.mock("@/lib/storage/chat-media-server", () => ({ signChatMediaUrl }));
+
 import {
   INTERACTIVE_LIMITS,
+  sendTemplateMessage,
   sendInteractiveButtons,
   sendInteractiveList,
 } from "./meta-api";
@@ -265,5 +269,73 @@ describe("sendInteractiveList — validation", () => {
         },
       },
     });
+  });
+});
+
+describe("sendTemplateMessage — chat-media header", () => {
+  const ACCT = "3f2b1c7e-8a41-4c55-9d0e-6b7a1f2e3d4c";
+  const STORED = `https://abc.supabase.co/storage/v1/object/public/chat-media/account-${ACCT}/1-header.png`;
+  const template = {
+    id: "t1",
+    name: "promo",
+    language: "es",
+    header_type: "image",
+    header_media_url: STORED,
+    body_text: "hola",
+  } as unknown as Parameters<typeof sendTemplateMessage>[0]["template"];
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    signChatMediaUrl.mockReset();
+  });
+
+  function okFetch() {
+    return vi.fn(async () =>
+      ({ ok: true, status: 200, json: async () => ({ messages: [{ id: "wamid.1" }] }) }) as Response,
+    );
+  }
+  const sentHeaderLink = (fetchMock: ReturnType<typeof okFetch>) => {
+    const call = fetchMock.mock.calls[0] as unknown as [string, { body: string }];
+    const body = JSON.parse(call[1].body);
+    return body.template.components[0].parameters[0].image.link;
+  };
+
+  it("sends a freshly signed URL (24 h) instead of the stored one", async () => {
+    signChatMediaUrl.mockResolvedValue("https://signed.example/h.png?token=t");
+    const fetchMock = okFetch();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await sendTemplateMessage({
+      phoneNumberId: "p", accessToken: "a", to: "1", templateName: "promo", template,
+    });
+
+    expect(signChatMediaUrl).toHaveBeenCalledWith(STORED, 24 * 60 * 60);
+    expect(sentHeaderLink(fetchMock)).toBe("https://signed.example/h.png?token=t");
+  });
+
+  it("signs an explicit headerMediaUrl override too", async () => {
+    signChatMediaUrl.mockResolvedValue("https://signed.example/o.png?token=t");
+    const fetchMock = okFetch();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await sendTemplateMessage({
+      phoneNumberId: "p", accessToken: "a", to: "1", templateName: "promo", template,
+      messageParams: { headerMediaUrl: STORED },
+    });
+
+    expect(sentHeaderLink(fetchMock)).toBe("https://signed.example/o.png?token=t");
+  });
+
+  it("leaves a non-chat-media header link alone", async () => {
+    const fetchMock = okFetch();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await sendTemplateMessage({
+      phoneNumberId: "p", accessToken: "a", to: "1", templateName: "promo",
+      template: { ...template!, header_media_url: "https://cdn.example.com/h.png" },
+    });
+
+    expect(signChatMediaUrl).not.toHaveBeenCalled();
+    expect(sentHeaderLink(fetchMock)).toBe("https://cdn.example.com/h.png");
   });
 });

@@ -387,6 +387,8 @@ export async function sendMediaMessage(
 }
 
 import type { MessageTemplate } from '@/types'
+import { parseChatMediaPath } from '@/lib/storage/chat-media'
+import { signChatMediaUrl } from '@/lib/storage/chat-media-server'
 import {
   buildSendComponents,
   type SendTimeParams,
@@ -456,12 +458,19 @@ export async function sendTemplateMessage(
   }
 
   if (template) {
+    // A stored chat-media header URL stops working anonymously once the
+    // bucket is private, so Meta gets a freshly signed one at send time.
+    let headerMediaUrl = messageParams?.headerMediaUrl
+    const headerLink = headerMediaUrl ?? template.header_media_url
+    if (headerLink && parseChatMediaPath(headerLink)) {
+      headerMediaUrl = await signChatMediaUrl(headerLink, 24 * 60 * 60)
+    }
     const components = buildSendComponents(template, {
       // Legacy callers pass body values in `params`; fold them into
       // `messageParams.body` so the new path covers them too.
       body: messageParams?.body ?? params,
       headerText: messageParams?.headerText,
-      headerMediaUrl: messageParams?.headerMediaUrl,
+      headerMediaUrl,
       headerMediaId: messageParams?.headerMediaId,
       buttonParams: messageParams?.buttonParams,
     })

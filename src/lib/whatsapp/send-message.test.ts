@@ -291,7 +291,9 @@ describe('uploadMediaForSend — chat-media URLs', () => {
 
   /** Only the Meta upload goes through fetch — the media itself must not. */
   function uploadOnlyFetch(body: unknown = { id: 'media-xyz' }) {
-    return vi.fn(async () => ({ ok: true, status: 200, json: async () => body }) as Response);
+    return vi.fn(
+      async (url: unknown) => ({ ok: true, status: 200, json: async () => body, url }) as unknown as Response,
+    );
   }
 
   it('reads the object with the service role instead of fetching the URL', async () => {
@@ -308,7 +310,7 @@ describe('uploadMediaForSend — chat-media URLs', () => {
     expect(downloadChatMedia).toHaveBeenCalledWith(`account-${ACCT}/1-wa-9.png`);
     // Exactly one fetch: the upload to Meta, not the anonymous media GET.
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(String(fetchMock.mock.calls[0]?.[0] as unknown)).toContain('/phone-1/media');
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/phone-1/media');
   });
 
   it('falls back to the link when the object cannot be read', async () => {

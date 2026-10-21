@@ -217,5 +217,10 @@ S1, S2+S3, S4, S5.
 - 2026-10-20 S7 DEPLOYED (owner "si pasalo"): production serves release 6265edf, BUILD_ID S094S6Fe0Z1zgyQVGbesr;
   rollback release f596064 (`anterior`). release/prod-mixed-send pushed to privado.
 
+- 2026-10-21 UX "show USD in the mixed-send header" DONE and LIVE: tests 6f277ed (written by Claude, RED), code 662df62
+  drafted by Hermes (31 s, first try, 3/3 + 547 panel tests, reviewed). Published with the new skill
+  wacrm-publicar-panel (first real use: compilar printed sha + build_id, 2946 tests, tsc clean, manifest production):
+  release/prod-mixed-usd (pushed) 662df62, BUILD_ID EQWzc3n7oTL1L4NHfvQCK; rollback release 9367f0f.
+
 ## Next step
-Owner checks f8b7779c in the production panel history (one "Envio mixto" block). Watch the first real mixed send.
+Watch the first real mixed send in production (tool_execution_log 'repartir_envio', audit automation_mixed_split).

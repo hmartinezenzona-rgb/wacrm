@@ -2409,8 +2409,6 @@
     },
     "unknownContact": "Contacto desconocido",
     "missingBeneficiaries": "Faltan datos del beneficiario",
-    "moreRecipients": "+{count}",
-    "mixedSend": "Envío mixto",
     "emptyColumn": "Nada aquí",
     "age": {
       "lessThanMinute": "< 1 min",

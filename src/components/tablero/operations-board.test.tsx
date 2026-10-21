@@ -31,8 +31,7 @@ function op(over: Partial<BoardOperation> = {}): BoardOperation {
     operationId: "op-1", conversationId: "conv-1", contactName: "Ana Perez", contactPhone: "5920000000",
     serviceType: "remesa", deliveryMethod: "zelle", status: "collecting_information", quotedSourceAmount: 30000,
     sourceCurrency: "GYD", createdAt: "2026-10-05T09:00:00Z", completedAt: null, stateSince: "2026-10-05T10:00:00Z",
-    beneficiariesComplete: true, beneficiaryTypes: [], quotedDestinationAmount: null, destinationCurrency: null,
-    recipientLabel: null, recipientCount: 0, mixedGroupId: null, ...over,
+    beneficiariesComplete: true, ...over,
   };
 }
 
@@ -145,59 +144,6 @@ describe("OperationsBoard", () => {
     const buttons = Array.from(node.querySelectorAll("button")).map((b) => b.textContent);
     expect(buttons).toEqual([t.filters.all, n.remesa, n.recarga, n.combo, n.visa, n.saldo]);
     expect(node.querySelector("[draggable='true']")).toBeNull();
-  });
-
-  describe("informative card (258)", () => {
-    const text = (node: Element) => (node.querySelector("a")!.textContent ?? "").replace(/[\u00a0\u202f]/g, " ");
-
-    it("names a remittance with no delivery method by the rail of its beneficiaries, not 'Remesa'", async () => {
-      const { node } = await render([op({ deliveryMethod: null, beneficiaryTypes: ["zelle"] })]);
-      expect(text(node)).toContain(n.zelle);
-      expect(text(node)).not.toContain(n.remesa);
-    });
-
-    it("names it mixed when the beneficiaries are of several kinds", async () => {
-      const { node } = await render([op({ deliveryMethod: null, beneficiaryTypes: ["zelle", "cuban_card"] })]);
-      expect(text(node)).toContain(n.mixed);
-    });
-
-    it("shows the destination amount next to the source amount", async () => {
-      const { node } = await render([op({ quotedSourceAmount: 18200, quotedDestinationAmount: 70, destinationCurrency: "USD" })]);
-      expect(text(node)).toMatch(/18 200.*→ 70 USD/);
-    });
-
-    it("does not show a destination in GYD, nor without an amount or currency", async () => {
-      const { node } = await render([
-        op({ operationId: "a", quotedDestinationAmount: 18200, destinationCurrency: "GYD" }),
-        op({ operationId: "b", quotedDestinationAmount: null, destinationCurrency: "USD" }),
-        op({ operationId: "c", quotedDestinationAmount: 70, destinationCurrency: null }),
-      ]);
-      for (const a of Array.from(node.querySelectorAll("a"))) expect(a.textContent).not.toContain("→");
-    });
-
-    it("shows the recipient, with '+N' when there are more", async () => {
-      const { node } = await render([
-        op({ operationId: "a", recipientLabel: "Maria Perez", recipientCount: 1 }),
-        op({ operationId: "b", recipientLabel: "Maria Perez", recipientCount: 2 }),
-      ]);
-      const cards = Array.from(node.querySelectorAll("a"));
-      expect(cards[0].textContent).toContain("Maria Perez");
-      expect(cards[0].textContent).not.toContain("+");
-      expect(cards[1].textContent).toContain("Maria Perez");
-      expect(cards[1].textContent).toContain("+1");
-    });
-
-    it("shows no recipient line when there is no label", async () => {
-      const { node } = await render([op({ recipientLabel: null, recipientCount: 0 })]);
-      expect(node.querySelector("[data-recipient]")).toBeNull();
-    });
-
-    it("marks a mixed send, and only that", async () => {
-      const { node } = await render([op({ operationId: "a", mixedGroupId: "grp-1" }), op({ operationId: "b" })]);
-      const cards = Array.from(node.querySelectorAll("a"));
-      expect(cards[0].textContent).toContain(t.mixedSend);
-      expect(cards[1].textContent).not.toContain(t.mixedSend);
-    });
   });
 
   describe("visual pass", () => {

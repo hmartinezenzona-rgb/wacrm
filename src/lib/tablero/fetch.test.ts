@@ -19,34 +19,8 @@ describe("fetchBoard", () => {
         serviceType: "remesa", deliveryMethod: "zelle", status: "incident", quotedSourceAmount: 30000.5,
         sourceCurrency: "GYD", createdAt: "2026-10-05T10:00:00Z", completedAt: null,
         stateSince: "2026-10-05T11:00:00Z", beneficiariesComplete: false,
-        beneficiaryTypes: [], quotedDestinationAmount: null, destinationCurrency: null,
-        recipientLabel: null, recipientCount: 0, mixedGroupId: null,
       },
     ]);
-  });
-
-  it("maps the informative fields of the board RPC (258)", async () => {
-    const rpc = vi.fn().mockResolvedValue({
-      data: [{
-        ...row, beneficiary_types: ["zelle", "clasica"], quoted_destination_amount: "70.5", destination_currency: "USD",
-        recipient_label: "Maria Perez", recipient_count: 2, mixed_group_id: "grp-1",
-      }],
-      error: null,
-    });
-    const [mapped] = await fetchBoard({ rpc } as never);
-    expect(mapped).toMatchObject({
-      beneficiaryTypes: ["zelle", "clasica"], quotedDestinationAmount: 70.5, destinationCurrency: "USD",
-      recipientLabel: "Maria Perez", recipientCount: 2, mixedGroupId: "grp-1",
-    });
-  });
-
-  it("defaults the informative fields when the RPC predates 258 (null array, missing keys)", async () => {
-    const rpc = vi.fn().mockResolvedValue({ data: [{ ...row, beneficiary_types: null, recipient_count: null }], error: null });
-    const [mapped] = await fetchBoard({ rpc } as never);
-    expect(mapped).toMatchObject({
-      beneficiaryTypes: [], quotedDestinationAmount: null, destinationCurrency: null,
-      recipientLabel: null, recipientCount: 0, mixedGroupId: null,
-    });
   });
 
   it("returns an empty board for null data", async () => {

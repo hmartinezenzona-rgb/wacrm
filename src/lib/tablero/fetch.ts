@@ -25,13 +25,6 @@ interface BoardRow {
   completed_at: string | null;
   state_since: string;
   beneficiaries_complete: boolean | null;
-  // Added by migration 258; absent (or null) while the RPC is still the previous one.
-  beneficiary_types?: string[] | null;
-  quoted_destination_amount?: number | string | null;
-  destination_currency?: string | null;
-  recipient_label?: string | null;
-  recipient_count?: number | null;
-  mixed_group_id?: string | null;
 }
 
 /** Reads the board with the CALLER's session client (never service role): the
@@ -55,11 +48,5 @@ export async function fetchBoard(supabase: Pick<SupabaseClient, "rpc">): Promise
     completedAt: r.completed_at,
     stateSince: r.state_since,
     beneficiariesComplete: r.beneficiaries_complete,
-    beneficiaryTypes: r.beneficiary_types ?? [],
-    quotedDestinationAmount: r.quoted_destination_amount == null ? null : Number(r.quoted_destination_amount),
-    destinationCurrency: r.destination_currency ?? null,
-    recipientLabel: r.recipient_label ?? null,
-    recipientCount: r.recipient_count ?? 0,
-    mixedGroupId: r.mixed_group_id ?? null,
   }));
 }

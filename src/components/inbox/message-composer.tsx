@@ -55,6 +55,7 @@ import {
 import { validateInteractivePayload } from "@/lib/whatsapp/interactive";
 import type { InteractiveMessagePayload, QuickReply } from "@/types";
 import { QuickReplyPicker } from "./quick-reply-picker";
+import { toChatMediaSrc } from "@/lib/storage/chat-media";
 
 /** Media content types an agent can send from the composer. */
 export type ComposerMediaKind = "image" | "video" | "document" | "audio";
@@ -867,16 +868,16 @@ function MediaDraftPreview({
           {draft.kind === "image" && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={draft.mediaUrl}
+              src={toChatMediaSrc(draft.mediaUrl)}
               alt={draft.filename}
               className="max-h-40 rounded-lg object-cover"
             />
           )}
           {draft.kind === "video" && (
-            <video src={draft.mediaUrl} controls className="max-h-40 rounded-lg" />
+            <video src={toChatMediaSrc(draft.mediaUrl)} controls className="max-h-40 rounded-lg" />
           )}
           {draft.kind === "audio" && (
-            <audio src={draft.mediaUrl} controls className="w-full" />
+            <audio src={toChatMediaSrc(draft.mediaUrl)} controls className="w-full" />
           )}
           {draft.kind === "document" && (
             <div className="flex items-center gap-2 text-sm text-foreground">

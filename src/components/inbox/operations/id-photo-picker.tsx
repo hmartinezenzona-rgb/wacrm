@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { fetchChatImages } from "@/lib/remittance-operations/commands";
 import type { ChatImage } from "@/lib/remittance-operations/types";
 import { cn } from "@/lib/utils";
+import { toChatMediaSrc } from "@/lib/storage/chat-media";
 
 interface IdPhotoPickerProps {
   conversationId: string;
@@ -124,7 +125,7 @@ export function IdPhotoPicker({ conversationId, selectedWamid, label, disabled =
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element -- chat media lives in a public storage bucket; same <img> the receipts viewer uses */}
                       <img
-                        src={image.mediaUrl}
+                        src={toChatMediaSrc(image.mediaUrl)}
                         alt={t("idPhotoImageAlt", { time })}
                         loading="lazy"
                         className="aspect-square w-full rounded-md bg-muted object-cover"

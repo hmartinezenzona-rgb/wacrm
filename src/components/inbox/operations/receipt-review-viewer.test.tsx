@@ -90,4 +90,19 @@ describe("ReceiptReviewViewer", () => {
     expect(node.querySelector(`[aria-label="${T.hint}"]`)).not.toBeNull();
     await act(async () => root.unmount());
   });
+
+  it("shows a public chat-media URL through the same-origin proxy", async () => {
+    const acct = "3f2b1c7e-8a41-4c55-9d0e-6b7a1f2e3d4c";
+    const { node, root } = await renderNode(
+      <ReceiptReviewViewer
+        src={`https://abc.supabase.co/storage/v1/object/public/chat-media/account-${acct}/1-wa-1.jpg`}
+        alt="Deposit receipt"
+      />,
+    );
+
+    expect(node.querySelector("img")!.getAttribute("src")).toBe(
+      `/api/chat-media/account-${acct}/1-wa-1.jpg`,
+    );
+    await act(async () => root.unmount());
+  });
 });

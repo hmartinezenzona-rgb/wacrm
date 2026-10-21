@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState, type PointerEvent, type WheelEvent } from "react";
 import { useTranslations } from "next-intl";
+import { toChatMediaSrc } from "@/lib/storage/chat-media";
 import { Minus, Plus, RotateCcw } from "lucide-react";
 import { distanceBetween, zoomAroundPoint, type Point, type ViewerTransform } from "./viewer-geometry";
 
@@ -117,7 +118,7 @@ export function ReceiptReviewViewer({ src, alt }: ReceiptReviewViewerProps) {
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={src}
+          src={toChatMediaSrc(src)}
           alt={alt}
           draggable={false}
           className="pointer-events-none absolute inset-0 h-full w-full object-contain"

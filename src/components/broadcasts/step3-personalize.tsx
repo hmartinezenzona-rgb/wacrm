@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/select';
 import { ArrowLeft, ArrowRight, Eye, ImageIcon, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { toChatMediaSrc } from '@/lib/storage/chat-media';
 
 type VariableType = 'static' | 'field' | 'custom_field';
 
@@ -269,7 +270,7 @@ export function Step3Personalize({
             headerMediaUrl.trim() && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={headerMediaUrl.trim()}
+                src={toChatMediaSrc(headerMediaUrl.trim())}
                 alt={t('headerPreviewAlt')}
                 className="mt-3 max-h-40 rounded-lg border border-border object-contain"
               />

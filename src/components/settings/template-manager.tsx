@@ -48,6 +48,7 @@ import type {
   TemplateSampleValues,
 } from '@/types';
 import { templateStatusConfig } from '@/lib/template-status';
+import { toChatMediaSrc } from '@/lib/storage/chat-media';
 import {
   extractVariableIndices,
   TEMPLATE_LIMITS,
@@ -846,7 +847,7 @@ export function TemplateManager() {
                   {form.header_format === 'image' && form.header_media_url && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={form.header_media_url}
+                      src={toChatMediaSrc(form.header_media_url)}
                       alt={t('headerSampleAlt')}
                       className="max-h-28 rounded-md border border-border object-contain"
                     />

@@ -21,6 +21,7 @@ import { ReplyQuote } from "./reply-quote";
 import { MessageReactions } from "./message-reactions";
 import { InteractivePreview } from "@/components/interactive/interactive-preview";
 import { useTranslations } from "next-intl";
+import { toChatMediaSrc } from "@/lib/storage/chat-media";
 
 interface MessageBubbleProps {
   message: Message;
@@ -80,7 +81,8 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
         setLoading(false);
       }
     } else {
-      setSrc(url);
+      // chat-media objects are served by the session-checked proxy.
+      setSrc(toChatMediaSrc(url));
       setLoading(false);
     }
   }, [url]);
@@ -192,7 +194,7 @@ function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof
         <div>
           {message.media_url ? (
             <video
-              src={message.media_url}
+              src={toChatMediaSrc(message.media_url)}
               controls
               className="max-h-64 max-w-60 rounded-lg"
             />
@@ -211,7 +213,7 @@ function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof
       return (
         <div>
           {message.media_url ? (
-            <audio src={message.media_url} controls className="max-w-60" />
+            <audio src={toChatMediaSrc(message.media_url)} controls className="max-w-60" />
           ) : (
             <MediaUnavailable label={t("audio")} t={t} />
           )}
@@ -224,7 +226,7 @@ function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof
       }
       return (
         <a
-          href={message.media_url}
+          href={toChatMediaSrc(message.media_url)}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm hover:bg-muted"

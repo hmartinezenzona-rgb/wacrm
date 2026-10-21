@@ -70,5 +70,11 @@ Strict (user global CLAUDE.md). Runners: staging assertions (`supabase/staging/a
 - 2026-10-20 B2: route POST /api/inventario-cup/cards/[cardId]/balance, read model (exhausted/adjusted/kind/reason), Saldo actual +
   Ajustar saldo dialog, full lot history; vitest 212 files / 2911 tests, tsc and eslint clean. UI not seen in a browser yet.
 
+- 2026-10-20 B1+B2 verified by the parent: staging assertion cup-balance-adjust ALL PASS; vitest of the inventory
+  (12 files / 186 tests) pass. BROWSER on staging (local next dev :3100, owner session): page shows "Saldo actual",
+  "Ajustar saldo", "Historial de lotes"; adjusting PRUEBA Tarjeta B 205,000 -> 200,000 ("200.000") saved (POST 200),
+  Usado hoy stayed 0, movement "Ajuste 5 000 · prueba de ajuste" listed; back to 205,000 ("205,000" read as thousands)
+  saved; DB shows ajuste rows +5000 / -5000, remaining 205,000. Owner check pending.
+
 ## Next step
-Deploy B2 to staging for the owner's check, then B3.
+B3 (source-card choice) on staging; owner checks B1/B2 on the page.

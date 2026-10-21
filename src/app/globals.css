@@ -128,20 +128,20 @@ html[data-mode="dark"] {
    * de <input type="date">, las barras de desplazamiento) con la
    * paleta clara aunque la app este en oscuro. */
   color-scheme: dark;
-  --background: oklch(0.15 0.012 180);
+  --background: oklch(0.15 0.012 var(--tint-h));
   --foreground: oklch(0.985 0 0);
-  --card: oklch(0.19 0.013 180);
-  --card-2: oklch(0.215 0.014 180);
+  --card: oklch(0.19 0.013 var(--tint-h));
+  --card-2: oklch(0.215 0.014 var(--tint-h));
   /* Board lane (/tablero): recessed below --card (0.18) so the cards stand out of it. */
-  --lane: oklch(0.115 0.012 180);
+  --lane: oklch(0.115 0.012 var(--tint-h));
   --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.19 0.013 180);
+  --popover: oklch(0.19 0.013 var(--tint-h));
   --popover-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.235 0.015 180);
+  --secondary: oklch(0.235 0.015 var(--tint-h));
   --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.235 0.015 180);
-  --muted-foreground: oklch(0.68 0.02 176);
-  --accent: oklch(0.235 0.015 180);
+  --muted: oklch(0.235 0.015 var(--tint-h));
+  --muted-foreground: oklch(0.68 0.02 calc(var(--tint-h) - 4));
+  --accent: oklch(0.235 0.015 var(--tint-h));
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   /* Money tones (profit / loss / money out / money in). They do not follow the
@@ -175,18 +175,18 @@ html[data-mode="dark"] {
   --service-remesa: oklch(0.76 0.15 70);
   --service-visa: oklch(0.68 0.15 220);
   --service-other: oklch(0.65 0.015 176);
-  --border: oklch(0.3 0.016 180);
-  --input: oklch(0.3 0.016 180);
+  --border: oklch(0.3 0.016 var(--tint-h));
+  --input: oklch(0.3 0.016 var(--tint-h));
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
-  --sidebar: oklch(0.175 0.026 181);
-  --sidebar-foreground: oklch(0.899 0.023 176);
-  --sidebar-accent: oklch(0.28 0.035 180);
+  --sidebar: oklch(0.175 0.026 calc(var(--tint-h) + 1));
+  --sidebar-foreground: oklch(0.899 0.023 calc(var(--tint-h) - 4));
+  --sidebar-accent: oklch(0.28 0.035 var(--tint-h));
   --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.27 0.03 180);
+  --sidebar-border: oklch(0.27 0.03 var(--tint-h));
 }
 
 html[data-mode="light"] {
@@ -195,21 +195,21 @@ html[data-mode="light"] {
    * un 1% de diferencia que ningun ojo separa, y por eso el modo claro se
    * veia plano —todo era la misma hoja con rayas de borde. Bajarlo a 0.968
    * deja al blanco de la tarjeta hacer de tarjeta sin necesidad de sombra. */
-  --background: oklch(0.968 0.003 174);
-  --foreground: oklch(0.235 0.019 179);
+  --background: oklch(0.968 0.003 calc(var(--tint-h) - 6));
+  --foreground: oklch(0.235 0.019 calc(var(--tint-h) - 1));
   --card: oklch(1 0 0);
-  --card-2: oklch(0.983 0.003 174);
+  --card-2: oklch(0.983 0.003 calc(var(--tint-h) - 6));
   /* Board lane (/tablero): a step darker than the canvas (0.968), under the white --card; muted text on it is 4.6:1. */
-  --lane: oklch(0.94 0.006 172);
-  --card-foreground: oklch(0.235 0.019 179);
+  --lane: oklch(0.94 0.006 calc(var(--tint-h) - 8));
+  --card-foreground: oklch(0.235 0.019 calc(var(--tint-h) - 1));
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.235 0.019 179);
-  --secondary: oklch(0.96 0.006 170);
-  --secondary-foreground: oklch(0.235 0.019 179);
-  --muted: oklch(0.96 0.006 170);
-  --muted-foreground: oklch(0.5 0.021 175);
-  --accent: oklch(0.955 0.01 175);
-  --accent-foreground: oklch(0.235 0.019 179);
+  --popover-foreground: oklch(0.235 0.019 calc(var(--tint-h) - 1));
+  --secondary: oklch(0.96 0.006 calc(var(--tint-h) - 10));
+  --secondary-foreground: oklch(0.235 0.019 calc(var(--tint-h) - 1));
+  --muted: oklch(0.96 0.006 calc(var(--tint-h) - 10));
+  --muted-foreground: oklch(0.5 0.021 calc(var(--tint-h) - 5));
+  --accent: oklch(0.955 0.01 calc(var(--tint-h) - 5));
+  --accent-foreground: oklch(0.235 0.019 calc(var(--tint-h) - 1));
   --destructive: oklch(0.577 0.245 27.325);
   /* Money tones (profit / loss / money out / money in). They do not follow the
    * accent theme. >= 4.5:1 as text on --card and --background. */
@@ -242,18 +242,18 @@ html[data-mode="light"] {
   --service-remesa: oklch(0.58 0.15 70);
   --service-visa: oklch(0.5 0.15 220);
   --service-other: oklch(0.55 0.015 176);
-  --border: oklch(0.912 0.009 172);
-  --input: oklch(0.912 0.009 172);
+  --border: oklch(0.912 0.009 calc(var(--tint-h) - 8));
+  --input: oklch(0.912 0.009 calc(var(--tint-h) - 8));
   --chart-2: oklch(0.6 0.1 260);
   --chart-3: oklch(0.7 0.06 260);
   --chart-4: oklch(0.8 0.04 260);
   --chart-5: oklch(0.87 0.03 260);
   --radius: 0.625rem;
-  --sidebar: oklch(0.248 0.03 181);
-  --sidebar-foreground: oklch(0.899 0.023 176);
-  --sidebar-accent: oklch(0.33 0.039 180);
+  --sidebar: oklch(0.248 0.03 calc(var(--tint-h) + 1));
+  --sidebar-foreground: oklch(0.899 0.023 calc(var(--tint-h) - 4));
+  --sidebar-accent: oklch(0.33 0.039 var(--tint-h));
   --sidebar-accent-foreground: oklch(1 0 0);
-  --sidebar-border: oklch(0.33 0.039 180);
+  --sidebar-border: oklch(0.33 0.039 var(--tint-h));
 }
 
 /* ---- ACENTO: color primario ----
@@ -281,6 +281,8 @@ html[data-mode="light"] {
 
 :root,
 html[data-theme="violet"] {
+  /* Style A neutrals and sidebar are tinted with this hue (oklch degrees). */
+  --tint-h: 293;
   --primary: oklch(0.526 0.247 293);
   /* El acento como TEXTO sobre superficie oscura necesita ser claro; como
      FONDO con texto blanco necesita ser oscuro. Medido: no hay un solo
@@ -300,6 +302,8 @@ html[data-theme="violet"] {
 }
 
 html[data-theme="teal"] {
+  /* Style A neutrals and sidebar are tinted with this hue (oklch degrees). */
+  --tint-h: 180;
   /* Style A. Dark values are the base; light overrides follow. The fill
      needs dark text on the lighter dark-mode teal and white text on the
      deeper light-mode teal. */
@@ -329,6 +333,8 @@ html[data-theme="teal"][data-mode="light"] {
 }
 
 html[data-theme="emerald"] {
+  /* Style A neutrals and sidebar are tinted with this hue (oklch degrees). */
+  --tint-h: 162;
   --primary: oklch(0.62 0.16 162);
   /* Ya legible como texto sobre oscuro (5.69 / 8.01 / 5.73). */
   --primary-on-surface: var(--primary);
@@ -345,6 +351,8 @@ html[data-theme="emerald"] {
 }
 
 html[data-theme="cobalt"] {
+  /* Style A neutrals and sidebar are tinted with this hue (oklch degrees). */
+  --tint-h: 254;
   --primary: oklch(0.555 0.2 254);  /* 4.06 -> 4.59 */
   --primary-on-surface: oklch(0.7 0.16 254);  /* como texto: 3.92 -> 6.99 */
   --primary-foreground: oklch(0.985 0 0);
@@ -360,6 +368,8 @@ html[data-theme="cobalt"] {
 }
 
 html[data-theme="amber"] {
+  /* Style A neutrals and sidebar are tinted with this hue (oklch degrees). */
+  --tint-h: 65;
   --primary: oklch(0.745 0.16 65);
   /* Ya legible como texto sobre oscuro (5.69 / 8.01 / 5.73). */
   --primary-on-surface: var(--primary);
@@ -376,6 +386,8 @@ html[data-theme="amber"] {
 }
 
 html[data-theme="rose"] {
+  /* Style A neutrals and sidebar are tinted with this hue (oklch degrees). */
+  --tint-h: 16;
   --primary: oklch(0.68 0.22 16);
   /* Ya legible como texto sobre oscuro (5.69 / 8.01 / 5.73). */
   --primary-on-surface: var(--primary);

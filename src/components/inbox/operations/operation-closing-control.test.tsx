@@ -26,6 +26,13 @@ vi.mock("@/lib/remittance-operations/commands", () => ({
   eliminarOperacion: (...args: unknown[]) => eliminarOperacion(...args),
 }));
 
+// The real block fetches the plan and renders nothing for non-CUP operations; here it is a stub that exposes its props.
+vi.mock("./cup-plan-block", () => ({
+  CupPlanBlock: ({ operationId, sourceCardId, onSourceCardChange }: { operationId: string; sourceCardId: string | null; onSourceCardChange: (id: string | null) => void }) => (
+    <button type="button" data-testid="cup-plan-stub" data-operation={operationId} data-source={sourceCardId ?? ""} onClick={() => onSourceCardChange("card-9")} />
+  ),
+}));
+
 afterEach(() => {
   document.body.replaceChildren();
   vi.restoreAllMocks();
@@ -102,6 +109,33 @@ describe("OperationClosingControl", () => {
     expect(cerrarOperacionManual).toHaveBeenCalledWith("op-1", false);
     expect(eliminarOperacion).not.toHaveBeenCalled();
     expect(onDone).toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
+
+  it("close: shows the CUP plan block with the source-card picker for the operation", async () => {
+    const { node, root } = await render("close");
+
+    const block = node.querySelector<HTMLElement>("[data-testid=cup-plan-stub]")!;
+    expect(block).not.toBeNull();
+    expect(block.dataset.operation).toBe("op-1");
+    await act(async () => root.unmount());
+  });
+
+  it("close: choosing a source card sends cupSourceCardId with the close", async () => {
+    cerrarOperacionManual.mockResolvedValue({ ok: true, newStatus: "completed", completedAt: null });
+    const { node, root } = await render("close");
+
+    await act(async () => node.querySelector<HTMLButtonElement>("[data-testid=cup-plan-stub]")!.click());
+    expect(node.querySelector<HTMLElement>("[data-testid=cup-plan-stub]")!.dataset.source).toBe("card-9");
+    await act(async () => buttonByLabel(node, t.closeConfirm).click());
+
+    expect(cerrarOperacionManual).toHaveBeenCalledWith("op-1", false, undefined, "card-9");
+    await act(async () => root.unmount());
+  });
+
+  it("delete: does not show the CUP plan block", async () => {
+    const { node, root } = await render("delete");
+    expect(node.querySelector("[data-testid=cup-plan-stub]")).toBeNull();
     await act(async () => root.unmount());
   });
 

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { cerrarOperacionManual, eliminarOperacion } from "@/lib/remittance-operations/commands";
 import { ConfirmCancelButtons, cancelOnEscape } from "./confirm-cancel-buttons";
 import { NotifyToggle } from "./notify-toggle";
+import { CupPlanBlock } from "./cup-plan-block";
 import { MethodIcon } from "./operation-icons";
 
 /** Clásica, Tropical, cash, recharge, mobile balance, combo and visa share one "cash" kind in MethodIcon (the cards show them alike); the service picker
@@ -48,6 +49,8 @@ export function OperationClosingControl({ operationId, kind, onDone, onCancel, n
   const serviceName = useServiceName();
   const [notify, setNotify] = useState(false);
   const [service, setService] = useState<string | null>(null);
+  // (257) Optional sending card of a CUP transfer; null = automatic (by priority). The block renders nothing for non-CUP operations.
+  const [cupSourceCardId, setCupSourceCardId] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,9 +62,11 @@ export function OperationClosingControl({ operationId, kind, onDone, onCancel, n
     setError(null);
     setPending(true);
     const result = isClose
-      ? await (askService && service
-          ? cerrarOperacionManual(operationId, notify, service)
-          : cerrarOperacionManual(operationId, notify))
+      ? await (cupSourceCardId
+          ? cerrarOperacionManual(operationId, notify, askService && service ? service : undefined, cupSourceCardId)
+          : askService && service
+            ? cerrarOperacionManual(operationId, notify, service)
+            : cerrarOperacionManual(operationId, notify))
       : await eliminarOperacion(operationId);
     setPending(false);
 
@@ -109,6 +114,8 @@ export function OperationClosingControl({ operationId, kind, onDone, onCancel, n
           })}
         </div>
       )}
+
+      {isClose && <CupPlanBlock operationId={operationId} sourceCardId={cupSourceCardId} onSourceCardChange={setCupSourceCardId} />}
 
       <ConfirmCancelButtons
         onCancel={onCancel}

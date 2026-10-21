@@ -43,8 +43,8 @@ anyone holding or guessing a URL: the bucket becomes private and every consumer 
 ## Tasks
 
 - [x] M1 Scan the other n8n workflows for media references (none).
-- [ ] M2 App compatibility + WhatsApp media route fix (TDD), work-unit commits.
-- [ ] M3 Staging: migration 261 on staging; owner checks the panel against staging (chat images, audio, receipts,
+- [x] M2 App compatibility + WhatsApp media route fix (TDD), work-unit commits.
+- [x] M3 Staging: migration 261 on staging; owner checks the panel against staging (chat images, audio, receipts,
       delivery proof, sending an image).
 - [ ] M4 Production: publish the panel, then migration 261 (separate go-aheads); HTTP check public URL -> refused,
       panel still shows media.
@@ -64,6 +64,19 @@ anyone holding or guessing a URL: the bucket becomes private and every consumer 
 
 - 2026-10-21 created; M1 done (K4ijL3NzmY1VX7XI, wGud0KGR6eMqqfMQ, 5YseDUEC5IAaiofF: no media references).
 
+- 2026-10-21 M2 (writer, TDD; 4c2e1c4 87cefa2 917114d 4aec00a 7b1eb96 916ad5d + ceabcc0): proxy route with
+  session, folder-account check, single Range; toChatMediaSrc at every display point (also template-manager and
+  step3-personalize previews); outbound service-role read + signed link fallback; template headers; v1 signed URLs;
+  WhatsApp media route ownership + private cache. Parent review found server reads were not scoped to the sending
+  account -> fixed in ceabcc0 (assertChatMediaAccount, foreign path refused). vitest 3010/3010, tsc clean, eslint
+  clean. Risk assessment: medium.
+- 2026-10-21 M3: 261 (e102c5e) on staging, assertion RED then GREEN, cycle OK. HTTP: an uncached public URL now
+  answers 400 Bucket not found; an object fetched in the last hour is still served by the Supabase CDN cache.
+  Local panel against staging (panel-local-staging.sh now loads the optional staging service key): owner confirmed
+  photos show and voice notes play; dev log shows /api/chat-media 200 (images) and 206 (audio ranges). Sending was
+  not tested on staging (Meta test number); covered by unit tests, to check in production.
+
 ## Next step
 
-M2 (delegated writer).
+M4: release branch from the served sha + cherry-picks, compile, owner go-ahead, publish; then 261 in production
+with its own go-ahead; send a real image to the owner and probe a public URL.

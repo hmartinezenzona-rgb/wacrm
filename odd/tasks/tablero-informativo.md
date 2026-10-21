@@ -33,8 +33,8 @@ a mark for mixed sends. Owner request 2026-10-21.
 Strict. Runners: staging assertion via `infra/db/staging-migracion.sh aplicar`; `npx vitest run` for board/fetch/card.
 
 ## Tasks
-- [ ] T1 — Migration + rollback + assertion; applied on staging.
-- [ ] T2 — Board read model + card UI + tests.
+- [x] T1 — Migration + rollback + assertion; applied on staging.
+- [x] T2 — Board read model + card UI + tests.
 - [ ] T3 — Browser check on staging (PRUEBA fixture), owner check.
 - [ ] T4 — Production: migration (previa/aplicar/verificar) then panel publish, with go-ahead.
 
@@ -42,5 +42,9 @@ Strict. Runners: staging assertion via `infra/db/staging-migracion.sh aplicar`; 
 - T1 (migration 258 on staging, assertion `board-informative-fields.sql`, rollback md5-verified): done (cf9f169), staging applied; md5 of crm_tablero_operaciones 4643febaa70c7477f99944f5370aa82f.
 - T2 (board read model + card UI + tests): done, full vitest/tsc/eslint green; browser check is T3.
 
+- 2026-10-21 T3 parent browser check on staging (local :3100): the ready CUP op card shows rail "CUP" (not "Remesa"),
+  "GYD 86 667 → 260 000 CUP" and recipient "PRUEBA INVENTARIO beneficiario 1 +1". Layout: in the narrow column the
+  amount line wraps ("260 000 / CUP"). Owner to check; production pending go-ahead.
+
 ## Next step
-T3.
+Owner check (and optional layout tweak), then T4 with wacrm-migraciones (previa/aplicar/verificar 258) + wacrm-publicar-panel.

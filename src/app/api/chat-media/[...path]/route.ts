@@ -52,7 +52,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const media = await downloadChatMedia(path);
+    const media = await downloadChatMedia(path, accountId);
     if (!media) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }

@@ -387,7 +387,7 @@ export async function sendMediaMessage(
 }
 
 import type { MessageTemplate } from '@/types'
-import { parseChatMediaPath } from '@/lib/storage/chat-media'
+import { assertChatMediaAccount } from '@/lib/storage/chat-media'
 import { signChatMediaUrl } from '@/lib/storage/chat-media-server'
 import {
   buildSendComponents,
@@ -423,6 +423,11 @@ export interface SendTemplateMessageArgs {
   messageParams?: SendTimeParams
   /** Meta's message_id of the message being replied to. */
   contextMessageId?: string
+  /**
+   * Account that owns the template. Required to sign a chat-media header:
+   * the sign is a service-role read, scoped to this account.
+   */
+  accountId?: string
 }
 
 /**
@@ -449,6 +454,7 @@ export async function sendTemplateMessage(
     template,
     messageParams,
     contextMessageId,
+    accountId,
   } = args
   const url = `${META_API_BASE}/${phoneNumberId}/messages`
 
@@ -462,8 +468,8 @@ export async function sendTemplateMessage(
     // bucket is private, so Meta gets a freshly signed one at send time.
     let headerMediaUrl = messageParams?.headerMediaUrl
     const headerLink = headerMediaUrl ?? template.header_media_url
-    if (headerLink && parseChatMediaPath(headerLink)) {
-      headerMediaUrl = await signChatMediaUrl(headerLink, 24 * 60 * 60)
+    if (headerLink && assertChatMediaAccount(headerLink, accountId)) {
+      headerMediaUrl = await signChatMediaUrl(headerLink, 24 * 60 * 60, accountId!)
     }
     const components = buildSendComponents(template, {
       // Legacy callers pass body values in `params`; fold them into

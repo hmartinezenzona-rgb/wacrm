@@ -9,7 +9,10 @@
 // ============================================================
 
 import type { Conversation, Message } from '@/types';
-import { parseChatMediaPath } from '@/lib/storage/chat-media';
+import {
+  ForeignChatMediaError,
+  assertChatMediaAccount,
+} from '@/lib/storage/chat-media';
 import { signChatMediaUrl } from '@/lib/storage/chat-media-server';
 
 export interface ApiConversation {
@@ -109,10 +112,20 @@ const API_MEDIA_URL_TTL_SECONDS = 60 * 60;
  * the bucket is private) with a 1 h signed URL. Other values — null, Meta
  * proxy paths, external links — are returned unchanged.
  */
-export async function withSignedMedia(m: ApiMessage): Promise<ApiMessage> {
-  if (!m.media_url || !parseChatMediaPath(m.media_url)) return m;
-  return {
-    ...m,
-    media_url: await signChatMediaUrl(m.media_url, API_MEDIA_URL_TTL_SECONDS),
-  };
+export async function withSignedMedia(
+  m: ApiMessage,
+  accountId: string,
+): Promise<ApiMessage> {
+  if (!m.media_url) return m;
+  try {
+    if (!assertChatMediaAccount(m.media_url, accountId)) return m;
+    return {
+      ...m,
+      media_url: await signChatMediaUrl(m.media_url, API_MEDIA_URL_TTL_SECONDS, accountId),
+    };
+  } catch (err) {
+    // Another account's object: never sign it, expose no URL.
+    if (err instanceof ForeignChatMediaError) return { ...m, media_url: null };
+    throw err;
+  }
 }

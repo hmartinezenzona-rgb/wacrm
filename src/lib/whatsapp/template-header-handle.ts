@@ -1,6 +1,6 @@
 import { uploadResumableMedia } from '@/lib/whatsapp/meta-api'
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators'
-import { parseChatMediaPath } from '@/lib/storage/chat-media'
+import { assertChatMediaAccount } from '@/lib/storage/chat-media'
 import { downloadChatMedia } from '@/lib/storage/chat-media-server'
 
 /**
@@ -23,6 +23,7 @@ const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png']
 export async function ensureImageHeaderHandle(
   payload: TemplatePayload,
   accessToken: string,
+  accountId?: string,
 ): Promise<void> {
   if (payload.header_type !== 'image') return
   if (payload.header_handle) return // already have one
@@ -40,9 +41,9 @@ export async function ensureImageHeaderHandle(
   // public link is fetched as before.
   let contentType: string
   let bytes: Uint8Array
-  const chatMediaPath = parseChatMediaPath(payload.header_media_url)
+  const chatMediaPath = assertChatMediaAccount(payload.header_media_url, accountId)
   if (chatMediaPath) {
-    const media = await downloadChatMedia(chatMediaPath)
+    const media = await downloadChatMedia(chatMediaPath, accountId!)
     if (!media) {
       throw new Error('Could not read the header image from storage.')
     }

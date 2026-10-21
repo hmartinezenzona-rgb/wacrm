@@ -78,17 +78,25 @@ describe('withSignedMedia', () => {
   it('swaps a chat-media media_url for a 1 h signed URL', async () => {
     signChatMediaUrl.mockResolvedValue('https://signed.example/x?token=t');
     const msg = serializeMessage({ ...base, media_url: STORED } as unknown as Message);
-    const out = await withSignedMedia(msg);
-    expect(signChatMediaUrl).toHaveBeenCalledWith(STORED, 3600);
+    const out = await withSignedMedia(msg, ACCT);
+    expect(signChatMediaUrl).toHaveBeenCalledWith(STORED, 3600, ACCT);
     expect(out.media_url).toBe('https://signed.example/x?token=t');
     expect(out.id).toBe('m1');
   });
 
   it('leaves null and non-chat-media values unchanged without signing', async () => {
     const none = serializeMessage({ ...base, media_url: null } as unknown as Message);
-    expect((await withSignedMedia(none)).media_url).toBeNull();
+    expect((await withSignedMedia(none, ACCT)).media_url).toBeNull();
     const meta = serializeMessage({ ...base, media_url: '/api/whatsapp/media/9' } as unknown as Message);
-    expect((await withSignedMedia(meta)).media_url).toBe('/api/whatsapp/media/9');
+    expect((await withSignedMedia(meta, ACCT)).media_url).toBe('/api/whatsapp/media/9');
+    expect(signChatMediaUrl).not.toHaveBeenCalled();
+  });
+
+  it("drops a media_url that points at another account's object, without signing", async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const msg = serializeMessage({ ...base, media_url: STORED } as unknown as Message);
+    const out = await withSignedMedia(msg, '9a8b7c6d-1111-4222-8333-444455556666');
+    expect(out.media_url).toBeNull();
     expect(signChatMediaUrl).not.toHaveBeenCalled();
   });
 });

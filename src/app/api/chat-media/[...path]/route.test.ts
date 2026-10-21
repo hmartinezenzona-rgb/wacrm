@@ -71,7 +71,7 @@ describe('GET /api/chat-media/[...path]', () => {
   it('serves the object with its content type and private cache headers', async () => {
     const res = await call([`account-${ACCT}`, FILE]);
     expect(res.status).toBe(200);
-    expect(downloadChatMedia).toHaveBeenCalledWith(`account-${ACCT}/${FILE}`);
+    expect(downloadChatMedia).toHaveBeenCalledWith(`account-${ACCT}/${FILE}`, ACCT);
     expect(res.headers.get('Content-Type')).toBe('image/jpeg');
     expect(res.headers.get('Cache-Control')).toBe('private, max-age=3600');
     expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
@@ -81,7 +81,7 @@ describe('GET /api/chat-media/[...path]', () => {
 
   it('decodes percent-encoded segments before checking and downloading', async () => {
     await call([`account-${ACCT}`, '1-wa-1%20x.jpg']);
-    expect(downloadChatMedia).toHaveBeenCalledWith(`account-${ACCT}/1-wa-1 x.jpg`);
+    expect(downloadChatMedia).toHaveBeenCalledWith(`account-${ACCT}/1-wa-1 x.jpg`, ACCT);
   });
 
   it('answers a Range request with 206 and the slice', async () => {

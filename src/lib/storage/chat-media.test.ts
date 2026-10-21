@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
+  ForeignChatMediaError,
+  assertChatMediaAccount,
   isChatMediaUrl,
   parseChatMediaPath,
   toChatMediaSrc,
@@ -99,5 +101,31 @@ describe('isChatMediaUrl', () => {
     expect(isChatMediaUrl(PUBLIC)).toBe(true);
     expect(isChatMediaUrl('https://example.com/a.png')).toBe(false);
     expect(isChatMediaUrl(null)).toBe(false);
+  });
+});
+
+describe('assertChatMediaAccount', () => {
+  const OTHER = '9a8b7c6d-1111-4222-8333-444455556666';
+
+  it('returns the path for the account that owns it', () => {
+    expect(assertChatMediaAccount(PUBLIC, ACCT)).toBe(PATH);
+  });
+
+  it('returns null for non-chat-media URLs (nothing to scope)', () => {
+    expect(assertChatMediaAccount('https://example.com/a.png', ACCT)).toBeNull();
+    expect(assertChatMediaAccount(null, ACCT)).toBeNull();
+  });
+
+  it('throws ForeignChatMediaError (logging once) for another account', () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(() => assertChatMediaAccount(PUBLIC, OTHER)).toThrow(ForeignChatMediaError);
+    expect(log).toHaveBeenCalledTimes(1);
+    log.mockRestore();
+  });
+
+  it('fails closed when no account id is known', () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(() => assertChatMediaAccount(PUBLIC, undefined)).toThrow(ForeignChatMediaError);
+    log.mockRestore();
   });
 });

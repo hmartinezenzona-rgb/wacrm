@@ -55,6 +55,39 @@ export function parseChatMediaPath(url: string | null | undefined): string | nul
   return isSafeChatMediaPath(path) ? path : null;
 }
 
+/** A server read/sign was asked for an object outside the caller's account. */
+export class ForeignChatMediaError extends Error {
+  constructor() {
+    super('chat-media object belongs to another account');
+    this.name = 'ForeignChatMediaError';
+  }
+}
+
+/** True when the object path sits under `account-<accountId>/`. */
+export function isChatMediaPathOfAccount(path: string, accountId: string | undefined): boolean {
+  return !!accountId && path.split('/')[0] === `account-${accountId}`;
+}
+
+/**
+ * Gate for every service-role read of chat-media: returns the object
+ * path when `url` is a chat-media URL of `accountId`, null when it is not
+ * a chat-media URL at all (nothing to scope), and throws
+ * `ForeignChatMediaError` (logging once) for another account's object or
+ * when the account is unknown — fail closed.
+ */
+export function assertChatMediaAccount(
+  url: string | null | undefined,
+  accountId: string | undefined,
+): string | null {
+  const path = parseChatMediaPath(url);
+  if (!path) return null;
+  if (!isChatMediaPathOfAccount(path, accountId)) {
+    console.error('[chat-media] refused a server read outside the sending account');
+    throw new ForeignChatMediaError();
+  }
+  return path;
+}
+
 export function isChatMediaUrl(url: string | null | undefined): boolean {
   return parseChatMediaPath(url) !== null;
 }

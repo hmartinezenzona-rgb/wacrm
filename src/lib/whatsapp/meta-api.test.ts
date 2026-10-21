@@ -306,10 +306,10 @@ describe("sendTemplateMessage — chat-media header", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await sendTemplateMessage({
-      phoneNumberId: "p", accessToken: "a", to: "1", templateName: "promo", template,
+      phoneNumberId: "p", accessToken: "a", to: "1", templateName: "promo", template, accountId: ACCT,
     });
 
-    expect(signChatMediaUrl).toHaveBeenCalledWith(STORED, 24 * 60 * 60);
+    expect(signChatMediaUrl).toHaveBeenCalledWith(STORED, 24 * 60 * 60, ACCT);
     expect(sentHeaderLink(fetchMock)).toBe("https://signed.example/h.png?token=t");
   });
 
@@ -319,7 +319,7 @@ describe("sendTemplateMessage — chat-media header", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await sendTemplateMessage({
-      phoneNumberId: "p", accessToken: "a", to: "1", templateName: "promo", template,
+      phoneNumberId: "p", accessToken: "a", to: "1", templateName: "promo", template, accountId: ACCT,
       messageParams: { headerMediaUrl: STORED },
     });
 
@@ -337,5 +337,25 @@ describe("sendTemplateMessage — chat-media header", () => {
 
     expect(signChatMediaUrl).not.toHaveBeenCalled();
     expect(sentHeaderLink(fetchMock)).toBe("https://cdn.example.com/h.png");
+  });
+
+  it("refuses to sign another account's header (no signing, nothing sent)", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetchMock = okFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    const OTHER = "9a8b7c6d-1111-4222-8333-444455556666";
+
+    await expect(
+      sendTemplateMessage({
+        phoneNumberId: "p", accessToken: "a", to: "1", templateName: "promo", template, accountId: OTHER,
+      }),
+    ).rejects.toThrow(/another account/);
+    await expect(
+      sendTemplateMessage({
+        phoneNumberId: "p", accessToken: "a", to: "1", templateName: "promo", template,
+      }),
+    ).rejects.toThrow(/another account/);
+    expect(signChatMediaUrl).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

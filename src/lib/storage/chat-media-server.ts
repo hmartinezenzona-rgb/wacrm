@@ -9,15 +9,27 @@
 // ============================================================
 
 import { supabaseAdmin } from '@/lib/flows/admin-client';
-import { CHAT_MEDIA_BUCKET, parseChatMediaPath } from '@/lib/storage/chat-media';
+import {
+  CHAT_MEDIA_BUCKET,
+  assertChatMediaAccount,
+  chatMediaProxyUrl,
+} from '@/lib/storage/chat-media';
 
 export interface DownloadedChatMedia {
   bytes: ArrayBuffer;
   contentType: string;
 }
 
-/** Download one object; null when it is missing or unreadable. */
-export async function downloadChatMedia(path: string): Promise<DownloadedChatMedia | null> {
+/**
+ * Download one object of `accountId`; null when it is missing or
+ * unreadable. Throws `ForeignChatMediaError` for another account's path.
+ */
+export async function downloadChatMedia(
+  path: string,
+  accountId: string,
+): Promise<DownloadedChatMedia | null> {
+  // Reuse the URL gate on the proxy form of the path.
+  assertChatMediaAccount(chatMediaProxyUrl(path), accountId);
   const { data, error } = await supabaseAdmin().storage.from(CHAT_MEDIA_BUCKET).download(path);
   if (error || !data) return null;
   return {
@@ -29,13 +41,15 @@ export async function downloadChatMedia(path: string): Promise<DownloadedChatMed
 /**
  * Time-limited URL for a stored chat-media URL, safe to hand to Meta or
  * an API client. Anything that is not a chat-media URL — and any signing
- * failure — returns the input unchanged, i.e. today's behaviour.
+ * failure — returns the input unchanged, i.e. today's behaviour. An
+ * object of another account is never signed (`ForeignChatMediaError`).
  */
 export async function signChatMediaUrl<T extends string | null | undefined>(
   url: T,
   expiresInSeconds: number,
+  accountId: string,
 ): Promise<T | string> {
-  const path = parseChatMediaPath(url);
+  const path = assertChatMediaAccount(url, accountId);
   if (!path) return url;
   const { data, error } = await supabaseAdmin()
     .storage.from(CHAT_MEDIA_BUCKET)

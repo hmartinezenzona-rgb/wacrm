@@ -56,7 +56,7 @@ export async function GET(
       limit
     );
     const messages = await Promise.all(
-      items.map((m) => withSignedMedia(serializeMessage(m as unknown as Message)))
+      items.map((m) => withSignedMedia(serializeMessage(m as unknown as Message), ctx.accountId))
     );
     return okList(messages, nextCursor);
   } catch (err) {

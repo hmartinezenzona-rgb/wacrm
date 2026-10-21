@@ -46,7 +46,10 @@ import {
 import type { MessageTemplate } from '@/types';
 import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard';
 import { renderTemplateBody } from '@/lib/whatsapp/template-send-builder';
-import { parseChatMediaPath } from '@/lib/storage/chat-media';
+import {
+  ForeignChatMediaError,
+  assertChatMediaAccount,
+} from '@/lib/storage/chat-media';
 import {
   downloadChatMedia,
   signChatMediaUrl,
@@ -242,9 +245,13 @@ const MEDIA_LINK_TTL_SECONDS = 24 * 60 * 60;
  * chat-media URL stops working anonymously once the bucket is private, so
  * it is swapped for a signed one; every other URL is sent as-is.
  */
-export async function mediaLinkForSend(mediaUrl: string): Promise<string> {
-  if (!parseChatMediaPath(mediaUrl)) return mediaUrl;
-  return signChatMediaUrl(mediaUrl, MEDIA_LINK_TTL_SECONDS);
+export async function mediaLinkForSend(
+  mediaUrl: string,
+  accountId?: string,
+): Promise<string> {
+  // Throws for another account's object: no signed link may be minted.
+  if (!assertChatMediaAccount(mediaUrl, accountId)) return mediaUrl;
+  return signChatMediaUrl(mediaUrl, MEDIA_LINK_TTL_SECONDS, accountId!);
 }
 
 /**
@@ -255,13 +262,14 @@ export async function mediaLinkForSend(mediaUrl: string): Promise<string> {
  */
 async function fetchMediaBytes(
   mediaUrl: string,
+  accountId?: string,
 ): Promise<{ bytes: ArrayBuffer; mimeType: string } | undefined> {
-  const chatMediaPath = parseChatMediaPath(mediaUrl);
+  const chatMediaPath = assertChatMediaAccount(mediaUrl, accountId);
   let bytes: ArrayBuffer;
   let mimeType: string;
 
   if (chatMediaPath) {
-    const media = await downloadChatMedia(chatMediaPath);
+    const media = await downloadChatMedia(chatMediaPath, accountId!);
     if (!media) {
       console.error(
         '[send-message] could not read chat-media object to upload; sending as link'
@@ -334,9 +342,10 @@ export async function uploadMediaForSend(
   phoneNumberId: string,
   accessToken: string,
   filename?: string,
+  accountId?: string,
 ): Promise<string | undefined> {
   try {
-    const fetched = await fetchMediaBytes(mediaUrl);
+    const fetched = await fetchMediaBytes(mediaUrl, accountId);
     if (!fetched) return undefined;
     const { bytes, mimeType } = fetched;
 
@@ -396,6 +405,24 @@ export async function sendMessageToConversation(
   });
 
   const isMediaKind = (MEDIA_KINDS as readonly string[]).includes(messageType);
+
+  // The server reads/signs chat-media with the service role, so a URL
+  // pointing at another account's object must be refused up front — before
+  // any DB, storage or Meta call.
+  if (isMediaKind) {
+    try {
+      assertChatMediaAccount(mediaUrl, accountId);
+    } catch (err) {
+      if (err instanceof ForeignChatMediaError) {
+        throw new SendMessageError(
+          'bad_request',
+          'media_url does not belong to this account',
+          400
+        );
+      }
+      throw err;
+    }
+  }
 
   // Conversation + contact, account-scoped.
   const { data: conversation, error: convError } = await db
@@ -547,6 +574,7 @@ export async function sendMessageToConversation(
       config.phone_number_id,
       accessToken,
       filename || undefined,
+      accountId,
     );
   }
 
@@ -562,6 +590,7 @@ export async function sendMessageToConversation(
         messageParams: templateMessageParams ?? undefined,
         params: templateParams || [],
         contextMessageId,
+        accountId,
       });
       return result.messageId;
     }
@@ -571,7 +600,7 @@ export async function sendMessageToConversation(
         accessToken,
         to: phone,
         kind: messageType as MediaKind,
-        link: metaMediaId ? mediaUrl! : await mediaLinkForSend(mediaUrl!),
+        link: metaMediaId ? mediaUrl! : await mediaLinkForSend(mediaUrl!, accountId),
         mediaId: metaMediaId,
         caption: contentText || undefined,
         filename: filename || undefined,

@@ -64,6 +64,8 @@ interface PlannedRecipient {
 
 export interface BroadcastPlan {
   broadcastId: string;
+  /** Owning account; scopes service-role reads of the template header media. */
+  accountId: string;
   templateName: string;
   templateLanguage: string;
   phoneNumberId: string;
@@ -236,6 +238,7 @@ export async function createBroadcast(
 
   return {
     broadcastId: broadcast.id,
+    accountId,
     templateName,
     templateLanguage,
     phoneNumberId: config.phone_number_id,
@@ -279,6 +282,7 @@ export async function deliverBroadcast(
           templateName: plan.templateName,
           language: plan.templateLanguage,
           template: plan.templateRow ?? undefined,
+          accountId: plan.accountId,
           params: recipient.params,
         });
         sentMessageId = result.messageId;

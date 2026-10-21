@@ -103,10 +103,10 @@ describe('ensureImageHeaderHandle — chat-media header URLs', () => {
     downloadChatMedia.mockResolvedValue({ bytes: new ArrayBuffer(1024), contentType: 'image/png' });
 
     const p = payload({ header_media_url: URL_ });
-    await ensureImageHeaderHandle(p, 'tok');
+    await ensureImageHeaderHandle(p, 'tok', ACCT);
 
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(downloadChatMedia).toHaveBeenCalledWith(`account-${ACCT}/1-header.png`);
+    expect(downloadChatMedia).toHaveBeenCalledWith(`account-${ACCT}/1-header.png`, ACCT);
     expect(p.header_handle).toBe('HANDLE123');
     expect(vi.mocked(uploadResumableMedia).mock.calls[0][0]).toMatchObject({
       mimeType: 'image/png',
@@ -117,7 +117,7 @@ describe('ensureImageHeaderHandle — chat-media header URLs', () => {
   it('keeps the type and size validation', async () => {
     downloadChatMedia.mockResolvedValueOnce({ bytes: new ArrayBuffer(8), contentType: 'image/gif' });
     await expect(
-      ensureImageHeaderHandle(payload({ header_media_url: URL_ }), 'tok'),
+      ensureImageHeaderHandle(payload({ header_media_url: URL_ }), 'tok', ACCT),
     ).rejects.toThrow(/JPEG or PNG/);
 
     downloadChatMedia.mockResolvedValueOnce({
@@ -125,14 +125,27 @@ describe('ensureImageHeaderHandle — chat-media header URLs', () => {
       contentType: 'image/png',
     });
     await expect(
-      ensureImageHeaderHandle(payload({ header_media_url: URL_ }), 'tok'),
+      ensureImageHeaderHandle(payload({ header_media_url: URL_ }), 'tok', ACCT),
     ).rejects.toThrow(/5 MB/);
   });
 
   it('throws a clear error when the object cannot be read', async () => {
     downloadChatMedia.mockResolvedValue(null);
     await expect(
-      ensureImageHeaderHandle(payload({ header_media_url: URL_ }), 'tok'),
+      ensureImageHeaderHandle(payload({ header_media_url: URL_ }), 'tok', ACCT),
     ).rejects.toThrow(/Could not read the header image/);
+  });
+
+  it("refuses another account's header image without reading it", async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const foreign = URL_.replace(ACCT, '9a8b7c6d-1111-4222-8333-444455556666');
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(
+      ensureImageHeaderHandle(payload({ header_media_url: foreign }), 'tok', ACCT),
+    ).rejects.toThrow(/another account/);
+    expect(downloadChatMedia).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(uploadResumableMedia).not.toHaveBeenCalled();
   });
 });

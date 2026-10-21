@@ -28,9 +28,9 @@ scripts, so a session publishes by running two commands and reading a short resu
 Strict. Runner: `bash infra/deployment/tests/<test>.sh` (existing fake-based harness pattern).
 
 ## Tasks
-- [ ] P1 — `publicar-panel.sh` + guard tests (RED -> GREEN).
-- [ ] P2 — `panel-local-staging.sh`.
-- [ ] P3 — Skill + reference + AGENTS.md registration; dry run of `compilar` on the current release branch.
+- [x] P1 — `publicar-panel.sh` + guard tests (RED -> GREEN).
+- [x] P2 — `panel-local-staging.sh`.
+- [x] P3 — Skill + reference + AGENTS.md registration; dry run of `compilar` on the current release branch.
 
 ## Acceptance criteria
 - `publicar-panel.sh compilar` refuses a dirty tree, a non-production manifest, or a missing build env, and on success
@@ -40,5 +40,12 @@ Strict. Runner: `bash infra/deployment/tests/<test>.sh` (existing fake-based har
 ## Progress
 - 2026-10-21: owner chose this skill first among the repetitive-workflow skills.
 
+- 2026-10-21 P1-P3 DONE: 2cd59e6 (publicar-panel.sh compilar/publicar/servido + tests), 713dc8b (panel-local-staging.sh),
+  938cbeb (skill .claude/skills/wacrm-publicar-panel + references/procedure.md; AGENTS.md "## Skills"). RED 20 failures
+  -> GREEN "todo en pie"; existing probar_despliegue_de_produccion.sh still "todo en pie" (parent re-ran both).
+  `servido` read-only dry run printed 9367f0f (what production serves). compilar/publicar only covered by fake tests.
+  Note: the scripts locate the repo from their own path, so a release branch must contain them (any branch cut from
+  the feature branch from now on does).
+
 ## Next step
-P1.
+Use the skill on the next panel release; then the next skill (production migrations, needs a write credential decision).

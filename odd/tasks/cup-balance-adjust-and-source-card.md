@@ -76,5 +76,15 @@ Strict (user global CLAUDE.md). Runners: staging assertions (`supabase/staging/a
   Usado hoy stayed 0, movement "Ajuste 5 000 · prueba de ajuste" listed; back to 205,000 ("205,000" read as thousands)
   saved; DB shows ajuste rows +5000 / -5000, remaining 205,000. Owner check pending.
 
+- 2026-10-20 B3 (built; NOT ticked, parent verifies): migration 257 (eca3d86) + UI/API (d4c9806). Choice stored in
+  remittance_operations.cup_source_card_id (FK cup_cards ON DELETE SET NULL), written by crm_entregar_operacion(uuid, jsonb, boolean,
+  p_cup_source_card_id DEFAULT NULL) and crm_cerrar_operacion_manual(..., p_cup_source_card_id DEFAULT NULL) in the completing UPDATE; the
+  feed passes v_op.cup_source_card_id to cup_consumir(7 args) -> cup_planificar(4 args: chosen card first, then priority). The 3-/6-argument
+  cup_planificar / cup_consumir remain as wrappers; the three RPC overloads are replaced (named/positional old calls still resolve).
+  Panel RPC crm_inventario_cup_operacion(op, p_source_card_id DEFAULT NULL) adds source_card_id + cards (active cards, balance, room today).
+  Strict TDD: assertion cup-source-card.sql RED (column cup_source_card_id does not exist) then ALL PASS on staging; vitest RED 21 failed then
+  GREEN. Staging apply + md5s in the commit report; the UI has a "Tarjeta de origen" select in the Transferir desde block (deliver path only;
+  manual close supports the card in route/command/RPC but its confirmation control has no picker). Browser check pending.
+
 ## Next step
 B3 (source-card choice) on staging; owner checks B1/B2 on the page.

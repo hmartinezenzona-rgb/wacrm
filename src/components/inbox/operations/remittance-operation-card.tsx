@@ -460,7 +460,9 @@ export function RemittanceOperationCard({
     );
 
   return (
-    <article className="rounded-lg border border-border bg-card px-2 py-2.5">
+    <article
+      className={`rounded-xl border bg-card px-2 py-2.5 ${expanded ? "border-primary/40 shadow-[0_1px_3px_rgba(15,38,34,0.08)]" : "border-border"}`}
+    >
       {expanded && (canDelete || editable) && (
         <div className="mb-1 flex items-center justify-end gap-1">
           {canDelete && (
@@ -508,7 +510,7 @@ export function RemittanceOperationCard({
           onClick={onToggle}
           className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1 text-sm font-semibold tabular-nums text-foreground">
+          <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1 font-heading text-[15px] font-bold tabular-nums text-foreground">
             <span className="inline-flex items-center gap-1">
               {source ?? t("amountUnavailable")}
               {isLocked("quoted_source_amount") && lock}

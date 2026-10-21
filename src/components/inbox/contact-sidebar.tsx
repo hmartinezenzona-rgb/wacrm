@@ -183,9 +183,9 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
               gender={contact.avatar_gender}
               seq={contact.avatar_seq}
               imageUrl={contact.avatar_url}
-              className="h-16 w-16 bg-muted text-lg font-semibold text-foreground"
+              className="h-16 w-16 bg-primary-soft text-lg font-bold text-primary"
             />
-            <h3 className="mt-3 text-sm font-semibold text-foreground">
+            <h3 className="mt-3 font-heading text-base font-bold text-foreground">
               {displayName}
             </h3>
             {contact.company && (
@@ -200,7 +200,7 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted"
             >
               <Phone className="h-4 w-4 text-muted-foreground" />
-              <span className="flex-1 text-left">{contact.phone}</span>
+              <span className="flex-1 text-left font-mono tabular-nums">{contact.phone}</span>
               {copied ? (
                 <Check className="h-3 w-3 text-primary" />
               ) : (

@@ -867,8 +867,8 @@ function ConversationItem({
         if (!modoSeleccion) onLongPress(conversation.id);
       }}
       className={cn(
-        "group flex w-full cursor-pointer items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/50",
-        isActive && "border-l-2 border-primary bg-muted/70"
+        "group flex w-full cursor-pointer items-start gap-3 border-b border-border/60 px-3 py-3 text-left transition-colors hover:bg-muted/50",
+        isActive && "bg-primary-soft shadow-[inset_2px_0_0_var(--primary)]"
       )}
     >
       {/* Avatar, que en hover y en modo selección se convierte en casilla.
@@ -890,7 +890,7 @@ function ConversationItem({
             gender={contact?.avatar_gender}
             seq={contact?.avatar_seq}
             imageUrl={contact?.avatar_url}
-            className="h-10 w-10 bg-muted text-sm font-medium text-foreground"
+            className="h-10 w-10 bg-primary-soft text-sm font-bold text-primary"
           />
         </div>
         <div
@@ -925,7 +925,7 @@ function ConversationItem({
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <span className="flex min-w-0 items-center gap-1.5">
-            <span className="truncate text-sm font-medium text-foreground">
+            <span className="truncate text-sm font-semibold text-foreground">
               {displayName}
             </span>
           </span>

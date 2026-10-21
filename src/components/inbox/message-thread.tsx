@@ -152,7 +152,7 @@ const STATUS_OPTIONS: { label: string; value: ConversationStatus; color: string 
  * if we ever switch the asset, both spots update together.
  */
 const DOODLE_BG_CLASSES =
-  "bg-background bg-[url('/inbox-doodle.svg')] bg-repeat";
+  "bg-muted bg-[url('/inbox-doodle.svg')] bg-repeat";
 
 export function MessageThread({
   conversation,
@@ -918,11 +918,11 @@ export function MessageThread({
             gender={contact.avatar_gender}
             seq={contact.avatar_seq}
             imageUrl={contact.avatar_url}
-            className="h-9 w-9 bg-muted text-sm font-medium text-foreground"
+            className="h-9 w-9 bg-primary-soft text-sm font-bold text-primary"
           />
           <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold text-foreground">{displayName}</h2>
-            <p className="truncate text-xs text-muted-foreground">{contact.phone}</p>
+            <h2 className="truncate text-sm font-bold text-foreground">{displayName}</h2>
+            <p className="truncate font-mono text-xs tabular-nums text-muted-foreground">{contact.phone}</p>
           </div>
           {/* Session timer badge — hidden on the narrowest phones so
               the name + back arrow keep their room. */}

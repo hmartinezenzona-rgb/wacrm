@@ -46,9 +46,9 @@ anyone holding or guessing a URL: the bucket becomes private and every consumer 
 - [x] M2 App compatibility + WhatsApp media route fix (TDD), work-unit commits.
 - [x] M3 Staging: migration 261 on staging; owner checks the panel against staging (chat images, audio, receipts,
       delivery proof, sending an image).
-- [ ] M4 Production: publish the panel, then migration 261 (separate go-aheads); HTTP check public URL -> refused,
+- [x] M4 Production: publish the panel, then migration 261 (separate go-aheads); HTTP check public URL -> refused,
       panel still shows media.
-- [ ] M5 Migration 262: members-only listing for avatars / flow-media.
+- [x] M5 Migration 262: members-only listing for avatars / flow-media.
 
 ## Acceptance criteria
 
@@ -76,7 +76,13 @@ anyone holding or guessing a URL: the bucket becomes private and every consumer 
   photos show and voice notes play; dev log shows /api/chat-media 200 (images) and 206 (audio ranges). Sending was
   not tested on staging (Meta test number); covered by unit tests, to check in production.
 
+- 2026-10-21 M4: panel release/prod-chat-media-private a6c036e published (BUILD_ID B_X3jJpdkq_d0C4ureBhr, rollback
+  9e8ee88); /api/chat-media 401 without session. Owner declared the image-send check done (not verified here: no
+  agent media message in messages after the publish). 261 applied 21:23Z: bucket private, old public URL 400,
+  anon list 0. Staging server deployed with feature head cb8db02 (BUILD_ID cDn52x8TS7ILAV32jQFpg, anterior 4f4e1f6).
+- 2026-10-21 M5: 262 (staging RED -> GREEN, rollback md5-equal) applied in production 21:24Z; anon list of avatars
+  and flow-media = 0; both buckets stay public and are empty in production.
+
 ## Next step
 
-M4: release branch from the served sha + cherry-picks, compile, owner go-ahead, publish; then 261 in production
-with its own go-ahead; send a real image to the owner and probe a public URL.
+Done. Follow-up only if needed: confirm a real outbound image in production logs/messages.

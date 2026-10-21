@@ -47,8 +47,25 @@ vi.mock("next-intl", () => ({
 // action (Slice B) call them, and without a stub the resulting unhandled
 // promise rejection pollutes unrelated test output even though the
 // assertions themselves still pass.
+// Board rows returned by `crm_tablero_operaciones` (feeds the status chips) and the
+// handlers registered on the `remittance_operations` realtime channel.
+let boardRows: unknown[] = [];
+const operationsChangeHandlers: Array<() => void> = [];
+
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
+    rpc: () => Promise.resolve({ data: boardRows, error: null }),
+    channel: () => {
+      const channel = {
+        on: (_type: string, _filter: unknown, handler: () => void) => {
+          operationsChangeHandlers.push(handler);
+          return channel;
+        },
+        subscribe: () => channel,
+      };
+      return channel;
+    },
+    removeChannel: () => undefined,
     from: () => {
       const builder = {
         select: () => builder,
@@ -94,6 +111,8 @@ vi.mock("@/lib/remittance-operations/panel-prefetch", () => ({
 }));
 
 afterEach(() => {
+  boardRows = [];
+  operationsChangeHandlers.length = 0;
   document.body.replaceChildren();
   vi.restoreAllMocks();
   prefetchConversationOperations.mockClear();
@@ -486,5 +505,65 @@ describe("ConversationList — customer avatar", () => {
     expect(img?.getAttribute("src")).toBe(contactAvatarDataUri(c.id, "f", 7));
     expect(img?.getAttribute("src")).not.toBe(contactAvatarDataUri(c.id));
     await act(async () => root.unmount());
+  });
+});
+
+function boardRow(overrides: Record<string, unknown> = {}) {
+  return {
+    operation_id: "op-1",
+    conversation_id: "conv-1",
+    contact_name: "Ada Lovelace",
+    contact_phone: null,
+    service_type: "remesa",
+    delivery_method: null,
+    status: "ready_to_transfer",
+    quoted_source_amount: 100,
+    source_currency: "GYD",
+    created_at: "2026-10-21T10:00:00Z",
+    completed_at: null,
+    state_since: "2026-10-21T10:00:00Z",
+    beneficiaries_complete: false,
+    ...overrides,
+  };
+}
+
+describe("ConversationList — open operation status chip", () => {
+  it("shows only the panel's status text for the open operation", async () => {
+    boardRows = [boardRow()];
+    const { node } = await renderList([conversation({ id: "conv-1" })]);
+    await flush();
+
+    const chip = node.querySelector('[data-testid="operation-status-chip"]');
+    expect(chip?.textContent).toBe("Waiting for beneficiary");
+    expect(chip?.getAttribute("data-tone")).toBe("info");
+  });
+
+  it("shows no chip when the operation is completed or there is none", async () => {
+    boardRows = [boardRow({ status: "completed" })];
+    const { node } = await renderList([
+      conversation({ id: "conv-1" }),
+      conversation({ id: "conv-2", contact: contact({ id: "c2", name: "Grace Hopper" }) }),
+    ]);
+    await flush();
+
+    expect(node.querySelectorAll('[data-testid="operation-status-chip"]')).toHaveLength(0);
+  });
+
+  it("refreshes the chip when a remittance_operations change arrives", async () => {
+    boardRows = [boardRow({ status: "awaiting_deposit", beneficiaries_complete: true })];
+    const { node } = await renderList([conversation({ id: "conv-1" })]);
+    await flush();
+    expect(node.querySelector('[data-testid="operation-status-chip"]')?.textContent).toBe("Awaiting deposit");
+
+    vi.useFakeTimers();
+    boardRows = [boardRow({ status: "incident" })];
+    operationsChangeHandlers.forEach((h) => h());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(900);
+    });
+    vi.useRealTimers();
+    await flush();
+
+    expect(node.querySelector('[data-testid="operation-status-chip"]')?.textContent).toBe("Incident");
   });
 });

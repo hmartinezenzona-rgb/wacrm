@@ -8,6 +8,10 @@ import {
   normalizeConversations,
 } from "@/lib/inbox/conversations";
 import { prefetchConversationOperations } from "@/lib/remittance-operations/panel-prefetch";
+import type { EffectiveStatus } from "@/lib/remittance-operations/effective-status";
+import { fetchBoard } from "@/lib/tablero/fetch";
+import { openOperationStatusByConversation } from "@/lib/inbox/open-operation-status";
+import { statusPillClass, statusTone } from "@/lib/status-tone";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus, Tag } from "@/types";
 import { Search, ChevronDown, X, Pin } from "lucide-react";
@@ -146,6 +150,15 @@ export function ConversationList({
     ReadonlyMap<string, string>
   >(new Map());
   const [loading, setLoading] = useState(true);
+  /**
+   * conversationId -> status of its most relevant OPEN operation (chip on the
+   * row). Loaded with ONE board RPC for the whole list, not one request per
+   * row: `remittance_operations` has no foreign key to `conversations`, so it
+   * cannot be embedded in CONVERSATION_SELECT without a migration.
+   */
+  const [operationStatuses, setOperationStatuses] = useState<
+    ReadonlyMap<string, EffectiveStatus>
+  >(new Map());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // Explícito y no derivado de `selectedIds.size > 0`: así el modo se queda
   // activo (casillas visibles en toda la lista) aunque el usuario destilde la
@@ -243,6 +256,58 @@ export function ConversationList({
     // the realtime channel reconnects or the tab regains focus — catches
     // up on any events sent while the WS was disconnected or throttled.
   }, [fetchConversations, resyncToken]);
+
+  // Chips de estado de la operación abierta. Un fallo deja los chips como
+  // estaban (o sin chips): la lista nunca depende de ellos.
+  const loadOperationStatuses = useCallback(async () => {
+    try {
+      const board = await fetchBoard(createClient());
+      setOperationStatuses(
+        openOperationStatusByConversation(
+          board.map((o) => ({
+            conversationId: o.conversationId,
+            status: o.status,
+            beneficiariesComplete: o.beneficiariesComplete,
+            createdAt: o.createdAt,
+          })),
+        ),
+      );
+    } catch (error) {
+      console.error("Failed to load operation statuses:", error);
+    }
+  }, []);
+
+  // `resyncToken` también recarga los chips (reconexión / pestaña visible).
+  useEffect(() => {
+    (async () => {
+      await loadOperationStatuses();
+    })();
+  }, [loadOperationStatuses, resyncToken]);
+
+  // Tiempo real: cualquier cambio en `remittance_operations` (la tabla está
+  // en la publicación supabase_realtime desde la migración 181; RLS la limita
+  // a la cuenta) vuelve a pedir el tablero. Debounce porque un solo comando
+  // dispara varios UPDATE seguidos.
+  useEffect(() => {
+    const supabase = createClient();
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const schedule = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => void loadOperationStatuses(), 800);
+    };
+    const channel = supabase
+      .channel(`inbox-list-operations-${Math.random().toString(36).slice(2)}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "remittance_operations" },
+        schedule,
+      )
+      .subscribe();
+    return () => {
+      if (timer) clearTimeout(timer);
+      supabase.removeChannel(channel);
+    };
+  }, [loadOperationStatuses]);
 
   /** Aplica pinned_at/deleted_at y refresca la lista. Nunca borra la fila. */
   const applyConversationUpdate = useCallback(
@@ -773,6 +838,7 @@ export function ConversationList({
                 onUnpin={handleUnpin}
                 onDelete={handleDelete}
                 nombresPorAgente={nombresPorAgente}
+                operationStatus={operationStatuses.get(conv.id) ?? null}
                 t={t}
                 isSelected={selectedVisibleIds.has(conv.id)}
                 modoSeleccion={modoSeleccion}
@@ -796,6 +862,8 @@ interface ConversationItemProps {
   onDelete: (id: string, name: string) => void;
   /** userId -> nombre. Cargado una vez por la lista. */
   nombresPorAgente?: ReadonlyMap<string, string>;
+  /** Estado efectivo de su operación abierta más relevante, o null. */
+  operationStatus?: EffectiveStatus | null;
   t: ReturnType<typeof useTranslations>;
   isSelected: boolean;
   /** Modo selección activo para toda la lista, no sólo esta fila. */
@@ -813,12 +881,14 @@ function ConversationItem({
   onUnpin,
   onDelete,
   nombresPorAgente,
+  operationStatus = null,
   t,
   isSelected,
   modoSeleccion,
   onToggleSelect,
   onLongPress,
 }: ConversationItemProps) {
+  const tOps = useTranslations("Inbox.operationsPanel.status");
   // El nombre sólo existe cuando hay alguien ASIGNADO. Si la propiedad viene de
   // «una persona respondió a mano», no hay a quién nombrar: el CRM no guarda
   // quién escribió en la conversación, sólo que fue una persona.
@@ -997,6 +1067,20 @@ function ConversationItem({
             )}
           </div>
         </div>
+        {operationStatus && (
+          <div className="mt-1 flex">
+            <span
+              data-testid="operation-status-chip"
+              data-tone={statusTone(operationStatus)}
+              className={cn(
+                "max-w-full truncate rounded-full px-1.5 text-[10px] font-medium leading-4",
+                statusPillClass[statusTone(operationStatus)],
+              )}
+            >
+              {tOps(operationStatus)}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

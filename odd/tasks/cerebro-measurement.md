@@ -149,5 +149,5 @@ touch `~/cerebro-fase1/pruebas/evals/` until this document says done (engram #49
   this one may be the prompt's ambiguity rule, owner to decide; 475593, 474949 4/5.
 
 ## Next step
-E7: the owner replays 478178, 474455 and 475982 by chat in staging. Blocker: the staging Cerebro prompt
-(22df00c2, 51,622 chars) is not production's (c509c572, 56,545 chars); Decisor and tools are equal.
+E7 (history). Found 2026-10-21: production answered reg-474455 correctly (bot had asked for the holder name one turn
+before); the battery fails it 3/5 because evaluar.py has no history injection (it only skips historial_requerido cases).

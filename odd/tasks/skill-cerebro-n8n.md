@@ -48,6 +48,7 @@ Strict. Runner: `python3 -m unittest discover -s infra/n8n/tests` (+ a small tes
 
 ## Progress
 - 2026-10-21: owner chose this skill; Hermes to write code.
+- 2026-10-21: N1 (35f8b69, 02cc7af), N2 (74c62f7) and N3 implemented; Hermes round 1: 200 s, 15/15 tests, then hardened by hand (21 tests). Real read-only runs done (estado x2, comparar, respaldo produccion).
 
 ## Next step
 N1.

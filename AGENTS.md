@@ -8,3 +8,4 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 - `wacrm-publicar-panel` (`.claude/skills/wacrm-publicar-panel/SKILL.md`): build and publish the production panel; load before any panel deploy or rollback.
 - `wacrm-migraciones` (`.claude/skills/wacrm-migraciones/SKILL.md`): staging cycle and production apply for Supabase migrations; load before writing, applying or verifying any migration.
+- `wacrm-cerebro-n8n` (`.claude/skills/wacrm-cerebro-n8n/SKILL.md`): inspect, back up, change and restore the Cerebro n8n workflows (Decisor, tool nodes, prompts); load before touching n8n.

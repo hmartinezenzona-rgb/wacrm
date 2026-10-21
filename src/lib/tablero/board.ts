@@ -19,6 +19,16 @@ export interface BoardOperation {
   /** When the operation entered its current status (see migration 214). */
   stateSince: string;
   beneficiariesComplete: boolean | null;
+  /** `beneficiary_type` of the current recipients, in block/position order (migration 258); empty when none. */
+  beneficiaryTypes: string[];
+  /** What the recipient gets, when quoted. */
+  quotedDestinationAmount: number | null;
+  destinationCurrency: string | null;
+  /** First recipient: name, else "Tarjeta ·1234", Zelle account or phone; null when there is none. */
+  recipientLabel: string | null;
+  recipientCount: number;
+  /** Set when the operation belongs to a mixed send. */
+  mixedGroupId: string | null;
 }
 
 export const BOARD_COLUMNS: ReadonlyArray<{ id: BoardColumnId; statuses: ReadonlyArray<string> }> = [

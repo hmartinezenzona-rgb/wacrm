@@ -39,7 +39,8 @@ Strict. Runners: staging assertion via `infra/db/staging-migracion.sh aplicar`; 
 - [ ] T4 — Production: migration (previa/aplicar/verificar) then panel publish, with go-ahead.
 
 ## Progress
-- T1 (migration 258 on staging, assertion `board-informative-fields.sql`, rollback md5-verified): done, commit pending tick by the parent.
+- T1 (migration 258 on staging, assertion `board-informative-fields.sql`, rollback md5-verified): done (cf9f169), staging applied; md5 of crm_tablero_operaciones 4643febaa70c7477f99944f5370aa82f.
+- T2 (board read model + card UI + tests): done, full vitest/tsc/eslint green; browser check is T3.
 
 ## Next step
-T2.
+T3.

@@ -27,6 +27,12 @@ function op(over: Partial<BoardOperation> = {}): BoardOperation {
     completedAt: null,
     stateSince: "2026-10-05T10:00:00Z",
     beneficiariesComplete: true,
+    beneficiaryTypes: [],
+    quotedDestinationAmount: null,
+    destinationCurrency: null,
+    recipientLabel: null,
+    recipientCount: 0,
+    mixedGroupId: null,
     ...over,
   };
 }

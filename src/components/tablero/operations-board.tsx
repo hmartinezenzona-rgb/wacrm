@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { statusTone, type StatusTone } from "@/lib/status-tone";
 import { useOperationServiceName, useServiceName } from "@/hooks/use-service-name";
 import { formatCurrency } from "@/lib/currency";
+import { formatNumber } from "@/lib/format-number";
 import {
   SERVICE_FILTERS,
   ageParts,
@@ -64,7 +65,16 @@ function BoardCard({ op, now }: { op: BoardOperation; now: Date }) {
   const operationServiceName = useOperationServiceName();
   const name = op.contactName?.trim() || op.contactPhone || t("unknownContact");
   // A remittance reads as its rail (CUP, Zelle...), the generic "Remesa" only when the rail is not known yet.
-  const serviceLabel = operationServiceName({ serviceType: op.serviceType, deliveryMethod: op.deliveryMethod });
+  const serviceLabel = operationServiceName({
+    serviceType: op.serviceType,
+    deliveryMethod: op.deliveryMethod,
+    beneficiaryTypes: op.beneficiaryTypes,
+  });
+  // What the recipient gets, only when it differs from the GYD deposited.
+  const destination =
+    op.quotedDestinationAmount !== null && op.destinationCurrency && op.destinationCurrency !== "GYD"
+      ? `${formatNumber(op.quotedDestinationAmount)} ${op.destinationCurrency}`
+      : null;
   const age = ageParts(op.stateSince, now);
   const ageText = t(`age.${age.unit}`, { value: age.value });
   return (
@@ -88,9 +98,17 @@ function BoardCard({ op, now }: { op: BoardOperation; now: Date }) {
         {op.quotedSourceAmount !== null ? (
           <span className="text-foreground text-base font-bold tabular-nums">
             {formatCurrency(op.quotedSourceAmount, "GYD")}
+            {destination ? ` → ${destination}` : null}
           </span>
         ) : null}
       </div>
+      {op.recipientLabel ? (
+        <p data-recipient="" className="text-muted-foreground mt-1 truncate text-xs">
+          {op.recipientLabel}
+          {op.recipientCount > 1 ? ` ${t("moreRecipients", { count: op.recipientCount - 1 })}` : null}
+        </p>
+      ) : null}
+      {op.mixedGroupId ? <p className="text-muted-foreground mt-1 text-xs">{t("mixedSend")}</p> : null}
       {showMissingBeneficiaries(op) ? (
         <p className="text-status-attention mt-2 flex items-center gap-1.5 text-xs font-medium">
           <span data-dot="" aria-hidden="true" className="bg-status-attention size-1.5 shrink-0 rounded-full" />

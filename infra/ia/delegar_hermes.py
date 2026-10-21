@@ -23,7 +23,8 @@ SECRET_FILES = (Path.home() / ".n8n-api-key",)
 SECRET_CONTENT = (
     re.compile(r"sbp_"),
     re.compile(r"eyJhbGci"),
-    re.compile(r"X-N8N-API-KEY", re.I),
+    # The header NAME is harmless in code/specs; refuse it only when followed by a literal value.
+    re.compile(r"X-N8N-API-KEY[\"']?\s*[:=]\s*[\"']?[A-Za-z0-9._\-]{8,}", re.I),
     re.compile(r"postgres(?:ql)?://[^\s/:@]+:[^\s/@]+@", re.I),
 )
 ANSWER_FORMAT = (

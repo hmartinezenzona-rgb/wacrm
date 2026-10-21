@@ -50,7 +50,7 @@ class DelegarHermesTest(unittest.TestCase):
         self.assertFalse(self.prompt_log.exists(), "hermes must not run")
 
     def test_secret_content_refused(self):
-        for payload in ("x = 'sbp_abc123'", "jwt eyJhbGciOiJIUzI1", "X-N8N-API-KEY: zzz",
+        for payload in ("x = 'sbp_abc123'", "jwt eyJhbGciOiJIUzI1", "X-N8N-API-KEY: zzzzzzzzzz",
                         "url postgres://user:pw@host:5432/db"):
             f = self.dir / "ctx.py"
             f.write_text(payload)
@@ -58,6 +58,13 @@ class DelegarHermesTest(unittest.TestCase):
             self.assertNotEqual(r.returncode, 0, payload)
             self.assertIn("REFUSED", r.stderr)
         self.assertFalse(self.prompt_log.exists())
+
+    def test_header_name_alone_is_allowed_but_header_with_value_is_not(self):
+        f = self.dir / "ctx.py"
+        f.write_text("headers = {'X-N8N-API-KEY': key}\nsend header `X-N8N-API-KEY` with the key")
+        self.assertEqual(self.run_cli("--context", str(f)).returncode, 0)
+        f.write_text("headers = {'X-N8N-API-KEY': 'abcdefgh12345678'}")
+        self.assertNotEqual(self.run_cli("--context", str(f)).returncode, 0)
 
     def test_postgres_url_without_password_is_allowed(self):
         f = self.dir / "ctx.py"

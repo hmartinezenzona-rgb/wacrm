@@ -151,3 +151,15 @@ touch `~/cerebro-fase1/pruebas/evals/` until this document says done (engram #49
 ## Next step
 E7 (history). Found 2026-10-21: production answered reg-474455 correctly (bot had asked for the holder name one turn
 before); the battery fails it 3/5 because evaluar.py has no history injection (it only skips historial_requerido cases).
+
+- 2026-10-21 E7 history injection (harness 957b135, e421d84, f9a1f8b; tests 86/86). Production memory is
+  `cerebro_memoria` (flat LangChain rows `{type, content, ...}`, tool rows included), session_id = the
+  conversation id (`$('Decisor').item.json.conversation_id`), no timestamps (order by id). `historial.py`
+  rebuilds the window before a turn by matching the human row (ties: observed reply, then position, then
+  last); `cosechar.py` now stores `historial` per harvested turn; `rellenar_historial.py` backfilled the gold:
+  101 reconstructed (22 of them empty = first turn), 16 not found (2 already marked, 14 unmarked: listed for
+  the owner, not auto-marked), 0 already had; 13 of the 15 `historial_requerido` cases now run. `evaluar.py`
+  seeds the history into STAGING `cerebro_memoria` (`eval-<case>-<rep>-<uuid8>`), the temp workflow gets a
+  Postgres chat memory node on the staging credential (np3egGrAcrWkOWd4), rows deleted after each run.
+  Smoke reg-474455 x2 with history: 1/2 green, 91,033 in tokens, staging eval rows after = 0.
+  E7 stays open: owner replays of the remaining faults are still pending.

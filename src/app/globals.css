@@ -249,11 +249,12 @@ html[data-mode="light"] {
   --chart-4: oklch(0.8 0.04 260);
   --chart-5: oklch(0.87 0.03 260);
   --radius: 0.625rem;
-  --sidebar: oklch(0.248 0.03 calc(var(--tint-h) + 1));
-  --sidebar-foreground: oklch(0.899 0.023 calc(var(--tint-h) - 4));
-  --sidebar-accent: oklch(0.33 0.039 var(--tint-h));
-  --sidebar-accent-foreground: oklch(1 0 0);
-  --sidebar-border: oklch(0.33 0.039 var(--tint-h));
+  /* Light mode: the sidebar follows the mode (owner, 2026-10-21) — a near-white surface tinted with the accent hue. */
+  --sidebar: oklch(0.99 0.004 var(--tint-h));
+  --sidebar-foreground: oklch(0.38 0.02 var(--tint-h));
+  --sidebar-accent: oklch(0.94 0.025 var(--tint-h));
+  --sidebar-accent-foreground: oklch(0.25 0.035 var(--tint-h));
+  --sidebar-border: oklch(0.912 0.009 calc(var(--tint-h) - 8));
 }
 
 /* ---- ACENTO: color primario ----

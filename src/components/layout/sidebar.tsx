@@ -46,7 +46,7 @@ const ROLE_CHIP: Record<
     labelKey: "roleOwner",
     // Amber: scarce, immutable, "the boss" — gets visual emphasis.
     className:
-      "border-amber-400/40 bg-amber-400/10 text-amber-300",
+      "border-amber-500/40 bg-amber-400/15 text-amber-800 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-300",
   },
   admin: {
     icon: Shield,
@@ -206,7 +206,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 32 se leia como una mancha oscura. La fila mide h-14 (56px),
                 asi que a 40 siguen quedando 8px de aire arriba y abajo. */}
             <BrandMark size={40} />
-            <span className="font-heading text-base font-bold text-white">
+            <span className="font-heading text-base font-bold text-sidebar-accent-foreground">
               {t("title")}
             </span>
           </Link>
@@ -255,7 +255,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                     {item.beta && (
                       <span
                         aria-label={t("beta")}
-                        className="rounded-full border border-amber-400/40 bg-amber-400/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-300"
+                        className="rounded-full border border-amber-500/40 bg-amber-400/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-800 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-300"
                       >
                         {t("beta")}
                       </span>
@@ -361,7 +361,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-white">
+                <p className="truncate text-sm font-semibold text-sidebar-accent-foreground">
                   {profile?.full_name ?? t("defaultUser")}
                 </p>
                 <p className="truncate text-xs text-sidebar-foreground">

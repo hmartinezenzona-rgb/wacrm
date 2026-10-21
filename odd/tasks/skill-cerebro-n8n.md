@@ -36,10 +36,10 @@ a per-session scratchpad. First feature where code is delegated to Hermes (owner
 Strict. Runner: `python3 -m unittest discover -s infra/n8n/tests` (+ a small test for delegar_hermes guards).
 
 ## Tasks
-- [ ] N1 — `delegar_hermes.py` + guard test.
-- [ ] N2 — tests for `cerebro_n8n.py` (RED), implementation by Hermes via delegar_hermes, GREEN (Claude finishes if
+- [x] N1 — `delegar_hermes.py` + guard test.
+- [x] N2 — tests for `cerebro_n8n.py` (RED), implementation by Hermes via delegar_hermes, GREEN (Claude finishes if
   Hermes fails twice).
-- [ ] N3 — Skill + references + AGENTS.md + global symlink; read-only real runs: `estado staging`, `estado produccion`,
+- [x] N3 — Skill + references + AGENTS.md + global symlink; read-only real runs: `estado staging`, `estado produccion`,
   `comparar`.
 
 ## Acceptance criteria

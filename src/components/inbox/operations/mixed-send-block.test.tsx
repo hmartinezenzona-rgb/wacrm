@@ -63,3 +63,22 @@ describe("MixedSendBlock", () => {
     await act(async () => root.unmount());
   });
 });
+
+// ---- Trial (local model): each share shows what the recipient gets ------------------------------------------------------
+describe("MixedSendBlock destinations", () => {
+  it("adds '→ <amount> <currency>' after a share that has a destination, and nothing after one that has none", async () => {
+    const { MixedSendBlock } = await import("./mixed-send-block");
+    const node = document.createElement("div");
+    document.body.appendChild(node);
+    const root = createRoot(node);
+    const clasica = { ...member("op-1", "clasica", "remesa", 18200), quotedDestinationAmount: 70, destinationCurrency: "USD" } as RemittanceOperationRead;
+    const recarga = member("op-2", null, "recarga", 6200);
+
+    await act(async () => root.render(<MixedSendBlock members={[clasica, recarga]}><p>card</p></MixedSendBlock>));
+
+    const items = [...node.querySelectorAll("li")].map((li) => li.textContent ?? "");
+    expect(items[0]).toContain(`→ ${formatNumber(70)} USD`);
+    expect(items[1]).not.toContain("→");
+    await act(async () => root.unmount());
+  });
+});

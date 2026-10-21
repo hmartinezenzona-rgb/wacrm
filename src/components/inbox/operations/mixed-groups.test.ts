@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { groupOpenOperations, groupOperations, limitBlocks, mixedGroupMembers, mixedGroupTotal } from "./mixed-groups";
 import type { RemittanceOperationRead } from "@/lib/remittance-operations/types";
+import { formatNumber } from "@/lib/format-number";
 
 function op(id: string, amount: number | null, mixedGroupId: string | null = null, status = "ready_to_transfer"): RemittanceOperationRead {
   return { id, quotedSourceAmount: amount, mixedGroupId, status } as unknown as RemittanceOperationRead;
@@ -115,5 +116,26 @@ describe("limitBlocks", () => {
     const blocks = [single("1"), group("2", "3")];
 
     expect(limitBlocks(blocks, 5)).toEqual({ visible: blocks, hiddenOperations: 0 });
+  });
+});
+
+// ---- Trial (local model): the destination of each share ---------------------------------------------------------------
+describe("mixedShareDestination", () => {
+  function share(dest: number | null, currency: string | null): RemittanceOperationRead {
+    return { id: "s", quotedSourceAmount: 18200, quotedDestinationAmount: dest, destinationCurrency: currency } as unknown as RemittanceOperationRead;
+  }
+
+  it("returns the destination amount and currency of a share", async () => {
+    const { mixedShareDestination } = await import("./mixed-groups");
+    expect(mixedShareDestination(share(70, "USD"))).toBe(`${formatNumber(70)} USD`);
+    expect(mixedShareDestination(share(54600, "CUP"))).toBe(`${formatNumber(54600)} CUP`);
+  });
+
+  it("returns null when the share has no destination amount or currency, or the destination is GYD", async () => {
+    const { mixedShareDestination } = await import("./mixed-groups");
+    expect(mixedShareDestination(share(null, null))).toBeNull();
+    expect(mixedShareDestination(share(70, null))).toBeNull();
+    expect(mixedShareDestination(share(null, "USD"))).toBeNull();
+    expect(mixedShareDestination(share(6200, "GYD"))).toBeNull();
   });
 });

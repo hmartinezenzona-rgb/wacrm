@@ -16,6 +16,7 @@ import {
   Plus,
   Bot,
 } from "lucide-react";
+import { ContactAvatar } from "@/components/contacts/contact-avatar";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -169,7 +170,6 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
   }
 
   const displayName = contact.name || contact.phone;
-  const initials = displayName.charAt(0).toUpperCase();
 
   return (
     <div className={cn("flex h-full w-70 flex-col border-l border-border bg-card", className)}>
@@ -177,17 +177,12 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
         <div className="p-4">
           {/* Contact Info */}
           <div className="flex flex-col items-center text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted text-lg font-semibold text-foreground">
-              {contact.avatar_url ? (
-                <img
-                  src={contact.avatar_url}
-                  alt={displayName}
-                  className="h-16 w-16 rounded-full object-cover"
-                />
-              ) : (
-                initials
-              )}
-            </div>
+            <ContactAvatar
+              seed={contact.id || conversation?.id || displayName}
+              name={displayName}
+              imageUrl={contact.avatar_url}
+              className="h-16 w-16 bg-muted text-lg font-semibold text-foreground"
+            />
             <h3 className="mt-3 text-sm font-semibold text-foreground">
               {displayName}
             </h3>

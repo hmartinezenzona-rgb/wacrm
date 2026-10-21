@@ -109,4 +109,12 @@ describe("ContactSidebar", () => {
     expect(toggle?.getAttribute("aria-label")).toBe(en.Inbox.sidebar.pauseBot);
     await act(async () => root.unmount());
   });
+
+  it("shows the generated illustration instead of the initial when there is no photo", async () => {
+    const { node, root } = await render();
+
+    const img = node.querySelector('img[alt=""]');
+    expect(img?.getAttribute("src")).toMatch(/^data:image\/svg\+xml/);
+    await act(async () => root.unmount());
+  });
 });

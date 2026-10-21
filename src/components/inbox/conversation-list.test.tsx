@@ -456,3 +456,24 @@ describe("ConversationList — marcar todas como leídas", () => {
     await act(async () => root.unmount());
   });
 });
+
+describe("ConversationList — customer avatar", () => {
+  it("shows the generated illustration instead of the initial when there is no photo", async () => {
+    const { node, root } = await renderList([conversation({ contact: contact({ name: "Ada Lovelace" }) })]);
+
+    const row = rowFor(node, "Ada Lovelace");
+    const img = row.querySelector('img[alt=""]');
+    expect(img?.getAttribute("src")).toMatch(/^data:image\/svg\+xml/);
+    await act(async () => root.unmount());
+  });
+
+  it("keeps the real photo when the contact has one", async () => {
+    const { node, root } = await renderList([
+      conversation({ contact: contact({ name: "Ada Lovelace", avatar_url: "https://cdn.example/ada.jpg" }) }),
+    ]);
+
+    const img = rowFor(node, "Ada Lovelace").querySelector('img[alt="Ada Lovelace"]');
+    expect(img?.getAttribute("src")).toBe("https://cdn.example/ada.jpg");
+    await act(async () => root.unmount());
+  });
+});

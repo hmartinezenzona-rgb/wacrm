@@ -19,6 +19,7 @@ import {
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { useTranslations } from "next-intl";
+import { ContactAvatar } from "@/components/contacts/contact-avatar";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -825,7 +826,6 @@ function ConversationItem({
   const nombreAgente = agentId ? (nombresPorAgente?.get(agentId) ?? null) : null;
   const contact = conversation.contact;
   const displayName = contact?.name || contact?.phone || t("unknown");
-  const initials = displayName.charAt(0).toUpperCase();
 
   const handleClick = useCallback(() => {
     onSelect(conversation);
@@ -878,21 +878,18 @@ function ConversationItem({
         <div
           aria-hidden={modoSeleccion || isSelected}
           className={cn(
-            "flex h-10 w-10 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground transition-opacity",
+            "transition-opacity",
             modoSeleccion || isSelected
               ? "opacity-0"
               : "group-hover:opacity-0 group-focus-within:opacity-0"
           )}
         >
-          {contact?.avatar_url ? (
-            <img
-              src={contact.avatar_url}
-              alt={displayName}
-              className="h-10 w-10 rounded-full object-cover"
-            />
-          ) : (
-            initials
-          )}
+          <ContactAvatar
+            seed={contact?.id || conversation.id || displayName}
+            name={displayName}
+            imageUrl={contact?.avatar_url}
+            className="h-10 w-10 bg-muted text-sm font-medium text-foreground"
+          />
         </div>
         <div
           className={cn(

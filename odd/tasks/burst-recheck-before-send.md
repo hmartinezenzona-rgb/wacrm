@@ -44,7 +44,7 @@ hand the batch back so the newest execution answers everything together.
 
 ## Tasks
 
-- [ ] R1 Migration 259 + ROLLBACK + assertion `burst-recheck-before-send.sql`; staging cycle and related assertions.
+- [x] R1 Migration 259 + ROLLBACK + assertion `burst-recheck-before-send.sql`; staging cycle and related assertions.
 - [ ] R2 Production `previa`, owner go-ahead, `aplicar`, `verificar`.
 - [ ] R3 Watch production: count `mensaje_nuevo_durante_el_turno` silences and re-measure the split rate after some days.
 
@@ -63,6 +63,14 @@ hand the batch back so the newest execution answers everything together.
 
 - 2026-10-21 created after the mapping; staging and production bodies equal (valla a8519309, reclamar 5b66d55b).
 
+- 2026-10-21 R1 (48dd654): assertion RED first (`column "memoria_hasta" does not exist`), then GREEN 9 cases.
+  Found the gate executable by PUBLIC; 259 revokes it (it now writes) and grants service_role only; the rollback
+  rebuilds the original ACL order. Staging: dry-run, apply, assertion OK; rollback restores reclamar 5b66d55b,
+  valla a8519309 and ACL {=X,postgres,service_role} exactly (first run log; the second run's md5 FAIL compares
+  against the already-applied state). Related: burst SAME/DIFF expected, memory-cleanup-stored-blocks and
+  memory-without-context-block SAME. Production `previa`: both functions EQUAL, 18 table objects equal, SEGURO.
+  Not testable end to end: the Cerebro workflow must never be executed on staging.
+
 ## Next step
 
-R1.
+R2: owner go-ahead, then `produccion-migracion.sh aplicar` + `verificar`; R3 watch.

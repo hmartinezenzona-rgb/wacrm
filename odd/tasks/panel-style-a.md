@@ -30,14 +30,22 @@ to the real panel, as a visual-only change, and show it on a local panel against
 
 ## Tasks
 
-- [ ] S1 Theme + fonts + shell (sidebar, header) restyle; a "teal" theme as default; dark variant.
-- [ ] S2 Inbox restyle (list rows, thread header, bubbles, AI banner, composer, contact panel surfaces, status chips)
+- [x] S1 Theme + fonts + shell (sidebar, header) restyle; a "teal" theme as default; dark variant.
+- [x] S2 Inbox restyle (list rows, thread header, bubbles, AI banner, composer, contact panel surfaces, status chips)
       without touching operations panel structure/icons.
 - [ ] S3 Local panel against staging for the owner; adjustments from feedback.
+- [ ] S4 (owner go-ahead 2026-10-21) Conversation list shows the open operation's status chip only (no amount), from
+      existing data, no extra request per row.
+- [ ] S5 (owner 2026-10-21) Every accent theme (violet, emerald, cobalt, amber, rose, teal) gets the style A treatment
+      in its own hue: tinted dark sidebar, hue-tinted neutrals, accent primary; light and dark.
 
 ## Progress
 
 - 2026-10-21 created.
+- 2026-10-21 S1 90f2c9e, S2 8c9f377 (writer): teal theme default, fonts, sidebar, inbox surfaces; operations panel only
+  className on remittance-operation-card.tsx. vitest 3036. Local panel on :3100 against staging; 3 PRUEBA fixtures.
+- 2026-10-21 owner feedback: wants the operation status visible in the list (S4) and the appearance picker to keep
+  working with style A per color (S5): today sidebar and neutrals stay teal for every accent.
 
 ## Next step
 

@@ -236,11 +236,25 @@ describe("OperationsBoard", () => {
       expect(card.className).toContain("focus-visible:ring-2");
     });
 
-    it("shows the amount larger and bold", async () => {
+    it("shows the GYD deposited in a modest size (owner 2026-10-21: it was too big)", async () => {
       const { node } = await render([op()]);
-      const amount = Array.from(node.querySelectorAll("a span")).find((e) => e.textContent?.includes("30"))!;
-      expect(amount.className).toContain("font-bold");
-      expect(amount.className).toContain("text-base");
+      const amount = node.querySelector("[data-source-amount]")!;
+      expect(amount.textContent).toContain("30");
+      expect(amount.className).toContain("text-sm");
+      expect(amount.className).not.toContain("text-base");
+    });
+
+    it("shows what the recipient gets on its own line, bold, and nothing when there is no destination", async () => {
+      const { node } = await render([
+        op({ operationId: "a", quotedSourceAmount: 86667, quotedDestinationAmount: 260000, destinationCurrency: "CUP" }),
+        op({ operationId: "b", quotedDestinationAmount: null, destinationCurrency: null }),
+      ]);
+      const [withDest, withoutDest] = Array.from(node.querySelectorAll("a"));
+      const dest = withDest.querySelector("[data-destination]")!;
+      expect(dest.textContent).toMatch(/→ 260.000 CUP/);
+      expect(dest.className).toContain("font-bold");
+      expect(withDest.querySelector("[data-source-amount]")!.textContent).not.toContain("→");
+      expect(withoutDest.querySelector("[data-destination]")).toBeNull();
     });
 
     it.each([

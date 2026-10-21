@@ -96,12 +96,16 @@ function BoardCard({ op, now }: { op: BoardOperation; now: Date }) {
       <div className="mt-2 flex items-center justify-between gap-2">
         <span className="text-muted-foreground text-xs font-medium">{serviceLabel}</span>
         {op.quotedSourceAmount !== null ? (
-          <span className="text-foreground text-base font-bold tabular-nums">
+          <span data-source-amount="" className="text-foreground text-sm font-semibold tabular-nums">
             {formatCurrency(op.quotedSourceAmount, "GYD")}
-            {destination ? ` → ${destination}` : null}
           </span>
         ) : null}
       </div>
+      {destination ? (
+        <p data-destination="" className="text-foreground mt-0.5 text-right text-sm font-bold tabular-nums">
+          {`→ ${destination}`}
+        </p>
+      ) : null}
       {op.recipientLabel ? (
         <p data-recipient="" className="text-muted-foreground mt-1 truncate text-xs">
           {op.recipientLabel}

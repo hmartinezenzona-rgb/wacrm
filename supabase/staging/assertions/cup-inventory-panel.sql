@@ -262,8 +262,9 @@ BEGIN
   v_fail := v_fail + pg_temp.cip_chk('8.cup_planificar is internal; the RPC is authenticated-only',
     NOT has_function_privilege('authenticated', 'public.cup_planificar(uuid, numeric, date)', 'EXECUTE')
     AND NOT has_function_privilege('anon', 'public.cup_planificar(uuid, numeric, date)', 'EXECUTE')
-    AND has_function_privilege('authenticated', 'public.crm_inventario_cup_operacion(uuid)', 'EXECUTE')
-    AND NOT has_function_privilege('anon', 'public.crm_inventario_cup_operacion(uuid)', 'EXECUTE')
+    -- (257 widened the RPC to an optional second argument: look the function up by name so the check holds before and after)
+    AND (SELECT bool_and(has_function_privilege('authenticated', p.oid, 'EXECUTE') AND NOT has_function_privilege('anon', p.oid, 'EXECUTE'))
+           FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname = 'crm_inventario_cup_operacion')
     AND NOT has_function_privilege('authenticated', 'public.cup_consumir(uuid, numeric, uuid, uuid, timestamptz, date)', 'EXECUTE'));
 
   IF v_fail > 0 THEN

@@ -6,7 +6,7 @@ import { useServiceName } from "@/hooks/use-service-name";
 import { formatNumber } from "@/lib/format-number";
 import { currentServiceOf } from "@/lib/remittance-operations/services";
 import type { RemittanceOperationRead } from "@/lib/remittance-operations/types";
-import { mixedGroupTotal } from "./mixed-groups";
+import { mixedGroupTotal, mixedShareDestination } from "./mixed-groups";
 
 interface MixedSendBlockProps {
   /** Every operation of the group (history included): they hold the deposit's total between them. */
@@ -28,14 +28,18 @@ export function MixedSendBlock({ members, children }: MixedSendBlockProps) {
           {t("total", { amount: formatNumber(mixedGroupTotal(members)) })}
         </p>
         <ul className="text-xs tabular-nums text-muted-foreground">
-          {members.map((member) => (
-            <li key={member.id}>
-              {t("share", {
-                service: serviceName(currentServiceOf(member)),
-                amount: formatNumber(member.quotedSourceAmount ?? 0),
-              })}
-            </li>
-          ))}
+          {members.map((member) => {
+            const destination = mixedShareDestination(member);
+            return (
+              <li key={member.id}>
+                {t("share", {
+                  service: serviceName(currentServiceOf(member)),
+                  amount: formatNumber(member.quotedSourceAmount ?? 0),
+                })}
+                {destination !== null ? ` → ${destination}` : null}
+              </li>
+            );
+          })}
         </ul>
       </header>
       {children}

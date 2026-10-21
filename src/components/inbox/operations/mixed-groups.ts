@@ -1,3 +1,4 @@
+import { formatNumber } from "@/lib/format-number";
 import type { RemittanceOperationRead } from "@/lib/remittance-operations/types";
 
 /** The operations that share `operation`'s deposit (migration 253), history included because a completed member still
@@ -14,6 +15,18 @@ export function mixedGroupMembers(
 /** The deposit the group shares: the sum of its members' quoted GYD. */
 export function mixedGroupTotal(members: RemittanceOperationRead[]): number {
   return members.reduce((sum, member) => sum + (member.quotedSourceAmount ?? 0), 0);
+}
+
+/** The destination amount and currency delivered for this share, or null when absent or in GYD. */
+export function mixedShareDestination(member: RemittanceOperationRead): string | null {
+  if (
+    typeof member.quotedDestinationAmount === "number" &&
+    member.destinationCurrency &&
+    member.destinationCurrency !== "GYD"
+  ) {
+    return `${formatNumber(member.quotedDestinationAmount)} ${member.destinationCurrency}`;
+  }
+  return null;
 }
 
 export interface OperationBlock {

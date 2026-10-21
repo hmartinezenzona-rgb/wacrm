@@ -53,7 +53,7 @@ Strict (user global CLAUDE.md). Runners: staging assertions (`supabase/staging/a
 - [x] B2 — (built, not yet deployed to staging; owner check pending) API route + page UI: "Saldo actual" + "Ajustar saldo" dialog + full lot history; vitest. Staging deploy +
   owner check.
 - [x] B3 — Source-card choice at CUP completion (DB allocator start card + panel picker + tests). Staging + owner check.
-- [ ] B4 — Production bundle (240, 241, 242, 256+, app) after the owner's go-ahead; express the Eliaba fix as
+- [x] B4 — Production bundle (240, 241, 242, 256+, app) after the owner's go-ahead; express the Eliaba fix as
   adjustments; adjust Osmany's card when known.
 
 ## Acceptance criteria
@@ -96,6 +96,16 @@ Strict (user global CLAUDE.md). Runners: staging assertions (`supabase/staging/a
   first (B 120,000, A 120,000, "Faltan 20 000 CUP"); not completed (keeps the demo op). Manual close has no picker (RPC
   and route accept it) — ask the owner if wanted.
 
+- 2026-10-20 manual-close picker (9367f0f): CupPlanBlock with the source-card select in the manual-close control of a
+  CUP operation; RED 2 -> GREEN; vitest 212 / 2943; parent saw it in the browser on staging (op 008deb15), cancelled.
+- 2026-10-21 B4 PRODUCTION (owner "añade el selector en cerrar manualmente y pásalo a producción"):
+  read-only pre-flight: every object replaced by 240/241/242/256/257 byte-identical between production and staging's
+  pre-bundle state; 29 dependencies identical; no n8n workflow (159, 33 active) calls the changed functions; SAFE.
+  Applied 240, 241, 242, 256, 257 via Supabase MCP (02:47-02:52Z), all 19 function md5 == staging, 0 log errors.
+  App release 9367f0f (branch release/prod-cup-bundle, pushed to privado; vitest 212/2943, tsc clean) BUILD_ID
+  3OfxHW9WBZHp2Wb3C5coW; rollback release 6265edf. Production report: Osmany 250,000 (unconfirmed), Eliaba 222,840
+  with the used-up 250,000 lot visible as history. `recarga_costo_usdt_500` is NULL in production (the owner sets
+  "Costo recarga desde 500 (USDT)" in Control Semanal; 19.5 on staging).
+
 ## Next step
-B4 production bundle (240, 241, 242, 256, 257 + app at the feature branch) after the owner's go-ahead; then express
-the Eliaba fix as adjustments and adjust Osmany's card when known.
+Owner adjusts Osmany ·9554 with "Ajustar saldo"; owner sets the 500 recharge cost; watch the first automatic deductions.

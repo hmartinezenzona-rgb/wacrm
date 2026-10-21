@@ -7,3 +7,4 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## Skills
 
 - `wacrm-publicar-panel` (`.claude/skills/wacrm-publicar-panel/SKILL.md`): build and publish the production panel; load before any panel deploy or rollback.
+- `wacrm-migraciones` (`.claude/skills/wacrm-migraciones/SKILL.md`): staging cycle and production apply for Supabase migrations; load before writing, applying or verifying any migration.

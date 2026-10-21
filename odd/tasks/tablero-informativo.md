@@ -46,5 +46,10 @@ Strict. Runners: staging assertion via `infra/db/staging-migracion.sh aplicar`; 
   "GYD 86 667 → 260 000 CUP" and recipient "PRUEBA INVENTARIO beneficiario 1 +1". Layout: in the narrow column the
   amount line wraps ("260 000 / CUP"). Owner to check; production pending go-ahead.
 
+- 2026-10-21 owner: "no sale el monto en CUP" (he was looking at crm.onlinefreedom.site, the deployed staging app,
+  which does not have this branch) and "el número en GYD sale muy grande" -> 92847c4: GYD text-sm font-semibold; the
+  recipient's amount on its own line ("→ 260 000 CUP", text-sm bold); RED 2 -> GREEN 62 board tests; tsc + eslint clean.
+  Browser (localhost:3100): card shows CUP / GYD 86 667 / → 260 000 CUP / recipient +1.
+
 ## Next step
-Owner check (and optional layout tweak), then T4 with wacrm-migraciones (previa/aplicar/verificar 258) + wacrm-publicar-panel.
+Owner check on localhost:3100/tablero, then T4 with wacrm-migraciones (258) + wacrm-publicar-panel.

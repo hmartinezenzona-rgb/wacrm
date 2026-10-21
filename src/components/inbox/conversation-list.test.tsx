@@ -15,6 +15,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import en from "../../../messages/en.json";
 import type { Conversation, Contact } from "@/types";
+import { contactAvatarDataUri } from "@/lib/avatars/contact-avatar";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -474,6 +475,16 @@ describe("ConversationList — customer avatar", () => {
 
     const img = rowFor(node, "Ada Lovelace").querySelector('img[alt="Ada Lovelace"]');
     expect(img?.getAttribute("src")).toBe("https://cdn.example/ada.jpg");
+    await act(async () => root.unmount());
+  });
+
+  it("passes the contact's avatar gender and number to the illustration", async () => {
+    const c = contact({ name: "Ada Lovelace", avatar_gender: "f", avatar_seq: 7 });
+    const { node, root } = await renderList([conversation({ contact: c })]);
+
+    const img = rowFor(node, "Ada Lovelace").querySelector('img[alt=""]');
+    expect(img?.getAttribute("src")).toBe(contactAvatarDataUri(c.id, "f", 7));
+    expect(img?.getAttribute("src")).not.toBe(contactAvatarDataUri(c.id));
     await act(async () => root.unmount());
   });
 });

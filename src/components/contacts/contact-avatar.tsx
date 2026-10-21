@@ -1,13 +1,17 @@
 "use client";
 
 import { useMemo } from "react";
-import { contactAvatarDataUri } from "@/lib/avatars/contact-avatar";
+import { contactAvatarDataUri, type AvatarGender } from "@/lib/avatars/contact-avatar";
 import { cn } from "@/lib/utils";
 
 interface ContactAvatarProps {
   /** Stable identity for the illustration: contact id, else conversation id or name. */
   seed: string;
   name: string;
+  /** Gender group inferred from the name (`contacts.avatar_gender`); drives the hair pool. */
+  gender?: AvatarGender | null;
+  /** 1-based number inside the (account, gender) group (`contacts.avatar_seq`); keeps avatars distinct. */
+  seq?: number | null;
   /** Real photo, when the contact has one. Wins over the illustration. */
   imageUrl?: string | null;
   /** Text shown if the illustration cannot be generated. Defaults to the name's first letter. */
@@ -20,15 +24,15 @@ interface ContactAvatarProps {
  * Customer avatar: real photo if any, otherwise a locally generated
  * illustrated face, otherwise the initial (the pre-illustration look).
  */
-export function ContactAvatar({ seed, name, imageUrl, fallback, className }: ContactAvatarProps) {
+export function ContactAvatar({ seed, name, gender, seq, imageUrl, fallback, className }: ContactAvatarProps) {
   const generated = useMemo(() => {
     if (imageUrl) return null;
     try {
-      return contactAvatarDataUri(seed);
+      return contactAvatarDataUri(seed, gender, seq);
     } catch {
       return null;
     }
-  }, [imageUrl, seed]);
+  }, [imageUrl, seed, gender, seq]);
 
   return (
     <div

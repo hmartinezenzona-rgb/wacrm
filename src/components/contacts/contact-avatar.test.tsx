@@ -3,7 +3,7 @@ import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const generate = vi.hoisted(() => vi.fn((seed: string) => `data:image/svg+xml,seed-${seed}`));
+const generate = vi.hoisted(() => vi.fn((seed: string, gender?: string | null, seq?: number | null) => `data:image/svg+xml,seed-${seed}-${gender ?? ""}-${seq ?? ""}`));
 vi.mock("@/lib/avatars/contact-avatar", () => ({ contactAvatarDataUri: generate }));
 
 import { ContactAvatar } from "./contact-avatar";
@@ -37,7 +37,7 @@ describe("ContactAvatar", () => {
   it("shows the generated illustration, decorative, without imageUrl", async () => {
     const { node } = await render(<ContactAvatar seed="c1" name="Ana" />);
     const img = node.querySelector("img");
-    expect(img?.getAttribute("src")).toBe("data:image/svg+xml,seed-c1");
+    expect(img?.getAttribute("src")).toBe("data:image/svg+xml,seed-c1--");
     expect(img?.getAttribute("alt")).toBe("");
     expect(node.textContent).toBe("");
   });
@@ -54,5 +54,11 @@ describe("ContactAvatar", () => {
   it("passes className through to the container", async () => {
     const { node } = await render(<ContactAvatar seed="c1" name="Ana" className="h-10 w-10" />);
     expect(node.firstElementChild?.className).toContain("h-10 w-10");
+  });
+
+  it("passes gender and seq to the generator", async () => {
+    const { node } = await render(<ContactAvatar seed="c1" name="Ana" gender="f" seq={4} />);
+    expect(generate).toHaveBeenCalledWith("c1", "f", 4);
+    expect(node.querySelector("img")?.getAttribute("src")).toBe("data:image/svg+xml,seed-c1-f-4");
   });
 });

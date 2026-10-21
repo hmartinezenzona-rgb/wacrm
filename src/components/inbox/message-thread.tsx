@@ -915,6 +915,8 @@ export function MessageThread({
           <ContactAvatar
             seed={contact.id || conversation.id || displayName}
             name={displayName}
+            gender={contact.avatar_gender}
+            seq={contact.avatar_seq}
             imageUrl={contact.avatar_url}
             className="h-9 w-9 bg-muted text-sm font-medium text-foreground"
           />

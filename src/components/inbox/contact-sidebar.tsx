@@ -180,6 +180,8 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
             <ContactAvatar
               seed={contact.id || conversation?.id || displayName}
               name={displayName}
+              gender={contact.avatar_gender}
+              seq={contact.avatar_seq}
               imageUrl={contact.avatar_url}
               className="h-16 w-16 bg-muted text-lg font-semibold text-foreground"
             />

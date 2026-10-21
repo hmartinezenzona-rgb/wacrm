@@ -383,6 +383,8 @@ export function ContactDetailView({
                 <ContactAvatar
                   seed={contact.id || contactId || contact.name || ''}
                   name={contact.name || t('unnamed')}
+                  gender={contact.avatar_gender}
+                  seq={contact.avatar_seq}
                   imageUrl={contact.avatar_url}
                   fallback={getInitials(contact.name)}
                   className="size-12 border border-border bg-primary/10 text-primary text-sm font-medium"

@@ -16,6 +16,7 @@ import type { Contact, Conversation } from "@/types";
 // intermittently while the second (module already cached) ran in 15ms.
 // vitest hoists `vi.mock` above imports, so the mocks below still apply.
 import { ContactSidebar } from "./contact-sidebar";
+import { contactAvatarDataUri } from "@/lib/avatars/contact-avatar";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -72,11 +73,11 @@ const contact = {
 
 const conversation = { id: "conv-1", ai_autoreply_disabled: false } as Conversation;
 
-async function render() {
+async function render(c: Contact = contact) {
   const node = document.createElement("div");
   document.body.appendChild(node);
   const root = createRoot(node);
-  await act(async () => root.render(<ContactSidebar contact={contact} conversation={conversation} />));
+  await act(async () => root.render(<ContactSidebar contact={c} conversation={conversation} />));
   return { node, root };
 }
 
@@ -115,6 +116,15 @@ describe("ContactSidebar", () => {
 
     const img = node.querySelector('img[alt=""]');
     expect(img?.getAttribute("src")).toMatch(/^data:image\/svg\+xml/);
+    await act(async () => root.unmount());
+  });
+
+  it("passes the contact's avatar gender and number to the illustration", async () => {
+    const { node, root } = await render({ ...contact, avatar_gender: "f", avatar_seq: 7 });
+
+    const img = node.querySelector('img[alt=""]');
+    expect(img?.getAttribute("src")).toBe(contactAvatarDataUri(contact.id, "f", 7));
+    expect(img?.getAttribute("src")).not.toBe(contactAvatarDataUri(contact.id));
     await act(async () => root.unmount());
   });
 });

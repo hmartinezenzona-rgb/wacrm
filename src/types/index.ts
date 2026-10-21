@@ -108,6 +108,10 @@ export interface Contact {
   email?: string;
   company?: string;
   avatar_url?: string;
+  /** Gender group of the name for the default illustration (migration 263). */
+  avatar_gender?: "f" | "m" | "n" | null;
+  /** 1-based number inside the (account, gender) group (migration 263). */
+  avatar_seq?: number | null;
   created_at: string;
   updated_at: string;
   /** Hydrated by queries that embed `contact_tags(tags(*))` (e.g. the

@@ -45,7 +45,7 @@ hand the batch back so the newest execution answers everything together.
 ## Tasks
 
 - [x] R1 Migration 259 + ROLLBACK + assertion `burst-recheck-before-send.sql`; staging cycle and related assertions.
-- [ ] R2 Production `previa`, owner go-ahead, `aplicar`, `verificar`.
+- [x] R2 Production `previa`, owner go-ahead, `aplicar`, `verificar`.
 - [ ] R3 Watch production: count `mensaje_nuevo_durante_el_turno` silences and re-measure the split rate after some days.
 
 ## Acceptance criteria
@@ -71,6 +71,11 @@ hand the batch back so the newest execution answers everything together.
   memory-without-context-block SAME. Production `previa`: both functions EQUAL, 18 table objects equal, SEGURO.
   Not testable end to end: the Cerebro workflow must never be executed on staging.
 
+- 2026-10-21 R2: owner go-ahead ("si aplicala"). Applied 17:51:18Z (version 20261021175118), verificar 2/2 EQUAL
+  (reclamar 62c23a41, valla cd9300b3); both VOLATILE, ACL {postgres, service_role}. No turn yet at apply time.
+  Rollback if needed: apply ROLLBACK-259-burst-recheck-before-send.sql (owner's request only).
+
 ## Next step
 
-R2: owner go-ahead, then `produccion-migracion.sh aplicar` + `verificar`; R3 watch.
+R3: first real turns must get `cerebro_ejecuciones.memoria_hasta`; count gate blocks with motivo
+mensaje_nuevo_durante_el_turno; after some days re-run the split measurement (target: well under 275/2,555).

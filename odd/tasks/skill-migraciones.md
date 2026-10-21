@@ -38,9 +38,9 @@ staging), wrapped in a project skill. The SQL never has to be pasted into the co
 Strict. Runner: `bash infra/db/tests/<test>.sh` (fake-based, like infra/deployment/tests).
 
 ## Tasks
-- [ ] M1 — staging-migracion.sh + tests.
-- [ ] M2 — produccion-migracion.sh (previa / aplicar / verificar) + tests.
-- [ ] M3 — Skill + references + AGENTS.md; read-only dry run of `previa` and `verificar` on 257 against production.
+- [x] M1 — staging-migracion.sh + tests.
+- [x] M2 — produccion-migracion.sh (previa / aplicar / verificar) + tests.
+- [x] M3 — Skill + references + AGENTS.md; read-only dry run of `previa` and `verificar` on 257 against production.
 
 ## Acceptance criteria
 - `previa` on already-applied 253-257 reports them as recorded and refuses; `verificar` on them reports all md5 equal.
@@ -49,5 +49,17 @@ Strict. Runner: `bash infra/db/tests/<test>.sh` (fake-based, like infra/deployme
 ## Progress
 - 2026-10-21: token stored and verified (runs as postgres).
 
+- 2026-10-21 M1-M3 DONE: df36720 (staging-migracion.sh aplicar/relacionadas; no apply when the dry run fails; md5 before
+  vs after the rollback proof), a4ae623 (produccion-migracion.sh previa/aplicar/verificar + lib-migracion.sh +
+  migracion_sql.py + fake tests), 65bfd0e (skill .claude/skills/wacrm-migraciones + references/workflow.md; AGENTS.md).
+  Tests RED -> GREEN "todo en pie" (parent re-ran); no token in the repo history. Read-only dry runs on production:
+  `previa 257` -> RECORDED, refuses (exit 2); `verificar 253 255 257` -> VERIFICADO 16/16 iguales; previa on a renamed
+  probe copy of 257 -> VEREDICTO REVISAR (15 diferencias) + diff file (comparison works). `aplicar` uses
+  POST /v1/projects/{ref}/database/migrations {query,name} (route probed read-only: GET 200, POST {} -> 400); it checks
+  the schema_migrations row after each file. NOT yet exercised for real: the first real production apply is its test —
+  run `verificar` right after. `relacionadas` needs `--ya-aplicada <ROLLBACK>` once the migration is on staging.
+  Skill linked globally: ~/.claude/skills/wacrm-migraciones -> the repo copy.
+
 ## Next step
-M1.
+Use it on the next migration (first real `aplicar` + `verificar`). Owner to rotate the Supabase token (it was pasted
+in chat) and save the new one himself in ~/.config/wacrm/supabase-token.env (0600).

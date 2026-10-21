@@ -51,3 +51,6 @@ dist/
 # Build/deploy environment: carries keys. Never in the repository.
 infra/deployment/*.env
 !infra/deployment/*.env.example
+
+# Python bytecode from infra/ scripts and tests
+__pycache__/

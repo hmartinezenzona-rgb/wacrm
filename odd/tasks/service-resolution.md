@@ -355,3 +355,33 @@ cardless-withdrawal data, completion evidence (docs/negocio/PEDIR-A-OSMANY-mexic
   banco / titular and cardless withdrawal, resolver/aplicar/declarar minimums, deposit registration, agent tools and
   prompt (consultar_servicio, calcular_usd via=mexico, requiere_humano handoff), Decisor notes, panel/board,
   calculator/ledger/finances, customer notifier. Output: gaps and a task split (M2..), written here.
+
+M1 done 2026-10-22 (haiku Explore, parent spot-checked 265:78/124, 223:62, 208:23). Exists: service_type CHECK allows
+'mexico' (223:62); names/colors/dashboard (src/lib/service-name.ts, service-color.ts, dashboard/queries.ts:158);
+cotizar via=mexico single USD rate (243). Gaps:
+- Recipients: rb_type_chk (208:23) has no México type; no CLABE / bank / holder / cardless columns; a CLABE in
+  card_number would be read as a Cuban card (265:189).
+- Redesign: declarar and resolver refuse 'mexico' (265:78, 265:124); minimum falls to the CUP ELSE (5,000, not
+  13,000; 223:143-175); a rail-less remesa is priced as cuban_card (265:240); aplicar maps unknown types to remesa
+  (266:96, 318, 455); registrar_deposito only matches remesa/recarga/combo/visa (267:163, 292).
+- Money: calculator_service_for_operation / calculator_resolve_operation_service have no mexico branch (213:964,
+  223:1025); no USD->MXN rate; no cost per send (formulas.ts:61 DIRECTO zero cost).
+- Panel: conversation operations list excludes mexico (254:61, 73); service picker (services.ts:6-43), beneficiary
+  add (beneficiary-add-control.tsx:41), quote preview (destination-quote.ts:17) and the card's recipient rows
+  (remittance-operation-card.tsx:759) lack México.
+- Agent: no recipient tool for CLABE / withdrawal; handoff (requiere_humano); stale Albo CLABE still in prompts
+  (test data per owner 2026-10-17: remove).
+- Notifier wGud0KGR6eMqqfMQ texts ask for a Cuban card and phone.
+
+- [ ] M2 Migration: México recipient (beneficiary type + CLABE 18 digits, bank, holder; cardless withdrawal at
+  Coppel/BBVA) + assertion (card logic ignores a CLABE).
+- [ ] M3 Migration: 13,000 GYD minimum for mexico; calculator service mapping for mexico + assertion.
+- [ ] M4 Migration: 'mexico' in declarar / resolver / aplicar / registrar_deposito (a México deposit joins the México
+  operation, never a rail-less remesa) + assertion; re-run the 265-268 assertions.
+- [ ] M5 n8n staging (with 269): declarar_servicio('mexico'), quote via=mexico, recipient tool validating CLABE and
+  multiples of 100, no handoff once data is complete; remove the Albo leftovers.
+- [ ] M6 Panel: mexico in the service picker, operations list (migration), recipient rows CLABE / bank / holder.
+- [ ] M7 Customer status texts for México (needs Osmany's answers on completion evidence).
+- [ ] M8 Production backfill of the rail-less México remesas (wacrm-corregir-produccion, own go-ahead).
+Open with Osmany (not blocking M2-M6): USD->MXN rate source and whether the customer sees MXN; cost per send; cardless
+withdrawal identity data and code delivery; whether phone is needed for a bank account; completion evidence.

@@ -2479,26 +2479,3 @@ describe("RemittanceOperationCard header layout", () => {
     await act(async () => root.unmount());
   });
 });
-
-describe("RemittanceOperationCard progress line", () => {
-  it("shows 'Paso 2 de 4' for a deposit_verification operation", async () => {
-    const { node, root } = await render(operation({ status: "deposit_verification" }));
-    const line = node.querySelector('[data-testid="operation-progress"]');
-    expect(line).not.toBeNull();
-    expect(line!.textContent).toContain("Step 2 of 4");
-    await act(async () => root.unmount());
-  });
-
-  it("shows the progress line on a collapsed open card too", async () => {
-    const { node, root } = await render(operation({ status: "collecting_information", beneficiariesComplete: false }), { expanded: false });
-    expect(node.querySelector('[data-testid="operation-progress"]')!.textContent).toContain("Step 1 of 4");
-    await act(async () => root.unmount());
-  });
-
-  it("does not show progress on a history card", async () => {
-    const { node, root } = await render(operation({ isHistory: true, status: "completed" }));
-    expect(node.querySelector('[data-testid="operation-progress"]')).toBeNull();
-    expect(node.textContent).not.toContain("of 4");
-    await act(async () => root.unmount());
-  });
-});

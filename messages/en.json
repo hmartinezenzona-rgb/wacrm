@@ -379,7 +379,6 @@
       "amountUnavailable": "Amount unavailable",
       "quoted": "Quoted: {source}",
       "quotedTo": "Quoted: {source} → {destination}",
-      "progressStep": "Step {step} of {total}",
       "deliveryMethod": "Delivery method",
       "beneficiaries": "Beneficiaries",
       "noBeneficiaries": "No beneficiaries recorded yet",

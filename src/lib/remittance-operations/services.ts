@@ -13,6 +13,7 @@ export const OPERATION_SERVICES = [
   "combo",
   "visa",
   "saldo",
+  "mexico",
 ] as const;
 
 export type OperationService = (typeof OPERATION_SERVICES)[number];
@@ -22,7 +23,7 @@ export function isOperationService(value: unknown): value is OperationService {
 }
 
 /**
- * The service an operation currently has, as the "Servicio" field names it: recarga/combo/visa/saldo by service type,
+ * The service an operation currently has, as the "Servicio" field names it: recarga/combo/visa/saldo/mexico by service type,
  * otherwise the delivery method, otherwise the type of its first current recipient. `null` when none of them names a
  * service (e.g. a deposit-only remesa), so the field starts on its placeholder.
  */
@@ -33,7 +34,8 @@ export function currentServiceOf(
     operation.serviceType === "recarga" ||
     operation.serviceType === "combo" ||
     operation.serviceType === "visa" ||
-    operation.serviceType === "saldo"
+    operation.serviceType === "saldo" ||
+    operation.serviceType === "mexico"
   ) {
     return operation.serviceType;
   }

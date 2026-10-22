@@ -9,6 +9,11 @@ import {
 } from "./services";
 
 describe("OPERATION_SERVICES", () => {
+  it("includes México (service_type mexico) and validates it", () => {
+    expect(OPERATION_SERVICES).toContain("mexico");
+    expect(isOperationService("mexico")).toBe(true);
+  });
+
   it("includes the mobile balance (migration 223) and validates it", () => {
     expect(OPERATION_SERVICES).toContain("saldo");
     expect(isOperationService("saldo")).toBe(true);
@@ -27,6 +32,11 @@ describe("currentServiceOf", () => {
   it("names a saldo by its service type, not by its phone recipient (typed recarga)", () => {
     expect(currentServiceOf(op("saldo") as never)).toBe("saldo");
     expect(currentServiceOf(op("recarga") as never)).toBe("recarga");
+  });
+
+  it("names a México operation by its service type, whatever its delivery method", () => {
+    expect(currentServiceOf(op("mexico", "mexico_cuenta") as never)).toBe("mexico");
+    expect(currentServiceOf(op("mexico", null) as never)).toBe("mexico");
   });
 
   it("keeps naming the other kinds as before", () => {

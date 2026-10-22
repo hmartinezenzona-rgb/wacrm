@@ -38,7 +38,7 @@ to the real panel, as a visual-only change, and show it on a local panel against
       existing data, no extra request per row.
 - [x] S5 (owner 2026-10-21) Every accent theme (violet, emerald, cobalt, amber, rose, teal) gets the style A treatment
       in its own hue: tinted dark sidebar, hue-tinted neutrals, accent primary; light and dark.
-- [ ] S6 (owner chose option 2, 2026-10-21) Operations panel "Con progreso": option-1 dressing (colored status pill,
+- [x] S6 (owner chose option 2, then option 1 after seeing it live, 2026-10-21) Operations panel "Con progreso": option-1 dressing (colored status pill,
       thin section dividers, soft copy chips, separated primary action row) plus a 4-step progress line in the card
       header ("Paso n de 4"); no icon/label/order/behavior change. Mockup: board Ops-2-Progreso (PanelOps.dc.html).
 
@@ -56,6 +56,8 @@ to the real panel, as a visual-only change, and show it on a local panel against
 - 2026-10-21 owner go-ahead ("listo, pasa eso a producción"): release/prod-style-a 47220dc = served 233cfec + cherry-picks
   of 90f2c9e 8c9f377 e824aed 2a988bc 9138790 (doc file dropped from the release); BUILD_ID F0pyj3YM36e7FXPS1mT8g,
   rollback 233cfec. First compile failed: prod-build node_modules had lost vitest; fixed with npm ci in node:20.
+- 2026-10-21 S6: option 2 built (0287b60 progress line, b9dfdd5 dressing); seen live the owner preferred option 1:
+  reverted the progress line (2821038) and removed the primary-action dividers (option-1 dressing kept).
 
 ## Next step
 

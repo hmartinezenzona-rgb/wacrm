@@ -63,8 +63,8 @@ export function buildMexicoBeneficiaryDatos(
 export interface MexicoRecipientCurrent {
   beneficiaryType: string;
   name: string | null;
-  clabe: string | null;
-  bankName: string | null;
+  clabe?: string | null;
+  bankName?: string | null;
   phone: string | null;
 }
 

@@ -29,7 +29,11 @@ export default function SettingsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   // Admin or above: `isAdmin` alone would hide admin-only sections from the owner.
-  const { defaultCurrency, canManageMembers: isAdmin, profileLoading } = useAuth();
+  const {
+    defaultCurrency,
+    canManageMembers: isAdmin,
+    profileLoading,
+  } = useAuth();
   const { mode } = useTheme();
   const t = useTranslations('Settings');
 
@@ -88,7 +92,7 @@ export default function SettingsPage() {
       appearance: mode.charAt(0).toUpperCase() + mode.slice(1),
       deals: defaultCurrency,
     }),
-    [mode, defaultCurrency],
+    [mode, defaultCurrency]
   );
 
   const panel: Record<SettingsSection, ReactNode> = {

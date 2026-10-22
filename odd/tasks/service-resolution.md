@@ -151,3 +151,8 @@ recarga only.
 - Q6 (2026-10-22): convert after ready_to_transfer (deposit verified) automatically and WITHOUT any alert: "que la
   convierta sola y que no avise; la idea es que el sistema sea autónomo; el cliente dijo que era para una recarga, no
   hay ninguna incidencia". Rule 5 applies to verified deposits; no coherence alert for an applied correction.
+- Q1 (2026-10-22): rule 8 CONVERTS (no question): "2, ya que para eso están los datos de los montos mínimos para cada
+  servicio". Condition: deposit = a recarga price (or multiple) + phone-only recipient (no card, no Zelle) + promo
+  live -> recarga, accion convertir (or the deposit creates a recarga). Safety net: rule 7 converts back to a card
+  rail when a card/Zelle arrives later. Note: 6,200 GYD also meets the CUP card minimum (5,000), so the phone-only
+  condition is what separates them. Rule 9 (history switch) becomes unnecessary for this path.

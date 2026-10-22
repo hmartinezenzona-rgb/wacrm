@@ -90,3 +90,58 @@ Root causes:
 ## Next step
 
 S1, after the owner's go-ahead to implement.
+
+## S1 design (2026-10-22, from live staging bodies; production equal for these functions)
+
+Findings: `Snapshot final` fans out in parallel to the receipt chain, `Registrar carnet efectivo` and `Registrar destino
+auto` (only the first feeds Contexto). `_cambiar_servicio_core` retires a phone-only recipient when converting to
+recarga/saldo (fit test `ELSE false`). Audio exists only in n8n (`texto_completo`), not in `messages`. Four service
+flags plus `riel_operacion` (remesa only). `cerebro_cambiar_servicio` hard-codes actor `automation:...`;
+`crm_registrar_numeros_recarga` writes `reparto_auto` and `automation_recharge_numbers_registered`.
+
+Contract: `cerebro_resolver_servicio(p_conv uuid, p_declarado text DEFAULT NULL, p_texto text DEFAULT NULL,
+p_monto numeric DEFAULT NULL, p_ahora timestamptz DEFAULT now()) RETURNS jsonb` (STABLE, SECURITY DEFINER, never
+writes). Output v1: servicio, en_curso (single OPERACION EN CURSO source), accion {ninguna, convertir, adicional,
+preguntar}, confianza, motivo, destino_operacion, convertir_a, pregunta{opciones}, via_actual (null unless en_curso =
+remesa and accion <> preguntar), servicio_pendiente, grupo_mixto, adicionales[], alerta, operaciones[] (id, servicio,
+status, deposito, own data, phone-only, grupo, human lock), evidencia (negation-aware words, amount = recarga price,
+number used in a past recarga of the same contact, phone-only, card, zelle, promo, declarado).
+
+Decision table (first match wins): 1 human-locked or closed/transferring -> ninguna; 2 mixed group -> ninguna (changes
+via repartir_envio); 3 card/Zelle present + recarga/saldo words -> ninguna (211); 4 recarga words without promo ->
+ninguna (207); 5 correction: holder H of service X, words/declared Y, H has no own data for X, deposit meets Y's
+minimum -> convertir; 6 addition: H has own data, or Y has its own amount/data, or deposit over objective ->
+adicional (agent uses repartir_envio); 7 reverse: empty recarga + card/Zelle -> convertir (with numbers: preguntar);
+8 no words, remesa H phone-only, deposit = recarga price, promo live -> preguntar [recarga, cuban_card]; 9 as 8 +
+number used in a past recarga + switch resolver_convertir_sin_palabras (default off) -> convertir; 10 combo/visa/saldo
+words: as 5-6, amount never evidence; 11 no open op: words per 3-4, deposit per 8-9; 12 default sin_cambio. Two open
+ops of different services outside a group: convert the holder, alerta dos_operaciones_sin_grupo, never auto-cancel.
+
+Execution: VOLATILE `cerebro_aplicar_servicio(p_conv, p_declarado, p_texto, p_exec, p_actor)` takes
+`pg_advisory_xact_lock` on the conversation, calls the resolver and on convertir runs `_cambiar_servicio_core` (actor
+automation:resolver). New n8n node `Resolver servicio` between `Snapshot final` and the three branches. The writers
+take the same lock; agent tools call it with p_declarado and actor agent:<tool>. Converting inside each writer was
+rejected (R1 again).
+
+Integration: cerebro_registrar_deposito (flags L33-49, holder L118-125, type L242, numbers L199/L254 from the
+resolver; preguntar still files remesa); cerebro_guardar_beneficiario_auto (L219-247 -> one aplicar call);
+crm_registrar_numeros_recarga (L146-163 convert instead of insert; p_actor; real source/audit, R5);
+_cambiar_servicio_core (keep a lone phone as a recarga recipient); cerebro_cambiar_servicio (L223-229 refusal uses
+destino_operacion; actor agent:cambiar_servicio); n8n cambiar_servicio tool + prompt list recarga/combo/visa/saldo;
+coherence checker alerts on dos_operaciones_sin_grupo and on convertir/preguntar not acted on (tipo column);
+Contexto adds servicio_resuelto, keeps legacy aliases one release; Decisor notes (L336-343, 462, 508, 603-608,
+729-737, 839, 888, 966, 974-978, 1011-1024) read only R = ctx.servicio_resuelto; new SERVICIO POR CONFIRMAR note.
+
+Migrations: 265 resolver (+ assertion resolver-servicio.sql), 266 aplicar + core carry-over + audit names +
+alert tipo, 267 deposit registration, 268 beneficiary auto-save + recharge numbers, 269 cambiar_servicio + coherence.
+n8n (Contexto, Decisor, node, tools/prompt) in S4/S5. Re-run the recarga, saldo/visa/combo, deposit/recipient,
+service-change and mixed-send assertion families plus n8n-repoint and live-baseline-parity.
+
+Fixtures for S2: 1232671b@14:30 -> preguntar; 1232671b@14:32 -> convertir (phone kept); legacy duplicate -> convertir
++ alerta; d86574ab/d415e347 -> convertir; f8b7779c -> ninguna grupo_mixto; bf547067 -> ninguna + alerta; 89f6df7e ->
+zelle; plain remesa, plain recarga, recarga without promo, combo, visa (explicit phrase), number from history, human lock.
+
+Open owner questions: (1) rule 8 ask vs convert; (2) rule 9 switch; (3) legacy duplicate: alert or auto-cancel;
+(4) card + recarga word holding the money: addition or correction; (5) combo + remesa outside a group: propose
+grouping?; (6) convert after ready_to_transfer (deposit verified) without a human?; (7) auto-convert saldo/visa or
+recarga only.

@@ -295,3 +295,14 @@ Q1-Q8 stay valid; they are now enforced as money rules plus the agent's declared
   new; writers-resolver = the old-design 268 draft, to be rewritten). Redesigned 265 re-checked: 109, 108 SAME,
   only its own assertion differs (saldo-model, feed-mixed, deal-insert-creates-operation fail on base too).
 - The writer left a background monitor that kept notifying; it ended with the agent.
+
+## Redesigned 267 (2026-10-22, in review)
+
+- cerebro_registrar_deposito: advisory lock; the service of a new operation = the bot's declared intent, else Q1
+  facts, else remesa (the three text rules removed); open recarga/combo/visa keeps winning; holder prefers
+  destino_operacion; accion convertir -> cerebro_aplicar_servicio after attaching (receipts inserted first: the resolver
+  reads the holder's money from them). RED 5/9, GREEN 9/9.
+- Old assertions that relied on the removed text rules (combo-deposit-calculator 2/2b/..., visa-model 1/5a/...,
+  recarga-numbers 5) are being updated so the bot declares the service before the deposit (expectations unchanged).
+- PRODUCTION ORDER CONSTRAINT: 267 must NOT reach production before 269 (agent tools declarar/cambiar/agregar
+  + prompt): without the bot declaring, "quiero una recarga" would end as a remesa.

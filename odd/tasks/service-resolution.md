@@ -162,3 +162,7 @@ recarga only.
 - Q4 (2026-10-22): card + recarga word on a deposit: if the deposit covers both (remesa minimum + recarga price) ->
   ADDITION as a mixed send (two linked operations); otherwise keep the remesa to the card and the bot says the money
   does not cover the recarga. Owner: "el 1 me parece lo correcto".
+- Q5 (2026-10-22): the DEPOSIT defines a mixed send. One deposit paying several services -> mixed (linked operations
+  sharing it); one deposit per service (e.g. 5,000 for a CUP transfer and another 6,200 for a recarga) -> separate
+  operations, never grouped. Owner: "las que se deben tratar como mixtas son aquellas que se ven cubiertas por un mismo
+  depósito". bf547067-type pairs with separate deposits stay separate (no grouping, no alert for that reason).

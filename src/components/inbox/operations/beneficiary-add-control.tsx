@@ -8,7 +8,9 @@ import { ConfirmCancelButtons, cancelOnEscape } from "./confirm-cancel-buttons";
 import { EDIT_AREA, FieldRow, UNDERLINE_SELECT_TRIGGER, UnderlineInput } from "./edit-form-fields";
 import { IdPhotoFormRow } from "./beneficiary-id-photo";
 import { agregarBeneficiario } from "@/lib/remittance-operations/commands";
+import { buildMexicoBeneficiaryDatos, MEXICO_WITHDRAWAL_BANKS, type MexicoBeneficiaryType } from "@/lib/remittance-operations/mexico";
 import type { OperationService } from "@/lib/remittance-operations/services";
+import { MexicoBeneficiaryFields } from "./mexico-beneficiary-fields";
 
 interface BeneficiaryAddControlProps {
   operationId: string;
@@ -61,6 +63,10 @@ export function BeneficiaryAddControl({ operationId, conversationId, serviceType
   const [reference, setReference] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [photoWamid, setPhotoWamid] = useState<string | null>(null);
+  const [mexicoType, setMexicoType] = useState<MexicoBeneficiaryType>("mexico_cuenta");
+  const [clabe, setClabe] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [withdrawalBank, setWithdrawalBank] = useState<string>(MEXICO_WITHDRAWAL_BANKS[0]);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,10 +83,29 @@ export function BeneficiaryAddControl({ operationId, conversationId, serviceType
   // A mobile balance takes its one number through the same phone-only form as a recharge (migration 223).
   const isRecharge = serviceType === "recarga" || serviceType === "saldo";
   const isCombo = serviceType === "combo";
+  const isMexico = serviceType === "mexico";
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
+
+    if (isMexico) {
+      const draft = { name, clabe, bankName: mexicoType === "mexico_cuenta" ? bankName : withdrawalBank, phone };
+      const built = buildMexicoBeneficiaryDatos(mexicoType, draft);
+      if (!built.ok) {
+        setError(t(built.error));
+        return;
+      }
+      setPending(true);
+      const result = await agregarBeneficiario(operationId, built.datos);
+      setPending(false);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      onDone();
+      return;
+    }
 
     if (isRecharge) {
       const digits = phone.replace(/\D/g, "");
@@ -270,6 +295,29 @@ export function BeneficiaryAddControl({ operationId, conversationId, serviceType
           />
         </FieldRow>
         <p className="text-[11px] text-muted-foreground">{t("comboMinimumHint")}</p>
+        {actions}
+      </form>
+    );
+  }
+
+  if (isMexico) {
+    return (
+      <form {...formProps}>
+        <MexicoBeneficiaryFields
+          type={mexicoType}
+          onTypeChange={setMexicoType}
+          name={name}
+          onNameChange={setName}
+          clabe={clabe}
+          onClabeChange={setClabe}
+          bankName={bankName}
+          onBankNameChange={setBankName}
+          withdrawalBank={withdrawalBank}
+          onWithdrawalBankChange={setWithdrawalBank}
+          phone={phone}
+          onPhoneChange={setPhone}
+          disabled={pending}
+        />
         {actions}
       </form>
     );

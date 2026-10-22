@@ -703,3 +703,82 @@ describe("BeneficiaryAddControl follows the operation's service", () => {
     await act(async () => root.unmount());
   });
 });
+
+describe("BeneficiaryAddControl on a México operation", () => {
+  const fill = async (node: HTMLElement, values: Record<string, string>) => {
+    for (const [id, value] of Object.entries(values)) {
+      await act(async () => setValue(node.querySelector<HTMLInputElement>(`#${id}`)!, value));
+    }
+  };
+
+  it("offers a bank account by default: holder, CLABE and bank, with no amount, card or phone", async () => {
+    const { node, root } = await render(vi.fn(), vi.fn(), "mexico", "mexico");
+
+    expect(node.querySelector("#add-beneficiary-name")).not.toBeNull();
+    expect(node.querySelector("#add-beneficiary-clabe")).not.toBeNull();
+    expect(node.querySelector("#add-beneficiary-bank")).not.toBeNull();
+    expect(node.querySelector("#add-beneficiary-amount")).toBeNull();
+    expect(node.querySelector("#add-beneficiary-card-number")).toBeNull();
+    expect(node.querySelector("#add-beneficiary-phone")).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("sends a bank account with the CLABE digits, bank and holder, and no amount or currency", async () => {
+    agregarBeneficiario.mockReset();
+    agregarBeneficiario.mockResolvedValue({ ok: true, id: "ben-m1", complete: true });
+    const { node, root, onDone } = await render(vi.fn(), vi.fn(), "mexico", "mexico");
+
+    await fill(node, { "add-beneficiary-name": "Ana Lopez", "add-beneficiary-clabe": "0123 4567 8901 234567", "add-beneficiary-bank": "BBVA" });
+    await submit(node);
+
+    expect(agregarBeneficiario).toHaveBeenCalledWith("op-1", {
+      beneficiary_type: "mexico_cuenta",
+      name: "Ana Lopez",
+      clabe: "012345678901234567",
+      bank_name: "BBVA",
+    });
+    expect(onDone).toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
+
+  it("blocks a CLABE that is not 18 digits and sends nothing", async () => {
+    agregarBeneficiario.mockReset();
+    const { node, root } = await render(vi.fn(), vi.fn(), "mexico", "mexico");
+
+    await fill(node, { "add-beneficiary-name": "Ana", "add-beneficiary-clabe": "1234", "add-beneficiary-bank": "BBVA" });
+    await submit(node);
+
+    expect(agregarBeneficiario).not.toHaveBeenCalled();
+    expect(node.textContent).toContain(en.Inbox.operationsPanel.invalidClabe);
+    await act(async () => root.unmount());
+  });
+
+  it("offers a cardless withdrawal with a Coppel or BBVA network, the receiver and the phone", async () => {
+    agregarBeneficiario.mockReset();
+    agregarBeneficiario.mockResolvedValue({ ok: true, id: "ben-m2", complete: true });
+    const { node, root, onDone } = await render(vi.fn(), vi.fn(), "mexico", "mexico");
+
+    selectType(node, "mexico_retiro");
+    await act(async () => {});
+    expect(node.querySelector("#add-beneficiary-clabe")).toBeNull();
+    const bank = node.querySelector<HTMLSelectElement>("#add-beneficiary-bank")!;
+    expect([...bank.options].map((o) => o.value)).toEqual(["Coppel", "BBVA"]);
+
+    await fill(node, { "add-beneficiary-name": "Luis Perez", "add-beneficiary-phone": "52345678" });
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value")!.set!;
+      setter.call(bank, "BBVA");
+      bank.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await submit(node);
+
+    expect(agregarBeneficiario).toHaveBeenCalledWith("op-1", {
+      beneficiary_type: "mexico_retiro",
+      name: "Luis Perez",
+      bank_name: "BBVA",
+      phone: "52345678",
+    });
+    expect(onDone).toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
+});

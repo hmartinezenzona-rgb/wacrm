@@ -312,3 +312,15 @@ Q1-Q8 stay valid; they are now enforced as money rules plus the agent's declared
   operation-incident-reason, which fail identically on base (a new deal creates no operation on staging; unrelated).
   Staging applied (dry-run, apply, assertion, rollback OK; md5 a3c9c101). relacionadas --ya-aplicada: 122, 119 SAME,
   3 DIFF = deposito-resolver (new), delivery-feed-evidence (fixture fails on base too), contexto-envio-mixto (flaky).
+
+## Redesigned 268 (2026-10-22)
+
+- crm_registrar_numeros_recarga(p_conv, p_texto, p_abrir DEFAULT false, p_actor DEFAULT NULL): number regex reads the
+  WhatsApp format '+53 5 5599180'; never infers a service (the text rule replaced by the declared intent); with p_abrir
+  it converts the holder through cerebro_aplicar_servicio and inserts a new recarga only when no other operation is
+  open, otherwise returns the resolver's mensaje; real actor (source 'agente' for agent calls).
+  cerebro_guardar_beneficiario_auto no longer opens operations from words.
+- RED 9 cases; GREEN; relacionadas 127, 123 SAME (DIFF: the new assertion, recarga-before-deposit, flaky
+  contexto-envio-mixto, delivery-feed-evidence fails on base). recarga-before-deposit updated like 267: the bot
+  declares recarga before the numbers (case 1) and the tool call passes p_abrir (case 3); ALL PASS with 268.
+- Staging applied.

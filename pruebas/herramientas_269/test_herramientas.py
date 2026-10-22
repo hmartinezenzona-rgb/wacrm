@@ -228,3 +228,41 @@ class TestContexto(unittest.TestCase):
     def test_idempotente(self):
         a = h.aplicar_contexto(self.wf())
         self.assertEqual(h.aplicar_contexto(json.loads(json.dumps(a))), a)
+
+
+class TestSinLectores(unittest.TestCase):
+    """S5b: the automatic readers are disabled (not deleted) in staging; the agent writes only through its tools."""
+
+    def wf(self):
+        nodos = [{"name": n, "parameters": {}, "type": "n8n-nodes-base.postgres"} for n in h.LECTORES + ["Registrar deposito auto", "Merge beneficiario"]]
+        return {"nodes": nodos, "connections": {}}
+
+    def test_desactiva_exactamente_los_lectores_sin_borrar_nada(self):
+        wf = h.desactivar_lectores(self.wf())
+        off = {n["name"] for n in wf["nodes"] if n.get("disabled")}
+        self.assertEqual(off, {"Registrar beneficiario auto", "Registrar zelle auto", "Registrar destino auto"})
+        self.assertEqual(len(wf["nodes"]), 5)
+
+    def test_reactivar_los_deja_como_estaban(self):
+        wf = h.reactivar_lectores(h.desactivar_lectores(self.wf()))
+        self.assertFalse(any(n.get("disabled") for n in wf["nodes"]))
+
+    def test_el_deposito_automatico_no_se_toca(self):
+        wf = h.desactivar_lectores(self.wf())
+        self.assertFalse(next(n for n in wf["nodes"] if n["name"] == "Registrar deposito auto").get("disabled"))
+
+    def test_prompt_manda_usar_las_herramientas_explicitamente(self):
+        base = open(os.path.join(os.path.dirname(__file__), "prompt_base_staging.txt"), encoding="utf-8").read()
+        p = h.editar_prompt_sin_lectores(h.editar_prompt(base))
+        i = p.index("## SIN LECTORES AUTOMATICOS")
+        sec = p[i:i + 3500]
+        for s in ("gestionar_beneficiario", "registrar_beneficiario_zelle", "registrar_numeros_recarga", "registrar_destinatario_mexico",
+                  "repartir_envio", "registrar_reparto_multiple", "declarar_servicio", "marcar_destino_usd", "manda sobre"):
+            self.assertIn(s, sec)
+        self.assertNotIn("Los numeros escritos se guardan solos", p)
+        self.assertEqual(h.editar_prompt_sin_lectores(p), p)
+
+    def test_restaurar_el_prompt_quita_la_seccion(self):
+        base = open(os.path.join(os.path.dirname(__file__), "prompt_base_staging.txt"), encoding="utf-8").read()
+        p = h.editar_prompt(base)
+        self.assertEqual(h.quitar_prompt_sin_lectores(h.editar_prompt_sin_lectores(p)), p)

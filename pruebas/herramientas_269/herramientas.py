@@ -297,3 +297,52 @@ def aplicar_contexto(wf):
         raise ValueError("final FROM not found")
     n["parameters"]["query"] = q
     return wf
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# S5b: test without the automatic readers (disabled, never deleted). Re-enable with reactivar_lectores / --lectores on.
+
+LECTORES = ["Registrar beneficiario auto", "Registrar zelle auto", "Registrar destino auto"]
+
+
+def desactivar_lectores(wf):
+    for n in wf["nodes"]:
+        if n["name"] in LECTORES:
+            n["disabled"] = True
+    return wf
+
+
+def reactivar_lectores(wf):
+    for n in wf["nodes"]:
+        if n["name"] in LECTORES:
+            n.pop("disabled", None)
+    return wf
+
+
+SECCION_SIN_LECTORES = """## SIN LECTORES AUTOMATICOS (manda sobre cualquier otra mencion de registro automatico de este prompt)
+El sistema YA NO guarda solo a quien recibe: ni tarjeta y celular, ni cuenta Zelle, ni el destino. Cualquier frase de este prompt que diga que "el sistema los registra solo" o "se guardan solos" NO aplica. Solo el deposito (comprobante) se registra solo. Todo lo demas lo creas TU con tus herramientas, en el MISMO turno en que el cliente da, corrige o confirma el dato:
+- tarjeta cubana y/o celular, nombre -> gestionar_beneficiario (uno por llamada); varios beneficiarios con su reparto -> registrar_reparto_multiple.
+- cuenta Zelle y/o nombre del titular -> registrar_beneficiario_zelle.
+- numeros a recargar -> registrar_numeros_recarga; combo -> registrar_destinatario_combo; visa -> abrir_extension_visa; entrega en efectivo -> registrar_datos_entrega_efectivo; Mexico -> registrar_destinatario_mexico.
+- la via en dolares (clasica, tropical, efectivo) -> marcar_destino_usd la primera vez; y el servicio del cliente SIEMPRE con declarar_servicio / cambiar_servicio / agregar_servicio (ver DECLARAR, CAMBIAR Y AGREGAR SERVICIO).
+- un solo deposito para varios servicios -> repartir_envio con TODAS las partes cuando el cliente confirme el reparto.
+Un dato esta registrado SOLO si el [CONTEXTO] dice 'YA REGISTRADO' o si la herramienta lo confirmo en este turno. Si el [CONTEXTO] dice 'DETECTADOS PERO NO REGISTRADOS', llamas la herramienta. Nunca confirmes al cliente un dato que no guardaste."""
+
+_MARCA_SL = "## SIN LECTORES AUTOMATICOS"
+_ANCLA_SL = "## REGLA DE ORO DEL REGISTRO"
+
+
+def editar_prompt_sin_lectores(sm):
+    if _MARCA_SL in sm:
+        return sm
+    sm = sm.replace("Los numeros escritos se guardan solos. ", "")
+    return sm.replace(_ANCLA_SL, SECCION_SIN_LECTORES + "\n\n" + _ANCLA_SL, 1)
+
+
+def quitar_prompt_sin_lectores(sm):
+    if _MARCA_SL not in sm:
+        return sm
+    i = sm.index(_MARCA_SL)
+    j = sm.index(_ANCLA_SL, i)
+    sm = sm[:i] + sm[j:]
+    return sm.replace("numeros vacio si aun no los dio. Si te dice", "numeros vacio si aun no los dio. Los numeros escritos se guardan solos. Si te dice")

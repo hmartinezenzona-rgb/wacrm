@@ -85,3 +85,18 @@ Staging workflow U52y1kSNvhgxvWeb only. Production untouched, workflow never exe
   100 USD a mexico, no con 150; ¿confirma?"), prohibits "se transfiere el equivalente" and "quedas esperando el resto". Only for verificado_incompleto
   (deposit short); the de-mas case keeps its existing "confirm how the deposit is split" note. Needs the parts as a mixed group (envio_mixto).
 - Vitest: 7 RED first, then 43/43 GREEN (7 new + md5 pin).
+
+## Step 3 S5b (test without the automatic readers) - version dc144e1b -> 84e217b8
+- DISABLED (flag `disabled: true`, nothing deleted): `Registrar beneficiario auto`, `Registrar zelle auto`, `Registrar destino auto`. The first two feed
+  `Contexto conversacion` (a disabled node passes its input through); the third has no output. The "notes_parse writers" are these same nodes
+  (`remittance_beneficiaries.source = notes_parse` is what they write); there is no separate node. Left ON on purpose: `Registrar deposito auto`
+  (money facts), `Registrar carnet efectivo` (ID photo has no tool), `Merge beneficiario` (read-only merge).
+- Prompt: new section "SIN LECTORES AUTOMATICOS" (before REGLA DE ORO DEL REGISTRO) lists the tool for each datum (gestionar_beneficiario,
+  registrar_reparto_multiple, registrar_beneficiario_zelle, registrar_numeros_recarga, registrar_destinatario_combo, abrir_extension_visa,
+  registrar_datos_entrega_efectivo, registrar_destinatario_mexico, marcar_destino_usd, declarar/cambiar/agregar_servicio, repartir_envio) and says it
+  overrides any "el sistema lo registra solo" line; removed "Los numeros escritos se guardan solos". Old intro/examples that mention automatic
+  registration were left untouched (the section states precedence).
+- Re-enable: `python3 pruebas/herramientas_269/aplicar_staging.py --esperado <live versionId prefix> --lectores on`, or `cerebro_n8n.py restaurar` with the
+  backup `...-dc144e1b-...-162050.json`.
+- Cases for the owner (PRUEBA scripts): `odd/notes/cerebro-s5b-casos.md`. Measurement NOT run. Katiuska's script is assumed to be the 1232671b
+  recarga sequence (the only Katiuska detail in the docs).

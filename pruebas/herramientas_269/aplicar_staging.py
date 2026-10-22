@@ -19,6 +19,7 @@ import herramientas as h  # noqa: E402
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--esperado", required=True)
+    ap.add_argument("--lectores", choices=["off", "on"], help="S5b: disable (off) or re-enable (on) the automatic readers + prompt section")
     ap.add_argument("--contexto", action="store_true", help="S4: add servicio_resuelto to Contexto conversacion")
     a = ap.parse_args()
     c.check_esperado(a.esperado)
@@ -32,9 +33,18 @@ def main():
     h.aplicar_herramientas(wf)
     if a.contexto:
         h.aplicar_contexto(wf)
+    if a.lectores == "off":
+        h.desactivar_lectores(wf)
+    elif a.lectores == "on":
+        h.reactivar_lectores(wf)
     for n in wf["nodes"]:
         if n["name"] == "Agente Remesas":
-            n["parameters"]["options"]["systemMessage"] = h.editar_prompt(n["parameters"]["options"]["systemMessage"])
+            sm = h.editar_prompt(n["parameters"]["options"]["systemMessage"])
+            if a.lectores == "off":
+                sm = h.editar_prompt_sin_lectores(sm)
+            elif a.lectores == "on":
+                sm = h.quitar_prompt_sin_lectores(sm)
+            n["parameters"]["options"]["systemMessage"] = sm
     c.api_request("PUT", f"/api/v1/workflows/{wid}", base, key, body={
         "name": wf["name"], "nodes": wf["nodes"], "connections": wf["connections"], "settings": wf.get("settings", {})})
     w2 = c.api_request("GET", f"/api/v1/workflows/{wid}", base, key)

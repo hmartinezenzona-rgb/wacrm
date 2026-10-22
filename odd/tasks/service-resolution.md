@@ -268,3 +268,17 @@ Consequences for the migrations (none of 265-268 is in production):
 - 268 rewritten: number regex fix kept; the numbers tool and beneficiary auto-save never infer a service.
 - 269: agent tools cambiar_servicio / agregar_servicio / declarar_servicio + prompt; S4 Decisor single state.
 Q1-Q8 stay valid; they are now enforced as money rules plus the agent's declared intent.
+
+## Redesigned 265 (2026-10-22, haiku writer + parent review)
+
+- Facts-only cerebro_resolver_servicio(p_conv, p_declarado, p_intencion, p_monto, p_ahora) v2 (R0 invalid input, R1 mixed
+  group, R2 several deposits / several ops, R3 lock/state, R4 recarga without promo, R5 agregar -> mixto|aparte and
+  cambiar -> convertir|deposito_bajo_minimo, R6 sin_cambio, R7 new operation, R8 Q1 price + phone-only, R9 default);
+  cerebro_declarar_servicio (latest wins) + table cerebro_servicio_declarado + clear-on-close trigger. No message text.
+- Parent review: (1) the writer's case 1 did not reproduce the real 1232671b operation; new case 1c (a cuban_card
+  recipient WITHOUT a card number, no rail) FAILED (sin_cambio) because a card rail counted as card data -> only a
+  real card number counts now; GREEN. (2) cerebro_declarar_servicio restricted to service_role (RED: authenticated
+  could execute -> GREEN). Accepted: varias_operaciones kept; R8 needs a live promo; declarar accepts 'remesa' but the
+  resolver needs a concrete rail/service (the prompt will ask the agent to declare a specific one).
+- Staging: 267/266/265 of the old design rolled back first; new 265 applied (dry-run, apply, assertion, rollback OK).
+- Next: 266 (cambiar -> convert, agregar -> mixto via the mixed-send split / aparte as a new operation), 267, 268.

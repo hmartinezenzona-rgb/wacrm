@@ -1,11 +1,58 @@
 # Mark remittance intent on conversations, classified by Jev
 
-## STATUS: PARKED (2026-09-24) — budget, not technical
-Stopped by the user before any code was written: Jev has no free tier and the
-smallest prepaid credit pack (~$19, credits never expire, no subscription) isn't
-affordable right now. Nothing here is blocked technically — the research below
-is complete and still valid, T1 could be applied the day a key exists.
-Do not resume without the user explicitly asking.
+## STATUS: T0 OFFLINE MEASUREMENT (resumed 2026-10-21 by the owner: "mide a ver")
+Parked 2026-09-24 for budget. A TypeSafe key now exists
+(`~/.config/wacrm/jev.env`, endpoint `api.typesafe.ai/v1`). Before building
+T1/T2, T0 measures offline whether Jev reads remittance intent in Spanish
+well enough. T1/T2 stay unauthorized until the owner decides on T0's result.
+
+## T0 — offline measurement design
+Why first: the gate measurement (`odd/tasks/jev-gate-measurement.md`) showed
+Jev is weak in Spanish on fine judgements; web research (Engram
+`cerebro/jev-gate-assessment-uses`) shows its proven uses are coarse bulk
+classification, which this is.
+
+- Production is read-only (`BEGIN READ ONLY`, `~/.config/wacrm/prod-db.env`).
+  Customer text lives only in
+  `/home/onlinefreedom/cerebro-fase1/pruebas/evals/corpus/jev/` (0600,
+  gitignored), never in git or Engram. Only the episode's customer text
+  messages are sent to Jev (owner authorized real messages for Jev tests).
+- One call per case and model, no retries; 401/402/429 stop the run.
+- TDD strict (CLAUDE.md). Runner: `uv run --with pytest python -I -m pytest -q tests`
+  in the evals repo.
+- Episode = conversation x local day (America/Guyana) with >=1 customer text
+  message, 2026-09-28 (operations start after the 09-27 cutover) to 2 days
+  before extraction. Text = that day's customer text messages in order.
+- Proxy labels: `P_remesa` remesa operation created within 48 h of day start
+  (cancelled included); `N_seguimiento` no new operation but one in the
+  previous 7 days; `N_sin_op` none in either window (contains the "wanted one
+  and we lost them" customers, so Jev "yes" there is reviewed by hand, not a
+  plain error); `R_otro_servicio` only a non-remesa operation (reported apart).
+- Design-time counts (2026-10-21): P 100, N_seguimiento 11, N_sin_op 143, R 6.
+
+- [x] T0.1 Extraction `jev/extraer_intencion.sql` -> `corpus/jev/intencion.json`; counts.
+  2026-10-21: read-only run, 260 episodes (P 100, N_sin_op 143, N_seguimiento 11,
+  R 6); text chars median 134, p95 754, max 1722; file 0600 and gitignored.
+- [x] T0.2 Runner: question `quiere_enviar`, dataset `c` in `jev/medir_jev.py`, tests RED -> GREEN.
+  Evals 43e00f4 (SQL), b11984c (runner). RED 6 failed (no MAX_TEXTO), GREEN 19/19, suite 105/105.
+- [x] T0.3 Run jev-latest + jev-preview on dataset c; calls, errors, tokens, latency.
+  520 calls, 0 errors, 130,188 input tokens per model (~$0.005), median 0.27 s.
+  Both aliases now resolve to jev-1.14.0, so it is one model measured twice
+  (near-identical results).
+- [ ] T0.4 Report: recall on P, false "yes" on N_seguimiento, hand review of
+  Jev "yes" on N_sin_op; recommendation to the owner.
+  Proxy metrics (jev-preview): u=0.5 precision 0.51 recall 0.67; u=0.8 0.52 / 0.48.
+  N_seguimiento: 1/11 at >=0.5, 0 at >=0.8 (status follow-ups correctly "no").
+  Hand review: 20/20 sampled N_sin_op cases at p>=0.8 show a clear send intent
+  (amounts, Zelle accounts, Cuban cards, "deposité", "efectuado el pago"), so
+  the proxy is what fails, not Jev: 44 episodes / 37 conversations of clear
+  intent have no remittance_operation. P misses (33 at p<0.5) are mostly days
+  with only data (accounts, names, phones) or follow-ups, where intent was
+  stated on another day or by audio/image. N_sin_op <0.2 (62) are visas,
+  translations, courtesy, system messages: correct "no".
+  OPEN: owner must say whether Zelle sends and other transfers are always
+  registered in the panel; that decides "lost leads" vs "sends done outside
+  the system".
 
 ## Objective
 Give every conversation a yes/no "this customer showed remittance intent" mark,

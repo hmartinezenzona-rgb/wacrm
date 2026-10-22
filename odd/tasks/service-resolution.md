@@ -66,7 +66,7 @@ Root causes:
   crm_registrar_numeros_recarga, cerebro_cambiar_servicio, cerebro_recarga_en_curso/combo/visa, Contexto query,
   Decisor service notes) and fix the resolver contract, the correction/addition rule and the evidence weights;
   write it into this document.
-- [ ] S2 Migration: `cerebro_resolver_servicio` + assertion with the real cases as fixtures (1232671b at 14:30 and
+- [x] S2 Migration: `cerebro_resolver_servicio` + assertion with the real cases as fixtures (1232671b at 14:30 and
   14:32, d86574ab, d415e347, f8b7779c mixed, bf547067, 89f6df7e Zelle-not-recarga, a plain remesa, a plain recarga).
 - [ ] S3 Migration: writers use the resolver (deposit registration, beneficiary auto-save, recharge-number tool:
   convert instead of insert); real actor in the audit (R5).
@@ -186,3 +186,16 @@ data of another rail is superseded; 'adicional' needs both services requested af
 availability/price questions are not requests; recarga conversions need deposit >= recarga price (saldo: minimum).
 Accepted from the draft: narrow saldo words, cancelar only on convertir for empty ops of another service, rail words
 move only non-remesa holders, ambiguity -> preguntar, alerta null in v1, fail-open JSON with sqlstate.
+
+## S2 done (2026-10-22)
+
+- 265_service_resolver.sql (pure STABLE resolver, fail-open), ROLLBACK-265, assertion resolver-servicio.sql
+  (cases 1-26). RED: assertion alone failed (function missing). The recency cases (8, 21, 25, 26) and the recarga
+  price case (9) were added after the review and first ran against the new code (no separate RED against the first
+  draft). Staging aplicar: dry-run, apply, assertion OK, rollback OK (md5 equal to previous); function md5 7d1b4c2e.
+  probar_migraciones.sh green. Pure addition: no existing function changed, related assertions not re-run (nothing
+  can regress yet; they run in S3 when writers change).
+- Recency: window = customer texts since the holder (or last 24 h / last closed op) + p_texto + p_declarado, in order;
+  availability/price questions dropped (regex c_preg); a service named before later data of another rail or another
+  service word is superseded (evidencia.activas); same-message signals both count. Recarga conversion needs deposit
+  >= promo price (6,200), saldo/rails their minimum.

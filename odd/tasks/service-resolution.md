@@ -145,3 +145,9 @@ Open owner questions: (1) rule 8 ask vs convert; (2) rule 9 switch; (3) legacy d
 (4) card + recarga word holding the money: addition or correction; (5) combo + remesa outside a group: propose
 grouping?; (6) convert after ready_to_transfer (deposit verified) without a human?; (7) auto-convert saldo/visa or
 recarga only.
+
+## Owner answers
+
+- Q6 (2026-10-22): convert after ready_to_transfer (deposit verified) automatically and WITHOUT any alert: "que la
+  convierta sola y que no avise; la idea es que el sistema sea autónomo; el cliente dijo que era para una recarga, no
+  hay ninguna incidencia". Rule 5 applies to verified deposits; no coherence alert for an applied correction.

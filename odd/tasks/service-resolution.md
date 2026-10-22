@@ -176,3 +176,13 @@ recarga only.
   convertir even if the holder already has its own data; below the new minimum -> ninguna deposito_bajo_minimo with
   minimum and shortfall for the bot. Replaces the "no own data" condition of rule 5 and the "with numbers ->
   preguntar" branch of rule 7.
+
+## S2 review (2026-10-22)
+
+First draft of 265 dry-run green (24 cases) but parent review found it would reintroduce the 2026-10-04 bug
+(89f6df7e: an old question about a recharge promo + a later Zelle payment became adicional/recarga). Sent back with a
+recency rule: the LATEST service signal (word, destination data, declared service) wins; an older word followed by
+data of another rail is superseded; 'adicional' needs both services requested after the last superseding signal;
+availability/price questions are not requests; recarga conversions need deposit >= recarga price (saldo: minimum).
+Accepted from the draft: narrow saldo words, cancelar only on convertir for empty ops of another service, rail words
+move only non-remesa holders, ambiguity -> preguntar, alerta null in v1, fail-open JSON with sqlstate.

@@ -373,7 +373,7 @@ cotizar via=mexico single USD rate (243). Gaps:
   (test data per owner 2026-10-17: remove).
 - Notifier wGud0KGR6eMqqfMQ texts ask for a Cuban card and phone.
 
-- [ ] M2 Migration: México recipient (beneficiary type + CLABE 18 digits, bank, holder; cardless withdrawal at
+- [x] M2 Migration: México recipient (beneficiary type + CLABE 18 digits, bank, holder; cardless withdrawal at
   Coppel/BBVA) + assertion (card logic ignores a CLABE).
 - [ ] M3 Migration: 13,000 GYD minimum for mexico; calculator service mapping for mexico + assertion.
 - [ ] M4 Migration: 'mexico' in declarar / resolver / aplicar / registrar_deposito (a México deposit joins the México
@@ -383,5 +383,20 @@ cotizar via=mexico single USD rate (243). Gaps:
 - [ ] M6 Panel: mexico in the service picker, operations list (migration), recipient rows CLABE / bank / holder.
 - [ ] M7 Customer status texts for México (needs Osmany's answers on completion evidence).
 - [ ] M8 Production backfill of the rail-less México remesas (wacrm-corregir-produccion, own go-ahead).
+M2 done 2026-10-22 (271_mexico_recipient). Taken over from a stopped agent: its partial 271 was found applied on staging
+(schema + 2 functions), rolled back with ROLLBACK-271 (core md5 19cae611 = the recorded 266 body), then completed and
+re-applied. RED: the assertion on the base state fails at the first insert (column "clabe" does not exist); GREEN: 12 case
+groups ALL PASS. Covers: schema (rb_type_chk, rb_clabe_chk, rb_mexico_chk), crm_beneficiarios_completos, _cambiar_servicio_core
+(a México withdrawal is never a recarga number), crm_agregar_beneficiario / crm_corregir_beneficiario (mexico_cuenta /
+mexico_retiro; correction carries clabe + bank_name), crm_operaciones_de_conversacion (mexico listed, +beneficiary_clabe,
++beneficiary_bank_name; dropped and recreated, same ACL), cerebro_guardar_beneficiario_mexico(p_conv, p_tipo, p_clabe, p_banco,
+p_nombre, p_telefono, p_exec) -> jsonb {ok, mensaje, beneficiary_id} (service_role only; actor parsed from p_exec 'agent:<tool>
+n8n:<exec>', default agent:registrar_destinatario_mexico; source 'agente'; dedupe by CLABE; sets delivery_method; locks the
+recipients so the notes parser cannot replace them), audit action agent_mexico_recipient_registered added to the CHECK.
+Staging md5 (12): core db108e973f48, completos 95a103bec500, agregar 8ce05352f7cd, corregir bc6e0c667afd, operaciones
+da2ab4b6c2de, guardar_mexico 8f779761bbc1. Rollback test: md5 equal to the pre-migration state. relacionadas --ya-aplicada
+(139 assertions, run while another agent used staging): the only DIFFs were "deadlock detected" on either side; every one
+re-ran SAME/ALL PASS. Reviewed readers of beneficiary_type/card_number: crm_calcular_monto_destino prices only
+service_type 'remesa'; cerebro_riel_op fixed in 273; cerebro_sync_beneficiarios is stopped by the beneficiaries lock.
 Open with Osmany (not blocking M2-M6): USD->MXN rate source and whether the customer sees MXN; cost per send; cardless
 withdrawal identity data and code delivery; whether phone is needed for a bank account; completion evidence.

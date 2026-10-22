@@ -324,3 +324,17 @@ Q1-Q8 stay valid; they are now enforced as money rules plus the agent's declared
   contexto-envio-mixto, delivery-feed-evidence fails on base). recarga-before-deposit updated like 267: the bot
   declares recarga before the numbers (case 1) and the tool call passes p_abrir (case 3); ALL PASS with 268.
 - Staging applied.
+
+## Owner direction 2026-10-22: test without the automatic readers
+
+Cases Clarita (faaa62ea, op 1eedc3a3: the Zelle auto-reader overwrote the bot's names with 'Se ve bien' / none) and
+Marlene (4afda26a: one 71,200 deposit for Mexico + cash + card became ONE CUP remesa of 213,600 CUP) were corrected by
+hand (Engram bug/multi-recipient-multi-service-sends-persisted-wrong-clarita-marlene-2026-10-22). Owner: "esos
+lectores automáticos están entorpeciendo el trabajo del bot; debemos probar sin esos lectores automáticos y dejar al
+bot que cree las operaciones con las herramientas, porque él confirma y entiende bien todo".
+- [ ] S5b Staging experiment: disable the automatic readers (Registrar beneficiario auto, Registrar zelle auto,
+  Registrar destino auto, notes_parse writers) in the staging Cerebro; the agent creates operations, recipients and
+  multi-service splits only through its tools (gestionar_beneficiario, registrar_beneficiario_zelle,
+  repartir_envio / registrar_reparto_multiple, cambiar/agregar/declarar_servicio). Measure with real-shaped cases
+  (Katiuska, Clarita, Marlene, f8b7779c) before any production change.
+- Gap: Mexico (Mercado Pago) is not a modelled service.

@@ -97,3 +97,11 @@ panel preview, default reason ("porque tuvieron que salir un momento") and chips
 new chip "tuvieron un asunto personal". RED 3 failing -> GREEN; tsc clean; full vitest 230 / 3159. Commit 31b77cd.
 Staging Cerebro republished: publicar-decisor --esperado fac409b8 OK, versionId f74e9548 == activeVersionId,
 Decisor md5 252f1489 == repo, nodes 128.
+
+## Production 2026-10-22 (owner: "pásalo a producción, y guarda todo en github")
+
+- Migration 264: previa SEGURO; aplicar OK (20261022143644); verificar 2/2 EQUAL.
+- Cerebro production jEzlVLCLUaJhVwzs: backup produccion-...-cb36f03b-20261022-083719.json; publicar-decisor
+  --esperado af1e5e40 OK; versionId 5b3159b9 == activeVersionId; Decisor md5 252f1489 == repo.
+- Panel: release/prod-away-mode 07d2eda; served BUILD_ID bBJb7VQjxKf6MbLzvDazG; rollback `anterior` 6055ea7.
+- Branch pushed to privado. Pending: the owner's real check in production (W6 item open until then).

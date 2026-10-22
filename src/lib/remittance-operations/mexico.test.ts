@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMexicoBeneficiaryDatos, formatClabe, isMexicoBeneficiaryType, MEXICO_WITHDRAWAL_BANKS } from "./mexico";
+import { buildMexicoBeneficiaryChanges, buildMexicoBeneficiaryDatos, formatClabe, isMexicoBeneficiaryType, MEXICO_WITHDRAWAL_BANKS } from "./mexico";
 
 describe("formatClabe", () => {
   it("groups an 18-digit CLABE 4-4-4-6 for reading", () => {
@@ -56,5 +56,43 @@ describe("buildMexicoBeneficiaryDatos", () => {
     ["no receiver", { name: "", clabe: "", bankName: "BBVA", phone: "52345678" }, "cannotBeEmpty"],
   ] as const)("refuses a withdrawal with %s", (_label, input, error) => {
     expect(buildMexicoBeneficiaryDatos("mexico_retiro", input)).toEqual({ ok: false, error });
+  });
+});
+
+describe("buildMexicoBeneficiaryChanges", () => {
+  const account = { beneficiaryType: "mexico_cuenta" as const, name: "Ana Lopez", clabe: "012345678901234567", bankName: "BBVA", phone: null };
+  const withdrawal = { beneficiaryType: "mexico_retiro" as const, name: "Luis Perez", clabe: null, bankName: "Coppel", phone: "52345678" };
+  const same = { name: "Ana Lopez", clabe: "0123 4567 8901 234567", bankName: "BBVA", phone: "" };
+
+  it("sends nothing for an untouched bank account", () => {
+    expect(buildMexicoBeneficiaryChanges(account, same)).toEqual({ ok: true, changes: {} });
+  });
+
+  it("sends only the changed bank-account keys, with the CLABE digits", () => {
+    expect(
+      buildMexicoBeneficiaryChanges(account, { ...same, name: " Ana Maria Lopez ", clabe: "000000000000000001" }),
+    ).toEqual({ ok: true, changes: { name: "Ana Maria Lopez", clabe: "000000000000000001" } });
+  });
+
+  it("never changes a bank account's phone", () => {
+    expect(buildMexicoBeneficiaryChanges(account, { ...same, phone: "52345678" })).toEqual({ ok: true, changes: {} });
+  });
+
+  it("refuses a CLABE that is not 18 digits and a blank holder or bank", () => {
+    expect(buildMexicoBeneficiaryChanges(account, { ...same, clabe: "1234" })).toEqual({ ok: false, error: "invalidClabe" });
+    expect(buildMexicoBeneficiaryChanges(account, { ...same, name: " " })).toEqual({ ok: false, error: "cannotBeEmpty" });
+    expect(buildMexicoBeneficiaryChanges(account, { ...same, bankName: "" })).toEqual({ ok: false, error: "cannotBeEmpty" });
+  });
+
+  it("sends only the changed withdrawal keys: receiver, network and phone", () => {
+    expect(
+      buildMexicoBeneficiaryChanges(withdrawal, { name: "Luis Perez", clabe: "", bankName: "BBVA", phone: "5234-9999" }),
+    ).toEqual({ ok: true, changes: { bank_name: "BBVA", phone: "52349999" } });
+  });
+
+  it("refuses a withdrawal network other than Coppel or BBVA, a short phone and a blank receiver", () => {
+    expect(buildMexicoBeneficiaryChanges(withdrawal, { name: "Luis Perez", clabe: "", bankName: "Santander", phone: "52345678" })).toEqual({ ok: false, error: "cannotBeEmpty" });
+    expect(buildMexicoBeneficiaryChanges(withdrawal, { name: "Luis Perez", clabe: "", bankName: "BBVA", phone: "12" })).toEqual({ ok: false, error: "invalidPhone" });
+    expect(buildMexicoBeneficiaryChanges(withdrawal, { name: "", clabe: "", bankName: "BBVA", phone: "52345678" })).toEqual({ ok: false, error: "cannotBeEmpty" });
   });
 });

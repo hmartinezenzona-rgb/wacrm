@@ -58,3 +58,44 @@ export function buildMexicoBeneficiaryDatos(
   if (!PHONE_PATTERN.test(phone)) return { ok: false, error: "invalidPhone" };
   return { ok: true, datos: { beneficiary_type: type, name, bank_name: bankName, phone } };
 }
+
+/** The stored México fields of a recipient, as the inline editor reads them. */
+export interface MexicoRecipientCurrent {
+  beneficiaryType: string;
+  name: string | null;
+  clabe: string | null;
+  bankName: string | null;
+  phone: string | null;
+}
+
+/**
+ * Checks an inline edit of a México recipient and returns only the keys that changed, in the snake_case form
+ * `crm_corregir_beneficiario` takes. A bank account never changes its phone here; a withdrawal's network must stay
+ * Coppel or BBVA.
+ */
+export function buildMexicoBeneficiaryChanges(
+  current: MexicoRecipientCurrent,
+  draft: MexicoRecipientDraft,
+): { ok: true; changes: Record<string, string> } | { ok: false; error: MexicoDraftError } {
+  const name = draft.name.trim();
+  if (name === "") return { ok: false, error: "cannotBeEmpty" };
+  const changes: Record<string, string> = {};
+  if (name !== (current.name ?? "")) changes.name = name;
+
+  const bankName = draft.bankName.trim();
+  if (current.beneficiaryType === "mexico_cuenta") {
+    const clabe = draft.clabe.replace(/\D/g, "");
+    if (!CLABE_PATTERN.test(clabe)) return { ok: false, error: "invalidClabe" };
+    if (bankName === "") return { ok: false, error: "cannotBeEmpty" };
+    if (clabe !== (current.clabe ?? "")) changes.clabe = clabe;
+    if (bankName !== (current.bankName ?? "")) changes.bank_name = bankName;
+    return { ok: true, changes };
+  }
+
+  if (!(MEXICO_WITHDRAWAL_BANKS as readonly string[]).includes(bankName)) return { ok: false, error: "cannotBeEmpty" };
+  const phone = draft.phone.replace(/\D/g, "");
+  if (!PHONE_PATTERN.test(phone)) return { ok: false, error: "invalidPhone" };
+  if (bankName !== (current.bankName ?? "")) changes.bank_name = bankName;
+  if (phone !== (current.phone ?? "")) changes.phone = phone;
+  return { ok: true, changes };
+}

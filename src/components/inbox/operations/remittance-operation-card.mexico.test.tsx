@@ -21,7 +21,10 @@ vi.mock("next-intl", () => ({
   },
 }));
 
-vi.mock("@/lib/remittance-operations/commands", () => ({ corregirBeneficiario: vi.fn() }));
+const corregirBeneficiario = vi.fn();
+vi.mock("@/lib/remittance-operations/commands", () => ({
+  corregirBeneficiario: (...args: unknown[]) => corregirBeneficiario(...args),
+}));
 vi.mock("./deposit-review-container", () => ({ DepositReviewContainer: () => null }));
 vi.mock("./operation-correction-form", () => ({ OperationCorrectionForm: () => null }));
 vi.mock("./split-deposit-form", () => ({ SplitDepositForm: () => null }));
@@ -78,7 +81,7 @@ function mexicoOperation(beneficiary: RemittanceBeneficiaryRead): RemittanceOper
   } as RemittanceOperationRead;
 }
 
-async function render(op: RemittanceOperationRead) {
+async function render(op: RemittanceOperationRead, canEdit = false) {
   const { RemittanceOperationCard } = await import("./remittance-operation-card");
   const node = document.createElement("div");
   document.body.appendChild(node);
@@ -87,7 +90,7 @@ async function render(op: RemittanceOperationRead) {
     root.render(
       <RemittanceOperationCard
         operation={op}
-        canEdit={false}
+        canEdit={canEdit}
         role="agent"
         otherOpenOperations={[]}
         onChanged={vi.fn()}
@@ -126,6 +129,63 @@ describe("RemittanceOperationCard on a México cardless withdrawal", () => {
     expect(node.querySelector(`[aria-label="${copyLabel(ops.name)}"]`)!.textContent).toContain("Luis Perez");
     expect(node.querySelector(`[aria-label="${copyLabel(ops.phone)}"]`)!.textContent).toContain("52345678");
     expect(node.querySelector(`[aria-label="${copyLabel(ops.clabe)}"]`)).toBeNull();
+    await act(async () => root.unmount());
+  });
+});
+
+describe("RemittanceOperationCard editing a México recipient", () => {
+  const editButton = (node: Element) => node.querySelector<HTMLButtonElement>(`button[aria-label="${ops.editBeneficiary}"]`)!;
+  const field = (node: Element, id: string) => node.querySelector<HTMLInputElement>(`#inline-${id}-ben-mx`);
+  const setValue = (input: HTMLInputElement, value: string) => {
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")!.set!;
+    setter.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+
+  it("edits a bank account's holder, CLABE and bank, never a card number", async () => {
+    const { node, root } = await render(
+      mexicoOperation(beneficiary({ beneficiaryType: "mexico_cuenta", name: "Ana Lopez", clabe: "012345678901234567", bankName: "BBVA" })),
+      true,
+    );
+
+    await act(async () => editButton(node).click());
+
+    expect(field(node, "name")).not.toBeNull();
+    expect(field(node, "clabe")).not.toBeNull();
+    expect(field(node, "bank")).not.toBeNull();
+    expect(field(node, "card")).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("saves a bank account's changed CLABE as its 18 digits", async () => {
+    corregirBeneficiario.mockReset();
+    corregirBeneficiario.mockResolvedValue({ ok: true, id: "ben-mx" });
+    const { node, root } = await render(
+      mexicoOperation(beneficiary({ beneficiaryType: "mexico_cuenta", name: "Ana Lopez", clabe: "012345678901234567", bankName: "BBVA" })),
+      true,
+    );
+
+    await act(async () => editButton(node).click());
+    await act(async () => setValue(field(node, "clabe")!, "000000000000000001"));
+    await act(async () => node.querySelector<HTMLButtonElement>(`button[aria-label="${ops.save}"]`)!.click());
+
+    expect(corregirBeneficiario).toHaveBeenCalledWith("ben-mx", { clabe: "000000000000000001" });
+    await act(async () => root.unmount());
+  });
+
+  it("edits a withdrawal's receiver, network and phone, never a card number", async () => {
+    const { node, root } = await render(
+      mexicoOperation(beneficiary({ beneficiaryType: "mexico_retiro", name: "Luis Perez", phone: "52345678", bankName: "Coppel" })),
+      true,
+    );
+
+    await act(async () => editButton(node).click());
+
+    expect(field(node, "name")).not.toBeNull();
+    expect(field(node, "bank")).not.toBeNull();
+    expect(field(node, "phone")).not.toBeNull();
+    expect(field(node, "clabe")).toBeNull();
+    expect(field(node, "card")).toBeNull();
     await act(async () => root.unmount());
   });
 });

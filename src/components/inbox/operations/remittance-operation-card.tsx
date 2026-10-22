@@ -3,12 +3,12 @@
 import { useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useServiceName } from "@/hooks/use-service-name";
-import { ArrowRightLeft, AtSign, Banknote, ChevronDown, CreditCard, Lock, MapPin, Pencil, Phone, Split, Trash2, UserPlus, UserRound, Users } from "lucide-react";
+import { ArrowRightLeft, AtSign, Banknote, Building2, ChevronDown, CreditCard, Landmark, Lock, MapPin, Pencil, Phone, Split, Trash2, UserPlus, UserRound, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { canForceVerify, type AccountRole } from "@/lib/auth/roles";
 import { corregirBeneficiario } from "@/lib/remittance-operations/commands";
 import { effectiveStatus } from "@/lib/remittance-operations/effective-status";
-import { isMexicoBeneficiaryType } from "@/lib/remittance-operations/mexico";
+import { buildMexicoBeneficiaryChanges, isMexicoBeneficiaryType } from "@/lib/remittance-operations/mexico";
 import { SALDO_UNIT_CUP, currentServiceOf, saldoPackages } from "@/lib/remittance-operations/services";
 import type {
   ConversationQuoteRead,
@@ -917,6 +917,8 @@ function BeneficiaryEditFields({ beneficiary, conversationId, amount, showAmount
   const isZelle = beneficiary.beneficiaryType === "zelle";
   const isCash = beneficiary.beneficiaryType === "efectivo_usd";
   const isRecarga = beneficiary.beneficiaryType === "recarga";
+  const isMexico = isMexicoBeneficiaryType(beneficiary.beneficiaryType);
+  const isMexicoAccount = beneficiary.beneficiaryType === "mexico_cuenta";
   const initialName = beneficiary.name ?? "";
   const initialAddress = beneficiary.address ?? "";
   const initialZelleAccount = beneficiary.zelleAccount ?? "";
@@ -929,6 +931,8 @@ function BeneficiaryEditFields({ beneficiary, conversationId, amount, showAmount
   const [cardNumber, setCardNumber] = useState(beneficiary.cardNumber ?? "");
   const [phone, setPhone] = useState(beneficiary.phone ?? "");
   const [address, setAddress] = useState(initialAddress);
+  const [clabe, setClabe] = useState(beneficiary.clabe ?? "");
+  const [bankName, setBankName] = useState(beneficiary.bankName ?? "");
   const [amountValue, setAmountValue] = useState(initialAmount);
   const [photoWamid, setPhotoWamid] = useState<string | null>(beneficiary.idPhotoWamid);
   const [pending, setPending] = useState(false);
@@ -938,7 +942,14 @@ function BeneficiaryEditFields({ beneficiary, conversationId, amount, showAmount
     setError(null);
     const changes: Record<string, unknown> = {};
 
-    if (isCash) {
+    if (isMexico) {
+      const built = buildMexicoBeneficiaryChanges(beneficiary, { name, clabe, bankName, phone });
+      if (!built.ok) {
+        setError(t(built.error));
+        return;
+      }
+      Object.assign(changes, built.changes);
+    } else if (isCash) {
       // crm_corregir_beneficiario takes name, phone and address for a cash recipient (never a card or Zelle account).
       // The name is optional (it may be cleared); phone and address are what the delivery needs, so they stay filled.
       const trimmedName = name.trim();
@@ -1076,7 +1087,54 @@ function BeneficiaryEditFields({ beneficiary, conversationId, amount, showAmount
         />
       )}
 
-      {isCash ? (
+      {isMexico ? (
+        <>
+          <InlineEditField
+            id={`inline-name-${beneficiary.id}`}
+            icon={<UserRound className="size-3.5" aria-hidden="true" />}
+            value={name}
+            onChange={setName}
+            placeholder={t("name")}
+            ariaLabel={t("name")}
+            disabled={pending}
+            variant="name"
+            autoFocus={!showAmountField}
+          />
+          {isMexicoAccount && (
+            <InlineEditField
+              id={`inline-clabe-${beneficiary.id}`}
+              icon={<Landmark className="size-3.5" aria-hidden="true" />}
+              value={clabe}
+              onChange={setClabe}
+              placeholder={t("clabe")}
+              ariaLabel={t("clabe")}
+              disabled={pending}
+              inputMode="numeric"
+            />
+          )}
+          <InlineEditField
+            id={`inline-bank-${beneficiary.id}`}
+            icon={<Building2 className="size-3.5" aria-hidden="true" />}
+            value={bankName}
+            onChange={setBankName}
+            placeholder={t("bank")}
+            ariaLabel={t("bank")}
+            disabled={pending}
+          />
+          {!isMexicoAccount && (
+            <InlineEditField
+              id={`inline-phone-${beneficiary.id}`}
+              icon={<Phone className="size-3.5" aria-hidden="true" />}
+              value={phone}
+              onChange={setPhone}
+              placeholder={t("phone")}
+              ariaLabel={t("phone")}
+              disabled={pending}
+              inputMode="numeric"
+            />
+          )}
+        </>
+      ) : isCash ? (
         <>
           <InlineEditField
             id={`inline-name-${beneficiary.id}`}

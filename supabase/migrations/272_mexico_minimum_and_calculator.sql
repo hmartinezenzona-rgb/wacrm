@@ -3,12 +3,14 @@
 -- Business (owner 2026-10-22): Mexico is sold at the single USD rate (260 GYD per USD), minimum 13,000 GYD (50 USD), no maximum.
 -- The payout in MXN is set by the operator on the day and is NOT stored. The cost of a send is UNKNOWN.
 --
--- Changes (three functions, each a CREATE OR REPLACE of the live body plus one branch; signatures and ACLs unchanged):
+-- Changes (four functions, each a CREATE OR REPLACE of the live body plus one branch; signatures and ACLs unchanged):
 --   cerebro_minimo_gyd(uuid)                           service_type 'mexico' -> config minimo_gyd_mexico, default 13,000
 --                                                      (was the CUP ELSE, 5,000). Read from the service_type because a Mexico
 --                                                      operation has no rail of its own (cerebro_riel_op is left alone).
 --   calculator_service_for_operation(text)             'mexico' -> 'CLASICA'
 --   calculator_resolve_operation_service(uuid, text)   service_type 'mexico' -> 'CLASICA' before the row/rail logic
+--   cerebro_dashboard_historial(date,date,text,int,int) a Mexico operation keeps the history label MEXICO (229 took the label
+--                                                      from calculator_resolve_operation_service, which now says CLASICA)
 --
 -- Why CLASICA and not a new 'MEXICO' service: the ledger CHECK (213), the feed, calculator_missing_rates, the manual-entry
 -- lists (228/237/242) and the inventory list (240) only know the existing services. CLASICA is already the single-USD-rate
@@ -57,6 +59,55 @@ BEGIN
     ELSE COALESCE(NULLIF(cerebro_config_get('minimo_gyd_cup'), '')::numeric, 5000)
   END;
 END $function$;
+
+CREATE OR REPLACE FUNCTION public.cerebro_dashboard_historial(p_desde date DEFAULT NULL::date, p_hasta date DEFAULT NULL::date, p_servicio text DEFAULT NULL::text, p_limite integer DEFAULT 200, p_desde_fila integer DEFAULT 0)
+ RETURNS TABLE(dia date, service_type text, status text, cliente text, telefono text, monto_gyd numeric, beneficiario text, tarjeta text, operation_id uuid, total bigint, servicio text)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  WITH base AS (
+    SELECT h.dia, h.service_type, h.status, h.cliente, h.telefono,
+           h.monto_gyd, h.beneficiario, h.tarjeta, h.operation_id
+      FROM cerebro_historial_operaciones h
+     WHERE (p_desde IS NULL OR h.dia >= p_desde)
+       AND (p_hasta IS NULL OR h.dia <= p_hasta)
+  ),
+  -- (229) The ledger-style service, once per operation (not per recipient row).
+  svc AS (
+    SELECT o.id AS operation_id,
+           coalesce(
+             -- (272) A Mexico operation keeps its own history label (MEXICO) although the calculator now prices it as CLASICA.
+             CASE WHEN o.service_type = 'mexico' THEN 'MEXICO'
+                  ELSE calculator_resolve_operation_service(o.id, o.delivery_method) END,
+             CASE WHEN o.service_type = 'remesa'
+                   AND (lower(coalesce(o.delivery_method, '')) = 'multiple_distribution'
+                        OR (SELECT count(DISTINCT b.beneficiary_type)
+                              FROM remittance_beneficiaries b
+                             WHERE b.operation_id = o.id AND b.status = 'vigente') > 1)
+                  THEN 'MIXTA'
+                  ELSE upper(o.service_type)
+             END) AS servicio
+      FROM remittance_operations o
+     WHERE o.id IN (SELECT DISTINCT x.operation_id FROM base x)
+  ),
+  filtrado AS (
+    SELECT b.*, s.servicio
+      FROM base b
+      JOIN svc s ON s.operation_id = b.operation_id
+     WHERE p_servicio IS NULL
+        OR b.service_type = p_servicio
+        OR upper(s.servicio) = upper(p_servicio)
+  )
+  SELECT f.dia, f.service_type, f.status, f.cliente, f.telefono,
+         f.monto_gyd, f.beneficiario, f.tarjeta, f.operation_id,
+         count(*) OVER () AS total, f.servicio
+    FROM filtrado f
+   ORDER BY f.dia DESC, f.monto_gyd DESC, f.operation_id,
+            f.tarjeta NULLS LAST, f.beneficiario NULLS LAST
+   LIMIT  least(coalesce(p_limite, 200), 1000)
+  OFFSET greatest(coalesce(p_desde_fila, 0), 0);
+$function$;
 
 CREATE OR REPLACE FUNCTION public.calculator_service_for_operation(p_delivery_method text)
  RETURNS text

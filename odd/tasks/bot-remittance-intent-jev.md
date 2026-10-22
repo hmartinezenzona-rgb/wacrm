@@ -1,6 +1,10 @@
 # Mark remittance intent on conversations, classified by Jev
 
-## STATUS: T0 OFFLINE MEASUREMENT (resumed 2026-10-21 by the owner: "mide a ver")
+## STATUS: ON HOLD (owner 2026-10-21: "deja x ahora pendiente lo d jev")
+T0.1-T0.3 done, T0.4 measured; pending the owner's counting start date
+(proposed 2026-10-08). Do not resume until the owner asks.
+
+## History: T0 offline measurement (resumed 2026-10-21 by the owner: "mide a ver")
 Parked 2026-09-24 for budget. A TypeSafe key now exists
 (`~/.config/wacrm/jev.env`, endpoint `api.typesafe.ai/v1`). Before building
 T1/T2, T0 measures offline whether Jev reads remittance intent in Spanish

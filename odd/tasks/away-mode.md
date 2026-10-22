@@ -62,8 +62,16 @@ reason (whole days only, no panel UI). Mockup: https://claude.ai/artifact/Mupn2q
   settings-rail.test.tsx "owner sees closed-days" failed, fixed with `canManageMembers` (admin or above) in the rail
   and the page, GREEN. tsc clean; eslint 0 errors (5 pre-existing warnings in untouched files); full vitest 230
   files / 3150 tests passing. Not yet seen in a browser (W6).
-- [ ] W5 Cerebro staging: Decisor reads `cierre_especial.ausencia` and adds the note line; node test; applied to the
+- [x] W5 Cerebro staging: Decisor reads `cierre_especial.ausencia` and adds the note line; node test; applied to the
   staging Cerebro with backup (skill `wacrm-cerebro-n8n`).
+  2026-10-22: RED 2 failing (open + ausencia, open + por_cerrar + ausencia); GREEN pruebas/decisor 33/33; full vitest
+  230 files / 3159 passing. Note 'AUSENCIA TEMPORAL' only while open (not out of hours, not closed day, not Sunday);
+  malformed ausencia ignored. Commit 69f4c47. Staging Cerebro U52y1kSNvhgxvWeb: its 'Contexto conversacion' already
+  calls cerebro_cierre_especial_info; backup
+  ~/cerebro-fase1/respaldos-n8n/staging-U52y1kSNvhgxvWeb-344ba784-...-20261022-011315.json; publicar-decisor
+  --esperado af1e5e40 OK; versionId 344ba784 -> 3019924a == activeVersionId; Decisor md5 fac409b8 == repo; nodes 128
+  unchanged. Workflow not executed (rule).
+  Also 28a7597: prettier formatting of the W4 files (a format hook rewrote them after the commit).
 - [ ] W6 Owner test on the local panel against staging; then production (migration, panel, n8n), each with go-ahead.
 
 ## Acceptance criteria

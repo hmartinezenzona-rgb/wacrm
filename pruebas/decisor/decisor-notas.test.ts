@@ -13,7 +13,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   correrDecisor,
@@ -343,5 +343,78 @@ describe('un envio mixto (un deposito repartido entre servicios) se lo dice al m
     expect(n).not.toMatch(/mando mas de lo que habiais hablado/);
     expect(n).toMatch(/NO le digas que mando de mas/i);
     expect(n).toMatch(/repartir_envio/);
+  });
+});
+
+describe('ausencia temporal (away mode): aviso solo con el negocio abierto', () => {
+  const AUSENCIA = {
+    motivo: 'en una reunion',
+    hasta: '2026-10-21T19:00:00Z',
+    hasta_texto: 'a las 3:00 pm',
+    por: 'dueno',
+  };
+  // The node reads the process clock in America/Guyana (UTC-4). Wednesday 2026-10-21.
+  const ABIERTO = '2026-10-21T15:00:00Z'; // 11:00 Guyana
+  const CERRADO = '2026-10-21T07:00:00Z'; // 03:00 Guyana, before opening
+
+  function a(hora: string, ce: unknown, extra: Entradas = {}) {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(hora));
+    try {
+      return correrDecisor({
+        ...extra,
+        ctx: { ...(extra.ctx ?? {}), cierre_especial: ce },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('abierto + ausencia: una nota con motivo, hasta_texto y sigue atendiendo', () => {
+    const n = nota(a(ABIERTO, { ausencia: AUSENCIA }), 'AUSENCIA TEMPORAL');
+    expect(n).toBeDefined();
+    expect(n).toContain('en una reunion');
+    expect(n).toContain('a las 3:00 pm');
+    expect(n).toContain('SIGUE ATENDIENDO NORMAL');
+    expect(n).toMatch(/PROHIBIDO decir "en breve"/);
+  });
+
+  it('abierto + por_cerrar + ausencia: salen las dos notas', () => {
+    const s = a(ABIERTO, { ausencia: AUSENCIA }, { ctx: { por_cerrar: true } });
+    expect(nota(s, 'PROXIMO A CERRAR')).toBeDefined();
+    expect(nota(s, 'AUSENCIA TEMPORAL')).toBeDefined();
+  });
+
+  it('fuera de horario + ausencia: no hay nota de ausencia', () => {
+    const s = a(CERRADO, { ausencia: AUSENCIA });
+    expect(nota(s, 'FUERA DE HORARIO')).toBeDefined();
+    expect(nota(s, 'AUSENCIA TEMPORAL')).toBeUndefined();
+  });
+
+  it('dia cerrado + ausencia: no hay nota de ausencia', () => {
+    const s = a(ABIERTO, { hoy_motivo: 'feriado', ausencia: AUSENCIA });
+    expect(nota(s, 'FUERA DE HORARIO')).toBeDefined();
+    expect(nota(s, 'AUSENCIA TEMPORAL')).toBeUndefined();
+  });
+
+  it.each([
+    ['texto', 'ausente'],
+    ['objeto vacio', {}],
+    ['sin hasta_texto', { motivo: 'en una reunion' }],
+    ['sin motivo', { hasta_texto: 'a las 3:00 pm' }],
+  ])('ausencia mal formada (%s): sin nota y sin error', (_n, aus) => {
+    const s = a(ABIERTO, { ausencia: aus });
+    expect(nota(s, 'AUSENCIA TEMPORAL')).toBeUndefined();
+  });
+
+  it('ausencia null: las notas son identicas a las de sin ausencia', () => {
+    const con = a(ABIERTO, { ausencia: null });
+    const sin = a(ABIERTO, {});
+    expect(con.notas).toEqual(sin.notas);
+    expect(nota(con, 'AUSENCIA TEMPORAL')).toBeUndefined();
   });
 });

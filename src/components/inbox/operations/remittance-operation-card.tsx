@@ -851,16 +851,14 @@ export function RemittanceOperationCard({
                 onCancel={() => setOpenForm(null)}
               />
             ) : (
-              <div className="border-t border-border pt-2.5">
-                <Button
-                  type="button"
-                  size="lg"
-                  className="w-full"
-                  onClick={() => toggleForm({ kind: "complete" })}
-                >
-                  {t("completeTransfer.button")}
-                </Button>
-              </div>
+              <Button
+                type="button"
+                size="lg"
+                className="w-full"
+                onClick={() => toggleForm({ kind: "complete" })}
+              >
+                {t("completeTransfer.button")}
+              </Button>
             ))}
 
           {canCloseManually &&
@@ -873,17 +871,15 @@ export function RemittanceOperationCard({
                 onCancel={() => setOpenForm(null)}
               />
             ) : (
-              <div className="border-t border-border pt-2.5">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="lg"
-                  className="w-full"
-                  onClick={() => toggleForm({ kind: "close" })}
-                >
-                  {t("closing.closeButton")}
-                </Button>
-              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                className="w-full"
+                onClick={() => toggleForm({ kind: "close" })}
+              >
+                {t("closing.closeButton")}
+              </Button>
             ))}
         </div>
       )}

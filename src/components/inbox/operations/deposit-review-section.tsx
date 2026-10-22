@@ -265,7 +265,7 @@ export function DepositReviewSection({
                 </FieldRow>
               </div>
 
-              <div className="flex items-center gap-1 border-t border-border pt-2">
+              <div className="flex items-center gap-1">
                 <Button
                   type="button"
                   className="flex-1"

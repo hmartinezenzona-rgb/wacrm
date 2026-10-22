@@ -21,9 +21,9 @@ describe("StatusPill", () => {
   it("shows the label with the tone of its status", async () => {
     const el = await render("ready_to_transfer", "Listo para transferir");
     expect(el.textContent).toBe("Listo para transferir");
-    expect(el.dataset.tone).toBe("attention");
-    expect(el.className).toContain("text-status-attention");
-    expect(el.className).toContain("bg-status-attention-soft");
+    expect(el.dataset.tone).toBe("ready");
+    expect(el.className).toContain("text-status-ready");
+    expect(el.className).toContain("bg-status-ready-soft");
   });
 
   it("is neutral for an unknown status and still shows its label", async () => {

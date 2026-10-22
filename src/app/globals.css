@@ -42,6 +42,8 @@
   /* Status tones: text-status-* and bg-status-*-soft. Service dots: bg-service-*. Fixed, not the accent. */
   --color-status-info: var(--status-info);
   --color-status-info-soft: var(--status-info-soft);
+  --color-status-ready: var(--status-ready);
+  --color-status-ready-soft: var(--status-ready-soft);
   --color-status-attention: var(--status-attention);
   --color-status-attention-soft: var(--status-attention-soft);
   --color-status-success: var(--status-success);
@@ -154,6 +156,9 @@ html[data-mode="dark"] {
    * acento. Texto >= 4.5:1 sobre su fondo suave, en --card y en --background. */
   --status-info: oklch(0.82 0.12 250);
   --status-info-soft: oklch(0.82 0.12 250 / 0.12);
+  /* Ready to transfer: money confirmed, the team sends it. Fixed teal, independent of the accent theme. */
+  --status-ready: oklch(0.8 0.11 178);
+  --status-ready-soft: oklch(0.8 0.11 178 / 0.12);
   --status-attention: oklch(0.84 0.15 85);
   --status-attention-soft: oklch(0.84 0.15 85 / 0.12);
   --status-success: oklch(0.82 0.17 150);
@@ -221,6 +226,8 @@ html[data-mode="light"] {
    * acento. Texto >= 4.5:1 sobre su fondo suave, en --card y en --background. */
   --status-info: oklch(0.49 0.143 256);
   --status-info-soft: oklch(0.934 0.025 250);
+  --status-ready: oklch(0.52 0.092 178);
+  --status-ready-soft: oklch(0.94 0.03 178);
   --status-attention: oklch(0.494 0.109 67);
   --status-attention-soft: oklch(0.96 0.03 79);
   --status-success: oklch(0.493 0.118 149);

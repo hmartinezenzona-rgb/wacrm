@@ -24,7 +24,7 @@ import {
 const COLUMN_TONE: Record<BoardColumnId, StatusTone> = {
   requested: "neutral",
   depositCheck: "attention",
-  readyToTransfer: "attention",
+  readyToTransfer: "ready",
   completed: "success",
   incident: "danger",
 };
@@ -36,6 +36,7 @@ const HEADER_SOFT_CLASS: Record<StatusTone, string> = {
   attention: "bg-status-attention-soft",
   success: "bg-status-success-soft",
   danger: "bg-status-danger-soft",
+  ready: "bg-status-ready-soft",
 };
 
 // The solid accent stripe of a column header and of a card, per tone.
@@ -45,6 +46,7 @@ const STRIPE_CLASS: Record<StatusTone, string> = {
   attention: "bg-status-attention",
   success: "bg-status-success",
   danger: "bg-status-danger",
+  ready: "bg-status-ready",
 };
 
 // Colour of the "time in status" text. Never the only cue: the text carries the figure and the tooltip stays.

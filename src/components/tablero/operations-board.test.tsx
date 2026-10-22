@@ -150,7 +150,7 @@ describe("OperationsBoard", () => {
     const COLUMN_TONES: Array<[string, string, string]> = [
       ["requested", "collecting_information", "neutral"],
       ["depositCheck", "deposit_verification", "attention"],
-      ["readyToTransfer", "ready_to_transfer", "attention"],
+      ["readyToTransfer", "ready_to_transfer", "ready"],
       ["completed", "completed", "success"],
       ["incident", "incident", "danger"],
     ];
@@ -168,8 +168,9 @@ describe("OperationsBoard", () => {
     it("stripes a card with the tone of its own status, not of its column", async () => {
       const { node } = await render([op({ status: "transferring" }), op({ operationId: "c", status: "ready_to_transfer" })]);
       const cards = Array.from(column(node, t.columns.readyToTransfer).querySelectorAll("a"));
-      expect(cards[0].querySelector("[data-stripe]")!.className).toContain("bg-status-info");
-      expect(cards[1].querySelector("[data-stripe]")!.className).toContain("bg-status-attention");
+      // transferring and ready_to_transfer share the ready tone (owner, 2026-10-21).
+      expect(cards[0].querySelector("[data-stripe]")!.className).toContain("bg-status-ready");
+      expect(cards[1].querySelector("[data-stripe]")!.className).toContain("bg-status-ready");
     });
 
     it("sets the lane darker than the card with a border, and gives the card a light elevation", async () => {

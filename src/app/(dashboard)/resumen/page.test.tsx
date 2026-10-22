@@ -76,7 +76,7 @@ describe("Finanzas history table", () => {
     ]);
     const pills = [...node.querySelectorAll("tbody [data-tone]")] as HTMLElement[];
     expect(pills.map((p) => [p.textContent, p.dataset.tone])).toEqual([
-      ["Ready to transfer", "attention"],
+      ["Ready to transfer", "ready"],
       ["Completed", "success"],
       ["brand_new", "neutral"],
     ]);

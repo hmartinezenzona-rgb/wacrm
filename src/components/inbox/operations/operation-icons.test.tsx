@@ -93,11 +93,11 @@ describe("StatusChip", () => {
 
   it.each([
     ["awaiting_deposit", "info"],
-    ["transferring", "info"],
+    ["transferring", "ready"],
     ["awaiting_beneficiary", "info"],
     ["deposit_received", "attention"],
     ["deposit_verification", "attention"],
-    ["ready_to_transfer", "attention"],
+    ["ready_to_transfer", "ready"],
     ["completed", "success"],
     ["incident", "danger"],
   ])("takes the shared %s status tone (%s)", async (status, tone) => {

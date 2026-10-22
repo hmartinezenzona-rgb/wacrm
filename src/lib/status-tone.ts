@@ -3,13 +3,13 @@
  *
  *   neutral    not started / gathering data     info       in progress, waiting on the customer
  *   attention  waiting on US: the team acts now  success    completed
- *   danger     incident
+ *   danger     incident                           ready      money confirmed, the team sends it
  *
  * The colours live in globals.css as --status-* tokens, independent of the accent theme. The pill always carries
  * the translated status label, so colour is never the only cue. Class names are written out in full for Tailwind.
  */
 
-export type StatusTone = "neutral" | "info" | "attention" | "success" | "danger";
+export type StatusTone = "neutral" | "info" | "attention" | "success" | "danger" | "ready";
 
 /** Every status an operation can be shown with: the DB values plus the panel's synthetic `awaiting_beneficiary`. */
 const TONE_BY_STATUS = {
@@ -17,8 +17,8 @@ const TONE_BY_STATUS = {
   awaiting_deposit: "info",
   deposit_received: "attention",
   deposit_verification: "attention",
-  ready_to_transfer: "attention",
-  transferring: "info",
+  ready_to_transfer: "ready",
+  transferring: "ready",
   incident: "danger",
   completed: "success",
   awaiting_beneficiary: "info",
@@ -41,6 +41,7 @@ export const statusPillClass: Record<StatusTone, string> = {
   attention: "bg-status-attention-soft text-status-attention",
   success: "bg-status-success-soft text-status-success",
   danger: "bg-status-danger-soft text-status-danger",
+  ready: "bg-status-ready-soft text-status-ready",
 };
 
 /** Text colour of a tone alone, for a label that keeps its own shape (the inbox panel's dot + text chip). */
@@ -50,4 +51,5 @@ export const statusTextClass: Record<StatusTone, string> = {
   attention: "text-status-attention",
   success: "text-status-success",
   danger: "text-status-danger",
+  ready: "text-status-ready",
 };

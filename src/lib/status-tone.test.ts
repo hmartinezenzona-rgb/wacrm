@@ -7,8 +7,8 @@ describe("statusTone", () => {
     awaiting_deposit: "info",
     deposit_received: "attention",
     deposit_verification: "attention",
-    ready_to_transfer: "attention",
-    transferring: "info",
+    ready_to_transfer: "ready",
+    transferring: "ready",
     incident: "danger",
     completed: "success",
     awaiting_beneficiary: "info",
@@ -35,6 +35,8 @@ describe("statusTone", () => {
     expect(statusPillClass.success).toBe("bg-status-success-soft text-status-success");
     expect(statusPillClass.danger).toBe("bg-status-danger-soft text-status-danger");
     expect(statusPillClass.neutral).toBe("bg-muted text-muted-foreground");
+    // Ready to transfer: the money is confirmed, the team sends it; a fixed teal.
+    expect(statusPillClass.ready).toBe("bg-status-ready-soft text-status-ready");
   });
 });
 
@@ -46,6 +48,7 @@ describe("statusTextClass", () => {
       attention: "text-status-attention",
       success: "text-status-success",
       danger: "text-status-danger",
+      ready: "text-status-ready",
     });
   });
 });

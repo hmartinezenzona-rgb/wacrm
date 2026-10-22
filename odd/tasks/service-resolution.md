@@ -376,7 +376,7 @@ cotizar via=mexico single USD rate (243). Gaps:
 - [x] M2 Migration: México recipient (beneficiary type + CLABE 18 digits, bank, holder; cardless withdrawal at
   Coppel/BBVA) + assertion (card logic ignores a CLABE).
 - [ ] M3 Migration: 13,000 GYD minimum for mexico; calculator service mapping for mexico + assertion.
-- [ ] M4 Migration: 'mexico' in declarar / resolver / aplicar / registrar_deposito (a México deposit joins the México
+- [x] M4 Migration: 'mexico' in declarar / resolver / aplicar / registrar_deposito (a México deposit joins the México
   operation, never a rail-less remesa) + assertion; re-run the 265-268 assertions.
 - [ ] M5 n8n staging (with 269): declarar_servicio('mexico'), quote via=mexico, recipient tool validating CLABE and
   multiples of 100, no handoff once data is complete; remove the Albo leftovers.
@@ -398,5 +398,23 @@ da2ab4b6c2de, guardar_mexico 8f779761bbc1. Rollback test: md5 equal to the pre-m
 (139 assertions, run while another agent used staging): the only DIFFs were "deadlock detected" on either side; every one
 re-ran SAME/ALL PASS. Reviewed readers of beneficiary_type/card_number: crm_calcular_monto_destino prices only
 service_type 'remesa'; cerebro_riel_op fixed in 273; cerebro_sync_beneficiarios is stopped by the beneficiaries lock.
+M4 done 2026-10-22 (273_mexico_in_redesign; M3/272 was done by another agent: M4 does not touch cerebro_minimo_gyd, it reads the same
+config key minimo_gyd_mexico, default 13,000, for the resolver's inline minimums). RED: assertion on the base fails at
+case 1 (requiere_humano true), then at the declared-intent CHECK (cerebro_servicio_declarado_servicio_check had no 'mexico';
+extended in 273). GREEN: 8 case groups ALL PASS: declared mexico + 13,000 -> one mexico op (MXN, rail NULL); 6,000 ->
+deposito_bajo_minimo minimo 13000 faltante 7000; a deposit joins an open México op (movido, recipient kept); cambiar
+remesa -> mexico when covered, refused below 13,000; mixed card CUP 5,000 + México 13,000 in one group; conversions retire
+the other rail's recipients. Changes: cerebro_riel_op returns 'mexico' for service_type 'mexico' (needed by the mixed split
+and the resolver: before, a mexico op had rail 'mexico_cuenta' or none), cerebro_declarar_servicio, cerebro_resolver_servicio
+(c_destinos + v_min_mex + label + a México phone is not a Cuban mobile), _cambiar_servicio_core (service 'mexico', MXN),
+_cerebro_partes_envio_parse and _repartir_envio_core ('mexico' part), cerebro_aplicar_servicio (convertir / aparte / mixto),
+cerebro_registrar_deposito (v_mexico), cerebro_servicios.requiere_humano=false for 'mexico'. Staging md5 (12): riel
+781fd88e21d0, declarar 80332e638d6e, resolver 1f6cb47edc2c, core b254139e9815, parse f86557f18c36, repartir_core
+0a21d7d90e19, aplicar b9d2ab84c773, registrar_deposito 0b379b02bc58. Rollback md5 equal to the pre-migration state.
+relacionadas --ya-aplicada (37 assertions by content match): 30 SAME; DIFFs were deadlocks from concurrent staging use
+(6 re-run alone: all clean) and the known flaky contexto-envio-mixto (passes with 273). Known failures unchanged: deal-insert-
+creates-operation, n8n-repoint, operation-incident-reason, saldo-model, feed-mixed. Cost per send stays unknown (nothing
+stored); the MXN amount is not stored. The 13,000 minimum for the waiting-for-the-rest logic (cerebro_objetivo_minimo ->
+cerebro_minimo_gyd) comes from 272 once applied.
 Open with Osmany (not blocking M2-M6): USD->MXN rate source and whether the customer sees MXN; cost per send; cardless
 withdrawal identity data and code delivery; whether phone is needed for a bank account; completion evidence.

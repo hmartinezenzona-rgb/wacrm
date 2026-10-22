@@ -106,7 +106,7 @@ def reemplazo_mexico():
 DESC_MEXICO = (
     "Guarda o completa el destinatario de un envio a MEXICO (pesos mexicanos). tipo 'mexico_cuenta': CLABE de 18 digitos, banco "
     "(Mercado Pago, Banco Azteca...) y titular en nombre. tipo 'mexico_retiro': retiro sin tarjeta, banco Coppel o BBVA, nombre "
-    "de quien recibe y su telefono. Acepta datos a medias (lo que no mandes se conserva); una llamada por cuenta o retiro. "
+    "de quien recibe y su telefono. Llamala cuando tengas la CLABE completa (cuenta) o banco, nombre y telefono (retiro); la base rechaza una CLABE que no tenga 18 digitos. Una llamada por cuenta o retiro. "
     "Devuelve mensaje con lo guardado y lo que FALTA: dile al cliente solo eso. NO inventes ni completes una CLABE.")
 
 
@@ -224,6 +224,18 @@ MEXICO_NUEVO = (
     "- MEXICO: apenas el cliente diga que quiere mandar a Mexico, declarar_servicio('mexico'). Cotiza con calcular_usd / "
     "calcular_usd_desde_gyd con via=mexico (nunca de memoria). Pidele, en un solo mensaje, la cuenta bancaria: CLABE (18 "
     "digitos exactos), banco (Mercado Pago, Banco Azteca...) y titular; o el retiro sin tarjeta: Coppel o BBVA (multiplos de "
+    "100), nombre completo de quien recibe y su telefono. En cuanto tengas la CLABE completa (cuenta) o banco, nombre y telefono (retiro), registrar_destinatario_mexico(tipo, clabe, banco, "
+    "nombre, telefono) con tipo mexico_cuenta o mexico_retiro (una llamada por cuenta o retiro; varios destinatarios, uno por uno); "
+    "NUNCA inventes ni completes una CLABE: si no tiene 18 digitos, pidela de nuevo. Dile al cliente lo que diga `mensaje` y "
+    "pide solo lo que falte. Cuando los datos esten completos NO llames derivar_humano ni ofrezcas un operador por ser Mexico: "
+    "sigue el flujo normal (deposito y verificacion). Solo deriva por las razones generales de la regla 10.")
+
+
+
+MEXICO_V1 = (
+    "- MEXICO: apenas el cliente diga que quiere mandar a Mexico, declarar_servicio('mexico'). Cotiza con calcular_usd / "
+    "calcular_usd_desde_gyd con via=mexico (nunca de memoria). Pidele, en un solo mensaje, la cuenta bancaria: CLABE (18 "
+    "digitos exactos), banco (Mercado Pago, Banco Azteca...) y titular; o el retiro sin tarjeta: Coppel o BBVA (multiplos de "
     "100), nombre completo de quien recibe y su telefono. En cuanto tengas algo, registrar_destinatario_mexico(tipo, clabe, banco, "
     "nombre, telefono) con tipo mexico_cuenta o mexico_retiro (una llamada por cuenta o retiro; varios destinatarios, uno por uno); "
     "NUNCA inventes ni completes una CLABE: si no tiene 18 digitos, pidela de nuevo. Dile al cliente lo que diga `mensaje` y "
@@ -252,7 +264,7 @@ def editar_prompt(sm):
 
 
 def _mexico(sm):
-    sm = sm.replace(LINEA_MEXICO_VIEJA, MEXICO_NUEVO)
+    sm = sm.replace(MEXICO_V1, MEXICO_NUEVO).replace(LINEA_MEXICO_VIEJA, MEXICO_NUEVO)
     if "- registrar_destinatario_mexico(" not in sm:
         sm = sm.replace("- agregar_servicio(servicio):", LINEA_HERR_MEXICO + "\n- agregar_servicio(servicio):", 1)
     return sm

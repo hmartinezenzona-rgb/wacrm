@@ -185,5 +185,21 @@ class TestMexico(unittest.TestCase):
         self.assertEqual(h.editar_prompt(p), p)
 
 
+class TestMexicoSmoke(unittest.TestCase):
+    """Smoke on staging 2026-10-22: the database rejects a recipient without a full CLABE (no partial merge)."""
+
+    def test_descripcion_y_prompt_no_prometen_datos_a_medias(self):
+        self.assertNotIn("Acepta datos a medias", h.DESC_MEXICO)
+        self.assertIn("18 digitos", h.DESC_MEXICO)
+        self.assertNotIn("En cuanto tengas algo", h.MEXICO_NUEVO)
+        self.assertIn("CLABE completa", h.MEXICO_NUEVO)
+
+    def test_se_actualiza_el_parrafo_mexico_ya_desplegado(self):
+        base = open(os.path.join(os.path.dirname(__file__), "prompt_base_staging.txt"), encoding="utf-8").read()
+        p = h.editar_prompt(base)
+        viejo = p.replace(h.MEXICO_NUEVO, h.MEXICO_V1)
+        self.assertEqual(h.editar_prompt(viejo), p)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -61,3 +61,12 @@ Staging workflow U52y1kSNvhgxvWeb only. Production untouched, workflow never exe
 - Deployed BEFORE 271 was applied on staging (odd/notes/db-mexico-progress.md absent): the tool fails until 271, 'mexico'
   is refused until 273. No rolled-back smoke of the call was possible. 21 offline tests GREEN (3 RED first).
 - The catalog rule "requiere_humano=true => offer an operator" stays DB-driven; 273 flips it.
+
+## Step 1 smoke (271+273 applied; one BEGIN/ROLLBACK, queries exactly as the nodes send them, conv PRUEBA TASAS)
+- declarar mexico -> ok, "Anotado: el cliente va por mexico". cambiar mexico (no deposit) -> deposito_bajo_minimo, "el minimo es 13,000 GYD".
+  agregar mexico -> adicional_aparte, new operation needs 13,000 GYD. Shapes match the node outputs.
+- registrar_destinatario_mexico: cuenta complete (18-digit CLABE, bank, holder) saved; retiro Coppel saved; short CLABE, empty CLABE
+  and retiro at another bank refused with a plain-Spanish mensaje. Audit actor = `agent:registrar_destinatario_mexico`, reason
+  `agent:registrar_destinatario_mexico n8n:<exec>` (prefix parsing works). Beneficiaries written with clabe/bank_name/name/phone, source 'agente'.
+- Difference found: NO partial merge for a cuenta (without a full CLABE nothing is saved). Tool description and prompt fixed to call
+  the tool only with the full CLABE (cuenta) or banco+nombre+telefono (retiro). Deployed (see version in the report).

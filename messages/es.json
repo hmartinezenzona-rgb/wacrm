@@ -379,6 +379,7 @@
       "amountUnavailable": "Monto no disponible",
       "quoted": "Cotizado: {source}",
       "quotedTo": "Cotizado: {source} → {destination}",
+      "progressStep": "Paso {step} de {total}",
       "deliveryMethod": "Método de entrega",
       "beneficiaries": "Beneficiarios",
       "noBeneficiaries": "Aún no hay beneficiarios registrados",

@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { canForceVerify, type AccountRole } from "@/lib/auth/roles";
 import { corregirBeneficiario } from "@/lib/remittance-operations/commands";
 import { effectiveStatus } from "@/lib/remittance-operations/effective-status";
+import { progressStep } from "@/lib/remittance-operations/progress-step";
+import { OperationProgressLine } from "./operation-progress-line";
 import { SALDO_UNIT_CUP, currentServiceOf, saldoPackages } from "@/lib/remittance-operations/services";
 import type {
   ConversationQuoteRead,
@@ -561,6 +563,10 @@ export function RemittanceOperationCard({
               })
             : t("quoted", { source: money(quote.gyd, "GYD")! })}
         </p>
+      )}
+
+      {!operation.isHistory && (
+        <OperationProgressLine step={progressStep(status)} label={t("progressStep", { step: progressStep(status), total: 4 })} />
       )}
 
       {operation.isHistory && (

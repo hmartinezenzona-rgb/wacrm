@@ -159,3 +159,6 @@ recarga only.
 - Q3 (2026-10-22): an empty operation (0 GYD, no deposit) next to the holder is CANCELLED automatically after moving
   its numbers/data to the holder: "que se cancele sola, pero con este arreglo no deberían salir más". Safety net only;
   S2/S3 assertions must also prove the new path never creates the duplicate.
+- Q4 (2026-10-22): card + recarga word on a deposit: if the deposit covers both (remesa minimum + recarga price) ->
+  ADDITION as a mixed send (two linked operations); otherwise keep the remesa to the card and the bot says the money
+  does not cover the recarga. Owner: "el 1 me parece lo correcto".

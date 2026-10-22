@@ -55,9 +55,17 @@ classification, which this is.
   have an operation in the same conversation within +-7 days, 0 in another
   conversation of the contact, 16 belong to contacts with no operation ever;
   a human agent replied that day in 39 and the customer sent an image (likely a
-  receipt) in 37. Reading: mostly sends handled by hand and never registered,
-  not lost leads; about 44 send-days vs 100 registered in the same period.
-  Next: owner checks the list against the manual records.
+  receipt) in 37. First reading ("a third of sends outside the panel") is
+  RETRACTED: the owner said many operations were removed from the history
+  during the changes, and the data confirms it: production has NO
+  remittance_operation before 2026-10-07 although the audit has activity from
+  2026-09-27. 37 of the 44 episodes are before 10-07, an artefact of the
+  deleted history.
+  Recomputed from 2026-10-07 (P 100, N_sin_op 32, N_seg 11): u=0.5 precision
+  0.87 recall 0.67; u=0.8 0.87 / 0.48; from 10-08: u=0.5 0.92 / 0.66. Only 7
+  high-intent days without an operation remain.
+  Next: owner picks the counting start date (10-07 first day with operations,
+  10-08 first full day); then re-extract from that date.
 
 ## Objective
 Give every conversation a yes/no "this customer showed remittance intent" mark,

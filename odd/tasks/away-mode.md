@@ -36,10 +36,14 @@ reason (whole days only, no panel UI). Mockup: https://claude.ai/artifact/Mupn2q
 
 ## Tasks
 
-- [ ] W1 Migration 264: `cerebro_config` key `ausencia` (`{"hasta": ISO timestamptz, "motivo": "porque ...", "por":
+- [x] W1 Migration 264: `cerebro_config` key `ausencia` (`{"hasta": ISO timestamptz, "motivo": "porque ...", "por":
   name, "desde": ISO}` or empty), `cerebro_ausencia_actual(now)` (NULL when empty, broken or expired), and
-  `cerebro_cierre_especial_info` gains key `ausencia` `{motivo, hasta_hora "3:00 pm", hasta}` (other keys unchanged).
-  Rollback + assertion; staging applied.
+  `cerebro_cierre_especial_info` gains key `ausencia` `{motivo, hasta, hasta_texto, por}` (null when none; other keys
+  unchanged). Rollback + assertion; staging applied. Commit 65f4089.
+  2026-10-21: RED observed (`function cerebro_ausencia_actual(unknown) does not exist`); staging `aplicar`: dry-run,
+  apply, assertion OK, rollback OK (md5 equal to previous); `relacionadas`: closed-days SAME (ALL PASS), away-mode
+  DIFF only because base lacks the function; `probar_migraciones.sh` all green. hasta_texto: "a las 3:00 pm",
+  "mañana a las 9:00 am", "el martes 6 a las ..."; hasta normalized to UTC; non-object JSON -> NULL.
 - [ ] W2 API: `GET/PUT/DELETE /api/ausencia` (GET any member; PUT/DELETE admin) and `GET/PUT /api/dias-cerrados` (admin),
   service role, validation (future `hasta`, motivo length, dates), route tests.
 - [ ] W3 Panel: header button + popover (presets, return time, reason chips, bot preview) and global banner ("Ya

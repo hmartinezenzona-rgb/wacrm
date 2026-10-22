@@ -463,7 +463,7 @@ export function RemittanceOperationCard({
 
   return (
     <article
-      className={`rounded-xl border bg-card px-2 py-2.5 ${expanded ? "border-primary/40 shadow-[0_1px_3px_rgba(15,38,34,0.08)]" : "border-border"}`}
+      className={`rounded-xl border px-2 py-2.5 ${operation.isHistory ? "border-border bg-muted/50 opacity-85" : "bg-card"} ${expanded ? "border-primary/40 shadow-[0_1px_3px_rgba(15,38,34,0.08)]" : operation.isHistory ? "" : "border-border"}`}
     >
       {expanded && (canDelete || editable) && (
         <div className="mb-1 flex items-center justify-end gap-1">
@@ -505,6 +505,7 @@ export function RemittanceOperationCard({
           )}
         </div>
       )}
+      <div className={`rounded-lg ${expanded ? "bg-primary-soft/40 px-2 py-1.5" : ""}`}>
       <div className="flex items-center gap-1">
         <button
           type="button"
@@ -577,9 +578,10 @@ export function RemittanceOperationCard({
             ` · ${t(DELIVERY_MODE_HISTORY_KEY[operation.deliveryMode]!)}`}
         </p>
       )}
+      </div>
 
       {expanded && (
-        <div className="mt-[22px] space-y-2.5">
+        <div className="mt-3 space-y-2.5">
           {openForm?.kind === "operation" && (
             <OperationCorrectionForm operation={operation} onDone={handleChanged} onCancel={() => setOpenForm(null)} />
           )}
@@ -614,7 +616,7 @@ export function RemittanceOperationCard({
           />
 
           {!isVisa(operation) && (
-          <div className="pt-3">
+          <div className="border-t border-border pt-2.5">
             <div className="flex min-h-6 items-center gap-1">
               <h4 className="flex flex-1 items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 {t("deliverTo")}
@@ -855,14 +857,16 @@ export function RemittanceOperationCard({
                 onCancel={() => setOpenForm(null)}
               />
             ) : (
-              <Button
-                type="button"
-                size="lg"
-                className="w-full"
-                onClick={() => toggleForm({ kind: "complete" })}
-              >
-                {t("completeTransfer.button")}
-              </Button>
+              <div className="border-t border-border pt-2.5">
+                <Button
+                  type="button"
+                  size="lg"
+                  className="w-full"
+                  onClick={() => toggleForm({ kind: "complete" })}
+                >
+                  {t("completeTransfer.button")}
+                </Button>
+              </div>
             ))}
 
           {canCloseManually &&
@@ -875,15 +879,17 @@ export function RemittanceOperationCard({
                 onCancel={() => setOpenForm(null)}
               />
             ) : (
-              <Button
-                type="button"
-                variant="outline"
-                size="lg"
-                className="w-full"
-                onClick={() => toggleForm({ kind: "close" })}
-              >
-                {t("closing.closeButton")}
-              </Button>
+              <div className="border-t border-border pt-2.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  className="w-full"
+                  onClick={() => toggleForm({ kind: "close" })}
+                >
+                  {t("closing.closeButton")}
+                </Button>
+              </div>
             ))}
         </div>
       )}

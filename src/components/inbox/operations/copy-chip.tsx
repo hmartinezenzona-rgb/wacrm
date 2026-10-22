@@ -74,7 +74,7 @@ export function CopyChip({
   const toneClassName =
     tone === "warning"
       ? "bg-amber-100 text-amber-900 dark:bg-amber-500/15 dark:text-amber-200"
-      : "bg-muted/50 text-foreground";
+      : "bg-muted text-foreground";
 
   return (
     <button
@@ -84,7 +84,7 @@ export function CopyChip({
       data-tone={tone}
       disabled={disabled}
       onClick={handleClick}
-      className={`flex min-h-8 w-full cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60 ${toneClassName}`}
+      className={`flex min-h-8 w-full cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60 ${toneClassName}`}
     >
       {copied ? (
         <span aria-live="polite" className="font-mono text-xs">

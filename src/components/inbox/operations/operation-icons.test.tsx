@@ -77,14 +77,14 @@ describe("MethodIcon", () => {
 });
 
 describe("StatusChip", () => {
-  it("renders the label with a status dot, and no pill/border/background styling", async () => {
+  it("renders the label with a status dot inside a soft pill (no border)", async () => {
     const { node, root } = await renderNode(<StatusChip status="incident" label="Incident" />);
 
     expect(node.textContent).toBe("Incident");
     const chip = node.firstElementChild as HTMLElement;
     expect(chip.className).not.toContain("border");
-    expect(chip.className).not.toContain("rounded-full");
-    expect(chip.className).not.toContain("px-2");
+    expect(chip.className).toContain("rounded-full");
+    expect(chip.className).toContain("px-2");
     expect(chip.querySelector("svg")).toBeNull();
     const dot = chip.firstElementChild as HTMLElement;
     expect(dot.className).toContain("rounded-full");

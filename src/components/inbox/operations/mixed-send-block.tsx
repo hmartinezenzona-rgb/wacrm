@@ -21,7 +21,7 @@ export function MixedSendBlock({ members, children }: MixedSendBlockProps) {
   const serviceName = useServiceName();
 
   return (
-    <section className="space-y-2 rounded-lg border border-dashed border-border p-1.5">
+    <section className="space-y-2 rounded-xl border border-dashed border-border p-2">
       <header className="px-1">
         <h4 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("title")}</h4>
         <p className="text-sm font-semibold tabular-nums text-foreground">

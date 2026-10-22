@@ -1,5 +1,5 @@
 import { Banknote, CircleHelp, CreditCard, Smartphone, Users, type LucideIcon } from "lucide-react";
-import { statusTextClass, statusTone } from "@/lib/status-tone";
+import { statusPillClass, statusTone } from "@/lib/status-tone";
 
 /** Delivery/deposit method values are free-form strings from the RPC layer;
  *  this normalizes the known ones into a small set of visual kinds. */
@@ -64,12 +64,12 @@ export function MethodIcon({ method, label }: { method: string | null; label: st
   );
 }
 
-/** The chip keeps its dot + text shape; its colour is the shared status tone (`status-tone.ts`, same tokens as
- *  StatusPill), reused by the dot via `currentColor`. */
+/** A soft pill (dot + label); its colours are the shared status tone (`status-tone.ts`, same tokens as StatusPill),
+ *  reused by the dot via `currentColor`. */
 export function StatusChip({ status, label }: { status: string; label: string }) {
-  const tone = statusTextClass[statusTone(status)];
+  const tone = statusPillClass[statusTone(status)];
   return (
-    <span className={`inline-flex items-center gap-1.5 text-xs font-medium whitespace-nowrap ${tone}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-bold whitespace-nowrap ${tone}`}>
       <span className="size-1.5 shrink-0 rounded-full bg-current" aria-hidden="true" />
       {label}
     </span>

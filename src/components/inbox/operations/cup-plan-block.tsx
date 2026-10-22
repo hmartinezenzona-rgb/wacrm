@@ -90,7 +90,7 @@ export function CupPlanView({
   if (visible.state === "plan") {
     const { cards, missingText } = groupPlanByCard(visible);
     return (
-      <div className="space-y-1" data-testid="cup-plan">
+      <div className="space-y-1 border-t border-border pt-2" data-testid="cup-plan">
         <p className={TITLE}>{t("planTitle")}</p>
         {onSelectCard && visible.cards.length > 0 && (
           <SourceCardSelect plan={visible} selectedCardId={selectedCardId} onSelectCard={onSelectCard} />
@@ -107,7 +107,7 @@ export function CupPlanView({
   }
 
   return (
-    <div className="space-y-1" data-testid="cup-used">
+    <div className="space-y-1 border-t border-border pt-2" data-testid="cup-used">
       <p className={TITLE}>{t("usedTitle")}</p>
       <CardRows cards={groupConsumptionsByCard(visible)} testId="cup-used-card" />
     </div>

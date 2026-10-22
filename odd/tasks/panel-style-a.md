@@ -38,6 +38,9 @@ to the real panel, as a visual-only change, and show it on a local panel against
       existing data, no extra request per row.
 - [x] S5 (owner 2026-10-21) Every accent theme (violet, emerald, cobalt, amber, rose, teal) gets the style A treatment
       in its own hue: tinted dark sidebar, hue-tinted neutrals, accent primary; light and dark.
+- [ ] S6 (owner chose option 2, 2026-10-21) Operations panel "Con progreso": option-1 dressing (colored status pill,
+      thin section dividers, soft copy chips, separated primary action row) plus a 4-step progress line in the card
+      header ("Paso n de 4"); no icon/label/order/behavior change. Mockup: board Ops-2-Progreso (PanelOps.dc.html).
 
 ## Progress
 

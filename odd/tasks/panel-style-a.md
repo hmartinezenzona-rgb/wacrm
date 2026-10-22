@@ -33,7 +33,7 @@ to the real panel, as a visual-only change, and show it on a local panel against
 - [x] S1 Theme + fonts + shell (sidebar, header) restyle; a "teal" theme as default; dark variant.
 - [x] S2 Inbox restyle (list rows, thread header, bubbles, AI banner, composer, contact panel surfaces, status chips)
       without touching operations panel structure/icons.
-- [ ] S3 Local panel against staging for the owner; adjustments from feedback.
+- [x] S3 Local panel against staging for the owner; adjustments from feedback.
 - [x] S4 (owner go-ahead 2026-10-21) Conversation list shows the open operation's status chip only (no amount), from
       existing data, no extra request per row.
 - [x] S5 (owner 2026-10-21) Every accent theme (violet, emerald, cobalt, amber, rose, teal) gets the style A treatment
@@ -49,6 +49,11 @@ to the real panel, as a visual-only change, and show it on a local panel against
 
 - 2026-10-21 S5 e824aed (--tint-h per theme), S4 chip from crm_tablero_operaciones (one RPC + realtime refetch).
 
+- 2026-10-21 light-mode sidebar fix 9138790 (sidebar follows the mode; hardcoded white/amber text removed).
+- 2026-10-21 owner go-ahead ("listo, pasa eso a producción"): release/prod-style-a 47220dc = served 233cfec + cherry-picks
+  of 90f2c9e 8c9f377 e824aed 2a988bc 9138790 (doc file dropped from the release); BUILD_ID F0pyj3YM36e7FXPS1mT8g,
+  rollback 233cfec. First compile failed: prod-build node_modules had lost vitest; fixed with npm ci in node:20.
+
 ## Next step
 
-S1+S2 (delegated writer).
+Done. Pending: clean the 3 PRUEBA staging fixtures (dry run first); the operations panel redesign is a separate step.

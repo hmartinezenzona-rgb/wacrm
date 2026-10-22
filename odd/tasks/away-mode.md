@@ -44,8 +44,11 @@ reason (whole days only, no panel UI). Mockup: https://claude.ai/artifact/Mupn2q
   apply, assertion OK, rollback OK (md5 equal to previous); `relacionadas`: closed-days SAME (ALL PASS), away-mode
   DIFF only because base lacks the function; `probar_migraciones.sh` all green. hasta_texto: "a las 3:00 pm",
   "mañana a las 9:00 am", "el martes 6 a las ..."; hasta normalized to UTC; non-object JSON -> NULL.
-- [ ] W2 API: `GET/PUT/DELETE /api/ausencia` (GET any member; PUT/DELETE admin) and `GET/PUT /api/dias-cerrados` (admin),
+- [x] W2 API: `GET/PUT/DELETE /api/ausencia` (GET any member; PUT/DELETE admin) and `GET/PUT /api/dias-cerrados` (admin),
   service role, validation (future `hasta`, motivo length, dates), route tests.
+  2026-10-22: RED 30/30 failing (modules missing); GREEN 46/46 (validate + both routes); tsc clean; full vitest
+  224 files / 3101 tests passing. `hasta` > now + 1 min and <= 7 days; motivo 1..120 stored as typed; `por` from
+  profiles.full_name (fallback "un admin"); broken dias_cerrados -> []; DB errors -> generic 500.
 - [ ] W3 Panel: header button + popover (presets, return time, reason chips, bot preview) and global banner ("Ya
   volvimos"), hook with refetch on focus and every minute; i18n es/en; component tests.
 - [ ] W4 Configuración: "Días cerrados" section (list, add, remove) using W2.

@@ -703,7 +703,7 @@ export function RemittanceOperationCard({
                         />
                       ) : (
                         <div className="space-y-1.5">
-                          {(isComboRecipient || operation.beneficiaries.length >= 2) && amount !== null && !isPhoneOnly(operation) && (
+                          {amount !== null && !isPhoneOnly(operation) && (
                             <div className="flex items-center gap-2 text-sm leading-5">
                               <span className="flex w-4 shrink-0 items-center justify-center">
                                 <Banknote className="size-3.5 text-muted-foreground" aria-hidden="true" />

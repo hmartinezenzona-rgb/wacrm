@@ -1304,7 +1304,7 @@ describe("RemittanceOperationCard", () => {
       return JSON.parse(stub.getAttribute("data-summary-amount")!);
     }
 
-    it("passes a Zelle-labeled amount for a single Zelle beneficiary, not inside the beneficiary block", async () => {
+    it("passes a Zelle-labeled amount for a single Zelle beneficiary and repeats it above the beneficiary data", async () => {
       const { node, root } = await render(
         operation({
           beneficiaries: [beneficiary({ beneficiaryType: "zelle", name: "Maria", amount: 100, currency: "USD" })],
@@ -1313,7 +1313,8 @@ describe("RemittanceOperationCard", () => {
 
       expect(summaryAmountFromStub(node)).toEqual({ kind: "amount", display: "100 Zelle" });
       const list = node.querySelector("ul")!;
-      expect(list.textContent).not.toContain("100");
+      expect(list.textContent).toContain("100 Zelle");
+      expect(list.textContent!.indexOf("100 Zelle")).toBeLessThan(list.textContent!.indexOf("Maria"));
       expect(button(node, "Copy Amount")).toBeNull();
       await act(async () => root.unmount());
     });
@@ -1435,7 +1436,34 @@ describe("RemittanceOperationCard", () => {
     });
   });
 
-  describe("per-beneficiary amount row (2+ beneficiaries)", () => {
+  describe("per-beneficiary amount row", () => {
+    it("shows a single beneficiary's own amount above its chips, before the deposit is verified", async () => {
+      const { node, root } = await render(
+        operation({
+          status: "awaiting_deposit",
+          beneficiaries: [beneficiary({ id: "ben-1", cardNumber: "9205123412349412", amount: 500, currency: "CUP" })],
+        }),
+      );
+
+      expect(node.textContent).toContain("500 CUP");
+      expect(button(node, "Copy Amount")).toBeNull();
+      await act(async () => root.unmount());
+    });
+
+    it("falls back to the operation's quotedDestinationAmount for a single beneficiary's amount row", async () => {
+      const { node, root } = await render(
+        operation({
+          status: "deposit_verification",
+          quotedDestinationAmount: 15000,
+          destinationCurrency: "CUP",
+          beneficiaries: [beneficiary({ id: "ben-1", cardNumber: "9205123412349412", amount: null, currency: null })],
+        }),
+      );
+
+      expect(node.textContent).toContain("15\u202f000 CUP");
+      await act(async () => root.unmount());
+    });
+
     it("shows each beneficiary's own amount as a plain, non-copyable row above its chips", async () => {
       const { node, root } = await render(
         operation({

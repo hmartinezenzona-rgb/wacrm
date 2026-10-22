@@ -50,9 +50,14 @@ classification, which this is.
   with only data (accounts, names, phones) or follow-ups, where intent was
   stated on another day or by audio/image. N_sin_op <0.2 (62) are visas,
   translations, courtesy, system messages: correct "no".
-  OPEN: owner must say whether Zelle sends and other transfers are always
-  registered in the panel; that decides "lost leads" vs "sends done outside
-  the system".
+  Owner (2026-10-21): Zelle sends go through the panel; when the panel fails
+  they are done by hand. Follow-up check (read-only) on the 44 episodes: only 4
+  have an operation in the same conversation within +-7 days, 0 in another
+  conversation of the contact, 16 belong to contacts with no operation ever;
+  a human agent replied that day in 39 and the customer sent an image (likely a
+  receipt) in 37. Reading: mostly sends handled by hand and never registered,
+  not lost leads; about 44 send-days vs 100 registered in the same period.
+  Next: owner checks the list against the manual records.
 
 ## Objective
 Give every conversation a yes/no "this customer showed remittance intent" mark,

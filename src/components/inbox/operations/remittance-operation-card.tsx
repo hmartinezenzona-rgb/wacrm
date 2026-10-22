@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { canForceVerify, type AccountRole } from "@/lib/auth/roles";
 import { corregirBeneficiario } from "@/lib/remittance-operations/commands";
 import { effectiveStatus } from "@/lib/remittance-operations/effective-status";
+import { isMexicoBeneficiaryType } from "@/lib/remittance-operations/mexico";
 import { SALDO_UNIT_CUP, currentServiceOf, saldoPackages } from "@/lib/remittance-operations/services";
 import type {
   ConversationQuoteRead,
@@ -25,6 +26,7 @@ import { ComboCostField } from "./combo-cost-field";
 import { CompleteTransferContainer } from "./complete-transfer-container";
 import { CupPlanBlock } from "./cup-plan-block";
 import { CopyChip } from "./copy-chip";
+import { MexicoRecipientRows } from "./mexico-recipient-rows";
 import { DepositReviewContainer } from "./deposit-review-container";
 import type { SummaryAmount } from "./deposit-review-section";
 import { ConfirmCancelButtons } from "./confirm-cancel-buttons";
@@ -664,6 +666,7 @@ export function RemittanceOperationCard({
                   const isCash = beneficiary.beneficiaryType === "efectivo_usd";
                   const isRecarga = beneficiary.beneficiaryType === "recarga";
                   const isComboRecipient = beneficiary.beneficiaryType === "combo";
+                  const isMexico = isMexicoBeneficiaryType(beneficiary.beneficiaryType);
                   const amount = resolveBeneficiaryAmount(beneficiary, operation);
                   const currencyLabel = unitLabel(
                     beneficiary.beneficiaryType,
@@ -756,7 +759,8 @@ export function RemittanceOperationCard({
                               {serviceName("efectivo_usd")}
                             </p>
                           )}
-                          {!isZelle && !isCash && !isRecarga && !isComboRecipient && beneficiary.cardNumber && (
+                          {isMexico && <MexicoRecipientRows beneficiary={beneficiary} />}
+                          {!isZelle && !isCash && !isRecarga && !isComboRecipient && !isMexico && beneficiary.cardNumber && (
                             <CopyChip
                               value={beneficiary.cardNumber}
                               display={formatCardNumber(beneficiary.cardNumber)}

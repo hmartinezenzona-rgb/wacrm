@@ -87,4 +87,6 @@ export const KNOWN_BENEFICIARY_TYPES: ReadonlyArray<string> = [
   "combo",
   "visa",
   "saldo",
+  "mexico_cuenta",
+  "mexico_retiro",
 ];

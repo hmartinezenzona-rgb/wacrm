@@ -87,6 +87,8 @@ export function mapRemittanceOperationsRows(
         address: row.beneficiary_address ?? null,
         reference: row.beneficiary_reference ?? null,
         contactPhone: row.beneficiary_contact_phone ?? null,
+        clabe: row.beneficiary_clabe ?? null,
+        bankName: row.beneficiary_bank_name ?? null,
         idPhotoWamid: row.beneficiary_id_photo_wamid ?? null,
         idPhotoUrl: row.beneficiary_id_photo_url ?? null,
       });

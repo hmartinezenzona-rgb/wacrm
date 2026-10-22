@@ -116,6 +116,32 @@ describe("mapRemittanceOperationsRows (combo)", () => {
     });
   });
 
+  it("maps a México recipient's CLABE, bank and holder", () => {
+    const { operations } = mapRemittanceOperationsRows([
+      row({
+        operation_id: "op-mx",
+        operation_status: "ready_to_transfer" as const,
+        operation_service_type: "mexico",
+        operation_destination_currency: "MXN",
+        operation_delivery_method: "mexico_cuenta",
+        beneficiary_id: "b-mx",
+        beneficiary_type: "mexico_cuenta" as const,
+        beneficiary_name: "Ana Lopez",
+        beneficiary_clabe: "012345678901234567",
+        beneficiary_bank_name: "BBVA",
+        beneficiary_position: 1,
+      }),
+    ]);
+
+    expect(operations[0]!.serviceType).toBe("mexico");
+    expect(operations[0]!.beneficiaries[0]).toMatchObject({
+      beneficiaryType: "mexico_cuenta",
+      name: "Ana Lopez",
+      clabe: "012345678901234567",
+      bankName: "BBVA",
+    });
+  });
+
   it("keeps the cost null when none is saved and the new columns are absent", () => {
     const { operations } = mapRemittanceOperationsRows([
       row({ operation_id: "op-c", operation_status: "ready_to_transfer", operation_service_type: "combo", beneficiary_id: "b1", beneficiary_type: "combo" }),

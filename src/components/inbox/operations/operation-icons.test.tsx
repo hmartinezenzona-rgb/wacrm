@@ -121,5 +121,7 @@ describe("StatusChip", () => {
 describe("KNOWN_BENEFICIARY_TYPES", () => {
   it("includes combo so its label resolves through beneficiaryType", () => {
     expect(KNOWN_BENEFICIARY_TYPES).toContain("combo");
+    expect(KNOWN_BENEFICIARY_TYPES).toContain("mexico_cuenta");
+    expect(KNOWN_BENEFICIARY_TYPES).toContain("mexico_retiro");
   });
 });

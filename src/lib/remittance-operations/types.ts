@@ -68,7 +68,11 @@ export type BeneficiaryType =
   | "recarga"
   /** One food-combo recipient (migration 208): name, phone, address, reference,
    *  contact phone and an amount in GYD. */
-  | "combo";
+  | "combo"
+  /** México bank-account recipient: holder in `name`, 18-digit `clabe`, `bank_name`. */
+  | "mexico_cuenta"
+  /** México cardless withdrawal recipient: receiver in `name`, `phone`, `bank_name` = Coppel or BBVA. */
+  | "mexico_retiro";
 
 /** Whether a quoted destination amount / beneficiary amount was
  *  auto-calculated (single-beneficiary remittances, migration 100) or set
@@ -110,6 +114,10 @@ export interface RemittanceBeneficiaryRead {
   reference?: string | null;
   /** Combo recipient's second contact phone (migration 208). */
   contactPhone?: string | null;
+  /** México bank-account recipient's 18-digit CLABE. */
+  clabe?: string | null;
+  /** México recipient's bank: the bank of a `mexico_cuenta`, or Coppel/BBVA for a `mexico_retiro`. */
+  bankName?: string | null;
   /** WhatsApp message id of the recipient's ID-card photo. */
   idPhotoWamid: string | null;
   /** Media URL of that photo, when the message is in the conversation. */
@@ -258,6 +266,9 @@ export interface RemittanceOperationsRpcRow {
   beneficiary_id_photo_url: string | null;
   /** Migration 208 (combo); absent on responses that predate it. */
   beneficiary_reference?: string | null;
+  /** México recipients (migration for mexico): absent on responses that predate the columns. */
+  beneficiary_clabe?: string | null;
+  beneficiary_bank_name?: string | null;
   beneficiary_contact_phone?: string | null;
   operation_combo_costo_gyd?: number | string | null;
   operation_mixed_group_id?: string | null;

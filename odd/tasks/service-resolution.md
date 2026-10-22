@@ -238,3 +238,33 @@ an addition the deposit does not cover is a SEPARATE operation awaiting its own 
 writer: addition/change markers in 265 (edited in place: not in production), adicional_aparte motivo, crm inserts
 only with no other open operation or adicional_aparte, otherwise explains ('no se abre otra recarga' + minimum /
 shortfall / repartir_envio). 265 will be re-applied on staging.
+
+## REDESIGN 2026-10-22 (owner): the bot decides intent, the database validates money and executes
+
+Owner: "la idea era que el bot detectara la intención del cliente y actuara en consecuencia, no poner parches por cada
+posibilidad". Word lists, question regexes and word recency in the resolver were patches; they are removed. The
+running writer for addition/change markers was stopped before touching 265.
+
+Split of responsibilities:
+1. INTENT = the agent (LLM). It declares a structured intent with its tools: `cambiar_servicio(servicio)` for a change
+   of mind, `agregar_servicio(servicio)` for an addition, and when the customer states a service before paying,
+   `declarar_servicio(servicio)` persists it as the conversation's declared intent (one row per conversation,
+   replaced by the latest declaration, cleared when the operation closes). No SQL reads customer words to infer intent.
+2. RULES = the database, facts only: deposit vs minimum of the target service, whether one deposit covers both services
+   (mixed) or not (separate operation awaiting its own deposit), human locks, closed/transferring states, mixed groups.
+   It executes and answers the agent in plain Spanish (e.g. "no alcanza: el mínimo es 6,200 GYD y faltan 1,200").
+3. BEFORE THE AGENT (deposit registration, beneficiary auto-save): facts only. The deposit takes the service from the
+   persisted declared intent if any; with none, Q1 applies (amount = recarga price + phone-only + promo -> recarga);
+   otherwise remesa. Data arrival (a card, a Zelle account) is stored, never used to guess a service change.
+4. ONE STATE for the Decisor: it reads the resolved state (operations, declared intent, deposit coverage); no
+   contradictory notes.
+
+Consequences for the migrations (none of 265-268 is in production):
+- 265 rewritten in place: `cerebro_resolver_servicio(p_conv, p_declarado, p_intencion, p_monto, p_ahora)`; no text
+  parameter; rules only on money/data/state; output adds `permitido`, `motivo`, `minimo_gyd`, `faltante_gyd`,
+  `cubre_ambos`, `accion` in {ninguna, convertir, mixto, aparte}. New table `cerebro_servicio_declarado`.
+- 266 adjusted to the new contract (cambiar -> convert; agregar -> mixed when covered, else a separate operation).
+- 267 deposit registration reads the declared intent instead of the text rules (cerebro_recarga/combo/visa_en_curso).
+- 268 rewritten: number regex fix kept; the numbers tool and beneficiary auto-save never infer a service.
+- 269: agent tools cambiar_servicio / agregar_servicio / declarar_servicio + prompt; S4 Decisor single state.
+Q1-Q8 stay valid; they are now enforced as money rules plus the agent's declared intent.

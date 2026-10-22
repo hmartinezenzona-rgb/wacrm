@@ -381,6 +381,10 @@ describe('ausencia temporal (away mode): aviso solo con el negocio abierto', () 
     expect(n).toContain('a las 3:00 pm');
     expect(n).toContain('SIGUE ATENDIENDO NORMAL');
     expect(n).toMatch(/PROHIBIDO decir "en breve"/);
+    // Owner 2026-10-22: the ones away are the managers, not the assistant that keeps answering.
+    expect(n).toContain('los encargados no estan disponibles');
+    expect(n).toContain('regresan a las 3:00 pm');
+    expect(n).not.toContain('no estamos');
   });
 
   it('abierto + por_cerrar + ausencia: salen las dos notas', () => {

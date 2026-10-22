@@ -23,7 +23,7 @@ import { useAwayMode } from "@/components/layout/away-mode-provider";
 type Preset = "rato" | "hora" | "resto";
 
 const MOTIVO_MAX = 120;
-const CHIPS = ["salir", "diligencia", "festivo", "aniversario"] as const;
+const CHIPS = ["salir", "personal", "diligencia", "festivo", "aniversario"] as const;
 const MIN_LEAD_MS = 60_000; // the API wants hasta > now + 1 min
 
 type Translate = ReturnType<typeof useTranslations>;

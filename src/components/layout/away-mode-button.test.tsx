@@ -141,11 +141,12 @@ describe("AwayModeButton", () => {
     expect(document.body.textContent).toContain("Hasta una hora");
     expect(document.body.textContent).toContain("Resto del día");
     const input = document.body.querySelector('input[type="text"]') as HTMLInputElement;
-    expect(input.value).toBe("porque tuvimos que salir un momento");
+    expect(input.value).toBe("porque tuvieron que salir un momento");
     expect(document.body.textContent).toContain("Así responderá el bot");
     expect(document.body.textContent).toContain(
-      "Ahora mismo no estamos porque tuvimos que salir un momento; volvemos a las 12:00 pm.",
+      "Ahora mismo los encargados no están disponibles porque tuvieron que salir un momento; regresan a las 12:00 pm.",
     );
+    expect(document.body.textContent).toContain("tuvieron un asunto personal");
   });
 
   it("a reason chip fills the input", async () => {
@@ -173,7 +174,7 @@ describe("AwayModeButton", () => {
     expect(init.method).toBe("PUT");
     expect(JSON.parse(init.body)).toEqual({
       hasta: "2026-10-22T16:00:00.000Z",
-      motivo: "porque tuvimos que salir un momento",
+      motivo: "porque tuvieron que salir un momento",
     });
     expect(container.textContent).toContain("Ausentes hasta 3:00 pm");
   });

@@ -156,3 +156,6 @@ recarga only.
   live -> recarga, accion convertir (or the deposit creates a recarga). Safety net: rule 7 converts back to a card
   rail when a card/Zelle arrives later. Note: 6,200 GYD also meets the CUP card minimum (5,000), so the phone-only
   condition is what separates them. Rule 9 (history switch) becomes unnecessary for this path.
+- Q3 (2026-10-22): an empty operation (0 GYD, no deposit) next to the holder is CANCELLED automatically after moving
+  its numbers/data to the holder: "que se cancele sola, pero con este arreglo no deberían salir más". Safety net only;
+  S2/S3 assertions must also prove the new path never creates the duplicate.

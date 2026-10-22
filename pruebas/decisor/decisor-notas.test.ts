@@ -192,12 +192,21 @@ describe('un deposito de mas por un segundo servicio no se trata como error del 
     depositado: 24400,
     saldo: -6200,
   };
-  function conComprobante(ctx: Entradas['ctx'], previos = '', texto = 'ahi va') {
+  function conComprobante(
+    ctx: Entradas['ctx'],
+    previos = '',
+    texto = 'ahi va'
+  ) {
     return correrDecisor({
       ctx: { riel_operacion: 'clasica', muestra_idioma: previos, ...ctx },
       snapshot: {
         texto_completo: texto,
-        comprobante: { estado: 'LEGIBLE', monto: 24400, moneda: 'GYD', alertas: [] },
+        comprobante: {
+          estado: 'LEGIBLE',
+          monto: 24400,
+          moneda: 'GYD',
+          alertas: [],
+        },
       },
       mmg: cruceDeMas,
     });
@@ -334,9 +343,19 @@ describe('un envio mixto (un deposito repartido entre servicios) se lo dice al m
       ctx: { riel_operacion: 'clasica', envio_mixto: envioMixto },
       snapshot: {
         texto_completo: 'ahi va',
-        comprobante: { estado: 'LEGIBLE', monto: 30000, moneda: 'GYD', alertas: [] },
+        comprobante: {
+          estado: 'LEGIBLE',
+          monto: 30000,
+          moneda: 'GYD',
+          alertas: [],
+        },
       },
-      mmg: { resultado: 'verificado_de_mas', objetivo: 24400, depositado: 30000, saldo: -5600 },
+      mmg: {
+        resultado: 'verificado_de_mas',
+        objetivo: 24400,
+        depositado: 30000,
+        saldo: -5600,
+      },
     });
     const n = nota(s, 'EL CLIENTE DEPOSITO MAS DE LO QUE DIJO') as string;
     expect(n).toBeDefined();

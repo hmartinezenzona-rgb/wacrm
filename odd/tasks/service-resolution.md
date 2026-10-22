@@ -169,3 +169,10 @@ recarga only.
 - Q7 (2026-10-22): explicit words convert ANY service (recarga, saldo, visa, combo) automatically, like the recarga.
   Amount stays evidence only for recarga. Owner: "1, sí, exacto".
 - Q2 (rule 9 history switch): not needed after Q1; the history of the number stays as evidence only.
+- Q8 (2026-10-22, owner): the customer can ALWAYS change the service of the operation holding the deposit, in any
+  direction, when the deposit meets the new service's minimum ("deposita 6,200, se intuye recarga, se crea como
+  recarga, pero si cambia de opinión debe poderse convertir a una transferencia CUP ya que cumple su mínimo").
+  Correction vs addition is decided ONLY by deposit coverage: covers both -> adicional (mixed); covers one ->
+  convertir even if the holder already has its own data; below the new minimum -> ninguna deposito_bajo_minimo with
+  minimum and shortfall for the bot. Replaces the "no own data" condition of rule 5 and the "with numbers ->
+  preguntar" branch of rule 7.

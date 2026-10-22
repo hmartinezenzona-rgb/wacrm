@@ -114,4 +114,6 @@ Decisor md5 252f1489 == repo, nodes 128.
   The route tests mocked supabaseAdmin, and W6 (browser check) was skipped when going to production.
 - Fix: migration 270 GRANT SELECT, INSERT, UPDATE ON cerebro_config TO service_role (least privilege; RLS stays on).
   Staging aplicar OK (no-op there); production previa cannot analyse a grant-only file: checked by hand (not recorded,
-  has_table_privilege false). Production apply pending the owner's go-ahead.
+  has_table_privilege false). Production applied with the owner go-ahead ("sí, aplícalo"): OK
+  270_cerebro_config_service_role_grant 20261022165736; has_table_privilege SELECT/INSERT/UPDATE = true. Pending: the
+  owner activates an absence again.

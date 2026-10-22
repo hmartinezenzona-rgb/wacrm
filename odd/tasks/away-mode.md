@@ -105,3 +105,13 @@ Decisor md5 252f1489 == repo, nodes 128.
   --esperado af1e5e40 OK; versionId 5b3159b9 == activeVersionId; Decisor md5 252f1489 == repo.
 - Panel: release/prod-away-mode 07d2eda; served BUILD_ID bBJb7VQjxKf6MbLzvDazG; rollback `anterior` 6055ea7.
 - Branch pushed to privado. Pending: the owner's real check in production (W6 item open until then).
+
+## Production bug 2026-10-22: absence could not be activated
+
+- Owner: "intenté activar lo del aviso de ausencia y no me dejó". Production pm2 logs: three
+  "ausencia upsert failed: permission denied for table cerebro_config". cerebro_config was revoked from PUBLIC (037) and
+  production never granted it to service_role; staging has broad default grants (even anon), so it never showed there.
+  The route tests mocked supabaseAdmin, and W6 (browser check) was skipped when going to production.
+- Fix: migration 270 GRANT SELECT, INSERT, UPDATE ON cerebro_config TO service_role (least privilege; RLS stays on).
+  Staging aplicar OK (no-op there); production previa cannot analyse a grant-only file: checked by hand (not recorded,
+  has_table_privilege false). Production apply pending the owner's go-ahead.

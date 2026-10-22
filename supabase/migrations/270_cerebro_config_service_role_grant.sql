@@ -1,0 +1,13 @@
+-- =====================================================================
+-- 270 — The panel's service role may read and write cerebro_config (production gap)
+--
+-- 2026-10-22: the away-mode routes (264, /api/ausencia and /api/dias-cerrados) write cerebro_config with the service
+-- role, but production failed with "permission denied for table cerebro_config": 037 revoked everything from PUBLIC
+-- and production never granted the table to service_role (staging has broad default grants, so it never showed there).
+-- Least privilege: only SELECT, INSERT, UPDATE for service_role. RLS stays on (service_role bypasses it); nothing is
+-- granted to anon or authenticated.
+--
+-- Guarded by supabase/staging/assertions/cerebro-config-service-role.sql.
+-- ROLLBACK: ROLLBACK-270-cerebro-config-service-role-grant.sql
+-- =====================================================================
+GRANT SELECT, INSERT, UPDATE ON TABLE public.cerebro_config TO service_role;

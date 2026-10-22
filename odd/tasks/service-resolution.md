@@ -62,16 +62,16 @@ Root causes:
 
 ## Tasks
 
-- [ ] S1 Design detail: read the live bodies (cerebro_registrar_deposito, cerebro_guardar_beneficiario_auto,
+- [x] S1 Design detail: read the live bodies (cerebro_registrar_deposito, cerebro_guardar_beneficiario_auto,
   crm_registrar_numeros_recarga, cerebro_cambiar_servicio, cerebro_recarga_en_curso/combo/visa, Contexto query,
   Decisor service notes) and fix the resolver contract, the correction/addition rule and the evidence weights;
   write it into this document.
 - [x] S2 Migration: `cerebro_resolver_servicio` + assertion with the real cases as fixtures (1232671b at 14:30 and
   14:32, d86574ab, d415e347, f8b7779c mixed, bf547067, 89f6df7e Zelle-not-recarga, a plain remesa, a plain recarga).
-- [ ] S3 Migration: writers use the resolver (deposit registration, beneficiary auto-save, recharge-number tool:
+- [x] S3 Migration: writers use the resolver (deposit registration, beneficiary auto-save, recharge-number tool:
   convert instead of insert); real actor in the audit (R5).
-- [ ] S4 Contexto + Decisor read only the resolver state; contradictory notes removed; `preguntar` note; node tests.
-- [ ] S5 Agent tools/prompt: `cambiar_servicio` offers recarga/combo/visa/saldo; coherence checker alerts on two
+- [x] S4 Contexto + Decisor read only the resolver state; contradictory notes removed; `preguntar` note; node tests.
+- [x] S5 Agent tools/prompt: `cambiar_servicio` offers recarga/combo/visa/saldo; coherence checker alerts on two
   open operations of different services outside a mixed group.
 - [ ] S6 Staging end to end with PRUEBA fixtures (owner sends the messages to the staging number).
 - [ ] S7 Production (migrations, Cerebro), each step with the owner's go-ahead.
@@ -351,7 +351,7 @@ rail-less remesas (12 completed, 496,600 GYD) outside the calculator. Code alrea
 (src/lib/service-name.ts, dashboard, 229 history, 243 cerebro_cotizar tasa unica). Open with Osmany: cost per send,
 cardless-withdrawal data, completion evidence (docs/negocio/PEDIR-A-OSMANY-mexico.md 2-5).
 
-- [ ] M1 Map (read-only): what an operation of service_type 'mexico' needs end to end: recipient model for CLABE /
+- [x] M1 Map (read-only): what an operation of service_type 'mexico' needs end to end: recipient model for CLABE /
   banco / titular and cardless withdrawal, resolver/aplicar/declarar minimums, deposit registration, agent tools and
   prompt (consultar_servicio, calcular_usd via=mexico, requiere_humano handoff), Decisor notes, panel/board,
   calculator/ledger/finances, customer notifier. Output: gaps and a task split (M2..), written here.
@@ -375,12 +375,12 @@ cotizar via=mexico single USD rate (243). Gaps:
 
 - [x] M2 Migration: México recipient (beneficiary type + CLABE 18 digits, bank, holder; cardless withdrawal at
   Coppel/BBVA) + assertion (card logic ignores a CLABE).
-- [ ] M3 Migration: 13,000 GYD minimum for mexico; calculator service mapping for mexico + assertion.
+- [x] M3 Migration: 13,000 GYD minimum for mexico; calculator service mapping for mexico + assertion.
 - [x] M4 Migration: 'mexico' in declarar / resolver / aplicar / registrar_deposito (a México deposit joins the México
   operation, never a rail-less remesa) + assertion; re-run the 265-268 assertions.
-- [ ] M5 n8n staging (with 269): declarar_servicio('mexico'), quote via=mexico, recipient tool validating CLABE and
+- [x] M5 n8n staging (with 269): declarar_servicio('mexico'), quote via=mexico, recipient tool validating CLABE and
   multiples of 100, no handoff once data is complete; remove the Albo leftovers.
-- [ ] M6 Panel: mexico in the service picker, operations list (migration), recipient rows CLABE / bank / holder.
+- [x] M6 Panel: mexico in the service picker, operations list (migration), recipient rows CLABE / bank / holder.
 - [ ] M7 Customer status texts for México (needs Osmany's answers on completion evidence).
 - [ ] M8 Production backfill of the rail-less México remesas (wacrm-corregir-produccion, own go-ahead).
 M2 done 2026-10-22 (271_mexico_recipient). Taken over from a stopped agent: its partial 271 was found applied on staging
@@ -418,3 +418,18 @@ stored); the MXN amount is not stored. The 13,000 minimum for the waiting-for-th
 cerebro_minimo_gyd) comes from 272 once applied.
 Open with Osmany (not blocking M2-M6): USD->MXN rate source and whether the customer sees MXN; cost per send; cardless
 withdrawal identity data and code delivery; whether phone is needed for a bank account; completion evidence.
+
+## Parallel run 2026-10-22 (owner: "despliega varios agentes")
+
+Staging only, nothing in production, nothing pushed. Parent spot check: `npx vitest run pruebas/decisor` 43/43.
+- M2 271 (1f9b3c6), M4 273 (4bc6991), M3 272 (ebaafad, 5a4ebeb history label), progress log
+  odd/notes/db-mexico-progress.md. México ledger lines map to CLASICA (no MEXICO in the ledger CHECK); owner
+  2026-10-22: "méxico cuesta lo mismo 260" -> cost treatment like other USD services is correct.
+- M6 panel: 268c93d, 167df46, 315c5fd, 3ab23c4, 61a1e2e, 2762894 (vitest 3193 green, tsc clean); no browser check yet.
+- 269 + M5 n8n staging: 9f5e8b5, 85c92b8, 7590c74 (smoke rolled back OK); S4 6a74eb2 (servicio_resuelto, Marlene
+  reconcile note); S5b 2dfcd97 (Registrar beneficiario/zelle/destino auto DISABLED on staging; re-enable with
+  aplicar_staging.py --lectores on). Staging Cerebro active 84e217b8. Notes: odd/notes/cerebro-269-m5.md; owner
+  scripts odd/notes/cerebro-s5b-casos.md. S5 coherence-checker alert part not done.
+- Marlene 4afda26a (Engram #587): typed "150 USD a México", deposit fits 100 exactly; owner asks the customer.
+Next: owner runs the S5b/S6 scripts on the staging number; then M7 texts, M8 backfill, S7 production with go-aheads
+(267 never before 269).

@@ -226,3 +226,15 @@ move only non-remesa holders, ambiguity -> preguntar, alerta null in v1, fail-op
 - Staging aplicar OK (md5 7feb5cc7); relacionadas --ya-aplicada: 121, 118 SAME, 3 DIFF = deposito-resolver (new),
   delivery-feed-evidence (fixture fails on base too), contexto-envio-mixto (flaky: 5/6 pass on the applied state).
 - Open: a resolver 'saldo' still files a new operation as remesa (live code has no saldo flag); handle with Q7 in S5/S6.
+
+## S3 part 3: migration 268 review (2026-10-22)
+
+Haiku draft of 268 (regex for '+53 5 5599180', convert-before-insert in crm_registrar_numeros_recarga with p_actor,
+cerebro_guardar_beneficiario_auto via cerebro_aplicar_servicio) was green on its own cases. Parent review added cases:
+7 (holder not converted -> the tool must not open a second, empty recarga) and 8 (mixed group -> no third operation):
+RED (case 8 created a third operation; case 7's fixture had no receipt so the resolver saw no money). Design gap found:
+the resolver did not tell ADDITION ("y también una recarga") from CHANGE ("mejor / es para una recarga"); with Q5
+an addition the deposit does not cover is a SEPARATE operation awaiting its own deposit, not a conversion. Sent to a
+writer: addition/change markers in 265 (edited in place: not in production), adicional_aparte motivo, crm inserts
+only with no other open operation or adicional_aparte, otherwise explains ('no se abre otra recarga' + minimum /
+shortfall / repartir_envio). 265 will be re-applied on staging.

@@ -212,3 +212,17 @@ move only non-remesa holders, ambiguity -> preguntar, alerta null in v1, fail-op
 - Staging aplicar: dry-run, apply, assertion OK, rollback OK (md5 equal); md5 _cambiar_servicio_core 19cae611,
   cerebro_aplicar_servicio 2e4c0e55. relacionadas (--ya-aplicada): 56 total, 54 SAME, 2 DIFF (aplicar-servicio new;
   contexto-envio-mixto flaky on base: random uuid order on tied created_at, passes with 266). probar_migraciones green.
+
+## S3 part 2: migration 267 (2026-10-22, haiku writer + parent review)
+
+- cerebro_registrar_deposito: advisory lock; service flags from cerebro_resolver_servicio(conv, NULL, NULL, monto)
+  (live text precedence kept only when the resolver returns servicio NULL, e.g. varias_operaciones: needed by
+  visa-model 5e); holder prefers destino_operacion; after attaching, accion convertir -> cerebro_aplicar_servicio
+  (actor automation:registrar_deposito) in the movido/sumado/creado branches. RED 2/7 (cases 1 and 6), GREEN.
+- Parent review added to case 1 "the number is kept" (the operator needs it). It exposed a PRE-EXISTING bug in
+  crm_registrar_numeros_recarga: its regex does not read the WhatsApp format '+53 5 5599180' (space after the 5) ->
+  moved to 268 with its own test. A defensive "register numbers after a conversion" change was tried and REVERTED:
+  the test passes without it (the operation is created as recarga directly), so it was untested code.
+- Staging aplicar OK (md5 7feb5cc7); relacionadas --ya-aplicada: 121, 118 SAME, 3 DIFF = deposito-resolver (new),
+  delivery-feed-evidence (fixture fails on base too), contexto-envio-mixto (flaky: 5/6 pass on the applied state).
+- Open: a resolver 'saldo' still files a new operation as remesa (live code has no saldo flag); handle with Q7 in S5/S6.

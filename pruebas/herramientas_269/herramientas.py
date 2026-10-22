@@ -84,6 +84,32 @@ def consulta_numeros():
             "p_actor => 'agent:registrar_numeros_recarga') AS resultado;")
 
 
+def consulta_mexico():
+    return ("-- M5: a Mexico recipient (migration 271). The function has no p_actor: the actor travels as the p_exec prefix.\n"
+            "-- M5b: a Mexico recipient (migration 271). tipo mexico_cuenta: clabe (18 digits), banco, nombre = holder.\n"
+            "-- tipo mexico_retiro: banco Coppel|BBVA, nombre = receiver, telefono. Partial data is merged by the database.\n"
+            "SELECT r ->> 'mensaje' AS mensaje, (r ->> 'ok')::boolean AS ok, r ->> 'beneficiary_id' AS beneficiary_id\n"
+            "  FROM (SELECT cerebro_guardar_beneficiario_mexico($1::uuid, $2::text, $3::text, $4::text, $5::text, $6::text, "
+            "'agent:registrar_destinatario_mexico n8n:' || $7::text) AS r) x;")
+
+
+def reemplazo_mexico():
+    return ("={{ [$('Decisor').item.json.conversation_id, "
+            "$fromAI('tipo', 'mexico_cuenta (cuenta bancaria con CLABE) o mexico_retiro (retiro sin tarjeta en Coppel o BBVA)', 'string'), "
+            "$fromAI('clabe', 'CLABE de 18 digitos, solo numeros (vacio si es retiro o aun no la dio)', 'string', ''), "
+            "$fromAI('banco', 'banco de la cuenta (Mercado Pago, Banco Azteca...) o, en retiro, Coppel o BBVA', 'string', ''), "
+            "$fromAI('nombre', 'titular de la cuenta, o en retiro el nombre completo de quien recibe', 'string', ''), "
+            "$fromAI('telefono', 'telefono de quien recibe (retiro sin tarjeta); vacio en cuenta bancaria', 'string', ''), "
+            "$execution.id] }}")
+
+
+DESC_MEXICO = (
+    "Guarda o completa el destinatario de un envio a MEXICO (pesos mexicanos). tipo 'mexico_cuenta': CLABE de 18 digitos, banco "
+    "(Mercado Pago, Banco Azteca...) y titular en nombre. tipo 'mexico_retiro': retiro sin tarjeta, banco Coppel o BBVA, nombre "
+    "de quien recibe y su telefono. Acepta datos a medias (lo que no mandes se conserva); una llamada por cuenta o retiro. "
+    "Devuelve mensaje con lo guardado y lo que FALTA: dile al cliente solo eso. NO inventes ni completes una CLABE.")
+
+
 def _nodo(wf, nombre):
     return next((n for n in wf["nodes"] if n["name"] == nombre), None)
 
@@ -115,6 +141,21 @@ def aplicar_herramientas(wf):
             wf["nodes"].append(n)
         _poner(n, modo)
         wf["connections"][nombre] = {"ai_tool": [[{"node": "Agente Remesas", "type": "ai_tool", "index": 0}]]}
+    mx = _nodo(wf, "registrar_destinatario_mexico")
+    if mx is None:
+        mx = copy.deepcopy(base)
+        mx["id"] = str(uuid.uuid4())
+        mx["name"] = "registrar_destinatario_mexico"
+        mx["position"] = [base["position"][0] + 480, base["position"][1]]
+        wf["nodes"].append(mx)
+    mx["parameters"]["query"] = consulta_mexico()
+    mx["parameters"].setdefault("options", {})["queryReplacement"] = reemplazo_mexico()
+    mx["parameters"]["toolDescription"] = DESC_MEXICO
+    mx["parameters"]["descriptionType"] = "manual"
+    mx["notes"] = ("M5: destinatario Mexico (cuenta con CLABE o retiro Coppel/BBVA) via cerebro_guardar_beneficiario_mexico "
+                   "(271). Actor agent:registrar_destinatario_mexico.")
+    wf["connections"]["registrar_destinatario_mexico"] = {
+        "ai_tool": [[{"node": "Agente Remesas", "type": "ai_tool", "index": 0}]]}
     num = _nodo(wf, "registrar_numeros_recarga")
     if num is None:
         raise ValueError("registrar_numeros_recarga not found")
@@ -172,10 +213,28 @@ EJEMPLOS_NUEVOS = (
     "devuelve `mensaje`  ## ademas, no en lugar de")
 
 
+LINEA_MEXICO_VIEJA = SECCION[SECCION.index("- MEXICO:"):]
+
+LINEA_HERR_MEXICO = (
+    "- registrar_destinatario_mexico(tipo, clabe, banco, nombre, telefono): guarda o completa el destinatario de un envio a "
+    "MEXICO. tipo mexico_cuenta (CLABE de 18 digitos + banco + titular en nombre) o mexico_retiro (retiro sin tarjeta en Coppel o "
+    "BBVA + nombre de quien recibe + telefono). Vacio en lo que no haya dado. Ver MEXICO en DECLARAR, CAMBIAR Y AGREGAR SERVICIO.")
+
+MEXICO_NUEVO = (
+    "- MEXICO: apenas el cliente diga que quiere mandar a Mexico, declarar_servicio('mexico'). Cotiza con calcular_usd / "
+    "calcular_usd_desde_gyd con via=mexico (nunca de memoria). Pidele, en un solo mensaje, la cuenta bancaria: CLABE (18 "
+    "digitos exactos), banco (Mercado Pago, Banco Azteca...) y titular; o el retiro sin tarjeta: Coppel o BBVA (multiplos de "
+    "100), nombre completo de quien recibe y su telefono. En cuanto tengas algo, registrar_destinatario_mexico(tipo, clabe, banco, "
+    "nombre, telefono) con tipo mexico_cuenta o mexico_retiro (una llamada por cuenta o retiro; varios destinatarios, uno por uno); "
+    "NUNCA inventes ni completes una CLABE: si no tiene 18 digitos, pidela de nuevo. Dile al cliente lo que diga `mensaje` y "
+    "pide solo lo que falte. Cuando los datos esten completos NO llames derivar_humano ni ofrezcas un operador por ser Mexico: "
+    "sigue el flujo normal (deposito y verificacion). Solo deriva por las razones generales de la regla 10.")
+
+
 def editar_prompt(sm):
-    """Idempotent: swap the old CAMBIO DE VIA section and tool line for the declare/change/add contract."""
+    """Idempotent: swap the old CAMBIO DE VIA section and tool line for the declare/change/add contract; Mexico step."""
     if "## DECLARAR, CAMBIAR Y AGREGAR SERVICIO" in sm:
-        return sm
+        return _mexico(sm)
     sm = sm.replace(LINEA_CAMBIAR, HERRAMIENTAS)
     i = sm.index("## CAMBIO DE VIA")
     j = sm.index("## ESTILO", i)
@@ -189,4 +248,11 @@ def editar_prompt(sm):
     sm = sm.replace("para eso esta cambiar_servicio. Si responde ERROR porque la via ya fue elegida con cambiar_servicio",
                     "para eso esta cambiar_servicio. Si responde ERROR porque la via ya fue elegida")
     sm = sm.replace(EJEMPLO_VIEJO, EJEMPLOS_NUEVOS)
+    return _mexico(sm)
+
+
+def _mexico(sm):
+    sm = sm.replace(LINEA_MEXICO_VIEJA, MEXICO_NUEVO)
+    if "- registrar_destinatario_mexico(" not in sm:
+        sm = sm.replace("- agregar_servicio(servicio):", LINEA_HERR_MEXICO + "\n- agregar_servicio(servicio):", 1)
     return sm

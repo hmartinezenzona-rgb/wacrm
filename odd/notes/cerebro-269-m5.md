@@ -49,3 +49,15 @@ Staging workflow U52y1kSNvhgxvWeb only. Production untouched, workflow never exe
 - versionId == activeVersionId, but the in-memory-version trap is only ruled out by a later real execution (not run).
 - A stray key `options.systemMessage` (old 44,964-char copy) sits in the Agente Remesas parameters; the live prompt is
   `options.systemMessage` (nested). Left alone.
+
+## M5 follow-up: Mexico recipient tool (version 0e362937 -> 43cdf3ed, active = same, 131 nodes)
+- Backups: before `...-0e362937-...-152948.json`; after: see `respaldo staging` of 43cdf3ed in `~/cerebro-fase1/respaldos-n8n/`.
+- New tool node `registrar_destinatario_mexico` (fromAI: tipo, clabe, banco, nombre, telefono) ->
+  `cerebro_guardar_beneficiario_mexico(conv, tipo, clabe, banco, nombre, telefono, p_exec)`, returns mensaje/ok/beneficiary_id.
+  The 271 signature has NO p_actor, so the actor travels as the p_exec prefix `'agent:registrar_destinatario_mexico n8n:' || exec`;
+  the DB side should read the actor from that prefix (or add p_actor and change the query).
+- Prompt: MEXICO paragraph replaced (declare 'mexico', quote via=mexico, ask CLABE 18 digits + banco + titular OR Coppel/BBVA +
+  nombre + telefono, save with the tool, no derivar_humano for Mexico once saved) and tool list line added.
+- Deployed BEFORE 271 was applied on staging (odd/notes/db-mexico-progress.md absent): the tool fails until 271, 'mexico'
+  is refused until 273. No rolled-back smoke of the call was possible. 21 offline tests GREEN (3 RED first).
+- The catalog rule "requiere_humano=true => offer an operator" stays DB-driven; 273 flips it.

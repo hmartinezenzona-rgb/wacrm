@@ -155,5 +155,35 @@ class TestPrompt(unittest.TestCase):
             self.assertIn(marca, self.nuevo)
 
 
+class TestMexico(unittest.TestCase):
+    def test_consulta_llama_la_funcion_271_con_el_actor_real(self):
+        q = h.consulta_mexico()
+        self.assertIn("cerebro_guardar_beneficiario_mexico(", q)
+        self.assertIn("'agent:registrar_destinatario_mexico n8n:' || $7", q)
+        self.assertIn("mensaje", q)
+        usados = {int(n) for n in re.findall(r"\$(\d)", q)}
+        self.assertEqual(usados, set(range(1, 8)))  # conv, tipo, clabe, banco, nombre, telefono, execution id
+        self.assertEqual(h.reemplazo_mexico().count("$fromAI"), 5)
+
+    def test_nodo_nuevo_conectado_con_la_credencial_de_staging(self):
+        wf = h.aplicar_herramientas(flujo_base())
+        n = next(x for x in wf["nodes"] if x["name"] == "registrar_destinatario_mexico")
+        self.assertEqual(n["credentials"], wf["nodes"][0]["credentials"])
+        self.assertEqual(wf["connections"]["registrar_destinatario_mexico"]["ai_tool"][0][0]["node"], "Agente Remesas")
+        self.assertIn("mexico_cuenta", n["parameters"]["toolDescription"])
+        self.assertIn("mexico_retiro", n["parameters"]["toolDescription"])
+
+    def test_prompt_mexico_sin_pase_a_humano_al_completar(self):
+        base = open(os.path.join(os.path.dirname(__file__), "prompt_base_staging.txt"), encoding="utf-8").read()
+        p = h.editar_prompt(h.editar_prompt(base))
+        i = p.index("- MEXICO:")
+        sec = p[i:i + 1800]
+        for s in ("registrar_destinatario_mexico", "CLABE", "18 digitos", "Coppel", "BBVA", "via=mexico", "declarar_servicio('mexico')"):
+            self.assertIn(s, sec)
+        self.assertRegex(sec, r"(?i)NO llames derivar_humano")
+        self.assertIn("- registrar_destinatario_mexico(", p)
+        self.assertEqual(h.editar_prompt(p), p)
+
+
 if __name__ == "__main__":
     unittest.main()

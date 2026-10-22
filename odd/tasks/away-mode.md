@@ -56,7 +56,12 @@ reason (whole days only, no panel UI). Mockup: https://claude.ai/artifact/Mupn2q
   Popover opens for admins only (null role = not admin); banner for every member, "Ya volvimos" admins only.
   OPEN for W6: the real @base-ui Popover hangs in jsdom, so its test uses a stand-in; check the real popover on the
   staging panel.
-- [ ] W4 Configuración: "Días cerrados" section (list, add, remove) using W2.
+- [x] W4 Configuración: "Días cerrados" section (list, add, remove) using W2.
+  2026-10-22: RED (module missing), GREEN 10 new tests; new adminOnly support in settings-sections (visibleSections,
+  resolveSection). Parent review found the writer used `isAdmin` (role === "admin", excludes the owner): RED test
+  settings-rail.test.tsx "owner sees closed-days" failed, fixed with `canManageMembers` (admin or above) in the rail
+  and the page, GREEN. tsc clean; eslint 0 errors (5 pre-existing warnings in untouched files); full vitest 230
+  files / 3150 tests passing. Not yet seen in a browser (W6).
 - [ ] W5 Cerebro staging: Decisor reads `cierre_especial.ausencia` and adds the note line; node test; applied to the
   staging Cerebro with backup (skill `wacrm-cerebro-n8n`).
 - [ ] W6 Owner test on the local panel against staging; then production (migration, panel, n8n), each with go-ahead.

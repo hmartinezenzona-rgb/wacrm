@@ -2053,7 +2053,8 @@
       "deals": "Negocios y moneda",
       "members": "Miembros del equipo",
       "api": "Claves de API",
-      "quick-replies": "Respuestas rápidas"
+      "quick-replies": "Respuestas rápidas",
+      "closed-days": "Días cerrados"
     },
     "groups": {
       "account": "Cuenta",
@@ -2805,6 +2806,53 @@
     "errors": {
       "save": "No se pudo activar el aviso. Inténtalo de nuevo.",
       "clear": "No se pudo quitar el aviso. Inténtalo de nuevo."
+    }
+  },
+  "ClosedDays": {
+    "title": "Días cerrados",
+    "description": "Además de los domingos. Ese día el bot sigue atendiendo, avisa el motivo y da el próximo día hábil.",
+    "listTitle": "Próximos días cerrados",
+    "loading": "Cargando…",
+    "empty": "Todavía no hay días cerrados.",
+    "botSays": "no estamos {motivo}",
+    "past": "pasado",
+    "remove": "Quitar el día {date}",
+    "addTitle": "Agregar un día cerrado",
+    "dateLabel": "Fecha",
+    "motivoLabel": "Motivo (el bot lo dirá)",
+    "motivoPlaceholder": "porque estamos de aniversario",
+    "add": "Agregar",
+    "saving": "Guardando…",
+    "errorMissing": "Elige una fecha y escribe el motivo.",
+    "errorPast": "No se puede cerrar una fecha pasada.",
+    "errorDuplicate": "Ya hay un día cerrado en esa fecha.",
+    "errorGeneric": "No se pudo guardar los días cerrados.",
+    "loadFailed": "No se pudieron cargar los días cerrados.",
+    "savedToast": "Días cerrados actualizados",
+    "failedToast": "No se pudo guardar",
+    "dateFormat": "{weekday} {day} de {month}",
+    "weekdays": {
+      "0": "Domingo",
+      "1": "Lunes",
+      "2": "Martes",
+      "3": "Miércoles",
+      "4": "Jueves",
+      "5": "Viernes",
+      "6": "Sábado"
+    },
+    "months": {
+      "0": "enero",
+      "1": "febrero",
+      "2": "marzo",
+      "3": "abril",
+      "4": "mayo",
+      "5": "junio",
+      "6": "julio",
+      "7": "agosto",
+      "8": "septiembre",
+      "9": "octubre",
+      "10": "noviembre",
+      "11": "diciembre"
     }
   }
 }

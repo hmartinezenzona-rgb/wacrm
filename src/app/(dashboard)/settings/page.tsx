@@ -16,6 +16,7 @@ import { TemplateManager } from '@/components/settings/template-manager';
 import { QuickRepliesManager } from '@/components/settings/quick-replies-manager';
 import { FieldsAndTagsPanel } from '@/components/settings/fields-and-tags-panel';
 import { DealsSettings } from '@/components/settings/deals-settings';
+import { ClosedDaysSettings } from '@/components/settings/closed-days-settings';
 import { MembersTab } from '@/components/settings/members-tab';
 import { ApiKeysSettings } from '@/components/settings/api-keys-settings';
 import { PageHeader, PageShell } from '@/components/layout/page-header';
@@ -27,7 +28,8 @@ import {
 export default function SettingsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { defaultCurrency } = useAuth();
+  // Admin or above: `isAdmin` alone would hide admin-only sections from the owner.
+  const { defaultCurrency, canManageMembers: isAdmin, profileLoading } = useAuth();
   const { mode } = useTheme();
   const t = useTranslations('Settings');
 
@@ -65,7 +67,11 @@ export default function SettingsPage() {
   const section =
     override && override.from === urlTab
       ? override.section
-      : resolveSection(urlTab);
+      : resolveSection(urlTab, isAdmin);
+
+  // Role resolves asynchronously: while it loads, an admin-only deep link
+  // would briefly resolve to Overview, so render nothing for it until known.
+  const waitingForRole = profileLoading && !isAdmin && urlTab === 'closed-days';
 
   const go = (next: SettingsSection) => {
     setOverride({ from: urlTab, section: next });
@@ -97,6 +103,7 @@ export default function SettingsPage() {
     deals: <DealsSettings />,
     members: <MembersTab />,
     api: <ApiKeysSettings />,
+    'closed-days': isAdmin ? <ClosedDaysSettings /> : null,
   };
 
   return (
@@ -105,7 +112,7 @@ export default function SettingsPage() {
 
       <div className="grid gap-6 lg:grid-cols-[236px_minmax(0,1fr)] lg:items-start">
         <SettingsRail active={section} onSelect={go} hints={hints} />
-        <div className="min-w-0">{panel[section]}</div>
+        <div className="min-w-0">{waitingForRole ? null : panel[section]}</div>
       </div>
     </PageShell>
   );

@@ -282,3 +282,16 @@ Q1-Q8 stay valid; they are now enforced as money rules plus the agent's declared
   resolver needs a concrete rail/service (the prompt will ask the agent to declare a specific one).
 - Staging: 267/266/265 of the old design rolled back first; new 265 applied (dry-run, apply, assertion, rollback OK).
 - Next: 266 (cambiar -> convert, agregar -> mixto via the mixed-send split / aparte as a new operation), 267, 268.
+
+## Redesigned 266 (2026-10-22, haiku writer + parent review)
+
+- cerebro_aplicar_servicio(p_conv, p_declarado, p_intencion, p_actor, p_exec), service_role only: advisory lock;
+  persists the agent's declaration (not 'remesa'); executes the resolver v2: convertir -> _cambiar_servicio_core (every
+  phone-only recipient kept as a recarga number) + cancel empty duplicates; mixto -> cerebro_repartir_envio (the 255
+  split, parts as text, e.g. "tarjeta cup 6800, recarga 6200"; its own audit automation_mixed_split); aparte -> a new
+  separate operation (not created if an empty one of the same service already exists: ya_existe_vacia). Fail-open.
+- RED: function missing; GREEN 15 case groups. Staging applied (dry-run, apply, assertion, rollback OK; md5
+  cerebro_aplicar_servicio f41e5416, core 19cae611). relacionadas --ya-aplicada: 58, 56 SAME, 2 DIFF (aplicar-servicio
+  new; writers-resolver = the old-design 268 draft, to be rewritten). Redesigned 265 re-checked: 109, 108 SAME,
+  only its own assertion differs (saldo-model, feed-mixed, deal-insert-creates-operation fail on base too).
+- The writer left a background monitor that kept notifying; it ended with the agent.

@@ -1,47 +1,51 @@
 -- =====================================================================
--- 266 -- cerebro_aplicar_servicio: the WRITER side of the service resolver (staging first)
+-- 266 -- cerebro_aplicar_servicio: the WRITER side of the service resolver, contract v2 (staging first)
 --
--- odd/tasks/service-resolution.md (S3 part 1). 265 added cerebro_resolver_servicio, a pure read. This adds the one function
--- that ACTS on its answer, so deposit registration, the beneficiary auto-save and the agent's tools (267-269) can call it
--- instead of each guessing the service from words:
+-- odd/tasks/service-resolution.md (REDESIGN 2026-10-22: the bot decides intent, the database validates money and executes).
+-- 265 holds the rules as a pure read: cerebro_resolver_servicio returns accion ninguna | convertir | mixto | aparte. This
+-- function ACTS on that answer for the bot (service_role only):
 --
---   cerebro_aplicar_servicio(p_conv, p_declarado, p_texto, p_actor, p_exec) RETURNS jsonb   (VOLATILE, SECURITY DEFINER)
---     1. takes pg_advisory_xact_lock('cerebro_servicio:' || conversation) (one writer at a time per conversation);
---     2. asks cerebro_resolver_servicio(p_conv, p_declarado, p_texto);
---     3. on accion 'convertir' (with destino_operacion and convertir_a) runs _cambiar_servicio_core on the holder, then
---        cancels each empty duplicate the resolver listed in `cancelar` (Q3), moving its recipients that fit the new service
---        to the holder first;
---     4. returns the resolver's JSON plus {"aplicado": bool, "cambios": {...}}. Every other accion (ninguna, adicional,
---        preguntar) writes nothing: aplicado false.
---   Fail open: any error rolls the writes of the call back and returns the resolver JSON with aplicado false and the
---   sqlstate; it never raises into the bot.
+--   cerebro_aplicar_servicio(p_conv uuid, p_declarado text DEFAULT NULL, p_intencion text DEFAULT NULL,
+--                            p_actor text DEFAULT 'automation:resolver', p_exec text DEFAULT NULL) RETURNS jsonb
+--   (VOLATILE, SECURITY DEFINER)
+--     1. takes pg_advisory_xact_lock('cerebro_servicio:' || conversation): one writer at a time per conversation;
+--     2. when p_declarado is given and p_actor starts with 'agent:', stores it with cerebro_declarar_servicio (the agent's
+--        intent; the latest declaration wins);
+--     3. v := cerebro_resolver_servicio(p_conv, p_declarado, p_intencion);
+--     4. executes by accion:
+--        convertir  the holder changes service through _cambiar_servicio_core (Q1, Q7, Q8); then each empty duplicate the
+--                   resolver lists in `cancelar` is cancelled after its numbers move to the holder, deduped (Q3);
+--        aparte     one new operation of the new service (collecting_information, quoted_source_amount 0, same account,
+--                   conversation and contact, not grouped) plus one audit row. An open empty operation of that service
+--                   already waiting in the conversation is never duplicated (motivo ya_existe_vacia);
+--        mixto      cerebro_repartir_envio (255, the bot's split, called as it is, not reimplemented) with the parts
+--                   "<holder service> <deposit - minimum of the new service>, <new service> <minimum>": the new service
+--                   gets its own operation in the holder's mixed group. A refusal writes nothing (motivo reparto_rechazado);
+--        ninguna    nothing.
+--     5. returns the resolver JSON plus {"aplicado": bool, "cambios": {...}} (and "motivo" when nothing was applied).
+--   Fail open: an error undoes the call's writes (one sub-transaction) and returns the resolver JSON with aplicado false and
+--   the sqlstate; it never raises into the bot.
 --
---   Duplicate cancellation (re-checked here, the resolver only proposes): the operation belongs to the conversation, is not the
---   holder, is open in collecting_information / awaiting_deposit, has 0 GYD, no mixed group, no receipt and no live
---   depositos_mmg row. Its vigente recipients of the target service move to the holder: a fresh block_index (max + 1, retired
---   rows count for the unique index rb_unico_por_bloque) and the next free position among the holder's vigente rows. DEDUPE:
---   a recipient whose phone (recarga), card or Zelle account is already vigente on the holder is retired in place instead
---   of moved, so the holder never ends with the same number twice. A human 'beneficiaries' lock on the holder skips the
---   duplicate (reported in cambios.omitidas) rather than losing its numbers. Cancelling closes the operation, which makes
---   trg_reset_beneficiario_parcial_al_cerrar wipe the conversation's partial recipient: the live conversation goes on with
---   the holder, so the partial row is put back.
+--   Audit (R5): the actor is the caller's (default 'automation:resolver'). Action 'agent_service_change' when it starts with
+--   'agent:', 'automation_service_change' with 'automation:', else 'human_correction'; 'agent_service_change' is added to
+--   remittance_admin_audit_action_chk. The lock the core leaves on the operation names 'automation:agent_<tool>' for an agent
+--   caller, so it is not a human lock for the resolver. The mixed split writes its own 255 audit (automation_mixed_split).
 --
---   Audit (R5): the actor is the one the caller passes (default 'automation:resolver'). Action 'agent_service_change' when
---   it starts with 'agent:', 'automation_service_change' when it starts with 'automation:', else 'human_correction'.
---   'agent_service_change' is added to remittance_admin_audit_action_chk. One audit row per changed row: the service change
---   (written by the core), each cancelled operation, each moved or retired recipient. The lock the core leaves on the
---   operation names an 'automation:...' actor even for an agent caller (an 'agent:...' lock would count as a human lock
---   for the resolver and cerebro_cambiar_servicio, which only ignore 'automation:%' locks).
---   cerebro_cambiar_servicio keeps its hard-coded actor until 269.
+--   Duplicate cancellation (re-checked here, the resolver only proposes): the operation belongs to the conversation, is not
+--   the holder, is open in collecting_information / awaiting_deposit, has 0 GYD, no mixed group, no receipt and no live
+--   depositos_mmg row. Its vigente recipients of the target service move to the holder with a fresh block_index and the next
+--   free position. DEDUPE: a recipient whose phone (recarga), card or Zelle account is already vigente on the holder is retired
+--   in place, so the holder never ends with the same number twice. A human 'beneficiaries' lock on the holder skips the
+--   duplicate (cambios.omitidas). Cancelling closes the operation, which makes trg_reset_beneficiario_parcial_al_cerrar wipe
+--   the conversation's partial recipient: it is put back.
 --
---   An authenticated caller (a panel user, auth.uid() set) must be an agent of the conversation's account; service_role
---   (the bots) has no auth.uid() and passes.
+--   An authenticated caller (auth.uid() set) must be an agent of the conversation's account; service_role (the bot) passes.
 --
--- _cambiar_servicio_core (shared with the panel's crm_cambiar_servicio and the bot's cerebro_cambiar_servicio): when the
--- target is recarga or saldo, EVERY vigente phone-only recipient (a phone, no card, no Zelle account, no cash address; not a
--- zelle / efectivo_usd / combo row; a recarga may go to several numbers) is re-typed to beneficiary_type 'recarga' (223: saldo recipients are 'recarga' too), with
--- amount / currency / amount_origin / delivery_method cleared, instead of being retired. Anything else is retired exactly as
--- before. Everything else in the body is the live one.
+-- _cambiar_servicio_core (shared with the panel's crm_cambiar_servicio and the bot's cerebro_cambiar_servicio): when the target
+-- is recarga or saldo, EVERY vigente phone-only recipient (a phone, no card, no Zelle account, no cash address; not a zelle /
+-- efectivo_usd / combo row; a recarga may go to several numbers) is re-typed to beneficiary_type 'recarga' (223: saldo recipients
+-- are 'recarga' too), with amount / currency / amount_origin / delivery_method cleared, instead of being retired. Everything
+-- else in the body is the live one.
 --
 -- Guarded by supabase/staging/assertions/aplicar-servicio.sql. ROLLBACK: ROLLBACK-266-apply-service.sql
 -- =====================================================================
@@ -234,7 +238,7 @@ BEGIN
 END $function$;
 
 CREATE OR REPLACE FUNCTION public.cerebro_aplicar_servicio(
-  p_conv uuid, p_declarado text DEFAULT NULL, p_texto text DEFAULT NULL,
+  p_conv uuid, p_declarado text DEFAULT NULL, p_intencion text DEFAULT NULL,
   p_actor text DEFAULT 'automation:resolver', p_exec text DEFAULT NULL)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -249,13 +253,15 @@ DECLARE
   v_prev_origin text := coalesce(current_setting('wacrm.origin', true), '');
   v_prev_actor  text := coalesce(current_setting('wacrm.actor', true), '');
   v_safe        jsonb := jsonb_build_object(
-    'version', 1, 'servicio', NULL, 'en_curso', NULL, 'accion', 'ninguna', 'confianza', 'baja', 'motivo', 'error',
-    'destino_operacion', NULL, 'convertir_a', NULL, 'pregunta', NULL, 'via_actual', NULL, 'servicio_pendiente', NULL,
-    'grupo_mixto', NULL, 'adicionales', '[]'::jsonb, 'cancelar', '[]'::jsonb, 'cancelar_motivo', NULL, 'alerta', NULL,
-    'minimo_gyd', NULL, 'faltante_gyd', NULL, 'servicio_minimo', NULL, 'operaciones', '[]'::jsonb, 'evidencia', '{}'::jsonb,
-    'aplicado', false, 'cambios', '{}'::jsonb);
+    'version', 2, 'servicio', NULL, 'en_curso', NULL, 'accion', 'ninguna', 'permitido', false, 'motivo', 'error',
+    'mensaje', NULL, 'minimo_gyd', NULL, 'faltante_gyd', NULL, 'destino_operacion', NULL, 'convertir_a', NULL,
+    'cancelar', '[]'::jsonb, 'grupo_mixto', NULL, 'adicionales', '[]'::jsonb, 'operaciones', '[]'::jsonb,
+    'evidencia', '{}'::jsonb, 'aplicado', false, 'cambios', '{}'::jsonb);
   v_r           jsonb;
   v_account     uuid;
+  v_contact     uuid;
+  v_accion      text;
+  v_servicio    text;
   v_dest        uuid;
   v_to          text;
   v_reason      text;
@@ -268,6 +274,20 @@ DECLARE
   v_skipped     jsonb := '[]'::jsonb;
   v_parcial     jsonb;
   v_holder_lock boolean;
+  v_changed     boolean := false;
+  v_skip        text;
+  v_detalle     text;
+  v_cambios     jsonb := '{}'::jsonb;
+  v_nueva       uuid;
+  v_vacia       uuid;
+  v_deposito    numeric;
+  v_monto       numeric;
+  v_x_srv       text;
+  v_lbl_x       text;
+  v_lbl_y       text;
+  v_partes      text;
+  v_grupo       uuid;
+  v_reparto     text;
   d_id          uuid;
   d_op          remittance_operations%ROWTYPE;
   d_moved       jsonb;
@@ -281,7 +301,7 @@ BEGIN
     RETURN v_safe || jsonb_build_object('motivo', 'sin_conversacion');
   END IF;
 
-  SELECT c.account_id INTO v_account FROM conversations c WHERE c.id = p_conv;
+  SELECT c.account_id, c.contact_id INTO v_account, v_contact FROM conversations c WHERE c.id = p_conv;
   IF auth.uid() IS NOT NULL AND (v_account IS NULL OR NOT is_account_member(v_account, 'agent'::account_role_enum)) THEN
     RETURN v_safe || jsonb_build_object('motivo', 'no_autorizado');
   END IF;
@@ -289,106 +309,200 @@ BEGIN
   v_action := CASE WHEN v_actor LIKE 'agent:%' THEN 'agent_service_change'
                    WHEN v_actor LIKE 'automation:%' THEN 'automation_service_change'
                    ELSE 'human_correction' END;
-  -- The lock the core leaves names this actor; only 'automation:%' locks are ignored as "not a human" by the resolver and the bot tool.
+  -- The lock the core leaves names this actor; only 'automation:%' locks are ignored as "not a human" by the resolver and the bot tools.
   v_lock_actor := CASE WHEN v_actor LIKE 'agent:%' THEN 'automation:agent_' || substr(v_actor, 7) ELSE v_actor END;
 
   PERFORM pg_advisory_xact_lock(hashtextextended('cerebro_servicio:' || p_conv::text, 0));
 
-  v_r := cerebro_resolver_servicio(p_conv, p_declarado, p_texto);
+  -- The agent's declaration is stored first, so the resolver reads it (the latest declaration wins).
+  -- 'remesa' is the default rail, never a target: it is not stored as an intent (the resolver refuses it, R0).
+  IF v_actor LIKE 'agent:%' AND nullif(btrim(coalesce(p_declarado, '')), '') IS NOT NULL
+     AND lower(btrim(p_declarado)) <> 'remesa' THEN
+    PERFORM cerebro_declarar_servicio(p_conv, p_declarado, v_actor);
+  END IF;
+
+  v_r := cerebro_resolver_servicio(p_conv, p_declarado, p_intencion);
+  v_accion := v_r ->> 'accion';
+  v_servicio := v_r ->> 'servicio';
   v_dest := nullif(v_r ->> 'destino_operacion', '')::uuid;
   v_to := nullif(v_r ->> 'convertir_a', '');
-  IF v_r ->> 'accion' IS DISTINCT FROM 'convertir' OR v_dest IS NULL OR v_to IS NULL THEN
+
+  IF v_accion NOT IN ('convertir', 'mixto', 'aparte')
+     OR (v_accion <> 'aparte' AND v_dest IS NULL)
+     OR (v_accion = 'convertir' AND v_to IS NULL) THEN
     RETURN v_r || jsonb_build_object('aplicado', false, 'cambios', '{}'::jsonb);
   END IF;
 
   v_reason := 'service resolver: ' || coalesce(v_r ->> 'motivo', '?')
               || CASE WHEN nullif(btrim(coalesce(p_exec, '')), '') IS NOT NULL THEN '; n8n execution ' || btrim(p_exec) ELSE '' END;
 
-  -- One sub-transaction: a failure anywhere undoes the conversion, the cancellations and the moves together.
+  -- One sub-transaction: a failure anywhere undoes the whole call (conversion, cancellations, moves, new operation, split).
   BEGIN
     PERFORM set_config('wacrm.origin', 'admin', true);
     PERFORM set_config('wacrm.actor', v_lock_actor, true);
 
-    v_core := _cambiar_servicio_core(v_dest, v_to, v_action, v_actor, v_reason);
+    IF v_accion = 'convertir' THEN
+      -- The holder changes service (Q1, Q7, Q8); the core keeps every phone-only recipient of a recarga / saldo.
+      v_core := _cambiar_servicio_core(v_dest, v_to, v_action, v_actor, v_reason);
+      v_changed := (v_core ->> 'changed')::boolean;
 
-    IF (v_core ->> 'changed')::boolean THEN
-      v_fit := CASE WHEN v_to IN ('cuban_card', 'clasica', 'tropical') THEN ARRAY['cuban_card', 'clasica', 'tropical']
-                    WHEN v_to = 'zelle' THEN ARRAY['zelle']
-                    WHEN v_to = 'efectivo_usd' THEN ARRAY['efectivo_usd']
-                    WHEN v_to = 'combo' THEN ARRAY['combo']
-                    WHEN v_to IN ('recarga', 'saldo') THEN ARRAY['recarga']
-                    ELSE ARRAY[]::text[] END;
-      SELECT coalesce(array_agg(x::uuid), ARRAY[]::uuid[]) INTO v_cancel_ids
-        FROM jsonb_array_elements_text(coalesce(v_r -> 'cancelar', '[]'::jsonb)) AS x;
+      IF v_changed THEN
+        v_fit := CASE WHEN v_to IN ('cuban_card', 'clasica', 'tropical') THEN ARRAY['cuban_card', 'clasica', 'tropical']
+                      WHEN v_to = 'zelle' THEN ARRAY['zelle']
+                      WHEN v_to = 'efectivo_usd' THEN ARRAY['efectivo_usd']
+                      WHEN v_to = 'combo' THEN ARRAY['combo']
+                      WHEN v_to IN ('recarga', 'saldo') THEN ARRAY['recarga']
+                      ELSE ARRAY[]::text[] END;
+        SELECT coalesce(array_agg(x::uuid), ARRAY[]::uuid[]) INTO v_cancel_ids
+          FROM jsonb_array_elements_text(coalesce(v_r -> 'cancelar', '[]'::jsonb)) AS x;
 
-      IF cardinality(v_cancel_ids) > 0 THEN
-        SELECT to_jsonb(p) INTO v_parcial FROM cerebro_beneficiario_parcial p WHERE p.conversation_id = p_conv;
-        SELECT EXISTS (SELECT 1 FROM remittance_operations h
-                        WHERE h.id = v_dest AND coalesce(h.admin_locked_fields, '{}'::jsonb) ? 'beneficiaries'
-                          AND coalesce(h.admin_locked_fields -> 'beneficiaries' ->> 'by', '') NOT LIKE 'automation:%')
-          INTO v_holder_lock;
+        -- Q3: the empty duplicates the resolver listed are cancelled after their numbers move to the holder (deduped).
+        IF cardinality(v_cancel_ids) > 0 THEN
+          SELECT to_jsonb(p) INTO v_parcial FROM cerebro_beneficiario_parcial p WHERE p.conversation_id = p_conv;
+          SELECT EXISTS (SELECT 1 FROM remittance_operations h
+                          WHERE h.id = v_dest AND coalesce(h.admin_locked_fields, '{}'::jsonb) ? 'beneficiaries'
+                            AND coalesce(h.admin_locked_fields -> 'beneficiaries' ->> 'by', '') NOT LIKE 'automation:%')
+            INTO v_holder_lock;
 
-        FOREACH d_id IN ARRAY v_cancel_ids LOOP
-          SELECT * INTO d_op FROM remittance_operations WHERE id = d_id AND conversation_id = p_conv FOR UPDATE;
-          IF NOT FOUND OR d_op.id = v_dest THEN CONTINUE; END IF;
-          IF d_op.status NOT IN ('collecting_information', 'awaiting_deposit') OR coalesce(d_op.quoted_source_amount, 0) <> 0
-             OR d_op.mixed_group_id IS NOT NULL
-             OR EXISTS (SELECT 1 FROM remittance_operation_receipts x WHERE x.operation_id = d_id)
-             OR EXISTS (SELECT 1 FROM depositos_mmg x WHERE x.operation_id = d_id AND x.anulado_en IS NULL AND x.descartado_en IS NULL) THEN
-            v_skipped := v_skipped || jsonb_build_object('id', d_id, 'motivo', 'ya_no_esta_vacia');
-            CONTINUE;
-          END IF;
-          IF v_holder_lock AND EXISTS (SELECT 1 FROM remittance_beneficiaries x
-                                        WHERE x.operation_id = d_id AND x.status = 'vigente' AND x.beneficiary_type = ANY (v_fit)) THEN
-            v_skipped := v_skipped || jsonb_build_object('id', d_id, 'motivo', 'beneficiarios_bloqueados');
-            CONTINUE;
-          END IF;
-
-          d_moved := '[]'::jsonb; d_dups := '[]'::jsonb;
-          FOR b IN SELECT * FROM remittance_beneficiaries x
-                    WHERE x.operation_id = d_id AND x.status = 'vigente' AND x.beneficiary_type = ANY (v_fit)
-                    ORDER BY x.position, x.id LOOP
-            SELECT t.id INTO v_twin FROM remittance_beneficiaries t
-             WHERE t.operation_id = v_dest AND t.status = 'vigente' AND t.beneficiary_type = ANY (v_fit)
-               AND ((nullif(btrim(coalesce(b.phone, '')), '') IS NOT NULL AND t.phone = b.phone)
-                 OR (nullif(btrim(coalesce(b.card_number, '')), '') IS NOT NULL AND t.card_number = b.card_number)
-                 OR (nullif(btrim(coalesce(b.zelle_account, '')), '') IS NOT NULL AND t.zelle_account = b.zelle_account))
-             LIMIT 1;
-            IF v_twin IS NOT NULL THEN
-              UPDATE remittance_beneficiaries SET status = 'reemplazado', replaced_at = now() WHERE id = b.id;
-              INSERT INTO remittance_admin_audit (account_id, table_name, row_id, field_name, action, actor, reason, before, after)
-              VALUES (d_op.account_id, 'remittance_beneficiaries', b.id, 'status', v_action, v_actor, v_reason,
-                      jsonb_build_object('status', 'vigente', 'operation_id', d_id),
-                      jsonb_build_object('status', 'reemplazado', 'duplicate_of', v_twin, 'holder', v_dest));
-              d_dups := d_dups || to_jsonb(b.id);
-            ELSE
-              SELECT coalesce(max(x.block_index), 0) + 1 INTO v_block FROM remittance_beneficiaries x WHERE x.operation_id = v_dest;
-              SELECT coalesce(max(x.position), 0) + 1 INTO v_pos
-                FROM remittance_beneficiaries x WHERE x.operation_id = v_dest AND x.status = 'vigente';
-              UPDATE remittance_beneficiaries SET operation_id = v_dest, block_index = v_block, position = v_pos WHERE id = b.id;
-              INSERT INTO remittance_admin_audit (account_id, table_name, row_id, field_name, action, actor, reason, before, after)
-              VALUES (d_op.account_id, 'remittance_beneficiaries', b.id, 'operation_id', v_action, v_actor, v_reason,
-                      jsonb_build_object('operation_id', d_id, 'block_index', b.block_index, 'position', b.position),
-                      jsonb_build_object('operation_id', v_dest, 'block_index', v_block, 'position', v_pos));
-              d_moved := d_moved || to_jsonb(b.id);
+          FOREACH d_id IN ARRAY v_cancel_ids LOOP
+            SELECT * INTO d_op FROM remittance_operations WHERE id = d_id AND conversation_id = p_conv FOR UPDATE;
+            IF NOT FOUND OR d_op.id = v_dest THEN CONTINUE; END IF;
+            IF d_op.status NOT IN ('collecting_information', 'awaiting_deposit') OR coalesce(d_op.quoted_source_amount, 0) <> 0
+               OR d_op.mixed_group_id IS NOT NULL
+               OR EXISTS (SELECT 1 FROM remittance_operation_receipts x WHERE x.operation_id = d_id)
+               OR EXISTS (SELECT 1 FROM depositos_mmg x WHERE x.operation_id = d_id AND x.anulado_en IS NULL AND x.descartado_en IS NULL) THEN
+              v_skipped := v_skipped || jsonb_build_object('id', d_id, 'motivo', 'ya_no_esta_vacia');
+              CONTINUE;
             END IF;
+            IF v_holder_lock AND EXISTS (SELECT 1 FROM remittance_beneficiaries x
+                                          WHERE x.operation_id = d_id AND x.status = 'vigente' AND x.beneficiary_type = ANY (v_fit)) THEN
+              v_skipped := v_skipped || jsonb_build_object('id', d_id, 'motivo', 'beneficiarios_bloqueados');
+              CONTINUE;
+            END IF;
+
+            d_moved := '[]'::jsonb; d_dups := '[]'::jsonb;
+            FOR b IN SELECT * FROM remittance_beneficiaries x
+                      WHERE x.operation_id = d_id AND x.status = 'vigente' AND x.beneficiary_type = ANY (v_fit)
+                      ORDER BY x.position, x.id LOOP
+              SELECT t.id INTO v_twin FROM remittance_beneficiaries t
+               WHERE t.operation_id = v_dest AND t.status = 'vigente' AND t.beneficiary_type = ANY (v_fit)
+                 AND ((nullif(btrim(coalesce(b.phone, '')), '') IS NOT NULL AND t.phone = b.phone)
+                   OR (nullif(btrim(coalesce(b.card_number, '')), '') IS NOT NULL AND t.card_number = b.card_number)
+                   OR (nullif(btrim(coalesce(b.zelle_account, '')), '') IS NOT NULL AND t.zelle_account = b.zelle_account))
+               LIMIT 1;
+              IF v_twin IS NOT NULL THEN
+                UPDATE remittance_beneficiaries SET status = 'reemplazado', replaced_at = now() WHERE id = b.id;
+                INSERT INTO remittance_admin_audit (account_id, table_name, row_id, field_name, action, actor, reason, before, after)
+                VALUES (d_op.account_id, 'remittance_beneficiaries', b.id, 'status', v_action, v_actor, v_reason,
+                        jsonb_build_object('status', 'vigente', 'operation_id', d_id),
+                        jsonb_build_object('status', 'reemplazado', 'duplicate_of', v_twin, 'holder', v_dest));
+                d_dups := d_dups || to_jsonb(b.id);
+              ELSE
+                SELECT coalesce(max(x.block_index), 0) + 1 INTO v_block FROM remittance_beneficiaries x WHERE x.operation_id = v_dest;
+                SELECT coalesce(max(x.position), 0) + 1 INTO v_pos
+                  FROM remittance_beneficiaries x WHERE x.operation_id = v_dest AND x.status = 'vigente';
+                UPDATE remittance_beneficiaries SET operation_id = v_dest, block_index = v_block, position = v_pos WHERE id = b.id;
+                INSERT INTO remittance_admin_audit (account_id, table_name, row_id, field_name, action, actor, reason, before, after)
+                VALUES (d_op.account_id, 'remittance_beneficiaries', b.id, 'operation_id', v_action, v_actor, v_reason,
+                        jsonb_build_object('operation_id', d_id, 'block_index', b.block_index, 'position', b.position),
+                        jsonb_build_object('operation_id', v_dest, 'block_index', v_block, 'position', v_pos));
+                d_moved := d_moved || to_jsonb(b.id);
+              END IF;
+            END LOOP;
+
+            UPDATE remittance_operations SET status = 'cancelled', cancelled_at = now() WHERE id = d_id;
+            INSERT INTO remittance_admin_audit (account_id, table_name, row_id, field_name, action, actor, reason, before, after)
+            VALUES (d_op.account_id, 'remittance_operations', d_id, 'status', v_action, v_actor,
+                    'empty duplicate of ' || v_dest || ' cancelled; ' || v_reason,
+                    jsonb_build_object('status', d_op.status, 'service_type', d_op.service_type),
+                    jsonb_build_object('status', 'cancelled', 'holder', v_dest, 'moved_recipients', d_moved, 'retired_duplicates', d_dups));
+            v_cancelled := v_cancelled || to_jsonb(d_id);
+            v_moved := v_moved || d_moved;
+            v_dups := v_dups || d_dups;
           END LOOP;
 
-          UPDATE remittance_operations SET status = 'cancelled', cancelled_at = now() WHERE id = d_id;
-          INSERT INTO remittance_admin_audit (account_id, table_name, row_id, field_name, action, actor, reason, before, after)
-          VALUES (d_op.account_id, 'remittance_operations', d_id, 'status', v_action, v_actor,
-                  'empty duplicate of ' || v_dest || ' cancelled; ' || v_reason,
-                  jsonb_build_object('status', d_op.status, 'service_type', d_op.service_type),
-                  jsonb_build_object('status', 'cancelled', 'holder', v_dest, 'moved_recipients', d_moved, 'retired_duplicates', d_dups));
-          v_cancelled := v_cancelled || to_jsonb(d_id);
-          v_moved := v_moved || d_moved;
-          v_dups := v_dups || d_dups;
-        END LOOP;
+          -- Closing an operation wipes the conversation's partial recipient (trg_reset_beneficiario_parcial_al_cerrar): the
+          -- conversation is still going, put it back.
+          IF v_parcial IS NOT NULL AND NOT EXISTS (SELECT 1 FROM cerebro_beneficiario_parcial p WHERE p.conversation_id = p_conv) THEN
+            INSERT INTO cerebro_beneficiario_parcial SELECT * FROM jsonb_populate_record(NULL::cerebro_beneficiario_parcial, v_parcial);
+          END IF;
+        END IF;
 
-        -- Closing an operation wipes the conversation's partial recipient (trg_reset_beneficiario_parcial_al_cerrar): the
-        -- conversation is still going, put it back.
-        IF v_parcial IS NOT NULL AND NOT EXISTS (SELECT 1 FROM cerebro_beneficiario_parcial p WHERE p.conversation_id = p_conv) THEN
-          INSERT INTO cerebro_beneficiario_parcial SELECT * FROM jsonb_populate_record(NULL::cerebro_beneficiario_parcial, v_parcial);
+        v_cambios := jsonb_build_object(
+          'operacion', v_dest, 'servicio', v_to, 'accion_auditoria', v_action, 'actor', v_actor,
+          'retirados', coalesce(v_core -> 'retired', '[]'::jsonb), 'reetiquetados', coalesce(v_core -> 'retyped', '[]'::jsonb),
+          'canceladas', v_cancelled, 'numeros_movidos', v_moved, 'duplicados_retirados', v_dups, 'omitidas', v_skipped);
+      END IF;
+
+    ELSIF v_accion = 'aparte' THEN
+      -- A second operation of the same service is never opened while an empty one is already waiting (Q3).
+      SELECT o.id INTO v_vacia FROM remittance_operations o
+       WHERE o.conversation_id = p_conv AND o.status IN ('collecting_information', 'awaiting_deposit')
+         AND coalesce(o.quoted_source_amount, 0) = 0 AND o.mixed_group_id IS NULL
+         AND NOT EXISTS (SELECT 1 FROM remittance_operation_receipts x WHERE x.operation_id = o.id)
+         AND NOT EXISTS (SELECT 1 FROM depositos_mmg x WHERE x.operation_id = o.id AND x.anulado_en IS NULL AND x.descartado_en IS NULL)
+         AND (CASE WHEN o.service_type = 'remesa' THEN o.delivery_method ELSE o.service_type END) = v_servicio
+       ORDER BY o.created_at, o.id LIMIT 1;
+
+      IF v_vacia IS NOT NULL THEN
+        v_skip := 'ya_existe_vacia';
+        v_cambios := jsonb_build_object('operacion', v_vacia);
+      ELSE
+        -- The new operation copies the customer's deposit data from the newest open operation; it owns no money yet.
+        INSERT INTO remittance_operations (account_id, conversation_id, contact_id, status, service_type, delivery_method,
+                                           deposit_method, source_country, source_currency, quoted_source_amount)
+        SELECT v_account, p_conv, coalesce(h.contact_id, v_contact), 'collecting_information',
+               CASE WHEN v_servicio IN ('recarga', 'combo', 'visa', 'saldo') THEN v_servicio ELSE 'remesa' END,
+               CASE WHEN v_servicio IN ('recarga', 'combo', 'visa', 'saldo') THEN NULL ELSE v_servicio END,
+               h.deposit_method, h.source_country, coalesce(h.source_currency, 'GYD'), 0
+          FROM (SELECT x.* FROM remittance_operations x
+                 WHERE x.conversation_id = p_conv AND x.status NOT IN ('completed', 'cancelled')
+                 ORDER BY x.created_at DESC, x.id LIMIT 1) h
+        RETURNING id INTO v_nueva;
+
+        IF v_nueva IS NULL THEN
+          v_skip := 'sin_operacion';
+        ELSE
+          INSERT INTO remittance_admin_audit (account_id, table_name, row_id, field_name, action, actor, reason, before, after)
+          VALUES (v_account, 'remittance_operations', v_nueva, 'service_type', v_action, v_actor, v_reason,
+                  '{}'::jsonb, jsonb_build_object('service', v_servicio, 'status', 'collecting_information', 'quoted_source_amount', 0));
+          v_changed := true;
+          v_cambios := jsonb_build_object('operacion', v_nueva, 'servicio', v_servicio, 'accion_auditoria', v_action, 'actor', v_actor);
+        END IF;
+      END IF;
+
+    ELSE
+      -- mixto: the deposit covers the holder's service and the new one. The 255 bot split does the work (not reimplemented here):
+      -- the holder keeps deposit - minimum of the new service, the new service gets its minimum, one group.
+      v_to := v_r -> 'adicionales' -> 0 ->> 'servicio';
+      v_monto := (v_r -> 'adicionales' -> 0 ->> 'monto')::numeric;
+      v_deposito := (v_r -> 'evidencia' ->> 'deposito')::numeric;
+      v_x_srv := (SELECT e ->> 'servicio' FROM jsonb_array_elements(v_r -> 'operaciones') e WHERE e ->> 'id' = v_dest::text LIMIT 1);
+      v_lbl_x := (SELECT t.l FROM (VALUES ('cuban_card', 'tarjeta cup'), ('clasica', 'clasica'), ('tropical', 'tropical'),
+                                          ('zelle', 'zelle'), ('efectivo_usd', 'efectivo usd'), ('recarga', 'recarga'),
+                                          ('saldo', 'saldo'), ('combo', 'combo'), ('visa', 'visa')) AS t(k, l)
+                   WHERE t.k = v_x_srv);
+      v_lbl_y := (SELECT t.l FROM (VALUES ('cuban_card', 'tarjeta cup'), ('clasica', 'clasica'), ('tropical', 'tropical'),
+                                          ('zelle', 'zelle'), ('efectivo_usd', 'efectivo usd'), ('recarga', 'recarga'),
+                                          ('saldo', 'saldo'), ('combo', 'combo'), ('visa', 'visa')) AS t(k, l)
+                   WHERE t.k = v_to);
+
+      IF v_lbl_x IS NULL OR v_lbl_y IS NULL OR v_deposito IS NULL OR v_deposito <= v_monto THEN
+        v_skip := 'reparto_rechazado';
+        v_detalle := 'no hay partes validas para repartir';
+      ELSE
+        v_partes := v_lbl_x || ' ' || (v_deposito - v_monto)::bigint || ', ' || v_lbl_y || ' ' || v_monto::bigint;
+        v_reparto := cerebro_repartir_envio(p_conv, v_partes, p_exec);
+        SELECT o.mixed_group_id INTO v_grupo FROM remittance_operations o WHERE o.id = v_dest;
+        IF v_grupo IS NULL THEN
+          -- The split refused (its own reply says why): nothing was written.
+          v_skip := 'reparto_rechazado';
+          v_detalle := v_reparto;
+        ELSE
+          v_changed := true;
+          v_cambios := jsonb_build_object('operacion', v_dest, 'grupo', v_grupo, 'servicio', v_to, 'partes', v_partes,
+                                          'reparto', v_reparto, 'accion_auditoria', 'automation_mixed_split',
+                                          'actor', 'automation:cerebro_repartir_envio');
         END IF;
       END IF;
     END IF;
@@ -396,23 +510,22 @@ BEGIN
     PERFORM set_config('wacrm.origin', v_prev_origin, true);
     PERFORM set_config('wacrm.actor', v_prev_actor, true);
   EXCEPTION WHEN OTHERS THEN
-    -- The sub-transaction (and its set_config) is already rolled back; fail open with the resolver's answer.
+    -- The sub-transaction (and its set_config calls) is already rolled back; fail open with the resolver's answer.
     RETURN coalesce(v_r, v_safe) || jsonb_build_object('aplicado', false, 'cambios', '{}'::jsonb,
                                                        'sqlstate', SQLSTATE, 'detalle', left(SQLERRM, 200));
   END;
 
-  IF NOT (v_core ->> 'changed')::boolean THEN
-    RETURN v_r || jsonb_build_object('aplicado', false, 'cambios', '{}'::jsonb);
+  IF NOT v_changed THEN
+    RETURN v_r || jsonb_build_object('aplicado', false, 'motivo', coalesce(v_skip, v_r ->> 'motivo'), 'cambios', v_cambios)
+           || CASE WHEN v_detalle IS NOT NULL THEN jsonb_build_object('detalle', left(v_detalle, 200)) ELSE '{}'::jsonb END;
   END IF;
-  RETURN v_r || jsonb_build_object('aplicado', true, 'cambios', jsonb_build_object(
-    'operacion', v_dest, 'servicio', v_to, 'accion_auditoria', v_action, 'actor', v_actor,
-    'retirados', coalesce(v_core -> 'retired', '[]'::jsonb), 'reetiquetados', coalesce(v_core -> 'retyped', '[]'::jsonb),
-    'canceladas', v_cancelled, 'numeros_movidos', v_moved, 'duplicados_retirados', v_dups, 'omitidas', v_skipped));
+  RETURN v_r || jsonb_build_object('aplicado', true, 'cambios', v_cambios);
 EXCEPTION WHEN OTHERS THEN
   -- Never raise into the bot (the lock or the resolver call itself failed).
   RETURN coalesce(v_r, v_safe) || jsonb_build_object('aplicado', false, 'cambios', '{}'::jsonb,
                                                      'sqlstate', SQLSTATE, 'detalle', left(SQLERRM, 200));
 END $function$;
 
-REVOKE ALL ON FUNCTION public.cerebro_aplicar_servicio(uuid, text, text, text, text) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.cerebro_aplicar_servicio(uuid, text, text, text, text) TO authenticated, service_role;
+-- Grants: the bot (service_role) only. The function checks auth.uid() as well, for any future authenticated grant.
+REVOKE ALL ON FUNCTION public.cerebro_aplicar_servicio(uuid, text, text, text, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.cerebro_aplicar_servicio(uuid, text, text, text, text) TO service_role;

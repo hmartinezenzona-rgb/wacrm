@@ -24,6 +24,22 @@ describe("destinationCurrencyOf", () => {
   });
 });
 
+describe("México quote", () => {
+  it("delivers in USD", () => {
+    expect(destinationCurrencyOf("mexico")).toBe("USD");
+  });
+
+  it("prices whole USD at the single USD sale rate, rounded down", () => {
+    expect(previewDestinationAmount("mexico", 26000, rates)).toBe(100);
+    expect(previewDestinationAmount("mexico", 26259, rates)).toBe(100);
+  });
+
+  it("offers no quote below the 13,000 GYD minimum, and quotes exactly at it", () => {
+    expect(previewDestinationAmount("mexico", 12999, rates)).toBeNull();
+    expect(previewDestinationAmount("mexico", 13000, rates)).toBe(50);
+  });
+});
+
 describe("previewDestinationAmount", () => {
   it("CUP rounds deposit x cup rate", () => {
     expect(previewDestinationAmount("cuban_card", 26001, rates)).toBe(91004); // 91003.5 -> 91004

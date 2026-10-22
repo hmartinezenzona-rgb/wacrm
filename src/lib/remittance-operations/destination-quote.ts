@@ -10,6 +10,8 @@ interface ServiceQuote {
   currency: "USD" | "CUP";
   /** The calculation service of document-rates.ts that prices a deposit for it. */
   calc: CalculatorAutoCompletionService;
+  /** Smallest GYD deposit the service takes (México: 13,000 GYD); below it there is no quote. */
+  minimumGyd?: number;
 }
 
 const SERVICE_QUOTES: Partial<Record<OperationService, ServiceQuote>> = {
@@ -18,6 +20,8 @@ const SERVICE_QUOTES: Partial<Record<OperationService, ServiceQuote>> = {
   clasica: { currency: "USD", calc: "CLASICA" },
   tropical: { currency: "USD", calc: "TROPICAL" },
   efectivo_usd: { currency: "USD", calc: "EFECTIVO" },
+  // México sells whole USD at the single USD sale rate, like clasica (migration pricing: 260 GYD per USD).
+  mexico: { currency: "USD", calc: "CLASICA", minimumGyd: 13000 },
 };
 
 /** The destination currency a service delivers in, or `null` when the service has no destination quote (recarga,
@@ -35,6 +39,7 @@ export function previewDestinationAmount(
 ): number | null {
   const quote = SERVICE_QUOTES[service as OperationService];
   if (!quote || !rates) return null;
+  if (quote.minimumGyd !== undefined && !(depositGyd >= quote.minimumGyd)) return null;
   try {
     const amount = deriveAmountFromDeposit(quote.calc, depositGyd, rates);
     if (amount === null) return null;

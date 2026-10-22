@@ -337,4 +337,21 @@ bot que cree las operaciones con las herramientas, porque él confirma y entiend
   multi-service splits only through its tools (gestionar_beneficiario, registrar_beneficiario_zelle,
   repartir_envio / registrar_reparto_multiple, cambiar/agregar/declarar_servicio). Measure with real-shaped cases
   (Katiuska, Clarita, Marlene, f8b7779c) before any production change.
-- Gap: Mexico (Mercado Pago) is not a modelled service.
+- ~~Gap: Mexico (Mercado Pago) is not a modelled service.~~ Wrong: Mercado Pago is the BANK of a CLABE account (owner
+  2026-10-22, conv 4afda26a: 18-digit CLABE + "Es de mercado pago"). See the México section below.
+
+## México as a real operation (owner 2026-10-22: "sí, mételo en el rediseño")
+
+Business (cerebro_servicios 'mexico'): customer pays GYD by MMG; 260 GYD per USD, minimum 13,000 GYD (50 USD), no
+maximum; same day. Payout in MXN at the day's rate set by the operator (no stored USD->MXN rate). Receive by CUENTA
+BANCARIA (CLABE, banco, titular; e.g. Banco Azteca, Mercado Pago) or RETIRO SIN TARJETA at Coppel/BBVA (multiples of
+100). One conversation can carry several México accounts (4afda26a, 2026-08-20: 100 + 200 USD plus a Zelle).
+Today: requiere_humano = true; 0 operations with service_type 'mexico'; in 90 days 16 conversations, their sends filed as
+rail-less remesas (12 completed, 496,600 GYD) outside the calculator. Code already knows service_type 'mexico'
+(src/lib/service-name.ts, dashboard, 229 history, 243 cerebro_cotizar tasa unica). Open with Osmany: cost per send,
+cardless-withdrawal data, completion evidence (docs/negocio/PEDIR-A-OSMANY-mexico.md 2-5).
+
+- [ ] M1 Map (read-only): what an operation of service_type 'mexico' needs end to end: recipient model for CLABE /
+  banco / titular and cardless withdrawal, resolver/aplicar/declarar minimums, deposit registration, agent tools and
+  prompt (consultar_servicio, calcular_usd via=mexico, requiere_humano handoff), Decisor notes, panel/board,
+  calculator/ledger/finances, customer notifier. Output: gaps and a task split (M2..), written here.

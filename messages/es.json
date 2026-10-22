@@ -2746,5 +2746,65 @@
       "hint": "Si baja: se descuenta de los lotes más antiguos. Si sube: se devuelve a los lotes más nuevos, sin pasar de lo cargado.",
       "submit": "Ajustar"
     }
+  },
+  "AwayMode": {
+    "button": {
+      "available": "Disponible",
+      "untilToday": "Ausentes hasta {time}",
+      "untilTomorrow": "Ausentes hasta mañana {time}",
+      "untilOther": "Ausentes hasta el {weekday} {time}",
+      "adminOnly": "Solo los administradores pueden cambiar este aviso"
+    },
+    "popover": {
+      "title": "Avisar que no estamos",
+      "subtitle": "El bot sigue atendiendo y explica a los clientes por qué tardamos.",
+      "untilLabel": "¿Hasta cuándo?",
+      "presetRato": "Un rato",
+      "presetRatoSub": "1 hora",
+      "presetHora": "Hasta una hora",
+      "presetHoraSub": "elige la hora",
+      "presetResto": "Resto del día",
+      "presetRestoSub": "hasta mañana",
+      "timeLabel": "Volvemos a las",
+      "motivoLabel": "Motivo (el bot lo dirá)",
+      "motivoPrefix": "porque",
+      "defaultMotivo": "porque tuvimos que salir un momento",
+      "chips": {
+        "salir": "tuvimos que salir",
+        "diligencia": "estamos en una diligencia",
+        "festivo": "es día festivo",
+        "aniversario": "estamos de aniversario"
+      },
+      "previewTitle": "Así responderá el bot",
+      "previewSentence": "Ahora mismo no estamos {motivo}; volvemos {when}. Le seguimos atendiendo por aquí.",
+      "cancel": "Cancelar",
+      "activate": "Activar aviso",
+      "update": "Cambiar aviso",
+      "saving": "Guardando…",
+      "returned": "Ya volvimos"
+    },
+    "when": {
+      "today": "a las {time}",
+      "tomorrow": "mañana a las {time}",
+      "other": "el {weekday} a las {time}"
+    },
+    "weekdays": {
+      "0": "domingo",
+      "1": "lunes",
+      "2": "martes",
+      "3": "miércoles",
+      "4": "jueves",
+      "5": "viernes",
+      "6": "sábado"
+    },
+    "banner": {
+      "active": "Aviso activo: ausentes {when}",
+      "by": "lo activó {name}",
+      "returned": "Ya volvimos"
+    },
+    "errors": {
+      "save": "No se pudo activar el aviso. Inténtalo de nuevo.",
+      "clear": "No se pudo quitar el aviso. Inténtalo de nuevo."
+    }
   }
 }

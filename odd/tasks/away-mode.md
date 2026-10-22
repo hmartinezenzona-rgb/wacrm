@@ -49,8 +49,13 @@ reason (whole days only, no panel UI). Mockup: https://claude.ai/artifact/Mupn2q
   2026-10-22: RED 30/30 failing (modules missing); GREEN 46/46 (validate + both routes); tsc clean; full vitest
   224 files / 3101 tests passing. `hasta` > now + 1 min and <= 7 days; motivo 1..120 stored as typed; `por` from
   profiles.full_name (fallback "un admin"); broken dias_cerrados -> []; DB errors -> generic 500.
-- [ ] W3 Panel: header button + popover (presets, return time, reason chips, bot preview) and global banner ("Ya
+- [x] W3 Panel: header button + popover (presets, return time, reason chips, bot preview) and global banner ("Ya
   volvimos"), hook with refetch on focus and every minute; i18n es/en; component tests.
+  2026-10-22: RED 4 files failing (modules missing); GREEN 86/86 in the touched areas; tsc and eslint clean; full
+  vitest 228 files / 3137 tests passing. One poller via AwayModeProvider (mounted only with a signed-in user).
+  Popover opens for admins only (null role = not admin); banner for every member, "Ya volvimos" admins only.
+  OPEN for W6: the real @base-ui Popover hangs in jsdom, so its test uses a stand-in; check the real popover on the
+  staging panel.
 - [ ] W4 Configuración: "Días cerrados" section (list, add, remove) using W2.
 - [ ] W5 Cerebro staging: Decisor reads `cierre_especial.ausencia` and adds the note line; node test; applied to the
   staging Cerebro with backup (skill `wacrm-cerebro-n8n`).

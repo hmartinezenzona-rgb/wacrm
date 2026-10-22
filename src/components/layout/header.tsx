@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ModeToggle } from "@/components/layout/mode-toggle";
+import { AwayModeButton } from "@/components/layout/away-mode-button";
 
 /**
  * Section roots, for the "back to section" crumb on sub-pages.
@@ -129,6 +130,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2">
+        <AwayModeButton />
         <ModeToggle />
 
         <DropdownMenu>

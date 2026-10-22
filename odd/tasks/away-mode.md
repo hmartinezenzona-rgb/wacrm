@@ -88,3 +88,12 @@ reason (whole days only, no panel UI). Mockup: https://claude.ai/artifact/Mupn2q
 ## Next step
 
 W1.
+
+## Change 2026-10-22 (owner): the managers are away, not the bot
+
+Owner: "quisiera que el bot diera a entender que quienes estan fuera o no disponibles son los admins". The Decisor note
+now says "los encargados no estan disponibles (...); regresan ..." and "los ausentes son LOS ENCARGADOS, no tu"; the
+panel preview, default reason ("porque tuvieron que salir un momento") and chips moved to the third person, plus a
+new chip "tuvieron un asunto personal". RED 3 failing -> GREEN; tsc clean; full vitest 230 / 3159. Commit 31b77cd.
+Staging Cerebro republished: publicar-decisor --esperado fac409b8 OK, versionId f74e9548 == activeVersionId,
+Decisor md5 252f1489 == repo, nodes 128.

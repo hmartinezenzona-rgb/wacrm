@@ -199,3 +199,16 @@ move only non-remesa holders, ambiguity -> preguntar, alerta null in v1, fail-op
   availability/price questions dropped (regex c_preg); a service named before later data of another rail or another
   service word is superseded (evidencia.activas); same-message signals both count. Recarga conversion needs deposit
   >= promo price (6,200), saldo/rails their minimum.
+
+## S3 part 1: migration 266 (2026-10-22)
+
+- cerebro_aplicar_servicio (VOLATILE, advisory lock per conversation, runs the resolver; on convertir calls
+  _cambiar_servicio_core with the caller's actor; cancels empty duplicates and moves their recipients to the holder with
+  dedupe; one sub-transaction, fail-open). _cambiar_servicio_core: converting to recarga/saldo keeps EVERY phone-only
+  recipient as a 'recarga' number (parent review changed the writer's "lone phone only" rule: a recarga may go to
+  several numbers; RED observed on case 14 "expected recarga:2, got none", then GREEN). Audit action
+  agent_service_change added to the CHECK; agent locks recorded as automation:agent_<tool> so they do not block as a
+  human lock; partial recipient restored after cancelling a duplicate; auth.uid() callers must be agents of the account.
+- Staging aplicar: dry-run, apply, assertion OK, rollback OK (md5 equal); md5 _cambiar_servicio_core 19cae611,
+  cerebro_aplicar_servicio 2e4c0e55. relacionadas (--ya-aplicada): 56 total, 54 SAME, 2 DIFF (aplicar-servicio new;
+  contexto-envio-mixto flaky on base: random uuid order on tied created_at, passes with 266). probar_migraciones green.

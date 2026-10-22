@@ -46,6 +46,8 @@ BEGIN
 
   -- 1. The customer asks for the visa extension, then deposits 5,000: a visa operation, no remesa.
   v_conv := pg_temp.conv_t213('01', ARRAY['hola', 'quiero hacer la extension de visa']);
+  -- (267 redesign) the bot declares the service it understood; deposits no longer read the customer's words
+  PERFORM cerebro_declarar_servicio(v_conv, 'visa', 'agent:test');
   PERFORM cerebro_registrar_deposito(v_conv, 5000, 'GYD', c_verif, NULL, NULL);
   IF pg_temp.ops_t213(v_conv) <> 'visa/deposit_verification/5000' THEN
     RAISE EXCEPTION 'case 1: a visa conversation must open a visa operation, got %', pg_temp.ops_t213(v_conv); END IF;
@@ -131,10 +133,14 @@ BEGIN
 
   -- 5. Precedence: the OPEN operation wins; with nothing open: recarga > combo > visa.
   v_conv2 := pg_temp.conv_t213('5a', ARRAY['quiero la extension de visa', 'y tambien una recarga']);
+  -- (267 redesign) the bot declares the service it understood; deposits no longer read the customer's words
+  PERFORM cerebro_declarar_servicio(v_conv2, 'recarga', 'agent:test');
   PERFORM cerebro_registrar_deposito(v_conv2, 6200, 'GYD', c_verif, NULL, NULL);
   IF pg_temp.ops_t213(v_conv2) <> 'recarga/deposit_verification/6200' THEN
     RAISE EXCEPTION 'case 5a: text only, recarga beats visa, got %', pg_temp.ops_t213(v_conv2); END IF;
   v_conv2 := pg_temp.conv_t213('5b', ARRAY['quiero la extension de visa', 'y tambien un combo']);
+  -- (267 redesign) the bot declares the service it understood; deposits no longer read the customer's words
+  PERFORM cerebro_declarar_servicio(v_conv2, 'combo', 'agent:test');
   PERFORM cerebro_registrar_deposito(v_conv2, 25000, 'GYD', c_verif, NULL, NULL);
   IF pg_temp.ops_t213(v_conv2) <> 'combo/deposit_verification/25000' THEN
     RAISE EXCEPTION 'case 5b: text only, combo beats visa, got %', pg_temp.ops_t213(v_conv2); END IF;
@@ -161,6 +167,8 @@ BEGIN
   IF pg_temp.ops_t213(v_conv2) <> 'remesa/deposit_verification/7000' THEN
     RAISE EXCEPTION 'case 5f: a plain conversation stays a remesa, got %', pg_temp.ops_t213(v_conv2); END IF;
   v_conv2 := pg_temp.conv_t213('5g', ARRAY['quiero una recarga']);
+  -- (267 redesign) the bot declares the service it understood; deposits no longer read the customer's words
+  PERFORM cerebro_declarar_servicio(v_conv2, 'recarga', 'agent:test');
   PERFORM cerebro_registrar_deposito(v_conv2, 6200, 'GYD', c_verif, NULL, NULL);
   IF pg_temp.ops_t213(v_conv2) <> 'recarga/deposit_verification/6200' THEN
     RAISE EXCEPTION 'case 5g: a recarga conversation stays a recarga, got %', pg_temp.ops_t213(v_conv2); END IF;
@@ -197,6 +205,8 @@ BEGIN
   -- 7b. A combo that already has its deposit is not collecting recipients any more: a typed card and phone are a remesa.
   v_conv2 := pg_temp.conv_t213('7b', ARRAY['quiero mandar un combo']);
   PERFORM crm_registrar_destinatario_combo(v_conv2, 'Ana Gil', '53111222', 'Calle 1 #2, Holguin', 'Esquina azul', NULL, 25000);
+  -- (267 redesign) the bot declares the service it understood; deposits no longer read the customer's words
+  PERFORM cerebro_declarar_servicio(v_conv2, 'combo', 'agent:test');
   PERFORM cerebro_registrar_deposito(v_conv2, 25000, 'GYD', c_verif, NULL, NULL);
   v_op3 := (SELECT id FROM remittance_operations WHERE conversation_id = v_conv2 AND service_type = 'combo');
   UPDATE remittance_operations SET status = 'ready_to_transfer' WHERE id = v_op3;

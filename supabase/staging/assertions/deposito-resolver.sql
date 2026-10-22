@@ -1,24 +1,29 @@
 \set ON_ERROR_STOP on
 BEGIN;
 -- =====================================================================
--- Assertion for migration 267 (cerebro_registrar_deposito decides the service with cerebro_resolver_servicio, 265).
--- Self-reverting: BEGIN ... ROLLBACK is in this file. Each case runs in its own sub-block and counts its failures
--- (WARNING "FAIL [case n] ..."); the DO block ends in RAISE EXCEPTION 'ALL PASS (rolled back on purpose)' when none failed.
+-- Assertion for migration 267 (cerebro_registrar_deposito takes the service from facts: the open operation, the agent's
+-- declared intent, Q1, else remesa; no customer words are read). Self-reverting: BEGIN ... ROLLBACK is in this file.
+-- Each case runs in its own sub-block and counts its failures (WARNING "FAIL [case n] ..."); the DO block ends in
+-- RAISE EXCEPTION 'ALL PASS (rolled back on purpose)' when none failed.
 -- Run it wrapped by infra/db/staging-migracion.sh (which strips \set/BEGIN/ROLLBACK/COMMIT) or by hand as
 --   BEGIN; <this file without its own BEGIN/ROLLBACK/\set>; ROLLBACK;
--- Prerequisites: 265 (cerebro_resolver_servicio) and 266 (cerebro_aplicar_servicio).
+-- Prerequisites: 265 (cerebro_resolver_servicio, cerebro_declarar_servicio) and 266 (cerebro_aplicar_servicio).
 -- Synthetic fixtures only: contacts 'PRUEBA deposito N', phones 5990256xxxx, fake mobiles 55501xxx, a fake card, a fake
--- Zelle account; no customer data. Operations are written as the bot would leave them (deposit = quoted_source_amount).
--- odd/tasks/service-resolution.md (S3 part 2) with the owner answers Q1, Q3, Q4, Q5, Q7 and Q8.
+-- Zelle account, refs 10409990xxxxxx; no customer data. Each deposit carries a receipt note ('DEPOSITO ... Ref: ...' and a
+-- COMP id), as the bot sends it, so the holder's money is visible to the resolver after the attach.
+-- odd/tasks/service-resolution.md (REDESIGN 2026-10-22). The promo is live, recarga price 6,200 (min_cup 600).
 -- Cases (number = label in the failure message):
---   1  no words, phone-only partial recipient, deposit 6,200, promo live -> a recarga (Katiuska 14:30 shape)
---   2  the same with 5,000 (below the recarga price) -> a remesa
---   3  "quiero recargar" typed, promo live, deposit 6,200 -> a recarga (old behaviour kept)
---   4  "tienen promo de recarga?" (a question), then a Zelle account, deposit 83,200 -> NOT a recarga (89f6df7e shape)
---   5a combo words, deposit 28,600 -> a combo;  5b explicit visa phrase, deposit 6,200 -> a visa (old behaviour kept)
---   6  an empty remesa holder (open, 0 GYD) + "quiero recargar" + deposit 6,200 -> the deposit lands on THAT operation,
---      which ends as a recarga (no second operation), converted by cerebro_aplicar_servicio (audit actor automation:registrar_deposito)
---   7  plain card remesa (card data, no words), deposit 5,000 -> a remesa
+--   1  no declaration, the customer TYPED the number, phone-only partial recipient, 6,200 -> one recarga operation in
+--      deposit_verification; the number is a vigente 'recarga' recipient of it (Katiuska 14:30 shape)
+--   2  the same with 5,000 (below the recarga price, not a whole promo price) -> a remesa
+--   3  declared intent recarga + 6,200, NO words in the messages -> a recarga
+--   4  no declaration, "quiero recargar" typed, 6,200, a card in the partial recipient -> a remesa (words are not read)
+--   5  89f6df7e shape: no declaration, a Zelle account in the partial recipient, 83,200 -> a remesa, never a recarga
+--   6a declared combo + 28,600 -> a combo;  6b declared visa + 6,200 -> a visa
+--   7  an empty remesa holder (open, 0 GYD) + declared recarga + 6,200 -> the deposit lands on THAT operation, which ends
+--      as a recarga (no second operation), converted by cerebro_aplicar_servicio (audit actor automation:registrar_deposito)
+--   8  plain card remesa, no declaration, no words, 5,000 -> a remesa
+--   9  an open recarga already in the conversation (no words, no declaration), 6,200 -> the deposit lands on it
 -- =====================================================================
 
 CREATE FUNCTION pg_temp.d_conv(p_n int) RETURNS TABLE(acc uuid, usr uuid, contact uuid, conv uuid)
@@ -63,6 +68,15 @@ BEGIN
   RETURN v_op;
 END $f$;
 
+-- A deposit registered the way the bot sends it: receipt note with the Ref and a COMP id.
+CREATE FUNCTION pg_temp.d_registra(p_conv uuid, p_monto numeric, p_ref text)
+RETURNS TABLE(deal_id uuid, accion text, es_revendedor boolean, sumado boolean)
+LANGUAGE sql AS $f$
+  SELECT * FROM cerebro_registrar_deposito(p_conv, p_monto, 'GYD', '3cf01654-cd27-47c1-ac92-62abf5435751',
+           'DEPOSITO: ' || to_char(p_monto, 'FM999,999') || ' GYD - EXITOSA' || chr(10) || 'Ref: ' || p_ref,
+           'COMP-' || substr(md5(p_ref), 1, 20));
+$f$;
+
 -- 'service/status/amount' of every operation of the conversation, oldest first; '' when there is none.
 CREATE FUNCTION pg_temp.d_ops(p_conv uuid) RETURNS text
 LANGUAGE sql AS $f$
@@ -93,13 +107,13 @@ BEGIN
   VALUES (600, 1250, 5, v_hoy - 1, v_hoy + 2, 'ASSERT 267', 'https://assert.invalid/267', 'assert', md5('assert-267-vigente'), 'confirmada');
   IF (SELECT precio_gyd FROM cerebro_promo_vigente()) IS DISTINCT FROM 6200 THEN RAISE EXCEPTION 'fixture: promo price is not 6200'; END IF;
 
-  -- ---- 1. Katiuska shape: no words, a phone-only recipient, 6,200 ------------------------------------------------------------
+  -- ---- 1. Katiuska shape: no declaration, the number typed, a phone-only recipient, 6,200 -------------------------------
   BEGIN
     SELECT * INTO c FROM pg_temp.d_conv(1);
     -- As in production: the customer typed the number (the partial recipient was parsed from that message).
     PERFORM pg_temp.d_msg(c.conv, '55501001', 5);  -- the WhatsApp format '+53 5 5501001' is covered in 268 (number regex)
     PERFORM pg_temp.d_parcial(c.conv, NULL, '55501001', NULL);
-    SELECT * INTO v_reg FROM cerebro_registrar_deposito(c.conv, 6200, 'GYD', v_stage, NULL, NULL);
+    SELECT * INTO v_reg FROM pg_temp.d_registra(c.conv, 6200, '10409990000101');
     PERFORM pg_temp.d_eq('1', pg_temp.d_ops(c.conv), 'recarga/deposit_verification/6200');
     -- Parent review: the operator needs the number; it must be a vigente recarga recipient of that operation.
     PERFORM pg_temp.d_eq('1 number kept', (SELECT string_agg(b.beneficiary_type || ':' || b.phone, ',')
@@ -109,80 +123,103 @@ BEGIN
     v_fails := v_fails + 1; RAISE WARNING 'FAIL [case 1] %', SQLERRM;
   END;
 
-  -- ---- 2. the same with 5,000 (below the recarga price): a remesa ---------------------------------------------------
+  -- ---- 2. the same with 5,000 (below the recarga price, not a whole promo price): a remesa ---------------------------
   BEGIN
     SELECT * INTO c FROM pg_temp.d_conv(2);
+    PERFORM pg_temp.d_msg(c.conv, '55501002', 5);
     PERFORM pg_temp.d_parcial(c.conv, NULL, '55501002', NULL);
-    SELECT * INTO v_reg FROM cerebro_registrar_deposito(c.conv, 5000, 'GYD', v_stage, NULL, NULL);
+    SELECT * INTO v_reg FROM pg_temp.d_registra(c.conv, 5000, '10409990000201');
     PERFORM pg_temp.d_eq('2', pg_temp.d_ops(c.conv), 'remesa/deposit_verification/5000');
   EXCEPTION WHEN OTHERS THEN
     v_fails := v_fails + 1; RAISE WARNING 'FAIL [case 2] %', SQLERRM;
   END;
 
-  -- ---- 3. "quiero recargar" typed, 6,200: a recarga (old behaviour kept) ----------------------------------------------
+  -- ---- 3. declared intent recarga, 6,200, no words in any message: a recarga -----------------------------------------
   BEGIN
     SELECT * INTO c FROM pg_temp.d_conv(3);
-    PERFORM pg_temp.d_msg(c.conv, 'hola, quiero recargar', 10);
-    SELECT * INTO v_reg FROM cerebro_registrar_deposito(c.conv, 6200, 'GYD', v_stage, NULL, NULL);
+    PERFORM cerebro_declarar_servicio(c.conv, 'recarga', 'agent:test');
+    SELECT * INTO v_reg FROM pg_temp.d_registra(c.conv, 6200, '10409990000301');
     PERFORM pg_temp.d_eq('3', pg_temp.d_ops(c.conv), 'recarga/deposit_verification/6200');
   EXCEPTION WHEN OTHERS THEN
     v_fails := v_fails + 1; RAISE WARNING 'FAIL [case 3] %', SQLERRM;
   END;
 
-  -- ---- 4. 89f6df7e shape: a promo question, then a Zelle account; 83,200 is not a recarga -------------------------------
+  -- ---- 4. "quiero recargar" typed, no declaration, 6,200, a card recipient: a remesa (words are not read) -------------
   BEGIN
     SELECT * INTO c FROM pg_temp.d_conv(4);
-    PERFORM pg_temp.d_msg(c.conv, 'tienen promo de recarga?', 30);
-    PERFORM pg_temp.d_parcial(c.conv, NULL, NULL, 'prueba.zelle.256@example.invalid');
-    SELECT * INTO v_reg FROM cerebro_registrar_deposito(c.conv, 83200, 'GYD', v_stage, NULL, NULL);
-    PERFORM pg_temp.d_eq('4', pg_temp.d_ops(c.conv), 'remesa/deposit_verification/83200');
+    PERFORM pg_temp.d_msg(c.conv, 'hola, quiero recargar', 10);
+    PERFORM pg_temp.d_parcial(c.conv, c_card, NULL, NULL);
+    SELECT * INTO v_reg FROM pg_temp.d_registra(c.conv, 6200, '10409990000401');
+    PERFORM pg_temp.d_eq('4', pg_temp.d_ops(c.conv), 'remesa/deposit_verification/6200');
   EXCEPTION WHEN OTHERS THEN
     v_fails := v_fails + 1; RAISE WARNING 'FAIL [case 4] %', SQLERRM;
   END;
 
-  -- ---- 5a. combo words: a combo (old behaviour kept) -------------------------------------------------------------------
+  -- ---- 5. 89f6df7e shape: no declaration, a Zelle account, 83,200: a remesa, never a recarga -----------------------------
   BEGIN
     SELECT * INTO c FROM pg_temp.d_conv(5);
-    PERFORM pg_temp.d_msg(c.conv, 'quiero mandar un combo', 5);
-    SELECT * INTO v_reg FROM cerebro_registrar_deposito(c.conv, 28600, 'GYD', v_stage, NULL, NULL);
-    PERFORM pg_temp.d_eq('5a', pg_temp.d_ops(c.conv), 'combo/deposit_verification/28600');
+    PERFORM pg_temp.d_msg(c.conv, 'tienen promo de recarga?', 30);
+    PERFORM pg_temp.d_parcial(c.conv, NULL, NULL, 'prueba.zelle.256@example.invalid');
+    SELECT * INTO v_reg FROM pg_temp.d_registra(c.conv, 83200, '10409990000501');
+    PERFORM pg_temp.d_eq('5', pg_temp.d_ops(c.conv), 'remesa/deposit_verification/83200');
   EXCEPTION WHEN OTHERS THEN
-    v_fails := v_fails + 1; RAISE WARNING 'FAIL [case 5a] %', SQLERRM;
+    v_fails := v_fails + 1; RAISE WARNING 'FAIL [case 5] %', SQLERRM;
   END;
 
-  -- ---- 5b. explicit visa phrase: a visa (old behaviour kept) -----------------------------------------------------------
+  -- ---- 6a. declared combo, 28,600: a combo -------------------------------------------------------------------------
   BEGIN
     SELECT * INTO c FROM pg_temp.d_conv(6);
-    PERFORM pg_temp.d_msg(c.conv, 'quiero extender mi visa', 5);
-    SELECT * INTO v_reg FROM cerebro_registrar_deposito(c.conv, 6200, 'GYD', v_stage, NULL, NULL);
-    PERFORM pg_temp.d_eq('5b', pg_temp.d_ops(c.conv), 'visa/deposit_verification/6200');
+    PERFORM cerebro_declarar_servicio(c.conv, 'combo', 'agent:test');
+    SELECT * INTO v_reg FROM pg_temp.d_registra(c.conv, 28600, '10409990000601');
+    PERFORM pg_temp.d_eq('6a', pg_temp.d_ops(c.conv), 'combo/deposit_verification/28600');
   EXCEPTION WHEN OTHERS THEN
-    v_fails := v_fails + 1; RAISE WARNING 'FAIL [case 5b] %', SQLERRM;
+    v_fails := v_fails + 1; RAISE WARNING 'FAIL [case 6a] %', SQLERRM;
   END;
 
-  -- ---- 6. an empty remesa holder + "quiero recargar" + 6,200: the deposit lands on it and it ends as a recarga ----------
+  -- ---- 6b. declared visa, 6,200: a visa ----------------------------------------------------------------------------
   BEGIN
     SELECT * INTO c FROM pg_temp.d_conv(7);
+    PERFORM cerebro_declarar_servicio(c.conv, 'visa', 'agent:test');
+    SELECT * INTO v_reg FROM pg_temp.d_registra(c.conv, 6200, '10409990000701');
+    PERFORM pg_temp.d_eq('6b', pg_temp.d_ops(c.conv), 'visa/deposit_verification/6200');
+  EXCEPTION WHEN OTHERS THEN
+    v_fails := v_fails + 1; RAISE WARNING 'FAIL [case 6b] %', SQLERRM;
+  END;
+
+  -- ---- 7. empty remesa holder + declared recarga + 6,200: the deposit lands on it and it ends as a recarga ----------
+  BEGIN
+    SELECT * INTO c FROM pg_temp.d_conv(8);
     v_op := pg_temp.d_op(c, 'collecting_information', 'remesa', 0, 20);
-    PERFORM pg_temp.d_msg(c.conv, 'quiero recargar', 10);
-    SELECT * INTO v_reg FROM cerebro_registrar_deposito(c.conv, 6200, 'GYD', v_stage, NULL, NULL);
-    PERFORM pg_temp.d_eq('6 operations', pg_temp.d_ops(c.conv), 'recarga/deposit_verification/6200');
-    PERFORM pg_temp.d_eq('6 holder', v_reg.deal_id::text, v_op::text);
-    PERFORM pg_temp.d_eq('6 audit', (SELECT count(*)::text FROM remittance_admin_audit
+    PERFORM cerebro_declarar_servicio(c.conv, 'recarga', 'agent:test');
+    SELECT * INTO v_reg FROM pg_temp.d_registra(c.conv, 6200, '10409990000801');
+    PERFORM pg_temp.d_eq('7 operations', pg_temp.d_ops(c.conv), 'recarga/deposit_verification/6200');
+    PERFORM pg_temp.d_eq('7 holder', v_reg.deal_id::text, v_op::text);
+    PERFORM pg_temp.d_eq('7 audit', (SELECT count(*)::text FROM remittance_admin_audit
                                       WHERE row_id = v_op AND field_name = 'service' AND action = 'automation_service_change'
                                         AND actor = 'automation:registrar_deposito'), '1');
   EXCEPTION WHEN OTHERS THEN
-    v_fails := v_fails + 1; RAISE WARNING 'FAIL [case 6] %', SQLERRM;
+    v_fails := v_fails + 1; RAISE WARNING 'FAIL [case 7] %', SQLERRM;
   END;
 
-  -- ---- 7. plain card remesa (card data, no words, 5,000): a remesa ----------------------------------------------------
+  -- ---- 8. plain card remesa (card data, no words, no declaration, 5,000): a remesa ------------------------------------
   BEGIN
-    SELECT * INTO c FROM pg_temp.d_conv(8);
+    SELECT * INTO c FROM pg_temp.d_conv(9);
     PERFORM pg_temp.d_parcial(c.conv, c_card, NULL, NULL);
-    SELECT * INTO v_reg FROM cerebro_registrar_deposito(c.conv, 5000, 'GYD', v_stage, NULL, NULL);
-    PERFORM pg_temp.d_eq('7', pg_temp.d_ops(c.conv), 'remesa/deposit_verification/5000');
+    SELECT * INTO v_reg FROM pg_temp.d_registra(c.conv, 5000, '10409990000901');
+    PERFORM pg_temp.d_eq('8', pg_temp.d_ops(c.conv), 'remesa/deposit_verification/5000');
   EXCEPTION WHEN OTHERS THEN
-    v_fails := v_fails + 1; RAISE WARNING 'FAIL [case 7] %', SQLERRM;
+    v_fails := v_fails + 1; RAISE WARNING 'FAIL [case 8] %', SQLERRM;
+  END;
+
+  -- ---- 9. an open recarga already in the conversation, no words, no declaration, 6,200: the deposit lands on it -----
+  BEGIN
+    SELECT * INTO c FROM pg_temp.d_conv(10);
+    v_op := pg_temp.d_op(c, 'collecting_information', 'recarga', 0, 20);
+    SELECT * INTO v_reg FROM pg_temp.d_registra(c.conv, 6200, '10409990001001');
+    PERFORM pg_temp.d_eq('9 operations', pg_temp.d_ops(c.conv), 'recarga/deposit_verification/6200');
+    PERFORM pg_temp.d_eq('9 holder', v_reg.deal_id::text, v_op::text);
+  EXCEPTION WHEN OTHERS THEN
+    v_fails := v_fails + 1; RAISE WARNING 'FAIL [case 9] %', SQLERRM;
   END;
 
   IF v_fails > 0 THEN

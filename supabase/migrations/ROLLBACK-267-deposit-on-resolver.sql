@@ -1,6 +1,7 @@
--- ROLLBACK of 267_deposit_on_resolver.sql: restores cerebro_registrar_deposito exactly as staging had it before 267 (the body
--- of migration 232; pg_get_functiondef md5 70f46bfffab31d1c00543db3529119ad on staging). The ACL is the one it had
--- (postgres owner, service_role). No BEGIN/COMMIT.
+-- =====================================================================
+-- ROLLBACK 267 -- restores the live cerebro_registrar_deposito (migration 232 body) and its ACL.
+-- Exact body as read from staging with pg_get_functiondef before 267 (scratchpad live_registrar_deposito_all.sql).
+-- =====================================================================
 
 CREATE OR REPLACE FUNCTION public.cerebro_registrar_deposito(p_conv uuid, p_monto numeric, p_moneda text, p_stage uuid, p_nota text, p_comp_id text)
  RETURNS TABLE(deal_id uuid, accion text, es_revendedor boolean, sumado boolean)

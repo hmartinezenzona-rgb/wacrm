@@ -77,6 +77,8 @@ BEGIN
   INSERT INTO messages (conversation_id, sender_type, content_type, content_text, created_at) VALUES
     (v_conv, 'customer', 'text', 'quiero una recarga para el 53871234', now() - interval '10 minutes'),
     (v_conv, 'customer', 'text', 'y otra para 63123456', now() - interval '9 minutes');
+  -- (267 redesign) the bot declares the service it understood; deposits no longer read the customer's words
+  PERFORM cerebro_declarar_servicio(v_conv, 'recarga', 'agent:test');
   SELECT * INTO v_out FROM cerebro_registrar_deposito(v_conv, 12400, 'GYD', '3cf01654-cd27-47c1-ac92-62abf5435751'::uuid, NULL, NULL);
   SELECT id INTO v_op FROM remittance_operations WHERE conversation_id = v_conv;
   IF (SELECT service_type FROM remittance_operations WHERE id = v_op) <> 'recarga'

@@ -56,12 +56,16 @@ BEGIN
 
   -- 2. No open op, the customer said combo: the deposit creates a combo operation (not a remesa).
   v_conv2 := pg_temp.conv_t209('02', ARRAY['hola buenas', 'quiero mandar un combo']);
+  -- (267 redesign) the bot declares the service it understood; deposits no longer read the customer's words
+  PERFORM cerebro_declarar_servicio(v_conv2, 'combo', 'agent:test');
   PERFORM cerebro_registrar_deposito(v_conv2, 25000, 'GYD', c_verif, NULL, NULL);
   IF pg_temp.ops_t209(v_conv2) <> 'combo/deposit_verification/25000' THEN
     RAISE EXCEPTION 'case 2: a combo conversation must open a combo, got %', pg_temp.ops_t209(v_conv2); END IF;
 
   -- 2b. The same with the other phrasing: "mandar comida".
   v_conv2 := pg_temp.conv_t209('12', ARRAY['quiero mandar comida para Cuba']);
+  -- (267 redesign) the bot declares the service it understood; deposits no longer read the customer's words
+  PERFORM cerebro_declarar_servicio(v_conv2, 'combo', 'agent:test');
   PERFORM cerebro_registrar_deposito(v_conv2, 25000, 'GYD', c_verif, NULL, NULL);
   IF pg_temp.ops_t209(v_conv2) <> 'combo/deposit_verification/25000' THEN
     RAISE EXCEPTION 'case 2b: "mandar comida" must open a combo, got %', pg_temp.ops_t209(v_conv2); END IF;
@@ -74,6 +78,8 @@ BEGIN
 
   -- 4. A recharge conversation still goes to recarga.
   v_conv2 := pg_temp.conv_t209('04', ARRAY['quiero una recarga']);
+  -- (267 redesign) the bot declares the service it understood; deposits no longer read the customer's words
+  PERFORM cerebro_declarar_servicio(v_conv2, 'recarga', 'agent:test');
   PERFORM cerebro_registrar_deposito(v_conv2, 6200, 'GYD', c_verif, NULL, NULL);
   IF pg_temp.ops_t209(v_conv2) <> 'recarga/deposit_verification/6200' THEN
     RAISE EXCEPTION 'case 4: a recharge conversation must still create a recarga, got %', pg_temp.ops_t209(v_conv2); END IF;
@@ -85,6 +91,8 @@ BEGIN
   IF pg_temp.ops_t209(v_conv2) <> 'combo/deposit_verification/25000' THEN
     RAISE EXCEPTION 'case 5a: an open combo beats the recharge text, got %', pg_temp.ops_t209(v_conv2); END IF;
   v_conv2 := pg_temp.conv_t209('15', ARRAY['quiero un combo', 'y tambien una recarga']);
+  -- (267 redesign) the bot declares the service it understood; deposits no longer read the customer's words
+  PERFORM cerebro_declarar_servicio(v_conv2, 'recarga', 'agent:test');
   PERFORM cerebro_registrar_deposito(v_conv2, 6200, 'GYD', c_verif, NULL, NULL);
   IF pg_temp.ops_t209(v_conv2) <> 'recarga/deposit_verification/6200' THEN
     RAISE EXCEPTION 'case 5b: with nothing open the recharge wins as before, got %', pg_temp.ops_t209(v_conv2); END IF;

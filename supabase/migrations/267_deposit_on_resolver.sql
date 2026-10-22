@@ -1,21 +1,27 @@
 -- =====================================================================
--- 267 -- cerebro_registrar_deposito decides the service with the resolver (staging first)
+-- 267 -- cerebro_registrar_deposito takes the service from facts, through the resolver (staging first)
 --
--- odd/tasks/service-resolution.md (S3 part 2). The deposit used to read its own flags (cerebro_recarga_en_curso /
--- cerebro_combo_en_curso / cerebro_visa_en_curso) to choose the service of the operation it creates or joins. Those words
--- are now read once, by cerebro_resolver_servicio (265), so a deposit, the panel and the agent agree on one answer.
+-- odd/tasks/service-resolution.md (REDESIGN 2026-10-22). The deposit used to read the customer's words
+-- (cerebro_recarga_en_curso / cerebro_combo_en_curso / cerebro_visa_en_curso) to choose the service of the operation it
+-- creates or joins. The words are gone: the agent declares the intent (cerebro_declarar_servicio, 265), and this deposit
+-- asks cerebro_resolver_servicio (265) which service applies.
 --
 -- Changes against the live body (migration 232), nothing else:
 --   - the transaction takes pg_advisory_xact_lock('cerebro_servicio:' || conversation), the lock 266 uses (re-entrant);
---   - the flags come from v_res = cerebro_resolver_servicio(conversation, NULL, NULL, this deposit): servicio 'recarga'
---     sets v_recarga, 'combo' sets v_combo, 'visa' sets v_visa. A resolver error (motivo 'error') keeps the remesa
---     fallback: all three flags false. When the resolver decides no service (servicio NULL: several open operations
---     with no deposit, ambiguous words) the live precedence (open operation, recarga > combo > visa) still applies, so
---     visa-model 5e holds. A reseller's deposit skips the resolver, as before;
+--   - the service comes from v_res = cerebro_resolver_servicio(conversation, NULL, NULL, this deposit amount):
+--       the open operation that holds the money, else the declared intent, else Q1 (a live promo price with a phone-only
+--       recipient, servicio recarga), else remesa. servicio 'recarga' sets v_recarga, 'combo' sets v_combo, 'visa' sets
+--       v_visa. A resolver error (motivo 'error') keeps the remesa fallback: all three flags false. When the resolver
+--       decides no service (several open operations and no deposit), the open operation keeps winning (recarga > combo >
+--       visa, as in the live body); nothing else is read;
 --   - the holder lookup prefers the operation the resolver names (destino_operacion) when it is still open and eligible;
---   - when the resolver said accion 'convertir', the operation the deposit was attached to is converted right after the
---     attach by cerebro_aplicar_servicio(conversation, NULL, NULL, 'automation:registrar_deposito', NULL), which resolves
---     again under the same lock. Each branch (movido, sumado, creado) does it before its minimum / crossing calls.
+--   - when the resolver said accion 'convertir', the operation the deposit was attached to is converted by
+--     cerebro_aplicar_servicio(conversation, NULL, NULL, 'automation:registrar_deposito', NULL), which resolves again under
+--     the same lock. In the movido and sumado branches the receipts are inserted first (the resolver reads the holder's
+--     money from them), then the conversion, then the objetivo calls, so the minimum is checked for the converted service.
+--     In the creado branch it runs right after the insert, as before the objetivo and numbers calls.
+--   - a reseller's deposit skips the resolver, as before. Return values, MMG crossing, receipts and beneficiary calls are
+--     unchanged.
 --
 -- Guarded by supabase/staging/assertions/deposito-resolver.sql. ROLLBACK: ROLLBACK-267-deposit-on-resolver.sql
 -- =====================================================================
@@ -55,37 +61,31 @@ BEGIN
   PERFORM pg_advisory_xact_lock(hashtextextended('cerebro_servicio:' || p_conv::text, 0));
   v_rev := cerebro_es_revendedor(p_conv);
   -- (202, 209, 213, 267) Which kind of operation this deposit belongs to (at most one flag is true; none = a remesa).
-  -- 267: the service is decided by cerebro_resolver_servicio (265), from the customer's words, the open operations and
-  -- this deposit amount. A reseller's deposit is always a remesa. A resolver error keeps the remesa fallback.
+  -- (267) The service comes from facts, never from the customer's words: cerebro_resolver_servicio (265) gives the service
+  -- of the operation this deposit joins or creates (the open operation that holds the money, else the declared intent,
+  -- else Q1, else remesa). A reseller's deposit is always a remesa. A resolver error keeps the remesa fallback.
   IF NOT v_rev THEN
-    v_res := cerebro_resolver_servicio(p_conv, NULL::text, NULL::text, p_monto);
+    v_res    := cerebro_resolver_servicio(p_conv, NULL::text, NULL::text, p_monto);
     v_dest   := nullif(v_res ->> 'destino_operacion', '')::uuid;
     v_accion := v_res ->> 'accion';
     IF COALESCE(v_res ->> 'motivo', '') = 'error' THEN
       NULL;  -- fail open: remesa, all three flags stay false
     ELSIF v_res ->> 'servicio' IS NOT NULL THEN
-      v_recarga := COALESCE((v_res ->> 'servicio') = 'recarga', false);
-      v_combo   := COALESCE((v_res ->> 'servicio') = 'combo', false);
-      v_visa    := COALESCE((v_res ->> 'servicio') = 'visa', false);
+      v_recarga := (v_res ->> 'servicio') = 'recarga';
+      v_combo   := (v_res ->> 'servicio') = 'combo';
+      v_visa    := (v_res ->> 'servicio') = 'visa';
     ELSE
-      -- No service decided (several open operations with no deposit, ambiguous words): the precedence of the live body
-      -- (202, 209, 213) stays. The open operation wins; among several open ones recarga > combo > visa; with nothing open,
-      -- the same order applies to the words.
+      -- No service decided (several open operations and no deposit): the open operation keeps winning, in the live order
+      -- recarga > combo > visa. No words are read; with nothing open the deposit is a remesa.
       v_open_r := EXISTS (SELECT 1 FROM remittance_operations o WHERE o.conversation_id = p_conv
                             AND o.service_type = 'recarga' AND o.status NOT IN ('completed', 'cancelled'));
       v_open_c := EXISTS (SELECT 1 FROM remittance_operations o WHERE o.conversation_id = p_conv
                             AND o.service_type = 'combo' AND o.status NOT IN ('completed', 'cancelled'));
       v_open_v := EXISTS (SELECT 1 FROM remittance_operations o WHERE o.conversation_id = p_conv
                             AND o.service_type = 'visa' AND o.status NOT IN ('completed', 'cancelled'));
-      IF v_open_r OR v_open_c OR v_open_v THEN
-        v_recarga := v_open_r;
-        v_combo   := v_open_c AND NOT v_open_r;
-        v_visa    := v_open_v AND NOT v_open_r AND NOT v_open_c;
-      ELSE
-        v_recarga := cerebro_recarga_en_curso(p_conv);
-        v_combo   := NOT v_recarga AND cerebro_combo_en_curso(p_conv);
-        v_visa    := NOT v_recarga AND NOT v_combo AND cerebro_visa_en_curso(p_conv);
-      END IF;
+      v_recarga := v_open_r;
+      v_combo   := v_open_c AND NOT v_open_r;
+      v_visa    := v_open_v AND NOT v_open_r AND NOT v_open_c;
     END IF;
   END IF;
 
@@ -209,7 +209,7 @@ BEGIN
      ORDER BY ro.created_at DESC LIMIT 1;
   END IF;
 
-  -- (160) Recarga 24 h window: now decided up front by cerebro_recarga_en_curso (202).
+  -- (160) Recarga 24 h window: now decided up front by the resolver (267).
 
   SELECT c.phone, v.contact_id INTO v_phone, v_contact
     FROM conversations v JOIN contacts c ON c.id = v.contact_id WHERE v.id = p_conv;
@@ -223,14 +223,7 @@ BEGIN
            quoted_source_amount = p_monto,
            contact_id = coalesce(v_contact, ro.contact_id)
      WHERE ro.id = v_ex;
-    -- (267) the resolver said convert: the deposit is attached, so the service is decided again and converted here
-    IF v_accion = 'convertir' THEN
-      PERFORM cerebro_aplicar_servicio(p_conv, NULL, NULL, 'automation:registrar_deposito', NULL);
-    END IF;
-    PERFORM cerebro_objetivo_atar_op(p_conv, v_ex);
-    -- (182 <- 170) Below the minimum of its service: wait for the rest.
-    PERFORM cerebro_objetivo_minimo(p_conv, v_ex);
-    -- (156) dual-write: insert parsed receipts for this operation.
+    -- (156) dual-write: insert parsed receipts for this operation (before the conversion: the resolver reads them).
     INSERT INTO public.remittance_operation_receipts (
       operation_id, conversation_id, comp_id, amount, currency, receipt_status,
       recipient, via, reference, receipt_date, correct_destination, source)
@@ -240,6 +233,13 @@ BEGIN
      CROSS JOIN LATERAL cerebro_parsear_comprobantes(v_nota) p
      WHERE o.id = v_ex
     ON CONFLICT (operation_id, comp_id) WHERE comp_id IS NOT NULL DO NOTHING;
+    -- (267) the resolver said convert: the deposit is attached, so the service is decided again and converted here
+    IF v_accion = 'convertir' THEN
+      PERFORM cerebro_aplicar_servicio(p_conv, NULL, NULL, 'automation:registrar_deposito', NULL);
+    END IF;
+    PERFORM cerebro_objetivo_atar_op(p_conv, v_ex);
+    -- (182 <- 170) Below the minimum of its service: wait for the rest.
+    PERFORM cerebro_objetivo_minimo(p_conv, v_ex);
     -- (202) a recharge takes any number typed since (no repeats)
     IF (SELECT service_type FROM remittance_operations WHERE id = v_ex) = 'recarga' THEN
       PERFORM crm_registrar_numeros_recarga(p_conv, cerebro_textos_cliente_recientes(p_conv));
@@ -256,14 +256,7 @@ BEGIN
            quoted_source_amount = ro.quoted_source_amount + p_monto,
            contact_id = coalesce(v_contact, ro.contact_id)
      WHERE ro.id = v_suma;
-    -- (267) the resolver said convert: the deposit is attached, so the service is decided again and converted here
-    IF v_accion = 'convertir' THEN
-      PERFORM cerebro_aplicar_servicio(p_conv, NULL, NULL, 'automation:registrar_deposito', NULL);
-    END IF;
-    PERFORM cerebro_objetivo_atar_op(p_conv, v_suma);
-    -- (182 <- 170) The objetivo covers the whole remesa.
-    PERFORM cerebro_objetivo_minimo(p_conv, v_suma, true);
-    -- (156) dual-write.
+    -- (156) dual-write (before the conversion: the resolver reads the receipts).
     INSERT INTO public.remittance_operation_receipts (
       operation_id, conversation_id, comp_id, amount, currency, receipt_status,
       recipient, via, reference, receipt_date, correct_destination, source)
@@ -273,6 +266,13 @@ BEGIN
      CROSS JOIN LATERAL cerebro_parsear_comprobantes(v_nota) p
      WHERE o.id = v_suma
     ON CONFLICT (operation_id, comp_id) WHERE comp_id IS NOT NULL DO NOTHING;
+    -- (267) the resolver said convert: the deposit is attached, so the service is decided again and converted here
+    IF v_accion = 'convertir' THEN
+      PERFORM cerebro_aplicar_servicio(p_conv, NULL, NULL, 'automation:registrar_deposito', NULL);
+    END IF;
+    PERFORM cerebro_objetivo_atar_op(p_conv, v_suma);
+    -- (182 <- 170) The objetivo covers the whole remesa.
+    PERFORM cerebro_objetivo_minimo(p_conv, v_suma, true);
     -- (182 <- 170) The earlier receipts of the remesa that were never crossed are crossed now;
     -- this one is crossed by the Cerebro's own node right after this call.
     PERFORM cerebro_cruzar_pendientes(v_suma, v_ref);

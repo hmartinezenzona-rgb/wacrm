@@ -166,3 +166,6 @@ recarga only.
   sharing it); one deposit per service (e.g. 5,000 for a CUP transfer and another 6,200 for a recarga) -> separate
   operations, never grouped. Owner: "las que se deben tratar como mixtas son aquellas que se ven cubiertas por un mismo
   depósito". bf547067-type pairs with separate deposits stay separate (no grouping, no alert for that reason).
+- Q7 (2026-10-22): explicit words convert ANY service (recarga, saldo, visa, combo) automatically, like the recarga.
+  Amount stays evidence only for recarga. Owner: "1, sí, exacto".
+- Q2 (rule 9 history switch): not needed after Q1; the history of the number stays as evidence only.

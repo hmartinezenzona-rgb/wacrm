@@ -70,3 +70,18 @@ Staging workflow U52y1kSNvhgxvWeb only. Production untouched, workflow never exe
   `agent:registrar_destinatario_mexico n8n:<exec>` (prefix parsing works). Beneficiaries written with clabe/bank_name/name/phone, source 'agente'.
 - Difference found: NO partial merge for a cuenta (without a full CLABE nothing is saved). Tool description and prompt fixed to call
   the tool only with the full CLABE (cuenta) or banco+nombre+telefono (retiro). Deployed (see version in the report).
+
+## Step 2 S4 (Contexto + Decisor read only the resolver state)
+- `Contexto conversacion` (staging) now returns `servicio_resuelto` = `cerebro_resolver_servicio(v.id)` (resolver v2: operaciones, evidencia.declarado,
+  motivo, permitido, minimo_gyd, faltante_gyd, adicionales) and each part of `envio_mixto` carries `usd` (destination USD, or GYD / unique rate for mexico).
+  Verified read-only on staging (rolled back). Version 519650ba -> 1d6a3901.
+- Decisor (md5 252f1489 -> 0e482f66, repo pin updated): with `servicio_resuelto` present, OPERACION EN CURSO (recarga/combo/visa), VIA ACTUAL (now
+  mentions cambiar_servicio AND agregar_servicio, mexico label), ESTADO REAL (stage from the holder operation) and the "otros servicios" of a
+  deposit de-mas come only from it; the legacy aliases (riel_operacion, *_en_curso, servicio_pendiente, historial stage) are read only when it is absent
+  (one release). New notes: EL CLIENTE YA DECLARO <svc> (replaces servicio_pendiente), SERVICIO POR CONFIRMAR (permitido=false with
+  deposito_bajo_minimo | varias_operaciones | depositos_separados: facts from the DB, "PROHIBIDO decir que ya cambio", ask).
+- Marlene case: DEPOSITO DISTINTO DE LO ACORDADO EN VARIAS PARTES: grouped send (envio_mixto >= 2 parts) with verdict verificado_incompleto: finds the
+  single part that absorbs the difference into a whole-USD amount (Mexico 150 -> 100 USD) and tells the bot to ASK ("Su depósito de 71,200 cuadra con
+  100 USD a mexico, no con 150; ¿confirma?"), prohibits "se transfiere el equivalente" and "quedas esperando el resto". Only for verificado_incompleto
+  (deposit short); the de-mas case keeps its existing "confirm how the deposit is split" note. Needs the parts as a mixed group (envio_mixto).
+- Vitest: 7 RED first, then 43/43 GREEN (7 new + md5 pin).

@@ -19,6 +19,7 @@ import herramientas as h  # noqa: E402
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--esperado", required=True)
+    ap.add_argument("--contexto", action="store_true", help="S4: add servicio_resuelto to Contexto conversacion")
     a = ap.parse_args()
     c.check_esperado(a.esperado)
     wid = c.resolve_env("staging")
@@ -29,6 +30,8 @@ def main():
         return 2
     print("backup:", c.write_backup(wf, "staging", c.get_backups_dir()))
     h.aplicar_herramientas(wf)
+    if a.contexto:
+        h.aplicar_contexto(wf)
     for n in wf["nodes"]:
         if n["name"] == "Agente Remesas":
             n["parameters"]["options"]["systemMessage"] = h.editar_prompt(n["parameters"]["options"]["systemMessage"])

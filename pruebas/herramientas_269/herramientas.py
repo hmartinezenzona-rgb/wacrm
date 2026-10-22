@@ -268,3 +268,32 @@ def _mexico(sm):
     if "- registrar_destinatario_mexico(" not in sm:
         sm = sm.replace("- agregar_servicio(servicio):", LINEA_HERR_MEXICO + "\n- agregar_servicio(servicio):", 1)
     return sm
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# S4: `Contexto conversacion` exposes the resolver v2 state; each part of a mixed send carries its USD.
+
+_USD_PARTE = ("'usd', CASE WHEN g.destination_currency = 'USD' THEN g.quoted_destination_amount "
+              "WHEN cerebro_riel_op(g.id) = 'mexico' THEN round(g.quoted_source_amount / NULLIF((SELECT t.tasa_cup FROM tasas t "
+              "WHERE t.moneda = 'usd' ORDER BY t.fecha DESC, t.actualizada_at DESC LIMIT 1), 0), 4) END")
+
+
+def aplicar_contexto(wf):
+    n = _nodo(wf, "Contexto conversacion")
+    if n is None:
+        raise ValueError("Contexto conversacion not found")
+    q = n["parameters"]["query"]
+    if "AS servicio_resuelto" in q:
+        return wf
+    marca = "'moneda', g.destination_currency, 'status', g.status"
+    if marca not in q:
+        raise ValueError("envio_mixto parts not found")
+    q = q.replace(marca, marca + ", " + _USD_PARTE, 1)
+    q, k = re.subn(r"\s*FROM conversations v WHERE v\.id = \$1::uuid;?\s*$",
+                   ",\n-- S4 (269): the resolver v2 state (operations, declared intent, coverage): the single source of the Decisor's "
+                   "service notes.\ncerebro_resolver_servicio(v.id) AS servicio_resuelto\n\nFROM conversations v WHERE v.id = $1::uuid;",
+                   q)
+    if k != 1:
+        raise ValueError("final FROM not found")
+    n["parameters"]["query"] = q
+    return wf

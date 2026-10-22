@@ -203,3 +203,28 @@ class TestMexicoSmoke(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestContexto(unittest.TestCase):
+    """S4: `Contexto conversacion` exposes the resolver state; the Decisor reads only it."""
+
+    def wf(self):
+        q = ("SELECT 1 AS x,\\n(SELECT jsonb_build_object('total', sum(g.quoted_source_amount), 'partes', jsonb_agg(jsonb_build_object("
+             "'servicio', cerebro_riel_op(g.id), 'monto_gyd', g.quoted_source_amount,\\n"
+             "'destino', g.quoted_destination_amount, 'moneda', g.destination_currency, 'status', g.status) ORDER BY g.created_at, g.id))\\n"
+             "FROM remittance_operations g WHERE true HAVING count(*) >= 2) AS envio_mixto\\n\\nFROM conversations v WHERE v.id = $1::uuid;")
+        return {"nodes": [{"name": "Contexto conversacion", "parameters": {"query": q}}], "connections": {}}
+
+    def test_expone_servicio_resuelto_sin_punto_y_coma_nuevo(self):
+        ctx = h.aplicar_contexto(self.wf())["nodes"][0]["parameters"]["query"]
+        self.assertIn("cerebro_resolver_servicio(v.id) AS servicio_resuelto", ctx)
+        self.assertEqual(ctx.count(";"), 1)  # only the final one
+
+    def test_cada_parte_trae_sus_dolares(self):
+        ctx = h.aplicar_contexto(self.wf())["nodes"][0]["parameters"]["query"]
+        self.assertIn("'usd',", ctx)
+        self.assertIn("'mexico'", ctx)
+
+    def test_idempotente(self):
+        a = h.aplicar_contexto(self.wf())
+        self.assertEqual(h.aplicar_contexto(json.loads(json.dumps(a))), a)

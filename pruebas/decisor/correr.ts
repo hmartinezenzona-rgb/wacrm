@@ -20,12 +20,12 @@ import { fileURLToPath } from 'node:url';
 export const DECISOR_MD5_AL_FIJARLO = 'c2ed1d13c177dc368fbfd63150e706e7';
 
 /**
- * md5 of the copy in this repo as it stands. Deployed to staging `U52y1kSNvhgxvWeb` on 2026-10-22 (away mode W5, AUSENCIA TEMPORAL note); production pending.
+ * md5 of the copy in this repo as it stands. S4 (269, 2026-10-22): notes read ctx.servicio_resuelto; deployed to staging with the same change. Previous staging md5 252f1489a3af0f609f41e1a07bd17557 (away mode W5).
  * Last deployed to staging `U52y1kSNvhgxvWeb` on 2026-10-20 had md5 af1e5e40124b678215f295b6736b1792.
  * A test asserts the file still hashes to this, so a formatter run or a half-applied edit fails
  * loudly instead of silently diverging from the workflow.
  */
-export const DECISOR_MD5_ESPERADO = '252f1489a3af0f609f41e1a07bd17557';
+export const DECISOR_MD5_ESPERADO = '0e482f66a43cd9a53af850a9ae993698';
 
 export const ORIGEN = join(
   dirname(fileURLToPath(import.meta.url)),

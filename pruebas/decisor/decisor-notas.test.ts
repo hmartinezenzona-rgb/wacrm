@@ -441,3 +441,175 @@ describe('ausencia temporal (away mode): aviso solo con el negocio abierto', () 
     expect(nota(con, 'AUSENCIA TEMPORAL')).toBeUndefined();
   });
 });
+
+describe('S4: las notas de servicio salen SOLO del estado resuelto (servicio_resuelto)', () => {
+  // The database resolver (265 v2) is the single state: operations, the agent's declared intent, deposit coverage.
+  // Legacy fields (riel_operacion, recarga_en_curso, servicio_pendiente...) stay one release as aliases.
+  const resuelto = (extra: Record<string, unknown> = {}) => ({
+    version: 2,
+    en_curso: null as string | null,
+    servicio: null as string | null,
+    accion: 'ninguna',
+    permitido: true,
+    motivo: 'sin_cambio',
+    mensaje: null,
+    minimo_gyd: null,
+    faltante_gyd: null,
+    operaciones: [] as unknown[],
+    adicionales: [] as unknown[],
+    evidencia: { declarado: null, deposito: 0 },
+    ...extra,
+  });
+  const op = (servicio: string, status: string, extra = {}) => ({
+    id: 'op-1',
+    servicio,
+    rail: servicio,
+    status,
+    ...extra,
+  });
+
+  it('una recarga resuelta abre la nota OPERACION EN CURSO sin ningun campo legacy', () => {
+    const s = correrDecisor({
+      ctx: {
+        servicio_resuelto: resuelto({
+          en_curso: 'recarga',
+          operaciones: [op('recarga', 'awaiting_deposit')],
+        }),
+      },
+    });
+    expect(nota(s, 'OPERACION EN CURSO: RECARGA')).toBeDefined();
+  });
+
+  it('el estado resuelto manda sobre los alias legacy que lo contradicen', () => {
+    const s = correrDecisor({
+      ctx: {
+        recarga_en_curso: true,
+        riel_operacion: 'recarga',
+        servicio_pendiente: 'zelle',
+        servicio_resuelto: resuelto({
+          en_curso: 'clasica',
+          operaciones: [op('clasica', 'awaiting_deposit')],
+        }),
+      },
+    });
+    expect(nota(s, 'OPERACION EN CURSO: RECARGA')).toBeUndefined();
+    expect(nota(s, 'EL CLIENTE YA ELIGIO')).toBeUndefined();
+    const via = nota(s, 'VIA ACTUAL DE LA OPERACION') as string;
+    expect(via).toMatch(/Clasica/);
+    expect(via).toMatch(/cambiar_servicio/);
+    expect(via).toMatch(/agregar_servicio/);
+  });
+
+  it('el estado real del envio sale de la operacion resuelta, no del historial', () => {
+    const s = correrDecisor({
+      ctx: {
+        servicio_resuelto: resuelto({
+          en_curso: 'cuban_card',
+          operaciones: [op('cuban_card', 'deposit_verification')],
+        }),
+      },
+    });
+    const n = nota(s, 'ESTADO REAL DEL ENVIO EN CURSO') as string;
+    expect(n).toBeDefined();
+    expect(n).toMatch(/EN VERIFICACION/);
+  });
+
+  it('un servicio declarado sin operacion se dice como declarado, no como servicio_pendiente', () => {
+    const s = correrDecisor({
+      ctx: {
+        servicio_pendiente: 'efectivo',
+        servicio_resuelto: resuelto({ evidencia: { declarado: 'recarga', deposito: 0 } }),
+      },
+    });
+    const n = nota(s, 'EL CLIENTE YA DECLARO') as string;
+    expect(n).toMatch(/recarga/);
+    expect(nota(s, 'EL CLIENTE YA ELIGIO')).toBeUndefined();
+  });
+
+  it('SERVICIO POR CONFIRMAR cuando el deposito no cubre el servicio declarado', () => {
+    const s = correrDecisor({
+      ctx: {
+        servicio_resuelto: resuelto({
+          en_curso: 'cuban_card',
+          servicio: 'zelle',
+          permitido: false,
+          motivo: 'deposito_bajo_minimo',
+          mensaje: 'No alcanza para Zelle: el mínimo es 13,000 GYD y faltan 5,000 GYD.',
+          minimo_gyd: 13000,
+          faltante_gyd: 5000,
+          operaciones: [op('cuban_card', 'awaiting_deposit')],
+        }),
+      },
+    });
+    const n = nota(s, 'SERVICIO POR CONFIRMAR') as string;
+    expect(n).toBeDefined();
+    expect(n).toMatch(/13,000/);
+    expect(n).toMatch(/5,000/);
+    expect(n).toMatch(/PROHIBIDO.*(confirmar|decir que ya cambio)/i);
+  });
+
+  it('sin decision pendiente no hay nota SERVICIO POR CONFIRMAR', () => {
+    const s = correrDecisor({
+      ctx: { servicio_resuelto: resuelto({ en_curso: 'zelle', operaciones: [op('zelle', 'awaiting_deposit')] }) },
+    });
+    expect(nota(s, 'SERVICIO POR CONFIRMAR')).toBeUndefined();
+  });
+
+  it('sin servicio_resuelto los alias legacy siguen funcionando (una version)', () => {
+    const s = correrDecisor({ ctx: { riel_operacion: 'zelle' } });
+    expect(nota(s, 'VIA ACTUAL DE LA OPERACION')).toMatch(/Zelle/);
+  });
+});
+
+describe('S4: un envio de varias partes cuyo deposito verificado no cuadra pregunta que parte cambia (Marlene 4afda26a)', () => {
+  // Deposit 71,200 = Mexico 100 USD (26,000) + cash 29,000 + messenger 1,200 + card 5,000 + 10,000. The customer typed
+  // 150 USD for Mexico (39,000), so the agreed total is 84,200 and the bank verified 13,000 less. The bot said
+  // "se transfiere el equivalente"; it must reconcile the parts and ASK.
+  const partes = [
+    { servicio: 'mexico', monto_gyd: 39000, usd: 150, moneda: 'MXN', status: 'awaiting_deposit' },
+    { servicio: 'efectivo_usd', monto_gyd: 29000, usd: 112, moneda: 'USD', status: 'awaiting_deposit' },
+    { servicio: 'mensajeria', monto_gyd: 1200, moneda: 'GYD', status: 'awaiting_deposit' },
+    { servicio: 'cuban_card', monto_gyd: 5000, moneda: 'CUP', status: 'awaiting_deposit' },
+    { servicio: 'cuban_card', monto_gyd: 10000, moneda: 'CUP', status: 'awaiting_deposit' },
+  ];
+  const marlene = () =>
+    correrDecisor({
+      ctx: { riel_operacion: 'mexico', envio_mixto: { total: 84200, partes } },
+      snapshot: {
+        texto_completo: 'ahi va',
+        comprobante: { estado: 'LEGIBLE', monto: 71200, moneda: 'GYD', alertas: [] },
+      },
+      mmg: { resultado: 'verificado_incompleto', objetivo: 84200, depositado: 71200, saldo: 13000 },
+    });
+
+  it('propone la parte que cuadra exacto y pide confirmacion', () => {
+    const n = nota(marlene(), 'DEPOSITO DISTINTO DE LO ACORDADO') as string;
+    expect(n).toBeDefined();
+    expect(n).toMatch(/71,200/);
+    expect(n).toMatch(/84,200/);
+    expect(n).toMatch(/mexico/i);
+    expect(n).toMatch(/150 USD/);
+    expect(n).toMatch(/100 USD/);
+    expect(n).toMatch(/PREGUNTA/);
+  });
+
+  it('prohibe decir que se transfiere el equivalente y la nota de "quedas esperando el resto"', () => {
+    const s = marlene();
+    const n = nota(s, 'DEPOSITO DISTINTO DE LO ACORDADO') as string;
+    expect(n).toMatch(/PROHIBIDO.*equivalente/i);
+    expect(nota(s, 'RECIBIDO Y VERIFICADO CONTRA EL BANCO, PERO EL ENVIO TODAVIA NO ESTA COMPLETO')).toBeUndefined();
+  });
+
+  it('con una sola parte conserva la nota de siempre', () => {
+    const s = correrDecisor({
+      ctx: { riel_operacion: 'clasica' },
+      snapshot: {
+        texto_completo: 'ahi va',
+        comprobante: { estado: 'LEGIBLE', monto: 10000, moneda: 'GYD', alertas: [] },
+      },
+      mmg: { resultado: 'verificado_incompleto', objetivo: 18200, depositado: 10000, saldo: 8200 },
+    });
+    expect(nota(s, 'RECIBIDO Y VERIFICADO CONTRA EL BANCO, PERO EL ENVIO TODAVIA NO ESTA COMPLETO')).toBeDefined();
+    expect(nota(s, 'DEPOSITO DISTINTO DE LO ACORDADO')).toBeUndefined();
+  });
+});

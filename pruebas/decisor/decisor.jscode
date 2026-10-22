@@ -333,14 +333,20 @@ if (g82EnReparto && g82Montos.length && !g82MonedaDicha) {
     g82NotaMonto = base + 'Por tarjeta: ' + lista + '. ' + partes.join(' ');
   }
 }
-const recargaEnCurso = !!ctx.recarga_en_curso && !tarjetaCtx && !s.datos_zelle && !s.multi_beneficiario;
+// S4 (269): `ctx.servicio_resuelto` is the resolver v2 state (cerebro_resolver_servicio): the single source of the service
+// notes (operations, the agent's declared intent, deposit coverage). The legacy fields (riel_operacion, recarga_en_curso,
+// combo_en_curso, visa_en_curso, servicio_pendiente) stay as aliases for ONE release and are read only when it is absent.
+const R = (ctx.servicio_resuelto && typeof ctx.servicio_resuelto === 'object') ? ctx.servicio_resuelto : null;
+const rielR = R && R.en_curso ? String(R.en_curso) : null;
+const declaradoR = R && R.evidencia && R.evidencia.declarado ? String(R.evidencia.declarado) : null;
+const recargaEnCurso = R ? rielR === 'recarga' : (!!ctx.recarga_en_curso && !tarjetaCtx && !s.datos_zelle && !s.multi_beneficiario);
 // (207/104, 4-oct-2026) RECARGA ANOTADA: taken ahead of a confirmed promo ('DD/MM' of its start), done that day.
 const anotadaPara = ctx.recarga_anotada_para || null;
 // (209/106, 4-oct-2026) COMBO DE COMIDA en curso: open combo or asked for one. A recharge in progress wins, as in the DB.
-const comboEnCurso = !!ctx.combo_en_curso && !recargaEnCurso && !tarjetaCtx && !s.datos_zelle;
+const comboEnCurso = R ? rielR === 'combo' : (!!ctx.combo_en_curso && !recargaEnCurso && !tarjetaCtx && !s.datos_zelle);
 const comboCompleto = !!ctx.combo_completo;
 // (213/112, 4-oct-2026) EXTENSION DE VISA en curso: needs no destination data; the customer fills the form.
-const visaEnCurso = !!ctx.visa_en_curso && !recargaEnCurso && !comboEnCurso && !tarjetaCtx && !s.datos_zelle;
+const visaEnCurso = R ? rielR === 'visa' : (!!ctx.visa_en_curso && !recargaEnCurso && !comboEnCurso && !tarjetaCtx && !s.datos_zelle);
 const notas = [];
 // IDIOMA DE LA CONVERSACION (14-ago-2026). El 14-ago, a mitad de una
 // conversacion entera en ingles, el bot contesto en español. El lote era
@@ -505,7 +511,7 @@ if (g83Destinos.length === 1) {
 // CUP") era la premisa de cuando el negocio se probaba y solo habia una via.
 // Principio del dueno: "No adivines. Para cotizar hay que saber que quiere el cliente: si no lo
 // sabes, preguntas."
-const rielOp = ctx.riel_operacion ? String(ctx.riel_operacion) : null;
+const rielOp = R ? rielR : (ctx.riel_operacion ? String(ctx.riel_operacion) : null);
 try {
   const t = texto.toLowerCase();
   const pideLlegada = /(cuanto|cuánto|que|qué)\s+(le\s+)?(llega|llegan|llegaria|llegaría|llegarian|llegarían|recibe|reciben|recibiria|recibiría)/.test(t) || /(llega|llegan|recibe)\s+(a\s+cuba|alla|allá)/.test(t);
@@ -716,11 +722,39 @@ if (s.comprobante && !s.comprobante_duplicado) {
   // (ILEGIBLE, ya_reclamado...) y el banco lo saco en rojo. La rafaga solo la
   // necesita la rama del TOTAL, y se pone alli.
   const datos = JSON.stringify(s.comprobante);
+  // S4 (Marlene 4afda26a): a multi-part send (grouped operations) whose verified deposit is SHORT of the agreed total: reconcile the
+  // parts. If changing exactly one part by the difference gives a whole-USD amount (the part carries its USD), that is the proposal.
+  const reconPartes = (() => {
+    const partes = ctx.envio_mixto && Array.isArray(ctx.envio_mixto.partes) ? ctx.envio_mixto.partes : [];
+    if (veredicto !== 'verificado_incompleto' || partes.length < 2 || depositado === null) return null;
+    const total = partes.reduce((a, p) => a + Number(p.monto_gyd || 0), 0);
+    const delta = depositado - total;
+    if (!delta) return null;
+    const candidatas = [];
+    partes.forEach((p) => {
+      const antes = Number(p.monto_gyd || 0);
+      const nuevo = antes + delta;
+      const usd = Number(p.usd || 0);
+      if (nuevo <= 0 || !(usd > 0)) return;
+      const usdNuevo = nuevo / (antes / usd);
+      if (Math.abs(usdNuevo - Math.round(usdNuevo)) < 1e-9) { candidatas.push({ servicio: String(p.servicio || 'parte'), antes, nuevo, usdAntes: usd, usdNuevo: Math.round(usdNuevo) }); }
+    });
+    return candidatas.length ? { total, delta, partes, candidatas } : null;
+  })();
 
   if (varios && !(sumables && cruceOK)) {
     notas.push('EL CLIENTE MANDO VARIOS COMPROBANTES EN LA MISMA RAFAGA y el sistema NO ha podido sumarlos y verificarlos automaticamente. No se ha dado por bueno ni uno solo. PROHIBIDO decir ninguna cifra. PROHIBIDO decir que el deposito fue recibido, verificado o confirmado. PROHIBIDO pedirle que los reenvie. Dile solo esto: que recibiste sus comprobantes, que una persona esta sumando el total y que le confirman en cuanto quede. El envio ya esta en Incidencia.');
   } else if (importeDudoso) {
     notas.push('COMPROBANTE ILEGIBLE. El importe NO se pudo leer con seguridad y el envio ya esta en Incidencia para que lo mire una persona. PROHIBIDO decir ninguna cifra. PROHIBIDO decir que el deposito fue recibido, verificado o confirmado. Dile solo esto: que recibiste su imagen, que no se lee bien, y que una persona la esta revisando. Si lo que mando no era un comprobante, pidele la captura del comprobante. Datos leidos, NO se los repitas al cliente: ' + datos);
+  } else if (reconPartes) {
+    const fmtP = (n) => Number(n).toLocaleString('en-US');
+    const usdP = (c, usd) => (usd ? ' (' + usd + ' USD)' : '');
+    const pri = reconPartes.candidatas[0];
+    notas.push('DEPOSITO DISTINTO DE LO ACORDADO EN VARIAS PARTES: el banco verifico *' + fmtP(depositado) + ' ' + monedaRafaga + '* y lo acordado sumaba *' + fmtP(reconPartes.total)
+      + ' ' + monedaRafaga + '* (' + reconPartes.partes.map((p) => p.servicio + ' ' + fmtP(p.monto_gyd) + usdP(p, p.usd)).join(' + ') + '). La diferencia de ' + fmtP(Math.abs(reconPartes.delta)) + ' cuadra EXACTO si cambia UNA parte: '
+      + reconPartes.candidatas.map((c) => c.servicio + ' pasaria de ' + fmtP(c.antes) + usdP(c, c.usdAntes) + ' a ' + fmtP(c.nuevo) + usdP(c, c.usdNuevo)).join('; o ')
+      + '. PREGUNTA al cliente cual parte cambia, sin decidirlo tu, por ejemplo: "Su depósito de ' + fmtP(depositado) + ' cuadra con ' + (pri.usdNuevo ? pri.usdNuevo + ' USD' : fmtP(pri.nuevo) + ' GYD') + ' a ' + pri.servicio
+      + (pri.usdAntes ? ', no con ' + pri.usdAntes : '') + '; ¿confirma?". PROHIBIDO decirle que se transfiere el equivalente, que se envia lo que alcance o que quedas esperando el resto, hasta que confirme. PROHIBIDO sumar o restar otras cifras que estas.');
   } else if (veredicto === 'verificado_incompleto') {
     notas.push('RECIBIDO Y VERIFICADO CONTRA EL BANCO, PERO EL ENVIO TODAVIA NO ESTA COMPLETO. El cliente dijo que iba a enviar *'
       + fmtG(objetivoEnvio) + ' ' + monedaRafaga + '* y hasta ahora lleva *' + fmtG(depositado) + ' ' + monedaRafaga
@@ -730,12 +764,19 @@ if (s.comprobante && !s.comprobante_duplicado) {
     // deposit, f8b7779c). Same detectors as above (recarga|etecsa|cubacel, combo, visa|inmigraci) over this turn's text and the
     // customer's recent texts, plus the database flags; the operation's own service never counts as the "other" one.
     const previosDeMas = String(ctx.muestra_idioma || '') + ' ' + texto;
-    const propioDeMas = String(ctx.riel_operacion || '');
+    const propioDeMas = String(rielOp || '');
     const otrosDeMas = [];
+    const nombreDeMas = { recarga: 'recarga', combo: 'combo de comida', visa: 'visa', saldo: 'saldo movil' };
+    if (R) {
+      // S4: the other services come from the resolved state (open operations and the declared intent), never from word lists.
+      const otros = (Array.isArray(R.operaciones) ? R.operaciones.map((o) => String(o.servicio || '')) : []).concat(declaradoR ? [declaradoR] : []);
+      otros.forEach((sv) => { if (sv && sv !== propioDeMas && nombreDeMas[sv] && !otrosDeMas.includes(nombreDeMas[sv])) { otrosDeMas.push(nombreDeMas[sv]); } });
+    } else {
     if (propioDeMas !== 'recarga' && (ctx.recarga_en_curso || /recarga|etecsa|cubacel/i.test(previosDeMas))) { otrosDeMas.push('recarga'); }
     if (propioDeMas !== 'combo' && (ctx.combo_en_curso || /combo/i.test(previosDeMas))) { otrosDeMas.push('combo de comida'); }
     if (propioDeMas !== 'visa' && (ctx.visa_en_curso || /visa|inmigraci/i.test(previosDeMas))) { otrosDeMas.push('visa'); }
     if (propioDeMas !== 'saldo' && /saldo\s+m.vil/i.test(previosDeMas)) { otrosDeMas.push('saldo movil'); }
+    }
     // S6: the conversation already has a mixed send (ctx.envio_mixto, from `Contexto conversacion`): never "mando de mas".
     const mixtoDeMas = !!(ctx.envio_mixto && Array.isArray(ctx.envio_mixto.partes) && ctx.envio_mixto.partes.length > 1);
     if (mixtoDeMas) {
@@ -963,7 +1004,7 @@ if (hayOperacionNueva) {
 // y el celular de quien recibe en Cuba" y tuvo que corregir: "Es por zell".
 // De 9 beneficiarios reales medidos, 4 eran Zelle.
 // `rielOp` se declara mas arriba, junto a la nota de LADO DEL MONTO, que tambien lo necesita.
-const viaSinDefinir = !rielOp && !ctx.servicio_pendiente && !sabeDestino && !tarjetaCtx && !celularCtx && !s.datos_zelle && !recargaEnCurso && !comboEnCurso && !visaEnCurso;
+const viaSinDefinir = !rielOp && !(R ? declaradoR : ctx.servicio_pendiente) && !sabeDestino && !tarjetaCtx && !celularCtx && !s.datos_zelle && !recargaEnCurso && !comboEnCurso && !visaEnCurso;
 if (!s.comprobante && viaSinDefinir && (abiertos > 0 || esPregunta)) {
   if (esperaTercero) {
     notas.push('EL CLIENTE DICE QUE ESTA ESPERANDO LOS DATOS DE QUIEN RECIBE: se los tiene que mandar otra persona. PROHIBIDO volver a pedirselos en este turno. PROHIBIDO preguntarle cuando se los mandan. Acusale recibo en UNA linea corta y dile que quedas pendiente. Nada mas.');
@@ -971,8 +1012,19 @@ if (!s.comprobante && viaSinDefinir && (abiertos > 0 || esPregunta)) {
     notas.push('TODAVIA NO SE SABE POR QUE VIA RECIBE: no hay tarjeta, ni celular, ni cuenta Zelle en toda la conversacion. PROHIBIDO pedirle "la tarjeta y el celular": todavia no sabes si va a recibir en Cuba o por Zelle. PROHIBIDO pedirle "la cuenta Zelle". Si necesitas los datos de quien recibe, pideselos EN GENERICO, con esta frase: "¿Me pasa los datos de quien recibe?"');
   }
 }
-if (rielOp) { notas.push('VIA ACTUAL DE LA OPERACION: ' + ({zelle:'Zelle',clasica:'tarjeta Clasica',tropical:'tarjeta Tropical',cuban_card:'CUP (tarjeta en pesos)',efectivo_usd:'efectivo en USD',recarga:'recarga',combo:'combo',visa:'visa',saldo:'saldo movil'}[rielOp] || rielOp) + '. Si el cliente DECIDE otra, llama cambiar_servicio; una pregunta de precio o hablar de otra persona NO es un cambio.'); }
-if (ctx.servicio_pendiente) { notas.push('EL CLIENTE YA ELIGIO ' + ctx.servicio_pendiente + ' (anotado, todavia no hay envio abierto): se aplica solo cuando se registre el envio.'); }
+if (rielOp) { notas.push('VIA ACTUAL DE LA OPERACION: ' + ({zelle:'Zelle',clasica:'tarjeta Clasica',tropical:'tarjeta Tropical',cuban_card:'CUP (tarjeta en pesos)',efectivo_usd:'efectivo en USD',recarga:'recarga',combo:'combo',visa:'visa',saldo:'saldo movil',mexico:'Mexico'}[rielOp] || rielOp) + '. Si el cliente DECIDE otra en lugar de esta, llama cambiar_servicio; si quiere otra ADEMAS de esta, llama agregar_servicio; una pregunta de precio o hablar de otra persona NO es un cambio.'); }
+if (R) {
+  // S4: the agent's declared intent comes from the resolved state (one row per conversation), not from a pending flag.
+  if (declaradoR && declaradoR !== rielOp) { notas.push('EL CLIENTE YA DECLARO ' + declaradoR + ' (anotado con declarar_servicio' + (rielOp ? ', pero la operacion abierta sigue en ' + rielOp : ', todavia no hay envio abierto de ese servicio') + '). NO se lo vuelvas a preguntar; si cambia de idea, declara de nuevo.'); }
+  // SERVICIO POR CONFIRMAR: the resolver says the declared service cannot be applied as is (the deposit does not cover it, or the
+  // target operation is ambiguous). The bot tells the facts the database gave and asks; it never decides or promises the change.
+  const motivosPorConfirmar = ['deposito_bajo_minimo', 'varias_operaciones', 'depositos_separados'];
+  if (R.permitido === false && motivosPorConfirmar.includes(String(R.motivo))) {
+    const fmtR = (n) => Number(n).toLocaleString('en-US');
+    notas.push('SERVICIO POR CONFIRMAR: el cliente quiere ' + (R.servicio || 'otro servicio') + (rielOp ? ' y su operacion abierta es ' + rielOp : '') + ', pero el sistema NO lo puede aplicar todavia: ' + (R.mensaje || String(R.motivo))
+      + (R.minimo_gyd ? ' (minimo ' + fmtR(R.minimo_gyd) + ' GYD' + (R.faltante_gyd ? ', faltan ' + fmtR(R.faltante_gyd) + ' GYD' : '') + ')' : '')
+      + '. PROHIBIDO decir que ya cambio o que se hara. Dile esos hechos y preguntale que prefiere: mantener lo que tiene o completar la diferencia.'); }
+} else if (ctx.servicio_pendiente) { notas.push('EL CLIENTE YA ELIGIO ' + ctx.servicio_pendiente + ' (anotado, todavia no hay envio abierto): se aplica solo cuando se registre el envio.'); }
 // ENVIO MIXTO (S6): operations grouped by remittance_operations.mixed_group_id (253). `envio_mixto` = { total, partes: [{ servicio, monto_gyd, destino, moneda, status }] }
 // for the open members, NULL when the conversation has no group. The destination amount is only said for remesa rails, and only when known.
 if (ctx.envio_mixto && Array.isArray(ctx.envio_mixto.partes) && ctx.envio_mixto.partes.length > 1) {
@@ -984,9 +1036,18 @@ if (ctx.envio_mixto && Array.isArray(ctx.envio_mixto.partes) && ctx.envio_mixto.
   });
   notas.push('ENVIO MIXTO: el cliente hizo UN SOLO deposito de ' + gydMixto(ctx.envio_mixto.total) + ' GYD repartido entre varios servicios: ' + partesMixto.join(' + ') + '. NO es una sola remesa: cada servicio es su propia operacion con su parte. NO le digas que mando de mas ni que se equivoco con el monto. Pidele por separado los datos que falten de cada servicio (por ejemplo tarjeta y celular de quien recibe la Clasica, y el numero de Cuba de la recarga). Usa repartir_envio SOLO si el cliente cambia el reparto.'); }
 // Estado exacto del envio abierto: para responder con precision a "como va lo mio"
-if (h && h.etapa_envio_abierto) {
-  const et = h.etapa_envio_abierto;
-  const monto = h.monto_envio_abierto ? (' (' + h.monto_envio_abierto + ')') : '';
+// S4: the stage of the open send comes from the resolved holder operation; the contact history is the legacy alias.
+const etapaR = (() => {
+  if (!R || !Array.isArray(R.operaciones)) return null;
+  const abiertas = R.operaciones.filter((o) => o && o.status && !['completed', 'cancelled'].includes(String(o.status)));
+  const titular = abiertas.find((o) => rielR && String(o.servicio) === rielR) || abiertas[0];
+  if (!titular) return null;
+  return ({ collecting_information: 'Solicitada', awaiting_deposit: 'Solicitada', deposit_verification: 'Por verificar', ready_to_transfer: 'Lista para transferir', incident: 'Incidencia' })[String(titular.status)] || null;
+})();
+const etapaAbierta = etapaR || (h && h.etapa_envio_abierto) || null;
+if (etapaAbierta) {
+  const et = etapaAbierta;
+  const monto = h && h.monto_envio_abierto ? (' (' + h.monto_envio_abierto + ')') : '';
   let est = null;
   if (et === 'Solicitada') { est = 'ESTADO REAL DEL ENVIO EN CURSO: anotado, pero su deposito TODAVIA NO HA LLEGADO. Si el cliente pregunta como va lo suyo, dile que estan pendientes de recibir el deposito. NO digas que se esta verificando: no hay nada que verificar aun.'; }
   else if (et === 'Por verificar') { est = 'ESTADO REAL DEL ENVIO EN CURSO' + monto + ': el deposito YA LLEGO y esta EN VERIFICACION. Si el cliente pregunta como va lo suyo, dile que lo estan verificando y que apenas quede le hacen la transferencia.'; }

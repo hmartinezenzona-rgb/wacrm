@@ -121,3 +121,8 @@ Staging workflow U52y1kSNvhgxvWeb only. Production untouched, workflow never exe
 - Rolled-back smoke (PRUEBA conversation, no open op): recipient 1 (60 USD) -> agregar=true recipient 2 (40 USD) -> correction by posicion=1 -> a third account without
   parameters is refused ("NO SE GUARDO NADA ... agregar=true") -> same account corrects the amount (45 USD). End state: 2 vigente, old rows 'reemplazado'.
 - Waiting for 275-279 in odd/notes/db-tools-progress.md (only 274 present).
+
+## 275 wired (pre-deposit operations from the declared intent)
+- No tool signature changed. The prompt now says DECLARA PRIMERO (declarar_servicio before saving recipient data: the data tools open the operation from the declaration;
+  without it the Mexico/cash tools say no open send). Rolled-back smoke: registrar_destinatario_mexico before declaring -> refused; after declarar_servicio('mexico') with no
+  operation -> opens the mexico operation (0 GYD, MXN, collecting_information) and saves the recipient. Offline test added (44 total).

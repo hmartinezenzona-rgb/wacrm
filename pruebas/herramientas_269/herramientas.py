@@ -466,3 +466,15 @@ def editar_prompt_zelle(sm):
     if "agregar=true" in sm.split("- ZELLE A VARIAS PERSONAS", 1)[-1][:600]:
         return sm
     return _cortar(sm, "- ZELLE A VARIAS PERSONAS", "\n", _ZELLE_BLOQUE_NUEVO) if "- ZELLE A VARIAS PERSONAS" in sm else sm
+
+
+# 275: operations are opened from the declared intent; the recipient tools need the declaration first.
+BLOQUE_DECLARA_PRIMERO = ("- DECLARA PRIMERO: antes de guardar los datos de quien recibe, llama declarar_servicio con el servicio (mexico, efectivo_usd, zelle, "
+                          "clasica, tropical, cuban_card, recarga): la herramienta de datos abre la operacion a partir de lo que declaraste, aunque todavia no haya "
+                          "deposito. Sin declarar, las de Mexico y efectivo responden que no hay envio abierto: declara y repite la llamada.")
+
+
+def editar_prompt_declarar_primero(sm):
+    if "DECLARA PRIMERO" in sm:
+        return sm
+    return sm.replace("- un solo deposito para varios servicios -> repartir_envio", BLOQUE_DECLARA_PRIMERO + "\n- un solo deposito para varios servicios -> repartir_envio", 1)

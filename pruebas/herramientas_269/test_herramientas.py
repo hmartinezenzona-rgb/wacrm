@@ -365,3 +365,17 @@ class TestZelleVarios(unittest.TestCase):
             self.assertIn(s, sec)
         self.assertIn("registrar_beneficiario_zelle(nombre, cuenta, posicion, agregar, monto)", p)
         self.assertEqual(h.editar_prompt_zelle(p), p)
+
+
+class TestDeclararPrimero(unittest.TestCase):
+    """275: the recipient tools open the operation from the declared intent, so the prompt says declare first."""
+
+    def test_el_prompt_manda_declarar_antes_de_guardar_datos(self):
+        with open(os.path.join(os.path.dirname(__file__), "prompt_vivo_84e217b8.txt"), encoding="utf-8") as f:
+            vivo = f.read()
+        p = h.editar_prompt_declarar_primero(h.limpiar_registro_automatico(vivo))
+        i = p.index("DECLARA PRIMERO")
+        sec = p[i:i + 900]
+        for s in ("declarar_servicio", "mexico", "efectivo", "zelle", "abre la operacion"):
+            self.assertIn(s, sec)
+        self.assertEqual(h.editar_prompt_declarar_primero(p), p)

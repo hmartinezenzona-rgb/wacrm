@@ -69,3 +69,22 @@ Behaviour the prompt can rely on:
 - Other operations of the conversation are never touched when `p_op` is passed (250 targeting); with `p_op` NULL the old resolver still picks the
   operation (service-aware targeting for the tools arrives with 276).
 - Parser: `cerebro_parsear_beneficiarios` reads a new block `ZELLE VARIOS DESTINATARIOS` (one line per recipient).
+
+## 275 applied on staging - pre-deposit operations from the declared intent (gap 2)
+
+TDD: assertion `declared-operation-before-deposit` RED (case 1: the Mexico tool refused), GREEN 7 case groups. Cycle OK (dry-run, apply,
+assertion, rollback md5 equal). relacionadas --ya-aplicada (writers, deposit, resolver, mexico, recarga): 48 assertions, 47 SAME, 1 DIFF = the new one;
+the SAME errors are the known pre-existing ones (deal-insert-creates-operation, n8n-repoint, operation-incident-reason, saldo-model, repeated-receipt,
+deal-free-beneficiary-writers, reparto-destino-node-adapters).
+
+No signature changed. New internal helper (service_role only): `_cerebro_operacion_declarada(p_conv uuid, p_servicio text, p_actor text DEFAULT 'agent:declarar_servicio') RETURNS uuid`
+(finds the open operation of the service, or opens it ONLY when that service is the declared one: collecting_information, 0 GYD, MXN for mexico).
+
+What the agent can now rely on (same tool queries as before; the prompt must say "declare first"):
+- `registrar_destinatario_mexico` after `declarar_servicio('mexico')` with no operation: opens the mexico operation (0 GYD, awaiting deposit) and saves the recipient;
+  the later deposit joins it ('movido'). Without the declaration the answer stays "No hay un envio a Mexico abierto en esta conversacion: ... Primero hay que declarar el servicio mexico o registrar el deposito." (ok=false).
+- `registrar_datos_entrega_efectivo` after `declarar_servicio('efectivo')`/`efectivo_usd` with no operation: opens the cash operation (remesa, delivery_method efectivo_usd) with the recipient; undeclared it still raises 22023.
+- `registrar_beneficiario_zelle` / `gestionar_beneficiario` / `registrar_reparto_multiple` with nothing open and a declared rail that fits the data
+  (zelle for a Zelle account; cuban_card|clasica|tropical for card data) open the operation typed with that rail. A declared `mexico` + card data opens no mexico operation.
+- `registrar_numeros_recarga` after `declarar_servicio('recarga')` already opened the recarga (268); the assertion now proves the 6,200 deposit joins it.
+- Return shapes unchanged.

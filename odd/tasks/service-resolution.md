@@ -433,3 +433,15 @@ Staging only, nothing in production, nothing pushed. Parent spot check: `npx vit
 - Marlene 4afda26a (Engram #587): typed "150 USD a México", deposit fits 100 exactly; owner asks the customer.
 Next: owner runs the S5b/S6 scripts on the staging number; then M7 texts, M8 backfill, S7 production with go-aheads
 (267 never before 269).
+
+## Owner direction 2026-10-22: partial deposit on a planned split
+
+Owner: when the plan is "X to card A, Y to card B" and the deposit covers A but not B (partly or fully), the bot
+registers what is covered and asks, or waits for the rest, depending on what the customer says: "la idea es que el bot
+se adapte al contexto y tenga las herramientas necesarias para hacer lo que deba hacer". 277 refuses the whole split
+on a different deposit; replace that (Engram cerebro/partial-deposit-planned-split).
+- [ ] P1 Migration 280: repartir_envio applies the parts the bot chooses now (assigned sum <= deposit, each sent part
+  >= its minimum), uncovered parts stay as pending operations with their data (next deposit attaches, 275); plain-
+  Spanish facts back. Start after the staging assertion triage finishes (it rolls migrations back in transactions).
+- [ ] P2 n8n staging: tool description/prompt (apply covered parts, ask or wait per the customer); Decisor states the
+  facts only (covered, missing, amounts), never the action.

@@ -32,6 +32,7 @@ def main():
     print("backup:", c.write_backup(wf, "staging", c.get_backups_dir()))
     h.aplicar_herramientas(wf)
     h.aplicar_transcripcion(wf)
+    h.aplicar_via(wf)
     if a.contexto:
         h.aplicar_contexto(wf)
     if a.lectores == "off":

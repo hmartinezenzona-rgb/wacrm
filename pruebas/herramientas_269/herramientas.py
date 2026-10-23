@@ -568,7 +568,7 @@ DESC_MODIFICAR = (
     "accion='mover_deposito': mueve un deposito VERIFICADO de la operacion op (la que lo tiene) a otra (valor = {\"a\": \"<id destino>\", \"deposito\": \"<referencia>\"}; "
     "deposito solo si op tiene varios): llamala SOLO despues de que el cliente confirme para cual operacion es ese dinero. "
     "op = id de la operacion; vacio si solo hay una abierta (si hay varias te devuelve la lista: preguntale al cliente a cual y repite con el id). "
-    "No parte ni duplica depositos. Devuelve ok, mensaje (en espanol, dile al cliente lo que dice) y motivo si no se pudo.")
+    "Con accion=monto valor es obligatorio (el nuevo monto en GYD): nunca llames sin el. No parte ni duplica depositos. Devuelve ok, mensaje (en espanol, dile al cliente lo que dice) y motivo si no se pudo.")
 
 
 def consulta_modificar():
@@ -580,7 +580,7 @@ def reemplazo_modificar():
     return ("={{ [$('Decisor').item.json.conversation_id, "
             "$fromAI('op', 'id (uuid) de la operacion a modificar; vacio si solo hay una abierta', 'string', ''), "
             "$fromAI('accion', 'monto, cancelar o unir', 'string'), "
-            "$fromAI('valor', 'para monto: el nuevo monto en GYD (solo numero); para unir: {\"con\": \"<id>\"} o vacio; para cancelar: vacio', 'string', ''), "
+            "$fromAI('valor', 'OBLIGATORIO con accion monto: el nuevo monto en GYD (solo numero); mover_deposito: {\"a\": \"<id destino>\"}; unir: {\"con\": \"<id>\"} o vacio; cancelar: vacio', 'string'), "
             "$execution.id] }}")
 
 
@@ -776,3 +776,19 @@ def refinar_prompt_mover(sm):
     if "mover_deposito" in sm:
         return sm
     return _cortar(sm, "- modificar_operacion(op, accion, valor):", "\n", P7_MODIFICAR)
+
+
+# 289 (implicit declaration): every dollar quote carries the service; via is a REQUIRED field of the tool schema.
+FROMAI_VIA = ("por donde recibe los dolares, SIEMPRE: zelle, clasica, tropical o mexico (Mexico = envio a Mexico). Vacio SOLO si el cliente todavia no dijo la via "
+              "(se cotiza como Zelle, por tramos). Si dijo Mexico, via=mexico: sin eso se cotiza como Zelle")
+
+
+def aplicar_via(wf):
+    for nombre in ("calcular_usd", "calcular_usd_desde_gyd"):
+        n = _nodo(wf, nombre)
+        if n is None:
+            raise ValueError(nombre + " not found")
+        r = n["parameters"]["options"]["queryReplacement"]
+        r = re.sub(r"\$fromAI\('via', '[^']*', 'string'(?:, '')?\)", "$fromAI('via', '" + FROMAI_VIA + "', 'string')", r)
+        n["parameters"]["options"]["queryReplacement"] = r
+    return wf

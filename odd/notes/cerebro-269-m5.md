@@ -174,3 +174,9 @@ Staging workflow U52y1kSNvhgxvWeb only. Production untouched, workflow never exe
 - Smokes (rolled back): Zelle recipient 1 at 60 USD; a different account without agregar -> the 285 question, nothing written; agregar=true at 40 USD -> 2 recipients; cambiar_servicio to
   efectivo_usd with a named card recipient -> "Ya tengo el nombre Rosa Gomez y el celular 53821203; falta la dirección en Cuba"; mover_deposito reached the DB (refused on a fake target; a real move needs a bank-verified
   deposit, covered by the 287 assertion). Offline tests 70 GREEN (RED first).
+
+## 289 prep (staging 991a87b0 -> 8c91628c)
+- `via` is now a REQUIRED field (no default) in `calcular_usd` and `calcular_usd_desde_gyd`, described as "SIEMPRE: zelle, clasica, tropical o mexico; vacio solo si el cliente no dijo la via";
+  `valor` is required in `modificar_operacion` (description: valor es obligatorio with accion=monto). Offline tests 72 GREEN (RED first).
+- Pending until 289 is documented in db-tools-progress.md: prompt simplification (declarar_servicio only for a service stated without a quote or data; drop the repeated "declara antes de..."
+  reminders) and the rolled-back smoke of calcular_usd via=mexico.

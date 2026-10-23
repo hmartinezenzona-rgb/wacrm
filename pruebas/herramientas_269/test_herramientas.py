@@ -605,3 +605,27 @@ class TestMover287(unittest.TestCase):
             self.assertIn(s, sec)
         self.assertEqual(h.refinar_prompt_mover(p), p)
         self.assertNotIn("con dinero la atiende una persona) o unir", p) if False else None
+
+
+class TestVia289(unittest.TestCase):
+    """Implicit declaration (289) needs the service on every quote: via and valor are REQUIRED fields of their tool schemas."""
+
+    def wf(self):
+        r = "={{ [$fromAI('usd', 'x', 'number'), $('Decisor').item.json.conversation_id, $fromAI('via', 'vacio si no lo dijo', 'string', ''), $execution.id] }}"
+        return {"nodes": [{"name": n, "parameters": {"options": {"queryReplacement": r}, "toolDescription": "d"}} for n in ("calcular_usd", "calcular_usd_desde_gyd")], "connections": {}}
+
+    def test_via_obligatoria_en_las_dos_cotizaciones_en_dolares(self):
+        wf = h.aplicar_via(self.wf())
+        for n in wf["nodes"]:
+            r = n["parameters"]["options"]["queryReplacement"]
+            self.assertRegex(r, r"\$fromAI\('via', '[^']*', 'string'\)")
+            self.assertIn("mexico", r)
+            self.assertIn("SIEMPRE", r)
+        self.assertEqual(h.aplicar_via(json.loads(json.dumps(wf))), wf)
+
+    def test_valor_obligatorio_en_modificar_operacion(self):
+        r = h.reemplazo_modificar()
+        self.assertRegex(r, r"\$fromAI\('valor', '[^']*', 'string'\)")
+        self.assertIn("monto", r)
+        self.assertIn("OBLIGATORIO", r)
+        self.assertIn("valor es obligatorio", h.DESC_MODIFICAR)

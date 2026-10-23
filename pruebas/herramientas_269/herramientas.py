@@ -76,12 +76,21 @@ def consulta(modo):
 
 
 def consulta_numeros():
-    return ("-- RECARGAS (95, 3-oct-2026): guarda los numeros de Cuba a recargar (uno por recarga) que el cliente dijo,\n"
-            "-- tambien por AUDIO. Los escritos ya los guarda la base sola (201). Devuelve cuantos faltan.\n"
-            "-- (99) p_abrir: the agent understood a recharge (also by audio): it opens it even before any number.\n"
-            "-- (268/269) p_actor: the real actor of the agent's call.\n"
-            "SELECT crm_registrar_numeros_recarga($1::uuid, $2, p_abrir => true, "
-            "p_actor => 'agent:registrar_numeros_recarga') AS resultado;")
+    return ("-- RECARGAS: guarda (agregar) o quita (quitar, 282) los numeros de Cuba de la recarga. p_abrir: the agent understood a recharge, it opens\n"
+            "-- it even before any number (quitar never opens). The actor carries the n8n execution id.\n"
+            "SELECT crm_registrar_numeros_recarga($1::uuid, $2, true, 'agent:registrar_numeros_recarga n8n:' || $3, "
+            "COALESCE(NULLIF($4,''),'agregar')) AS resultado;")
+
+
+def reemplazo_numeros():
+    return ("={{ [$('Decisor').item.json.conversation_id, "
+            "$fromAI('numeros', 'los numeros de Cuba que dijo el cliente, tal cual, separados por espacio', 'string'), $execution.id, "
+            "$fromAI('accion', 'agregar (por defecto) para sumar numeros a la recarga, quitar para sacar los numeros que el cliente ya no quiere', 'string', '')] }}")
+
+
+DESC_NUMEROS = ("Abre la RECARGA en curso (tambien si el cliente la pidio por AUDIO) y guarda los numeros de Cuba a recargar (uno por recarga) que dio el cliente; "
+                "numeros puede ir vacio si aun no los dio. Con accion=quitar saca de la recarga los numeros que el cliente ya no quiere (nunca abre una recarga). "
+                "Devuelve cuantos numeros faltan o quedaron.")
 
 
 def consulta_mexico():
@@ -163,6 +172,9 @@ def aplicar_herramientas(wf):
     if num is None:
         raise ValueError("registrar_numeros_recarga not found")
     num["parameters"]["query"] = consulta_numeros()
+    num["parameters"].setdefault("options", {})["queryReplacement"] = reemplazo_numeros()
+    num["parameters"]["toolDescription"] = DESC_NUMEROS
+    aplicar_noche4(wf)
     return wf
 
 
@@ -544,3 +556,98 @@ def editar_prompt_repartir(sm):
     if "REPARTO ANTES DEL DEPOSITO" in sm:
         return sm
     return sm.replace("- un solo deposito para varios servicios -> repartir_envio", BLOQUE_REPARTO_PREVIO + "\n- un solo deposito para varios servicios -> repartir_envio", 1)
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Overnight step 4 (280-284). One general tool for the operation; extend the tools that own each domain.
+
+DESC_MODIFICAR = (
+    "Modifica la OPERACION abierta del cliente (no los datos de quien recibe). accion='monto': cambia lo que deposita el cliente en GYD (valor = numero; "
+    "calculalo antes con calcular_usd / calcular_envio, nunca de memoria). accion='cancelar': cancela una operacion que NO tiene dinero (sin deposito ni comprobante); "
+    "con dinero responde que una persona lo atiende. accion='unir': junta dos operaciones abiertas del mismo servicio (valor = {\"con\": \"<id>\"} o vacio si solo hay un par). "
+    "op = id de la operacion; vacio si solo hay una abierta (si hay varias te devuelve la lista: preguntale al cliente a cual y repite con el id). "
+    "NO mueve depositos ni toca dinero ya recibido. Devuelve ok, mensaje (en espanol, dile al cliente lo que dice) y motivo si no se pudo.")
+
+
+def consulta_modificar():
+    return ("-- 281: ONE general tool for the operation: monto | cancelar (no money) | unir. The database validates and audits.\n"
+            "SELECT cerebro_modificar_operacion($1::uuid, NULLIF($2,'')::uuid, $3, NULLIF($4,'')::jsonb, 'agent:modificar_operacion n8n:' || $5) AS resultado;")
+
+
+def reemplazo_modificar():
+    return ("={{ [$('Decisor').item.json.conversation_id, "
+            "$fromAI('op', 'id (uuid) de la operacion a modificar; vacio si solo hay una abierta', 'string', ''), "
+            "$fromAI('accion', 'monto, cancelar o unir', 'string'), "
+            "$fromAI('valor', 'para monto: el nuevo monto en GYD (solo numero); para unir: {\"con\": \"<id>\"} o vacio; para cancelar: vacio', 'string', ''), "
+            "$execution.id] }}")
+
+
+DESC_GESTIONAR = (
+    "Guarda o completa UN beneficiario que recibe en Cuba: tarjeta de 16 digitos, celular cubano de 8 y nombre. Acepta datos a medias; lo que no mandes se conserva; "
+    "una tarjeta distinta empieza sin celular. Para CORREGIR un destinatario ya guardado indica posicion (1, 2, 3...) y/o tipo (tarjeta, zelle, efectivo, recarga, mexico) "
+    "con el dato corregido: los demas no se tocan. op = id de la operacion cuando hay varias abiertas. Un celular o tarjeta de Zelle, efectivo, recarga o Mexico se guarda "
+    "con la herramienta de ese servicio. Responde que quedo guardado y que FALTA.")
+
+
+def reemplazo_gestionar():
+    return ("={{ [$('Decisor').item.json.conversation_id, "
+            "$fromAI('nombre', 'nombre del beneficiario que recibe en Cuba, o vacio si no se dijo', 'string'), "
+            "$fromAI('tarjeta', 'numero de tarjeta cubana de 16 digitos de quien recibe (cadena vacia si todavia no lo tienes)', 'string'), "
+            "$fromAI('celular', 'numero de celular cubano de 8 digitos de quien recibe (cadena vacia si todavia no lo tienes)', 'string'), "
+            "$execution.id, "
+            "$fromAI('op', 'id de la operacion cuando hay varias abiertas; vacio si no', 'string', ''), "
+            "$fromAI('posicion', 'numero del destinatario (1, 2, 3...) SOLO cuando corriges uno ya guardado; vacio si no', 'string', ''), "
+            "$fromAI('tipo', 'tipo del destinatario a corregir: tarjeta, zelle, efectivo, recarga o mexico; vacio si no corriges', 'string', '')] }}")
+
+
+def consulta_gestionar():
+    return ("-- 284: corrections by posicion / tipo and the operation the bot names (op).\n"
+            "SELECT deal_id AS id, accion FROM cerebro_guardar_beneficiario($1::uuid, NULLIF($2,''), NULLIF($3,''), NULLIF($4,''), $5, NULLIF($6,'')::uuid, "
+            "'gestionar_beneficiario', NULLIF($7,'')::int, NULLIF($8,''));")
+
+
+DESC_CAMBIAR_NOCHE = (
+    "El cliente DECIDIO cambiar el servicio o la VIA de ESTE envio por otro: 'zelle', 'clasica', 'tropical', 'cuban_card' (tarjeta en pesos, CUP), 'efectivo_usd' "
+    "(dolares fisicos en Cuba), 'recarga', 'combo', 'visa', 'saldo' o 'mexico'. Tambien sirve para ELEGIR la via la primera vez (clasica, tropical, efectivo, cup). Llamala ANTES de "
+    "responder. NO la llames si solo pregunta un precio o compara, si habla de otra persona u otro envio, ni para SUMAR un servicio (eso es agregar_servicio). Sin dinero "
+    "registrado, las vias se aplican al instante; con deposito la base valida el minimo. Devuelve mensaje (en espanol, para decirselo al cliente), aplicado, permitido, motivo, "
+    "minimo_gyd y faltante_gyd.")
+
+DESC_REPARTIR_NOCHE = DESC_REPARTIR.replace(
+    "Si ya hay un deposito y las partes no suman exactamente lo depositado, responde 'REPARTO NO APLICADO' con las cifras y no cambia nada: pregunta al cliente que parte cambia y vuelve a llamar con montos que sumen exactamente lo depositado.",
+    "Si las partes suman MENOS que el deposito verificado, se aplica un reparto PARCIAL: cada parte debe llegar al minimo de su servicio, las partes no enviadas quedan "
+    "pendientes con su operacion y sus datos esperando deposito. Si las partes suman MAS que lo verificado responde 'REPARTO NO APLICADO' con las cifras y no cambia nada: "
+    "decide con el cliente que parte cambia o si deposita el resto, y vuelve a llamar.")
+
+
+def aplicar_noche4(wf):
+    base = _nodo(wf, "cambiar_servicio")
+    # the general tool for the operation
+    mo = _nodo(wf, "modificar_operacion")
+    if mo is None:
+        mo = copy.deepcopy(base)
+        mo["id"] = str(uuid.uuid4())
+        mo["name"] = "modificar_operacion"
+        mo["position"] = [base["position"][0] + 640, base["position"][1]]
+        wf["nodes"].append(mo)
+    mo["parameters"]["query"] = consulta_modificar()
+    mo["parameters"].setdefault("options", {})["queryReplacement"] = reemplazo_modificar()
+    mo["parameters"]["toolDescription"] = DESC_MODIFICAR
+    mo["parameters"]["descriptionType"] = "manual"
+    mo["notes"] = "281: ONE general tool for the operation (monto | cancelar sin dinero | unir). The database validates, audits and answers in Spanish."
+    wf["connections"]["modificar_operacion"] = {"ai_tool": [[{"node": "Agente Remesas", "type": "ai_tool", "index": 0}]]}
+    # gestionar_beneficiario: corrections
+    gb = _nodo(wf, "gestionar_beneficiario")
+    if gb is not None:
+        gb["parameters"]["query"] = consulta_gestionar()
+        gb["parameters"].setdefault("options", {})["queryReplacement"] = reemplazo_gestionar()
+        gb["parameters"]["toolDescription"] = DESC_GESTIONAR
+    # cambiar_servicio absorbs marcar_destino_usd (283)
+    base["parameters"]["toolDescription"] = DESC_CAMBIAR_NOCHE
+    md = _nodo(wf, "marcar_destino_usd")
+    if md is not None:
+        md["disabled"] = True
+    rp = _nodo(wf, "repartir_envio")
+    if rp is not None:
+        rp["parameters"]["toolDescription"] = DESC_REPARTIR_NOCHE
+    return wf

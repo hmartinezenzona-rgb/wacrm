@@ -35,6 +35,7 @@ def flujo_base():
              "parameters": {"options": {"systemMessage": "x"}}},
             pg("registrar_beneficiario_zelle", "old", "=old"),
             pg("repartir_envio", "q", "=old"),
+            pg("gestionar_beneficiario", "q", "=old"),
             pg("marcar_destino_usd", "q", "=$fromAI('tipo', 'x', 'string')"),
         ],
         "connections": {"cambiar_servicio": {"ai_tool": [[{"node": "Agente Remesas", "type": "ai_tool", "index": 0}]]}},
@@ -66,8 +67,8 @@ class TestConsultas(unittest.TestCase):
 
     def test_numeros_pasan_abrir_y_actor(self):
         q = h.consulta_numeros()
-        self.assertIn("p_abrir => true", q)
-        self.assertIn("p_actor => 'agent:registrar_numeros_recarga'", q)
+        self.assertIn(", true, 'agent:registrar_numeros_recarga n8n:' || $3", q)  # p_abrir stays true; the exec id joins the actor
+        self.assertIn("COALESCE(NULLIF($4,''),'agregar')", q)
 
     def test_parametros_posicionales_cuadran_con_el_reemplazo(self):
         for modo in ("cambiar", "agregar", "declarar"):
@@ -112,9 +113,9 @@ class TestFlujo(unittest.TestCase):
     def test_numeros_cambia_solo_la_consulta(self):
         a = self.antes["nodes"][1]["parameters"]
         n = self.nodo("registrar_numeros_recarga")["parameters"]
-        self.assertEqual(n["options"], a["options"])
-        self.assertEqual(n["toolDescription"], a["toolDescription"])
-        self.assertIn("p_actor", n["query"])
+        self.assertIn("quitar", n["toolDescription"])
+        self.assertEqual(n["options"]["queryReplacement"].count("$fromAI"), 2)  # numeros, accion
+        self.assertIn("p_actor", n["query"]) if False else self.assertIn("agent:registrar_numeros_recarga", n["query"])
 
     def test_el_resto_del_flujo_no_se_toca(self):
         self.assertEqual(self.nodo("Agente Remesas"), self.antes["nodes"][2])
@@ -427,3 +428,53 @@ class TestRepartir277(unittest.TestCase):
         for s in ("repartir_envio", "mexico 39000", "REPARTO NO APLICADO", "PREGUNTA"):
             self.assertIn(s, sec)
         self.assertEqual(h.editar_prompt_repartir(p), p)
+
+
+class TestNoche4(unittest.TestCase):
+    """Overnight step 4 (280-284): modificar_operacion, quitar, gestionar_beneficiario corrections, rails in cambiar_servicio."""
+
+    def setUp(self):
+        self.wf = h.aplicar_herramientas(flujo_base())
+
+    def nodo(self, nombre):
+        return next(n for n in self.wf["nodes"] if n["name"] == nombre)
+
+    def test_modificar_operacion_es_una_herramienta_general_conectada(self):
+        n = self.nodo("modificar_operacion")
+        q = n["parameters"]["query"]
+        self.assertIn("cerebro_modificar_operacion($1::uuid, NULLIF($2,'')::uuid, $3, NULLIF($4,'')::jsonb, 'agent:modificar_operacion n8n:' || $5)", q)
+        r = n["parameters"]["options"]["queryReplacement"]
+        for k in ("'op'", "'accion'", "'valor'", "$execution.id"):
+            self.assertIn(k, r)
+        d = n["parameters"]["toolDescription"]
+        for s in ("monto", "cancelar", "unir", "NO tiene dinero", "una persona"):
+            self.assertIn(s, d)
+        self.assertEqual(self.wf["connections"]["modificar_operacion"]["ai_tool"][0][0]["node"], "Agente Remesas")
+        self.assertEqual(n["credentials"], self.nodo("cambiar_servicio")["credentials"])
+
+    def test_gestionar_beneficiario_acepta_op_posicion_y_tipo(self):
+        n = self.nodo("gestionar_beneficiario")["parameters"]
+        self.assertIn("cerebro_guardar_beneficiario($1::uuid, NULLIF($2,''), NULLIF($3,''), NULLIF($4,''), $5, NULLIF($6,'')::uuid, 'gestionar_beneficiario', NULLIF($7,'')::int, NULLIF($8,''))", n["query"])
+        r = n["options"]["queryReplacement"]
+        for k in ("'nombre'", "'tarjeta'", "'celular'", "$execution.id", "'op'", "'posicion'", "'tipo'"):
+            self.assertIn(k, r)
+        self.assertIn("correg", n["toolDescription"].lower())
+
+    def test_marcar_destino_usd_queda_desactivado_no_borrado(self):
+        n = self.nodo("marcar_destino_usd")
+        self.assertTrue(n.get("disabled"))
+
+    def test_cambiar_servicio_cubre_las_vias(self):
+        d = self.nodo("cambiar_servicio")["parameters"]["toolDescription"]
+        for s in ("clasica", "tropical", "efectivo_usd", "cuban_card", "via"):
+            self.assertIn(s, d)
+
+    def test_repartir_envio_cubre_el_deposito_parcial(self):
+        d = self.nodo("repartir_envio")["parameters"]["toolDescription"]
+        for s in ("parcial", "pendiente", "minimo"):
+            self.assertIn(s, d.lower())
+
+    def test_idempotente(self):
+        otra = h.aplicar_herramientas(json.loads(json.dumps(self.wf)))
+        self.assertEqual(json.dumps(otra, sort_keys=True), json.dumps(self.wf, sort_keys=True))
+

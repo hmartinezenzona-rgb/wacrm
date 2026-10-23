@@ -156,6 +156,7 @@ def aplicar_herramientas(wf):
                    "(271). Actor agent:registrar_destinatario_mexico.")
     wf["connections"]["registrar_destinatario_mexico"] = {
         "ai_tool": [[{"node": "Agente Remesas", "type": "ai_tool", "index": 0}]]}
+    aplicar_zelle(wf)
     num = _nodo(wf, "registrar_numeros_recarga")
     if num is None:
         raise ValueError("registrar_numeros_recarga not found")
@@ -406,3 +407,62 @@ def limpiar_registro_automatico(sm):
     sm = sm.replace("- MEXICO: apenas el cliente diga que quiere mandar a Mexico, declarar_servicio('mexico'). Cotiza",
                     "- MEXICO: PRIMERO declarar_servicio('mexico') apenas el cliente diga que quiere mandar a Mexico, antes de cotizar o de pedir datos. Cotiza")
     return sm
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# 274: several Zelle recipients. cerebro_guardar_zelle(conv, nombre, cuenta, exec, p_op, p_tool, posicion, agregar, monto).
+
+DESC_ZELLE = (
+    "Guarda o completa un destinatario Zelle: titular (nombre) y cuenta (correo o celular de EEUU, copiado literal). Con UN solo "
+    "destinatario acepta datos a medias y una correccion de la misma cuenta. Con VARIOS destinatarios: llamala una vez por persona; "
+    "agregar=true agrega a OTRA persona (la misma cuenta que ya existe solo la corrige, nunca la duplica); posicion=k corrige el "
+    "destinatario k; monto es el monto en USD de ese destinatario (vacio si no lo dio). Si el envio ya tiene 2 o mas destinatarios y la "
+    "cuenta no coincide con ninguno, devuelve 'NO SE GUARDO NADA ...': repite la llamada con agregar=true o con la posicion. Responde "
+    "lo guardado y que FALTA; dile al cliente solo eso.")
+
+
+def consulta_zelle():
+    return ("-- 274: several Zelle recipients. agregar adds another person, posicion patches slot k, monto is USD for that recipient.\n"
+            "SELECT deal_id AS id, accion FROM cerebro_guardar_zelle($1::uuid, NULLIF($2,''), NULLIF($3,''), $4, NULL, "
+            "'registrar_beneficiario_zelle', NULLIF($5,'')::int, coalesce(NULLIF($6,'')::boolean,false), NULLIF($7,'')::numeric);")
+
+
+def reemplazo_zelle():
+    return ("={{ [$('Decisor').item.json.conversation_id, "
+            "$fromAI('nombre', 'nombre completo del titular de la cuenta Zelle, tal cual lo dio el cliente (cadena vacia si todavia no lo tienes)', 'string'), "
+            "$fromAI('cuenta', 'cuenta Zelle: correo o celular de EEUU, COPIADO LITERAL como lo escribio el cliente, sin quitar el +1 ni los parentesis ni los guiones (cadena vacia si todavia no lo tienes)', 'string'), "
+            "$execution.id, "
+            "$fromAI('posicion', 'numero del destinatario Zelle (1, 2, 3...) cuando CORRIGES uno ya guardado; vacio si no corriges por posicion', 'string', ''), "
+            "$fromAI('agregar', 'true cuando es OTRA persona que se suma a las ya guardadas; false o vacio si completas o corriges la misma', 'string', ''), "
+            "$fromAI('monto', 'monto en USD que recibe ESTE destinatario, solo numero; vacio si el cliente no lo dijo', 'string', '')] }}")
+
+
+def aplicar_zelle(wf):
+    n = _nodo(wf, "registrar_beneficiario_zelle")
+    if n is None:
+        raise ValueError("registrar_beneficiario_zelle not found")
+    n["parameters"]["query"] = consulta_zelle()
+    n["parameters"].setdefault("options", {})["queryReplacement"] = reemplazo_zelle()
+    n["parameters"]["toolDescription"] = DESC_ZELLE
+    return wf
+
+
+_ZELLE_LINEA_VIEJA = ("- registrar_beneficiario_zelle(nombre,cuenta): registra al beneficiario de la via ZELLE. La `cuenta` es el correo o el celular de EEUU, "
+                      "COPIADO LITERAL como lo escribio el cliente (con su +1, sus parentesis y sus guiones). Llamala en cuanto tengas el NOMBRE o la CUENTA "
+                      "(lo otro vacio) y otra vez si el cliente completa o corrige alguno.")
+_ZELLE_LINEA_NUEVA = ("- registrar_beneficiario_zelle(nombre, cuenta, posicion, agregar, monto): registra a un destinatario de la via ZELLE. La `cuenta` es el correo o el "
+                      "celular de EEUU, COPIADO LITERAL como lo escribio el cliente (con su +1, sus parentesis y sus guiones). Llamala en cuanto tengas el NOMBRE o la "
+                      "CUENTA (lo otro vacio) y otra vez si el cliente completa o corrige alguno. Con varios destinatarios: una llamada por persona; agregar=true para "
+                      "sumar a otra persona, posicion=k para corregir al destinatario k, monto en USD de ese destinatario si lo dio.")
+_ZELLE_BLOQUE_NUEVO = ("- ZELLE A VARIAS PERSONAS: pide primero el NOMBRE y CUENTA de CADA destinatario (correo o celular de EEUU), antes de hablar de montos; los montos van "
+                       "despues. Una llamada a registrar_beneficiario_zelle por destinatario, con el nombre y la cuenta TAL CUAL los escribio el cliente: la primera persona "
+                       "sin parametros y cada otra con agregar=true. Para corregir a uno ya guardado usa la misma cuenta o posicion=k; el monto de cada uno va en monto (USD). "
+                       "Si la respuesta empieza con 'NO SE GUARDO NADA', no confirmes nada: repite la llamada con agregar=true o con la posicion que corresponda. "
+                       "Confirma al cliente SOLO lo que la herramienta devuelve en 'Destinatarios Zelle ahora'.")
+
+
+def editar_prompt_zelle(sm):
+    sm = sm.replace(_ZELLE_LINEA_VIEJA, _ZELLE_LINEA_NUEVA)
+    if "agregar=true" in sm.split("- ZELLE A VARIAS PERSONAS", 1)[-1][:600]:
+        return sm
+    return _cortar(sm, "- ZELLE A VARIAS PERSONAS", "\n", _ZELLE_BLOQUE_NUEVO) if "- ZELLE A VARIAS PERSONAS" in sm else sm

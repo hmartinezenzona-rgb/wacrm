@@ -113,3 +113,11 @@ Staging workflow U52y1kSNvhgxvWeb only. Production untouched, workflow never exe
   those; (b) the reconcile note ("DEPOSITO DISTINTO DE LO ACORDADO EN VARIAS PARTES") also fires for over-deposits when one part fits in whole USD, and for a short
   deposit with no exact part it still asks which part changes. Vitest 4 RED -> 47/47 GREEN.
 - Pending: planned parts (DB agent's repartir plan) and the new tool signatures (odd/notes/db-tools-progress.md did not exist yet).
+
+## 274 wired (Zelle several recipients) - staging 356b122b -> 5ab? see report
+- `registrar_beneficiario_zelle` now calls the 9-argument `cerebro_guardar_zelle` (p_tool 'registrar_beneficiario_zelle', posicion, agregar, monto). New fromAI params:
+  posicion, agregar, monto (strings, empty = none). Tool description and the prompt (tool line + C1 block) explain agregar=true for another person, posicion=k to correct,
+  monto in USD, and the "NO SE GUARDO NADA" refusal. 5 new offline tests (RED -> 43/43 GREEN).
+- Rolled-back smoke (PRUEBA conversation, no open op): recipient 1 (60 USD) -> agregar=true recipient 2 (40 USD) -> correction by posicion=1 -> a third account without
+  parameters is refused ("NO SE GUARDO NADA ... agregar=true") -> same account corrects the amount (45 USD). End state: 2 vigente, old rows 'reemplazado'.
+- Waiting for 275-279 in odd/notes/db-tools-progress.md (only 274 present).

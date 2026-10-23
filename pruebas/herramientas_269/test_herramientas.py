@@ -33,6 +33,7 @@ def flujo_base():
                "SELECT crm_registrar_numeros_recarga($1::uuid, $2, p_abrir => true) AS resultado;", "=old"),
             {"id": "agent", "name": "Agente Remesas", "type": "@n8n/n8n-nodes-langchain.agent", "position": [0, 0],
              "parameters": {"options": {"systemMessage": "x"}}},
+            pg("registrar_beneficiario_zelle", "old", "=old"),
         ],
         "connections": {"cambiar_servicio": {"ai_tool": [[{"node": "Agente Remesas", "type": "ai_tool", "index": 0}]]}},
     }
@@ -320,3 +321,47 @@ class TestPromptS5b(unittest.TestCase):
 
     def test_idempotente(self):
         self.assertEqual(h.limpiar_registro_automatico(self.nuevo), self.nuevo)
+
+
+class TestZelleVarios(unittest.TestCase):
+    """274: registrar_beneficiario_zelle takes posicion / agregar / monto (cerebro_guardar_zelle, 9 arguments)."""
+
+    def wf(self):
+        return {"nodes": [{"name": "registrar_beneficiario_zelle", "id": "z", "parameters": {
+            "query": "old", "options": {"queryReplacement": "=old"}, "toolDescription": "old"}}], "connections": {}}
+
+    def test_consulta_pasa_los_tres_parametros_nuevos(self):
+        q = h.consulta_zelle()
+        self.assertIn("cerebro_guardar_zelle($1::uuid, NULLIF($2,''), NULLIF($3,''), $4, NULL, 'registrar_beneficiario_zelle'", q)
+        self.assertIn("NULLIF($5,'')::int", q)
+        self.assertIn("coalesce(NULLIF($6,'')::boolean,false)", q)
+        self.assertIn("NULLIF($7,'')::numeric", q)
+
+    def test_reemplazo_tiene_siete_valores_con_los_tres_nuevos_opcionales(self):
+        r = h.reemplazo_zelle()
+        self.assertEqual(r.count("$fromAI"), 5)
+        for k in ("'nombre'", "'cuenta'", "'posicion'", "'agregar'", "'monto'"):
+            self.assertIn(k, r)
+        self.assertEqual(r.index("$execution.id") < r.index("'posicion'"), True)
+
+    def test_descripcion_explica_agregar_posicion_y_monto(self):
+        d = h.DESC_ZELLE
+        for s in ("agregar", "posicion", "monto", "NO SE GUARDO NADA"):
+            self.assertIn(s, d)
+
+    def test_aplica_al_nodo_sin_tocar_el_resto(self):
+        wf = h.aplicar_zelle(self.wf())
+        p = wf["nodes"][0]["parameters"]
+        self.assertEqual(p["query"], h.consulta_zelle())
+        self.assertEqual(h.aplicar_zelle(json.loads(json.dumps(wf))), wf)
+
+    def test_prompt_zelle_varios_usa_agregar_y_posicion(self):
+        with open(os.path.join(os.path.dirname(__file__), "prompt_vivo_84e217b8.txt"), encoding="utf-8") as f:
+            vivo = f.read()
+        p = h.editar_prompt_zelle(h.limpiar_registro_automatico(vivo))
+        i = p.index("- ZELLE A VARIAS PERSONAS")
+        sec = p[i:i + 1400]
+        for s in ("agregar=true", "posicion", "monto", "NO SE GUARDO NADA"):
+            self.assertIn(s, sec)
+        self.assertIn("registrar_beneficiario_zelle(nombre, cuenta, posicion, agregar, monto)", p)
+        self.assertEqual(h.editar_prompt_zelle(p), p)

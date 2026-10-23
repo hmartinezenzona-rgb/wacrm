@@ -122,9 +122,9 @@ BEGIN
 
   -- ---- 3. SUM MISMATCH: Spanish refusal with both numbers, nothing changes ----------------------------------------------
   SELECT * INTO r FROM pg_temp.t255_replay(3);
-  v_t := cerebro_repartir_envio(r.conv, 'clasica 18200, recarga 6000', 'exec-t255-3');
-  -- (277) the refusal became facts: same two numbers, nothing changed, plus the planned parts and the difference.
-  IF v_t NOT LIKE 'REPARTO NO APLICADO%' OR v_t NOT LIKE '%24,200%' OR v_t NOT LIKE '%24,400%' OR v_t NOT LIKE '%No se cambio nada%' THEN
+  v_t := cerebro_repartir_envio(r.conv, 'clasica 18200, recarga 6400', 'exec-t255-3');
+  -- (280) parts ABOVE the verified deposit (a smaller sum would now be a partial application). (277) the refusal became facts: same two numbers, nothing changed, plus the planned parts and the difference.
+  IF v_t NOT LIKE 'REPARTO NO APLICADO%' OR v_t NOT LIKE '%24,600%' OR v_t NOT LIKE '%24,400%' OR v_t NOT LIKE '%No se cambio nada%' THEN
     RAISE EXCEPTION 'case 3: Spanish refusal with both numbers expected, got %', v_t; END IF;
   IF EXISTS (SELECT 1 FROM remittance_operations WHERE id IN (r.rem, r.rec) AND mixed_group_id IS NOT NULL)
      OR (SELECT quoted_source_amount FROM remittance_operations WHERE id = r.rem) <> 24400

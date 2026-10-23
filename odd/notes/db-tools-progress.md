@@ -173,3 +173,37 @@ The tool queries for `cambiar_servicio` / `agregar_servicio` need no change; `me
 - `calcular_usd` objective survives without an operation once `declarar_servicio` ran; declaring promotes the standing quote (278).
 - `mensaje` never NULL from `cambiar_servicio` / `agregar_servicio` (279).
 Left for the n8n side: tool nodes for the new Zelle parameters (posicion, agregar, monto), the `cup` value in `marcar_destino_usd`, a prompt line "declare first, then save data", and the Decisor reading `servicio_resuelto.reparto_planeado`.
+
+## Step 3 check of the capability audit against 274-279 (before 280)
+
+Already covered by 274-279: several Zelle recipients with a per-recipient `monto` (274); recipient writers and `registrar_numeros_recarga` open the declared
+operation before the deposit (275); service-aware targeting of recipient writers with the 250 rule, `marcar_destino_usd` no longer re-types Mexico, `cup` rail (276);
+a split planned before the deposit and facts on a different deposit (277); objective without an operation (278); `mensaje` never NULL (279). Per-recipient amounts for
+cards already live in `registrar_reparto_multiple` (monto per card) and for Zelle in `registrar_beneficiario_zelle` (274), so `repartir_envio` does not duplicate them.
+Still open when step 3 started: partial deposit (280), amount change / cancel / merge (new general tool), recharge number removal, `cambiar_servicio` absorbing
+`marcar_destino_usd`, `gestionar_beneficiario` correction by position/type and `p_op`.
+
+## 280 applied on staging - repartir_envio with a partial deposit (P1)
+
+TDD: assertion `partial-deposit-split` RED (case 1: the 68,000 of 71,200 was refused with facts), GREEN 7 case groups. Cycle OK (dry-run, apply, assertion, rollback md5 equal for
+_repartir_envio_core, cerebro_repartir_envio, cerebro_registrar_deposito). relacionadas --ya-aplicada (142 assertions): only DIFFs are the new assertion, the known flaky `contexto-envio-mixto`
+and the pre-existing `delivery-feed-evidence` fixture error. `bot-mixed-split` case 3 was updated: parts ABOVE the verified deposit (a smaller sum is now a partial application).
+
+Signatures:
+- `cerebro_repartir_envio(p_conv uuid, p_partes text, p_execution text DEFAULT NULL) RETURNS text` - unchanged (the tool still reads `AS resultado`).
+- `_repartir_envio_core(p_operation_id uuid, p_partes jsonb, p_audit_action text, p_actor text, p_reason text, p_parcial boolean DEFAULT false) RETURNS jsonb` (internal; the 5-argument overload was dropped,
+  `crm_repartir_envio` still works). jsonb gains `parcial`, `asignado`, `deposito_verificado`, `sobrante`.
+
+What the bot / Decisor can rely on (the bot decides, the DB validates money):
+- Parts total = the operation's total: exact split as before ("Reparto hecho: ...").
+- Parts total different, VERIFIED deposit (consumed MMG rows) > 0 and parts total <= verified deposit: PARTIAL application. Answer starts
+  `Reparto parcial hecho: zelle 39,000 GYD, efectivo USD 29,000 GYD. Deposito verificado 71,200 GYD; asignado 68,000 GYD (sobran 3,200 GYD del deposito sin asignar). Pendiente, con su operacion y sus datos esperando deposito: tarjeta CUP 15,000 GYD (total 15,000 GYD). Cuando el cliente deposite se unira a su operacion.`
+  (or `No quedan partes pendientes.`). `tool_execution_log.outcome = 'parcial'`. One part is accepted when the plan still has other parts (no group is created for it).
+- Each part sent must reach the minimum of its service, else `REPARTO NO APLICADO: la parte tarjeta CUP (3,000 GYD) esta por debajo de su minimo (5,000 GYD). No se cambio nada. ...` and nothing changes.
+- Parts above the verified deposit (or a deposit not verified yet): the 277 facts answer (`REPARTO NO APLICADO: las partes suman ...`), now ending with "o con solo las partes que el deposito verificado cubre (el resto queda pendiente)".
+  A refused attempt never overwrites an existing plan.
+- Pending parts = plan parts not sent: their empty operations (and recipient data) stay open and the plan keeps only them (`servicio_resuelto.reparto_planeado`). With two or more pending parts, a later verified
+  deposit of exactly their total splits them by itself (277); a single pending part just receives the deposit (275).
+- The holder of the deposit must be one of the parts sent (unchanged rule): with a plan waiting, `cerebro_registrar_deposito` now attaches the deposit to the plan's first listed part (deterministic), never to a member of an
+  already covered group; the next deposit after a partial application goes to the pending part.
+- Per-recipient amounts: use `registrar_beneficiario_zelle` (monto) and `registrar_reparto_multiple` (cup per card); not duplicated here.

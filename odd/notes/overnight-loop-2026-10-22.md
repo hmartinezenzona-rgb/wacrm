@@ -83,3 +83,8 @@ with a go-ahead per step (267 never before 269), re-enabling or removing the rea
 - 03:4x both step-6 agents (DB fixes; prompt fixes) stopped at the usage limit (resets 05:40). NEXT TICK AFTER THE
   RESET: resume both with SendMessage ("continue step 6 from where you stopped; check staging state first") instead
   of launching new agents; then review and go to step 7.
+- 08:1x owner answers: (1) the bot cancels only EMPTY operations (no deposit, e.g. an extra one created in a mixed
+  send); with money -> person (281 already does this). (3) single recipient tool = experiment: measure both, adopt only
+  if equal or better. (4) debts/repayments: keep in mind only; bot hands them to a person. (5) admin names for the
+  transcription hints: Eliaba, Osmany (staging change). (2) moving a deposit: re-explained; owner to answer.
+- step 6 prompt fixes done: staging f318b276, 65 offline tests (RED first). Waiting for the DB fixes.

@@ -158,6 +158,7 @@ def aplicar_herramientas(wf):
         "ai_tool": [[{"node": "Agente Remesas", "type": "ai_tool", "index": 0}]]}
     aplicar_zelle(wf)
     aplicar_destino(wf)
+    aplicar_repartir(wf)
     num = _nodo(wf, "registrar_numeros_recarga")
     if num is None:
         raise ValueError("registrar_numeros_recarga not found")
@@ -513,3 +514,33 @@ def editar_prompt_destino(sm):
     if "ENVIO MIXTO CON TARJETA" in sm:
         return sm
     return sm.replace("- un solo deposito para varios servicios -> repartir_envio", BLOQUE_MIXTO_TARJETA + "\n- un solo deposito para varios servicios -> repartir_envio", 1)
+
+
+# 277: planned split before the deposit; facts (not a refusal) on a different deposit.
+DESC_REPARTIR = (
+    "Reparte UN solo deposito del cliente entre MAS DE UN servicio (por ejemplo una remesa por Clasica y ademas una recarga, o Mexico + efectivo + tarjeta). "
+    "Llamala SOLO cuando el cliente confirme las partes. Pasa TODAS las partes, cada una con su servicio y su monto en GYD, por ejemplo \"clasica 18200, recarga 6200\" "
+    "o \"mexico 39000, efectivo 29000, cup 15000\". Puedes llamarla ANTES del deposito: queda un reparto planeado y cada parte abre su operacion vacia donde guardar sus "
+    "datos; cuando llegue un deposito de exactamente la suma, se reparte solo. Si ya hay un deposito y las partes no suman exactamente lo depositado, responde "
+    "'REPARTO NO APLICADO' con las cifras y no cambia nada: pregunta al cliente que parte cambia y vuelve a llamar con montos que sumen exactamente lo depositado. "
+    "Servicios: cup (tarjeta en pesos), clasica, tropical, zelle, efectivo, mexico, recarga, combo, visa, saldo movil. NO la uses para cambiar el servicio de un envio unico "
+    "(eso es cambiar_servicio). Dile al cliente lo que respondio la tool, sin inventar cifras.")
+
+
+def aplicar_repartir(wf):
+    n = _nodo(wf, "repartir_envio")
+    if n is None:
+        raise ValueError("repartir_envio not found")
+    n["parameters"]["toolDescription"] = DESC_REPARTIR
+    return wf
+
+
+BLOQUE_REPARTO_PREVIO = ("- REPARTO ANTES DEL DEPOSITO: cuando el cliente confirme las partes de un envio con varios servicios (por ejemplo 'mexico 39000, efectivo 29000, cup 15000'), "
+                         "llama repartir_envio YA, sin esperar el deposito: queda planeado y cada parte tiene su operacion para guardar sus datos. Si el deposito llega distinto a la suma "
+                         "o la herramienta responde 'REPARTO NO APLICADO', no inventes: PREGUNTA al cliente que parte cambia y vuelve a llamar con montos que sumen exactamente lo depositado.")
+
+
+def editar_prompt_repartir(sm):
+    if "REPARTO ANTES DEL DEPOSITO" in sm:
+        return sm
+    return sm.replace("- un solo deposito para varios servicios -> repartir_envio", BLOQUE_REPARTO_PREVIO + "\n- un solo deposito para varios servicios -> repartir_envio", 1)

@@ -44,7 +44,7 @@ def main():
                 sm = h.limpiar_registro_automatico(h.editar_prompt_sin_lectores(sm))
             elif a.lectores == "on":
                 sm = h.quitar_prompt_sin_lectores(sm)
-            n["parameters"]["options"]["systemMessage"] = h.editar_prompt_destino(h.editar_prompt_declarar_primero(h.editar_prompt_zelle(sm)))
+            n["parameters"]["options"]["systemMessage"] = h.editar_prompt_repartir(h.editar_prompt_destino(h.editar_prompt_declarar_primero(h.editar_prompt_zelle(sm))))
     c.api_request("PUT", f"/api/v1/workflows/{wid}", base, key, body={
         "name": wf["name"], "nodes": wf["nodes"], "connections": wf["connections"], "settings": wf.get("settings", {})})
     w2 = c.api_request("GET", f"/api/v1/workflows/{wid}", base, key)

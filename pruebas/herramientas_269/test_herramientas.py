@@ -34,6 +34,7 @@ def flujo_base():
             {"id": "agent", "name": "Agente Remesas", "type": "@n8n/n8n-nodes-langchain.agent", "position": [0, 0],
              "parameters": {"options": {"systemMessage": "x"}}},
             pg("registrar_beneficiario_zelle", "old", "=old"),
+            pg("repartir_envio", "q", "=old"),
             pg("marcar_destino_usd", "q", "=$fromAI('tipo', 'x', 'string')"),
         ],
         "connections": {"cambiar_servicio": {"ai_tool": [[{"node": "Agente Remesas", "type": "ai_tool", "index": 0}]]}},
@@ -403,3 +404,26 @@ class TestDestino276(unittest.TestCase):
         self.assertRegex(p, r"marcar_destino_usd\(tipo\): .*'cup'")
         self.assertIn("ENVIO MIXTO CON TARJETA", p)
         self.assertEqual(h.editar_prompt_destino(p), p)
+
+
+class TestRepartir277(unittest.TestCase):
+    """277: repartir_envio can plan before the deposit, includes mexico, and answers facts on a different deposit."""
+
+    def wf(self):
+        return {"nodes": [{"name": "repartir_envio", "parameters": {"options": {"queryReplacement": "=old"}, "toolDescription": "old"}}], "connections": {}}
+
+    def test_descripcion_cubre_planear_mexico_y_deposito_distinto(self):
+        d = h.aplicar_repartir(self.wf())["nodes"][0]["parameters"]["toolDescription"]
+        for s in ("ANTES del deposito", "mexico", "REPARTO NO APLICADO", "exactamente", "sin inventar cifras"):
+            self.assertIn(s, d)
+        self.assertEqual(h.aplicar_repartir(json.loads(json.dumps(self.wf())))["nodes"][0]["parameters"]["toolDescription"], d)
+
+    def test_prompt_planear_antes_del_deposito(self):
+        with open(os.path.join(os.path.dirname(__file__), "prompt_vivo_84e217b8.txt"), encoding="utf-8") as f:
+            vivo = f.read()
+        p = h.editar_prompt_repartir(vivo)
+        i = p.index("REPARTO ANTES DEL DEPOSITO")
+        sec = p[i:i + 1200]
+        for s in ("repartir_envio", "mexico 39000", "REPARTO NO APLICADO", "PREGUNTA"):
+            self.assertIn(s, sec)
+        self.assertEqual(h.editar_prompt_repartir(p), p)

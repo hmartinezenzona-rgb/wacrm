@@ -20,12 +20,12 @@ import { fileURLToPath } from 'node:url';
 export const DECISOR_MD5_AL_FIJARLO = 'c2ed1d13c177dc368fbfd63150e706e7';
 
 /**
- * md5 of the copy in this repo as it stands. S4 (269, 2026-10-22): notes read ctx.servicio_resuelto; deployed to staging with the same change. S5b adds the declared-service tool names and the reconcile note for over-deposits. Previous staging md5 0e482f66a43cd9a53af850a9ae993698.
+ * md5 of the copy in this repo as it stands. S4 (269, 2026-10-22): notes read ctx.servicio_resuelto; deployed to staging with the same change. S5b adds the declared-service tool names and the reconcile note for over-deposits. 277: reconcile note built from servicio_resuelto.reparto_planeado. Previous staging md5 648aea174dfb82df39d9663d37caeaaf.
  * Last deployed to staging `U52y1kSNvhgxvWeb` on 2026-10-20 had md5 af1e5e40124b678215f295b6736b1792.
  * A test asserts the file still hashes to this, so a formatter run or a half-applied edit fails
  * loudly instead of silently diverging from the workflow.
  */
-export const DECISOR_MD5_ESPERADO = '648aea174dfb82df39d9663d37caeaaf';
+export const DECISOR_MD5_ESPERADO = '8c421a94453c1f45cecbededbe96e892';
 
 export const ORIGEN = join(
   dirname(fileURLToPath(import.meta.url)),

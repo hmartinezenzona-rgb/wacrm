@@ -132,3 +132,13 @@ Staging workflow U52y1kSNvhgxvWeb only. Production untouched, workflow never exe
   "ENVIO MIXTO CON TARJETA" rule added (card -> gestionar_beneficiario + marcar_destino_usd on the remesa; recarga numbers -> registrar_numeros_recarga on their own op).
 - Rolled-back smoke (mixed send): declared clasica + card -> the remesa; declared recarga + number -> its own recarga op (2 ops, each with its own data); 'cup' retyped only
   the remesa (cuban_card), the recarga untouched. 46 offline tests GREEN (RED first).
+
+## 277-279 wired
+- 277: `Contexto conversacion` already passes the whole resolver state, so `servicio_resuelto.reparto_planeado` reaches the Decisor with no query change (verified in a
+  rolled-back smoke). Decisor reconcile note now built from `reparto_planeado.partes` (preferred over `envio_mixto`): with a receipt this turn (short or over) and WITHOUT one
+  when a deposit is already registered and `coincide=false` (`deposito_gyd > 0`); one note only; no exact part -> still asks which part changes. `repartir_envio` description
+  (plan BEFORE the deposit, mexico part, "REPARTO NO APLICADO" = ask which part changes) and a prompt rule "REPARTO ANTES DEL DEPOSITO". vitest 5 RED -> 52/52 GREEN
+  (pin 8c421a94...), python 47 GREEN.
+- Smoke (rolled back, PRUEBA conversation): `repartir_envio("mexico 39000, efectivo 29000, cup 5000")` before any deposit -> plan; a 60,000 deposit registered ("movido") ->
+  `reparto_planeado` {total 73,000, deposito 60,000, diferencia -13,000, coincide false}; repartir again -> "REPARTO NO APLICADO ... faltan 13,000 GYD".
+- 278/279: no n8n change needed (declarar_servicio keeps working, objetivo promoted by the DB; `mensaje` never NULL; the cambiar/agregar prompt already says to tell `mensaje`).

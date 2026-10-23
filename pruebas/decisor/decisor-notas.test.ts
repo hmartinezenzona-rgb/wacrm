@@ -696,3 +696,77 @@ describe('S5b: el deposito que no cuadra con un envio de varias partes se reconc
     expect(nota(s, 'RECIBIDO Y VERIFICADO CONTRA EL BANCO, PERO EL ENVIO TODAVIA NO ESTA COMPLETO')).toBeUndefined();
   });
 });
+
+describe('277: la nota de reconciliacion sale del reparto planeado (servicio_resuelto.reparto_planeado)', () => {
+  const partes = [
+    { servicio: 'mexico', monto_gyd: 39000, usd: 150 },
+    { servicio: 'efectivo_usd', monto_gyd: 29000, usd: 100 },
+    { servicio: 'cuban_card', monto_gyd: 5000, usd: null },
+  ];
+  const plan = (deposito: number | null, extra: Record<string, unknown> = {}) => ({
+    version: 2,
+    en_curso: 'mexico',
+    servicio: 'mexico',
+    accion: 'ninguna',
+    permitido: true,
+    motivo: 'sin_cambio',
+    mensaje: 'x',
+    operaciones: [],
+    adicionales: [],
+    evidencia: { declarado: null, deposito: deposito ?? 0 },
+    reparto_planeado: {
+      partes,
+      total_gyd: 73000,
+      deposito_gyd: deposito,
+      diferencia_gyd: deposito === null ? null : deposito - 73000,
+      coincide: deposito === 73000,
+      ...extra,
+    },
+  });
+  const P = 'DEPOSITO DISTINTO DE LO ACORDADO';
+  const turno = (d: number | null) => correrDecisor({ ctx: { servicio_resuelto: plan(d) } });
+
+  it('deposito corto ya registrado: propone la parte que cuadra y pregunta', () => {
+    const n = nota(turno(60000), P) as string;
+    expect(n).toBeDefined();
+    expect(n).toMatch(/60,000/);
+    expect(n).toMatch(/73,000/);
+    expect(n).toMatch(/100 USD/);
+    expect(n).toMatch(/150/);
+    expect(n).toMatch(/PREGUNTA/);
+    expect(n).toMatch(/PROHIBIDO.*equivalente/i);
+  });
+
+  it('deposito de mas: tambien reconcilia', () => {
+    const n = nota(turno(86000), P) as string;
+    expect(n).toBeDefined();
+    expect(n).toMatch(/de mas/);
+    expect(n).toMatch(/200 USD/);
+  });
+
+  it('sin parte exacta igual pregunta cual parte cambia', () => {
+    const n = nota(turno(71200), P) as string;
+    expect(n).toBeDefined();
+    expect(n).toMatch(/Ninguna parte sola cuadra/);
+    expect(n).toMatch(/PREGUNTA/);
+  });
+
+  it('si coincide, o no hay deposito todavia, no hay nota', () => {
+    expect(nota(turno(73000), P)).toBeUndefined();
+    expect(nota(turno(null), P)).toBeUndefined();
+  });
+
+  it('con comprobante este turno usa las partes planeadas y la nota sale una sola vez', () => {
+    const s = correrDecisor({
+      ctx: { servicio_resuelto: plan(60000) },
+      snapshot: {
+        texto_completo: 'ahi va',
+        comprobante: { estado: 'LEGIBLE', monto: 60000, moneda: 'GYD', alertas: [] },
+      },
+      mmg: { resultado: 'verificado_incompleto', objetivo: 73000, depositado: 60000, saldo: 13000 },
+    });
+    expect(s.notas.filter((n) => n.startsWith(P)).length).toBe(1);
+    expect(nota(s, 'RECIBIDO Y VERIFICADO CONTRA EL BANCO, PERO EL ENVIO TODAVIA NO ESTA COMPLETO')).toBeUndefined();
+    expect(nota(s, P)).toMatch(/100 USD/);
+  });
+});

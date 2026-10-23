@@ -339,6 +339,39 @@ if (g82EnReparto && g82Montos.length && !g82MonedaDicha) {
 const R = (ctx.servicio_resuelto && typeof ctx.servicio_resuelto === 'object') ? ctx.servicio_resuelto : null;
 const rielR = R && R.en_curso ? String(R.en_curso) : null;
 const declaradoR = R && R.evidencia && R.evidencia.declarado ? String(R.evidencia.declarado) : null;
+// S4/277 (Marlene 4afda26a): reconcile a multi-part send whose deposit differs from the agreed total. Parts come from the planned split
+// (servicio_resuelto.reparto_planeado, the database's plan) or, as a legacy alias, from ctx.envio_mixto. A part is a candidate when changing
+// ONLY that part by the difference gives a whole-USD amount (the part carries its USD).
+const planR = R && R.reparto_planeado && typeof R.reparto_planeado === 'object' && Array.isArray(R.reparto_planeado.partes) && R.reparto_planeado.partes.length >= 2 ? R.reparto_planeado : null;
+const reconciliarPartes = (partes, depositado, permitirSinParte) => {
+  if (!Array.isArray(partes) || partes.length < 2 || depositado === null || depositado === undefined) return null;
+  const total = partes.reduce((a, p) => a + Number(p.monto_gyd || 0), 0);
+  const delta = Number(depositado) - total;
+  if (!delta) return null;
+  const candidatas = [];
+  partes.forEach((p) => {
+    const antes = Number(p.monto_gyd || 0);
+    const nuevo = antes + delta;
+    const usd = Number(p.usd || 0);
+    if (nuevo <= 0 || !(usd > 0)) return;
+    const usdNuevo = nuevo / (antes / usd);
+    if (Math.abs(usdNuevo - Math.round(usdNuevo)) < 1e-9) { candidatas.push({ servicio: String(p.servicio || 'parte'), antes, nuevo, usdAntes: usd, usdNuevo: Math.round(usdNuevo) }); }
+  });
+  return (candidatas.length || permitirSinParte) ? { total, delta, partes, candidatas } : null;
+};
+const notaReconPartes = (rc, depositado, moneda, quien) => {
+  const fmtP = (n) => Number(n).toLocaleString('en-US');
+  const usdP = (usd) => (usd ? ' (' + usd + ' USD)' : '');
+  const pri = rc.candidatas[0];
+  const lista = rc.partes.map((p) => p.servicio + ' ' + fmtP(p.monto_gyd) + usdP(p.usd)).join(' + ');
+  return 'DEPOSITO DISTINTO DE LO ACORDADO EN VARIAS PARTES: ' + quien + ' *' + fmtP(depositado) + ' ' + moneda + '* y lo acordado sumaba *' + fmtP(rc.total)
+    + ' ' + moneda + '* (' + lista + '), o sea ' + fmtP(Math.abs(rc.delta)) + (rc.delta < 0 ? ' de menos' : ' de mas') + '. '
+    + (pri
+      ? 'La diferencia cuadra EXACTO si cambia UNA parte: ' + rc.candidatas.map((c) => c.servicio + ' pasaria de ' + fmtP(c.antes) + usdP(c.usdAntes) + ' a ' + fmtP(c.nuevo) + usdP(c.usdNuevo)).join('; o ')
+        + '. PREGUNTA al cliente cual parte cambia, sin decidirlo tu, por ejemplo: "Su depósito de ' + fmtP(depositado) + ' cuadra con ' + pri.usdNuevo + ' USD a ' + pri.servicio + ', no con ' + pri.usdAntes + '; ¿confirma?". '
+      : 'Ninguna parte sola cuadra exacto con la diferencia. PREGUNTA al cliente cual parte cambia o si falta una parte, dile las cifras de arriba y no decidas tu. ')
+    + 'PROHIBIDO decirle que se transfiere o se ajusta el equivalente, que se envia lo que alcance, que quedas esperando el resto o que mando de mas, hasta que confirme. PROHIBIDO sumar o restar otras cifras que estas.';
+};
 const recargaEnCurso = R ? rielR === 'recarga' : (!!ctx.recarga_en_curso && !tarjetaCtx && !s.datos_zelle && !s.multi_beneficiario);
 // (207/104, 4-oct-2026) RECARGA ANOTADA: taken ahead of a confirmed promo ('DD/MM' of its start), done that day.
 const anotadaPara = ctx.recarga_anotada_para || null;
@@ -724,41 +757,17 @@ if (s.comprobante && !s.comprobante_duplicado) {
   const datos = JSON.stringify(s.comprobante);
   // S4 (Marlene 4afda26a): a multi-part send (grouped operations) whose verified deposit is SHORT of the agreed total: reconcile the
   // parts. If changing exactly one part by the difference gives a whole-USD amount (the part carries its USD), that is the proposal.
-  const reconPartes = (() => {
-    const partes = ctx.envio_mixto && Array.isArray(ctx.envio_mixto.partes) ? ctx.envio_mixto.partes : [];
-    if (!['verificado_incompleto', 'verificado_de_mas'].includes(veredicto) || partes.length < 2 || depositado === null) return null;
-    const total = partes.reduce((a, p) => a + Number(p.monto_gyd || 0), 0);
-    const delta = depositado - total;
-    if (!delta) return null;
-    const candidatas = [];
-    partes.forEach((p) => {
-      const antes = Number(p.monto_gyd || 0);
-      const nuevo = antes + delta;
-      const usd = Number(p.usd || 0);
-      if (nuevo <= 0 || !(usd > 0)) return;
-      const usdNuevo = nuevo / (antes / usd);
-      if (Math.abs(usdNuevo - Math.round(usdNuevo)) < 1e-9) { candidatas.push({ servicio: String(p.servicio || 'parte'), antes, nuevo, usdAntes: usd, usdNuevo: Math.round(usdNuevo) }); }
-    });
-    // A short deposit with no exact single-part fit still asks which part changes; an over-deposit keeps its own note unless a part fits.
-    return (candidatas.length || veredicto === 'verificado_incompleto') ? { total, delta, partes, candidatas } : null;
-  })();
+  const reconPartes = (['verificado_incompleto', 'verificado_de_mas'].includes(veredicto))
+    ? (planR ? reconciliarPartes(planR.partes, depositado, true)
+             : reconciliarPartes(ctx.envio_mixto && Array.isArray(ctx.envio_mixto.partes) ? ctx.envio_mixto.partes : [], depositado, veredicto === 'verificado_incompleto'))
+    : null;
 
   if (varios && !(sumables && cruceOK)) {
     notas.push('EL CLIENTE MANDO VARIOS COMPROBANTES EN LA MISMA RAFAGA y el sistema NO ha podido sumarlos y verificarlos automaticamente. No se ha dado por bueno ni uno solo. PROHIBIDO decir ninguna cifra. PROHIBIDO decir que el deposito fue recibido, verificado o confirmado. PROHIBIDO pedirle que los reenvie. Dile solo esto: que recibiste sus comprobantes, que una persona esta sumando el total y que le confirman en cuanto quede. El envio ya esta en Incidencia.');
   } else if (importeDudoso) {
     notas.push('COMPROBANTE ILEGIBLE. El importe NO se pudo leer con seguridad y el envio ya esta en Incidencia para que lo mire una persona. PROHIBIDO decir ninguna cifra. PROHIBIDO decir que el deposito fue recibido, verificado o confirmado. Dile solo esto: que recibiste su imagen, que no se lee bien, y que una persona la esta revisando. Si lo que mando no era un comprobante, pidele la captura del comprobante. Datos leidos, NO se los repitas al cliente: ' + datos);
   } else if (reconPartes) {
-    const fmtP = (n) => Number(n).toLocaleString('en-US');
-    const usdP = (usd) => (usd ? ' (' + usd + ' USD)' : '');
-    const pri = reconPartes.candidatas[0];
-    const lista = reconPartes.partes.map((p) => p.servicio + ' ' + fmtP(p.monto_gyd) + usdP(p.usd)).join(' + ');
-    notas.push('DEPOSITO DISTINTO DE LO ACORDADO EN VARIAS PARTES: el banco verifico *' + fmtP(depositado) + ' ' + monedaRafaga + '* y lo acordado sumaba *' + fmtP(reconPartes.total)
-      + ' ' + monedaRafaga + '* (' + lista + '), o sea ' + fmtP(Math.abs(reconPartes.delta)) + (reconPartes.delta < 0 ? ' de menos' : ' de mas') + '. '
-      + (pri
-        ? 'La diferencia cuadra EXACTO si cambia UNA parte: ' + reconPartes.candidatas.map((c) => c.servicio + ' pasaria de ' + fmtP(c.antes) + usdP(c.usdAntes) + ' a ' + fmtP(c.nuevo) + usdP(c.usdNuevo)).join('; o ')
-          + '. PREGUNTA al cliente cual parte cambia, sin decidirlo tu, por ejemplo: "Su depósito de ' + fmtP(depositado) + ' cuadra con ' + pri.usdNuevo + ' USD a ' + pri.servicio + ', no con ' + pri.usdAntes + '; ¿confirma?". '
-        : 'Ninguna parte sola cuadra exacto con la diferencia. PREGUNTA al cliente cual parte cambia o si falta una parte, dile las cifras de arriba y no decidas tu. ')
-      + 'PROHIBIDO decirle que se transfiere o se ajusta el equivalente, que se envia lo que alcance, que quedas esperando el resto o que mando de mas, hasta que confirme. PROHIBIDO sumar o restar otras cifras que estas.');
+    notas.push(notaReconPartes(reconPartes, depositado, monedaRafaga, 'el banco verifico'));
   } else if (veredicto === 'verificado_incompleto') {
     notas.push('RECIBIDO Y VERIFICADO CONTRA EL BANCO, PERO EL ENVIO TODAVIA NO ESTA COMPLETO. El cliente dijo que iba a enviar *'
       + fmtG(objetivoEnvio) + ' ' + monedaRafaga + '* y hasta ahora lleva *' + fmtG(depositado) + ' ' + monedaRafaga
@@ -1019,6 +1028,11 @@ if (!s.comprobante && viaSinDefinir && (abiertos > 0 || esPregunta)) {
   } else {
     notas.push('TODAVIA NO SE SABE POR QUE VIA RECIBE: no hay tarjeta, ni celular, ni cuenta Zelle en toda la conversacion. PROHIBIDO pedirle "la tarjeta y el celular": todavia no sabes si va a recibir en Cuba o por Zelle. PROHIBIDO pedirle "la cuenta Zelle". Si necesitas los datos de quien recibe, pideselos EN GENERICO, con esta frase: "¿Me pasa los datos de quien recibe?"');
   }
+}
+// 277: a registered deposit that differs from the planned split is reconciled even without a receipt this turn.
+if (planR && !s.comprobante && Number(planR.deposito_gyd) > 0 && planR.coincide === false) {
+  const rcP = reconciliarPartes(planR.partes, Number(planR.deposito_gyd), true);
+  if (rcP) { notas.push(notaReconPartes(rcP, Number(planR.deposito_gyd), 'GYD', 'ya hay un deposito registrado de')); }
 }
 if (rielOp) { notas.push('VIA ACTUAL DE LA OPERACION: ' + ({zelle:'Zelle',clasica:'tarjeta Clasica',tropical:'tarjeta Tropical',cuban_card:'CUP (tarjeta en pesos)',efectivo_usd:'efectivo en USD',recarga:'recarga',combo:'combo',visa:'visa',saldo:'saldo movil',mexico:'Mexico'}[rielOp] || rielOp) + '. Si el cliente DECIDE otra en lugar de esta, llama cambiar_servicio; si quiere otra ADEMAS de esta, llama agregar_servicio; una pregunta de precio o hablar de otra persona NO es un cambio.'); }
 if (R) {

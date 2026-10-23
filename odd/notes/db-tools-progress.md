@@ -340,3 +340,25 @@ Signature unchanged: `cerebro_modificar_operacion(p_conv uuid, p_op uuid, p_acci
   `deposito_no_encontrado`, `por_debajo_del_minimo {minimo_gyd, deposito_gyd, faltante_gyd}`, `deposito_mayor_que_el_envio {deposito_gyd, monto_gyd}` (change the target's amount first).
 - Audit: action `agent_deposit_move` on BOTH operations (before / after with trans_id and amount), actor `agent:modificar_operacion n8n:<exec>`; tool log outcome `deposito_movido`. The audit action list gained `agent_deposit_move`.
 - The n8n tool query is the same as for the other actions: `SELECT cerebro_modificar_operacion($1::uuid, NULLIF($2,'')::uuid, $3, NULLIF($4,'')::jsonb, 'agent:modificar_operacion n8n:' || $5) AS resultado;` with accion `mover_deposito`.
+
+## 288 applied on staging - explicit grants for everything 243 and 265-287 create or replace (production readiness B)
+
+Production conventions read with catalog SELECTs (project hqztotshnlzaiziwjyzh, 2026-10-23): default privileges for `postgres` in public are functions `postgres=X` only, tables `anon/authenticated/service_role = Dxtm`
+(no SELECT / INSERT / UPDATE / DELETE), sequences postgres only; comparable objects: agent tools (`cerebro_repartir_envio`, `cerebro_registrar_deposito`, `cerebro_fijar_objetivo`, `crm_registrar_datos_entrega_efectivo`...) = postgres + service_role;
+panel RPCs (`crm_agregar_beneficiario`, `crm_beneficiarios_completos`, `crm_corregir_beneficiario`) = postgres + authenticated; `crm_operaciones_de_conversacion`, `cerebro_dashboard_historial`, `crm_repartir_envio` = postgres + authenticated + service_role;
+helpers (`_repartir_envio_core`, `_cambiar_servicio_core`, `cerebro_minimo_gyd`, `cerebro_riel_op`, `cerebro_resolver_para_guardar`, `cerebro_guardar_*_auto`) = postgres only; `calculator_service_for_operation` = PUBLIC (left untouched).
+
+`supabase/migrations/288_grants.sql` (idempotent; ROLLBACK restores the broad staging ACLs) states for 14 + 3 + 3 + 19 functions:
+- agent-facing, EXECUTE for service_role only: cerebro_aplicar_servicio, cerebro_declarar_servicio, cerebro_cotizar, cerebro_fijar_objetivo, cerebro_guardar_beneficiario (9 args), cerebro_guardar_beneficiario_mexico, cerebro_guardar_zelle (9 args), cerebro_marcar_destino_usd,
+  cerebro_modificar_operacion, cerebro_registrar_deposito, cerebro_repartir_envio, crm_registrar_datos_entrega_efectivo, crm_registrar_numeros_recarga (5 args), cerebro_parsear_beneficiarios;
+- authenticated + service_role: crm_operaciones_de_conversacion, cerebro_dashboard_historial, cerebro_resolver_servicio; authenticated only: crm_agregar_beneficiario, crm_beneficiarios_completos, crm_corregir_beneficiario;
+- postgres only (their callers are SECURITY DEFINER and run as the owner): _cambiar_servicio_core, _cerebro_aplicar_plan_reparto, _cerebro_nombre_servicio, _cerebro_op_parte, _cerebro_op_tiene_dinero, _cerebro_operacion_declarada, _cerebro_ops_para_datos,
+  _cerebro_partes_envio_parse, _cerebro_reparto_planear, _cerebro_servicio_clave, _cerebro_texto_partes, _cerebro_usd_parte, _repartir_envio_core (6 args), calculator_resolve_operation_service, cerebro_guardar_beneficiario_auto,
+  cerebro_limpiar_servicio_declarado (trigger), cerebro_minimo_gyd, cerebro_resolver_para_guardar, cerebro_riel_op;
+- tables `cerebro_servicio_declarado` and `cerebro_reparto_planeado`: RLS on, `service_role` SELECT / INSERT / UPDATE / DELETE, nobody else. No sequences are owned by them and no column-level grants exist (the new `remittance_beneficiaries.clabe` / `bank_name` ride on the table privileges).
+
+TDD / proof: assertion `grants-mirror-production` sets every public table / view to production's real ACL, the 33 functions to the production default (postgres only) and the two new tables to the default of a new table, then (RED) the calls AS `service_role`
+and AS `authenticated` with a member JWT claim fail with 23 permission-denied errors; after 288's statements are re-applied in the same transaction every call passes (business refusals are ignored: the assertion proves privileges only), plus negative checks
+(authenticated cannot execute the agent tools, service_role cannot execute the panel-only RPCs, no sequence). Objects that NEEDED a grant (the RED list): the 14 agent tools and `cerebro_parsear_beneficiarios` for service_role; `cerebro_resolver_servicio`, `crm_operaciones_de_conversacion`,
+`cerebro_dashboard_historial`, `crm_agregar_beneficiario`, `crm_beneficiarios_completos`, `crm_corregir_beneficiario` for authenticated; the two new tables for service_role. Everything else passes through SECURITY DEFINER.
+Cycle OK (dry-run, apply, assertion). Full sweep of the 170 assertions on the narrowed staging state: 146 pass, the 24 that fail are all in the known triage set (nothing new).

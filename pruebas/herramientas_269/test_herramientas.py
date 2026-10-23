@@ -662,3 +662,41 @@ class TestDeclaracionImplicita289(unittest.TestCase):
 
     def test_idempotente(self):
         self.assertEqual(h.refinar_prompt_289(self.nuevo), self.nuevo)
+
+
+class TestCotizar289(unittest.TestCase):
+    """The four quote tools call cerebro_cotizar (243) so a quote that names its service declares it (289)."""
+
+    def wf(self):
+        def nodo(n, r):
+            return {"name": n, "parameters": {"query": "WITH old", "options": {"queryReplacement": r}, "toolDescription": "d"}}
+        usd = "={{ [$fromAI('usd', 'x', 'number'), $('Decisor').item.json.conversation_id, $fromAI('via', 'v', 'string'), $execution.id] }}"
+        gyd = usd.replace("'usd', 'x'", "'gyd', 'x'")
+        cup = "={{ [$fromAI('monto', 'x', 'number'), $fromAI('moneda', 'siempre gyd. NUNCA usd', 'string'), $('Decisor').item.json.conversation_id, $execution.id] }}"
+        inv = cup.replace("'monto'", "'cup_deseado'")
+        return {"nodes": [nodo("calcular_usd", usd), nodo("calcular_usd_desde_gyd", gyd), nodo("calcular_envio", cup), nodo("calcular_inverso", inv)], "connections": {}}
+
+    def test_cada_nodo_llama_cerebro_cotizar_con_su_direccion(self):
+        wf = h.aplicar_cotizar(self.wf())
+        esperado = {"calcular_usd": ("hacia_destino", "usd"), "calcular_usd_desde_gyd": ("desde_deposito", "usd"),
+                    "calcular_envio": ("desde_deposito", "cup"), "calcular_inverso": ("hacia_destino", "cup")}
+        for n in wf["nodes"]:
+            q = n["parameters"]["query"]
+            self.assertIn("cerebro_cotizar(", q)
+            for v in esperado[n["name"]]:
+                self.assertIn("'" + v + "'", q)
+
+    def test_conserva_via_requerida_y_descripcion_y_quita_moneda_de_los_cup(self):
+        wf = h.aplicar_cotizar(self.wf())
+        por = {n["name"]: n for n in wf["nodes"]}
+        for nombre in ("calcular_usd", "calcular_usd_desde_gyd"):
+            self.assertIn("$fromAI('via'", por[nombre]["parameters"]["options"]["queryReplacement"])
+        for nombre in ("calcular_envio", "calcular_inverso"):
+            self.assertNotIn("moneda", por[nombre]["parameters"]["options"]["queryReplacement"])
+            self.assertIn("$3::text", por[nombre]["parameters"]["query"])
+            self.assertNotIn("$4", por[nombre]["parameters"]["query"])
+        self.assertTrue(all(n["parameters"]["toolDescription"] == "d" for n in wf["nodes"]))
+
+    def test_idempotente(self):
+        wf = h.aplicar_cotizar(self.wf())
+        self.assertEqual(h.aplicar_cotizar(json.loads(json.dumps(wf))), wf)

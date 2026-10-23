@@ -826,3 +826,27 @@ def refinar_prompt_289(sm):
             raise ValueError("289 prompt anchor missing: " + viejo[:50])
         sm = sm.replace(viejo, nuevo, 1)
     return sm
+
+
+# The four quote tools call cerebro_cotizar (243): same numbers (parity proven on staging, 592 cases), and a quote that names
+# its service declares it (289). The CUP tools drop the "moneda" parameter (the deposit is always GYD inside the function).
+COTIZAR = {
+    "calcular_usd": ("hacia_destino", "usd", "$2::uuid, ($1)::numeric", "NULLIF($3, '')", "$4::text"),
+    "calcular_usd_desde_gyd": ("desde_deposito", "usd", "$2::uuid, ($1)::numeric", "NULLIF($3, '')", "$4::text"),
+    "calcular_envio": ("desde_deposito", "cup", "$2::uuid, ($1)::numeric", "NULL", "$3::text"),
+    "calcular_inverso": ("hacia_destino", "cup", "$2::uuid, ($1)::numeric", "NULL", "$3::text"),
+}
+
+
+def aplicar_cotizar(wf):
+    for nombre, (direccion, destino, cabeza, via, ejec) in COTIZAR.items():
+        n = _nodo(wf, nombre)
+        if n is None:
+            raise ValueError(nombre + " not found")
+        p = n["parameters"]
+        p["query"] = ("SELECT cerebro_cotizar(" + cabeza + ", '" + direccion + "', '" + destino + "', " + via + ", " + ejec + ") AS resultado;")
+        if destino == "cup":
+            r = p["options"]["queryReplacement"]
+            r = re.sub(r"\$fromAI\('moneda', '[^']*', 'string'(?:, '')?\), ", "", r)
+            p["options"]["queryReplacement"] = r
+    return wf

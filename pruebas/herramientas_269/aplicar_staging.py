@@ -21,6 +21,8 @@ def main():
     ap.add_argument("--esperado", required=True)
     ap.add_argument("--lectores", choices=["off", "on"], help="S5b: disable (off) or re-enable (on) the automatic readers + prompt section")
     ap.add_argument("--contexto", action="store_true", help="S4: add servicio_resuelto to Contexto conversacion")
+    ap.add_argument("--cotizar", action="store_true", help="289: the four quote tools call cerebro_cotizar")
+    ap.add_argument("--prompt289", action="store_true", help="289: shorter prompt without the repeated declare reminders")
     a = ap.parse_args()
     c.check_esperado(a.esperado)
     wid = c.resolve_env("staging")
@@ -33,6 +35,8 @@ def main():
     h.aplicar_herramientas(wf)
     h.aplicar_transcripcion(wf)
     h.aplicar_via(wf)
+    if a.cotizar:
+        h.aplicar_cotizar(wf)
     if a.contexto:
         h.aplicar_contexto(wf)
     if a.lectores == "off":
@@ -46,7 +50,8 @@ def main():
                 sm = h.limpiar_registro_automatico(h.editar_prompt_sin_lectores(sm))
             elif a.lectores == "on":
                 sm = h.quitar_prompt_sin_lectores(sm)
-            n["parameters"]["options"]["systemMessage"] = h.refinar_prompt_mover(h.refinar_prompt_paso6(h.refinar_prompt_noche4(h.editar_prompt_repartir(h.editar_prompt_destino(h.editar_prompt_declarar_primero(h.editar_prompt_zelle(sm)))))))
+            sm = h.refinar_prompt_mover(h.refinar_prompt_paso6(h.refinar_prompt_noche4(h.editar_prompt_repartir(h.editar_prompt_destino(h.editar_prompt_declarar_primero(h.editar_prompt_zelle(sm)))))))
+            n["parameters"]["options"]["systemMessage"] = h.refinar_prompt_289(sm) if a.prompt289 else sm
     c.api_request("PUT", f"/api/v1/workflows/{wid}", base, key, body={
         "name": wf["name"], "nodes": wf["nodes"], "connections": wf["connections"], "settings": wf.get("settings", {})})
     w2 = c.api_request("GET", f"/api/v1/workflows/{wid}", base, key)

@@ -362,3 +362,17 @@ and AS `authenticated` with a member JWT claim fail with 23 permission-denied er
 (authenticated cannot execute the agent tools, service_role cannot execute the panel-only RPCs, no sequence). Objects that NEEDED a grant (the RED list): the 14 agent tools and `cerebro_parsear_beneficiarios` for service_role; `cerebro_resolver_servicio`, `crm_operaciones_de_conversacion`,
 `cerebro_dashboard_historial`, `crm_agregar_beneficiario`, `crm_beneficiarios_completos`, `crm_corregir_beneficiario` for authenticated; the two new tables for service_role. Everything else passes through SECURITY DEFINER.
 Cycle OK (dry-run, apply, assertion). Full sweep of the 170 assertions on the narrowed staging state: 146 pass, the 24 that fail are all in the known triage set (nothing new).
+
+## 289 applied on staging - the declaration of the service is a consequence of the tools the bot already uses (production readiness A)
+
+TDD: assertion `implicit-declaration` RED (case 1: a mexico quote declared nothing), GREEN 5 case groups. Cycle OK (rollback md5 for `cerebro_cotizar`, `crm_registrar_numeros_recarga`). relacionadas --ya-aplicada (151 assertions): only DIFFs are the new assertion and the pre-existing `delivery-feed-evidence`.
+The staging `calcular_usd` / `calcular_usd_desde_gyd` / `calcular_envio` / `calcular_inverso` tools all call `cerebro_cotizar` (243); `cerebro_fijar_objetivo` receives only an amount, so it declares nothing.
+
+Signatures unchanged (`cerebro_cotizar(p_conv, p_monto, p_direccion, p_moneda_destino, p_via, p_execution_id)`, `crm_registrar_numeros_recarga(p_conv, p_texto, p_abrir, p_actor, p_accion)`). New internal helper (postgres only, state set in the migration):
+`_cerebro_declarar_implicito(p_conv uuid, p_servicio text, p_origen text) RETURNS boolean`.
+- A quote that NAMES its service declares it with actor `implicit:cotizar`: `via` zelle / clasica / tropical / mexico (words accepted as in `_cerebro_servicio_clave`: "Clásica" ok), a CUP quote = `cuban_card`, `via` efectivo = `efectivo_usd` (declared even though the quote answers `efectivo_tiene_tasa_propia`).
+  An empty `via` (the Zelle default) and `usdt` declare nothing.
+- Never over a declaration the bot made (any actor not starting with `implicit:`: declarar_servicio, cambiar_servicio, recarga numbers...); an implicit declaration IS replaced by the next implicit one (customer asking prices of two services: the last quote wins).
+  Skipped when an open operation of ANOTHER service already holds money (a price question is not a change of service).
+- `crm_registrar_numeros_recarga` with `p_abrir = true` calls `cerebro_declarar_servicio(conv, 'recarga', actor)` (actor = `p_actor`, e.g. `agent:registrar_numeros_recarga`): latest declaration wins, cleared when the last operation closes. Without `p_abrir` nothing is declared.
+- The later deposit attaches to the declared service (asserted: a mexico quote then a 13,000 deposit = the Mexico operation; recarga numbers then 6,200 = the one recarga operation).

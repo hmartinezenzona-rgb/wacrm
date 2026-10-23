@@ -33,3 +33,39 @@ Planned migrations (one coherent migration + ROLLBACK + assertion + commit each)
 277 planned split before the deposit + facts on a different deposit | 278 objective without an operation |
 279 `agregar` always answers a plain-Spanish `mensaje`.
 
+
+## 274 applied on staging - Zelle: several recipients (gap 1)
+
+TDD: assertion `zelle-several-recipients` RED (function with the new arguments missing, case 2), GREEN 11 case groups.
+Cycle: dry-run, apply, assertion, rollback (md5 equal to the previous state for guardar_zelle, parsear_beneficiarios, guardar_zelle_auto) OK.
+relacionadas --ya-aplicada: Zelle/writers set 6 (5 SAME, 1 DIFF = the new assertion); 265-273 set 31 (31 SAME; the known pre-existing failures
+deal-insert-creates-operation, n8n-repoint, operation-incident-reason, repeated-receipt fail identically on base).
+
+Signature (6 -> 9 arguments; the 6-argument function was dropped, the old 4-argument tool call and zelle_auto's 6-argument call still work):
+
+```
+cerebro_guardar_zelle(p_conv uuid, p_nombre text, p_cuenta text, p_exec text,
+                      p_op uuid DEFAULT NULL, p_tool text DEFAULT 'registrar_beneficiario_zelle',
+                      p_posicion integer DEFAULT NULL, p_agregar boolean DEFAULT false, p_monto numeric DEFAULT NULL)
+  RETURNS TABLE(deal_id uuid, accion text)      -- service_role only
+```
+Tool query for n8n (new tool params: nombre, cuenta, posicion (int or empty), agregar (true/false), monto (USD or empty)):
+`SELECT deal_id AS id, accion FROM cerebro_guardar_zelle($1::uuid, NULLIF($2,''), NULLIF($3,''), $4, NULL, 'registrar_beneficiario_zelle', NULLIF($5,'')::int, coalesce(NULLIF($6,'')::boolean,false), NULLIF($7,'')::numeric);`
+(the existing first argument order stays; p_nombre/p_cuenta may be NULL for a position or amount only correction).
+
+Behaviour the prompt can rely on:
+- Same account as a recipient in force (no parameter) = correction of THAT recipient only (the others stay vigente).
+- `agregar = true` adds another recipient (position N+1); same account as an existing one patches it, never duplicates.
+- `posicion = k` (1..N+1) patches slot k; a NEW account in a slot starts without holder unless `nombre` is given; k = N+1 appends.
+- One recipient and no parameter and a different account: replaced (old behaviour) and the answer ends with
+  "(Reemplazo al destinatario anterior; si es OTRA persona, no una correccion, vuelve a llamar con agregar=true.)".
+- Two or more recipients, no parameter, an account that matches none: NOTHING is written; accion starts with
+  "NO SE GUARDO NADA: este envio ya tiene N destinatarios Zelle (1) nombre / cuenta; 2) ...) ... llama con agregar=true ... posicion". Same prefix for an invalid posicion.
+- `monto` is USD for that recipient (stored amount + currency 'USD'), kept when a later call has none, changed by a new one; <= 0 is refused ("ERROR: ...").
+- Names are stored exactly as passed (pipes, accents, double spaces kept); account normalised as before.
+- Return `accion` texts: single recipient, no amount: "guardado: titular X, cuenta Y. Completo." (unchanged). Several or with amount:
+  "guardado (destinatario k de N): titular X, cuenta Y[, monto M USD]. Completo.|. FALTA: ... Pideselo al cliente. Destinatarios Zelle ahora: 1) A / a@x[ / 60 USD]; 2) ...".
+  "sin cambios: esos datos ya estaban guardados" when nothing differs. `deal_id` is the operation id (NULL on a refusal).
+- Other operations of the conversation are never touched when `p_op` is passed (250 targeting); with `p_op` NULL the old resolver still picks the
+  operation (service-aware targeting for the tools arrives with 276).
+- Parser: `cerebro_parsear_beneficiarios` reads a new block `ZELLE VARIOS DESTINATARIOS` (one line per recipient).

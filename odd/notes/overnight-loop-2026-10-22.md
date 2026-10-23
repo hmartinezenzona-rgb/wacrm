@@ -23,8 +23,8 @@ siga hasta que se realice todo lo que falta; puedes revisar las conversaciones c
 | 2 | Capability audit (read-only): what customers ask in real production conversations (last 30 days, by 8-char ids) vs agent tools: change amount, cancel/split/merge operations, move a deposit, change service, recipients, partial deposits | done (8fe079c) |
 | 3 | IMPROVE the existing agent tools so they cover step 2's needs + P1 (partial deposit inside repartir_envio). Owner rule: no patches, no tool per gap; extend the tool that owns the domain (like registrar_beneficiario_zelle gained several recipients); a new tool only when no tool owns the domain, and then general (e.g. one "modify operation" tool, not one per case). Migrations after step 1's | done (280-284) |
 | 4 | n8n staging: tool nodes/descriptions/prompt + P2 (Decisor states facts only) for step 3 | done (staging ddd12edb) |
-| 5 | Offline measurement: S5b cases K/C/M/F + up to 6 real-shaped cases from step 2, 3 reps, mocked tools, DB replay rolled back | running |
-| 6 | Fix what step 5 shows (one round), re-measure only the failing cases | pending |
+| 5 | Offline measurement: S5b cases K/C/M/F + up to 6 real-shaped cases from step 2, 3 reps, mocked tools, DB replay rolled back | done (2.98M tokens) |
+| 6 | Fix what step 5 shows (one round), re-measure only the failing cases | running (fix only; re-measure needs owner OK: budget spent) |
 | 7 | Morning summary for the owner in this file + Engram; update odd/tasks/service-resolution.md and its mirror | pending |
 
 ## Left for the owner (not overnight)
@@ -70,3 +70,13 @@ with a go-ahead per step (267 never before 269), re-enabling or removing the rea
   Tests py 59, vitest 55. Smokes rolled back OK except unir and partial split on a bank-verified deposit (covered by
   281/280 assertions only). Parent spot check: vitest pruebas/decisor re-run (result above in the tick).
 - step 5 launched (measurement, budget <= 3M input: 2 reps K/C/M/F, 1 rep the 6 audit cases).
+- 03:3x step 5 done (reports in the harness informes/: reporte-s5b2-20261023.md, efectos-s5b2-20261023.txt): 2.98M
+  input tokens (budget 3M). K/C/M/F: M4 no longer says "equivalente", F3 now uses repartir_envio, C3 green after a
+  mock fix; K1 1/2, M1 0/2 (no CLABE ask, 15 mil CUP vs GYD). Real-shaped: RF, RG (repayment -> person) pass; RA, RB,
+  RC, RD, RE fail mostly at turn 1 (declarar skipped when quoting first). DB replay: K, F, RB, RF pass; Zelle with a
+  different account and no agregar replaces the first recipient (data loss); Zelle per-recipient amounts not stored;
+  quitar repeated as add; cambiar_servicio to efectivo drops the card recipient without a cash one. Decisor: no red.
+  Samples are tiny (1-2 reps). Parent spot check: report files exist.
+- step 6 launched: one fix round (DB: Zelle refuses an ambiguous different account instead of replacing; cambiar to
+  efectivo keeps/opens the right recipient. n8n: prompt declarar-before-quote, agregar/monto for Zelle, quitar,
+  modificar_operacion for amount changes, ask CLABE, CUP vs GYD). No re-measure overnight: the night budget is spent.

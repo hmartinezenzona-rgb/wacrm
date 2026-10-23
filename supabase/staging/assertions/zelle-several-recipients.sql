@@ -17,7 +17,7 @@ BEGIN;
 --   6  p_posicion beyond N + 1 is refused; p_posicion = N + 1 appends
 --   7  per-recipient amount (USD): kept on its own row, preserved by a later call without amount, changed by a new one
 --   8  250 several-operations targeting: with p_op the recipients of ANOTHER open operation are never touched
---   9  one recipient + legacy different account: replaced, and the answer tells the bot how to ADD instead
+--   9  one recipient + a different account: (285) refused, nothing written; posicion=1 corrects it
 --  10  the parser keeps a name with a pipe or an accent untouched; the answer lists every recipient
 --  11  ACL: service_role only (authenticated and anon cannot execute)
 -- =====================================================================
@@ -144,13 +144,15 @@ BEGIN
   PERFORM pg_temp.z_eq('8 add on the second operation', pg_temp.z_vig(v_op2), '1:Omar Sol:omar@example.com,2:Ivo Sol:ivo@example.com');
   PERFORM pg_temp.z_eq('8 first operation still untouched', pg_temp.z_vig(v_op), '1:Eva Sol:eva@example.com');
 
-  -- 9 one recipient, legacy different account: replaced, the answer says how to add
+  -- 9 one recipient, a different account: (285) refused, nothing written, the answer asks other person (agregar) or correction (posicion)
   SELECT * INTO c2 FROM pg_temp.z_conv(4);
   v_op := pg_temp.z_op(c2, 'zelle');
   PERFORM cerebro_guardar_zelle(c2.conv, 'Nora Paz', 'nora@example.com', 'ex18');
   SELECT accion INTO v_a FROM cerebro_guardar_zelle(c2.conv, 'Nora Paz', 'nora2@example.com', 'ex19');
-  PERFORM pg_temp.z_eq('9 legacy replacement', pg_temp.z_vig(v_op), '1:Nora Paz:nora2@example.com');
-  PERFORM pg_temp.z_eq('9 hint to add', (v_a LIKE '%agregar%')::text, 'true');
+  PERFORM pg_temp.z_eq('9 refused, first intact', pg_temp.z_vig(v_op), '1:Nora Paz:nora@example.com');
+  PERFORM pg_temp.z_eq('9 hint to add or correct', (v_a LIKE 'NO SE GUARDO NADA:%agregar=true%posicion=1%')::text, 'true');
+  PERFORM cerebro_guardar_zelle(c2.conv, 'Nora Paz', 'nora2@example.com', 'ex19b', NULL, 'registrar_beneficiario_zelle', 1);
+  PERFORM pg_temp.z_eq('9 position corrects it', pg_temp.z_vig(v_op), '1:Nora Paz:nora2@example.com');
 
   -- 10 name with a pipe and an accent, exactly as passed
   SELECT * INTO c2 FROM pg_temp.z_conv(5);

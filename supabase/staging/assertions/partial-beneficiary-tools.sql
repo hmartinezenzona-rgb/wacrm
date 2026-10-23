@@ -88,7 +88,8 @@ BEGIN
   IF pg_temp.vig(v_conv) <> 'zelle:Liudis Aguilar Rojas:_:_:7868613281:_' THEN RAISE EXCEPTION 'case 6b: %', pg_temp.vig(v_conv); END IF;
   PERFORM cerebro_guardar_zelle(v_conv, 'Liudis Aguilar Roja', '', 'x3');
   IF pg_temp.vig(v_conv) <> 'zelle:Liudis Aguilar Roja:_:_:7868613281:_' THEN RAISE EXCEPTION 'case 6c: %', pg_temp.vig(v_conv); END IF;
-  PERFORM cerebro_guardar_zelle(v_conv, '', 'rvalienter@outlook.com', 'x4');
+  -- (285) a different account with no position is refused (it used to replace); the correction names the position
+  PERFORM cerebro_guardar_zelle(v_conv, '', 'rvalienter@outlook.com', 'x4', NULL, 'registrar_beneficiario_zelle', 1);
   IF pg_temp.vig(v_conv) <> 'zelle:_:_:_:rvalienter@outlook.com:_' THEN RAISE EXCEPTION 'case 6d: %', pg_temp.vig(v_conv); END IF;
 
   -- ----------------------------------------------------------------- reparto

@@ -299,3 +299,16 @@ Final sweep of all 167 assertions on the staging state after 284 (each in a roll
 `deal-free-beneficiary-writers` / `reparto-destino-node-adapters`, which print their own expected-error output). Nothing new fails; `contexto-envio-mixto` (flaky tie on created_at) passed in this run.
 New agent-facing surface: `repartir_envio` partial deposit (280), `cerebro_modificar_operacion` (281), `registrar_numeros_recarga` `accion='quitar'` (282), `cambiar_servicio` words / rails / pre-deposit / service-aware target and `marcar_destino_usd` deprecated (283),
 `gestionar_beneficiario` `p_posicion` / `p_tipo` / validated `p_op` (284). Left for n8n (step 4): tool nodes / descriptions for the new parameters above, the prompt lines, and the Decisor reading the plain-Spanish `mensaje` / `accion` texts.
+
+## 285 applied on staging - registrar_beneficiario_zelle refuses the ambiguous second account (step 6, S5b2 finding)
+
+TDD: assertion `zelle-ambiguous-account` RED (case 1: the second account replaced the first), GREEN 4 case groups. Cycle OK (rollback md5). relacionadas --ya-aplicada (135 assertions): only DIFFs are the new assertion, the updated
+`zelle-several-recipients` case 9 (old contract was "replaced") and the pre-existing `delivery-feed-evidence`. `partial-beneficiary-tools` 6d now names `posicion=1` for its account correction. The automatic reader
+(`p_tool = 'Registrar zelle auto'`, still alive in production) keeps its replace behaviour, so `partial-beneficiary-auto` is unchanged.
+
+Signature unchanged: `cerebro_guardar_zelle(p_conv, p_nombre, p_cuenta, p_exec, p_op, p_tool, p_posicion, p_agregar, p_monto)`.
+- ONE recipient in force + a DIFFERENT account + no `agregar` / `posicion`: nothing is written, `accion` = `NO SE GUARDO NADA: este envio ya tiene un destinatario Zelle (1) Maria Lopez / maria@example.com y esa cuenta (5551234567) es otra. Preguntale al cliente si es OTRA persona (llama con agregar=true) o si corrige la cuenta de ese destinatario (llama con posicion=1). No se cambio nada.`
+  The retry with `agregar=true` adds recipient 2; `posicion=1` corrects the account of recipient 1.
+- Completing a recipient that has no account yet, correcting a holder name and repeating the same account behave as before.
+- Amounts (`p_monto`, USD) are stored on the recipient (`amount` + `currency 'USD'`), survive name-only and account-only calls, and a corrected account (`posicion=k`) keeps the slot's amount (the holder starts empty, as in 274).
+  The S5b2 "200/100 never stored" case came from the agent tool not passing `monto`/`posicion`/`agregar` yet (n8n side); the DB side is asserted.

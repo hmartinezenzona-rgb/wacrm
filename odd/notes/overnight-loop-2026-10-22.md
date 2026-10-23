@@ -53,3 +53,8 @@ with a go-ahead per step (267 never before 269), re-enabling or removing the rea
   marcar_destino_usd), repartir_envio (partial deposit = P1); one new GENERAL modificar_operacion (monto, cancelar,
   unir). Parent note: part of the audit predates 274-279 (276 service-aware, 277 planned split) -> step 3 checks first.
 - step 3 launched (DB writer).
+- 2026-10-23 00:41 step 3 agent had stopped at the usage limit (22:4x) mid-280 (files uncommitted, before
+  relacionadas); resumed with the same brief after the reset.
+- Owner (22:5x, awake): "Lía" in the Marlene audio is ELIABA, an admin; the 10,000 GYD were a repayment to the business
+  for a double transfer on 10-10 (Engram negocio/admins/eliaba-transcription). Question 4 for the owner: model customer
+  debts/repayments? Until then the bot hands them to a person. Question 5: other admin names for transcription hints.

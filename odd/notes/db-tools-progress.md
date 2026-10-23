@@ -312,3 +312,16 @@ Signature unchanged: `cerebro_guardar_zelle(p_conv, p_nombre, p_cuenta, p_exec, 
 - Completing a recipient that has no account yet, correcting a holder name and repeating the same account behave as before.
 - Amounts (`p_monto`, USD) are stored on the recipient (`amount` + `currency 'USD'`), survive name-only and account-only calls, and a corrected account (`posicion=k`) keeps the slot's amount (the holder starts empty, as in 274).
   The S5b2 "200/100 never stored" case came from the agent tool not passing `monto`/`posicion`/`agregar` yet (n8n side); the DB side is asserted.
+
+## 286 applied on staging - cambiar_servicio to efectivo_usd keeps the customer's data (step 6, S5b2 finding)
+
+TDD: assertion `cash-keeps-recipient` RED (case 1: the card retired and NO cash recipient existed), GREEN 6 case groups. Cycle OK (rollback md5 for `_cambiar_servicio_core`, `cerebro_aplicar_servicio`).
+relacionadas --ya-aplicada (126 assertions): only DIFFs are the new assertion, the flaky `contexto-envio-mixto` and the pre-existing `delivery-feed-evidence`. First run found a regression in `cash-recipient-add`
+(the panel flow expects an empty operation after the card retires): the new recipient is created only for the bot's callers (`agent_service_change` / `automation_service_change`), never for `human_correction`.
+
+Signatures unchanged. Behaviour (the `cambiar_servicio` tool query needs no change):
+- To `efectivo_usd` with no recipient able to receive cash: the first recipient carrying a name or a phone gives them to a NEW `efectivo_usd` recipient (position 1); the card / Zelle account is retired (cash cannot use it).
+  `_cambiar_servicio_core` returns `created` (ids); the audit `after` carries `created`/`created_recipients`.
+- `cerebro_aplicar_servicio` appends to `mensaje`: `Se pasa la operación a efectivo en USD. Ya tengo el nombre Rosa Gomez y el celular 53821203; falta la dirección en Cuba.`
+  (variants: only phone, only name -> `falta el celular y la dirección en Cuba`); with neither name nor phone no recipient is invented: `La tarjeta o cuenta guardada no sirve para efectivo y no tengo datos de quien recibe: falta el nombre, el celular y la dirección en Cuba.`
+- `registrar_datos_entrega_efectivo` then completes that same recipient (one in force). A second conversion attempt answers `sin_cambio`.

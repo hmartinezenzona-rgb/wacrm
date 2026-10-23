@@ -123,7 +123,8 @@ BEGIN
   -- ---- 3. SUM MISMATCH: Spanish refusal with both numbers, nothing changes ----------------------------------------------
   SELECT * INTO r FROM pg_temp.t255_replay(3);
   v_t := cerebro_repartir_envio(r.conv, 'clasica 18200, recarga 6000', 'exec-t255-3');
-  IF v_t NOT LIKE 'No se pudo repartir%' OR v_t NOT LIKE '%24,200%' OR v_t NOT LIKE '%24,400%' OR v_t NOT LIKE '%No cambie nada%' THEN
+  -- (277) the refusal became facts: same two numbers, nothing changed, plus the planned parts and the difference.
+  IF v_t NOT LIKE 'REPARTO NO APLICADO%' OR v_t NOT LIKE '%24,200%' OR v_t NOT LIKE '%24,400%' OR v_t NOT LIKE '%No se cambio nada%' THEN
     RAISE EXCEPTION 'case 3: Spanish refusal with both numbers expected, got %', v_t; END IF;
   IF EXISTS (SELECT 1 FROM remittance_operations WHERE id IN (r.rem, r.rec) AND mixed_group_id IS NOT NULL)
      OR (SELECT quoted_source_amount FROM remittance_operations WHERE id = r.rem) <> 24400
@@ -147,19 +148,17 @@ BEGIN
      OR EXISTS (SELECT 1 FROM remittance_admin_audit WHERE row_id IN (r.rem, r.rec) AND field_name = 'mixed_split') THEN
     RAISE EXCEPTION 'case 4: an unparsed request must change nothing'; END IF;
 
-  -- ---- 5. NO DEPOSIT / NO OPERATION --------------------------------------------------------------------------------------
+  -- ---- 5. NO DEPOSIT: (277) the split is PLANNED, not refused; nothing is split, a closed conversation clears the plan ------------
   SELECT * INTO c FROM pg_temp.t255_conv(5);
   v_t := cerebro_repartir_envio(c.conv, 'clasica 18200, recarga 6200', 'exec-t255-5');
-  IF v_t IS DISTINCT FROM 'No hay un deposito registrado para repartir todavia.' THEN
-    RAISE EXCEPTION 'case 5: no operation message expected, got %', v_t; END IF;
-  v_op := pg_temp.t255_op(c, 'collecting_information', 'remesa', 'clasica', 24400);
-  UPDATE remittance_operations SET status = 'cancelled' WHERE id = v_op;
-  IF (SELECT status FROM remittance_operations WHERE id = v_op) <> 'cancelled' THEN RAISE EXCEPTION 'fixture: cancelled operation expected'; END IF;
-  v_t := cerebro_repartir_envio(c.conv, 'clasica 18200, recarga 6200', 'exec-t255-5b');
-  IF v_t IS DISTINCT FROM 'No hay un deposito registrado para repartir todavia.' THEN
-    RAISE EXCEPTION 'case 5: a closed operation is not open, got %', v_t; END IF;
-  IF (SELECT count(*) FROM remittance_operations WHERE conversation_id = c.conv) <> 1 THEN
-    RAISE EXCEPTION 'case 5: nothing may be created'; END IF;
+  IF v_t NOT LIKE 'Reparto planeado%' THEN
+    RAISE EXCEPTION 'case 5: a plan expected before the deposit, got %', v_t; END IF;
+  IF (SELECT count(*) FROM remittance_operations WHERE conversation_id = c.conv) <> 2
+     OR EXISTS (SELECT 1 FROM remittance_operations WHERE conversation_id = c.conv AND (mixed_group_id IS NOT NULL OR coalesce(quoted_source_amount, 0) <> 0)) THEN
+    RAISE EXCEPTION 'case 5: two empty, ungrouped part operations expected'; END IF;
+  UPDATE remittance_operations SET status = 'cancelled' WHERE conversation_id = c.conv;
+  IF EXISTS (SELECT 1 FROM cerebro_reparto_planeado WHERE conversation_id = c.conv) THEN
+    RAISE EXCEPTION 'case 5: the plan must go with the last operation'; END IF;
 
   -- ---- 6. "saldo movil 5000" IS saldo, NOT recarga -----------------------------------------------------------------------
   v_p := _cerebro_partes_envio_parse('saldo movil 5000');

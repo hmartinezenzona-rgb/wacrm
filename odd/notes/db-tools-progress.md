@@ -109,3 +109,25 @@ What the agent can rely on (same queries as before):
 - `registrar_numeros_recarga` (p_abrir) with every other open operation still EMPTY (collecting, 0 GYD, no receipt/deposit, not grouped) opens the recarga as its own empty
   operation and saves the number there: "guardados 1 numero(s) de recarga nuevos; la recarga tiene 1.". With money or a mixed group on another operation the refusal text is unchanged.
 - Pre-deposit mixed send: card on the clasica op + number on the recarga op, then after the deposit `repartir_envio("clasica 18200, recarga 6200")` reuses both operations (no third) and each keeps its data (proved).
+
+## 277 applied on staging - split planned before the deposit; facts on a different deposit (gap 3)
+
+TDD: assertion `planned-split-before-deposit` RED (case 1: "No hay un deposito registrado..."), GREEN 8 case groups. Cycle OK (rollback md5 equal).
+relacionadas --ya-aplicada (repartir, deposit, resolver, mixed, aplicar, writers): 47 assertions; the only real DIFFs were `bot-mixed-split` cases 3 and 5, which asserted the OLD
+behaviour the owner asked to change (refusal with two sums; "No hay un deposito registrado") - updated to the new contract (same numbers, now facts / a plan); the `deal-free-money-rules`
+DIFF was a deadlock (clean alone). Known pre-existing failures unchanged (contexto-envio-mixto flaky, deal-insert-creates-operation, n8n-repoint, operation-incident-reason, saldo-model, repeated-receipt).
+
+Signatures unchanged: `cerebro_repartir_envio(p_conv uuid, p_partes text, p_execution text DEFAULT NULL) RETURNS text` (the tool still reads `AS resultado`).
+New table `cerebro_reparto_planeado(conversation_id PK, partes jsonb, total_gyd numeric, actor, creado_at)` (service_role only). Helpers (service_role only): `_cerebro_usd_parte`, `_cerebro_texto_partes`,
+`_cerebro_op_parte`, `_cerebro_reparto_planear`, `_cerebro_aplicar_plan_reparto`.
+
+Behaviour the prompt / Decisor can rely on:
+- `repartir_envio("mexico 39000, efectivo 29000, cup 15000")` BEFORE any deposit: answers `Reparto planeado (todavia sin deposito, nada aplicado): mexico 39,000 GYD (150 USD), efectivo USD 29,000 GYD (100 USD), tarjeta CUP 15,000 GYD. Total 83,000 GYD. Cada parte tiene ya su operacion vacia donde guardar sus datos; cuando llegue un deposito de exactamente 83,000 GYD se reparte solo. ...`.
+  The plan is persisted and one EMPTY operation per part is opened (recipient tools of 276 then land on the right part). Fewer than two parts / repeated service: "No se pudo repartir: ..." and nothing is saved.
+- A deposit of EXACTLY the planned total is split automatically inside `cerebro_registrar_deposito` (one mixed group, amounts per part, plan deleted); the deposit call's return shape is unchanged.
+- A deposit DIFFERENT from the plan is registered normally and the plan stays. `cerebro_resolver_servicio(...)` (so `servicio_resuelto`) has a new key `reparto_planeado`:
+  `{ "partes": [{"servicio","monto_gyd","usd"}], "total_gyd", "deposito_gyd", "diferencia_gyd" (deposit - plan), "coincide": bool }` or null. `usd` is whole dollars (zelle by tier, clasica/tropical/mexico at the USD rate, efectivo_usd at the cash rate) or null for cuban_card/recarga/combo/visa/saldo.
+- `repartir_envio` with a deposit already registered and parts that do not add up no longer refuses: it keeps the plan and answers
+  `REPARTO NO APLICADO: las partes suman 83,000 GYD y el deposito a repartir es 71,200 GYD (faltan 11,800 GYD para cubrir las partes). Partes planeadas: mexico 39,000 GYD (150 USD), ... No se cambio nada. Preguntale al cliente que parte cambia (o si deposita el resto) y vuelve a llamar con montos que sumen exactamente 71,200 GYD. No prometas ninguna entrega hasta entonces.`
+  ("sobran N GYD del deposito" when the parts are smaller). A later call whose parts add up splits and deletes the plan ("Reparto hecho: ...").
+- The plan is deleted when the conversation's last operation closes.

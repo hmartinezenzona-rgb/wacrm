@@ -157,6 +157,7 @@ def aplicar_herramientas(wf):
     wf["connections"]["registrar_destinatario_mexico"] = {
         "ai_tool": [[{"node": "Agente Remesas", "type": "ai_tool", "index": 0}]]}
     aplicar_zelle(wf)
+    aplicar_destino(wf)
     num = _nodo(wf, "registrar_numeros_recarga")
     if num is None:
         raise ValueError("registrar_numeros_recarga not found")
@@ -478,3 +479,37 @@ def editar_prompt_declarar_primero(sm):
     if "DECLARA PRIMERO" in sm:
         return sm
     return sm.replace("- un solo deposito para varios servicios -> repartir_envio", BLOQUE_DECLARA_PRIMERO + "\n- un solo deposito para varios servicios -> repartir_envio", 1)
+
+
+# 276: marcar_destino_usd targets remesas only (never the Mexico/recarga operation) and accepts 'cup'.
+DESC_DESTINO = ("Marca la via de la REMESA abierta: en DOLARES por tarjeta 'clasica' o 'tropical', en 'efectivo' (dolares fisicos en Cuba), o en pesos con "
+                "'cup' (tarjeta en pesos). Llamala en cuanto el cliente lo pida. Solo toca remesas: nunca una recarga ni un envio a Mexico. No es para Zelle. "
+                "Para CAMBIAR una via ya elegida usa cambiar_servicio.")
+FROMAI_DESTINO = "via de entrega que pidio el cliente: clasica, tropical, efectivo o cup (tarjeta en pesos)"
+
+
+def aplicar_destino(wf):
+    n = _nodo(wf, "marcar_destino_usd")
+    if n is None:
+        raise ValueError("marcar_destino_usd not found")
+    r = n["parameters"].setdefault("options", {}).get("queryReplacement", "")
+    r = re.sub(r"\$fromAI\('tipo', '[^']*'", "$fromAI('tipo', '" + FROMAI_DESTINO + "'", r)
+    n["parameters"]["options"]["queryReplacement"] = r
+    n["parameters"]["toolDescription"] = DESC_DESTINO
+    return wf
+
+
+_DESTINO_VIEJO = ("- marcar_destino_usd(tipo): marca la via en DOLARES la PRIMERA vez que el cliente la elige: tarjeta 'clasica' o 'tropical', o 'efectivo' "
+                  "(dolares fisicos en Cuba).")
+_DESTINO_NUEVO = ("- marcar_destino_usd(tipo): marca la via de la REMESA la PRIMERA vez que el cliente la elige: tarjeta 'clasica' o 'tropical', 'efectivo' "
+                  "(dolares fisicos en Cuba) o 'cup' (tarjeta en pesos). Solo toca remesas, nunca una recarga ni Mexico.")
+BLOQUE_MIXTO_TARJETA = ("- ENVIO MIXTO CON TARJETA: si hay una remesa y ademas una recarga o Mexico, guarda la tarjeta con gestionar_beneficiario y marca su via con "
+                        "marcar_destino_usd: la tarjeta cae en la remesa de esa via; los numeros de la recarga van con registrar_numeros_recarga a su propia operacion. "
+                        "No mezcles los datos de un servicio en la operacion de otro.")
+
+
+def editar_prompt_destino(sm):
+    sm = sm.replace(_DESTINO_VIEJO, _DESTINO_NUEVO)
+    if "ENVIO MIXTO CON TARJETA" in sm:
+        return sm
+    return sm.replace("- un solo deposito para varios servicios -> repartir_envio", BLOQUE_MIXTO_TARJETA + "\n- un solo deposito para varios servicios -> repartir_envio", 1)

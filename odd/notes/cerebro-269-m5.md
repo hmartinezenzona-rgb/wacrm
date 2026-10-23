@@ -126,3 +126,9 @@ Staging workflow U52y1kSNvhgxvWeb only. Production untouched, workflow never exe
 - No tool signature changed. The prompt now says DECLARA PRIMERO (declarar_servicio before saving recipient data: the data tools open the operation from the declaration;
   without it the Mexico/cash tools say no open send). Rolled-back smoke: registrar_destinatario_mexico before declaring -> refused; after declarar_servicio('mexico') with no
   operation -> opens the mexico operation (0 GYD, MXN, collecting_information) and saves the recipient. Offline test added (44 total).
+
+## 276 wired (writers target the operation of their service)
+- `marcar_destino_usd`: description and fromAI now accept 'cup' and say it only touches remesas (never recarga/Mexico); prompt tool line updated and a
+  "ENVIO MIXTO CON TARJETA" rule added (card -> gestionar_beneficiario + marcar_destino_usd on the remesa; recarga numbers -> registrar_numeros_recarga on their own op).
+- Rolled-back smoke (mixed send): declared clasica + card -> the remesa; declared recarga + number -> its own recarga op (2 ops, each with its own data); 'cup' retyped only
+  the remesa (cuban_card), the recarga untouched. 46 offline tests GREEN (RED first).

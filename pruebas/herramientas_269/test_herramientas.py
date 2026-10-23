@@ -34,6 +34,7 @@ def flujo_base():
             {"id": "agent", "name": "Agente Remesas", "type": "@n8n/n8n-nodes-langchain.agent", "position": [0, 0],
              "parameters": {"options": {"systemMessage": "x"}}},
             pg("registrar_beneficiario_zelle", "old", "=old"),
+            pg("marcar_destino_usd", "q", "=$fromAI('tipo', 'x', 'string')"),
         ],
         "connections": {"cambiar_servicio": {"ai_tool": [[{"node": "Agente Remesas", "type": "ai_tool", "index": 0}]]}},
     }
@@ -379,3 +380,26 @@ class TestDeclararPrimero(unittest.TestCase):
         for s in ("declarar_servicio", "mexico", "efectivo", "zelle", "abre la operacion"):
             self.assertIn(s, sec)
         self.assertEqual(h.editar_prompt_declarar_primero(p), p)
+
+
+class TestDestino276(unittest.TestCase):
+    """276: marcar_destino_usd targets remesas only and accepts 'cup'; the data tools land on their own rail's operation."""
+
+    def wf(self):
+        return {"nodes": [{"name": "marcar_destino_usd", "parameters": {
+            "query": "q", "options": {"queryReplacement": "={{ [$fromAI('tipo', 'clasica, tropical o efectivo', 'string')] }}"}, "toolDescription": "old"}}], "connections": {}}
+
+    def test_acepta_cup_en_descripcion_y_parametro(self):
+        wf = h.aplicar_destino(self.wf())
+        p = wf["nodes"][0]["parameters"]
+        self.assertIn("cup", p["toolDescription"])
+        self.assertIn("cup", p["options"]["queryReplacement"])
+        self.assertEqual(h.aplicar_destino(json.loads(json.dumps(wf))), wf)
+
+    def test_prompt_dice_cup_solo_remesas_y_mixto(self):
+        with open(os.path.join(os.path.dirname(__file__), "prompt_vivo_84e217b8.txt"), encoding="utf-8") as f:
+            vivo = f.read()
+        p = h.editar_prompt_destino(vivo)
+        self.assertRegex(p, r"marcar_destino_usd\(tipo\): .*'cup'")
+        self.assertIn("ENVIO MIXTO CON TARJETA", p)
+        self.assertEqual(h.editar_prompt_destino(p), p)

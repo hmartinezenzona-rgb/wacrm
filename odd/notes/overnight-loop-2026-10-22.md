@@ -20,8 +20,8 @@ siga hasta que se realice todo lo que falta; puedes revisar las conversaciones c
 | # | Step | Status |
 |---|---|---|
 | 1 | Assertion triage (agent running at loop start): fix every REGRESSION it finds (migrations 280+) | done: 0 regressions |
-| 2 | Capability audit (read-only): what customers ask in real production conversations (last 30 days, by 8-char ids) vs agent tools: change amount, cancel/split/merge operations, move a deposit, change service, recipients, partial deposits | running |
-| 3 | DB tools for every gap of step 2 + P1 (partial deposit on a planned split), migrations after step 1's | pending |
+| 2 | Capability audit (read-only): what customers ask in real production conversations (last 30 days, by 8-char ids) vs agent tools: change amount, cancel/split/merge operations, move a deposit, change service, recipients, partial deposits | done (8fe079c) |
+| 3 | IMPROVE the existing agent tools so they cover step 2's needs + P1 (partial deposit inside repartir_envio). Owner rule: no patches, no tool per gap; extend the tool that owns the domain (like registrar_beneficiario_zelle gained several recipients); a new tool only when no tool owns the domain, and then general (e.g. one "modify operation" tool, not one per case). Migrations after step 1's | running |
 | 4 | n8n staging: tool nodes/descriptions/prompt + P2 (Decisor states facts only) for step 3 | pending |
 | 5 | Offline measurement: S5b cases K/C/M/F + up to 6 real-shaped cases from step 2, 3 reps, mocked tools, DB replay rolled back | pending |
 | 6 | Fix what step 5 shows (one round), re-measure only the failing cases | pending |
@@ -34,6 +34,12 @@ with a go-ahead per step (267 never before 269), re-enabling or removing the rea
 
 ## Questions for the owner
 
+1. Cancel before a deposit: the loop lets the BOT cancel an operation that holds no money (no deposit); with money it
+   stays human. Confirm or change.
+2. Moving a deposit between operations stays human-only for now (money matching). Confirm or change.
+3. Recipients: one recipient tool with a type (card, Zelle, México, cash, combo) instead of separate per-rail tools
+   would follow the "one tool per domain" rule; not done overnight (large refactor). Decide tomorrow.
+
 ## Log
 - 22:2x step 1 done (d816e7c, odd/notes/staging-assertions-triage-2026-10-22.md): 162 files, 0 REGRESSION, 19
   pre-existing (15 obsolete since 172 deal triggers dropped, 3 stale vs deliberate changes, 1 stale staging row), 1
@@ -41,3 +47,9 @@ with a go-ahead per step (267 never before 269), re-enabling or removing the rea
   missing_inputs vs tier cost (check 242 in prod), tiebreaker for mixed part order, replacement coverage before
   retiring n8n-repoint/delivery/operation-incident-reason. Parent spot check: commit exists, report file only.
 - step 2 launched (capability audit, read-only).
+- step 2 done (8fe079c, odd/notes/capability-audit-2026-10-22.md): top needs amount change (~21 human rows/30 d),
+  cancel, service change (14), per-recipient amounts/split, recipient corrections (15), remove recharge number.
+  Toolset: extend gestionar_beneficiario, registrar_numeros_recarga (quitar), cambiar_servicio (absorbs
+  marcar_destino_usd), repartir_envio (partial deposit = P1); one new GENERAL modificar_operacion (monto, cancelar,
+  unir). Parent note: part of the audit predates 274-279 (276 service-aware, 277 planned split) -> step 3 checks first.
+- step 3 launched (DB writer).

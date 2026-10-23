@@ -360,17 +360,29 @@ const reconciliarPartes = (partes, depositado, permitirSinParte) => {
   return (candidatas.length || permitirSinParte) ? { total, delta, partes, candidatas } : null;
 };
 const notaReconPartes = (rc, depositado, moneda, quien) => {
+  // P2: facts only (amounts, covered and pending parts, exact fits). The agent decides with the customer which tool to use.
   const fmtP = (n) => Number(n).toLocaleString('en-US');
   const usdP = (usd) => (usd ? ' (' + usd + ' USD)' : '');
   const pri = rc.candidatas[0];
   const lista = rc.partes.map((p) => p.servicio + ' ' + fmtP(p.monto_gyd) + usdP(p.usd)).join(' + ');
+  let cubre = '';
+  if (rc.delta < 0) {
+    let acum = 0;
+    const cubiertas = [];
+    const pendientes = [];
+    rc.partes.forEach((p) => { const m = Number(p.monto_gyd || 0); if (pendientes.length === 0 && acum + m <= depositado) { acum += m; cubiertas.push(p); } else { pendientes.push(p); } });
+    const f = (p) => p.servicio + ' ' + fmtP(p.monto_gyd);
+    cubre = (cubiertas.length ? 'En el orden acordado el deposito cubre ' + cubiertas.map(f).join(' + ') + ' (' + fmtP(acum) + ')' + (depositado - acum > 0 ? ', sobran ' + fmtP(depositado - acum) + ' sin asignar' : '') : 'El deposito no alcanza a cubrir ni la primera parte')
+      + '; pendiente: ' + pendientes.map(f).join(' + ') + '. ';
+  } else {
+    cubre = 'Sobran ' + fmtP(rc.delta) + ' ' + moneda + ' sobre el total acordado. ';
+  }
   return 'DEPOSITO DISTINTO DE LO ACORDADO EN VARIAS PARTES: ' + quien + ' *' + fmtP(depositado) + ' ' + moneda + '* y lo acordado sumaba *' + fmtP(rc.total)
-    + ' ' + moneda + '* (' + lista + '), o sea ' + fmtP(Math.abs(rc.delta)) + (rc.delta < 0 ? ' de menos' : ' de mas') + '. '
+    + ' ' + moneda + '* (' + lista + '), o sea ' + fmtP(Math.abs(rc.delta)) + (rc.delta < 0 ? ' de menos' : ' de mas') + '. ' + cubre
     + (pri
-      ? 'La diferencia cuadra EXACTO si cambia UNA parte: ' + rc.candidatas.map((c) => c.servicio + ' pasaria de ' + fmtP(c.antes) + usdP(c.usdAntes) + ' a ' + fmtP(c.nuevo) + usdP(c.usdNuevo)).join('; o ')
-        + '. PREGUNTA al cliente cual parte cambia, sin decidirlo tu, por ejemplo: "Su depósito de ' + fmtP(depositado) + ' cuadra con ' + pri.usdNuevo + ' USD a ' + pri.servicio + ', no con ' + pri.usdAntes + '; ¿confirma?". '
-      : 'Ninguna parte sola cuadra exacto con la diferencia. PREGUNTA al cliente cual parte cambia o si falta una parte, dile las cifras de arriba y no decidas tu. ')
-    + 'PROHIBIDO decirle que se transfiere o se ajusta el equivalente, que se envia lo que alcance, que quedas esperando el resto o que mando de mas, hasta que confirme. PROHIBIDO sumar o restar otras cifras que estas.';
+      ? 'Cuadraria exacto si cambia una sola parte: ' + rc.candidatas.map((c) => c.servicio + ' pasaria de ' + fmtP(c.antes) + usdP(c.usdAntes) + ' a ' + fmtP(c.nuevo) + usdP(c.usdNuevo)).join('; o ') + '. '
+      : 'Ninguna parte sola cuadra exacto con la diferencia. ')
+    + 'Nada se ha transferido ni repartido todavia con este deposito.';
 };
 const recargaEnCurso = R ? rielR === 'recarga' : (!!ctx.recarga_en_curso && !tarjetaCtx && !s.datos_zelle && !s.multi_beneficiario);
 // (207/104, 4-oct-2026) RECARGA ANOTADA: taken ahead of a confirmed promo ('DD/MM' of its start), done that day.

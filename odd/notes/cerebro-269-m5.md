@@ -142,3 +142,20 @@ Staging workflow U52y1kSNvhgxvWeb only. Production untouched, workflow never exe
 - Smoke (rolled back, PRUEBA conversation): `repartir_envio("mexico 39000, efectivo 29000, cup 5000")` before any deposit -> plan; a 60,000 deposit registered ("movido") ->
   `reparto_planeado` {total 73,000, deposito 60,000, diferencia -13,000, coincide false}; repartir again -> "REPARTO NO APLICADO ... faltan 13,000 GYD".
 - 278/279: no n8n change needed (declarar_servicio keeps working, objetivo promoted by the DB; `mensaje` never NULL; the cambiar/agregar prompt already says to tell `mensaje`).
+
+## Overnight step 4 (280-284 + P2) - staging 413c835a -> 293f1847 (tools + prompt) -> ddd12edb (Decisor 085b5cac)
+- NEW tool node `modificar_operacion` (op, accion monto|cancelar|unir, valor) -> `cerebro_modificar_operacion`, actor `agent:modificar_operacion n8n:<exec>`; description says
+  cancel only without money, a person otherwise, never moves deposits. `registrar_numeros_recarga` gained `accion` (agregar|quitar; p_abrir stays true, actor now carries the exec id).
+  `gestionar_beneficiario` gained op / posicion / tipo (corrections). `cambiar_servicio` description covers the rails (clasica, tropical, efectivo_usd, cuban_card) and choosing the
+  via the first time; `marcar_destino_usd` node DISABLED (not deleted; re-enable by removing `disabled`). `repartir_envio` description: partial deposit (parts <= verified deposit,
+  each >= its minimum, uncovered parts stay pending), REPARTO NO APLICADO when parts exceed the verified deposit.
+- Prompt: every marcar_destino_usd mention replaced (rails go through declarar_servicio / cambiar_servicio); the two deposit blocks became ONE "DEPOSITO QUE NO CUADRA CON LAS
+  PARTES" where the bot decides with the customer (apply what is covered with a partial repartir_envio, or wait for the rest, or modificar_operacion); money a customer returns to the
+  business is not a send -> derivar_humano; tools list updated (modificar_operacion, quitar, gestionar_beneficiario corrections). A dangling "ver CAMBIO DE VIA" removed.
+- Decisor P2: the reconcile note states facts only (deposit, plan total, difference, what the deposit covers in order, what stays pending, exact single-part fits, "nada se ha
+  transferido ni repartido todavia") and no longer asks, orders tools or prohibits. Owner question kept: the bot may cancel only operations without money.
+- Tests: python 59 (RED first for the nodes and the prompt), vitest 55 (9 RED -> GREEN; 5 old assertions changed from PREGUNTA/PROHIBIDO to facts).
+- Rolled-back smokes (PRUEBA conversation): declarar recarga + 2 numbers -> quitar 1 (1 left); modificar monto 0 -> 6,200 and cancelar a recarga without money (ok, audited message);
+  clasica card -> corregir posicion 1 name; cambiar_servicio cup then tropical on the empty remesa (rail applied at once); planned split zelle/cup/recarga + 18,000 deposit ->
+  repartir_envio with the two covered parts applied, recarga pending; modificar_operacion with 3 open ops asks which (lists ids). `unir` and a VERIFIED-deposit partial were not smoked
+  (the 281 and 280 assertions cover them; a verified deposit needs the bank cross).

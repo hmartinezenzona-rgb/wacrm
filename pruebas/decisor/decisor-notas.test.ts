@@ -590,13 +590,13 @@ describe('S4: un envio de varias partes cuyo deposito verificado no cuadra pregu
     expect(n).toMatch(/mexico/i);
     expect(n).toMatch(/150 USD/);
     expect(n).toMatch(/100 USD/);
-    expect(n).toMatch(/PREGUNTA/);
+    expect(n).not.toMatch(/PREGUNTA|sin decidirlo|PROHIBIDO/); // P2: facts only, the bot decides with the customer
   });
 
   it('prohibe decir que se transfiere el equivalente y la nota de "quedas esperando el resto"', () => {
     const s = marlene();
     const n = nota(s, 'DEPOSITO DISTINTO DE LO ACORDADO') as string;
-    expect(n).toMatch(/PROHIBIDO.*equivalente/i);
+    expect(n).toMatch(/nada se ha transferido ni repartido/i);
     expect(nota(s, 'RECIBIDO Y VERIFICADO CONTRA EL BANCO, PERO EL ENVIO TODAVIA NO ESTA COMPLETO')).toBeUndefined();
   });
 
@@ -675,8 +675,8 @@ describe('S5b: el deposito que no cuadra con un envio de varias partes se reconc
     const n = nota(s, P) as string;
     expect(n).toBeDefined();
     expect(n).toMatch(/150 USD/);
-    expect(n).toMatch(/PREGUNTA/);
-    expect(n).toMatch(/PROHIBIDO.*equivalente/i);
+    expect(n).not.toMatch(/PREGUNTA|sin decidirlo|PROHIBIDO/); // P2: facts only, the bot decides with the customer
+    expect(n).toMatch(/nada se ha transferido ni repartido/i);
   });
 
   it('deposito corto sin parte exacta: igual pregunta cual parte cambia, sin prometer ni esperar el resto', () => {
@@ -691,8 +691,8 @@ describe('S5b: el deposito que no cuadra con un envio de varias partes se reconc
     );
     const n = nota(s, P) as string;
     expect(n).toBeDefined();
-    expect(n).toMatch(/PREGUNTA/);
-    expect(n).toMatch(/PROHIBIDO.*(equivalente|ajusta)/i);
+    expect(n).not.toMatch(/PREGUNTA|sin decidirlo|PROHIBIDO/); // P2: facts only, the bot decides with the customer
+    expect(n).toMatch(/nada se ha transferido ni repartido/i);
     expect(nota(s, 'RECIBIDO Y VERIFICADO CONTRA EL BANCO, PERO EL ENVIO TODAVIA NO ESTA COMPLETO')).toBeUndefined();
   });
 });
@@ -733,8 +733,8 @@ describe('277: la nota de reconciliacion sale del reparto planeado (servicio_res
     expect(n).toMatch(/73,000/);
     expect(n).toMatch(/100 USD/);
     expect(n).toMatch(/150/);
-    expect(n).toMatch(/PREGUNTA/);
-    expect(n).toMatch(/PROHIBIDO.*equivalente/i);
+    expect(n).not.toMatch(/PREGUNTA|sin decidirlo|PROHIBIDO/); // P2: facts only, the bot decides with the customer
+    expect(n).toMatch(/nada se ha transferido ni repartido/i);
   });
 
   it('deposito de mas: tambien reconcilia', () => {
@@ -748,7 +748,7 @@ describe('277: la nota de reconciliacion sale del reparto planeado (servicio_res
     const n = nota(turno(71200), P) as string;
     expect(n).toBeDefined();
     expect(n).toMatch(/Ninguna parte sola cuadra/);
-    expect(n).toMatch(/PREGUNTA/);
+    expect(n).not.toMatch(/PREGUNTA|sin decidirlo|PROHIBIDO/); // P2: facts only, the bot decides with the customer
   });
 
   it('si coincide, o no hay deposito todavia, no hay nota', () => {
@@ -768,5 +768,41 @@ describe('277: la nota de reconciliacion sale del reparto planeado (servicio_res
     expect(s.notas.filter((n) => n.startsWith(P)).length).toBe(1);
     expect(nota(s, 'RECIBIDO Y VERIFICADO CONTRA EL BANCO, PERO EL ENVIO TODAVIA NO ESTA COMPLETO')).toBeUndefined();
     expect(nota(s, P)).toMatch(/100 USD/);
+  });
+});
+
+
+describe('P2: la nota de reconciliacion solo da hechos (partes cubiertas, pendientes, importes)', () => {
+  const partes = [
+    { servicio: 'mexico', monto_gyd: 39000, usd: 150 },
+    { servicio: 'efectivo_usd', monto_gyd: 29000, usd: 100 },
+    { servicio: 'cuban_card', monto_gyd: 5000, usd: null },
+  ];
+  const s = (deposito: number) =>
+    correrDecisor({
+      ctx: {
+        servicio_resuelto: {
+          version: 2, en_curso: 'mexico', servicio: 'mexico', accion: 'ninguna', permitido: true, motivo: 'sin_cambio',
+          mensaje: 'x', operaciones: [], adicionales: [], evidencia: { declarado: null, deposito },
+          reparto_planeado: { partes, total_gyd: 73000, deposito_gyd: deposito, diferencia_gyd: deposito - 73000, coincide: false },
+        },
+      },
+    });
+
+  it('un deposito corto dice que partes cubre en orden y cuales quedan pendientes', () => {
+    const n = nota(s(68000), 'DEPOSITO DISTINTO DE LO ACORDADO') as string;
+    expect(n).toMatch(/cubre.*mexico 39,000.*efectivo_usd 29,000/i);
+    expect(n).toMatch(/pendiente.*cuban_card 5,000/i);
+    expect(n).toMatch(/68,000/);
+  });
+
+  it('no dicta la accion: ni pregunta, ni ordena herramientas, ni prohibe', () => {
+    const n = nota(s(68000), 'DEPOSITO DISTINTO DE LO ACORDADO') as string;
+    expect(n).not.toMatch(/PREGUNTA|PROHIBIDO|llama |sin decidirlo/);
+  });
+
+  it('un deposito de mas dice cuanto sobra sobre el total acordado', () => {
+    const n = nota(s(80000), 'DEPOSITO DISTINTO DE LO ACORDADO') as string;
+    expect(n).toMatch(/sobran? 7,000/i);
   });
 });

@@ -88,3 +88,24 @@ What the agent can now rely on (same tool queries as before; the prompt must say
   (zelle for a Zelle account; cuban_card|clasica|tropical for card data) open the operation typed with that rail. A declared `mexico` + card data opens no mexico operation.
 - `registrar_numeros_recarga` after `declarar_servicio('recarga')` already opened the recarga (268); the assertion now proves the 6,200 deposit joins it.
 - Return shapes unchanged.
+
+## 276 applied on staging - writers target the operation of their service (gap 6, plus 250 for the tools)
+
+TDD: assertion `writers-target-by-service` RED (case 1: the clasica card went to a person / the recarga), GREEN 7 case groups. Cycle OK (rollback md5
+equal). relacionadas --ya-aplicada (writers, deposit, resolver, tools): 55 assertions, all SAME except the new one; first run found two real regressions
+(231 guards of marcar_destino_usd, an unchanged invalid-type message) which were fixed before this version.
+
+No signature changed. New internal helper (service_role only): `_cerebro_ops_para_datos(p_conv uuid, p_kind text) RETURNS TABLE(operation_id uuid)`
+(kinds tarjeta | zelle | efectivo | remesa).
+
+What the agent can rely on (same queries as before):
+- `gestionar_beneficiario`, `registrar_reparto_multiple` (card data) and `registrar_beneficiario_zelle` write on the open REMESA of their rail
+  (or a rail-less remesa). A recarga, mexico, combo, visa or saldo operation is never the target: with only those open, the card opens a plain remesa next to them.
+  In a mixed send (clasica + recarga) the card lands on the clasica part. Several candidates of the service: the 250 rule (by card / account) decides; an unresolved tie
+  still answers "NO SE REGISTRO NADA ... un companero le atiende" and hands the chat to a person.
+- `marcar_destino_usd`: only REMESAS are targeted (the Mexico operation is no longer re-typed to efectivo_usd); new accepted value `tipo = 'cup'` (also 'cuban_card', 'pesos',
+  'tarjeta cup') sets the rail cuban_card and answers "destino marcado: tarjeta en pesos (CUP)" (new remesa: "envio nuevo creado, tarjeta en pesos (CUP)"). The invalid-type message is unchanged
+  ("ERROR: el tipo debe ser clasica, tropical o efectivo. No se marco nada.").
+- `registrar_numeros_recarga` (p_abrir) with every other open operation still EMPTY (collecting, 0 GYD, no receipt/deposit, not grouped) opens the recarga as its own empty
+  operation and saves the number there: "guardados 1 numero(s) de recarga nuevos; la recarga tiene 1.". With money or a mixed group on another operation the refusal text is unchanged.
+- Pre-deposit mixed send: card on the clasica op + number on the recarga op, then after the deposit `repartir_envio("clasica 18200, recarga 6200")` reuses both operations (no third) and each keeps its data (proved).

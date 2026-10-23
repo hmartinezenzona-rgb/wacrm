@@ -292,3 +292,10 @@ Behaviour:
   A card or phone on a Zelle / cash / recharge / Mexico recipient is refused naming the tool that owns it (`registrar_beneficiario_zelle`, `registrar_datos_entrega_efectivo`, `registrar_numeros_recarga`, `registrar_destinatario_mexico`): only the name is corrected here.
   A lock a person left on the recipients is respected. Audit action `agent_beneficiary_corrected` (before / after), actor `agent:<p_tool> n8n:<p_exec>`. `deal_id` = operation id (NULL on a refusal).
 - Without `p_posicion` / `p_tipo` the behaviour is exactly the old one (single recipient write, reparto slots, D1 rules).
+
+## Step 3 summary (280-284) and final sweep
+
+Final sweep of all 167 assertions on the staging state after 284 (each in a rolled-back transaction): 142 pass; the 25 that fail are exactly the known set of `staging-assertions-triage-2026-10-22.md` (19 pre-existing + 4 `pg_temp` harness +
+`deal-free-beneficiary-writers` / `reparto-destino-node-adapters`, which print their own expected-error output). Nothing new fails; `contexto-envio-mixto` (flaky tie on created_at) passed in this run.
+New agent-facing surface: `repartir_envio` partial deposit (280), `cerebro_modificar_operacion` (281), `registrar_numeros_recarga` `accion='quitar'` (282), `cambiar_servicio` words / rails / pre-deposit / service-aware target and `marcar_destino_usd` deprecated (283),
+`gestionar_beneficiario` `p_posicion` / `p_tipo` / validated `p_op` (284). Left for n8n (step 4): tool nodes / descriptions for the new parameters above, the prompt lines, and the Decisor reading the plain-Spanish `mensaje` / `accion` texts.

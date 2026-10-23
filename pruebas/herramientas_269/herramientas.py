@@ -704,3 +704,46 @@ def refinar_prompt_noche4(sm):
                     "- cambiar_servicio(servicio): el cliente DECIDIO cambiar el servicio o la via de este envio por otro (mismas claves, incluidas las vias clasica, tropical, efectivo_usd y cuban_card). La base valida el deposito y ejecuta.", 1)
     sm = sm.replace("\n- agregar_servicio(servicio):", "\n" + LINEA_MODIFICAR + "\n- agregar_servicio(servicio):", 1)
     return sm
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Overnight step 6 (measurement s5b2): replace, do not stack.
+
+P6_DECLARAR = ("- DECLARAR: en cuanto el cliente diga que servicio quiere, llama declarar_servicio(servicio) con una clave concreta ('quiero una recarga', 'mandar a Mexico', 'por Zelle') "
+               "EN EL MISMO TURNO, aunque tambien vayas a cotizar: cotiza y declara en ese mismo turno, y solo despues pide datos (declarar va ANTES de pedir datos y de que deposite). "
+               "Si dice solo 'enviar dinero a Cuba' sin via, no declares: preguntale la via. Si despues elige otra, declara de nuevo (vale la ultima). Si devuelve ok=false, no se lo "
+               "menciones al cliente y sigue.")
+
+P6_ZELLE = ("- ZELLE A VARIAS PERSONAS: pide primero el NOMBRE y CUENTA de CADA destinatario (correo o celular de EEUU), antes de hablar de montos. Una llamada a "
+            "registrar_beneficiario_zelle por destinatario, con nombre y cuenta TAL CUAL: la primera persona sin parametros y OTRA persona con agregar=true. Si el cliente da el monto de cada "
+            "uno, va en monto (USD) en la llamada de ese destinatario. Para corregir a uno ya guardado usa la misma cuenta o posicion=k. Si la herramienta pregunta si es otra persona o una "
+            "correccion ('¿es otra persona o una correccion?') o responde 'NO SE GUARDO NADA', no confirmes nada: pregunta al cliente cual es, nunca adivines, y repite la llamada con "
+            "agregar=true o con la posicion. Confirma al cliente SOLO lo que la herramienta devuelve en 'Destinatarios Zelle ahora'.")
+
+P6_QUITAR = ("- QUITAR UN NUMERO: si el cliente dice 'quita ese numero', 'ese no' o 'sin el segundo', llama registrar_numeros_recarga con accion=quitar y SOLO ese numero; "
+             "nunca lo vuelvas a agregar.")
+
+P6_MODIFICAR = ("- modificar_operacion(op, accion, valor): cambia la OPERACION, no los datos de quien recibe. accion monto: el cliente cambia el importe de un envio abierto "
+                "('mejor 150', 'que sean 200 USD'): calcula el nuevo monto en GYD con calcular_usd / calcular_envio y llama modificar_operacion(accion monto), no vuelvas a cotizar sin llamarla; "
+                "cancelar (solo si NO tiene dinero; con dinero la atiende una persona) o unir (dos operaciones abiertas del mismo servicio). Con varias abiertas pregunta cual al cliente.")
+
+P6_MEXICO_INI = "- MEXICO: PRIMERO declarar_servicio('mexico') apenas el cliente diga que quiere mandar a Mexico, antes de cotizar o de pedir datos. Cotiza con"
+P6_MEXICO_NUEVO = ("- MEXICO: declarar_servicio('mexico') apenas el cliente diga que quiere mandar a Mexico, y en el mismo mensaje en que declaras y cotizas (calcular_usd / "
+                   "calcular_usd_desde_gyd con via=mexico, nunca de memoria) pidele, en un solo mensaje, la cuenta bancaria: CLABE (18 digitos exactos), banco (Mercado Pago, Banco Azteca...) "
+                   "y titular; o el retiro sin tarjeta: Coppel o BBVA (multiplos de 100), nombre completo de quien recibe y su telefono. Un monto suelto como '15 mil por transferencia' es "
+                   "ambiguo: pregunta si es CUP o GYD. ")
+
+
+def refinar_prompt_paso6(sm):
+    if "EN EL MISMO TURNO, aunque tambien vayas a cotizar" in sm:
+        return sm
+    sm = _cortar(sm, "- DECLARAR: en cuanto", "\n", P6_DECLARAR)
+    sm = _cortar(sm, "- ZELLE A VARIAS PERSONAS:", "\n", P6_ZELLE)
+    sm = _cortar(sm, "- modificar_operacion(op, accion, valor):", "\n", P6_MODIFICAR)
+    # México: keep the data/registration tail, replace the head up to the ask for data
+    i = sm.index(P6_MEXICO_INI)
+    j = sm.index("En cuanto tengas la CLABE completa", i)
+    sm = sm[:i] + P6_MEXICO_NUEVO + sm[j:]
+    # quitar: one line next to the Zelle block
+    sm = sm.replace("\n" + P6_ZELLE, "\n" + P6_ZELLE + "\n" + P6_QUITAR, 1)
+    return sm

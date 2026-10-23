@@ -159,3 +159,9 @@ Staging workflow U52y1kSNvhgxvWeb only. Production untouched, workflow never exe
   clasica card -> corregir posicion 1 name; cambiar_servicio cup then tropical on the empty remesa (rail applied at once); planned split zelle/cup/recarga + 18,000 deposit ->
   repartir_envio with the two covered parts applied, recarga pending; modificar_operacion with 3 open ops asks which (lists ids). `unir` and a VERIFIED-deposit partial were not smoked
   (the 281 and 280 assertions cover them; a verified deposit needs the bank cross).
+
+## Overnight step 6 (measurement s5b2 findings) - staging ddd12edb -> see report
+- Prompt only (no node changed, so no new SQL smoke): DECLARAR now says declare in the SAME turn as the quote and before asking data; Zelle block: agregar=true for another person, monto per
+  recipient when the customer gives amounts, and on "¿es otra persona o una correccion?" / NO SE GUARDO NADA ask the customer, never guess; new QUITAR UN NUMERO line
+  (registrar_numeros_recarga accion=quitar); modificar_operacion line covers "mejor 150" (calculate with a tool, then monto); MEXICO asks CLABE+banco+titular in the same message as
+  declare+quote and asks CUP or GYD for a loose "15 mil por transferencia". Each replaced in place (prompt +~1.2k chars). 65 offline tests GREEN (RED first).

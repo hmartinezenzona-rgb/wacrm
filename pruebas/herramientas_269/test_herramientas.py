@@ -518,3 +518,48 @@ class TestPromptNoche4(unittest.TestCase):
     def test_idempotente_y_mas_corto_que_apilar(self):
         self.assertEqual(h.refinar_prompt_noche4(self.nuevo), self.nuevo)
         self.assertLess(len(self.nuevo), len(self.vivo) + 2500)
+
+
+class TestPaso6(unittest.TestCase):
+    """Overnight step 6 (measurement s5b2): declare in the quote turn, Zelle agregar/monto, quitar, monto change, Mexico ask."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(os.path.dirname(__file__), "prompt_vivo_ddd12edb.txt"), encoding="utf-8") as f:
+            cls.vivo = f.read()
+        cls.nuevo = h.refinar_prompt_paso6(cls.vivo)
+
+    def sec(self, marca, n=1500):
+        i = self.nuevo.index(marca)
+        return self.nuevo[i:i + n]
+
+    def test_declarar_en_el_mismo_turno_que_la_cotizacion(self):
+        s = self.sec("- DECLARAR:")
+        self.assertRegex(s, r"(?i)mismo turno")
+        self.assertRegex(s, r"(?i)cotiz")
+        self.assertRegex(s, r"(?i)antes de pedir datos")
+
+    def test_zelle_otra_persona_monto_y_ambiguedad(self):
+        s = self.sec("- ZELLE A VARIAS PERSONAS", 1800)
+        self.assertIn("agregar=true", s)
+        self.assertRegex(s, r"monto.*(cada|dio)")
+        self.assertRegex(s, r"(?i)otra persona o una correccion")
+        self.assertRegex(s, r"(?i)pregunta.*nunca adivines")
+
+    def test_quitar_numero(self):
+        n = self.nuevo
+        self.assertRegex(n, r"(?is)quita ese numero.*accion=quitar|accion quitar.*quita ese numero")
+
+    def test_cambio_de_monto_con_modificar_operacion(self):
+        s = self.sec("- modificar_operacion(op, accion, valor)")
+        self.assertRegex(s, r"mejor 150")
+        self.assertIn("calcular", s)
+
+    def test_mexico_pide_datos_en_el_mismo_turno_y_pregunta_cup_o_gyd(self):
+        s = self.sec("- MEXICO:", 2200)
+        self.assertRegex(s, r"(?i)mismo mensaje en que declaras")
+        self.assertRegex(s, r"(?i)15 mil.*CUP o GYD|CUP o GYD.*15 mil")
+
+    def test_idempotente_y_corto(self):
+        self.assertEqual(h.refinar_prompt_paso6(self.nuevo), self.nuevo)
+        self.assertLess(len(self.nuevo), len(self.vivo) + 1800)

@@ -19,8 +19,8 @@ siga hasta que se realice todo lo que falta; puedes revisar las conversaciones c
 
 | # | Step | Status |
 |---|---|---|
-| 1 | Assertion triage (agent running at loop start): fix every REGRESSION it finds (migrations 280+) | running |
-| 2 | Capability audit (read-only): what customers ask in real production conversations (last 30 days, by 8-char ids) vs agent tools: change amount, cancel/split/merge operations, move a deposit, change service, recipients, partial deposits | pending |
+| 1 | Assertion triage (agent running at loop start): fix every REGRESSION it finds (migrations 280+) | done: 0 regressions |
+| 2 | Capability audit (read-only): what customers ask in real production conversations (last 30 days, by 8-char ids) vs agent tools: change amount, cancel/split/merge operations, move a deposit, change service, recipients, partial deposits | running |
 | 3 | DB tools for every gap of step 2 + P1 (partial deposit on a planned split), migrations after step 1's | pending |
 | 4 | n8n staging: tool nodes/descriptions/prompt + P2 (Decisor states facts only) for step 3 | pending |
 | 5 | Offline measurement: S5b cases K/C/M/F + up to 6 real-shaped cases from step 2, 3 reps, mocked tools, DB replay rolled back | pending |
@@ -35,3 +35,9 @@ with a go-ahead per step (267 never before 269), re-enabling or removing the rea
 ## Questions for the owner
 
 ## Log
+- 22:2x step 1 done (d816e7c, odd/notes/staging-assertions-triage-2026-10-22.md): 162 files, 0 REGRESSION, 19
+  pre-existing (15 obsolete since 172 deal triggers dropped, 3 stale vs deliberate changes, 1 stale staging row), 1
+  flaky (contexto-envio-mixto: tie on created_at), 6 harness-only. Production follow-ups for the owner: saldo-model
+  missing_inputs vs tier cost (check 242 in prod), tiebreaker for mixed part order, replacement coverage before
+  retiring n8n-repoint/delivery/operation-incident-reason. Parent spot check: commit exists, report file only.
+- step 2 launched (capability audit, read-only).

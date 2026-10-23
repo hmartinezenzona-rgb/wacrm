@@ -145,3 +145,31 @@ Signatures and return shapes:
 - `cerebro_declarar_servicio(p_conv uuid, p_servicio text, p_actor text DEFAULT NULL) RETURNS jsonb` = `{ok, servicio}` (+ `objetivo_gyd` when it promoted a quote). The agent quotes first (`calcular_usd`) and declares after, so declaring
   promotes the standing quote (`cerebro_ultima_cotizacion`, inside `cotizacion_ventana_horas`, newer than the last closed operation) to the send objective when no open objective exists; an existing objective is never overwritten; no quote = nothing.
   The `declarar_servicio` tool query keeps working unchanged (it reads ok/servicio/motivo).
+
+## 279 applied on staging - `mensaje` is never NULL (gap 5)
+
+TDD: assertion `apply-service-message` RED (case 1: `agregar` recarga with no operation, mensaje NULL), GREEN 6 case groups. Cycle OK (rollback md5 equal).
+relacionadas --ya-aplicada (aplicar / resolver / cambiar): 18, 16 SAME + the new assertion + `resolver-servicio` case 7, which asserted the old NULL mensaje of `sin_cambio`
+(updated: "La operación ya es Zelle: no hay nada que cambiar."). Full sweep of the 156 assertions on the final staging state: every failure also fails on the pre-274 state
+(compared with the rollbacks 279..274 inside a rolled-back transaction): deal-insert-creates-operation, deals-free-views-and-inert-edits, delivery, delivery-feed-evidence, feed-mixed, field-lock-persistence,
+guard12-matrix, history-readiness, n8n-repoint, objetivo-requiere-compromiso, operation-creator-without-deals, operation-incident-reason, operation-keyed-money, rekey-shipment-alerts-onto-operations,
+repeated-receipt, requested-amount-target, saldo-model, stale-operations-alert, tag-sync-without-deals, target-origin-label, cup-excess-equivalent, chat-media-members-only-read, duplicate-receipt-marker,
+deal-free-beneficiary-writers / reparto-destino-node-adapters (their own expected-error output). `contexto-envio-mixto` (flaky) passed.
+
+Signatures unchanged: `cerebro_aplicar_servicio(p_conv uuid, p_declarado text DEFAULT NULL, p_intencion text DEFAULT NULL, p_actor text DEFAULT 'automation:resolver', p_exec text DEFAULT NULL) RETURNS jsonb` and
+`cerebro_resolver_servicio(p_conv uuid, p_declarado text DEFAULT NULL, p_intencion text DEFAULT NULL, p_monto numeric DEFAULT NULL, p_ahora timestamptz DEFAULT now()) RETURNS jsonb`.
+The tool queries for `cambiar_servicio` / `agregar_servicio` need no change; `mensaje` is now always plain Spanish:
+- `agregar`, nothing open (`motivo nueva_operacion`, `permitido true`, `aplicado false`): "Anotado: se agrega la recarga como operación nueva; todavía no hay otra operación abierta y se abre con sus datos o al repartir el depósito."
+  (`cambiar`: "Anotado: la recarga será la operación; todavía no hay ninguna abierta y se abre con sus datos o con su depósito.").
+- `sin_cambio`: "La operación ya es <servicio>: no hay nada que cambiar."; nothing to do: "No hay ningún cambio de servicio que aplicar."
+- skipped apply: `ya_existe_vacia` -> "Ya hay una operación vacía de ese servicio esperando su depósito: no se abre otra."; `reparto_rechazado` -> "No se pudo repartir el depósito entre los dos servicios: <detalle> No se cambió nada."; `sin_operacion` -> "No hay ninguna operación abierta de la que abrir la adicional: no se cambió nada."
+- early refusals / errors (`sin_conversacion`, `no_autorizado`, internal error, resolver fail-open) carry a sentence too. Applied changes keep their sentence ("Se pasa la operación a ...", "El depósito cubre ... y ...", "Se abre una operación aparte para ...").
+
+## Summary of the new agent-facing surface (274-279)
+
+- `cerebro_guardar_zelle(conv, nombre, cuenta, exec, p_op, p_tool, p_posicion, p_agregar, p_monto)` - several recipients (274).
+- Recipient writers open the declared operation before the deposit (275) and target the operation of their service, 250 rule included (276); `marcar_destino_usd` accepts `cup`.
+- `repartir_envio` plans before the deposit, applies on an exact deposit, answers facts on a different one; `servicio_resuelto.reparto_planeado` (277).
+- `calcular_usd` objective survives without an operation once `declarar_servicio` ran; declaring promotes the standing quote (278).
+- `mensaje` never NULL from `cambiar_servicio` / `agregar_servicio` (279).
+Left for the n8n side: tool nodes for the new Zelle parameters (posicion, agregar, monto), the `cup` value in `marcar_destino_usd`, a prompt line "declare first, then save data", and the Decisor reading `servicio_resuelto.reparto_planeado`.

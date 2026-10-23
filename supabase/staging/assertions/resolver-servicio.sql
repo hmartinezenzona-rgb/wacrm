@@ -203,7 +203,8 @@ BEGIN
   PERFORM pg_temp.a_chk('7 zelle, words ignored', v_r, 'ninguna', 'sin_cambio');
   PERFORM pg_temp.a_eq('7 servicio', v_r ->> 'servicio', 'zelle');
   PERFORM pg_temp.a_eq('7 en_curso', v_r ->> 'en_curso', 'zelle');
-  PERFORM pg_temp.a_eq('7 mensaje', v_r ->> 'mensaje', NULL);
+  -- (279) sin_cambio now carries a plain-Spanish sentence (it used to be NULL): the agent always gets something to say.
+  PERFORM pg_temp.a_eq('7 mensaje', v_r ->> 'mensaje', 'La operación ya es Zelle: no hay nada que cambiar.');
 
   -- ---- 8. declared row used when p_declarado is NULL -------------------------------------------------------------------------
   SELECT * INTO c FROM pg_temp.a_conv(7);

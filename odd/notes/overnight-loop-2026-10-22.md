@@ -22,8 +22,8 @@ siga hasta que se realice todo lo que falta; puedes revisar las conversaciones c
 | 1 | Assertion triage (agent running at loop start): fix every REGRESSION it finds (migrations 280+) | done: 0 regressions |
 | 2 | Capability audit (read-only): what customers ask in real production conversations (last 30 days, by 8-char ids) vs agent tools: change amount, cancel/split/merge operations, move a deposit, change service, recipients, partial deposits | done (8fe079c) |
 | 3 | IMPROVE the existing agent tools so they cover step 2's needs + P1 (partial deposit inside repartir_envio). Owner rule: no patches, no tool per gap; extend the tool that owns the domain (like registrar_beneficiario_zelle gained several recipients); a new tool only when no tool owns the domain, and then general (e.g. one "modify operation" tool, not one per case). Migrations after step 1's | done (280-284) |
-| 4 | n8n staging: tool nodes/descriptions/prompt + P2 (Decisor states facts only) for step 3 | running |
-| 5 | Offline measurement: S5b cases K/C/M/F + up to 6 real-shaped cases from step 2, 3 reps, mocked tools, DB replay rolled back | pending |
+| 4 | n8n staging: tool nodes/descriptions/prompt + P2 (Decisor states facts only) for step 3 | done (staging ddd12edb) |
+| 5 | Offline measurement: S5b cases K/C/M/F + up to 6 real-shaped cases from step 2, 3 reps, mocked tools, DB replay rolled back | running |
 | 6 | Fix what step 5 shows (one round), re-measure only the failing cases | pending |
 | 7 | Morning summary for the owner in this file + Engram; update odd/tasks/service-resolution.md and its mirror | pending |
 
@@ -64,3 +64,9 @@ with a go-ahead per step (267 never before 269), re-enabling or removing the rea
   p_op (c08a150). Final sweep 142/167; the 25 failures are the known triage set. Parent spot check: re-ran
   modificar-operacion.sql on staging -> ALL PASS.
 - step 4 launched (n8n staging wiring + P2).
+- 03:0x step 4 done: staging Cerebro ddd12edb (132 nodes). New general modificar_operacion; registrar_numeros_recarga
+  accion; gestionar_beneficiario op/posicion/tipo; cambiar_servicio rails; repartir_envio partial; marcar_destino_usd
+  DISABLED; prompt deposit blocks merged; repayments -> derivar_humano; Decisor reconcile note = facts only (P2).
+  Tests py 59, vitest 55. Smokes rolled back OK except unir and partial split on a bank-verified deposit (covered by
+  281/280 assertions only). Parent spot check: vitest pruebas/decisor re-run (result above in the tick).
+- step 5 launched (measurement, budget <= 3M input: 2 reps K/C/M/F, 1 rep the 6 audit cases).

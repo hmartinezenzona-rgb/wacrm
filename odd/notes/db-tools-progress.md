@@ -325,3 +325,18 @@ Signatures unchanged. Behaviour (the `cambiar_servicio` tool query needs no chan
 - `cerebro_aplicar_servicio` appends to `mensaje`: `Se pasa la operación a efectivo en USD. Ya tengo el nombre Rosa Gomez y el celular 53821203; falta la dirección en Cuba.`
   (variants: only phone, only name -> `falta el celular y la dirección en Cuba`); with neither name nor phone no recipient is invented: `La tarjeta o cuenta guardada no sirve para efectivo y no tengo datos de quien recibe: falta el nombre, el celular y la dirección en Cuba.`
 - `registrar_datos_entrega_efectivo` then completes that same recipient (one in force). A second conversion attempt answers `sin_cambio`.
+
+## 287 applied on staging - cerebro_modificar_operacion gains `mover_deposito` (owner decision 2026-10-23, Engram cerebro/bot-moves-deposit)
+
+TDD: assertion `move-deposit` RED (action unknown), GREEN 7 case groups. Cycle OK (rollback md5). relacionadas --ya-aplicada (161 assertions: modificar/deposit/audit/operation/lock): only DIFFs are the new assertion and the pre-existing `delivery-feed-evidence`.
+
+Signature unchanged: `cerebro_modificar_operacion(p_conv uuid, p_op uuid, p_accion text, p_valor jsonb DEFAULT NULL, p_exec text DEFAULT NULL) RETURNS jsonb`. New `p_accion = 'mover_deposito'`:
+`p_op` = operation that holds the deposit; `p_valor = {"a": "<target operation uuid>", "deposito": "<MMG trans_id>"}` (`deposito` only when the source holds several verified deposits).
+- Rules: same conversation; source and target open (not transferring / completed / cancelled); neither in a split group; no lock a person left on either (any field); the source must hold a VERIFIED deposit (consumed, not voided / discarded);
+  the deposit moves WHOLE (one `depositos_mmg` row plus the receipts of its reference): never split, never duplicated; the target with that deposit must reach its service minimum and may not exceed what it asks.
+- ok=true: `{ok, cambio, deposito, monto_gyd, origen, destino, estado_origen, estado_destino, deposito_destino_gyd, mensaje}`. The target takes the deposit (an empty request becomes the deposit amount) and is `ready_to_transfer` when covered, else `deposit_verification`
+  (mensaje says how much is still missing); the source goes back to `awaiting_deposit` when that was its only money (its request is kept); the open objective that followed the source follows the target.
+- ok=false (nothing written), `motivo`: `falta_destino`, `operacion_no_encontrada`, `estado_no_permite`, `en_grupo`, `bloqueado_por_humano {campo}`, `sin_deposito_verificado`, `varios_depositos` (the mensaje lists them),
+  `deposito_no_encontrado`, `por_debajo_del_minimo {minimo_gyd, deposito_gyd, faltante_gyd}`, `deposito_mayor_que_el_envio {deposito_gyd, monto_gyd}` (change the target's amount first).
+- Audit: action `agent_deposit_move` on BOTH operations (before / after with trans_id and amount), actor `agent:modificar_operacion n8n:<exec>`; tool log outcome `deposito_movido`. The audit action list gained `agent_deposit_move`.
+- The n8n tool query is the same as for the other actions: `SELECT cerebro_modificar_operacion($1::uuid, NULLIF($2,'')::uuid, $3, NULLIF($4,'')::jsonb, 'agent:modificar_operacion n8n:' || $5) AS resultado;` with accion `mover_deposito`.

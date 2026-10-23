@@ -21,8 +21,8 @@ siga hasta que se realice todo lo que falta; puedes revisar las conversaciones c
 |---|---|---|
 | 1 | Assertion triage (agent running at loop start): fix every REGRESSION it finds (migrations 280+) | done: 0 regressions |
 | 2 | Capability audit (read-only): what customers ask in real production conversations (last 30 days, by 8-char ids) vs agent tools: change amount, cancel/split/merge operations, move a deposit, change service, recipients, partial deposits | done (8fe079c) |
-| 3 | IMPROVE the existing agent tools so they cover step 2's needs + P1 (partial deposit inside repartir_envio). Owner rule: no patches, no tool per gap; extend the tool that owns the domain (like registrar_beneficiario_zelle gained several recipients); a new tool only when no tool owns the domain, and then general (e.g. one "modify operation" tool, not one per case). Migrations after step 1's | running |
-| 4 | n8n staging: tool nodes/descriptions/prompt + P2 (Decisor states facts only) for step 3 | pending |
+| 3 | IMPROVE the existing agent tools so they cover step 2's needs + P1 (partial deposit inside repartir_envio). Owner rule: no patches, no tool per gap; extend the tool that owns the domain (like registrar_beneficiario_zelle gained several recipients); a new tool only when no tool owns the domain, and then general (e.g. one "modify operation" tool, not one per case). Migrations after step 1's | done (280-284) |
+| 4 | n8n staging: tool nodes/descriptions/prompt + P2 (Decisor states facts only) for step 3 | running |
 | 5 | Offline measurement: S5b cases K/C/M/F + up to 6 real-shaped cases from step 2, 3 reps, mocked tools, DB replay rolled back | pending |
 | 6 | Fix what step 5 shows (one round), re-measure only the failing cases | pending |
 | 7 | Morning summary for the owner in this file + Engram; update odd/tasks/service-resolution.md and its mirror | pending |
@@ -58,3 +58,9 @@ with a go-ahead per step (267 never before 269), re-enabling or removing the rea
 - Owner (22:5x, awake): "Lía" in the Marlene audio is ELIABA, an admin; the 10,000 GYD were a repayment to the business
   for a double transfer on 10-10 (Engram negocio/admins/eliaba-transcription). Question 4 for the owner: model customer
   debts/repayments? Until then the bot hands them to a person. Question 5: other admin names for transcription hints.
+- 02:3x step 3 done: 280 partial deposit in repartir_envio (09b4341), 281 general cerebro_modificar_operacion
+  monto/cancelar(no money)/unir (a628fe0), 282 registrar_numeros_recarga quitar (408465d), 283 cambiar_servicio takes
+  rails incl. cup, marcar_destino_usd deprecated (96a6ee0), 284 gestionar_beneficiario correction by position/type +
+  p_op (c08a150). Final sweep 142/167; the 25 failures are the known triage set. Parent spot check: re-ran
+  modificar-operacion.sql on staging -> ALL PASS.
+- step 4 launched (n8n staging wiring + P2).

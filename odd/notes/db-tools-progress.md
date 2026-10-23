@@ -207,3 +207,30 @@ What the bot / Decisor can rely on (the bot decides, the DB validates money):
 - The holder of the deposit must be one of the parts sent (unchanged rule): with a plan waiting, `cerebro_registrar_deposito` now attaches the deposit to the plan's first listed part (deterministic), never to a member of an
   already covered group; the next deposit after a partial application goes to the pending part.
 - Per-recipient amounts: use `registrar_beneficiario_zelle` (monto) and `registrar_reparto_multiple` (cup per card); not duplicated here.
+
+## 281 applied on staging - cerebro_modificar_operacion: ONE general tool for the operation (amount, cancel, merge)
+
+TDD: assertion `modificar-operacion` RED (function missing), GREEN 9 case groups (first GREEN attempt also exposed `remittance_admin_audit_action_chk`: the migration widens it with the three new actions).
+Cycle OK (dry-run, apply, assertion, rollback md5). relacionadas --ya-aplicada (about 105 assertions matching audit/operation/cancel/merge/lock/incident/admin, run twice because the runner timed out before TOTAL): only DIFFs are the
+new assertion, the known flaky `contexto-envio-mixto` and the pre-existing `delivery-feed-evidence` fixture error.
+
+Signature (service_role only):
+```
+cerebro_modificar_operacion(p_conv uuid, p_op uuid, p_accion text, p_valor jsonb DEFAULT NULL, p_exec text DEFAULT NULL) RETURNS jsonb
+```
+Tool query for n8n (params: accion = monto|cancelar|unir, op = uuid or empty, valor = number / JSON object or empty):
+`SELECT cerebro_modificar_operacion($1::uuid, NULLIF($2,'')::uuid, $3, NULLIF($4,'')::jsonb, 'agent:modificar_operacion n8n:' || $5) AS resultado;`
+Helpers (service_role only): `_cerebro_op_tiene_dinero(uuid) boolean`, `_cerebro_nombre_servicio(text) text`.
+
+Return: always `{ok boolean, mensaje text (plain Spanish, the Decisor can read it as is), motivo text (on ok=false), operation_id, ...}`.
+- `monto`: `p_valor` = `19500` or `{"monto_gyd": 19500}` (GYD, what the customer deposits; compute it with calcular_usd first). ok=true: `{cambio, servicio, monto_anterior_gyd, monto_gyd, destino_monto, destino_moneda, deposito_verificado_gyd, mensaje}`;
+  same value -> `{ok:true, cambio:false}`. Refusals (`ok:false`, nothing written): `monto_invalido`, `por_debajo_del_minimo {minimo_gyd}`, `supera_el_deposito {deposito_verificado_gyd, faltante_gyd}`
+  (group-aware), `bloqueado_por_humano {campo}` (a lock left by a person; a lock left by automation:/agent: does not block), `estado_no_permite {estado}` (completed, cancelled, transferring).
+  The destination amount follows through the existing trigger; the open send objective and a part of a waiting split plan follow the new amount.
+- `cancelar`: only an operation with NO money (no deposit row, no receipt, not in a split group): `{ok:true, cambio:true, servicio, operaciones_abiertas}`; its part leaves the waiting plan, its objective closes.
+  With money: `{ok:false, motivo:'tiene_dinero'|'en_grupo'}` and a mensaje saying a person handles it (owner question 1). Never moves or touches deposits (owner question 2).
+- `unir`: `p_valor = {"con": "<uuid>"}` (or empty when exactly one other open operation of the same rail exists; p_op may also be empty when the conversation has exactly one such pair). Survivor = the operation that holds money,
+  else p_op. Recipients move (twins by phone/card/account retired), amounts added, the other is cancelled. `{ok:true, operation_id (survivor), absorbida, monto_gyd, destinatarios_movidos, duplicados_retirados}`.
+  Refusals: `no_hay_par`, `servicios_distintos`, `en_grupo`, `dinero_en_ambas`, `supera_el_deposito`, `por_debajo_del_minimo`, `bloqueado_por_humano`, `operacion_no_encontrada`, `estado_no_permite`.
+- `p_op` empty with several open operations: `{ok:false, motivo:'varias_operaciones', operaciones:[{id,servicio,monto_gyd}], mensaje}` (the bot asks the customer which and calls again with the id).
+- Audit: `remittance_admin_audit` actions `agent_amount_change`, `agent_operation_cancel`, `agent_operation_merge`; actor = p_exec when it starts with `agent:`, else `agent:modificar_operacion n8n:<p_exec>`. `tool_execution_log.tool_name = 'modificar_operacion'`.

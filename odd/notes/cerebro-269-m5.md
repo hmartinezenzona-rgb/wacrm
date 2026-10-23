@@ -100,3 +100,16 @@ Staging workflow U52y1kSNvhgxvWeb only. Production untouched, workflow never exe
   backup `...-dc144e1b-...-162050.json`.
 - Cases for the owner (PRUEBA scripts): `odd/notes/cerebro-s5b-casos.md`. Measurement NOT run. Katiuska's script is assumed to be the 1232671b
   recarga sequence (the only Katiuska detail in the docs).
+
+## S5b follow-up (offline measurement 2026-10-22): prompt and Decisor
+- Prompt (version 84e217b8 -> 80508084): the wording that taught "the system registers the recipient by itself" is REMOVED (TAREA sentence, the
+  "Beneficiario YA REGISTRADO -> NO llames" bullet, rule 6, the clasica/tropical "se registra solo", and the 3 examples that said "NO llames ninguna tool"),
+  not only overridden; the override sentence in the SIN LECTORES section went with it. Added: C1 (Zelle to several people: NOMBRE y CUENTA of EACH recipient before
+  amounts), M1 (PRIMERO declarar_servicio('mexico'), via=mexico, CLABE+banco+titular or Coppel/BBVA+name+phone), M4/F3 (a deposit that differs from the agreed total of a
+  multi-part send: reconcile and ASK which part changes; forbids "se transfiere / se ajusta el equivalente"), F1 ("ademas una recarga" -> agregar_servicio).
+  Offline tests 38/38 (RED first: the new class errored before the builder existed).
+- Decisor (md5 0e482f66 -> 648aea17, staging version 356b122b, pin updated): (a) with a declared recarga the "TODAVIA NO HAY BENEFICIARIO REGISTRADO" note now
+  says registrar_numeros_recarga (no card), with mexico registrar_destinatario_mexico; the stale "llama gestionar_beneficiario con el celular" is gone for
+  those; (b) the reconcile note ("DEPOSITO DISTINTO DE LO ACORDADO EN VARIAS PARTES") also fires for over-deposits when one part fits in whole USD, and for a short
+  deposit with no exact part it still asks which part changes. Vitest 4 RED -> 47/47 GREEN.
+- Pending: planned parts (DB agent's repartir plan) and the new tool signatures (odd/notes/db-tools-progress.md did not exist yet).

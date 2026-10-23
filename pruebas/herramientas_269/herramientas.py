@@ -320,7 +320,7 @@ def reactivar_lectores(wf):
 
 
 SECCION_SIN_LECTORES = """## SIN LECTORES AUTOMATICOS (manda sobre cualquier otra mencion de registro automatico de este prompt)
-El sistema YA NO guarda solo a quien recibe: ni tarjeta y celular, ni cuenta Zelle, ni el destino. Cualquier frase de este prompt que diga que "el sistema los registra solo" o "se guardan solos" NO aplica. Solo el deposito (comprobante) se registra solo. Todo lo demas lo creas TU con tus herramientas, en el MISMO turno en que el cliente da, corrige o confirma el dato:
+El sistema YA NO guarda solo a quien recibe: ni tarjeta y celular, ni cuenta Zelle, ni el destino. Solo el deposito (comprobante) se registra solo. Todo lo demas lo creas TU con tus herramientas, en el MISMO turno en que el cliente da, corrige o confirma el dato:
 - tarjeta cubana y/o celular, nombre -> gestionar_beneficiario (uno por llamada); varios beneficiarios con su reparto -> registrar_reparto_multiple.
 - cuenta Zelle y/o nombre del titular -> registrar_beneficiario_zelle.
 - numeros a recargar -> registrar_numeros_recarga; combo -> registrar_destinatario_combo; visa -> abrir_extension_visa; entrega en efectivo -> registrar_datos_entrega_efectivo; Mexico -> registrar_destinatario_mexico.
@@ -346,3 +346,63 @@ def quitar_prompt_sin_lectores(sm):
     j = sm.index(_ANCLA_SL, i)
     sm = sm[:i] + sm[j:]
     return sm.replace("numeros vacio si aun no los dio. Si te dice", "numeros vacio si aun no los dio. Los numeros escritos se guardan solos. Si te dice")
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# S5b follow-up: remove (not only override) the wording that teaches "the system registers the recipient by itself", and add
+# the rules measured offline: C1 (Zelle: names and accounts first), M1 (Mexico), M4/F3 (reconcile a deposit), F1 (ademas).
+
+def _cortar(sm, ini, fin, nuevo):
+    """Replace sm[ini..fin) (fin exclusive marker kept) by nuevo; raise when a marker is missing so nothing half-applies."""
+    i = sm.index(ini)
+    j = sm.index(fin, i)
+    return sm[:i] + nuevo + sm[j:]
+
+
+NUEVA_TAREA = ("Los depósitos se registran AUTOMATICAMENTE; lo demas (a quien recibe, el servicio, el reparto) lo guardas TU con tus "
+               "herramientas en cuanto el cliente lo dice. Tu trabajo es conversar y guardar con las tools lo que el cliente da. "
+               "Aprobaciones y confirmaciones de envio: SOLO el operador humano.")
+
+BLOQUE_ZELLE = """- ZELLE A VARIAS PERSONAS: pide primero el NOMBRE y CUENTA de CADA destinatario (correo o celular de EEUU), antes de hablar de montos; los montos van despues. Una llamada a registrar_beneficiario_zelle por destinatario, con el nombre y la cuenta TAL CUAL los escribio el cliente."""
+
+BLOQUE_RECONCILIAR = """DEPOSITO QUE NO CUADRA CON UN ENVIO DE VARIAS PARTES: si el deposito verificado es distinto del total acordado de las partes (Mexico + efectivo + tarjeta, etc.), no inventes: reconcilia las partes con las cifras del [CONTEXTO] y pregunta cual parte cambia ('Su depósito de *71,200 GYD* cuadra con *100 USD* a México, no con *150*; ¿confirma?'). PROHIBIDO decir que se transfiere el equivalente, PROHIBIDO decir que se ajusta el equivalente, que se envia lo que alcance o que quedas esperando el resto, hasta que el cliente confirme cual parte cambia."""
+
+EJ_NANA_NUEVO = ("C: [Contacto] Nana 5354600210 + 9238 1299 7894 4918 -> [llama gestionar_beneficiario(tarjeta, celular)] 'Anotado quien recibe en "
+                 "Cuba: tarjeta *9238 1299 7894 4918* y celular *54600210*. Apenas haga su depósito envíenos la captura por favor.'  "
+                 "## tarjeta de contacto: el número vale igual que escrito; primero la herramienta, luego confirmas lo que quedo guardado")
+
+BLOQUE_ADEMAS = ("- 'ademas una recarga' / 'y tambien una recarga' / 'aparte quiero ...' = agregar_servicio('recarga') (o la clave que diga); "
+                 "NO declares otra vez ni cambies el servicio que ya tiene.")
+
+
+def limpiar_registro_automatico(sm):
+    if "ZELLE A VARIAS PERSONAS" in sm:
+        return sm
+    sm = sm.replace(' Cualquier frase de este prompt que diga que "el sistema los registra solo" o "se guardan solos" NO aplica. Solo el deposito', ' Solo el deposito')
+    # TAREA: the sentence about the recipient registering itself
+    sm = _cortar(sm, "Los depósitos se registran AUTOMATICAMENTE, y el beneficiario TAMBIEN", "\n\n## COMO CALLAR", NUEVA_TAREA)
+    # PRIORIDAD: Beneficiario YA REGISTRADO bullet
+    sm = _cortar(sm, "- Beneficiario YA REGISTRADO → NO llames gestionar_beneficiario (el sistema ya lo hizo)", "\n- ENVIO A VARIOS BENEFICIARIOS",
+                 "- Beneficiario YA REGISTRADO (lo guardaste tu o lo dice el [CONTEXTO]) → no vuelvas a llamar la herramienta con los mismos datos: "
+                 "confirma tarjeta y celular COMPLETOS en *negrita* con palabras.")
+    sm = sm.replace("pide la tarjeta y el celular como siempre; el sistema los registra solo. Y ADEMAS llama marcar_destino_usd",
+                    "pide la tarjeta y el celular como siempre y guardalos con gestionar_beneficiario. Y ADEMAS llama marcar_destino_usd")
+    sm = _cortar(sm, "6. Beneficiario que llego escrito, en imagen o en tarjeta de contacto: el sistema ya lo registro", "\n7. Mensajes cortos",
+                 "6. Beneficiario que llego escrito, en imagen o en tarjeta de contacto: guardalo TU con gestionar_beneficiario en ese mismo turno y "
+                 "confirma tarjeta y celular COMPLETOS en negrita solo cuando la herramienta diga que quedo guardado. Si el cliente ya dijo que va a "
+                 "depositar: confirma los datos y cierra con 'Apenas haga su depósito envíenos la captura por favor.'")
+    # examples that taught "the system already saved it, call no tool"
+    sm = _cortar(sm, "C: [Nota de voz]: 'En un momento le depósito y ahora le paso los datos.' + [imagen de tarjeta; contexto: Beneficiario YA REGISTRADO",
+                 "C: [Nota de voz]: 'Ahi le mando el comprobante y los datos de quien recibe.'", "")
+    sm = _cortar(sm, "C: [Contacto] Nana 5354600210 + [contexto: Beneficiario YA REGISTRADO", "C: Hola, buenos días, a cómo está el cambio?",
+                 EJ_NANA_NUEVO + "\n\n")
+    sm = sm.replace("## la tarjeta y el celular los registra el sistema solo, pero TU llamas marcar_destino_usd con 'clasica'. Sin eso se confunde con un envio en CUP",
+                    "## TU guardas la tarjeta y el celular con gestionar_beneficiario y llamas marcar_destino_usd con 'clasica'. Sin eso se confunde con un envio en CUP")
+    # new rules inside the no-readers section
+    sm = sm.replace("- un solo deposito para varios servicios -> repartir_envio",
+                    BLOQUE_ZELLE + "\n" + BLOQUE_ADEMAS + "\n- un solo deposito para varios servicios -> repartir_envio", 1)
+    sm = sm.replace("\n\n## REGLA DE ORO DEL REGISTRO", "\n" + BLOQUE_RECONCILIAR + "\n\n## REGLA DE ORO DEL REGISTRO", 1)
+    # M1: Mexico paragraph starts with the declaration
+    sm = sm.replace("- MEXICO: apenas el cliente diga que quiere mandar a Mexico, declarar_servicio('mexico'). Cotiza",
+                    "- MEXICO: PRIMERO declarar_servicio('mexico') apenas el cliente diga que quiere mandar a Mexico, antes de cotizar o de pedir datos. Cotiza")
+    return sm

@@ -266,3 +266,57 @@ class TestSinLectores(unittest.TestCase):
         base = open(os.path.join(os.path.dirname(__file__), "prompt_base_staging.txt"), encoding="utf-8").read()
         p = h.editar_prompt(base)
         self.assertEqual(h.quitar_prompt_sin_lectores(h.editar_prompt_sin_lectores(p)), p)
+
+
+class TestPromptS5b(unittest.TestCase):
+    """S5b follow-up: old auto-registration wording is REMOVED (not only overridden); C1, M1, M4/F3, F1 rules."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(os.path.dirname(__file__), "prompt_vivo_84e217b8.txt"), encoding="utf-8") as f:
+            cls.vivo = f.read()
+        cls.nuevo = h.limpiar_registro_automatico(cls.vivo)
+
+    def test_quita_el_registro_automatico_del_beneficiario(self):
+        n = self.nuevo
+        for frase in ("el beneficiario TAMBIEN se registra solo", "(el sistema ya lo hizo)", "el sistema los registra solo",
+                      "el sistema ya lo registro", "NO llames ninguna tool", "El sistema ya junto las piezas",
+                      "los registra el sistema solo"):
+            self.assertNotIn(frase, n, frase)
+        self.assertNotIn("contexto: Beneficiario YA REGISTRADO tarjeta", n)  # the three examples that taught "do not call the tool"
+
+    def test_conserva_lo_que_si_es_automatico(self):
+        self.assertIn("Los depósitos se registran AUTOMATICAMENTE", self.nuevo)
+        self.assertIn("La foto del carnet la registra el sistema solo", self.nuevo)
+
+    def test_c1_zelle_pide_nombres_y_cuentas_antes_que_montos(self):
+        n = self.nuevo
+        i = n.index("ZELLE A VARIAS PERSONAS")
+        sec = n[i:i + 700]
+        self.assertRegex(sec, r"NOMBRE y CUENTA de CADA")
+        self.assertRegex(sec, r"(?i)antes de (hablar de )?montos")
+        self.assertIn("registrar_beneficiario_zelle", sec)
+
+    def test_m1_mexico_declara_primero_cotiza_y_pide_datos(self):
+        n = self.nuevo
+        i = n.index("- MEXICO:")
+        sec = n[i:i + 1500]
+        self.assertRegex(sec, r"PRIMERO declarar_servicio\('mexico'\)")
+        self.assertIn("via=mexico", sec)
+        self.assertIn("CLABE", sec)
+        self.assertIn("Coppel", sec)
+
+    def test_m4_f3_reconciliar_y_preguntar(self):
+        n = self.nuevo
+        i = n.index("DEPOSITO QUE NO CUADRA CON UN ENVIO DE VARIAS PARTES")
+        sec = n[i:i + 1200]
+        self.assertRegex(sec, r"PROHIBIDO.*se transfiere el equivalente")
+        self.assertRegex(sec, r"PROHIBIDO.*se ajusta el equivalente")
+        self.assertRegex(sec, r"(?i)pregunta.*cual parte")
+
+    def test_f1_ademas_una_recarga_es_agregar_servicio(self):
+        n = self.nuevo
+        self.assertRegex(n, r"(?i)ademas una recarga.*agregar_servicio\('recarga'\)")
+
+    def test_idempotente(self):
+        self.assertEqual(h.limpiar_registro_automatico(self.nuevo), self.nuevo)

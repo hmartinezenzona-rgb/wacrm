@@ -41,7 +41,7 @@ def main():
         if n["name"] == "Agente Remesas":
             sm = h.editar_prompt(n["parameters"]["options"]["systemMessage"])
             if a.lectores == "off":
-                sm = h.editar_prompt_sin_lectores(sm)
+                sm = h.limpiar_registro_automatico(h.editar_prompt_sin_lectores(sm))
             elif a.lectores == "on":
                 sm = h.quitar_prompt_sin_lectores(sm)
             n["parameters"]["options"]["systemMessage"] = sm

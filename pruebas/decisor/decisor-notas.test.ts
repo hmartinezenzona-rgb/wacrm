@@ -806,3 +806,44 @@ describe('P2: la nota de reconciliacion solo da hechos (partes cubiertas, pendie
     expect(n).toMatch(/sobran? 7,000/i);
   });
 });
+
+describe('291 follow-up: recipients are counted across ALL open operations of the send, per operation', () => {
+  const op = (servicio: string, extra: Record<string, unknown> = {}) => ({
+    id: 'op-' + servicio, servicio, tipo: servicio === 'mexico' || servicio === 'efectivo_usd' ? 'remesa' : servicio,
+    rail: servicio, status: 'awaiting_deposit', deposito: 0, tiene_deposito: false, vacia: true,
+    tarjeta: false, zelle: false, efectivo: false, celular: false, ...extra,
+  });
+  const mx = (nombre: string, monto: number) => ({
+    t: 'mexico_cuenta', cuenta: null, nombre, tarjeta: null, celular: null, posicion: null, monto, moneda: 'USD',
+  });
+  const envio = (benef: unknown[]) =>
+    correrDecisor({
+      ctx: {
+        beneficiarios_registrados: benef,
+        servicio_resuelto: {
+          version: 2, en_curso: 'mexico', servicio: 'mexico', accion: 'ninguna', permitido: true, motivo: 'sin_cambio',
+          mensaje: null, operaciones: [op('mexico', { vacia: false }), op('efectivo_usd'), op('recarga', { celular: true })],
+          adicionales: [], evidencia: { declarado: null, deposito: 55000 },
+        },
+      },
+      snapshot: { texto_completo: 'ya deposite', celular: '55599180' },
+    });
+
+  it('two Mexico recipients of the same send: no "no beneficiary registered" note', () => {
+    const s = envio([mx('Ana Perez', 50), mx('Luis Gomez', 50)]);
+    expect(nota(s, 'TODAVIA NO HAY BENEFICIARIO REGISTRADO')).toBeUndefined();
+  });
+
+  it('gives the model the count and the names per operation', () => {
+    const n = nota(envio([mx('Ana Perez', 50), mx('Luis Gomez', 50)]), 'DESTINATARIOS REGISTRADOS POR OPERACION') as string;
+    expect(n).toBeDefined();
+    expect(n).toMatch(/mexico: 2 destinatarios \(Ana Perez 50 USD, Luis Gomez 50 USD\)/);
+    expect(n).toMatch(/efectivo_usd: ninguno/);
+    expect(n).toMatch(/recarga: 1/);
+  });
+
+  it('a Mexico recipient without a name is not complete: the old note stays', () => {
+    const s = envio([{ ...mx('', 50) }]);
+    expect(nota(s, 'TODAVIA NO HAY BENEFICIARIO REGISTRADO')).toBeDefined();
+  });
+});

@@ -902,7 +902,12 @@ if (ctx.via_deposito_ya_usada) {
 const zelleCompleto = !!(zelleNomCtx && zelleCtaCtx);
 // Para una RECARGA el destino queda sabido con el numero a recargar, sin
 // tarjeta: es la naturaleza del servicio, no una excepcion de la guarda.
-const sabeDestino = !!((tarjetaCtx && celularCtx) || zelleCompleto || ctx.tiene_beneficiario || (recargaEnCurso && celularCtx) || (comboEnCurso && comboCompleto) || visaEnCurso);
+// (291 follow-up) Mexico recipients live in remittance_beneficiaries without card or phone, so `tiene_beneficiario` and the
+// card/phone test never see them: the note "TODAVIA NO HAY BENEFICIARIO REGISTRADO" told the model there was no recipient right
+// after a deposit although the Mexico operation of the same send had two. They are counted here over ALL open operations of the
+// send (`beneficiarios_registrados` is not limited to one operation); complete = has a name (the tool stores CLABE/bank with it).
+const mxDestinatarios = regBen.filter((b) => b && /^mexico_/.test(String(b.t || '')) && String(b.nombre ?? '').trim() !== '');
+const sabeDestino = !!((tarjetaCtx && celularCtx) || zelleCompleto || ctx.tiene_beneficiario || (recargaEnCurso && celularCtx) || (comboEnCurso && comboCompleto) || visaEnCurso || mxDestinatarios.length > 0);
 // EL "ANOTADO" QUE NO ANOTA (14-ago-2026). Tres casos en cuatro dias en los
 // que el sistema no registro NINGUN beneficiario y el modelo le dijo al
 // cliente que si. Gardy dio "674 2713" — siete digitos, no es un celular
@@ -924,6 +929,25 @@ const sabeDestino = !!((tarjetaCtx && celularCtx) || zelleCompleto || ctx.tiene_
 // detectada". Dos motivos: su sitio logico es justo al lado de "el sistema
 // rechazo ese dato", y ampliar la nota de al lado obligaba a permitir que
 // desapareciera en el banco, que es debilitar la prueba para que pase.
+// Per-operation recipient facts for a send with several open operations (mixed group / separate operations).
+if (R && Array.isArray(R.operaciones)) {
+  const abiertasR = R.operaciones.filter((o) => o && !['completed', 'cancelled'].includes(String(o.status)));
+  if (abiertasR.length >= 2) {
+    const nDest = (o) => {
+      const sv = String(o.servicio || '');
+      if (sv === 'mexico') {
+        const n = mxDestinatarios.length;
+        return n ? n + (n === 1 ? ' destinatario (' : ' destinatarios (') + mxDestinatarios.map((b) => String(b.nombre).trim() + (Number(b.monto) > 0 ? ' ' + Number(b.monto) + ' ' + (b.moneda || 'USD') : '')).join(', ') + ')' : 'ninguno';
+      }
+      if (sv === 'recarga') return o.celular ? '1' : 'ninguno';
+      if (sv === 'efectivo_usd') return o.efectivo ? '1' : 'ninguno';
+      if (sv === 'zelle') return o.zelle ? '1' : 'ninguno';
+      if (sv === 'combo' || sv === 'visa' || sv === 'saldo') return o.celular ? '1' : 'ninguno';
+      return o.tarjeta ? '1' : 'ninguno';
+    };
+    notas.push('DESTINATARIOS REGISTRADOS POR OPERACION (hechos del sistema, de todas las operaciones abiertas de este envio): ' + abiertasR.map((o) => String(o.servicio) + ': ' + nDest(o)).join('; ') + '. Una operacion con destinatarios NO esta sin destinatario aunque otra operacion de este envio si lo este; pide solo lo que falta de las que dicen ninguno.');
+  }
+}
 const datosAMedias = !!(tarjetaCtx || celularCtx || zelleNomCtx || zelleCtaCtx);
 if (!sabeDestino && !s.multi_beneficiario && datosAMedias) {
   const formato = (tarjetaCtx && !celularCtx)

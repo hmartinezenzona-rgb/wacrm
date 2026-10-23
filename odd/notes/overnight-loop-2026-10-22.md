@@ -80,3 +80,6 @@ with a go-ahead per step (267 never before 269), re-enabling or removing the rea
 - step 6 launched: one fix round (DB: Zelle refuses an ambiguous different account instead of replacing; cambiar to
   efectivo keeps/opens the right recipient. n8n: prompt declarar-before-quote, agregar/monto for Zelle, quitar,
   modificar_operacion for amount changes, ask CLABE, CUP vs GYD). No re-measure overnight: the night budget is spent.
+- 03:4x both step-6 agents (DB fixes; prompt fixes) stopped at the usage limit (resets 05:40). NEXT TICK AFTER THE
+  RESET: resume both with SendMessage ("continue step 6 from where you stopped; check staging state first") instead
+  of launching new agents; then review and go to step 7.

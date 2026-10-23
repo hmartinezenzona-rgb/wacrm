@@ -1,3 +1,20 @@
+# RESUMEN DE LA MAÑANA (2026-10-23)
+
+Todo en STAGING; nada en producción salvo las correcciones de datos de Marlene que aprobaste.
+- Pruebas: el rediseño (265-287) no rompió ninguna; las 19 que fallan ya fallaban antes (triage d816e7c).
+- Revisión de capacidades con conversaciones reales (8fe079c) -> herramientas AMPLIADAS, no nuevas por caso:
+  repartir_envio (depósito parcial: aplica lo cubierto, deja pendiente el resto), registrar_numeros_recarga (quitar),
+  cambiar_servicio (absorbe marcar_destino_usd, ahora apagada; al pasar a efectivo conserva nombre y teléfono),
+  gestionar_beneficiario (corregir un destinatario concreto), Zelle (varios destinatarios con monto; si llega otra
+  cuenta sin aclarar pregunta en vez de reemplazar), y UNA herramienta general nueva modificar_operacion (monto,
+  cancelar solo operaciones vacías, unir, mover un depósito cuando el cliente lo confirma). Migraciones 280-287.
+- Bot de staging (991a87b0): conectado a todo; el Decisor solo da hechos; declara el servicio al cotizar; pide CLABE en
+  México; pregunta CUP o GYD; devoluciones al negocio -> persona; transcripción con Eliaba y Osmany.
+- Medición (2.98M tokens): mejoras en Marlene (ya no "equivalente") y f8b7779c (usa el reparto); fallaba declarar al
+  cotizar y Zelle -> arreglado en el paso 6, SIN volver a medir (presupuesto gastado).
+- Pendiente para ti: aprobar una nueva medición; revisar el panel; M7/M8; línea de México en Finanzas; producción paso
+  a paso (267 nunca antes de 269); la línea de calculadora de ab92f2bb que borró un admin a las 10:54.
+
 # Overnight loop 2026-10-22 -> 2026-10-23 (owner asleep)
 
 Owner: "quisiera dejarlo en un loop para que siga trabajando incluso si estoy durmiendo y se acaba el límite, pero que
@@ -24,8 +41,8 @@ siga hasta que se realice todo lo que falta; puedes revisar las conversaciones c
 | 3 | IMPROVE the existing agent tools so they cover step 2's needs + P1 (partial deposit inside repartir_envio). Owner rule: no patches, no tool per gap; extend the tool that owns the domain (like registrar_beneficiario_zelle gained several recipients); a new tool only when no tool owns the domain, and then general (e.g. one "modify operation" tool, not one per case). Migrations after step 1's | done (280-284) |
 | 4 | n8n staging: tool nodes/descriptions/prompt + P2 (Decisor states facts only) for step 3 | done (staging ddd12edb) |
 | 5 | Offline measurement: S5b cases K/C/M/F + up to 6 real-shaped cases from step 2, 3 reps, mocked tools, DB replay rolled back | done (2.98M tokens) |
-| 6 | Fix what step 5 shows (one round), re-measure only the failing cases | running (fix only; re-measure needs owner OK: budget spent) |
-| 7 | Morning summary for the owner in this file + Engram; update odd/tasks/service-resolution.md and its mirror | pending |
+| 6 | Fix what step 5 shows (one round), re-measure only the failing cases | done (285-287, staging 991a87b0; no re-measure) |
+| 7 | Morning summary for the owner in this file + Engram; update odd/tasks/service-resolution.md and its mirror | done |
 
 ## Left for the owner (not overnight)
 
@@ -88,3 +105,7 @@ with a go-ahead per step (267 never before 269), re-enabling or removing the rea
   if equal or better. (4) debts/repayments: keep in mind only; bot hands them to a person. (5) admin names for the
   transcription hints: Eliaba, Osmany (staging change). (2) moving a deposit: re-explained; owner to answer.
 - step 6 prompt fixes done: staging f318b276, 65 offline tests (RED first). Waiting for the DB fixes.
+- step 6 done: DB 285 Zelle refuses an ambiguous second account, monto per recipient (5f43bea); 286 cash keeps
+  name/phone (3fcd918); 287 mover_deposito in modificar_operacion (82b655d, owner allowed it). n8n 1c0e1d9, 4f53ed4,
+  f8e4f54 (staging 991a87b0). Parent spot check: zelle-several-recipients.sql ALL PASS on staging.
+- step 7 done: summary at the top; cron deleted.

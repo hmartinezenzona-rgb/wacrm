@@ -445,3 +445,11 @@ on a different deposit; replace that (Engram cerebro/partial-deposit-planned-spl
   Spanish facts back. Start after the staging assertion triage finishes (it rolls migrations back in transactions).
 - [ ] P2 n8n staging: tool description/prompt (apply covered parts, ask or wait per the customer); Decisor states the
   facts only (covered, missing, amounts), never the action.
+
+## Overnight 2026-10-22/23 (staging only)
+
+See odd/notes/overnight-loop-2026-10-22.md (summary at the top). Migrations 274-287 on staging (agent tools replace the
+readers: Zelle several recipients, pre-deposit operations, service-aware targeting, planned/partial split, objective
+without operation, general modificar_operacion incl. mover_deposito, recarga quitar, cambiar_servicio rails, recipient
+corrections); staging Cerebro 991a87b0. P1/P2 done (partial deposit in repartir_envio; Decisor facts only).
+Measured once after 284 (2.98M tokens); fixes 285-287 and the prompt round NOT re-measured yet (needs owner OK).

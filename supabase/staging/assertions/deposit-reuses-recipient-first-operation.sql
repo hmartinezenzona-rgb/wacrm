@@ -105,16 +105,16 @@ BEGIN
   IF v_r.accion <> 'creado' OR v_r.deal_id = v_a THEN RAISE EXCEPTION 'case G2: a receipt row is money: got % %', v_r.accion, v_r.deal_id; END IF;
   RAISE NOTICE 'PASS case G2: an operation with a receipt row is not reused';
 
-  -- ---- G3: two open zero-amount operations: the latest wins (as before), the older one is untouched -------------------------
+  -- ---- G3: two open zero-amount operations: the OLDEST wins (291: the send's anchor, owner rule), the newer one is untouched -------------------------
   SELECT * INTO c FROM pg_temp.t232_conv(4);
   v_a := pg_temp.t232_op(c, 'collecting_information', 'remesa', 0, 'zelle', 300, true);   -- older
   v_b := pg_temp.t232_op(c, 'collecting_information', 'remesa', 0, 'efectivo_usd', 100, true);  -- newer
   PERFORM pg_temp.t232_quote(c.conv, 26000);
   v_r := pg_temp.t232_dep(c.conv, 29000, 4);
-  IF v_r.accion <> 'movido' OR v_r.deal_id <> v_b THEN RAISE EXCEPTION 'case G3: the latest candidate must win, got % %', v_r.accion, v_r.deal_id; END IF;
-  IF (SELECT quoted_source_amount FROM remittance_operations WHERE id = v_a) <> 0 OR pg_temp.t232_open(c.conv) <> 2 THEN
-    RAISE EXCEPTION 'case G3: the older operation must stay untouched'; END IF;
-  RAISE NOTICE 'PASS case G3: ambiguity keeps "the latest wins"';
+  IF v_r.accion <> 'movido' OR v_r.deal_id <> v_a THEN RAISE EXCEPTION 'case G3: the oldest candidate (the anchor) must win, got % %', v_r.accion, v_r.deal_id; END IF;
+  IF (SELECT quoted_source_amount FROM remittance_operations WHERE id = v_b) <> 0 OR pg_temp.t232_open(c.conv) <> 2 THEN
+    RAISE EXCEPTION 'case G3: the newer operation must stay untouched'; END IF;
+  RAISE NOTICE 'PASS case G3: ambiguity is decided by the send anchor (the oldest open operation)';
 
   -- ---- G4: a zero-amount operation in incident is not widened -----------------------------------------------------------
   SELECT * INTO c FROM pg_temp.t232_conv(5);

@@ -131,3 +131,17 @@ Behaviour the prompt / Decisor can rely on:
   `REPARTO NO APLICADO: las partes suman 83,000 GYD y el deposito a repartir es 71,200 GYD (faltan 11,800 GYD para cubrir las partes). Partes planeadas: mexico 39,000 GYD (150 USD), ... No se cambio nada. Preguntale al cliente que parte cambia (o si deposita el resto) y vuelve a llamar con montos que sumen exactamente 71,200 GYD. No prometas ninguna entrega hasta entonces.`
   ("sobran N GYD del deposito" when the parts are smaller). A later call whose parts add up splits and deletes the plan ("Reparto hecho: ...").
 - The plan is deleted when the conversation's last operation closes.
+
+## 278 applied on staging - send objective without an operation (gap 4)
+
+TDD: assertion `objective-without-operation` RED (case 2: "NO se fijo nada: sin beneficiario ni comprobante"), GREEN 6 case groups. Cycle OK (rollback md5 equal).
+relacionadas --ya-aplicada (objective / quote / declare): 40 assertions, 39 SAME (all failing ones are pre-existing on base: deals-free-views, n8n-repoint, objetivo-requiere-compromiso fixture, operation-keyed-money,
+rekey-shipment-alerts, saldo-model, tag-sync-without-deals, target-origin-label), 1 DIFF = the new assertion.
+
+Signatures and return shapes:
+- `cerebro_fijar_objetivo(p_conv uuid, p_monto numeric, p_moneda text DEFAULT 'GYD') RETURNS TABLE(objetivo_gyd numeric, pedido text, accion text)` - unchanged. The commitment test now also accepts a DECLARED service, a planned split
+  or any open operation (even empty); the objective is stored at conversation level (operation_id NULL) and the next deposit consumes it (`cerebro_objetivo_atar_op` in `cerebro_registrar_deposito`). A bare quote with none of those still answers
+  "NO se fijo nada: sin beneficiario ni comprobante todavia (solo cotizacion)".
+- `cerebro_declarar_servicio(p_conv uuid, p_servicio text, p_actor text DEFAULT NULL) RETURNS jsonb` = `{ok, servicio}` (+ `objetivo_gyd` when it promoted a quote). The agent quotes first (`calcular_usd`) and declares after, so declaring
+  promotes the standing quote (`cerebro_ultima_cotizacion`, inside `cotizacion_ventana_horas`, newer than the last closed operation) to the send objective when no open objective exists; an existing objective is never overwritten; no quote = nothing.
+  The `declarar_servicio` tool query keeps working unchanged (it reads ok/servicio/motivo).

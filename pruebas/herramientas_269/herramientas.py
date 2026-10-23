@@ -747,3 +747,17 @@ def refinar_prompt_paso6(sm):
     # quitar: one line next to the Zelle block
     sm = sm.replace("\n" + P6_ZELLE, "\n" + P6_ZELLE + "\n" + P6_QUITAR, 1)
     return sm
+
+
+# Transcription spelling hints: business admin names ("Lia" was heard for Eliaba).
+NOMBRES_ADMIN = "Eliaba, Osmany"
+
+
+def aplicar_transcripcion(wf):
+    n = _nodo(wf, "Transcribir audio")
+    if n is None:
+        raise ValueError("Transcribir audio not found")
+    for par in n["parameters"]["bodyParameters"]["parameters"]:
+        if par.get("name") == "prompt" and NOMBRES_ADMIN not in par["value"]:
+            par["value"] = par["value"].replace("MMG, Pay Merchant, Cash In, agente,", "MMG, Pay Merchant, Cash In, agente, " + NOMBRES_ADMIN + ",", 1)
+    return wf

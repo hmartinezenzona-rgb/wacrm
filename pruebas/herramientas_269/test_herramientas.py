@@ -563,3 +563,15 @@ class TestPaso6(unittest.TestCase):
     def test_idempotente_y_corto(self):
         self.assertEqual(h.refinar_prompt_paso6(self.nuevo), self.nuevo)
         self.assertLess(len(self.nuevo), len(self.vivo) + 1800)
+
+
+class TestTranscripcion(unittest.TestCase):
+    def wf(self):
+        p = {"name": "prompt", "value": "=Conversacion. Otras palabras frecuentes: MMG, Pay Merchant, Cash In, agente, {{ x }}, Zelle."}
+        return {"nodes": [{"name": "Transcribir audio", "parameters": {"bodyParameters": {"parameters": [{"name": "model", "value": "m"}, p]}}}], "connections": {}}
+
+    def test_agrega_los_nombres_de_los_admins_una_sola_vez(self):
+        wf = h.aplicar_transcripcion(self.wf())
+        v = wf["nodes"][0]["parameters"]["bodyParameters"]["parameters"][1]["value"]
+        self.assertIn("agente, Eliaba, Osmany,", v)
+        self.assertEqual(h.aplicar_transcripcion(json.loads(json.dumps(wf))), wf)

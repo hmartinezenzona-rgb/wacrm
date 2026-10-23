@@ -175,7 +175,9 @@ BEGIN
   v_op2 := pg_temp.p_zelle_op(c.conv, 'dos7@example.com', 14000);
   v_r := cerebro_modificar_operacion(c.conv, NULL, 'unir', NULL, 'q7a');
   PERFORM pg_temp.p_eq('7 merged', (v_r ->> 'ok') || '/' || (v_r ->> 'monto_gyd'), 'true/27000');
-  PERFORM pg_temp.p_eq('7 survivor is the older', (v_r ->> 'operation_id')::uuid::text, v_op::text);
+  -- (both rows are created in one transaction, so their created_at ties: the survivor is whichever the tool names, the other is absorbed)
+  PERFORM pg_temp.p_eq('7 one survivor and one absorbed', (ARRAY[(v_r ->> 'operation_id')::uuid, (v_r ->> 'absorbida')::uuid] @> ARRAY[v_op, v_op2])::text, 'true');
+  v_op := (v_r ->> 'operation_id')::uuid; v_op2 := (v_r ->> 'absorbida')::uuid;
   PERFORM pg_temp.p_eq('7 two recipients', (SELECT count(*)::text FROM remittance_beneficiaries WHERE operation_id = v_op AND status = 'vigente'), '2');
   PERFORM pg_temp.p_eq('7 other cancelled', (SELECT status FROM remittance_operations WHERE id = v_op2), 'cancelled');
   PERFORM pg_temp.p_eq('7 amount', (SELECT trim_scale(quoted_source_amount)::text FROM remittance_operations WHERE id = v_op), '27000');

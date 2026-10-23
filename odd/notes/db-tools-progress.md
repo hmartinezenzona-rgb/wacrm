@@ -234,3 +234,22 @@ Return: always `{ok boolean, mensaje text (plain Spanish, the Decisor can read i
   Refusals: `no_hay_par`, `servicios_distintos`, `en_grupo`, `dinero_en_ambas`, `supera_el_deposito`, `por_debajo_del_minimo`, `bloqueado_por_humano`, `operacion_no_encontrada`, `estado_no_permite`.
 - `p_op` empty with several open operations: `{ok:false, motivo:'varias_operaciones', operaciones:[{id,servicio,monto_gyd}], mensaje}` (the bot asks the customer which and calls again with the id).
 - Audit: `remittance_admin_audit` actions `agent_amount_change`, `agent_operation_cancel`, `agent_operation_merge`; actor = p_exec when it starts with `agent:`, else `agent:modificar_operacion n8n:<p_exec>`. `tool_execution_log.tool_name = 'modificar_operacion'`.
+
+## 282 applied on staging - registrar_numeros_recarga gains `quitar` (no new tool)
+
+TDD: assertion `recarga-quitar` RED (5-argument signature missing), GREEN 7 case groups. Cycle OK (dry-run, apply, assertion, rollback md5). relacionadas --ya-aplicada (97 assertions: recarga/numbers/writers/audit/visa/saldo...):
+only DIFFs are the new assertion and `modificar-operacion` case 7 (a created_at tie inside one transaction made "survivor is the older" random; the assertion now checks the pair, fixed and re-run 4x).
+
+Signature (old 4-argument overload dropped; 4-argument calls keep working):
+```
+crm_registrar_numeros_recarga(p_conv uuid, p_texto text, p_abrir boolean DEFAULT false, p_actor text DEFAULT NULL, p_accion text DEFAULT 'agregar') RETURNS text   -- service_role only
+```
+Tool query for n8n (extra param `accion` = agregar|quitar, default agregar):
+`SELECT crm_registrar_numeros_recarga($1::uuid, $2, false, 'agent:registrar_numeros_recarga n8n:' || $3, COALESCE(NULLIF($4,''),'agregar')) AS resultado;`
+(the existing query keeps working unchanged).
+- `quitar`: the Cuban numbers written in `p_texto` (same parser/spellings as agregar: 55502222, 5550-2222, +53 5 5502222) leave the conversation's OPEN recharge (row retired, status `reemplazado`, positions compacted, audit
+  `agent_recharge_number_removed`). Never opens a recharge. Answers (text): `quitados 1 numero(s) de recarga; la recarga tiene 2. [No estaban en la recarga: 55509999.] [Numeros completos (2 de 2). | FALTA n numero(s) ...]`;
+  `no vi ningun numero cubano en el texto: no se quito nada; la recarga tiene N.`; `sin recarga en curso: no hay ningun numero de recarga que quitar`; transferring: `la recarga ya esta en transferencia: no quito numeros, una persona lo revisa`;
+  recipients locked from the panel: the usual `los numeros de esta recarga los gestiona una persona desde el panel: no se cambian`; bad action: `ERROR: la accion debe ser agregar o quitar. No se cambio nada.`
+- A removed number can be added back with `agregar`.
+- The audit action list (`remittance_admin_audit_action_chk`) gained `agent_recharge_number_removed`.

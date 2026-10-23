@@ -253,3 +253,19 @@ Tool query for n8n (extra param `accion` = agregar|quitar, default agregar):
   recipients locked from the panel: the usual `los numeros de esta recarga los gestiona una persona desde el panel: no se cambian`; bad action: `ERROR: la accion debe ser agregar o quitar. No se cambio nada.`
 - A removed number can be added back with `agregar`.
 - The audit action list (`remittance_admin_audit_action_chk`) gained `agent_recharge_number_removed`.
+
+## 283 applied on staging - cambiar_servicio absorbs marcar_destino_usd (every rail is a service target)
+
+TDD: assertion `service-rails-as-targets` RED (case 2: "cup" was servicio_invalido), GREEN 8 case groups. Cycle OK (dry-run, apply, assertion, rollback md5 for declarar/aplicar/resolver/crm_registrar_numeros_recarga).
+relacionadas --ya-aplicada (148 assertions): only DIFFs are the new one, the flaky `contexto-envio-mixto` and the pre-existing `delivery-feed-evidence`. The first runs found two real regressions that were fixed before this version:
+`writers-target-by-service` case 6 (opening a recharge must not turn an empty clasica into the recharge: `crm_registrar_numeros_recarga` now asks the resolver only when money is registered, as before) and
+`resolver-servicio` cases 10/17 (the 265 contract: recarga / saldo / combo / visa / mexico still need the money first; `cup` is no longer an invalid word, the invalid-word cases now use `pizza`).
+
+Signatures unchanged (`cerebro_aplicar_servicio`, `cerebro_resolver_servicio`, `cerebro_declarar_servicio`). New helper (service_role only): `_cerebro_servicio_clave(text) RETURNS text`.
+The `cambiar_servicio` / `declarar_servicio` / `agregar_servicio` tool queries need no change. What the agent can rely on:
+- Words are understood by the DB: `cup`, `pesos`, `tarjeta cup`, `tarjeta` -> cuban_card; `efectivo`, `Efectivo USD` -> efectivo_usd; `CLASICA...` -> clasica; `Tropical...` -> tropical (also in declarar_servicio). Unknown words still answer `servicio_invalido`.
+- A change TO A RAIL (zelle, clasica, tropical, cuban_card, efectivo_usd) with no money registered at all is applied (it used to answer `deposito_bajo_minimo "faltan 13,000"` for an empty operation); the minimum is checked when the deposit arrives.
+  With a deposit nothing changed. recarga / saldo / combo / visa / mexico still need their money first.
+- Several open operations and no deposit, rail target: an operation already of that rail -> `sin_cambio`; otherwise the single plain REMESA is converted (Mexico / recarga / combo / visa / balance operations are never re-typed and nothing else is cancelled);
+  two remesas stay `varias_operaciones`. A waiting split plan (`reparto_planeado`) is renamed to the new rail.
+- `cerebro_marcar_destino_usd` is unchanged and still works; it now carries `COMMENT ... 'DEPRECATED (283): use cambiar_servicio...'`. The n8n side can stop offering `marcar_destino_usd`.

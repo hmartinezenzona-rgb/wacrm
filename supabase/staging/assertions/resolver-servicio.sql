@@ -226,10 +226,11 @@ BEGIN
   PERFORM pg_temp.a_eq('9 p_declarado overrides the row', v_r ->> 'convertir_a', 'recarga');
 
   -- ---- 10. invalid service / intention are refused ----------------------------------------------------------------------------
-  v_r := cerebro_declarar_servicio(c.conv, 'cup', 'agente');
+  -- (283) 'cup' is a customer word the database understands now (cuban_card); an unknown word is still invalid.
+  v_r := cerebro_declarar_servicio(c.conv, 'pizza', 'agente');
   PERFORM pg_temp.a_eq('10 invalid declaration', v_r ->> 'motivo', 'servicio_invalido');
   PERFORM pg_temp.a_eq('10 invalid keeps the row', (SELECT servicio FROM cerebro_servicio_declarado WHERE conversation_id = c.conv), 'cuban_card');
-  v_r := cerebro_resolver_servicio(c.conv, 'cup', 'cambiar');
+  v_r := cerebro_resolver_servicio(c.conv, 'pizza', 'cambiar');
   PERFORM pg_temp.a_chk('10 invalid p_declarado', v_r, 'ninguna', 'servicio_invalido');
   v_r := cerebro_resolver_servicio(c.conv, 'recarga', 'quitar');
   PERFORM pg_temp.a_chk('10 invalid intention', v_r, 'ninguna', 'intencion_invalida');

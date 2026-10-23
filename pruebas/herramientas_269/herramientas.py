@@ -431,8 +431,8 @@ DESC_ZELLE = (
     "destinatario acepta datos a medias y una correccion de la misma cuenta. Con VARIOS destinatarios: llamala una vez por persona; "
     "agregar=true agrega a OTRA persona (la misma cuenta que ya existe solo la corrige, nunca la duplica); posicion=k corrige el "
     "destinatario k; monto es el monto en USD de ese destinatario (vacio si no lo dio). Si el envio ya tiene 2 o mas destinatarios y la "
-    "cuenta no coincide con ninguno, devuelve 'NO SE GUARDO NADA ...': repite la llamada con agregar=true o con la posicion. Responde "
-    "lo guardado y que FALTA; dile al cliente solo eso.")
+    "cuenta no coincide con ninguno (o con UN destinatario y una cuenta distinta), devuelve 'NO SE GUARDO NADA ...': repite la llamada con agregar=true o con la posicion. Responde "
+    "lo guardado y que FALTA; dile al cliente solo eso. Completa SIEMPRE posicion, agregar y monto en cada llamada (vacio cuando no aplican).")
 
 
 def consulta_zelle():
@@ -446,9 +446,9 @@ def reemplazo_zelle():
             "$fromAI('nombre', 'nombre completo del titular de la cuenta Zelle, tal cual lo dio el cliente (cadena vacia si todavia no lo tienes)', 'string'), "
             "$fromAI('cuenta', 'cuenta Zelle: correo o celular de EEUU, COPIADO LITERAL como lo escribio el cliente, sin quitar el +1 ni los parentesis ni los guiones (cadena vacia si todavia no lo tienes)', 'string'), "
             "$execution.id, "
-            "$fromAI('posicion', 'numero del destinatario Zelle (1, 2, 3...) cuando CORRIGES uno ya guardado; vacio si no corriges por posicion', 'string', ''), "
-            "$fromAI('agregar', 'true cuando es OTRA persona que se suma a las ya guardadas; false o vacio si completas o corriges la misma', 'string', ''), "
-            "$fromAI('monto', 'monto en USD que recibe ESTE destinatario, solo numero; vacio si el cliente no lo dijo', 'string', '')] }}")
+            "$fromAI('posicion', 'numero del destinatario Zelle (1, 2, 3...) cuando CORRIGES uno ya guardado; vacio si no corriges por posicion', 'string'), "
+            "$fromAI('agregar', 'true cuando es OTRA persona que se suma a las ya guardadas; false o vacio si completas o corriges la misma', 'string'), "
+            "$fromAI('monto', 'monto en USD que recibe ESTE destinatario, solo numero; vacio si el cliente no lo dijo', 'string')] }}")
 
 
 def aplicar_zelle(wf):
@@ -565,8 +565,10 @@ DESC_MODIFICAR = (
     "Modifica la OPERACION abierta del cliente (no los datos de quien recibe). accion='monto': cambia lo que deposita el cliente en GYD (valor = numero; "
     "calculalo antes con calcular_usd / calcular_envio, nunca de memoria). accion='cancelar': cancela una operacion que NO tiene dinero (sin deposito ni comprobante); "
     "con dinero responde que una persona lo atiende. accion='unir': junta dos operaciones abiertas del mismo servicio (valor = {\"con\": \"<id>\"} o vacio si solo hay un par). "
+    "accion='mover_deposito': mueve un deposito VERIFICADO de la operacion op (la que lo tiene) a otra (valor = {\"a\": \"<id destino>\", \"deposito\": \"<referencia>\"}; "
+    "deposito solo si op tiene varios): llamala SOLO despues de que el cliente confirme para cual operacion es ese dinero. "
     "op = id de la operacion; vacio si solo hay una abierta (si hay varias te devuelve la lista: preguntale al cliente a cual y repite con el id). "
-    "NO mueve depositos ni toca dinero ya recibido. Devuelve ok, mensaje (en espanol, dile al cliente lo que dice) y motivo si no se pudo.")
+    "No parte ni duplica depositos. Devuelve ok, mensaje (en espanol, dile al cliente lo que dice) y motivo si no se pudo.")
 
 
 def consulta_modificar():
@@ -761,3 +763,16 @@ def aplicar_transcripcion(wf):
         if par.get("name") == "prompt" and NOMBRES_ADMIN not in par["value"]:
             par["value"] = par["value"].replace("MMG, Pay Merchant, Cash In, agente,", "MMG, Pay Merchant, Cash In, agente, " + NOMBRES_ADMIN + ",", 1)
     return wf
+
+
+# 287: the bot may move a verified deposit between operations, only after the customer confirms which operation the money is for.
+P7_MODIFICAR = ("- modificar_operacion(op, accion, valor): cambia la OPERACION, no los datos de quien recibe. accion monto: el cliente cambia el importe de un envio abierto "
+                "('mejor 150', 'que sean 200 USD'): calcula el nuevo monto en GYD con calcular_usd / calcular_envio y llama modificar_operacion(accion monto), no vuelvas a cotizar sin llamarla; "
+                "cancelar (solo si NO tiene dinero; con dinero la atiende una persona); unir (dos operaciones abiertas del mismo servicio); mover_deposito (un deposito verificado "
+                "va a otra operacion, valor {\"a\": id destino}): preguntale al cliente para cual operacion es ese dinero y llamala SOLO cuando lo confirme. Con varias abiertas pregunta cual al cliente.")
+
+
+def refinar_prompt_mover(sm):
+    if "mover_deposito" in sm:
+        return sm
+    return _cortar(sm, "- modificar_operacion(op, accion, valor):", "\n", P7_MODIFICAR)

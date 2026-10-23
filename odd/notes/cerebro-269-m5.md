@@ -165,3 +165,12 @@ Staging workflow U52y1kSNvhgxvWeb only. Production untouched, workflow never exe
   recipient when the customer gives amounts, and on "¿es otra persona o una correccion?" / NO SE GUARDO NADA ask the customer, never guess; new QUITAR UN NUMERO line
   (registrar_numeros_recarga accion=quitar); modificar_operacion line covers "mejor 150" (calculate with a tool, then monto); MEXICO asks CLABE+banco+titular in the same message as
   declare+quote and asks CUP or GYD for a loose "15 mil por transferencia". Each replaced in place (prompt +~1.2k chars). 65 offline tests GREEN (RED first).
+
+## 285-287 wired
+- `registrar_beneficiario_zelle` already passed posicion/agregar/monto but the measurement saw them omitted: they were optional in the tool schema (`$fromAI(..., 'string', '')`). They are now REQUIRED
+  fields (no default; "vacio" when not applicable) and the description says to fill them on every call; the 285 refusal (ONE recipient + different account -> ask the customer: agregar=true or posicion=1) is
+  already covered by the step-6 prompt line. `modificar_operacion`: description and prompt line gain `mover_deposito` ({"a": target, "deposito": ref}), only after the customer confirms which operation the
+  money is for. 286 needs no wiring (the cambiar_servicio mensaje already says what is missing and the prompt tells the bot to relay `mensaje`).
+- Smokes (rolled back): Zelle recipient 1 at 60 USD; a different account without agregar -> the 285 question, nothing written; agregar=true at 40 USD -> 2 recipients; cambiar_servicio to
+  efectivo_usd with a named card recipient -> "Ya tengo el nombre Rosa Gomez y el celular 53821203; falta la dirección en Cuba"; mover_deposito reached the DB (refused on a fake target; a real move needs a bank-verified
+  deposit, covered by the 287 assertion). Offline tests 70 GREEN (RED first).

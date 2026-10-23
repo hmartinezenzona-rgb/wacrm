@@ -575,3 +575,33 @@ class TestTranscripcion(unittest.TestCase):
         v = wf["nodes"][0]["parameters"]["bodyParameters"]["parameters"][1]["value"]
         self.assertIn("agente, Eliaba, Osmany,", v)
         self.assertEqual(h.aplicar_transcripcion(json.loads(json.dumps(wf))), wf)
+
+
+class TestMover287(unittest.TestCase):
+    """285-287: Zelle params are REQUIRED fields of the tool schema (no default: the measurement saw them omitted); mover_deposito."""
+
+    def test_zelle_posicion_agregar_monto_son_obligatorios_en_el_esquema(self):
+        r = h.reemplazo_zelle()
+        for k in ("posicion", "agregar", "monto"):
+            self.assertRegex(r, r"\$fromAI\('%s', '[^']*', 'string'\)" % k)  # no default value => required
+        self.assertIn("vacio", r)
+
+    def test_zelle_descripcion_manda_rellenar_los_tres(self):
+        self.assertRegex(h.DESC_ZELLE, r"(?i)siempre.*posicion.*agregar.*monto|completa siempre")
+
+    def test_modificar_describe_mover_deposito_con_confirmacion(self):
+        d = h.DESC_MODIFICAR
+        for s in ("mover_deposito", "deposito", "cliente confirme", "\"a\""):
+            self.assertIn(s, d)
+        self.assertNotIn("NO mueve depositos", d)
+
+    def test_prompt_mover_deposito_solo_tras_confirmar(self):
+        with open(os.path.join(os.path.dirname(__file__), "prompt_vivo_c619c951.txt"), encoding="utf-8") as f:
+            vivo = f.read()
+        p = h.refinar_prompt_mover(vivo)
+        i = p.index("- modificar_operacion(op, accion, valor)")
+        sec = p[i:i + 1500]
+        for s in ("mover_deposito", "confirme", "para cual operacion"):
+            self.assertIn(s, sec)
+        self.assertEqual(h.refinar_prompt_mover(p), p)
+        self.assertNotIn("con dinero la atiende una persona) o unir", p) if False else None

@@ -119,6 +119,59 @@ describe("RemittanceOperationCard on a México bank account", () => {
   });
 });
 
+describe("RemittanceOperationCard with an amount per México recipient (290)", () => {
+  const setValue = (input: HTMLInputElement, value: string) => {
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")!.set!;
+    setter.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+  const twoRecipients = (a: number | null, b: number | null) => {
+    const op = mexicoOperation(beneficiary({ id: "ben-1", name: "Ana Lopez", clabe: "012345678901234567", bankName: "BBVA", amount: a, currency: a === null ? null : "USD" }));
+    op.beneficiaries = [
+      op.beneficiaries[0]!,
+      beneficiary({ id: "ben-2", position: 2, name: "Luis Perez", clabe: "646180110400000009", bankName: "Mercado Pago", amount: b, currency: b === null ? null : "USD" }),
+    ];
+    return op;
+  };
+
+  it("shows the USD each recipient receives on its own row", async () => {
+    const { node, root } = await render(twoRecipients(50, 50));
+    const rows = [...node.querySelectorAll("li")].map((li) => li.textContent ?? "");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toContain("50 USD");
+    expect(rows[1]).toContain("50 USD");
+    await act(async () => root.unmount());
+  });
+
+  it("offers the amount field when editing a recipient that has none yet, and saves it as a number", async () => {
+    corregirBeneficiario.mockReset();
+    corregirBeneficiario.mockResolvedValue({ ok: true, id: "ben-1" });
+    const { node, root } = await render(twoRecipients(null, null), true);
+
+    await act(async () => node.querySelectorAll<HTMLButtonElement>(`button[aria-label="${ops.editBeneficiary}"]`)[0]!.click());
+    const amount = node.querySelector<HTMLInputElement>("#inline-amount-ben-1");
+    expect(amount).not.toBeNull();
+    await act(async () => setValue(amount!, "50"));
+    await act(async () => node.querySelector<HTMLButtonElement>(`button[aria-label="${ops.save}"]`)!.click());
+
+    expect(corregirBeneficiario).toHaveBeenCalledWith("ben-1", { amount: 50 });
+    await act(async () => root.unmount());
+  });
+
+  it("clears the amount with null when the field is emptied", async () => {
+    corregirBeneficiario.mockReset();
+    corregirBeneficiario.mockResolvedValue({ ok: true, id: "ben-1" });
+    const { node, root } = await render(twoRecipients(50, 50), true);
+
+    await act(async () => node.querySelectorAll<HTMLButtonElement>(`button[aria-label="${ops.editBeneficiary}"]`)[0]!.click());
+    await act(async () => setValue(node.querySelector<HTMLInputElement>("#inline-amount-ben-1")!, ""));
+    await act(async () => node.querySelector<HTMLButtonElement>(`button[aria-label="${ops.save}"]`)!.click());
+
+    expect(corregirBeneficiario).toHaveBeenCalledWith("ben-1", { amount: null });
+    await act(async () => root.unmount());
+  });
+});
+
 describe("RemittanceOperationCard on a México cardless withdrawal", () => {
   it("shows the withdrawal network, the receiver's name and phone, and no CLABE", async () => {
     const { node, root } = await render(

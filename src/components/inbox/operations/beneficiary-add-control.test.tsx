@@ -711,19 +711,41 @@ describe("BeneficiaryAddControl on a México operation", () => {
     }
   };
 
-  it("offers a bank account by default: holder, CLABE and bank, with no amount, card or phone", async () => {
+  it("offers a bank account by default: holder, CLABE, bank and an optional USD amount, with no card or phone", async () => {
     const { node, root } = await render(vi.fn(), vi.fn(), "mexico", "mexico");
 
     expect(node.querySelector("#add-beneficiary-name")).not.toBeNull();
     expect(node.querySelector("#add-beneficiary-clabe")).not.toBeNull();
     expect(node.querySelector("#add-beneficiary-bank")).not.toBeNull();
-    expect(node.querySelector("#add-beneficiary-amount")).toBeNull();
+    expect(node.querySelector("#add-beneficiary-amount")).not.toBeNull();
     expect(node.querySelector("#add-beneficiary-card-number")).toBeNull();
     expect(node.querySelector("#add-beneficiary-phone")).toBeNull();
     await act(async () => root.unmount());
   });
 
-  it("sends a bank account with the CLABE digits, bank and holder, and no amount or currency", async () => {
+  it("sends the USD amount of the recipient when it is filled, and blocks a zero", async () => {
+    agregarBeneficiario.mockReset();
+    agregarBeneficiario.mockResolvedValue({ ok: true, id: "ben-m3", complete: true });
+    const { node, root } = await render(vi.fn(), vi.fn(), "mexico", "mexico");
+
+    await fill(node, { "add-beneficiary-name": "Ana", "add-beneficiary-clabe": "012345678901234567", "add-beneficiary-bank": "BBVA", "add-beneficiary-amount": "0" });
+    await submit(node);
+    expect(agregarBeneficiario).not.toHaveBeenCalled();
+    expect(node.textContent).toContain(en.Inbox.operationsPanel.invalidAmount);
+
+    await fill(node, { "add-beneficiary-amount": "50" });
+    await submit(node);
+    expect(agregarBeneficiario).toHaveBeenCalledWith("op-1", {
+      beneficiary_type: "mexico_cuenta",
+      name: "Ana",
+      clabe: "012345678901234567",
+      bank_name: "BBVA",
+      amount: 50,
+    });
+    await act(async () => root.unmount());
+  });
+
+  it("sends a bank account with the CLABE digits, bank and holder, and no amount when it is left empty", async () => {
     agregarBeneficiario.mockReset();
     agregarBeneficiario.mockResolvedValue({ ok: true, id: "ben-m1", complete: true });
     const { node, root, onDone } = await render(vi.fn(), vi.fn(), "mexico", "mexico");

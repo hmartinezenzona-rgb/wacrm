@@ -59,6 +59,47 @@ describe("buildMexicoBeneficiaryDatos", () => {
   });
 });
 
+describe("buildMexicoBeneficiaryDatos with an amount (290)", () => {
+  const draft = { name: "Ana", clabe: "012345678901234567", bankName: "BBVA", phone: "" };
+
+  it("sends the USD that goes to this recipient as a number, and nothing when it is empty", () => {
+    expect(buildMexicoBeneficiaryDatos("mexico_cuenta", { ...draft, amount: " 50.5 " })).toEqual({
+      ok: true,
+      datos: { beneficiary_type: "mexico_cuenta", name: "Ana", clabe: "012345678901234567", bank_name: "BBVA", amount: 50.5 },
+    });
+    expect(buildMexicoBeneficiaryDatos("mexico_cuenta", { ...draft, amount: "" })).toEqual({
+      ok: true,
+      datos: { beneficiary_type: "mexico_cuenta", name: "Ana", clabe: "012345678901234567", bank_name: "BBVA" },
+    });
+  });
+
+  it("sends it for a withdrawal too, and refuses zero, negative or non-numeric", () => {
+    expect(buildMexicoBeneficiaryDatos("mexico_retiro", { name: "Luis", clabe: "", bankName: "Coppel", phone: "52345678", amount: "20" })).toEqual({
+      ok: true,
+      datos: { beneficiary_type: "mexico_retiro", name: "Luis", bank_name: "Coppel", phone: "52345678", amount: 20 },
+    });
+    for (const amount of ["0", "-5", "abc"]) {
+      expect(buildMexicoBeneficiaryDatos("mexico_cuenta", { ...draft, amount })).toEqual({ ok: false, error: "invalidAmount" });
+    }
+  });
+});
+
+describe("buildMexicoBeneficiaryChanges with an amount (290)", () => {
+  const account = { beneficiaryType: "mexico_cuenta" as const, name: "Ana", clabe: "012345678901234567", bankName: "BBVA", phone: null, amount: null };
+  const same = { name: "Ana", clabe: "012345678901234567", bankName: "BBVA", phone: "" };
+
+  it("sends the amount only when it changed", () => {
+    expect(buildMexicoBeneficiaryChanges(account, { ...same, amount: "" })).toEqual({ ok: true, changes: {} });
+    expect(buildMexicoBeneficiaryChanges(account, { ...same, amount: "50" })).toEqual({ ok: true, changes: { amount: 50 } });
+    expect(buildMexicoBeneficiaryChanges({ ...account, amount: 50 }, { ...same, amount: "50" })).toEqual({ ok: true, changes: {} });
+  });
+
+  it("clears it with null when the field is emptied, and refuses a bad number", () => {
+    expect(buildMexicoBeneficiaryChanges({ ...account, amount: 50 }, { ...same, amount: "" })).toEqual({ ok: true, changes: { amount: null } });
+    expect(buildMexicoBeneficiaryChanges(account, { ...same, amount: "0" })).toEqual({ ok: false, error: "invalidAmount" });
+  });
+});
+
 describe("buildMexicoBeneficiaryChanges", () => {
   const account = { beneficiaryType: "mexico_cuenta" as const, name: "Ana Lopez", clabe: "012345678901234567", bankName: "BBVA", phone: null };
   const withdrawal = { beneficiaryType: "mexico_retiro" as const, name: "Luis Perez", clabe: null, bankName: "Coppel", phone: "52345678" };

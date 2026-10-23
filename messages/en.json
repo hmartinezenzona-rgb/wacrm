@@ -483,6 +483,7 @@
       "noChanges": "No changes to save",
       "cannotBeEmpty": "This can't be left empty",
       "invalidAmount": "Amount must be greater than 0",
+      "amountUsd": "Amount (USD)",
       "invalidCurrency": "Currency must be a 3-letter code (e.g. USD)",
       "clabe": "CLABE",
       "bank": "Bank",

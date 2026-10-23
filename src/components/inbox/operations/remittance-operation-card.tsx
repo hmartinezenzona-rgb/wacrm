@@ -699,7 +699,7 @@ export function RemittanceOperationCard({
                           beneficiary={beneficiary}
                           conversationId={conversationId}
                           amount={amount}
-                          showAmountField={operation.beneficiaries.length >= 2 && amount !== null && !isPhoneOnly(operation)}
+                          showAmountField={isMexico || (operation.beneficiaries.length >= 2 && amount !== null && !isPhoneOnly(operation))}
                           t={t as (key: string) => string}
                           onCancel={() => setOpenForm(null)}
                           onSaved={handleChanged}
@@ -924,7 +924,8 @@ function BeneficiaryEditFields({ beneficiary, conversationId, amount, showAmount
   const initialZelleAccount = beneficiary.zelleAccount ?? "";
   const initialCardDigits = (beneficiary.cardNumber ?? "").replace(/\D/g, "");
   const initialPhoneDigits = (beneficiary.phone ?? "").replace(/\D/g, "");
-  const initialAmount = amount === null ? "" : String(amount);
+  // A México recipient edits its own stored amount (the operation-level MXN fallback is not its amount).
+  const initialAmount = isMexico ? (beneficiary.amount === null ? "" : String(beneficiary.amount)) : amount === null ? "" : String(amount);
 
   const [name, setName] = useState(initialName);
   const [zelleAccount, setZelleAccount] = useState(initialZelleAccount);
@@ -943,7 +944,7 @@ function BeneficiaryEditFields({ beneficiary, conversationId, amount, showAmount
     const changes: Record<string, unknown> = {};
 
     if (isMexico) {
-      const built = buildMexicoBeneficiaryChanges(beneficiary, { name, clabe, bankName, phone });
+      const built = buildMexicoBeneficiaryChanges(beneficiary, { name, clabe, bankName, phone, amount: amountValue });
       if (!built.ok) {
         setError(t(built.error));
         return;
@@ -1031,7 +1032,7 @@ function BeneficiaryEditFields({ beneficiary, conversationId, amount, showAmount
       }
     }
 
-    if (showAmountField) {
+    if (showAmountField && !isMexico) {
       const trimmedAmount = amountValue.trim();
       if (trimmedAmount !== initialAmount) {
         const parsed = Number(trimmedAmount);
@@ -1079,8 +1080,8 @@ function BeneficiaryEditFields({ beneficiary, conversationId, amount, showAmount
           icon={<Banknote className="size-3.5" aria-hidden="true" />}
           value={amountValue}
           onChange={setAmountValue}
-          placeholder={t("amount")}
-          ariaLabel={t("amount")}
+          placeholder={isMexico ? t("amountUsd") : t("amount")}
+          ariaLabel={isMexico ? t("amountUsd") : t("amount")}
           disabled={pending}
           inputMode="decimal"
           autoFocus

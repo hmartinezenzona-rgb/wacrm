@@ -22,6 +22,9 @@ interface MexicoBeneficiaryFieldsProps {
   /** A cardless withdrawal's phone. */
   phone: string;
   onPhoneChange: (value: string) => void;
+  /** The USD that goes to this recipient (optional). */
+  amount: string;
+  onAmountChange: (value: string) => void;
   disabled: boolean;
 }
 
@@ -99,6 +102,15 @@ export function MexicoBeneficiaryFields(props: MexicoBeneficiaryFieldsProps) {
           </FieldRow>
         </>
       )}
+
+      <FieldRow label={t("amountUsd")} htmlFor="add-beneficiary-amount">
+        <UnderlineInput
+          id="add-beneficiary-amount"
+          inputMode="decimal"
+          value={props.amount}
+          onChange={(event) => props.onAmountChange(event.target.value)}
+        />
+      </FieldRow>
     </>
   );
 }

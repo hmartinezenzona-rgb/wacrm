@@ -90,7 +90,7 @@ export function BeneficiaryAddControl({ operationId, conversationId, serviceType
     setError(null);
 
     if (isMexico) {
-      const draft = { name, clabe, bankName: mexicoType === "mexico_cuenta" ? bankName : withdrawalBank, phone };
+      const draft = { name, clabe, bankName: mexicoType === "mexico_cuenta" ? bankName : withdrawalBank, phone, amount: typedAmount ?? "" };
       const built = buildMexicoBeneficiaryDatos(mexicoType, draft);
       if (!built.ok) {
         setError(t(built.error));
@@ -316,6 +316,8 @@ export function BeneficiaryAddControl({ operationId, conversationId, serviceType
           onWithdrawalBankChange={setWithdrawalBank}
           phone={phone}
           onPhoneChange={setPhone}
+          amount={typedAmount ?? ""}
+          onAmountChange={setTypedAmount}
           disabled={pending}
         />
         {actions}

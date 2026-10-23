@@ -483,6 +483,7 @@
       "noChanges": "No hay cambios que guardar",
       "cannotBeEmpty": "Este campo no puede quedar vacío",
       "invalidAmount": "El monto debe ser mayor que 0",
+      "amountUsd": "Monto (USD)",
       "invalidCurrency": "La moneda debe ser un código de 3 letras (p. ej., USD)",
       "clabe": "CLABE",
       "bank": "Banco",

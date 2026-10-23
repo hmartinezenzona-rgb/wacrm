@@ -651,3 +651,56 @@ def aplicar_noche4(wf):
     if rp is not None:
         rp["parameters"]["toolDescription"] = DESC_REPARTIR_NOCHE
     return wf
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Overnight step 4: the prompt REPLACES superseded instructions (marcar_destino_usd, the two deposit blocks) instead of stacking more.
+
+BLOQUE_NO_CUADRA = """DEPOSITO QUE NO CUADRA CON LAS PARTES (envio con varios servicios): el [CONTEXTO] trae los HECHOS (deposito verificado, partes, lo que cubre, lo que falta o sobra); TU decides con el cliente, preguntandole, y usas la herramienta que corresponda:
+- aplicar ya lo que el deposito cubre: repartir_envio solo con esas partes (reparto parcial; cada parte debe llegar al minimo de su servicio); las demas quedan pendientes con sus datos esperando deposito.
+- esperar el resto del deposito y repartir todo junto cuando llegue (repartir_envio puede llamarse ANTES del deposito: queda planeado).
+- cambiar o quitar una parte: modificar_operacion (monto, cancelar sin dinero, unir); un numero de recarga que sobra: registrar_numeros_recarga con accion quitar.
+Ejemplo: 'Su depósito de *71,200 GYD* cuadra con *100 USD* a México, no con *150*; ¿lo aplico así, o prefiere esperar el resto?'. PROHIBIDO decir que se transfiere o se ajusta el equivalente, o prometer una entrega, antes de que el cliente decida.
+Dinero que el cliente devuelve al negocio (una transferencia doble, un reembolso, una deuda) NO es un envio: no lo metas en un reparto; derivar_humano.
+- un solo deposito para varios servicios, con las partes confirmadas -> repartir_envio con TODAS las partes (tambien antes del deposito)."""
+
+LINEA_GESTIONAR_NUEVA = ("- gestionar_beneficiario(nombre, tarjeta, celular, op, posicion, tipo): registra UN beneficiario de tarjeta cubana. Si el [CONTEXTO] dice 'Beneficiario YA REGISTRADO', "
+                         "no la llames con los mismos datos. Llamala en cuanto tengas la tarjeta, el celular o el nombre (aunque falte el otro dato), y otra vez si el cliente completa o corrige "
+                         "alguno. Para CORREGIR a un destinatario ya guardado di su posicion (1, 2...) o tipo; op solo si hay varias operaciones abiertas.")
+LINEA_MODIFICAR = ("- modificar_operacion(op, accion, valor): cambia la OPERACION, no los datos de quien recibe. accion monto (nuevo monto en GYD, calculado con una tool), cancelar "
+                   "(solo si NO tiene dinero; con dinero la atiende una persona) o unir (dos operaciones abiertas del mismo servicio). Con varias abiertas pregunta cual al cliente.")
+
+
+def refinar_prompt_noche4(sm):
+    if "DEPOSITO QUE NO CUADRA CON LAS PARTES" in sm:
+        return sm
+    # 1. the two superseded deposit blocks become one
+    sm = _cortar(sm, "- REPARTO ANTES DEL DEPOSITO:", "\n- un solo deposito para varios servicios -> repartir_envio con TODAS", "")
+    sm = sm.replace("\n- un solo deposito para varios servicios -> repartir_envio con TODAS las partes cuando el cliente confirme el reparto.", "", 1)
+    sm = _cortar(sm, "DEPOSITO QUE NO CUADRA CON UN ENVIO DE VARIAS PARTES:", "\n\n## REGLA DE ORO DEL REGISTRO", BLOQUE_NO_CUADRA)
+    # 2. marcar_destino_usd is retired (283): the rail is a service handled by declarar / cambiar
+    sm = sm.replace("- la via en dolares (clasica, tropical, efectivo) -> marcar_destino_usd la primera vez; y el servicio del cliente SIEMPRE con declarar_servicio / cambiar_servicio / agregar_servicio",
+                    "- el servicio y la via del cliente (zelle, clasica, tropical, efectivo, cup) SIEMPRE con declarar_servicio / cambiar_servicio / agregar_servicio")
+    sm = sm.replace("guarda la tarjeta con gestionar_beneficiario y marca su via con marcar_destino_usd: la tarjeta cae en la remesa de esa via;",
+                    "declara la via de la remesa y guarda la tarjeta con gestionar_beneficiario: la tarjeta cae en la remesa de esa via;")
+    sm = _cortar(sm, "- marcar_destino_usd(tipo):", "\n- declarar_servicio(servicio):", "")
+    sm = sm.replace("\n\n- declarar_servicio(servicio):", "\n- declarar_servicio(servicio):", 1)
+    sm = sm.replace(" Y ADEMAS llama marcar_destino_usd con 'clasica' o 'tropical'. Sin esa llamada, en el tablero se ve igual que un envio en CUP y nadie sabe que hay que mandar dolares.",
+                    " Declara la via con declarar_servicio('clasica' o 'tropical'): sin eso en el tablero se ve igual que un envio en CUP.")
+    sm = sm.replace("- SI ES EFECTIVO: llama marcar_destino_usd con 'efectivo' en cuanto el cliente la elija.",
+                    "- SI ES EFECTIVO: declarar_servicio('efectivo_usd') en cuanto el cliente la elija.")
+    sm = sm.replace("marcar_destino_usd SOLO con una via clara. Si el cliente YA tenia una via (el [CONTEXTO] trae `riel_operacion`) y ahora pide otra, NO uses marcar_destino_usd: es un cambio, ver CAMBIO DE VIA.",
+                    "Declara o cambia la via SOLO con una via clara. Si el cliente YA tenia una via (el [CONTEXTO] trae `riel_operacion`) y ahora pide otra, es un cambio: cambiar_servicio.")
+    sm = sm.replace("PROHIBIDO usar calcular_usd, calcular_usd_desde_gyd o marcar_destino_usd para hacer un cambio.",
+                    "PROHIBIDO usar calcular_usd o calcular_usd_desde_gyd para hacer un cambio.")
+    sm = sm.replace("y llamas marcar_destino_usd con 'clasica'. Sin eso se confunde con un envio en CUP", "y declaras la via con declarar_servicio('clasica'). Sin eso se confunde con un envio en CUP")
+    sm = sm.replace("## marcar_destino_usd solo con UNA via clara", "## la via se declara solo con UNA via clara")
+    # 3. tools list
+    sm = _cortar(sm, "- gestionar_beneficiario(nombre,tarjeta,celular):", "\n- registrar_reparto_multiple(", LINEA_GESTIONAR_NUEVA)
+    sm = sm.replace("- registrar_numeros_recarga(numeros): llamala EN CUANTO", "- registrar_numeros_recarga(numeros, accion): llamala EN CUANTO", 1)
+    sm = sm.replace("numeros vacio si aun no los dio. Si te dice que falta alguno, pideselo.",
+                    "numeros vacio si aun no los dio. Con accion quitar saca los numeros que el cliente ya no quiere. Si te dice que falta alguno, pideselo.", 1)
+    sm = sm.replace("- cambiar_servicio(servicio): el cliente DECIDIO cambiar el servicio de este envio por otro (mismas claves). La base valida el deposito y ejecuta.",
+                    "- cambiar_servicio(servicio): el cliente DECIDIO cambiar el servicio o la via de este envio por otro (mismas claves, incluidas las vias clasica, tropical, efectivo_usd y cuban_card). La base valida el deposito y ejecuta.", 1)
+    sm = sm.replace("\n- agregar_servicio(servicio):", "\n" + LINEA_MODIFICAR + "\n- agregar_servicio(servicio):", 1)
+    return sm

@@ -478,3 +478,43 @@ class TestNoche4(unittest.TestCase):
         otra = h.aplicar_herramientas(json.loads(json.dumps(self.wf)))
         self.assertEqual(json.dumps(otra, sort_keys=True), json.dumps(self.wf, sort_keys=True))
 
+
+
+class TestPromptNoche4(unittest.TestCase):
+    """Overnight step 4: the prompt replaces (not stacks) the superseded instructions; the bot decides with the customer (P2)."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(os.path.dirname(__file__), "prompt_vivo_413c835a.txt"), encoding="utf-8") as f:
+            cls.vivo = f.read()
+        cls.nuevo = h.refinar_prompt_noche4(cls.vivo)
+
+    def test_marcar_destino_usd_ya_no_existe_en_el_prompt(self):
+        self.assertNotIn("marcar_destino_usd", self.nuevo)
+        self.assertNotIn("ver CAMBIO DE VIA", self.nuevo)
+
+    def test_modificar_operacion_quitar_y_correcciones_en_la_lista_de_tools(self):
+        n = self.nuevo
+        i = n.index("## TOOLS DE ACCION")
+        tools = n[i:n.index("## NEGOCIO")]
+        self.assertIn("- modificar_operacion(op, accion, valor)", tools)
+        self.assertRegex(tools, r"registrar_numeros_recarga\(numeros, accion\)")
+        self.assertRegex(tools, r"gestionar_beneficiario\(nombre, ?tarjeta, ?celular, ?op, ?posicion, ?tipo\)")
+
+    def test_un_solo_bloque_de_deposito_que_no_cuadra_y_decide_el_bot(self):
+        n = self.nuevo
+        self.assertEqual(n.count("DEPOSITO QUE NO CUADRA CON LAS PARTES"), 1)
+        self.assertNotIn("REPARTO ANTES DEL DEPOSITO", n)
+        self.assertNotIn("DEPOSITO QUE NO CUADRA CON UN ENVIO DE VARIAS PARTES", n)
+        i = n.index("DEPOSITO QUE NO CUADRA CON LAS PARTES")
+        sec = n[i:i + 1800]
+        for s in ("repartir_envio", "parcial", "minimo", "modificar_operacion", "esperar", "TU decides con el cliente", "equivalente"):
+            self.assertIn(s, sec)
+
+    def test_deudas_al_negocio_van_a_una_persona(self):
+        n = self.nuevo
+        self.assertRegex(n, r"(?is)devuelve al negocio.*derivar_humano")
+
+    def test_idempotente_y_mas_corto_que_apilar(self):
+        self.assertEqual(h.refinar_prompt_noche4(self.nuevo), self.nuevo)
+        self.assertLess(len(self.nuevo), len(self.vivo) + 2500)

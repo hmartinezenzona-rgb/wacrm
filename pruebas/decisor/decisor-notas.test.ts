@@ -613,3 +613,86 @@ describe('S4: un envio de varias partes cuyo deposito verificado no cuadra pregu
     expect(nota(s, 'DEPOSITO DISTINTO DE LO ACORDADO')).toBeUndefined();
   });
 });
+
+describe('S5b: el servicio declarado decide que herramienta de datos se nombra', () => {
+  const declarado = (svc: string) => ({
+    version: 2,
+    en_curso: null,
+    servicio: null,
+    accion: 'ninguna',
+    permitido: true,
+    motivo: 'sin_cambio',
+    mensaje: null,
+    operaciones: [],
+    adicionales: [],
+    evidencia: { declarado: svc, deposito: 0 },
+  });
+
+  it('recarga declarada con un numero suelto: registrar_numeros_recarga, nunca gestionar_beneficiario con el celular', () => {
+    const s = correrDecisor({
+      ctx: { servicio_resuelto: declarado('recarga') },
+      snapshot: { texto_completo: '55599180', celular: '55599180' },
+    });
+    const n = nota(s, 'TODAVIA NO HAY BENEFICIARIO REGISTRADO') as string;
+    expect(n).toBeDefined();
+    expect(n).toMatch(/registrar_numeros_recarga/);
+    expect(n).not.toMatch(/gestionar_beneficiario con el celular/);
+  });
+
+  it('mexico declarado: nombra registrar_destinatario_mexico y no pide tarjeta', () => {
+    const s = correrDecisor({
+      ctx: { servicio_resuelto: declarado('mexico') },
+      snapshot: { texto_completo: '55599180', celular: '55599180' },
+    });
+    const n = nota(s, 'TODAVIA NO HAY BENEFICIARIO REGISTRADO') as string;
+    expect(n).toMatch(/registrar_destinatario_mexico/);
+    expect(n).not.toMatch(/gestionar_beneficiario/);
+  });
+});
+
+describe('S5b: el deposito que no cuadra con un envio de varias partes se reconcilia tambien de mas y sin parte exacta', () => {
+  const conComprobante = (partes: unknown[], mmg: Record<string, unknown>, monto: number) =>
+    correrDecisor({
+      ctx: { riel_operacion: 'mexico', envio_mixto: { total: 1, partes } },
+      snapshot: {
+        texto_completo: 'ahi va',
+        comprobante: { estado: 'LEGIBLE', monto, moneda: 'GYD', alertas: [] },
+      },
+      mmg,
+    });
+  const P = 'DEPOSITO DISTINTO DE LO ACORDADO';
+
+  it('deposito de mas: si una parte absorbe la diferencia en USD enteros, la propone y pregunta', () => {
+    const partes = [
+      { servicio: 'mexico', monto_gyd: 26000, usd: 100, status: 'awaiting_deposit' },
+      { servicio: 'efectivo_usd', monto_gyd: 29000, usd: 100, status: 'awaiting_deposit' },
+    ];
+    const s = conComprobante(
+      partes,
+      { resultado: 'verificado_de_mas', objetivo: 55000, depositado: 68000, saldo: -13000 },
+      68000
+    );
+    const n = nota(s, P) as string;
+    expect(n).toBeDefined();
+    expect(n).toMatch(/150 USD/);
+    expect(n).toMatch(/PREGUNTA/);
+    expect(n).toMatch(/PROHIBIDO.*equivalente/i);
+  });
+
+  it('deposito corto sin parte exacta: igual pregunta cual parte cambia, sin prometer ni esperar el resto', () => {
+    const partes = [
+      { servicio: 'mexico', monto_gyd: 39000, usd: 150, status: 'awaiting_deposit' },
+      { servicio: 'cuban_card', monto_gyd: 5000, status: 'awaiting_deposit' },
+    ];
+    const s = conComprobante(
+      partes,
+      { resultado: 'verificado_incompleto', objetivo: 44000, depositado: 42200, saldo: 1800 },
+      42200
+    );
+    const n = nota(s, P) as string;
+    expect(n).toBeDefined();
+    expect(n).toMatch(/PREGUNTA/);
+    expect(n).toMatch(/PROHIBIDO.*(equivalente|ajusta)/i);
+    expect(nota(s, 'RECIBIDO Y VERIFICADO CONTRA EL BANCO, PERO EL ENVIO TODAVIA NO ESTA COMPLETO')).toBeUndefined();
+  });
+});

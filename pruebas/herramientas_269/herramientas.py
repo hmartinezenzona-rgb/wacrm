@@ -792,3 +792,37 @@ def aplicar_via(wf):
         r = re.sub(r"\$fromAI\('via', '[^']*', 'string'(?:, '')?\)", "$fromAI('via', '" + FROMAI_VIA + "', 'string')", r)
         n["parameters"]["options"]["queryReplacement"] = r
     return wf
+
+
+# 289 (implicit declaration): a quote with via and the recharge numbers declare the service, so declarar_servicio is only for
+# a customer who states a service with no quote and no data yet. Drops the repeated "declare before ..." reminders.
+P289_DECLARAR = ("- DECLARAR: solo cuando el cliente dice que servicio quiere y aun no hay cotizacion ni datos ('quiero una recarga', 'mandar a Mexico', 'por Zelle'): "
+                 "declarar_servicio(servicio) con una clave concreta. Si ya cotizas (calcular_usd con via) o guardas los numeros de la recarga, eso ya declara el servicio: no la llames ademas. "
+                 "Si dice solo 'enviar dinero a Cuba' sin via, no declares: preguntale la via. Si despues elige otra, declara de nuevo (vale la ultima). Si devuelve ok=false, no se lo "
+                 "menciones al cliente y sigue.")
+
+P289_REEMPLAZOS = (
+    ("anota el servicio que el cliente DICE que quiere, en cuanto lo diga y ANTES de que deposite (recarga,",
+     "anota el servicio que el cliente DICE que quiere cuando aun no hay cotizacion ni datos (recarga,"),
+    ("cup) SIEMPRE con declarar_servicio / cambiar_servicio", "cup) con declarar_servicio / cambiar_servicio"),
+    ("declara la via de la remesa y guarda la tarjeta", "guarda la tarjeta"),
+    (" Declara la via con declarar_servicio('clasica' o 'tropical'): sin eso en el tablero se ve igual que un envio en CUP.", ""),
+    ("declarar_servicio('efectivo_usd') en cuanto el cliente la elija. Desde ahi el [CONTEXTO]", "Desde que la elige el [CONTEXTO]"),
+    ("declarar_servicio('mexico') apenas el cliente diga que quiere mandar a Mexico, y en el mismo mensaje en que declaras y cotizas (calcular_usd /",
+     "al cotizar (calcular_usd /"),
+    (" y declaras la via con declarar_servicio('clasica'). Sin eso se confunde con un envio en CUP", ""),
+    ("  ## declara en cuanto lo dice, antes de pagar", ""),
+)
+
+
+def refinar_prompt_289(sm):
+    if "aun no hay cotizacion ni datos ('quiero" in sm:
+        return sm
+    sm = _cortar(sm, "- DECLARA PRIMERO:", "\n", "")
+    sm = sm.replace("\n\n- ENVIO MIXTO", "\n- ENVIO MIXTO", 1)
+    sm = _cortar(sm, "- DECLARAR: en cuanto", "\n", P289_DECLARAR)
+    for viejo, nuevo in P289_REEMPLAZOS:
+        if viejo not in sm:
+            raise ValueError("289 prompt anchor missing: " + viejo[:50])
+        sm = sm.replace(viejo, nuevo, 1)
+    return sm

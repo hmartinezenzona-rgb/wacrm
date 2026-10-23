@@ -629,3 +629,36 @@ class TestVia289(unittest.TestCase):
         self.assertIn("monto", r)
         self.assertIn("OBLIGATORIO", r)
         self.assertIn("valor es obligatorio", h.DESC_MODIFICAR)
+
+
+class TestDeclaracionImplicita289(unittest.TestCase):
+    """289: a quote with via and the recharge numbers declare the service, so the prompt drops the repeated declare reminders."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(os.path.dirname(__file__), "prompt_vivo_8c91628c.txt"), encoding="utf-8") as f:
+            cls.vivo = f.read()
+        cls.nuevo = h.refinar_prompt_289(cls.vivo)
+
+    def test_mas_corto(self):
+        self.assertLess(len(self.nuevo), len(self.vivo) - 800)
+
+    def test_sin_recordatorios_de_declarar_antes(self):
+        for s in ("DECLARA PRIMERO", "EN EL MISMO TURNO", "declar va ANTES", "declarar va ANTES", "en el mismo mensaje en que declaras",
+                  "antes de pagar", "Sin eso se confunde con un envio en CUP", "declara la via de la remesa"):
+            self.assertNotIn(s, self.nuevo)
+
+    def test_declarar_servicio_solo_sin_cotizacion_ni_datos(self):
+        i = self.nuevo.index("- DECLARAR:")
+        sec = self.nuevo[i:i + 700]
+        self.assertRegex(sec, r"(?i)sin cotizacion ni datos|aun no hay cotizacion")
+        self.assertIn("declarar_servicio(servicio)", sec)
+        self.assertRegex(sec, r"(?i)calcular_usd.*declara")
+
+    def test_conserva_reglas_ajenas(self):
+        for s in ("NO es declarar, cambiar ni agregar", "Si dice solo 'enviar dinero a Cuba' sin via, no declares", "registrar_destinatario_mexico(tipo, clabe",
+                  "Ver DECLARAR, CAMBIAR Y AGREGAR SERVICIO", "derivar_humano"):
+            self.assertIn(s, self.nuevo)
+
+    def test_idempotente(self):
+        self.assertEqual(h.refinar_prompt_289(self.nuevo), self.nuevo)

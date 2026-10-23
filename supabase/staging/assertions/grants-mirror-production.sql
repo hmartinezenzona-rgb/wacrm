@@ -129,7 +129,7 @@ BEGIN
     'public.cerebro_cotizar(uuid,numeric,text,text,text,text)',
     'public.cerebro_fijar_objetivo(uuid,numeric,text)',
     'public.cerebro_guardar_beneficiario(uuid,text,text,text,text,uuid,text,integer,text)',
-    'public.cerebro_guardar_beneficiario_mexico(uuid,text,text,text,text,text,text)',
+    'public.cerebro_guardar_beneficiario_mexico(uuid,text,text,text,text,text,text,integer,boolean,numeric)',
     'public.cerebro_guardar_zelle(uuid,text,text,text,uuid,text,integer,boolean,numeric)',
     'public.cerebro_marcar_destino_usd(uuid,text,text)',
     'public.cerebro_modificar_operacion(uuid,uuid,text,jsonb,text)',
@@ -181,8 +181,8 @@ REVOKE ALL ON FUNCTION public.cerebro_fijar_objetivo(uuid, numeric, text) FROM P
 GRANT EXECUTE ON FUNCTION public.cerebro_fijar_objetivo(uuid, numeric, text) TO service_role;
 REVOKE ALL ON FUNCTION public.cerebro_guardar_beneficiario(uuid, text, text, text, text, uuid, text, integer, text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.cerebro_guardar_beneficiario(uuid, text, text, text, text, uuid, text, integer, text) TO service_role;
-REVOKE ALL ON FUNCTION public.cerebro_guardar_beneficiario_mexico(uuid, text, text, text, text, text, text) FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.cerebro_guardar_beneficiario_mexico(uuid, text, text, text, text, text, text) TO service_role;
+REVOKE ALL ON FUNCTION public.cerebro_guardar_beneficiario_mexico(uuid, text, text, text, text, text, text, integer, boolean, numeric) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.cerebro_guardar_beneficiario_mexico(uuid, text, text, text, text, text, text, integer, boolean, numeric) TO service_role;
 REVOKE ALL ON FUNCTION public.cerebro_guardar_zelle(uuid, text, text, text, uuid, text, integer, boolean, numeric) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.cerebro_guardar_zelle(uuid, text, text, text, uuid, text, integer, boolean, numeric) TO service_role;
 REVOKE ALL ON FUNCTION public.cerebro_marcar_destino_usd(uuid, text, text) FROM PUBLIC, anon, authenticated, service_role;

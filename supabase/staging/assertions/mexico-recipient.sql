@@ -202,7 +202,7 @@ BEGIN
   PERFORM pg_temp.m_eq('9 cuenta without bank', pg_temp.m_add(v_op, jsonb_build_object('beneficiary_type', 'mexico_cuenta', 'name', 'X', 'clabe', c_clabe2), c.usr), '22023');
   PERFORM pg_temp.m_eq('9 retiro Banorte', pg_temp.m_add(v_op, jsonb_build_object('beneficiary_type', 'mexico_retiro', 'name', 'X', 'bank_name', 'Banorte', 'phone', '5215512345678'), c.usr), '22023');
   PERFORM pg_temp.m_eq('9 retiro without phone', pg_temp.m_add(v_op, jsonb_build_object('beneficiary_type', 'mexico_retiro', 'name', 'X', 'bank_name', 'Coppel'), c.usr), '22023');
-  PERFORM pg_temp.m_eq('9 retiro with amount', pg_temp.m_add(v_op, jsonb_build_object('beneficiary_type', 'mexico_retiro', 'name', 'X', 'bank_name', 'Coppel', 'phone', '5215512345678', 'amount', 100), c.usr), '22023');
+  PERFORM pg_temp.m_eq('9 retiro with an amount over the operation USD (290)', pg_temp.m_add(v_op, jsonb_build_object('beneficiary_type', 'mexico_retiro', 'name', 'X', 'bank_name', 'Coppel', 'phone', '5215512345678', 'amount', 100), c.usr), '22023');
   PERFORM pg_temp.m_eq('9 cuenta with card', pg_temp.m_add(v_op, jsonb_build_object('beneficiary_type', 'mexico_cuenta', 'name', 'X', 'clabe', c_clabe2, 'bank_name', 'BBVA', 'card_number', c_card), c.usr), '22023');
   PERFORM pg_temp.m_eq('9 retiro bbva lower', pg_temp.m_add(v_op, jsonb_build_object('beneficiary_type', 'mexico_retiro', 'name', 'PRUEBA Juan Mex', 'bank_name', 'bbva', 'phone', '+52 1 55 1234 5678'), c.usr), 'ok');
   PERFORM pg_temp.m_eq('9 retiro stored', (SELECT bank_name || ':' || phone FROM remittance_beneficiaries WHERE operation_id = v_op AND beneficiary_type = 'mexico_retiro'), 'BBVA:5215512345678');
@@ -219,7 +219,7 @@ BEGIN
   v_re := pg_temp.m_ben(v_op, 'mexico_retiro', 'PRUEBA Juan Mex', NULL, '5215512345678', NULL, 'Coppel', 2);
   PERFORM pg_temp.m_eq('10 bad clabe', pg_temp.m_fix(v_cu, '{"clabe":"123"}'::jsonb, c.usr), '22023');
   PERFORM pg_temp.m_eq('10 card on cuenta', pg_temp.m_fix(v_cu, jsonb_build_object('card_number', c_card), c.usr), '22023');
-  PERFORM pg_temp.m_eq('10 amount on cuenta', pg_temp.m_fix(v_cu, '{"amount":10}'::jsonb, c.usr), '22023');
+  PERFORM pg_temp.m_eq('10 card field on cuenta (290: amount is allowed now)', pg_temp.m_fix(v_cu, '{"zelle_account":"x@y.com"}'::jsonb, c.usr), '22023');
   PERFORM pg_temp.m_eq('10 blank bank', pg_temp.m_fix(v_cu, '{"bank_name":" "}'::jsonb, c.usr), '22023');
   PERFORM pg_temp.m_eq('10 blank name', pg_temp.m_fix(v_cu, '{"name":""}'::jsonb, c.usr), '22023');
   PERFORM pg_temp.m_eq('10 clabe on retiro', pg_temp.m_fix(v_re, jsonb_build_object('clabe', c_clabe2), c.usr), '22023');
@@ -269,9 +269,9 @@ BEGIN
   PERFORM pg_temp.m_eq('12 default actor', (SELECT actor FROM remittance_admin_audit WHERE row_id = (v_r->>'beneficiary_id')::uuid), 'agent:registrar_destinatario_mexico');
   PERFORM pg_temp.m_eq('12 complete text', (v_r->>'mensaje' LIKE '%completos%')::text, 'true');
   PERFORM pg_temp.m_eq('12 service_role only',
-    has_function_privilege('authenticated', 'cerebro_guardar_beneficiario_mexico(uuid,text,text,text,text,text,text)', 'EXECUTE')::text || ':' ||
-    has_function_privilege('anon', 'cerebro_guardar_beneficiario_mexico(uuid,text,text,text,text,text,text)', 'EXECUTE')::text || ':' ||
-    has_function_privilege('service_role', 'cerebro_guardar_beneficiario_mexico(uuid,text,text,text,text,text,text)', 'EXECUTE')::text, 'false:false:true');
+    has_function_privilege('authenticated', 'cerebro_guardar_beneficiario_mexico(uuid,text,text,text,text,text,text,integer,boolean,numeric)', 'EXECUTE')::text || ':' ||
+    has_function_privilege('anon', 'cerebro_guardar_beneficiario_mexico(uuid,text,text,text,text,text,text,integer,boolean,numeric)', 'EXECUTE')::text || ':' ||
+    has_function_privilege('service_role', 'cerebro_guardar_beneficiario_mexico(uuid,text,text,text,text,text,text,integer,boolean,numeric)', 'EXECUTE')::text, 'false:false:true');
 
   RAISE EXCEPTION 'ALL PASS (rolled back on purpose)';
 END $$;

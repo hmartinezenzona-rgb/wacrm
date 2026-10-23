@@ -376,3 +376,22 @@ Signatures unchanged (`cerebro_cotizar(p_conv, p_monto, p_direccion, p_moneda_de
   Skipped when an open operation of ANOTHER service already holds money (a price question is not a change of service).
 - `crm_registrar_numeros_recarga` with `p_abrir = true` calls `cerebro_declarar_servicio(conv, 'recarga', actor)` (actor = `p_actor`, e.g. `agent:registrar_numeros_recarga`): latest declaration wins, cleared when the last operation closes. Without `p_abrir` nothing is declared.
 - The later deposit attaches to the declared service (asserted: a mexico quote then a 13,000 deposit = the Mexico operation; recarga numbers then 6,200 = the one recarga operation).
+
+## 290 applied on staging - México recipients carry the USD that goes to each one (owner panel review; no new tool)
+
+TDD: assertion `mexico-recipient-amount` RED (observed against the rolled-back pre-290 state: `cerebro_guardar_beneficiario_mexico(... p_monto => ...)` does not exist), GREEN 12 case groups. Cycle OK (dry-run, apply, assertion, rollback).
+relacionadas --ya-aplicada (13 assertions): 3 DIFFs, all updated here: `mexico-recipient` (case 10 now uses a field that still does not apply; privilege check on the new signature), `grants-mirror-production` (new signature), and the new assertion itself.
+Fixture on staging: conversation 92d1eaf3 (PRUEBA Mexico panel), op 27a09750: both recipients now 50 USD through the new function (the operation is 26,000 GYD = 100 USD).
+
+Signature (7 -> 10 arguments; the 7-argument function was dropped, the old call shape still works through the defaults):
+```
+cerebro_guardar_beneficiario_mexico(p_conv uuid, p_tipo text, p_clabe text, p_banco text, p_nombre text, p_telefono text, p_exec text,
+                                    p_posicion integer DEFAULT NULL, p_agregar boolean DEFAULT false, p_monto numeric DEFAULT NULL)
+  RETURNS jsonb  -- {ok, mensaje, beneficiary_id}; service_role only
+```
+Internal helper (postgres only): `_cerebro_mexico_tope_usd(p_op uuid, p_excluir uuid, p_monto numeric) RETURNS text` (NULL = fits). Panel RPCs keep their signatures: `crm_agregar_beneficiario` / `crm_corregir_beneficiario` accept `amount` (and `currency` only 'USD') on México rows; correction with `amount: null` clears it. Grants re-stated per 288 in the migration (agent tool service_role, helper none, panel RPCs authenticated).
+- `p_monto` = USD for that recipient (amount + currency 'USD' + amount_origin 'manual'); kept when a later call has none; <= 0 refused.
+- No `p_posicion` / `p_agregar` = old behaviour (same CLABE, or same retiro phone+bank, updates that recipient; anything else appends).
+- `p_agregar = true` = another person (same CLABE patches that one). `p_posicion = k` (1..N+1) = correction of slot k in place (amount kept; fields not sent are taken from the slot, so only `p_monto` sets an amount); N+1 appends; other values and a CLABE that is another slot's are refused ("NO SE GUARDO NADA ...").
+- Cap: sum of recipient amounts <= `_cerebro_usd_parte('mexico', quoted_source_amount)`; over it: `Los montos no cuadran: ... mas de los N USD de este envio. No se guardo nada; revisa los montos con el cliente.` (panel RPCs raise the same text, errcode 22023). No cap while the operation has no deposit.
+- n8n tool query (params clabe, banco, nombre, telefono, tipo, monto, posicion, agregar): `SELECT cerebro_guardar_beneficiario_mexico(...,NULLIF($,'')::int, coalesce(NULLIF($,'')::boolean,false), NULLIF($,'')::numeric)`.

@@ -269,3 +269,26 @@ The `cambiar_servicio` / `declarar_servicio` / `agregar_servicio` tool queries n
 - Several open operations and no deposit, rail target: an operation already of that rail -> `sin_cambio`; otherwise the single plain REMESA is converted (Mexico / recarga / combo / visa / balance operations are never re-typed and nothing else is cancelled);
   two remesas stay `varias_operaciones`. A waiting split plan (`reparto_planeado`) is renamed to the new rail.
 - `cerebro_marcar_destino_usd` is unchanged and still works; it now carries `COMMENT ... 'DEPRECATED (283): use cambiar_servicio...'`. The n8n side can stop offering `marcar_destino_usd`.
+
+## 284 applied on staging - gestionar_beneficiario corrects ONE recipient and validates the operation the bot names (no new tool)
+
+TDD: assertion `correct-recipient` RED (9-argument signature missing), GREEN 7 case groups. Cycle OK (dry-run, apply, assertion, rollback md5). relacionadas --ya-aplicada (144 assertions: beneficiary/recipient/reparto/zelle/writers/cash/recarga/combo/audit...):
+only DIFFs are the new assertion, the flaky `contexto-envio-mixto` and the pre-existing `delivery-feed-evidence`.
+
+Signature (7-argument overload dropped; old calls keep working through the defaults; `gestionar_beneficiario`'s tool query is `cerebro_guardar_beneficiario`):
+```
+cerebro_guardar_beneficiario(p_conv uuid, p_nombre text, p_tarjeta text, p_celular text, p_exec text,
+                             p_op uuid DEFAULT NULL, p_tool text DEFAULT 'gestionar_beneficiario',
+                             p_posicion integer DEFAULT NULL, p_tipo text DEFAULT NULL)
+  RETURNS TABLE(deal_id uuid, accion text)      -- service_role only
+```
+Tool query for n8n (new params: op = uuid or empty, posicion = int or empty, tipo = tarjeta|zelle|efectivo|recarga|mexico or empty):
+`SELECT deal_id AS id, accion FROM cerebro_guardar_beneficiario($1::uuid, NULLIF($2,''), NULLIF($3,''), NULLIF($4,''), $5, NULLIF($6,'')::uuid, 'gestionar_beneficiario', NULLIF($7,'')::int, NULLIF($8,''));`
+Behaviour:
+- `p_op`: must be an open operation of this conversation, else `NO SE GUARDO NADA: esa operacion no es de esta conversacion o ya no esta abierta. ...` (nothing written). Otherwise unchanged (the named operation is the target).
+- `p_posicion` and / or `p_tipo` = CORRECTION of that one recipient with the data given (name, card, phone; the others stay): `corregido (destinatario 2 de 2): nombre Ana Perez. Destinatarios ahora: 1) ... ; 2) ...`.
+  Operation = `p_op`, else the single open operation that has recipients of that kind (several: `NO SE GUARDO NADA: hay N envios abiertos con ese destinatario. Indica a cual (operacion)...`; the chat is NOT handed to a person here).
+  Several recipients and no position: the answer lists them and asks which. Unknown position: lists them. Same data: `sin cambios: ...`. A card already used by another recipient of the operation: refused.
+  A card or phone on a Zelle / cash / recharge / Mexico recipient is refused naming the tool that owns it (`registrar_beneficiario_zelle`, `registrar_datos_entrega_efectivo`, `registrar_numeros_recarga`, `registrar_destinatario_mexico`): only the name is corrected here.
+  A lock a person left on the recipients is respected. Audit action `agent_beneficiary_corrected` (before / after), actor `agent:<p_tool> n8n:<p_exec>`. `deal_id` = operation id (NULL on a refusal).
+- Without `p_posicion` / `p_tipo` the behaviour is exactly the old one (single recipient write, reparto slots, D1 rules).

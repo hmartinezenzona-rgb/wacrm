@@ -1,10 +1,10 @@
-# Durable conversation.created
+# Durable conversation.created and message.status_updated
 
-Status: live in production · Branch: feat/port-chat-operations-calculator · 2026-10-24
+Status: implemented, staging green; production pending · Branch: feat/port-chat-operations-calculator · 2026-10-24
 
 ## Objective
 
-Make `conversation.created` use the durable outbox, so a new thread is never lost when the in-process delivery to the Cerebro fails. `message.status_updated` stays in-process for now.
+Make all three webhook events durable. `conversation.created` and `message.status_updated` join `message.received` in the outbox, so no event is dropped after three in-process attempts.
 
 ## Problem
 
@@ -25,13 +25,18 @@ The webhook emits `conversation.created` through `dispatchWebhookEvent`, which g
   - Evidence: webhook route calls `dispatchEventDurably` for both events.
 - [x] T3. Verify: vitest + tsc, then publish the panel.
   - Evidence: 19 tests passed (outbox + webhook route); `tsc --noEmit` exit 0.
+- [x] T4. Route `message.status_updated` through the outbox; restrict the wamid dedupe to `message.received` (a status update must not be skipped by an unrelated `session_events` row).
+  - Evidence: test "sends a status update even when the wamid has a session_event"; webhook route uses `dispatchEventDurably` for the three events.
+- [x] T5. Migration 304: the claim orders `message.received` before status updates, so a burst cannot delay the bot; status rows still drain afterwards.
+  - Evidence: staging dry-run/apply/assertion/rollback OK; `cerebro_webhook_outbox_reclamar` md5 `b97887fa2e6e`; production previa SEGURO.
 
 ## Checks
 
-- `npx vitest run src/lib/webhooks/outbox.test.ts src/app/api/whatsapp/webhook/route.test.ts` → 19 passed.
+- `npx vitest run src/lib/webhooks/outbox.test.ts src/app/api/whatsapp/webhook/route.test.ts` → 20 passed.
 - `npx tsc --noEmit` → exit 0.
+- Staging migration cycle for 304 → dry-run OK, apply OK, assertion OK, rollback OK.
+- Production: `previa` SEGURO; apply and panel publish pending the owner's go-ahead.
 
 ## Verification evidence
 
-- Panel published as release `bd7dfff`, BUILD_ID `7naGgFp1bypU354hlSEVe` (previous `691d912`). No migration.
-- `conversation.created` only fires for a new contact, so the end-to-end proof arrives with the next new thread; unit coverage is the outbox and route suites.
+- `conversation.created` and `message.status_updated` are unit-covered; the live proof arrives with real traffic after the publish (a new contact for conversation.created, any outbound message for status updates).

@@ -1,6 +1,6 @@
 # Durable conversation.created
 
-Status: implemented, checks green; panel publish pending · Branch: feat/port-chat-operations-calculator · 2026-10-24
+Status: live in production · Branch: feat/port-chat-operations-calculator · 2026-10-24
 
 ## Objective
 
@@ -33,4 +33,5 @@ The webhook emits `conversation.created` through `dispatchWebhookEvent`, which g
 
 ## Verification evidence
 
-- Panel publish pending the owner's go-ahead; no schema change, so no migration.
+- Panel published as release `bd7dfff`, BUILD_ID `7naGgFp1bypU354hlSEVe` (previous `691d912`). No migration.
+- `conversation.created` only fires for a new contact, so the end-to-end proof arrives with the next new thread; unit coverage is the outbox and route suites.

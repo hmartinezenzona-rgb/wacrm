@@ -1,6 +1,6 @@
 # Invitación al grupo de WhatsApp
 
-Status: in progress · Branch: feat/port-chat-operations-calculator · 2026-10-24
+Status: live in production (bot); template pending · Branch: feat/port-chat-operations-calculator · 2026-10-24
 
 ## Objective
 
@@ -28,11 +28,13 @@ Button: `Unirme al grupo` → `https://chat.whatsapp.com/GFznWMcrlHa5RSBo76Vw81`
 
 ## Tasks
 
-- [ ] T1. Decisor: invitation note guarded by `!ctx.es_admin && Number(ctx.mensajes_cliente) === 1`; literal text and link.
-- [ ] T2. `Contexto conversacion`: add `mensajes_cliente` to the query (staging, then production).
-- [ ] T3. Harness: md5 pin updated; `npx vitest run pruebas/decisor` green.
-- [ ] T4. Staging: publish Decisor and patch Contexto; verify `estado` (versionId == activeVersionId) and the query md5.
-- [ ] T5. Production only with the owner's go-ahead; verify with a real new contact.
+- [x] T1. Decisor: invitation note guarded by `!ctx.es_admin && Number(ctx.mensajes_cliente) === 1`; literal text and link.
+  - Evidence: tests "la anade en el primer mensaje", "no la repite", "no se le manda a un admin".
+- [x] T2. `Contexto conversacion`: `mensajes_cliente` added in staging and production.
+- [x] T3. Harness: md5 pin 13fae851; `npx vitest run pruebas/decisor` 65/65.
+- [x] T4. Staging: Decisor published and Contexto patched; versionId == activeVersionId (dc232d4e); harness 65/65.
+- [x] T5. Production published (owner go-ahead): Contexto patched, Decisor md5 13fae851, versionId == activeVersionId; `comparar` shows Contexto and Decisor equal across environments.
+  - Evidence: production backup 20261024-130850; live proof pending a genuinely new contact.
 - [ ] T6. Template copy handed to the owner for WhatsApp Manager; then broadcast to existing clients from the panel.
 
 ## Checks

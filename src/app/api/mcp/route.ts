@@ -39,16 +39,31 @@ export async function POST(request: Request): Promise<Response> {
   const db = adminClient();
   const bearer = (request.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
 
-  const { data: config, error: configError } = await db
+  // Dedicated token first (cerebro_config.hermes_mcp_token); the shared notify
+  // secret stays as a fallback so the endpoint works before the row exists.
+  const { data: token, error: tokenError } = await db
     .from('cerebro_config')
     .select('valor')
-    .eq('clave', 'notify_secret')
+    .eq('clave', 'hermes_mcp_token')
     .maybeSingle();
-  if (configError) {
-    console.error('[hermes mcp] secret read failed:', configError);
+  if (tokenError) {
+    console.error('[hermes mcp] token read failed:', tokenError);
     return NextResponse.json({ error: 'secret read failed' }, { status: 500 });
   }
-  if (!config?.valor || !sameSecret(bearer, config.valor)) {
+  let expected = token?.valor ?? '';
+  if (!expected) {
+    const { data: config, error: configError } = await db
+      .from('cerebro_config')
+      .select('valor')
+      .eq('clave', 'notify_secret')
+      .maybeSingle();
+    if (configError) {
+      console.error('[hermes mcp] secret read failed:', configError);
+      return NextResponse.json({ error: 'secret read failed' }, { status: 500 });
+    }
+    expected = config?.valor ?? '';
+  }
+  if (!expected || !sameSecret(bearer, expected)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

@@ -10,6 +10,7 @@ import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
 import { dispatchWebhookEvent } from '@/lib/webhooks/deliver'
+import { dispatchMessageReceivedDurably } from '@/lib/webhooks/outbox'
 import {
   handleTemplateWebhookChange,
   isTemplateWebhookField,
@@ -946,11 +947,12 @@ async function processMessage(
   // message.received webhook (public API). Awaited — not fire-and-forget
   // — because we're inside the route's `after()` block, which only keeps
   // the function alive for promises it can see; a detached promise could
-  // be frozen before it delivers. `dispatchWebhookEvent` early-exits
-  // when the account has no matching endpoint and never throws.
+  // be frozen before it delivers. Durable for message.received (migration
+  // 301): the event is stored before the attempt, a failure stays pending
+  // for the cron worker, and a retry skips a wamid the Cerebro already saw.
   // (conversation.created is emitted earlier, right after the thread is
   // opened.)
-  await dispatchWebhookEvent(supabaseAdmin(), accountId, 'message.received', {
+  await dispatchMessageReceivedDurably(supabaseAdmin(), accountId, {
     conversation_id: conversation.id,
     contact_id: contactRecord.id,
     whatsapp_message_id: message.id,

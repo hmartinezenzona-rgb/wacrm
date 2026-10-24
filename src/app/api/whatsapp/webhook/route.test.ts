@@ -67,6 +67,9 @@ vi.mock("@/lib/automations/engine", () => ({
 vi.mock("@/lib/webhooks/deliver", () => ({
   dispatchWebhookEvent: vi.fn(async () => undefined),
 }));
+vi.mock("@/lib/webhooks/outbox", () => ({
+  dispatchMessageReceivedDurably: vi.fn(async () => undefined),
+}));
 vi.mock("@/lib/whatsapp/template-webhook", () => ({
   handleTemplateWebhookChange: vi.fn(async () => undefined),
   isTemplateWebhookField: vi.fn(() => false),

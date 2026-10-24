@@ -48,7 +48,7 @@ export const RETRY_DELAYS_MS = [3000, 8000];
 /** Auto-disable an endpoint after this many consecutive failures. */
 export const MAX_CONSECUTIVE_FAILURES = 15;
 
-interface EndpointRow {
+export interface EndpointRow {
   id: string;
   url: string;
   secret: string;
@@ -144,10 +144,10 @@ async function deliverOne(
   await recordFailure(db, row);
 }
 
-type SendOutcome = { ok: true } | { ok: false; retryable: boolean; error: string };
+export type SendOutcome = { ok: true } | { ok: false; retryable: boolean; error: string };
 
 /** One signed POST. Signed at send time, so every attempt has its own timestamp. */
-async function sendOnce(
+export async function sendOnce(
   row: EndpointRow,
   event: WebhookEvent,
   payload: string,

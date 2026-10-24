@@ -453,3 +453,16 @@ readers: Zelle several recipients, pre-deposit operations, service-aware targeti
 without operation, general modificar_operacion incl. mover_deposito, recarga quitar, cambiar_servicio rails, recipient
 corrections); staging Cerebro 991a87b0. P1/P2 done (partial deposit in repartir_envio; Decisor facts only).
 Measured once after 284 (2.98M tokens); fixes 285-287 and the prompt round NOT re-measured yet (needs owner OK).
+
+## Production rollout 2026-10-23 (owner go-ahead per phase)
+
+- DB: 243, 265-268, 271-293 applied to production; verificar 46/46 equal. 276 first hit a duplicate schema_migrations
+  version (two applies in the same second), nothing applied; re-applied one by one.
+- Bot: production Cerebro 01c7622d active (131 nodes, deepseek-flash, readers and marcar_destino_usd disabled) via
+  infra/n8n/promover_cerebro.py; rollback backup produccion-...-5b3159b9-...-20261023-194748.json.
+- Panel: release/prod-service-redesign 6e4d595 published (BUILD_ID vHkgvDgJYwSIfhK_jFYRx); previous 07d2edad kept.
+- Data fixes: Marlene México ops 8dd1740c / 4911f4c2, ab92f2bb CUP + regenerated calculator line, 7c3336eb recarga ->
+  Zelle, 116 rail-less remesas got their delivery_method. M8: nothing left (operations start 2026-10-07).
+- [x] S7 Production.
+Next: first business-day watch (2026-10-24 from 09:00 Guyana), promise-without-write guard, México MXN/texts after
+Osmany's answers (docs/negocio/PEDIR-A-OSMANY-mexico.md).

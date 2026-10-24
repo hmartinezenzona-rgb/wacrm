@@ -100,7 +100,7 @@ function rateValueOf(rates: CalculatorRates | null, key: RateKey): number | null
   return (rates?.[field] as number | null | undefined) ?? null;
 }
 
-/** ARQ's USD -> MXN ticker as stored by migration 297 (read-only in this card). */
+/** ARQ's USD -> MXN ticker as stored by migration 297 and its health (298); read-only in this card. */
 type ArqRateInfo = {
   valor: number | string;
   fuente?: string | null;
@@ -108,6 +108,10 @@ type ArqRateInfo = {
   ask?: string | null;
   bid?: string | null;
   fecha_arq?: string | null;
+  ultimo_arq_at?: string | null;
+  ultimo_arq_ok?: boolean | null;
+  ultimo_motivo?: string | null;
+  fallos_arq_consecutivos?: number | string | null;
 };
 
 const ARQ_STALE_MINUTES = 120;
@@ -205,6 +209,10 @@ export default function CalculadoraPage() {
   const arqStale = arqMinutes != null && Number.isFinite(arqMinutes) && arqMinutes >= ARQ_STALE_MINUTES;
   const arqAsk = arqRate ? arqAskLabel(arqRate) : null;
   const arqTime = arqRate ? arqTimeLabel(arqRate.fecha_arq) : null;
+  // Migration 298: the last ARQ attempt can fail while a fallback value keeps the row fresh.
+  const arqFailed = arqRate?.ultimo_arq_ok === false
+    || (Number(arqRate?.fallos_arq_consecutivos) || 0) >= 1;
+  const arqMotivo = arqRate?.ultimo_motivo ?? null;
   const selectedRateValue = rateValueOf(rates, selectedRate);
   const rateInputValue = rateDraft ?? (selectedRateValue == null ? "" : String(selectedRateValue));
   // Migration 228: the lines "Registrar" would add (with the Guyana day each belongs to) and the ones that stay in the box.
@@ -888,12 +896,14 @@ export default function CalculadoraPage() {
                 <dt>México · USD → MXN (ARQ)</dt>
                 <dd>
                   {formatMoneyNumber(arqValor, { maximumFractionDigits: 6 })}
-                  <span className={arqStale ? "legacyRateNote legacyRateNoteStale" : "legacyRateNote"}>
+                  <span className={arqStale || arqFailed ? "legacyRateNote legacyRateNoteStale" : "legacyRateNote"}>
                     {arqStale
                       ? `sin actualizar desde ${arqAgeLabel(arqMinutes!)}`
-                      : [arqAsk, arqMinutes != null && Number.isFinite(arqMinutes) ? arqAgeLabel(arqMinutes) : null, arqTime]
-                          .filter(Boolean)
-                          .join(" · ")}
+                      : arqFailed
+                        ? `último intento ARQ falló${arqMotivo ? ` (${arqMotivo})` : ""}`
+                        : [arqAsk, arqMinutes != null && Number.isFinite(arqMinutes) ? arqAgeLabel(arqMinutes) : null, arqTime]
+                            .filter(Boolean)
+                            .join(" · ")}
                   </span>
                 </dd>
               </div>

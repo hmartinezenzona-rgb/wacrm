@@ -41,6 +41,24 @@ timestamped rate the bot cannot quote MXN and the operator has to look it up for
 - Jobs: `solicitar-tasa-usd-mxn` at `*/30 12-22 * * *`, `procesar-tasa-usd-mxn` at `2,32 12-22 * * *` UTC
   (08:00-18:30 Guyana).
 
+### Hardening after the format concern (298)
+
+ARQ can change its payload without warning. Migration 298 makes the source more resilient and the failure visible:
+
+- `cerebro_item_tasa_arq(jsonb)` unwraps the item from `[...]`, `{data:[...]}`, `{tickers:[...]}`, `{results:[...]}` or
+  the object itself; the parser reads the value from `bid|rate|price|value|sell|venta`, and `book`, when present,
+  must still be `usdc_mxn`; the plausible range stays 5..50.
+- `cerebro_tasa_procesar` records `motivo` (`ok | http | red | formato`) and, for a 200 it cannot parse, a bounded
+  `raw` snippet of ARQ's payload (public rate data, never customer data).
+- `cerebro_tasa_usd_mxn_estado()` returns the same value fields plus `ultimo_arq_at`, `ultimo_arq_ok`,
+  `ultimo_motivo` and `fallos_arq_consecutivos`.
+- The Calculator row reads `estado` and shows "último intento ARQ falló (motivo)" in amber even when a fallback
+  value is still fresh; the two-hour stale warning stays.
+
+n8n was considered for this (the ETECSA monitor precedent) and deliberately not used: that monitor also needed a
+manual filter fix when the page changed, while the DB cron has no extra workflow to maintain. Owner decision
+2026-10-24: keep it in the database.
+
 ## Tasks
 
 - [x] T1 Migration 297 (tables, parsers, request/process steps, readers, two cron jobs) + ROLLBACK.
@@ -51,6 +69,9 @@ timestamped rate the bot cannot quote MXN and the operator has to look it up for
 - [x] T5a Calculator display: read-only row at the end of "Tasas actuales" — ARQ bid as the figure, ask/age/ARQ time
   underneath, amber "sin actualizar desde…" after two hours (GET /api/calculator/rates returns it; an RPC failure
   omits the row). Tests + tsc green.
+- [x] T6 Hardening (298): tolerant ARQ parser, `motivo`/`raw` diagnostics and `cerebro_tasa_usd_mxn_estado()`;
+  the Calculator row shows "último intento ARQ falló (motivo)" when a fallback value is still fresh. Staging cycle
+  green, full suite 3237 tests, production pending.
 - [ ] T5b Bot quote / M7 text once the owner answers whether the customer sees MXN before paying.
 
 ## Acceptance criteria

@@ -2851,3 +2851,36 @@ describe("calculator ARQ USD to MXN rate (Tasas actuales)", () => {
     await act(async () => root.unmount());
   });
 });
+
+describe("calculator ARQ rate failure indicator", () => {
+  it("warns when the last ARQ attempt failed even if a fallback value is fresh", async () => {
+    const { node, root } = await renderPage(createFetchMock({
+      ratesGet: {
+        rates: FULL_RATES,
+        arqRate: {
+          valor: 18.69233, fuente: "erapi", edad_min: 5, ask: null, bid: null,
+          ultimo_arq_ok: false, ultimo_motivo: "formato", fallos_arq_consecutivos: 2,
+        },
+      },
+    }));
+
+    expect(node.querySelector("#tasaMexicoArq")?.textContent).toContain("falló");
+    expect(node.querySelector("#tasaMexicoArq")?.textContent).toContain("formato");
+    await act(async () => root.unmount());
+  });
+
+  it("does not warn when the last ARQ attempt was fine", async () => {
+    const { node, root } = await renderPage(createFetchMock({
+      ratesGet: {
+        rates: FULL_RATES,
+        arqRate: {
+          valor: 18.647481, fuente: "arq", edad_min: 2, ask: "18.6697421235",
+          ultimo_arq_ok: true, ultimo_motivo: "ok", fallos_arq_consecutivos: 0,
+        },
+      },
+    }));
+
+    expect(node.querySelector("#tasaMexicoArq")?.textContent).not.toContain("falló");
+    await act(async () => root.unmount());
+  });
+});

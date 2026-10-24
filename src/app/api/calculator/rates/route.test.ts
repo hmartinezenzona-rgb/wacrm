@@ -396,6 +396,10 @@ describe("GET /api/calculator/rates -- ARQ USD to MXN rate", () => {
     ask: "18.6697421235",
     bid: "18.6474810965",
     fecha_arq: "2026-10-24T15:09:31Z",
+    ultimo_arq_at: "2026-10-24T15:09:41Z",
+    ultimo_arq_ok: true,
+    ultimo_motivo: "ok",
+    fallos_arq_consecutivos: 0,
   };
 
   it("returns the ARQ rate next to the calculator rates", async () => {
@@ -409,7 +413,7 @@ describe("GET /api/calculator/rates -- ARQ USD to MXN rate", () => {
     expect(response.status).toBe(200);
     expect(body.rates).toEqual(MAPPED_RATES);
     expect(body.arqRate).toEqual(ARQ_INFO);
-    expect(callCtx.supabase.rpc).toHaveBeenCalledWith("cerebro_tasa_usd_mxn_info");
+    expect(callCtx.supabase.rpc).toHaveBeenCalledWith("cerebro_tasa_usd_mxn_estado");
   });
 
   it("returns arqRate null when the RPC fails, without failing the rates read", async () => {

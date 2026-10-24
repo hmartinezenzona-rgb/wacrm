@@ -41,7 +41,7 @@ BEGIN
   -- (268 redesign) the bot declares the service it understood; writers no longer read the customer's words
   PERFORM cerebro_declarar_servicio(v_conv, 'recarga', 'agent:test');
   SELECT * INTO v_out FROM cerebro_guardar_beneficiario_auto(v_conv, '', '53821230', '', '53821230', 'test202');
-  IF pg_temp.ops_t202(v_conv) <> 'recarga/collecting_information/0/53821230,53456789' THEN
+  IF pg_temp.ops_t202(v_conv) <> 'recarga/collecting_information/12400/53821230,53456789' THEN
     RAISE EXCEPTION 'case 1: expected one open recharge with both numbers, got %', pg_temp.ops_t202(v_conv); END IF;
   IF v_out.accion ILIKE '%tarjeta%' THEN RAISE EXCEPTION 'case 1: must not ask for a card, said %', v_out.accion; END IF;
 
@@ -54,7 +54,7 @@ BEGIN
   v_conv := pg_temp.conv_t202('03', ARRAY['quiero una recarga']);
   -- (268 redesign) the agent's tool call declares the recharge (p_abrir): the tool no longer reads the customer's words
   PERFORM crm_registrar_numeros_recarga(v_conv, '5382 1230', true, 'agent:registrar_numeros_recarga');
-  IF pg_temp.ops_t202(v_conv) <> 'recarga/collecting_information/0/53821230' THEN
+  IF pg_temp.ops_t202(v_conv) <> 'recarga/collecting_information/6200/53821230' THEN
     RAISE EXCEPTION 'case 3: the tool must open the recharge, got %', pg_temp.ops_t202(v_conv); END IF;
 
   -- 4. No recharge asked for: a number alone opens nothing (remesa flow unchanged).

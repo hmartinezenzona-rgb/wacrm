@@ -127,7 +127,7 @@ BEGIN
   SELECT * INTO c FROM pg_temp.d_conv(6);
   PERFORM cerebro_declarar_servicio(c.conv, 'recarga', 'agent:declarar_servicio');
   PERFORM crm_registrar_numeros_recarga(c.conv, '55599180', false, 'agent:registrar_numeros_recarga');
-  PERFORM pg_temp.d_eq('6 recarga operation', pg_temp.d_ops(c.conv), 'recarga:-/0');
+  PERFORM pg_temp.d_eq('6 recarga operation', pg_temp.d_ops(c.conv), 'recarga:-/6200');
   PERFORM pg_temp.d_eq('6 deposit joins', (SELECT accion FROM pg_temp.d_registra(c.conv, 6200, '27500006')), 'movido');
   PERFORM pg_temp.d_eq('6 deposit on it', pg_temp.d_ops(c.conv), 'recarga:-/6200');
 

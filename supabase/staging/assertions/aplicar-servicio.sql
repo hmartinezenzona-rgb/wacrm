@@ -320,13 +320,13 @@ BEGIN
   PERFORM pg_temp.a_eq('12 invalid declaration not stored', (SELECT count(*)::text FROM cerebro_servicio_declarado WHERE conversation_id = c.conv), '0');
 
   -- ---- 13. ACL and shape --------------------------------------------------------------------------------------------------------
-  IF has_function_privilege('anon', 'public.cerebro_aplicar_servicio(uuid,text,text,text,text)', 'EXECUTE') THEN
+  IF has_function_privilege('anon', 'public.cerebro_aplicar_servicio(uuid,text,text,text,text,numeric)', 'EXECUTE') THEN
     RAISE EXCEPTION 'case 13: anon can execute'; END IF;
-  IF has_function_privilege('authenticated', 'public.cerebro_aplicar_servicio(uuid,text,text,text,text)', 'EXECUTE') THEN
+  IF has_function_privilege('authenticated', 'public.cerebro_aplicar_servicio(uuid,text,text,text,text,numeric)', 'EXECUTE') THEN
     RAISE EXCEPTION 'case 13: authenticated can execute'; END IF;
   IF EXISTS (SELECT 1 FROM pg_proc p, aclexplode(p.proacl) x WHERE p.proname = 'cerebro_aplicar_servicio' AND x.grantee = 0) THEN
     RAISE EXCEPTION 'case 13: PUBLIC can execute'; END IF;
-  IF NOT has_function_privilege('service_role', 'public.cerebro_aplicar_servicio(uuid,text,text,text,text)', 'EXECUTE') THEN
+  IF NOT has_function_privilege('service_role', 'public.cerebro_aplicar_servicio(uuid,text,text,text,text,numeric)', 'EXECUTE') THEN
     RAISE EXCEPTION 'case 13: service_role cannot execute'; END IF;
   IF (SELECT p.provolatile::text || p.prosecdef::text FROM pg_proc p WHERE p.proname = 'cerebro_aplicar_servicio') IS DISTINCT FROM 'vtrue' THEN
     RAISE EXCEPTION 'case 13: not VOLATILE SECURITY DEFINER'; END IF;

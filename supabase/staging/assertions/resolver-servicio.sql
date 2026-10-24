@@ -412,15 +412,15 @@ BEGIN
   -- ---- 22. ACL, shape and table privileges -----------------------------------------------------------------------------------------
   IF has_function_privilege('anon', 'public.cerebro_resolver_servicio(uuid,text,text,numeric,timestamptz)', 'EXECUTE') THEN
     RAISE EXCEPTION 'case 22: anon can execute the resolver'; END IF;
-  IF has_function_privilege('anon', 'public.cerebro_declarar_servicio(uuid,text,text)', 'EXECUTE') THEN
+  IF has_function_privilege('anon', 'public.cerebro_declarar_servicio(uuid,text,text,numeric)', 'EXECUTE') THEN
     RAISE EXCEPTION 'case 22: anon can execute the declaration'; END IF;
   IF NOT has_function_privilege('service_role', 'public.cerebro_resolver_servicio(uuid,text,text,numeric,timestamptz)', 'EXECUTE')
      OR NOT has_function_privilege('authenticated', 'public.cerebro_resolver_servicio(uuid,text,text,numeric,timestamptz)', 'EXECUTE') THEN
     RAISE EXCEPTION 'case 22: authenticated / service_role cannot execute the resolver'; END IF;
   -- (parent review) only the bot (service role) declares intents: a panel user must not write one for any conversation.
-  IF NOT has_function_privilege('service_role', 'public.cerebro_declarar_servicio(uuid,text,text)', 'EXECUTE') THEN
+  IF NOT has_function_privilege('service_role', 'public.cerebro_declarar_servicio(uuid,text,text,numeric)', 'EXECUTE') THEN
     RAISE EXCEPTION 'case 22: service_role cannot execute the declaration'; END IF;
-  IF has_function_privilege('authenticated', 'public.cerebro_declarar_servicio(uuid,text,text)', 'EXECUTE') THEN
+  IF has_function_privilege('authenticated', 'public.cerebro_declarar_servicio(uuid,text,text,numeric)', 'EXECUTE') THEN
     RAISE EXCEPTION 'case 22: authenticated can execute the declaration'; END IF;
   IF (SELECT p.provolatile::text || p.prosecdef::text FROM pg_proc p WHERE p.proname = 'cerebro_resolver_servicio') IS DISTINCT FROM 'strue' THEN
     RAISE EXCEPTION 'case 22: resolver is not STABLE SECURITY DEFINER'; END IF;

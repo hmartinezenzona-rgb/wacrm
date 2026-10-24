@@ -177,7 +177,7 @@ BEGIN
   BEGIN
     SELECT * INTO c FROM pg_temp.w_conv(3);
     v_r := crm_registrar_numeros_recarga(c.conv, '55599180', true, 'agent:registrar_numeros_recarga');
-    PERFORM pg_temp.w_eq('3 operations', pg_temp.w_ops(c.conv), 'recarga/collecting_information/0');
+    PERFORM pg_temp.w_eq('3 operations', pg_temp.w_ops(c.conv), 'recarga/collecting_information/6200');
     PERFORM pg_temp.w_eq('3 numbers', pg_temp.w_nums(c.conv), '55599180');
   EXCEPTION WHEN OTHERS THEN
     v_fails := v_fails + 1; RAISE WARNING 'FAIL [case 3] %', SQLERRM;
@@ -253,7 +253,7 @@ BEGIN
     PERFORM cerebro_declarar_servicio(c.conv, 'recarga', 'agent:registrar_numeros_recarga');
     PERFORM pg_temp.w_msg(c.conv, 'quiero una recarga', 5);
     PERFORM cerebro_guardar_beneficiario_auto(c.conv, '', '55599180', '', '', 'exec268-case9');
-    PERFORM pg_temp.w_eq('9 operations', pg_temp.w_ops(c.conv), 'recarga/collecting_information/0');
+    PERFORM pg_temp.w_eq('9 operations', pg_temp.w_ops(c.conv), 'recarga/collecting_information/6200');
     PERFORM pg_temp.w_eq('9 numbers', pg_temp.w_nums(c.conv), '55599180');
     PERFORM pg_temp.w_eq('9 no remesa', pg_temp.w_n(c.conv, 'remesa'), '0');
   EXCEPTION WHEN OTHERS THEN

@@ -43,7 +43,7 @@ BEGIN
 
   -- 2. The agent says it is a recharge (numbers dictated): it opens with them.
   PERFORM crm_registrar_numeros_recarga(v_conv, '5382 1230 y 5345 6789', true);
-  IF pg_temp.ops_t204(v_conv) <> 'recarga/collecting_information/0/53821230,53456789' THEN
+  IF pg_temp.ops_t204(v_conv) <> 'recarga/collecting_information/12400/53821230,53456789' THEN
     RAISE EXCEPTION 'case 2: expected the recharge with both numbers, got %', pg_temp.ops_t204(v_conv); END IF;
   -- and the open recharge now counts as "recharge in progress"
   IF NOT cerebro_recarga_en_curso(v_conv) THEN RAISE EXCEPTION 'case 2: an open recharge is a recharge in progress'; END IF;
@@ -56,7 +56,7 @@ BEGIN
   -- 4. The agent knows it is a recharge before any number: it opens empty, and the deposit lands on it.
   v_conv := pg_temp.conv_t204('04');
   PERFORM crm_registrar_numeros_recarga(v_conv, '', true);
-  IF pg_temp.ops_t204(v_conv) <> 'recarga/collecting_information/0/-' THEN
+  IF pg_temp.ops_t204(v_conv) <> 'recarga/collecting_information/6200/-' THEN
     RAISE EXCEPTION 'case 4: expected an empty open recharge, got %', pg_temp.ops_t204(v_conv); END IF;
   PERFORM cerebro_registrar_deposito(v_conv, 6200, 'GYD', '3cf01654-cd27-47c1-ac92-62abf5435751'::uuid, NULL, NULL);
   IF pg_temp.ops_t204(v_conv) <> 'recarga/deposit_verification/6200/-' THEN

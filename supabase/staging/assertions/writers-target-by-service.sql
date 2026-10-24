@@ -162,7 +162,7 @@ BEGIN
   v_cl := pg_temp.t_op(c, 'remesa', 'clasica');
   PERFORM cerebro_declarar_servicio(c.conv, 'clasica', 'agent:declarar_servicio');
   v_a := crm_registrar_numeros_recarga(c.conv, '55599180', true, 'agent:registrar_numeros_recarga');
-  PERFORM pg_temp.t_eq('6 separate recarga', pg_temp.t_ops(c.conv), 'recarga:-/0;remesa:clasica/0');
+  PERFORM pg_temp.t_eq('6 separate recarga', pg_temp.t_ops(c.conv), 'recarga:-/6200;remesa:clasica/0');
   PERFORM pg_temp.t_eq('6 number saved', (SELECT pg_temp.t_ben(o.id) FROM remittance_operations o WHERE o.conversation_id = c.conv AND o.service_type = 'recarga'), 'recarga:|55599180|');
   PERFORM pg_temp.t_eq('6 text', (v_a LIKE 'guardados 1%')::text, 'true');
   -- with a real deposit on the other operation: unchanged refusal, no second operation

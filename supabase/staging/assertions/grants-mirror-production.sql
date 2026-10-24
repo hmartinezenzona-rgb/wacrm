@@ -124,8 +124,8 @@ BEGIN
   END LOOP;
   -- the functions: production default (postgres only)
   FOREACH v_fn IN ARRAY ARRAY[
-    'public.cerebro_aplicar_servicio(uuid,text,text,text,text)',
-    'public.cerebro_declarar_servicio(uuid,text,text)',
+    'public.cerebro_aplicar_servicio(uuid,text,text,text,text,numeric)',
+    'public.cerebro_declarar_servicio(uuid,text,text,numeric)',
     'public.cerebro_cotizar(uuid,numeric,text,text,text,text)',
     'public.cerebro_fijar_objetivo(uuid,numeric,text)',
     'public.cerebro_guardar_beneficiario(uuid,text,text,text,text,uuid,text,integer,text)',
@@ -171,10 +171,10 @@ END $m$;
 -- 288 re-applied (same text as the migration)
 -- Functions: explicit state for every function created or replaced by 243 and 265-287 (production default is postgres only).
 -- agent-facing: service_role
-REVOKE ALL ON FUNCTION public.cerebro_aplicar_servicio(uuid, text, text, text, text) FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.cerebro_aplicar_servicio(uuid, text, text, text, text) TO service_role;
-REVOKE ALL ON FUNCTION public.cerebro_declarar_servicio(uuid, text, text) FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.cerebro_declarar_servicio(uuid, text, text) TO service_role;
+REVOKE ALL ON FUNCTION public.cerebro_aplicar_servicio(uuid, text, text, text, text, numeric) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.cerebro_aplicar_servicio(uuid, text, text, text, text, numeric) TO service_role;
+REVOKE ALL ON FUNCTION public.cerebro_declarar_servicio(uuid, text, text, numeric) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.cerebro_declarar_servicio(uuid, text, text, numeric) TO service_role;
 REVOKE ALL ON FUNCTION public.cerebro_cotizar(uuid, numeric, text, text, text, text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.cerebro_cotizar(uuid, numeric, text, text, text, text) TO service_role;
 REVOKE ALL ON FUNCTION public.cerebro_fijar_objetivo(uuid, numeric, text) FROM PUBLIC, anon, authenticated, service_role;
@@ -329,7 +329,7 @@ BEGIN
   -- negative checks
   IF has_function_privilege('authenticated', 'public.cerebro_modificar_operacion(uuid,uuid,text,jsonb,text)', 'EXECUTE')
      OR has_function_privilege('anon', 'public.cerebro_guardar_zelle(uuid,text,text,text,uuid,text,integer,boolean,numeric)', 'EXECUTE')
-     OR has_function_privilege('authenticated', 'public.cerebro_aplicar_servicio(uuid,text,text,text,text)', 'EXECUTE')
+     OR has_function_privilege('authenticated', 'public.cerebro_aplicar_servicio(uuid,text,text,text,text,numeric)', 'EXECUTE')
      OR has_function_privilege('anon', 'public.crm_corregir_beneficiario(uuid,jsonb)', 'EXECUTE')
      OR has_function_privilege('service_role', 'public.crm_agregar_beneficiario(uuid,jsonb)', 'EXECUTE')
      OR has_function_privilege('authenticated', 'public._repartir_envio_core(uuid,jsonb,text,text,text,boolean)', 'EXECUTE') THEN

@@ -108,7 +108,7 @@ BEGIN
   v_a := cerebro_repartir_envio(v_conv, 'mexico 26000, efectivo 29000', 'q1');
   PERFORM pg_temp.p_eq('1 repartir applied: ' || v_a, (v_a LIKE 'Reparto hecho%')::text, 'true');
   v_rec := pg_temp.p_op(v_conv, 'recarga');
-  PERFORM pg_temp.p_eq('1 amounts', pg_temp.p_ops(v_conv), 'efectivo_usd/29000;mexico/26000;recarga/0');
+  PERFORM pg_temp.p_eq('1 amounts', pg_temp.p_ops(v_conv), 'efectivo_usd/29000;mexico/26000;recarga/6200');
   PERFORM pg_temp.p_eq('1 the recarga holds no money', _cerebro_op_tiene_dinero(v_rec)::text, 'false');
   v_r := cerebro_modificar_operacion(v_conv, v_rec, 'cancelar', NULL, 'agent:modificar_operacion q1');
   PERFORM pg_temp.p_eq('1 cancel the recarga: ' || coalesce(v_r ->> 'mensaje', ''), v_r ->> 'ok', 'true');
@@ -130,7 +130,7 @@ BEGIN
   v_a := cerebro_repartir_envio(v_conv, 'mexico 26000, efectivo 29000', 'q2');
   PERFORM pg_temp.p_eq('2 repartir applied without the holder: ' || v_a, (v_a LIKE 'Reparto hecho%')::text, 'true');
   PERFORM pg_temp.p_eq('2 deposit lives on the parts', pg_temp.p_holder(v_conv), 'mexico');
-  PERFORM pg_temp.p_eq('2 amounts', pg_temp.p_ops(v_conv), 'efectivo_usd/29000;mexico/26000;recarga/0');
+  PERFORM pg_temp.p_eq('2 amounts', pg_temp.p_ops(v_conv), 'efectivo_usd/29000;mexico/26000;recarga/6200');
   PERFORM pg_temp.p_eq('2 the recarga is empty', _cerebro_op_tiene_dinero(v_rec)::text, 'false');
   v_r := cerebro_modificar_operacion(v_conv, v_rec, 'cancelar', NULL, 'agent:modificar_operacion q2');
   PERFORM pg_temp.p_eq('2 cancel the recarga: ' || coalesce(v_r ->> 'mensaje', ''), v_r ->> 'ok', 'true');

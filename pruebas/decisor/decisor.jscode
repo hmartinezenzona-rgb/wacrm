@@ -501,6 +501,16 @@ if (h && h.primer_del_dia) {
 } else {
   notas.push('YA te presentaste hoy con este cliente y ahora no te ha saludado: ve DIRECTO a lo que pide, sin saludo ni presentacion. Hora del negocio por si la necesitas: ' + hora + '.');
 }
+// INVITACION AL GRUPO (2026-10-24, peticion de Osmany). Solo en el PRIMER mensaje del cliente en esta
+// conversacion: el Contexto trae `mensajes_cliente` y el mensaje actual ya esta guardado, asi que 1 = nuevo.
+// El texto y el enlace van LITERALES: el modelo no los reescribe ni cambia una palabra. Un admin no la recibe
+// (sus mensajes se silencian aguas arriba y ahi no hay invitacion que valga).
+if (!ctx.es_admin && Number(ctx.mensajes_cliente) === 1) {
+  notas.push('CLIENTE NUEVO (es el primer mensaje suyo en esta conversacion): al FINAL de tu respuesta, en el MISMO mensaje y despues de atender lo que pide, anade estas dos lineas COPIADAS LITERALMENTE, sin cambiar ni una palabra ni el enlace de la ultima linea:'
+    + String.fromCharCode(10) + 'Tenemos un grupo de WhatsApp de *Remesas Ya* donde compartimos tasas, promociones y avisos al instante. Únete aquí:'
+    + String.fromCharCode(10) + 'https://chat.whatsapp.com/GFznWMcrlHa5RSBo76Vw81'
+    + String.fromCharCode(10) + 'Si el cliente solo saluda, despues de la invitacion preguntale en que puedes ayudarle. Es UNA sola vez: no la repitas en los mensajes siguientes.');
+}
 // (gate 83, 2026-10-02) MONTO DE DESTINO: an amount with the destination currency attached is what the
 // beneficiary RECEIVES, whatever the verb (owner: "si el cliente dice que quiere recibir X en una moneda, eso
 // lleva calculo inverso"). Production test 2026-10-02 13:03 UTC (exec 304592): "quiero enviar 15 mil CUP" was

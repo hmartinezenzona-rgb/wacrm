@@ -26,7 +26,7 @@ export const DECISOR_MD5_AL_FIJARLO = 'c2ed1d13c177dc368fbfd63150e706e7';
  * A test asserts the file still hashes to this, so a formatter run or a half-applied edit fails
  * loudly instead of silently diverging from the workflow.
  */
-export const DECISOR_MD5_ESPERADO = '6035457e7d796df4c62a7b2dcfa0fd85';
+export const DECISOR_MD5_ESPERADO = '13fae851b78a00f53bd55c7a2955b137';
 
 export const ORIGEN = join(
   dirname(fileURLToPath(import.meta.url)),

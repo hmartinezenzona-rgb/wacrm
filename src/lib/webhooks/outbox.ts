@@ -18,11 +18,25 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { isDeliverableUrl } from '@/lib/webhooks/ssrf';
-import { dispatchWebhookEvent, sendOnce, type EndpointRow } from '@/lib/webhooks/deliver';
+import {
+  dispatchWebhookEvent,
+  MAX_CONSECUTIVE_FAILURES,
+  sendOnce,
+  type EndpointRow,
+} from '@/lib/webhooks/deliver';
 import type { WebhookEvent } from '@/lib/webhooks/events';
 
 /** Attempts per outbox row, the inline one included. */
 export const OUTBOX_MAX_ATTEMPTS = 10;
+
+/** Lease taken while a row is being sent; matches the SQL claim lease. */
+export const OUTBOX_LEASE_SECONDS = 2 * 60;
+
+/** A row older than this is not delivered: the bot would answer a stale message. */
+export const OUTBOX_MAX_AGE_SECONDS = 2 * 60 * 60;
+
+/** Rows sent at once by the worker, so a full batch fits the route's maxDuration. */
+export const OUTBOX_CONCURRENCY = 5;
 
 /** Seconds before the next attempt, by attempt number (1 = after the first failure). */
 const BACKOFF_SECONDS = [60, 120, 300, 600, 1800, 3600, 7200, 14400, 28800, 43200];
@@ -46,6 +60,7 @@ export interface OutboxRow {
   };
   status: string;
   attempts: number;
+  created_at?: string;
 }
 
 function isoIn(seconds: number): string {
@@ -76,6 +91,14 @@ async function alreadyProcessed(db: SupabaseClient, row: OutboxRow): Promise<boo
   return Boolean(data);
 }
 
+/** Seconds since the event happened (payload `occurred_at`, else the row's created_at). */
+function eventAgeSeconds(row: OutboxRow): number {
+  const stamp = row.payload?.occurred_at ?? row.created_at;
+  if (!stamp) return 0;
+  const ms = Date.parse(stamp);
+  return Number.isNaN(ms) ? 0 : Math.max(0, (Date.now() - ms) / 1000);
+}
+
 /** One attempt for a claimed row. Updates the row and returns its new state. */
 export async function deliverOutboxRow(
   db: SupabaseClient,
@@ -84,6 +107,18 @@ export async function deliverOutboxRow(
   if (await alreadyProcessed(db, row)) {
     await mark(db, row.id, { status: 'skipped', sent_at: new Date().toISOString(), locked_until: null });
     return 'skipped';
+  }
+
+  // A late replay would reach the bot after the customer moved on (or after a newer message), so the
+  // row gives up instead of sending. The ingestion watchdog alerts on the missing answer.
+  const age = eventAgeSeconds(row);
+  if (age > OUTBOX_MAX_AGE_SECONDS) {
+    await mark(db, row.id, {
+      status: 'failed',
+      last_error: `stale event (${Math.round(age / 60)} min old, limit ${OUTBOX_MAX_AGE_SECONDS / 60} min)`,
+      locked_until: null,
+    });
+    return 'failed';
   }
 
   const { data: endpoint, error } = await db
@@ -99,6 +134,15 @@ export async function deliverOutboxRow(
       await mark(db, row.id, {
         status: 'failed', attempts, last_error: errorText, locked_until: null,
       });
+      // Same endpoint health accounting as the in-process path: enough consecutive give-ups
+      // auto-disable the endpoint instead of hammering a dead sink.
+      const { error: failureError } = await db.rpc('record_webhook_failure', {
+        endpoint_id: row.endpoint_id,
+        max_failures: MAX_CONSECUTIVE_FAILURES,
+      });
+      if (failureError) {
+        console.error('[webhook outbox] record_webhook_failure failed for', row.endpoint_id, failureError);
+      }
       return 'failed';
     }
     await mark(db, row.id, {
@@ -120,6 +164,12 @@ export async function deliverOutboxRow(
 
   const outcome = await sendOnce(ep, row.event as WebhookEvent, JSON.stringify(row.payload), secret);
   if (outcome.ok) {
+    // Success clears the endpoint's failure streak, as the in-process path does.
+    const { error: resetError } = await db
+      .from('webhook_endpoints')
+      .update({ failure_count: 0, last_delivery_at: new Date().toISOString() })
+      .eq('id', row.endpoint_id);
+    if (resetError) console.warn('[webhook outbox] failure_count reset failed for', row.endpoint_id, resetError);
     await mark(db, row.id, {
       status: 'sent', attempts: row.attempts + 1, sent_at: new Date().toISOString(), locked_until: null,
     });
@@ -162,6 +212,11 @@ export async function dispatchMessageReceivedDurably(
         endpoint_id: row.id,
         event: 'message.received',
         payload,
+        // Lease the row before the inline attempt so the cron worker cannot claim the same
+        // row and send it concurrently. If this process dies mid-send, the lease expires and
+        // the worker reclaims the row after OUTBOX_LEASE_SECONDS.
+        status: 'sending',
+        locked_until: isoIn(OUTBOX_LEASE_SECONDS),
       })))
       .select('*');
     if (insertError) throw insertError;
@@ -181,6 +236,24 @@ export interface FlushResult {
   failed: number;
 }
 
+/** Run `fn` over the items with a bounded number in flight. */
+async function withConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await fn(items[index]!);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 /** Called by the cron worker: purge old rows, claim due ones and attempt each. */
 export async function flushWebhookOutbox(db: SupabaseClient, limit = 20): Promise<FlushResult> {
   await db
@@ -195,9 +268,7 @@ export async function flushWebhookOutbox(db: SupabaseClient, limit = 20): Promis
   const result: FlushResult = { claimed: 0, sent: 0, skipped: 0, pending: 0, failed: 0 };
   const rows = (data ?? []) as OutboxRow[];
   result.claimed = rows.length;
-  for (const row of rows) {
-    const state = await deliverOutboxRow(db, row);
-    result[state] += 1;
-  }
+  const states = await withConcurrency(rows, OUTBOX_CONCURRENCY, (row) => deliverOutboxRow(db, row));
+  for (const state of states) result[state] += 1;
   return result;
 }

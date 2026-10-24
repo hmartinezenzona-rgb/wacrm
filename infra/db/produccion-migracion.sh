@@ -68,9 +68,9 @@ comprobar_registradas() {   # termina con RECORDED si alguna ya esta en producci
 
 # Consulta INVENTARIO: funciones por nombre y, de las tablas, columnas/constraints/triggers/indices.
 # Una fila por objeto: kind, key, md5, md5 normalizado, cuerpo base64 (tabuladas, en la columna r).
-sql_inventario() {   # $1 funciones "a,b" · $2 tablas "a,b" (calificadas)
-    local fns tbls
-    fns=$(sed "s/[^,][^,]*/'&'/g" <<<"$1"); tbls=$(sed "s/[^,][^,]*/'&'/g" <<<"$2")
+sql_inventario() {   # $1 funciones "a,b" · $2 tablas "a,b" (calificadas) · $3 vistas "a,b"
+    local fns tbls vws
+    fns=$(sed "s/[^,][^,]*/'&'/g" <<<"$1"); tbls=$(sed "s/[^,][^,]*/'&'/g" <<<"$2"); vws=$(sed "s/[^,][^,]*/'&'/g" <<<"${3:-}")
     cat <<SQL
 -- INVENTARIO
 SELECT concat_ws(E'\t', kind, key, md5(def), md5(regexp_replace(def, '\s+', ' ', 'g')),
@@ -99,6 +99,10 @@ FROM (
   UNION ALL
   SELECT 'idx', format('%s.%s#%s', schemaname, tablename, indexname), indexdef
     FROM pg_indexes WHERE schemaname || '.' || tablename = ANY (ARRAY[${tbls}]::text[])
+  UNION ALL
+  SELECT 'view'::text AS kind, format('%s.%s', n.nspname, c.relname), pg_get_viewdef(c.oid, true)
+    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE c.relkind IN ('v', 'm') AND n.nspname || '.' || c.relname = ANY (ARRAY[${vws}]::text[])
 ) q ORDER BY q.key;
 SQL
 }
@@ -108,10 +112,11 @@ objetos_de() {
     PY objetos "${RUTAS[@]}" > "$TRABAJO/objetos.tsv" || die "no pude leer las migraciones"
     FNS=$(awk -F'\t' '$1=="fn"{print $2}' "$TRABAJO/objetos.tsv" | sort -u | paste -sd,)
     TBLS=$(awk -F'\t' '$1=="tbl"{print $2}' "$TRABAJO/objetos.tsv" | sort -u | paste -sd,)
+    VWS=$(awk -F'\t' '$1=="view"{print $2}' "$TRABAJO/objetos.tsv" | sort -u | paste -sd,)
 }
 
-inventario_prod() {   # $1 funciones · $2 tablas · $3 salida
-    consulta_prod "$(sql_inventario "$1" "$2")" | jq -r '.[].r' > "$3"
+inventario_prod() {   # $1 funciones · $2 tablas · $3 vistas · $4 salida
+    consulta_prod "$(sql_inventario "$1" "$2" "${3:-}")" | jq -r '.[].r' > "$4"
 }
 
 # ─── previa ─────────────────────────────────────────────────────────────────
@@ -123,12 +128,12 @@ cmd_previa() {
     cargar_token
     comprobar_registradas
     objetos_de
-    [[ -n "$FNS$TBLS" ]] || die "no encontre ninguna funcion ni tabla en las migraciones"
+    [[ -n "$FNS$TBLS$VWS" ]] || die "no encontre ninguna funcion, tabla ni vista en las migraciones"
 
     # Estado de staging ANTES del paquete: los ROLLBACK en orden inverso, en UNA transaccion que se revierte.
     {   echo 'BEGIN;'
         for r in "${rollbacks[@]}"; do cat "$r"; echo; done
-        sql_inventario "$FNS" "$TBLS"
+        sql_inventario "$FNS" "$TBLS" "$VWS"
         echo 'ROLLBACK;'
     } | psql_staging > "$TRABAJO/staging.tsv" 2> "$TRABAJO/staging.err"
     if [[ $? -ne 0 ]]; then
@@ -136,7 +141,7 @@ cmd_previa() {
         cp "$TRABAJO/staging.err" "$LOG_DIR/previa-staging-$SELLO.err"; echo "log: $LOG_DIR/previa-staging-$SELLO.err"
         exit 1
     fi
-    inventario_prod "$FNS" "$TBLS" "$TRABAJO/prod.tsv"
+    inventario_prod "$FNS" "$TBLS" "$VWS" "$TRABAJO/prod.tsv"
 
     tr ',' '\n' <<<"$FNS" | sed '/^$/d' > "$TRABAJO/nombres.txt"
     PY previa "$TRABAJO/staging.tsv" "$TRABAJO/prod.tsv" "$TRABAJO/nombres.txt" "$LOG_DIR/previa-diff-$SELLO.txt"
@@ -179,12 +184,16 @@ cmd_verificar() {
     # Duena final de cada funcion = la ultima migracion que la crea; si la ultima accion es un DROP, no cuenta.
     awk -F'\t' '$1=="fn" { if ($3=="create") dueno[$2]=$4; if ($3=="drop") delete dueno[$2] }
                 END { for (n in dueno) print n "\t" dueno[n] }' "$TRABAJO/objetos.tsv" | sort > "$TRABAJO/owners.tsv"
-    [[ -s "$TRABAJO/owners.tsv" ]] || { echo "VERIFICADO: 0/0 iguales (las migraciones no definen funciones)"; return 0; }
-    local fns; fns=$(cut -f1 "$TRABAJO/owners.tsv" | paste -sd,)
-    sql_inventario "$fns" "" | psql_staging > "$TRABAJO/staging.tsv" 2> "$TRABAJO/staging.err" \
+    awk -F'\t' '$1=="view" { if ($3=="create") dueno[$2]=$4; if ($3=="drop") delete dueno[$2] }
+                END { for (n in dueno) print n "\t" dueno[n] }' "$TRABAJO/objetos.tsv" | sort > "$TRABAJO/owners-view.tsv"
+    local fns vws
+    fns=$(cut -f1 "$TRABAJO/owners.tsv" | paste -sd,)
+    vws=$(cut -f1 "$TRABAJO/owners-view.tsv" | paste -sd,)
+    [[ -n "$fns$vws" ]] || { echo "VERIFICADO: 0/0 iguales (las migraciones no definen funciones ni vistas)"; return 0; }
+    sql_inventario "$fns" "" "$vws" | psql_staging > "$TRABAJO/staging.tsv" 2> "$TRABAJO/staging.err" \
         || die "staging fallo: $(grep -m1 -oE 'ERROR: .*' "$TRABAJO/staging.err")"
-    inventario_prod "$fns" "" "$TRABAJO/prod.tsv"
-    PY verificar "$TRABAJO/staging.tsv" "$TRABAJO/prod.tsv" "$TRABAJO/owners.tsv"
+    inventario_prod "$fns" "" "$vws" "$TRABAJO/prod.tsv"
+    PY verificar "$TRABAJO/staging.tsv" "$TRABAJO/prod.tsv" "$TRABAJO/owners.tsv" "$TRABAJO/owners-view.tsv"
 }
 
 case "${1:-}" in

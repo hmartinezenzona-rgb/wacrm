@@ -26,6 +26,8 @@ RE_TBL = re.compile(
     r'|CREATE\s+(?:UNIQUE\s+)?INDEX(?:\s+CONCURRENTLY)?(?:\s+IF\s+NOT\s+EXISTS)?\s+\S+\s+ON(?:\s+ONLY)?'
     r'|CREATE\s+(?:OR\s+REPLACE\s+)?(?:CONSTRAINT\s+)?TRIGGER\s+\S+[^;]*?\s+ON'
     r'|DROP\s+TRIGGER(?:\s+IF\s+EXISTS)?\s+\S+\s+ON)\s+' + NOMBRE, re.I)
+RE_VIEW = re.compile(
+    r'\b(CREATE\s+(?:OR\s+REPLACE\s+)?VIEW|DROP\s+VIEW(?:\s+IF\s+EXISTS)?)\s+' + NOMBRE, re.I)
 SEGURO = re.compile(r'^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$')
 
 
@@ -49,6 +51,8 @@ def objetos(rutas):
             eventos.append((m.start(), 'fn', calificado(m.group(2)), ev))
         for m in RE_TBL.finditer(sql):
             eventos.append((m.start(), 'tbl', calificado(m.group(1)), 'toca'))
+        for m in RE_VIEW.finditer(sql):
+            eventos.append((m.start(), 'view', calificado(m.group(2)), m.group(1).split()[0].lower()))
         for _, tipo, nombre, ev in sorted(eventos):
             if SEGURO.match(nombre):
                 print('\t'.join((tipo, nombre, ev, mig)))
@@ -78,9 +82,12 @@ def previa(f_stg, f_prod, f_nombres, f_diff):
     stg, prod = leer(f_stg), leer(f_prod)
     nombres = [l.strip() for l in open(f_nombres) if l.strip()]
     claves = sorted(set(stg) | set(prod), key=lambda k: (k[0] != 'fn', k))
-    iguales_tabla, malas, diferentes = 0, 0, []
+    iguales_tabla, iguales_vista, malas, diferentes = 0, 0, 0, []
     for k in claves:
         est = estado(stg.get(k), prod.get(k))
+        if k[0] == 'view' and est == 'EQUAL':
+            iguales_vista += 1
+            continue
         if k[0] != 'fn' and est == 'EQUAL':
             iguales_tabla += 1
             continue
@@ -95,6 +102,8 @@ def previa(f_stg, f_prod, f_nombres, f_diff):
             print('%-16s %-4s %s (no existe ni en staging previo ni en produccion)' % ('NEW', 'fn', n))
     if iguales_tabla:
         print('(%d columnas/constraints/triggers/indices de tablas tocadas, iguales)' % iguales_tabla)
+    if iguales_vista:
+        print('(%d vistas, iguales)' % iguales_vista)
     if diferentes:
         with open(f_diff, 'w', encoding='utf-8') as d:
             for k in diferentes:
@@ -111,15 +120,27 @@ def previa(f_stg, f_prod, f_nombres, f_diff):
     return 1
 
 
-def verificar(f_stg, f_prod, f_owners):
+def verificar(f_stg, f_prod, f_owners, f_views=''):
     stg, prod = leer(f_stg), leer(f_prod)
     owners = {}
     for l in open(f_owners):
         n, o = l.rstrip('\n').split('\t')
         owners[n] = o
+    view_owners = {}
+    if f_views and os.path.exists(f_views):
+        for l in open(f_views):
+            n, o = l.rstrip('\n').split('\t')
+            view_owners[n] = o
     filas = []
     for n, o in sorted(owners.items()):
         claves = sorted(k for k in set(stg) | set(prod) if k[0] == 'fn' and k[1].split('(')[0] == n)
+        if not claves:
+            filas.append((n + '(?)', o, 'MISSING-IN-PROD', '-', '-'))
+        for k in claves:
+            s, p = stg.get(k), prod.get(k)
+            filas.append((k[1], o, estado(s, p), (p or ('-',))[0][:8], (s or ('-',))[0][:8]))
+    for n, o in sorted(view_owners.items()):
+        claves = sorted(k for k in set(stg) | set(prod) if k[0] == 'view' and k[1] == n)
         if not claves:
             filas.append((n + '(?)', o, 'MISSING-IN-PROD', '-', '-'))
         for k in claves:

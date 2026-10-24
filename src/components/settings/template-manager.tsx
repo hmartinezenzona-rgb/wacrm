@@ -275,10 +275,16 @@ export function TemplateManager() {
       });
       const data = await res.json();
       if (!res.ok) {
+        // Surface the server's reason: the old ternary parsed as
+        // `(data.error || isEdit) ? editFailed : submitFailed`, so any
+        // 4xx with a message showed the generic edit/send text and the
+        // real cause never reached the user.
         throw new Error(
-          data?.error || isEdit
-            ? t('editFailedHttp', { status: res.status })
-            : t('submitFailedHttp', { status: res.status }),
+          data?.error
+            ? data.error
+            : isEdit
+              ? t('editFailedHttp', { status: res.status })
+              : t('submitFailedHttp', { status: res.status }),
         );
       }
       // Refresh first, then close — re-opening the dialog

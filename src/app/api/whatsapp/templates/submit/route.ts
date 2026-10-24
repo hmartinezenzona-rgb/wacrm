@@ -132,6 +132,7 @@ export async function POST(request: Request) {
     try {
       validateTemplatePayload(payload)
     } catch (e) {
+      console.error('[templates submit] validation failed:', e)
       return NextResponse.json(
         { error: e instanceof Error ? e.message : 'Validation failed.' },
         { status: 400 },

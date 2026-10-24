@@ -965,7 +965,7 @@ if (!sabeDestino && !s.multi_beneficiario && datosAMedias) {
       : (R && (rielR || declaradoR) === 'recarga')
         ? 'Es una RECARGA: llama registrar_numeros_recarga EN ESTE MISMO TURNO con el numero (sin tarjeta, una recarga no la lleva). '
         : (R && (rielR || declaradoR) === 'mexico')
-          ? 'Es un envio a MEXICO: el celular solo sirve para el retiro sin tarjeta; guarda con registrar_destinatario_mexico cuando tengas la CLABE completa (cuenta) o banco, nombre y telefono (retiro). No uses la herramienta de la tarjeta cubana. '
+          ? 'Es un envio a MEXICO: el celular solo sirve para el retiro sin tarjeta; guarda con registrar_destinatario_mexico cuando tengas la CLABE completa (cuenta) o solo el banco, Bancoppel o BBVA (retiro). En el retiro NO pidas nombre ni telefono de quien retira: el codigo se manda al cliente que pago. No uses la herramienta de la tarjeta cubana. '
           : 'Si es para una remesa (no una recarga), llama gestionar_beneficiario con el celular y pide la tarjeta. ';
   notas.push('TODAVIA NO HAY BENEFICIARIO REGISTRADO: el sistema NO ha guardado a quien recibe. ' + g83Guardar + 'Hasta que la herramienta responda que quedo guardado, PROHIBIDO decir "anotado", "queda confirmado", "ya quedo registrado", "lo tengo guardado" ni ninguna formula que suene a que los datos de quien recibe ya estan en el sistema. Puedes repetirle un dato PREGUNTANDO para que te lo confirme, pero nunca afirmando que lo guardaste. Y si el cliente YA te lo confirmo y aun asi ves esta nota, no es un despiste: es que el dato que dio NO es valido y el sistema lo rechazo.' + formato);
 }

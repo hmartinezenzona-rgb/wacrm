@@ -74,7 +74,11 @@ export default function AgentsPage() {
             <AiConfig />
           </TabsContent>
 
-          {canViewUsage && (
+          {/* Mounted only while its tab is active: the panel stays in the
+              DOM but hidden, and Recharts measures a hidden container as
+              0 wide ("width(-1) ... should be greater than 0" in the
+              console) and draws nothing until a resize. */}
+          {canViewUsage && tab === 'usage' && (
             <TabsContent value="usage" className="mt-4">
               <AiUsageCard />
             </TabsContent>

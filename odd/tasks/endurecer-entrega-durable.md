@@ -1,6 +1,6 @@
 # Harden durable delivery (outbox)
 
-Status: implemented, staging green; production pending · Branch: feat/port-chat-operations-calculator · 2026-10-24
+Status: live in production · Branch: feat/port-chat-operations-calculator · 2026-10-24
 
 ## Objective
 
@@ -40,8 +40,8 @@ Close the five risks found in the review of the durable `message.received` deliv
 - `npx vitest run src/lib/webhooks/outbox.test.ts src/app/api/cron/webhook-outbox/route.test.ts` → 17 passed (2 files).
 - `npx tsc --noEmit` → exit 0.
 - Staging migration cycle for 303 → dry-run OK, apply OK, assertion OK, rollback OK.
-- Production: `produccion-migracion.sh previa` and apply pending the owner's go-ahead, together with the panel publish.
+- Production: 303 applied as `20261024175656` and verified (`prod=5bc28f14 stg=5bc28f14`); panel published as release `691d912`, BUILD_ID `U8zYcS9AgHw3hJbmT_ccB` (previous `0a185c7`); worker route answers 401 without the secret and both crons (`webhook-outbox`, `vigilar-outbox`) succeed.
 
 ## Verification evidence
 
-- Production apply and a live test message are pending; the outbox row must appear and reach `sent` with the new build.
+- Production apply + panel publish done; a live test message is still pending to see the outbox row reach `sent` with the new build.

@@ -592,7 +592,10 @@ export function ConversationList({
     // w-full on mobile so the list occupies the whole viewport when it's
     // the single pane showing; fixed 320px on desktop where it shares the
     // row with the thread + contact sidebar.
-    <div className="flex h-full w-full flex-col border-r border-border bg-card lg:w-80">
+    // `min-w-0` + `overflow-x-hidden`: the row must be able to shrink to
+    // the viewport; a long chip or a wide label must never widen the pane
+    // past the screen (it showed cut on phones, 2026-10-24).
+    <div className="flex h-full w-full min-w-0 flex-col overflow-x-hidden border-r border-border bg-card lg:w-80">
       {/* Search + Filter */}
       <div className="space-y-2 border-b border-border p-3">
         <div className="relative">

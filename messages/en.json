@@ -2135,9 +2135,13 @@
       "useTheme": "Use {name} theme",
       "modeAria": "Color mode",
       "themes": {
+        "teal": {
+          "name": "Teal",
+          "tagline": "The default — clean and calm."
+        },
         "violet": {
           "name": "Violet",
-          "tagline": "The default — confident, slightly playful."
+          "tagline": "Confident, slightly playful."
         },
         "emerald": {
           "name": "Emerald",

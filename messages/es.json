@@ -2135,9 +2135,13 @@
       "useTheme": "Usar el tema {name}",
       "modeAria": "Modo de color",
       "themes": {
+        "teal": {
+          "name": "Turquesa",
+          "tagline": "El predeterminado: limpio y sereno."
+        },
         "violet": {
           "name": "Violeta",
-          "tagline": "El predeterminado: seguro y un poco juguetón."
+          "tagline": "Seguro y un poco juguetón."
         },
         "emerald": {
           "name": "Esmeralda",

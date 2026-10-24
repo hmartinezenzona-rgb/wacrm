@@ -255,24 +255,26 @@ const g82NotaReparto = () => {
 const g82Min = (() => {
   const m = ctx.minimos || {};
   const n = (k) => { const v = Number(m[k]); return Number.isFinite(v) && v > 0 ? v : null; };
-  // (306) Clasica y Tropical tienen minimo propio (20 USD); si no esta, manda el compartido de siempre.
+  // (307) Los servicios en USD llevan su minimo en USD; el monto en GYD lo da la tasa del dia.
   return { cup: n('minimo_gyd_cup'), usd: n('minimo_gyd_usd'),
-           clasica: n('minimo_gyd_clasica') || n('minimo_gyd_usd'),
-           tropical: n('minimo_gyd_tropical') || n('minimo_gyd_clasica') || n('minimo_gyd_usd'),
-           zelle: n('zelle_minimo_gyd'), efectivo: n('minimo_gyd_efectivo_usd'),
+           usdClasica: n('minimo_usd_clasica') || 20,
+           usdTropical: n('minimo_usd_tropical') || 20,
+           usdZelle: n('minimo_usd_zelle') || 50,
+           usdEfectivo: n('minimo_usd_efectivo') || 100,
            recarga: n('minimo_gyd_recarga'), recargaHasta: n('minimo_gyd_recarga_hasta'), tramite: n('minimo_gyd_tramite') };
 })();
-const g82MinimosTxt = (g82Min.cup && g82Min.usd)
-  ? ('MINIMOS DE DEPOSITO (en GYD, lo que deposita el cliente; salen de la base): remesa en CUP ' + g82N(g82Min.cup)
-     + '; tarjeta Clasica ' + g82N(g82Min.clasica || g82Min.usd)
-     + '; tarjeta Tropical ' + g82N(g82Min.tropical || g82Min.clasica || g82Min.usd)
-     + (g82Min.zelle ? '; Zelle ' + g82N(g82Min.zelle) : '')
-     + (g82Min.efectivo ? '; entrega de efectivo en USD ' + g82N(g82Min.efectivo) : '')
-     + (g82Min.recarga ? '; recargas ' + g82N(g82Min.recarga)
-        + (g82Min.recargaHasta && g82Min.recargaHasta !== g82Min.recarga ? ' a ' + g82N(g82Min.recargaHasta) + ' segun la promocion' : '') : '')
-     + (g82Min.tramite ? '; traducciones y extensiones de visa ' + g82N(g82Min.tramite) : '')
-     + '. Por debajo del minimo de su servicio NO se hace: dilo tal cual. Si un monto encaja en mas de un servicio y el'
-     + ' cliente no dijo cual, PREGUNTA, una sola pregunta.')
+const g82MinimosTxt = g82Min.cup
+  ? ('MINIMOS DE DEPOSITO (salen de la base): remesa en CUP ' + g82N(g82Min.cup) + ' GYD'
+     + '; tarjeta Clasica ' + g82N(g82Min.usdClasica) + ' USD'
+     + '; tarjeta Tropical ' + g82N(g82Min.usdTropical) + ' USD'
+     + '; Zelle ' + g82N(g82Min.usdZelle) + ' USD'
+     + '; entrega de efectivo en USD ' + g82N(g82Min.usdEfectivo) + ' USD'
+     + (g82Min.recarga ? '; recargas ' + g82N(g82Min.recarga) + ' GYD'
+        + (g82Min.recargaHasta && g82Min.recargaHasta !== g82Min.recarga ? ' a ' + g82N(g82Min.recargaHasta) + ' GYD segun la promocion' : '') : '')
+     + (g82Min.tramite ? '; traducciones y extensiones de visa ' + g82N(g82Min.tramite) + ' GYD' : '')
+     + '. En los servicios en USD el monto a depositar en GYD sale de la tasa del dia: dilo en USD y, si hace falta,'
+     + ' pasa el monto con la tasa que te dan las herramientas. Por debajo del minimo de su servicio NO se hace: dilo tal cual.'
+     + ' Si un monto encaja en mas de un servicio y el cliente no dijo cual, PREGUNTA, una sola pregunta.')
   : '';
 // Amounts the customer wrote in this burst. Cards (16 digits, also in groups of 4) and Cuban phones
 // are removed first, so their digit groups are never read as amounts.

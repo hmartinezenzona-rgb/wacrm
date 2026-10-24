@@ -949,15 +949,16 @@ describe('minimos de deposito por servicio', () => {
       ctx: {
         minimos: {
           minimo_gyd_cup: '5000',
-          minimo_gyd_usd: '13000',
-          minimo_gyd_clasica: '5200',
-          minimo_gyd_tropical: '5200',
-          zelle_minimo_gyd: '13000',
+          minimo_usd_clasica: '20',
+          minimo_usd_tropical: '20',
+          minimo_usd_zelle: '50',
+          minimo_usd_efectivo: '100',
         },
       },
     });
-    expect(out.mensaje).toContain('tarjeta Clasica 5,200');
-    expect(out.mensaje).toContain('tarjeta Tropical 5,200');
-    expect(out.mensaje).toContain('Zelle 13,000');
+    expect(out.mensaje).toContain('tarjeta Clasica 20 USD');
+    expect(out.mensaje).toContain('tarjeta Tropical 20 USD');
+    expect(out.mensaje).toContain('Zelle 50 USD');
+    expect(out.mensaje).toContain('efectivo en USD 100 USD');
   });
 });

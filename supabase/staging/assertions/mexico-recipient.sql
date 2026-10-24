@@ -11,7 +11,7 @@ BEGIN;
 --      insert and stay vigente on a 'mexico' operation; card_number stays NULL
 --   2  CLABE must be exactly 18 digits: 17 digits, 19 digits and letters are refused (check_violation)
 --   3  a CLABE only exists on México recipients; card_number is never set on a México recipient (a CLABE is never a card)
---   4  mexico_retiro bank_name is Coppel or BBVA only; mexico_cuenta takes any bank (Banco Azteca, Mercado Pago)
+--   4  mexico_retiro bank_name is Bancoppel or BBVA (legacy Coppel); mexico_cuenta takes any bank (Banco Azteca, Mercado Pago)
 --   5  inserting México recipients does not change the operation's service_type / delivery rail columns it was given
 --   6  crm_beneficiarios_completos: a complete cuenta / retiro is true; missing CLABE, bank or name is false; a retiro
 --      without phone is false; a cuenta without phone is still true
@@ -168,8 +168,8 @@ BEGIN
   PERFORM pg_temp.m_eq('6 cuenta without clabe', crm_beneficiarios_completos(v_op)::text, 'false');
   UPDATE remittance_beneficiaries SET clabe = c_clabe WHERE id = v_cu;
   v_re := pg_temp.m_ben(v_op, 'mexico_retiro', 'PRUEBA Juan Mex', NULL, NULL, NULL, 'Coppel', 2);
-  PERFORM pg_temp.m_eq('6 retiro without phone', crm_beneficiarios_completos(v_op)::text, 'false');
-  UPDATE remittance_beneficiaries SET phone = '5215512345678' WHERE id = v_re;
+  -- (299) A cardless withdrawal is complete with its bank only: no name or phone is collected.
+  PERFORM pg_temp.m_eq('6 retiro without name or phone (299)', crm_beneficiarios_completos(v_op)::text, 'true');
   PERFORM pg_temp.m_eq('6 cuenta + retiro complete', crm_beneficiarios_completos(v_op)::text, 'true');
 
   -- 7 card logic ignores México
@@ -201,7 +201,6 @@ BEGIN
   PERFORM pg_temp.m_eq('9 short clabe', pg_temp.m_add(v_op, jsonb_build_object('beneficiary_type', 'mexico_cuenta', 'name', 'X', 'clabe', '1234', 'bank_name', 'Banco Azteca'), c.usr), '22023');
   PERFORM pg_temp.m_eq('9 cuenta without bank', pg_temp.m_add(v_op, jsonb_build_object('beneficiary_type', 'mexico_cuenta', 'name', 'X', 'clabe', c_clabe2), c.usr), '22023');
   PERFORM pg_temp.m_eq('9 retiro Banorte', pg_temp.m_add(v_op, jsonb_build_object('beneficiary_type', 'mexico_retiro', 'name', 'X', 'bank_name', 'Banorte', 'phone', '5215512345678'), c.usr), '22023');
-  PERFORM pg_temp.m_eq('9 retiro without phone', pg_temp.m_add(v_op, jsonb_build_object('beneficiary_type', 'mexico_retiro', 'name', 'X', 'bank_name', 'Coppel'), c.usr), '22023');
   PERFORM pg_temp.m_eq('9 retiro with an amount over the operation USD (290)', pg_temp.m_add(v_op, jsonb_build_object('beneficiary_type', 'mexico_retiro', 'name', 'X', 'bank_name', 'Coppel', 'phone', '5215512345678', 'amount', 100), c.usr), '22023');
   PERFORM pg_temp.m_eq('9 cuenta with card', pg_temp.m_add(v_op, jsonb_build_object('beneficiary_type', 'mexico_cuenta', 'name', 'X', 'clabe', c_clabe2, 'bank_name', 'BBVA', 'card_number', c_card), c.usr), '22023');
   PERFORM pg_temp.m_eq('9 retiro bbva lower', pg_temp.m_add(v_op, jsonb_build_object('beneficiary_type', 'mexico_retiro', 'name', 'PRUEBA Juan Mex', 'bank_name', 'bbva', 'phone', '+52 1 55 1234 5678'), c.usr), 'ok');
@@ -224,11 +223,14 @@ BEGIN
   PERFORM pg_temp.m_eq('10 blank name', pg_temp.m_fix(v_cu, '{"name":""}'::jsonb, c.usr), '22023');
   PERFORM pg_temp.m_eq('10 clabe on retiro', pg_temp.m_fix(v_re, jsonb_build_object('clabe', c_clabe2), c.usr), '22023');
   PERFORM pg_temp.m_eq('10 retiro Banorte', pg_temp.m_fix(v_re, '{"bank_name":"Banorte"}'::jsonb, c.usr), '22023');
-  PERFORM pg_temp.m_eq('10 retiro phone cleared', pg_temp.m_fix(v_re, '{"phone":null}'::jsonb, c.usr), '22023');
+  -- (299) Clearing the phone of a cardless withdrawal is allowed: the code goes to the customer who paid.
+  PERFORM pg_temp.m_eq('10 retiro phone cleared (299)', pg_temp.m_fix(v_re, '{"phone":null}'::jsonb, c.usr), 'ok');
   PERFORM pg_temp.m_eq('10 cuenta fixed', pg_temp.m_fix(v_cu, jsonb_build_object('clabe', c_clabe2, 'bank_name', 'Mercado Pago', 'name', 'PRUEBA Maria Lopez', 'phone', '5215500000001'), c.usr), 'ok');
   PERFORM pg_temp.m_eq('10 old replaced', (SELECT status FROM remittance_beneficiaries WHERE id = v_cu), 'reemplazado');
   PERFORM pg_temp.m_eq('10 new row', (SELECT clabe || ':' || bank_name || ':' || name || ':' || phone FROM remittance_beneficiaries WHERE operation_id = v_op AND status = 'vigente' AND beneficiary_type = 'mexico_cuenta'),
                        c_clabe2 || ':Mercado Pago:PRUEBA Maria Lopez:5215500000001');
+  -- (299) The phone correction replaced the row; fix the bank on the current one.
+  SELECT id INTO v_re FROM remittance_beneficiaries WHERE operation_id = v_op AND status = 'vigente' AND beneficiary_type = 'mexico_retiro' LIMIT 1;
   PERFORM pg_temp.m_eq('10 retiro bank fixed', pg_temp.m_fix(v_re, '{"bank_name":"bbva"}'::jsonb, c.usr), 'ok');
   PERFORM pg_temp.m_eq('10 retiro bank stored', (SELECT bank_name FROM remittance_beneficiaries WHERE operation_id = v_op AND status = 'vigente' AND beneficiary_type = 'mexico_retiro'), 'BBVA');
   PERFORM pg_temp.m_eq('10 card row clabe refused', pg_temp.m_fix(pg_temp.m_ben(pg_temp.m_op(c, 'remesa', 'cuban_card', 100), 'cuban_card', 'X', c_card, '53555551', NULL, NULL, 1), jsonb_build_object('clabe', c_clabe), c.usr), '22023');

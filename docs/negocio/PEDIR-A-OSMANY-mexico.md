@@ -19,7 +19,19 @@ destinatarios CLABE o retiro sin tarjeta); estas respuestas cierran lo que falta
   varían según la fuente (cajero BBVA: hasta 12,000 MXN al día; Oxxo: 100 a 3,000 MXN por retiro).
 - Retiro sin tarjeta Coppel: no hay información pública clara de cómo funciona.
 
-## Preguntas
+## Respuestas de Osmany (2026-10-24)
+
+- **Retiro sin tarjeta**: se hace desde **BBVA o Bancoppel** (no la tienda Coppel). El código se le manda al **cliente que pagó**, no al beneficiario. No hace falta nombre ni teléfono de quien retira: **basta con el código**.
+- **Sin máximo** por retiro ni por día.
+- **Cuenta bancaria**: CLABE, banco y titular. No hay ningún banco conocido que no funcione; se verá en la práctica.
+- **Redondeo**: el retiro sin tarjeta va en **múltiplos de 100, siempre hacia abajo**, y al cliente se le informa **antes** cuánto va a poder retirar.
+- **Caducidad**: el código del retiro tiene un límite de tiempo, normalmente **una semana**; la captura que lleva el código lo dice.
+- **Transferencia**: al cliente se le manda la **captura con los MXN depositados**.
+- **Tasa**: ARQ convierte a la tasa interbancaria de Google; se automatizó desde `api.arqfinance.com/v1/tickers` (migración 297).
+
+Sigue sin respuesta: **cuánto tarda en verse el dinero en la cuenta** (dato para el texto de "en curso", no bloquea el cierre).
+
+## Preguntas (histórico)
 
 **Tasa y montos**
 1. ¿De dónde sale el cambio de USD a pesos mexicanos de cada día (qué banco, app o casa de cambio)? ¿Lo fijas tú o

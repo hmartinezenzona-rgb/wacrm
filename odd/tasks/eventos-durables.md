@@ -29,6 +29,8 @@ The webhook emits `conversation.created` through `dispatchWebhookEvent`, which g
   - Evidence: test "sends a status update even when the wamid has a session_event"; webhook route uses `dispatchEventDurably` for the three events.
 - [x] T5. Migration 304: the claim orders `message.received` before status updates, so a burst cannot delay the bot; status rows still drain afterwards.
   - Evidence: staging dry-run/apply/assertion/rollback OK; `cerebro_webhook_outbox_reclamar` md5 `b97887fa2e6e`; production previa SEGURO.
+- [x] T6. Migration 305: SELECT for `service_role` on `session_events` (the outbox dedupe was failing open with "permission denied" on every message), plus `promo_etecsa` and `precio_recarga` (the panel's Etecsa promotions route reads both with the service key and could not).
+  - Evidence: staging cycle OK; production previa SEGURO (49 columns equal).
 
 ## Checks
 

@@ -25,7 +25,8 @@ RE_TBL = re.compile(
     r'|DROP\s+TABLE(?:\s+IF\s+EXISTS)?'
     r'|CREATE\s+(?:UNIQUE\s+)?INDEX(?:\s+CONCURRENTLY)?(?:\s+IF\s+NOT\s+EXISTS)?\s+\S+\s+ON(?:\s+ONLY)?'
     r'|CREATE\s+(?:OR\s+REPLACE\s+)?(?:CONSTRAINT\s+)?TRIGGER\s+\S+[^;]*?\s+ON'
-    r'|DROP\s+TRIGGER(?:\s+IF\s+EXISTS)?\s+\S+\s+ON)\s+' + NOMBRE, re.I)
+    r'|DROP\s+TRIGGER(?:\s+IF\s+EXISTS)?\s+\S+\s+ON'
+    r'|GRANT\b[^;]*?\bON\s+TABLE)\s+' + NOMBRE, re.I)
 RE_VIEW = re.compile(
     r'\b(CREATE\s+(?:OR\s+REPLACE\s+)?VIEW|DROP\s+VIEW(?:\s+IF\s+EXISTS)?)\s+' + NOMBRE, re.I)
 SEGURO = re.compile(r'^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$')

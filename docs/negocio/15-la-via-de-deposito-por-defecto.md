@@ -4,15 +4,16 @@ Cambio en el prompt del agente, desplegado el **10 de agosto de 2026**.
 
 ---
 
-## Hay dos cuentas y no son intercambiables
+## Hay UNA SOLA cuenta (desde el 2026-10-24)
 
 | Vía | Titular | Número |
 |---|---|---|
-| **Agente MMG** | Osmany Pozo | **6762167** |
-| App MMG (Pay Merchant) | Osmany Services | 6990225 |
+| **MMG** | Osmany Pozo | **6762167** |
 
-La de agente sirve cuando el cliente **transfiere desde su cuenta personal** o
-deposita con un agente. La de Pay Merchant, cuando paga **desde la app MMG**.
+La cuenta **App MMG (Pay Merchant, Osmany Services, 6990225) se retiró el
+2026-10-24** por decisión de Osmany. El bot ya no pregunta por dónde va a
+depositar ni menciona Pay Merchant: da siempre esta cuenta. Lo que sigue se
+conserva como historia del cambio del 10-ago.
 
 ---
 

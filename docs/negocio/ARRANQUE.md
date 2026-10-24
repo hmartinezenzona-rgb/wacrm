@@ -203,9 +203,9 @@ Pipeline de remesas ............. 78220927-0745-45a8-ba08-a1b33734dbf1
 Pipeline de SERVICIOS (vacío) ... 37f91872-6eb6-40d4-b8e6-1017053b9bf0
   Solicitado / Pagado / En proceso / Entregado / Incidencia
 
-Cuentas de deposito (OJO, son dos y NO son intercambiables):
-  Agente MMG ..... Osmany Pozo ...... 6762167   <- LA POR DEFECTO (26 de 27 depositos)
-  Pay Merchant ... Osmany Services ... 6990225   solo si el cliente dice 'app'
+Cuenta de deposito (UNA sola desde el 2026-10-24):
+  MMG ............. Osmany Pozo ...... 6762167   siempre; el bot no pregunta la via
+  (Pay Merchant 6990225 se retiro el 2026-10-24)
 
 Cuenta (account_id) ............. 465fb4ce-33b6-4473-ad2c-42818772f587
 Agente al que se asigna .......... 377b0c8c-c025-46ff-8088-7a929080831e

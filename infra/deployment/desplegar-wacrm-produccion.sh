@@ -124,7 +124,7 @@ remoto "ln -sfn $DESTINO $RELEASES_PRODUCCION/anterior.nueva && \
         ln -sfn $ANTERIOR $RELEASES_PRODUCCION/anterior && \
         rm -f $RELEASES_PRODUCCION/anterior.nueva && \
         ln -sfn $DESTINO $RELEASES_PRODUCCION/current"
-remoto "pm2 restart $PM2_APP_PRODUCCION --update-env >/dev/null 2>&1"
+remoto "pm2 restart $PM2_APP_PRODUCCION --update-env --time >/dev/null 2>&1"
 verde "  current -> $DESTINO"
 verde "  anterior -> $ANTERIOR   (no se borra)"
 

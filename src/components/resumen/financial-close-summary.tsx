@@ -85,6 +85,8 @@ export function FinancialCloseSummary({ close }: { close: FinancialClose }) {
             className={`rounded-xl border border-border bg-card tarjeta-elevada p-4 ${close.byDay.length > 1 ? "lg:col-span-2" : "lg:col-span-5"}`}
           >
             <h3 className="mb-2 text-sm font-semibold text-foreground">{t("porServicio")}</h3>
+            {/* A phone must scroll the four columns sideways, not clip them. */}
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-muted/50 text-left text-xs text-muted-foreground">
@@ -120,6 +122,7 @@ export function FinancialCloseSummary({ close }: { close: FinancialClose }) {
                 ))}
               </tbody>
             </table>
+            </div>
           </section>
         </div>
       )}

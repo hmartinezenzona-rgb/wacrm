@@ -847,3 +847,74 @@ describe('291 follow-up: recipients are counted across ALL open operations of th
     expect(nota(s, 'TODAVIA NO HAY BENEFICIARIO REGISTRADO')).toBeDefined();
   });
 });
+
+describe('293: PARTES ACORDADAS - cada parte con su monto acordado, lo que cubre el deposito y lo que falta (hechos, sin decidir)', () => {
+  const op = (servicio: string, acordado: number | null, dinero = 0, extra: Record<string, unknown> = {}) => ({
+    id: `op-${servicio}`,
+    servicio,
+    tipo: servicio === 'mexico' ? 'mexico' : servicio === 'recarga' ? 'recarga' : 'remesa',
+    status: 'collecting_information',
+    deposito: dinero,
+    dinero_gyd: dinero,
+    tiene_deposito: dinero > 0,
+    monto_acordado_gyd: acordado,
+    vacia: dinero === 0,
+    grupo: null,
+    ...extra,
+  });
+  const R = (operaciones: unknown[], extra: Record<string, unknown> = {}) => ({
+    version: 2,
+    en_curso: null,
+    servicio: null,
+    accion: 'ninguna',
+    permitido: true,
+    motivo: 'sin_cambio',
+    mensaje: 'x',
+    operaciones,
+    adicionales: [],
+    evidencia: { declarado: null, deposito: 0 },
+    reparto_planeado: null,
+    ...extra,
+  });
+  const P = 'PARTES ACORDADAS';
+  const tres = (dineroMexico: number) => [
+    op('mexico', 26000, dineroMexico),
+    op('efectivo_usd', 29000),
+    op('recarga', 6200),
+  ];
+
+  it('con un deposito de 55,000 cubre las dos primeras partes enteras y dice lo que falta de la recarga', () => {
+    const n = nota(correrDecisor({ ctx: { servicio_resuelto: R(tres(55000)) } }), P) as string;
+    expect(n).toBeDefined();
+    expect(n).toMatch(/mexico 26,000/);
+    expect(n).toMatch(/efectivo_usd 29,000/);
+    expect(n).toMatch(/recarga 6,200/);
+    expect(n).toMatch(/61,200/);
+    expect(n).toMatch(/55,000/);
+    expect(n).toMatch(/cubre completas: mexico 26,000 \+ efectivo_usd 29,000/);
+    expect(n).toMatch(/No cubierto: recarga 6,200/);
+    expect(n).toMatch(/faltan 6,200 GYD/);
+    expect(n).not.toMatch(/PREGUNTA|PROHIBIDO/); // facts only
+  });
+
+  it('nunca cubre una parte que excede el deposito: salta a la siguiente que cabe', () => {
+    const ops = [op('mexico', 26000, 33000), op('efectivo_usd', 29000), op('recarga', 6200)];
+    const n = nota(correrDecisor({ ctx: { servicio_resuelto: R(ops) } }), P) as string;
+    expect(n).toMatch(/cubre completas: mexico 26,000 \+ recarga 6,200/);
+    expect(n).toMatch(/No cubierto: efectivo_usd 29,000/);
+    expect(n).toMatch(/faltan 28,200 GYD/);
+  });
+
+  it('sin deposito lista las partes y lo dice', () => {
+    const n = nota(correrDecisor({ ctx: { servicio_resuelto: R(tres(0)) } }), P) as string;
+    expect(n).toBeDefined();
+    expect(n).toMatch(/mexico 26,000 \+ efectivo_usd 29,000 \+ recarga 6,200/);
+    expect(n).toMatch(/Todavia no hay deposito/);
+  });
+
+  it('una sola parte, o un reparto planeado, no generan la nota', () => {
+    expect(nota(correrDecisor({ ctx: { servicio_resuelto: R([op('mexico', 26000)]) } }), P)).toBeUndefined();
+    const plan = { partes: [{ servicio: 'mexico', monto_gyd: 26000, usd: 100 }, { servicio: 'efectivo_usd', monto_gyd: 29000, usd: 100 }], total_gyd: 55000, deposito_gyd: null, diferencia_gyd: null, coincide: false };
+    expect(nota(correrDecisor({ ctx: { servicio_resuelto: R(tres(0), { reparto_planeado: plan }) } }), P)).toBeUndefined();
+  });
+});

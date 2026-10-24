@@ -700,3 +700,51 @@ class TestCotizar289(unittest.TestCase):
     def test_idempotente(self):
         wf = h.aplicar_cotizar(self.wf())
         self.assertEqual(h.aplicar_cotizar(json.loads(json.dumps(wf))), wf)
+
+
+class TestMonto293(unittest.TestCase):
+    """declarar_servicio / agregar_servicio / cambiar_servicio gain an optional monto_gyd (293): the amount the customer states for that service."""
+
+    def wf(self):
+        rep = "={{ [$('Decisor').item.json.conversation_id, $fromAI('servicio', 'x', 'string'), $execution.id] }}"
+        conv = "CASE lower(btrim($2::text)) WHEN 'cup' THEN 'cuban_card' ELSE lower(btrim($2::text)) END"
+        ap = ("SELECT r ->> 'mensaje' AS mensaje, (r ->> 'aplicado')::boolean AS aplicado, r ->> 'motivo' AS motivo\n"
+              "  FROM (SELECT cerebro_aplicar_servicio($1::uuid, " + conv + ", '%s', 'agent:%s', $3::text) AS r) x;")
+        dec = ("SELECT (r ->> 'ok')::boolean AS ok, r ->> 'servicio' AS servicio, r ->> 'motivo' AS motivo,\n"
+               "       CASE WHEN (r ->> 'ok')::boolean THEN 'Anotado: el cliente va por ' || (r ->> 'servicio')\n"
+               "            ELSE 'No se pudo anotar el servicio: ' || coalesce(r ->> 'motivo', 'error') END AS mensaje\n"
+               "  FROM (SELECT cerebro_declarar_servicio($1::uuid, " + conv + ", 'agent:declarar_servicio') AS r,\n"
+               "               $3::text AS ejecucion) x;")
+
+        def nodo(n, q):
+            return {"name": n, "parameters": {"query": q, "options": {"queryReplacement": rep}, "toolDescription": "d"}}
+        return {"nodes": [nodo("declarar_servicio", dec), nodo("agregar_servicio", ap % ("agregar", "agregar_servicio")),
+                          nodo("cambiar_servicio", ap % ("cambiar", "cambiar_servicio"))], "connections": {}}
+
+    def test_los_tres_reciben_monto_gyd_como_parametro_opcional(self):
+        wf = h.aplicar_monto_293(self.wf())
+        for n in wf["nodes"]:
+            p = n["parameters"]
+            self.assertIn("$fromAI('monto_gyd'", p["options"]["queryReplacement"])
+            self.assertTrue(p["options"]["queryReplacement"].rstrip().endswith("] }}"))
+            self.assertIn("$4::text", p["query"])
+            self.assertIn("::numeric", p["query"])
+
+    def test_la_descripcion_pide_pasarlo_cuando_el_cliente_dice_un_monto(self):
+        wf = h.aplicar_monto_293(self.wf())
+        for n in wf["nodes"]:
+            self.assertIn("monto_gyd", n["parameters"]["toolDescription"])
+            self.assertIn("Si el cliente dice un monto", n["parameters"]["toolDescription"])
+
+    def test_declarar_dice_si_el_monto_quedo_anotado(self):
+        q = h.aplicar_monto_293(self.wf())["nodes"][0]["parameters"]["query"]
+        self.assertIn("monto_acordado", q)
+        self.assertIn("Monto acordado anotado", q)
+
+    def test_agregar_y_cambiar_devuelven_el_resultado_del_monto(self):
+        for n in h.aplicar_monto_293(self.wf())["nodes"][1:]:
+            self.assertIn("monto_acordado", n["parameters"]["query"])
+
+    def test_idempotente(self):
+        wf = h.aplicar_monto_293(self.wf())
+        self.assertEqual(h.aplicar_monto_293(json.loads(json.dumps(wf))), wf)

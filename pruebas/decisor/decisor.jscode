@@ -1070,6 +1070,34 @@ if (planR && !s.comprobante && Number(planR.deposito_gyd) > 0 && planR.coincide 
   const rcP = reconciliarPartes(planR.partes, Number(planR.deposito_gyd), true);
   if (rcP) { notas.push(notaReconPartes(rcP, Number(planR.deposito_gyd), 'GYD', 'ya hay un deposito registrado de')); }
 }
+// 293: PARTES ACORDADAS. Each open operation keeps the amount agreed for it (monto_acordado_gyd) while it holds no money and, once it holds money,
+// the last amount agreed before the deposit (dinero_gyd is the money). Facts only: which parts the registered deposit covers whole (in the order
+// agreed, never exceeding it; a part that does not fit is skipped and a later one that fits is taken) and what is left uncovered, with the shortfall.
+// A planned split (reparto_planeado) already has its own note.
+if (R && !planR && Array.isArray(R.operaciones)) {
+  const partesA = R.operaciones.filter((o) => o && Number(o.monto_acordado_gyd) > 0).map((o) => ({ servicio: String(o.servicio || 'parte'), monto: Number(o.monto_acordado_gyd), grupo: !!o.grupo }));
+  if (partesA.length >= 2) {
+    const f293 = (n) => Number(n).toLocaleString('en-US');
+    const pf = (p) => p.servicio + ' ' + f293(p.monto);
+    const totalA = partesA.reduce((a, p) => a + p.monto, 0);
+    const depA = R.operaciones.reduce((a, o) => a + (o && o.tiene_deposito ? Number(o.dinero_gyd || 0) : 0), 0);
+    let txt = 'PARTES ACORDADAS DEL ENVIO: ' + partesA.map(pf).join(' + ') + ' (total ' + f293(totalA) + ' GYD). ';
+    if (depA > 0) {
+      let acum = 0;
+      const cub = [];
+      const no = [];
+      partesA.forEach((p) => { if (acum + p.monto <= depA) { acum += p.monto; cub.push(p); } else { no.push(p); } });
+      const sobra = depA - acum;
+      txt += 'Deposito registrado: ' + f293(depA) + ' GYD. ';
+      txt += cub.length ? 'En el orden acordado cubre completas: ' + cub.map(pf).join(' + ') + ' (' + f293(acum) + ')' + (sobra > 0 ? ', sobran ' + f293(sobra) + ' GYD sin asignar' : '') + '. ' : 'No alcanza a cubrir ninguna parte completa. ';
+      txt += no.length ? 'No cubierto: ' + no.map(pf).join(' + ') + '; faltan ' + f293(no.reduce((a, p) => a + p.monto, 0) - sobra) + ' GYD por depositar para cubrirlo. ' : 'Cubre todo lo acordado. ';
+      if (!partesA.some((p) => p.grupo)) { txt += 'Nada se ha repartido todavia con este deposito.'; }
+    } else {
+      txt += 'Todavia no hay deposito registrado.';
+    }
+    notas.push(txt.trim());
+  }
+}
 if (rielOp) { notas.push('VIA ACTUAL DE LA OPERACION: ' + ({zelle:'Zelle',clasica:'tarjeta Clasica',tropical:'tarjeta Tropical',cuban_card:'CUP (tarjeta en pesos)',efectivo_usd:'efectivo en USD',recarga:'recarga',combo:'combo',visa:'visa',saldo:'saldo movil',mexico:'Mexico'}[rielOp] || rielOp) + '. Si el cliente DECIDE otra en lugar de esta, llama cambiar_servicio; si quiere otra ADEMAS de esta, llama agregar_servicio; una pregunta de precio o hablar de otra persona NO es un cambio.'); }
 if (R) {
   // S4: the agent's declared intent comes from the resolved state (one row per conversation), not from a pending flag.

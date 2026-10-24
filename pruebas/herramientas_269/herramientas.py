@@ -850,3 +850,40 @@ def aplicar_cotizar(wf):
             r = re.sub(r"\$fromAI\('moneda', '[^']*', 'string'(?:, '')?\), ", "", r)
             p["options"]["queryReplacement"] = r
     return wf
+
+
+MONTO_293 = ("el monto en GYD que el cliente dijo para ESTE servicio (solo digitos, por ejemplo 26000); "
+             "vacio si no dijo ningun monto para este servicio")
+MONTO_293_NUM = "NULLIF(regexp_replace($4::text, '[^0-9.]', '', 'g'), '')::numeric"
+MONTO_293_NOTA = (" Si el cliente dice un monto para este servicio, pasalo en monto_gyd (solo digitos, en GYD): la base lo guarda como lo acordado "
+                  "de esa parte; si no dijo ninguno, dejalo vacio. Nunca inventes un monto.")
+
+
+def aplicar_monto_293(wf):
+    """293: declarar_servicio / agregar_servicio / cambiar_servicio pass the optional monto_gyd to the database (it keeps it as the AGREED amount of the part)."""
+    for nombre in ("declarar_servicio", "agregar_servicio", "cambiar_servicio"):
+        n = _nodo(wf, nombre)
+        if n is None:
+            raise ValueError(nombre + " not found")
+        p = n["parameters"]
+        r = p["options"]["queryReplacement"]
+        if "monto_gyd" in r:
+            continue
+        assert r.rstrip().endswith("$execution.id] }}"), nombre
+        p["options"]["queryReplacement"] = r.rstrip()[: -len("] }}")] + ", $fromAI('monto_gyd', '" + MONTO_293 + "', 'string')] }}"
+        q = p["query"]
+        if nombre == "declarar_servicio":
+            q = q.replace("'agent:declarar_servicio') AS r,", "'agent:declarar_servicio', " + MONTO_293_NUM + ") AS r,")
+            q = q.replace("CASE WHEN (r ->> 'ok')::boolean THEN 'Anotado: el cliente va por ' || (r ->> 'servicio')",
+                          "CASE WHEN (r ->> 'ok')::boolean THEN 'Anotado: el cliente va por ' || (r ->> 'servicio')"
+                          " || CASE WHEN (r #>> '{monto_acordado,ok}')::boolean"
+                          " THEN '. Monto acordado anotado: ' || to_char((r #>> '{monto_acordado,monto_gyd}')::numeric, 'FM999,999,999') || ' GYD'"
+                          " WHEN r ? 'monto_acordado' THEN '. El monto NO se anoto (' || coalesce(r #>> '{monto_acordado,motivo}', 'error') || ')'"
+                          " ELSE '' END")
+        else:
+            q = q.replace("$3::text) AS r) x;", "$3::text, " + MONTO_293_NUM + ") AS r) x;")
+            q = q.replace(" AS motivo", " AS motivo,\n       r #>> '{monto_acordado,monto_gyd}' AS monto_acordado_gyd, r #>> '{monto_acordado,motivo}' AS monto_acordado_motivo", 1)
+        assert "$4::text" in q and "monto_acordado" in q, nombre
+        p["query"] = q
+        p["toolDescription"] = p["toolDescription"].rstrip() + MONTO_293_NOTA
+    return wf

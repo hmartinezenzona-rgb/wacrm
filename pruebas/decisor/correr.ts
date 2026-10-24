@@ -21,12 +21,12 @@ export const DECISOR_MD5_AL_FIJARLO = 'c2ed1d13c177dc368fbfd63150e706e7';
 
 /**
  * md5 of the copy in this repo as it stands. S4 (269, 2026-10-22): notes read ctx.servicio_resuelto; deployed to staging with the same change. S5b adds the declared-service tool names and the reconcile note for over-deposits. 277: reconcile note built from servicio_resuelto.reparto_planeado. P2: the reconcile note states facts only. Previous staging md5 8c421a94453c1f45cecbededbe96e892.
- * 2026-10-23 (291 follow-up): Mexico recipients count as a destination and a per-operation recipients note is added.
+ * 2026-10-23 (291 follow-up): Mexico recipients count as a destination and a per-operation recipients note is added. 293: PARTES ACORDADAS note (agreed amount per part, what the registered deposit covers whole, shortfall).
  * Last deployed to staging `U52y1kSNvhgxvWeb` on 2026-10-20 had md5 af1e5e40124b678215f295b6736b1792.
  * A test asserts the file still hashes to this, so a formatter run or a half-applied edit fails
  * loudly instead of silently diverging from the workflow.
  */
-export const DECISOR_MD5_ESPERADO = '4ed9c08cdf901b8385cd60a897e9420f';
+export const DECISOR_MD5_ESPERADO = 'cff5fb21babee469e364589ceeca8cd7';
 
 export const ORIGEN = join(
   dirname(fileURLToPath(import.meta.url)),

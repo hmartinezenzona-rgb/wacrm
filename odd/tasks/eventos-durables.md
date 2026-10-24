@@ -42,4 +42,5 @@ The webhook emits `conversation.created` through `dispatchWebhookEvent`, which g
 ## Verification evidence
 
 - 304 applied as `20261024181047` and verified (`prod=b97887fa stg=b97887fa`); panel published as release `8bec2b1`, BUILD_ID `1dlIy5fMy3D3pGng26RTc` (previous `bd7dfff`); worker route answers 401 without the secret.
-- Live rows for `conversation.created` and `message.status_updated` appear with real traffic; the outbox was empty after the publish because no message arrived in the first minutes.
+- 305 applied as `20261024182423`; `service_role` reads `session_events`, `promo_etecsa` and `precio_recarga` (anon still cannot).
+- Live rows for `conversation.created` and `message.status_updated` appear with real traffic; the production endpoint only subscribes to `message.received`, so both remain dormant until its `events` array includes them (business decision).

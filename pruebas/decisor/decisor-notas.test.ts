@@ -918,3 +918,27 @@ describe('293: PARTES ACORDADAS - cada parte con su monto acordado, lo que cubre
     expect(nota(correrDecisor({ ctx: { servicio_resuelto: R(tres(0), { reparto_planeado: plan }) } }), P)).toBeUndefined();
   });
 });
+
+describe('invitacion al grupo de WhatsApp', () => {
+  const LINK = 'https://chat.whatsapp.com/GFznWMcrlHa5RSBo76Vw81';
+
+  it('la anade en el primer mensaje del cliente', () => {
+    const out = turno('hola', { ctx: { mensajes_cliente: 1 } });
+    expect(out.mensaje).toContain('CLIENTE NUEVO');
+    expect(out.mensaje).toContain('*Remesas Ya*');
+    expect(out.mensaje).toContain(LINK);
+    expect(out.mensaje).toMatch(/UNA sola vez/);
+  });
+
+  it('no la repite cuando el cliente ya habia escrito', () => {
+    const out = turno('hola', { ctx: { mensajes_cliente: 3 } });
+    expect(out.mensaje).not.toContain('CLIENTE NUEVO');
+    expect(out.mensaje).not.toContain(LINK);
+  });
+
+  it('no se le manda a un admin', () => {
+    const out = turno('hola', { ctx: { mensajes_cliente: 1, es_admin: true } });
+    expect(out.ruta).toBe('silencio');
+    expect(out.mensaje ?? '').not.toContain(LINK);
+  });
+});

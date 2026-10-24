@@ -40,8 +40,10 @@ Out of scope: blocking/rewriting the reply, WhatsApp alerts to admins, the full 
   revoked from PUBLIC/anon/authenticated.
 - [x] D3 Assertion `supabase/staging/assertions/promesa-sin-escritura.sql` (promise/no-write, write in window,
   customer, panel message, pattern forms).
-- [x] D4 Staging cycle: dry-run / apply / assertion / rollback OK; related assertions SAME for `cerebro_memoria`.
-- [ ] D5 Production: previa, owner go-ahead, apply, verificar.
+- [x] D4 Staging cycle: dry-run / apply / assertion / rollback OK; related assertions SAME for `cerebro_memoria`
+  (4/4) and `INSERT INTO messages` (27/27).
+- [x] D5 Production: previa SEGURO, owner go-ahead, applied `20261024141855`, verificar 2/2 EQUAL (guard
+  `02d3ad5f`, predicate `09c6b953`). Trigger and table present; 0 audit rows at deploy time.
 
 ## Acceptance criteria
 

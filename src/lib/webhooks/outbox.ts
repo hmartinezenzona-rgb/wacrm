@@ -1,5 +1,5 @@
 // ============================================================
-// Durable delivery for message.received.
+// Durable delivery for message.received and conversation.created.
 //
 // The inbound webhook used to POST to n8n in-process: when the attempts
 // failed (timeout / 502 / 404 while a workflow was inactive) the event was
@@ -7,9 +7,11 @@
 // tries once inline, and leaves a failed row pending for the cron worker
 // (/api/cron/webhook-outbox, every minute).
 //
-// A retry checks that the wamid has no session_events row first: if the
-// Cerebro already processed the message, the row is marked skipped, so a
-// lost response cannot make the bot answer the same message twice.
+// A retry of message.received checks that the wamid has no session_events row
+// first: if the Cerebro already processed the message, the row is marked
+// skipped, so a lost response cannot make the bot answer the same message
+// twice. conversation.created has no equivalent marker in the CRM, so its
+// retries rely on the receiver; the CRM emits it once per new thread.
 // ============================================================
 
 import { randomUUID } from 'node:crypto';
@@ -179,12 +181,13 @@ export async function deliverOutboxRow(
 }
 
 /**
- * Store one row per endpoint for a message.received event and try once inline.
+ * Store one row per endpoint for a durable event and try once inline.
  * Falls back to the old in-process delivery if the outbox insert fails.
  */
-export async function dispatchMessageReceivedDurably(
+export async function dispatchEventDurably(
   db: SupabaseClient,
   accountId: string,
+  event: WebhookEvent,
   data: Record<string, unknown>,
 ): Promise<void> {
   try {
@@ -193,14 +196,14 @@ export async function dispatchMessageReceivedDurably(
       .select('id, url, secret')
       .eq('account_id', accountId)
       .eq('is_active', true)
-      .contains('events', ['message.received']);
+      .contains('events', [event]);
     if (error) throw error;
     const rows = (endpoints ?? []) as EndpointRow[];
     if (rows.length === 0) return;
 
     const payload = {
       id: randomUUID(),
-      event: 'message.received',
+      event,
       occurred_at: new Date().toISOString(),
       account_id: accountId,
       data,
@@ -210,7 +213,7 @@ export async function dispatchMessageReceivedDurably(
       .insert(rows.map((row) => ({
         account_id: accountId,
         endpoint_id: row.id,
-        event: 'message.received',
+        event,
         payload,
         // Lease the row before the inline attempt so the cron worker cannot claim the same
         // row and send it concurrently. If this process dies mid-send, the lease expires and
@@ -224,7 +227,7 @@ export async function dispatchMessageReceivedDurably(
     await Promise.allSettled(((stored ?? []) as OutboxRow[]).map((row) => deliverOutboxRow(db, row)));
   } catch (err) {
     console.error('[webhook outbox] enqueue failed; falling back to inline delivery:', err);
-    await dispatchWebhookEvent(db, accountId, 'message.received', data);
+    await dispatchWebhookEvent(db, accountId, event, data);
   }
 }
 

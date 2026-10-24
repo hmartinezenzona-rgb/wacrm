@@ -17,7 +17,7 @@ vi.mock('@/lib/webhooks/deliver', () => ({
 import { sendOnce, dispatchWebhookEvent } from '@/lib/webhooks/deliver';
 import {
   deliverOutboxRow,
-  dispatchMessageReceivedDurably,
+  dispatchEventDurably,
   flushWebhookOutbox,
   outboxBackoffSeconds,
   type OutboxRow,
@@ -203,14 +203,14 @@ describe('deliverOutboxRow', () => {
   });
 });
 
-describe('dispatchMessageReceivedDurably', () => {
+describe('dispatchEventDurably', () => {
   it('stores one row per endpoint before the first attempt', async () => {
     const stored = [row()];
     const s = state({ inserted: stored });
     const db = makeDb(s);
     vi.mocked(sendOnce).mockResolvedValue({ ok: true });
 
-    await dispatchMessageReceivedDurably(db, 'acct', { whatsapp_message_id: 'wamid.1' });
+    await dispatchEventDurably(db, 'acct', 'message.received', { whatsapp_message_id: 'wamid.1' });
 
     expect(sendOnce).toHaveBeenCalledTimes(1);
     expect(outboxUpdates(s).at(-1)?.patch).toMatchObject({ status: 'sent' });
@@ -221,10 +221,25 @@ describe('dispatchMessageReceivedDurably', () => {
     const s = state({ inserted: [row()] });
     vi.mocked(sendOnce).mockResolvedValue({ ok: true });
 
-    await dispatchMessageReceivedDurably(makeDb(s), 'acct', { whatsapp_message_id: 'wamid.1' });
+    await dispatchEventDurably(makeDb(s), 'acct', 'message.received', { whatsapp_message_id: 'wamid.1' });
 
     expect(s.insertedRows[0]).toMatchObject({ status: 'sending', event: 'message.received' });
     expect(s.insertedRows[0]?.locked_until).toBeTruthy();
+  });
+
+  it('stores and sends a conversation.created event', async () => {
+    const stored = [row({ event: 'conversation.created', payload: { data: { conversation_id: 'c1' } } })];
+    const s = state({ inserted: stored });
+    vi.mocked(sendOnce).mockResolvedValue({ ok: true });
+
+    await dispatchEventDurably(makeDb(s), 'acct', 'conversation.created', {
+      conversation_id: 'c1',
+      contact_id: 'ct1',
+    });
+
+    expect(s.insertedRows[0]).toMatchObject({ event: 'conversation.created', status: 'sending' });
+    expect(sendOnce).toHaveBeenCalledTimes(1);
+    expect(outboxUpdates(s).at(-1)?.patch).toMatchObject({ status: 'sent' });
   });
 });
 

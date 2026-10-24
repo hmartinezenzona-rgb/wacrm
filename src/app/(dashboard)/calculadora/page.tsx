@@ -100,6 +100,46 @@ function rateValueOf(rates: CalculatorRates | null, key: RateKey): number | null
   return (rates?.[field] as number | null | undefined) ?? null;
 }
 
+/** ARQ's USD -> MXN ticker as stored by migration 297 (read-only in this card). */
+type ArqRateInfo = {
+  valor: number | string;
+  fuente?: string | null;
+  edad_min?: number | string | null;
+  ask?: string | null;
+  bid?: string | null;
+  fecha_arq?: string | null;
+};
+
+const ARQ_STALE_MINUTES = 120;
+
+function arqValueOf(info: ArqRateInfo | null): number | null {
+  if (!info) return null;
+  const value = Number(info.valor);
+  return Number.isFinite(value) ? value : null;
+}
+
+function arqAskLabel(info: ArqRateInfo): string | null {
+  const ask = Number(info.ask);
+  return Number.isFinite(ask) ? `ask ${formatMoneyNumber(ask, { maximumFractionDigits: 6 })}` : null;
+}
+
+/** "hace 2 min" / "hace 3 h". */
+function arqAgeLabel(minutes: number): string {
+  if (minutes < 60) return `hace ${Math.max(0, Math.round(minutes))} min`;
+  return `hace ${Math.round(minutes / 60)} h`;
+}
+
+/** ARQ's own timestamp, on the Guyana business day like the rest of the CRM. */
+function arqTimeLabel(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const utc = /(Z|[+-]\d\d:?\d\d)$/.test(iso) ? iso : `${iso}Z`;
+  const date = new Date(utc);
+  if (Number.isNaN(date.getTime())) return null;
+  return `ARQ ${new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/Guyana", hour: "2-digit", minute: "2-digit", hour12: false,
+  }).format(date)}`;
+}
+
 /** What the correction routes answer for one entry (the rate snapshot is present on the ledger payload). */
 type StoredEntryFigures = Pick<ChatCalculatorEntry, "id" | "facturadoGyd" | "invertidoGyd" | "retornoGyd"> &
   Partial<Pick<ChatCalculatorEntry, "cupGlobalRate" | "cupRate" | "usdtBuyGyd" | "usdtSellGyd" | "costGyd" | "basisGyd" | "saleGyd">> & {
@@ -110,6 +150,7 @@ export default function CalculadoraPage() {
   const [rawText, setRawText] = useState("");
   const [periodo, setPeriodo] = useState("");
   const [rates, setRates] = useState<CalculatorRates | null>(null);
+  const [arqRate, setArqRate] = useState<ArqRateInfo | null>(null);
   const [selectedRate, setSelectedRate] = useState<RateKey>("cup_global_rate");
   // null = show the selected rate's current value; a string = what the admin typed.
   const [rateDraft, setRateDraft] = useState<string | null>(null);
@@ -158,6 +199,12 @@ export default function CalculadoraPage() {
   const [registerMessage, setRegisterMessage] = useState<string | null>(null);
 
   const tarifa = rates?.cupGlobalRate == null ? "" : String(rates.cupGlobalRate);
+  // The ARQ USD -> MXN rate is read-only here: the two cron steps in migration 297 write it.
+  const arqValor = arqValueOf(arqRate);
+  const arqMinutes = arqRate?.edad_min == null ? null : Number(arqRate.edad_min);
+  const arqStale = arqMinutes != null && Number.isFinite(arqMinutes) && arqMinutes >= ARQ_STALE_MINUTES;
+  const arqAsk = arqRate ? arqAskLabel(arqRate) : null;
+  const arqTime = arqRate ? arqTimeLabel(arqRate.fecha_arq) : null;
   const selectedRateValue = rateValueOf(rates, selectedRate);
   const rateInputValue = rateDraft ?? (selectedRateValue == null ? "" : String(selectedRateValue));
   // Migration 228: the lines "Registrar" would add (with the Guyana day each belongs to) and the ones that stay in the box.
@@ -216,9 +263,9 @@ export default function CalculadoraPage() {
       fetch("/api/calculator/rates", { cache: "no-store" })
         .then((response) => {
           if (!response.ok) throw new Error("calculator rates read failed");
-          return response.json() as Promise<{ rates: CalculatorRates | null }>;
+          return response.json() as Promise<{ rates: CalculatorRates | null; arqRate?: ArqRateInfo | null }>;
         })
-        .catch(() => ({ rates: null })),
+        .catch(() => ({ rates: null, arqRate: null })),
     ])
       .then(([data, ratesData]) => {
         if (!active) return;
@@ -227,6 +274,7 @@ export default function CalculadoraPage() {
         setChatEntries(data.chatOperations?.entries ?? []);
         setCutAt(data.cutAt ?? null);
         applyRates(ratesData.rates);
+        setArqRate(ratesData.arqRate ?? null);
         localStorage.setItem(STORAGE_KEYS.raw, data.rawText ?? "");
         localStorage.setItem(STORAGE_KEYS.period, data.periodo ?? "");
       })
@@ -835,6 +883,21 @@ export default function CalculadoraPage() {
                 </div>
               );
             })}
+            {arqValor != null && (
+              <div className="legacyRateRow" id="tasaMexicoArq" key="mexicoArq">
+                <dt>México · USD → MXN (ARQ)</dt>
+                <dd>
+                  {formatMoneyNumber(arqValor, { maximumFractionDigits: 6 })}
+                  <span className={arqStale ? "legacyRateNote legacyRateNoteStale" : "legacyRateNote"}>
+                    {arqStale
+                      ? `sin actualizar desde ${arqAgeLabel(arqMinutes!)}`
+                      : [arqAsk, arqMinutes != null && Number.isFinite(arqMinutes) ? arqAgeLabel(arqMinutes) : null, arqTime]
+                          .filter(Boolean)
+                          .join(" · ")}
+                  </span>
+                </dd>
+              </div>
+            )}
           </dl>
         </div>
 

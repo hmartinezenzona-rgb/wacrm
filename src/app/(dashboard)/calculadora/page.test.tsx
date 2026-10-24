@@ -119,7 +119,7 @@ type CorrectPostResult = { status: number; body?: unknown };
  * (document autosave, the explicit rate save, and per-entry corrections). */
 function createFetchMock(config: {
   calculadoraGet?: unknown;
-  ratesGet?: { rates: unknown };
+  ratesGet?: { rates: unknown; arqRate?: unknown };
   calculadoraPost?: unknown;
   ratesPost?: (body: { rates: Record<string, unknown>; expectedVersionId?: string }) => RatesPostResult;
   correctPost?: (entryId: string, body: { facturadoGyd: number; invertidoGyd: number }) => CorrectPostResult;
@@ -2810,6 +2810,44 @@ describe("per-operation cost of a recharge or saldo entry (migration 242)", () =
     await save(node, "rec-500");
     expect(fetchMock).not.toHaveBeenCalled();
     expect(node.textContent).toContain("mayores que 0");
+    await act(async () => root.unmount());
+  });
+});
+
+describe("calculator ARQ USD to MXN rate (Tasas actuales)", () => {
+  it("shows the ARQ bid as the main figure with ask and age, after the editable rates", async () => {
+    const { node, root } = await renderPage(createFetchMock({
+      ratesGet: {
+        rates: FULL_RATES,
+        arqRate: { valor: 18.647481, fuente: "arq", edad_min: 2, ask: "18.6697421235", bid: "18.6474810965", fecha_arq: "2026-10-24T15:09:31Z" },
+      },
+    }));
+
+    const row = node.querySelector("#tasaMexicoArq");
+    expect(row?.textContent).toContain("México · USD → MXN (ARQ)");
+    expect(row?.textContent).toContain("18,647481");
+    expect(row?.textContent).toContain("ask 18,669742");
+    expect(row?.textContent).toContain("hace 2 min");
+    expect(row?.textContent).not.toContain("sin actualizar");
+    await act(async () => root.unmount());
+  });
+
+  it("marks a stale rate instead of pretending it is fresh", async () => {
+    const { node, root } = await renderPage(createFetchMock({
+      ratesGet: {
+        rates: FULL_RATES,
+        arqRate: { valor: 18.647481, fuente: "arq", edad_min: 180, ask: "18.6697421235" },
+      },
+    }));
+
+    expect(node.querySelector("#tasaMexicoArq")?.textContent).toContain("sin actualizar desde hace 3 h");
+    await act(async () => root.unmount());
+  });
+
+  it("renders no ARQ row when the database has no rate yet", async () => {
+    const { node, root } = await renderPage(createFetchMock({ ratesGet: { rates: FULL_RATES } }));
+
+    expect(node.querySelector("#tasaMexicoArq")).toBeNull();
     await act(async () => root.unmount());
   });
 });

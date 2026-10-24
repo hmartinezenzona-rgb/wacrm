@@ -48,7 +48,10 @@ timestamped rate the bot cannot quote MXN and the operator has to look it up for
   rules, both jobs.
 - [x] T3 Staging cycle green; real runs reach `api.arqfinance.com` and store its bid.
 - [ ] T4 Production previa, owner go-ahead, apply, verificar, first real run.
-- [ ] T5 Consumers (bot quote / M7 text, panel display) once the owner answers whether the customer sees MXN.
+- [x] T5a Calculator display: read-only row at the end of "Tasas actuales" — ARQ bid as the figure, ask/age/ARQ time
+  underneath, amber "sin actualizar desde…" after two hours (GET /api/calculator/rates returns it; an RPC failure
+  omits the row). Tests + tsc green.
+- [ ] T5b Bot quote / M7 text once the owner answers whether the customer sees MXN before paying.
 
 ## Acceptance criteria
 

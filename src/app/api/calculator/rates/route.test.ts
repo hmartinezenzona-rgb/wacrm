@@ -108,7 +108,7 @@ describe("GET /api/calculator/rates", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(body).toEqual({ rates: null });
+    expect(body).toEqual({ rates: null, arqRate: null });
   });
 
   it("returns the newest rate version, mapped to camelCase", async () => {
@@ -120,7 +120,7 @@ describe("GET /api/calculator/rates", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(body).toEqual({ rates: MAPPED_RATES });
+    expect(body).toEqual({ rates: MAPPED_RATES, arqRate: null });
     expect(callCtx.builder.order).toHaveBeenCalledWith("effective_at", { ascending: false });
     expect(callCtx.builder.order).toHaveBeenCalledWith("id", { ascending: false });
     expect(callCtx.builder.limit).toHaveBeenCalledWith(1);
@@ -385,5 +385,42 @@ describe("POST /api/calculator/rates", () => {
       p_rates: { cup_global_rate: 3.25 },
       p_expected_version_id: null,
     });
+  });
+});
+
+describe("GET /api/calculator/rates -- ARQ USD to MXN rate", () => {
+  const ARQ_INFO = {
+    valor: 18.647481,
+    fuente: "arq",
+    edad_min: 2,
+    ask: "18.6697421235",
+    bid: "18.6474810965",
+    fecha_arq: "2026-10-24T15:09:31Z",
+  };
+
+  it("returns the ARQ rate next to the calculator rates", async () => {
+    const { GET } = await import("./route");
+    const callCtx = ctx({ data: RATE_ROW, error: null }, { data: ARQ_INFO, error: null });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.rates).toEqual(MAPPED_RATES);
+    expect(body.arqRate).toEqual(ARQ_INFO);
+    expect(callCtx.supabase.rpc).toHaveBeenCalledWith("cerebro_tasa_usd_mxn_info");
+  });
+
+  it("returns arqRate null when the RPC fails, without failing the rates read", async () => {
+    const { GET } = await import("./route");
+    requireRole.mockResolvedValueOnce(ctx({ data: RATE_ROW, error: null }, { data: null, error: { message: "boom" } }));
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.rates).toEqual(MAPPED_RATES);
+    expect(body.arqRate).toBeNull();
   });
 });

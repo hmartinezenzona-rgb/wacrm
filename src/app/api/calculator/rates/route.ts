@@ -69,8 +69,19 @@ export async function GET() {
       throw new Error("calculator rates read failed");
     }
 
+    // ARQ's USD -> MXN rate (migration 297), read-only in the Calculator. A
+    // failure here must not hide the calculator rates: the row simply does not
+    // render, and the page keeps working with the editable rates.
+    let arqRate: unknown = null;
+    const { data: arqData, error: arqError } = await ctx.supabase.rpc("cerebro_tasa_usd_mxn_info");
+    if (arqError) {
+      console.error("[calculator rates GET] ARQ rate read error:", arqError);
+    } else {
+      arqRate = arqData ?? null;
+    }
+
     return NextResponse.json(
-      { rates: data ? mapRateVersion(data as RateVersionRow) : null },
+      { rates: data ? mapRateVersion(data as RateVersionRow) : null, arqRate },
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (error) {

@@ -255,12 +255,17 @@ const g82NotaReparto = () => {
 const g82Min = (() => {
   const m = ctx.minimos || {};
   const n = (k) => { const v = Number(m[k]); return Number.isFinite(v) && v > 0 ? v : null; };
-  return { cup: n('minimo_gyd_cup'), usd: n('minimo_gyd_usd'), zelle: n('zelle_minimo_gyd'), efectivo: n('minimo_gyd_efectivo_usd'),
+  // (306) Clasica y Tropical tienen minimo propio (20 USD); si no esta, manda el compartido de siempre.
+  return { cup: n('minimo_gyd_cup'), usd: n('minimo_gyd_usd'),
+           clasica: n('minimo_gyd_clasica') || n('minimo_gyd_usd'),
+           tropical: n('minimo_gyd_tropical') || n('minimo_gyd_clasica') || n('minimo_gyd_usd'),
+           zelle: n('zelle_minimo_gyd'), efectivo: n('minimo_gyd_efectivo_usd'),
            recarga: n('minimo_gyd_recarga'), recargaHasta: n('minimo_gyd_recarga_hasta'), tramite: n('minimo_gyd_tramite') };
 })();
 const g82MinimosTxt = (g82Min.cup && g82Min.usd)
   ? ('MINIMOS DE DEPOSITO (en GYD, lo que deposita el cliente; salen de la base): remesa en CUP ' + g82N(g82Min.cup)
-     + '; tarjeta Clasica o Tropical (USD) ' + g82N(g82Min.usd)
+     + '; tarjeta Clasica ' + g82N(g82Min.clasica || g82Min.usd)
+     + '; tarjeta Tropical ' + g82N(g82Min.tropical || g82Min.clasica || g82Min.usd)
      + (g82Min.zelle ? '; Zelle ' + g82N(g82Min.zelle) : '')
      + (g82Min.efectivo ? '; entrega de efectivo en USD ' + g82N(g82Min.efectivo) : '')
      + (g82Min.recarga ? '; recargas ' + g82N(g82Min.recarga)

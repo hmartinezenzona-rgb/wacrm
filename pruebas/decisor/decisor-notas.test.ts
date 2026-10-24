@@ -942,3 +942,22 @@ describe('invitacion al grupo de WhatsApp', () => {
     expect(out.mensaje ?? '').not.toContain(LINK);
   });
 });
+
+describe('minimos de deposito por servicio', () => {
+  it('Clasica y Tropical llevan su propio minimo; Zelle conserva el suyo', () => {
+    const out = turno('cual es el minimo para clasica?', {
+      ctx: {
+        minimos: {
+          minimo_gyd_cup: '5000',
+          minimo_gyd_usd: '13000',
+          minimo_gyd_clasica: '5200',
+          minimo_gyd_tropical: '5200',
+          zelle_minimo_gyd: '13000',
+        },
+      },
+    });
+    expect(out.mensaje).toContain('tarjeta Clasica 5,200');
+    expect(out.mensaje).toContain('tarjeta Tropical 5,200');
+    expect(out.mensaje).toContain('Zelle 13,000');
+  });
+});

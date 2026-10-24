@@ -1,6 +1,6 @@
 # Durable conversation.created and message.status_updated
 
-Status: implemented, staging green; production pending · Branch: feat/port-chat-operations-calculator · 2026-10-24
+Status: live in production · Branch: feat/port-chat-operations-calculator · 2026-10-24
 
 ## Objective
 
@@ -39,4 +39,5 @@ The webhook emits `conversation.created` through `dispatchWebhookEvent`, which g
 
 ## Verification evidence
 
-- `conversation.created` and `message.status_updated` are unit-covered; the live proof arrives with real traffic after the publish (a new contact for conversation.created, any outbound message for status updates).
+- 304 applied as `20261024181047` and verified (`prod=b97887fa stg=b97887fa`); panel published as release `8bec2b1`, BUILD_ID `1dlIy5fMy3D3pGng26RTc` (previous `bd7dfff`); worker route answers 401 without the secret.
+- Live rows for `conversation.created` and `message.status_updated` appear with real traffic; the outbox was empty after the publish because no message arrived in the first minutes.

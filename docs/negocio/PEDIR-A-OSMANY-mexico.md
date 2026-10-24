@@ -29,7 +29,7 @@ destinatarios CLABE o retiro sin tarjeta); estas respuestas cierran lo que falta
 - **Transferencia**: al cliente se le manda la **captura con los MXN depositados**.
 - **Tasa**: ARQ convierte a la tasa interbancaria de Google; se automatizó desde `api.arqfinance.com/v1/tickers` (migración 297).
 
-Sigue sin respuesta: **cuánto tarda en verse el dinero en la cuenta** (dato para el texto de "en curso", no bloquea el cierre).
+Decisión (2026-10-24): **no se prometen tiempos** de llegada ni de acreditación. El texto de "en curso" solo dice que se le avisa por aquí cuando esté hecho; en el retiro, una vez generado y entregado el código, ir a cobrarlo es cosa del cliente.
 
 ## Preguntas (histórico)
 

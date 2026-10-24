@@ -9,7 +9,8 @@ import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
-import { dispatchWebhookEvent } from '@/lib/webhooks/deliver'
+
+
 import { dispatchEventDurably } from '@/lib/webhooks/outbox'
 import {
   handleTemplateWebhookChange,
@@ -546,7 +547,7 @@ async function handleStatusUpdate(status: {
     const conv = msgRow.conversations as { account_id: string } | null
     const accountId = conv?.account_id
     if (accountId) {
-      await dispatchWebhookEvent(
+      await dispatchEventDurably(
         supabaseAdmin(),
         accountId,
         'message.status_updated',

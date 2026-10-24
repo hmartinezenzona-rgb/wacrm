@@ -154,6 +154,21 @@ describe('deliverOutboxRow', () => {
     expect(outboxUpdates(s).at(-1)?.patch).toMatchObject({ status: 'skipped' });
   });
 
+  it('sends a status update even when the wamid has a session_event', async () => {
+    vi.mocked(sendOnce).mockResolvedValue({ ok: true });
+    const s = state({ sessionEvent: { id: 'se1' } });
+    const status = row({
+      event: 'message.status_updated',
+      payload: {
+        event: 'message.status_updated',
+        data: { whatsapp_message_id: 'wamid.out', conversation_id: 'c1', status: 'delivered' },
+      },
+    });
+
+    expect(await deliverOutboxRow(makeDb(s), status)).toBe('sent');
+    expect(sendOnce).toHaveBeenCalledTimes(1);
+  });
+
   it('resets the endpoint failure streak on success', async () => {
     vi.mocked(sendOnce).mockResolvedValue({ ok: true });
     const s = state();

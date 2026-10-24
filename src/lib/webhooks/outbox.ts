@@ -76,6 +76,10 @@ async function mark(db: SupabaseClient, id: string, patch: Record<string, unknow
 
 /** The wamid was already processed by the Cerebro: a retry would duplicate the turn. */
 async function alreadyProcessed(db: SupabaseClient, row: OutboxRow): Promise<boolean> {
+  // Only an inbound message can duplicate a turn. A status update carries the wamid of an
+  // outbound message and conversation.created has no marker at all, so the check must not run
+  // for them (it would skip rows that were never processed).
+  if (row.event !== 'message.received') return false;
   const wamid = row.payload?.data?.whatsapp_message_id;
   if (!wamid) return false;
   const { data, error } = await db

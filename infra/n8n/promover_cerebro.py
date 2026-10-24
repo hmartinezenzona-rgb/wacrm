@@ -13,9 +13,12 @@ import hashlib
 import json
 import os
 import re
+import stat
 import sys
 import uuid
 from pathlib import Path
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import cerebro_n8n as cn  # noqa: E402
@@ -153,6 +156,139 @@ def _cargar(path: str) -> dict:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
+# ─── DB dependency guard ────────────────────────────────────────────────────
+# Every function and table named by a Postgres node query must exist in the TARGET database. Origin:
+# 2026-10-24 outage, cerebro_catalogo_servicios (legacy 138) present in staging and missing in production.
+CATALOGO_REF = os.environ.get("CEREBRO_CATALOGO_REF", "hqztotshnlzaiziwjyzh")
+CATALOGO_TOKEN = Path.home() / ".config/wacrm/supabase-token.env"
+CATALOGO_SQL_FNS = "SELECT DISTINCT lower(proname) AS n FROM pg_proc"
+CATALOGO_SQL_RELS = ("SELECT DISTINCT lower(relname) AS n FROM pg_class "
+                     "WHERE relkind IN ('r', 'p', 'v', 'm', 'f')")
+
+RE_EXPRESION = re.compile(r"\{\{.*?\}\}", re.S)          # n8n expressions, evaluated before SQL
+RE_LITERAL = re.compile(r"'(?:[^']|'')*'")
+RE_DOLAR = re.compile(r"\$([A-Za-z_]\w*)?\$.*?\$\1\$", re.S)
+RE_COMENTARIO = re.compile(r"--[^\n]*|/\*.*?\*/", re.S)
+RE_EXTRACT = re.compile(r"\b(?:extract|substring|trim|position|overlay)\s*\([^()]*\)", re.I)
+RE_CTE = re.compile(r"(?:\bwith\b|,)\s*(?:recursive\s+)?([a-z_][a-z0-9_]*)\s*(?:\([^)]*\)\s*)?"
+                    r"as\s*(?:not\s+)?(?:materialized\s*)?\(", re.I)
+RE_TABLA = re.compile(r"\b(from|join|update|into)\s+([a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)?)", re.I)
+RE_TABLA_DELETE = re.compile(r"\bdelete\s+from\s+([a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)?)", re.I)
+RE_FN = re.compile(r"(?<![\w.])([a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)?)\s*\(", re.I)
+RE_ALIAS = re.compile(r"\bas\s*$", re.I)
+
+# Reserved words and expressions that are not catalog functions.
+CLAVE_SQL = frozenset("""
+all and any array as asc between by case cast coalesce conflict cross current_date current_time
+current_timestamp delete desc distinct do else end escape except exists extract false filter for from
+greatest group having ilike in inner insert intersect into is join lateral leading least left like limit
+not null nullif offset on or order outer over partition returning right row rows select set some table
+then true union update using values when where window with recursive materialized
+""".split())
+
+
+def _limpia_sql(sql: str) -> str:
+    sql = RE_EXPRESION.sub(" ", sql)
+    sql = RE_COMENTARIO.sub(" ", sql)
+    sql = RE_DOLAR.sub(" '' ", sql)
+    sql = RE_LITERAL.sub(" '' ", sql)
+    return RE_EXTRACT.sub(" ", sql)
+
+
+def _dependencias_sql(sql: str):
+    """(functions, tables) named by one SQL query; CTEs, aliases and n8n expressions are not dependencies."""
+    q = _limpia_sql(sql)
+    ctes = {m.group(1).lower() for m in RE_CTE.finditer(q)}
+    tablas, funciones = set(), set()
+    for m in RE_TABLA.finditer(q):
+        kw, nombre = m.group(1).lower(), m.group(2).lower().split(".")[-1]
+        if kw != "into" and q[m.end():].lstrip().startswith("("):
+            funciones.add(nombre)  # set-returning function in FROM/JOIN
+        else:
+            tablas.add(nombre)
+    for m in RE_TABLA_DELETE.finditer(q):
+        tablas.add(m.group(1).lower().split(".")[-1])
+    for m in RE_FN.finditer(q):
+        if RE_ALIAS.search(q[max(0, m.start() - 6):m.start()]):
+            continue  # alias with a column list: AS t(a, b)
+        funciones.add(m.group(1).lower().split(".")[-1])
+    funciones -= tablas | ctes | CLAVE_SQL
+    return funciones, tablas - ctes - CLAVE_SQL
+
+
+def dependencias_bd(wf: dict) -> dict:
+    """DB functions and tables referenced by the workflow's Postgres node queries. Never includes SQL text."""
+    funciones, tablas = set(), set()
+    for n in wf.get("nodes", []):
+        if not str(n.get("type", "")).startswith("n8n-nodes-base.postgres"):
+            continue
+        q = n.get("parameters", {}).get("query")
+        if isinstance(q, str):
+            f, t = _dependencias_sql(q)
+            funciones |= f
+            tablas |= t
+    return {"funciones": funciones, "tablas": tablas}
+
+
+def _token_catalogo(token_file) -> str:
+    p = Path(token_file)
+    if not p.is_file():
+        raise RuntimeError(f"missing token file {p}")
+    modo = stat.S_IMODE(p.stat().st_mode)
+    if modo != 0o600:
+        raise RuntimeError(f"{p} has mode {modo:o}, expected 600")
+    for line in p.read_text(encoding="utf-8").splitlines():
+        if line.startswith("SUPABASE_ACCESS_TOKEN="):
+            tok = line.split("=", 1)[1].strip().strip("\"'")
+            if tok:
+                return tok
+    raise RuntimeError(f"{p} has no SUPABASE_ACCESS_TOKEN=")
+
+
+def _consulta_catalogo(sql: str, token_file=CATALOGO_TOKEN):
+    token = _token_catalogo(token_file)
+    req = Request(
+        f"https://api.supabase.com/v1/projects/{CATALOGO_REF}/database/query",
+        data=json.dumps({"query": sql}).encode("utf-8"),
+        method="POST",
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+    )
+    try:
+        with urlopen(req, timeout=30) as r:
+            filas = json.loads(r.read().decode("utf-8"))
+    except HTTPError as e:
+        raise RuntimeError(f"query rejected (HTTP {e.code})") from None
+    except (URLError, TimeoutError, OSError) as e:
+        raise RuntimeError(f"query failed ({type(e).__name__})") from None
+    except ValueError:
+        raise RuntimeError("query returned invalid JSON") from None
+    return [f["n"] for f in filas if isinstance(f, dict) and isinstance(f.get("n"), str)]
+
+
+def catalogo_destino(ruta=None, consulta=None, token_file=CATALOGO_TOKEN) -> dict:
+    """Target catalog {funciones, tablas} from an offline JSON file or from the target database."""
+    if ruta:
+        try:
+            datos = json.loads(Path(ruta).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as e:
+            raise RuntimeError(f"cannot read {ruta} ({type(e).__name__})") from None
+        if not isinstance(datos, dict) or not isinstance(datos.get("funciones"), list) \
+                or not isinstance(datos.get("tablas"), list):
+            raise RuntimeError(f"{ruta} needs list fields 'funciones' and 'tablas'")
+        return {"funciones": {str(x).lower() for x in datos["funciones"]},
+                "tablas": {str(x).lower() for x in datos["tablas"]}}
+    consulta = consulta or (lambda sql: _consulta_catalogo(sql, token_file=token_file))
+    return {"funciones": {x.lower() for x in consulta(CATALOGO_SQL_FNS)},
+            "tablas": {x.lower() for x in consulta(CATALOGO_SQL_RELS)}}
+
+
+def faltantes(deps: dict, catalogo: dict) -> list:
+    """Sorted [(kind, name)] of references the target catalog does not have."""
+    res = [("funcion", n) for n in deps["funciones"] - catalogo["funciones"]]
+    res += [("tabla", n) for n in deps["tablas"] - catalogo["tablas"]]
+    return sorted(res)
+
+
 def _imprimir(prod, out, report, checks) -> bool:
     print(f"production {prod['id']} versionId {prod['versionId']}")
     print(f"nodes: {len(prod['nodes'])} -> {len(out['nodes'])}")
@@ -183,6 +319,8 @@ def main(argv=None) -> int:
                     default=int(os.environ.get("CEREBRO_PROMOVER_NODOS", NODOS_ESPERADOS)))
     ap.add_argument("--produccion-respaldo", help="(ensayo only) production backup file instead of the live GET")
     ap.add_argument("--staging-respaldo", help="(ensayo only) staging backup file instead of the live GET")
+    ap.add_argument("--catalogo", help="JSON file {funciones, tablas} to check against instead of querying the "
+                                       "target database (tests / offline runs; CEREBRO_CATALOGO also works)")
     args = ap.parse_args(argv)
 
     if args.ensayo == args.aplicar:
@@ -212,6 +350,20 @@ def main(argv=None) -> int:
     out, report = construir(prod, stg, args.modelo)
     repo_md5 = hashlib.md5(cn.get_decisor_file().read_bytes()).hexdigest()
     checks = verificar(out, prod, stg, args.nodos_esperados, repo_md5)
+
+    deps = dependencias_bd(out)
+    try:
+        catalogo = catalogo_destino(args.catalogo or os.environ.get("CEREBRO_CATALOGO"))
+        faltan = faltantes(deps, catalogo)
+        ok_bd = not faltan
+    except RuntimeError as e:
+        faltan, ok_bd = [], False
+        print(f"FAIL: could not read the target DB catalog ({e})")
+    if faltan:
+        print("missing in the target DB: " + ", ".join(f"{kind} {name}" for kind, name in faltan))
+    checks.append((f"every DB dependency exists in the target DB "
+                   f"({len(deps['funciones'])} functions, {len(deps['tablas'])} tables)", ok_bd))
+
     ok = _imprimir(prod, out, report, checks)
     if not ok:
         print("REFUSED: safety asserts failed" if args.aplicar else "ensayo: asserts FAILED")

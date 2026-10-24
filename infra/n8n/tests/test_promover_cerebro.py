@@ -198,6 +198,86 @@ class VerificarTest(unittest.TestCase):
             self.out, self.prod, self.stg, nodos_esperados=14, decisor_md5="0" * 32)))
 
 
+class DependenciasTest(unittest.TestCase):
+    def test_finds_function_calls_and_tables(self):
+        wf = {"nodes": [node("q", "n8n-nodes-base.postgres",
+                             {"query": "SELECT cerebro_catalogo_servicios(), lower('X') FROM remittance_operations r "
+                                       "JOIN contacts c ON true"}, PG_P)]}
+        deps = pc.dependencias_bd(wf)
+        self.assertIn("cerebro_catalogo_servicios", deps["funciones"])
+        self.assertIn("lower", deps["funciones"])
+        self.assertEqual(deps["tablas"], {"remittance_operations", "contacts"})
+
+    def test_cte_names_are_not_dependencies(self):
+        wf = {"nodes": [node("q", "n8n-nodes-base.postgres",
+                             {"query": "WITH t AS (SELECT 1 AS n), aviso AS (SELECT now() AS a) "
+                                       "SELECT * FROM t LEFT JOIN aviso ON true"}, PG_P)]}
+        deps = pc.dependencias_bd(wf)
+        self.assertEqual(deps["tablas"], set())
+        self.assertNotIn("t", deps["funciones"])
+        self.assertNotIn("aviso", deps["funciones"])
+
+    def test_insert_into_with_column_list_is_a_table(self):
+        wf = {"nodes": [node("q", "n8n-nodes-base.postgres",
+                             {"query": "INSERT INTO session_events (conversation_id, tipo) VALUES (1, 2)"}, PG_P)]}
+        deps = pc.dependencias_bd(wf)
+        self.assertEqual(deps["tablas"], {"session_events"})
+        self.assertNotIn("session_events", deps["funciones"])
+        self.assertNotIn("values", deps["funciones"])
+
+    def test_n8n_expressions_are_ignored(self):
+        wf = {"nodes": [node("q", "n8n-nodes-base.postgres",
+                             {"query": "SELECT {{ JSON.parse($json.x).params.id }} FROM messages"}, PG_P)]}
+        deps = pc.dependencias_bd(wf)
+        self.assertEqual(deps["funciones"], set())
+        self.assertEqual(deps["tablas"], {"messages"})
+
+    def test_extract_and_alias_column_list_are_not_dependencies(self):
+        wf = {"nodes": [node("q", "n8n-nodes-base.postgres",
+                             {"query": "SELECT EXTRACT(hour FROM abre), 1 FROM (SELECT 1, 2) AS t(a, b)"}, PG_P)]}
+        deps = pc.dependencias_bd(wf)
+        self.assertEqual(deps["funciones"], set())
+        self.assertEqual(deps["tablas"], set())
+
+    def test_non_postgres_nodes_are_ignored(self):
+        wf = {"nodes": [node("c", "n8n-nodes-base.code", {"jsCode": "cerebro_no_existe()"})]}
+        deps = pc.dependencias_bd(wf)
+        self.assertEqual(deps["funciones"], set())
+        self.assertEqual(deps["tablas"], set())
+
+
+class CatalogoTest(unittest.TestCase):
+    def test_faltantes_lists_missing_sorted(self):
+        deps = {"funciones": {"b_fn", "a_fn", "ok_fn"}, "tablas": {"t_missing", "contacts"}}
+        cat = {"funciones": {"ok_fn"}, "tablas": {"contacts"}}
+        self.assertEqual(pc.faltantes(deps, cat),
+                         [("funcion", "a_fn"), ("funcion", "b_fn"), ("tabla", "t_missing")])
+
+    def test_catalogo_from_file_lowercases(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "cat.json"
+            p.write_text(json.dumps({"funciones": ["NOW", "Cerebro_X"], "tablas": ["Contacts"]}), encoding="utf-8")
+            cat = pc.catalogo_destino(str(p))
+        self.assertEqual(cat["funciones"], {"now", "cerebro_x"})
+        self.assertEqual(cat["tablas"], {"contacts"})
+
+    def test_missing_token_fails_without_printing_anything(self):
+        with self.assertRaises(RuntimeError):
+            pc.catalogo_destino(None, token_file=Path("/nonexistent/supabase-token.env"))
+
+    def test_live_catalog_queries_functions_and_relations(self):
+        vistos = []
+
+        def consulta(sql):
+            vistos.append(sql)
+            return ["NOW", "cerebro_x"] if "pg_proc" in sql else ["Contacts"]
+
+        cat = pc.catalogo_destino(None, consulta=consulta)
+        self.assertEqual(cat["funciones"], {"now", "cerebro_x"})
+        self.assertEqual(cat["tablas"], {"contacts"})
+        self.assertEqual(len(vistos), 2)
+
+
 class CliTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -210,6 +290,11 @@ class CliTest(unittest.TestCase):
         self.backups.mkdir()
         self.decisor_file = root / "decisor.jscode"
         self.decisor_file.write_text("new decisor", encoding="utf-8")
+        self.catalogo = root / "catalogo.json"
+        self.catalogo.write_text(json.dumps({
+            "funciones": ["cerebro_catalogo_servicios", "now", "lower", "count"],
+            "tablas": ["session_events", "messages", "contacts", "remittance_operations"],
+        }), encoding="utf-8")
         self.stub = Stub(self.backups)
         self.addCleanup(self.stub.close)
         prod, stg = make_pair()
@@ -217,7 +302,7 @@ class CliTest(unittest.TestCase):
         self.stub.workflows[STAGING] = {**stg, "versionId": "218fbd5d-x"}
         self.env = dict(os.environ, HOME=str(self.home), CEREBRO_N8N_BASE=self.stub.url,
                         CEREBRO_N8N_BACKUPS=str(self.backups), CEREBRO_DECISOR_FILE=str(self.decisor_file),
-                        CEREBRO_PROMOVER_NODOS="14")
+                        CEREBRO_PROMOVER_NODOS="14", CEREBRO_CATALOGO=str(self.catalogo))
 
     def run_cli(self, *args):
         r = subprocess.run([sys.executable, str(SCRIPT), *args], capture_output=True, text=True,
@@ -242,6 +327,36 @@ class CliTest(unittest.TestCase):
         r = self.run_cli("--ensayo")
         self.assertEqual(r.returncode, 1)
         self.assertIn("FAIL", r.stdout)
+
+    def test_ensayo_reports_the_catalog_check(self):
+        r = self.run_cli("--ensayo")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("PASS: every DB dependency exists in the target DB", r.stdout)
+
+    def _hacer_faltante(self):
+        for n in self.stub.workflows[STAGING]["nodes"]:
+            if n["name"] == "Contexto conversacion":
+                n["parameters"]["query"] = "SELECT cerebro_no_existe()"
+
+    def test_ensayo_fails_when_a_dependency_is_missing(self):
+        self._hacer_faltante()
+        r = self.run_cli("--ensayo")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("cerebro_no_existe", r.stdout)
+        self.assertIn("FAIL: every DB dependency", r.stdout)
+
+    def test_aplicar_refuses_when_a_dependency_is_missing(self):
+        self._hacer_faltante()
+        r = self.run_cli("--aplicar", "--esperado", "5b31")
+        self.assertEqual(r.returncode, 1)
+        self.assertEqual(self.stub.puts, [])
+        self.assertIn("cerebro_no_existe", r.stdout)
+
+    def test_unreadable_catalog_refuses(self):
+        self.catalogo.unlink()
+        r = self.run_cli("--ensayo")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("could not read the target DB catalog", r.stdout)
 
     def test_requires_a_mode(self):
         self.assertNotEqual(self.run_cli().returncode, 0)

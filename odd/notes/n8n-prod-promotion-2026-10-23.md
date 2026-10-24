@@ -96,3 +96,46 @@ Steps (each production write needs the owner's explicit go-ahead; never execute 
 | Contexto conversacion | cerebro_catalogo_servicios (138), cerebro_monto_recibe (153), cerebro_resolver_servicio (265+) | 138, 153, 265, 273, 277, 279, 283, 288 |
 
 Migration 269 has no SQL (n8n-only, per prod-readiness note). Check each function's signature (arg count) in production before applying; the new queries pass more args than the old ones (e.g. cerebro_guardar_beneficiario now 8, queryReplacement extended), so the workflow applied before the migrations would break those tools. Order: migrations first, then workflow.
+
+## 6. Update (2026-10-23, later): Decisor drift and `promover_cerebro.py`
+
+**Decisor drift: none to port.** Production Decisor md5 252f1489 is exactly the repo file at commit 31b77cd (away-mode note, present in both). Staging/repo 4ed9c08c is a strict superset: every production-only line is a legacy form later replaced (`ctx.recarga_en_curso`, `riel_operacion`, `servicio_pendiente`, `etapa_envio_abierto`) by the resolver-v2 `servicio_resuelto` path, plus the S4/277 reconcile notes and the Mexico recipient fix (8b23593). Production simply lags the repo by 5 commits; no redeploy was needed.
+
+**Script:** `infra/n8n/promover_cerebro.py` (tests: `python3 -m unittest discover -s infra/n8n/tests`). Production workflow as base, staging params/disabled/notes for shared nodes, 4 new tools with the production Postgres credential and fresh ids, orphan DeepSeek Web Search excluded, production kept for credentials, webhook path and ids, WaCRM URL x3, outbox workflow id, errorWorkflow and Validar evento. `--modelo {produccion,staging}` (default produccion = no deepseek-flash override; owner decides). Modes: `--ensayo`; `--aplicar --esperado <prod versionId prefix>` (not run). Rollback: `cerebro_n8n.py restaurar produccion <backup> --esperado <prefix>`.
+
+**Ensayo against live production (read-only, nothing written):**
+```
+production jEzlVLCLUaJhVwzs versionId 5b3159b9-b8a2-49be-a8cd-018b0a899459
+nodes: 127 -> 131
+added: agregar_servicio, declarar_servicio, modificar_operacion, registrar_destinatario_mexico
+changed: Agente Remesas, Contexto conversacion, Decisor, GPT-4o vision (respaldo), Registrar beneficiario auto, Registrar destino auto, Registrar zelle auto, Transcribir audio, calcular_envio, calcular_inverso, calcular_usd, calcular_usd_desde_gyd, cambiar_servicio, consultar_servicio, gestionar_beneficiario, marcar_destino_usd, registrar_beneficiario_zelle, registrar_numeros_recarga, repartir_envio
+connections changed/added for: agregar_servicio, declarar_servicio, modificar_operacion, registrar_destinatario_mexico
+  Agente Remesas: parameters ['options', 'options.systemMessage']; other -
+  Contexto conversacion: parameters ['query']; other -
+  Decisor: parameters ['jsCode']; other -
+  GPT-4o vision (respaldo): parameters ['builtInTools']; other -
+  Registrar beneficiario auto: parameters -; other ['disabled']
+  Registrar destino auto: parameters -; other ['disabled']
+  Registrar zelle auto: parameters -; other ['disabled']
+  Transcribir audio: parameters ['bodyParameters']; other -
+  calcular_envio: parameters ['options', 'query']; other -
+  calcular_inverso: parameters ['options', 'query']; other -
+  calcular_usd: parameters ['options', 'query']; other -
+  calcular_usd_desde_gyd: parameters ['options', 'query']; other -
+  cambiar_servicio: parameters ['options', 'query', 'toolDescription']; other ['notes']
+  consultar_servicio: parameters ['options']; other -
+  gestionar_beneficiario: parameters ['options', 'query', 'toolDescription']; other -
+  marcar_destino_usd: parameters ['options', 'toolDescription']; other ['disabled']
+  registrar_beneficiario_zelle: parameters ['options', 'query', 'toolDescription']; other -
+  registrar_numeros_recarga: parameters ['options', 'query', 'toolDescription']; other -
+  repartir_envio: parameters ['toolDescription']; other -
+PASS: node count == 131 (got 131)
+PASS: no staging credential id / host / path / workflow id (found 0)
+PASS: no staging credential id in any node
+PASS: no literal 64-hex secret
+PASS: errorWorkflow is production's
+PASS: excluded orphan nodes absent
+PASS: Validar evento code is production's verbatim
+PASS: Decisor md5 matches the repo file
+ensayo: nothing was written
+```

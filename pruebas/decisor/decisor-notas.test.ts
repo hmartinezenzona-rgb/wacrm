@@ -962,3 +962,23 @@ describe('minimos de deposito por servicio', () => {
     expect(out.mensaje).toContain('efectivo en USD 100 USD');
   });
 });
+
+
+describe('verificar un deposito por TransID escrito (admin)', () => {
+  it('un numero suelto de 14 digitos es un TransID', () => {
+    const out = turno('10404033303182', { ctx: { es_admin: true } });
+    expect(out.ruta).toBe('comando');
+    expect((out as unknown as { comando?: string }).comando).toBe('verificar_transid');
+    expect((out as unknown as { objetivo?: string }).objetivo).toBe('10404033303182');
+  });
+
+  it('"verifica 10404033303182" tambien', () => {
+    const out = turno('verifica 10404033303182', { ctx: { es_admin: true } });
+    expect((out as unknown as { comando?: string }).comando).toBe('verificar_transid');
+  });
+
+  it('a un cliente no le convierte el numero en comando', () => {
+    const out = turno('10404033303182', { ctx: { es_admin: false } });
+    expect((out as unknown as { comando?: string }).comando).not.toBe('verificar_transid');
+  });
+});

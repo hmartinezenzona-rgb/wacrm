@@ -177,6 +177,13 @@ function rutaAdminAccion(ctx, texto, tel) {
     }
     return [{ json: { ruta: 'comando', comando: 'verificar', objetivo: tAdm, valor: null, telefono_e164: tel } }];
   }
+  // TRANSID ESCRITO (312): el admin manda solo el numero, o "verifica 123...", o "transid: 123...".
+  // El cruce con el correo de MMG lo hace cerebro_verificar_transid; aqui solo se enruta.
+  const mTrans = texto.match(/\b(?:transid|transaccion|verifica(?:me|r)?|comprobante)\b[^0-9]{0,12}(\d{10,20})\b/i)
+    || texto.trim().match(/^(\d{10,20})$/);
+  if (mTrans) {
+    return [{ json: { ruta: 'comando', comando: 'verificar_transid', objetivo: mTrans[1], valor: null, telefono_e164: tel } }];
+  }
   return null;   // admin sin accion reconocida: lo resuelve la guarda de mas arriba
 }
 // Datos del beneficiario ACUMULADOS a lo largo de la conversacion (no solo de este lote).

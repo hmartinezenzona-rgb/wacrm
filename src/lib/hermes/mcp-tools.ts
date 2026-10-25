@@ -100,6 +100,17 @@ export function buildHermesServer(db: SupabaseClient): McpServer {
   );
 
   server.tool(
+    'cuadre_finanzas',
+    'Cuadre de un periodo de dias de negocio (Guyana): operaciones completadas en el CRM, lineas del libro de Finanzas (facturado, invertido, retorno, por servicio) y Control Semanal (lo que sigue en el borrador y lo ya archivado por un corte). Trae calculadas las diferencias: que operaciones completadas no tienen linea en Finanzas y que lineas no corresponden a una operacion completada en el periodo. Usalo para "cuadra el dia" o "cuadra la semana".',
+    {
+      desde: z.string().optional().describe('fecha YYYY-MM-DD de inicio; por defecto hoy en Guyana'),
+      hasta: z.string().optional().describe('fecha YYYY-MM-DD de fin; por defecto el mismo dia'),
+    },
+    ({ desde, hasta }) =>
+      call('hermes_cuadre_finanzas', { p_desde: desde ?? null, p_hasta: hasta ?? null }),
+  );
+
+  server.tool(
     'tasas_vigentes',
     'Tasas publicadas del dia, estado de la tasa ARQ USD-MXN y minimos configurados.',
     {},

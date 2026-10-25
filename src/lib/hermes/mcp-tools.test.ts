@@ -16,7 +16,7 @@ async function connect(rpc: ReturnType<typeof vi.fn>) {
 }
 
 describe('Hermes MCP tools', () => {
-  it('expone las seis herramientas de solo lectura', async () => {
+  it('expone las ocho herramientas de solo lectura', async () => {
     const client = await connect(vi.fn());
 
     const { tools } = await client.listTools();
@@ -24,6 +24,7 @@ describe('Hermes MCP tools', () => {
     expect(tools.map((t) => t.name).sort()).toEqual([
       'alertas',
       'buscar_conversacion',
+      'cuadre_finanzas',
       'leer_mensajes',
       'listar_operaciones',
       'resumen_periodo',
@@ -47,6 +48,21 @@ describe('Hermes MCP tools', () => {
     expect(rpc).toHaveBeenCalledWith('hermes_buscar_conversacion', { p_consulta: '599' });
     const first = res.content as Array<{ type: string; text?: string }>;
     expect(first[0]?.text).toContain('ab12cd34');
+  });
+
+  it('cuadre_finanzas pasa el rango a la RPC', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { desde: '2026-10-24' }, error: null });
+    const client = await connect(rpc);
+
+    await client.callTool({
+      name: 'cuadre_finanzas',
+      arguments: { desde: '2026-10-20', hasta: '2026-10-24' },
+    });
+
+    expect(rpc).toHaveBeenCalledWith('hermes_cuadre_finanzas', {
+      p_desde: '2026-10-20',
+      p_hasta: '2026-10-24',
+    });
   });
 
   it('un error de la base se devuelve como error de herramienta', async () => {

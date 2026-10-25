@@ -9,7 +9,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Loader2, Send } from 'lucide-react';
+import { Loader2, Plus, Send } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -31,6 +31,12 @@ export function HermesChat() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: 'end' });
   }, [turns, busy]);
+
+  function startNewChat() {
+    setTurns([]);
+    setInput('');
+    setError(null);
+  }
 
   async function send() {
     const text = input.trim();
@@ -61,6 +67,13 @@ export function HermesChat() {
   return (
     <Card className="flex h-[calc(100dvh-13rem)] min-h-[420px] flex-col">
       <CardContent className="flex min-h-0 flex-1 flex-col gap-3 p-4">
+        {turns.length > 0 ? (
+          <div className="flex justify-end">
+            <Button variant="ghost" size="sm" onClick={startNewChat} disabled={busy}>
+              <Plus className="h-4 w-4" /> {t('newChat')}
+            </Button>
+          </div>
+        ) : null}
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
           {turns.length === 0 ? (
             <p className="pt-6 text-center text-sm text-muted-foreground">{t('empty')}</p>

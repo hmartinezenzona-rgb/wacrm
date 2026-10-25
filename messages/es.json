@@ -5,6 +5,7 @@
     "empty": "Pregúntale algo, por ejemplo: ¿cómo va el día? o ¿qué pasó con el cliente que escribió ayer?",
     "placeholder": "Escribe tu pregunta…",
     "send": "Enviar",
+    "newChat": "Nueva conversación",
     "thinking": "Hermes está consultando…",
     "failed": "No se pudo obtener respuesta de Hermes."
   },

@@ -11,6 +11,7 @@ import {
 import { prefetchConversationOperations } from "@/lib/remittance-operations/panel-prefetch";
 import type { EffectiveStatus } from "@/lib/remittance-operations/effective-status";
 import { fetchBoard } from "@/lib/tablero/fetch";
+import type { BoardOperation } from "@/lib/tablero/board";
 import { openOperationStatusByConversation } from "@/lib/inbox/open-operation-status";
 import { statusPillClass, statusTone } from "@/lib/status-tone";
 import { cn } from "@/lib/utils";
@@ -122,14 +123,17 @@ function ordenarConversaciones(a: Conversation, b: Conversation) {
 /** Ventana de actividad reciente que la bandeja carga por defecto. */
 const RECENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
-/** Añade las conversaciones con una operación abierta que el filtro dejó fuera. */
+/**
+ * Añade las conversaciones con una operación abierta que el filtro dejó fuera.
+ * Recibe los ids ya leídos del tablero: la petición del RPC no se repite.
+ */
 async function withOpenOperationConversations(
   supabase: ReturnType<typeof createClient>,
   rows: RawConversation[],
+  openOperationConversationIds: string[],
 ): Promise<RawConversation[]> {
-  const board = await fetchBoard(supabase).catch(() => []);
   const have = new Set(rows.map((r) => r.id));
-  const missing = [...new Set(board.map((o) => o.conversationId))].filter((id) => !have.has(id));
+  const missing = openOperationConversationIds.filter((id) => !have.has(id));
   if (missing.length === 0) return rows;
   const { data } = await supabase
     .from("conversations")
@@ -217,6 +221,25 @@ export function ConversationList({
   // carga la lista completa aunque el filtro de recencia esté activo.
   const loadAll = showAll || search.trim().length > 0;
 
+  // El tablero se pide UNA vez por carga: los chips y la recuperación de
+  // conversaciones con operación abierta comparten la misma petición. La
+  // ventana es corta (5 s) para que un refresco por realtime siga leyendo
+  // datos frescos.
+  const boardPromiseRef = useRef<{ at: number; promise: Promise<BoardOperation[]> } | null>(null);
+  const boardForLoad = useCallback((): Promise<BoardOperation[]> => {
+    const now = Date.now();
+    const cached = boardPromiseRef.current;
+    if (cached && now - cached.at < 5000) return cached.promise;
+    const promise = fetchBoard(createClient()).catch(() => [] as BoardOperation[]);
+    boardPromiseRef.current = { at: now, promise };
+    return promise;
+  }, []);
+
+  /** Un cambio real o un resync deben leer el tablero de nuevo. */
+  const invalidateBoard = useCallback(() => {
+    boardPromiseRef.current = null;
+  }, []);
+
   const fetchConversations = useCallback(async (): Promise<Conversation[] | null> => {
     const supabase = createClient();
     let query = supabase
@@ -244,8 +267,16 @@ export function ConversationList({
       return null;
     }
     const rows = (data ?? []) as RawConversation[];
-    return normalizeConversations(loadAll ? rows : await withOpenOperationConversations(supabase, rows));
-  }, [loadAll]);
+    if (loadAll) return normalizeConversations(rows);
+    const board = await boardForLoad();
+    return normalizeConversations(
+      await withOpenOperationConversations(
+        supabase,
+        rows,
+        board.map((o) => o.conversationId),
+      ),
+    );
+  }, [loadAll, boardForLoad]);
 
   useEffect(() => {
     let cancelado = false;
@@ -298,7 +329,7 @@ export function ConversationList({
   // estaban (o sin chips): la lista nunca depende de ellos.
   const loadOperationStatuses = useCallback(async () => {
     try {
-      const board = await fetchBoard(createClient());
+      const board = await boardForLoad();
       setOperationStatuses(
         openOperationStatusByConversation(
           board.map((o) => ({
@@ -312,14 +343,15 @@ export function ConversationList({
     } catch (error) {
       console.error("Failed to load operation statuses:", error);
     }
-  }, []);
+  }, [boardForLoad]);
 
   // `resyncToken` también recarga los chips (reconexión / pestaña visible).
   useEffect(() => {
+    invalidateBoard();
     (async () => {
       await loadOperationStatuses();
     })();
-  }, [loadOperationStatuses, resyncToken]);
+  }, [invalidateBoard, loadOperationStatuses, resyncToken]);
 
   // Tiempo real: cualquier cambio en `remittance_operations` (la tabla está
   // en la publicación supabase_realtime desde la migración 181; RLS la limita
@@ -329,6 +361,7 @@ export function ConversationList({
     const supabase = createClient();
     let timer: ReturnType<typeof setTimeout> | null = null;
     const schedule = () => {
+      invalidateBoard();
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => void loadOperationStatuses(), 800);
     };

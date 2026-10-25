@@ -49,6 +49,7 @@ export function HermesChat() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const { profile } = useAuth();
   // La maqueta saluda por el nombre de pila; sin perfil, saludo a secas.
@@ -82,6 +83,13 @@ export function HermesChat() {
   }, [turns, loaded]);
 
   useEffect(() => {
+    // The greeting and the idea cards fill more than one screen on a phone:
+    // scrolling to the bottom on mount would hide both. Only a conversation
+    // follows its last turn; the empty state always starts at the top.
+    if (turns.length === 0 && !busy) {
+      scrollerRef.current?.scrollTo({ top: 0 });
+      return;
+    }
     bottomRef.current?.scrollIntoView({ block: 'end' });
   }, [turns, busy]);
 
@@ -138,7 +146,7 @@ export function HermesChat() {
             </Button>
           </div>
         ) : null}
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+        <div ref={scrollerRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
           {turns.length === 0 ? (
             <div className="flex flex-col items-center gap-5 py-4">
               <div className="flex flex-col items-center gap-2 text-center">

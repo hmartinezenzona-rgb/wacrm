@@ -27,9 +27,20 @@ interface BoardRow {
   beneficiaries_complete: boolean | null;
 }
 
+/** Concurrent callers share one request; a finished call is never reused. */
+let inFlightBoard: Promise<BoardOperation[]> | null = null;
+
 /** Reads the board with the CALLER's session client (never service role): the
  *  RPC itself resolves the account and refuses non-members with 42501. */
 export async function fetchBoard(supabase: Pick<SupabaseClient, "rpc">): Promise<BoardOperation[]> {
+  if (inFlightBoard) return inFlightBoard;
+  inFlightBoard = fetchBoardOnce(supabase).finally(() => {
+    inFlightBoard = null;
+  });
+  return inFlightBoard;
+}
+
+async function fetchBoardOnce(supabase: Pick<SupabaseClient, "rpc">): Promise<BoardOperation[]> {
   const { data, error } = await supabase.rpc("crm_tablero_operaciones");
   if (error) {
     throw new BoardFetchError(error.code === "42501" ? "forbidden" : "failed", error.message);

@@ -255,7 +255,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // (header, sidebar) can render from the user object alone,
           // profile enriches async. Callers that need to branch on
           // profile data gate on `profileLoading` instead.
-          fetchProfile(currentUser.id);
+          //
+          // The same guard as the auth listener: supabase-js fires
+          // INITIAL_SESSION while getSession() is still in flight, so
+          // without it the profile was fetched twice on every load.
+          if (currentUser.id !== lastFetchedUserIdRef.current) {
+            fetchProfile(currentUser.id);
+          }
         } else {
           // No user → no profile to load. Flip profileLoading off so
           // pages that gate on it don't wait forever on the logged-out

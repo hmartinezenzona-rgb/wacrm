@@ -54,3 +54,6 @@ infra/deployment/*.env
 
 # Python bytecode from infra/ scripts and tests
 __pycache__/
+
+# graphify knowledge graph output
+graphify-out/

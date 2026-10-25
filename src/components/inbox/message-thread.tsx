@@ -467,6 +467,13 @@ export function MessageThread({
   // back to the bottom. That's what made switching away to look at
   // something else and coming back reset wherever you'd scrolled to
   // read an earlier message or image.
+  // Al volver a la MISMA conversación el ref conservaba la clave anterior
+  // (mismo último mensaje, mismo conteo) y el auto-scroll se saltaba: el hilo
+  // se quedaba en el mensaje más viejo de la página en vez de en el último.
+  useEffect(() => {
+    lastScrolledKeyRef.current = null;
+  }, [conversationId]);
+
   useEffect(() => {
     if (!scrollRef.current || messages.length === 0) return;
     const lastMessage = messages[messages.length - 1];

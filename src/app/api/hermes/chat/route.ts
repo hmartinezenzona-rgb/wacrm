@@ -11,28 +11,16 @@
 import { NextResponse } from 'next/server';
 
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import { InvalidMessagesError, cleanMessages } from '@/lib/hermes/message-content';
 
 export const maxDuration = 120;
 export const runtime = 'nodejs';
 
-type ChatMessage = { role: 'user' | 'assistant'; content: string };
-
-const MAX_MESSAGES = 30;
-const MAX_CHARS = 8000;
-
-function cleanMessages(value: unknown): ChatMessage[] {
-  if (!Array.isArray(value)) return [];
-  const out: ChatMessage[] = [];
-  for (const item of value.slice(-MAX_MESSAGES)) {
-    if (!item || typeof item !== 'object') continue;
-    const role = (item as { role?: unknown }).role;
-    const content = (item as { content?: unknown }).content;
-    if ((role === 'user' || role === 'assistant') && typeof content === 'string' && content.trim()) {
-      out.push({ role, content: content.slice(0, MAX_CHARS) });
-    }
-  }
-  return out;
-}
+/**
+ * One compressed screenshot plus the conversation stays far below this. It is
+ * the cheap guard: the body is parsed after it, so a giant one never lands.
+ */
+const MAX_BODY_BYTES = 6 * 1024 * 1024;
 
 export async function POST(request: Request): Promise<Response> {
   try {
@@ -41,8 +29,21 @@ export async function POST(request: Request): Promise<Response> {
     return toErrorResponse(err);
   }
 
+  const length = Number(request.headers.get('content-length') ?? '');
+  if (Number.isFinite(length) && length > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: 'El mensaje es demasiado grande.' }, { status: 413 });
+  }
+
   const body = (await request.json().catch(() => null)) as { messages?: unknown } | null;
-  const messages = cleanMessages(body?.messages);
+  let messages;
+  try {
+    messages = cleanMessages(body?.messages);
+  } catch (err) {
+    if (err instanceof InvalidMessagesError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+    throw err;
+  }
   if (messages.length === 0) {
     return NextResponse.json({ error: 'messages is required' }, { status: 400 });
   }

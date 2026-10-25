@@ -26,6 +26,7 @@ describe('Hermes MCP tools', () => {
       'buscar_conversacion',
       'leer_mensajes',
       'listar_operaciones',
+      'resumen_periodo',
       'tasas_vigentes',
       'ver_calculadora',
     ]);

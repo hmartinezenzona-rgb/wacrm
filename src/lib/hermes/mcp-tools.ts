@@ -84,6 +84,22 @@ export function buildHermesServer(db: SupabaseClient): McpServer {
   );
 
   server.tool(
+    'resumen_periodo',
+    'Resumen de un periodo: conversaciones con actividad (id8, contacto, mensajes de cliente y del bot, ultima hora UTC) y totales (mensajes, operaciones creadas/actualizadas/completadas/incidencias). Usalo para "como va el dia" o cualquier conteo por fechas.',
+    {
+      desde: z.string().optional().describe('fecha ISO de inicio; por defecto hoy 09:00 Guyana'),
+      hasta: z.string().optional().describe('fecha ISO de fin; por defecto ahora'),
+      limite: z.number().int().min(1).max(500).optional().describe('conversaciones a listar (por defecto 200)'),
+    },
+    ({ desde, hasta, limite }) =>
+      call('hermes_resumen_periodo', {
+        p_desde: desde ?? null,
+        p_hasta: hasta ?? null,
+        p_limite: limite ?? 200,
+      }),
+  );
+
+  server.tool(
     'tasas_vigentes',
     'Tasas publicadas del dia, estado de la tasa ARQ USD-MXN y minimos configurados.',
     {},

@@ -1766,6 +1766,20 @@ describe("manual operations as rows of the one table (migration 228)", () => {
     await act(async () => root.unmount());
   });
 
+  it("opening the page does not re-save the document when nothing changed", async () => {
+    vi.useFakeTimers();
+    const fetchMock = fixture({}, TEXT);
+    const { root } = await renderPage(fetchMock);
+    fetchMock.mockClear();
+
+    // Ninguna interacción: el autosave no debe escribir nada.
+    await act(async () => { await vi.advanceTimersByTimeAsync(1200); });
+
+    const saves = calls(fetchMock, "POST", "/api/calculadora").filter(([input]) => input === "/api/calculadora");
+    expect(saves).toHaveLength(0);
+    await act(async () => root.unmount());
+  });
+
   it("Registrar is enabled only when the box holds a line that can be registered", async () => {
     const { node, root } = await renderPage(fixture());
 

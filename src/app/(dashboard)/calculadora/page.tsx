@@ -247,6 +247,11 @@ export default function CalculadoraPage() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [confirmingDeleteId, deletingEntryId]);
 
+  // Lo que el servidor tiene guardado. El autosave solo escribe cuando el
+  // texto o el periodo cambian de verdad: antes, cada visita re-firmaba el
+  // documento (updated_by/updated_at) aunque no se hubiera tocado nada.
+  const lastSavedRef = useRef<{ raw: string; periodo: string } | null>(null);
+
   function applyRates(next: CalculatorRates | null) {
     setRates(next);
     setRateDraft(null);
@@ -283,13 +288,19 @@ export default function CalculadoraPage() {
         setCutAt(data.cutAt ?? null);
         applyRates(ratesData.rates);
         setArqRate(ratesData.arqRate ?? null);
+        lastSavedRef.current = { raw: data.rawText ?? "", periodo: data.periodo ?? "" };
         localStorage.setItem(STORAGE_KEYS.raw, data.rawText ?? "");
         localStorage.setItem(STORAGE_KEYS.period, data.periodo ?? "");
       })
       .catch(() => {
         if (!active) return;
-        setRawText(localStorage.getItem(STORAGE_KEYS.raw) ?? "");
-        setPeriodo(localStorage.getItem(STORAGE_KEYS.period) ?? "");
+        const raw = localStorage.getItem(STORAGE_KEYS.raw) ?? "";
+        const periodo = localStorage.getItem(STORAGE_KEYS.period) ?? "";
+        setRawText(raw);
+        setPeriodo(periodo);
+        // Sin lectura del servidor no sabemos que coincidan: se deja null
+        // para que el primer autosave sí escriba.
+        lastSavedRef.current = null;
         setChatEntries([]);
       })
       .finally(() => { if (active) setHydrated(true); });
@@ -303,6 +314,8 @@ export default function CalculadoraPage() {
     localStorage.setItem(STORAGE_KEYS.period, periodo);
     const timer = window.setTimeout(() => {
       if (clearingRef.current) return;
+      const last = lastSavedRef.current;
+      if (last && last.raw === rawText && last.periodo === periodo) return;
       const controller = new AbortController();
       saveAbortRef.current = controller;
       void fetch("/api/calculadora", {
@@ -312,6 +325,7 @@ export default function CalculadoraPage() {
         signal: controller.signal,
       }).then((response) => {
         if (!response.ok) throw new Error("calculator document save failed");
+        lastSavedRef.current = { raw: rawText, periodo };
         setSaveError(null);
       }).catch((error: unknown) => {
         if ((error as { name?: string } | null)?.name === "AbortError") return;

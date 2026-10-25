@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -29,28 +29,51 @@ import {
 const CONTACT_PANEL_STORAGE_KEY = "wacrm:inbox:contact-panel-open";
 
 /**
- * Last conversation the user closed with the back arrow. The page remounts
- * while `window.location` still carries the old `?c=`, so the deep-link
- * auto-select needs this to tell "a notification opened this thread" apart
- * from "the URL has not caught up with the close yet". Module scope on
- * purpose: it must survive that remount.
+ * Last conversation the user closed with the back arrow, kept in
+ * sessionStorage because a remount re-evaluates this module (module scope
+ * did not survive). The auto-select ignores it for a minute: that is the
+ * window in which Next can re-publish the URL the user just backed out of.
  */
 let lastClosedConversationId: string | null = null;
+const CLOSED_KEY = "wacrm:inbox:closed";
+const CLOSED_TTL_MS = 60_000;
 
-/**
- * Keep the URL in sync without a Next router navigation. `router.replace`
- * re-renders the /inbox segment (a remount), and during that remount
- * `window.location` still carries the previous `?c=`, which is exactly what
- * reopened the thread the user had just closed. replaceState updates the
- * address bar with no navigation and no remount.
- */
-function syncInboxUrl(url: string): void {
-  if (typeof window === "undefined") return;
+function markClosed(id: string | null | undefined): void {
+  lastClosedConversationId = id ?? null;
   try {
-    window.history.replaceState(null, "", url);
+    if (id) window.sessionStorage.setItem(CLOSED_KEY, `${id}|${Date.now()}`);
+    else window.sessionStorage.removeItem(CLOSED_KEY);
   } catch {
-    // History can be unavailable in sandboxed contexts: the state is still right.
+    // Storage can be blocked: the module copy still covers same-instance cases.
   }
+}
+
+function closedMarker(): { id: string; at: number } | null {
+  try {
+    const raw = window.sessionStorage.getItem(CLOSED_KEY);
+    if (!raw) return null;
+    const [id, at] = raw.split("|");
+    if (!id || !at) return null;
+    return { id, at: Number(at) };
+  } catch {
+    return null;
+  }
+}
+
+function clearClosedMarker(): void {
+  lastClosedConversationId = null;
+  try {
+    window.sessionStorage.removeItem(CLOSED_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+function wasJustClosed(id: string | null | undefined): boolean {
+  if (!id) return false;
+  if (id === lastClosedConversationId) return true;
+  const marker = closedMarker();
+  return !!marker && marker.id === id && Date.now() - marker.at < CLOSED_TTL_MS;
 }
 
 /** The ?c= the browser is really on. The router's copy can lag behind after a
@@ -62,6 +85,7 @@ function convParamFromLocation(): string | null {
 
 export default function InboxPage() {
   const t = useTranslations("Inbox.page");
+  const router = useRouter();
   const searchParams = useSearchParams();
   /**
    * `?c=<id>` deep-link support. Used when landing here from the
@@ -73,9 +97,6 @@ export default function InboxPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversation, setActiveConversation] =
     useState<Conversation | null>(null);
-  // Set while a click's ?c= replace is in flight, so the URL guard below
-  // does not close the thread the user just opened.
-  const [pendingSelection, setPendingSelection] = useState<string | null>(null);
   const [activeContact, setActiveContact] = useState<Contact | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [whatsappConnected, setWhatsappConnected] = useState<boolean | null>(
@@ -492,7 +513,7 @@ export default function InboxPage() {
       // user back to the deep-linked thread after they've navigated.
       if (
         deepLinkConvId &&
-        deepLinkConvId !== lastClosedConversationId &&
+        !wasJustClosed(deepLinkConvId) &&
         convParamFromLocation() === deepLinkConvId &&
         autoSelectedForDeepLinkRef.current !== deepLinkConvId &&
         loaded.length > 0
@@ -570,32 +591,14 @@ export default function InboxPage() {
       // clobbers the messages MessageThread just fetched.
       autoSelectedForDeepLinkRef.current = conv.id;
       lastClosedConversationId = null;
-      setPendingSelection(conv.id);
-      // Reflect the selection in the URL so a refresh lands the user
-      // back in the same thread, and so copy-paste links work. Use
-      // replace() to avoid polluting browser history with every click.
-      syncInboxUrl(`/inbox?c=${conv.id}`);
+      clearClosedMarker();
+      // The open thread is NOT mirrored into the URL. Next's router owns the
+      // URL and rewrites it on re-render; two writers produced a race where a
+      // closed thread came back (and once, an older one). `?c=` is now only
+      // what a real deep link (notification, dashboard) arrives with.
     },
     [activeConversation?.id]
   );
-
-  // La URL manda: sin ?c la bandeja es la lista. Next puede restaurar el arbol
-  // de esta pagina tal como quedo (cache del cliente) al volver de Ajustes, y
-  // entonces reaparecia un hilo que el usuario ya habia cerrado con el atras.
-  useEffect(() => {
-    if (pendingSelection) return;
-    if (!convParamFromLocation() && activeConversation) {
-      console.info("[inbox-diag] guard cierra hilo", {
-        real: convParamFromLocation(),
-        routerParam: deepLinkConvId,
-        active: activeConversation.id,
-      });
-      setActiveConversation(null);
-      setActiveContact(null);
-      setMessages([]);
-      autoSelectedForDeepLinkRef.current = null;
-    }
-  }, [deepLinkConvId, pendingSelection, activeConversation]);
 
   // DIAGNOSTICO TEMPORAL: cuántas veces se monta la página y con qué URL.
   useEffect(() => {
@@ -605,16 +608,6 @@ export default function InboxPage() {
     });
     if (!convParamFromLocation()) lastClosedConversationId = null;
   }, []);
-
-  // La seleccion deja de estar pendiente en cuanto la URL la refleja.
-  useEffect(() => {
-    if (
-      pendingSelection &&
-      (deepLinkConvId === pendingSelection || convParamFromLocation() === pendingSelection)
-    ) {
-      setPendingSelection(null);
-    }
-  }, [deepLinkConvId, pendingSelection]);
 
   // Mobile "back" — deselect the conversation so the list pane comes
   // back. Also clears the ?c= param so a refresh lands on the list
@@ -628,10 +621,10 @@ export default function InboxPage() {
     // the user later visits /inbox?c=<same-id> — desirable UX.
     console.info("[inbox-diag] atras", { search: window.location.search });
     lastClosedConversationId = activeConversation?.id ?? null;
+    markClosed(activeConversation?.id);
     autoSelectedForDeepLinkRef.current = null;
-    setPendingSelection(null);
-    syncInboxUrl("/inbox");
-  }, [activeConversation?.id]);
+    router.replace("/inbox", { scroll: false });
+  }, [activeConversation?.id, router]);
 
   /**
    * Se dispara cuando quitar-del-inbox (en bloque o individual) se lleva la
@@ -646,8 +639,9 @@ export default function InboxPage() {
     setActiveContact(null);
     setMessages([]);
     autoSelectedForDeepLinkRef.current = null;
-    syncInboxUrl("/inbox");
-  }, []);
+    markClosed(null);
+    router.replace("/inbox", { scroll: false });
+  }, [router]);
 
   const handleMessagesLoaded = useCallback((loaded: Message[]) => {
     setMessages(loaded);

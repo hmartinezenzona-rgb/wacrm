@@ -2,12 +2,43 @@
   "Hermes": {
     "title": "Hermes",
     "desc": "The business assistant. Ask about conversations, operations, the calculator, alerts or rates: it reads the CRM read-only.",
-    "empty": "Ask something, for example: how is the day going? or what happened with the customer who wrote yesterday?",
     "placeholder": "Type your question…",
     "send": "Send",
     "newChat": "New conversation",
     "thinking": "Hermes is looking…",
-    "failed": "Could not get an answer from Hermes."
+    "failed": "Could not get an answer from Hermes.",
+    "intro": {
+      "badge": "Business assistant · read-only",
+      "greeting": "What are we reviewing today?",
+      "greetingNamed": "What are we reviewing today, {name}?",
+      "subtitle": "Ask me about conversations, operations, finance or the weekly control. Everything comes from the CRM."
+    },
+    "ideas": {
+      "cuadre": {
+        "title": "Reconcile the day",
+        "desc": "Cross-checks completed operations against the finance ledger and the weekly control, and flags what doesn't add up.",
+        "cta": "Reconcile today",
+        "prompt": "Reconcile today: completed operations against finance and the weekly control."
+      },
+      "sinResponder": {
+        "title": "What went unanswered",
+        "desc": "Finds customer messages nobody replied to, with the time and the name.",
+        "cta": "See pending",
+        "prompt": "Which customer messages went unanswered today?"
+      },
+      "incidencia": {
+        "title": "Operations on incident",
+        "desc": "Lists what is stuck, the amount and what is missing to resolve it.",
+        "cta": "Review incidents",
+        "prompt": "Which operations are on incident right now, and why?"
+      },
+      "semana": {
+        "title": "Week summary",
+        "desc": "Billed, invested and return per service, with the busiest days.",
+        "cta": "See the week",
+        "prompt": "Weekly summary: billed, invested and return per service."
+      }
+    }
   },
   "LoginPage": {
     "titleAccept": "Sign in to accept",

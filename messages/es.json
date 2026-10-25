@@ -2,12 +2,43 @@
   "Hermes": {
     "title": "Hermes",
     "desc": "El asistente del negocio. Pregúntale por conversaciones, operaciones, calculadora, alertas o tasas: consulta el CRM en solo lectura.",
-    "empty": "Pregúntale algo, por ejemplo: ¿cómo va el día? o ¿qué pasó con el cliente que escribió ayer?",
     "placeholder": "Escribe tu pregunta…",
     "send": "Enviar",
     "newChat": "Nueva conversación",
     "thinking": "Hermes está consultando…",
-    "failed": "No se pudo obtener respuesta de Hermes."
+    "failed": "No se pudo obtener respuesta de Hermes.",
+    "intro": {
+      "badge": "Asistente de negocio · solo lectura",
+      "greeting": "¿Qué revisamos hoy?",
+      "greetingNamed": "¿Qué revisamos hoy, {name}?",
+      "subtitle": "Pregúntame por conversaciones, operaciones, finanzas o el control semanal. Todo sale del CRM."
+    },
+    "ideas": {
+      "cuadre": {
+        "title": "Cuadra el día",
+        "desc": "Cruza las operaciones completadas con el libro de Finanzas y con el Control Semanal, y señala lo que no cuadra.",
+        "cta": "Cuadrar hoy",
+        "prompt": "Cuadra el día de hoy: operaciones completadas contra Finanzas y Control Semanal."
+      },
+      "sinResponder": {
+        "title": "Qué quedó sin responder",
+        "desc": "Encuentra los mensajes de clientes que nadie contestó, con la hora y el nombre.",
+        "cta": "Ver pendientes",
+        "prompt": "¿Qué mensajes de clientes quedaron sin respuesta hoy?"
+      },
+      "incidencia": {
+        "title": "Operaciones en incidencia",
+        "desc": "Lista lo que está parado, el importe y qué falta para resolverlo.",
+        "cta": "Revisar incidencias",
+        "prompt": "¿Qué operaciones están en incidencia ahora mismo y por qué?"
+      },
+      "semana": {
+        "title": "Resumen de la semana",
+        "desc": "Facturado, invertido y retorno por servicio, con los días que más movieron.",
+        "cta": "Ver la semana",
+        "prompt": "Resumen de la semana: facturado, invertido y retorno por servicio."
+      }
+    }
   },
   "LoginPage": {
     "titleAccept": "Inicia sesión para aceptar",

@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
-import { Bricolage_Grotesque, Figtree, JetBrains_Mono } from "next/font/google";
+import { Bricolage_Grotesque, Figtree, Instrument_Serif, JetBrains_Mono } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import { ThemeProvider } from "@/hooks/use-theme";
@@ -23,6 +23,13 @@ const figtree = Figtree({
 // Headings and money amounts.
 const bricolage = Bricolage_Grotesque({
   variable: "--font-heading",
+  subsets: ["latin"],
+});
+
+// Greetings and empty states: one editorial line, never body text.
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-serif",
+  weight: "400",
   subsets: ["latin"],
 });
 
@@ -104,7 +111,7 @@ export default async function RootLayout({
       lang={locale}
       data-theme={DEFAULT_THEME}
       data-mode={DEFAULT_MODE}
-      className={`${figtree.variable} ${bricolage.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`${figtree.variable} ${bricolage.variable} ${jetbrainsMono.variable} ${instrumentSerif.variable} h-full antialiased`}
       // The `theme-boot` script below rewrites `data-theme` and
       // `data-mode` on <html> from localStorage before React hydrates,
       // so for any non-default choice the client DOM intentionally

@@ -47,7 +47,7 @@
 :global(.legacyCalc .legacyRateRow dd) { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
 /* The read-only ARQ rate keeps its provenance under the figure (ask, age, ARQ's own time). */
 :global(.legacyCalc .legacyRateNote) { display: block; margin-top: 2px; font-size: 11px; font-weight: 400; color: var(--muted-foreground); }
-:global(.legacyCalc .legacyRateNoteStale) { display: inline-block; margin-top: 3px; padding: 1px 6px; border-radius: 4px; color: var(--foreground); background: color-mix(in oklch, oklch(0.75 0.15 80) 16%, var(--card)); border: 1px solid color-mix(in oklch, oklch(0.75 0.15 80) 45%, var(--border)); }
+:global(.legacyCalc .legacyRateNoteStale) { display: block; width: fit-content; margin: 6px 0 0 auto; padding: 2px 8px; border-radius: 4px; line-height: 1.4; color: var(--foreground); background: color-mix(in oklch, oklch(0.75 0.15 80) 16%, var(--card)); border: 1px solid color-mix(in oklch, oklch(0.75 0.15 80) 45%, var(--border)); }
 :global(.legacyCalc .legacyTotals) { display: flex; gap: 12px; margin-bottom: 15px; flex-wrap: wrap; }
 :global(.legacyCalc .legacyTotalBox) { flex: 1; min-width: 140px; background: var(--card); color: var(--card-foreground); padding: 12px; border-radius: 10px; text-align: center; border: 1px solid var(--border); }
 :global(.legacyCalc .legacyTopBar) { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; gap: 12px; }

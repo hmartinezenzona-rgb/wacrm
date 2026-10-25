@@ -20,13 +20,51 @@ interface Turn {
   content: string;
 }
 
+// The conversation survives leaving the page and reloading the tab, so it is
+// only lost when the admin presses "Nueva conversación" or closes the tab.
+const STORAGE_KEY = 'wacrm.hermes.chat.v1';
+
+function isTurn(value: unknown): value is Turn {
+  if (!value || typeof value !== 'object') return false;
+  const turn = value as Record<string, unknown>;
+  return (turn.role === 'user' || turn.role === 'assistant') && typeof turn.content === 'string';
+}
+
 export function HermesChat() {
   const t = useTranslations('Hermes');
   const [turns, setTurns] = useState<Turn[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  // Read after mount: the server render has no sessionStorage.
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw) as unknown;
+        if (Array.isArray(saved)) setTurns(saved.filter(isTurn));
+      }
+    } catch {
+      // Unreadable or blocked storage: start clean.
+    }
+    setLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!loaded) return;
+    try {
+      if (turns.length === 0) {
+        sessionStorage.removeItem(STORAGE_KEY);
+      } else {
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(turns));
+      }
+    } catch {
+      // Storage full or blocked: the chat keeps working in memory.
+    }
+  }, [turns, loaded]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: 'end' });

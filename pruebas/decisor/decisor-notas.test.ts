@@ -982,3 +982,54 @@ describe('verificar un deposito por TransID escrito (admin)', () => {
     expect((out as unknown as { comando?: string }).comando).not.toBe('verificar_transid');
   });
 });
+
+// Owner 2026-10-25 (Osmany's list): name the service, never ask for a card on a
+// recarga, and promise no time — "una vez hecho su servicio, se le notifica por aca".
+describe('nombre del servicio, recarga sin tarjeta y promesa neutra', () => {
+  const ABIERTO = '2026-10-21T15:00:00Z'; // 11:00 Guyana
+  const CERRADO = '2026-10-21T07:00:00Z'; // 03:00 Guyana
+
+  function a(hora: string, extra: Entradas = {}) {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(hora));
+    try {
+      return correrDecisor(extra);
+    } finally {
+      vi.useRealTimers();
+    }
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('con Zelle resuelto, ordena nombrar el servicio y no decir solo "USD"', () => {
+    const s = a(ABIERTO, { ctx: { riel_operacion: 'zelle' } });
+    const n = nota(s, 'NOMBRA EL SERVICIO');
+    expect(n).toBeDefined();
+    expect(n).toContain('Zelle');
+    expect(n).toMatch(/PROHIBIDO decir solo "USD"/);
+  });
+
+  it('una recarga no pide tarjeta: solo el numero cubano', () => {
+    const s = a(ABIERTO, { snapshot: { texto_completo: 'recargame 500 a este numero' } });
+    const n = nota(s, 'EL CLIENTE PIDE UNA RECARGA');
+    expect(n).toBeDefined();
+    expect(n).toMatch(/PROHIBIDO pedir tarjeta/);
+    expect(n).toContain('NUMERO');
+  });
+
+  it('fuera de horario ya no promete "en cuanto abramos"', () => {
+    const n = nota(a(CERRADO), 'FUERA DE HORARIO');
+    expect(n).toBeDefined();
+    expect(n).toContain('una vez hecho su servicio, se le notifica por aca');
+    expect(n).not.toMatch(/Di que se hace en cuanto abramos/);
+  });
+
+  it('proximo a cerrar ya no promete el dia siguiente a primera hora', () => {
+    const n = nota(a(ABIERTO, { ctx: { por_cerrar: true } }), 'PROXIMO A CERRAR');
+    expect(n).toBeDefined();
+    expect(n).toContain('una vez hecho su servicio, se le notifica por aca');
+    expect(n).not.toMatch(/queda para el dia siguiente/);
+  });
+});

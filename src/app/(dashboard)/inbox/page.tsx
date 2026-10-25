@@ -28,6 +28,13 @@ import {
 // across reloads and sessions (device-scoped, like the theme prefs).
 const CONTACT_PANEL_STORAGE_KEY = "wacrm:inbox:contact-panel-open";
 
+/** The ?c= the browser is really on. The router's copy can lag behind after a
+ *  cached segment is restored, and trusting it reopened a stale thread. */
+function convParamFromLocation(): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get("c");
+}
+
 export default function InboxPage() {
   const t = useTranslations("Inbox.page");
   const router = useRouter();
@@ -461,6 +468,7 @@ export default function InboxPage() {
       // user back to the deep-linked thread after they've navigated.
       if (
         deepLinkConvId &&
+        convParamFromLocation() === deepLinkConvId &&
         autoSelectedForDeepLinkRef.current !== deepLinkConvId &&
         loaded.length > 0
       ) {
@@ -547,7 +555,7 @@ export default function InboxPage() {
   // entonces reaparecia un hilo que el usuario ya habia cerrado con el atras.
   useEffect(() => {
     if (pendingSelection) return;
-    if (!deepLinkConvId && activeConversation) {
+    if (!convParamFromLocation() && activeConversation) {
       setActiveConversation(null);
       setActiveContact(null);
       setMessages([]);
@@ -557,7 +565,10 @@ export default function InboxPage() {
 
   // La seleccion deja de estar pendiente en cuanto la URL la refleja.
   useEffect(() => {
-    if (pendingSelection && deepLinkConvId === pendingSelection) {
+    if (
+      pendingSelection &&
+      (deepLinkConvId === pendingSelection || convParamFromLocation() === pendingSelection)
+    ) {
       setPendingSelection(null);
     }
   }, [deepLinkConvId, pendingSelection]);

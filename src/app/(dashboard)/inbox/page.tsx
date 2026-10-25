@@ -472,6 +472,9 @@ export default function InboxPage() {
         autoSelectedForDeepLinkRef.current !== deepLinkConvId &&
         loaded.length > 0
       ) {
+        console.info("[inbox-diag] auto-select", {
+          deepLinkConvId, real: convParamFromLocation(), active: activeConversation?.id,
+        });
         autoSelectedForDeepLinkRef.current = deepLinkConvId;
         // If the deep-linked conversation is already the active one
         // (e.g. because the user clicked it in the list and we
@@ -556,12 +559,25 @@ export default function InboxPage() {
   useEffect(() => {
     if (pendingSelection) return;
     if (!convParamFromLocation() && activeConversation) {
+      console.info("[inbox-diag] guard cierra hilo", {
+        real: convParamFromLocation(),
+        routerParam: deepLinkConvId,
+        active: activeConversation.id,
+      });
       setActiveConversation(null);
       setActiveContact(null);
       setMessages([]);
       autoSelectedForDeepLinkRef.current = null;
     }
   }, [deepLinkConvId, pendingSelection, activeConversation]);
+
+  // DIAGNOSTICO TEMPORAL: cuántas veces se monta la página y con qué URL.
+  useEffect(() => {
+    console.info("[inbox-diag] montaje", {
+      search: window.location.search,
+      routerParam: new URLSearchParams(window.location.search).get("c"),
+    });
+  }, []);
 
   // La seleccion deja de estar pendiente en cuanto la URL la refleja.
   useEffect(() => {
@@ -583,6 +599,7 @@ export default function InboxPage() {
     setMessages([]);
     // Clearing the ref lets the deep-link auto-selector fire again if
     // the user later visits /inbox?c=<same-id> — desirable UX.
+    console.info("[inbox-diag] atras", { search: window.location.search });
     autoSelectedForDeepLinkRef.current = null;
     setPendingSelection(null);
     router.replace("/inbox", { scroll: false });

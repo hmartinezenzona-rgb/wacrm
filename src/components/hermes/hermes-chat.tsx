@@ -211,9 +211,13 @@ export function HermesChat() {
             <div
               key={index}
               className={
-                turn.role === 'user'
-                  ? 'bg-primary text-primary-foreground ml-auto flex max-w-[85%] flex-col gap-1.5 rounded-xl px-3 py-2 text-sm'
-                  : 'bg-muted text-foreground mr-auto max-w-[90%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap'
+                turn.role !== 'user'
+                  ? 'bg-muted text-foreground mr-auto max-w-[90%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap'
+                  : turn.imageUrl || turn.hadImage
+                    ? // A picture on a coloured bubble leaves a coloured frame around
+                      // it; the neutral one lets the image stand on its own.
+                      'bg-muted text-foreground ml-auto flex max-w-[85%] flex-col gap-1.5 rounded-xl px-2 py-2 text-sm'
+                    : 'bg-primary text-primary-foreground ml-auto max-w-[85%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap'
               }
             >
               {turn.imageUrl ? (

@@ -50,9 +50,10 @@ function makeClient(opts: {
     calls,
     client: {
       auth: {
-        getUser: () =>
+        // The route auth now verifies the JWT locally via getClaims().
+        getClaims: () =>
           Promise.resolve({
-            data: { user: opts.user },
+            data: { claims: opts.user ? { sub: opts.user.id } : null },
             error: opts.userErr ?? null,
           }),
       },

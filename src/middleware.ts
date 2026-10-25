@@ -23,7 +23,14 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // getClaims(): verifica el JWT localmente con la JWKS del proyecto (ES256,
+  // cacheada) en vez de preguntar al servidor de Auth en cada petición, que
+  // costaba ~180 ms por request. Sigue refrescando la sesión cuando el token
+  // está por expirar, y en ese caso setAll() reescribe las cookies igual.
+  // No pongas código entre createServerClient y esta llamada: la librería lo
+  // documenta como causa de logouts aleatorios.
+  const { data: claimsData } = await supabase.auth.getClaims()
+  const user = claimsData?.claims?.sub ? { id: claimsData.claims.sub } : null
 
   // getUser() transparently refreshes an expired access token, which
   // ROTATES the refresh token and writes the new cookies onto

@@ -106,18 +106,18 @@ export interface AccountContext {
 export async function getCurrentAccount(): Promise<AccountContext> {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-    error: userErr,
-  } = await supabase.auth.getUser();
-  if (userErr || !user) {
+  // getClaims verifica el JWT localmente (JWKS ES256 cacheada): la identidad
+  // se resuelve sin una vuelta de red al servidor de Auth por cada API.
+  const { data: claimsData, error: claimsErr } = await supabase.auth.getClaims();
+  const userId = claimsData?.claims?.sub;
+  if (claimsErr || !userId) {
     throw new UnauthorizedError();
   }
 
   const { data, error } = await supabase
     .from("profiles")
     .select("account_id, account_role")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .maybeSingle();
 
   if (error) {
@@ -165,7 +165,7 @@ export async function getCurrentAccount(): Promise<AccountContext> {
 
   return {
     supabase,
-    userId: user.id,
+    userId,
     accountId: data.account_id,
     role: data.account_role,
     account: { id: account.id, name: account.name },

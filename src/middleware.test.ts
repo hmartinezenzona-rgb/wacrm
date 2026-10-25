@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 // --- Scenario knobs the mock reads -----------------------------------------
-// `mockUser`         — what getUser() resolves to (a refreshed session ⇒ user,
-//                      or null for the logged-out path).
+// `mockUser`         — what getClaims() resolves to (a refreshed session ⇒
+//                      claims with `sub`, or null for the logged-out path).
 // `refreshedCookies` — cookies Supabase writes via setAll() during getUser(),
 //                      i.e. the freshly *rotated* auth token. The whole point
 //                      of the test is that these must survive onto whatever
@@ -25,11 +25,11 @@ vi.mock("@supabase/ssr", () => ({
   ) => ({
     auth: {
       // Mirrors real auth-js: an expired access token is transparently
-      // refreshed inside getUser(), which rotates the refresh token and
+      // refreshed inside getClaims(), which rotates the refresh token and
       // pushes the new cookies through setAll() before resolving.
-      getUser: async () => {
+      getClaims: async () => {
         if (refreshedCookies.length) opts.cookies.setAll(refreshedCookies);
-        return { data: { user: mockUser } };
+        return { data: { claims: mockUser ? { sub: mockUser.id } : null }, error: null };
       },
     },
   }),

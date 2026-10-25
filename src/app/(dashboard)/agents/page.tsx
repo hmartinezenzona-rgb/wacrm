@@ -1,90 +1,24 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+// ============================================================
+// /agents — now the Hermes chat
+//
+// The old "AI agents" page (OpenAI/Anthropic playground, unused in
+// production) is replaced by the admin's chat with Hermes, which runs on the
+// owner's VPS and reaches the CRM through the read-only MCP tools.
+// ============================================================
+
 import { useTranslations } from 'next-intl';
-import { Bot, Sparkles, Settings2, BarChart3 } from 'lucide-react';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { AiPlayground } from '@/components/agents/ai-playground';
-import { AiUsageCard } from '@/components/agents/ai-usage';
-import { AiConfig } from '@/components/settings/ai-config';
-import { useAuth } from '@/hooks/use-auth';
-import { canEditSettings } from '@/lib/auth/roles';
+
+import { HermesChat } from '@/components/hermes/hermes-chat';
 import { PageHeader, PageShell } from '@/components/layout/page-header';
 
-type Tab = 'playground' | 'setup' | 'usage';
-
 export default function AgentsPage() {
-  const t = useTranslations('Agents.page');
-  const { accountRole } = useAuth();
-  const canViewUsage = accountRole ? canEditSettings(accountRole) : false;
-  const [tab, setTab] = useState<Tab>('playground');
-  const [decided, setDecided] = useState(false);
-
-  // Land first-time users on Setup, returning users on the Playground.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/ai/config');
-        const data = await res.json().catch(() => ({}));
-        if (!cancelled) setTab(data?.configured ? 'playground' : 'setup');
-      } catch {
-        if (!cancelled) setTab('setup');
-      } finally {
-        if (!cancelled) setDecided(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+  const t = useTranslations('Hermes');
   return (
     <PageShell>
-      <PageHeader
-        title={t('title')}
-        description={t('description')}
-      />
-
-      {decided && (
-        <Tabs
-          value={tab}
-          onValueChange={(v) => setTab(v as Tab)}
-          className="mt-6"
-        >
-          <TabsList>
-            <TabsTrigger value="playground">
-              <Sparkles className="mr-1.5 h-4 w-4" /> {t('tabPlayground')}
-            </TabsTrigger>
-            <TabsTrigger value="setup">
-              <Settings2 className="mr-1.5 h-4 w-4" /> {t('tabSetup')}
-            </TabsTrigger>
-            {canViewUsage && (
-              <TabsTrigger value="usage">
-                <BarChart3 className="mr-1.5 h-4 w-4" /> {t('tabUsage')}
-              </TabsTrigger>
-            )}
-          </TabsList>
-
-          <TabsContent value="playground" className="mt-4">
-            <AiPlayground onGoToSetup={() => setTab('setup')} />
-          </TabsContent>
-
-          <TabsContent value="setup" className="mt-4">
-            <AiConfig />
-          </TabsContent>
-
-          {/* Mounted only while its tab is active: the panel stays in the
-              DOM but hidden, and Recharts measures a hidden container as
-              0 wide ("width(-1) ... should be greater than 0" in the
-              console) and draws nothing until a resize. */}
-          {canViewUsage && tab === 'usage' && (
-            <TabsContent value="usage" className="mt-4">
-              <AiUsageCard />
-            </TabsContent>
-          )}
-        </Tabs>
-      )}
+      <PageHeader title={t('title')} description={t('desc')} />
+      <HermesChat />
     </PageShell>
   );
 }

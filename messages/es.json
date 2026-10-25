@@ -1,4 +1,13 @@
 {
+  "Hermes": {
+    "title": "Hermes",
+    "desc": "El asistente del negocio. Pregúntale por conversaciones, operaciones, calculadora, alertas o tasas: consulta el CRM en solo lectura.",
+    "empty": "Pregúntale algo, por ejemplo: ¿cómo va el día? o ¿qué pasó con el cliente que escribió ayer?",
+    "placeholder": "Escribe tu pregunta…",
+    "send": "Enviar",
+    "thinking": "Hermes está consultando…",
+    "failed": "No se pudo obtener respuesta de Hermes."
+  },
   "LoginPage": {
     "titleAccept": "Inicia sesión para aceptar",
     "titleWelcome": "Bienvenido de nuevo",
@@ -24,7 +33,7 @@
     "broadcasts": "Difusiones",
     "automations": "Automatizaciones",
     "flows": "Flujos",
-    "aiAgents": "Agentes de IA",
+    "aiAgents": "Hermes",
     "settings": "Configuración",
     "beta": "Beta",
     "unreadConversations": "{count} {count, plural, =1 {conversación} other {conversaciones}} sin leer",
@@ -54,7 +63,7 @@
     "broadcasts": "Difusiones",
     "automations": "Automatizaciones",
     "flows": "Flujos",
-    "aiAgents": "Agentes de IA",
+    "aiAgents": "Hermes",
     "settings": "Configuración",
     "breadcrumb": "Ruta de navegación",
     "openMenu": "Abrir menú",

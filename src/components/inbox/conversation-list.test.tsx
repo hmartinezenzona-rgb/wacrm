@@ -72,6 +72,8 @@ vi.mock("@/lib/supabase/client", () => ({
         eq: () => builder,
         is: () => builder,
         order: () => builder,
+        or: () => builder,
+        limit: () => builder,
         update: () => builder,
         in: () => builder,
         then: (resolve: (value: { data: unknown[]; error: null }) => unknown) =>

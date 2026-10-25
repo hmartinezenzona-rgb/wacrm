@@ -221,7 +221,9 @@
       "clearAll": "Clear all",
       "noConversations": "No conversations found",
       "noMessagesYet": "No messages yet",
-      "unknown": "Unknown"
+      "unknown": "Unknown",
+      "showAll": "Show all conversations",
+      "showRecentOnly": "Show recent only"
     },
     "messageThread": {
       "backToConversations": "Back to conversations",

@@ -6,6 +6,7 @@ import {
   CONVERSATION_SELECT,
   matchesContactFilters,
   normalizeConversations,
+  type RawConversation,
 } from "@/lib/inbox/conversations";
 import { prefetchConversationOperations } from "@/lib/remittance-operations/panel-prefetch";
 import type { EffectiveStatus } from "@/lib/remittance-operations/effective-status";
@@ -118,6 +119,26 @@ function ordenarConversaciones(a: Conversation, b: Conversation) {
   return tb - ta;
 }
 
+/** Ventana de actividad reciente que la bandeja carga por defecto. */
+const RECENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Añade las conversaciones con una operación abierta que el filtro dejó fuera. */
+async function withOpenOperationConversations(
+  supabase: ReturnType<typeof createClient>,
+  rows: RawConversation[],
+): Promise<RawConversation[]> {
+  const board = await fetchBoard(supabase).catch(() => []);
+  const have = new Set(rows.map((r) => r.id));
+  const missing = [...new Set(board.map((o) => o.conversationId))].filter((id) => !have.has(id));
+  if (missing.length === 0) return rows;
+  const { data } = await supabase
+    .from("conversations")
+    .select(CONVERSATION_SELECT)
+    .in("id", missing)
+    .is("deleted_at", null);
+  return [...rows, ...((data ?? []) as RawConversation[])];
+}
+
 export function ConversationList({
   activeConversationId,
   onSelect,
@@ -128,6 +149,10 @@ export function ConversationList({
   onMarkAllRead,
 }: ConversationListProps) {
   const t = useTranslations("Inbox.conversationList");
+  // La bandeja enseña la actividad reciente; el historial completo queda a un
+  // toque ("Ver todas"). Nunca se esconden fijadas, no leídas ni conversaciones
+  // con una operación abierta: esas entran aunque no hayan escrito en semanas.
+  const [showAll, setShowAll] = useState(false);
   
   const FILTER_OPTIONS: { label: string; value: InboxFilter }[] = useMemo(() => [
     { label: t("filterAll"), value: "all" },
@@ -188,14 +213,25 @@ export function ConversationList({
     onConversationsLoadedRef.current = onConversationsLoaded;
   });
 
+  // Buscar tiene que alcanzar todo el historial: con texto en el buscador se
+  // carga la lista completa aunque el filtro de recencia esté activo.
+  const loadAll = showAll || search.trim().length > 0;
+
   const fetchConversations = useCallback(async (): Promise<Conversation[] | null> => {
     const supabase = createClient();
-    const { data, error } = await supabase
+    let query = supabase
       .from("conversations")
       .select(CONVERSATION_SELECT)
       .is("deleted_at", null)
       .order("pinned_at", { ascending: false, nullsFirst: false })
       .order("last_message_at", { ascending: false });
+
+    if (!loadAll) {
+      const cutoff = new Date(Date.now() - RECENT_WINDOW_MS).toISOString();
+      query = query.or(`last_message_at.gte.${cutoff},pinned_at.not.is.null,unread_count.gt.0`);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       // Supabase errors have non-enumerable properties — log fields explicitly
@@ -207,8 +243,9 @@ export function ConversationList({
       });
       return null;
     }
-    return normalizeConversations(data ?? []);
-  }, []);
+    const rows = (data ?? []) as RawConversation[];
+    return normalizeConversations(loadAll ? rows : await withOpenOperationConversations(supabase, rows));
+  }, [loadAll]);
 
   useEffect(() => {
     let cancelado = false;
@@ -849,6 +886,13 @@ export function ConversationList({
                 onLongPress={handleLongPress}
               />
             ))}
+            <button
+              type="button"
+              onClick={() => setShowAll((prev) => !prev)}
+              className="text-muted-foreground hover:text-foreground mx-2 my-3 rounded-lg border border-dashed border-border px-3 py-2 text-xs"
+            >
+              {showAll ? t("showRecentOnly") : t("showAll")}
+            </button>
           </div>
         )}
       </ScrollArea>

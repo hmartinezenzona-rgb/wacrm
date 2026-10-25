@@ -33,12 +33,9 @@ function isFresh(entry: CacheEntry | undefined, now: number): entry is CacheEntr
   return !!entry && entry.expiresAt - REFRESH_MARGIN_MS > now;
 }
 
-async function flush(): Promise<void> {
-  flushTimer = null;
-  const urls = [...queued];
-  queued = new Set();
-  if (urls.length === 0) return;
+const BATCH_SIZE = 100;
 
+async function signBatch(urls: string[]): Promise<void> {
   try {
     const res = await fetch('/api/chat-media/sign', {
       method: 'POST',
@@ -58,6 +55,21 @@ async function flush(): Promise<void> {
   } catch {
     // Offline or blocked: the caller falls back to the proxy.
   }
+}
+
+async function flush(): Promise<void> {
+  flushTimer = null;
+  const urls = [...queued];
+  queued = new Set();
+  if (urls.length === 0) return;
+
+  // A deep chat can hold hundreds of media messages: send them in chunks
+  // instead of one oversized body.
+  const chunks: string[][] = [];
+  for (let i = 0; i < urls.length; i += BATCH_SIZE) {
+    chunks.push(urls.slice(i, i + BATCH_SIZE));
+  }
+  await Promise.all(chunks.map((chunk) => signBatch(chunk)));
 }
 
 /** Sign every chat-media URL in the batch that is not already cached. */

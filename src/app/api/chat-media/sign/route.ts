@@ -24,7 +24,7 @@ import { supabaseAdmin } from '@/lib/flows/admin-client';
 /** Long enough for a long chat session; the client re-signs with a margin. */
 const SIGNED_URL_TTL_SECONDS = 3600;
 /** Storage accepts 500 per call; keep a margin under the body limit. */
-const MAX_URLS = 100;
+const MAX_URLS = 500;
 
 export async function POST(request: Request) {
   try {
@@ -34,12 +34,18 @@ export async function POST(request: Request) {
     try {
       body = await request.json();
     } catch {
+      console.warn('[chat-media sign] body is not JSON');
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    const urls = (body as { urls?: unknown } | null)?.urls;
-    if (!Array.isArray(urls) || urls.length === 0 || urls.length > MAX_URLS
-        || urls.some((u) => typeof u !== 'string')) {
+    const raw = (body as { urls?: unknown } | null)?.urls;
+    const urls = Array.isArray(raw) ? raw.filter((u): u is string => typeof u === 'string' && u.length > 0) : [];
+    if (urls.length === 0 || urls.length > MAX_URLS) {
+      // Diagnostics for the first real traffic: a 400 here leaves the client
+      // on the proxy, so knowing the shape matters more than the message.
+      console.warn('[chat-media sign] rejected body', JSON.stringify({
+        isArray: Array.isArray(raw), count: Array.isArray(raw) ? raw.length : null, kept: urls.length,
+      }));
       return NextResponse.json({ error: 'urls must be a non-empty array of strings' }, { status: 400 });
     }
 

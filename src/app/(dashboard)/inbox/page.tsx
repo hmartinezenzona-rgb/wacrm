@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -37,6 +37,22 @@ const CONTACT_PANEL_STORAGE_KEY = "wacrm:inbox:contact-panel-open";
  */
 let lastClosedConversationId: string | null = null;
 
+/**
+ * Keep the URL in sync without a Next router navigation. `router.replace`
+ * re-renders the /inbox segment (a remount), and during that remount
+ * `window.location` still carries the previous `?c=`, which is exactly what
+ * reopened the thread the user had just closed. replaceState updates the
+ * address bar with no navigation and no remount.
+ */
+function syncInboxUrl(url: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.history.replaceState(null, "", url);
+  } catch {
+    // History can be unavailable in sandboxed contexts: the state is still right.
+  }
+}
+
 /** The ?c= the browser is really on. The router's copy can lag behind after a
  *  cached segment is restored, and trusting it reopened a stale thread. */
 function convParamFromLocation(): string | null {
@@ -46,7 +62,6 @@ function convParamFromLocation(): string | null {
 
 export default function InboxPage() {
   const t = useTranslations("Inbox.page");
-  const router = useRouter();
   const searchParams = useSearchParams();
   /**
    * `?c=<id>` deep-link support. Used when landing here from the
@@ -559,9 +574,9 @@ export default function InboxPage() {
       // Reflect the selection in the URL so a refresh lands the user
       // back in the same thread, and so copy-paste links work. Use
       // replace() to avoid polluting browser history with every click.
-      router.replace(`/inbox?c=${conv.id}`, { scroll: false });
+      syncInboxUrl(`/inbox?c=${conv.id}`);
     },
-    [activeConversation?.id, router]
+    [activeConversation?.id]
   );
 
   // La URL manda: sin ?c la bandeja es la lista. Next puede restaurar el arbol
@@ -615,8 +630,8 @@ export default function InboxPage() {
     lastClosedConversationId = activeConversation?.id ?? null;
     autoSelectedForDeepLinkRef.current = null;
     setPendingSelection(null);
-    router.replace("/inbox", { scroll: false });
-  }, [router]);
+    syncInboxUrl("/inbox");
+  }, [activeConversation?.id]);
 
   /**
    * Se dispara cuando quitar-del-inbox (en bloque o individual) se lleva la
@@ -631,8 +646,8 @@ export default function InboxPage() {
     setActiveContact(null);
     setMessages([]);
     autoSelectedForDeepLinkRef.current = null;
-    router.replace("/inbox", { scroll: false });
-  }, [router]);
+    syncInboxUrl("/inbox");
+  }, []);
 
   const handleMessagesLoaded = useCallback((loaded: Message[]) => {
     setMessages(loaded);

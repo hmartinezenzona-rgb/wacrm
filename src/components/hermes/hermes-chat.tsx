@@ -19,6 +19,7 @@ import {
   ArrowRight,
   ArrowUp,
   ClipboardCheck,
+  ImagePlus,
   Info,
   Loader2,
   Plus,
@@ -29,10 +30,19 @@ import {
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/use-auth';
+import { MAX_IMAGE_BYTES, type HermesPart } from '@/lib/hermes/message-content';
+import { compressImage } from '@/lib/hermes/compress-image';
 
 interface Turn {
   role: 'user' | 'assistant';
   content: string;
+  /**
+   * Pixels of an attached image. Lives only in memory: persisting base64 into
+   * sessionStorage would blow the tab's quota, so a reload keeps the text and
+   * `hadImage` says a picture went with it.
+   */
+  imageUrl?: string;
+  hadImage?: boolean;
 }
 
 // The conversation survives leaving the page and reloading the tab, so it is
@@ -45,6 +55,17 @@ function isTurn(value: unknown): value is Turn {
   return (turn.role === 'user' || turn.role === 'assistant') && typeof turn.content === 'string';
 }
 
+/** What the API receives: images travel as content parts, as Hermes expects. */
+function toApiMessage(turn: Turn): { role: Turn['role']; content: string | HermesPart[] } {
+  if (turn.role === 'user' && turn.imageUrl) {
+    const parts: HermesPart[] = [];
+    if (turn.content.trim()) parts.push({ type: 'text', text: turn.content });
+    parts.push({ type: 'image_url', image_url: { url: turn.imageUrl } });
+    return { role: 'user', content: parts };
+  }
+  return { role: turn.role, content: turn.content };
+}
+
 export function HermesChat() {
   const t = useTranslations('Hermes');
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -53,8 +74,11 @@ export function HermesChat() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hintOpen, setHintOpen] = useState(true);
+  const [attachment, setAttachment] = useState<string | null>(null);
+  const [attaching, setAttaching] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { profile } = useAuth();
   // El saludo va por el nombre de pila; sin perfil, saludo a secas.
   const firstName = profile?.full_name?.trim().split(/\s+/)[0] ?? '';
@@ -79,7 +103,12 @@ export function HermesChat() {
       if (turns.length === 0) {
         sessionStorage.removeItem(STORAGE_KEY);
       } else {
-        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(turns));
+        // Drop the pixels, keep the fact: a 1600px JPEG in base64 is ~1 MB and
+        // sessionStorage holds about 5 MB for the whole tab.
+        const light = turns.map(({ role, content, hadImage, imageUrl }) =>
+          imageUrl ? { role, content, hadImage: true } : { role, content, hadImage },
+        );
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(light));
       }
     } catch {
       // Storage full or blocked: the chat keeps working in memory.
@@ -107,22 +136,40 @@ export function HermesChat() {
   function startNewChat() {
     setTurns([]);
     setInput('');
+    setAttachment(null);
     setError(null);
+  }
+
+  /** Prepare the picked picture and hold it until the question is sent. */
+  async function attach(file: File | undefined) {
+    if (!file || busy || attaching) return;
+    setAttaching(true);
+    setError(null);
+    try {
+      setAttachment(await compressImage(file, MAX_IMAGE_BYTES));
+    } catch (err) {
+      // Any failure ends the same for the admin: the picture was not attached.
+      setError(t('attachFailed'));
+    } finally {
+      setAttaching(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   }
 
   async function send() {
     const text = input.trim();
-    if (!text || busy) return;
-    const next: Turn[] = [...turns, { role: 'user', content: text }];
+    if ((!text && !attachment) || busy) return;
+    const next: Turn[] = [...turns, { role: 'user', content: text, imageUrl: attachment ?? undefined }];
     setTurns(next);
     setInput('');
+    setAttachment(null);
     setBusy(true);
     setError(null);
     try {
       const res = await fetch('/api/hermes/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: next.slice(-20) }),
+        body: JSON.stringify({ messages: next.slice(-20).map(toApiMessage) }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -143,6 +190,11 @@ export function HermesChat() {
       onSend={() => void send()}
       busy={busy}
       textareaRef={textareaRef}
+      fileInputRef={fileInputRef}
+      attachment={attachment}
+      attaching={attaching}
+      onAttach={(file) => void attach(file)}
+      onRemoveAttachment={() => setAttachment(null)}
     />
   );
 
@@ -160,11 +212,20 @@ export function HermesChat() {
               key={index}
               className={
                 turn.role === 'user'
-                  ? 'bg-primary text-primary-foreground ml-auto max-w-[85%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap'
+                  ? 'bg-primary text-primary-foreground ml-auto flex max-w-[85%] flex-col gap-1.5 rounded-xl px-3 py-2 text-sm'
                   : 'bg-muted text-foreground mr-auto max-w-[90%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap'
               }
             >
-              {turn.content}
+              {turn.imageUrl ? (
+                <img
+                  src={turn.imageUrl}
+                  alt={t('attachedImage')}
+                  className="max-h-56 w-auto rounded-lg object-contain"
+                />
+              ) : turn.hadImage ? (
+                <span className="text-[11px] opacity-80">{t('attachedImage')}</span>
+              ) : null}
+              {turn.content ? <span className="whitespace-pre-wrap">{turn.content}</span> : null}
             </div>
           ))}
           {busy ? (
@@ -265,12 +326,22 @@ function Composer({
   onSend,
   busy,
   textareaRef,
+  fileInputRef,
+  attachment,
+  attaching,
+  onAttach,
+  onRemoveAttachment,
 }: {
   value: string;
   onChange: (value: string) => void;
   onSend: () => void;
   busy: boolean;
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
+  attachment: string | null;
+  attaching: boolean;
+  onAttach: (file: File | undefined) => void;
+  onRemoveAttachment: () => void;
 }) {
   const t = useTranslations('Hermes');
   return (
@@ -289,10 +360,48 @@ function Composer({
         className="min-h-[62px] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 dark:bg-transparent"
         disabled={busy}
       />
+      {attachment ? (
+        <div className="flex items-center gap-2">
+          <img
+            src={attachment}
+            alt={t('attachedImage')}
+            className="border-border h-12 w-12 rounded-md border object-cover"
+          />
+          <button
+            type="button"
+            onClick={onRemoveAttachment}
+            aria-label={t('removeAttachment')}
+            className="text-muted-foreground hover:text-foreground rounded-full p-1"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+      ) : null}
       <div className="flex items-center gap-2">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          className="hidden"
+          onChange={(event) => onAttach(event.target.files?.[0])}
+        />
+        <Button
+          variant="outline"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={busy || attaching}
+          size="icon"
+          className="h-8 w-8 rounded-full"
+          aria-label={t('attach')}
+        >
+          {attaching ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <ImagePlus className="h-4 w-4" />
+          )}
+        </Button>
         <Button
           onClick={onSend}
-          disabled={busy || !value.trim()}
+          disabled={busy || (!value.trim() && !attachment)}
           size="icon"
           className="ml-auto h-8 w-8 rounded-full"
           aria-label={t('send')}

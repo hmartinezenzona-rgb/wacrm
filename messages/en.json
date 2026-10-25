@@ -7,6 +7,10 @@
     "newChat": "New conversation",
     "thinking": "Hermes is looking…",
     "failed": "Could not get an answer from Hermes.",
+    "attach": "Attach image",
+    "attachFailed": "The image could not be prepared.",
+    "removeAttachment": "Remove image",
+    "attachedImage": "Attached image",
     "intro": {
       "eyebrowFallback": "Business assistant · read-only",
       "greeting": "What are we reviewing today?",

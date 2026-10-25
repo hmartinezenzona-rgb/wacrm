@@ -7,6 +7,10 @@
     "newChat": "Nueva conversación",
     "thinking": "Hermes está consultando…",
     "failed": "No se pudo obtener respuesta de Hermes.",
+    "attach": "Adjuntar imagen",
+    "attachFailed": "No se pudo preparar la imagen.",
+    "removeAttachment": "Quitar imagen",
+    "attachedImage": "Imagen adjunta",
     "intro": {
       "eyebrowFallback": "Asistente de negocio · solo lectura",
       "greeting": "¿Qué revisamos hoy?",

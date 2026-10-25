@@ -24,7 +24,7 @@ vi.mock('next-intl', () => ({
 }));
 
 vi.mock('@/hooks/use-auth', () => ({
-  useAuth: () => ({ profile: { full_name: 'Humbe Pérez' } }),
+  useAuth: () => ({ profile: { full_name: 'Humbe Pérez' }, account: { name: 'Remesas Ya' } }),
 }));
 
 const STORAGE_KEY = 'wacrm.hermes.chat.v1';
@@ -59,8 +59,14 @@ describe('HermesChat scroll position', () => {
     const { host } = await mount();
 
     expect(host.textContent).toContain('¿Qué revisamos hoy, Humbe?');
+    expect(host.textContent).toContain('Remesas Ya');
     expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
-    expect(Element.prototype.scrollTo).toHaveBeenCalledWith({ top: 0 });
+    // The approved layout asks first: the composer sits above the cards.
+    const textarea = host.querySelector('textarea');
+    const cards = host.querySelector('#hermes-ideas');
+    expect(textarea).not.toBeNull();
+    expect(cards).not.toBeNull();
+    expect(cards!.compareDocumentPosition(textarea!) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
   });
 
   it('scrolls to the last message when a saved conversation is restored', async () => {

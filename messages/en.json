@@ -8,12 +8,18 @@
     "thinking": "Hermes is looking…",
     "failed": "Could not get an answer from Hermes.",
     "intro": {
-      "badge": "Business assistant · read-only",
+      "eyebrowFallback": "Business assistant · read-only",
       "greeting": "What are we reviewing today?",
       "greetingNamed": "What are we reviewing today, {name}?",
       "subtitle": "Ask me about conversations, operations, finance or the weekly control. Everything comes from the CRM."
     },
+    "hint": {
+      "text": "Hermes never writes to the CRM or messages customers. If something is missing, it says so.",
+      "dismiss": "Hide notice"
+    },
     "ideas": {
+      "heading": "What Hermes can do",
+      "lead": "One example per card. Pick one and the question writes itself.",
       "cuadre": {
         "title": "Reconcile the day",
         "desc": "Cross-checks completed operations against the finance ledger and the weekly control, and flags what doesn't add up.",

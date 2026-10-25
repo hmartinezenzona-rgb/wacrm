@@ -8,12 +8,18 @@
     "thinking": "Hermes está consultando…",
     "failed": "No se pudo obtener respuesta de Hermes.",
     "intro": {
-      "badge": "Asistente de negocio · solo lectura",
+      "eyebrowFallback": "Asistente de negocio · solo lectura",
       "greeting": "¿Qué revisamos hoy?",
       "greetingNamed": "¿Qué revisamos hoy, {name}?",
       "subtitle": "Pregúntame por conversaciones, operaciones, finanzas o el control semanal. Todo sale del CRM."
     },
+    "hint": {
+      "text": "Hermes nunca escribe en el CRM ni manda mensajes a clientes. Si algo no está, lo dice.",
+      "dismiss": "Ocultar aviso"
+    },
     "ideas": {
+      "heading": "Lo que Hermes puede hacer",
+      "lead": "Un ejemplo por tarjeta. Toca una y la pregunta se escribe sola.",
       "cuadre": {
         "title": "Cuadra el día",
         "desc": "Cruza las operaciones completadas con el libro de Finanzas y con el Control Semanal, y señala lo que no cuadra.",

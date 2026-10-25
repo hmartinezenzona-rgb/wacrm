@@ -5,6 +5,11 @@
 //
 // Sends the whole short conversation to /api/hermes/chat (which proxies the
 // Hermes API server); Hermes answers with its read-only CRM tools.
+//
+// Two layouts, one state: with no turns yet the screen is the greeting, the
+// composer and the idea cards (the design the owner approved); once the
+// conversation starts it becomes a fixed-height thread with the composer
+// pinned underneath.
 // ============================================================
 
 import { useEffect, useRef, useState } from 'react';
@@ -12,17 +17,16 @@ import { useTranslations } from 'next-intl';
 import {
   AlertTriangle,
   ArrowRight,
-  BarChart3,
+  ArrowUp,
   ClipboardCheck,
+  Info,
   Loader2,
-  MessageSquare,
   Plus,
-  Send,
   Sparkles,
+  X,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/use-auth';
 
@@ -48,12 +52,13 @@ export function HermesChat() {
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hintOpen, setHintOpen] = useState(true);
   const bottomRef = useRef<HTMLDivElement | null>(null);
-  const scrollerRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const { profile } = useAuth();
-  // La maqueta saluda por el nombre de pila; sin perfil, saludo a secas.
+  const { profile, account } = useAuth();
+  // El saludo va por el nombre de pila; sin perfil, saludo a secas.
   const firstName = profile?.full_name?.trim().split(/\s+/)[0] ?? '';
+  const accountName = account?.name?.trim() ?? '';
 
   // Read after mount: the server render has no sessionStorage.
   useEffect(() => {
@@ -83,13 +88,9 @@ export function HermesChat() {
   }, [turns, loaded]);
 
   useEffect(() => {
-    // The greeting and the idea cards fill more than one screen on a phone:
-    // scrolling to the bottom on mount would hide both. Only a conversation
-    // follows its last turn; the empty state always starts at the top.
-    if (turns.length === 0 && !busy) {
-      scrollerRef.current?.scrollTo({ top: 0 });
-      return;
-    }
+    // Only a running conversation follows its last turn. The greeting screen
+    // scrolls with the page and must open at the top.
+    if (turns.length === 0 && !busy) return;
     bottomRef.current?.scrollIntoView({ block: 'end' });
   }, [turns, busy]);
 
@@ -136,104 +137,177 @@ export function HermesChat() {
     }
   }
 
-  return (
-    <Card className="flex h-[calc(100dvh-13rem)] min-h-[420px] flex-col">
-      <CardContent className="flex min-h-0 flex-1 flex-col gap-3 p-4">
-        {turns.length > 0 ? (
-          <div className="flex justify-end">
-            <Button variant="ghost" size="sm" onClick={startNewChat} disabled={busy}>
-              <Plus className="h-4 w-4" /> {t('newChat')}
-            </Button>
-          </div>
-        ) : null}
-        <div ref={scrollerRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
-          {turns.length === 0 ? (
-            <div className="flex flex-col items-center gap-5 py-4">
-              <div className="flex flex-col items-center gap-2 text-center">
-                <span className="border-border bg-muted/40 text-muted-foreground inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px]">
-                  <Sparkles className="text-primary h-3 w-3" aria-hidden="true" />
-                  {t('intro.badge')}
-                </span>
-                <h2 className="font-serif text-3xl leading-[1.1] text-foreground sm:text-4xl">
-                  {firstName ? t('intro.greetingNamed', { name: firstName }) : t('intro.greeting')}
-                </h2>
-                <p className="text-muted-foreground max-w-md text-sm">{t('intro.subtitle')}</p>
-              </div>
+  const composer = (
+    <Composer
+      value={input}
+      onChange={setInput}
+      onSend={() => void send()}
+      busy={busy}
+      textareaRef={textareaRef}
+    />
+  );
 
-              <div className="grid w-full gap-3 sm:grid-cols-2">
-                {IDEA_KEYS.map((key) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => pickIdea(t(`ideas.${key}.prompt`))}
-                    className="border-border bg-card hover:border-primary/40 focus-visible:ring-ring group flex flex-col overflow-hidden rounded-xl border text-left transition-colors focus-visible:ring-2 focus-visible:outline-none"
-                  >
-                    <div className="border-border bg-muted/30 flex min-h-[84px] flex-col justify-center gap-1.5 border-b px-3 py-2.5">
-                      <HermesIdeaPreview idea={key} />
-                    </div>
-                    <div className="flex flex-1 flex-col gap-1 px-3 py-2.5">
-                      <span className="text-foreground text-sm font-semibold">{t(`ideas.${key}.title`)}</span>
-                      <span className="text-muted-foreground text-xs">{t(`ideas.${key}.desc`)}</span>
-                      <span className="text-primary mt-1 inline-flex items-center gap-1 text-xs font-medium">
-                        {t(`ideas.${key}.cta`)}
-                        <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </div>
+  if (turns.length > 0 || busy) {
+    return (
+      <div className="border-border bg-card mx-auto flex h-[calc(100dvh-13rem)] min-h-[420px] w-full max-w-[900px] flex-col gap-3 rounded-xl border p-4">
+        <div className="flex justify-end">
+          <Button variant="ghost" size="sm" onClick={startNewChat} disabled={busy}>
+            <Plus className="h-4 w-4" /> {t('newChat')}
+          </Button>
+        </div>
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+          {turns.map((turn, index) => (
+            <div
+              key={index}
+              className={
+                turn.role === 'user'
+                  ? 'bg-primary text-primary-foreground ml-auto max-w-[85%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap'
+                  : 'bg-muted text-foreground mr-auto max-w-[90%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap'
+              }
+            >
+              {turn.content}
             </div>
-          ) : (
-            turns.map((turn, index) => (
-              <div
-                key={index}
-                className={
-                  turn.role === 'user'
-                    ? 'ml-auto max-w-[85%] rounded-xl bg-primary px-3 py-2 text-sm text-primary-foreground whitespace-pre-wrap'
-                    : 'mr-auto max-w-[90%] rounded-xl bg-muted px-3 py-2 text-sm text-foreground whitespace-pre-wrap'
-                }
-              >
-                {turn.content}
-              </div>
-            ))
-          )}
+          ))}
           {busy ? (
-            <p className="flex items-center gap-2 text-xs text-muted-foreground">
+            <p className="text-muted-foreground flex items-center gap-2 text-xs">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t('thinking')}
             </p>
           ) : null}
           <div ref={bottomRef} />
         </div>
+        {error ? <p className="text-destructive text-xs">{error}</p> : null}
+        {composer}
+      </div>
+    );
+  }
 
-        {error ? <p className="text-xs text-destructive">{error}</p> : null}
+  return (
+    <div className="mx-auto flex w-full max-w-[900px] flex-col gap-6 py-2">
+      <section className="flex flex-col items-start gap-2 text-left sm:items-center sm:text-center">
+        <span className="border-border bg-card text-muted-foreground inline-flex items-center gap-2 rounded-full border py-1 pr-3 pl-1.5 text-xs">
+          {accountName ? (
+            <span className="bg-muted text-foreground grid h-5 w-5 place-items-center rounded-full text-[10px] font-semibold">
+              {accountName.charAt(0).toUpperCase()}
+            </span>
+          ) : null}
+          {accountName || t('intro.eyebrowFallback')}
+        </span>
+        <h2 className="font-serif text-foreground mt-0.5 text-[clamp(30px,5.4vw,46px)] leading-[1.08] tracking-[-0.01em] text-balance">
+          {firstName ? t('intro.greetingNamed', { name: firstName }) : t('intro.greeting')}
+        </h2>
+        <p className="text-muted-foreground max-w-[46ch] text-[13.5px]">{t('intro.subtitle')}</p>
+      </section>
 
-        <div className="flex items-end gap-2">
-          <Textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                void send();
-              }
-            }}
-            placeholder={t('placeholder')}
-            className="min-h-11 flex-1 resize-none"
-            disabled={busy}
-          />
-          <Button onClick={() => void send()} disabled={busy || !input.trim()} size="icon" aria-label={t('send')}>
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          </Button>
+      <section aria-label={t('placeholder')} className="flex flex-col gap-2.5">
+        {composer}
+        {hintOpen ? (
+          <div className="border-border bg-muted/40 text-muted-foreground flex items-start gap-2.5 rounded-full border py-[7px] pr-2.5 pl-3 text-xs">
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span>{t('hint.text')}</span>
+            <button
+              type="button"
+              onClick={() => setHintOpen(false)}
+              aria-label={t('hint.dismiss')}
+              className="hover:text-foreground ml-auto shrink-0 rounded-full p-0.5"
+            >
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          </div>
+        ) : null}
+      </section>
+
+      <section aria-labelledby="hermes-ideas">
+        <div className="flex flex-col gap-1">
+          <span
+            id="hermes-ideas"
+            className="text-muted-foreground inline-flex items-center gap-1.5 text-[10.5px] font-semibold tracking-[0.1em] uppercase"
+          >
+            <Sparkles className="text-primary h-3.5 w-3.5" aria-hidden="true" />
+            {t('ideas.heading')}
+          </span>
+          <p className="text-muted-foreground text-xs">{t('ideas.lead')}</p>
         </div>
-      </CardContent>
-    </Card>
+        <div className="mt-3 grid gap-3.5 sm:grid-cols-2">
+          {IDEA_KEYS.map((key) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => pickIdea(t(`ideas.${key}.prompt`))}
+              className="border-border bg-card hover:border-border-strong focus-visible:ring-ring group flex flex-col overflow-hidden rounded-[14px] border text-left transition-[border-color,transform] duration-150 hover:-translate-y-px focus-visible:ring-2 focus-visible:outline-none"
+            >
+              <div className="border-border bg-muted/30 flex min-h-[104px] flex-col justify-center gap-[7px] border-b px-3.5 py-3">
+                <HermesIdeaPreview idea={key} />
+              </div>
+              <div className="flex flex-1 flex-col gap-1.5 px-3.5 pt-3 pb-3.5">
+                <span className="text-foreground text-[13.5px] font-semibold tracking-[-0.01em]">
+                  {t(`ideas.${key}.title`)}
+                </span>
+                <span className="text-muted-foreground text-xs">{t(`ideas.${key}.desc`)}</span>
+                <span className="text-primary mt-2 inline-flex items-center gap-1.5 text-xs font-medium">
+                  {t(`ideas.${key}.cta`)}
+                  <ArrowRight
+                    className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5"
+                    aria-hidden="true"
+                  />
+                </span>
+              </div>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {error ? <p className="text-destructive text-xs">{error}</p> : null}
+    </div>
   );
 }
 
-
 const IDEA_KEYS = ['cuadre', 'sinResponder', 'incidencia', 'semana'] as const;
 type IdeaKey = (typeof IDEA_KEYS)[number];
+
+function Composer({
+  value,
+  onChange,
+  onSend,
+  busy,
+  textareaRef,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onSend: () => void;
+  busy: boolean;
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+}) {
+  const t = useTranslations('Hermes');
+  return (
+    <div className="border-border-strong bg-card focus-within:border-primary flex flex-col gap-2.5 rounded-[20px] border px-3.5 pt-3 pb-2.5 shadow-sm transition-colors">
+      <Textarea
+        ref={textareaRef}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            onSend();
+          }
+        }}
+        placeholder={t('placeholder')}
+        className="min-h-[62px] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 dark:bg-transparent"
+        disabled={busy}
+      />
+      <div className="flex items-center gap-2">
+        <Button
+          onClick={onSend}
+          disabled={busy || !value.trim()}
+          size="icon"
+          className="ml-auto h-8 w-8 rounded-full"
+          aria-label={t('send')}
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 /** Miniaturas sin cifras: muestran la forma del dato, nunca inventan números. */
 function HermesIdeaPreview({ idea }: { idea: IdeaKey }) {
@@ -241,11 +315,15 @@ function HermesIdeaPreview({ idea }: { idea: IdeaKey }) {
     return (
       <>
         {['CRM', 'Finanzas', 'Semanal'].map((label, index) => (
-          <div key={label} className="flex items-center gap-2 text-[11px] text-muted-foreground">
+          <div key={label} className="text-muted-foreground flex items-center gap-2 text-[11.5px]">
             <span className="bg-border h-1.5 w-1.5 rounded-full" aria-hidden="true" />
             <span>{label}</span>
             <ClipboardCheck
-              className={index === 0 ? 'ml-auto h-3 w-3 text-muted-foreground' : 'ml-auto h-3 w-3 text-primary'}
+              className={
+                index === 0
+                  ? 'text-muted-foreground ml-auto h-3 w-3'
+                  : 'text-primary ml-auto h-3 w-3'
+              }
               aria-hidden="true"
             />
           </div>
@@ -258,8 +336,12 @@ function HermesIdeaPreview({ idea }: { idea: IdeaKey }) {
       <>
         {[0, 1, 2].map((row) => (
           <div key={row} className="flex items-center gap-2">
-            <span className="bg-muted h-4 w-4 rounded-full" aria-hidden="true" />
-            <span className="bg-border h-1.5 flex-1 rounded-full" aria-hidden="true" style={{ maxWidth: `${62 - row * 10}%` }} />
+            <span className="bg-muted h-[18px] w-[18px] rounded-full" aria-hidden="true" />
+            <span
+              className="bg-border h-1.5 flex-1 rounded-full"
+              aria-hidden="true"
+              style={{ maxWidth: `${62 - row * 10}%` }}
+            />
             <span className="bg-border h-1.5 w-6 rounded-full" aria-hidden="true" />
           </div>
         ))}
@@ -269,7 +351,7 @@ function HermesIdeaPreview({ idea }: { idea: IdeaKey }) {
   if (idea === 'incidencia') {
     return (
       <>
-        <span className="inline-flex w-fit items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+        <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
           <AlertTriangle className="h-3 w-3" aria-hidden="true" />
           —
         </span>

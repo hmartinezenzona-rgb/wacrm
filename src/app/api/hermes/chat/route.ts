@@ -12,6 +12,7 @@ import { NextResponse } from 'next/server';
 
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { InvalidMessagesError, cleanMessages } from '@/lib/hermes/message-content';
+import { voucherSummary, verifyVoucher } from '@/lib/hermes/verify-voucher';
 
 export const maxDuration = 120;
 export const runtime = 'nodejs';
@@ -21,6 +22,33 @@ export const runtime = 'nodejs';
  * the cheap guard: the body is parsed after it, so a giant one never lands.
  */
 const MAX_BODY_BYTES = 6 * 1024 * 1024;
+
+/**
+ * The verifier reads the attached picture with the Cerebro's own flow and
+ * hands Hermes the facts it measured, so the answer is not a guess.
+ */
+async function withVoucherVerdict(messages: ReturnType<typeof cleanMessages>) {
+  let imageUrl: string | null = null;
+  for (let i = messages.length - 1; i >= 0 && !imageUrl; i--) {
+    const content = messages[i].content;
+    if (Array.isArray(content)) {
+      imageUrl = content.find((part) => part.type === 'image_url')?.image_url.url ?? null;
+    }
+  }
+  if (!imageUrl) return messages;
+
+  const verdict = await verifyVoucher(imageUrl);
+  if (!verdict) return messages;
+
+  const summary = voucherSummary(verdict);
+  return messages.map((message, index) => {
+    if (index !== messages.length - 1) return message;
+    if (typeof message.content === 'string') {
+      return { ...message, content: `${message.content}\n\n${summary}` };
+    }
+    return { ...message, content: [...message.content, { type: 'text' as const, text: summary }] };
+  });
+}
 
 export async function POST(request: Request): Promise<Response> {
   try {
@@ -35,7 +63,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const body = (await request.json().catch(() => null)) as { messages?: unknown } | null;
-  let messages;
+  let messages: ReturnType<typeof cleanMessages>;
   try {
     messages = cleanMessages(body?.messages);
   } catch (err) {
@@ -47,6 +75,7 @@ export async function POST(request: Request): Promise<Response> {
   if (messages.length === 0) {
     return NextResponse.json({ error: 'messages is required' }, { status: 400 });
   }
+  messages = await withVoucherVerdict(messages);
 
   const base = process.env.HERMES_API_URL;
   const key = process.env.HERMES_API_KEY;

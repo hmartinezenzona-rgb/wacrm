@@ -135,10 +135,23 @@ def sql_detalle(cid, mensajes, desde):
         "coalesce(e.amount_currency,''), coalesce(e.basis_gyd::text,''), "
         "coalesce(e.facturado_gyd::text,''), coalesce(e.invertido_gyd::text,''), "
         "coalesce(e.retorno_gyd::text,''), "
-        "case when e.voided_at is not null then 'void' "
+        "case when e.voided_at is not null then 'void: ' || replace(coalesce(left(e.void_reason, 60), ''), '|', '/') "
         "when e.deleted_at is not null then 'borrada' else '' end "
         f"from remittance_calculator_entries e where e.operation_id in {ops} "
         "order by e.created_at;\n"
+        '\\echo @@MANUAL\n'
+        # Manual lines typed in the Calculator on the same days as this
+        # conversation's operations: they have no operation_id, so they never
+        # show up in the block above.
+        "select coalesce(e.entry_date::text,''), coalesce(e.service,''), "
+        "coalesce(e.amount::text,''), coalesce(e.amount_currency,''), "
+        "coalesce(e.facturado_gyd::text,''), coalesce(e.invertido_gyd::text,''), "
+        f"coalesce(e.retorno_gyd::text,''), {limpio('e.customer_name')}, coalesce(e.status,'') "
+        "from remittance_calculator_entries e "
+        "where e.source = 'manual' and e.deleted_at is null "
+        "and e.entry_date in (select (o.completed_at at time zone 'America/Guyana')::date "
+        f"from remittance_operations o where o.id in {ops} and o.completed_at is not null) "
+        "order by e.entry_date, e.created_at;\n"
         '\\echo @@TOOLS\n'
         "select to_char(t.created_at at time zone 'UTC', 'MM-DD HH24:MI'), "
         f"coalesce(t.tool_name,''), {limpio('t.outcome')} "
@@ -214,6 +227,10 @@ def mostrar_detalle(sec):
           ['OP', 'FECHA', 'SERVICIO', 'ESTADO', 'MONTO', 'BASE_GYD', 'FACTURADO', 'INVERTIDO', 'RETORNO', 'NOTA'],
           [[f[0], f[1], f[2], f[3], unir(f[4], f[5]), f[6], f[7], f[8], f[9], f[10]]
            for f in sec.get('CALCULATOR', []) if len(f) >= 11])
+    tabla('CALCULADORA MANUAL (mismas fechas)',
+          ['FECHA', 'SERVICIO', 'MONTO', 'FACTURADO', 'INVERTIDO', 'RETORNO', 'CLIENTE', 'ESTADO'],
+          [[f[0], f[1], unir(f[2], f[3]), f[4], f[5], f[6], f[7], f[8]]
+           for f in sec.get('MANUAL', []) if len(f) >= 9])
     tabla('TOOLS', ['FECHA HORA UTC', 'HERRAMIENTA', 'RESULTADO'], sec.get('TOOLS', []))
 
 

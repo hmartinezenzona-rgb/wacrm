@@ -514,6 +514,16 @@ export default function InboxPage() {
       // react-hooks/set-state-in-effect. Runs once per ?c=<id> URL value
       // via the ref, so realtime refreshes of the list can't snap the
       // user back to the deep-linked thread after they've navigated.
+      if (deepLinkConvId) {
+        console.info("[inbox-diag] auto-select-check", {
+          deepLinkConvId,
+          real: convParamFromLocation(),
+          justClosed: wasJustClosed(deepLinkConvId),
+          marker: closedMarker(),
+          yaSeleccionado: autoSelectedForDeepLinkRef.current,
+          loaded: loaded.length,
+        });
+      }
       if (
         deepLinkConvId &&
         !wasJustClosed(deepLinkConvId) &&

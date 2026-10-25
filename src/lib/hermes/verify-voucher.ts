@@ -60,7 +60,13 @@ export async function verifyVoucher(imageUrl: string): Promise<VoucherVerdict | 
     const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imagen_base64: image.base64, mime: image.mime }),
+      // The workflow refuses anonymous callers: it spends vision credits and
+      // reads the deposits ledger.
+      body: JSON.stringify({
+        token: process.env.HERMES_VERIFICADOR_TOKEN ?? '',
+        imagen_base64: image.base64,
+        mime: image.mime,
+      }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     if (!res.ok) return null;

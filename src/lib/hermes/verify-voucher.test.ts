@@ -20,11 +20,13 @@ const VERDICT = {
 
 beforeEach(() => {
   process.env.HERMES_VERIFICADOR_URL = 'https://n8n.example/webhook/verificar-comprobante';
+  process.env.HERMES_VERIFICADOR_TOKEN = 'secreto';
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
   delete process.env.HERMES_VERIFICADOR_URL;
+  delete process.env.HERMES_VERIFICADOR_TOKEN;
 });
 
 describe('verifyVoucher', () => {
@@ -39,6 +41,7 @@ describe('verifyVoucher', () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://n8n.example/webhook/verificar-comprobante');
     expect(JSON.parse(String(init.body))).toEqual({
+      token: 'secreto',
       imagen_base64: '/9j/AAAA',
       mime: 'image/jpeg',
     });

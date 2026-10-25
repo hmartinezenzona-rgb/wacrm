@@ -22,6 +22,7 @@ import { MessageReactions } from "./message-reactions";
 import { InteractivePreview } from "@/components/interactive/interactive-preview";
 import { useTranslations } from "next-intl";
 import { toChatMediaSrc } from "@/lib/storage/chat-media";
+import { WhatsAppText } from "@/lib/whatsapp/format";
 
 interface MessageBubbleProps {
   message: Message;
@@ -30,6 +31,8 @@ interface MessageBubbleProps {
   reactions?: MessageReaction[];
   currentUserId?: string;
   onToggleReaction?: (emoji: string) => void;
+  /** Jump to the message this one replies to; absent when it is not loaded. */
+  onJumpToReply?: () => void;
 }
 
 function StatusIcon({ status }: { status: Message["status"] }) {
@@ -169,7 +172,7 @@ function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof
     case "text":
       return (
         <p className="whitespace-pre-wrap break-words text-sm">
-          {message.content_text}
+          <WhatsAppText text={message.content_text ?? ""} />
         </p>
       );
 
@@ -183,7 +186,7 @@ function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof
           )}
           {message.content_text && (
             <p className="mt-1 whitespace-pre-wrap break-words text-sm">
-              {message.content_text}
+              <WhatsAppText text={message.content_text ?? ""} />
             </p>
           )}
         </div>
@@ -203,7 +206,7 @@ function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof
           )}
           {message.content_text && (
             <p className="mt-1 whitespace-pre-wrap break-words text-sm">
-              {message.content_text}
+              <WhatsAppText text={message.content_text ?? ""} />
             </p>
           )}
         </div>
@@ -247,7 +250,7 @@ function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof
           </span>
           {message.content_text && (
             <p className="mt-1 whitespace-pre-wrap break-words text-sm">
-              {message.content_text}
+              <WhatsAppText text={message.content_text ?? ""} />
             </p>
           )}
         </div>
@@ -309,6 +312,7 @@ export function MessageBubble({
   reactions,
   currentUserId,
   onToggleReaction,
+  onJumpToReply,
 }: MessageBubbleProps) {
   const t = useTranslations("Inbox.bubble");
 
@@ -337,6 +341,7 @@ export function MessageBubble({
             authorLabel={reply.authorLabel}
             preview={reply.preview}
             onPrimary={isAgent}
+            onActivate={onJumpToReply}
           />
         )}
         <MessageContent message={message} t={t} />

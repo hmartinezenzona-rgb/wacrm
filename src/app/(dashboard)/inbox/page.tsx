@@ -42,6 +42,9 @@ export default function InboxPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversation, setActiveConversation] =
     useState<Conversation | null>(null);
+  // Set while a click's ?c= replace is in flight, so the URL guard below
+  // does not close the thread the user just opened.
+  const [pendingSelection, setPendingSelection] = useState<string | null>(null);
   const [activeContact, setActiveContact] = useState<Contact | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [whatsappConnected, setWhatsappConnected] = useState<boolean | null>(
@@ -530,6 +533,7 @@ export default function InboxPage() {
       // sees `ref !== deepLinkConvId`, fires a second time, and
       // clobbers the messages MessageThread just fetched.
       autoSelectedForDeepLinkRef.current = conv.id;
+      setPendingSelection(conv.id);
       // Reflect the selection in the URL so a refresh lands the user
       // back in the same thread, and so copy-paste links work. Use
       // replace() to avoid polluting browser history with every click.
@@ -537,6 +541,26 @@ export default function InboxPage() {
     },
     [activeConversation?.id, router]
   );
+
+  // La URL manda: sin ?c la bandeja es la lista. Next puede restaurar el arbol
+  // de esta pagina tal como quedo (cache del cliente) al volver de Ajustes, y
+  // entonces reaparecia un hilo que el usuario ya habia cerrado con el atras.
+  useEffect(() => {
+    if (pendingSelection) return;
+    if (!deepLinkConvId && activeConversation) {
+      setActiveConversation(null);
+      setActiveContact(null);
+      setMessages([]);
+      autoSelectedForDeepLinkRef.current = null;
+    }
+  }, [deepLinkConvId, pendingSelection, activeConversation]);
+
+  // La seleccion deja de estar pendiente en cuanto la URL la refleja.
+  useEffect(() => {
+    if (pendingSelection && deepLinkConvId === pendingSelection) {
+      setPendingSelection(null);
+    }
+  }, [deepLinkConvId, pendingSelection]);
 
   // Mobile "back" — deselect the conversation so the list pane comes
   // back. Also clears the ?c= param so a refresh lands on the list
@@ -549,6 +573,7 @@ export default function InboxPage() {
     // Clearing the ref lets the deep-link auto-selector fire again if
     // the user later visits /inbox?c=<same-id> — desirable UX.
     autoSelectedForDeepLinkRef.current = null;
+    setPendingSelection(null);
     router.replace("/inbox", { scroll: false });
   }, [router]);
 

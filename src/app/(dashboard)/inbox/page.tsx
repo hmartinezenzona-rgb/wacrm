@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -12,6 +11,7 @@ import type { Conversation, Message, Contact, ConversationStatus } from "@/types
 import { useRealtime } from "@/hooks/use-realtime";
 import { useChatMessageSound } from "@/hooks/use-chat-message-sound";
 import { createChatSoundGate } from "@/lib/inbox/chat-sound-gate";
+import { takeInboxOpenTarget } from "@/lib/inbox/open-target";
 import { ConversationList } from "@/components/inbox/conversation-list";
 import { MessageThread } from "@/components/inbox/message-thread";
 import { ContactSidebar } from "@/components/inbox/contact-sidebar";
@@ -28,74 +28,8 @@ import {
 // across reloads and sessions (device-scoped, like the theme prefs).
 const CONTACT_PANEL_STORAGE_KEY = "wacrm:inbox:contact-panel-open";
 
-/**
- * Last conversation the user closed with the back arrow, kept in
- * sessionStorage because a remount re-evaluates this module (module scope
- * did not survive). The auto-select ignores it for a minute: that is the
- * window in which Next can re-publish the URL the user just backed out of.
- */
-let lastClosedConversationId: string | null = null;
-const CLOSED_KEY = "wacrm:inbox:closed";
-const CLOSED_TTL_MS = 60_000;
-
-function markClosed(id: string | null | undefined): void {
-  lastClosedConversationId = id ?? null;
-  try {
-    if (id) window.sessionStorage.setItem(CLOSED_KEY, `${id}|${Date.now()}`);
-    else window.sessionStorage.removeItem(CLOSED_KEY);
-  } catch (error) {
-    console.warn("[inbox-diag] markClosed storage fallo", error);
-  }
-  console.info("[inbox-diag] markClosed", {
-    id, stored: (() => { try { return window.sessionStorage.getItem(CLOSED_KEY); } catch { return "blocked"; } })(),
-  });
-}
-
-function closedMarker(): { id: string; at: number } | null {
-  try {
-    const raw = window.sessionStorage.getItem(CLOSED_KEY);
-    if (!raw) return null;
-    const [id, at] = raw.split("|");
-    if (!id || !at) return null;
-    return { id, at: Number(at) };
-  } catch {
-    return null;
-  }
-}
-
-function clearClosedMarker(): void {
-  lastClosedConversationId = null;
-  try {
-    window.sessionStorage.removeItem(CLOSED_KEY);
-  } catch {
-    // ignore
-  }
-}
-
-function wasJustClosed(id: string | null | undefined): boolean {
-  if (!id) return false;
-  if (id === lastClosedConversationId) return true;
-  const marker = closedMarker();
-  return !!marker && marker.id === id && Date.now() - marker.at < CLOSED_TTL_MS;
-}
-
-/** The ?c= the browser is really on. The router's copy can lag behind after a
- *  cached segment is restored, and trusting it reopened a stale thread. */
-function convParamFromLocation(): string | null {
-  if (typeof window === "undefined") return null;
-  return new URLSearchParams(window.location.search).get("c");
-}
-
 export default function InboxPage() {
   const t = useTranslations("Inbox.page");
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  /**
-   * `?c=<id>` deep-link support. Used when landing here from the
-   * dashboard's recent-conversations list so the right thread opens
-   * automatically instead of showing the empty center panel.
-   */
-  const deepLinkConvId = searchParams.get("c");
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversation, setActiveConversation] =
@@ -149,7 +83,6 @@ export default function InboxPage() {
   // list refreshes (realtime, manual refetch) must not snap the user
   // back to the deep-linked conversation if they've already clicked
   // elsewhere.
-  const autoSelectedForDeepLinkRef = useRef<string | null>(null);
 
   // Tracks conversations whose hydrate fetch is currently in flight. The
   // conv-INSERT and the first-message-INSERT events both call into
@@ -509,64 +442,29 @@ export default function InboxPage() {
   const handleConversationsLoaded = useCallback(
     (loaded: Conversation[]) => {
       setConversations(loaded);
-      // Resolve a pending deep-link here rather than in an effect — this
-      // is an event handler, so the setState calls below are allowed by
-      // react-hooks/set-state-in-effect. Runs once per ?c=<id> URL value
-      // via the ref, so realtime refreshes of the list can't snap the
-      // user back to the deep-linked thread after they've navigated.
-      if (deepLinkConvId) {
-        console.info("[inbox-diag] auto-select-check", {
-          deepLinkConvId,
-          real: convParamFromLocation(),
-          justClosed: wasJustClosed(deepLinkConvId),
-          marker: closedMarker(),
-          yaSeleccionado: autoSelectedForDeepLinkRef.current,
-          loaded: loaded.length,
-        });
-      }
-      if (
-        deepLinkConvId &&
-        !wasJustClosed(deepLinkConvId) &&
-        convParamFromLocation() === deepLinkConvId &&
-        autoSelectedForDeepLinkRef.current !== deepLinkConvId &&
-        loaded.length > 0
-      ) {
-        console.info("[inbox-diag] auto-select", {
-          deepLinkConvId, real: convParamFromLocation(), active: activeConversation?.id,
-          justClosed: wasJustClosed(deepLinkConvId), marker: closedMarker(),
-        });
-        autoSelectedForDeepLinkRef.current = deepLinkConvId;
-        // If the deep-linked conversation is already the active one
-        // (e.g. because the user clicked it in the list and we
-        // router.replace()'d the URL, which made the ConversationList
-        // refetch and land us back here), do NOT re-apply it. Doing so
-        // would setMessages([]) on a thread whose messages have
-        // already been loaded by MessageThread — and because
-        // conversationId didn't change, MessageThread wouldn't
-        // refetch. The thread would read "No messages yet" until a
-        // full page reload rehydrated state from scratch.
-      if (activeConversation?.id === deepLinkConvId) return;
-        const match = loaded.find((c) => c.id === deepLinkConvId);
-        if (match) {
-          setMobileContactPanelOpen(false);
-          setActiveConversation(match);
-          setActiveContact(match.contact ?? null);
-          setMessages([]);
-          // Mirror the optimistic unread reset that handleSelectConversation
-          // does — the user just deep-linked into this conv, treat that the
-          // same as a click. Leaves activeConversation.unread_count alone so
-          // the MessageThread reset effect still fires the server UPDATE.
-          if (match.unread_count > 0) {
-            setConversations((prev) =>
-              prev.map((c) =>
-                c.id === match.id ? { ...c, unread_count: 0 } : c,
-              ),
-            );
-          }
-        }
+      // Handoff from a notification, the dashboard or the operations board:
+      // the id arrives in sessionStorage, never in the URL. Read once and
+      // drop it, so a later list refresh cannot reopen the thread.
+      if (loaded.length === 0) return;
+      const target = takeInboxOpenTarget();
+      if (!target) return;
+      const match = loaded.find((c) => c.id === target);
+      if (!match) return;
+
+      setMobileContactPanelOpen(false);
+      setActiveConversation(match);
+      setActiveContact(match.contact ?? null);
+      setMessages([]);
+      // Mirror the optimistic unread reset of a real click.
+      if (match.unread_count > 0) {
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === match.id ? { ...c, unread_count: 0 } : c,
+          ),
+        );
       }
     },
-    [deepLinkConvId, activeConversation?.id]
+    []
   );
 
   const handleSelectConversation = useCallback(
@@ -596,32 +494,9 @@ export default function InboxPage() {
             : c,
         ),
       );
-      // Record the selection on the deep-link ref BEFORE we change the
-      // URL. The router.replace below flips `deepLinkConvId`, which can
-      // in turn cause ConversationList to refetch and eventually call
-      // handleConversationsLoaded again. Without this line, the ref
-      // still points at the previous value, the auto-select block
-      // sees `ref !== deepLinkConvId`, fires a second time, and
-      // clobbers the messages MessageThread just fetched.
-      autoSelectedForDeepLinkRef.current = conv.id;
-      lastClosedConversationId = null;
-      clearClosedMarker();
-      // The open thread is NOT mirrored into the URL. Next's router owns the
-      // URL and rewrites it on re-render; two writers produced a race where a
-      // closed thread came back (and once, an older one). `?c=` is now only
-      // what a real deep link (notification, dashboard) arrives with.
     },
     [activeConversation?.id]
   );
-
-  // DIAGNOSTICO TEMPORAL: cuántas veces se monta la página y con qué URL.
-  useEffect(() => {
-    console.info("[inbox-diag] montaje", {
-      search: window.location.search,
-      routerParam: new URLSearchParams(window.location.search).get("c"),
-    });
-    if (!convParamFromLocation()) lastClosedConversationId = null;
-  }, []);
 
   // Mobile "back" — deselect the conversation so the list pane comes
   // back. Also clears the ?c= param so a refresh lands on the list
@@ -631,39 +506,19 @@ export default function InboxPage() {
     setActiveConversation(null);
     setActiveContact(null);
     setMessages([]);
-    // Clearing the ref lets the deep-link auto-selector fire again if
-    // the user later visits /inbox?c=<same-id> — desirable UX.
-    console.info("[inbox-diag] atras", { search: window.location.search });
-    lastClosedConversationId = activeConversation?.id ?? null;
-    markClosed(activeConversation?.id);
-    autoSelectedForDeepLinkRef.current = null;
-    try {
-      console.info("[inbox-diag] replace llamado", { antes: window.location.href });
-      router.replace("/inbox", { scroll: false });
-    } catch (error) {
-      console.warn("[inbox-diag] replace fallo", String(error));
-    }
-    setTimeout(() => {
-      console.info("[inbox-diag] replace resultado", { despues: window.location.href });
-    }, 700);
-  }, [activeConversation?.id, router]);
+  }, []);
 
   /**
    * Se dispara cuando quitar-del-inbox (en bloque o individual) se lleva la
    * conversación que estaba abierta. Sin esto el panel de la derecha se
-   * quedaría enseñando un hilo que ya no está en la lista. Mismo patrón que
-   * `handleCloseConversation`, incluida la limpieza del `?c=` — si no, un
-   * refresh intentaría reabrir un hilo que ya no aparece.
+   * quedaría enseñando un hilo que ya no está en la lista.
    */
   const handleConversationsHidden = useCallback(() => {
     setMobileContactPanelOpen(false);
     setActiveConversation(null);
     setActiveContact(null);
     setMessages([]);
-    autoSelectedForDeepLinkRef.current = null;
-    markClosed(null);
-    router.replace("/inbox", { scroll: false });
-  }, [router]);
+  }, []);
 
   const handleMessagesLoaded = useCallback((loaded: Message[]) => {
     setMessages(loaded);

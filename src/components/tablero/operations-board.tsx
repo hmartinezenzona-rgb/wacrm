@@ -1,5 +1,6 @@
 "use client";
 
+import { setInboxOpenTarget } from "@/lib/inbox/open-target";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
@@ -72,6 +73,7 @@ function BoardCard({ op, now }: { op: BoardOperation; now: Date }) {
   return (
     <Link
       href={chatHref(op.conversationId)}
+      onClick={() => setInboxOpenTarget(op.conversationId)}
       aria-label={t("openChat", { name })}
       className="border-border bg-card hover:border-primary/50 focus-visible:ring-ring relative block overflow-hidden rounded-lg border p-3 shadow-[var(--elev-card)] transition-colors focus-visible:ring-2 focus-visible:outline-none"
     >

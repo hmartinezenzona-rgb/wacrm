@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { setInboxOpenTarget } from "@/lib/inbox/open-target";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
@@ -150,7 +151,8 @@ export default function NotificationsPage() {
     (n: Notification) => {
       if (!n.read_at) markRead(n.id);
       if (n.conversation_id) {
-        router.push(`/inbox?c=${n.conversation_id}`);
+        setInboxOpenTarget(n.conversation_id);
+        router.push("/inbox");
       }
     },
     [markRead, router],

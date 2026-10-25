@@ -426,7 +426,8 @@ export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> 
       text: `New message from ${who}`,
       i18n: { key: 'newMessage', values: { who: contact?.name || contact?.phone || undefined } },
       at: m.created_at,
-      href: `/inbox?c=${m.conversation_id}`,
+      href: "/inbox",
+      conversationId: m.conversation_id,
     })
   }
 

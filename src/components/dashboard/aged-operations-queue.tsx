@@ -1,5 +1,6 @@
 "use client"
 
+import { setInboxOpenTarget } from "@/lib/inbox/open-target";
 import { CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
@@ -108,7 +109,8 @@ export function AgedOperationsQueue({ data, loading }: AgedOperationsQueueProps)
                   </TableCell>
                   <TableCell className="text-right">
                     <Link
-                      href={`/inbox?c=${row.conversationId}`}
+                      href="/inbox"
+                      onClick={() => setInboxOpenTarget(row.conversationId)}
                       className="text-sm font-medium text-primary hover:underline"
                     >
                       {t('openChat')}

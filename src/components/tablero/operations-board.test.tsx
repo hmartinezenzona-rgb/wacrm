@@ -68,7 +68,7 @@ describe("OperationsBoard", () => {
   it("shows name, service, amount in GYD, time in state, and links the whole card to the chat", async () => {
     const { node } = await render([op()]);
     const card = node.querySelector("a")!;
-    expect(card.getAttribute("href")).toBe("/inbox?c=conv-1");
+    expect(card.getAttribute("href")).toBe("/inbox");
     expect(card.textContent).toContain("Ana Perez");
     expect(card.textContent).toContain(n.zelle);
     expect(card.textContent?.replace(/\u00a0/g, " ")).toContain("GYD 30\u202f000");

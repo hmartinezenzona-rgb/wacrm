@@ -145,4 +145,6 @@ export interface ActivityItem {
   at: string
   /** Optional deep-link for the whole row (not all items have a target). */
   href?: string
+  /** Inbox target for that link; travels in sessionStorage, not in the URL. */
+  conversationId?: string
 }

@@ -1,5 +1,6 @@
 "use client"
 
+import { setInboxOpenTarget } from "@/lib/inbox/open-target";
 import Link from 'next/link'
 import { useState } from 'react'
 import {
@@ -133,7 +134,15 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
               return (
                 <li key={it.id} className={cn(stripe, 'transition-colors hover:bg-muted/40')}>
                   {it.href ? (
-                    <Link href={it.href} className="block">
+                    <Link
+                      href={it.href}
+                      onClick={
+                        it.conversationId
+                          ? () => setInboxOpenTarget(it.conversationId as string)
+                          : undefined
+                      }
+                      className="block"
+                    >
                       {row}
                     </Link>
                   ) : (

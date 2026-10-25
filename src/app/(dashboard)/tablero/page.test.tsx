@@ -58,7 +58,7 @@ describe("TableroPage", () => {
     const { node } = await mount();
     expect(rpc).toHaveBeenCalledWith("crm_tablero_operaciones");
     expect(node.querySelector("h1")!.textContent).toBe(t.title);
-    expect(node.querySelector("a")!.getAttribute("href")).toBe("/inbox?c=conv-1");
+    expect(node.querySelector("a")!.getAttribute("href")).toBe("/inbox");
   });
 
   it("refetches every 20 seconds and stops when unmounted", async () => {

@@ -113,8 +113,8 @@ describe("ageParts", () => {
 });
 
 describe("chatHref", () => {
-  it("opens the conversation in the inbox", () => {
-    expect(chatHref("abc")).toBe("/inbox?c=abc");
+  it("points at the inbox; the id travels in sessionStorage, not the URL", () => {
+    expect(chatHref("abc")).toBe("/inbox");
   });
 });
 

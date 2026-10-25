@@ -88,7 +88,7 @@ export function ageTone(since: string, now: Date, status: string): AgeTone {
   return "muted";
 }
 
-/** The same deep link the notifications page uses to open a chat. */
-export function chatHref(conversationId: string): string {
-  return `/inbox?c=${conversationId}`;
+/** The inbox link; the id travels in sessionStorage (see setInboxOpenTarget). */
+export function chatHref(_conversationId: string): string {
+  return "/inbox";
 }

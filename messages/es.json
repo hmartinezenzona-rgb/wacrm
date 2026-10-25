@@ -63,6 +63,9 @@
   },
   "Sidebar": {
     "title": "Remesas YA",
+    "groupOperation": "Operación",
+    "groupMoney": "Dinero",
+    "groupTools": "Herramientas",
     "dashboard": "Panel",
     "inbox": "Bandeja de entrada",
     "notifications": "Notificaciones",

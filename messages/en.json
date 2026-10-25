@@ -63,6 +63,9 @@
   },
   "Sidebar": {
     "title": "Remesas YA",
+    "groupOperation": "Operations",
+    "groupMoney": "Money",
+    "groupTools": "Tools",
     "dashboard": "Dashboard",
     "inbox": "Inbox",
     "notifications": "Notifications",

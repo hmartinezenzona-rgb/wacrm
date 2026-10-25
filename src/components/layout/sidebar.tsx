@@ -83,10 +83,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+type NavGroupKey = "operation" | "money" | "tools";
+
 interface NavItem {
   href: string;
   labelKey: string;
   icon: typeof LayoutDashboard;
+  /** Section of the sidebar the row belongs to, in reading order. */
+  group: NavGroupKey;
   /**
    * When true, the nav row renders a small "Beta" chip after the label.
    * Purely informational — doesn't affect routing or access.
@@ -97,18 +101,25 @@ interface NavItem {
 }
 
 export const navItems: NavItem[] = [
-  { href: "/dashboard", labelKey: "dashboard", icon: LayoutDashboard },
-  { href: "/inbox", labelKey: "inbox", icon: MessageSquare },
-  { href: "/notifications", labelKey: "notifications", icon: Bell },
-  { href: "/contacts", labelKey: "contacts", icon: Users },
-  { href: "/resumen", labelKey: "resumen", icon: BarChart3 },
-  { href: "/calculadora", labelKey: "controlSemanal", icon: LineChart },
-  { href: "/inventario-cup", labelKey: "cupInventory", icon: CreditCard, capability: "manage-cup-inventory" },
-  { href: "/tablero", labelKey: "tablero", icon: Columns3 },
-  { href: "/broadcasts", labelKey: "broadcasts", icon: Radio },
-  { href: "/automations", labelKey: "automations", icon: Zap },
-  { href: "/flows", labelKey: "flows", icon: Workflow, beta: true },
-  { href: "/agents", labelKey: "aiAgents", icon: Bot },
+  { href: "/dashboard", labelKey: "dashboard", icon: LayoutDashboard, group: "operation" },
+  { href: "/inbox", labelKey: "inbox", icon: MessageSquare, group: "operation" },
+  { href: "/notifications", labelKey: "notifications", icon: Bell, group: "operation" },
+  { href: "/contacts", labelKey: "contacts", icon: Users, group: "operation" },
+  { href: "/resumen", labelKey: "resumen", icon: BarChart3, group: "money" },
+  { href: "/calculadora", labelKey: "controlSemanal", icon: LineChart, group: "money" },
+  { href: "/inventario-cup", labelKey: "cupInventory", icon: CreditCard, capability: "manage-cup-inventory", group: "money" },
+  { href: "/tablero", labelKey: "tablero", icon: Columns3, group: "money" },
+  { href: "/broadcasts", labelKey: "broadcasts", icon: Radio, group: "tools" },
+  { href: "/automations", labelKey: "automations", icon: Zap, group: "tools" },
+  { href: "/flows", labelKey: "flows", icon: Workflow, beta: true, group: "tools" },
+  { href: "/agents", labelKey: "aiAgents", icon: Bot, group: "tools" },
+];
+
+/** Section labels, in the order they render. */
+const navGroups: { key: NavGroupKey; labelKey: string }[] = [
+  { key: "operation", labelKey: "groupOperation" },
+  { key: "money", labelKey: "groupMoney" },
+  { key: "tools", labelKey: "groupTools" },
 ];
 
 const bottomNavItems = [
@@ -220,70 +231,84 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           </button>
         </div>
 
-        {/* Main navigation */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
-          <ul className="flex flex-col gap-1">
-            {visibleNavItems.map((item) => {
-              const isActive =
-                pathname === item.href ||
-                (item.href !== "/dashboard" && pathname.startsWith(item.href));
+        {/* Main navigation, one block per section */}
+        <nav className="flex flex-1 flex-col gap-4 overflow-y-auto px-3 py-4">
+          {navGroups.map((group) => {
+            const groupItems = visibleNavItems.filter((item) => item.group === group.key);
+            if (groupItems.length === 0) return null;
+            return (
+              <div key={group.key}>
+                <p
+                  id={`nav-group-${group.key}`}
+                  className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.09em] text-sidebar-foreground/70"
+                >
+                  {t(group.labelKey as string)}
+                </p>
+                <ul aria-labelledby={`nav-group-${group.key}`} className="flex flex-col gap-1">
+                  {groupItems.map((item) => {
+                    const isActive =
+                      pathname === item.href ||
+                      (item.href !== "/dashboard" && pathname.startsWith(item.href));
 
-              const showUnreadDot =
-                item.href === "/inbox" && totalUnread > 0 && !isActive;
+                    const showUnreadDot =
+                      item.href === "/inbox" && totalUnread > 0 && !isActive;
 
-              // Unlike the inbox dot, the notifications count stays visible
-              // even while the page is active — it reflects unread state
-              // (cleared by marking notifications read), not "currently
-              // viewing this section".
-              const showNotificationBadge =
-                item.href === "/notifications" && unreadNotifications > 0;
+                    // Unlike the inbox dot, the notifications count stays visible
+                    // even while the page is active — it reflects unread state
+                    // (cleared by marking notifications read), not "currently
+                    // viewing this section".
+                    const showNotificationBadge =
+                      item.href === "/notifications" && unreadNotifications > 0;
 
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className={cn(
-                      // Taller on mobile so fingers can hit the row reliably (≥44px).
-                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
-                      isActive
-                        ? "bg-sidebar-accent font-bold text-sidebar-accent-foreground"
-                        : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
-                    )}
-                  >
-                    <item.icon className="h-4 w-4" />
-                    <span className="flex-1">{t(item.labelKey as string)}</span>
-                    {item.beta && (
-                      <span
-                        aria-label={t("beta")}
-                        className="rounded-full border border-amber-500/40 bg-amber-400/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-800 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-300"
-                      >
-                        {t("beta")}
-                      </span>
-                    )}
-                    {showUnreadDot && (
-                      <span
-                        aria-label={t("unreadConversations", { count: totalUnread })}
-                        className="relative flex h-2 w-2"
-                      >
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-                        <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-                      </span>
-                    )}
-                    {showNotificationBadge && (
-                      <span
-                        aria-label={t("unreadNotifications", { count: unreadNotifications })}
-                        className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground"
-                      >
-                        {unreadNotifications > 9 ? "9+" : unreadNotifications}
-                      </span>
-                    )}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+                    return (
+                      <li key={item.href}>
+                        <Link
+                          href={item.href}
+                          className={cn(
+                            // Taller on mobile so fingers can hit the row reliably (≥44px).
+                            "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
+                            isActive
+                              ? "bg-sidebar-accent font-bold text-sidebar-accent-foreground"
+                              : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
+                          )}
+                        >
+                          <item.icon className="h-4 w-4" />
+                          <span className="flex-1">{t(item.labelKey as string)}</span>
+                          {item.beta && (
+                            <span
+                              aria-label={t("beta")}
+                              className="rounded-full border border-amber-500/40 bg-amber-400/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-800 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-300"
+                            >
+                              {t("beta")}
+                            </span>
+                          )}
+                          {showUnreadDot && (
+                            <span
+                              aria-label={t("unreadConversations", { count: totalUnread })}
+                              className="relative flex h-2 w-2"
+                            >
+                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+                              <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+                            </span>
+                          )}
+                          {showNotificationBadge && (
+                            <span
+                              aria-label={t("unreadNotifications", { count: unreadNotifications })}
+                              className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground"
+                            >
+                              {unreadNotifications > 9 ? "9+" : unreadNotifications}
+                            </span>
+                          )}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          })}
 
-          <div className="my-4 border-t border-sidebar-border" />
+          <div className="border-t border-sidebar-border" />
 
           <ul className="flex flex-col gap-1">
             {bottomNavItems.map((item) => {

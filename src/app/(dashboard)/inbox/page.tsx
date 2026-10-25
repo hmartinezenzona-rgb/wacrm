@@ -43,9 +43,12 @@ function markClosed(id: string | null | undefined): void {
   try {
     if (id) window.sessionStorage.setItem(CLOSED_KEY, `${id}|${Date.now()}`);
     else window.sessionStorage.removeItem(CLOSED_KEY);
-  } catch {
-    // Storage can be blocked: the module copy still covers same-instance cases.
+  } catch (error) {
+    console.warn("[inbox-diag] markClosed storage fallo", error);
   }
+  console.info("[inbox-diag] markClosed", {
+    id, stored: (() => { try { return window.sessionStorage.getItem(CLOSED_KEY); } catch { return "blocked"; } })(),
+  });
 }
 
 function closedMarker(): { id: string; at: number } | null {
@@ -520,6 +523,7 @@ export default function InboxPage() {
       ) {
         console.info("[inbox-diag] auto-select", {
           deepLinkConvId, real: convParamFromLocation(), active: activeConversation?.id,
+          justClosed: wasJustClosed(deepLinkConvId), marker: closedMarker(),
         });
         autoSelectedForDeepLinkRef.current = deepLinkConvId;
         // If the deep-linked conversation is already the active one

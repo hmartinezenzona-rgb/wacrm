@@ -254,7 +254,8 @@
       "assignmentFailed": "Failed to update assignment",
       "you": "You",
       "customer": "Customer",
-      "unknownContact": "Unknown"
+      "unknownContact": "Unknown",
+      "loadingOlder": "Loading earlier messages…"
     },
     "sessionTimer": {
       "expired": "Expired",

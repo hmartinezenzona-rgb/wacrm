@@ -254,7 +254,8 @@
       "assignmentFailed": "No se pudo actualizar la asignación",
       "you": "Tú",
       "customer": "Cliente",
-      "unknownContact": "Desconocido"
+      "unknownContact": "Desconocido",
+      "loadingOlder": "Cargando mensajes anteriores…"
     },
     "sessionTimer": {
       "expired": "Vencida",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { usePresence } from "@/hooks/use-presence";
@@ -151,6 +151,9 @@ const STATUS_OPTIONS: { label: string; value: ConversationStatus; color: string 
  * Defined once at module scope so the two render paths can't drift —
  * if we ever switch the asset, both spots update together.
  */
+/** Mensajes por bloque del historial paginado. */
+const MESSAGE_PAGE = 50;
+
 const DOODLE_BG_CLASSES =
   "bg-muted bg-[url('/inbox-doodle.svg')] bg-repeat";
 
@@ -179,6 +182,13 @@ export function MessageThread({
   const { getPresence, getRow, now } = usePresence();
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Historial paginado: al abrir se cargan los ultimos PAGE mensajes y, al
+  // llegar arriba, los anteriores. Sin esto un chat con meses de historial
+  // descargaba y montaba todos los mensajes de golpe.
+  const [olderMessages, setOlderMessages] = useState<Message[]>([]);
+  const [hasMoreHistory, setHasMoreHistory] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const prependAnchorRef = useRef<{ height: number; top: number } | null>(null);
   // Tracks conversationId:lastMessageId:count for the last time the
   // auto-scroll effect actually scrolled — see that effect for why.
   const lastScrolledKeyRef = useRef<string | null>(null);
@@ -290,14 +300,18 @@ export function MessageThread({
         .from("messages")
         .select("*")
         .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: false })
+        .limit(MESSAGE_PAGE);
 
       if (cancelled) return;
 
       if (error) {
         console.error("Failed to fetch messages:", error);
       } else {
-        onMessagesLoadedRef.current(data ?? []);
+        const rows = (data ?? []).slice().reverse();
+        setOlderMessages([]);
+        setHasMoreHistory(rows.length === MESSAGE_PAGE);
+        onMessagesLoadedRef.current(rows);
       }
 
       if (!cancelled) setLoading(false);
@@ -462,6 +476,68 @@ export function MessageThread({
     const el = scrollRef.current;
     el.scrollTop = el.scrollHeight;
   }, [messages, conversationId]);
+
+  // Older pages + the live window, deduplicated by id and in chronological
+  // order. The parent owns the newest page (realtime inserts land there);
+  // the thread owns everything loaded above it.
+  const displayMessages = useMemo(() => {
+    if (olderMessages.length === 0) return messages;
+    const byId = new Map<string, Message>();
+    for (const m of olderMessages) byId.set(m.id, m);
+    for (const m of messages) byId.set(m.id, m);
+    return [...byId.values()].sort((a, b) =>
+      a.created_at === b.created_at
+        ? a.id.localeCompare(b.id)
+        : a.created_at.localeCompare(b.created_at),
+    );
+  }, [olderMessages, messages]);
+
+  /** Trae el bloque anterior al más viejo cargado y conserva la posición. */
+  const loadOlderMessages = useCallback(async () => {
+    if (loadingOlder || !hasMoreHistory || !conversationId) return;
+    const oldest = displayMessages[0];
+    if (!oldest) return;
+
+    const el = scrollRef.current;
+    if (el) prependAnchorRef.current = { height: el.scrollHeight, top: el.scrollTop };
+    setLoadingOlder(true);
+
+    const supabase = createClient();
+    // Clave (created_at, id): no se salta mensajes con la misma marca de tiempo.
+    const { data, error } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("conversation_id", conversationId)
+      .or(`created_at.lt.${oldest.created_at},and(created_at.eq.${oldest.created_at},id.lt.${oldest.id})`)
+      .order("created_at", { ascending: false })
+      .limit(MESSAGE_PAGE);
+
+    setLoadingOlder(false);
+    if (error) {
+      console.error("Failed to fetch older messages:", error);
+      prependAnchorRef.current = null;
+      return;
+    }
+    const rows = (data ?? []).slice().reverse();
+    setHasMoreHistory(rows.length === MESSAGE_PAGE);
+    if (rows.length > 0) setOlderMessages((prev) => [...rows, ...prev]);
+  }, [conversationId, displayMessages, hasMoreHistory, loadingOlder]);
+
+  const handleThreadScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el || el.scrollTop > 40) return;
+    void loadOlderMessages();
+  }, [loadOlderMessages]);
+
+  // Después de anteponer, mantener la vista donde el usuario estaba leyendo.
+  useLayoutEffect(() => {
+    const anchor = prependAnchorRef.current;
+    const el = scrollRef.current;
+    if (anchor && el) {
+      el.scrollTop = el.scrollHeight - anchor.height + anchor.top;
+      prependAnchorRef.current = null;
+    }
+  }, [olderMessages]);
 
   /** Scrolls to a message and flashes a ring around it, for reply quotes. */
   const jumpToMessage = useCallback((messageId: string) => {
@@ -740,12 +816,12 @@ export function MessageThread({
   );
 
   // Build a quick id → Message map so reply quotes can be rendered without
-  // an extra fetch — the thread already holds the full conversation.
+  // an extra fetch — the thread already holds the loaded conversation.
   const messagesById = useMemo(() => {
     const map = new Map<string, Message>();
-    for (const m of messages) map.set(m.id, m);
+    for (const m of displayMessages) map.set(m.id, m);
     return map;
-  }, [messages]);
+  }, [displayMessages]);
 
   // Bucket reactions by their target message_id for O(1) per-bubble lookup.
   const reactionsByMessageId = useMemo(() => {
@@ -887,7 +963,7 @@ export function MessageThread({
   }
 
   const displayName = contact.name || contact.phone;
-  const messageGroups = groupMessagesByDate(messages);
+  const messageGroups = groupMessagesByDate(displayMessages);
   const currentStatus = STATUS_OPTIONS.find(
     (s) => s.value === conversation.status
   );
@@ -1121,7 +1197,7 @@ export function MessageThread({
           screen, undisturbed, while it fetches in the background; the
           spinner is now only for a conversation's genuine first
           load. */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
+      <div ref={scrollRef} onScroll={handleThreadScroll} className="flex-1 overflow-y-auto px-4 py-4">
         {loading && messages.length === 0 ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -1135,6 +1211,9 @@ export function MessageThread({
           </div>
         ) : (
           <div className="space-y-4">
+            {loadingOlder && (
+              <p className="text-center text-xs text-muted-foreground">{t("loadingOlder")}</p>
+            )}
             {messageGroups.map((group) => (
               <div key={group.date}>
                 {/* Date separator */}

@@ -26,7 +26,9 @@ export const DECISOR_MD5_AL_FIJARLO = 'c2ed1d13c177dc368fbfd63150e706e7';
  * A test asserts the file still hashes to this, so a formatter run or a half-applied edit fails
  * loudly instead of silently diverging from the workflow.
  */
-export const DECISOR_MD5_ESPERADO = '18a0c643ede9d802fd1f858e12df7a19';
+// 2026-10-25: nombre del servicio en las confirmaciones (nunca "USD" a secas), recarga sin pedir
+// tarjeta y promesa neutra ("una vez hecho su servicio se le notifica por aca") en vez de hora de apertura.
+export const DECISOR_MD5_ESPERADO = '75e429ecd7c0b3ca6184bab84202f772';
 
 export const ORIGEN = join(
   dirname(fileURLToPath(import.meta.url)),

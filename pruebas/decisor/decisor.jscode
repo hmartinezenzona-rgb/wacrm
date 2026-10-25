@@ -634,12 +634,12 @@ const abierto = diaGy !== 0 && minGy >= HORA_ABRE_MIN && minGy < HORA_CIERRA_MIN
 // Si por desfase de relojes llegaran los dos a la vez, gana este: los dos dicen
 // "sigue atendiendo pero no prometas la transferencia", asi que el fallo es benigno.
 if (ctx.por_cerrar && !hoyCerrado) {
-  notas.push('PROXIMO A CERRAR: hoy ya vamos cerrando (' + hora + ' en Guyana; se cierra a las ' + HORA_CIERRA_TXT + '). SIGUE ATENDIENDO CON NORMALIDAD: cotiza, pide los datos, registra el deposito y confirma que esta verificado, igual que siempre. Lo UNICO que cambia es la promesa de la TRANSFERENCIA: PROHIBIDO decir "en breve" o "enseguida", porque hoy ya no sale. Di en UNA sola linea natural que su envio queda para el dia siguiente a primera hora, a partir de las ' + HORA_ABRE_TXT + ' hora de Guyana.' + (proximoHabil ? ' El siguiente dia habil es ' + proximoHabil + (avisoCierre ? ' (' + avisoCierre + '): dilo asi y avisale de ese cierre en la misma linea.' : '.') : ' Si hoy es sabado, el siguiente dia habil es el LUNES, porque el domingo esta cerrado.'));
+  notas.push('PROXIMO A CERRAR: hoy ya vamos cerrando (' + hora + ' en Guyana; se cierra a las ' + HORA_CIERRA_TXT + '). SIGUE ATENDIENDO CON NORMALIDAD: cotiza, pide los datos, registra el deposito y confirma que esta verificado, igual que siempre. Lo UNICO que cambia es la promesa de la TRANSFERENCIA: PROHIBIDO decir "en breve" o "enseguida", porque hoy ya no sale. Di en UNA sola linea natural que, una vez hecho su servicio, se le notifica por aca. PROHIBIDO prometer hora, dia, "enseguida" o "a primera hora".' + (proximoHabil ? ' El siguiente dia habil es ' + proximoHabil + (avisoCierre ? ' (' + avisoCierre + '): dilo asi y avisale de ese cierre en la misma linea.' : '.') : ' Si hoy es sabado, el siguiente dia habil es el LUNES, porque el domingo esta cerrado.'));
 } else if (hoyCerrado) {
   const diaHoyTxt = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'][diaGy];
-  notas.push('FUERA DE HORARIO: HOY NO SE TRABAJA EN TODO EL DIA (' + hoyCerrado + '; ' + hora + ' en Guyana). Agrega UNA sola linea natural avisandolo y SIGUE ATENDIENDO NORMAL: cotiza, registra y responde igual que siempre. Dilo asi o casi igual (frase del dueno): "Hoy ' + diaHoyTxt + ' no estamos trabajando ' + hoyCerrado + '; por aqui le atendemos igual y lo pendiente se hace ' + (proximoHabil || 'el proximo dia habil') + ' a partir de las ' + HORA_ABRE_TXT + '." PROHIBIDO decir que no puedes atender. PROHIBIDO decir "en breve" o "enseguida".');
+  notas.push('FUERA DE HORARIO: HOY NO SE TRABAJA EN TODO EL DIA (' + hoyCerrado + '; ' + hora + ' en Guyana). Agrega UNA sola linea natural avisandolo y SIGUE ATENDIENDO NORMAL: cotiza, registra y responde igual que siempre. Dilo asi o casi igual: "Hoy ' + diaHoyTxt + ' no estamos trabajando ' + hoyCerrado + '; por aqui le atendemos igual y, una vez hecho su servicio, se le notifica por aca." PROHIBIDO prometer dia u hora. PROHIBIDO decir que no puedes atender. PROHIBIDO decir "en breve" o "enseguida".');
 } else if (!abierto) {
-  notas.push('FUERA DE HORARIO: ahora mismo el negocio esta cerrado (' + hora + ' en Guyana). Agrega UNA sola linea natural avisando de que estamos fuera de horario y SIGUE ATENDIENDO NORMAL: cotiza, registra y responde igual que siempre. El horario real es de lunes a sabado de ' + HORA_ABRE_TXT + ' a ' + HORA_CIERRA_TXT + ' hora de Guyana, y los domingos cerrado. PROHIBIDO inventarse otros horarios o decir que no se puede atender. Y OJO CON LO QUE PROMETES: estando cerrado NO digas "en breve" ni "enseguida" para la transferencia, porque no se va a hacer hasta que abran. Di que se hace en cuanto abramos, a partir de las ' + HORA_ABRE_TXT + ' hora de Guyana.' + (avisoCierre ? ' OJO: ' + avisoCierre + ', asi que abrimos ' + proximoHabil + ': di que se hace ' + proximoHabil + ' a partir de las ' + HORA_ABRE_TXT + ' y avisale de ese cierre en la misma linea.' : ''));
+  notas.push('FUERA DE HORARIO: ahora mismo el negocio esta cerrado (' + hora + ' en Guyana). Agrega UNA sola linea natural avisando de que estamos fuera de horario y SIGUE ATENDIENDO NORMAL: cotiza, registra y responde igual que siempre. El horario real es de lunes a sabado de ' + HORA_ABRE_TXT + ' a ' + HORA_CIERRA_TXT + ' hora de Guyana, y los domingos cerrado. PROHIBIDO inventarse otros horarios o decir que no se puede atender. Y OJO CON LO QUE PROMETES: estando cerrado NO digas "en breve" ni "enseguida" para la transferencia, porque no se va a hacer hasta que abran. Di que, una vez hecho su servicio, se le notifica por aca; PROHIBIDO prometer hora de apertura o "en cuanto abramos" como si fuera una promesa de entrega.' + (avisoCierre ? ' OJO: ' + avisoCierre + ', asi que abrimos ' + proximoHabil + ': di que se hace ' + proximoHabil + ' a partir de las ' + HORA_ABRE_TXT + ' y avisale de ese cierre en la misma linea.' : ''));
 } else {
   // ANCLA POSITIVA DE HORARIO (14-ago-2026). Hasta hoy este if/else-if no tenia
   // rama para "abierto": cuando el negocio estaba abierto el contexto NO decia
@@ -987,7 +987,7 @@ if (!sabeDestino && !s.multi_beneficiario && datosAMedias) {
     : (zelleNomCtx || zelleCtaCtx)
       ? 'Las herramientas aceptan datos a medias: llama registrar_beneficiario_zelle EN ESTE MISMO TURNO con lo que haya' + g83Pide
       : (R && (rielR || declaradoR) === 'recarga')
-        ? 'Es una RECARGA: llama registrar_numeros_recarga EN ESTE MISMO TURNO con el numero (sin tarjeta, una recarga no la lleva). '
+        ? 'Es una RECARGA: llama registrar_numeros_recarga EN ESTE MISMO TURNO con el numero (sin tarjeta, una recarga no la lleva). PROHIBIDO pedir tarjeta o datos de tarjeta para una recarga: el unico dato es el NUMERO cubano. '
         : (R && (rielR || declaradoR) === 'mexico')
           ? 'Es un envio a MEXICO: el celular solo sirve para el retiro sin tarjeta; guarda con registrar_destinatario_mexico cuando tengas la CLABE completa (cuenta) o solo el banco, Bancoppel o BBVA (retiro). En el retiro NO pidas nombre ni telefono de quien retira: el codigo se manda al cliente que pago. No uses la herramienta de la tarjeta cubana. '
           : 'Si es para una remesa (no una recarga), llama gestionar_beneficiario con el celular y pide la tarjeta. ';
@@ -1123,6 +1123,20 @@ if (R && !planR && Array.isArray(R.operaciones)) {
   }
 }
 if (rielOp) { notas.push('VIA ACTUAL DE LA OPERACION: ' + ({zelle:'Zelle',clasica:'tarjeta Clasica',tropical:'tarjeta Tropical',cuban_card:'CUP (tarjeta en pesos)',efectivo_usd:'efectivo en USD',recarga:'recarga',combo:'combo',visa:'visa',saldo:'saldo movil',mexico:'Mexico'}[rielOp] || rielOp) + '. Si el cliente DECIDE otra en lugar de esta, llama cambiar_servicio; si quiere otra ADEMAS de esta, llama agregar_servicio; una pregunta de precio o hablar de otra persona NO es un cambio.'); }
+
+// (25-oct-2026) Dos reglas del dueno: nombrar el servicio (nunca "USD" a secas)
+// y no pedir tarjeta cuando lo que pide es una recarga.
+const servicioDicho = { zelle: 'Zelle', clasica: 'Clasica', tropical: 'Tropical', efectivo_usd: 'USD en efectivo',
+  cuban_card: 'CUP', recarga: 'recarga', combo: 'combo', visa: 'visa', saldo: 'saldo movil', mexico: 'Mexico' }[rielOp || declaradoR || ''];
+if (servicioDicho) {
+  notas.push('NOMBRA EL SERVICIO al confirmar o resumir: "100 USD por Zelle", "100 USD de Clasica", "100 USD de Tropical", '
+    + '"100 USD en efectivo", "recarga de 15,000 CUP" y asi. Este servicio es ' + servicioDicho + '. '
+    + 'PROHIBIDO decir solo "USD", "su envio de 100 USD" o "100 zelle" sin decir por donde va el dinero.');
+}
+if (/\brecarg/i.test(texto) && !rielOp) {
+  notas.push('EL CLIENTE PIDE UNA RECARGA: el unico dato que hace falta es el NUMERO de telefono cubano a recargar. '
+    + 'PROHIBIDO pedir tarjeta, nombre de tarjeta o datos de tarjeta: una recarga no lleva tarjeta.');
+}
 if (R) {
   // S4: the agent's declared intent comes from the resolved state (one row per conversation), not from a pending flag.
   if (declaradoR && declaradoR !== rielOp) { notas.push('EL CLIENTE YA DECLARO ' + declaradoR + ' (anotado con declarar_servicio' + (rielOp ? ', pero la operacion abierta sigue en ' + rielOp : ', todavia no hay envio abierto de ese servicio') + '). NO se lo vuelvas a preguntar; si cambia de idea, declara de nuevo.'); }

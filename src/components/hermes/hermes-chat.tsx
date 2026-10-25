@@ -55,10 +55,9 @@ export function HermesChat() {
   const [hintOpen, setHintOpen] = useState(true);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const { profile, account } = useAuth();
+  const { profile } = useAuth();
   // El saludo va por el nombre de pila; sin perfil, saludo a secas.
   const firstName = profile?.full_name?.trim().split(/\s+/)[0] ?? '';
-  const accountName = account?.name?.trim() ?? '';
 
   // Read after mount: the server render has no sessionStorage.
   useEffect(() => {
@@ -184,13 +183,9 @@ export function HermesChat() {
   return (
     <div className="mx-auto flex w-full max-w-[900px] flex-col gap-6 py-2">
       <section className="flex flex-col items-start gap-2 text-left sm:items-center sm:text-center">
-        <span className="border-border bg-card text-muted-foreground inline-flex items-center gap-2 rounded-full border py-1 pr-3 pl-1.5 text-xs">
-          {accountName ? (
-            <span className="bg-muted text-foreground grid h-5 w-5 place-items-center rounded-full text-[10px] font-semibold">
-              {accountName.charAt(0).toUpperCase()}
-            </span>
-          ) : null}
-          {accountName || t('intro.eyebrowFallback')}
+        <span className="border-border bg-card text-muted-foreground inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs">
+          <Sparkles className="text-primary h-3.5 w-3.5" aria-hidden="true" />
+          {t('intro.eyebrowFallback')}
         </span>
         <h2 className="font-serif text-foreground mt-0.5 text-[clamp(30px,5.4vw,46px)] leading-[1.08] tracking-[-0.01em] text-balance">
           {firstName ? t('intro.greetingNamed', { name: firstName }) : t('intro.greeting')}
@@ -201,7 +196,7 @@ export function HermesChat() {
       <section aria-label={t('placeholder')} className="flex flex-col gap-2.5">
         {composer}
         {hintOpen ? (
-          <div className="border-border bg-muted/40 text-muted-foreground flex items-start gap-2.5 rounded-full border py-[7px] pr-2.5 pl-3 text-xs">
+          <div className="border-border bg-muted/40 text-muted-foreground flex items-start gap-2.5 rounded-[14px] border py-[7px] pr-2.5 pl-3 text-xs sm:rounded-full">
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span>{t('hint.text')}</span>
             <button

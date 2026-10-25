@@ -24,7 +24,7 @@ vi.mock('next-intl', () => ({
 }));
 
 vi.mock('@/hooks/use-auth', () => ({
-  useAuth: () => ({ profile: { full_name: 'Humbe Pérez' }, account: { name: 'Remesas Ya' } }),
+  useAuth: () => ({ profile: { full_name: 'Humbe Pérez' } }),
 }));
 
 const STORAGE_KEY = 'wacrm.hermes.chat.v1';
@@ -59,7 +59,7 @@ describe('HermesChat scroll position', () => {
     const { host } = await mount();
 
     expect(host.textContent).toContain('¿Qué revisamos hoy, Humbe?');
-    expect(host.textContent).toContain('Remesas Ya');
+    expect(host.textContent).toContain('Asistente de negocio · solo lectura');
     expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
     // The approved layout asks first: the composer sits above the cards.
     const textarea = host.querySelector('textarea');

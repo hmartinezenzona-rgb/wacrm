@@ -1,0 +1,555 @@
+<title>Pantalla de Hermes</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  /* Plan de diseño: panel oscuro con sesgo verde-azulado, una serif editorial
+     solo en el saludo, mono para cifras, sidebar fija + columna de 880px. */
+  :root {
+    --bg: oklch(0.975 0.006 165);
+    --surface: oklch(1 0 0);
+    --surface-2: oklch(0.955 0.008 165);
+    --surface-3: oklch(0.93 0.01 165);
+    --fg: oklch(0.22 0.02 165);
+    --fg-soft: oklch(0.38 0.018 165);
+    --muted: oklch(0.53 0.014 165);
+    --border: oklch(0.9 0.012 165);
+    --border-strong: oklch(0.84 0.016 165);
+    --accent: oklch(0.52 0.11 165);
+    --accent-soft: oklch(0.94 0.035 165);
+    --accent-fg: oklch(0.99 0.005 165);
+    --danger: oklch(0.56 0.17 25);
+    --danger-soft: oklch(0.95 0.03 25);
+    --warn: oklch(0.62 0.13 75);
+    --warn-soft: oklch(0.96 0.04 85);
+    --r-sm: 6px;
+    --r-md: 10px;
+    --r-lg: 14px;
+    --r-xl: 20px;
+    --shadow: 0 1px 2px oklch(0.2 0.02 165 / 0.06), 0 8px 24px oklch(0.2 0.02 165 / 0.05);
+    --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+    --font-display: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: oklch(0.155 0.011 165);
+      --surface: oklch(0.195 0.013 165);
+      --surface-2: oklch(0.225 0.015 165);
+      --surface-3: oklch(0.265 0.017 165);
+      --fg: oklch(0.95 0.005 165);
+      --fg-soft: oklch(0.86 0.008 165);
+      --muted: oklch(0.66 0.012 165);
+      --border: oklch(0.29 0.014 165);
+      --border-strong: oklch(0.36 0.017 165);
+      --accent: oklch(0.79 0.125 165);
+      --accent-soft: oklch(0.27 0.045 165);
+      --accent-fg: oklch(0.17 0.02 165);
+      --danger: oklch(0.7 0.16 25);
+      --danger-soft: oklch(0.28 0.05 25);
+      --warn: oklch(0.82 0.13 80);
+      --warn-soft: oklch(0.29 0.05 80);
+      --shadow: 0 1px 2px oklch(0 0 0 / 0.3), 0 12px 32px oklch(0 0 0 / 0.28);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: oklch(0.155 0.011 165);
+    --surface: oklch(0.195 0.013 165);
+    --surface-2: oklch(0.225 0.015 165);
+    --surface-3: oklch(0.265 0.017 165);
+    --fg: oklch(0.95 0.005 165);
+    --fg-soft: oklch(0.86 0.008 165);
+    --muted: oklch(0.66 0.012 165);
+    --border: oklch(0.29 0.014 165);
+    --border-strong: oklch(0.36 0.017 165);
+    --accent: oklch(0.79 0.125 165);
+    --accent-soft: oklch(0.27 0.045 165);
+    --accent-fg: oklch(0.17 0.02 165);
+    --danger: oklch(0.7 0.16 25);
+    --danger-soft: oklch(0.28 0.05 25);
+    --warn: oklch(0.82 0.13 80);
+    --warn-soft: oklch(0.29 0.05 80);
+    --shadow: 0 1px 2px oklch(0 0 0 / 0.3), 0 12px 32px oklch(0 0 0 / 0.28);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-body);
+    font-size: 14px;
+    line-height: 1.5;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; color: inherit; }
+  .app {
+    display: grid;
+    grid-template-columns: 236px minmax(0, 1fr);
+    min-height: 100vh;
+    min-height: 100dvh;
+    gap: 0;
+    margin-inline: calc(-1 * max(16px, env(safe-area-inset-left, 0px)));
+    padding-inline: 0;
+  }
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    border-right: 1px solid var(--border);
+    background: var(--surface-2);
+    padding: 14px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-height: 100%;
+  }
+  .brand { display: flex; align-items: center; gap: 8px; padding: 2px 6px 6px; }
+  .brand-mark {
+    width: 22px; height: 22px; border-radius: 7px;
+    background: var(--accent);
+    display: grid; place-items: center;
+    color: var(--accent-fg); font-weight: 600; font-size: 12px;
+  }
+  .brand-name { font-weight: 600; letter-spacing: -0.01em; }
+  .nav-group { display: flex; flex-direction: column; gap: 1px; }
+  .nav-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.09em;
+    color: var(--muted); padding: 6px 8px 4px;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 9px;
+    padding: 7px 8px; border-radius: var(--r-sm);
+    color: var(--fg-soft); text-decoration: none;
+  }
+  .nav-item svg { width: 15px; height: 15px; stroke-width: 1.7; opacity: 0.8; }
+  .nav-item:hover { background: var(--surface-3); color: var(--fg); }
+  .nav-item[aria-current="page"] {
+    background: var(--accent-soft); color: var(--fg); font-weight: 500;
+  }
+  .nav-item[aria-current="page"] svg { color: var(--accent); opacity: 1; }
+  .nav-count {
+    margin-left: auto; font-family: var(--font-mono); font-size: 11px;
+    color: var(--muted);
+  }
+  .sidebar-foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+  .plan-card {
+    border: 1px solid var(--border); border-radius: var(--r-md);
+    background: var(--surface); padding: 10px 11px;
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  .plan-card strong { font-size: 12.5px; font-weight: 600; }
+  .plan-card span { font-size: 11.5px; color: var(--muted); }
+  .who { display: flex; align-items: center; gap: 9px; padding: 4px 6px; }
+  .avatar {
+    width: 27px; height: 27px; border-radius: 50%;
+    background: var(--surface-3); display: grid; place-items: center;
+    font-size: 11px; font-weight: 600; color: var(--fg-soft);
+  }
+  .who-name { font-size: 12.5px; font-weight: 500; }
+  .who-role { font-size: 11px; color: var(--muted); }
+
+  /* ---------- Main ---------- */
+  .main {
+    display: flex; flex-direction: column;
+    min-width: 0;
+    padding: 0 max(16px, env(safe-area-inset-right, 0px)) 0 0;
+  }
+  .topbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px clamp(16px, 4vw, 34px);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+  }
+  .topbar-title { font-weight: 600; font-size: 13.5px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 3px 9px; font-size: 11.5px; color: var(--fg-soft);
+    background: var(--surface);
+  }
+  .chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .ghost-btn {
+    border: 1px solid var(--border); background: var(--surface);
+    border-radius: 999px; padding: 5px 11px; font-size: 12px;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .ghost-btn:hover { border-color: var(--border-strong); }
+  .ghost-btn svg { width: 13px; height: 13px; }
+
+  .stage {
+    width: 100%; max-width: 900px; margin-inline: auto;
+    padding: clamp(22px, 5vw, 54px) clamp(14px, 3vw, 24px) 40px;
+    display: flex; flex-direction: column; gap: 26px;
+  }
+  .hello { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+  .hello-eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid var(--border); background: var(--surface);
+    border-radius: 999px; padding: 4px 11px 4px 5px; font-size: 12px; color: var(--fg-soft);
+  }
+  .hello-eyebrow .avatar { width: 20px; height: 20px; font-size: 9.5px; }
+  h1.greeting {
+    margin: 2px 0 0;
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: clamp(30px, 5.4vw, 46px);
+    line-height: 1.08;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  .hello p { margin: 0; color: var(--muted); font-size: 13.5px; max-width: 46ch; }
+
+  /* ---------- Composer ---------- */
+  .composer-wrap { display: flex; flex-direction: column; gap: 10px; }
+  .composer {
+    border: 1px solid var(--border-strong); border-radius: var(--r-xl);
+    background: var(--surface); box-shadow: var(--shadow);
+    padding: 12px 14px 10px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .composer:focus-within { border-color: var(--accent); }
+  .composer textarea {
+    width: 100%; min-height: 62px; resize: none;
+    border: 0; outline: 0; background: transparent; color: var(--fg);
+    font: inherit; font-size: 14px; line-height: 1.55;
+  }
+  .composer textarea::placeholder { color: var(--muted); }
+  .composer-row { display: flex; align-items: center; gap: 8px; }
+  .icon-btn {
+    width: 30px; height: 30px; border-radius: 50%;
+    border: 1px solid var(--border); background: var(--surface-2);
+    display: grid; place-items: center; cursor: pointer; color: var(--fg-soft);
+  }
+  .icon-btn:hover { border-color: var(--border-strong); }
+  .icon-btn svg { width: 14px; height: 14px; }
+  .mini-select {
+    border: 1px solid var(--border); background: var(--surface-2);
+    border-radius: 999px; padding: 4px 10px; font-size: 12px; color: var(--fg-soft);
+    display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  }
+  .mini-select svg { width: 12px; height: 12px; }
+  .send {
+    margin-left: auto; width: 32px; height: 32px; border-radius: 50%;
+    border: 0; background: var(--accent); color: var(--accent-fg);
+    display: grid; place-items: center; cursor: pointer;
+  }
+  .send:disabled { opacity: 0.45; cursor: default; }
+  .send svg { width: 15px; height: 15px; }
+  .hint {
+    display: flex; align-items: flex-start; gap: 9px;
+    border: 1px solid var(--border); border-radius: 999px;
+    background: var(--surface-2); padding: 7px 10px 7px 12px;
+    color: var(--muted); font-size: 12px;
+  }
+  .hint svg { width: 13px; height: 13px; margin-top: 2px; flex: none; }
+  .hint button {
+    margin-left: auto; border: 0; background: transparent; cursor: pointer;
+    color: var(--muted); display: grid; place-items: center; padding: 2px;
+  }
+  .hint button:hover { color: var(--fg); }
+
+  .demo-note {
+    border: 1px dashed var(--border-strong); border-radius: var(--r-md);
+    padding: 10px 12px; font-size: 12.5px; color: var(--muted);
+    background: var(--surface-2);
+  }
+
+  /* ---------- Cards ---------- */
+  .section-head { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+  .kicker {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--muted); font-weight: 600;
+  }
+  .kicker svg { width: 13px; height: 13px; color: var(--accent); }
+  .section-head p { margin: 0; color: var(--muted); font-size: 12.5px; }
+
+  .cards {
+    display: grid; gap: 14px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  @media (min-width: 640px) {
+    .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  .card {
+    text-align: left; cursor: pointer;
+    border: 1px solid var(--border); border-radius: var(--r-lg);
+    background: var(--surface);
+    padding: 0; overflow: hidden;
+    display: flex; flex-direction: column;
+    transition: border-color 120ms ease, transform 120ms ease;
+  }
+  .card:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+  .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .preview {
+    border-bottom: 1px solid var(--border);
+    background:
+      radial-gradient(120% 100% at 50% 0%, var(--surface-3), transparent 70%),
+      var(--surface-2);
+    padding: 14px 14px 12px;
+    min-height: 104px;
+    display: flex; flex-direction: column; justify-content: center; gap: 7px;
+  }
+  .card-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .card-title { font-size: 13.5px; font-weight: 600; letter-spacing: -0.01em; }
+  .card-desc { font-size: 12px; color: var(--muted); }
+  .card-cta {
+    margin-top: 8px; display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--accent); font-weight: 500;
+  }
+  .card-cta svg { width: 13px; height: 13px; }
+
+  .stat-row { display: flex; align-items: baseline; gap: 8px; }
+  .stat-big { font-family: var(--font-mono); font-size: 22px; font-weight: 500; letter-spacing: -0.02em; }
+  .stat-label { font-size: 11px; color: var(--muted); }
+  .bars { display: flex; align-items: flex-end; gap: 4px; height: 34px; }
+  .bars span { width: 9px; border-radius: 3px 3px 0 0; background: var(--accent); opacity: 0.85; }
+  .bars span.dim { background: var(--surface-3); opacity: 1; }
+  .rows { display: flex; flex-direction: column; gap: 5px; }
+  .row-line {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11.5px; color: var(--fg-soft);
+  }
+  .row-line .who-dot {
+    width: 18px; height: 18px; border-radius: 50%; background: var(--surface-3);
+    display: grid; place-items: center; font-size: 8.5px; font-weight: 600; color: var(--fg-soft);
+    flex: none;
+  }
+  .row-line .time { margin-left: auto; font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    border-radius: 999px; padding: 3px 9px; font-size: 11px; font-weight: 500;
+    background: var(--warn-soft); color: var(--warn);
+  }
+  .pill.danger { background: var(--danger-soft); color: var(--danger); }
+  .pill.ok { background: var(--accent-soft); color: var(--accent); }
+  .mono-line {
+    font-family: var(--font-mono); font-size: 11px; color: var(--fg-soft);
+    background: var(--surface-3); border-radius: var(--r-sm);
+    padding: 5px 8px; display: inline-block;
+  }
+
+  .footnote { color: var(--muted); font-size: 11.5px; text-align: center; padding-top: 2px; }
+
+  /* ---------- Phone ---------- */
+  @media (max-width: 860px) {
+    .app { grid-template-columns: minmax(0, 1fr); min-height: auto; }
+    .sidebar { display: none; }
+    .main { padding-right: 0; }
+    .topbar { padding-inline: 16px; }
+    .stage { padding-inline: 4px; }
+    .cards { grid-template-columns: minmax(0, 1fr); }
+    .hint { border-radius: var(--r-md); }
+    .hello { align-items: flex-start; text-align: left; }
+    #date-chip { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+
+<div class="app">
+  <aside class="sidebar" aria-label="Navegación del CRM">
+    <div class="brand">
+      <span class="brand-mark">R</span>
+      <span class="brand-name">Remesas Ya</span>
+    </div>
+
+    <nav class="nav-group" aria-label="Principal">
+      <span class="nav-label">Operación</span>
+      <a class="nav-item" href="#"><i data-lucide="layout-dashboard"></i> Panel</a>
+      <a class="nav-item" href="#"><i data-lucide="inbox"></i> Bandeja de entrada <span class="nav-count">6</span></a>
+      <a class="nav-item" href="#"><i data-lucide="bell"></i> Notificaciones</a>
+      <a class="nav-item" href="#"><i data-lucide="users"></i> Contactos</a>
+    </nav>
+
+    <nav class="nav-group" aria-label="Dinero">
+      <span class="nav-label">Dinero</span>
+      <a class="nav-item" href="#"><i data-lucide="bar-chart-3"></i> Finanzas</a>
+      <a class="nav-item" href="#"><i data-lucide="calculator"></i> Control Semanal</a>
+      <a class="nav-item" href="#"><i data-lucide="credit-card"></i> Inventario CUP</a>
+      <a class="nav-item" href="#"><i data-lucide="columns-3"></i> Tablero</a>
+    </nav>
+
+    <nav class="nav-group" aria-label="Herramientas">
+      <span class="nav-label">Herramientas</span>
+      <a class="nav-item" href="#"><i data-lucide="send"></i> Difusiones</a>
+      <a class="nav-item" href="#"><i data-lucide="workflow"></i> Automatizaciones</a>
+      <a class="nav-item" href="#" aria-current="page"><i data-lucide="sparkles"></i> Hermes</a>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="plan-card">
+        <strong>Hermes está en pruebas</strong>
+        <span>Lee el CRM. No escribe, no envía, no corrige.</span>
+      </div>
+      <div class="who">
+        <span class="avatar">H</span>
+        <div>
+          <div class="who-name">Humbe</div>
+          <div class="who-role">Administrador</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <span class="topbar-title">Hermes</span>
+      <span class="chip"><span class="dot"></span> Solo lectura</span>
+      <span class="chip" style="display:none" id="mock-chip">Maqueta</span>
+      <div class="topbar-right">
+        <span class="chip" id="date-chip">dom 25 oct · 20:41</span>
+        <button class="ghost-btn" id="theme-btn" type="button">
+          <i data-lucide="sun-moon"></i> Tema
+        </button>
+      </div>
+    </header>
+
+    <main class="stage">
+      <section class="hello">
+        <span class="hello-eyebrow"><span class="avatar">H</span> Remesas Ya · Guyana</span>
+        <h1 class="greeting">¿Qué revisamos hoy, Humbe?</h1>
+        <p>Pregúntame por conversaciones, operaciones, Finanzas o el Control Semanal. Todo lo que digo sale del CRM.</p>
+      </section>
+
+      <section class="composer-wrap" aria-label="Preguntar a Hermes">
+        <form class="composer" id="ask-form">
+          <textarea id="ask" rows="2" placeholder="Pregunta lo que quieras…  usa / para comandos"></textarea>
+          <div class="composer-row">
+            <button class="icon-btn" type="button" title="Adjuntar contexto"><i data-lucide="plus"></i></button>
+            <button class="icon-btn" type="button" title="Dictar"><i data-lucide="mic"></i></button>
+            <button class="mini-select" type="button">Preguntar siempre <i data-lucide="chevron-down"></i></button>
+            <button class="send" id="send" type="submit" aria-label="Enviar"><i data-lucide="arrow-up"></i></button>
+          </div>
+        </form>
+        <div class="hint" id="hint">
+          <i data-lucide="info"></i>
+          <span>Hermes nunca escribe en el CRM ni manda mensajes a clientes. Si algo no está, lo dice.</span>
+          <button type="button" id="hint-close" aria-label="Ocultar aviso"><i data-lucide="x"></i></button>
+        </div>
+        <div class="demo-note" id="demo" hidden></div>
+      </section>
+
+      <section aria-labelledby="ideas-title">
+        <div class="section-head">
+          <span class="kicker" id="ideas-title"><i data-lucide="sparkles"></i> Lo que Hermes puede hacer</span>
+          <p>Un ejemplo por tarjeta. Toca una y la pregunta se escribe sola.</p>
+        </div>
+
+        <div class="cards" style="margin-top:12px">
+          <button class="card" type="button" data-prompt="Cuadra el día de hoy: operaciones completadas contra Finanzas y Control Semanal.">
+            <div class="preview">
+              <div class="stat-row"><span class="stat-big">17</span><span class="stat-label">completadas</span></div>
+              <div class="rows">
+                <div class="row-line"><span>Finanzas</span><span class="time">16 líneas</span></div>
+                <div class="row-line"><span>Sin línea</span><span class="time">1</span></div>
+              </div>
+            </div>
+            <div class="card-body">
+              <span class="card-title">Cuadra el día</span>
+              <span class="card-desc">Cruza las operaciones completadas con el libro de Finanzas y el Control Semanal, y señala lo que no cuadra.</span>
+              <span class="card-cta">Cuadrar hoy <i data-lucide="arrow-right"></i></span>
+            </div>
+          </button>
+
+          <button class="card" type="button" data-prompt="¿Qué mensajes de clientes quedaron sin respuesta hoy?">
+            <div class="preview">
+              <div class="rows">
+                <div class="row-line"><span class="who-dot">M</span><span>Miguel</span><span class="time">10:38</span></div>
+                <div class="row-line"><span class="who-dot">O</span><span>Osmany Services</span><span class="time">22:11</span></div>
+                <div class="row-line"><span class="who-dot">L</span><span>Laritza</span><span class="time">17:20</span></div>
+              </div>
+            </div>
+            <div class="card-body">
+              <span class="card-title">Qué quedó sin responder</span>
+              <span class="card-desc">Encuentra los mensajes del cliente que nadie contestó, con la hora y el nombre.</span>
+              <span class="card-cta">Ver pendientes <i data-lucide="arrow-right"></i></span>
+            </div>
+          </button>
+
+          <button class="card" type="button" data-prompt="¿Qué operaciones están en incidencia ahora mismo y por qué?">
+            <div class="preview">
+              <div class="rows">
+                <div class="row-line"><span class="pill danger"><i data-lucide="alert-triangle" style="width:11px;height:11px"></i> 1 en incidencia</span></div>
+                <div class="row-line"><span>Miguel · 26.000 GYD</span><span class="time">hace 9 h</span></div>
+              </div>
+            </div>
+            <div class="card-body">
+              <span class="card-title">Operaciones en incidencia</span>
+              <span class="card-desc">Lista lo que está parado, el importe y qué falta para resolverlo.</span>
+              <span class="card-cta">Revisar incidencias <i data-lucide="arrow-right"></i></span>
+            </div>
+          </button>
+
+          <button class="card" type="button" data-prompt="Resumen de la semana: facturado, invertido y retorno por servicio.">
+            <div class="preview">
+              <div class="stat-row"><span class="stat-big">627.339</span><span class="stat-label">GYD facturado</span></div>
+              <div class="bars" aria-hidden="true">
+                <span style="height:40%"></span><span style="height:62%"></span><span style="height:48%"></span>
+                <span style="height:78%"></span><span style="height:58%"></span><span style="height:88%"></span>
+                <span class="dim" style="height:30%"></span>
+              </div>
+            </div>
+            <div class="card-body">
+              <span class="card-title">Resumen de la semana</span>
+              <span class="card-desc">Facturado, invertido y retorno por servicio, con los días que más movieron.</span>
+              <span class="card-cta">Ver la semana <i data-lucide="arrow-right"></i></span>
+            </div>
+          </button>
+        </div>
+      </section>
+
+      <p class="footnote">Propuesta de diseño · la maqueta no consulta el CRM</p>
+    </main>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/lucide@0.451.0/dist/umd/lucide.min.js"></script>
+<script>
+  const themeBtn = document.getElementById('theme-btn');
+  const root = document.documentElement;
+  const stored = (() => { try { return localStorage.getItem('hermes-mock-theme'); } catch { return null; } })();
+  if (stored === 'dark' || stored === 'light') root.setAttribute('data-theme', stored);
+  themeBtn.addEventListener('click', () => {
+    const now = root.getAttribute('data-theme')
+      || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    const next = now === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('hermes-mock-theme', next); } catch {}
+  });
+
+  const ask = document.getElementById('ask');
+  const send = document.getElementById('send');
+  const demo = document.getElementById('demo');
+
+  document.querySelectorAll('.card[data-prompt]').forEach((card) => {
+    card.addEventListener('click', () => {
+      ask.value = card.getAttribute('data-prompt');
+      ask.focus();
+      ask.setSelectionRange(ask.value.length, ask.value.length);
+      demo.hidden = true;
+    });
+  });
+
+  document.getElementById('ask-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (!ask.value.trim()) return;
+    demo.hidden = false;
+    demo.textContent = 'Maqueta: aquí aparecería la respuesta de Hermes, con los datos que devuelvan sus herramientas.';
+  });
+
+  document.getElementById('hint-close').addEventListener('click', () => {
+    document.getElementById('hint').hidden = true;
+  });
+
+  if (window.lucide) window.lucide.createIcons();
+</script>

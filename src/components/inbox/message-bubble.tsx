@@ -23,6 +23,7 @@ import { InteractivePreview } from "@/components/interactive/interactive-preview
 import { useTranslations } from "next-intl";
 import { toChatMediaSrc } from "@/lib/storage/chat-media";
 import { WhatsAppText } from "@/lib/whatsapp/format";
+import { useMediaSrc } from "@/lib/storage/use-media-src";
 
 interface MessageBubbleProps {
   message: Message;
@@ -62,43 +63,47 @@ function MediaUnavailable({ label, t }: { label: string, t: ReturnType<typeof us
 }
 
 function MediaImage({ url, alt }: { url: string; alt: string }) {
+  // Meta's media proxy needs the session cookie, so it is fetched as a blob.
+  // chat-media objects get a signed CDN URL and never touch this server.
+  const isMetaMedia = url.startsWith("/api/whatsapp/media/");
+  const signedSrc = useMediaSrc(isMetaMedia ? null : url);
   const [src, setSrc] = useState<string | null>(null);
   const [error, setError] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isMetaMedia);
   const [zoom, setZoom] = useState(false);
 
-  const loadImage = useCallback(async () => {
-    if (!url) return;
-
-    // Proxy URLs need auth fetch to create blob URL
-    if (url.startsWith("/api/whatsapp/media/")) {
+  useEffect(() => {
+    if (!isMetaMedia) {
+      setError(false);
+      setLoading(signedSrc === null);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setError(false);
+    (async () => {
       try {
         const res = await fetch(url);
         if (!res.ok) throw new Error("Failed to load media");
         const blob = await res.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        setSrc(blobUrl);
+        if (cancelled) return;
+        setSrc(URL.createObjectURL(blob));
       } catch {
-        setError(true);
+        if (!cancelled) setError(true);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
-    } else {
-      // chat-media objects are served by the session-checked proxy.
-      setSrc(toChatMediaSrc(url));
-      setLoading(false);
-    }
-  }, [url]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [url, isMetaMedia, signedSrc]);
 
   useEffect(() => {
-    loadImage();
     return () => {
-      if (src?.startsWith("blob:")) {
-        URL.revokeObjectURL(src);
-      }
+      if (src?.startsWith("blob:")) URL.revokeObjectURL(src);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadImage]);
+  }, [src]);
 
   // Close the fullscreen viewer with Escape.
   useEffect(() => {
@@ -135,7 +140,7 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
         className="block cursor-zoom-in"
       >
         <img
-          src={src ?? ""}
+          src={(isMetaMedia ? src : signedSrc) ?? ""}
           alt={alt}
           className="max-h-64 max-w-60 rounded-lg object-cover"
           onError={() => setError(true)}
@@ -156,7 +161,7 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
             className="fixed inset-0 z-[100] flex cursor-zoom-out items-center justify-center bg-black/80 p-4"
           >
             <img
-              src={src ?? ""}
+              src={(isMetaMedia ? src : signedSrc) ?? ""}
               alt={alt}
               className="max-h-full max-w-full rounded-lg object-contain"
             />
@@ -168,6 +173,9 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
 }
 
 function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof useTranslations> }) {
+  // Video, audio and the document link also read chat-media; the signed URL
+  // keeps them off this server, and the proxy stays as the fallback.
+  const resolvedMedia = useMediaSrc(message.media_url ?? null);
   switch (message.content_type) {
     case "text":
       return (
@@ -197,7 +205,7 @@ function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof
         <div>
           {message.media_url ? (
             <video
-              src={toChatMediaSrc(message.media_url)}
+              src={resolvedMedia ?? toChatMediaSrc(message.media_url)}
               controls
               className="max-h-64 max-w-60 rounded-lg"
             />
@@ -216,7 +224,7 @@ function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof
       return (
         <div>
           {message.media_url ? (
-            <audio src={toChatMediaSrc(message.media_url)} controls className="max-w-60" />
+            <audio src={resolvedMedia ?? toChatMediaSrc(message.media_url)} controls className="max-w-60" />
           ) : (
             <MediaUnavailable label={t("audio")} t={t} />
           )}
@@ -229,7 +237,7 @@ function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof
       }
       return (
         <a
-          href={toChatMediaSrc(message.media_url)}
+          href={resolvedMedia ?? toChatMediaSrc(message.media_url)}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm hover:bg-muted"

@@ -3,9 +3,10 @@
 // them through the same-origin proxy so it keeps working once the bucket is private.
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Message } from "@/types";
 import { MessageBubble } from "./message-bubble";
+import { resetSignedMediaCache } from "@/lib/storage/signed-media";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -34,8 +35,32 @@ async function render(over: Partial<Message>) {
 }
 
 describe("MessageBubble media sources", () => {
-  it("image: public chat-media URL -> proxy", async () => {
+  // Signing is attempted first; the proxy is the fallback. Each test decides
+  // what the signer answers, and a failure is the default so no test hits the
+  // network.
+  beforeEach(() => {
+    resetSignedMediaCache();
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, json: async () => ({}) }) as Response));
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetSignedMediaCache();
+  });
+
+  it("image: public chat-media URL -> signed CDN URL when the signer answers", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ signed: { [STORED("1-wa-1.jpg")]: "https://signed/1-wa-1.jpg" }, expiresIn: 3600 }),
+    }) as Response));
     const { node, unmount } = await render({ content_type: "image", media_url: STORED("1-wa-1.jpg") });
+    await act(async () => { await new Promise((r) => setTimeout(r, 40)); });
+    expect(node.querySelector("img")?.getAttribute("src")).toBe("https://signed/1-wa-1.jpg");
+    await unmount();
+  });
+
+  it("image: falls back to the proxy when signing fails", async () => {
+    const { node, unmount } = await render({ content_type: "image", media_url: STORED("1-wa-1.jpg") });
+    await act(async () => { await new Promise((r) => setTimeout(r, 40)); });
     expect(node.querySelector("img")?.getAttribute("src")).toBe(PROXIED("1-wa-1.jpg"));
     await unmount();
   });

@@ -28,6 +28,15 @@ import {
 // across reloads and sessions (device-scoped, like the theme prefs).
 const CONTACT_PANEL_STORAGE_KEY = "wacrm:inbox:contact-panel-open";
 
+/**
+ * Last conversation the user closed with the back arrow. The page remounts
+ * while `window.location` still carries the old `?c=`, so the deep-link
+ * auto-select needs this to tell "a notification opened this thread" apart
+ * from "the URL has not caught up with the close yet". Module scope on
+ * purpose: it must survive that remount.
+ */
+let lastClosedConversationId: string | null = null;
+
 /** The ?c= the browser is really on. The router's copy can lag behind after a
  *  cached segment is restored, and trusting it reopened a stale thread. */
 function convParamFromLocation(): string | null {
@@ -468,6 +477,7 @@ export default function InboxPage() {
       // user back to the deep-linked thread after they've navigated.
       if (
         deepLinkConvId &&
+        deepLinkConvId !== lastClosedConversationId &&
         convParamFromLocation() === deepLinkConvId &&
         autoSelectedForDeepLinkRef.current !== deepLinkConvId &&
         loaded.length > 0
@@ -544,6 +554,7 @@ export default function InboxPage() {
       // sees `ref !== deepLinkConvId`, fires a second time, and
       // clobbers the messages MessageThread just fetched.
       autoSelectedForDeepLinkRef.current = conv.id;
+      lastClosedConversationId = null;
       setPendingSelection(conv.id);
       // Reflect the selection in the URL so a refresh lands the user
       // back in the same thread, and so copy-paste links work. Use
@@ -577,6 +588,7 @@ export default function InboxPage() {
       search: window.location.search,
       routerParam: new URLSearchParams(window.location.search).get("c"),
     });
+    if (!convParamFromLocation()) lastClosedConversationId = null;
   }, []);
 
   // La seleccion deja de estar pendiente en cuanto la URL la refleja.
@@ -600,6 +612,7 @@ export default function InboxPage() {
     // Clearing the ref lets the deep-link auto-selector fire again if
     // the user later visits /inbox?c=<same-id> — desirable UX.
     console.info("[inbox-diag] atras", { search: window.location.search });
+    lastClosedConversationId = activeConversation?.id ?? null;
     autoSelectedForDeepLinkRef.current = null;
     setPendingSelection(null);
     router.replace("/inbox", { scroll: false });

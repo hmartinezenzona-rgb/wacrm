@@ -637,7 +637,15 @@ export default function InboxPage() {
     lastClosedConversationId = activeConversation?.id ?? null;
     markClosed(activeConversation?.id);
     autoSelectedForDeepLinkRef.current = null;
-    router.replace("/inbox", { scroll: false });
+    try {
+      console.info("[inbox-diag] replace llamado", { antes: window.location.href });
+      router.replace("/inbox", { scroll: false });
+    } catch (error) {
+      console.warn("[inbox-diag] replace fallo", String(error));
+    }
+    setTimeout(() => {
+      console.info("[inbox-diag] replace resultado", { despues: window.location.href });
+    }, 700);
   }, [activeConversation?.id, router]);
 
   /**

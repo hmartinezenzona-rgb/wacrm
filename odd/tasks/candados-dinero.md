@@ -1,9 +1,10 @@
 # Phase 1: money guards (funding + recipient sums)
 
-Status: IN PROGRESS (2026-10-26). Objective: no delivery without verified funding, and the
-recipients of any rail must add up to what the operation sends (not only Zelle). This is the first
-phase of `odd/design/no-service-without-data.md`; it works on the current operation model and its
-rules survive the funding case.
+Status: DONE (2026-10-26): applied in production as migrations 328 + 329 and verified 3/3. Objective:
+no delivery without verified funding, and the recipients of any rail must add up to what the
+operation sends (not only Zelle). This is the first phase of
+`odd/design/no-service-without-data.md`; it works on the current operation model and its rules
+survive the funding case.
 
 ## Why
 
@@ -44,8 +45,8 @@ TransID linking fix (phase 2/3).
 - [x] T4. Related regressions for `crm_entregar_operacion`, `cerebro_saldo_operacion` and
       `_repartir_envio_core`.
 - [x] T5. Production `previa` over 328 + 329; report differences; wait for the owner's go-ahead.
-- [ ] T6. Production `aplicar 328 329` after approval; `verificar`.
-- [ ] T7. Update the design's phase status and save the evidence.
+- [x] T6. Production `aplicar 328 329` after approval; `verificar`.
+- [x] T7. Update the design's phase status and save the evidence.
 
 ## Verification
 
@@ -74,3 +75,8 @@ TransID linking fix (phase 2/3).
 - T5 (2026-10-26): `produccion-migracion.sh previa 328 329` → `VEREDICTO: SEGURO`;
   `cerebro_saldo_operacion` and `crm_entregar_operacion` EQUAL against the staging pre-bundle state,
   `cerebro_fondos_operacion` NEW. Awaiting the owner's explicit go-ahead to apply.
+- T6 (2026-10-26): `aplicar 328 329` → `OK 328_candado_zelle_entrega 20261026182132` and
+  `OK 329_candado_fondos_entrega 20261026182133`; `verificar` → `VERIFICADO: 3/3 iguales`.
+- Owner rule (2026-10-26): the deposits verified by hand with `cerebro_verificar_transid` are
+  reseller deposits, not customer funding. Leaving them with `operation_id NULL` is correct; they
+  must not be linked to customer operations.

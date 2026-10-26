@@ -1,7 +1,8 @@
 # Design: no delivery without validated service, recipient, amount and funding
 
-Status: PROPOSAL, updated 2026-10-26 after an external review by three independent models. Not
-implemented. The owner accepted the review's main correction: **the money holder is not an
+Status: PROPOSAL, updated 2026-10-26 after an external review by three independent models. Phase 1
+(the money guards) is implemented in production as migrations 328 + 329 and verified 3/3; phases 2–4
+are not implemented. The owner accepted the review's main correction: **the money holder is not an
 operation**. The earlier title ("no service without data") stays as the business principle; the
 engineering rule is the one in this heading.
 
@@ -258,7 +259,8 @@ waits. It does not create the operation. 5,200 GYD is ambiguous and only produce
 ## 10. Phases
 
 1. **Money guards:** centralize the delivery gates, deduplication and balance checks in SQL. Every
-   financial mutation goes through authorized functions.
+   financial mutation goes through authorized functions. **Applied in production 2026-10-26**
+   (migrations 328 + 329): verified funding, group-aware balance and recipient sums on every rail.
 2. **Case + allocations:** introduce `funding_case`, `case_deposits`, `funding_allocations` and
    `funding_movements`, compatible with the existing operations.
 3. **Deterministic reconciliation:** run the engine on every relevant change; remove the model's

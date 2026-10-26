@@ -56,8 +56,13 @@ The resolver exposes it explicitly:
 | Evidence | Service assigned | Notes |
 |---|---|---|
 | Zelle account (email or US phone) | `zelle` | The account itself is the evidence |
-| Card + phone, customer said CUP or nothing? | see open decision D1 | The card family is known; the currency may not be |
-| Card + phone, customer said Clasica / Tropical | `clasica` / `tropical` | Explicit word required |
+| Card prefix `9760` (`976003` / `976004`) | `clasica` | Tarjeta Clásica (FINCIMEX), USD |
+| Card prefix `9240` | `tropical` | Tarjeta Tropical (BANDEC), USD prepaid |
+| Card prefix `9234` or another 92xx CUP prefix | `cuban_card` | CUP card; the prefix decides, not the customer's word |
+| Card prefix `9225` / `9235` / other MLC-backed | none | MLC is human-handled (084): no quote, a colleague confirms the rate |
+| Card prefix unknown | none | Ask; never default |
+| Card + phone, customer said Clasica / Tropical | the prefix decides | If the number contradicts the word, the data wins and the bot tells the customer what the card is |
+| Card + phone, no word about the currency | the prefix decides | Only ask when the prefix is not in the known list |
 | CLABE / Mexican bank | `mexico` | Account type implies it |
 | Phone + explicit top-up words | `recarga` | The intent is explicit, not inferred from the phone |
 | Address + carnet + explicit cash words | `efectivo_usd` | Explicit intent |
@@ -70,9 +75,12 @@ A quote, an objective, or an amount never assigns a service.
 ### 3.3 The objective without an operation
 
 A quote or a stated amount may live at conversation level (`cerebro_ultima_cotizacion`,
-`cerebro_objetivo_envio`) without opening an operation. The deposit can be compared against it. The
-operation is opened when the first piece of destination data arrives or the customer chooses a
-service.
+`cerebro_objetivo_envio`) without opening an operation. The operation is opened when the first piece
+of destination data arrives or the customer chooses a service.
+
+The objective is rail-dependent: a USD quote uses the Zelle tier, a CUP amount uses the CUP rate. With
+no rail, the objective cannot be compared with the deposit; the deposit is only verified. The
+comparison happens once the rail (or the card prefix) is known.
 
 ## 4. Changes by component
 
@@ -158,7 +166,16 @@ A phone alone does not say card or top-up → ask. D2.
 
 - A price quote never creates or types an operation.
 - A deposit is never rejected for lacking a destination; it is held.
+- The holder may have no rail. `_repartir_envio_core` must accept an anchor without a rail and assign
+  each part's service as the parts arrive (owner decision 2026-10-26); today it refuses because the
+  anchor's own service must be one of the parts.
+- The customer may send the data in any order (owner decision 2026-10-26). The system accumulates:
+  card first, Zelle later, amount last, or any other order.
+- A card prefix is evidence and wins over a customer's word; the bot tells the customer what the card
+  is ("esta tarjeta no es Clásica, es de CUP").
+- MLC is human-handled (084): no automatic service, no quote.
 - A delivery (status completed) requires the recipient amounts of a Zelle operation to add up (328).
+- An unclassified operation cannot be completed or feed the calculator.
 - The completion notice never fires for an operation whose service is unknown.
 - Existing typed operations are unchanged; no backfill.
 - Corrections remain audited; no silent overrides.
@@ -185,14 +202,17 @@ A phone alone does not say card or top-up → ask. D2.
 
 ## 9. Open decisions for the owner
 
-- **D1. Card without a currency word:** always ask CUP / Clasica / Tropical, or default to CUP and
-  name it in the confirmation? The rule says ask; the current product defaults to CUP.
-- **D2. Phone alone:** always ask whether it is a top-up or a card phone, or infer from the nearby
-  words when they are explicit ("recargame").
+- **D1. Card without a currency word — decided 2026-10-26:** the prefix decides first (`9760`
+  Clásica, `9240` Tropical, `9234`/92xx CUP list → CUP); unknown prefix → ask. The customer's word
+  loses against the data. Confirm the prefix table with Osmany before automating the full list.
+- **D2. Phone alone — decided 2026-10-26:** the order of the data does not matter; recarga needs
+  explicit intent, and a phone alone is never a recarga.
 - **D3. The panel label** for an unclassified holder: "Sin destino" vs "Remesa sin destino" vs
-  "Deposito verificado".
+  "Deposito verificado". Open.
 - **D4. The 100 USD Suri record** on the completed `e4c2a15b`: leave it, or add the third recipient
-  with an audited correction.
+  with an audited correction. Open.
+- **D5. MLC:** confirm that MLC is always a human handoff and never a bot rail (084 says it is not
+  quoted; the calculator keeps MLC as a manual line).
 
 ## 10. Non-goals
 
@@ -200,3 +220,62 @@ A phone alone does not say card or top-up → ask. D2.
 - Backfilling historical operations.
 - Replacing `repartir_envio` or the planned-split mechanism.
 - Making the bot ask about every field; the deposit confirmation stays immediate.
+
+## 11. Review gaps (2026-10-26)
+
+This section is the detailed review of the plan against the code. Items are marked B (blocker for
+the design), D (decided by the owner on 2026-10-26) and O (open, needs a decision or a slice).
+
+### Blockers
+
+- **B1. The split core rejects an anchor without a rail.** `_repartir_envio_core` requires the
+  anchor's own service to be one of the parts. D: the core must accept a rail-less anchor and assign
+  each part's service as the data arrives. This is the first implementation slice.
+- **B2. The resolver contract.** `servicio` today is `coalesce(riel,'remesa')`, so "remesa" means
+  both a real rail and "unknown". The new contract needs `servicio = null` + `sin_via = true`, and an
+  inventory of every consumer (Decisor notes, panel, notifier, tools, Contexto SQL). O.
+- **B3. The deposit still guesses.** `cerebro_registrar_deposito` calls
+  `cerebro_resolver_servicio(conv, NULL, NULL, monto)`, which uses the amount and words to pick a
+  service (the R3 rule of `service-resolution`, including "the amount is the top-up price"). That
+  call must become "hold the deposit without a rail". O.
+- **B4. The objective is rail-dependent.** A USD objective uses the Zelle tier; CUP uses the CUP
+  rate. With no rail there is nothing to compare; the deposit is only verified (see 3.3). D.
+- **B5. Multiple deposits and multiple holders.** Define what happens with a second deposit before the
+  first is assigned, and with two unclassified holders. O.
+- **B6. Completion of an unclassified operation.** A rail-less holder must not reach `completed` nor
+  feed the calculator; add a gate like 328. O.
+
+### Data and evidence
+
+- **D1 (detail). Card prefixes.** Tropical `9240`, Clásica `9760` (`976003`/`976004`), CUP `9234` and the
+  92xx CUP list, MLC `9225`/`9235`/… → human. Data wins over the word; the bot informs the mismatch.
+  Confirm the full table with Osmany and keep it in configuration, not code. Source:
+  qvapay/cuban_cards_prefixes (community catalogue) plus BANDEC/BCC notes.
+- **O7. Prefix table ownership and maintenance.** Where it lives, who updates it, and what happens
+  with a new prefix. Without this the 9234/9248 gap returns.
+- **O8. Recarga inference.** Retire "amount = top-up price"; a phone alone is never a recarga. The
+  explicit-intent path must cover the 1232671b case.
+- **O9. Services not inferable from data.** Cash (address/carnet), Mexico (CLABE/bank), combo, visa,
+  saldo: each needs its explicit trigger and its own ambiguity rule.
+
+### Operations and interface
+
+- **O10. Panel flow for a rail-less deposit.** Assign service, split, cancel, return; "Sin destino" is
+  only the label.
+- **O11. Notifier messages.** The verified and completed templates assume a service; define the
+  rail-less wording and never name a service that is not known.
+- **O12. Writers target the holder.** `gestionar_beneficiario` and `registrar_beneficiario_zelle`
+  must attach to the single open rail-less holder instead of opening a second operation.
+- **O13. Customer history.** The bot must not infer the current send's rail from previous sends.
+
+### Verification and rollout
+
+- **O14. The eval battery cannot measure the Decisor.** Cases carry the frozen `[CONTEXTO]`; use the
+  Decisor harness, SQL assertions and staging fixtures, and the owner's staging conversation.
+- **O15. Feature switch and rollback.** Put the new behaviour behind `cerebro_config` with an explicit
+  rollback, in addition to each migration's ROLLBACK.
+- **O16. Success metrics.** Baseline and post-deploy: phantom operations per quote, rail-less
+  deposits, split outcomes, service corrections, deliveries with unassigned money.
+- **O17. Known legacy cases.** `f9b6ec33`, `e4c2a15b` and the Suri 100 USD: correct or leave as
+  history (D4).
+

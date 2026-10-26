@@ -32,6 +32,15 @@ export async function buildVistazo(db: SupabaseClient): Promise<Vistazo> {
     db.from('remittance_operations').select('quoted_source_amount').eq('status', 'incident'),
   ]);
 
+  for (const [name, result] of [
+    ['cuadre hoy', hoy],
+    ['semana', semana],
+    ['sin responder', sinResponder],
+    ['incidencias', tablero],
+  ] as const) {
+    if (result.error) console.error(`[hermes vistazo] ${name}:`, result.error.message);
+  }
+
   const hoyData = hoy.error ? null : ((hoy.data ?? null) as Record<string, unknown> | null);
   const crm = (hoyData?.crm ?? null) as Record<string, unknown> | null;
   const finanzas = (hoyData?.finanzas ?? null) as Record<string, unknown> | null;

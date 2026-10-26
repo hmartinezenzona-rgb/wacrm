@@ -35,7 +35,7 @@ case; the movement kind `refund` remains unused.
 - [x] T2. Migration 334 + staging cycle.
 - [x] T3. API routes, component, messages and tests.
 - [x] T4. `npm run test`, `npm run typecheck`, parity and lint.
-- [ ] T5. Production `previa 334`; report; wait for the go-ahead.
+- [x] T5. Production `previa 334`; report; wait for the go-ahead.
 - [ ] T6. Apply 334, publish the panel, verify.
 
 ## Evidence
@@ -48,6 +48,9 @@ case; the movement kind `refund` remains unused.
   typecheck clean; messages parity 4/4; eslint clean on the touched files.
 - The assertion covers the operations list, assign, idempotency, over-assignment, non-member
   assign/release, release, and a completed operation's allocation.
+- T5 (2026-10-26): `produccion-migracion.sh previa 334` → `VEREDICTO: SEGURO`;
+  `funding_caso_panel` EQUAL against the staging pre-bundle state, the two action RPCs NEW. Awaiting
+  the go-ahead to apply 334 and publish the panel.
 
 ## Decisions
 

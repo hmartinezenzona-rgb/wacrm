@@ -32,6 +32,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/use-auth';
 import { MAX_IMAGE_BYTES, type HermesPart } from '@/lib/hermes/message-content';
 import { compressImage } from '@/lib/hermes/compress-image';
+import type { Vistazo } from '@/lib/hermes/vistazo';
 
 interface Turn {
   role: 'user' | 'assistant';
@@ -75,6 +76,8 @@ export function HermesChat() {
   const [error, setError] = useState<string | null>(null);
   const [hintOpen, setHintOpen] = useState(true);
   const [attachment, setAttachment] = useState<string | null>(null);
+  // The cards show the real figures; until they arrive they keep their drawing.
+  const [vistazo, setVistazo] = useState<Vistazo | null>(null);
   const [attaching, setAttaching] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -114,6 +117,22 @@ export function HermesChat() {
       // Storage full or blocked: the chat keeps working in memory.
     }
   }, [turns, loaded]);
+
+  useEffect(() => {
+    if (!loaded || turns.length > 0) return;
+    let cancelled = false;
+    fetch('/api/hermes/vistazo')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: Vistazo | null) => {
+        if (!cancelled && data) setVistazo(data);
+      })
+      .catch(() => {
+        // The cards fall back to their drawing; nothing else breaks.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [loaded, turns.length]);
 
   useEffect(() => {
     // Only a running conversation follows its last turn. The greeting screen
@@ -296,7 +315,7 @@ export function HermesChat() {
               className="border-border bg-card hover:border-border-strong focus-visible:ring-ring group flex flex-col overflow-hidden rounded-[14px] border text-left transition-[border-color,transform] duration-150 hover:-translate-y-px focus-visible:ring-2 focus-visible:outline-none"
             >
               <div className="border-border bg-muted/30 flex min-h-[104px] flex-col justify-center gap-[7px] border-b px-3.5 py-3">
-                <HermesIdeaPreview idea={key} />
+                <HermesIdeaPreview idea={key} vistazo={vistazo} />
               </div>
               <div className="flex flex-1 flex-col gap-1.5 px-3.5 pt-3 pb-3.5">
                 <span className="text-foreground text-[13.5px] font-semibold tracking-[-0.01em]">
@@ -322,6 +341,9 @@ export function HermesChat() {
 }
 
 const IDEA_KEYS = ['cuadre', 'sinResponder', 'incidencia', 'semana'] as const;
+
+const thousands = (value: number): string =>
+  new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value);
 type IdeaKey = (typeof IDEA_KEYS)[number];
 
 function Composer({
@@ -417,8 +439,98 @@ function Composer({
   );
 }
 
-/** Miniaturas sin cifras: muestran la forma del dato, nunca inventan números. */
-function HermesIdeaPreview({ idea }: { idea: IdeaKey }) {
+/** Real figures when the panel can read them, the abstract drawing otherwise. */
+function HermesIdeaPreview({ idea, vistazo }: { idea: IdeaKey; vistazo: Vistazo | null }) {
+  if (idea === 'cuadre' && vistazo?.cuadre) {
+    const { completadas, conLinea, sinLinea } = vistazo.cuadre;
+    return (
+      <>
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-foreground font-mono text-xl font-semibold">{completadas}</span>
+          <span className="text-muted-foreground text-[11.5px]">completadas hoy</span>
+        </div>
+        <div className="text-muted-foreground flex items-center gap-2 text-[11.5px]">
+          <span>Finanzas</span>
+          <span className="text-foreground ml-auto font-mono">{conLinea} líneas</span>
+        </div>
+        <div className="flex items-center gap-2 text-[11.5px]">
+          <span className="text-muted-foreground">Sin línea</span>
+          <span
+            className={
+              sinLinea > 0
+                ? 'ml-auto font-mono text-amber-600 dark:text-amber-400'
+                : 'text-foreground ml-auto font-mono'
+            }
+          >
+            {sinLinea}
+          </span>
+        </div>
+      </>
+    );
+  }
+  if (idea === 'sinResponder' && vistazo?.sinResponder) {
+    const { conversaciones, masAntiguo } = vistazo.sinResponder;
+    return (
+      <>
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-foreground font-mono text-xl font-semibold">{conversaciones}</span>
+          <span className="text-muted-foreground text-[11.5px]">esperando respuesta</span>
+        </div>
+        {masAntiguo ? (
+          <div className="text-muted-foreground flex items-center gap-2 text-[11.5px]">
+            <span>La más antigua</span>
+            <span className="text-foreground ml-auto font-mono">
+              {new Date(masAntiguo).toLocaleTimeString('es', {
+                hour: '2-digit',
+                minute: '2-digit',
+                timeZone: 'America/Guyana',
+              })}
+            </span>
+          </div>
+        ) : null}
+      </>
+    );
+  }
+  if (idea === 'incidencia' && vistazo?.incidencias) {
+    const { operaciones, importeGyd } = vistazo.incidencias;
+    return (
+      <>
+        <span
+          className={
+            operaciones > 0
+              ? 'inline-flex w-fit items-center gap-1.5 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400'
+              : 'bg-muted text-muted-foreground inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium'
+          }
+        >
+          <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+          {operaciones === 0 ? 'ninguna en incidencia' : `${operaciones} en incidencia`}
+        </span>
+        {operaciones > 0 ? (
+          <div className="text-muted-foreground flex items-center gap-2 text-[11.5px]">
+            <span>Importe parado</span>
+            <span className="text-foreground ml-auto font-mono">{thousands(importeGyd)} GYD</span>
+          </div>
+        ) : null}
+      </>
+    );
+  }
+  if (idea === 'semana' && vistazo?.semana) {
+    const { facturadoGyd, invertidoGyd, retornoGyd } = vistazo.semana;
+    return (
+      <>
+        {[
+          ['Facturado', facturadoGyd],
+          ['Invertido', invertidoGyd],
+          ['Retorno', retornoGyd],
+        ].map(([label, value]) => (
+          <div key={String(label)} className="text-muted-foreground flex items-center gap-2 text-[11.5px]">
+            <span>{label}</span>
+            <span className="text-foreground ml-auto font-mono">{thousands(Number(value))} GYD</span>
+          </div>
+        ))}
+      </>
+    );
+  }
   if (idea === 'cuadre') {
     return (
       <>

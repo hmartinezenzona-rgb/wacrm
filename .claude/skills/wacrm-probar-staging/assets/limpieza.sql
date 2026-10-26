@@ -2,9 +2,9 @@
 -- Sin BEGIN/COMMIT: ejecutar con psql -1 (una transaccion; si algo falla, no se borra nada).
 --   -v conv=<uuid de la conversacion>
 -- Antes de borrar, muestra el contacto, operaciones y beneficiarios. Aborta si el contacto no empieza por PRUEBA.
--- Orden: auditoria -> depositos (desvincular los reales, borrar los PRUEBA) -> objetivos -> filas de calculadora y
--- consumos CUP -> beneficiarios -> operaciones (mixed_group_id a NULL antes: FK sobre si misma) -> mensajes ->
--- conversacion -> contacto.
+-- Orden: auditoria -> expediente (funding_case; sus depositos vinculados cascada) -> depositos (desvincular los reales,
+-- borrar los PRUEBA) -> objetivos -> filas de calculadora y consumos CUP -> beneficiarios -> operaciones
+-- (mixed_group_id a NULL antes: FK sobre si misma) -> mensajes -> conversacion -> contacto.
 
 SELECT set_config('pr.conv', :'conv', true)\g /dev/null
 
@@ -25,11 +25,15 @@ BEGIN
   SELECT COALESCE(array_agg(id), '{}') INTO v_bens FROM remittance_beneficiaries WHERE operation_id = ANY (v_ops);
   v_prefix := 'PRUEBA ' || v_phone || '%';
 
-  RAISE NOTICE 'limpieza: contacto "%" telefono % operaciones % beneficiarios % depositos PRUEBA %',
+  RAISE NOTICE 'limpieza: contacto "%" telefono % operaciones % beneficiarios % depositos PRUEBA % expedientes %',
     v_name, v_phone, cardinality(v_ops), cardinality(v_bens),
-    (SELECT count(*) FROM depositos_mmg WHERE asunto LIKE v_prefix);
+    (SELECT count(*) FROM depositos_mmg WHERE asunto LIKE v_prefix),
+    (SELECT count(*) FROM funding_case WHERE conversation_id = v_conv);
 
   DELETE FROM remittance_admin_audit WHERE row_id = ANY (v_ops) OR row_id = ANY (v_bens);
+  -- The funding case must go before the deposits: case_deposits references them with ON DELETE RESTRICT,
+  -- and deleting the case cascades its links, allocations and movements.
+  DELETE FROM funding_case WHERE conversation_id = v_conv;
   -- real deposits that were consumed by a fixture operation are released, not deleted
   UPDATE depositos_mmg SET operation_id = NULL, consumido_en = NULL
    WHERE operation_id = ANY (v_ops) AND asunto NOT LIKE v_prefix;

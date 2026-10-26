@@ -394,7 +394,7 @@ describe('ausencia temporal (away mode): aviso solo con el negocio abierto', () 
   });
 
   it('abierto + ausencia: una nota con motivo, hasta_texto y sigue atendiendo', () => {
-    const n = nota(a(ABIERTO, { ausencia: AUSENCIA }), 'AUSENCIA TEMPORAL');
+    const n = nota(a(ABIERTO, { ausencia: AUSENCIA }, { historial: { primer_del_dia: true } }), 'AUSENCIA TEMPORAL');
     expect(n).toBeDefined();
     expect(n).toContain('en una reunion');
     expect(n).toContain('a las 3:00 pm');
@@ -406,8 +406,21 @@ describe('ausencia temporal (away mode): aviso solo con el negocio abierto', () 
     expect(n).not.toContain('no estamos');
   });
 
+  it('ausencia ya avisada hoy: no repite el motivo ni la hora, solo la frase de hoy no', () => {
+    const s = a(ABIERTO, { ausencia: AUSENCIA }, {
+      historial: { primer_del_dia: false },
+      ctx: { mensajes_cliente: 3 },
+    });
+    expect(nota(s, 'AUSENCIA TEMPORAL')).toBeUndefined();
+    const n = nota(s, 'AUSENCIA YA AVISADA') as string;
+    expect(n).toBeDefined();
+    expect(n).toContain('Hoy no se lo puedo prometer');
+    expect(n).not.toContain('en una reunion');
+    expect(n).not.toContain('3:00 pm');
+  });
+
   it('abierto + por_cerrar + ausencia: salen las dos notas', () => {
-    const s = a(ABIERTO, { ausencia: AUSENCIA }, { ctx: { por_cerrar: true } });
+    const s = a(ABIERTO, { ausencia: AUSENCIA }, { ctx: { por_cerrar: true }, historial: { primer_del_dia: true } });
     expect(nota(s, 'PROXIMO A CERRAR')).toBeDefined();
     expect(nota(s, 'AUSENCIA TEMPORAL')).toBeDefined();
   });
@@ -439,6 +452,21 @@ describe('ausencia temporal (away mode): aviso solo con el negocio abierto', () 
     const sin = a(ABIERTO, {});
     expect(con.notas).toEqual(sin.notas);
     expect(nota(con, 'AUSENCIA TEMPORAL')).toBeUndefined();
+  });
+});
+
+describe('(estilo) turno de seguimiento: brevedad y dato concreto', () => {
+  it('un turno de seguimiento lleva la nota de brevedad', () => {
+    const s = correrDecisor({ ctx: { mensajes_cliente: 2 } });
+    const n = nota(s, 'TURNO DE SEGUIMIENTO') as string;
+    expect(n).toBeDefined();
+    expect(n).toMatch(/max 40 palabras/);
+    expect(n).toMatch(/los datos de quien recibe/);
+  });
+
+  it('el primer mensaje no lleva la nota de seguimiento', () => {
+    const s = correrDecisor({ ctx: { mensajes_cliente: 1 } });
+    expect(nota(s, 'TURNO DE SEGUIMIENTO')).toBeUndefined();
   });
 });
 

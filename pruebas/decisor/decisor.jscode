@@ -515,6 +515,11 @@ if (h && h.primer_del_dia) {
 } else {
   notas.push('YA te presentaste hoy con este cliente y ahora no te ha saludado: ve DIRECTO a lo que pide, sin saludo ni presentacion. Hora del negocio por si la necesitas: ' + hora + '.');
 }
+// (estilo) TURNO DE SEGUIMIENTO: el cliente ya tiene la cotizacion y los datos; no se le repite la
+// tabla. La nota es interna; el modelo solo ve las reglas, no el texto de la nota.
+if (Number(ctx.mensajes_cliente) > 1) {
+  notas.push('TURNO DE SEGUIMIENTO (BREVEDAD): NO re-listes la cotizacion, las tasas, los minimos ni la tabla; NO repitas el desglose ni la pregunta anterior. Responde solo a lo nuevo en 1-2 frases (max 40 palabras). Pide SOLO el dato que falta, por ejemplo "la tarjeta" o "el celular"; PROHIBIDO "los datos de quien recibe" o pedir el paquete entero. Si el cliente pide confirmacion, di el total y el dato que falta, sin "Total a depositar".');
+}
 // INVITACION AL GRUPO (2026-10-24, peticion de Osmany). Solo en el PRIMER mensaje del cliente en esta
 // conversacion: el Contexto trae `mensajes_cliente` y el mensaje actual ya esta guardado, asi que 1 = nuevo.
 // El texto y el enlace van LITERALES: el modelo no los reescribe ni cambia una palabra. Un admin no la recibe
@@ -663,7 +668,13 @@ if (ctx.por_cerrar && !hoyCerrado) {
 // hours or on a closed day the note above already says when work resumes. Defensive on every field.
 const aus = (ce.ausencia && typeof ce.ausencia === 'object') ? ce.ausencia : null;
 if (aus && aus.motivo && aus.hasta_texto && abierto) {
-  notas.push('AUSENCIA TEMPORAL: ahora mismo los encargados no estan disponibles (' + aus.motivo + '); regresan ' + aus.hasta_texto + ' hora de Guyana. Los ausentes son LOS ENCARGADOS, no tu: tu sigues aqui. Agrega UNA sola linea natural avisandolo y SIGUE ATENDIENDO NORMAL: cotiza, pide los datos, registra y responde igual que siempre. Dilo asi o casi igual: "Ahora mismo los encargados no estan disponibles ' + aus.motivo + '; regresan ' + aus.hasta_texto + '. Por aqui le seguimos atendiendo y lo suyo se hace en cuanto ellos regresen." PROHIBIDO decir que no puedes atender. PROHIBIDO decir "en breve" o "enseguida" para la transferencia antes de que regresen.');
+  if (h && h.primer_del_dia) {
+    notas.push('AUSENCIA TEMPORAL: ahora mismo los encargados no estan disponibles (' + aus.motivo + '); regresan ' + aus.hasta_texto + ' hora de Guyana. Los ausentes son LOS ENCARGADOS, no tu: tu sigues aqui. Agrega UNA sola linea natural avisandolo y SIGUE ATENDIENDO NORMAL: cotiza, pide los datos, registra y responde igual que siempre. Dilo asi o casi igual: "Ahora mismo los encargados no estan disponibles ' + aus.motivo + '; regresan ' + aus.hasta_texto + '. Por aqui le seguimos atendiendo y lo suyo se hace en cuanto ellos regresen." PROHIBIDO decir que no puedes atender. PROHIBIDO decir "en breve" o "enseguida" para la transferencia antes de que regresen.');
+  } else {
+    // The full notice was already given today; only the guard remains. This is the root fix for
+    // the repeated away notice measured on 2026-10-25/26.
+    notas.push('AUSENCIA YA AVISADA HOY: NO repitas que los encargados no estan disponibles, ni el motivo, ni la hora de regreso. Si el cliente pregunta si hay posibilidad hoy, di en UNA frase "Hoy no se lo puedo prometer" o "no depende de mi", sin repetir el motivo. Si el deposito ya esta verificado, dilo; no prometas una hora exacta. Si no pregunta, atiende normal y no menciones la ausencia.');
+  }
 }
 if (s.multi_beneficiario) {
   const nt = (s.tarjetas || []).length;

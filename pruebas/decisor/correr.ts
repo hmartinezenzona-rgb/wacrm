@@ -28,7 +28,7 @@ export const DECISOR_MD5_AL_FIJARLO = 'c2ed1d13c177dc368fbfd63150e706e7';
  */
 // 2026-10-25: nombre del servicio en las confirmaciones (nunca "USD" a secas), recarga sin pedir
 // tarjeta y promesa neutra ("una vez hecho su servicio se le notifica por aca") en vez de hora de apertura.
-export const DECISOR_MD5_ESPERADO = '28fe7346dfeab51cdcf8434e54c654a0';
+export const DECISOR_MD5_ESPERADO = '9880cb3789ce37e5d736709d2aca66e9';
 
 export const ORIGEN = join(
   dirname(fileURLToPath(import.meta.url)),

@@ -1,9 +1,10 @@
 # Phase 3: deterministic reconciliation
 
-Status: IN PROGRESS (2026-10-26). Objective: every verified customer deposit enters the funding case
-and the database, not the model, decides how much GYD of the case is assigned to each real operation.
-This is the first increment (3a): the engine, the confirmed-prefix conflict state, and the wiring into
-deposit verification, splits and beneficiary changes. The bot messages and the panel are phase 4.
+Status: DONE (2026-10-26): applied in production as migration 331 (version 20261026204628) and
+verified 9/9. Objective: every verified customer deposit enters the funding case and the database, not
+the model, decides how much GYD of the case is assigned to each real operation. This is the first
+increment (3a): the engine, the confirmed-prefix conflict state, and the wiring into deposit
+verification, splits and beneficiary changes. The bot messages and the panel are phase 4.
 
 ## Why
 
@@ -58,7 +59,7 @@ the full service-evidence model, bot wording, the panel, and any backfill.
 - [x] T3. Staging cycle (dry-run, apply, assertion, rollback).
 - [x] T4. Related regressions for the touched functions and the beneficiary trigger.
 - [x] T5. Production `previa 331`; report; wait for the go-ahead.
-- [ ] T6. Production apply + verify; update docs and memory.
+- [x] T6. Production apply + verify; update docs and memory.
 
 ## Verification
 
@@ -101,5 +102,6 @@ the full service-evidence model, bot wording, the panel, and any backfill.
 - T5 (2026-10-26): `produccion-migracion.sh previa 331` → `VEREDICTO: SEGURO`.
   `_repartir_envio_core`, `cerebro_cruzar_deposito`, `cerebro_fondos_operacion` and
   `crm_entregar_operacion` are EQUAL against the staging pre-bundle state; the five new functions are
-  NEW; the 55 columns/constraints/triggers/indexes of the touched tables are equal. Awaiting the
-  owner's explicit go-ahead.
+  NEW; the 55 columns/constraints/triggers/indexes of the touched tables are equal. Applied in T6.
+- T6 (2026-10-26 20:46:28): `aplicar 331` → `OK 331_funding_reconciliacion 20261026204628`;
+  `verificar` → `VERIFICADO: 9/9 iguales`.

@@ -1,10 +1,11 @@
 # Design: no delivery without validated service, recipient, amount and funding
 
-Status: PROPOSAL, updated 2026-10-26 after an external review by three independent models. Phases 1
-and 2 are implemented in production: 328 + 329 (money guards, verified 3/3) and 330 (funding case +
-allocation ledger, verified 6/6). Phases 3–4 are not implemented. The owner accepted the review's
-main correction: **the money holder is not an operation**. The earlier title ("no service without
-data") stays as the business principle; the engineering rule is the one in this heading.
+Status: PROPOSAL, updated 2026-10-26 after an external review by three independent models. Phases 1–3
+are implemented in production: 328 + 329 (money guards, verified 3/3), 330 (funding case + allocation
+ledger, verified 6/6) and 331 (deterministic reconciliation, verified 9/9). Phase 4 is not implemented.
+The owner accepted the review's main correction: **the money holder is not an operation**. The earlier
+title ("no service without data") stays as the business principle; the engineering rule is the one in
+this heading.
 
 ## 1. Problem
 
@@ -266,7 +267,10 @@ waits. It does not create the operation. 5,200 GYD is ambiguous and only produce
    (migration 330): the four tables, `remittance_operations.case_id` and six service_role functions;
    no bot or panel wiring yet.
 3. **Deterministic reconciliation:** run the engine on every relevant change; remove the model's
-   responsibility to call the split.
+   responsibility to call the split. **Applied in production 2026-10-26** (migration 331): verified
+   deposits enter the case, allocations follow operation data, confirmed prefix conflicts set the case
+   incident and block delivery. Allocations are append-only in this increment; bot wording and the
+   panel are phase 4.
 4. **Panel, simulator, tests and brevity:** the case UX, the webhook simulator, the test matrix, and
    only then the conversational brevity work.
 

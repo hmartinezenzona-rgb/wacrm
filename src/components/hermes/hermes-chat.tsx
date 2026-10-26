@@ -344,6 +344,22 @@ const IDEA_KEYS = ['cuadre', 'sinResponder', 'incidencia', 'semana'] as const;
 
 const thousands = (value: number): string =>
   new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value);
+
+/** Guyana time; the date too when the wait is older than today. */
+function whenLabel(iso: string): string {
+  const day = (d: Date) =>
+    d.toLocaleDateString('en-CA', { timeZone: 'America/Guyana' });
+  const time = (d: Date) =>
+    d.toLocaleTimeString('es', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'America/Guyana',
+    });
+  const date = new Date(iso);
+  return day(date) === day(new Date())
+    ? time(date)
+    : `${date.toLocaleDateString('es', { day: '2-digit', month: '2-digit', timeZone: 'America/Guyana' })} ${time(date)}`;
+}
 type IdeaKey = (typeof IDEA_KEYS)[number];
 
 function Composer({
@@ -479,13 +495,7 @@ function HermesIdeaPreview({ idea, vistazo }: { idea: IdeaKey; vistazo: Vistazo 
         {masAntiguo ? (
           <div className="text-muted-foreground flex items-center gap-2 text-[11.5px]">
             <span>La más antigua</span>
-            <span className="text-foreground ml-auto font-mono">
-              {new Date(masAntiguo).toLocaleTimeString('es', {
-                hour: '2-digit',
-                minute: '2-digit',
-                timeZone: 'America/Guyana',
-              })}
-            </span>
+            <span className="text-foreground ml-auto font-mono">{whenLabel(masAntiguo)}</span>
           </div>
         ) : null}
       </>

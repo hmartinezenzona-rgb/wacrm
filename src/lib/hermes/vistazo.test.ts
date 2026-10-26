@@ -37,6 +37,10 @@ describe('buildVistazo', () => {
     expect(vistazo.cuadre).toEqual({ completadas: 17, conLinea: 15, sinLinea: 2 });
     expect(vistazo.sinResponder?.conversaciones).toBe(3);
     expect(vistazo.incidencias).toEqual({ operaciones: 2, importeGyd: 31000 });
+    // Sin responder asks for the same seven-day window as the inbox.
+    const llamada = (client.rpc as unknown as { mock: { calls: Array<[string, unknown]> } }).mock.calls
+      .find(([name]) => name === 'hermes_sin_responder');
+    expect(llamada?.[1]).toMatchObject({ p_desde: expect.any(String) });
     // The semana call reuses the same function over seven days.
     expect((client.rpc as unknown as { mock: { calls: Array<[string, unknown]> } }).mock.calls
       .filter(([name]) => name === 'hermes_cuadre_finanzas')).toHaveLength(2);

@@ -27,10 +27,13 @@ export async function buildVistazo(
   sessionDb: SupabaseClient = db,
 ): Promise<Vistazo> {
   const rango = lastSevenDays();
+  // The inbox itself works on a seven-day window; the card follows it so it
+  // does not say "0 waiting" while the mailbox holds unanswered chats.
+  const desdeSemana = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const [hoy, semana, sinResponder, tablero] = await Promise.all([
     db.rpc('hermes_cuadre_finanzas', { p_desde: null, p_hasta: null }),
     db.rpc('hermes_cuadre_finanzas', { p_desde: rango.desde, p_hasta: rango.hasta }),
-    db.rpc('hermes_sin_responder'),
+    db.rpc('hermes_sin_responder', { p_desde: desdeSemana }),
     // Service role has no grant on this table, so it is read with the admin's
     // own session; RLS already limits it to what they can see in the board.
     sessionDb.from('remittance_operations').select('quoted_source_amount').eq('status', 'incident'),

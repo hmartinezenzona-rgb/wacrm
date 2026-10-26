@@ -43,7 +43,7 @@ message, the webhook simulator, and the conversational brevity work.
 - [x] T3. Staging cycle.
 - [x] T4. API routes and the `FundingCaseBlock` component; component test.
 - [x] T5. `npm run test`, `npm run typecheck`, `npm run lint` (or the repo's equivalents).
-- [ ] T6. Production `previa 332`; report; wait for the go-ahead.
+- [x] T6. Production `previa 332`; report; wait for the go-ahead.
 - [ ] T7. Apply 332 and publish the panel (load `wacrm-publicar-panel`); update docs/memory.
 
 ## Verification
@@ -72,3 +72,5 @@ message, the webhook simulator, and the conversational brevity work.
 - T4/T5 (2026-10-26): `funding-case-block.test.tsx` 2/2 passed; `npm run typecheck` clean;
   `messages-parity` 4/4 passed; eslint on the new files reports only the two pre-existing warnings in
   `contact-sidebar.tsx` (unused `User` import and an unused eslint-disable directive).
+- T6 (2026-10-26): `produccion-migracion.sh previa 332` → `VEREDICTO: SEGURO`; the two RPCs are NEW
+  and no table objects changed. Awaiting the go-ahead to apply 332 and publish the panel.

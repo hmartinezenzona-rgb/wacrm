@@ -1076,10 +1076,10 @@ describe('325: reparto pendiente (un deposito verificado que cubre dos servicios
     expect(n).toBeDefined();
     expect(n).toContain('31,000 GYD');
     expect(n).toContain('zelle 26,000 GYD');
-    expect(n).toContain('cuban_card 5,000 GYD');
+    expect(n).toContain('cup 5,000 GYD');
     expect(n).toMatch(/NO las cambies/);
     const t = nota(s, 'TOOL OBLIGATORIA EN ESTE TURNO: ') as string;
-    expect(t).toContain('repartir_envio con "zelle 26000, cuban_card 5000"');
+    expect(t).toContain('repartir_envio con "zelle 26000, cup 5000"');
   });
 
   it('sin reparto_pendiente no hay nota ni tool', () => {
@@ -1129,7 +1129,7 @@ describe('326: operaciones abiertas sin su parte del deposito', () => {
     });
     const n = nota(s, 'OPERACIONES ABIERTAS SIN SU PARTE') as string;
     expect(n).toBeDefined();
-    expect(n).toContain('cuban_card');
+    expect(n).toContain('cup');
     expect(n).toMatch(/PROHIBIDO decir "quedo completo"/);
   });
 

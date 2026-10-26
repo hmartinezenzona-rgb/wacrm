@@ -80,6 +80,13 @@ export async function verifyVoucher(imageUrl: string): Promise<VoucherVerdict | 
   }
 }
 
+/** ISO dates read wrong next to the bot's own wording: 2026-10-25 -> 25/10/2026. */
+function readableDate(fecha: string | null): string {
+  if (!fecha) return 'no legible';
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(fecha);
+  return iso ? `${iso[3]}/${iso[2]}/${iso[1]}` : fecha;
+}
+
 /** Guyanese books count in thousands with commas, like the bot does. */
 function money(monto: number | null, moneda: string | null): string {
   if (monto === null) return 'no legible';
@@ -106,7 +113,7 @@ export function voucherSummary(v: VoucherVerdict): string {
     `Comprobante: ${v.en_libro ? 'en el libro de MMG' : 'no figura en el libro de MMG'}`,
     `Monto: ${money(v.monto, v.moneda)}`,
     `Referencia: ${referencia}`,
-    `Fecha: ${v.fecha ?? 'no legible'}`,
+    `Fecha: ${readableDate(v.fecha)}`,
     `Destinatario: ${v.destinatario ?? 'no legible'}`,
   ];
   if (v.alertas.length) lines.push(`Nota: ${v.alertas[0]}`);

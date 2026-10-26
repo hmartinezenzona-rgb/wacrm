@@ -82,7 +82,15 @@ describe('verificar_trans_id', () => {
     process.env.HERMES_VERIFICADOR_URL = 'https://n8n.example/webhook/verificar-comprobante-prod';
     process.env.HERMES_VERIFICADOR_TOKEN = 'secreto';
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify([{ existe: true, referencia: '10404131818653' }]), { status: 200 }),
+      new Response(
+        JSON.stringify([
+          {
+            existe: true, referencia: '10404131818653', monto: '15000.00',
+            moneda: 'GYD', fecha: '25/10/2026', titular: 'Osmany',
+          },
+        ]),
+        { status: 200 },
+      ),
     );
     vi.stubGlobal('fetch', fetchMock);
     const client = await connect(vi.fn());
@@ -95,7 +103,10 @@ describe('verificar_trans_id', () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://n8n.example/webhook/verificar-referencia-prod');
     expect(JSON.parse(String(init.body))).toEqual({ token: 'secreto', referencia: '10404131818653' });
-    expect((res.content as Array<{ text: string }>)[0].text).toContain('"existe":true');
+    const text = (res.content as Array<{ text: string }>)[0].text;
+    expect(text).toContain('Comprobante: en el libro de MMG');
+    expect(text).toContain('Monto: 15,000 GYD');
+    expect(text).toContain('Titular: Osmany');
 
     vi.unstubAllGlobals();
     delete process.env.HERMES_VERIFICADOR_URL;

@@ -7,6 +7,23 @@ import { z } from 'zod';
  * wrapper over a `hermes_*` RPC (migration 314): the model never composes SQL
  * and nothing here writes. The db client is injected so tests can fake it.
  */
+/** Same fixed block the panel asks Hermes for, built from the ledger row. */
+function referenceBlock(row: Record<string, unknown>): string {
+  const lines = [
+    `Comprobante: ${row.existe === true ? 'en el libro de MMG' : 'no figura en el libro de MMG'}`,
+    `Referencia: ${String(row.referencia ?? '')}`,
+  ];
+  if (row.existe === true) {
+    const monto = typeof row.monto === 'string' ? Number(row.monto) : null;
+    if (monto !== null && Number.isFinite(monto)) {
+      lines.splice(1, 0, `Monto: ${monto.toLocaleString('en-US')}${row.moneda ? ` ${String(row.moneda)}` : ''}`);
+    }
+    if (row.fecha) lines.push(`Fecha: ${String(row.fecha)}`);
+    if (row.titular) lines.push(`Titular: ${String(row.titular)}`);
+  }
+  return lines.join('\n');
+}
+
 export function buildHermesServer(db: SupabaseClient): McpServer {
   const server = new McpServer({ name: 'wacrm-hermes', version: '1.0.0' });
 
@@ -112,7 +129,7 @@ export function buildHermesServer(db: SupabaseClient): McpServer {
 
   server.tool(
     'verificar_trans_id',
-    'Comprueba si la referencia (TransID) de una transferencia figura en el libro de depósitos de MMG. Es el mismo arbitraje que usa el bot con los comprobantes y NO dice si cuadra con una operación del CRM. Contesta EXACTAMENTE con este bloque, una línea por campo y sin texto antes ni después: "Comprobante: en el libro de MMG" o "Comprobante: no figura en el libro de MMG"; "Monto: <importe con separador de miles y moneda>"; "Referencia: <trans_id>"; "Fecha: <fecha>"; "Titular: <titular>". Si no existe, deja Monto, Fecha y Titular fuera.',
+    'Comprueba si la referencia (TransID) de una transferencia figura en el libro de depósitos de MMG. Es el mismo arbitraje que usa el bot con los comprobantes y NO dice si cuadra con una operación del CRM. Devuelve el bloque de respuesta ya redactado: contesta con ESE texto tal cual, sin añadir nada antes ni después.',
     { trans_id: z.string().describe('referencia numérica de la transferencia') },
     async ({ trans_id }) => {
       const endpoint = process.env.HERMES_VERIFICADOR_URL?.replace(
@@ -137,8 +154,9 @@ export function buildHermesServer(db: SupabaseClient): McpServer {
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as unknown;
-        const item = Array.isArray(data) ? data[0] : data;
-        return { content: [{ type: 'text' as const, text: JSON.stringify(item) }] };
+        const item = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null;
+        if (!item || typeof item.existe !== 'boolean') throw new Error('respuesta inválida');
+        return { content: [{ type: 'text' as const, text: referenceBlock(item) }] };
       } catch (err) {
         return {
           content: [

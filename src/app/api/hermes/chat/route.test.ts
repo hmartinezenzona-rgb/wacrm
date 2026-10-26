@@ -117,7 +117,7 @@ describe('POST /api/hermes/chat', () => {
       .filter((message) => message.role === 'system')
       .map((message) => message.content)
       .find((content) => content.includes('Verificador')) ?? '';
-    expect(summary).toContain('SÍ está en el libro de depósitos de MMG');
+    expect(summary).toContain('Comprobante: en el libro de MMG');
   });
 
   it('un fallo de Hermes se traduce a 502', async () => {

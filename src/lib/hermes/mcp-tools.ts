@@ -112,7 +112,7 @@ export function buildHermesServer(db: SupabaseClient): McpServer {
 
   server.tool(
     'verificar_trans_id',
-    'Comprueba si la referencia (TransID) de una transferencia figura en el libro de depósitos de MMG. Es el mismo arbitraje que usa el bot con los comprobantes. Contesta en UNA sola frase, como el bot al cliente: si existe, confírmalo; si no, di que todavía no figura. NO dice si cuadra con una operación del CRM.',
+    'Comprueba si la referencia (TransID) de una transferencia figura en el libro de depósitos de MMG. Es el mismo arbitraje que usa el bot con los comprobantes y NO dice si cuadra con una operación del CRM. Contesta EXACTAMENTE con este bloque, una línea por campo y sin texto antes ni después: "Comprobante: en el libro de MMG" o "Comprobante: no figura en el libro de MMG"; "Monto: <importe con separador de miles y moneda>"; "Referencia: <trans_id>"; "Fecha: <fecha>"; "Titular: <titular>". Si no existe, deja Monto, Fecha y Titular fuera.',
     { trans_id: z.string().describe('referencia numérica de la transferencia') },
     async ({ trans_id }) => {
       const endpoint = process.env.HERMES_VERIFICADOR_URL?.replace(

@@ -80,29 +80,36 @@ export async function verifyVoucher(imageUrl: string): Promise<VoucherVerdict | 
   }
 }
 
+/** Guyanese books count in thousands with commas, like the bot does. */
+function money(monto: number | null, moneda: string | null): string {
+  if (monto === null) return 'no legible';
+  return `${monto.toLocaleString('en-US')}${moneda ? ` ${moneda}` : ''}`;
+}
+
 /**
- * The verdict as Hermes should read it: one short line, the way the bot
- * answers a customer, and nothing else unless the admin asks.
+ * The verdict as Hermes should answer it: a fixed block, one field per line,
+ * the same shape every time. No prose, no CRM analysis.
  */
 export function voucherSummary(v: VoucherVerdict): string {
   const referencia = v.referencia && v.referencia !== 'N/A' ? v.referencia : null;
   if (!v.es_comprobante || !referencia) {
     return [
-      '[Verificador de comprobantes] No se pudo leer una referencia válida de MMG.',
-      'Contesta en UNA sola frase, como el bot al cliente: que la imagen no se ve con claridad y que mande el comprobante ORIGINAL de MMG, no una captura de otro chat.',
-      'No añadas nada más: ni cifras, ni análisis del CRM, ni recomendaciones.',
+      '[Verificador de comprobantes] La imagen no se pudo leer como comprobante.',
+      'Responde EXACTAMENTE con estas dos líneas, sin añadir nada más:',
+      'Comprobante: no legible',
+      'Detalle: la imagen no se ve con claridad; pide el comprobante ORIGINAL de MMG, no una captura de otro chat.',
     ].join('\n');
   }
 
-  const monto = v.monto === null ? 'importe no legible' : `${v.monto} ${v.moneda ?? ''}`.trim();
-  const datos = [monto, `ref ${referencia}`, v.fecha, v.destinatario].filter(Boolean).join(' · ');
   const lines = [
-    `[Verificador de comprobantes] ${v.en_libro ? 'SÍ está en el libro de depósitos de MMG' : 'NO aparece en el libro de depósitos de MMG'}. Datos leídos: ${datos}.`,
-    v.en_libro
-      ? 'Contesta en UNA sola frase, como el bot al cliente: confirma que el depósito figura en el libro con ese importe.'
-      : 'Contesta en UNA sola frase, como el bot al cliente: acusa recibo y di que todavía no figura en el libro. Prohibido decir que está verificado.',
-    v.alertas.length ? `Si te sirve para la frase: ${v.alertas[0]}` : '',
-    'No añadas análisis del CRM, ni recomendaciones, ni pasos siguientes, salvo que te los pidan.',
+    '[Verificador de comprobantes] Resultado medido por la plataforma. Responde EXACTAMENTE con este bloque, sin texto antes ni después:',
+    `Comprobante: ${v.en_libro ? 'en el libro de MMG' : 'no figura en el libro de MMG'}`,
+    `Monto: ${money(v.monto, v.moneda)}`,
+    `Referencia: ${referencia}`,
+    `Fecha: ${v.fecha ?? 'no legible'}`,
+    `Destinatario: ${v.destinatario ?? 'no legible'}`,
   ];
-  return lines.filter(Boolean).join('\n');
+  if (v.alertas.length) lines.push(`Nota: ${v.alertas[0]}`);
+  lines.push('No añadas análisis del CRM, recomendaciones ni pasos siguientes.');
+  return lines.join('\n');
 }

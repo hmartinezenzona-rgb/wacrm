@@ -71,21 +71,20 @@ describe('verifyVoucher', () => {
 });
 
 describe('voucherSummary', () => {
-  it('asks for one short line when the reference is in the ledger', () => {
+  it('asks for the fixed block when the reference is in the ledger', () => {
     const text = voucherSummary(VERDICT as never);
 
-    expect(text).toContain('SÍ está en el libro de depósitos de MMG');
-    expect(text).toContain('427500 GYD');
-    expect(text).toContain('Osmany Pozo');
-    expect(text).toContain('UNA sola frase');
+    expect(text).toContain('Comprobante: en el libro de MMG');
+    expect(text).toContain('Monto: 427,500 GYD');
+    expect(text).toContain('Referencia: 12345678901234');
+    expect(text).toContain('Destinatario: Osmany Pozo');
     expect(text).toContain('No añadas análisis del CRM');
   });
 
-  it('forbids claiming a deposit is verified when it is not', () => {
+  it('says it does not figure in the ledger without claiming otherwise', () => {
     const text = voucherSummary({ ...VERDICT, en_libro: false } as never);
 
-    expect(text).toContain('NO aparece en el libro');
-    expect(text).toContain('Prohibido decir que está verificado');
+    expect(text).toContain('Comprobante: no figura en el libro de MMG');
   });
 
   it('asks for the original voucher when nothing could be read', () => {
@@ -98,7 +97,7 @@ describe('voucherSummary', () => {
       en_libro: false,
     } as never);
 
-    expect(text).toContain('No se pudo leer una referencia válida');
+    expect(text).toContain('Comprobante: no legible');
     expect(text).toContain('comprobante ORIGINAL de MMG');
   });
 });

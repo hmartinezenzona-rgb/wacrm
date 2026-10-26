@@ -27,7 +27,9 @@ export async function buildVistazo(db: SupabaseClient): Promise<Vistazo> {
     db.rpc('hermes_cuadre_finanzas', { p_desde: null, p_hasta: null }),
     db.rpc('hermes_cuadre_finanzas', { p_desde: rango.desde, p_hasta: rango.hasta }),
     db.rpc('hermes_sin_responder'),
-    db.rpc('crm_tablero_operaciones'),
+    // The board RPC scopes by the logged-in user; with the service client it
+    // returns nothing, so the same table is read directly.
+    db.from('remittance_operations').select('quoted_source_amount').eq('status', 'incident'),
   ]);
 
   const hoyData = hoy.error ? null : ((hoy.data ?? null) as Record<string, unknown> | null);
@@ -39,8 +41,7 @@ export async function buildVistazo(db: SupabaseClient): Promise<Vistazo> {
 
   const sr = sinResponder.error ? null : ((sinResponder.data ?? null) as Record<string, unknown> | null);
 
-  const ops = tablero.error ? null : ((tablero.data ?? []) as Array<Record<string, unknown>>);
-  const incidentes = ops?.filter((op) => op.status === 'incident') ?? null;
+  const incidentes = tablero.error ? null : ((tablero.data ?? []) as Array<Record<string, unknown>>);
 
   return {
     cuadre:

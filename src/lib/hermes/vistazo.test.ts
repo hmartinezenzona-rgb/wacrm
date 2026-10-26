@@ -4,8 +4,14 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { buildVistazo } from './vistazo';
 
 function db(byName: Record<string, { data?: unknown; error?: unknown }>): SupabaseClient {
+  const from = vi.fn(() => ({
+    select: () => ({
+      eq: () => Promise.resolve(byName.incidentes ?? { data: null, error: null }),
+    }),
+  }));
   return {
     rpc: vi.fn((name: string) => Promise.resolve(byName[name] ?? { data: null, error: null })),
+    from,
   } as unknown as SupabaseClient;
 }
 
@@ -21,11 +27,8 @@ describe('buildVistazo', () => {
     const client = db({
       hermes_cuadre_finanzas: cuadreHoy,
       hermes_sin_responder: { data: { conversaciones: 3, mas_antiguo: '2026-10-25T14:11:00Z' } },
-      crm_tablero_operaciones: {
-        data: [
-          { status: 'incident', quoted_source_amount: 26000 },
-          { status: 'deposit_verification', quoted_source_amount: 5000 },
-        ],
+      incidentes: {
+        data: [{ quoted_source_amount: 26000 }, { quoted_source_amount: 5000 }],
       },
     });
 
@@ -33,7 +36,7 @@ describe('buildVistazo', () => {
 
     expect(vistazo.cuadre).toEqual({ completadas: 17, conLinea: 15, sinLinea: 2 });
     expect(vistazo.sinResponder?.conversaciones).toBe(3);
-    expect(vistazo.incidencias).toEqual({ operaciones: 1, importeGyd: 26000 });
+    expect(vistazo.incidencias).toEqual({ operaciones: 2, importeGyd: 31000 });
     // The semana call reuses the same function over seven days.
     expect((client.rpc as unknown as { mock: { calls: Array<[string, unknown]> } }).mock.calls
       .filter(([name]) => name === 'hermes_cuadre_finanzas')).toHaveLength(2);
@@ -43,7 +46,7 @@ describe('buildVistazo', () => {
     const client = db({
       hermes_cuadre_finanzas: { error: { message: 'boom' } },
       hermes_sin_responder: { error: { message: 'missing function' } },
-      crm_tablero_operaciones: { error: { message: 'boom' } },
+      incidentes: { error: { message: 'boom' } },
     });
 
     const vistazo = await buildVistazo(client);

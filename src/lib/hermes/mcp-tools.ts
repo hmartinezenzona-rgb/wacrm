@@ -111,6 +111,49 @@ export function buildHermesServer(db: SupabaseClient): McpServer {
   );
 
   server.tool(
+    'verificar_trans_id',
+    'Comprueba si la referencia (TransID) de una transferencia figura en el libro de depósitos de MMG. Es el mismo arbitraje que usa el bot con los comprobantes. Contesta en UNA sola frase, como el bot al cliente: si existe, confírmalo; si no, di que todavía no figura. NO dice si cuadra con una operación del CRM.',
+    { trans_id: z.string().describe('referencia numérica de la transferencia') },
+    async ({ trans_id }) => {
+      const endpoint = process.env.HERMES_VERIFICADOR_URL?.replace(
+        'verificar-comprobante',
+        'verificar-referencia',
+      );
+      if (!endpoint) {
+        return {
+          content: [{ type: 'text' as const, text: 'error: el verificador no está configurado' }],
+          isError: true,
+        };
+      }
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token: process.env.HERMES_VERIFICADOR_TOKEN ?? '',
+            referencia: trans_id,
+          }),
+          signal: AbortSignal.timeout(30_000),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = (await res.json()) as unknown;
+        const item = Array.isArray(data) ? data[0] : data;
+        return { content: [{ type: 'text' as const, text: JSON.stringify(item) }] };
+      } catch (err) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `error: no se pudo consultar el libro (${err instanceof Error ? err.message : 'desconocido'})`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
     'tasas_vigentes',
     'Tasas publicadas del dia, estado de la tasa ARQ USD-MXN y minimos configurados.',
     {},

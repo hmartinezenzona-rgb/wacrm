@@ -16,7 +16,7 @@ async function connect(rpc: ReturnType<typeof vi.fn>) {
 }
 
 describe('Hermes MCP tools', () => {
-  it('expone las ocho herramientas de solo lectura', async () => {
+  it('expone las nueve herramientas de solo lectura', async () => {
     const client = await connect(vi.fn());
 
     const { tools } = await client.listTools();
@@ -30,6 +30,7 @@ describe('Hermes MCP tools', () => {
       'resumen_periodo',
       'tasas_vigentes',
       'ver_calculadora',
+      'verificar_trans_id',
     ]);
   });
 
@@ -75,4 +76,30 @@ describe('Hermes MCP tools', () => {
     const first = res.content as Array<{ type: string; text?: string }>;
     expect(first[0]?.text).toContain('boom');
   });
+
+describe('verificar_trans_id', () => {
+  it('consulta el libro con el token y devuelve el veredicto', async () => {
+    process.env.HERMES_VERIFICADOR_URL = 'https://n8n.example/webhook/verificar-comprobante-prod';
+    process.env.HERMES_VERIFICADOR_TOKEN = 'secreto';
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([{ existe: true, referencia: '10404131818653' }]), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const client = await connect(vi.fn());
+
+    const res = await client.callTool({
+      name: 'verificar_trans_id',
+      arguments: { trans_id: '10404131818653' },
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://n8n.example/webhook/verificar-referencia-prod');
+    expect(JSON.parse(String(init.body))).toEqual({ token: 'secreto', referencia: '10404131818653' });
+    expect((res.content as Array<{ text: string }>)[0].text).toContain('"existe":true');
+
+    vi.unstubAllGlobals();
+    delete process.env.HERMES_VERIFICADOR_URL;
+    delete process.env.HERMES_VERIFICADOR_TOKEN;
+  });
+});
 });

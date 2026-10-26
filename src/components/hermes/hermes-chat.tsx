@@ -493,24 +493,25 @@ function HermesIdeaPreview({ idea, vistazo }: { idea: IdeaKey; vistazo: Vistazo 
   }
   if (idea === 'incidencia' && vistazo?.incidencias) {
     const { operaciones, importeGyd } = vistazo.incidencias;
+    if (operaciones === 0) {
+      // Nothing stopped: a plain zero reads better than an empty warning.
+      return (
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-foreground font-mono text-xl font-semibold">0</span>
+          <span className="text-muted-foreground text-[11.5px]">en incidencia</span>
+        </div>
+      );
+    }
     return (
       <>
-        <span
-          className={
-            operaciones > 0
-              ? 'inline-flex w-fit items-center gap-1.5 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400'
-              : 'bg-muted text-muted-foreground inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium'
-          }
-        >
+        <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
           <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-          {operaciones === 0 ? 'ninguna en incidencia' : `${operaciones} en incidencia`}
+          {operaciones} en incidencia
         </span>
-        {operaciones > 0 ? (
-          <div className="text-muted-foreground flex items-center gap-2 text-[11.5px]">
-            <span>Importe parado</span>
-            <span className="text-foreground ml-auto font-mono">{thousands(importeGyd)} GYD</span>
-          </div>
-        ) : null}
+        <div className="text-muted-foreground flex items-center gap-2 text-[11.5px]">
+          <span>Importe parado</span>
+          <span className="text-foreground ml-auto font-mono">{thousands(importeGyd)} GYD</span>
+        </div>
       </>
     );
   }

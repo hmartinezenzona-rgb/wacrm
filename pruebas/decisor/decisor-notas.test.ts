@@ -1161,3 +1161,43 @@ describe('326: operaciones abiertas sin su parte del deposito', () => {
     expect(nota(s, 'OPERACIONES ABIERTAS SIN SU PARTE')).toBeUndefined();
   });
 });
+
+describe('327: PARTES ACORDADAS usa el deposito del grupo, no la parte del titular', () => {
+  const resuelto = (extra: Record<string, unknown> = {}) => ({
+    version: 2,
+    en_curso: 'zelle',
+    servicio: 'zelle',
+    accion: 'ninguna',
+    permitido: true,
+    motivo: 'sin_cambio',
+    mensaje: null,
+    minimo_gyd: null,
+    faltante_gyd: null,
+    operaciones: [
+      { id: 'op-1', servicio: 'zelle', status: 'ready_to_transfer', tiene_deposito: true, dinero_gyd: 275000, monto_acordado_gyd: 275000, grupo: 'g1' },
+      { id: 'op-2', servicio: 'cuban_card', status: 'collecting_information', tiene_deposito: false, dinero_gyd: 0, monto_acordado_gyd: 10000, grupo: 'g1' },
+    ],
+    adicionales: [],
+    evidencia: { declarado: null, deposito: 285000 },
+    reparto_pendiente: null,
+    sin_dinero: null,
+    deposito_grupo_gyd: 285000,
+    ...extra,
+  });
+
+  it('con el deposito del grupo (285,000) cubre las dos partes y no dice que faltan 10,000', () => {
+    const s = correrDecisor({ ctx: { servicio_resuelto: resuelto() }, snapshot: { texto_completo: 'Ok' } });
+    const n = nota(s, 'PARTES ACORDADAS DEL ENVIO') as string;
+    expect(n).toBeDefined();
+    expect(n).toContain('Deposito registrado: 285,000 GYD');
+    expect(n).toMatch(/Cubre todo lo acordado/);
+    expect(n).not.toMatch(/faltan 10,000/);
+  });
+
+  it('sin deposito_grupo_gyd mantiene el calculo anterior', () => {
+    const s = correrDecisor({ ctx: { servicio_resuelto: resuelto({ deposito_grupo_gyd: null }) }, snapshot: { texto_completo: 'Ok' } });
+    const n = nota(s, 'PARTES ACORDADAS DEL ENVIO') as string;
+    expect(n).toContain('Deposito registrado: 275,000 GYD');
+    expect(n).toMatch(/faltan 10,000/);
+  });
+});

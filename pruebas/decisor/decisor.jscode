@@ -1104,7 +1104,11 @@ if (R && !planR && Array.isArray(R.operaciones)) {
     const f293 = (n) => Number(n).toLocaleString('en-US');
     const pf = (p) => p.servicio + ' ' + f293(p.monto);
     const totalA = partesA.reduce((a, p) => a + p.monto, 0);
-    const depA = R.operaciones.reduce((a, o) => a + (o && o.tiene_deposito ? Number(o.dinero_gyd || 0) : 0), 0);
+    // (327) In a mixed group the holder's dinero_gyd is its OWN part, not the money: the deposit is the
+    // group's. Using the part said 10,000 were missing when the group held all 285,000 (Yoandrys 2026-10-26).
+    const depA = (R.deposito_grupo_gyd !== null && R.deposito_grupo_gyd !== undefined)
+      ? Number(R.deposito_grupo_gyd)
+      : R.operaciones.reduce((a, o) => a + (o && o.tiene_deposito ? Number(o.dinero_gyd || 0) : 0), 0);
     let txt = 'PARTES ACORDADAS DEL ENVIO: ' + partesA.map(pf).join(' + ') + ' (total ' + f293(totalA) + ' GYD). ';
     if (depA > 0) {
       let acum = 0;

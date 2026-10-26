@@ -27,6 +27,10 @@ BEGIN
   VALUES (v_op, 'zelle', 'PRUEBA A', 'a@example.com', 800, 'USD', 1, 'vigente', 'manual'),
          (v_op, 'zelle', 'PRUEBA B', 'b@example.com', 200, 'USD', 2, 'vigente', 'manual');
 
+  -- (329) The funding gate runs first: cover the operation so this assertion still tests the sums.
+  INSERT INTO depositos_mmg (trans_id, monto, moneda, asunto, recibido_en, consumido_en, operation_id)
+  VALUES ('32890000000001', 275000, 'GYD', 'PRUEBA 328', now(), now(), v_op);
+
   v_ok := true;
   BEGIN
     PERFORM crm_entregar_operacion(v_op, '{"mode":"skip_proof"}'::jsonb, true, NULL);
@@ -54,6 +58,8 @@ BEGIN
    WHERE id = v_op;
   INSERT INTO remittance_beneficiaries (operation_id, beneficiary_type, name, zelle_account, amount, currency, position, status, source)
   VALUES (v_op, 'zelle', 'PRUEBA D', 'd@example.com', NULL, 'USD', 1, 'vigente', 'manual');
+  INSERT INTO depositos_mmg (trans_id, monto, moneda, asunto, recibido_en, consumido_en, operation_id)
+  VALUES ('32890000000002', 26000, 'GYD', 'PRUEBA 328', now(), now(), v_op);
   PERFORM crm_entregar_operacion(v_op, '{"mode":"skip_proof"}'::jsonb, true, NULL);
   SELECT status INTO v_status FROM remittance_operations WHERE id = v_op;
   IF v_status <> 'completed' THEN RAISE EXCEPTION 'case 2: a null amount should skip the gate, status %', v_status; END IF;

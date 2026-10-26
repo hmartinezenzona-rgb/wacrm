@@ -62,6 +62,9 @@ BEGIN
   -- 3. E2: deliver notifies by default and can be silenced (the beneficiary is complete).
   INSERT INTO remittance_beneficiaries (operation_id, beneficiary_type, card_number, phone, position, block_index, source, status)
   VALUES (v_op, 'cuban_card', '9235123487786543', '53821204', 1, 1, 'manual', 'vigente');
+  -- (329) Delivery now requires verified funding.
+  INSERT INTO depositos_mmg (trans_id, monto, moneda, asunto, recibido_en, consumido_en, operation_id)
+  VALUES ('32940000000001', 29000, 'GYD', 'PRUEBA 191', now(), now(), v_op);
   PERFORM crm_entregar_operacion(v_op, '{"mode": "skip_proof"}'::jsonb, false);
   SELECT status, customer_notice_muted_for AS m INTO v_r FROM remittance_operations WHERE id = v_op;
   IF v_r.status <> 'completed' OR v_r.m IS DISTINCT FROM 'completed' THEN
@@ -69,6 +72,8 @@ BEGIN
   v_op := pg_temp.op_t191('04', 'ready_to_transfer', 'cuban_card');
   INSERT INTO remittance_beneficiaries (operation_id, beneficiary_type, card_number, phone, position, block_index, source, status)
   VALUES (v_op, 'cuban_card', '9235123487786543', '53821204', 1, 1, 'manual', 'vigente');
+  INSERT INTO depositos_mmg (trans_id, monto, moneda, asunto, recibido_en, consumido_en, operation_id)
+  VALUES ('32940000000002', 29000, 'GYD', 'PRUEBA 191', now(), now(), v_op);
   PERFORM crm_entregar_operacion(v_op, '{"mode": "skip_proof"}'::jsonb);
   IF (SELECT customer_notice_muted_for FROM remittance_operations WHERE id = v_op) IS NOT NULL THEN
     RAISE EXCEPTION 'case 3: a delivery notifies by default'; END IF;

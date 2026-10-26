@@ -165,6 +165,10 @@ BEGIN
   INSERT INTO remittance_beneficiaries (operation_id, beneficiary_type, card_number, phone, status)
   VALUES (v_op_id2, 'cuban_card', '9216123412341234', '53512345678', 'vigente');
 
+  -- (329) Delivery now requires verified funding.
+  INSERT INTO depositos_mmg (trans_id, monto, moneda, asunto, recibido_en, consumido_en, operation_id)
+  VALUES ('32930000000001', 5000, 'GYD', 'PRUEBA CUTOVER', now(), now(), v_op_id2);
+
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_agent_user, 'role', 'authenticated')::text, true);
   BEGIN
     SELECT crm_entregar_operacion(v_op_id2, jsonb_build_object('mode', 'no_proof')) INTO v_result;

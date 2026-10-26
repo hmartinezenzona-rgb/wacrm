@@ -55,6 +55,9 @@ BEGIN
   VALUES (gen_random_uuid(), p_acct, p_conv, 'ready_to_transfer', 'remesa', 'GYD', p_cup / 2, 'cuban_card') RETURNING id INTO v;
   INSERT INTO remittance_beneficiaries (operation_id, beneficiary_type, name, card_number, phone, amount, currency, position, block_index)
   VALUES (v, 'cuban_card', 'Beneficiario ' || left(v::text, 4), '9225000011112222', '5355500000', p_cup, 'CUP', 1, 1);
+  -- (329) Delivery now requires verified funding, in GYD (the source is p_cup / 2).
+  INSERT INTO depositos_mmg (trans_id, monto, moneda, asunto, recibido_en, consumido_en, operation_id)
+  VALUES ('3292' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 12), p_cup / 2, 'GYD', 'PRUEBA CSC', now(), now(), v);
   RETURN v;
 END $f$;
 

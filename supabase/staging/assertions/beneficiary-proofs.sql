@@ -98,6 +98,12 @@ BEGIN
   VALUES (v_op_skip, 'zelle', 'BP Skip Uno', 'bps1@example.invalid', 1, 1, 'vigente'),
          (v_op_skip, 'zelle', 'BP Skip Dos', 'bps2@example.invalid', 2, 1, 'vigente');
 
+  -- (329) Delivery now requires verified funding: give each ready operation its deposit.
+  INSERT INTO depositos_mmg (trans_id, monto, moneda, asunto, recibido_en, consumido_en, operation_id)
+  VALUES ('32910000000001', 26000, 'GYD', 'PRUEBA BP', now(), now(), v_op_two),
+         ('32910000000002', 26000, 'GYD', 'PRUEBA BP', now(), now(), v_op_one),
+         ('32910000000003', 26000, 'GYD', 'PRUEBA BP', now(), now(), v_op_skip);
+
   PERFORM set_config('request.jwt.claims', v_agent_claims, true);
 
   -- ---- case 1: registering a proof does not deliver ----------------------

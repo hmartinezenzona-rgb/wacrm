@@ -631,6 +631,32 @@
           "other": "No se pudo verificar ({code})"
         }
       }
+    },
+    "fundingCase": {
+      "title": "Expediente",
+      "loading": "Cargando expediente…",
+      "loadError": "No se pudo leer el expediente.",
+      "status": {
+        "open": "Abierto",
+        "allocating": "Asignando",
+        "incident": "Conflicto",
+        "closed": "Cerrado"
+      },
+      "verified": "Verificado",
+      "assigned": "Asignado",
+      "available": "Disponible",
+      "deposits": "Depósitos",
+      "noDeposits": "Sin depósitos vinculados",
+      "allocations": "Asignaciones",
+      "noAllocations": "Sin asignaciones",
+      "operation": "Operación",
+      "voided": "Anulado",
+      "conflictTitle": "Hay un conflicto",
+      "resolve": "Resolver conflicto",
+      "resolving": "Resolviendo…",
+      "resolved": "Conflicto resuelto",
+      "resolveError": "No se pudo resolver el conflicto.",
+      "closedHint": "Expediente cerrado"
     }
   },
   "Contacts": {

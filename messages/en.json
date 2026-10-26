@@ -631,6 +631,32 @@
           "other": "Could not verify ({code})"
         }
       }
+    },
+    "fundingCase": {
+      "title": "Funding case",
+      "loading": "Loading funding case…",
+      "loadError": "Could not read the funding case.",
+      "status": {
+        "open": "Open",
+        "allocating": "Allocating",
+        "incident": "Conflict",
+        "closed": "Closed"
+      },
+      "verified": "Verified",
+      "assigned": "Assigned",
+      "available": "Available",
+      "deposits": "Deposits",
+      "noDeposits": "No linked deposits",
+      "allocations": "Allocations",
+      "noAllocations": "No allocations",
+      "operation": "Operation",
+      "voided": "Voided",
+      "conflictTitle": "There is a conflict",
+      "resolve": "Resolve conflict",
+      "resolving": "Resolving…",
+      "resolved": "Conflict resolved",
+      "resolveError": "Could not resolve the conflict.",
+      "closedHint": "Case closed"
     }
   },
   "Contacts": {

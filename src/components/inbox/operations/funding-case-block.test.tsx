@@ -65,6 +65,15 @@ const baseCase = {
       created_at: "2026-10-26T12:00:00Z",
     },
   ],
+  operations: [
+    {
+      id: "11111111-2222-3333-4444-555555555555",
+      service: "zelle",
+      status: "ready_to_transfer",
+      quoted_source_amount: 26000,
+      allocated: 26000,
+    },
+  ],
 };
 
 const incidentCase = {
@@ -110,6 +119,62 @@ describe("FundingCaseBlock", () => {
     expect(text).toContain(formatNumber(26000));
     expect(text).toContain("33200000000001");
     expect(text).toContain("Zelle");
+
+    const assignButton = Array.from(node.querySelectorAll("button")).find(
+      (candidate) => candidate.textContent === en.Inbox.fundingCase.assign,
+    );
+    expect(assignButton).toBeTruthy();
+    await act(async () => {
+      assignButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(node.textContent).toContain(en.Inbox.fundingCase.assignTitle);
+
+    await act(async () => root.unmount());
+  });
+
+  it("releases an allocation after confirming", async () => {
+    const releasedCase = {
+      ...baseCase,
+      asignado: 0,
+      disponible: 26000,
+      allocations: [{ ...baseCase.allocations[0], status: "released" }],
+      operations: [{ ...baseCase.operations[0], allocated: 0 }],
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ case: baseCase }))
+      .mockResolvedValueOnce(jsonResponse({ case: releasedCase }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { node, root } = await render();
+    const releaseButton = Array.from(node.querySelectorAll("button")).find(
+      (candidate) => candidate.textContent === en.Inbox.fundingCase.release,
+    );
+    expect(releaseButton).toBeTruthy();
+    await act(async () => {
+      releaseButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const confirmButton = Array.from(node.querySelectorAll("button")).find(
+      (candidate) => candidate.textContent === en.Inbox.fundingCase.releaseConfirm,
+    );
+    expect(confirmButton).toBeTruthy();
+    await act(async () => {
+      confirmButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/funding-case/case-1/release",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(toastSuccess).toHaveBeenCalledWith(en.Inbox.fundingCase.releaseSaved);
+    expect(node.textContent).toContain(formatNumber(26000));
 
     await act(async () => root.unmount());
   });

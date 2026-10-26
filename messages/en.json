@@ -656,7 +656,25 @@
       "resolving": "Resolving…",
       "resolved": "Conflict resolved",
       "resolveError": "Could not resolve the conflict.",
-      "closedHint": "Case closed"
+      "closedHint": "Case closed",
+      "assign": "Assign",
+      "assignTitle": "Assign case money",
+      "assignOperation": "Operation",
+      "assignAmount": "Amount (GYD)",
+      "assignConfirm": "Assign",
+      "assignCancel": "Cancel",
+      "assignSaved": "Money assigned",
+      "assignError": "Could not assign",
+      "assignInvalid": "Enter an amount greater than zero",
+      "assigning": "Assigning…",
+      "release": "Release",
+      "releaseQuestion": "Release {amount} GYD from this allocation?",
+      "releaseConfirm": "Confirm release",
+      "releaseCancel": "Cancel",
+      "releaseSaved": "Allocation released",
+      "releaseError": "Could not release",
+      "releasing": "Releasing…",
+      "allocated": "{amount} GYD allocated"
     }
   },
   "Contacts": {

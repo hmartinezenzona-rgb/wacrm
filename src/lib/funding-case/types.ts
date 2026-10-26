@@ -21,6 +21,14 @@ export interface FundingCaseAllocationRead {
   created_at: string;
 }
 
+export interface FundingCaseOperationRead {
+  id: string;
+  service: string | null;
+  status: string;
+  quoted_source_amount: number;
+  allocated: number;
+}
+
 export interface FundingCaseRead {
   id: string;
   status: FundingCaseStatus;
@@ -32,6 +40,7 @@ export interface FundingCaseRead {
   disponible: number;
   deposits: FundingCaseDepositRead[];
   allocations: FundingCaseAllocationRead[];
+  operations: FundingCaseOperationRead[];
 }
 
 export interface FundingCasePanelRead {

@@ -656,7 +656,25 @@
       "resolving": "Resolviendo…",
       "resolved": "Conflicto resuelto",
       "resolveError": "No se pudo resolver el conflicto.",
-      "closedHint": "Expediente cerrado"
+      "closedHint": "Expediente cerrado",
+      "assign": "Asignar",
+      "assignTitle": "Asignar dinero del expediente",
+      "assignOperation": "Operación",
+      "assignAmount": "Monto (GYD)",
+      "assignConfirm": "Asignar",
+      "assignCancel": "Cancelar",
+      "assignSaved": "Dinero asignado",
+      "assignError": "No se pudo asignar",
+      "assignInvalid": "Ingresa un monto mayor que cero",
+      "assigning": "Asignando…",
+      "release": "Liberar",
+      "releaseQuestion": "¿Liberar {amount} GYD de esta asignación?",
+      "releaseConfirm": "Confirmar liberación",
+      "releaseCancel": "Cancelar",
+      "releaseSaved": "Asignación liberada",
+      "releaseError": "No se pudo liberar",
+      "releasing": "Liberando…",
+      "allocated": "{amount} GYD asignados"
     }
   },
   "Contacts": {

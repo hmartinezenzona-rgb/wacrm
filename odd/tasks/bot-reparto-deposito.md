@@ -49,6 +49,13 @@ the second operation but never splits, so the second service stays unfunded and 
 - [x] T5. Decisor published to staging (versionId 1f672242, md5 467ef930 = repo). Verified at the SQL layer (assertion) and the Decisor layer (vitest); staging cannot be executed end to end.
 - [x] T6. Owner go-ahead received. Migration 325 applied in production (20261026150013; prod=stg d5c63849) and Decisor published (versionId e41fa970, md5 467ef930 = repo). End-to-end verification pending the next real split.
 
+- [x] T7. Migration 326 + ROLLBACK-326 + assertion `operaciones-sin-dinero.sql`: the resolver returns
+  `sin_dinero` (open, ungrouped operations of a send with a verified deposit that have no money and no own
+  objective). Staging: dry-run/apply/assertion/rollback OK.
+- [x] T8. Decisor guard: forbids "completo", "listo" and "la transferencia sale" while `sin_dinero` lists an
+  operation; the 325 split note wins when present. Vitest 79/79.
+- [ ] T9. Owner go-ahead; apply 326 and publish the guard to production.
+
 ## Acceptance criteria
 - With an open objective of 26,000 GYD, a verified 31,000 GYD deposit and an empty card operation with a
   recipient, the resolver returns `reparto_pendiente` with parts `zelle 26000` and `cuban_card 5000`.
@@ -64,7 +71,11 @@ the second operation but never splits, so the second service stays unfunded and 
 - Production `previa`: EQUAL, VEREDICTO SEGURO.
 - Production migration: OK 325_reparto_pendiente 20261026150013; `verificar`: VERIFICADO 1/1 (prod=d5c63849 stg=d5c63849).
 - Production Cerebro: versionId e41fa970-2136-4cb6-a128-8255efb01a2f, activeVersionId equal, Decisor md5 467ef930.
+- General guard covers three or more parts, Mexico by CLABE and an objective attached elsewhere: the bot must
+  not claim the send is complete while `sin_dinero` lists an operation.
 - Pending: confirm on the next real split that the bot calls `repartir_envio` and both operations end `ready_to_transfer`.
+- Commits 326/guard: f411f1b (migration), ae8a7fe (Decisor). Staging resolver md5 f729a53c; staging Decisor
+  versionId 3aaac988-76ca-47d0-8e1c-a49608621fdc, md5 251efc61 = repo.
 
 ## Checks
 - `npx vitest run pruebas/decisor`

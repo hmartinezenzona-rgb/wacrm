@@ -7,6 +7,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { buildVistazo } from '@/lib/hermes/vistazo';
+import { createClient as createSessionClient } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -27,7 +28,7 @@ export async function GET(): Promise<Response> {
   }
 
   try {
-    const vistazo = await buildVistazo(adminClient());
+    const vistazo = await buildVistazo(adminClient(), await createSessionClient());
     return NextResponse.json(vistazo, {
       headers: { 'Cache-Control': 'private, max-age=60' },
     });

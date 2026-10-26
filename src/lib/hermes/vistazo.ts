@@ -21,15 +21,19 @@ const number = (value: unknown): number => {
   return typeof n === 'number' && Number.isFinite(n) ? n : 0;
 };
 
-export async function buildVistazo(db: SupabaseClient): Promise<Vistazo> {
+export async function buildVistazo(
+  db: SupabaseClient,
+  /** RLS-scoped client: the operations table is not readable with the service key. */
+  sessionDb: SupabaseClient = db,
+): Promise<Vistazo> {
   const rango = lastSevenDays();
   const [hoy, semana, sinResponder, tablero] = await Promise.all([
     db.rpc('hermes_cuadre_finanzas', { p_desde: null, p_hasta: null }),
     db.rpc('hermes_cuadre_finanzas', { p_desde: rango.desde, p_hasta: rango.hasta }),
     db.rpc('hermes_sin_responder'),
-    // The board RPC scopes by the logged-in user; with the service client it
-    // returns nothing, so the same table is read directly.
-    db.from('remittance_operations').select('quoted_source_amount').eq('status', 'incident'),
+    // Service role has no grant on this table, so it is read with the admin's
+    // own session; RLS already limits it to what they can see in the board.
+    sessionDb.from('remittance_operations').select('quoted_source_amount').eq('status', 'incident'),
   ]);
 
   for (const [name, result] of [

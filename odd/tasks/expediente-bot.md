@@ -1,8 +1,9 @@
 # Phase 4b: the bot asks when the case is in conflict
 
-Status: STAGING DONE (2026-10-26); production pending. Objective: when the funding case is in
-incident, the bot must stop promising the transfer, ask the customer to confirm the route, and leave
-the resolution to an operator.
+Status: DONE (2026-10-26): migration 333 applied in production (version 20261026215718, verified
+1/1) and the Decisor published (versionId `6181706c-7201-4d19-bf7e-4d02f1640058`, md5 `28fe7346`,
+repo match). Objective: when the funding case is in incident, the bot must stop promising the
+transfer, ask the customer to confirm the route, and leave the resolution to an operator.
 
 ## Why
 
@@ -27,8 +28,8 @@ customer needs a short question, not a silent block.
 - [x] T3. Staging cycle.
 - [x] T4. Decisor note + tests + md5 pin.
 - [x] T5. Publish the Decisor to staging and verify.
-- [ ] T6. Production: apply 333, publish the Decisor, verify, update docs.
-- [ ] T7. Production `verificar` + `comparar` staging/production.
+- [x] T6. Production: apply 333, publish the Decisor, verify, update docs.
+- [x] T7. Production `verificar` + `comparar` staging/production.
 
 ## Verification
 
@@ -52,6 +53,14 @@ customer needs a short question, not a silent block.
   Decisor md5 `28fe7346`, repo match `yes`.
 - The staging Cerebro is never executed (it shares production's WhatsApp token); the note is covered
   by the Decisor harness and the resolver by the SQL assertion.
+- T6 (2026-10-26): `aplicar 333` → `OK 333_expediente_en_resolver 20261026215718`; `verificar` →
+  `VERIFICADO: 1/1 iguales`. Production backup
+  `produccion-jEzlVLCLUaJhVwzs-f2b5f502-...-20261026-155728.json`; `publicar-decisor produccion` →
+  versionId `6181706c-7201-4d19-bf7e-4d02f1640058`, 131 nodes, Decisor md5 `28fe7346`, repo match
+  `yes`.
+- T7 (2026-10-26): `comparar` lists only environment nodes (Avisar espera, Confirmar al admin,
+  Despertar al enviador, Responder por WaCRM, Validar evento, Webhook WaCRM) and the staging-only
+  DeepSeek Web Search; the Decisor matches in both environments.
 
 ## Decisions
 

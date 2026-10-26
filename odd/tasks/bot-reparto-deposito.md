@@ -42,11 +42,11 @@ the second operation but never splits, so the second service stays unfunded and 
 - English artifacts; Spanish only in user-facing bot text.
 
 ## Tasks
-- [ ] T1. Diagnose and record the root cause (done in this document and in Engram).
-- [ ] T2. Migration 325 + ROLLBACK-325 + staging assertion `reparto-pendiente.sql`.
-- [ ] T3. Apply migration to staging; assertion PASS.
-- [ ] T4. Decisor note + mandatory tool; vitest green.
-- [ ] T5. Publish Decisor to staging; verify with the assertion scenario.
+- [x] T1. Diagnose and record the root cause (done in this document and in Engram).
+- [x] T2. Migration 325 + ROLLBACK-325 + staging assertion `reparto-pendiente.sql` (commit 5c1444b).
+- [x] T3. Applied to staging: dry-run OK, apply OK, assertion OK, rollback OK (cerebro_resolver_servicio md5 d5c63849).
+- [x] T4. Decisor note + mandatory tool; vitest 76/76 green (commit 74e7476).
+- [x] T5. Decisor published to staging (versionId 1f672242, md5 467ef930 = repo). Verified at the SQL layer (assertion) and the Decisor layer (vitest); staging cannot be executed end to end.
 - [ ] T6. Owner go-ahead; apply migration and Decisor to production; verify with a real send.
 
 ## Acceptance criteria
@@ -56,6 +56,12 @@ the second operation but never splits, so the second service stays unfunded and 
 - The bot calls `repartir_envio` and the two operations end `ready_to_transfer` in one group.
 - Ambiguous cases (two empty operations, no recipient, remainder below the minimum) return no fact and the bot
   asks instead of guessing.
+
+## Evidence
+- Commits: 5c1444b (migration), 74e7476 (Decisor).
+- Staging migration: dry-run OK / apply OK / assertion OK / rollback OK.
+- Staging Cerebro: versionId 1f672242-f234-4770-a4f1-a9dadc875ba0, Decisor md5 467ef930.
+- Production `previa`: EQUAL, VEREDICTO SEGURO.
 
 ## Checks
 - `npx vitest run pruebas/decisor`

@@ -1201,3 +1201,46 @@ describe('327: PARTES ACORDADAS usa el deposito del grupo, no la parte del titul
     expect(n).toMatch(/faltan 10,000/);
   });
 });
+
+describe('(333) el expediente en conflicto manda en el contexto', () => {
+  const ctx = (expediente: unknown) => ({
+    servicio_resuelto: {
+      version: 2,
+      en_curso: 'cuban_card',
+      servicio: null,
+      accion: 'ninguna',
+      permitido: true,
+      motivo: 'sin_cambio',
+      mensaje: null,
+      minimo_gyd: null,
+      faltante_gyd: null,
+      operaciones: [{ id: 'op-1', servicio: 'cuban_card', rail: 'cuban_card', status: 'ready_to_transfer' }],
+      adicionales: [],
+      evidencia: { declarado: null, deposito: 26000 },
+      expediente,
+    },
+  });
+
+  it('obliga a preguntar la via y prohibe prometer la transferencia', () => {
+    const s = correrDecisor({
+      ctx: ctx({
+        estado: 'incident',
+        nota: 'conflicto: la tarjeta con prefijo 9760 es clasica pero la operación es cuban_card',
+        depositado: 26000,
+        asignado: 0,
+        disponible: 26000,
+      }),
+    });
+    const n = nota(s, 'EXPEDIENTE EN CONFLICTO') as string;
+    expect(n).toBeDefined();
+    expect(n).toMatch(/BLOQUEADA/);
+    expect(n).toMatch(/9760/);
+    expect(n).toMatch(/confirm/i);
+    expect(n).toMatch(/PROHIBIDO/);
+  });
+
+  it('sin conflicto no aparece la nota', () => {
+    const s = correrDecisor({ ctx: ctx({ estado: 'allocating', nota: null }) });
+    expect(nota(s, 'EXPEDIENTE EN CONFLICTO')).toBeUndefined();
+  });
+});

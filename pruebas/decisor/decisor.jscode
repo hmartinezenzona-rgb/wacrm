@@ -1280,6 +1280,18 @@ try {
     notas.push('LA REFERENCIA DEL COMPROBANTE ES IMPOSIBLE: ese numero no puede ser un TransID de MMG, casi seguro se leyo mal de una CAPTURA de pantalla o de una foto de otra pantalla. PROHIBIDO decir que se recibio el deposito, PROHIBIDO repetir el importe y PROHIBIDO dar ninguna cifra de este comprobante. Di en UNA linea que la imagen no se ve con claridad y pidele que mande el comprobante ORIGINAL de MMG, no una captura de otro chat. Ya esta avisado el equipo.');
   }
 } catch (e) {}
+// (333) EXPEDIENTE EN CONFLICTO: last word on the state. The case blocks the send; the bot asks and
+// hands it to an operator, it never changes the service or promises the transfer.
+const expR = (R && R.expediente && typeof R.expediente === 'object') ? R.expediente : null;
+if (expR && String(expR.estado) === 'incident') {
+  const notaExp = String(expR.nota || 'hay una contradicción entre los datos de la tarjeta y el servicio');
+  notas.push('EXPEDIENTE EN CONFLICTO: ' + notaExp + '. La entrega esta BLOQUEADA. '
+    + 'PROHIBIDO decir que el envio esta listo, que la transferencia sale, que ya se completo o dar un plazo. '
+    + 'Pide al cliente, en UNA sola pregunta corta, que confirme la via correcta de la tarjeta (por ejemplo: '
+    + '"la tarjeta que enviaste parece de Clasica, pero el envio figura como CUP; confirmame cual es"). '
+    + 'No cambies el servicio tu mismo, no uses cambiar_servicio ni repartir_envio para resolverlo, y no prometas cuando se resuelve: '
+    + 'un operador lo revisa. Si el cliente confirma, dile que lo estas verificando con el equipo.');
+}
 let mensaje = texto || '(el cliente envio solo imagenes, sin texto)';
 if (notas.length) { mensaje += '\n\n[CONTEXTO DEL SISTEMA - el cliente NO ve esto]\n- ' + notas.join('\n- ');
 }
@@ -1334,6 +1346,7 @@ try {
 
   const prohibido = [];
   if (!sabeDestino) { prohibido.push('prometer_transferencia'); }
+  if (expR && String(expR.estado) === 'incident') { prohibido.push('prometer_transferencia'); }
   if (ctx.pide_mlc) { prohibido.push('dar_cifras_de_mlc'); }
   prohibido.push('explicar_formatos', 'narrar_sistemas_internos', 'tutear');
 

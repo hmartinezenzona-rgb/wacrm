@@ -9,6 +9,7 @@ const VERDICT = {
   monto: 427500,
   moneda: 'GYD',
   referencia: '12345678901234',
+  destinatario: 'Osmany Pozo',
   banco_emisor: 'Banesco',
   fecha: '2026-10-25 00:00',
   en_libro: true,
@@ -70,7 +71,24 @@ describe('verifyVoucher', () => {
 });
 
 describe('voucherSummary', () => {
-  it('states the ledger answer first and repeats the alerts', () => {
+  it('asks for one short line when the reference is in the ledger', () => {
+    const text = voucherSummary(VERDICT as never);
+
+    expect(text).toContain('SÍ está en el libro de depósitos de MMG');
+    expect(text).toContain('427500 GYD');
+    expect(text).toContain('Osmany Pozo');
+    expect(text).toContain('UNA sola frase');
+    expect(text).toContain('No añadas análisis del CRM');
+  });
+
+  it('forbids claiming a deposit is verified when it is not', () => {
+    const text = voucherSummary({ ...VERDICT, en_libro: false } as never);
+
+    expect(text).toContain('NO aparece en el libro');
+    expect(text).toContain('Prohibido decir que está verificado');
+  });
+
+  it('asks for the original voucher when nothing could be read', () => {
     const text = voucherSummary({
       ...VERDICT,
       es_comprobante: false,
@@ -78,12 +96,9 @@ describe('voucherSummary', () => {
       monto: null,
       referencia: null,
       en_libro: false,
-      alertas: ['SIN REFERENCIA LEGIBLE'],
     } as never);
 
-    expect(text).toContain('¿Está en el libro de depósitos de MMG?: no');
-    expect(text).toContain('lo clasificó como "otro"');
-    expect(text).toContain('Monto leído: no legible');
-    expect(text).toContain('Alertas: SIN REFERENCIA LEGIBLE');
+    expect(text).toContain('No se pudo leer una referencia válida');
+    expect(text).toContain('comprobante ORIGINAL de MMG');
   });
 });

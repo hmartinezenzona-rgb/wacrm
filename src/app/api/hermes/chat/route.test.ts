@@ -115,7 +115,7 @@ describe('POST /api/hermes/chat', () => {
     const sent = JSON.parse(String((call?.[1] as RequestInit).body));
     const parts = sent.messages.at(-1).content as Array<{ type: string; text?: string }>;
     const summary = parts.find((part) => part.type === 'text' && (part.text ?? '').includes('Verificador'))?.text ?? '';
-    expect(summary).toContain('¿Está en el libro de depósitos de MMG?: sí');
+    expect(summary).toContain('SÍ está en el libro de depósitos de MMG');
   });
 
   it('un fallo de Hermes se traduce a 502', async () => {

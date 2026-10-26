@@ -15,6 +15,7 @@ export interface VoucherVerdict {
   monto: number | null;
   moneda: string | null;
   referencia: string | null;
+  destinatario: string | null;
   banco_emisor: string | null;
   fecha: string | null;
   en_libro: boolean;
@@ -41,6 +42,7 @@ function asVerdict(value: unknown): VoucherVerdict | null {
     monto: typeof v.monto === 'number' ? v.monto : null,
     moneda: typeof v.moneda === 'string' ? v.moneda : null,
     referencia: typeof v.referencia === 'string' ? v.referencia : null,
+    destinatario: typeof v.destinatario === 'string' ? v.destinatario : null,
     banco_emisor: typeof v.banco_emisor === 'string' ? v.banco_emisor : null,
     fecha: typeof v.fecha === 'string' ? v.fecha : null,
     en_libro: v.en_libro,
@@ -79,26 +81,28 @@ export async function verifyVoucher(imageUrl: string): Promise<VoucherVerdict | 
 }
 
 /**
- * The verdict as the lines Hermes should read. Facts only: the model must not
- * be nudged beyond what the verifier measured.
+ * The verdict as Hermes should read it: one short line, the way the bot
+ * answers a customer, and nothing else unless the admin asks.
  */
 export function voucherSummary(v: VoucherVerdict): string {
-  const si = (value: boolean) => (value ? 'sí' : 'no');
-  const lines = [
-    'Verificador de comprobantes (resultado automático y de solo lectura):',
-    `- ¿Está en el libro de depósitos de MMG?: ${si(v.en_libro)}`,
-    `- ¿Es un comprobante?: ${si(v.es_comprobante)}${v.tipo && v.tipo !== 'comprobante' ? ` (lo clasificó como "${v.tipo}")` : ''}`,
-    `- Monto leído: ${v.monto === null ? 'no legible' : `${v.monto} ${v.moneda ?? ''}`.trim()}`,
-    `- Referencia: ${v.referencia ?? 'no legible'}`,
-    `- Banco emisor: ${v.banco_emisor ?? 'no legible'}`,
-    `- Fecha: ${v.fecha ?? 'no legible'}`,
-    `- Giros leídos: ${v.leida_girada ? 'sí, la primera lectura no cuadró' : 'solo la original'}`,
-  ];
-  if (v.alertas.length) {
-    lines.push(`- Alertas: ${v.alertas.join(' | ')}`);
+  const referencia = v.referencia && v.referencia !== 'N/A' ? v.referencia : null;
+  if (!v.es_comprobante || !referencia) {
+    return [
+      '[Verificador de comprobantes] No se pudo leer una referencia válida de MMG.',
+      'Contesta en UNA sola frase, como el bot al cliente: que la imagen no se ve con claridad y que mande el comprobante ORIGINAL de MMG, no una captura de otro chat.',
+      'No añadas nada más: ni cifras, ni análisis del CRM, ni recomendaciones.',
+    ].join('\n');
   }
-  lines.push(
-    'Usa estos datos tal cual y no añadas cifras que no estén aquí. Si el monto no es legible o hay alertas, dilo antes de dar nada por bueno.',
-  );
-  return lines.join('\n');
+
+  const monto = v.monto === null ? 'importe no legible' : `${v.monto} ${v.moneda ?? ''}`.trim();
+  const datos = [monto, `ref ${referencia}`, v.fecha, v.destinatario].filter(Boolean).join(' · ');
+  const lines = [
+    `[Verificador de comprobantes] ${v.en_libro ? 'SÍ está en el libro de depósitos de MMG' : 'NO aparece en el libro de depósitos de MMG'}. Datos leídos: ${datos}.`,
+    v.en_libro
+      ? 'Contesta en UNA sola frase, como el bot al cliente: confirma que el depósito figura en el libro con ese importe.'
+      : 'Contesta en UNA sola frase, como el bot al cliente: acusa recibo y di que todavía no figura en el libro. Prohibido decir que está verificado.',
+    v.alertas.length ? `Si te sirve para la frase: ${v.alertas[0]}` : '',
+    'No añadas análisis del CRM, ni recomendaciones, ni pasos siguientes, salvo que te los pidan.',
+  ];
+  return lines.filter(Boolean).join('\n');
 }

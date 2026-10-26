@@ -1,14 +1,14 @@
 # Design: no delivery without validated service, recipient, amount and funding
 
-Status: PROPOSAL, updated 2026-10-26 after an external review by three independent models. Phases 1–3,
-the panel case view (4a) and the bot conflict notice (4b) are implemented in production: 328 + 329
-(money guards, verified 3/3), 330 (funding case + allocation ledger, verified 6/6), 331
-(deterministic reconciliation, verified 9/9), 332 (panel case block + incident resolver, verified
-2/2, panel build `jf2ZyAScgzIcC-uhzVcoe`) and 333 (resolver case key + Decisor conflict note, verified
-1/1, Decisor versionId `6181706c-7201-4d19-bf7e-4d02f1640058`). The staging simulator, the
-assign/release/refund actions and brevity remain. The owner accepted the review's main correction:
-**the money holder is not an operation**. The earlier title ("no service without data") stays as the
-business principle; the engineering rule is the one in this heading.
+Status: PROPOSAL, updated 2026-10-26 after an external review by three independent models. Phases 1–3
+and phase 4a–4d are implemented in production: 328 + 329 (money guards, verified 3/3), 330 (funding
+case + allocation ledger, verified 6/6), 331 (deterministic reconciliation, verified 9/9), 332 (panel
+case block + incident resolver, verified 2/2), 333 (resolver case key + Decisor conflict note, verified
+1/1), 334 (panel assign/release, verified 3/3), the staging simulator, and panel builds
+`jf2ZyAScgzIcC-uhzVcoe` → `mANIrP9JfzAIPobqpyVwn`. Remaining: refunds (owner rule pending) and the
+conversational brevity work. The owner accepted the review's main correction: **the money holder is
+not an operation**. The earlier title ("no service without data") stays as the business principle; the
+engineering rule is the one in this heading.
 
 ## 1. Problem
 
@@ -275,10 +275,9 @@ waits. It does not create the operation. 5,200 GYD is ambiguous and only produce
    incident and block delivery. Allocations are append-only in this increment; bot wording and the
    panel are phase 4.
 4. **Panel, simulator, tests and brevity:** the case UX, the webhook simulator, the test matrix, and
-   only then the conversational brevity work. **Partially applied 2026-10-26**: the panel shows the
-   case and resolves an incident (332, panel build `jf2ZyAScgzIcC-uhzVcoe`), and the bot asks the
-   customer when the case is in conflict (333, Decisor `6181706c`). The webhook simulator, the
-   assign/release/refund actions and brevity remain.
+   only then the conversational brevity work. **Applied**: the panel case block and incident resolver
+   (332), the bot conflict note (333), the no-send staging simulator and the assign/release actions
+   (334, panel build `mANIrP9JfzAIPobqpyVwn`). Remaining: refunds (owner rule pending) and brevity.
 
 ## 11. Decisions (2026-10-26)
 

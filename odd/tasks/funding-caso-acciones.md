@@ -1,8 +1,9 @@
 # Phase 4d: panel assign and release
 
-Status: STAGING DONE (2026-10-26); production pending. Objective: an agent can assign GYD of the
-funding case to an open operation and release a committed allocation from the panel, with the same
-balance and idempotency rules as the engine.
+Status: DONE (2026-10-26): migration 334 applied in production (version 20261026225605, verified
+3/3) and the panel published (BUILD_ID `mANIrP9JfzAIPobqpyVwn`, sha `afc45353`, rollback
+`f0e382c8`). Objective: an agent can assign GYD of the funding case to an open operation and release
+a committed allocation from the panel, with the same balance and idempotency rules as the engine.
 
 ## Why
 
@@ -36,7 +37,7 @@ case; the movement kind `refund` remains unused.
 - [x] T3. API routes, component, messages and tests.
 - [x] T4. `npm run test`, `npm run typecheck`, parity and lint.
 - [x] T5. Production `previa 334`; report; wait for the go-ahead.
-- [ ] T6. Apply 334, publish the panel, verify.
+- [x] T6. Apply 334, publish the panel, verify.
 
 ## Evidence
 
@@ -49,8 +50,12 @@ case; the movement kind `refund` remains unused.
 - The assertion covers the operations list, assign, idempotency, over-assignment, non-member
   assign/release, release, and a completed operation's allocation.
 - T5 (2026-10-26): `produccion-migracion.sh previa 334` → `VEREDICTO: SEGURO`;
-  `funding_caso_panel` EQUAL against the staging pre-bundle state, the two action RPCs NEW. Awaiting
-  the go-ahead to apply 334 and publish the panel.
+  `funding_caso_panel` EQUAL against the staging pre-bundle state, the two action RPCs NEW. Applied
+  in T6.
+- T6 (2026-10-26): `aplicar 334` → `OK 334_funding_caso_acciones 20261026225605`; `verificar` →
+  `VERIFICADO: 3/3 iguales`. Panel: release branch `release/prod-funding-caso-acciones` (sha
+  `afc45353`), `compilar` passed vitest + tsc and produced BUILD_ID `mANIrP9JfzAIPobqpyVwn`;
+  `publicar` served it, keeping `f0e382c8` as `anterior`.
 
 ## Decisions
 

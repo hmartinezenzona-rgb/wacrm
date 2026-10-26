@@ -171,35 +171,45 @@ Clásica; el número decía CUP (nómina BANDEC) y el sistema no lo usó para co
 
 ## 5. Lo que queremos lograr
 
-**Principio central: ningún servicio sin datos.**
+**Principio central: ningún servicio sin datos; ninguna entrega sin servicio, destinatario, monto y
+dinero asignado.**
 
-- El depósito se verifica y se guarda en una operación **sin vía**. No se le inventa servicio.
+- **El dinero vive en un expediente (`funding_case`), no en una operación.** Una operación representa
+  un envío real, con servicio y datos del destinatario; nunca es el cajón donde espera el dinero.
+- El depósito se verifica y entra al expediente **sin vía**. No se le inventa servicio.
 - El servicio se define cuando llega la evidencia:
   1. **Datos**: cuenta Zelle → Zelle; tarjeta + celular → familia tarjeta (el prefijo decide CUP,
      Clásica o Tropical); CLABE + banco → México; teléfono con intención explícita → recarga.
   2. **Palabras explícitas** del cliente o herramientas de elección (`declarar_servicio`,
      `cambiar_servicio`, `agregar_servicio`).
-  3. **Mínimo exacto**: si el depósito coincide con el mínimo de **un solo** servicio, se puede
-     interpretar ese servicio; si coincide con dos (5,200 GYD es Clásica 20 USD y también recarga), se
-     pregunta.
-- **Jerarquía de evidencia**: datos > palabra del cliente > mínimo del monto.
-- **Un solo holder sin vía por conversación**, que acumula depósitos hasta que se asignen.
+  3. **Mínimo exacto**: si coincide con el mínimo de **un solo** servicio, el bot lo **sugiere y
+     pregunta**; nunca asigna solo. Si coincide con dos (5,200 GYD es Clásica 20 USD y también
+     recarga), pregunta.
+- **Jerarquía de evidencia**: datos > palabra del cliente > sugerencia del mínimo.
+- **Una contradicción es un conflicto, no una prioridad**: si el prefijo dice CUP y el cliente dice
+  Clásica, se bloquea y se pregunta; no se cambia el servicio en silencio.
 - **Reparto desde la asignación del cliente**: "100 a esta cuenta, 100 a esta otra y 5,000 GYD a esta
-  tarjeta" define las partes; cuando suman el depósito, `repartir_envio` las agrupa; el resto queda sin
-  vía y se pregunta.
-- **Nada se completa ni se entrega con dinero sin asignar** (candado de entrega).
+  tarjeta" define las partes; se registran como asignaciones (`funding_allocations`) contra el
+  expediente; el resto queda sin asignar y se pregunta.
+- **El dinero se conserva**: depósitos verificados = asignaciones activas + devoluciones + saldo sin
+  asignar, verificado en SQL.
+- **Conciliación determinista**: cada cambio de depósito, destinatario o asignación dispara una
+  función SQL; el modelo no decide cuándo repartir ni calcula el reparto.
+- **Nada se completa ni se entrega con dinero sin asignar** (candado de entrega por operación y por
+  expediente).
 - **El panel** debe permitir asignar servicio, repartir, cancelar y editar con auditoría.
 - **El notificador** solo confirma el depósito mientras no haya vía.
 - **Todo con staging primero, migraciones con ROLLBACK y sin bandera** (se vuelve atrás con el
-  rollback).
+  rollback), más un plan de reversión de datos porque un rollback de esquema no deshace asignaciones
+  ni mensajes.
 
 **Estado actual del plan**
 
 - Ya aplicado en producción: gates de reparto (325, 326), nota de partes con el depósito del grupo y
   cotizaciones que no abren operaciones (327), candado de entrega Zelle (328), nombres de servicio en
   el aviso de completada.
-- Diseño completo y auditoría de huecos en curso; el primer bloqueante es que el reparto acepte un
-  ancla sin vía.
+- El diseño fue reescrito con el modelo de expediente (`funding_case` + `funding_allocations`) tras
+  la revisión externa; el primer bloqueante es introducir el expediente y anclar el reparto en él.
 - Pendiente: confirmar la tabla de prefijos con el operador, decidir MLC como handoff, prototipar
   **promptfoo** para la capa de modelo (no ejecuta n8n, base ni Decisor).
 
@@ -209,7 +219,7 @@ Clásica; el número decía CUP (nómina BANDEC) y el sistema no lo usó para co
    visto?
 2. Proponer el modelo de datos y el estado para un depósito sin vía que luego se asigna o se reparte
    (sin operaciones fantasma, sin perder dinero).
-3. Revisar el flujo de reparto con un ancla sin vía y varios depósitos.
+3. Revisar el flujo de reparto con un expediente como ancla y varios depósitos.
 4. Señalar casos límite: datos en cualquier orden, datos repetidos o corregidos, depósitos múltiples,
    cancelaciones, devoluciones, concurrencia e idempotencia.
 5. Opinar sobre la estrategia de pruebas: promptfoo para el modelo, aserciones SQL para la base, tests

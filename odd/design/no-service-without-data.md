@@ -1,332 +1,299 @@
-# Design: no service without data
+# Design: no delivery without validated service, recipient, amount and funding
 
-Status: PROPOSAL, not implemented. Written 2026-10-26 after the Yoandrys case (a6d28009) and the
-fran garcia split (68a00ea7). Owner rule: the bot verifies the deposit and waits; a service is
-created only when the customer's data or words say what it is. Nothing here is deployed.
+Status: PROPOSAL, updated 2026-10-26 after an external review by three independent models. Not
+implemented. The owner accepted the review's main correction: **the money holder is not an
+operation**. The earlier title ("no service without data") stays as the business principle; the
+engineering rule is the one in this heading.
 
 ## 1. Problem
 
 Today a service can be created from two things that are not the customer's choice:
 
 1. **A price quote.** `cerebro_cotizar` names the service and `_cerebro_declarar_implicito` records
-   the quoted amount through `_cerebro_operacion_declarada`, opening one operation per quoted channel.
-   The prompt asks the bot to quote the four channels (Zelle, Clasica, Tropical, cash), so a
-   comparison quote becomes a declared send. Yoandrys 2026-10-26: quoting Zelle and Clasica at 13:11
-   left a Clasica operation (286,000 GYD) that the owner cancelled at 13:30.
+   the quoted amount, opening one operation per quoted channel. The bot quotes the four channels to
+   compare prices, so a comparison quote becomes a declared send. Yoandrys 2026-10-26: quoting Zelle
+   and Clasica at 13:11 left a Clasica operation (286,000 GYD) that the owner cancelled at 13:30.
 2. **A declared service applied to data that belongs to another rail.** The card arrived at 13:34
    while Clasica was declared; `cerebro_resolver_para_guardar` opened the card operation typed as
-   Clasica. The split wanted `cuban_card`, did not find it, and created a second operation
-   (`e07931d9`) while the beneficiary stayed on the orphan (`f9b6ec33`).
+   Clasica. The split wanted `cuban_card`, did not find it, and created a second operation while the
+   beneficiary stayed on the orphan.
 
 The same family produced the false "faltan 10,000 GYD" at 13:37 (the parts note summed the holder's
-own part, not the group deposit) and the delivery of a 1,100 USD Zelle with 800 + 200 USD of
-recipients (14:24), which left the 100 USD recipient to arrive after the operation was closed.
+own part, not the group deposit), the delivery of a 1,100 USD Zelle with 800 + 200 USD of
+recipients (14:24), and the deposit of fran garcia never being split.
+
+**The structural cause the review identified:** the system mixes three concepts that must stay
+separate.
+
+| Concept | What it is | What it must allow |
+|---|---|---|
+| Quote | A price simulation | No operation, no money reserved |
+| Deposit | Real verified money | Existing without knowing the service |
+| Delivery order | The obligation to deliver an amount to a destination | Created only with service, recipient, amount and funding |
+
+A deposit must not belong to a delivery operation until it is allocated. Operations consume verified
+funding; they never hold money waiting for a service.
 
 ## 2. Principles
 
-1. **Verifying a deposit is independent of knowing its destination.** The receipt is read, crossed
-   with the bank mail, and recorded. No service is needed for that.
-2. **A service is created from the customer's data or words, never from a quote.** A Zelle account
-   says Zelle; a card with a phone says "Cuban card" (family); a CLABE says Mexico; a phone with an
-   explicit top-up intent says recarga. A price query says nothing.
-3. **When the data does not decide, the bot asks.** It never defaults silently. A card number does
-   not say CUP or USD; a phone alone does not say card or top-up.
-4. **The money is never lost.** The verified deposit lives in an operation until it is assigned or
-   split. An unassigned deposit is a normal state, not an error.
-5. **Multi-part sends are split from the customer's allocation** ("100 to this one, 100 to this one,
-   5,000 GYD to this one"), never from a guess.
+1. **No delivery without validated service, recipient, amount and funding.** The business phrase
+   "ningún servicio sin datos" remains, but the enforceable rule is the four-part one.
+2. **The money holder is a funding case, not an operation.** `remittance_operations` only represents
+   real sends, with a service and the required recipient data.
+3. **A quote never declares, opens or types anything.** It is a price, with no operational effect.
+4. **The customer's data or explicit choice assigns the service.** Data first; an explicit word is
+   enough for a family but not for an ambiguous rail. The service minimum only **suggests**; it never
+   assigns (owner decision 2026-10-26).
+5. **A contradiction is a conflict, not an override.** If the card prefix says CUP and the customer
+   says Clasica, the system records the conflict, blocks the delivery and asks. It never changes the
+   service silently in either direction.
+6. **Reconciliation is deterministic and database-owned.** A deposit, a beneficiary or an allocation
+   change triggers a SQL reconciliation; the model never decides whether to run it.
+7. **Money is conserved.** Verified deposits = active allocations + refunds + unassigned balance,
+   enforced in SQL.
+8. **Everything is auditable and idempotent.** No row is deleted; movements are released or
+   compensated. WhatsApp messages, n8n runs, allocations and notifier events carry idempotency keys.
 
-## 3. Target state
+## 3. Target model
 
-### 3.1 The deposit holder
+### 3.1 Funding case (the money)
 
-A verified deposit is recorded in an operation with **no rail**: `service_type = 'remesa'`,
-`delivery_method IS NULL`, no vigente beneficiaries, and — decision 2026-10-26 — `servicio` is empty
-and a `sin_via` flag marks it as unknown. This is the existing shape of a fresh operation; what
-changes is that nothing types it before the customer does.
+`funding_case` is the expediente of one send: it groups verified deposits and the unassigned balance.
 
-The holder accumulates: one rail-less holder per conversation receives every deposit that arrives
-before a service is known (decision 2026-10-26). A second deposit does not open a second holder.
+- One **active** case per conversation is the operational rule for phase 1. The data model supports
+  several cases per conversation from day one (`case_id` on every row); if two cases are compatible,
+  the bot asks instead of merging.
+- `case_deposits` links `depositos_mmg` rows to the case. `depositos_mmg` remains the single source of
+  truth for a verified deposit; the link does not duplicate it.
+- Status: `open`, `allocating`, `closed`, `incident`.
 
-The resolver exposes it explicitly:
+### 3.2 Delivery operation (the send)
 
-- `sin_via = true` when the open operation holds money, has no `delivery_method`, no beneficiary that
-  implies a rail, and no group. Today `cerebro_riel_op` returning null is read as "remesa", which the
-  Decisor then treats as a service. The new flag separates "not known yet" from "remesa".
-- The panel shows it as **"Sin destino"** (label only, no schema enum change).
+`remittance_operations` is created only when there is a service, the recipient data required by that
+service, and (or before) an allocation. `service_type` and `delivery_method` are required for a real
+operation; there is no "holding operation".
 
-### 3.2 What assigns a service
+- Status keeps the current values (`collecting_information`, `deposit_verification`,
+  `ready_to_transfer`, `incident`, `completed`, `cancelled`).
+- A ticket operation belongs to a case (`case_id`) and, when it shares a send, to a mixed group.
 
-| Evidence | Service assigned | Notes |
+### 3.3 Allocation ledger
+
+`funding_allocations` records how much GYD of the case is assigned to each operation:
+
+- `case_id`, `deposit_id`, `operation_id`, `amount_gyd`
+- `status`: `proposed`, `committed`, `released`
+- `evidence_type`: `data`, `explicit_choice`, `operator`, `minimum_suggestion`
+- `idempotency_key` unique, `created_at`, `released_at`
+
+`funding_movements` records releases, refunds, adjustments and operator decisions. Nothing is
+deleted; a release is a movement.
+
+### 3.4 Service evidence and conflicts
+
+`service_evidence` records what supports the service: Zelle account, card prefix and bank, phone with
+explicit recarga intent, CLABE, explicit word, minimum suggestion. Each row has a source
+(`message_id`, image id, tool call), a confidence and a status (`active`, `superseded`, `conflict`).
+
+A conflict is a first-class state: the case and the operation cannot be delivered until it is
+resolved by the customer's confirmation or an operator.
+
+### 3.5 Invariants (enforced in SQL)
+
+- For every case: `verified_deposits = active_allocations + refunds + unassigned_balance`.
+- No operation reaches `ready_to_transfer` unless its committed allocations cover its
+  `quoted_source_amount` and the active recipient amounts equal its destination amount.
+- No operation is `completed` with a pending conflict or with a case balance that belongs to it.
+- No operation exists without a service and the recipient data its service requires.
+- No case closes while the unassigned balance is non-zero without an explicit disposition (assign,
+  refund, credit, authorized adjustment).
+- One active case per conversation in phase 1.
+- Every allocation, deposit link and movement has an idempotency key.
+
+### 3.6 Delivery gates
+
+The 328 gate (Zelle recipients must add up) becomes the general rule:
+
+- Per operation: funding allocated, recipient amounts add up, no conflict, required data present.
+- Per case: it may stay open with a remainder that belongs to another send; the remainder is visible
+  and cannot be silently dropped.
+- Hard block, with a deliberate, audited admin delete/edit as the only exit (owner decision
+  2026-10-26).
+
+## 4. Evidence and service assignment
+
+### 4.1 Evidence hierarchy
+
+1. **Explicit choice + compatible data**: create or update the operation.
+2. **Unambiguous destination data without contradiction**: prepare the operation; confirm what is
+   needed.
+3. **Explicit choice with incomplete data**: store the intent; ask for the data.
+4. **Only an amount match**: **suggest**, never assign. The bot asks ("veo 5,000 GYD; ¿es para una
+   tarjeta CUP?").
+5. **Contradictory evidence**: conflict; block and ask.
+
+### 4.2 Service evidence table
+
+| Evidence | Service | Notes |
 |---|---|---|
-| Zelle account (email or US phone) | `zelle` | The account itself is the evidence |
-| Card prefix `9760` (`976003` / `976004`) | `clasica` | Tarjeta Clásica (FINCIMEX), USD |
+| Zelle account (email or US phone) | `zelle` | The account is the evidence |
+| Card prefix `9760` (`976003`/`976004`) | `clasica` | Tarjeta Clásica (FINCIMEX), USD |
 | Card prefix `9240` | `tropical` | Tarjeta Tropical (BANDEC), USD prepaid |
-| Card prefix `9234` or another 92xx CUP prefix | `cuban_card` | CUP card; the prefix decides, not the customer's word |
-| Card prefix `9225` / `9235` / other MLC-backed | none | MLC is human-handled (084): no quote, a colleague confirms the rate |
+| Card prefix `9234` or another 92xx CUP prefix | `cuban_card` | CUP card; the prefix decides, not the word |
+| Card prefix `9225`/`9235`/other MLC-backed | none | MLC is human-handled (084): no quote, a colleague confirms |
 | Card prefix unknown | none | Ask; never default |
-| Card + phone, customer said Clasica / Tropical | the prefix decides | If the number contradicts the word, the data wins and the bot tells the customer what the card is |
-| Card + phone, no word about the currency | the prefix decides | Only ask when the prefix is not in the known list |
-| Complete data for a service (CLABE + bank, Zelle account, card + phone) | the service | The data itself is enough; no word is required (owner 2026-10-26) |
-| Deposit exactly equal to a service minimum, no other evidence | that service | Only when the minimum identifies ONE service; if two services share it (5,200 GYD = 20 USD Clasica/Tropical and a 5,200 recarga), ask (owner 2026-10-26) |
-| CLABE / Mexican bank | `mexico` | Account type implies it |
-| Phone + explicit top-up words | `recarga` | The intent is explicit, not inferred from the phone |
-| Address + carnet + explicit cash words | `efectivo_usd` | Explicit intent |
+| Card + phone, customer said Clasica/Tropical | the prefix decides | If the number contradicts the word → conflict |
+| CLABE + bank | `mexico` | Complete data is enough; no word required |
+| Phone + explicit top-up words | `recarga` | A phone alone is never a recarga |
+| Address + carnet + explicit cash words | `efectivo_usd` | Explicit intent required |
 | Combo / visa / saldo movil | the service | Explicit intent only |
-| Explicit `declarar_servicio` / `agregar_servicio` / `cambiar_servicio` | the chosen service | The customer's choice, audited |
-| `repartir_envio` with parts | each part's service | Parts come from the customer's allocation |
+| Exact service minimum, unique | suggestion only | 5,000 GYD suggests CUP; 5,200 GYD is ambiguous (Clasica 20 USD or recarga) |
 
-A quote, an objective, or an amount never assigns a service.
+**Precedence:** data > explicit word > minimum suggestion. A contradiction between data and word is a
+conflict, not a precedence win.
 
-### 3.3 The objective without an operation
+## 5. Deterministic reconciliation
 
-A quote or a stated amount may live at conversation level (`cerebro_ultima_cotizacion`,
-`cerebro_objetivo_envio`) without opening an operation. The operation is opened when the first piece
-of destination data arrives or the customer chooses a service.
+Every change to a deposit, a recipient, an allocation, a conflict or a case runs one SQL
+reconciliation, idempotent and locked with `SELECT ... FOR UPDATE` (or an advisory lock per case):
 
-The objective is rail-dependent: a USD quote uses the Zelle tier, a CUP amount uses the CUP rate. With
-no rail, the objective cannot be compared with the deposit; the deposit is only verified. The
-comparison happens once the rail (or the card prefix) is known.
+1. Load the case: verified deposits, evidence, instructed parts, allocations, conflicts.
+2. If a conflict exists → return a blocked result; the bot asks.
+3. Build the proposed parts from the evidence and the customer's explicit allocations.
+4. Validate each part: service, minimum, recipient data, amount.
+5. Validate the sum: parts ≤ available. More → reject the whole proposal; less → the remainder stays
+   unassigned.
+6. Apply committed allocations FIFO against the case deposits; create the operations already typed;
+   reuse an open operation of the same service and recipient when it exists.
+7. Set `mixed_group_id` when several operations share the send.
+8. Update deposit and case statuses; write movements.
+9. Return the result: operations, remainder, pending parts, conflicts.
 
-## 4. Changes by component
+The agent only interprets messages and calls tools. It never decides whether to reconcile and never
+computes the split.
 
-### 4.1 `cerebro_cotizar`
+## 6. Worked flows
 
-- Remove the implicit declaration and the agreed-amount write. A quote records the quote and the rate
-  only.
-- Keep `cerebro_fijar_objetivo` only under its current commitment rules (a beneficiary, a declared
-  service, or a receipt already exists). A pure comparison quote fixes no objective.
+### 6.1 Deposit, then nothing
 
-### 4.2 `_cerebro_declarar_implicito` / `cerebro_declarar_servicio`
+Receipt verified → case with balance → bot confirms the deposit and asks where it goes. No operation.
+The notifier only confirms the deposit.
 
-- The implicit helper is removed from the quote path. Declarations come from explicit tools only.
-- `cerebro_declarar_servicio` keeps opening an operation when an amount is agreed, because that call
-  is the customer's explicit choice (or the bot's explicit act on it).
+### 6.2 Deposit + parts in any order
 
-### 4.3 `cerebro_registrar_deposito` / the crossing
+Deposit 285,000 GYD. Zelle account "800 USD to this one"; second Zelle "200"; card + phone "10,000
+GYD to this card, CUP". Each piece of data adds evidence; each amount is the customer's word. When
+the parts are complete, reconciliation creates the Zelle and card operations, allocates 275,000 +
+10,000 and leaves 0. If the 100 USD account arrives later, it is added to the open Zelle operation
+(not a new empty operation); if the sum exceeds the deposit, the proposal is rejected and the bot
+asks.
 
-- Attach the deposit to the conversation's open holder without typing it. If an explicit declaration
-  exists, it may type the holder; a quote-derived declaration does not exist any more.
-- A deposit with no destination stays `sin_via`; the bot confirms it and asks.
+### 6.3 Deposit and one Zelle account
 
-### 4.4 The beneficiary writers
+The Zelle account is unambiguous evidence; the operation is created when the amount is known. If the
+deposit covers it, it is ready. If the deposit exceeds it, the remainder stays unassigned and the bot
+asks.
 
-- `cerebro_guardar_zelle`: target or open a `zelle` operation; if the only open operation is an
-  unclassified holder, type it `zelle` as part of the write.
-- `cerebro_guardar_beneficiario`: target or open the card operation according to the explicit words
-  (CUP / Clasica / Tropical); with no currency word, see D1.
-- The split (`_repartir_envio_core`) is the only path that assigns several services to one deposit.
+### 6.4 Card prefix contradicts the word
 
-### 4.5 The resolver
+Card `9234…`, customer says Clasica. Evidence: prefix + bank = CUP. Conflict state; the bot says the
+card is CUP and asks; no transfer until confirmed. If the customer confirms CUP, the conflict closes
+with the customer's word; if not, an operator reviews.
 
-- Add `sin_via` (3.1). Keep `deposito_grupo_gyd` (327) and `reparto_pendiente` (325).
-- Do not derive a default rail from the absence of data.
+### 6.5 Minimum suggestion
 
-### 4.6 The Decisor
+Deposit 5,000 GYD, no other evidence. The bot suggests CUP ("el mínimo de CUP son 5,000 GYD") and
+waits. It does not create the operation. 5,200 GYD is ambiguous and only produces a question.
 
-- When the holder is `sin_via`: confirm the deposit and ask one open question ("¿A dónde quiere que
-  se envíe?"). Never name a channel as if it were chosen.
-- When a part is assigned and money remains: state the remainder and ask.
-- Keep the mandatory `repartir_envio` (325) and the general guard (326).
-- Keep the Zelle delivery gate (328).
+## 7. Panel UX (case-centric)
 
-### 4.7 The prompt
+- The case shows **verified**, **assigned**, **available** and the deposits that back it.
+- Actions: assign service, split, refund/cancel, view evidence, resolve conflict.
+- Evidence panel with badges: "cuenta Zelle detectada", "tarjeta 9240 → Tropical", "cliente dijo
+  Clásica → conflicto".
+- Assignment modal validates minimum, sum and conflicts; an override requires a reason.
+- "Complete delivery" is disabled with the reason visible ("falta asignar 100 USD entre
+  beneficiarios").
+- Audit timeline: evidence, allocations, releases, operator, source message. Nothing is deleted.
 
-- Replace the "quote the four channels with `calcular_usd`" example with "ask which channel; quote
-  only the one the customer is considering or ask for the price of each without declaring". The tool
-  no longer declares, but the example should stop teaching the wrong habit.
-- Add: "un comprobante sin destino se confirma y se pregunta; no se asume la via".
+## 8. Migration and compatibility
 
-## 5. Worked flows
+- Keep `depositos_mmg` as the source of truth; link it to the case. Do not duplicate it.
+- Existing open operations keep working; new deposits create cases. No backfill of completed
+  history (owner decision 2026-10-26).
+- The already-applied fixes remain useful but operate on operations: 325 (split fact), 326 (unfunded
+  part guard), 327 (group deposit and comparison quotes), 328 (Zelle delivery gate). The case model
+  needs equivalents anchored on the case.
+- `_repartir_envio_core` anchors on an operation today. A case-based split needs a new function (or
+  an adapter) that receives `case_id` and parts and creates/links operations.
+- `cerebro_resolver_servicio` must expose the case state; the Decisor and the notifier must stop
+  treating an operation as the money.
+- The panel and the notifier are operation-centric; the case view and messages are a real UI/API
+  change.
 
-### 5.1 Deposit, then nothing
+## 9. Testing and rollout
 
-Receipt verified → holder with the money, `sin_via` → "Su deposito de X GYD quedo verificado. ¿A
-donde quiere que se envie?" No operation is typed. No Clasica, no Zelle.
+| Layer | What it validates | Tool |
+|---|---|---|
+| Message interpretation | Intent, amounts, recipients, conflicts | promptfoo with tool-call assertions |
+| Decisor | Context and rule selection | vitest harness |
+| Reconciliation engine | Splits, balances, transitions | deterministic SQL tests |
+| PostgreSQL | Atomicity, constraints, concurrency, idempotency | SQL/pgTAP with fixtures |
+| Integration | Full flow without real external effects | webhook simulator; never the shared WhatsApp token |
+| Panel | Actions, permissions, blocks, audit | UI tests |
+| Production | No regressions, no financial anomalies | monitoring and reconciliation |
 
-### 5.2 Deposit, then the customer allocates three parts
+- **Staging contradiction:** the staging Cerebro shares the production WhatsApp token and must not be
+  executed. A manual staging conversation is not safe. Build a webhook simulator (post the same
+  payloads to n8n with mocked tools and notify disabled) or a dedicated test number/credential before
+  the end-to-end test.
+- **Rollback is not enough:** a schema rollback does not undo allocations, refunds or messages. Add
+  backups, post-deploy reconciliation and a reversible data plan, not only migration rollbacks.
+- **Property tests:** generate deposits, parts, cancellations and refunds randomly and assert
+  conservation (never lose or duplicate GYD).
+- **Metrics:** phantom operations per quote (target 0), double-counted deposits (0), deliveries with
+  incomplete recipient amounts (0), allocations above verified deposits (0), manual split
+  corrections, repetitive messages. Keep the 502-turn/69-conversation baseline.
 
-"100 a esta cuenta Zelle, 100 a esta otra y 5,000 GYD a esta tarjeta":
+## 10. Phases
 
-1. Zelle account 1 → a `zelle` part for 100 USD (26,000 GYD if the rate is 260).
-2. Zelle account 2 → a second Zelle recipient on the same part or a second part, per the customer's
-   words.
-3. Card + phone → the card part for 5,000 GYD (15,000 CUP).
-4. When the parts are known and sum the deposit, `repartir_envio` groups them. If only some are
-   known, the rest stays `sin_via` and the bot asks for it. Nothing is typed in advance.
+1. **Money guards:** centralize the delivery gates, deduplication and balance checks in SQL. Every
+   financial mutation goes through authorized functions.
+2. **Case + allocations:** introduce `funding_case`, `case_deposits`, `funding_allocations` and
+   `funding_movements`, compatible with the existing operations.
+3. **Deterministic reconciliation:** run the engine on every relevant change; remove the model's
+   responsibility to call the split.
+4. **Panel, simulator, tests and brevity:** the case UX, the webhook simulator, the test matrix, and
+   only then the conversational brevity work.
 
-### 5.3 Deposit and one Zelle account
+## 11. Decisions (2026-10-26)
 
-Zelle account → the holder is typed `zelle`; if the deposit covers the amount asked, the operation is
-ready. If it exceeds it, the remainder stays unassigned and the bot asks.
+- The money holder is a case, not an operation (review, accepted).
+- Service/currency empty until the data or the customer decides; no quote declares.
+- A deposit never types a service from the amount or the words, except that an exact **unique**
+  minimum may **suggest** and the bot asks (owner accepted 2026-10-26; no automatic assignment).
+- One active case per conversation in phase 1; multiple cases supported by the model.
+- Data > word > minimum suggestion; a contradiction is a conflict, never a silent override.
+- Deterministic reconciliation in SQL; the model does not decide it.
+- Hard delivery gate with an audited admin delete/edit.
+- MLC is a human handoff (084).
+- The panel gets assign/cancel on day one; complete UX follows.
+- No feature flag: deployments use migration rollbacks plus a data rollback plan.
+- Legacy cases (`f9b6ec33`, `e4c2a15b`, Suri) stay as history.
 
-### 5.4 Card without currency
+## 12. Open questions
 
-Card + phone, no word about CUP or USD → ask. D1 decides whether the default is CUP or always ask.
+- **Staging:** build the webhook simulator vs a dedicated WhatsApp test number. The simulator is
+  cheaper; the test number is more faithful. This decides O14.
+- **Prefix table:** confirm the list with Osmany; where it lives (config with a code-managed seed) and
+  who updates it (the team).
+- **Case per conversation:** keep one active case per conversation in phase 1, or allow several from
+  the start?
+- **Order of implementation:** phase 1 (money guards) first, or the case + allocation schema first.
 
-### 5.5 Phone alone
+## 13. Non-goals
 
-A phone alone does not say card or top-up → ask. D2.
-
-## 6. Invariants and edge cases
-
-- A price quote never creates or types an operation.
-- A deposit is never rejected for lacking a destination; it is held.
-- The holder may have no rail. `_repartir_envio_core` must accept an anchor without a rail and assign
-  each part's service as the parts arrive (owner decision 2026-10-26); today it refuses because the
-  anchor's own service must be one of the parts.
-- The customer may send the data in any order (owner decision 2026-10-26). The system accumulates:
-  card first, Zelle later, amount last, or any other order.
-- A card prefix is evidence and wins over a customer's word; the bot tells the customer what the card
-  is ("esta tarjeta no es Clásica, es de CUP").
-- MLC is human-handled (084): no automatic service, no quote.
-- A delivery (status completed) requires the recipient amounts of a Zelle operation to add up (328).
-- An unclassified operation cannot be completed or feed the calculator.
-- The completion notice never fires for an operation whose service is unknown.
-- Existing typed operations are unchanged; no backfill.
-- Corrections remain audited; no silent overrides.
-
-## 7. Phases
-
-- **Phase 0 (done):** 325 (reparto_pendiente), 326 (sin_dinero), 327 (group deposit, comparison
-  quotes), 328 (Zelle delivery gate).
-- **Phase 1:** quotes stop declaring and opening operations; prompt example updated; eval battery
-  subset for quotes.
-- **Phase 2:** deposits land `sin_via`; resolver flag; Decisor asks; panel label.
-- **Phase 3:** writers type from data; split from allocation; ambiguity questions.
-- **Phase 4:** measurement: eval battery cases for the five flows, staging fixtures, corpus
-  post-deploy (quotes per send, phantom operations, unassigned deposits).
-
-## 8. Acceptance criteria
-
-- A deposit alone produces a verified holder with `sin_via` and no typed operation.
-- Quoting four channels leaves exactly one operation (or none) and no declaration from the quotes.
-- A Zelle account types the part `zelle`; a card with an explicit CUP word types it `cuban_card`.
-- A multi-part allocation splits only when the parts sum the deposit; the remainder stays `sin_via`.
-- No operation is completed with unassigned money in a Zelle (328).
-- The corpus shows zero phantom operations per comparison quote after Phase 1.
-
-## 9. Open decisions for the owner
-
-- **D1. Card without a currency word — decided 2026-10-26:** the prefix decides first (`9760`
-  Clásica, `9240` Tropical, `9234`/92xx CUP list → CUP); unknown prefix → ask. The customer's word
-  loses against the data. Confirm the prefix table with Osmany before automating the full list.
-- **D2. Phone alone — decided 2026-10-26:** the order of the data does not matter; recarga needs
-  explicit intent, and a phone alone is never a recarga.
-- **D3. The panel label — decided 2026-10-26:** "Sin destino".
-- **D4. The 100 USD Suri record — decided 2026-10-26:** leave it as history.
-- **D5. MLC:** confirm that MLC is always a human handoff and never a bot rail (084 says it is not
-  quoted; the calculator keeps MLC as a manual line).
-
-## 10. Non-goals
-
-- Changing the panel's transaction flow or the calculator.
+- Rebuilding the 131 nodes or changing the 21 tools at once.
 - Backfilling historical operations.
-- Replacing `repartir_envio` or the planned-split mechanism.
+- Teaching the model to compute splits or balances.
 - Making the bot ask about every field; the deposit confirmation stays immediate.
-
-## 11. Review gaps (2026-10-26)
-
-This section is the detailed review of the plan against the code. Items are marked B (blocker for
-the design), D (decided by the owner on 2026-10-26) and O (open, needs a decision or a slice).
-
-### Blockers
-
-- **B1. The split core rejects an anchor without a rail.** `_repartir_envio_core` requires the
-  anchor's own service to be one of the parts. D: the core must accept a rail-less anchor and assign
-  each part's service as the data arrives. This is the first implementation slice.
-- **B2. The resolver contract.** `servicio` today is `coalesce(riel,'remesa')`, so "remesa" means
-  both a real rail and "unknown". The new contract needs `servicio = null` + `sin_via = true`, and an
-  inventory of every consumer (Decisor notes, panel, notifier, tools, Contexto SQL). O.
-- **B3. The deposit still guesses.** `cerebro_registrar_deposito` calls
-  `cerebro_resolver_servicio(conv, NULL, NULL, monto)`, which uses the amount and words to pick a
-  service (the R3 rule of `service-resolution`, including "the amount is the top-up price"). That
-  call must become "hold the deposit without a rail". O.
-- **B4. The objective is rail-dependent.** A USD objective uses the Zelle tier; CUP uses the CUP
-  rate. With no rail there is nothing to compare; the deposit is only verified (see 3.3). D.
-- **B5. Multiple deposits and multiple holders.** Define what happens with a second deposit before the
-  first is assigned, and with two unclassified holders. O.
-- **B6. Completion of an unclassified operation.** A rail-less holder must not reach `completed` nor
-  feed the calculator; add a gate like 328. O.
-
-### Data and evidence
-
-- **D1 (detail). Card prefixes.** Tropical `9240`, Clásica `9760` (`976003`/`976004`), CUP `9234` and the
-  92xx CUP list, MLC `9225`/`9235`/… → human. Data wins over the word; the bot informs the mismatch.
-  Confirm the full table with Osmany and keep it in configuration, not code. Source:
-  qvapay/cuban_cards_prefixes (community catalogue) plus BANDEC/BCC notes.
-- **O7. Prefix table ownership and maintenance.** Where it lives, who updates it, and what happens
-  with a new prefix. Without this the 9234/9248 gap returns.
-- **O8. Recarga inference.** Retire "amount = top-up price"; a phone alone is never a recarga. The
-  explicit-intent path must cover the 1232671b case.
-- **O9. Services not inferable from data.** Cash (address/carnet), Mexico (CLABE/bank), combo, visa,
-  saldo: each needs its explicit trigger and its own ambiguity rule.
-
-### Operations and interface
-
-- **O10. Panel flow for a rail-less deposit.** Assign service, split, cancel, return; "Sin destino" is
-  only the label.
-- **O11. Notifier messages.** The verified and completed templates assume a service; define the
-  rail-less wording and never name a service that is not known.
-- **O12. Writers target the holder.** `gestionar_beneficiario` and `registrar_beneficiario_zelle`
-  must attach to the single open rail-less holder instead of opening a second operation.
-- **O13. Customer history.** The bot must not infer the current send's rail from previous sends.
-
-### Verification and rollout
-
-- **O14. The eval battery cannot measure the Decisor.** Cases carry the frozen `[CONTEXTO]`; use the
-  Decisor harness, SQL assertions and staging fixtures, and the owner's staging conversation.
-- **O15. Feature switch and rollback.** Put the new behaviour behind `cerebro_config` with an explicit
-  rollback, in addition to each migration's ROLLBACK.
-- **O16. Success metrics.** Baseline and post-deploy: phantom operations per quote, rail-less
-  deposits, split outcomes, service corrections, deliveries with unassigned money.
-- **O17. Known legacy cases.** `f9b6ec33`, `e4c2a15b` and the Suri 100 USD: correct or leave as
-  history (D4).
-
-## 12. Decisions from the second review (2026-10-26)
-
-- **B2 — empty service.** `servicio` is empty until the data says where the deposit goes. `sin_via`
-  marks the state; every consumer must treat empty as "not known", never as a service.
-- **B3 — data defines the service.** The deposit path stops using the amount and the words to pick a
-  service. The service comes from the customer's explicit confirmation or from the data (Zelle
-  account, card, CLABE, phone with recarga intent). One exception, O8.
-- **B4 — quote only with a rail.** No quote and no comparable objective until the rail is known.
-- **B5 — one holder, accumulating.** One rail-less holder per conversation receives every deposit
-  before the service is known.
-- **B6 — hard block with an admin exit.** A rail-less operation cannot be completed; an admin can
-  still delete or edit it deliberately, with audit.
-- **O7 — we maintain the prefix table.** It lives in configuration with a code-managed seed; the team
-  updates it. Confirm the prefixes Osmany uses daily before automating the full list.
-- **O8 — the service minimum is evidence.** If the deposit exactly matches the minimum of ONE
-  service and there is no other evidence, it is taken as that service: 5,000 GYD → CUP; 13,000 GYD →
-  Zelle; 5,200 / 6,200 GYD → recarga (per promo). If the amount matches two services it is NOT
-  evidence: 5,200 GYD is both the 20 USD Clasica/Tropical minimum and a recarga minimum, so the bot
-  asks. The prefix or the recipient data breaks the tie.
-- **O9 — complete data is enough.** A CLABE + bank is a Mexico send without any additional word; a
-  card + phone is a card send; a Zelle account is Zelle. Words are required only where the data is
-  ambiguous (phone alone, combo, visa, saldo movil).
-- **O10 — panel day one.** Assign service and cancel; B6's admin delete/edit covers the rest.
-- **O11 — rail-less notice.** The notifier only confirms the deposit; it never names a service until
-  one exists.
-- **O12 — the data defines the parts, not the holder.** Scenario: a deposit of X GYD, then a Zelle
-  account "this much to this one", then a card + phone "this much to this other one". The Zelle
-  account makes that part Zelle; the card makes the other part a card; no one has to ask "is this
-  Zelle?". The writer attaches each piece of data to the single rail-less holder, the parts are
-  created as the data arrives, and `repartir_envio` applies when the parts sum the deposit. If they
-  do not sum, the remainder stays rail-less and the bot asks for it. The only case that needs a
-  question is two open sends or two possible amounts, never the service that the data already names.
-- **O13 — history is a suggestion only.** It proposes beneficiaries; it never decides the current
-  send's service.
-- **O14 — promptfoo for the model layer.** It fits the prompt/model/tool-call assertions (it can
-  check that the model calls `repartir_envio` with the parts), but it does not run n8n, the database
-  or the Decisor. Use promptfoo for the model cases; keep SQL assertions for the DB and the vitest
-  harness for the Decisor; the owner's staging conversation remains the only end-to-end test.
-  Prototype before replacing the current battery.
-- **O15 — rollback only.** No feature flag; each migration ships its ROLLBACK and the Decisor can be
-  republished to its previous version.
-- **O16 — metrics.** Corpus for the before/after (phantom operations per quote, rail-less deposits,
-  split outcomes, service corrections, deliveries with unassigned money) and promptfoo for the model
-  cases. Baseline before Phase 1.
-- **O17 — legacy stays as history.** No backward correction of `f9b6ec33`, `e4c2a15b` or Suri.
-
-

@@ -61,7 +61,7 @@ phase 3.
 - [x] T1. Assertion `funding-case.sql` with RED on the staging base (tables/functions absent).
 - [x] T2. Migration 330 with the four tables, the column, RLS, comments and six functions.
 - [x] T3. Staging cycle `aplicar` (dry-run, apply, assertion, rollback).
-- [ ] T4. Production `previa` over 330; report; wait for the go-ahead.
+- [x] T4. Production `previa` over 330; report; wait for the go-ahead.
 - [ ] T5. Production `aplicar 330` after approval; `verificar`.
 - [ ] T6. Update the design/task docs and save the evidence.
 
@@ -101,3 +101,6 @@ phase 3.
   arguments, over-allocation, another conversation, a completed operation, idempotent release, a
   completed operation's release, closing with a balance, closing at zero, a closed case refusing
   writes, and conservation.
+- T4 (2026-10-26): `produccion-migracion.sh previa 330` → `VEREDICTO: SEGURO`; the six functions are
+  `NEW` and the 64 columns/constraints/triggers/indexes of the touched tables are equal. Awaiting the
+  owner's explicit go-ahead to apply.

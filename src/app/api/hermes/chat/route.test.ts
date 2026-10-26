@@ -71,7 +71,7 @@ describe('POST /api/hermes/chat', () => {
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer k');
   });
 
-  it('añade el veredicto del verificador al mensaje con imagen', async () => {
+  it('añade el veredicto del verificador como nota de sistema', async () => {
     process.env.HERMES_API_URL = 'http://127.0.0.1:18643';
     process.env.HERMES_API_KEY = 'k';
     process.env.HERMES_VERIFICADOR_URL = 'https://n8n.example/webhook/verificar-comprobante';
@@ -113,8 +113,10 @@ describe('POST /api/hermes/chat', () => {
 
     const call = fetchMock.mock.calls.find(([url]) => String(url).includes('/v1/chat/completions'));
     const sent = JSON.parse(String((call?.[1] as RequestInit).body));
-    const parts = sent.messages.at(-1).content as Array<{ type: string; text?: string }>;
-    const summary = parts.find((part) => part.type === 'text' && (part.text ?? '').includes('Verificador'))?.text ?? '';
+    const summary = (sent.messages as Array<{ role: string; content: string }>)
+      .filter((message) => message.role === 'system')
+      .map((message) => message.content)
+      .find((content) => content.includes('Verificador')) ?? '';
     expect(summary).toContain('SÍ está en el libro de depósitos de MMG');
   });
 

@@ -24,10 +24,11 @@ export const runtime = 'nodejs';
 const MAX_BODY_BYTES = 6 * 1024 * 1024;
 
 /**
- * The verifier reads the attached picture with the Cerebro's own flow and
- * hands Hermes the facts it measured, so the answer is not a guess.
+ * The verifier reads the attached picture with the Cerebro's own flow. Its
+ * result goes in as a system note: appended to the user's own message the
+ * agent rightly treats it as something the user typed and refuses to trust it.
  */
-async function withVoucherVerdict(messages: ReturnType<typeof cleanMessages>) {
+function findAttachedImage(messages: ReturnType<typeof cleanMessages>): string | null {
   let imageUrl: string | null = null;
   for (let i = messages.length - 1; i >= 0 && !imageUrl; i--) {
     const content = messages[i].content;
@@ -35,19 +36,7 @@ async function withVoucherVerdict(messages: ReturnType<typeof cleanMessages>) {
       imageUrl = content.find((part) => part.type === 'image_url')?.image_url.url ?? null;
     }
   }
-  if (!imageUrl) return messages;
-
-  const verdict = await verifyVoucher(imageUrl);
-  if (!verdict) return messages;
-
-  const summary = voucherSummary(verdict);
-  return messages.map((message, index) => {
-    if (index !== messages.length - 1) return message;
-    if (typeof message.content === 'string') {
-      return { ...message, content: `${message.content}\n\n${summary}` };
-    }
-    return { ...message, content: [...message.content, { type: 'text' as const, text: summary }] };
-  });
+  return imageUrl;
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -75,7 +64,14 @@ export async function POST(request: Request): Promise<Response> {
   if (messages.length === 0) {
     return NextResponse.json({ error: 'messages is required' }, { status: 400 });
   }
-  messages = await withVoucherVerdict(messages);
+  let payload: Array<{ role: string; content: unknown }> = messages;
+  const attachedImage = findAttachedImage(messages);
+  if (attachedImage) {
+    const verdict = await verifyVoucher(attachedImage);
+    if (verdict) {
+      payload = [...messages, { role: 'system', content: voucherSummary(verdict) }];
+    }
+  }
 
   const base = process.env.HERMES_API_URL;
   const key = process.env.HERMES_API_KEY;
@@ -96,7 +92,7 @@ export async function POST(request: Request): Promise<Response> {
       },
       body: JSON.stringify({
         model: process.env.HERMES_API_MODEL || 'hermes',
-        messages,
+        messages: payload,
         stream: false,
       }),
       signal: AbortSignal.timeout(110_000),

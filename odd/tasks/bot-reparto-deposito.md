@@ -54,7 +54,7 @@ the second operation but never splits, so the second service stays unfunded and 
   objective). Staging: dry-run/apply/assertion/rollback OK.
 - [x] T8. Decisor guard: forbids "completo", "listo" and "la transferencia sale" while `sin_dinero` lists an
   operation; the 325 split note wins when present. Vitest 79/79.
-- [ ] T9. Owner go-ahead; apply 326 and publish the guard to production.
+- [x] T9. Owner go-ahead received. Migration 326 applied (20261026151129; prod=stg f729a53c) and the guard published (versionId 4dfb00d0-7d17-48ab-b61d-a608624afce3, md5 251efc61 = repo).
 
 ## Acceptance criteria
 - With an open objective of 26,000 GYD, a verified 31,000 GYD deposit and an empty card operation with a
@@ -76,6 +76,8 @@ the second operation but never splits, so the second service stays unfunded and 
 - Pending: confirm on the next real split that the bot calls `repartir_envio` and both operations end `ready_to_transfer`.
 - Commits 326/guard: f411f1b (migration), ae8a7fe (Decisor). Staging resolver md5 f729a53c; staging Decisor
   versionId 3aaac988-76ca-47d0-8e1c-a49608621fdc, md5 251efc61 = repo.
+- Production 326: OK 20261026151129; verificar 1/1 (prod=f729a53c stg=f729a53c). Production Cerebro: versionId
+  4dfb00d0-7d17-48ab-b61d-a608624afce3, activeVersionId equal, Decisor md5 251efc61.
 
 ## Checks
 - `npx vitest run pruebas/decisor`

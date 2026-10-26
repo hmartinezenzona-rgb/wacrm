@@ -47,7 +47,7 @@ the second operation but never splits, so the second service stays unfunded and 
 - [x] T3. Applied to staging: dry-run OK, apply OK, assertion OK, rollback OK (cerebro_resolver_servicio md5 d5c63849).
 - [x] T4. Decisor note + mandatory tool; vitest 76/76 green (commit 74e7476).
 - [x] T5. Decisor published to staging (versionId 1f672242, md5 467ef930 = repo). Verified at the SQL layer (assertion) and the Decisor layer (vitest); staging cannot be executed end to end.
-- [ ] T6. Owner go-ahead; apply migration and Decisor to production; verify with a real send.
+- [x] T6. Owner go-ahead received. Migration 325 applied in production (20261026150013; prod=stg d5c63849) and Decisor published (versionId e41fa970, md5 467ef930 = repo). End-to-end verification pending the next real split.
 
 ## Acceptance criteria
 - With an open objective of 26,000 GYD, a verified 31,000 GYD deposit and an empty card operation with a
@@ -62,6 +62,9 @@ the second operation but never splits, so the second service stays unfunded and 
 - Staging migration: dry-run OK / apply OK / assertion OK / rollback OK.
 - Staging Cerebro: versionId 1f672242-f234-4770-a4f1-a9dadc875ba0, Decisor md5 467ef930.
 - Production `previa`: EQUAL, VEREDICTO SEGURO.
+- Production migration: OK 325_reparto_pendiente 20261026150013; `verificar`: VERIFICADO 1/1 (prod=d5c63849 stg=d5c63849).
+- Production Cerebro: versionId e41fa970-2136-4cb6-a128-8255efb01a2f, activeVersionId equal, Decisor md5 467ef930.
+- Pending: confirm on the next real split that the bot calls `repartir_envio` and both operations end `ready_to_transfer`.
 
 ## Checks
 - `npx vitest run pruebas/decisor`

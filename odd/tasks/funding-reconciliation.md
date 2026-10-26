@@ -57,7 +57,7 @@ the full service-evidence model, bot wording, the panel, and any backfill.
       `funding_case_resolver`, the beneficiary trigger, the helper rewrites and the incident gate.
 - [x] T3. Staging cycle (dry-run, apply, assertion, rollback).
 - [x] T4. Related regressions for the touched functions and the beneficiary trigger.
-- [ ] T5. Production `previa 331`; report; wait for the go-ahead.
+- [x] T5. Production `previa 331`; report; wait for the go-ahead.
 - [ ] T6. Production apply + verify; update docs and memory.
 
 ## Verification
@@ -98,3 +98,8 @@ the full service-evidence model, bot wording, the panel, and any backfill.
   during fixture setup with a random uuid; it is pre-existing and not caused by 331.
 - Revised function md5 after the fix: `cerebro_fondos_operacion 85e83571e1ac`; the other functions
   keep the md5 listed above.
+- T5 (2026-10-26): `produccion-migracion.sh previa 331` → `VEREDICTO: SEGURO`.
+  `_repartir_envio_core`, `cerebro_cruzar_deposito`, `cerebro_fondos_operacion` and
+  `crm_entregar_operacion` are EQUAL against the staging pre-bundle state; the five new functions are
+  NEW; the 55 columns/constraints/triggers/indexes of the touched tables are equal. Awaiting the
+  owner's explicit go-ahead.

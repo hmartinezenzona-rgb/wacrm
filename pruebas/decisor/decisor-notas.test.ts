@@ -1033,3 +1033,69 @@ describe('nombre del servicio, recarga sin tarjeta y promesa neutra', () => {
     expect(n).not.toMatch(/queda para el dia siguiente/);
   });
 });
+
+describe('325: reparto pendiente (un deposito verificado que cubre dos servicios)', () => {
+  // The database resolver computes the parts; the Decisor only has to force the tool with those exact numbers.
+  // Before this, the only repartir_envio order lived in the verificado_de_mas branch, which needs a receipt in
+  // the same turn; the objective is set after the receipt turn, so the remainder was never compared.
+  const rp = {
+    deposito_gyd: 31000,
+    objetivo_gyd: 26000,
+    resto_gyd: 5000,
+    partes: [
+      { servicio: 'zelle', monto_gyd: 26000, operation_id: 'op-1' },
+      { servicio: 'cuban_card', monto_gyd: 5000, operation_id: 'op-2' },
+    ],
+  };
+  const resuelto = (extra: Record<string, unknown> = {}) => ({
+    version: 2,
+    en_curso: 'zelle',
+    servicio: 'zelle',
+    accion: 'ninguna',
+    permitido: true,
+    motivo: 'sin_cambio',
+    mensaje: null,
+    minimo_gyd: null,
+    faltante_gyd: null,
+    operaciones: [
+      { id: 'op-1', servicio: 'zelle', rail: 'zelle', status: 'ready_to_transfer', tiene_deposito: true, dinero_gyd: 31000, zelle: true },
+      { id: 'op-2', servicio: 'cuban_card', rail: 'cuban_card', status: 'collecting_information', tiene_deposito: false, dinero_gyd: 0, tarjeta: true },
+    ],
+    adicionales: [],
+    evidencia: { declarado: null, deposito: 31000 },
+    reparto_pendiente: rp,
+    ...extra,
+  });
+
+  it('emite la nota con las partes exactas y la tool obligatoria', () => {
+    const s = correrDecisor({
+      ctx: { servicio_resuelto: resuelto() },
+      snapshot: { texto_completo: '51085507' },
+    });
+    const n = nota(s, 'REPARTO PENDIENTE') as string;
+    expect(n).toBeDefined();
+    expect(n).toContain('31,000 GYD');
+    expect(n).toContain('zelle 26,000 GYD');
+    expect(n).toContain('cuban_card 5,000 GYD');
+    expect(n).toMatch(/NO las cambies/);
+    const t = nota(s, 'TOOL OBLIGATORIA EN ESTE TURNO: ') as string;
+    expect(t).toContain('repartir_envio con "zelle 26000, cuban_card 5000"');
+  });
+
+  it('sin reparto_pendiente no hay nota ni tool', () => {
+    const s = correrDecisor({
+      ctx: { servicio_resuelto: resuelto({ reparto_pendiente: null }) },
+      snapshot: { texto_completo: 'hola' },
+    });
+    expect(nota(s, 'REPARTO PENDIENTE')).toBeUndefined();
+    expect(nota(s, 'TOOL OBLIGATORIA EN ESTE TURNO: repartir_envio')).toBeUndefined();
+  });
+
+  it('un reparto_pendiente con una sola parte no dispara nada', () => {
+    const s = correrDecisor({
+      ctx: { servicio_resuelto: resuelto({ reparto_pendiente: { ...rp, partes: [rp.partes[0]] } }) },
+      snapshot: { texto_completo: 'hola' },
+    });
+    expect(nota(s, 'REPARTO PENDIENTE')).toBeUndefined();
+  });
+});

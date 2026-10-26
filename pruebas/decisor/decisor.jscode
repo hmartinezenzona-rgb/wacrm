@@ -1159,6 +1159,20 @@ if (ctx.envio_mixto && Array.isArray(ctx.envio_mixto.partes) && ctx.envio_mixto.
     return sv + ' ' + gydMixto(p.monto_gyd) + ' GYD' + llega;
   });
   notas.push('ENVIO MIXTO: el cliente hizo UN SOLO deposito de ' + gydMixto(ctx.envio_mixto.total) + ' GYD repartido entre varios servicios: ' + partesMixto.join(' + ') + '. NO es una sola remesa: cada servicio es su propia operacion con su parte. NO le digas que mando de mas ni que se equivoco con el monto. Pidele por separado los datos que falten de cada servicio (por ejemplo tarjeta y celular de quien recibe la Clasica, y el numero de Cuba de la recarga). Usa repartir_envio SOLO si el cliente cambia el reparto.'); }
+
+// (325) REPARTO PENDIENTE: un deposito verificado entero en una operacion y otra operacion abierta con
+// destinatario y sin dinero. Las partes y el resto los calcula la base de datos (reparto_pendiente); el modelo
+// solo ejecuta. Antes de esta nota, la unica orden de repartir_envio vivia en la rama verificado_de_mas, que
+// exige un comprobante en el turno: con el objetivo fijado despues, la diferencia no se comparaba nunca.
+const rp325 = (R && R.reparto_pendiente && Array.isArray(R.reparto_pendiente.partes) && R.reparto_pendiente.partes.length >= 2)
+  ? R.reparto_pendiente : null;
+if (rp325) {
+  const gyd325 = (n) => Number(n ?? 0).toLocaleString('en-US');
+  const lista325 = rp325.partes.map((p) => String(p.servicio) + ' ' + Number(p.monto_gyd)).join(', ');
+  notas.push('REPARTO PENDIENTE: el deposito verificado de *' + gyd325(rp325.deposito_gyd) + ' GYD* esta entero en una sola operacion y hay que repartirlo entre ' + rp325.partes.map((p) => String(p.servicio) + ' ' + gyd325(p.monto_gyd) + ' GYD').join(' + ') + ' (suma exacta). Las partes ya vienen calculadas: NO las cambies, NO las recalcules y NO le preguntes al cliente cuanto va a cada una.');
+  toolsPendientes.push('repartir_envio con "' + lista325 + '"');
+  notas.push('PROHIBIDO decir que quedo completo, que ya esta todo listo o que la transferencia sale antes de que repartir_envio confirme el reparto. Confirma solo lo que devuelva la tool.');
+}
 // Estado exacto del envio abierto: para responder con precision a "como va lo mio"
 // S4: the stage of the open send comes from the resolved holder operation; the contact history is the legacy alias.
 const etapaR = (() => {

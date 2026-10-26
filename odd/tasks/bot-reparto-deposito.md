@@ -61,8 +61,7 @@ the second operation but never splits, so the second service stays unfunded and 
   `ready_to_transfer` (zelle 26,000 GYD / 100 USD; cup 5,000 GYD / 15,000 CUP) in one group.
 - [x] T11. The test caught a real defect: the parser rejects `cuban_card` and only knows `cup` / `tarjeta`. The
   Decisor now maps rail names to the tool's vocabulary before emitting the call. Vitest 79/79; staging Decisor
-  versionId c47ebbad-0071-440b-82e1-dcb77105d2c6, md5 e2dddd60. Production is still on 251efc61 (wrong token);
-  waiting for the go-ahead to publish the fix.
+  versionId c47ebbad-0071-440b-82e1-dcb77105d2c6, md5 e2dddd60. Production received the fix: versionId 7c8f8d1c-d9c3-42ad-af75-dfe08cf26dbb, md5 e2dddd60 = repo.
 
 ## Acceptance criteria
 - With an open objective of 26,000 GYD, a verified 31,000 GYD deposit and an empty card operation with a

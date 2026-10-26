@@ -34,8 +34,12 @@ Two defects from the Yoandrys conversation (a6d28009, 2026-10-26) must not repea
 - [x] T2. Migration 327 + ROLLBACK-327 + assertion `nota-partes-y-cotizaciones.sql`.
 - [x] T3. Staging: dry-run/apply/assertion/rollback OK; resolver md5 4753bf58, declaration md5 e9bb02a3.
 - [x] T4. Decisor note uses `deposito_grupo_gyd`; vitest 81/81; staging Decisor versionId 3fb7d574, md5 76cb41af.
-- [ ] T5. Owner go-ahead; apply 327 and publish the Decisor to production.
-- [ ] T6. Confirm on the next mixed send that the note never reports a covered part as missing.
+- [x] T5. Applied in production: 327_nota_partes_y_cotizaciones 20261026155931 (verificar 2/2, prod=stg); Decisor versionId f2b5f502-e240-4d46-9f32-a969ffe87b4a, md5 76cb41af.
+- [x] T6. Staging simulation: after a Zelle quote and an ignored Clasica comparison, card data lands on an
+  operation whose rail is cuban_card and no Clasica operation exists (cause A of the conversation).
+- [ ] T7. Other causes still open: the delivery RPC (`crm_entregar_operacion`) only checks that beneficiary data
+  is complete, not that the Zelle recipient amounts add up to the operation's destination (e4c2a15b was delivered
+  with 800 + 200 of 1,100 USD). Proposed gate pending a product decision.
 
 ## Acceptance criteria
 - With a group of 275,000 + 10,000 and a 285,000 deposit, `deposito_grupo_gyd` = 285,000 and the note says

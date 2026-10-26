@@ -1,9 +1,10 @@
 # Phase 2: funding case and allocation ledger
 
-Status: IN PROGRESS (2026-10-26). Objective: give the money a holder that is not a delivery operation.
-The funding case groups verified deposits; allocations assign GYD of the case to real operations.
-This is the schema foundation for the deterministic reconciliation (phase 3) and the panel UX
-(phase 4). It does not change the bot or any existing function.
+Status: DONE (2026-10-26): applied in production as migration 330 (version 20261026184859) and
+verified 6/6. Objective: give the money a holder that is not a delivery operation. The funding case
+groups verified deposits; allocations assign GYD of the case to real operations. This is the schema
+foundation for the deterministic reconciliation (phase 3) and the panel UX (phase 4). It does not
+change the bot or any existing function.
 
 ## Why
 
@@ -62,11 +63,9 @@ phase 3.
 - [x] T2. Migration 330 with the four tables, the column, RLS, comments and six functions.
 - [x] T3. Staging cycle `aplicar` (dry-run, apply, assertion, rollback).
 - [x] T4. Production `previa` over 330; report; wait for the go-ahead.
-- [ ] T5. Production `aplicar 330` after approval; `verificar`. Attempted 2026-10-26 18:41/18:42 UTC:
-      the Management API returned a Cloudflare 502 before the migration POST. Production was verified
-      unchanged (no `schema_migrations` row, no tables, no column, no functions). Waiting for the API
-      to recover; do not retry blindly.
-- [ ] T6. Update the design/task docs and save the evidence.
+- [x] T5. Production `aplicar 330` after approval; `verificar`. Applied 2026-10-26 18:48:59 UTC after
+      the Management API recovered; the earlier Cloudflare 502 attempts left production unchanged.
+- [x] T6. Update the design/task docs and save the evidence.
 
 ## Verification
 
@@ -112,3 +111,5 @@ phase 3.
   reached. A read-only check after each attempt: `NO-RECORD` in `schema_migrations`, all four tables
   absent, `case_id` absent, no `funding_*` function. The API outage is external; retry when it
   recovers.
+- T5 (2026-10-26 18:48:59): the API recovered and `aplicar 330` returned `OK 330_funding_case
+  20261026184859`; `verificar` → `VERIFICADO: 6/6 iguales`.

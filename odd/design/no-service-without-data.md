@@ -1,10 +1,10 @@
 # Design: no delivery without validated service, recipient, amount and funding
 
-Status: PROPOSAL, updated 2026-10-26 after an external review by three independent models. Phase 1
-(the money guards) is implemented in production as migrations 328 + 329 and verified 3/3; phases 2–4
-are not implemented. The owner accepted the review's main correction: **the money holder is not an
-operation**. The earlier title ("no service without data") stays as the business principle; the
-engineering rule is the one in this heading.
+Status: PROPOSAL, updated 2026-10-26 after an external review by three independent models. Phases 1
+and 2 are implemented in production: 328 + 329 (money guards, verified 3/3) and 330 (funding case +
+allocation ledger, verified 6/6). Phases 3–4 are not implemented. The owner accepted the review's
+main correction: **the money holder is not an operation**. The earlier title ("no service without
+data") stays as the business principle; the engineering rule is the one in this heading.
 
 ## 1. Problem
 
@@ -262,7 +262,9 @@ waits. It does not create the operation. 5,200 GYD is ambiguous and only produce
    financial mutation goes through authorized functions. **Applied in production 2026-10-26**
    (migrations 328 + 329): verified funding, group-aware balance and recipient sums on every rail.
 2. **Case + allocations:** introduce `funding_case`, `case_deposits`, `funding_allocations` and
-   `funding_movements`, compatible with the existing operations.
+   `funding_movements`, compatible with the existing operations. **Applied in production 2026-10-26**
+   (migration 330): the four tables, `remittance_operations.case_id` and six service_role functions;
+   no bot or panel wiring yet.
 3. **Deterministic reconciliation:** run the engine on every relevant change; remove the model's
    responsibility to call the split.
 4. **Panel, simulator, tests and brevity:** the case UX, the webhook simulator, the test matrix, and

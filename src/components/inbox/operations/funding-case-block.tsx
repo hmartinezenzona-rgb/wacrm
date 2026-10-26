@@ -10,6 +10,7 @@ import { formatNumber } from "@/lib/format-number";
 import type {
   FundingCasePanelRead,
   FundingCaseRead,
+  FundingCaseResolveRead,
   FundingCaseStatus,
 } from "@/lib/funding-case/types";
 
@@ -81,7 +82,13 @@ export function FundingCaseBlock({ conversationId }: FundingCaseBlockProps) {
         toast.error(t("resolveError"));
         return;
       }
-      toast.success(t("resolved"));
+      const payload = (await response.json()) as FundingCaseResolveRead;
+      if (payload.status === "incident") {
+        // The engine re-evaluated and the data still shows the conflict.
+        toast.error(payload.conflict ?? t("resolveError"));
+      } else {
+        toast.success(t("resolved"));
+      }
       await load();
     } catch {
       toast.error(t("resolveError"));

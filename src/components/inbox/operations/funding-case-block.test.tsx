@@ -148,4 +148,40 @@ describe("FundingCaseBlock", () => {
 
     await act(async () => root.unmount());
   });
+
+  it("keeps the incident when the resolver returns it again", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ case: incidentCase }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          status: "incident",
+          conflict: "la tarjeta con prefijo 9234 es cuban_card pero la operación es clasica",
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ case: incidentCase }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { node, root } = await render();
+    const button = Array.from(node.querySelectorAll("button")).find(
+      (candidate) => candidate.textContent === en.Inbox.fundingCase.resolve,
+    );
+    expect(button).toBeTruthy();
+
+    await act(async () => {
+      button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(toastError).toHaveBeenCalledWith(
+      "la tarjeta con prefijo 9234 es cuban_card pero la operación es clasica",
+    );
+    expect(toastSuccess).not.toHaveBeenCalled();
+    expect(node.textContent).toContain(en.Inbox.fundingCase.conflictTitle);
+
+    await act(async () => root.unmount());
+  });
 });

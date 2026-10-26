@@ -220,7 +220,7 @@ describe("webhook route — mensajes sin perfil de remitente", () => {
     logSeq = 0;
   });
 
-  it("1. contacts vacio: crea el contacto con el telefono como nombre y guarda el mensaje", async () => {
+  it("1. contacts vacio: crea el contacto sin nombre (el panel muestra el telefono) y guarda el mensaje", async () => {
     const res = await post(webhookBody([textMessage("5926731279", "wamid.A")], []));
 
     expect(res.status).toBe(200);
@@ -229,12 +229,14 @@ describe("webhook route — mensajes sin perfil de remitente", () => {
     expect(contactInserts[0]).toMatchObject({
       account_id: "acc1",
       phone: "5926731279",
-      name: "5926731279", // teléfono como nombre
+      // Sin perfil de WhatsApp no se inventa un nombre: guardar el teléfono
+      // como nombre dejaba contactos llamados "5927…" (16 en producción).
+      name: null,
     });
     expect(insertPayloads("messages")).toHaveLength(1);
   });
 
-  it("2. contacts sin profile: mismo resultado", async () => {
+  it("2. contacts sin profile: mismo resultado, sin nombre", async () => {
     const res = await post(
       webhookBody([textMessage("5926731279", "wamid.B")], [{ wa_id: "5926731279" }]),
     );
@@ -243,7 +245,7 @@ describe("webhook route — mensajes sin perfil de remitente", () => {
     expect(insertPayloads("contacts")).toHaveLength(1);
     expect(insertPayloads("contacts")[0]).toMatchObject({
       phone: "5926731279",
-      name: "5926731279",
+      name: null,
     });
     expect(insertPayloads("messages")).toHaveLength(1);
   });

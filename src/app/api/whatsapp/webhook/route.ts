@@ -699,9 +699,11 @@ async function processMessage(
   // el contrato de whatsapp_webhook_log: procesado=true únicamente
   // cuando esto es true — nunca antes del INSERT de messages.
   const senderPhone = normalizePhone(message.from)
-  // El nombre es prescindible: si el remitente llega sin perfil, el
-  // teléfono hace de nombre (findOrCreateContact ya hace name || phone).
-  const contactName = contact?.profile?.name || senderPhone
+  // El nombre es prescindible. Sin perfil de WhatsApp se guarda NULL, no el
+  // teléfono: escribirlo como nombre dejaba 16 contactos llamados "5927…" y
+  // cualquier vista que muestra el nombre caía en un número. El panel ya
+  // recurre al teléfono cuando no hay nombre.
+  const contactName = contact?.profile?.name?.trim() || null
 
   // Find or create contact
   const contactOutcome = await findOrCreateContact(
@@ -1170,7 +1172,7 @@ async function findOrCreateContact(
   accountId: string,
   configOwnerUserId: string,
   phone: string,
-  name: string
+  name: string | null
 ): Promise<ContactOutcome | null> {
   // Find an existing contact for this account by phone. The shared
   // helper pre-filters in SQL by the last-8-digit suffix (so we don't
@@ -1213,7 +1215,8 @@ async function findOrCreateContact(
       account_id: accountId,
       user_id: configOwnerUserId,
       phone,
-      name: name || phone,
+      // NULL cuando WhatsApp no trae nombre: el panel muestra el teléfono.
+      name: name || null,
     })
     .select()
     .single()

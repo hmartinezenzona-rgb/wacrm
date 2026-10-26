@@ -37,9 +37,12 @@ Two defects from the Yoandrys conversation (a6d28009, 2026-10-26) must not repea
 - [x] T5. Applied in production: 327_nota_partes_y_cotizaciones 20261026155931 (verificar 2/2, prod=stg); Decisor versionId f2b5f502-e240-4d46-9f32-a969ffe87b4a, md5 76cb41af.
 - [x] T6. Staging simulation: after a Zelle quote and an ignored Clasica comparison, card data lands on an
   operation whose rail is cuban_card and no Clasica operation exists (cause A of the conversation).
-- [ ] T7. Other causes still open: the delivery RPC (`crm_entregar_operacion`) only checks that beneficiary data
-  is complete, not that the Zelle recipient amounts add up to the operation's destination (e4c2a15b was delivered
-  with 800 + 200 of 1,100 USD). Proposed gate pending a product decision.
+- [x] T7. Migration 328 (`crm_entregar_operacion`): a Zelle operation cannot be delivered while its vigente
+  recipients do not add up. Two protections: applies only when every recipient has an amount, and compares whole
+  dollars. Staging: dry-run/apply/assertion/rollback OK; the assertion blocks 800+200 of 1,100, delivers after
+  adding 100, and skips the gate when an amount is null.
+- [ ] T8. Owner go-ahead; apply 328 to production.
+- [ ] T9. Decide whether to correct the completed e4c2a15b record (1,000 of 1,100 USD in recipients).
 
 ## Acceptance criteria
 - With a group of 275,000 + 10,000 and a 285,000 deposit, `deposito_grupo_gyd` = 285,000 and the note says

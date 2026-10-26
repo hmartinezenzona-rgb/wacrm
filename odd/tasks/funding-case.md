@@ -62,7 +62,10 @@ phase 3.
 - [x] T2. Migration 330 with the four tables, the column, RLS, comments and six functions.
 - [x] T3. Staging cycle `aplicar` (dry-run, apply, assertion, rollback).
 - [x] T4. Production `previa` over 330; report; wait for the go-ahead.
-- [ ] T5. Production `aplicar 330` after approval; `verificar`.
+- [ ] T5. Production `aplicar 330` after approval; `verificar`. Attempted 2026-10-26 18:41/18:42 UTC:
+      the Management API returned a Cloudflare 502 before the migration POST. Production was verified
+      unchanged (no `schema_migrations` row, no tables, no column, no functions). Waiting for the API
+      to recover; do not retry blindly.
 - [ ] T6. Update the design/task docs and save the evidence.
 
 ## Verification
@@ -104,3 +107,8 @@ phase 3.
 - T4 (2026-10-26): `produccion-migracion.sh previa 330` → `VEREDICTO: SEGURO`; the six functions are
   `NEW` and the 64 columns/constraints/triggers/indexes of the touched tables are equal. Awaiting the
   owner's explicit go-ahead to apply.
+- T5 (2026-10-26): two apply attempts stopped at the pre-check `POST /database/query -> 502`
+  (Cloudflare `Bad gateway`, api.supabase.com, 18:41 and 18:42 UTC). The migration POST was never
+  reached. A read-only check after each attempt: `NO-RECORD` in `schema_migrations`, all four tables
+  absent, `case_id` absent, no `funding_*` function. The API outage is external; retry when it
+  recovers.

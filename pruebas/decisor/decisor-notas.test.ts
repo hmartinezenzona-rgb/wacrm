@@ -1099,3 +1099,65 @@ describe('325: reparto pendiente (un deposito verificado que cubre dos servicios
     expect(nota(s, 'REPARTO PENDIENTE')).toBeUndefined();
   });
 });
+
+describe('326: operaciones abiertas sin su parte del deposito', () => {
+  const resuelto = (extra: Record<string, unknown> = {}) => ({
+    version: 2,
+    en_curso: 'zelle',
+    servicio: 'zelle',
+    accion: 'ninguna',
+    permitido: true,
+    motivo: 'sin_cambio',
+    mensaje: null,
+    minimo_gyd: null,
+    faltante_gyd: null,
+    operaciones: [
+      { id: 'op-1', servicio: 'zelle', rail: 'zelle', status: 'ready_to_transfer', tiene_deposito: true, dinero_gyd: 31000, zelle: true },
+      { id: 'op-2', servicio: 'cuban_card', rail: 'cuban_card', status: 'collecting_information', tiene_deposito: false, dinero_gyd: 0, tarjeta: true },
+    ],
+    adicionales: [],
+    evidencia: { declarado: null, deposito: 31000 },
+    reparto_pendiente: null,
+    sin_dinero: [{ servicio: 'cuban_card', operation_id: 'op-2', tiene_destinatario: true }],
+    ...extra,
+  });
+
+  it('con una operacion sin dinero, prohibe decir completo y la nombra', () => {
+    const s = correrDecisor({
+      ctx: { servicio_resuelto: resuelto() },
+      snapshot: { texto_completo: 'Perfecto' },
+    });
+    const n = nota(s, 'OPERACIONES ABIERTAS SIN SU PARTE') as string;
+    expect(n).toBeDefined();
+    expect(n).toContain('cuban_card');
+    expect(n).toMatch(/PROHIBIDO decir "quedo completo"/);
+  });
+
+  it('si 325 ya trae el reparto exacto, la guarda general no se suma', () => {
+    const s = correrDecisor({
+      ctx: {
+        servicio_resuelto: resuelto({
+          reparto_pendiente: {
+            deposito_gyd: 31000,
+            resto_gyd: 5000,
+            partes: [
+              { servicio: 'zelle', monto_gyd: 26000, operation_id: 'op-1' },
+              { servicio: 'cuban_card', monto_gyd: 5000, operation_id: 'op-2' },
+            ],
+          },
+        }),
+      },
+      snapshot: { texto_completo: 'Perfecto' },
+    });
+    expect(nota(s, 'REPARTO PENDIENTE')).toBeDefined();
+    expect(nota(s, 'OPERACIONES ABIERTAS SIN SU PARTE')).toBeUndefined();
+  });
+
+  it('sin operaciones pendientes no hay nota', () => {
+    const s = correrDecisor({
+      ctx: { servicio_resuelto: resuelto({ sin_dinero: null }) },
+      snapshot: { texto_completo: 'Perfecto' },
+    });
+    expect(nota(s, 'OPERACIONES ABIERTAS SIN SU PARTE')).toBeUndefined();
+  });
+});

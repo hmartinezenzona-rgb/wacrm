@@ -1173,6 +1173,15 @@ if (rp325) {
   toolsPendientes.push('repartir_envio con "' + lista325 + '"');
   notas.push('PROHIBIDO decir que quedo completo, que ya esta todo listo o que la transferencia sale antes de que repartir_envio confirme el reparto. Confirma solo lo que devuelva la tool.');
 }
+
+// (326) GUARDA GENERAL: el envio tiene deposito verificado y otra operacion abierta, sin grupo, sin dinero y sin
+// objetivo propio. No siempre se puede calcular el reparto (tres partes, Mexico por CLABE, objetivo en otra
+// operacion), pero en ninguno de esos casos se puede decir que quedo completo.
+const sd326 = (R && Array.isArray(R.sin_dinero)) ? R.sin_dinero : [];
+if (sd326.length && !rp325) {
+  const lista326 = sd326.map((e) => String(e.servicio) + (e.tiene_destinatario ? '' : ' (sin destinatario)')).join(', ');
+  notas.push('OPERACIONES ABIERTAS SIN SU PARTE DEL DEPOSITO: ' + lista326 + '. El deposito verificado de este envio todavia no las cubre. PROHIBIDO decir "quedo completo", "ya esta todo listo", "la transferencia sale" o cualquier formula que suene a cerrado. Confirma lo que SI esta cubierto y di con precision que falta dinero para ' + lista326 + '. Si el cliente dice que ese deposito cubre las dos partes, pidele como se reparte; no lo des por hecho.');
+}
 // Estado exacto del envio abierto: para responder con precision a "como va lo mio"
 // S4: the stage of the open send comes from the resolved holder operation; the contact history is the legacy alias.
 const etapaR = (() => {

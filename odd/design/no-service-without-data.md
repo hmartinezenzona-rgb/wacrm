@@ -41,8 +41,12 @@ recipients (14:24), which left the 100 USD recipient to arrive after the operati
 ### 3.1 The deposit holder
 
 A verified deposit is recorded in an operation with **no rail**: `service_type = 'remesa'`,
-`delivery_method IS NULL`, no vigente beneficiaries. This is the existing shape of a fresh operation;
-what changes is that nothing types it before the customer does.
+`delivery_method IS NULL`, no vigente beneficiaries, and — decision 2026-10-26 — `servicio` is empty
+and a `sin_via` flag marks it as unknown. This is the existing shape of a fresh operation; what
+changes is that nothing types it before the customer does.
+
+The holder accumulates: one rail-less holder per conversation receives every deposit that arrives
+before a service is known (decision 2026-10-26). A second deposit does not open a second holder.
 
 The resolver exposes it explicitly:
 
@@ -63,6 +67,8 @@ The resolver exposes it explicitly:
 | Card prefix unknown | none | Ask; never default |
 | Card + phone, customer said Clasica / Tropical | the prefix decides | If the number contradicts the word, the data wins and the bot tells the customer what the card is |
 | Card + phone, no word about the currency | the prefix decides | Only ask when the prefix is not in the known list |
+| Complete data for a service (CLABE + bank, Zelle account, card + phone) | the service | The data itself is enough; no word is required (owner 2026-10-26) |
+| Deposit exactly equal to a service minimum, no other evidence | that service | Only when the minimum identifies ONE service; if two services share it (5,200 GYD = 20 USD Clasica/Tropical and a 5,200 recarga), ask (owner 2026-10-26) |
 | CLABE / Mexican bank | `mexico` | Account type implies it |
 | Phone + explicit top-up words | `recarga` | The intent is explicit, not inferred from the phone |
 | Address + carnet + explicit cash words | `efectivo_usd` | Explicit intent |
@@ -207,10 +213,8 @@ A phone alone does not say card or top-up → ask. D2.
   loses against the data. Confirm the prefix table with Osmany before automating the full list.
 - **D2. Phone alone — decided 2026-10-26:** the order of the data does not matter; recarga needs
   explicit intent, and a phone alone is never a recarga.
-- **D3. The panel label** for an unclassified holder: "Sin destino" vs "Remesa sin destino" vs
-  "Deposito verificado". Open.
-- **D4. The 100 USD Suri record** on the completed `e4c2a15b`: leave it, or add the third recipient
-  with an audited correction. Open.
+- **D3. The panel label — decided 2026-10-26:** "Sin destino".
+- **D4. The 100 USD Suri record — decided 2026-10-26:** leave it as history.
 - **D5. MLC:** confirm that MLC is always a human handoff and never a bot rail (084 says it is not
   quoted; the calculator keeps MLC as a manual line).
 
@@ -278,4 +282,51 @@ the design), D (decided by the owner on 2026-10-26) and O (open, needs a decisio
   deposits, split outcomes, service corrections, deliveries with unassigned money.
 - **O17. Known legacy cases.** `f9b6ec33`, `e4c2a15b` and the Suri 100 USD: correct or leave as
   history (D4).
+
+## 12. Decisions from the second review (2026-10-26)
+
+- **B2 — empty service.** `servicio` is empty until the data says where the deposit goes. `sin_via`
+  marks the state; every consumer must treat empty as "not known", never as a service.
+- **B3 — data defines the service.** The deposit path stops using the amount and the words to pick a
+  service. The service comes from the customer's explicit confirmation or from the data (Zelle
+  account, card, CLABE, phone with recarga intent). One exception, O8.
+- **B4 — quote only with a rail.** No quote and no comparable objective until the rail is known.
+- **B5 — one holder, accumulating.** One rail-less holder per conversation receives every deposit
+  before the service is known.
+- **B6 — hard block with an admin exit.** A rail-less operation cannot be completed; an admin can
+  still delete or edit it deliberately, with audit.
+- **O7 — we maintain the prefix table.** It lives in configuration with a code-managed seed; the team
+  updates it. Confirm the prefixes Osmany uses daily before automating the full list.
+- **O8 — the service minimum is evidence.** If the deposit exactly matches the minimum of ONE
+  service and there is no other evidence, it is taken as that service: 5,000 GYD → CUP; 13,000 GYD →
+  Zelle; 5,200 / 6,200 GYD → recarga (per promo). If the amount matches two services it is NOT
+  evidence: 5,200 GYD is both the 20 USD Clasica/Tropical minimum and a recarga minimum, so the bot
+  asks. The prefix or the recipient data breaks the tie.
+- **O9 — complete data is enough.** A CLABE + bank is a Mexico send without any additional word; a
+  card + phone is a card send; a Zelle account is Zelle. Words are required only where the data is
+  ambiguous (phone alone, combo, visa, saldo movil).
+- **O10 — panel day one.** Assign service and cancel; B6's admin delete/edit covers the rest.
+- **O11 — rail-less notice.** The notifier only confirms the deposit; it never names a service until
+  one exists.
+- **O12 — the data defines the parts, not the holder.** Scenario: a deposit of X GYD, then a Zelle
+  account "this much to this one", then a card + phone "this much to this other one". The Zelle
+  account makes that part Zelle; the card makes the other part a card; no one has to ask "is this
+  Zelle?". The writer attaches each piece of data to the single rail-less holder, the parts are
+  created as the data arrives, and `repartir_envio` applies when the parts sum the deposit. If they
+  do not sum, the remainder stays rail-less and the bot asks for it. The only case that needs a
+  question is two open sends or two possible amounts, never the service that the data already names.
+- **O13 — history is a suggestion only.** It proposes beneficiaries; it never decides the current
+  send's service.
+- **O14 — promptfoo for the model layer.** It fits the prompt/model/tool-call assertions (it can
+  check that the model calls `repartir_envio` with the parts), but it does not run n8n, the database
+  or the Decisor. Use promptfoo for the model cases; keep SQL assertions for the DB and the vitest
+  harness for the Decisor; the owner's staging conversation remains the only end-to-end test.
+  Prototype before replacing the current battery.
+- **O15 — rollback only.** No feature flag; each migration ships its ROLLBACK and the Decisor can be
+  republished to its previous version.
+- **O16 — metrics.** Corpus for the before/after (phantom operations per quote, rail-less deposits,
+  split outcomes, service corrections, deliveries with unassigned money) and promptfoo for the model
+  cases. Baseline before Phase 1.
+- **O17 — legacy stays as history.** No backward correction of `f9b6ec33`, `e4c2a15b` or Suri.
+
 

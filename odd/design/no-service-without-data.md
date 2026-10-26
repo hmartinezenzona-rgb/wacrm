@@ -1,11 +1,13 @@
 # Design: no delivery without validated service, recipient, amount and funding
 
 Status: PROPOSAL, updated 2026-10-26 after an external review by three independent models. Phases 1–3
-are implemented in production: 328 + 329 (money guards, verified 3/3), 330 (funding case + allocation
-ledger, verified 6/6) and 331 (deterministic reconciliation, verified 9/9). Phase 4 is not implemented.
-The owner accepted the review's main correction: **the money holder is not an operation**. The earlier
-title ("no service without data") stays as the business principle; the engineering rule is the one in
-this heading.
+and the panel case view (4a) are implemented in production: 328 + 329 (money guards, verified 3/3),
+330 (funding case + allocation ledger, verified 6/6), 331 (deterministic reconciliation, verified
+9/9) and 332 (panel case block + incident resolver, verified 2/2, panel build
+`jf2ZyAScgzIcC-uhzVcoe`). The bot conflict message, the staging simulator, the assign/release actions
+and brevity remain. The owner accepted the review's main correction: **the money holder is not an
+operation**. The earlier title ("no service without data") stays as the business principle; the
+engineering rule is the one in this heading.
 
 ## 1. Problem
 
@@ -272,7 +274,10 @@ waits. It does not create the operation. 5,200 GYD is ambiguous and only produce
    incident and block delivery. Allocations are append-only in this increment; bot wording and the
    panel are phase 4.
 4. **Panel, simulator, tests and brevity:** the case UX, the webhook simulator, the test matrix, and
-   only then the conversational brevity work.
+   only then the conversational brevity work. **Partially applied 2026-10-26**: the panel shows the
+   case (verified/assigned/available, deposits, allocations) and resolves an incident (migration 332,
+   panel build `jf2ZyAScgzIcC-uhzVcoe`). Assign/release/refund actions, the bot conflict message, the
+   simulator and brevity remain.
 
 ## 11. Decisions (2026-10-26)
 

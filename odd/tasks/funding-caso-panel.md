@@ -1,9 +1,11 @@
 # Phase 4a: funding case in the panel
 
-Status: IN PROGRESS (2026-10-26). Objective: the operator can see the funding case of the open
-conversation — verified, assigned and available GYD, the linked deposits, the allocations and the
-incident note — and can resolve an incident after fixing the data. This is the first increment of
-phase 4; bot wording, the staging simulator and brevity follow.
+Status: DONE (2026-10-26): migration 332 applied in production (version 20261026214506, verified
+2/2) and the panel published (BUILD_ID `jf2ZyAScgzIcC-uhzVcoe`, sha `f0e382c8`, rollback
+`c18b2815`). Objective: the operator can see the funding case of the open conversation — verified,
+assigned and available GYD, the linked deposits, the allocations and the incident note — and can
+resolve an incident after fixing the data. This is the first increment of phase 4; bot wording, the
+staging simulator and brevity follow.
 
 ## Why
 
@@ -44,7 +46,7 @@ message, the webhook simulator, and the conversational brevity work.
 - [x] T4. API routes and the `FundingCaseBlock` component; component test.
 - [x] T5. `npm run test`, `npm run typecheck`, `npm run lint` (or the repo's equivalents).
 - [x] T6. Production `previa 332`; report; wait for the go-ahead.
-- [ ] T7. Apply 332 and publish the panel (load `wacrm-publicar-panel`); update docs/memory.
+- [x] T7. Apply 332 and publish the panel (load `wacrm-publicar-panel`); update docs/memory.
 
 ## Verification
 
@@ -73,4 +75,8 @@ message, the webhook simulator, and the conversational brevity work.
   `messages-parity` 4/4 passed; eslint on the new files reports only the two pre-existing warnings in
   `contact-sidebar.tsx` (unused `User` import and an unused eslint-disable directive).
 - T6 (2026-10-26): `produccion-migracion.sh previa 332` → `VEREDICTO: SEGURO`; the two RPCs are NEW
-  and no table objects changed. Awaiting the go-ahead to apply 332 and publish the panel.
+  and no table objects changed. Applied in T7.
+- T7 (2026-10-26): `aplicar 332` → `OK 332_funding_caso_panel 20261026214506`; `verificar` →
+  `VERIFICADO: 2/2 iguales`. Panel: release branch `release/prod-funding-case-panel` (sha
+  `f0e382c8`), `compilar` passed vitest + tsc and produced BUILD_ID `jf2ZyAScgzIcC-uhzVcoe`;
+  `publicar` served that BUILD_ID, with `c18b2815` kept as `anterior` for rollback.

@@ -43,7 +43,7 @@ TransID linking fix (phase 2/3).
 - [x] T3. Staging cycle `aplicar` (dry-run, apply, assertion, rollback md5).
 - [x] T4. Related regressions for `crm_entregar_operacion`, `cerebro_saldo_operacion` and
       `_repartir_envio_core`.
-- [ ] T5. Production `previa` over 328 + 329; report differences; wait for the owner's go-ahead.
+- [x] T5. Production `previa` over 328 + 329; report differences; wait for the owner's go-ahead.
 - [ ] T6. Production `aplicar 328 329` after approval; `verificar`.
 - [ ] T7. Update the design's phase status and save the evidence.
 
@@ -71,3 +71,6 @@ TransID linking fix (phase 2/3).
   already fails on the base during fixture setup (no operation created for the deal); it is not
   caused by 329. Fixtures in `beneficiary-proofs`, `candado-zelle-entrega`, `cup-source-card`,
   `cutover` and `panel-notify-and-cash-name` now add the verified deposit their delivery needs.
+- T5 (2026-10-26): `produccion-migracion.sh previa 328 329` → `VEREDICTO: SEGURO`;
+  `cerebro_saldo_operacion` and `crm_entregar_operacion` EQUAL against the staging pre-bundle state,
+  `cerebro_fondos_operacion` NEW. Awaiting the owner's explicit go-ahead to apply.

@@ -32,10 +32,10 @@ Out of scope:
 
 ## Tasks
 
-- [ ] T1 Remove the funding-case block, routes, types, sidebar hookup and i18n keys.
-- [ ] T2 Run the panel checks (vitest + tsc) and confirm nothing else imports it.
-- [ ] T3 Commit the removal as one work unit.
-- [ ] T4 Build and publish the panel; record BUILD_ID and rollback sha.
+- [x] T1 Remove the funding-case block, routes, types, sidebar hookup and i18n keys.
+- [x] T2 Run the panel checks (vitest + tsc) and confirm nothing else imports it.
+- [x] T3 Commit the removal as one work unit: `fbcdb75`.
+- [x] T4 Build and publish the panel; record BUILD_ID and rollback sha.
 
 ## Acceptance criteria
 
@@ -48,3 +48,12 @@ Out of scope:
 - `npx vitest run` for the affected component suites.
 - `npx tsc --noEmit`.
 - Published panel reports the new BUILD_ID and the previous one as rollback.
+
+## Evidence
+
+- 2026-10-27: `npx tsc --noEmit` clean; `npx vitest run` 246 files / 3346 tests passed.
+- `rg funding-case src messages` returns no references.
+- Release branch `release/prod-sin-expediente` at `fbcdb75`.
+- Published BUILD_ID `P_dBqxxkakqILD0poY91r`, sha `fbcdb75b149321e463b7187127436a35f0a97535`.
+- Rollback (`anterior`): sha `afc45353e4c87839fd7ec8375a25b5ff2d701076`, BUILD_ID `mANIrP9JfzAIPobqpyVwn`.
+- Release branch is local only; not pushed to `privado`.

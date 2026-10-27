@@ -460,7 +460,7 @@ describe('(estilo) turno de seguimiento: brevedad y dato concreto', () => {
     const s = correrDecisor({ ctx: { mensajes_cliente: 2 } });
     const n = nota(s, 'TURNO DE SEGUIMIENTO') as string;
     expect(n).toBeDefined();
-    expect(n).toMatch(/max 40 palabras/);
+    expect(n).toMatch(/1-2 frases/);
     expect(n).toMatch(/los datos de quien recibe/);
   });
 

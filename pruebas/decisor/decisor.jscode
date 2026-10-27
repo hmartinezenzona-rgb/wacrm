@@ -518,7 +518,7 @@ if (h && h.primer_del_dia) {
 // (estilo) TURNO DE SEGUIMIENTO: el cliente ya tiene la cotizacion y los datos; no se le repite la
 // tabla. La nota es interna; el modelo solo ve las reglas, no el texto de la nota.
 if (Number(ctx.mensajes_cliente) > 1) {
-  notas.push('TURNO DE SEGUIMIENTO (BREVEDAD): NO re-listes la cotizacion, las tasas, los minimos ni la tabla; NO repitas el desglose ni la pregunta anterior. Responde solo a lo nuevo en 1-2 frases (max 40 palabras). Pide SOLO el dato que falta, por ejemplo "la tarjeta" o "el celular"; PROHIBIDO "los datos de quien recibe" o pedir el paquete entero. Si el cliente pide confirmacion, di el total y el dato que falta, sin "Total a depositar".');
+  notas.push('TURNO DE SEGUIMIENTO (BREVEDAD): NO re-listes la cotizacion, las tasas, los minimos ni la tabla; NO repitas el desglose ni la pregunta anterior. Responde solo a lo nuevo en 1-2 frases, sin tabla. Pide SOLO el dato que falta, por ejemplo "la tarjeta" o "el celular"; PROHIBIDO "los datos de quien recibe" o pedir el paquete entero. Si el cliente pide confirmacion, di el total y el dato que falta, sin "Total a depositar".');
 }
 // INVITACION AL GRUPO (2026-10-24, peticion de Osmany). Solo en el PRIMER mensaje del cliente en esta
 // conversacion: el Contexto trae `mensajes_cliente` y el mensaje actual ya esta guardado, asi que 1 = nuevo.

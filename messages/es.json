@@ -617,6 +617,7 @@
         "loadError": "No se pudieron cargar los comprobantes",
         "conflict": "La operación cambió, inténtalo de nuevo",
         "forced": "Verificación forzada · listo para transferir",
+        "shortfall": "Faltan {amount} {currency} para cubrir el envío. El admin decide si transferir.",
         "results": {
           "verificado": "Verificado · listo para transferir",
           "verificado_incompleto": "Verificado · aún falta el resto",

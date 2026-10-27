@@ -134,6 +134,22 @@ export function DepositReviewSection({
       amount: Number(drafts[receipt.compId]!.amount),
     }));
 
+  // Informational, never blocking: the recipients may add up to more than the
+  // verified deposit covers (the bot registers everything the customer gives).
+  // The admin sees exactly what is missing and still decides whether to deliver.
+  const shortfallNote =
+    VERIFIED_STATUSES.includes(data.status) && data.saldo !== null && data.saldo > 0 ? (
+      <p className="flex items-center gap-2 text-sm leading-5 text-amber-700 dark:text-amber-400">
+        <span className="flex w-4 shrink-0 items-center justify-center">
+          <AlertTriangle className="size-3.5" aria-hidden="true" />
+        </span>
+        {t("depositReview.shortfall", {
+          amount: new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(data.saldo),
+          currency: data.moneda ?? "GYD",
+        })}
+      </p>
+    ) : null;
+
   function cancelForce() {
     setForcing(false);
   }
@@ -184,6 +200,8 @@ export function DepositReviewSection({
             </p>
           ))}
 
+        {shortfallNote}
+
         {ref && (
           <div className="flex items-center gap-2 text-sm leading-5 font-mono">
             <span className="flex w-4 shrink-0 items-center justify-center">
@@ -204,6 +222,8 @@ export function DepositReviewSection({
 
   return (
     <div className="space-y-2">
+      {shortfallNote}
+
       {result && (
         <p
           role="status"

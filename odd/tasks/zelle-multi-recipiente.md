@@ -55,20 +55,27 @@ Cleanup: receipt `20404215436140` restored to operation `7c0920e3` and case
 `7b723df9`; test operation, case, conversation, contact, session events and
 dedup hash removed.
 
-## Amount guard (migration 335, 2026-10-27)
+## Amount handling (migrations 335 + 336, 2026-10-27)
 
-`cerebro_guardar_zelle` only checked `monto > 0`: 50 + 60 on a 26,000 GYD
-deposit (100 USD) was stored silently. Migration
-`335_zelle_amounts_within_deposit` adds the missing check: once every vigente
-recipient has an amount, their sum is compared with the cap (agreed GYD converted
-with the Zelle tiers, falling back to the verified deposit, tightened by
-`quoted_destination_amount`). Over the cap it returns `NO SE GUARDO NADA ...`
-and writes nothing; a partial split below the cap stays allowed.
+335 first refused a recipient sum above the covered amount. The owner clarified
+the real requirement: the bot must register everything the customer sends and
+only inform the admin, who decides whether to deliver.
 
-- Staging: dry-run / apply / assertion / rollback all OK; rollback md5 equal.
-- Production: `previa` EQUAL, VEREDICTO SEGURO; applied as
-  `335_zelle_amounts_within_deposit` (version 20261027215928); `verificar`
-  1/1 iguales.
+336 supersedes 335: `cerebro_guardar_zelle` never blocks on the amount. Once
+every recipient in force has an amount it:
+
+- sets `quoted_destination_amount` to their sum;
+- re-targets the objective with `cerebro_fijar_objetivo(conv, sum, 'USD')`, so
+  `cerebro_saldo_operacion` reports the exact missing GYD;
+- appends `AVISO: ... faltan N GYD para completarlo` to the tool reply.
+
+Delivery is not blocked. The panel shows an informational amber line,
+"Faltan {amount} {currency} para cubrir el envío. El admin decide si transferir.",
+in the deposit block once the operation is verified.
+
+- Staging: 336 dry-run / apply / assertion / rollback OK, rollback md5 equal.
+- Production: `previa` EQUAL, VEREDICTO SEGURO; 336 applied as
+  `336_zelle_register_and_inform` (version 20261027222438); `verificar` 1/1.
 
 ## Acceptance criteria
 

@@ -617,6 +617,7 @@
         "loadError": "Could not load receipts",
         "conflict": "The operation changed, try again",
         "forced": "Verification forced · ready to transfer",
+        "shortfall": "{amount} {currency} still missing to cover the send. The admin decides whether to transfer.",
         "results": {
           "verificado": "Verified · ready to transfer",
           "verificado_incompleto": "Verified · still waiting for the rest",

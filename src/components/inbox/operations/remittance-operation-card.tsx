@@ -749,7 +749,9 @@ export function RemittanceOperationCard({
 
                           {shortfall && (
                             <p className="flex items-center gap-2 text-xs font-medium text-amber-700 dark:text-amber-400">
-                              <span className="w-4 shrink-0" aria-hidden="true" />
+                              <span className="flex w-4 shrink-0 items-center justify-center" aria-hidden="true">
+                                <span className="size-1.5 rounded-full bg-current" />
+                              </span>
                               {t("shortfallRecipient", {
                                 amount: new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(
                                   shortfall.amount,

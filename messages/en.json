@@ -546,6 +546,7 @@
       "lockedByOperator": "Locked by an operator correction",
       "deliverTo": "Deliver to",
       "amountMissing": "Amount missing · add",
+      "shortfallRecipient": "{amount} {currency} missing",
       "history": {
         "completedAt": "{date}",
         "proofSent": "with screenshot",

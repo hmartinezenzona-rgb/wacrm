@@ -196,6 +196,36 @@ function resolveBeneficiaryAmount(
   return operation.beneficiaries.length === 1 ? operation.quotedDestinationAmount : null;
 }
 
+/** GYD still missing for each beneficiary, in the order the card lists them:
+ *  the verified money covers recipients from the top and the first one it
+ *  cannot cover (fully or partly) carries the note. Informational only: the
+ *  admin decides whether to deliver. Empty when the deposits already cover
+ *  every recipient or the operation has no objective/amounts. */
+export function shortfallByBeneficiary(
+  operation: RemittanceOperationRead,
+  receipts: OperationReceiptsRead | undefined,
+): Map<string, { amount: number; currency: string }> {
+  const out = new Map<string, { amount: number; currency: string }>();
+  if (!receipts || receipts.objetivo === null || receipts.objetivo <= 0 || receipts.depositado === null) return out;
+  const total = operation.beneficiaries.reduce((sum, b) => sum + (b.amount ?? 0), 0);
+  if (total <= 0) return out;
+  const rate = receipts.objetivo / total;
+  const currency = receipts.moneda ?? "GYD";
+  let covered = receipts.depositado;
+  for (const b of operation.beneficiaries) {
+    if (b.amount === null) continue;
+    const need = b.amount * rate;
+    if (covered >= need) {
+      covered -= need;
+      continue;
+    }
+    const missing = Math.round(need - covered);
+    covered = 0;
+    if (missing > 0) out.set(b.id, { amount: missing, currency });
+  }
+  return out;
+}
+
 /** What the deposit block shows as the destination amount: the (single)
  *  vigente beneficiary's own amount (falling back to the operation's
  *  auto-calculated one, same as `resolveBeneficiaryAmount`), an
@@ -426,6 +456,7 @@ export function RemittanceOperationCard({
 
   const showCompleteTransfer = status === "ready_to_transfer" && editable;
   const summaryAmount = computeSummaryAmount(operation, t as (key: string, params?: Record<string, unknown>) => string, serviceName);
+  const shortfalls = shortfallByBeneficiary(operation, initialReceipts);
 
   const beneficiaryActions = (
     beneficiary: RemittanceOperationRead["beneficiaries"][number],
@@ -668,6 +699,7 @@ export function RemittanceOperationCard({
                   const isComboRecipient = beneficiary.beneficiaryType === "combo";
                   const isMexico = isMexicoBeneficiaryType(beneficiary.beneficiaryType);
                   const amount = resolveBeneficiaryAmount(beneficiary, operation);
+                  const shortfall = shortfalls.get(beneficiary.id);
                   const currencyLabel = unitLabel(
                     beneficiary.beneficiaryType,
                     beneficiary.currency ?? (isComboRecipient ? "GYD" : operation.destinationCurrency),
@@ -736,6 +768,16 @@ export function RemittanceOperationCard({
                               icon={<AtSign className="size-3.5" aria-hidden="true" />}
                               ariaLabel={t("copyValue", { label: t("zelleAccount") })}
                             />
+                          )}
+                          {shortfall && (
+                            <p className="px-2 text-xs font-medium text-amber-700 dark:text-amber-400">
+                              {t("shortfallRecipient", {
+                                amount: new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(
+                                  shortfall.amount,
+                                ),
+                                currency: shortfall.currency,
+                              })}
+                            </p>
                           )}
                           {isComboRecipient && beneficiary.name && (
                             <CopyChip

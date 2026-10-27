@@ -546,6 +546,7 @@
       "lockedByOperator": "Bloqueado por una corrección del operador",
       "deliverTo": "Entregar a",
       "amountMissing": "Falta el monto · agregar",
+      "shortfallRecipient": "Faltan {amount} {currency}",
       "history": {
         "completedAt": "{date}",
         "proofSent": "con captura",

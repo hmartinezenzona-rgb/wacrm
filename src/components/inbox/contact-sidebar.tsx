@@ -24,7 +24,6 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { OperationsPanelContainer } from "@/components/inbox/operations/operations-panel-container";
-import { FundingCaseBlock } from "@/components/inbox/operations/funding-case-block";
 
 interface ContactSidebarProps {
   contact: Contact | null;
@@ -271,10 +270,6 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
               )}
             </div>
           </div>
-
-          {/* Funding case (phase 4a): conversation-level money and the
-              incident resolver. Renders nothing when there is no case. */}
-          {conversation && <FundingCaseBlock conversationId={conversation.id} />}
 
           {/* Remittance operations panel (Slice 5, read-only) — beta flag
               gated (design decision 8). `conversation` must be present:

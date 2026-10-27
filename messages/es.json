@@ -631,51 +631,8 @@
           "other": "No se pudo verificar ({code})"
         }
       }
-    },
-    "fundingCase": {
-      "title": "Expediente",
-      "loading": "Cargando expediente…",
-      "loadError": "No se pudo leer el expediente.",
-      "status": {
-        "open": "Abierto",
-        "allocating": "Asignando",
-        "incident": "Conflicto",
-        "closed": "Cerrado"
-      },
-      "verified": "Verificado",
-      "assigned": "Asignado",
-      "available": "Disponible",
-      "deposits": "Depósitos",
-      "noDeposits": "Sin depósitos vinculados",
-      "allocations": "Asignaciones",
-      "noAllocations": "Sin asignaciones",
-      "operation": "Operación",
-      "voided": "Anulado",
-      "conflictTitle": "Hay un conflicto",
-      "resolve": "Resolver conflicto",
-      "resolving": "Resolviendo…",
-      "resolved": "Conflicto resuelto",
-      "resolveError": "No se pudo resolver el conflicto.",
-      "closedHint": "Expediente cerrado",
-      "assign": "Asignar",
-      "assignTitle": "Asignar dinero del expediente",
-      "assignOperation": "Operación",
-      "assignAmount": "Monto (GYD)",
-      "assignConfirm": "Asignar",
-      "assignCancel": "Cancelar",
-      "assignSaved": "Dinero asignado",
-      "assignError": "No se pudo asignar",
-      "assignInvalid": "Ingresa un monto mayor que cero",
-      "assigning": "Asignando…",
-      "release": "Liberar",
-      "releaseQuestion": "¿Liberar {amount} GYD de esta asignación?",
-      "releaseConfirm": "Confirmar liberación",
-      "releaseCancel": "Cancelar",
-      "releaseSaved": "Asignación liberada",
-      "releaseError": "No se pudo liberar",
-      "releasing": "Liberando…",
-      "allocated": "{amount} GYD asignados"
     }
+
   },
   "Contacts": {
     "page": {

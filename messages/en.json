@@ -631,51 +631,8 @@
           "other": "Could not verify ({code})"
         }
       }
-    },
-    "fundingCase": {
-      "title": "Funding case",
-      "loading": "Loading funding case…",
-      "loadError": "Could not read the funding case.",
-      "status": {
-        "open": "Open",
-        "allocating": "Allocating",
-        "incident": "Conflict",
-        "closed": "Closed"
-      },
-      "verified": "Verified",
-      "assigned": "Assigned",
-      "available": "Available",
-      "deposits": "Deposits",
-      "noDeposits": "No linked deposits",
-      "allocations": "Allocations",
-      "noAllocations": "No allocations",
-      "operation": "Operation",
-      "voided": "Voided",
-      "conflictTitle": "There is a conflict",
-      "resolve": "Resolve conflict",
-      "resolving": "Resolving…",
-      "resolved": "Conflict resolved",
-      "resolveError": "Could not resolve the conflict.",
-      "closedHint": "Case closed",
-      "assign": "Assign",
-      "assignTitle": "Assign case money",
-      "assignOperation": "Operation",
-      "assignAmount": "Amount (GYD)",
-      "assignConfirm": "Assign",
-      "assignCancel": "Cancel",
-      "assignSaved": "Money assigned",
-      "assignError": "Could not assign",
-      "assignInvalid": "Enter an amount greater than zero",
-      "assigning": "Assigning…",
-      "release": "Release",
-      "releaseQuestion": "Release {amount} GYD from this allocation?",
-      "releaseConfirm": "Confirm release",
-      "releaseCancel": "Cancel",
-      "releaseSaved": "Allocation released",
-      "releaseError": "Could not release",
-      "releasing": "Releasing…",
-      "allocated": "{amount} GYD allocated"
     }
+
   },
   "Contacts": {
     "page": {

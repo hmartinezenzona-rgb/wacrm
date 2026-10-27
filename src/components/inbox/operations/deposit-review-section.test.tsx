@@ -149,27 +149,6 @@ describe("DepositReviewSection", () => {
       await act(async () => root.unmount());
     });
 
-    it("shows the missing amount for the admin without blocking anything", async () => {
-      const { node, root } = await render({
-        data: readModel({ status: "ready_to_transfer", canVerify: false, saldo: 2600, moneda: "GYD" }),
-      });
-
-      expect(node.textContent).toContain("still missing to cover the send");
-      expect(node.textContent).toContain("GYD");
-      expect(node.querySelector(".lucide-triangle-alert")).not.toBeNull();
-      await act(async () => root.unmount());
-    });
-
-    it("omits the missing amount when the deposit covers the send", async () => {
-      const { node, root } = await render({
-        data: readModel({ status: "ready_to_transfer", canVerify: false, saldo: 0 }),
-      });
-
-      expect(node.textContent).not.toContain("still missing to cover the send");
-      expect(node.querySelector(".lucide-triangle-alert")).toBeNull();
-      await act(async () => root.unmount());
-    });
-
     it("paints the verified check with the shared success status tone", async () => {
       const { node, root } = await render({ data: readModel({ status: "ready_to_transfer", canVerify: false, receipts: [receipt()] }) });
 

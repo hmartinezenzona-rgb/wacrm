@@ -747,6 +747,18 @@ export function RemittanceOperationCard({
                             </div>
                           )}
 
+                          {shortfall && (
+                            <p className="flex items-center gap-2 text-xs font-medium text-amber-700 dark:text-amber-400">
+                              <span className="w-4 shrink-0" aria-hidden="true" />
+                              {t("shortfallRecipient", {
+                                amount: new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(
+                                  shortfall.amount,
+                                ),
+                                currency: shortfall.currency,
+                              })}
+                            </p>
+                          )}
+
                           {isZelle && (
                             beneficiary.name ? (
                               <CopyChip
@@ -768,16 +780,6 @@ export function RemittanceOperationCard({
                               icon={<AtSign className="size-3.5" aria-hidden="true" />}
                               ariaLabel={t("copyValue", { label: t("zelleAccount") })}
                             />
-                          )}
-                          {shortfall && (
-                            <p className="px-2 text-xs font-medium text-amber-700 dark:text-amber-400">
-                              {t("shortfallRecipient", {
-                                amount: new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(
-                                  shortfall.amount,
-                                ),
-                                currency: shortfall.currency,
-                              })}
-                            </p>
                           )}
                           {isComboRecipient && beneficiary.name && (
                             <CopyChip

@@ -191,6 +191,23 @@ End-to-end on staging: the guard stores nothing, `registrar_numeros_recarga`
 converts the send to saldo and keeps the number, and a 5,000 GYD card send still
 asks for the card and registers it with the card.
 
+## No service invented while the customer has not chosen (346, 2026-10-28)
+
+The operation already opened without a service (`service_type 'remesa'`,
+`delivery_method NULL`, panel `needsService`), but the objective still named one:
+`cerebro_minimo_gyd` returns the CUP minimum for a rail-less operation, so a
+1,200 GYD deposit got 5,000 `minimo tarjeta CUP` and a 3,800 shortfall nobody
+asked for; exact saldo multiples got `saldo movil` (343).
+
+- `346_sin_servicio_sin_minimo` (production `20261028025253`, verificar 2/2):
+  a rail-less operation takes the deposited money as its objective with a
+  neutral `deposito` label. A quote or a previous agreed objective still win;
+  the minimum applies only when the service is declared (cambiar_servicio /
+  resolver already check it). Measured on staging: 1,200 / 1,000 / 3,000 / 4,500
+  all keep their own amount with `deposito`.
+- `cerebro_riel_op` no longer reads a rail from a card-typed recipient without a
+  card number (legacy rows; 345 already stops creating them).
+
 ## Cleanup before the next tests (2026-10-28)
 
 - The temporary promo (`50f83081`, PRUEBA TECNICA RECARGA) is `descartada`;

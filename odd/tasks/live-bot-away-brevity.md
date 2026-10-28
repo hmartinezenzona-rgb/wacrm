@@ -62,8 +62,17 @@ breaking what was restored and fixed on 2026-10-27 (Oct-19 bot + multi-Zelle, sh
   Final: `npx vitest run pruebas/decisor` 2 files / 116 passed; repo Decisor md5 `7909d4f8`;
   diff vs live: 1 file, about 33 lines added, 1 changed; prettier clean on the new `.ts` files;
   `tsc --noEmit` clean (writer run).
-- [ ] T5 Publish: backup, owner go-ahead, `publicar-decisor produccion` with
-  `CEREBRO_DECISOR_FILE`, verify md5 and versionId == activeVersionId, `comparar`.
+- [x] T5 Publish: backup, owner go-ahead, `publicar-decisor produccion` with
+  `CEREBRO_DECISOR_FILE`, verify md5 and versionId == activeVersionId.
+  2026-10-28 owner go-ahead ("si"). Fresh `estado`: 86edf437, Decisor 747db79b, 128 nodes.
+  Backup `produccion-jEzlVLCLUaJhVwzs-86edf437-...-20261028-055728.json`; `publicar-decisor
+  produccion --esperado 747db79b` OK; versionId 8faa133b == activeVersionId, active, 128 nodes,
+  Decisor md5 7909d4f8 == repo. Post backup `...-8faa133b-...-20261028-055752.json`: same node
+  names, only `Decisor` changed, connections equal. `comparar` skipped: staging is another lineage.
+  Workflow not executed (rule). Implementation commit e8f436f.
+  Rollback: `restaurar produccion <055728 backup> --esperado 8faa133b`.
+- [ ] T6 Owner check in production: activate an absence from the panel and check the first and a
+  later reply; watch follow-up replies after a quote.
 
 ## Acceptance criteria
 
@@ -79,6 +88,6 @@ breaking what was restored and fixed on 2026-10-27 (Oct-19 bot + multi-Zelle, sh
 
 ## Next step
 
-T5. Staging is skipped on purpose: staging runs the repo lineage (132 nodes, Decisor `243f6cfd`),
+T6. (T5 note) Staging was skipped on purpose: staging runs the repo lineage (132 nodes, Decisor `243f6cfd`),
 so publishing this file there would not test anything and would overwrite another session's
 staging work. The safety net is the offline suite, the backup and `restaurar`.

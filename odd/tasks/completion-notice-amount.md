@@ -53,7 +53,9 @@ When an admin completes a remittance, the customer's WhatsApp notice says what w
   por Zelle" from the calculator, not the incomplete 200 of its beneficiaries), 169 identical, 0 changed among
   those that had an amount, 17 still without (15 recarga/saldo, ea834237 two currencies, 5bf9e705 no data).
   No `;` inside the text, no backslash.
-- [ ] T2 Staging notifier: replace the query; verify the node (no execution).
+- [x] T2 Staging notifier: replace the query; verify the node (no execution). PREPARE of the full new query on
+  production with n8n's parameter types parses; EXECUTE (read-only) for da96eada returns "95 USD por Zelle".
+  Staging `OCdJoHTkV6S0aAdk` da512d97 -> ed9fd561 == active; only "Buscar telefono" changed; connections equal.
 - [ ] T3 Production notifier after the owner's go-ahead; verify; snapshot.
 - [ ] T4 Watch the next real completion notice.
 

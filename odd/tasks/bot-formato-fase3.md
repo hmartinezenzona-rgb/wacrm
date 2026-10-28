@@ -70,9 +70,22 @@ the customer ever seeing them out of order, on the live production Cerebro (vers
 
 - [x] F3.0 Map the outbound path (see Facts).
 - [x] F3.1 Design and owner decisions (see Design).
-- [ ] F3.2 Splitter: pure function, node source in the repo, offline tests with real replies.
-- [ ] F3.3 Migration: atomic multi-part enqueue, per-conversation ordered claim, stop-and-notify on
-  permanent failure, flag; staging cycle with assertion and rollback.
+- [x] F3.2 Splitter `pruebas/partir/` (partir.jscode, correr.ts md5 pin, fixtures.ts, partir.test.ts).
+  RED 63 failing (stub) -> GREEN 96/96; `npx vitest run pruebas/decisor pruebas/partir` 253/253.
+  Fail-closed to one part (flag not 'si', one block, < 160 chars, odd '*', SKIP, ends with ':',
+  exception). Real examples: ex1 2, ex2 4, ex3 2, ex4 3, ex5 2, ex6 4, ex7 4, ex8 4, ex9 2, ex10 1.
+- [x] F3.3 Migration 348 `supabase/migrations/348_outbox_partes.sql` + ROLLBACK + assertion
+  `supabase/staging/assertions/outbox-partes.sql`. STAGING ONLY: dry-run OK, apply OK, assertion
+  OK, rollback OK (md5 equal); `relacionadas` 15/15 SAME. Staging now HAS 348 applied (production
+  does not); the next production migration must not assume 348 is there. Number 348 not yet
+  checked against production `schema_migrations`.
+  Found bug (also fixed by 348): `outbox_status_chk` forbids `failed_direct`, which
+  `cerebro_outbox_resultado` writes when a direct send fails. Harmless today (`outbox_activo=si`,
+  no direct sends).
+  Open points if phase 3 is ever resumed: shadow mode joins parts into one message; who feeds
+  `opt_partir_respuesta` to the node; grant of the new function (service_role only); notification
+  wording; the 40-character join threshold (ex10 collapses to one part); concurrent-claim test is
+  sequential.
 - [ ] F3.4 Cerebro workflow: "Partir respuesta" node + enqueue call behind the flag; telemetry.
 - [ ] F3.5 Sender workflow: pause and immediate re-claim between parts.
 - [ ] F3.6 Production with go-ahead (migration, both workflows, flag on), verification, snapshot.

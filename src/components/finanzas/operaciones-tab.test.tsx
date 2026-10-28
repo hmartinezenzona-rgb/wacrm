@@ -5,7 +5,7 @@
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import en from "../../../../messages/en.json";
+import en from "../../../messages/en.json";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -37,7 +37,7 @@ vi.mock("@/components/ui/select", () => ({
   SelectItem: ({ value, children }: { value: string; children?: React.ReactNode }) => <option value={value}>{children}</option>,
 }));
 
-import ResumenPage from "./page";
+import { OperacionesTab } from "./operaciones-tab";
 
 const row = (over: Record<string, unknown>) => ({
   dia: "2026-10-05",
@@ -57,7 +57,7 @@ async function renderPage(rows: unknown[]) {
   rpc.mockImplementation(async (name: string) => ({ data: name === "cerebro_dashboard_historial" ? rows : [], error: null }));
   const node = document.createElement("div");
   document.body.appendChild(node);
-  await act(async () => createRoot(node).render(<ResumenPage />));
+  await act(async () => createRoot(node).render(<OperacionesTab />));
   await act(async () => {});
   return node;
 }
@@ -65,6 +65,18 @@ async function renderPage(rows: unknown[]) {
 beforeEach(() => rpc.mockReset());
 afterEach(() => {
   document.body.innerHTML = "";
+});
+
+describe("Operaciones tab", () => {
+  // The financial close (day / week / month / range) belongs to the Cierres tab now.
+  it("keeps the period summary and the history, and leaves the financial close to the Cierres tab", async () => {
+    const node = await renderPage([row({})]);
+    expect(node.querySelector('[data-testid="resumen-section"]')).not.toBeNull();
+    expect(node.querySelector('[data-testid="historial-section"]')).not.toBeNull();
+    expect(node.querySelector('[data-testid="close"]')).toBeNull();
+    // the Finanzas view owns the page title
+    expect(node.querySelector("h1")).toBeNull();
+  });
 });
 
 describe("Finanzas history table", () => {
@@ -170,19 +182,18 @@ describe("Finanzas section order", () => {
     }));
     const node = document.createElement("div");
     document.body.appendChild(node);
-    await act(async () => createRoot(node).render(<ResumenPage />));
+    await act(async () => createRoot(node).render(<OperacionesTab />));
     await act(async () => {});
     return node;
   }
 
-  it("puts Resumen first, then the financial close, then Historial", async () => {
+  it("puts Resumen first, then Historial (the financial close moved to the Cierres tab)", async () => {
     const node = await renderWithPeriods();
     const resumen = node.querySelector("[data-testid='resumen-section']")!;
-    const cierre = node.querySelector("[data-testid='close']")!;
     const historial = node.querySelector("[data-testid='historial-section']")!;
     const follows = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
-    expect(follows(resumen, cierre)).toBe(true);
-    expect(follows(cierre, historial)).toBe(true);
+    expect(follows(resumen, historial)).toBe(true);
+    expect(node.querySelector("[data-testid='close']")).toBeNull();
   });
 
   it("shows the volume of each period as the main figure in the money-in tone, keeping every number", async () => {

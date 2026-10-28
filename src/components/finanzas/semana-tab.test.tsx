@@ -19,7 +19,7 @@ import { createRoot } from "react-dom/client";
 import { NextIntlClientProvider } from "next-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import CalculadoraPage from "./page";
+import { SemanaTab } from "./semana-tab";
 import { formatNumber as formatMoneyNumber } from "@/lib/format-number";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -226,7 +226,7 @@ async function renderPage(fetchMock: ReturnType<typeof createFetchMock>) {
   const root = createRoot(node);
   await act(async () => root.render(
     <NextIntlClientProvider locale="es" messages={{ Common: { close: "Cerrar" } }}>
-      <CalculadoraPage />
+      <SemanaTab />
     </NextIntlClientProvider>,
   ));
   await flush();
@@ -1398,11 +1398,11 @@ describe("calculator weekly cut (Limpiar Todo)", () => {
     const dialog = document.querySelector("[role=dialog]")!;
     expect(dialog).not.toBeNull();
     expect(dialog.textContent).toContain("¿Limpiar todo y empezar una semana nueva?");
-    expect(dialog.textContent).toContain("Semanas anteriores");
+    expect(dialog.textContent).toContain("«Cierres»");
     expect(dialog.textContent).toContain("Finanzas");
     expect(dialog.textContent).toContain("historial");
     // rendered in a portal: outside the page's .legacyCalc scope, so its buttons are not restyled by it
-    expect(node.querySelector("main")!.contains(dialog)).toBe(false);
+    expect(node.querySelector(".legacyCalc")!.contains(dialog)).toBe(false);
     expect(confirm).not.toHaveBeenCalled();
 
     await act(async () => { dialogButton("Cancelar")!.click(); });
@@ -1503,125 +1503,21 @@ describe("calculator weekly cut (Limpiar Todo)", () => {
   });
 });
 
-describe("calculator archived weeks (Semanas anteriores)", () => {
-  const SUMMARY = {
-    id: "week-1", cutAt: "2026-10-03T12:00:00+00:00", periodo: "SEMANA 1",
-    manualTotals: { facturadoGyd: 1000, invertidoGyd: 800, retornoGyd: 200 },
-    chatTotals: { count: 1, facturadoGyd: 26000, invertidoGyd: 24000, retornoGyd: 2000 },
-  };
-  const FULL_WEEK = {
-    ...SUMMARY,
-    rawText: "• Fran 50k CUP (235/980)",
-    entries: [{ ...DEL_COMPLETED, id: "arch-1", customerName: "Archivada Ana" }],
-  };
-  function fixture(overrides: Parameters<typeof createFetchMock>[0] = {}) {
-    return createFetchMock({
+describe("calculator live entries after a weekly cut", () => {
+  // The archived weeks live in the Cierres tab (archived-weeks.tsx); the Semana tab no longer lists them.
+  it("does not list the archived weeks nor read them", async () => {
+    const fetchMock = createFetchMock({
       calculadoraGet: { rawText: "", periodo: "", chatOperations: { entries: [] } },
       ratesGet: { rates: null },
-      weeksGet: { weeks: [SUMMARY] },
-      weekGet: (id) => (id === "week-1" ? { status: 200, body: { week: FULL_WEEK } } : { status: 404, body: {} }),
-      ...overrides,
-    });
-  }
-
-  // Owner, 2026-10-07: the history must not fill the Calculator; it opens on demand, like the format guide.
-  it("is a collapsed section (details) with the number of weeks in its summary, and holds the open week", async () => {
-    const { node, root } = await renderPage(fixture());
-
-    const section = node.querySelector("#semanasAnteriores") as HTMLDetailsElement;
-    expect(section.tagName).toBe("DETAILS");
-    expect(section.open).toBe(false);
-    const summary = section.querySelector("summary") as HTMLElement;
-    expect(summary.textContent).toContain("Semanas anteriores");
-    expect(summary.textContent).toMatch(/\(\d+\)/);
-    expect(node.querySelector("h2")?.textContent ?? "").not.toContain("Semanas anteriores");
-    expect(Array.from(node.querySelectorAll("h2")).some((h) => (h.textContent ?? "").includes("Semanas anteriores"))).toBe(false);
-
-    await act(async () => { (node.querySelector("#verSemana-week-1") as HTMLButtonElement).click(); });
-    await act(async () => { await Promise.resolve(); });
-    expect(section.querySelector("#semanaArchivada")).not.toBeNull();
-    await act(async () => root.unmount());
-  });
-
-  it("lists the archived weeks compactly: cut date, period and totals", async () => {
-    const { node, root } = await renderPage(fixture());
-
-    const card = node.querySelector("#semanasAnteriores") as HTMLElement;
-    expect(card).not.toBeNull();
-    expect(card.textContent).toContain("Semanas anteriores");
-    expect(card.textContent).toContain("SEMANA 1");
-    expect(card.textContent).toContain("2026-10-03");
-    // manual + chat: 1000 + 26000, 800 + 24000, 200 + 2000
-    expect(card.textContent).toContain("27\u202f000,00");
-    expect(card.textContent).toContain("24\u202f800,00");
-    expect(card.textContent).toContain("2\u202f200,00");
-    await act(async () => root.unmount());
-  });
-
-  it("says so when there are no archived weeks", async () => {
-    const { node, root } = await renderPage(fixture({ weeksGet: { weeks: [] } }));
-    expect(node.querySelector("#semanasAnteriores")?.textContent).toContain("Aún no hay semanas archivadas.");
-    await act(async () => root.unmount());
-  });
-
-  it("opens an archived week read-only: text, period, totals and the entries of that week, with no edit or delete", async () => {
-    const { node, root } = await renderPage(fixture());
-
-    await act(async () => { (node.querySelector("#verSemana-week-1") as HTMLButtonElement).click(); });
-    await flush();
-
-    const view = node.querySelector("#semanaArchivada") as HTMLElement;
-    expect(view).not.toBeNull();
-    expect(view.textContent).toContain("SEMANA 1");
-    expect(view.querySelector("pre")?.textContent).toBe("• Fran 50k CUP (235/980)");
-    expect(view.textContent).toContain("Operaciones");
-    expect(view.textContent).toContain("Archivada Ana");
-    expect(view.textContent).toContain("26\u202f000,00");
-    expect(view.querySelector("textarea, input")).toBeNull();
-    expect(view.querySelector("[id^=eliminarEntry], [id^=editarEntry]")).toBeNull();
-    // the live week is untouched
-    expect(node.querySelector("#eliminarEntry-arch-1")).toBeNull();
-
-    await act(async () => { (node.querySelector("#cerrarSemana") as HTMLButtonElement).click(); });
-    expect(node.querySelector("#semanaArchivada")).toBeNull();
-    await act(async () => root.unmount());
-  });
-
-  it("a week that cannot be read shows an error and no view", async () => {
-    const { node, root } = await renderPage(fixture({ weekGet: () => ({ status: 500, body: {} }) }));
-
-    await act(async () => { (node.querySelector("#verSemana-week-1") as HTMLButtonElement).click(); });
-    await flush();
-
-    expect(node.querySelector("#semanaArchivada")).toBeNull();
-    expect(node.querySelector("#semanasAnteriores")?.textContent).toContain("No se pudo abrir la semana.");
-    await act(async () => root.unmount());
-  });
-
-  it("a cut adds the new week to the list", async () => {
-    let cut = false;
-    const fetchMock = fixture({
-      weeksPost: () => { cut = true; return { status: 200, body: { week: { ...FULL_WEEK, id: "week-2", periodo: "SEMANA 2" }, cutAt: "2026-10-10T12:00:00+00:00" } }; },
-    });
-    const base = fetchMock.getMockImplementation()!;
-    fetchMock.mockImplementation((input, init) => {
-      const url = typeof input === "string" ? input : input.toString();
-      if (cut && url === "/api/calculadora/weeks" && (init?.method ?? "GET") === "GET") {
-        return Promise.resolve(jsonResponse({ weeks: [{ ...SUMMARY, id: "week-2", periodo: "SEMANA 2" }, SUMMARY] }));
-      }
-      return base(input, init);
+      weeksGet: { weeks: [{ id: "week-1", cutAt: "2026-10-03T12:00:00+00:00", periodo: "SEMANA 1", manualTotals: {}, chatTotals: {} }] },
     });
     const { node, root } = await renderPage(fetchMock);
-
-    const clear = Array.from(node.querySelectorAll("button")).find((b) => b.textContent?.includes("Limpiar Todo")) as HTMLButtonElement;
-    await act(async () => { clear.click(); });
-    await act(async () => { (Array.from(document.querySelectorAll("[role=dialog] button")).find((b) => b.textContent?.trim() === "Limpiar todo") as HTMLButtonElement).click(); });
-    await flush();
-
-    expect(node.querySelector("#verSemana-week-2")).not.toBeNull();
-    expect(node.querySelector("#verSemana-week-1")).not.toBeNull();
+    expect(node.querySelector("#semanasAnteriores")).toBeNull();
+    expect(node.textContent).not.toContain("Semanas anteriores");
+    expect(fetchMock.mock.calls.some(([url]) => String(url).startsWith("/api/calculadora/weeks"))).toBe(false);
     await act(async () => root.unmount());
   });
+
 
   it("a live completed entry older than the latest cut does not reappear; one after it does", async () => {
     const fetchMock = createFetchMock({
@@ -2041,32 +1937,6 @@ describe("manual operations as rows of the one table (migration 228)", () => {
       expect(entriesPosts(fetchMock)).toHaveLength(0);
       await act(async () => root.unmount());
     });
-
-    it("an archived week shows its manual operations with the mark, read only, next to the bot's; the totals are the week's", async () => {
-      const week = {
-        id: "week-9", cutAt: "2026-10-08T12:00:00+00:00", periodo: "SEMANA 9",
-        manualTotals: { facturadoGyd: 4000, invertidoGyd: 0, retornoGyd: 4000 },
-        chatTotals: { count: 1, facturadoGyd: 26000, invertidoGyd: 24000, retornoGyd: 2000 },
-        rawText: "",
-        entries: [DEL_COMPLETED, { ...MANUAL_ROW, id: "arch-man" }],
-      };
-      const { node, root } = await renderPage(fixture({
-        weeksGet: { weeks: [{ ...week, entries: undefined, rawText: undefined }] },
-        weekGet: () => ({ status: 200, body: { week } }),
-      }));
-
-      await act(async () => { (node.querySelector("#verSemana-week-9") as HTMLButtonElement).click(); });
-      await flush();
-
-      const view = node.querySelector("#semanaArchivada") as HTMLElement;
-      const rows = [...view.querySelectorAll("tbody tr")] as HTMLElement[];
-      expect(rows).toHaveLength(2);
-      expect(rows[1]!.querySelector('td[data-label="Tipo"]')!.textContent).toContain("Manual");
-      expect(rows[0]!.querySelector('td[data-label="Tipo"]')!.textContent).not.toContain("Manual");
-      expect(view.textContent).toContain("30\u202f000,00");
-      expect(view.querySelector("[id^=eliminarEntry], [id^=editarEntry]")).toBeNull();
-      await act(async () => root.unmount());
-    });
   });
 
   describe("the text export", () => {
@@ -2174,20 +2044,6 @@ describe("calculator money tones", () => {
     await act(async () => root.unmount());
   });
 
-  it("applies the same tones inside the archived week view", async () => {
-    const { node, root } = await renderPage(fixture([]));
-    await act(async () => { (node.querySelector("#verSemana-week-1") as HTMLButtonElement).click(); });
-    await flush();
-
-    const view = node.querySelector("#semanaArchivada") as HTMLElement;
-    expect(tones(view)).toEqual(["in", "out", "profit"]);
-    expect(view.querySelectorAll(".legacyTotalBox p")[2]!.textContent).toBe("+2 000,00");
-    const row = view.querySelector("tbody tr")!;
-    expect([toneOf(row, "Fact. (GYD)"), toneOf(row, "Inv. (GYD)"), toneOf(row, "Ganancia")]).toEqual(["in", "out", "profit"]);
-    expect(toneOf(row, "Monto")).toBeNull();
-    await act(async () => root.unmount());
-  });
-
   // Step 2 and the step 1 leftovers (odd/tasks/semantic-money-colors.md, T7-T9).
   it("puts the fixed service dot before the service name in the operations table, and nowhere else in the row", async () => {
     const { node, root } = await renderPage(fixture([DEL_COMPLETED, LOSS]));
@@ -2214,38 +2070,6 @@ describe("calculator money tones", () => {
     expect(retorno.map((b) => b.dataset.tone)).toEqual(["profit", "loss"]);
     expect(retorno[0]!.className).toBe("text-money-profit");
     expect(breakdown.innerHTML).not.toContain("green");
-    await act(async () => root.unmount());
-  });
-
-  it("tones the Fact. / Inv. / Ganancia of the archived weeks list", async () => {
-    const { node, root } = await renderPage(fixture([]));
-
-    const row = node.querySelector("#semanasAnteriores tbody tr")!;
-    expect([toneOf(row, "Fact. (GYD)"), toneOf(row, "Inv. (GYD)"), toneOf(row, "Ganancia")]).toEqual(["in", "out", "profit"]);
-    for (const label of ["Corte", "Período"]) expect(toneOf(row, label)).toBeNull();
-    await act(async () => root.unmount());
-  });
-
-  it("shows a loss week of the archived list in the loss tone", async () => {
-    const lossWeek = { ...WEEK, chatTotals: { count: 1, facturadoGyd: 100, invertidoGyd: 300, retornoGyd: -200 } };
-    const { node, root } = await renderPage(createFetchMock({
-      calculadoraGet: { rawText: "", periodo: "", chatOperations: { entries: [] } },
-      ratesGet: { rates: null },
-      weeksGet: { weeks: [lossWeek] },
-      weekGet: () => ({ status: 200, body: { week: lossWeek } }),
-    }));
-
-    expect(toneOf(node.querySelector("#semanasAnteriores tbody tr")!, "Ganancia")).toBe("loss");
-    await act(async () => root.unmount());
-  });
-
-  it("puts the service dot in the archived week view too", async () => {
-    const { node, root } = await renderPage(fixture([]));
-    await act(async () => { (node.querySelector("#verSemana-week-1") as HTMLButtonElement).click(); });
-    await flush();
-
-    const view = node.querySelector("#semanaArchivada") as HTMLElement;
-    expect(view.querySelector('tbody td[data-label="Tipo"] [data-service]')?.getAttribute("data-service")).toBe("zelle");
     await act(async () => root.unmount());
   });
 });
@@ -2294,15 +2118,6 @@ describe("calculator shows no emojis", () => {
     expect(button().textContent).toBe("Maximizar");
     await act(async () => button().click());
     expect(button().textContent).toBe("Salir de Pantalla Completa");
-    await act(async () => root.unmount());
-  });
-
-  it("an archived week opened from the history", async () => {
-    const { node, root } = await renderPage(fixture("", []));
-    await act(async () => { (node.querySelector("#verSemana-week-1") as HTMLButtonElement).click(); });
-    await flush();
-    expect(node.querySelector("#semanaArchivada")).not.toBeNull();
-    expect(node.textContent).not.toMatch(EMOJI);
     await act(async () => root.unmount());
   });
 

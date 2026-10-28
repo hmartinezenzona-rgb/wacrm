@@ -8,7 +8,7 @@ vi.mock("next-intl/server", () => ({
 
 type RequestConfig = () => Promise<{
   locale: string;
-  messages: { Sidebar: { resumen: string } };
+  messages: { Sidebar: { finanzas: string } };
 }>;
 
 async function loadConfig(): Promise<RequestConfig> {
@@ -25,13 +25,13 @@ describe("i18n request config", () => {
     vi.stubEnv("NEXT_PUBLIC_APP_LOCALE", "es");
     const config = await (await loadConfig())();
     expect(config.locale).toBe("es");
-    expect(config.messages.Sidebar.resumen).toBe("Finanzas");
+    expect(config.messages.Sidebar.finanzas).toBe("Finanzas");
   });
 
   it("defaults to en.json when no locale is set", async () => {
     vi.stubEnv("NEXT_PUBLIC_APP_LOCALE", "");
     const config = await (await loadConfig())();
     expect(config.locale).toBe("en");
-    expect(config.messages.Sidebar.resumen).toBe("Finances");
+    expect(config.messages.Sidebar.finanzas).toBe("Finances");
   });
 });

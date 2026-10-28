@@ -1,6 +1,12 @@
 import { FinancialCloseSection } from "@/components/resumen/financial-close-section";
+import { ArchivedWeeks } from "./archived-weeks";
 
-// Interim: F2.2 adds the archived weeks above the financial close.
+/** The weekly cuts first, then the financial close of any day, week, month or range. */
 export function CierresTab() {
-  return <FinancialCloseSection />;
+  return (
+    <div className="space-y-6">
+      <ArchivedWeeks />
+      <FinancialCloseSection />
+    </div>
+  );
 }

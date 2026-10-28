@@ -68,3 +68,26 @@ the Zelle part keeps its 50 USD.
 - Staging: dry-run / apply / assertion / rollback OK.
 - Production: `previa` EQUAL, VEREDICTO SEGURO; applied as
   `338_reparto_destino_parte` (version 20261028003839); `verificar` 1/1.
+
+## Recarga in a mixed send (2026-10-28)
+
+The recarga test left the CUP operation with 15,000 CUP and no card: the agent
+registered the recarga number before the split, and `crm_registrar_numeros_recarga`
+converted the funded CUP operation to recarga, retiring the card; the split then
+created a new CUP operation without it.
+
+Two fixes:
+
+1. Prompt: in a mixed send, call `repartir_envio` FIRST, then register each
+   service's data (`versionId` `9633b9c1`).
+2. `339_recarga_no_retira_otro_servicio`: a funded operation that already has a
+   vigente recipient of another service is not converted to recarga; the recarga
+   becomes its own part. A plain funded operation still converts as before.
+
+- Staging: dry-run / apply / assertion / rollback OK.
+- Production: `previa` EQUAL, VEREDICTO SEGURO; applied as
+  `339_recarga_no_retira_otro_servicio` (version 20261028005847); `verificar` 1/1.
+
+A temporary `promo_etecsa` row (PRUEBA TECNICA RECARGA 2026-10-28, 600–1,250 CUP,
+x5, 6,200 GYD) is active only for the test day and must be removed when the tests
+finish.

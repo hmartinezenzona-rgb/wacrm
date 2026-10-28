@@ -53,3 +53,18 @@ whose rail is `multiple_distribution` for the `cuban_card` part.
 - Production: `previa` EQUAL, VEREDICTO SEGURO; applied as
   `337_reparto_reusa_multiple_distribution` (version 20261028001748);
   `verificar` 1/1 iguales.
+
+## Destination total per part (migration 338, 2026-10-28)
+
+After 337 the mixed send stored two grouped operations of 13,000 GYD each and
+the cards on the funded CUP operation, but that operation's
+`quoted_destination_amount` and `destination_currency` stayed empty.
+
+`338_reparto_destino_parte`: when every vigente recipient of a part has an
+amount and they share one currency, the split writes their sum as the part's
+destination (never over an admin lock). The CUP part now shows **39,000 CUP**;
+the Zelle part keeps its 50 USD.
+
+- Staging: dry-run / apply / assertion / rollback OK.
+- Production: `previa` EQUAL, VEREDICTO SEGURO; applied as
+  `338_reparto_destino_parte` (version 20261028003839); `verificar` 1/1.

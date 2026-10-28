@@ -36,3 +36,20 @@ On the 2026-10-27 23:23 test the recipients and amounts were stored correctly
 
 - Retest the mixed send with the corrected Decisor (30 s window, receipt
   `20404215436140` freed, test number wiped).
+
+## Mix migration 337 (2026-10-28)
+
+The 00:08 test called `repartir_envio` correctly, but the split created a
+second CUP operation: `registrar_reparto_multiple` leaves `delivery_method`
+NULL, so `cerebro_riel_op()` resolved the card-reparto operation's rail from
+its first beneficiary (`multiple_distribution`) and `_repartir_envio_core` did
+not recognise it as the `cuban_card` part. The cards stayed on the 0-GYD
+operation.
+
+`337_reparto_reusa_multiple_distribution` makes the split reuse an operation
+whose rail is `multiple_distribution` for the `cuban_card` part.
+
+- Staging: dry-run / apply / assertion / rollback OK.
+- Production: `previa` EQUAL, VEREDICTO SEGURO; applied as
+  `337_reparto_reusa_multiple_distribution` (version 20261028001748);
+  `verificar` 1/1 iguales.

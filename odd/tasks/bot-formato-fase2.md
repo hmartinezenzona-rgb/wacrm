@@ -62,8 +62,9 @@ phase 3), and apply the owner's business decisions of 2026-10-28, on the live pr
   GREEN. Parent: the notes still asked for card/phone/Zelle data in bold, against the owner's rule;
   4 notes now say one per line without bold. RED 3 -> GREEN. `npx vitest run pruebas/decisor`
   157/157; md5 `0a31fc73`. Business name stays bold (presentation), unchanged.
-- [ ] F2.2 `Contexto conversacion`: read-only field for "group link already sent" (SELECT check,
-  then node change with go-ahead).
+- [x] F2.2 `Contexto conversacion`: `grupo_enviado` added after `cierra_cortesia` (no semicolon or
+  backslash, per the node's own warning). Validated with PREPARE on production (parses, nothing
+  executed). versionId aaacee26; pre backup `...-bb175eda-...-124207.json`.
 - [x] F2.3 Prompt candidate `/home/onlinefreedom/cerebro-fase1/pruebas/evals/candidato-fase2-formato-2026-10-28.txt`
   (53,889 chars, live 52,129): FORMATO block 8 lines (one datum per line, one question last, bold
   only amounts/states max 3, digits verbatim, no emojis); bold-data rules replaced (PRIORIDAD
@@ -77,7 +78,11 @@ phase 3), and apply the owner's business decisions of 2026-10-28, on the live pr
 - [x] F2.2 prep: `grupo_enviado` SELECT validated read-only on production (per contact, any
   agent message containing `chat.whatsapp.com/`; 6 ms; 5 contacts already received it). Node
   change pending go-ahead.
-- [ ] F2.5 Publish with go-ahead; snapshot; push with go-ahead.
+- [x] F2.5 Owner 2026-10-28: "Publicar ya, sin bateria". Decisor 0a31fc73 (`--esperado a6ae5ae5`),
+  prompt deployed (COINCIDE; rollback `/home/onlinefreedom/cerebro-fase1/ROLLBACK-v2-antes-fase2-formato-20261028.json`).
+  Final versionId 0922ab9f == active, 128 nodes; vs bb175eda only Agente Remesas, Contexto
+  conversacion and Decisor changed, connections equal. Snapshot
+  `infra/n8n/snapshots/produccion-cerebro-0922ab9f-20261028.json`. Push pending the owner's go-ahead.
 
 ## Progress
 

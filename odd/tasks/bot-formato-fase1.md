@@ -129,3 +129,8 @@ F1.1 and F1.2 (one writer).
   (`desplegar_prompt.py --candidato candidato-fase1-formato-2026-10-28.txt --etiqueta fase1-formato`)
   -> new snapshot in `infra/n8n/snapshots/` -> ask the owner before pushing to `privado`
   (commits after tag `punto-bueno-2026-10-28` are not pushed).
+- 2026-10-28 owner: publish without the battery ("publica los cambios del decisor y el prompt,
+  luego en la practica vemos"). Battery stopped. Decisor a6ae5ae5 published (`--esperado
+  36b4c91e`, versionId ceb96631). Prompt deployed (COINCIDE, versionId bb175eda == active, 128
+  nodes). Rollback: `/home/onlinefreedom/cerebro-fase1/ROLLBACK-v2-antes-fase1-formato-20261028.json`.
+  F1.4 skipped by the owner; watch real conversations. Pending: snapshot + push (ask first).

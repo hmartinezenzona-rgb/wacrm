@@ -76,6 +76,14 @@ requests, so that etecsa.cu stops blocking it.
   2026-10-29 08:00 Guyana. Snapshot `infra/n8n/snapshots/vigilante-etecsa-f9a9ba18-20261028.json` (secret scan 0).
   Rollback: `cerebro_n8n.py`-style PUT of the eb8da02b backup + `ROLLBACK-349-promo-fallo-lectura.sql`.
 
+- [ ] T5 Panel confirm (owner 2026-10-28: "no deja confirmar la promocion, revisa x q"). Cause: the POST of
+  /api/promotions/etecsa UPDATEs promo_etecsa with the service key; production service_role has only SELECT
+  (305); staging had a table-level UPDATE, so the 2026-10-04 staging test passed. Migration 350: column UPDATE on
+  estado/confirmada_at/confirmada_por (staging's table-level UPDATE revoked first). Staging: RED (no grant, prod-like
+  base) `permission denied for table promo_etecsa` -> ALL PASS; aplicar OK; relacionadas 32: SAME 31, DIFF 1 =
+  promo-confirmar-panel (pre-existing failures unchanged); previa VEREDICTO SEGURO. Production apply waits for the
+  owner's go-ahead.
+
 ## Progress
 
 - 2026-10-28 created. RDD off.

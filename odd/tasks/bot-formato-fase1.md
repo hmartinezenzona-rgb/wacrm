@@ -65,8 +65,9 @@ adapted to the live bot). Change only what the customer reads, on the live produ
   (52,072 chars, live 53,545): app path and Pay Merchant removed, agent only; `## FORMATO` block
   (5 lines); conflicting rules replaced (rule 5, rule 14, VIA DE DEPOSITO/MAPEO, VIA USD first
   message, closing lines, change-of-service "enseguida"). Diff reviewed by the parent.
-  `parameters.text` has no app mention. Left on purpose: "Apenas lo verifiquemos le hacemos la
-  transferencia" (owner to decide).
+  `parameters.text` has no app mention. Owner 2026-10-28: "Apenas lo verifiquemos le hacemos la
+  transferencia" (3 places) -> "Una vez verificado, el equipo procesa su envío y le avisamos por
+  aquí." (52,511 chars). Owner accepted the away wording "se procesa a partir de que regresen".
 - [x] F1.3 Gold case `doble-pregunta-tasa-y-calculo-inverso`: dropped `debe_preguntar_algo`
   (only the app question satisfied it). Backup `casos-conversaciones.json.antes-fase1-20261028`.
 - [ ] F1.4 Battery: live prompt vs candidate, 3 reps; no new stable reds.

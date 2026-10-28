@@ -657,3 +657,40 @@ describe('fase 1 formato: ninguna nota dicta un plazo que el negocio no controla
     expect(dictadas([n])).toEqual([]);
   });
 });
+
+// Owner 2026-10-28: bring back verifying a deposit from a written TransID (312) on the live bot.
+// `Liberar chat` already answers `verificar_transid` through cerebro_verificar_transid.
+describe('verificar un deposito por TransID escrito (admin)', () => {
+  const ruta = (texto: string, es_admin: boolean) =>
+    correr({
+      ctx: { es_admin },
+      snapshot: { texto_completo: texto },
+    }) as unknown as {
+      ruta?: string;
+      comando?: string;
+      objetivo?: string;
+    };
+
+  it('un numero suelto de 14 digitos es un TransID', () => {
+    const out = ruta('10404033303182', true);
+    expect(out.ruta).toBe('comando');
+    expect(out.comando).toBe('verificar_transid');
+    expect(out.objetivo).toBe('10404033303182');
+  });
+
+  it('"verifica 10404033303182" y "transid: 10404033303182" tambien', () => {
+    for (const t of ['verifica 10404033303182', 'transid: 10404033303182']) {
+      const out = ruta(t, true);
+      expect(out.comando, t).toBe('verificar_transid');
+      expect(out.objetivo, t).toBe('10404033303182');
+    }
+  });
+
+  it('"liberar <numero>" sigue siendo liberar', () => {
+    expect(ruta('liberar 5926762167', true).comando).toBe('liberar');
+  });
+
+  it('a un cliente no le convierte el numero en comando', () => {
+    expect(ruta('10404033303182', false).comando).not.toBe('verificar_transid');
+  });
+});

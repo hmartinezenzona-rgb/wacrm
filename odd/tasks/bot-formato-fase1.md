@@ -88,3 +88,20 @@ adapted to the live bot). Change only what the customer reads, on the live produ
 ## Next step
 
 F1.1 and F1.2 (one writer).
+
+## Side fixes published on 2026-10-28 (owner go-ahead: "si, aplícalo y luego tmbn lo de verificar el transid en texto")
+
+- `Liberar chat`: every admin WhatsApp command failed with `cannot insert into view "tasas"`
+  (the Oct-19 restore brought back the pre-113 query). Production query replaced with the
+  pre-restore one (md5 7e06f38d, uses `cerebro_tasa_whatsapp`, has the `verificar_transid`
+  branch). versionId 873f9038; only that node changed. Backups `...-8faa133b-...-072055.json`
+  (pre) and `...-873f9038-...-072112.json` (post).
+- Written TransID verification (312) ported to the live Decisor: admin sends the bare 10-20 digit
+  number, "verifica <n>" or "transid: <n>" -> `verificar_transid`. Tests RED 2 -> GREEN.
+  Published ALONE on top of the live Decisor (7909d4f8 + 7 lines = `36b4c91e`, copy in
+  `infra/n8n/snapshots/decisor-produccion-36b4c91e-20261028.jscode`, 25/25 tests), so the phase 1
+  Decisor changes are still unpublished. versionId 370b2480 == active, 128 nodes, only `Decisor`
+  changed. Pre backup `...-873f9038-...-072309.json`.
+- The repo file `pruebas/decisor/produccion/decisor.jscode` (md5 a6ae5ae5) = phase 1 + TransID;
+  `npx vitest run pruebas/decisor` 137/137. Publishing it later replaces 36b4c91e
+  (`--esperado 36b4c91e`).

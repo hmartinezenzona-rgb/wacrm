@@ -69,7 +69,12 @@ requests, so that etecsa.cu stops blocking it.
   Staging `okU7TYnB8R8b1OSo` 623d73ad -> f1557b8e, inactive, staging credential kept. Manual run 570494:
   ECONNREFUSED (browser UA too: the n8n server's IP is blocked) -> `fallo de lectura, avisado: ...`.
   Backups `/home/onlinefreedom/cerebro-fase1/respaldos-n8n/vigilante-{produccion,staging}-*-20261028-151335.json`.
-- [ ] T4 Production: migration 349 (previa/aplicar/verificar), then the n8n workflow; verify; snapshot.
+- [x] T4 Production: migration 349 (previa/aplicar/verificar), then the n8n workflow; verify; snapshot.
+  previa `EQUAL cerebro_promo_revision`, VEREDICTO SEGURO; aplicar `OK 349_promo_fallo_lectura 20261028211606`;
+  verificar 1/1 (prod=stg=1def13b0). n8n `vk6aEa4bOZtl5xSz` eb8da02b -> f9a9ba18 == active, 6 nodes, production
+  credential kept, code md5 equal to the repo, connections equal. Not run by hand: the first real run is
+  2026-10-29 08:00 Guyana. Snapshot `infra/n8n/snapshots/vigilante-etecsa-f9a9ba18-20261028.json` (secret scan 0).
+  Rollback: `cerebro_n8n.py`-style PUT of the eb8da02b backup + `ROLLBACK-349-promo-fallo-lectura.sql`.
 
 ## Progress
 
@@ -77,4 +82,6 @@ requests, so that etecsa.cu stops blocking it.
 
 ## Next step
 
-T2.
+- 2026-10-29 after 08:00 Guyana: check the run (expected `fallo de lectura, avisado` while the IP stays blocked)
+  and that the admins see "No se pudo revisar la web de Etecsa".
+- Owner decides whether to read etecsa.cu from another server (the n8n server's IP is refused).

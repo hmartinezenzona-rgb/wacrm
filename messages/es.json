@@ -70,7 +70,6 @@
     "groupOperation": "Operación",
     "groupMoney": "Dinero",
     "groupTools": "Herramientas",
-    "dashboard": "Panel",
     "inbox": "Bandeja de entrada",
     "notifications": "Notificaciones",
     "contacts": "Contactos",
@@ -100,7 +99,6 @@
     "primaryNavLabel": "Principal"
   },
   "Header": {
-    "dashboard": "Panel",
     "inbox": "Bandeja de entrada",
     "notifications": "Notificaciones",
     "contacts": "Contactos",
@@ -122,130 +120,6 @@
   },
   "ModeToggle": {
     "switchMode": "Cambiar al modo {mode}"
-  },
-  "Dashboard": {
-    "page": {
-      "title": "Panel",
-      "description": "Analítica en vivo de conversaciones, contactos, negocios, difusiones y automatizaciones.",
-      "activeConversations": "Conversaciones activas",
-      "newContactsToday": "Contactos nuevos hoy",
-      "operationsInProgress": "Operaciones en curso",
-      "messagesSentToday": "Mensajes enviados hoy",
-      "newTodayVsYesterday": "nuevos hoy frente a ayer",
-      "vsYesterday": "frente a ayer",
-      "operationsInProgressCount": "{count} {count, plural, =1 {operación} other {operaciones}} en curso",
-      "noChange": "Sin cambios {suffix}"
-    },
-    "activityFeed": {
-      "title": "Actividad reciente",
-      "viewAll": "Ver todo →",
-      "noActivity": "Aún no hay actividad",
-      "noActivityHint": "La actividad de mensajes, negocios, difusiones y automatizaciones aparecerá aquí.",
-      "showingOf": "Mostrando {visible} de {totalLoaded}{plus}",
-      "show": "Mostrar",
-      "timeS": "hace {sec} s",
-      "timeM": "hace {min} min",
-      "timeH": "hace {hr} h",
-      "timeD": "hace {day} d",
-      "items": {
-        "newMessage": "Mensaje nuevo de {who}",
-        "newContact": "Contacto nuevo: {who}",
-        "broadcastSent": "Difusión \"{name}\" enviada a {count} contactos",
-        "broadcastOther": "Difusión \"{name}\" {status} ({count} destinatarios)",
-        "automationTriggered": "Automatización \"{name}\" activada para {who}",
-        "automationFailed": "Automatización \"{name}\" falló para {who}",
-        "unknown": "Desconocido",
-        "aContact": "un contacto",
-        "automationDefault": "Automatización",
-        "status": {
-          "draft": "borrador",
-          "scheduled": "programada",
-          "sending": "enviándose",
-          "failed": "fallida"
-        }
-      }
-    },
-    "conversationsChart": {
-      "title": "Conversaciones en el tiempo",
-      "description": "Volumen diario de mensajes por dirección",
-      "days": "{count} días",
-      "noActivity": "No hay actividad de mensajes en este rango",
-      "noActivityHint": "Envía o recibe mensajes para empezar a llenar este gráfico.",
-      "incoming": "Entrantes",
-      "outgoing": "Salientes",
-      "tooltipIncoming": "{count} entrantes",
-      "tooltipOutgoing": "{count} salientes",
-      "ariaLabel": "Conversaciones por día"
-    },
-    "pipelineDonut": {
-      "title": "Valor del embudo",
-      "description": "Negocios abiertos por etapa",
-      "noOpenDeals": "Aún no hay negocios abiertos",
-      "noOpenDealsHint": "Crea negocios en Embudos para ver aquí el desglose por etapa.",
-      "dealCount": "{count} {count, plural, =1 {negocio} other {negocios}}",
-      "total": "Total",
-      "ariaLabel": "Valor del embudo por etapa"
-    },
-    "serviceVolumeDonut": {
-      "title": "Volumen de remesas",
-      "description": "Volumen de hoy por servicio",
-      "noOperationsToday": "Aún no hay operaciones hoy",
-      "noOperationsTodayHint": "Las operaciones de remesa completadas aparecerán aquí a medida que ocurran.",
-      "operationCount": "{count} {count, plural, =1 {op.} other {ops.}}",
-      "total": "Total",
-      "ariaLabel": "Volumen de remesas por servicio, hoy"
-    },
-    "operationsFunnel": {
-      "title": "Operaciones en curso",
-      "description": "Conteo en vivo de las operaciones de remesa en cada etapa",
-      "noOperations": "No hay operaciones en curso en este momento",
-      "noOperationsHint": "Todas las etapas están vacías: las nuevas operaciones aparecerán aquí al iniciarse.",
-      "stage": {
-        "collecting_information": "Recopilando datos",
-        "awaiting_deposit": "Esperando depósito",
-        "deposit_received": "Depósito recibido",
-        "deposit_verification": "Verificando depósito",
-        "ready_to_transfer": "Listo para transferir",
-        "transferring": "Transfiriendo"
-      }
-    },
-    "businessInsights": {
-      "title": "Mejores clientes y destinos",
-      "description": "Quién factura más y qué monedas de destino mueven más este mes",
-      "topClientsTitle": "Mejores clientes",
-      "destinationBreakdownTitle": "Por moneda de destino",
-      "operationCount": "{count} {count, plural, =1 {operación} other {operaciones}}",
-      "unknownClient": "Cliente desconocido",
-      "noClients": "No hay operaciones completadas este mes",
-      "noBreakdown": "No hay operaciones completadas este mes"
-    },
-    "agedOperations": {
-      "title": "Operaciones atrasadas",
-      "description": "Operaciones en curso más antiguas, las más estancadas primero",
-      "client": "Cliente",
-      "service": "Servicio",
-      "amount": "Monto (GYD)",
-      "status": "Estado",
-      "age": "Antigüedad",
-      "action": "Acción",
-      "openChat": "Abrir chat",
-      "unknownClient": "Cliente desconocido",
-      "noneStuck": "Nada estancado en este momento",
-      "noneStuckHint": "Todas las operaciones en curso avanzan con normalidad: no hay cola atrasada que atender."
-    },
-    "responseTimeChart": {
-      "title": "Tiempo promedio de primera respuesta",
-      "description": "Minutos para responder el primer mensaje sin responder de un cliente, por día de la semana",
-      "slaCompliance": "{percent}% dentro de {minutes} min",
-      "thisWeek": "Esta semana:",
-      "lastWeek": "Semana pasada:",
-      "noReplies": "Aún no hay respuestas registradas",
-      "noRepliesHint": "Este gráfico se llena a medida que respondes mensajes de clientes.",
-      "seriesAvgMinutes": "Minutos promedio"
-    },
-    "emptyState": {
-      "title": "Aún no hay suficientes datos"
-    }
   },
   "Inbox": {
     "page": {

@@ -29,7 +29,6 @@ import { AwayModeButton } from "@/components/layout/away-mode-button";
  * gets no crumb rather than a wrong one.
  */
 const sectionLabels: Record<string, string> = {
-  "/dashboard": "dashboard",
   "/inbox": "inbox",
   "/notifications": "notifications",
   "/contacts": "contacts",

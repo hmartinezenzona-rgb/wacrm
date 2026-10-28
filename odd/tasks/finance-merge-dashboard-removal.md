@@ -77,7 +77,7 @@ Phase 2 (Finanzas):
 ## Tasks
 
 - [x] F1.1 Atrasadas strip on the Tablero (tests first). RED: `vitest run src/lib/tablero src/components/tablero` 4 failed + strip suite not loadable; GREEN: 4 files, 55 passed. Commit: see git log (feat(tablero)).
-- [ ] F1.2 Remove the Dashboard: redirects, landings, sidebar/header, dead components and i18n keys.
+- [x] F1.2 Remove the Dashboard: redirects, landings, sidebar/header, dead components and i18n keys. RED: 12 failed across 5 files; GREEN: full suite 252 files, 3540 tests passed; tsc clean. Kept components/dashboard/skeleton.tsx and lib/dashboard/date-utils.ts (still imported elsewhere). Commit: see git log (refactor(dashboard)).
 - [ ] F2.1 /finanzas with tabs and one sidebar entry.
 - [ ] F2.2 Semana / Cierres / Operaciones content moved, behaviour unchanged.
 - [ ] F2.3 /calculadora and /resumen redirect to /finanzas; header titles.
@@ -93,4 +93,4 @@ Phase 2 (Finanzas):
 
 ## Next step
 
-F1.1.
+F2.1.

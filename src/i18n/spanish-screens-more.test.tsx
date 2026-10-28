@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-// Second batch of screens moved off hard-coded English (agents, interactive builder, flows validation, dashboard
-// activity feed, presence labels). Each renders with es.json and must show the Spanish copy.
+// Second batch of screens moved off hard-coded English (agents, interactive builder, flows validation,
+// presence labels). Each renders with es.json and must show the Spanish copy.
 
 import React from "react";
 import { readFileSync } from "node:fs";
@@ -12,7 +12,6 @@ import en from "../../messages/en.json";
 import es from "../../messages/es.json";
 import { blankButtonsPayload, InteractiveBuilder } from "@/components/interactive/interactive-builder";
 import { AiPlayground } from "@/components/agents/ai-playground";
-import { ActivityFeed } from "@/components/dashboard/activity-feed";
 import { IssueLine } from "@/components/flows/validation-panel";
 import { presenceLabel } from "@/lib/presence";
 import { formatRelative } from "@/lib/automations/trigger-meta";
@@ -83,34 +82,6 @@ describe("flows validation messages (es)", () => {
       [],
     );
     expect(issues[0]).toMatchObject({ message: "Flow name is required.", code: "nameRequired" });
-  });
-});
-
-describe("dashboard activity feed (es)", () => {
-  it("renders structured items in Spanish and keeps stored text for legacy items", () => {
-    const at = new Date().toISOString();
-    const html = render(
-      <ActivityFeed
-        loading={false}
-        items={[
-          { id: "1", kind: "message", text: "New message from Ana", at, i18n: { key: "newMessage", values: { who: "Ana" } } },
-          { id: "2", kind: "message", text: "New message from Unknown", at, i18n: { key: "newMessage", values: {} } },
-          {
-            id: "3",
-            kind: "broadcast",
-            text: "Broadcast",
-            at,
-            i18n: { key: "broadcastOther", values: { name: "Promo", status: "draft", count: 4 } },
-          },
-          { id: "4", kind: "contact", text: "Texto ya formateado", at },
-        ]}
-      />,
-    );
-    expect(html).toContain("Mensaje nuevo de Ana");
-    expect(html).toContain("Mensaje nuevo de Desconocido");
-    expect(html).toContain("Difusión &quot;Promo&quot; borrador (4 destinatarios)");
-    expect(html).toContain("Texto ya formateado");
-    expect(html).not.toContain("New message from");
   });
 });
 

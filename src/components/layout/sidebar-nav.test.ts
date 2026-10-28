@@ -31,7 +31,6 @@ describe("sidebar navigation", () => {
     const byGroup = (group: string) =>
       navItems.filter((i) => i.group === group).map((i) => i.href);
     expect(byGroup("operation")).toEqual([
-      "/dashboard",
       "/inbox",
       "/notifications",
       "/contacts",

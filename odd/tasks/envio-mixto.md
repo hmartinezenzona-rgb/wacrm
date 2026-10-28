@@ -138,3 +138,18 @@ Data may arrive in any order: every tool accepts partial data and one call per
 recipient, the split reuses or creates each service's operation, 339 stops a
 recarga from retiring another service's recipient, and 340 moves each card row
 to its own rail after the split.
+
+## Cleanup before the next tests (2026-10-28)
+
+- The temporary promo (`50f83081`, PRUEBA TECNICA RECARGA) is `descartada`;
+  `promo_etecsa` has no promotion active today in Guyana.
+- Receipt `20404215436140` is back with its owner: `consumido_en`
+  2026-10-26 21:34:21.557545, operation `7c0920e3`, `case_deposits` link to
+  `7b723df9`, `linked_by = automation:cruce_deposito`.
+- Receipt `10400059469195` (1,000 GYD) stays FREE for the saldo movil test, and
+  its image hash (`COMP-5589561ba49133cee02f`) was deleted so the image counts
+  as new instead of a silent resend. After the tests: restore the deposit
+  (`recibido_en` 2026-09-08 19:07:24, `consumido_en` 2026-09-08 19:09:02.041989)
+  and reinsert the hash row with its original values (kept in the audit row).
+- The test number has no contact, conversations, messages, session events or
+  hashes left. Recarga prices (500 -> 5,200; 600 -> 6,200) are untouched.

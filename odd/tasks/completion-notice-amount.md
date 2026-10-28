@@ -23,6 +23,8 @@ When an admin completes a remittance, the customer's WhatsApp notice says what w
 ## Owner request
 
 - 2026-10-28: "revisa lo pendiente por arreglar para el aviso de remesa completada".
+- 2026-10-28: "si, aplicalo en produccion pero conviene que cuando sea saldo o recarga no diga remesa sino su
+  servicio como tal".
 
 ## Scope
 
@@ -56,7 +58,17 @@ When an admin completes a remittance, the customer's WhatsApp notice says what w
 - [x] T2 Staging notifier: replace the query; verify the node (no execution). PREPARE of the full new query on
   production with n8n's parameter types parses; EXECUTE (read-only) for da96eada returns "95 USD por Zelle".
   Staging `OCdJoHTkV6S0aAdk` da512d97 -> ed9fd561 == active; only "Buscar telefono" changed; connections equal.
-- [ ] T3 Production notifier after the owner's go-ahead; verify; snapshot.
+- [x] T2b Service wording (owner's second request). "Filtrar cambio de etapa" copied to
+  `pruebas/notificador/filtrar.jscode` (identical to production first) with `correr.ts` + `notificador.test.ts`:
+  saldo gets its own verified/completed wording ("Listo, su saldo movil{RECIBE} ya fue enviado.") and asks for
+  "el numero de Cuba"; the Meta template `remesa_completada` (fixed "su remesa de {{1}}") is attached only to a
+  plain remesa, so saldo/recarga/combo/visa/Mexico outside the 24 h window go as text (Meta refuses them) until
+  a service-neutral template is approved. RED 5 -> GREEN; all offline suites 278/278. Commit 18a187d.
+  Staging ed9fd561 -> 5fb4d910 (only Filtrar changed this time).
+- [x] T3 Production notifier after the owner's go-ahead; verify; snapshot. `wGud0KGR6eMqqfMQ` 3669da94 ->
+  b2f22900 == active; changed exactly "Filtrar cambio de etapa" and "Buscar telefono"; connections and settings
+  equal. Snapshot `infra/n8n/snapshots/notificador-b2f22900-20261028.json` (secret scan 0). Rollback: PUT of the
+  3669da94 backup.
 - [ ] T4 Watch the next real completion notice.
 
 ## Progress
@@ -67,4 +79,5 @@ When an admin completes a remittance, the customer's WhatsApp notice says what w
 
 ## Next step
 
-T1.
+- T4: read the next real completion and verification notices.
+- Owner: whether to submit a service-neutral template to Meta (e.g. "Listo, ya completamos su {{1}}...").

@@ -172,8 +172,19 @@ const base = { conversation_id: rec.conversation_id, operation_id: rec.id };
 if (rec.status === 'incident') {
   // Alerta al ADMIN, nunca al cliente. La campana del CRM ya la pone
   // notify_operation_incidencia; esto es el aviso por WhatsApp.
+  // EL MOTIVO (28-oct-2026): desde la 114 el motivo vive en remittance_operations.incident_reason; las notas del
+  // deal llegaban vacias y el admin veia "Detalle: -". Los codigos internos se dicen en palabras.
+  const MOTIVOS = {
+    sin_correo: 'El TransID del comprobante no aparece en ningun correo de MMG.',
+    no_aplica: 'El comprobante no se aplico: la operacion no estaba esperando un deposito.',
+    ya_reclamado: 'Ese deposito ya estaba usado en otro envio.',
+    verificado_incompleto: 'Deposito verificado, pero faltan datos de quien recibe.',
+  };
+  const motivo = String(rec.incident_reason || '').trim();
   const notas = (cfg.notas_deal || '').toString();
-  const cola = notas.length > 400 ? '...' + notas.slice(-400) : notas;
+  const colaNotas = notas.length > 400 ? '...' + notas.slice(-400) : notas;
+  const cola = (motivo && (MOTIVOS[motivo] || motivo)) || colaNotas.trim()
+    || 'El sistema no guardo el motivo: revise el chat.';
   const titulo = 'Remesa' + (importe ? ' - ' + importe : '');
   const mensaje = 'ALERTA Remesas - operacion en INCIDENCIA\n' + titulo + '\n\n' + cola + '\n\nRevise el chat en el CRM.';
   return [{ json: Object.assign({}, base, { destino: 'admin', mensaje,

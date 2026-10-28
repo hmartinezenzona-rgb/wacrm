@@ -84,3 +84,40 @@ describe('aviso de deposito verificado: dice el servicio, no "remesa"', () => {
     expect(s.json.mensaje).toMatch(/su remesa\{RECIBE\}/);
   });
 });
+
+describe('aviso de incidencia al admin: dice el motivo, no "Detalle: -"', () => {
+  const incidencia = (incident_reason: string | null, extra: Record<string, unknown> = {}) =>
+    filtrar(
+      op('remesa', 'incident', { incident_reason, quoted_source_amount: 26000, source_currency: 'GYD' }),
+      op('remesa', 'deposit_verification'),
+      extra
+    )[0].json as { destino?: string; alerta?: { detalle: string } };
+
+  it('traduce sin_correo', () => {
+    const s = incidencia('sin_correo');
+    expect(s.destino).toBe('admin');
+    expect(s.alerta?.detalle).toBe('El TransID del comprobante no aparece en ningun correo de MMG.');
+  });
+
+  it('traduce no_aplica', () => {
+    expect(incidencia('no_aplica').alerta?.detalle).toBe(
+      'El comprobante no se aplico: la operacion no estaba esperando un deposito.'
+    );
+  });
+
+  it('un motivo escrito se pasa tal cual', () => {
+    expect(incidencia('ALERTA: el TransID 10401606314994 ya fue usado en otro envio').alerta?.detalle).toBe(
+      'ALERTA: el TransID 10401606314994 ya fue usado en otro envio'
+    );
+  });
+
+  it('sin motivo usa las notas del deal si las hay', () => {
+    expect(incidencia(null, { notas_deal: 'deposito de mas: 2,000 GYD' }).alerta?.detalle).toBe(
+      'deposito de mas: 2,000 GYD'
+    );
+  });
+
+  it('sin motivo ni notas lo dice claro, nunca "-"', () => {
+    expect(incidencia(null).alerta?.detalle).toBe('El sistema no guardo el motivo: revise el chat.');
+  });
+});

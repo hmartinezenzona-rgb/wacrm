@@ -76,6 +76,13 @@ When an admin completes a remittance, the customer's WhatsApp notice says what w
   `{{2}}` at the end). When APPROVED: saldo/recarga/combo/visa/Mexico outside the 24 h window send it with {{1}}
   = the service phrase without asterisks, {{2}} = the business name from one config value.
 
+- [ ] T6 Incident alert to the admin says why (owner 2026-10-28, pending point 9: "Detalle: -"). Since 114 the
+  reason lives in `remittance_operations.incident_reason` (the relay sends `to_jsonb(NEW)`), but the alert read
+  only the retired deal notes. Now: incident_reason with internal codes in words (sin_correo, no_aplica,
+  ya_reclamado, verificado_incompleto) -> deal notes -> "El sistema no guardo el motivo: revise el chat."
+  RED 4 -> GREEN; all offline suites 283/283. Follow-up (not done): several paths still move an operation to
+  incident without writing incident_reason (seen as "Un envio necesita revision manual." in the CRM bell).
+
 ## Progress
 
 - 2026-10-28 created. RDD off. Backups:

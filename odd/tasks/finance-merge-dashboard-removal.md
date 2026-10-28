@@ -80,7 +80,7 @@ Phase 2 (Finanzas):
 - [x] F1.2 Remove the Dashboard: redirects, landings, sidebar/header, dead components and i18n keys. RED: 12 failed across 5 files; GREEN: full suite 252 files, 3540 tests passed; tsc clean. Kept components/dashboard/skeleton.tsx and lib/dashboard/date-utils.ts (still imported elsewhere). Commit: see git log (refactor(dashboard)).
 - [x] F2.1 /finanzas with tabs and one sidebar entry. RED: sidebar-nav 2 failed + 3 new files not loadable (tabs, finanzas-view, finanzas page); GREEN: `vitest run` on layout, lib/finanzas, components/finanzas, app finanzas: 9 files, 54 passed; tsc clean. Tab panels are interim wrappers of the old pages until F2.2. Commit: see git log (feat(finanzas)).
 - [x] F2.2 Semana / Cierres / Operaciones content moved, behaviour unchanged. RED: `vitest run src/components/finanzas` 4 failed + archived-weeks not loadable; GREEN: 5 files, 146 passed; full suite 257 files, 3563 passed after fixing src/i18n/request.test.ts (Sidebar.resumen -> Sidebar.finanzas, missed in F2.1). Moved with git mv: calculadora page -> components/finanzas/semana-tab.tsx, resumen page -> operaciones-tab.tsx, both page tests, calculadora.module.css. Archived-weeks tests moved to archived-weeks.test.tsx. Old routes have no page until F2.3. Commit: see git log (refactor(finanzas)).
-- [ ] F2.3 /calculadora and /resumen redirect to /finanzas; header titles.
+- [x] F2.3 /calculadora and /resumen redirect to /finanzas; header titles. RED: 2 failed (the two redirect tests); GREEN: full suite 259 files, 3566 passed; tsc clean. No in-app links to /calculadora or /resumen existed besides the sidebar (already replaced); only comments were updated. Commit: see git log (feat(finanzas) redirects).
 - [ ] F2.4 Full checks (vitest affected + full suite, tsc, eslint), staging browser check, then the production panel deploy after the go-ahead.
 
 ## Delivery
@@ -93,4 +93,4 @@ Phase 2 (Finanzas):
 
 ## Next step
 
-F2.1.
+F2.4 (checks, staging browser check, deploy after go-ahead).

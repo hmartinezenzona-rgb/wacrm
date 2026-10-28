@@ -1,5 +1,5 @@
 // ============================================================
-// Period arithmetic for the financial close (/resumen).
+// Period arithmetic for the financial close (Finanzas > Cierres).
 //
 // Every date here is a Guyana business day as a plain "YYYY-MM-DD"
 // string — the same day `crm_cierre_financiero` (migration 121) groups

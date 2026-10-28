@@ -86,6 +86,15 @@ describe("middleware — refreshed auth cookies survive redirects", () => {
     expect(res.cookies.get(ROTATED.name)?.value).toBe("cleared");
   });
 
+  it("keeps /finanzas behind the login", async () => {
+    mockUser = null;
+
+    const res = await middleware(new NextRequest("https://app.test/finanzas?tab=cierres"));
+
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toContain("/login");
+  });
+
   it("redirects a signed-in user with an invite token to /join/<token>", async () => {
     mockUser = { id: "user-1" };
     refreshedCookies = [ROTATED];

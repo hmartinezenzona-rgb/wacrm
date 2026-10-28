@@ -31,7 +31,7 @@ function downloadCsv(close: FinancialClose) {
 }
 
 /**
- * The financial close on /resumen: what the business billed, invested and
+ * The financial close in Finanzas > Cierres: what the business billed, invested and
  * earned in a period, read from the calculator ledger through
  * `crm_cierre_financiero` (migration 121). Opens on the current Guyana
  * week; the period is changed with the picker above the figures.

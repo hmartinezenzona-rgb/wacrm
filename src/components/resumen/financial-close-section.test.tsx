@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Spec: financial close on /resumen (odd/tasks/financial-close-resumen.md, T3).
+// Spec: financial close in Finanzas > Cierres (odd/tasks/financial-close-resumen.md, T3).
 // Covers the section's behavior: it opens on the current Guyana week, the
 // period buttons and previous/next ask the loader for the right range, a
 // custom range is validated before any call, the totals/breakdowns/detail

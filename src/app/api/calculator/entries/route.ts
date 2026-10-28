@@ -3,7 +3,7 @@
 //
 // Read-only listing of the calculator ledger (`remittance_calculator_entries`)
 // for structured, completed-operation-sourced rows only -- manual textarea
-// entries stay on the /calculadora page's own read path. Uses the caller's
+// entries stay on the Finanzas > Semana tab's own read path. Uses the caller's
 // own SESSION Supabase client (never service role), scoped by RLS to the
 // caller's account. Void rows are excluded by default; pass
 // `?includeVoid=true` to include them. Totals only ever sum `completed`

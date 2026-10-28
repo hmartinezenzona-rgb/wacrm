@@ -1,6 +1,6 @@
 // ============================================================
 // Pure mapping of `crm_cierre_financiero` (migration 121) into the
-// typed, camelCase shape the /resumen financial close renders. No I/O.
+// typed, camelCase shape the Finanzas > Cierres financial close renders. No I/O.
 // Postgres numerics can arrive as strings, so every money field goes
 // through `toNumber`.
 // ============================================================

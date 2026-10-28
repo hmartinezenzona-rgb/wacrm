@@ -208,6 +208,20 @@ asked for; exact saldo multiples got `saldo movil` (343).
 - `cerebro_riel_op` no longer reads a rail from a card-typed recipient without a
   card number (legacy rows; 345 already stops creating them).
 
+## Odd amounts get a real answer (347, 2026-10-28)
+
+A 1,500 GYD deposit asking for a recarga without a live promo hit the (207) gate
+and got "NO HAY PROMOCION ... ofrece pasar con un operador": true, but it never
+says the amount does not fit.
+
+- `347_sobrante_saldo` (production `20261028030313`, verificar 1/1): with no
+  promo and a recarga request, the tool now says what the money buys — whole
+  saldo packages of 1,000 GYD (360 CUP) and the remainder. 1,500 -> one package,
+  500 left, complete to a multiple or the team reviews the remainder; 500 -> it
+  does not reach one package, tell the customer how much is missing.
+- Message only: nothing is stored, the service is not changed and no money is
+  allocated (layer 1; the leftover rule was left out on purpose).
+
 ## Cleanup before the next tests (2026-10-28)
 
 - The temporary promo (`50f83081`, PRUEBA TECNICA RECARGA) is `descartada`;

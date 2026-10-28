@@ -1,6 +1,6 @@
 "use client";
 
-import type { KeyboardEvent } from "react";
+import { useState, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
@@ -10,17 +10,20 @@ import { CierresTab } from "./cierres-tab";
 import { OperacionesTab } from "./operaciones-tab";
 import { SemanaTab } from "./semana-tab";
 
-const PANEL_ID = "finanzas-panel";
+const panelId = (tab: FinanzasTab) => `finanzas-panel-${tab}`;
 const tabId = (tab: FinanzasTab) => `finanzas-tab-${tab}`;
 
 /**
  * The one Finanzas section: Semana (the weekly calculator), Cierres (archived weeks and financial closes) and
- * Operaciones (period summary and history). The tab lives in the URL (`?tab=`), so a link or a reload lands on it;
- * only the active panel is mounted, so each tab fetches fresh data when it opens.
+ * Operaciones (period summary and history). The tab lives in the URL (`?tab=`), so a link or a reload lands on it.
+ * A panel mounts on its first visit and then stays mounted, hidden while inactive: Semana autosaves its draft after a
+ * short delay and must not be unmounted by a tab switch. Cierres is told when it is active so it can refetch.
  */
 export function FinanzasView({ tab }: { tab: FinanzasTab }) {
   const t = useTranslations("Finanzas");
   const router = useRouter();
+  const [visited, setVisited] = useState<ReadonlySet<FinanzasTab>>(() => new Set([tab]));
+  if (!visited.has(tab)) setVisited(new Set([...visited, tab]));
 
   const select = (next: FinanzasTab) => {
     if (next !== tab) router.replace(`/finanzas?tab=${next}`, { scroll: false });
@@ -58,7 +61,7 @@ export function FinanzasView({ tab }: { tab: FinanzasTab }) {
             type="button"
             role="tab"
             aria-selected={tab === item}
-            aria-controls={PANEL_ID}
+            aria-controls={panelId(item)}
             tabIndex={tab === item ? 0 : -1}
             onClick={() => select(item)}
             onKeyDown={onKeyDown}
@@ -74,9 +77,19 @@ export function FinanzasView({ tab }: { tab: FinanzasTab }) {
         ))}
       </div>
 
-      <div id={PANEL_ID} role="tabpanel" aria-labelledby={tabId(tab)} tabIndex={0} className="focus-visible:outline-none">
-        {tab === "semana" ? <SemanaTab /> : tab === "cierres" ? <CierresTab /> : <OperacionesTab />}
-      </div>
+      {FINANZAS_TABS.filter((item) => visited.has(item) || item === tab).map((item) => (
+        <div
+          key={item}
+          id={panelId(item)}
+          role="tabpanel"
+          aria-labelledby={tabId(item)}
+          hidden={tab !== item}
+          tabIndex={0}
+          className="focus-visible:outline-none"
+        >
+          {item === "semana" ? <SemanaTab /> : item === "cierres" ? <CierresTab active={tab === item} /> : <OperacionesTab />}
+        </div>
+      ))}
     </PageShell>
   );
 }

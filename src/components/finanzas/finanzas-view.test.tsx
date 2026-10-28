@@ -14,9 +14,27 @@ vi.mock("next-intl", () => ({
   useTranslations: (namespace: string) => (key: string) =>
     key.split(".").reduce((acc: unknown, part) => (acc as Record<string, unknown>)?.[part], (es as unknown as Record<string, unknown>)[namespace]) as string,
 }));
-vi.mock("./semana-tab", () => ({ SemanaTab: () => <div data-testid="semana-content" /> }));
-vi.mock("./cierres-tab", () => ({ CierresTab: () => <div data-testid="cierres-content" /> }));
-vi.mock("./operaciones-tab", () => ({ OperacionesTab: () => <div data-testid="operaciones-content" /> }));
+const mounts = vi.hoisted(() => ({ semana: 0, cierres: 0, operaciones: 0 }));
+const cierresActive = vi.hoisted(() => ({ values: [] as boolean[] }));
+vi.mock("./semana-tab", () => ({
+  SemanaTab: () => {
+    React.useEffect(() => { mounts.semana += 1; }, []);
+    return <div data-testid="semana-content"><input data-testid="draft" /></div>;
+  },
+}));
+vi.mock("./cierres-tab", () => ({
+  CierresTab: ({ active }: { active: boolean }) => {
+    React.useEffect(() => { mounts.cierres += 1; }, []);
+    cierresActive.values.push(active);
+    return <div data-testid="cierres-content" />;
+  },
+}));
+vi.mock("./operaciones-tab", () => ({
+  OperacionesTab: () => {
+    React.useEffect(() => { mounts.operaciones += 1; }, []);
+    return <div data-testid="operaciones-content" />;
+  },
+}));
 
 import { FinanzasView } from "./finanzas-view";
 import type { FinanzasTab } from "@/lib/finanzas/tabs";
@@ -32,6 +50,8 @@ async function renderView(tab: FinanzasTab) {
 afterEach(() => {
   document.body.replaceChildren();
   replace.mockClear();
+  Object.assign(mounts, { semana: 0, cierres: 0, operaciones: 0 });
+  cierresActive.values.length = 0;
 });
 
 describe("FinanzasView", () => {
@@ -48,15 +68,58 @@ describe("FinanzasView", () => {
     ["semana", 0],
     ["cierres", 1],
     ["operaciones", 2],
-  ] as const)("shows only the %s panel and marks its tab selected", async (tab, index) => {
+  ] as const)("opens on the %s tab: its tab is selected and only its panel is visible", async (tab, index) => {
     const { node, root } = await renderView(tab);
     const tabs = [...node.querySelectorAll("[role=tab]")];
     tabs.forEach((el, i) => expect(el.getAttribute("aria-selected")).toBe(String(i === index)));
-    const panel = node.querySelector("[role=tabpanel]")!;
-    expect(node.querySelectorAll("[role=tabpanel]")).toHaveLength(1);
-    expect(panel.getAttribute("aria-labelledby")).toBe(tabs[index]!.id);
-    expect(tabs[index]!.getAttribute("aria-controls")).toBe(panel.id);
-    expect(panel.querySelector(`[data-testid=${tab}-content]`)).not.toBeNull();
+    const panels = [...node.querySelectorAll("[role=tabpanel]")] as HTMLElement[];
+    const visible = panels.filter((p) => !p.hidden);
+    expect(visible).toHaveLength(1);
+    expect(visible[0]!.getAttribute("aria-labelledby")).toBe(tabs[index]!.id);
+    expect(tabs[index]!.getAttribute("aria-controls")).toBe(visible[0]!.id);
+    expect(visible[0]!.querySelector(`[data-testid=${tab}-content]`)).not.toBeNull();
+    // a tab nobody visited is not mounted
+    expect(panels).toHaveLength(1);
+    await act(async () => root.unmount());
+  });
+
+  // Osmany's draft: the Semana autosave waits 600 ms, so leaving the tab must not unmount it.
+  it("keeps Semana mounted (same DOM node, same typed text) while visiting Cierres and coming back", async () => {
+    const node = document.createElement("div");
+    document.body.appendChild(node);
+    const root = createRoot(node);
+    await act(async () => root.render(<FinanzasView tab="semana" />));
+    const draft = node.querySelector("[data-testid=draft]") as HTMLInputElement;
+    draft.value = "last keystrokes";
+
+    await act(async () => root.render(<FinanzasView tab="cierres" />));
+    const semanaPanel = node.querySelector("#finanzas-panel-semana") as HTMLElement;
+    expect(semanaPanel.hidden).toBe(true);
+    expect(node.querySelector("#finanzas-panel-cierres")!.hasAttribute("hidden")).toBe(false);
+
+    await act(async () => root.render(<FinanzasView tab="semana" />));
+    expect(node.querySelector("[data-testid=draft]")).toBe(draft);
+    expect(draft.value).toBe("last keystrokes");
+    expect(mounts.semana).toBe(1);
+    expect((node.querySelector("#finanzas-panel-semana") as HTMLElement).hidden).toBe(false);
+    expect((node.querySelector("#finanzas-panel-cierres") as HTMLElement).hidden).toBe(true);
+    await act(async () => root.unmount());
+  });
+
+  it("mounts a tab on its first visit only and tells Cierres whether it is the active tab", async () => {
+    const node = document.createElement("div");
+    document.body.appendChild(node);
+    const root = createRoot(node);
+    await act(async () => root.render(<FinanzasView tab="semana" />));
+    expect(mounts).toEqual({ semana: 1, cierres: 0, operaciones: 0 });
+
+    await act(async () => root.render(<FinanzasView tab="cierres" />));
+    await act(async () => root.render(<FinanzasView tab="operaciones" />));
+    await act(async () => root.render(<FinanzasView tab="cierres" />));
+    expect(mounts).toEqual({ semana: 1, cierres: 1, operaciones: 1 });
+    expect(cierresActive.values.at(-1)).toBe(true);
+    await act(async () => root.render(<FinanzasView tab="semana" />));
+    expect(cierresActive.values.at(-1)).toBe(false);
     await act(async () => root.unmount());
   });
 

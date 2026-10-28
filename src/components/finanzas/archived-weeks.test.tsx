@@ -144,6 +144,31 @@ describe("archived weeks (Cierres tab)", () => {
     await act(async () => second.root.unmount());
   });
 
+  it("reads the list again each time it turns active again, and not while it stays hidden", async () => {
+    const weeks = [SUMMARY];
+    const fetchMock = createFetchMock({ weeksGet: { weeks } });
+    vi.stubGlobal("fetch", fetchMock);
+    const node = document.createElement("div");
+    document.body.appendChild(node);
+    const root = createRoot(node);
+    const reads = () => fetchMock.mock.calls.filter(([url]) => url === "/api/calculadora/weeks").length;
+
+    await act(async () => root.render(<ArchivedWeeks active />));
+    await flush();
+    expect(reads()).toBe(1);
+
+    await act(async () => root.render(<ArchivedWeeks active={false} />));
+    await flush();
+    expect(reads()).toBe(1);
+
+    weeks.unshift({ ...SUMMARY, id: "week-2", periodo: "SEMANA 2" });
+    await act(async () => root.render(<ArchivedWeeks active />));
+    await flush();
+    expect(reads()).toBe(2);
+    expect(node.querySelector("#verSemana-week-2")).not.toBeNull();
+    await act(async () => root.unmount());
+  });
+
   it("opens an archived week read-only: text, period, totals and the entries of that week, with no edit or delete", async () => {
     const { node, root } = await renderWeeks(fixture());
 

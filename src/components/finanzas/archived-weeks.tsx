@@ -10,28 +10,30 @@ import "./calculadora.module.css";
 
 /**
  * The archived weeks ("Semanas anteriores"): every "Limpiar Todo" cut of the Semana tab, read only. It reads the list
- * each time it mounts, so a cut made in the Semana tab shows up as soon as the Cierres tab opens.
+ * each time it becomes active (the tab stays mounted while hidden), so a cut made in the Semana tab shows up as soon
+ * as the Cierres tab opens again.
  */
-export function ArchivedWeeks() {
+export function ArchivedWeeks({ active = true }: { active?: boolean }) {
   const [weeks, setWeeks] = useState<CalculatorWeekSummary[]>([]);
   const [openWeek, setOpenWeek] = useState<CalculatorWeek | null>(null);
   const [weekMessage, setWeekMessage] = useState<string | null>(null);
 
   // A failure here is non-fatal: the list just stays empty.
   useEffect(() => {
-    let active = true;
+    if (!active) return;
+    let current = true;
     void (async () => {
       try {
         const response = await fetch("/api/calculadora/weeks", { cache: "no-store" });
         if (!response.ok) return;
         const data = (await response.json()) as { weeks?: CalculatorWeekSummary[] };
-        if (active) setWeeks(data.weeks ?? []);
+        if (current) setWeeks(data.weeks ?? []);
       } catch {
         /* keep what is shown */
       }
     })();
-    return () => { active = false; };
-  }, []);
+    return () => { current = false; };
+  }, [active]);
 
   async function openArchivedWeek(weekId: string) {
     setWeekMessage(null);

@@ -606,7 +606,7 @@ if (s.multi_beneficiario) {
 } else if (g82RepartoVigente) {
   notas.push(g82NotaReparto());
 } else if (tarjetaCtx && celularCtx && regBenDisponible && !cubanoRegistrado) {
-  notas.push('TARJETA Y CELULAR DETECTADOS PERO NO REGISTRADOS: tarjeta ' + tarjetaCtx + ' y celular ' + celularCtx + '. Todavia NO estan guardados en el envio. Llama gestionar_beneficiario EN ESTE MISMO TURNO con esos datos y confirmaselos al cliente con la tarjeta y el celular COMPLETOS, uno por linea (Tarjeta: ... / Celular: ...), sin negrita. PROHIBIDO decir anotado sin haber llamado la herramienta.');
+  notas.push('TARJETA Y CELULAR DETECTADOS PERO NO REGISTRADOS: tarjeta ' + tarjetaCtx + ' y celular ' + celularCtx + '. Todavia NO estan guardados en el envio. Llama gestionar_beneficiario EN ESTE MISMO TURNO con esos datos y confirmaselos al cliente con la tarjeta y el celular COMPLETOS, uno por linea (Tarjeta: ... / Celular: ...), sin negrita. PROHIBIDO decir anotado sin haber llamado la herramienta.' + ' Muestra EXACTAMENTE estas lineas:' + String.fromCharCode(10) + 'Tarjeta: ' + tarjetaCtx + String.fromCharCode(10) + 'Celular: ' + celularCtx);
 } else if (tarjetaCtx && celularCtx) {
   if (soloAcuse) {
     notas.push('Beneficiario YA REGISTRADO automaticamente en el tablero: tarjeta ' + tarjetaCtx + ' y celular ' + celularCtx + '. El cliente solo acusa recibo: responde en UNA frase corta confirmando que quedo registrado; NO repitas tarjeta ni celular si ya se confirmaron en el turno anterior.');
@@ -615,7 +615,7 @@ if (s.multi_beneficiario) {
     // complete for the first time and still owes the full confirmation below.
     notas.push('Beneficiario YA REGISTRADO automaticamente en el tablero: tarjeta ' + tarjetaCtx + ' y celular ' + celularCtx + ' (uno de los dos lo dio antes en esta misma conversacion; el sistema los junto). El beneficiario YA se confirmo en un turno anterior: NO repitas tarjeta ni celular; confirma solo lo nuevo (el deposito y/o el reparto).');
   } else {
-    notas.push('Beneficiario YA REGISTRADO automaticamente en el tablero: tarjeta ' + tarjetaCtx + ' y celular ' + celularCtx + (veniaDeAntes ? ' (uno de los dos lo dio antes en esta misma conversacion; el sistema los junto)' : '') + '. NO llames gestionar_beneficiario (ya esta hecho, igual que el deposito). OBLIGATORIO: tu respuesta a ESTE lote DEBE incluir la confirmacion de estos datos con palabras, tarjeta y celular COMPLETOS, uno por linea (Tarjeta: ... / Celular: ...), sin negrita — aunque el lote traiga ademas un audio o texto hablando de otra cosa, la confirmacion va en el mismo mensaje. Responder solo al resto (un "aqui estoy pendiente" pelado) es un ERROR GRAVE. PROHIBIDO pedirle los datos del beneficiario: ya los dio.');
+    notas.push('Beneficiario YA REGISTRADO automaticamente en el tablero: tarjeta ' + tarjetaCtx + ' y celular ' + celularCtx + (veniaDeAntes ? ' (uno de los dos lo dio antes en esta misma conversacion; el sistema los junto)' : '') + '. NO llames gestionar_beneficiario (ya esta hecho, igual que el deposito). OBLIGATORIO: tu respuesta a ESTE lote DEBE incluir la confirmacion de estos datos con palabras, tarjeta y celular COMPLETOS, uno por linea (Tarjeta: ... / Celular: ...), sin negrita — aunque el lote traiga ademas un audio o texto hablando de otra cosa, la confirmacion va en el mismo mensaje. Responder solo al resto (un "aqui estoy pendiente" pelado) es un ERROR GRAVE. PROHIBIDO pedirle los datos del beneficiario: ya los dio.' + ' Muestra EXACTAMENTE estas lineas:' + String.fromCharCode(10) + 'Tarjeta: ' + tarjetaCtx + String.fromCharCode(10) + 'Celular: ' + celularCtx);
   }
 } else if (visaEnCurso) {
   notas.push('OPERACION EN CURSO: EXTENSION DE VISA, no remesa. NO hace falta ningun dato de destino: PROHIBIDO pedir tarjeta, celular, cuenta o datos de quien recibe. El cliente llena el formulario de la extension (https://acortar.link/extension_de_visa) y paga 5,000 GYD por persona por MMG, todo por adelantado; la captura del deposito la manda por aqui. Si confirma que quiere hacerla, llama abrir_extension_visa con cuantas personas. Despues de pagar, el equipo sube la aplicacion y le avisa.');
@@ -666,7 +666,15 @@ if (s.datos_zelle) {
     if (!zelleRegistrado && zelleNomCtx && zelleCtaCtx) {
       toolsPendientes.push('registrar_beneficiario_zelle con nombre "' + zelleNomCtx + '" y cuenta LITERAL "' + zelleCtaCtx + '"');
     }
-    notas.push('DATOS DE ZELLE DETECTADOS: ' + cuenta + '. Este cliente quiere ZELLE (no CUP ni tarjeta Clasica/Tropical). PROHIBIDO pedirle tarjeta ni celular cubano. Confirmaselos COPIADOS TAL CUAL, sin cambiar ni un caracter, uno por linea (Etiqueta: valor), sin negrita. El NOMBRE de la cuenta es OBLIGATORIO: si no lo ha dado, pideselo.' + (zelleRegistrado ? ' YA ESTA REGISTRADO EN EL TABLERO: NO hay ninguna tool que llamar para esto, solo confirmaselo con palabras.' : ' NO ESTA REGISTRADO TODAVIA. Llama registrar_beneficiario_zelle EN ESTE MISMO TURNO con lo que haya (el nombre y/o la cuenta, la cuenta LITERAL tal como esta aqui arriba) y pide lo que falte.'));
+    // (2026-10-28) Show the data as exact lines, and never talk about the transfer while a datum is missing.
+    const lineasZelle = ['Cuenta Zelle anotada:']
+      .concat(zelleNomCtx ? ['Nombre: ' + zelleNomCtx] : [])
+      .concat(s.zelle_celular ? ['Celular: ' + s.zelle_celular] : [])
+      .concat(s.zelle_correo ? ['Correo: ' + s.zelle_correo] : [])
+      .concat(!s.zelle_celular && !s.zelle_correo && zelleCtaCtx ? ['Cuenta: ' + zelleCtaCtx] : [])
+      .join(String.fromCharCode(10));
+    const faltaZelle = !zelleNomCtx ? 'FALTA EL NOMBRE del titular' : (!zelleCtaCtx ? 'FALTA LA CUENTA (correo o celular de EEUU)' : '');
+    notas.push('DATOS DE ZELLE DETECTADOS: ' + cuenta + '. Este cliente quiere ZELLE (no CUP ni tarjeta Clasica/Tropical). PROHIBIDO pedirle tarjeta ni celular cubano. Confirmaselos COPIADOS TAL CUAL, sin cambiar ni un caracter, uno por linea (Etiqueta: valor), sin negrita. El NOMBRE de la cuenta es OBLIGATORIO: si no lo ha dado, pideselo.' + (zelleRegistrado ? ' YA ESTA REGISTRADO EN EL TABLERO: NO hay ninguna tool que llamar para esto, solo confirmaselo con palabras.' : ' NO ESTA REGISTRADO TODAVIA. Llama registrar_beneficiario_zelle EN ESTE MISMO TURNO con lo que haya (el nombre y/o la cuenta, la cuenta LITERAL tal como esta aqui arriba) y pide lo que falte.') + (faltaZelle ? ' ' + faltaZelle + ': PROHIBIDO decir "una vez hecha su remesa", "le notificamos" ni hablar de cuando se hace: sin ese dato no se puede hacer. Termina con UNA sola pregunta, la de ese dato.' : '') + ' Muestra al cliente EXACTAMENTE estas lineas, cada una en su linea:' + String.fromCharCode(10) + lineasZelle);
   }
 }
 }
@@ -912,7 +920,7 @@ if (s.comprobante_duplicado) {
   if (dupEtapa === 'Entregada') {
     notas.push(base + ' ESE ENVIO YA SE ENTREGO. PROHIBIDO decir que lo estas revisando, verificando o confirmando. Dile que ese envio ya fue entregado.');
   } else if (dupEtapa === 'Lista para transferir') {
-    notas.push(base + ' ESE DEPOSITO YA ESTA VERIFICADO y la transferencia esta pendiente de hacerse. PROHIBIDO decir que lo estas verificando. Dile que ya esta verificado y que una vez hecha su remesa le notificamos por aca. PROHIBIDO decir "en breve", "enseguida" o dar un plazo, y PROHIBIDO repetirle la tarjeta o el celular.');
+    notas.push(base + ' ESE DEPOSITO YA ESTA VERIFICADO y la transferencia esta pendiente de hacerse. PROHIBIDO decir que lo estas verificando. Dile que ya esta verificado' + (sabeDestino ? ' y que una vez hecha su remesa le notificamos por aca. ' : ' y pidele el dato de quien recibe que falte. PROHIBIDO decir "una vez hecha su remesa" o "le notificamos" mientras falten datos de quien recibe. ') + 'PROHIBIDO decir "en breve", "enseguida" o dar un plazo, y PROHIBIDO repetirle la tarjeta o el celular.');
   } else if (dupEtapa === 'Incidencia') {
     notas.push(base + ' ESE ENVIO ESTA EN REVISION POR UNA PERSONA. PROHIBIDO confirmarle el deposito. Dile que una persona lo revisa y le confirma por aqui.');
   } else if (dupEtapa) {

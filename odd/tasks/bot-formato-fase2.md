@@ -91,3 +91,18 @@ phase 3), and apply the owner's business decisions of 2026-10-28, on the live pr
 ## Next step
 
 F2.1 + F2.3 (one writer); F2.2 and F2.4 by the parent.
+
+## Follow-up 2026-10-28: first real phase-2 reply (owner: "corrige esos dos fallos y subelo a github")
+
+- Reply 14:46 Guyana (execution 569429): "La cuenta Zelle nueva queda anotada" without showing it,
+  and "Una vez hecha su remesa le notificamos" while the holder's name was missing. The Decisor
+  note already said "uno por linea"; the model ignored the generic instruction, and repeated the
+  phrase from its own earlier turn.
+- Fix (Decisor only): the Zelle note now carries the exact lines ("Cuenta Zelle anotada:",
+  "Nombre: ...", "Celular:/Correo:/Cuenta: ...") and, while the name or the account is missing,
+  forbids "una vez hecha su remesa"/"le notificamos" and asks one question for that datum; card
+  notes carry "Tarjeta: ... / Celular: ..." lines; the duplicate-receipt "Lista para transferir"
+  note only promises the remittance when the recipient is known (`sabeDestino`).
+- Tests: RED 4 -> GREEN; `npx vitest run pruebas/decisor pruebas/partir` 257/257. Decisor
+  `982b147c` published (`--esperado 0a31fc73`), versionId 6feb0fd1 == active, 128 nodes, only
+  Decisor changed. Snapshot `infra/n8n/snapshots/produccion-cerebro-6feb0fd1-20261028.json`.

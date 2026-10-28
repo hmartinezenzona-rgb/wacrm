@@ -925,3 +925,67 @@ describe('datos confirmados: uno por linea y sin negrita', () => {
     });
   }
 });
+
+// Owner 2026-10-28 (real reply 14:46): the bot said "La cuenta Zelle nueva queda anotada" without
+// showing it, and "Una vez hecha su remesa le notificamos" while the holder's name was missing.
+// The notes now carry the exact lines to show, and forbid talking about the transfer while a
+// datum is missing.
+describe('confirmacion visible y sin promesa mientras falte un dato', () => {
+  it('Zelle sin nombre: muestra el celular literal y prohibe hablar de la remesa', () => {
+    const s = correr({
+      snapshot: {
+        texto_completo: 'Esta es otra cuenta',
+        datos_zelle: true,
+        zelle_celular: '3467445535',
+      },
+    });
+    expect(s.mensaje).toContain('Cuenta Zelle anotada:\nCelular: 3467445535');
+    const n = nota(s, 'DATOS DE ZELLE DETECTADOS') as string;
+    expect(n).toMatch(/FALTA EL NOMBRE/);
+    expect(n).toMatch(/PROHIBIDO decir "una vez hecha su remesa"/);
+  });
+
+  it('Zelle completo: muestra nombre y cuenta y no lleva la prohibicion', () => {
+    const s = correr({
+      snapshot: {
+        texto_completo: 'Maria Lopez maria@correo.com',
+        datos_zelle: true,
+        zelle_nombre: 'Maria Lopez',
+        zelle_correo: 'maria@correo.com',
+      },
+    });
+    expect(s.mensaje).toContain(
+      'Cuenta Zelle anotada:\nNombre: Maria Lopez\nCorreo: maria@correo.com'
+    );
+    expect(nota(s, 'DATOS DE ZELLE DETECTADOS') as string).not.toMatch(
+      /FALTA EL NOMBRE/
+    );
+  });
+
+  it('tarjeta y celular: lineas literales para confirmar', () => {
+    const s = correr({
+      ctx: { beneficiarios_registrados: [] },
+      snapshot: {
+        texto_completo: 'ok',
+        tarjeta: '9224069992922522',
+        celular: '53821202',
+      },
+    });
+    expect(s.mensaje).toContain('Tarjeta: 9224069992922522\nCelular: 53821202');
+  });
+
+  it('comprobante repetido listo para transferir sin destino: no promete la remesa', () => {
+    const s = correr({
+      ctx: { dup_etapa: 'Lista para transferir' },
+      snapshot: {
+        texto_completo: '',
+        comprobante: { monto: 24900, moneda: 'GYD' },
+        comprobante_duplicado: true,
+      },
+    });
+    const n = nota(s, 'ESTE COMPROBANTE YA ESTABA REGISTRADO') as string;
+    expect(n).toBeDefined();
+    expect(n).not.toMatch(/que una vez hecha su remesa le notificamos/);
+    expect(n).toMatch(/PROHIBIDO decir "una vez hecha su remesa"/);
+  });
+});

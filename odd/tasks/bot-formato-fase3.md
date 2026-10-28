@@ -77,10 +77,18 @@ the customer ever seeing them out of order, on the live production Cerebro (vers
 - [ ] F3.5 Sender workflow: pause and immediate re-claim between parts.
 - [ ] F3.6 Production with go-ahead (migration, both workflows, flag on), verification, snapshot.
 
+## Owner decision 2026-10-28 (after the design)
+
+- "no me molesta que envie un solo mensaje pero bien estructurado y que se lea bien" / "si podemos
+  dejar en produccion respuestas bien estructuradas a los clientes x mi perfecto".
+- Production stays with ONE well-structured message (phase 2). Phase 3 is PARKED: finish only up
+  to staging (splitter + tests + migration validated on staging), never production unless the
+  owner asks after watching phase 2 replies. Flag `opt_partir_respuesta` stays 'no'.
+
 ## Progress
 
 - 2026-10-28 created. RDD off.
 
 ## Next step
 
-F3.2 + F3.3 (one writer).
+Finish F3.2 + F3.3 on staging only; F3.4-F3.6 parked by the owner.

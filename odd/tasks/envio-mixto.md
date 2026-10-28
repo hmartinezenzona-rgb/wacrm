@@ -139,6 +139,36 @@ recipient, the split reuses or creates each service's operation, 339 stops a
 recarga from retiring another service's recipient, and 340 moves each card row
 to its own rail after the split.
 
+## Saldo movil test failure and fix (2026-10-28 02:09)
+
+The 1,000 GYD receipt with a Cuban mobile and no card went to incident and the
+bot was paused. Chain: the vision alert "El monto es menor a 5,000 GYD" made
+`Registrar deposito auto` choose the incident stage; with no rail yet,
+`cerebro_objetivo_minimo` fell back to the CUP-card minimum (5,000, label
+`minimo tarjeta CUP`); the operation was born in incident, the derivation
+paused the conversation and sent the owner the "bot dejó de responder" notice.
+The agent had offered the right answer (360 CUP of saldo for 1,000 GYD) and
+`cambiar_servicio('saldo')` was refused with `estado_no_permite`.
+
+Fixes:
+
+- `343_objetivo_saldo_por_monto` (production `20261028023011`, verificar 1/1):
+  with no rail, an amount below the CUP minimum that is an exact multiple of the
+  saldo price and fits no promo price takes the money as its objective
+  (pedido `saldo movil`), not the CUP minimum.
+- `344_recupera_incidente` (production `20261028023012`, verificar 4/4): an
+  incident with reason `no_aplica` holding no consumed deposit and no funding
+  allocation is correctable; `cerebro_op_recuperable` is the shared rule, and
+  the core returns the operation to `collecting_information`. The phone-only
+  card recipient is already re-typed to a saldo/recarga number by 266.
+- Workflow: `Registrar deposito auto` only takes the incident stage for a
+  REJECTED receipt, a wrong destination or a receipt without an amount; amount
+  alerts stay as notes for the agent and the panel. Production `86edf437`
+  (128 nodes, versionId == activeVersionId); staging `62537190`.
+
+Staging passed the full cycle for both migrations (dry-run, apply, assertion,
+rollback with the same md5) and the assertions guard the three cases.
+
 ## Cleanup before the next tests (2026-10-28)
 
 - The temporary promo (`50f83081`, PRUEBA TECNICA RECARGA) is `descartada`;

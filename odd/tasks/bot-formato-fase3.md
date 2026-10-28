@@ -33,7 +33,7 @@ the customer ever seeing them out of order, on the live production Cerebro (vers
 - WaCRM stores per-message status from the webhook (`messages.status` by wamid); no typing
   indicator support.
 - Production outbox function bodies (067 missing from the repo):
-  `/tmp/claude-1000/-home-onlinefreedom/84dcfea5-1c88-47f9-85e7-612785657e25/scratchpad/outbox-prod-defs-20261028.sql`.
+  `odd/backups/outbox-prod-defs-20261028.sql`.
 
 ## Design (owner approved 2026-10-28: "si, adelante con ese diseño siempre y cuando no se lleguen ideas a medias")
 

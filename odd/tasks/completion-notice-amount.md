@@ -70,6 +70,11 @@ When an admin completes a remittance, the customer's WhatsApp notice says what w
   equal. Snapshot `infra/n8n/snapshots/notificador-b2f22900-20261028.json` (secret scan 0). Rollback: PUT of the
   3669da94 backup.
 - [ ] T4 Watch the next real completion notice.
+- [ ] T5 Wire the service-neutral Meta template once approved: `servicio_completado` (Utility, es), body
+  "Listo, ya completamos su *{{1}}*. Gracias por confiar en *{{2}}*, estamos para servirle." (owner wants the
+  business name variable). Submitted from the panel 2026-10-28 22:08 UTC, status PENDING (first try rejected:
+  `{{2}}` at the end). When APPROVED: saldo/recarga/combo/visa/Mexico outside the 24 h window send it with {{1}}
+  = the service phrase without asterisks, {{2}} = the business name from one config value.
 
 ## Progress
 
@@ -80,4 +85,4 @@ When an admin completes a remittance, the customer's WhatsApp notice says what w
 ## Next step
 
 - T4: read the next real completion and verification notices.
-- Owner: whether to submit a service-neutral template to Meta (e.g. "Listo, ya completamos su {{1}}...").
+- T5 after Meta approves `servicio_completado`.

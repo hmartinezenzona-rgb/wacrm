@@ -82,7 +82,7 @@ phase 3), and apply the owner's business decisions of 2026-10-28, on the live pr
   prompt deployed (COINCIDE; rollback `/home/onlinefreedom/cerebro-fase1/ROLLBACK-v2-antes-fase2-formato-20261028.json`).
   Final versionId 0922ab9f == active, 128 nodes; vs bb175eda only Agente Remesas, Contexto
   conversacion and Decisor changed, connections equal. Snapshot
-  `infra/n8n/snapshots/produccion-cerebro-0922ab9f-20261028.json`. Push pending the owner's go-ahead.
+  `infra/n8n/snapshots/produccion-cerebro-0922ab9f-20261028.json`. Pushed to `privado` (c9a213c..d900654).
 
 ## Progress
 

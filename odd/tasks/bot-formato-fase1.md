@@ -133,4 +133,4 @@ F1.1 and F1.2 (one writer).
   luego en la practica vemos"). Battery stopped. Decisor a6ae5ae5 published (`--esperado
   36b4c91e`, versionId ceb96631). Prompt deployed (COINCIDE, versionId bb175eda == active, 128
   nodes). Rollback: `/home/onlinefreedom/cerebro-fase1/ROLLBACK-v2-antes-fase1-formato-20261028.json`.
-  F1.4 skipped by the owner; watch real conversations. Pending: snapshot + push (ask first).
+  F1.4 skipped by the owner; watch real conversations. Snapshot `infra/n8n/snapshots/produccion-cerebro-bb175eda-20261028.json` + prompt copy; pushed to `privado` (f1d538d..0953106 + this doc).

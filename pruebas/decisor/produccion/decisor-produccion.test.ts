@@ -694,3 +694,234 @@ describe('verificar un deposito por TransID escrito (admin)', () => {
     expect(ruta('10404033303182', false).comando).not.toBe('verificar_transid');
   });
 });
+
+describe('fase 2 formato: invitacion al grupo, una sola vez a un cliente nuevo', () => {
+  const PREFIJO = 'INVITACION AL GRUPO';
+  const TEXTO =
+    'Tenemos un grupo de WhatsApp de *Remesas Ya* donde compartimos tasas, promociones y avisos. Puede unirse aquí:';
+  const ENLACE = 'https://chat.whatsapp.com/GFznWMcrlHa5RSBo76Vw81';
+
+  it('cliente nuevo y grupo no enviado: dicta el texto literal, en usted, al final', () => {
+    const out = correr({
+      ctx: { grupo_enviado: false },
+      historial: { envios_previos: 0 },
+    });
+    // The harness keeps only the first line of a note, so read the whole message.
+    const n = out.mensaje as string;
+    expect(nota(out, PREFIJO)).toBeDefined();
+    expect(n).toContain(TEXTO + '\n' + ENLACE);
+    expect(n).toMatch(/al FINAL/);
+    expect(n).toMatch(/UNA sola vez/);
+    expect(n).not.toMatch(/[Úú]nete/);
+  });
+
+  it('sin historial de envios tambien es cliente nuevo', () => {
+    expect(
+      nota(correr({ ctx: { grupo_enviado: false } }), PREFIJO)
+    ).toBeDefined();
+  });
+
+  it('si el enlace ya se envio antes, no vuelve a salir', () => {
+    expect(
+      nota(correr({ ctx: { grupo_enviado: true } }), PREFIJO)
+    ).toBeUndefined();
+  });
+
+  it('si falta el campo grupo_enviado, no se envia (falla cerrado)', () => {
+    expect(nota(correr({}), PREFIJO)).toBeUndefined();
+    expect(
+      nota(correr({ ctx: { grupo_enviado: null } }), PREFIJO)
+    ).toBeUndefined();
+  });
+
+  it('cliente con envios previos no recibe la invitacion', () => {
+    expect(
+      nota(
+        correr({
+          ctx: { grupo_enviado: false },
+          historial: { envios_previos: 3 },
+        }),
+        PREFIJO
+      )
+    ).toBeUndefined();
+  });
+
+  it('un admin nunca la recibe', () => {
+    const out = correr({ ctx: { grupo_enviado: false, es_admin: true } });
+    expect(nota(out, PREFIJO)).toBeUndefined();
+    expect(JSON.stringify(out)).not.toContain('chat.whatsapp.com');
+  });
+});
+
+describe('fase 2 formato: "X pesos" sin apellido son GYD depositados', () => {
+  const PESOS = 'El cliente dijo "X pesos" sin apellido';
+  const cal = (texto: string) =>
+    nota(correr({ snapshot: { texto_completo: texto } }), 'CALCULO A HACER');
+
+  it('"cuanto llega con 5 mil pesos": GYD, minimo 5,000, sin preguntar CUP vs GYD', () => {
+    const n = cal('cuanto le llega si deposito 5 mil pesos') as string;
+    expect(n).toContain(PESOS);
+    expect(n).toContain('5,000 GYD');
+    expect(n).toContain('NO preguntes CUP vs GYD');
+  });
+
+  it('"quiero enviar 5 mil pesos" sin pregunta: cotiza por la tarjeta en CUP', () => {
+    const n = cal('quiero enviar 5 mil pesos') as string;
+    expect(n).toContain(PESOS);
+    expect(n).toContain('calcular_envio');
+  });
+
+  it('con apellido ("cubanos" o "guyaneses") no se aplica', () => {
+    expect(cal('quiero enviar 5 mil pesos cubanos')).toBeUndefined();
+    expect(
+      cal('cuanto le llega si deposito 5 mil pesos guyaneses')
+    ).not.toContain(PESOS);
+  });
+
+  it('para que lleguen X pesos (monto de destino) no se aplica', () => {
+    const n = cal('para que lleguen 5 mil pesos') as string;
+    expect(n).not.toContain(PESOS);
+  });
+
+  it('con otra via elegida (Zelle) no se aplica', () => {
+    const n = nota(
+      correr({
+        ctx: { riel_operacion: 'zelle' },
+        snapshot: { texto_completo: 'quiero enviar 5 mil pesos' },
+      }),
+      'CALCULO A HACER'
+    );
+    expect(n).toBeUndefined();
+  });
+});
+
+describe('fase 2 formato: fuera de horario con deposito o transferencia exige la linea de horario', () => {
+  const CERRADO = '2026-10-21T07:00:00Z'; // Wednesday 03:00 Guyana
+  const DOMINGO = '2026-10-25T15:00:00Z'; // Sunday 11:00 Guyana
+  const ABIERTO = '2026-10-21T15:00:00Z';
+  const OBLIGA = 'tu respuesta DEBE incluir la linea del horario';
+  const comp = { moneda: 'GYD', estado: 'OK', alertas: [] };
+
+  function en(hora: string, e: Entradas) {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(hora));
+    try {
+      return nota(correr(e), 'FUERA DE HORARIO') as string;
+    } finally {
+      vi.useRealTimers();
+    }
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('cerrado con comprobante: la linea es obligatoria y nombra la frase', () => {
+    const n = en(CERRADO, {
+      snapshot: { texto_completo: 'ok', comprobante: comp },
+    });
+    expect(n).toContain(OBLIGA);
+    expect(n).toContain(
+      'queda registrado y se procesa a partir de las 8:00 am (hora de Guyana)'
+    );
+  });
+
+  it('cerrado con envio listo para transferir o por verificar: obligatoria', () => {
+    for (const etapa of ['Lista para transferir', 'Por verificar']) {
+      expect(
+        en(CERRADO, { historial: { etapa_envio_abierto: etapa } }),
+        etapa
+      ).toContain(OBLIGA);
+    }
+  });
+
+  it('cerrado y el cliente habla de transferencia o deposito: obligatoria', () => {
+    for (const t of [
+      'cuando me hacen la transferencia',
+      'ya hice el deposito',
+    ]) {
+      expect(en(CERRADO, { snapshot: { texto_completo: t } }), t).toContain(
+        OBLIGA
+      );
+    }
+  });
+
+  it('domingo con deposito: obligatoria', () => {
+    expect(
+      en(DOMINGO, { snapshot: { texto_completo: 'ok', comprobante: comp } })
+    ).toContain(OBLIGA);
+  });
+
+  it('dia cerrado entero con deposito: obligatoria', () => {
+    const n = en(ABIERTO, {
+      ctx: { cierre_especial: { hoy_motivo: 'por feriado' } },
+      snapshot: { texto_completo: 'ok', comprobante: comp },
+    });
+    expect(n).toContain(OBLIGA);
+  });
+
+  it('cerrado sin deposito ni transferencia: se conserva el comportamiento', () => {
+    const n = en(CERRADO, { snapshot: { texto_completo: 'hola, buenas' } });
+    expect(n).not.toContain(OBLIGA);
+  });
+});
+
+// Owner 2026-10-28 (phase 2): bold only for amounts and states. Confirmed data goes one per line
+// ("Etiqueta: valor") without bold, so the notes must not ask for it in bold.
+describe('datos confirmados: uno por linea y sin negrita', () => {
+  const casos: Array<[string, Entradas, string]> = [
+    [
+      'tarjeta y celular sin registrar',
+      {
+        ctx: { beneficiarios_registrados: [] },
+        snapshot: {
+          texto_completo: 'ok',
+          tarjeta: '9224069992922522',
+          celular: '53821202',
+        },
+      },
+      'TARJETA Y CELULAR DETECTADOS PERO NO REGISTRADOS',
+    ],
+    [
+      'beneficiario ya registrado',
+      {
+        ctx: {
+          beneficiarios_registrados: [
+            {
+              t: 'cuban_card',
+              tarjeta: '9224069992922522',
+              celular: '53821202',
+            },
+          ],
+        },
+        snapshot: {
+          texto_completo: 'mi tarjeta y mi celular van aqui',
+          tarjeta: '9224069992922522',
+          celular: '53821202',
+        },
+      },
+      'Beneficiario YA REGISTRADO',
+    ],
+    [
+      'cuenta Zelle',
+      {
+        snapshot: {
+          texto_completo: 'Maria Lopez maria@correo.com',
+          datos_zelle: true,
+          zelle_nombre: 'Maria Lopez',
+          zelle_correo: 'maria@correo.com',
+        },
+      },
+      'DATOS DE ZELLE DETECTADOS',
+    ],
+  ];
+  for (const [nombre, entradas, prefijo] of casos) {
+    it(nombre, () => {
+      const n = nota(correr(entradas), prefijo) as string;
+      expect(n).toBeDefined();
+      expect(n).not.toMatch(/en \*negrita\*/);
+      expect(n).toContain('sin negrita');
+      expect(n).toMatch(/uno por linea/);
+    });
+  }
+});

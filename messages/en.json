@@ -92,8 +92,7 @@
     "menuProfile": "Profile",
     "menuSettings": "Settings",
     "menuSignOut": "Sign out",
-    "resumen": "Finances",
-    "controlSemanal": "Control Semanal",
+    "finanzas": "Finances",
     "cupInventory": "CUP inventory",
     "tablero": "Operations board",
     "primaryNavLabel": "Primary"
@@ -116,7 +115,7 @@
     "menuProfile": "Profile",
     "menuSettings": "Settings",
     "menuSignOut": "Sign out",
-    "resumen": "Finances"
+    "finanzas": "Finances"
   },
   "ModeToggle": {
     "switchMode": "Switch to {mode} mode"
@@ -2237,6 +2236,16 @@
       "save": "Save"
     },
     "sectionsAria": "Settings sections"
+  },
+  "Finanzas": {
+    "title": "Finances",
+    "description": "The current week, closes and operations in one place.",
+    "tablistLabel": "Finance sections",
+    "tabs": {
+      "semana": "Week",
+      "cierres": "Closes",
+      "operaciones": "Operations"
+    }
   },
   "Resumen": {
     "page": {

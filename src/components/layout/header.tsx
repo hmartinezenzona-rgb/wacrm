@@ -32,7 +32,7 @@ const sectionLabels: Record<string, string> = {
   "/inbox": "inbox",
   "/notifications": "notifications",
   "/contacts": "contacts",
-  "/resumen": "resumen",
+  "/finanzas": "finanzas",
   "/broadcasts": "broadcasts",
   "/automations": "automations",
   "/flows": "flows",

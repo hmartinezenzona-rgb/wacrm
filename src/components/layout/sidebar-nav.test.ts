@@ -1,5 +1,5 @@
 // The operations board is one click away for every account member: a plain
-// nav entry (no role gate, like Resumen) next to Resumen and Calculadora,
+// nav entry (no role gate, like Finanzas) after Finanzas,
 // with a label in messages/en.json.
 
 import { describe, expect, it } from "vitest";
@@ -8,13 +8,28 @@ import es from "../../../messages/es.json";
 import { navItems } from "./sidebar";
 
 describe("sidebar navigation", () => {
-  it("links /tablero right after Resumen and Control Semanal, with an icon", () => {
+  it("links /tablero after Finanzas, with an icon", () => {
     const hrefs = navItems.map((i) => i.href);
     const at = hrefs.indexOf("/tablero");
     expect(at).toBeGreaterThan(-1);
-    expect(hrefs.indexOf("/resumen")).toBeLessThan(at);
-    expect(hrefs.indexOf("/calculadora")).toBeLessThan(at);
+    expect(hrefs.indexOf("/finanzas")).toBeLessThan(at);
     expect(navItems[at].icon).toBeDefined();
+  });
+
+  // Finanzas replaces "Finanzas e historial" (/resumen) and "Control semanal" (/calculadora), which only redirect now.
+  it("has exactly one Finanzas entry in the money group and no resumen or calculadora entries", () => {
+    const finanzas = navItems.filter((i) => i.href === "/finanzas");
+    expect(finanzas).toHaveLength(1);
+    expect(finanzas[0].group).toBe("money");
+    expect(finanzas[0].icon).toBeDefined();
+    expect(finanzas[0].capability).toBeUndefined();
+    expect(navItems.some((i) => i.href === "/resumen" || i.href === "/calculadora")).toBe(false);
+    expect((es.Sidebar as Record<string, string>)[finanzas[0].labelKey]).toBe("Finanzas");
+    expect((en.Sidebar as Record<string, string>)[finanzas[0].labelKey]).toBe("Finances");
+    for (const messages of [es, en]) {
+      expect((messages.Sidebar as Record<string, string>).resumen).toBeUndefined();
+      expect((messages.Sidebar as Record<string, string>).controlSemanal).toBeUndefined();
+    }
   });
 
   it("has an English label and no role gate", () => {
@@ -36,8 +51,7 @@ describe("sidebar navigation", () => {
       "/contacts",
     ]);
     expect(byGroup("money")).toEqual([
-      "/resumen",
-      "/calculadora",
+      "/finanzas",
       "/inventario-cup",
       "/tablero",
     ]);

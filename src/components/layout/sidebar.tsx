@@ -9,13 +9,12 @@ import { useCan, type CanAction } from "@/hooks/use-can";
 import { useTotalUnread } from "@/hooks/use-total-unread";
 import { useUnreadNotifications } from "@/hooks/use-unread-notifications";
 import {
-  BarChart3,
   Bell,
   Bot,
   Columns3,
   CreditCard,
   Crown,
-  LineChart,
+  Landmark,
   LogOut,
   MessageSquare,
   Radio,
@@ -104,8 +103,7 @@ export const navItems: NavItem[] = [
   { href: "/inbox", labelKey: "inbox", icon: MessageSquare, group: "operation" },
   { href: "/notifications", labelKey: "notifications", icon: Bell, group: "operation" },
   { href: "/contacts", labelKey: "contacts", icon: Users, group: "operation" },
-  { href: "/resumen", labelKey: "resumen", icon: BarChart3, group: "money" },
-  { href: "/calculadora", labelKey: "controlSemanal", icon: LineChart, group: "money" },
+  { href: "/finanzas", labelKey: "finanzas", icon: Landmark, group: "money" },
   { href: "/inventario-cup", labelKey: "cupInventory", icon: CreditCard, capability: "manage-cup-inventory", group: "money" },
   { href: "/tablero", labelKey: "tablero", icon: Columns3, group: "money" },
   { href: "/broadcasts", labelKey: "broadcasts", icon: Radio, group: "tools" },

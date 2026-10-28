@@ -92,8 +92,7 @@
     "menuProfile": "Perfil",
     "menuSettings": "Configuración",
     "menuSignOut": "Cerrar sesión",
-    "resumen": "Finanzas",
-    "controlSemanal": "Control Semanal",
+    "finanzas": "Finanzas",
     "cupInventory": "Inventario CUP",
     "tablero": "Tablero de operaciones",
     "primaryNavLabel": "Principal"
@@ -116,7 +115,7 @@
     "menuProfile": "Perfil",
     "menuSettings": "Configuración",
     "menuSignOut": "Cerrar sesión",
-    "resumen": "Finanzas"
+    "finanzas": "Finanzas"
   },
   "ModeToggle": {
     "switchMode": "Cambiar al modo {mode}"
@@ -2237,6 +2236,16 @@
       "save": "Guardar"
     },
     "sectionsAria": "Secciones de configuración"
+  },
+  "Finanzas": {
+    "title": "Finanzas",
+    "description": "Semana en curso, cierres y operaciones en un solo lugar.",
+    "tablistLabel": "Secciones de Finanzas",
+    "tabs": {
+      "semana": "Semana",
+      "cierres": "Cierres",
+      "operaciones": "Operaciones"
+    }
   },
   "Resumen": {
     "page": {

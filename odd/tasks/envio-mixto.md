@@ -91,3 +91,26 @@ Two fixes:
 A temporary `promo_etecsa` row (PRUEBA TECNICA RECARGA 2026-10-28, 600–1,250 CUP,
 x5, 6,200 GYD) is active only for the test day and must be removed when the tests
 finish.
+
+## Any probable service mix (migration 340, 2026-10-28)
+
+Staging check: `cup + clasica + tropical + saldo` creates four grouped
+operations with the right amounts and destinations. Gap found: a card reparto
+saved on ONE operation with recipients of different rails (Clasica + Tropical,
+or Clasica + CUP) left the second rail's recipient on the first rail's
+operation, and the new operation had none.
+
+`340_reparto_destinatarios_por_via`: after the split, the rail-typed card rows
+(`multiple_distribution` -> `cuban_card`, `clasica`, `tropical`) move to the
+group member of their rail; duplicates on the target are dropped; both
+destinations are recomputed from the remaining recipients (releasing only the
+split's own automation lock, never a human's).
+
+Probable mixes now covered at the split level: remesa CUP, Zelle, Clasica,
+Tropical, recarga, combo, efectivo USD, saldo movil. Saldo still needs an
+end-to-end test of its recipient tool. Visas stay out: Odessa brings visa
+documents (LC PDFs translated to English) and an operator handles them.
+
+- Staging: dry-run / apply / assertion / rollback OK.
+- Production: `previa` EQUAL, VEREDICTO SEGURO; applied as
+  `340_reparto_destinatarios_por_via` (version 20261028012401); `verificar` 1/1.

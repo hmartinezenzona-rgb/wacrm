@@ -114,3 +114,27 @@ documents (LC PDFs translated to English) and an operator handles them.
 - Staging: dry-run / apply / assertion / rollback OK.
 - Production: `previa` EQUAL, VEREDICTO SEGURO; applied as
   `340_reparto_destinatarios_por_via` (version 20261028012401); `verificar` 1/1.
+
+## One service, several recipients, any mix (341 + 342, 2026-10-28)
+
+- `341_servicio_por_monto`: the amount, not the word, separates a recarga from
+  a saldo movil (`cerebro_servicio_por_monto`: recarga word + a saldo multiple
+  below the recarga minimum -> saldo; the reverse for a recarga multiple). Used
+  by `cerebro_cambiar_servicio` and `crm_registrar_numeros_recarga`. A card,
+  Zelle, cash or Mexico recipient keeps the word: a 5,000 GYD CUP remesa is
+  never read as five saldo packages. A saldo's package count is the max number
+  of phones. Applied `20261028015852`, `verificar` 3/3.
+- `342_efectivo_multiples`: `crm_registrar_datos_entrega_efectivo` takes an
+  optional `p_posicion` and `p_monto`; one cash recipient per position (default
+  1 = old behaviour), each with its own USD amount and completeness notice. The
+  old 5-arg overload is dropped so 5-arg callers use the new defaults. Applied
+  `20261028020155`; the file verifier reports 0/0 because of the overload drop,
+  checked directly in production: 7-arg signature, ACL owner+service_role.
+- The workflow (`77594df6`, 128 nodes) adds `registrar_destinatario_mexico`
+  (cloned from the Oct-27 copy, production credential) and gives the cash tool
+  `numero`/`monto`; the prompt documents both.
+
+Data may arrive in any order: every tool accepts partial data and one call per
+recipient, the split reuses or creates each service's operation, 339 stops a
+recarga from retiring another service's recipient, and 340 moves each card row
+to its own rail after the split.

@@ -105,3 +105,12 @@ F1.1 and F1.2 (one writer).
 - The repo file `pruebas/decisor/produccion/decisor.jscode` (md5 a6ae5ae5) = phase 1 + TransID;
   `npx vitest run pruebas/decisor` 137/137. Publishing it later replaces 36b4c91e
   (`--esperado 36b4c91e`).
+- Admin receipt verification created an operation again (the Oct-19 restore lost migration 310's
+  wrapper). Owner 2026-10-28 ("si"):
+  - Operation `7ff1fc63` (Osmany's conversation, 15,120 GYD, TransID 20404307615905, no customer
+    holds it) cancelled with the 2026-10-24 recipe; audit row `889b6f58`. The deposit stays
+    consumed, as 310 does for an admin verification.
+  - `Registrar deposito auto` now calls `cerebro_registrar_deposito_si_cliente` (only the function
+    name changed; same signature and result; downstream `Cruzar deposito con MMG` identical to the
+    Oct-27 bot). versionId 48ebefff == active, 128 nodes, only that node changed. Pre backup
+    `...-370b2480-...-073217.json`, post `...-48ebefff-...-073224.json`.

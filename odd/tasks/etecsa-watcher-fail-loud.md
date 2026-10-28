@@ -59,8 +59,16 @@ requests, so that etecsa.cu stops blocking it.
 - [x] T1 Register the 29-31 Oct promo in production (owner go-ahead). `promo_etecsa` `6bec68e3` (600-1250 CUP x6,
   2026-10-29..31, estado detectada); 3 `promo_etecsa` notices ("Precio 6200 GYD. Confirmela..."). Script
   `/tmp/claude-1000/-home-onlinefreedom/84dcfea5-1c88-47f9-85e7-612785657e25/scratchpad/registrar-promo-20261029.sql`.
-- [ ] T2 Migration 349 + ROLLBACK + assertion; staging RED -> GREEN; related assertions.
-- [ ] T3 n8n node changes (daily, spaced, `leida`); offline check; staging copy updated and inactive.
+- [x] T2 Migration 349 + ROLLBACK + assertion; staging RED -> GREEN; related assertions. RED (old body):
+  `FAILED: 6 expectation(s)`; aplicar: dry-run/apply/assertion OK, rollback md5 equal, md5 after 1def13b04bfe;
+  relacionadas: promo-notice SAME (ALL PASS), promo-read-failure DIFF (FAILED 6 -> ALL PASS). Commit 201cac6.
+- [x] T3 n8n node changes (daily, spaced, `leida`); offline check; staging copy updated and inactive.
+  Node code in `pruebas/vigilante/` (buscar.jscode, parsear.jscode, md5 pins in correr.ts, vigilante.test.ts):
+  RED 11/12 on the live code -> GREEN; `npx vitest run pruebas/vigilante pruebas/decisor pruebas/partir` 269/269.
+  Trigger "Una vez al dia" 08:00 `America/Guyana`; browser User-Agent; candidate pages batchSize 1 every 20 s.
+  Staging `okU7TYnB8R8b1OSo` 623d73ad -> f1557b8e, inactive, staging credential kept. Manual run 570494:
+  ECONNREFUSED (browser UA too: the n8n server's IP is blocked) -> `fallo de lectura, avisado: ...`.
+  Backups `/home/onlinefreedom/cerebro-fase1/respaldos-n8n/vigilante-{produccion,staging}-*-20261028-151335.json`.
 - [ ] T4 Production: migration 349 (previa/aplicar/verificar), then the n8n workflow; verify; snapshot.
 
 ## Progress

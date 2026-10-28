@@ -1,0 +1,24 @@
+// De la HOME saca los enlaces candidatos.
+// NUNCA se fija una URL: cambia con cada promocion. Agosto-2026 fue
+// /es/promo/internacional/sextup; septiembre-2026 /es/promocion/septiembre/quintuplica
+// (sin "internacional" ni "recarga", y el filtro viejo la descarto: la promo
+// del 21 al 26-sep no se detecto). Por eso vale CUALQUIER enlace de promo:
+// 'Parsear promocion' ya descarta las paginas que no traen rango CUP,
+// multiplicador y fechas.
+// 28-oct-2026 (349): si la home NO se pudo leer (etecsa.cu rechazaba la conexion
+// desde el 27-oct o antes) se dice con leida=false, para que la revision no cuente
+// como hecha y los admins se enteren. Antes salia igual que "no hay promo".
+const BASE = 'https://www.etecsa.cu';
+const lectura = $input.first().json || {};
+const html = typeof lectura.data === 'string' ? lectura.data : '';
+if (lectura.error || !html.trim()) {
+  const e = lectura.error;
+  const msg = e ? String((e && e.message) || e) : 'la home de etecsa.cu llego vacia';
+  return [{ json: { url: null, sin_candidatos: true, leida: false, error: msg.slice(0, 200) } }];
+}
+const hrefs = [...html.matchAll(/href="([^"]+)"/g)].map(m => m[1]);
+const cand = [...new Set(hrefs.filter(h => /promo/i.test(h) && !/\.(css|js|png|jpe?g|svg|webp|gif|pdf)(\?|$)/i.test(h)))];
+if (cand.length === 0) {
+  return [{ json: { url: null, sin_candidatos: true, leida: true } }];
+}
+return cand.map(h => ({ json: { url: h.startsWith('http') ? h : BASE + h } }));

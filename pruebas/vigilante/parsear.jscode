@@ -1,0 +1,78 @@
+// Parsea la pagina de detalle. Si falta cualquier dato NO devuelve promo:
+// mas vale no registrar nada que registrar medio dato y cotizar mal.
+// Probado contra el HTML real de etecsa.cu el 9-ago-2026.
+const MESES = {enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,
+               agosto:8,septiembre:9,setiembre:9,octubre:10,noviembre:11,diciembre:12};
+
+function aTexto(html) {
+  return String(html || '')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ').replace(/&aacute;/g,'a').replace(/&iexcl;/g,' ')
+    .replace(/&[a-z]+;/gi, ' ')
+    .replace(/\s+/g, ' ').trim();
+}
+
+function parsear(html) {
+  const t = aTexto(html);
+  const rango = t.match(/entre\s*([\d.,]+)\s*CUP\s*y\s*([\d.,]+)\s*CUP/i)
+             || t.match(/de\s*([\d.,]+)\s*CUP\s*a\s*([\d.,]+)\s*CUP/i);
+  const mult  = t.match(/multiplicar[aa]n?\s*(?:por)?\s*(\d+)/i)
+             || t.match(/multiplicado\s*x\s*(\d+)/i)
+             || t.match(/\bx\s*(\d+)\b/i);
+  const fech  = t.match(/[Dd]el\s*(\d{1,2})\s*al\s*(\d{1,2})\s*(?:de)?\s*([a-zA-Z]+)\s*(?:de)?\s*(\d{4})/);
+  if (!rango || !mult || !fech) return null;
+  const mes = MESES[fech[3].toLowerCase()];
+  if (!mes) return null;
+  const num = s => Number(String(s).replace(/[.,]/g, ''));
+  const p = n => String(n).padStart(2, '0');
+  // Solo mayusculas: para en cuanto empieza texto normal. Con /i
+  // capturaba 'promocional, posean vigentes planes...' del cuerpo.
+  const mt = t.match(/PROMOCI[\u00d3O]N[A-Z\u00c1\u00c9\u00cd\u00d3\u00da\s]{0,60}/);
+  const titulo = (mt ? mt[0] : 'PROMOCION INTERNACIONAL').trim();
+  return {
+    ok: true,
+    min_cup: num(rango[1]),
+    max_cup: num(rango[2]),
+    multiplicador: Number(mult[1]),
+    desde: fech[4] + '-' + p(mes) + '-' + p(fech[1]),
+    hasta: fech[4] + '-' + p(mes) + '-' + p(fech[2]),
+    titulo: titulo.slice(0, 200),
+    texto: t.slice(0, 1500),
+  };
+}
+
+const entradas = $input.all();
+let cands = [];
+try { cands = $('Buscar candidatos').all().map(i => i.json); } catch (e) { cands = []; }
+const urls = cands.map(c => c.url);
+// 28-oct-2026 (349): una lectura fallida NO es "no hay promo". Si la home no se
+// pudo leer, o Etecsa corto una pagina de promo y ninguna trajo promocion, sale
+// leida=false con el error. Un 404 de una pagina vieja no cuenta como fallo.
+if (cands.length && cands[0].leida === false) {
+  return [{ json: { ok: false, leida: false, error: cands[0].error || 'sin detalle' } }];
+}
+const CORTE = /ECONN|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|EHOSTUNREACH|socket hang up|timeout|\b(403|429|5\d\d)\b/i;
+let corte = null;
+
+for (let i = 0; i < entradas.length; i++) {
+  const j = entradas[i].json || {};
+  if (j.error && urls[i]) {
+    const msg = String((j.error && j.error.message) || j.error);
+    if (!corte && CORTE.test(msg)) corte = (urls[i] + ': ' + msg).slice(0, 200);
+    continue;
+  }
+  const html = j.data;
+  if (!html) continue;
+  const r = parsear(html);
+  if (r) {
+    r.url = urls[i] || null;
+    r.leida = true;
+    return [{ json: r }];
+  }
+}
+// Ninguna pagina candidata tenia una promocion legible. Es NORMAL:
+// puede que simplemente no haya promocion vigente ahora mismo.
+if (corte) return [{ json: { ok: false, leida: false, error: corte } }];
+return [{ json: { ok: false, leida: true } }];

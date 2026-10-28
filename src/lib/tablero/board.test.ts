@@ -7,6 +7,7 @@ import {
   ageTone,
   chatHref,
   groupBoard,
+  lateOperations,
   SERVICE_FILTERS,
   showMissingBeneficiaries,
   type BoardOperation,
@@ -150,5 +151,40 @@ describe("ageTone", () => {
 
   it("is muted on clock skew (a time in the future)", () => {
     expect(ageTone("2026-10-05T12:30:00Z", now, "incident")).toBe("muted");
+  });
+});
+
+describe("lateOperations", () => {
+  const now = new Date("2026-10-05T12:00:00Z");
+  const hoursAgo = (h: number) => new Date(now.getTime() - h * 3_600_000).toISOString();
+
+  it("keeps only the operations at the most severe age tone", () => {
+    const late = op({ operationId: "late", stateSince: hoursAgo(25) });
+    const warn = op({ operationId: "warn", stateSince: hoursAgo(3) });
+    const fresh = op({ operationId: "fresh", stateSince: hoursAgo(1) });
+    expect(lateOperations([warn, late, fresh], now).map((o) => o.operationId)).toEqual(["late"]);
+  });
+
+  it("orders the oldest first and keeps at most five by default", () => {
+    const ops = [30, 48, 26, 100, 72, 50, 27].map((h) => op({ operationId: `h${h}`, stateSince: hoursAgo(h) }));
+    expect(lateOperations(ops, now).map((o) => o.operationId)).toEqual(["h100", "h72", "h50", "h48", "h30"]);
+    expect(lateOperations(ops, now, 2).map((o) => o.operationId)).toEqual(["h100", "h72"]);
+  });
+
+  it("never lists completed or unshown (cancelled) operations", () => {
+    const ops = [
+      op({ operationId: "done", status: "completed", stateSince: hoursAgo(90) }),
+      op({ operationId: "gone", status: "cancelled", stateSince: hoursAgo(90) }),
+      op({ operationId: "inc", status: "incident", stateSince: hoursAgo(30) }),
+    ];
+    expect(lateOperations(ops, now).map((o) => o.operationId)).toEqual(["inc"]);
+  });
+
+  it("returns an empty list when nothing is late and does not mutate its input", () => {
+    const ops = [op({ operationId: "b", stateSince: hoursAgo(30) }), op({ operationId: "a", stateSince: hoursAgo(40) })];
+    const snapshot = ops.map((o) => o.operationId);
+    lateOperations(ops, now);
+    expect(ops.map((o) => o.operationId)).toEqual(snapshot);
+    expect(lateOperations([op({ stateSince: hoursAgo(1) })], now)).toEqual([]);
   });
 });

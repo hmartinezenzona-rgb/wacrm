@@ -92,3 +92,18 @@ export function ageTone(since: string, now: Date, status: string): AgeTone {
 export function chatHref(_conversationId: string): string {
   return "/inbox";
 }
+
+/** Maximum rows of the "Atrasadas" strip. */
+export const LATE_STRIP_MAX = 5;
+
+/**
+ * The stalest in-flight operations: the ones at the most severe age tone, oldest first, at most `max`. Only statuses the
+ * board shows count, and a completed operation never does (it is past waiting). Pure: the input is not reordered.
+ */
+export function lateOperations(operations: ReadonlyArray<BoardOperation>, now: Date, max = LATE_STRIP_MAX): BoardOperation[] {
+  const inFlight = new Set(BOARD_COLUMNS.flatMap((c) => c.statuses).filter((s) => s !== "completed"));
+  return operations
+    .filter((o) => inFlight.has(o.status) && ageTone(o.stateSince, now, o.status) === "danger")
+    .sort((a, b) => new Date(a.stateSince).getTime() - new Date(b.stateSince).getTime())
+    .slice(0, max);
+}

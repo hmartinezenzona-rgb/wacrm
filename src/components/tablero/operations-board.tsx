@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { statusTone, type StatusTone } from "@/lib/status-tone";
 import { useOperationServiceName, useServiceName } from "@/hooks/use-service-name";
 import { formatCurrency } from "@/lib/currency";
+import { LateOperationsStrip } from "./late-operations-strip";
 import {
   SERVICE_FILTERS,
   ageParts,
@@ -120,6 +121,7 @@ export function OperationsBoard({ operations, filter, onFilterChange, now }: Ope
   const columns = groupBoard(operations, filter);
   return (
     <div className="space-y-4">
+      <LateOperationsStrip operations={operations} now={now} />
       <div role="group" aria-label={t("filterLabel")} className="flex flex-wrap gap-2">
         {SERVICE_FILTERS.map((value) => (
           <button

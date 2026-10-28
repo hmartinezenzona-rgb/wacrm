@@ -76,7 +76,7 @@ Phase 2 (Finanzas):
 
 ## Tasks
 
-- [ ] F1.1 Atrasadas strip on the Tablero (tests first).
+- [x] F1.1 Atrasadas strip on the Tablero (tests first). RED: `vitest run src/lib/tablero src/components/tablero` 4 failed + strip suite not loadable; GREEN: 4 files, 55 passed. Commit: see git log (feat(tablero)).
 - [ ] F1.2 Remove the Dashboard: redirects, landings, sidebar/header, dead components and i18n keys.
 - [ ] F2.1 /finanzas with tabs and one sidebar entry.
 - [ ] F2.2 Semana / Cierres / Operaciones content moved, behaviour unchanged.

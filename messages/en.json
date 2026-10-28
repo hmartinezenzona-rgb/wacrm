@@ -2486,6 +2486,11 @@
       "hours": "{value} h",
       "days": "{value} d"
     },
+    "late": {
+      "title": "Late",
+      "description": "In-flight operations stuck in their status the longest (24 h or more), oldest first.",
+      "openChat": "Open chat"
+    },
     "inState": "In this state for {age}",
     "openChat": "Open chat with {name}",
     "loading": "Loading the board...",

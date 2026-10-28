@@ -2486,6 +2486,11 @@
       "hours": "{value} h",
       "days": "{value} d"
     },
+    "late": {
+      "title": "Atrasadas",
+      "description": "Operaciones en curso con más tiempo sin avanzar de estado (24 h o más), las más antiguas primero.",
+      "openChat": "Abrir chat"
+    },
     "inState": "En este estado desde hace {age}",
     "openChat": "Abrir chat con {name}",
     "loading": "Cargando el tablero...",

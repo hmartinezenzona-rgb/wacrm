@@ -377,3 +377,283 @@ describe('beneficiario ya confirmado: no se repiten tarjeta ni celular', () => {
     expect(n).not.toMatch(/NO repitas tarjeta ni celular/);
   });
 });
+
+describe('fase 1 formato: ninguna nota dicta un plazo que el negocio no controla', () => {
+  // Wednesday 2026-10-21 (Guyana is UTC-4).
+  const ABIERTO = '2026-10-21T15:00:00Z'; // 11:00
+  const CERRADO = '2026-10-21T07:00:00Z'; // 03:00
+  const PROHIBIDAS =
+    /enseguida|en breve|a primera hora|en cuanto abramos|en cuanto ellos regresen/i;
+
+  function en(hora: string, e: Entradas = {}) {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(hora));
+    try {
+      return correr(e);
+    } finally {
+      vi.useRealTimers();
+    }
+  }
+
+  // A prohibition ("PROHIBIDO decir ... .") may name the banned words; a dictated phrase may not.
+  const sinProhibiciones = (n: string) => n.replace(/PROHIBIDO[^.]*\./g, '');
+  const dictadas = (notas: string[]) =>
+    notas.filter((n) => PROHIBIDAS.test(sinProhibiciones(n)));
+
+  const comp = { moneda: 'GYD', estado: 'OK', alertas: [] };
+  const conComp = (mmg: Record<string, unknown> = {}, ctx = {}) => ({
+    snapshot: { texto_completo: 'ok', comprobante: comp },
+    mmg,
+    ctx,
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('cerrado: queda registrado y se procesa a partir de la hora de apertura', () => {
+    const n = nota(en(CERRADO), 'FUERA DE HORARIO: ahora mismo') as string;
+    expect(n).toContain(
+      'queda registrado y se procesa a partir de las 8:00 am (hora de Guyana)'
+    );
+    expect(dictadas([n])).toEqual([]);
+  });
+
+  it('cerrado con proximo cierre: nombra el dia habil sin prometer apertura inmediata', () => {
+    const s = en(CERRADO, {
+      ctx: {
+        cierre_especial: {
+          proximo_habil: 'el martes',
+          proximo_cierre: 'el lunes es feriado',
+        },
+      },
+    });
+    const n = nota(s, 'FUERA DE HORARIO: ahora mismo') as string;
+    expect(n).toContain(
+      'queda registrado y se procesa el martes a partir de las 8:00 am (hora de Guyana)'
+    );
+    expect(dictadas([n])).toEqual([]);
+  });
+
+  it('dia cerrado entero: lo pendiente queda registrado y se procesa a partir de la apertura', () => {
+    const s = en(ABIERTO, {
+      ctx: {
+        cierre_especial: {
+          hoy_motivo: 'por feriado',
+          proximo_habil: 'el jueves',
+        },
+      },
+    });
+    const n = nota(s, 'FUERA DE HORARIO: HOY NO SE TRABAJA') as string;
+    expect(n).toContain(
+      'queda registrado y se procesa el jueves a partir de las 8:00 am (hora de Guyana)'
+    );
+    expect(dictadas([n])).toEqual([]);
+  });
+
+  it('proximo a cerrar: queda registrado y se procesa a partir de la apertura, sin "primera hora"', () => {
+    const n = nota(
+      en(ABIERTO, { ctx: { por_cerrar: true } }),
+      'PROXIMO A CERRAR'
+    ) as string;
+    expect(n).toContain(
+      'queda registrado y se procesa a partir de las 8:00 am (hora de Guyana)'
+    );
+    expect(dictadas([n])).toEqual([]);
+  });
+
+  it('ausencia temporal: no promete "en cuanto ellos regresen" y conserva la prohibicion', () => {
+    const n = nota(
+      en(ABIERTO, {
+        ctx: {
+          cierre_especial: {
+            ausencia: {
+              motivo: 'en una reunion',
+              hasta: '2026-10-21T19:00:00Z',
+              hasta_texto: 'a las 3:00 pm',
+              por: 'dueno',
+            },
+          },
+        },
+        historial: { primer_del_dia: true },
+      }),
+      'AUSENCIA TEMPORAL'
+    ) as string;
+    expect(n).toContain(
+      'lo suyo queda registrado y se procesa a partir de que regresen'
+    );
+    expect(n).toMatch(/PROHIBIDO decir "en breve" o "enseguida"/);
+    expect(dictadas([n])).toEqual([]);
+  });
+
+  it('comprobante sin verificar: una persona lo revisa y le confirma por aqui', () => {
+    const n = nota(
+      en(ABIERTO, conComp()),
+      'Comprobante leido y REGISTRADO'
+    ) as string;
+    expect(n).toContain('una persona lo revisa y le confirma por aqui');
+    expect(dictadas([n])).toEqual([]);
+  });
+
+  it('varios comprobantes sin sumar: una persona suma y le confirma por aqui', () => {
+    const e = conComp();
+    e.snapshot = { ...e.snapshot, comprobantes_n: 2 } as typeof e.snapshot;
+    const n = nota(
+      en(ABIERTO, e),
+      'EL CLIENTE MANDO VARIOS COMPROBANTES'
+    ) as string;
+    expect(n).toContain('le confirma por aqui');
+    expect(dictadas([n])).toEqual([]);
+  });
+
+  it('deposito de mas, ya reclamado y antiguo: una persona le confirma por aqui', () => {
+    const casos: [Record<string, unknown>, string][] = [
+      [
+        {
+          resultado: 'verificado_de_mas',
+          saldo: -500,
+          objetivo: 5000,
+          depositado: 5500,
+        },
+        'EL CLIENTE DEPOSITO MAS',
+      ],
+      [{ resultado: 'ya_reclamado' }, 'ESE DEPOSITO YA SE USO'],
+      [{ resultado: 'deposito_antiguo' }, 'EL DEPOSITO ES DEMASIADO ANTIGUO'],
+    ];
+    for (const [mmg, prefijo] of casos) {
+      const n = nota(en(ABIERTO, conComp(mmg)), prefijo) as string;
+      expect(n, prefijo).toBeDefined();
+      expect(n, prefijo).toContain('una persona');
+      expect(n, prefijo).toContain('por aqui');
+      expect(dictadas([n]), prefijo).toEqual([]);
+    }
+  });
+
+  it('comprobante duplicado: ninguna etapa dicta plazo y las revisiones confirman por aqui', () => {
+    for (const dup_etapa of [
+      'Entregada',
+      'Lista para transferir',
+      'Incidencia',
+      'Por verificar',
+      '',
+    ]) {
+      const s = en(ABIERTO, {
+        snapshot: {
+          texto_completo: 'ok',
+          comprobante: comp,
+          comprobante_duplicado: true,
+        },
+        ctx: { dup_etapa },
+      });
+      const n = nota(s, 'ESTE COMPROBANTE YA ESTABA REGISTRADO') as string;
+      expect(n, dup_etapa).toBeDefined();
+      expect(dictadas([n]), dup_etapa).toEqual([]);
+      if (dup_etapa !== 'Entregada' && dup_etapa !== 'Lista para transferir') {
+        expect(n, dup_etapa).toContain('le confirma por aqui');
+      }
+    }
+  });
+
+  describe('estado real del envio en curso', () => {
+    const estado = (etapa: string, ctx: Record<string, unknown> = {}) =>
+      nota(
+        en(ABIERTO, {
+          historial: { etapa_envio_abierto: etapa },
+          ctx: { tiene_beneficiario: true, ...ctx },
+        }),
+        'ESTADO REAL DEL ENVIO EN CURSO'
+      ) as string;
+
+    it('lista para transferir: el equipo la esta procesando y le avisan por aqui', () => {
+      const n = estado('Lista para transferir');
+      expect(n).toContain(
+        'el equipo esta procesando la transferencia y le avisamos por aqui cuando este hecha'
+      );
+      expect(dictadas([n])).toEqual([]);
+    });
+
+    it('lista para transferir con el negocio cerrado: se procesa a partir de la apertura', () => {
+      const n = nota(
+        en(CERRADO, {
+          historial: { etapa_envio_abierto: 'Lista para transferir' },
+          ctx: { tiene_beneficiario: true },
+        }),
+        'ESTADO REAL DEL ENVIO EN CURSO'
+      ) as string;
+      expect(n).not.toContain('el equipo esta procesando');
+      expect(n).toMatch(
+        /queda registrada y se procesa a partir de las .+ \(hora de Guyana\)/
+      );
+      expect(n).toContain('le avisamos por aqui cuando este hecha');
+      expect(dictadas([n])).toEqual([]);
+    });
+
+    it('por verificar e incidencia: una persona lo revisa y le confirma por aqui', () => {
+      for (const etapa of ['Por verificar', 'Incidencia']) {
+        const n = estado(etapa);
+        expect(n, etapa).toContain(
+          'una persona lo revisa y le confirma por aqui'
+        );
+        expect(dictadas([n]), etapa).toEqual([]);
+      }
+    });
+
+    it('sin destino conocido: sigue sin prometer la transferencia', () => {
+      const n = nota(
+        en(ABIERTO, {
+          historial: { etapa_envio_abierto: 'Lista para transferir' },
+        }),
+        'ESTADO REAL DEL ENVIO EN CURSO'
+      ) as string;
+      expect(n).not.toContain('esta procesando la transferencia');
+      expect(n).toMatch(/TODAVIA NO SE SABE A QUIEN TRANSFERIRLE/);
+      expect(n).toContain('dile que ya quedo verificado.');
+      expect(dictadas([n])).toEqual([]);
+    });
+
+    it('recarga, visa: la frase se adapta al servicio', () => {
+      const r = estado('Lista para transferir', {
+        recarga_en_curso: true,
+        celular: '53821202',
+      });
+      expect(r).toContain(
+        'el equipo esta procesando la recarga y le avisamos por aqui cuando este hecha'
+      );
+      expect(dictadas([r])).toEqual([]);
+      const v = estado('Lista para transferir', { visa_en_curso: true });
+      expect(v).toContain(
+        'el equipo sube su aplicacion de extension de visa y le avisamos por aca'
+      );
+      expect(dictadas([v])).toEqual([]);
+    });
+
+    it('combo: una persona llama primero, sin "enseguida"', () => {
+      const c = estado('Lista para transferir', {
+        combo_en_curso: true,
+        combo_completo: true,
+      });
+      expect(c).toContain(
+        'una persona del equipo le llama para elegir los productos'
+      );
+      expect(dictadas([c])).toEqual([]);
+    });
+
+    it('recarga anotada: se hace el dia de la promocion', () => {
+      const n = estado('Lista para transferir', {
+        recarga_en_curso: true,
+        recarga_anotada_para: 'viernes 30',
+      });
+      expect(n).toContain('la recarga se hace el viernes 30');
+      expect(dictadas([n])).toEqual([]);
+    });
+  });
+
+  it('MLC: lo atiende una persona del equipo, sin "enseguida"', () => {
+    const n = nota(
+      en(ABIERTO, { ctx: { pide_mlc: true } }),
+      'EL CLIENTE PREGUNTA POR MLC'
+    ) as string;
+    expect(n).toContain('una persona del equipo le confirma la tasa por aqui');
+    expect(dictadas([n])).toEqual([]);
+  });
+});

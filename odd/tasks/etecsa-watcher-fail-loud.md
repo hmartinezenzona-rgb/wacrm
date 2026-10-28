@@ -30,7 +30,8 @@ requests, so that etecsa.cu stops blocking it.
 
 1. DB (migration 349): `cerebro_promo_revision` takes an optional `leida` flag.
    - `leida = false`: do not stamp `promo_etecsa_ultima_revision`; record `promo_etecsa_ultimo_fallo`
-     (time + error); notify owner/admins (type `promo_etecsa_fallo`) once per failure streak, meaning no such
+     (time + error); notify owner/admins (type `promo_etecsa`, already allowed by the CHECK; title "No se pudo revisar la web
+     de Etecsa") once per failure streak, meaning no such
      notice since the last good read.
    - Key absent: old behaviour, so the DB can go before n8n.
 2. n8n production: one run a day at 08:00 Guyana; the home read sends a browser User-Agent; candidate pages are

@@ -114,3 +114,18 @@ F1.1 and F1.2 (one writer).
     name changed; same signature and result; downstream `Cruzar deposito con MMG` identical to the
     Oct-27 bot). versionId 48ebefff == active, 128 nodes, only that node changed. Pre backup
     `...-370b2480-...-073217.json`, post `...-48ebefff-...-073224.json`.
+
+## Handoff 2026-10-28 (session ended at the context limit)
+
+- F1.4 battery was launched in the background: live prompt then candidate, `--reps 3` each,
+  logs in the old session scratchpad (`bateria-vivo.log`, `bateria-candidato.log`); reports land
+  in `/home/onlinefreedom/cerebro-fase1/pruebas/evals/informes/` (newest `informe-*.json`). It
+  may have been killed with the session: check the newest reports' timestamps and `reps`
+  metadata; rerun if incomplete. Compare with `comparar_informes.py`.
+- Production now: versionId 48ebefff, Decisor 36b4c91e (7909d4f8 + TransID), Liberar chat and
+  Registrar deposito auto fixed. NOT published: phase 1 Decisor (repo a6ae5ae5) and the phase 1
+  prompt candidate (52,511 chars).
+- Next: battery verdict -> owner go-ahead -> publish Decisor (`--esperado 36b4c91e`) then prompt
+  (`desplegar_prompt.py --candidato candidato-fase1-formato-2026-10-28.txt --etiqueta fase1-formato`)
+  -> new snapshot in `infra/n8n/snapshots/` -> ask the owner before pushing to `privado`
+  (commits after tag `punto-bueno-2026-10-28` are not pushed).

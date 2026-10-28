@@ -169,6 +169,28 @@ Fixes:
 Staging passed the full cycle for both migrations (dry-run, apply, assertion,
 rollback with the same md5) and the assertions guard the three cases.
 
+## No more CUP detour for a phone-only saldo (345, 2026-10-28)
+
+The owner saw the retest create a CUP operation and change it to SM in the next
+turn. Why: the Decisor note says "llama gestionar_beneficiario con el celular",
+and `cerebro_registrar_beneficiario_auto` accepted an empty card, storing a
+`cuban_card` recipient; `cerebro_riel_op` then read the send as a CUP card and
+priced it as CUP until `cambiar_servicio('saldo')` arrived.
+
+- `345_sin_tarjeta_no_es_beneficiario` (production `20261028024314`, verificar
+  2/2): without a card number the tool registers nothing. With a saldo-sized
+  amount (below the CUP minimum, whole saldo packages, no promo price) it tells
+  the agent to call `registrar_numeros_recarga`; otherwise it asks for the card,
+  and the phone is kept in `cerebro_beneficiario_parcial` meanwhile.
+- The same migration lets a saldo through the recharge tool: the Etecsa promo
+  gate in `crm_registrar_numeros_recarga` now applies only to `recarga`. The
+  assertion found it: with no promo, a saldo was refused with "NO HAY
+  PROMOCION", even though a saldo never needs one.
+
+End-to-end on staging: the guard stores nothing, `registrar_numeros_recarga`
+converts the send to saldo and keeps the number, and a 5,000 GYD card send still
+asks for the card and registers it with the card.
+
 ## Cleanup before the next tests (2026-10-28)
 
 - The temporary promo (`50f83081`, PRUEBA TECNICA RECARGA) is `descartada`;

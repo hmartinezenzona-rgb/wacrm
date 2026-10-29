@@ -36,7 +36,13 @@ export interface ExistingContact {
  * Find an existing contact in `accountId` whose phone matches `phone`,
  * or null. Pre-filters in SQL by the last-8-digit suffix (so we don't
  * pull every contact), then applies the strict `phonesMatch` in JS on
- * the small candidate set — the exact approach the webhook has used.
+ * the small candidate set.
+ *
+ * The suffix is matched against the generated `phone_normalized`
+ * column (migration 022, digits-only), the same value the unique index
+ * uses. Matching the raw `phone` column missed numbers saved by hand
+ * with separators ("+1 (555) 010-1234"), so an inbound "15550101234"
+ * created a duplicate the unique index then rejected.
  */
 export async function findExistingContact(
   db: SupabaseClient,
@@ -52,7 +58,7 @@ export async function findExistingContact(
     .from("contacts")
     .select("*")
     .eq("account_id", accountId)
-    .like("phone", `%${suffix}`);
+    .like("phone_normalized", `%${suffix}`);
 
   if (error || !data) return null;
 

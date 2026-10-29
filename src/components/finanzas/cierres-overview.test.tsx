@@ -23,6 +23,7 @@ vi.mock("recharts", async (importOriginal) => {
   };
 });
 vi.mock("@/components/resumen/financial-close-section", () => ({ FinancialCloseSection: () => <section data-testid="close" /> }));
+vi.mock("./historial-busqueda", () => ({ HistorialBusqueda: () => <section data-testid="historial" /> }));
 
 import { CierresOverview } from "./cierres-overview";
 
@@ -333,6 +334,19 @@ describe("CierresOverview", () => {
     expect(container!.querySelector("[data-testid=close]")).not.toBeNull();
     const all = [...container!.querySelectorAll("h2, [data-testid=close]")];
     expect(all[all.length - 1]).toBe(container!.querySelector("[data-testid=close]"));
+  });
+
+  it("holds the history search as 'Buscar en el historial', collapsed until opened, after the period close", async () => {
+    await render();
+    const toggle = button("Buscar en el historial");
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(container!.querySelector("[data-testid=historial]")).toBeNull();
+    await click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(container!.querySelector("[data-testid=historial]")).not.toBeNull();
+    const toggles = [...container!.querySelectorAll("button[aria-controls]")].map((b) => b.textContent);
+    expect(toggles.slice(-2)).toEqual(["Cuadrar un periodo", "Buscar en el historial"]);
+    expect(container!.textContent).not.toContain("Abrir chat");
   });
 
   it("shows no emoji", async () => {

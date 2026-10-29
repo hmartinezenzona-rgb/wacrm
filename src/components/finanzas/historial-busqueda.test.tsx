@@ -40,7 +40,7 @@ vi.mock("@/components/ui/select", () => ({
   SelectItem: ({ value, children }: { value: string; children?: React.ReactNode }) => <option value={value}>{children}</option>,
 }));
 
-import { OperacionesTab } from "./operaciones-tab";
+import { HistorialBusqueda } from "./historial-busqueda";
 
 const row = (over: Record<string, unknown>) => ({
   dia: "2026-10-05",
@@ -63,7 +63,7 @@ async function renderPage(rows: unknown[]) {
   rpc.mockImplementation(async (name: string) => ({ data: name === "crm_historial_operaciones" ? rows : [], error: null }));
   const node = document.createElement("div");
   document.body.appendChild(node);
-  await act(async () => createRoot(node).render(<OperacionesTab />));
+  await act(async () => createRoot(node).render(<HistorialBusqueda />));
   await act(async () => {});
   return node;
 }
@@ -186,7 +186,7 @@ describe("Finanzas section order", () => {
     }));
     const node = document.createElement("div");
     document.body.appendChild(node);
-    await act(async () => createRoot(node).render(<OperacionesTab />));
+    await act(async () => createRoot(node).render(<HistorialBusqueda />));
     await act(async () => {});
     return node;
   }
@@ -253,7 +253,7 @@ async function mount(rows: unknown[] = [row({})], opts: { counts?: unknown[]; hi
   });
   const node = document.createElement("div");
   document.body.appendChild(node);
-  await act(async () => createRoot(node).render(<OperacionesTab />));
+  await act(async () => createRoot(node).render(<HistorialBusqueda />));
   await act(async () => {});
   return node;
 }
@@ -352,13 +352,11 @@ describe("Operaciones table", () => {
     expect(node.querySelector("tbody")!.textContent).not.toContain("op-1");
   });
 
-  it("opens the chat through the inbox open target, like the Tablero strip", async () => {
-    const node = await mount([row({ conversation_id: "conv-9" })]);
-    const link = [...node.querySelectorAll("tbody a")].find((a) => a.textContent === "Open chat") as HTMLAnchorElement;
-    expect(link.getAttribute("href")).toBe("/inbox");
-    link.addEventListener("click", (e) => e.preventDefault());
-    await click(link);
-    expect(window.sessionStorage.getItem("wacrm:inbox:open-target")).toBe("conv-9");
+  it("has no 'Open chat' link: the history is for searching, not for jumping into a conversation", async () => {
+    const node = await renderPage([row({ conversation_id: "conv-9" })]);
+    expect(node.querySelector("tbody a")).toBeNull();
+    expect(node.textContent).not.toContain("Open chat");
+    expect(node.textContent).not.toContain("Abrir chat");
   });
 
   it("copies the operation id from a labelled button in the row", async () => {

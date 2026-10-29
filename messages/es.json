@@ -2242,8 +2242,7 @@
     "tablistLabel": "Secciones de Finanzas",
     "tabs": {
       "semana": "Semana",
-      "cierres": "Cierres",
-      "operaciones": "Operaciones"
+      "cierres": "Cierres"
     },
     "graficos": {
       "gananciaServicio": {
@@ -2481,6 +2480,10 @@
       "cuadrar": {
         "title": "Cuadrar un periodo",
         "subtitle": "Facturado, invertido y retorno por día y por servicio, con el detalle de cada operación"
+      },
+      "historial": {
+        "title": "Buscar en el historial",
+        "subtitle": "Todas las operaciones por cliente, teléfono o ID, con filtros y CSV"
       }
     }
   },
@@ -2523,7 +2526,6 @@
       "retry": "Reintentar",
       "periodoGrupo": "Periodo",
       "estadoGrupo": "Estado",
-      "abrirChat": "Abrir chat",
       "copiarId": "Copiar el ID de la operación {id}",
       "exportar": "Exportar CSV",
       "exportando": "Exportando…",

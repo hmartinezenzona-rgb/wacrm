@@ -3,6 +3,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/finanzas/finanzas-view", () => ({ FinanzasView: () => null }));
+const redirect = vi.hoisted(() => vi.fn(() => { throw new Error("NEXT_REDIRECT"); }));
+vi.mock("next/navigation", () => ({ redirect }));
 
 import FinanzasPage from "./page";
 
@@ -12,8 +14,13 @@ async function tabFor(searchParams: Record<string, string | string[] | undefined
 }
 
 describe("/finanzas", () => {
-  it.each(["semana", "cierres", "operaciones"])("opens the %s tab", async (tab) => {
+  it.each(["semana", "cierres"])("opens the %s tab", async (tab) => {
     expect(await tabFor({ tab })).toBe(tab);
+  });
+
+  it("redirects the old ?tab=operaciones link to the Cierres tab on the server", async () => {
+    await expect(tabFor({ tab: "operaciones" })).rejects.toThrow("NEXT_REDIRECT");
+    expect(redirect).toHaveBeenCalledWith("/finanzas?tab=cierres");
   });
 
   it("defaults to semana without ?tab and for unknown values", async () => {

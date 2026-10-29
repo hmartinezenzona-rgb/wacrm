@@ -1,5 +1,5 @@
-/** The tabs of the Finanzas section, in reading order. The URL carries the active one as `?tab=`. */
-export const FINANZAS_TABS = ["semana", "cierres", "operaciones"] as const;
+/** The tabs of the Finanzas section, in reading order. The old Operaciones tab is gone: its history search lives in Cierres. The URL carries the active one as `?tab=`. */
+export const FINANZAS_TABS = ["semana", "cierres"] as const;
 
 export type FinanzasTab = (typeof FINANZAS_TABS)[number];
 

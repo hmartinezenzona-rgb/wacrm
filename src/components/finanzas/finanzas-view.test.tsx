@@ -29,12 +29,6 @@ vi.mock("./cierres-tab", () => ({
     return <div data-testid="cierres-content" />;
   },
 }));
-vi.mock("./operaciones-tab", () => ({
-  OperacionesTab: () => {
-    React.useEffect(() => { mounts.operaciones += 1; }, []);
-    return <div data-testid="operaciones-content" />;
-  },
-}));
 
 import { FinanzasView } from "./finanzas-view";
 import type { FinanzasTab } from "@/lib/finanzas/tabs";
@@ -55,11 +49,11 @@ afterEach(() => {
 });
 
 describe("FinanzasView", () => {
-  it("renders the title and the three tabs in order with the Spanish labels", async () => {
+  it("renders the title and the two tabs in order with the Spanish labels", async () => {
     const { node, root } = await renderView("semana");
     expect(node.querySelector("h1")?.textContent).toBe("Finanzas");
     const tabs = [...node.querySelectorAll("[role=tab]")];
-    expect(tabs.map((t) => t.textContent)).toEqual(["Semana", "Cierres", "Operaciones"]);
+    expect(tabs.map((t) => t.textContent)).toEqual(["Semana", "Cierres"]);
     expect(node.querySelectorAll("[role=tablist]")).toHaveLength(1);
     await act(async () => root.unmount());
   });
@@ -67,7 +61,6 @@ describe("FinanzasView", () => {
   it.each([
     ["semana", 0],
     ["cierres", 1],
-    ["operaciones", 2],
   ] as const)("opens on the %s tab: its tab is selected and only its panel is visible", async (tab, index) => {
     const { node, root } = await renderView(tab);
     const tabs = [...node.querySelectorAll("[role=tab]")];
@@ -114,9 +107,9 @@ describe("FinanzasView", () => {
     expect(mounts).toEqual({ semana: 1, cierres: 0, operaciones: 0 });
 
     await act(async () => root.render(<FinanzasView tab="cierres" />));
-    await act(async () => root.render(<FinanzasView tab="operaciones" />));
+    await act(async () => root.render(<FinanzasView tab="semana" />));
     await act(async () => root.render(<FinanzasView tab="cierres" />));
-    expect(mounts).toEqual({ semana: 1, cierres: 1, operaciones: 1 });
+    expect(mounts).toEqual({ semana: 1, cierres: 1, operaciones: 0 });
     expect(cierresActive.values.at(-1)).toBe(true);
     await act(async () => root.render(<FinanzasView tab="semana" />));
     expect(cierresActive.values.at(-1)).toBe(false);

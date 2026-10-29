@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useTranslations } from "next-intl";
 import { BarChart3, Check, Copy, Download, Loader2, Search } from "lucide-react";
@@ -20,7 +19,6 @@ import { ServiceDot } from "@/components/service/service-dot";
 import { MoneyTotalFigure } from "@/components/money/money-total-figure";
 import { moneyStripeElevatedClass } from "@/lib/money-tone";
 import { formatNumber } from "@/lib/format-number";
-import { setInboxOpenTarget } from "@/lib/inbox/open-target";
 import { historialDestino } from "@/lib/resumen/historial-destino";
 import {
   ESTADO_GRUPOS,
@@ -153,8 +151,8 @@ function rpcParams(f: Filtros) {
   };
 }
 
-/** Period summary and operations history. The Finanzas view owns the page title. */
-export function OperacionesTab() {
+/** Period summary and operations history, searched from the Cierres tab. No "Abrir chat": the history is for looking things up. */
+export function HistorialBusqueda() {
   const t = useTranslations("Resumen.page");
   const tStatus = useTranslations("Inbox.operationsPanel.status");
   const [resumen, setResumen] = useState<ResumenPeriodo[] | null>(null);
@@ -517,15 +515,6 @@ export function OperacionesTab() {
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
                       <div className="flex items-center gap-2">
-                        {f.conversation_id ? (
-                          <Link
-                            href="/inbox"
-                            onClick={() => setInboxOpenTarget(f.conversation_id as string)}
-                            className="text-xs font-medium text-primary hover:underline"
-                          >
-                            {t("abrirChat")}
-                          </Link>
-                        ) : null}
                         <button
                           type="button"
                           aria-label={t("copiarId", { id: f.operation_id })}

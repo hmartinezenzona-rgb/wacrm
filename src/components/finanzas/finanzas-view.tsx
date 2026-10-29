@@ -7,15 +7,13 @@ import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { cn } from "@/lib/utils";
 import { FINANZAS_TABS, type FinanzasTab } from "@/lib/finanzas/tabs";
 import { CierresTab } from "./cierres-tab";
-import { OperacionesTab } from "./operaciones-tab";
 import { SemanaTab } from "./semana-tab";
 
 const panelId = (tab: FinanzasTab) => `finanzas-panel-${tab}`;
 const tabId = (tab: FinanzasTab) => `finanzas-tab-${tab}`;
 
 /**
- * The one Finanzas section: Semana (the weekly calculator), Cierres (archived weeks and financial closes) and
- * Operaciones (period summary and history). The tab lives in the URL (`?tab=`), so a link or a reload lands on it.
+ * The one Finanzas section: Semana (the open week) and Cierres (archived weeks, financial closes and the history search). The tab lives in the URL (`?tab=`), so a link or a reload lands on it.
  * A panel mounts on its first visit and then stays mounted, hidden while inactive: Semana autosaves its draft after a
  * short delay and must not be unmounted by a tab switch. Cierres is told when it is active so it can refetch.
  */
@@ -87,7 +85,7 @@ export function FinanzasView({ tab }: { tab: FinanzasTab }) {
           tabIndex={0}
           className="focus-visible:outline-none"
         >
-          {item === "semana" ? <SemanaTab /> : item === "cierres" ? <CierresTab active={tab === item} /> : <OperacionesTab />}
+          {item === "semana" ? <SemanaTab /> : <CierresTab active={tab === item} />}
         </div>
       ))}
     </PageShell>

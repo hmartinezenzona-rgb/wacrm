@@ -5,6 +5,7 @@ import { ChevronDown } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { FinancialCloseSection } from "@/components/resumen/financial-close-section";
+import { HistorialBusqueda } from "./historial-busqueda";
 import { Button } from "@/components/ui/button";
 import { useServiceName } from "@/hooks/use-service-name";
 import type { CalculatorWeek, CalculatorWeekSummary } from "@/lib/calculator/weeks";
@@ -297,22 +298,40 @@ function WeeksTable({ weeks, selectedId, onSelect }: { weeks: ClosedWeek[]; sele
   );
 }
 
-function PeriodClose() {
-  const t = useTranslations("Finanzas.cierres.cuadrar");
+/** A collapsed section: its content mounts on the first opening and is hidden, not unmounted, when closed again. */
+function Collapsible({ id, title, subtitle, children }: { id: string; title: string; subtitle: string; children: ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
     <div className={cn(CARD, "flex flex-col gap-3")}>
       <div className="flex flex-col gap-0.5">
-        <button type="button" aria-expanded={open} aria-controls="cierres-cuadrar" onClick={() => setOpen((v) => !v)} className="flex min-h-11 items-center gap-2 text-left text-base font-semibold">
+        <button type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen((v) => !v)} className="flex min-h-11 items-center gap-2 text-left text-base font-semibold">
           <ChevronDown aria-hidden="true" className={cn("size-4 shrink-0 transition-transform", !open && "-rotate-90")} />
-          {t("title")}
+          {title}
         </button>
-        <span className="text-[13px] text-muted-foreground">{t("subtitle")}</span>
+        <span className="text-[13px] text-muted-foreground">{subtitle}</span>
       </div>
-      <div id="cierres-cuadrar" hidden={!open}>
-        {open && <FinancialCloseSection />}
+      <div id={id} hidden={!open}>
+        {open && children}
       </div>
     </div>
+  );
+}
+
+function PeriodClose() {
+  const t = useTranslations("Finanzas.cierres.cuadrar");
+  return (
+    <Collapsible id="cierres-cuadrar" title={t("title")} subtitle={t("subtitle")}>
+      <FinancialCloseSection />
+    </Collapsible>
+  );
+}
+
+function HistorySearch() {
+  const t = useTranslations("Finanzas.cierres.historial");
+  return (
+    <Collapsible id="cierres-historial" title={t("title")} subtitle={t("subtitle")}>
+      <HistorialBusqueda />
+    </Collapsible>
   );
 }
 
@@ -486,6 +505,7 @@ export function CierresOverview({ active = true }: { active?: boolean }) {
       {openWeek && <ArchivedWeekDetail week={openWeek} onClose={() => setOpenWeek(null)} />}
 
       <PeriodClose />
+      <HistorySearch />
     </section>
   );
 }

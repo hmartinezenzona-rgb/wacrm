@@ -108,6 +108,16 @@ Phase 2 (Finanzas):
   entries table has no filter) and "en curso sin completar" (the page holds no in-flight operations). RED: module suite
   not loadable, component suite not loadable; GREEN: `vitest run` 264 files, 3621 passed; tsc and eslint clean;
   /finanzas answers 307 on the staging dev server. Visual check left to the owner.
+- [ ] C1 Cierres redesign (owner 2026-10-29 approved the mockup https://claude.ai/artifact/TsFutkFLRp7dzwrEkW18AY: "me
+  gusta, programalo asi y quiero verlo en staging"). Top to bottom: period chips (last 12 weeks | this month | last
+  month | all, over archived weeks); 4 KPI cards (profit of the period with last-6 vs previous-6 change, average per
+  week + ops per week, best and worst week, average margin + billed); main chart: profit per closed week as vertical
+  bars with a dashed average line, selected week at full opacity, click selects; selected-week panel (name, dates from
+  its entries, closed-by only if the cut stores it, profit with change vs the previous week, billed, invested, margin,
+  ops, best day, top service, "Ver los registros" opens the existing week detail, "Exportar .txt" reuses the existing
+  export if there is one); profit by service over the period (sorted bars + share); compact archived-weeks table (ops,
+  billed, profit, margin, change vs previous); FinancialCloseSection at the end ("Cuadrar un periodo", collapsible,
+  unchanged behaviour, CSV kept). Replaces the current WeeklyProfitChart line. No API, DB or calculation change.
 - [ ] F2.4 Full checks (vitest affected + full suite, tsc, eslint), staging browser check, then the production panel deploy after the go-ahead.
 
 ## Delivery

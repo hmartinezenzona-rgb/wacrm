@@ -454,6 +454,15 @@
         "blocked": "This action isn't available right now.",
         "beneficiaryLabel": "Beneficiary {n}",
         "missingProofs": "Attach a screenshot for every beneficiary, or complete without one.",
+        "refusal": {
+          "notReady": "The operation is no longer ready to transfer. Reload the panel.",
+          "beneficiariesIncomplete": "Recipient data is incomplete. Complete it before delivering.",
+          "fundingConflict": "The funding case has a conflict: {note}. Resolve it before delivering.",
+          "noSourceAmount": "The operation has no source amount to fund.",
+          "fundingMissing": "Deposit not verified yet: it has {deposited} of {required} GYD",
+          "recipientsMismatch": "The recipients add up to {sum} {currency} but the operation sends {sent} {currency}. Complete them before delivering.",
+          "proofsMissing": "Missing delivery proofs: {count}"
+        },
         "proof": {
           "dropHint": "Paste (Ctrl+V), drop or choose a screenshot",
           "dropFormats": "PNG · JPG · WEBP · max {mb} MB",

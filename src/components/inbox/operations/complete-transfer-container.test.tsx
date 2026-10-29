@@ -366,6 +366,46 @@ describe("CompleteTransferContainer", () => {
     await act(async () => root.unmount());
   });
 
+  it("a funding refusal shows the reason in plain words and no Retry", async () => {
+    uploadAccountMedia.mockResolvedValue({ publicUrl: "https://storage.example/x.png", path: "account-1/x.png" });
+    sendProofImage.mockResolvedValue({ ok: true, wamid: "wamid.ABC" });
+    deliverOperation.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      error: "the operation has 0 GYD of verified funding but needs 6200 GYD: verify the deposit before delivering",
+    });
+    const { node, root } = await renderContainer();
+
+    await pickFile(node, pngFile());
+    await act(async () => submitButton(node).dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await flush();
+
+    expect(node.textContent).toContain("Deposit not verified yet: it has 0 of 6,200 GYD");
+    expect(node.textContent).not.toContain(T.stageFailed);
+    expect(actionButton(node, T.retry)).toBeUndefined();
+    await act(async () => root.unmount());
+  });
+
+  it("an unknown refusal shows the server text without Retry; a 5xx keeps Retry", async () => {
+    uploadAccountMedia.mockResolvedValue({ publicUrl: "https://storage.example/x.png", path: "account-1/x.png" });
+    sendProofImage.mockResolvedValue({ ok: true, wamid: "wamid.ABC" });
+    deliverOperation.mockResolvedValueOnce({ ok: false, status: 400, error: "some new server rule" });
+    const { node, root } = await renderContainer();
+
+    await pickFile(node, pngFile());
+    await act(async () => submitButton(node).dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await flush();
+    expect(node.textContent).toContain("some new server rule");
+    expect(actionButton(node, T.retry)).toBeUndefined();
+
+    deliverOperation.mockResolvedValueOnce({ ok: false, status: 500, error: "Request failed" });
+    await act(async () => submitButton(node).dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await flush();
+    expect(node.textContent).toContain(T.stageFailed);
+    expect(actionButton(node, T.retry)).toBeDefined();
+    await act(async () => root.unmount());
+  });
+
   it("document paste of an image file attaches it without clicking the picker", async () => {
     const { node, root } = await renderContainer();
 

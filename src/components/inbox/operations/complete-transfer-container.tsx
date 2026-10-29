@@ -50,6 +50,7 @@ import {
 import { DELIVERY_PROOF_STAGE_ID } from "@/lib/pipelines/delivery-stages";
 import { deliverOperation, registerBeneficiaryProof } from "@/lib/remittance-operations/commands";
 import { evidenceToRpc } from "@/lib/remittance-operations/delivery";
+import { parseDeliveryRefusal } from "@/lib/remittance-operations/delivery-refusal";
 import type { ConversationOperationsRead } from "@/lib/remittance-operations/types";
 import { CompleteTransferSection, type CompleteTransferBanner } from "./complete-transfer-section";
 import { CupPlanBlock } from "./cup-plan-block";
@@ -122,6 +123,9 @@ export function CompleteTransferContainer({
   // failure has no wamid to retry from, so "Retry" just repeats the
   // exact same attempt.
   const lastSkipRef = useRef(false);
+  // The server's text when the last delivery call was REFUSED (HTTP 400, a 22023 rule of
+  // `crm_entregar_operacion`): retrying cannot help, so the banner explains the reason instead.
+  const refusalRef = useRef<string | null>(null);
   // `run` (below) is called from click handlers created inside
   // `handleResult`, which can outlive the render that created them (a
   // stage-failed retry, for instance, must see the `sentWamid` a LATER
@@ -348,14 +352,24 @@ export function CompleteTransferContainer({
         await deleteAccountMedia(CHAT_MEDIA_BUCKET, path);
       },
       moveToDelivered: async (_id, evidence) => {
+        refusalRef.current = null;
         const result = cupSourceCardRef.current
           ? await deliverOperation(operationId, evidenceToRpc(evidence), notifyRef.current, cupSourceCardRef.current)
           : await deliverOperation(operationId, evidenceToRpc(evidence), notifyRef.current);
+        if (!result.ok && result.status === 400) refusalRef.current = result.error;
         return result.ok ? { ok: true } : { ok: false, message: result.error };
       },
     }),
     [canSend, conversationId, operationId],
   );
+
+  /** The refusal banner (reason in plain words, no Retry), or null when the failure is not a refusal. */
+  const refusalBanner = useCallback((): CompleteTransferBanner | null => {
+    const message = refusalRef.current;
+    if (message === null) return null;
+    const known = parseDeliveryRefusal(message);
+    return { kind: "error", text: known ? t(`refusal.${known.key}`, known.params) : message };
+  }, [t]);
 
   const handleResult = useCallback(
     (result: DeliveryResult) => {
@@ -378,6 +392,13 @@ export function CompleteTransferContainer({
         case "stage-failed":
           if (result.proofSent) {
             setDraft((prev) => (prev ? { ...prev, sentWamid: result.wamid } : prev));
+          }
+          {
+            const refused = refusalBanner();
+            if (refused) {
+              setBanner(refused);
+              return;
+            }
           }
           setBanner({
             kind: "error",
@@ -419,7 +440,7 @@ export function CompleteTransferContainer({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [clearDraft, onDone, t],
+    [clearDraft, onDone, t, refusalBanner],
   );
 
   const run = useCallback(
@@ -505,6 +526,13 @@ export function CompleteTransferContainer({
           // "sent") — retrying re-enters `runMulti`, which skips the
           // whole send/register loop (every draft already carries its
           // `sentWamid`) and goes straight back to this same call.
+          {
+            const refused = refusalBanner();
+            if (refused) {
+              setBanner(refused);
+              return;
+            }
+          }
           setBanner({
             kind: "error",
             text: t("stageFailed"),
@@ -525,7 +553,7 @@ export function CompleteTransferContainer({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [clearAllBeneficiaryDrafts, onDone, t],
+    [clearAllBeneficiaryDrafts, onDone, t, refusalBanner],
   );
 
   const runMulti = useCallback(async () => {

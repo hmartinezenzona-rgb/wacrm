@@ -454,6 +454,15 @@
         "blocked": "Esta acción no está disponible en este momento.",
         "beneficiaryLabel": "Beneficiario {n}",
         "missingProofs": "Adjunta una captura por cada beneficiario, o completa sin ella.",
+        "refusal": {
+          "notReady": "La operación ya no está lista para transferir. Recarga el panel.",
+          "beneficiariesIncomplete": "Faltan datos del beneficiario. Complétalos antes de entregar.",
+          "fundingConflict": "El caso de fondos tiene un conflicto: {note}. Resuélvelo antes de entregar.",
+          "noSourceAmount": "La operación no tiene un monto de origen que financiar.",
+          "fundingMissing": "Falta verificar el depósito: tiene {deposited} de {required} GYD",
+          "recipientsMismatch": "Los beneficiarios suman {sum} {currency} pero la operación envía {sent} {currency}. Complétalos antes de entregar.",
+          "proofsMissing": "Faltan los comprobantes de entrega: {count}"
+        },
         "proof": {
           "dropHint": "Pega (Ctrl+V), suelta o elige una captura",
           "dropFormats": "PNG · JPG · WEBP · máx. {mb} MB",

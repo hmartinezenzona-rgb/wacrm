@@ -2247,10 +2247,6 @@
       "operaciones": "Operaciones"
     },
     "graficos": {
-      "gananciaDia": {
-        "title": "Ganancia por día",
-        "aria": "Gráfico de barras: ganancia en GYD de cada día del periodo"
-      },
       "gananciaServicio": {
         "title": "Ganancia por servicio",
         "aria": "Gráfico de barras horizontales: ganancia en GYD de cada servicio, de mayor a menor"
@@ -2262,9 +2258,7 @@
       "facturado": "Facturado",
       "invertido": "Invertido",
       "retorno": "Retorno",
-      "ganancia": "Ganancia",
       "margen": "Margen {pct}%",
-      "operaciones": "Operaciones: {count}",
       "periodo": "Período: {periodo}"
     }
   },

@@ -34,15 +34,10 @@ vi.mock("recharts", async (importOriginal) => {
 
 import { fmtGyd } from "@/components/resumen/financial-close-format";
 import { formatNumber } from "@/lib/format-number";
-import { DayTooltip, ProfitByDayChart, ProfitByServiceChart, ServiceTooltip, WeekTooltip, WeeklyProfitChart } from "./profit-charts";
+import { ProfitByServiceChart, ServiceTooltip, WeekTooltip, WeeklyProfitChart } from "./profit-charts";
 
 const plain = (n: number) => formatNumber(n, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const agg = (operations: number, facturadoGyd: number, invertidoGyd: number, retornoGyd: number) => ({ operations, facturadoGyd, invertidoGyd, retornoGyd });
-const BY_DAY: FinancialClose["byDay"] = [
-  { day: "2026-09-21", ...agg(1, 500, 400, 100) },
-  { day: "2026-09-22", ...agg(3, 900, 1000, -100) },
-  { day: "2026-09-23", ...agg(2, 800, 600, 200) },
-];
 const BY_SERVICE: FinancialClose["byService"] = [
   { service: "CUP", ...agg(1, 1000, 700, 300) },
   { service: "ZELLE", ...agg(2, 2000, 1500, 500) },
@@ -64,24 +59,6 @@ async function mount(element: React.ReactElement) {
 }
 
 afterEach(() => document.body.replaceChildren());
-
-describe("ProfitByDayChart", () => {
-  it("draws one bar per day in one colour, under a titled, labelled figure", async () => {
-    const node = await mount(<ProfitByDayChart byDay={BY_DAY} />);
-    const figure = node.querySelector("figure")!;
-    expect(figure.getAttribute("aria-label")).toBe(es.Finanzas.graficos.gananciaDia.aria);
-    expect(figure.textContent).toContain("Ganancia por día");
-    const bars = node.querySelectorAll(".recharts-bar-rectangle path");
-    expect(bars).toHaveLength(3);
-    expect(new Set([...bars].map((b) => b.getAttribute("fill"))).size).toBe(1);
-    expect(node.querySelector(".recharts-legend-wrapper")).toBeNull();
-  });
-
-  it("is hidden with no data or a single day", async () => {
-    expect((await mount(<ProfitByDayChart byDay={[]} />)).querySelector("figure")).toBeNull();
-    expect((await mount(<ProfitByDayChart byDay={[BY_DAY[0]!]} />)).querySelector("figure")).toBeNull();
-  });
-});
 
 describe("ProfitByServiceChart", () => {
   it("labels each bar with its value, highest profit first, in one colour", async () => {
@@ -121,13 +98,6 @@ describe("tooltips", () => {
     return node.textContent;
   };
 
-  it("day: the day, the profit and the number of operations", async () => {
-    const out = await text(<DayTooltip active payload={[{ payload: { day: "2026-09-22", label: "22 sep", retorno: -100, operations: 3 } }]} />);
-    expect(out).toContain("22 sep");
-    expect(out).toContain(fmtGyd(-100));
-    expect(out).toContain("Operaciones: 3");
-  });
-
   it("service: facturado, invertido, retorno and margen", async () => {
     const out = await text(<ServiceTooltip active payload={[{ payload: { service: "ZELLE", facturado: 2000, invertido: 1500, retorno: 500, margin: "25.0", operations: 2 } }]} />);
     for (const part of ["zelle", fmtGyd(2000), fmtGyd(1500), fmtGyd(500), "Margen 25.0%"]) expect(out).toContain(part);
@@ -139,6 +109,6 @@ describe("tooltips", () => {
   });
 
   it("render nothing when inactive", async () => {
-    expect(await text(<DayTooltip active={false} payload={[]} />)).toBe("");
+    expect(await text(<ServiceTooltip active={false} payload={[]} />)).toBe("");
   });
 });

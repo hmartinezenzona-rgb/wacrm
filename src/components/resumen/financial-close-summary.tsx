@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { ProfitByDayChart, ProfitByServiceChart } from "@/components/finanzas/profit-charts";
+import { ProfitByServiceChart } from "@/components/finanzas/profit-charts";
 import { BarChart } from "@/components/tremor/bar-chart";
 import { shortDayLabel } from "@/lib/financial-close/periods";
 import type { FinancialClose } from "@/lib/financial-close/read-model";
@@ -79,9 +79,6 @@ export function FinancialCloseSummary({ close }: { close: FinancialClose }) {
                 yAxisWidth={84}
                 className="h-[240px]"
               />
-              <div className="mt-4 border-t border-border pt-4">
-                <ProfitByDayChart byDay={close.byDay} />
-              </div>
             </section>
           )}
 

@@ -44,7 +44,6 @@ vi.mock("@/components/tremor/bar-chart", () => ({
 
 // The profit charts are Recharts; their own suite covers the drawing. Here only where they sit and what they get.
 vi.mock("@/components/finanzas/profit-charts", () => ({
-  ProfitByDayChart: (props: { byDay: unknown[] }) => <div data-testid="profit-day" data-points={props.byDay.length} />,
   ProfitByServiceChart: (props: { byService: unknown[] }) => <div data-testid="profit-service" data-points={props.byService.length} />,
 }));
 
@@ -203,10 +202,10 @@ describe("FinancialCloseSection", () => {
     await act(async () => root.unmount());
   });
 
-  it("puts the profit-by-day chart in the per-day card and the profit-by-service chart above the service table", async () => {
+  it("keeps the facturado+retorno per-day chart alone and puts the profit-by-service chart above the service table", async () => {
     const { node, root } = await render();
 
-    expect(node.querySelector("[data-testid='profit-day']")?.getAttribute("data-points")).toBe("2");
+    expect(node.querySelectorAll("[data-testid='bar-chart']")).toHaveLength(1);
     const serviceChart = node.querySelector("[data-testid='profit-service']")!;
     expect(serviceChart.getAttribute("data-points")).toBe("2");
     const table = node.querySelector("[data-testid='service-row']")!.closest("table")!;

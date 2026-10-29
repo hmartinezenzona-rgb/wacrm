@@ -2247,10 +2247,6 @@
       "operaciones": "Operations"
     },
     "graficos": {
-      "gananciaDia": {
-        "title": "Profit by day",
-        "aria": "Bar chart: profit in GYD for each day of the period"
-      },
       "gananciaServicio": {
         "title": "Profit by service",
         "aria": "Horizontal bar chart: profit in GYD for each service, highest first"
@@ -2262,9 +2258,7 @@
       "facturado": "Billed",
       "invertido": "Invested",
       "retorno": "Profit",
-      "ganancia": "Profit",
       "margen": "Margin {pct}%",
-      "operaciones": "Operations: {count}",
       "periodo": "Period: {periodo}"
     }
   },

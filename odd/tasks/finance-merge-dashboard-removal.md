@@ -88,12 +88,13 @@ Phase 2 (Finanzas):
   API. Recharts (already a dependency, `src/components/tremor/bar-chart.tsx`). Rules from the dataviz skill: one axis
   (no dual axis), no pie/donut, fixed categorical order, palette validated light+dark, hover tooltip, legend only
   for >= 2 series, table stays as the accessible view, mobile width. No API or calculation change.
-  Done: profit by day (columns, zero baseline) and by service (sorted horizontal bars) in FinancialCloseSummary,
+  Done: profit by service (sorted horizontal bars) in FinancialCloseSummary,
   profit per week (line, last 12) above the archived weeks; new token --chart-profit (dark money-profit failed the
   palette L band: 0.78 -> 0.66; validator PASS light #00682a / dark #3eab5e). The summaries carry profit
   (manualTotals + chatTotals retornoGyd), no API change. RED: 2 new series suites + profit-charts suite not
   loadable, 2 wiring tests failed; GREEN: full suite 262 files, 3595 passed; tsc and eslint clean. The close already
-  had a facturado+retorno per-day chart; the profit-only one sits under it. Visual check left to the owner.
+  had a facturado+retorno per-day chart, so no second by-day chart was added (coordinator decision; a profit-only
+  by-day chart built first was removed, RED: section test saw it, GREEN: gone). Visual check left to the owner.
 - [ ] F2.4 Full checks (vitest affected + full suite, tsc, eslint), staging browser check, then the production panel deploy after the go-ahead.
 
 ## Delivery

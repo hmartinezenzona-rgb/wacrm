@@ -20,11 +20,8 @@ import { useServiceName } from "@/hooks/use-service-name";
 import { formatNumber } from "@/lib/format-number";
 import type { FinancialClose } from "@/lib/financial-close/read-model";
 import {
-  profitByDaySeries,
   profitByServiceSeries,
-  showDayChart,
   showServiceChart,
-  type DayProfitPoint,
   type ServiceProfitPoint,
 } from "@/lib/financial-close/profit-series";
 import type { CalculatorWeekSummary } from "@/lib/calculator/weeks";
@@ -77,18 +74,6 @@ function TipRow({ name, value }: { name: string; value: string }) {
   );
 }
 
-export function DayTooltip({ active, payload }: TipProps<DayProfitPoint>) {
-  const t = useTranslations("Finanzas.graficos");
-  const point = payload?.[0]?.payload;
-  if (!active || !point) return null;
-  return (
-    <TipCard title={point.label}>
-      <TipRow name={t("ganancia")} value={fmtGyd(point.retorno)} />
-      <p className="text-muted-foreground">{t("operaciones", { count: point.operations })}</p>
-    </TipCard>
-  );
-}
-
 export function ServiceTooltip({ active, payload }: TipProps<ServiceProfitPoint>) {
   const t = useTranslations("Finanzas.graficos");
   const serviceName = useServiceName();
@@ -118,27 +103,6 @@ export function WeekTooltip({ active, payload }: TipProps<WeekProfitPoint>) {
 }
 
 const CURSOR = { fill: "var(--muted)", opacity: 0.5 };
-
-/** Vertical bars, one per day, from a zero baseline; a losing day goes below it in the same colour. */
-export function ProfitByDayChart({ byDay }: { byDay: FinancialClose["byDay"] }) {
-  const t = useTranslations("Finanzas.graficos.gananciaDia");
-  const series = profitByDaySeries(byDay);
-  if (!showDayChart(series)) return null;
-  return (
-    <ChartFigure title={t("title")} label={t("aria")} height={220}>
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={series} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-          <CartesianGrid vertical={false} stroke={GRID} strokeWidth={1} />
-          <XAxis dataKey="label" tick={AXIS_TICK} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={12} />
-          <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} tickFormatter={compact} width={44} />
-          <ReferenceLine y={0} stroke={GRID} strokeWidth={1} />
-          <Tooltip cursor={CURSOR} content={(props) => <DayTooltip {...props} />} />
-          <Bar dataKey="retorno" fill={MARK} maxBarSize={24} radius={[4, 4, 0, 0]} isAnimationActive={false} />
-        </BarChart>
-      </ResponsiveContainer>
-    </ChartFigure>
-  );
-}
 
 const ROW_HEIGHT = 34;
 

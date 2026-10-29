@@ -2250,15 +2250,10 @@
         "title": "Ganancia por servicio",
         "aria": "Gráfico de barras horizontales: ganancia en GYD de cada servicio, de mayor a menor"
       },
-      "gananciaSemana": {
-        "title": "Ganancia por semana",
-        "aria": "Gráfico de líneas: ganancia en GYD de las últimas semanas archivadas, de la más antigua a la más reciente"
-      },
       "facturado": "Facturado",
       "invertido": "Invertido",
       "retorno": "Retorno",
-      "margen": "Margen {pct}%",
-      "periodo": "Período: {periodo}"
+      "margen": "Margen {pct}%"
     },
     "semana": {
       "label": "Resumen de la semana abierta",
@@ -2322,6 +2317,91 @@
         "costoUsdt": "Costo USDT",
         "tarifaCup": "Tarifa CUP",
         "cambiar": "Cambiar"
+      }
+    },
+    "cierres": {
+      "label": "Resumen de las semanas cerradas",
+      "cargando": "Cargando las semanas cerradas…",
+      "error": "No se pudieron leer las semanas archivadas.",
+      "reintentar": "Reintentar",
+      "periodo": {
+        "label": "Periodo",
+        "last12": "Últimas 12 semanas",
+        "thisMonth": "Este mes",
+        "lastMonth": "Mes pasado",
+        "all": "Todo"
+      },
+      "subtitle": "Semanas cerradas con «Limpiar todo» · hora de Guyana",
+      "vacio": {
+        "title": "Aún no hay semanas archivadas",
+        "hint": "Cada «Limpiar todo» guarda la semana aquí, solo para consultarla. Sus operaciones siguen contando en Finanzas y en el panel."
+      },
+      "sinPeriodo": "No hay semanas archivadas en este periodo.",
+      "kpi": {
+        "gananciaLast12": "Ganancia en {count, plural, one {# semana} other {# semanas}}",
+        "gananciaThisMonth": "Ganancia de este mes",
+        "gananciaLastMonth": "Ganancia del mes pasado",
+        "gananciaAll": "Ganancia de todas las semanas",
+        "cambio": "{weeks, plural, one {la última semana frente a la anterior} other {las últimas # semanas frente a las # anteriores}}",
+        "promedio": "Promedio por semana",
+        "opsSemana": "{count, plural, one {# operación por semana} other {# operaciones por semana}}",
+        "mejorPeor": "Mejor y peor semana",
+        "mejor": "{date}",
+        "peor": "la más floja: {amount} GYD ({date})",
+        "margen": "Margen medio",
+        "facturado": "Facturado {amount} GYD",
+        "sube": "Sube",
+        "baja": "Baja",
+        "igual": "Sin cambio"
+      },
+      "grafico": {
+        "title": "Ganancia de cada semana cerrada",
+        "subtitle": "GYD · pulse una semana para ver su cierre",
+        "aria": "Gráfico de columnas: ganancia en GYD de cada semana cerrada, de la más antigua a la más reciente, con la media. {count, plural, one {Hay # semana} other {Hay # semanas}}.",
+        "media": "media {amount}",
+        "sola": "Con una sola semana en el periodo aún no hay evolución que mostrar.",
+        "ganancia": "Ganancia",
+        "facturado": "Facturado",
+        "ops": "{count, plural, one {# operación} other {# operaciones}}"
+      },
+      "sel": {
+        "eyebrow": "Semana seleccionada",
+        "sinFechas": "Sin operaciones registradas",
+        "vsAnterior": "frente a la semana anterior",
+        "facturado": "Facturado",
+        "invertido": "Invertido",
+        "margen": "Margen",
+        "ops": "Operaciones",
+        "mejorDia": "Mejor día",
+        "servicioLider": "Servicio líder",
+        "verRegistros": "Ver los registros",
+        "abrirError": "No se pudo abrir la semana."
+      },
+      "servicios": {
+        "title": "¿De dónde salió la ganancia?",
+        "subtitle": "{count, plural, one {# semana} other {# semanas}} · por servicio",
+        "aria": "Ganancia y parte de cada servicio en el periodo, de mayor a menor",
+        "servicio": "Servicio",
+        "ganancia": "Ganancia",
+        "parte": "Parte",
+        "nota": "Ganancia en GYD.",
+        "vacio": "Aún no hay operaciones archivadas en este periodo."
+      },
+      "tabla": {
+        "title": "Semanas archivadas",
+        "aria": "Semanas archivadas del periodo, de la más reciente a la más antigua",
+        "semana": "Semana",
+        "ops": "Operaciones",
+        "facturado": "Facturado",
+        "ganancia": "Ganancia",
+        "margen": "Margen",
+        "vsAnterior": "Frente a la anterior",
+        "verTodas": "Ver las {count}",
+        "verMenos": "Ver menos"
+      },
+      "cuadrar": {
+        "title": "Cuadrar un periodo",
+        "subtitle": "Facturado, invertido y retorno por día y por servicio, con el detalle de cada operación"
       }
     }
   },

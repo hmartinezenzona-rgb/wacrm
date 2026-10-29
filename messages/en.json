@@ -2250,15 +2250,10 @@
         "title": "Profit by service",
         "aria": "Horizontal bar chart: profit in GYD for each service, highest first"
       },
-      "gananciaSemana": {
-        "title": "Profit by week",
-        "aria": "Line chart: profit in GYD for the latest archived weeks, oldest to newest"
-      },
       "facturado": "Billed",
       "invertido": "Invested",
       "retorno": "Profit",
-      "margen": "Margin {pct}%",
-      "periodo": "Period: {periodo}"
+      "margen": "Margin {pct}%"
     },
     "semana": {
       "label": "Open week overview",
@@ -2322,6 +2317,91 @@
         "costoUsdt": "USDT cost",
         "tarifaCup": "CUP rate",
         "cambiar": "Change"
+      }
+    },
+    "cierres": {
+      "label": "Summary of the closed weeks",
+      "cargando": "Loading the closed weeks…",
+      "error": "The archived weeks could not be read.",
+      "reintentar": "Retry",
+      "periodo": {
+        "label": "Period",
+        "last12": "Last 12 weeks",
+        "thisMonth": "This month",
+        "lastMonth": "Last month",
+        "all": "All"
+      },
+      "subtitle": "Weeks closed with «Limpiar todo» · Guyana time",
+      "vacio": {
+        "title": "There are no archived weeks yet",
+        "hint": "Every «Limpiar todo» saves the week here, read only. Its operations keep counting in Finances and on the dashboard."
+      },
+      "sinPeriodo": "There are no archived weeks in this period.",
+      "kpi": {
+        "gananciaLast12": "Profit over {count, plural, one {# week} other {# weeks}}",
+        "gananciaThisMonth": "Profit this month",
+        "gananciaLastMonth": "Profit last month",
+        "gananciaAll": "Profit over all weeks",
+        "cambio": "{weeks, plural, one {the last week against the one before} other {the last # weeks against the # before}}",
+        "promedio": "Average per week",
+        "opsSemana": "{count, plural, one {# operation per week} other {# operations per week}}",
+        "mejorPeor": "Best and worst week",
+        "mejor": "{date}",
+        "peor": "weakest: {amount} GYD ({date})",
+        "margen": "Average margin",
+        "facturado": "Billed {amount} GYD",
+        "sube": "Up",
+        "baja": "Down",
+        "igual": "No change"
+      },
+      "grafico": {
+        "title": "Profit of each closed week",
+        "subtitle": "GYD · press a week to see its close",
+        "aria": "Column chart: profit in GYD of each closed week, oldest to newest, with the average. {count, plural, one {# week} other {# weeks}}.",
+        "media": "average {amount}",
+        "sola": "With a single week in the period there is no trend to show yet.",
+        "ganancia": "Profit",
+        "facturado": "Billed",
+        "ops": "{count, plural, one {# operation} other {# operations}}"
+      },
+      "sel": {
+        "eyebrow": "Selected week",
+        "sinFechas": "No operations recorded",
+        "vsAnterior": "against the previous week",
+        "facturado": "Billed",
+        "invertido": "Invested",
+        "margen": "Margin",
+        "ops": "Operations",
+        "mejorDia": "Best day",
+        "servicioLider": "Top service",
+        "verRegistros": "View the records",
+        "abrirError": "The week could not be opened."
+      },
+      "servicios": {
+        "title": "Where did the profit come from?",
+        "subtitle": "{count, plural, one {# week} other {# weeks}} · by service",
+        "aria": "Profit and share of each service in the period, highest first",
+        "servicio": "Service",
+        "ganancia": "Profit",
+        "parte": "Share",
+        "nota": "Profit in GYD.",
+        "vacio": "There are no archived operations in this period yet."
+      },
+      "tabla": {
+        "title": "Archived weeks",
+        "aria": "Archived weeks of the period, newest first",
+        "semana": "Week",
+        "ops": "Operations",
+        "facturado": "Billed",
+        "ganancia": "Profit",
+        "margen": "Margin",
+        "vsAnterior": "Against previous",
+        "verTodas": "Show all {count}",
+        "verMenos": "Show fewer"
+      },
+      "cuadrar": {
+        "title": "Reconcile a period",
+        "subtitle": "Billed, invested and return by day and by service, with the detail of every operation"
       }
     }
   },

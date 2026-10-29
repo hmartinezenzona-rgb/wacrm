@@ -1,12 +1,11 @@
 // @vitest-environment jsdom
-// The three profit charts of Finanzas > Cierres: they render from the series, stay out when there is nothing to
+// The profit-by-service chart of Finanzas > Cierres: they render from the series, stay out when there is nothing to
 // compare, are named for assistive tech and their tooltips carry the figures the brief asks for.
 
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import es from "../../../messages/es.json";
-import type { CalculatorWeekSummary } from "@/lib/calculator/weeks";
 import type { FinancialClose } from "@/lib/financial-close/read-model";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -34,7 +33,7 @@ vi.mock("recharts", async (importOriginal) => {
 
 import { fmtGyd } from "@/components/resumen/financial-close-format";
 import { formatNumber } from "@/lib/format-number";
-import { ProfitByServiceChart, ServiceTooltip, WeekTooltip, WeeklyProfitChart } from "./profit-charts";
+import { ProfitByServiceChart, ServiceTooltip } from "./profit-charts";
 
 const plain = (n: number) => formatNumber(n, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const agg = (operations: number, facturadoGyd: number, invertidoGyd: number, retornoGyd: number) => ({ operations, facturadoGyd, invertidoGyd, retornoGyd });
@@ -42,15 +41,6 @@ const BY_SERVICE: FinancialClose["byService"] = [
   { service: "CUP", ...agg(1, 1000, 700, 300) },
   { service: "ZELLE", ...agg(2, 2000, 1500, 500) },
 ];
-const week = (id: string, cutAt: string, retorno: number): CalculatorWeekSummary => ({
-  id,
-  cutAt,
-  periodo: `Semana ${id}`,
-  manualTotals: { facturadoGyd: 100, invertidoGyd: 0, retornoGyd: retorno },
-  chatTotals: { facturadoGyd: 200, invertidoGyd: 0, retornoGyd: 0, count: 1 },
-});
-const WEEKS = [week("a", "2026-10-05T15:00:00.000Z", 10), week("b", "2026-10-12T15:00:00.000Z", 30), week("c", "2026-10-19T15:00:00.000Z", 20)];
-
 async function mount(element: React.ReactElement) {
   const node = document.createElement("div");
   document.body.appendChild(node);
@@ -76,20 +66,6 @@ describe("ProfitByServiceChart", () => {
   });
 });
 
-describe("WeeklyProfitChart", () => {
-  it("draws one line with a marker per week", async () => {
-    const node = await mount(<WeeklyProfitChart weeks={WEEKS} />);
-    expect(node.querySelector("figure")!.getAttribute("aria-label")).toBe(es.Finanzas.graficos.gananciaSemana.aria);
-    expect(node.querySelectorAll(".recharts-line-curve")).toHaveLength(1);
-    expect(node.querySelectorAll(".recharts-line-dots circle")).toHaveLength(3);
-  });
-
-  it("is hidden with fewer than two weeks", async () => {
-    expect((await mount(<WeeklyProfitChart weeks={[]} />)).querySelector("figure")).toBeNull();
-    expect((await mount(<WeeklyProfitChart weeks={[WEEKS[0]!]} />)).querySelector("figure")).toBeNull();
-  });
-});
-
 describe("tooltips", () => {
   const text = async (el: React.ReactElement) => {
     const node = document.createElement("div");
@@ -101,11 +77,6 @@ describe("tooltips", () => {
   it("service: facturado, invertido, retorno and margen", async () => {
     const out = await text(<ServiceTooltip active payload={[{ payload: { service: "ZELLE", facturado: 2000, invertido: 1500, retorno: 500, margin: "25.0", operations: 2 } }]} />);
     for (const part of ["zelle", fmtGyd(2000), fmtGyd(1500), fmtGyd(500), "Margen 25.0%"]) expect(out).toContain(part);
-  });
-
-  it("week: facturado and retorno of that week", async () => {
-    const out = await text(<WeekTooltip active payload={[{ payload: { id: "b", label: "12 oct", cutDate: "2026-10-12", periodo: "Semana b", facturado: 300, retorno: 30 } }]} />);
-    for (const part of ["Semana b", "2026-10-12", fmtGyd(300), fmtGyd(30)]) expect(out).toContain(part);
   });
 
   it("render nothing when inactive", async () => {

@@ -7,8 +7,6 @@ import {
   BarChart,
   CartesianGrid,
   LabelList,
-  Line,
-  LineChart,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -24,18 +22,13 @@ import {
   showServiceChart,
   type ServiceProfitPoint,
 } from "@/lib/financial-close/profit-series";
-import type { CalculatorWeekSummary } from "@/lib/calculator/weeks";
-import { showWeekChart, weeklyProfitSeries, type WeekProfitPoint } from "./week-profit-series";
 
-// The three profit charts of Finanzas > Cierres. One series each, so no legend: the title names it. Marks wear the
+// The profit chart of Finanzas > Cierres. One series each, so no legend: the title names it. Marks wear the
 // --chart-profit token (light/dark come from the design tokens); text, grid and axes use text and border tokens.
 const MARK = "var(--chart-profit)";
 const TEXT = "var(--muted-foreground)";
 const GRID = "var(--border)";
-const SURFACE = "var(--card)";
 const AXIS_TICK = { fill: TEXT, fontSize: 11 };
-const COMPACT = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
-const compact = (value: number) => COMPACT.format(value);
 /** The table's number without the unit, for labels that sit beside a bar: the title states GYD. */
 const plain = (value: number) => formatNumber(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -89,19 +82,6 @@ export function ServiceTooltip({ active, payload }: TipProps<ServiceProfitPoint>
   );
 }
 
-export function WeekTooltip({ active, payload }: TipProps<WeekProfitPoint>) {
-  const t = useTranslations("Finanzas.graficos");
-  const point = payload?.[0]?.payload;
-  if (!active || !point) return null;
-  return (
-    <TipCard title={point.cutDate}>
-      {point.periodo && <p className="text-muted-foreground">{t("periodo", { periodo: point.periodo })}</p>}
-      <TipRow name={t("facturado")} value={fmtGyd(point.facturado)} />
-      <TipRow name={t("retorno")} value={fmtGyd(point.retorno)} />
-    </TipCard>
-  );
-}
-
 const CURSOR = { fill: "var(--muted)", opacity: 0.5 };
 
 const ROW_HEIGHT = 34;
@@ -133,37 +113,6 @@ export function ProfitByServiceChart({ byService, className }: { byService: Fina
             <LabelList dataKey="retorno" position="right" formatter={(v) => plain(Number(v))} fill="var(--foreground)" fontSize={11} />
           </Bar>
         </BarChart>
-      </ResponsiveContainer>
-    </ChartFigure>
-  );
-}
-
-/** Profit of the latest archived weeks, oldest to newest: one line, one axis, a marker per week. */
-export function WeeklyProfitChart({ weeks, className }: { weeks: CalculatorWeekSummary[]; className?: string }) {
-  const t = useTranslations("Finanzas.graficos.gananciaSemana");
-  const series = weeklyProfitSeries(weeks);
-  if (!showWeekChart(series)) return null;
-  return (
-    <ChartFigure title={t("title")} label={t("aria")} height={220} className={className}>
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={series} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
-          <CartesianGrid vertical={false} stroke={GRID} strokeWidth={1} />
-          <XAxis dataKey="label" tick={AXIS_TICK} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={12} />
-          <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} tickFormatter={compact} width={44} />
-          <ReferenceLine y={0} stroke={GRID} strokeWidth={1} />
-          <Tooltip cursor={{ stroke: GRID, strokeWidth: 1 }} content={(props) => <WeekTooltip {...props} />} />
-          <Line
-            type="linear"
-            dataKey="retorno"
-            stroke={MARK}
-            strokeWidth={2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            dot={{ r: 4, fill: MARK, stroke: SURFACE, strokeWidth: 2 }}
-            activeDot={{ r: 6, fill: MARK, stroke: SURFACE, strokeWidth: 2 }}
-            isAnimationActive={false}
-          />
-        </LineChart>
       </ResponsiveContainer>
     </ChartFigure>
   );

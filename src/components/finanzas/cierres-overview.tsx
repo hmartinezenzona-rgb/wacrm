@@ -27,6 +27,7 @@ import { TipCard, TipRow } from "./profit-charts";
 const MARK = "var(--chart-profit)";
 const AXIS_TICK = { fill: "var(--muted-foreground)", fontSize: 11 };
 const COMPACT = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
+const WHOLE = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 const int = (value: number) => num(Math.round(value));
 const gyd = (value: number) => `${int(value)} GYD`;
 const pct = pctText;
@@ -147,10 +148,10 @@ function WeeksChart({ chart, weeks, average, selectedId, onSelect }: {
               <Tooltip cursor={{ fill: "var(--muted)", opacity: 0.5 }} content={(props) => <WeekTooltip {...props} />} />
               <ReferenceLine
                 y={average}
-                stroke="var(--foreground)"
+                stroke="var(--muted-foreground)"
                 strokeWidth={1.5}
                 strokeDasharray="5 4"
-                label={{ value: t("media", { amount: COMPACT.format(average) }), position: "insideTopLeft", fill: "var(--foreground)", fontSize: 11, fontWeight: 600 }}
+                label={{ value: t("media", { amount: WHOLE.format(average) }), position: "insideTopLeft", fill: "var(--muted-foreground)", fontSize: 11, fontWeight: 600 }}
               />
               <Bar dataKey="retorno" maxBarSize={36} radius={[4, 4, 0, 0]} isAnimationActive={false} cursor="pointer" onClick={(_, index) => { const d = data[index]; if (d) onSelect(d.id); }}>
                 {data.map((d) => (

@@ -2436,7 +2436,7 @@
         "title": "Profit of each closed week",
         "subtitle": "GYD · press a week to see its close",
         "aria": "Column chart: profit in GYD of each closed week, oldest to newest, with the average. {count, plural, one {# week} other {# weeks}}.",
-        "media": "average {amount}",
+        "media": "Average per week: {amount}",
         "sola": "With a single week in the period there is no trend to show yet.",
         "ganancia": "Profit",
         "facturado": "Billed",

@@ -2436,7 +2436,7 @@
         "title": "Ganancia de cada semana cerrada",
         "subtitle": "GYD · pulse una semana para ver su cierre",
         "aria": "Gráfico de columnas: ganancia en GYD de cada semana cerrada, de la más antigua a la más reciente, con la media. {count, plural, one {Hay # semana} other {Hay # semanas}}.",
-        "media": "media {amount}",
+        "media": "Promedio por semana: {amount}",
         "sola": "Con una sola semana en el periodo aún no hay evolución que mostrar.",
         "ganancia": "Ganancia",
         "facturado": "Facturado",

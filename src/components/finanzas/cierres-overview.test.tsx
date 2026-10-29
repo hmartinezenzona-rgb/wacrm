@@ -190,7 +190,9 @@ describe("CierresOverview", () => {
     expect(new Set(fills)).toEqual(new Set(["var(--chart-profit)"]));
     const dashed = [...container!.querySelectorAll(".recharts-reference-line line")].filter((l) => l.getAttribute("stroke-dasharray"));
     expect(dashed).toHaveLength(1);
-    expect(text()).toContain("media 4.5K");
+    // Owner 2026-10-29: a grey line, not the text colour, and the label says what it is, in full figures.
+    expect(dashed[0].getAttribute("stroke")).toBe("var(--muted-foreground)");
+    expect(text()).toContain("Promedio por semana: 4,500");
     expect(container!.querySelector(".recharts-legend-wrapper")).toBeNull();
   });
 

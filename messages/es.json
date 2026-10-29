@@ -2374,6 +2374,28 @@
           "estado": "Estado",
           "acciones": "Acciones"
         }
+      },
+      "cierre": {
+        "title": "Cerrar la semana",
+        "subtitle": "Archiva la semana en «Cierres» y abre una nueva. Lo que ve aquí es lo que se archiva.",
+        "facturado": "Facturado",
+        "invertido": "Invertido",
+        "ganancia": "Ganancia",
+        "operaciones": "Operaciones",
+        "ops": "{count, plural, one {# operación} other {# operaciones}}",
+        "sinTasa": "{count} sin tasa · no se archivan, siguen en pantalla",
+        "pendientes": "{count, plural, one {# pendiente} other {# pendientes}} · tampoco se archivan, siguen en pantalla",
+        "verlas": "Verlas",
+        "nombre": "Nombre de la semana",
+        "nombrePlaceholder": "Ej. SEMANA 1 AGOSTO",
+        "descargarTxt": "Descargar el .txt al archivar",
+        "exportar": "Exportar .txt",
+        "archivar": "Archivar y empezar semana nueva",
+        "archivando": "Archivando…",
+        "dialogTitle": "¿Archivar la semana y empezar una nueva?",
+        "dialogBody": "La semana actual se guarda en «Cierres» y el historial (Finanzas, panel) sigue contando. Las operaciones del chat en espera de precio se quedan en pantalla.",
+        "cancelar": "Cancelar",
+        "confirmar": "Archivar y empezar"
       }
     },
     "cierres": {

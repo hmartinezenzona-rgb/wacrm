@@ -15,8 +15,10 @@ import { chatEntryAmountCommaText, chatEntryAmountExportText, ledgerServiceLabel
 import { applyCalculatorEntryRealtimeEvent, insertCalculatorEntry, type ChatCalculatorEntry } from "@/lib/calculator/realtime-entry";
 import { useCalculatorEntriesRealtime } from "@/hooks/use-calculator-entries-realtime";
 import { num } from "@/lib/finanzas/number-format";
+import { pendingCounts } from "@/lib/finanzas/semana-overview";
 import { RATE_FIELDS, rateValueOf, type RateKey } from "@/lib/finanzas/rate-groups";
 import { entryGroup, filterRegistros, NO_FILTERS, registroTotals, sameClient, serviceOptions, statusCounts, type RegistroFilters } from "@/lib/finanzas/registros";
+import { CerrarSemana } from "./cerrar-semana";
 import { Notice } from "./notice";
 import { QuickEntry } from "./quick-entry";
 import { RatesCard } from "./rates-card";
@@ -110,6 +112,7 @@ type StoredEntryFigures = Pick<ChatCalculatorEntry, "id" | "facturadoGyd" | "inv
 
 export function SemanaTab() {
   const tr = useTranslations("Finanzas.semana.registros");
+  const tc = useTranslations("Finanzas.semana.cierre");
   const { weekdayShort, dayNumber } = useDateLabels();
   const dayLabel = (day: string) => `${weekdayShort(day)} ${dayNumber(day)}`;
   const [rawText, setRawText] = useState("");
@@ -140,6 +143,8 @@ export function SemanaTab() {
   const [cutAt, setCutAt] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
+  // "Descargar el .txt al archivar": the export runs first, over the week as it still is.
+  const [exportOnClose, setExportOnClose] = useState(false);
   // Inline delete confirmation: one row at a time; `deletingEntryId` is the request in flight.
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
@@ -176,6 +181,7 @@ export function SemanaTab() {
   const draft = useMemo(() => manualEntriesFromText(rawText, Number(tarifa), guyanaToday(new Date())), [rawText, tarifa]);
   // Totals and breakdown count the operations of the table (the bot's and the manual ones); the draft text is not one yet.
   const totals = useMemo(() => chatTotals(chatEntries), [chatEntries]);
+  const pendingTotals = useMemo(() => pendingCounts(chatEntries), [chatEntries]);
   const shownEntries = useMemo(() => filterRegistros(chatEntries, filters), [chatEntries, filters]);
   const counts = useMemo(() => statusCounts(chatEntries, filters), [chatEntries, filters]);
   const shownTotals = useMemo(() => registroTotals(shownEntries), [shownEntries]);
@@ -758,6 +764,10 @@ export function SemanaTab() {
     box?.focus({ preventScroll: true });
   }
 
+  function jumpToClose() {
+    document.getElementById("cerrarSemana")?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }
+
   function jumpToRecords() {
     document.getElementById("cardRegistros")?.scrollIntoView?.({ behavior: "smooth", block: "start" });
   }
@@ -835,7 +845,7 @@ export function SemanaTab() {
       cutAt={cutAt}
       ready={hydrated}
       onRegister={focusRegisterBox}
-      onCloseWeek={() => { if (!clearing) setClearDialogOpen(true); }}
+      onCloseWeek={jumpToClose}
       onPickService={pickService}
       onPickClient={pickClient}
       onShowPending={showPending}
@@ -1047,30 +1057,32 @@ export function SemanaTab() {
       </div>
     </section>
 
-    <div className="mx-auto mb-4 flex max-w-[1100px] flex-wrap items-end gap-3">
-      <div className="flex min-w-[200px] flex-1 flex-col gap-1">
-        <label htmlFor="periodo" className="text-[13px] font-semibold">Período / Semana</label>
-        <input id="periodo" placeholder="Ej. SEMANA 1 AGOSTO" value={periodo} onChange={(event) => setPeriodo(event.target.value)} className="h-11 rounded-lg border border-input bg-card px-3 text-sm outline-none focus:border-ring" />
-      </div>
-      <Button type="button" className="min-h-11" onClick={exportar}>Exportar Reporte (.txt)</Button>
-      <Button type="button" variant="secondary" className="min-h-11" onClick={() => setClearDialogOpen(true)} disabled={clearing}>{clearing ? "Limpiando…" : "Limpiar Todo"}</Button>
-    </div>
-    {clearMessage && <div className="mx-auto mb-4 max-w-[1100px]"><Notice>{clearMessage}</Notice></div>}
+    <CerrarSemana
+      totals={{ facturado: totals.fact, invertido: totals.inv, retorno: totals.ret, ops: chatEntries.filter((entry) => entry.status === "completed").length }}
+      sinTasa={pendingTotals.sinTasa}
+      pending={pendingTotals.pending}
+      periodo={periodo}
+      exportOnClose={exportOnClose}
+      clearing={clearing}
+      message={clearMessage}
+      onPeriodoChange={setPeriodo}
+      onExportOnCloseChange={setExportOnClose}
+      onShowPending={showPending}
+      onExport={exportar}
+      onArchive={() => { if (!clearing) setClearDialogOpen(true); }}
+    />
 
     {/* Rendered in a portal on <body>. */}
     <Dialog open={clearDialogOpen} onOpenChange={(open) => { if (!clearing) setClearDialogOpen(open); }}>
       <DialogContent showCloseButton={false}>
         <DialogHeader>
-          <DialogTitle>¿Limpiar todo y empezar una semana nueva?</DialogTitle>
-          <DialogDescription>
-            La semana actual se guarda en «Cierres» y el historial (Finanzas, panel) sigue contando. Las
-            operaciones del chat en espera de precio se quedan en pantalla.
-          </DialogDescription>
+          <DialogTitle>{tc("dialogTitle")}</DialogTitle>
+          <DialogDescription>{tc("dialogBody")}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => setClearDialogOpen(false)} disabled={clearing}>Cancelar</Button>
-          <Button variant="destructive" onClick={() => void clearAll()} disabled={clearing}>
-            {clearing ? "Limpiando…" : "Limpiar todo"}
+          <Button variant="ghost" onClick={() => setClearDialogOpen(false)} disabled={clearing}>{tc("cancelar")}</Button>
+          <Button variant="destructive" onClick={() => { if (exportOnClose) exportar(); void clearAll(); }} disabled={clearing}>
+            {clearing ? tc("archivando") : tc("confirmar")}
           </Button>
         </DialogFooter>
       </DialogContent>

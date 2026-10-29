@@ -2374,6 +2374,28 @@
           "estado": "Status",
           "acciones": "Actions"
         }
+      },
+      "cierre": {
+        "title": "Close the week",
+        "subtitle": "Archives the week in \"Cierres\" and opens a new one. What you see here is what gets archived.",
+        "facturado": "Billed",
+        "invertido": "Invested",
+        "ganancia": "Profit",
+        "operaciones": "Operations",
+        "ops": "{count, plural, one {# operation} other {# operations}}",
+        "sinTasa": "{count} without a rate · not archived, they stay on screen",
+        "pendientes": "{count, plural, one {# pending} other {# pending}} · not archived either, they stay on screen",
+        "verlas": "See them",
+        "nombre": "Name of the week",
+        "nombrePlaceholder": "E.g. WEEK 1 AUGUST",
+        "descargarTxt": "Download the .txt when archiving",
+        "exportar": "Export .txt",
+        "archivar": "Archive and start a new week",
+        "archivando": "Archiving…",
+        "dialogTitle": "Archive the week and start a new one?",
+        "dialogBody": "The current week is saved in \"Cierres\" and the history (Finanzas, panel) keeps counting. Chat operations waiting for a price stay on screen.",
+        "cancelar": "Cancel",
+        "confirmar": "Archive and start"
       }
     },
     "cierres": {

@@ -1389,7 +1389,7 @@ describe("calculator weekly cut (Limpiar Todo)", () => {
     });
   }
   function clearButton(node: HTMLElement) {
-    return Array.from(node.querySelectorAll("button")).find((b) => b.textContent?.includes("Limpiar Todo")) as HTMLButtonElement;
+    return Array.from(node.querySelectorAll("button")).find((b) => b.textContent === "Archivar y empezar semana nueva") as HTMLButtonElement;
   }
 
   function dialogButton(label: string) {
@@ -1397,7 +1397,7 @@ describe("calculator weekly cut (Limpiar Todo)", () => {
   }
   async function confirmCut(node: HTMLElement) {
     await act(async () => { clearButton(node).click(); });
-    await act(async () => { dialogButton("Limpiar todo")!.click(); });
+    await act(async () => { dialogButton("Archivar y empezar")!.click(); });
   }
 
   it("Limpiar Todo opens the app's own dialog (no window.confirm); Cancelar closes it and sends nothing", async () => {
@@ -1410,7 +1410,7 @@ describe("calculator weekly cut (Limpiar Todo)", () => {
 
     const dialog = document.querySelector("[role=dialog]")!;
     expect(dialog).not.toBeNull();
-    expect(dialog.textContent).toContain("¿Limpiar todo y empezar una semana nueva?");
+    expect(dialog.textContent).toContain("¿Archivar la semana y empezar una nueva?");
     expect(dialog.textContent).toContain("«Cierres»");
     expect(dialog.textContent).toContain("Finanzas");
     expect(dialog.textContent).toContain("historial");
@@ -1505,7 +1505,7 @@ describe("calculator weekly cut (Limpiar Todo)", () => {
     const { node, root } = await renderPage(fetchMock);
 
     await confirmCut(node);
-    expect(dialogButton("Limpiando…")!.disabled).toBe(true);
+    expect(dialogButton("Archivando…")!.disabled).toBe(true);
     expect(dialogButton("Cancelar")!.disabled).toBe(true);
 
     await act(async () => { release!(); });
@@ -1555,8 +1555,12 @@ describe("calculator live entries after a weekly cut", () => {
     const actions = [...overview.querySelectorAll("button")];
     await act(async () => { actions.find((b) => b.textContent === "+ Registrar línea")!.click(); });
     expect(document.activeElement).toBe(node.querySelector("#rawText"));
+    // "Revisar y cerrar semana" takes the user to the close section; the dialog opens from its own button.
     await act(async () => { actions.find((b) => b.textContent === "Revisar y cerrar semana")!.click(); });
-    expect(document.querySelector("[role=dialog]")!.textContent).toContain("¿Limpiar todo y empezar una semana nueva?");
+    expect(document.querySelector("[role=dialog]")).toBeNull();
+    expect((Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>).mock.contexts.some((el) => (el as Element).id === "cerrarSemana")).toBe(true);
+    await act(async () => { ([...node.querySelectorAll("#cerrarSemana button")].find((b) => b.textContent === "Archivar y empezar semana nueva") as HTMLButtonElement).click(); });
+    expect(document.querySelector("[role=dialog]")!.textContent).toContain("¿Archivar la semana y empezar una nueva?");
     await act(async () => root.unmount());
   });
 
@@ -1953,11 +1957,11 @@ describe("manual operations as rows of the one table (migration 228)", () => {
 
   describe("Limpiar Todo and Semanas anteriores", () => {
     function clearButton(node: HTMLElement) {
-      return Array.from(node.querySelectorAll("button")).find((b) => b.textContent?.includes("Limpiar Todo")) as HTMLButtonElement;
+      return Array.from(node.querySelectorAll("button")).find((b) => b.textContent === "Archivar y empezar semana nueva") as HTMLButtonElement;
     }
     async function confirmCut(node: HTMLElement) {
       await act(async () => { clearButton(node).click(); });
-      await act(async () => { (Array.from(document.querySelectorAll("[role=dialog] button")).find((b) => b.textContent?.trim() === "Limpiar todo") as HTMLButtonElement).click(); });
+      await act(async () => { (Array.from(document.querySelectorAll("[role=dialog] button")).find((b) => b.textContent?.trim() === "Archivar y empezar") as HTMLButtonElement).click(); });
       await flush();
     }
 
@@ -1985,7 +1989,7 @@ describe("manual operations as rows of the one table (migration 228)", () => {
       Object.defineProperty(URL, "createObjectURL", { configurable: true, writable: true, value: (blob: Blob) => { blobs.push(blob); return "blob:test"; } });
       Object.defineProperty(URL, "revokeObjectURL", { configurable: true, writable: true, value: () => {} });
       vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
-      const button = Array.from(node.querySelectorAll("button")).find((b) => b.textContent?.includes("Exportar Reporte")) as HTMLButtonElement;
+      const button = Array.from(node.querySelectorAll("button")).find((b) => b.textContent === "Exportar .txt") as HTMLButtonElement;
       await act(async () => { button.click(); });
       return new Promise<string>((resolve) => {
         const reader = new FileReader();
@@ -2147,7 +2151,7 @@ describe("calculator shows no emojis", () => {
 
   it("the Limpiar Todo dialog", async () => {
     const { node, root } = await renderPage(fixture(TEXT, [DEL_COMPLETED]));
-    const clear = Array.from(node.querySelectorAll("button")).find((b) => b.textContent?.includes("Limpiar Todo")) as HTMLButtonElement;
+    const clear = Array.from(node.querySelectorAll("button")).find((b) => b.textContent === "Archivar y empezar semana nueva") as HTMLButtonElement;
     await act(async () => { clear.click(); });
     expect(document.querySelector("[role=dialog]")).not.toBeNull();
     expect(document.body.textContent).not.toMatch(EMOJI);
@@ -2908,6 +2912,162 @@ describe("Registros de la semana (one table)", () => {
     click([...node.querySelectorAll("button")].find((b) => b.textContent === "Todos los formatos")!);
     expect(guide.open).toBe(true);
     expect(guide.textContent).toContain("Recargas Promo");
+    await act(async () => root.unmount());
+  });
+});
+
+// S2d: "Cerrar la semana" at the end of the page, over the existing weekly cut and .txt export.
+describe("Cerrar la semana (end of the Semana tab)", () => {
+  const BOT = { ...DEL_COMPLETED, source: "completed_operation", entryDate: "2026-10-27" };
+  const SIN_TASA = { ...DEL_PENDING, source: "completed_operation", entryDate: "2026-10-28" };
+  const COMBO = {
+    id: "entry-combo", operationId: "op-combo", source: "completed_operation", status: "verified_pending", service: "COMBO", customerName: "Carla",
+    amount: 1, amountCurrency: "COMBO", entryDate: "2026-10-28", facturadoGyd: 90000, invertidoGyd: null, retornoGyd: null, missingRates: ["combo_cost"],
+  };
+  function fixture(extra: Parameters<typeof createFetchMock>[0] = {}, entries: unknown[] = [BOT, SIN_TASA, COMBO]) {
+    return createFetchMock({
+      calculadoraGet: { rawText: "", periodo: "SEMANA 9", cutAt: "2026-10-26T12:00:00Z", chatOperations: { entries } },
+      ratesGet: { rates: FULL_RATES },
+      ...extra,
+    });
+  }
+  const section = (node: HTMLElement) => node.querySelector("#cerrarSemana") as HTMLElement;
+  const archiveButton = (node: HTMLElement) => [...section(node).querySelectorAll("button")].find((b) => b.textContent === "Archivar y empezar semana nueva") as HTMLButtonElement;
+  const click = (el: Element) => act(() => (el as HTMLElement).click());
+
+  it("is the last section, after the records, and says what will be archived", async () => {
+    const { node, root } = await renderPage(fixture());
+    const records = node.querySelector("#cardRegistros")!;
+    expect(records.compareDocumentPosition(section(node)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(section(node).querySelector("h2")!.textContent).toBe("Cerrar la semana");
+    const totals = section(node).querySelector('[data-testid="cierre-totales"]')!.textContent!;
+    expect(totals).toContain("26,000");
+    expect(totals).toContain("24,000");
+    expect(totals).toContain("2,000");
+    expect(totals).toContain("1 operación");
+    await act(async () => root.unmount());
+  });
+
+  it("archives the whole week even while the table is filtered", async () => {
+    const { node, root } = await renderPage(fixture());
+    click(node.querySelector('[data-chip="sinTasa"]')!);
+    expect(section(node).querySelector('[data-testid="cierre-totales"]')!.textContent).toContain("26,000");
+    await act(async () => root.unmount());
+  });
+
+  it("warns about lines without a rate and pending ones on a neutral ground with an amber dot, each with a link to see them", async () => {
+    const { node, root } = await renderPage(fixture());
+    const notices = [...section(node).querySelectorAll("[data-notice]")] as HTMLElement[];
+    expect(notices.map((n) => n.getAttribute("data-notice"))).toEqual(["sinTasa", "pending"]);
+    expect(notices[0]!.textContent).toContain("1 sin tasa");
+    expect(notices[1]!.textContent).toContain("1 pendiente");
+    for (const notice of notices) {
+      expect(notice.className).toContain("bg-muted");
+      expect(notice.className).not.toMatch(/status-attention|amber|brown|yellow|orange/);
+    }
+    expect(notices[0]!.querySelector("[data-warning-dot]")!.className).toContain("bg-amber-500");
+    click(notices[0]!.querySelector("button")!);
+    expect([...node.querySelectorAll("tr[data-entry]")].map((r) => r.getAttribute("data-entry"))).toEqual(["entry-b"]);
+    await act(async () => root.unmount());
+  });
+
+  it("shows no notices when every line is complete", async () => {
+    const { node, root } = await renderPage(fixture({}, [BOT]));
+    expect(section(node).querySelectorAll("[data-notice]")).toHaveLength(0);
+    await act(async () => root.unmount());
+  });
+
+  it("holds the week name, which is the same period the cut archives", async () => {
+    const { node, root } = await renderPage(fixture());
+    expect(section(node).querySelector("#periodo")).not.toBeNull();
+    expect(inputValue(node, "periodo")).toBe("SEMANA 9");
+    await act(async () => root.unmount());
+  });
+
+  it("archives through the existing cut after a confirmation, sending the draft and the period", async () => {
+    const fetchMock = fixture();
+    const { node, root } = await renderPage(fetchMock);
+    expect(document.querySelector("[role=dialog]")).toBeNull();
+    await click(archiveButton(node));
+    const dialog = document.querySelector("[role=dialog]")!;
+    expect(dialog.textContent).toContain("¿Archivar la semana y empezar una nueva?");
+    expect(calls(fetchMock, "POST", "/api/calculadora/weeks")).toHaveLength(0);
+    await act(async () => { ([...dialog.querySelectorAll("button")].find((b) => b.textContent === "Archivar y empezar") as HTMLButtonElement).click(); });
+    await flush();
+    const posts = calls(fetchMock, "POST", "/api/calculadora/weeks");
+    expect(posts).toHaveLength(1);
+    expect(JSON.parse((posts[0]![1] as RequestInit).body as string)).toEqual({ rawText: "", periodo: "SEMANA 9" });
+    await act(async () => root.unmount());
+  });
+
+  it("downloads the .txt first when the checkbox is on, and not when it is off", async () => {
+    const blobs: Blob[] = [];
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, writable: true, value: (blob: Blob) => { blobs.push(blob); return "blob:test"; } });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, writable: true, value: () => {} });
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const confirmArchive = async (node: HTMLElement) => {
+      await click(archiveButton(node));
+      await act(async () => { ([...document.querySelectorAll("[role=dialog] button")].find((b) => b.textContent === "Archivar y empezar") as HTMLButtonElement).click(); });
+      await flush();
+    };
+
+    const off = await renderPage(fixture());
+    await confirmArchive(off.node);
+    expect(blobs).toHaveLength(0);
+    await act(async () => off.root.unmount());
+
+    const on = await renderPage(fixture());
+    const box = section(on.node).querySelector("#exportarAlCerrar") as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    click(box);
+    expect(box.checked).toBe(true);
+    await confirmArchive(on.node);
+    expect(blobs).toHaveLength(1);
+    expect(await new Promise<string>((resolve) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blobs[0]!); })).toContain("TOTAL FACTURADO (GYD): 26000.00");
+    await act(async () => on.root.unmount());
+  });
+
+  it("keeps a button to export the .txt without archiving", async () => {
+    const blobs: Blob[] = [];
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, writable: true, value: (blob: Blob) => { blobs.push(blob); return "blob:test"; } });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, writable: true, value: () => {} });
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const fetchMock = fixture();
+    const { node, root } = await renderPage(fetchMock);
+    await click([...section(node).querySelectorAll("button")].find((b) => b.textContent === "Exportar .txt")!);
+    expect(blobs).toHaveLength(1);
+    expect(calls(fetchMock, "POST", "/api/calculadora/weeks")).toHaveLength(0);
+    await act(async () => root.unmount());
+  });
+
+  it("scrolls to the section from the header button instead of opening the dialog", async () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    const { node, root } = await renderPage(fixture());
+    await click([...node.querySelectorAll("button")].find((b) => b.textContent === "Revisar y cerrar semana")!);
+    expect(scroll).toHaveBeenCalled();
+    expect(scroll.mock.contexts.some((el) => (el as Element).id === "cerrarSemana")).toBe(true);
+    expect(document.querySelector("[role=dialog]")).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("disables the archive button and says so while the cut runs", async () => {
+    const base = fixture();
+    let release: (() => void) | undefined;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url === "/api/calculadora/weeks" && init?.method === "POST") {
+        return new Promise<Response>((resolve) => { release = () => resolve(jsonResponse({ cutAt: "2026-10-29T12:00:00Z" })); });
+      }
+      return base(input, init);
+    });
+    const { node, root } = await renderPage(fetchMock as unknown as ReturnType<typeof createFetchMock>);
+    await click(archiveButton(node));
+    await act(async () => { ([...document.querySelectorAll("[role=dialog] button")].find((b) => b.textContent === "Archivar y empezar") as HTMLButtonElement).click(); });
+    expect((section(node).querySelector("#archivarSemana") as HTMLButtonElement).disabled).toBe(true);
+    expect(section(node).querySelector("#archivarSemana")!.textContent).toBe("Archivando…");
+    await act(async () => { release!(); });
+    await flush();
     await act(async () => root.unmount());
   });
 });

@@ -402,10 +402,17 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
           // `messages` (o se manejó deliberadamente, p.ej. reacción).
           // Nunca al entrar al try — si processMessage lanza, este
           // update no se ejecuta, que es exactamente lo que queremos.
-          if (logId && guardado) {
+          if (logId && guardado.guardado) {
             await supabaseAdmin()
               .from('whatsapp_webhook_log')
               .update({ procesado: true })
+              .eq('id', logId)
+          } else if (logId && !guardado.guardado) {
+            // No se guardó y no lanzó: sin esto la fila quedaba con
+            // procesado=false y error=null y el vigilante no la veía.
+            await supabaseAdmin()
+              .from('whatsapp_webhook_log')
+              .update({ error: guardado.motivo })
               .eq('id', logId)
           }
         } catch (err) {
@@ -681,6 +688,10 @@ async function handleReaction(
   }
 }
 
+type ProcesoMensaje =
+  | { guardado: true }
+  | { guardado: false; motivo: string }
+
 async function processMessage(
   message: WhatsAppMessage,
   contact: { profile?: { name?: string }; wa_id?: string } | undefined,
@@ -693,11 +704,12 @@ async function processMessage(
   // WhatsApp config; the choice is arbitrary post-017 but stable.
   configOwnerUserId: string,
   accessToken: string
-): Promise<boolean> {
-  // Devuelve true SOLO si el mensaje quedó guardado en `messages` (o
-  // se manejó deliberadamente, como una reacción). El false alimenta
-  // el contrato de whatsapp_webhook_log: procesado=true únicamente
-  // cuando esto es true — nunca antes del INSERT de messages.
+): Promise<ProcesoMensaje> {
+  // Devuelve guardado=true SOLO si el mensaje quedó guardado en
+  // `messages` (o se manejó deliberadamente, como una reacción). El
+  // guardado=false trae el motivo y alimenta el contrato de
+  // whatsapp_webhook_log: procesado=true únicamente cuando guardado es
+  // true; si no, el motivo va a `error` para que suene en el vigilante.
   const senderPhone = normalizePhone(message.from)
   // El nombre es prescindible. Sin perfil de WhatsApp se guarda NULL, no el
   // teléfono: escribirlo como nombre dejaba 16 contactos llamados "5927…" y
@@ -712,7 +724,7 @@ async function processMessage(
     senderPhone,
     contactName
   )
-  if (!contactOutcome) return false
+  if (!contactOutcome) return { guardado: false, motivo: 'no guardado: contacto' }
   const contactRecord = contactOutcome.contact
 
   // Find or create conversation
@@ -721,7 +733,7 @@ async function processMessage(
     configOwnerUserId,
     contactRecord.id
   )
-  if (!convResult) return false
+  if (!convResult) return { guardado: false, motivo: 'no guardado: conversacion' }
   const conversation = convResult.conversation
 
   // Emit conversation.created as soon as the thread is opened — BEFORE
@@ -742,7 +754,7 @@ async function processMessage(
     await handleReaction(message, conversation.id, contactRecord.id)
     // Deliberado: la reacción no es un mensaje, se manejó y se
     // registró como reacción. Para el contrato del log, procesado.
-    return true
+    return { guardado: true }
   }
 
   // Parse message content based on type
@@ -818,7 +830,7 @@ async function processMessage(
 
   if (msgError) {
     console.error('Error inserting message:', msgError)
-    return false
+    return { guardado: false, motivo: 'no guardado: mensaje' }
   }
 
   // Update conversation
@@ -963,7 +975,7 @@ async function processMessage(
     text: contentText,
   })
   // El mensaje está guardado en `messages` — el único true legítimo.
-  return true
+  return { guardado: true }
 }
 
 async function parseMessageContent(

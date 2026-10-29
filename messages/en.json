@@ -2313,13 +2313,15 @@
         "subtitle": "By profit this week",
         "ops": "{count, plural, one {# operation} other {# operations}}"
       },
-      "tarifas": {
+      "tasas": {
         "title": "Current rates",
-        "note": "They only apply to new operations",
-        "ventaUsdt": "USDT sale",
-        "costoUsdt": "USDT cost",
-        "tarifaCup": "CUP rate",
-        "cambiar": "Change"
+        "hint": "Press one to change it · they apply to new lines",
+        "nuevoValor": "New value for {rate}",
+        "guardar": "Save",
+        "cancelar": "Cancel",
+        "otras": "Other rates",
+        "arqAuto": "USD → MXN · auto, {age}",
+        "arqAutoSinEdad": "USD → MXN · auto"
       }
     },
     "cierres": {

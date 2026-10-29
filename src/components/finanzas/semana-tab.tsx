@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { isComboCostPending, pendingReason, type CalculatorRates } from "@/lib/calculator/ledger-read-model";
 import { guyanaToday, manualEntriesFromText, removeRegisteredLines } from "@/lib/calculator/manual-entries";
-import { formatNumber as formatMoneyNumber } from "@/lib/format-number";
 import { formatNumber, TotalBox } from "./legacy-calc-format";
 import { ServiceDot } from "@/components/service/service-dot";
 import { moneyCellProps, profitTone } from "@/lib/money-tone";
@@ -15,6 +14,9 @@ import { parseManualLineRates, parseManualUnitLine } from "@/lib/calculator/web-
 import { chatEntryAmountExportText, chatEntryAmountText, ledgerServiceLabel } from "@/lib/calculator/entry-display";
 import { applyCalculatorEntryRealtimeEvent, insertCalculatorEntry, type ChatCalculatorEntry } from "@/lib/calculator/realtime-entry";
 import { useCalculatorEntriesRealtime } from "@/hooks/use-calculator-entries-realtime";
+import { num } from "@/lib/finanzas/number-format";
+import { rateValueOf, type RateKey } from "@/lib/finanzas/rate-groups";
+import { RatesCard } from "./rates-card";
 import { SemanaOverview } from "./semana-overview";
 import "./calculadora.module.css";
 
@@ -52,31 +54,6 @@ function insertBullet(value: string, cursor: number): { value: string; cursor: n
   return { value: `${value.slice(0, cursor)}${insertion}${value.slice(cursor)}`, cursor: cursor + insertion.length };
 }
 
-type RateKey =
-  | "cup_global_rate" | "usdt_buy_gyd" | "usdt_sell_gyd" | "usdt_sell_cup" | "zelle_sell_gyd"
-  | "zelle_sell_gyd_1000" | "zelle_sell_gyd_2000" | "efectivo_usd_gyd" | "recarga_costo_usdt"
-  | "saldo_costo_usdt" | "recarga_costo_usdt_500";
-
-// Every global rate, in the order shown in the dropdown and the current-rates list.
-const RATE_FIELDS: ReadonlyArray<{ key: RateKey; label: string; field: keyof CalculatorRates }> = [
-  { key: "cup_global_rate", label: "Tarifa CUP global", field: "cupGlobalRate" },
-  { key: "usdt_buy_gyd", label: "Compra USDT (GYD)", field: "usdtBuyGyd" },
-  { key: "usdt_sell_gyd", label: "Venta USDT (GYD)", field: "usdtSellGyd" },
-  { key: "usdt_sell_cup", label: "Venta USDT (CUP)", field: "usdtSellCup" },
-  { key: "zelle_sell_gyd", label: "Zelle desde 50 USD", field: "zelleSellGyd" },
-  { key: "zelle_sell_gyd_1000", label: "Zelle desde 1,000 USD", field: "zelleSellGyd1000" },
-  { key: "zelle_sell_gyd_2000", label: "Zelle desde 2,000 USD", field: "zelleSellGyd2000" },
-  { key: "efectivo_usd_gyd", label: "Efectivo USD (GYD por dólar)", field: "efectivoUsdGyd" },
-  { key: "recarga_costo_usdt", label: "Costo recarga desde 600 (USDT)", field: "recargaCostoUsdt" },
-  { key: "saldo_costo_usdt", label: "Costo saldo (USDT)", field: "saldoCostoUsdt" },
-  { key: "recarga_costo_usdt_500", label: "Costo recarga desde 500 (USDT)", field: "recargaCostoUsdt500" },
-];
-
-function rateValueOf(rates: CalculatorRates | null, key: RateKey): number | null {
-  const field = RATE_FIELDS.find((f) => f.key === key)!.field;
-  return (rates?.[field] as number | null | undefined) ?? null;
-}
-
 /** ARQ's USD -> MXN ticker as stored by migration 297 and its health (298); read-only in this card. */
 type ArqRateInfo = {
   valor: number | string;
@@ -101,7 +78,7 @@ function arqValueOf(info: ArqRateInfo | null): number | null {
 
 function arqAskLabel(info: ArqRateInfo): string | null {
   const ask = Number(info.ask);
-  return Number.isFinite(ask) ? `ask ${formatMoneyNumber(ask, { maximumFractionDigits: 6 })}` : null;
+  return Number.isFinite(ask) ? `ask ${num(ask, 6)}` : null;
 }
 
 /** "hace 2 min" / "hace 3 h". */
@@ -133,6 +110,8 @@ export function SemanaTab() {
   const [rates, setRates] = useState<CalculatorRates | null>(null);
   const [arqRate, setArqRate] = useState<ArqRateInfo | null>(null);
   const [selectedRate, setSelectedRate] = useState<RateKey>("cup_global_rate");
+  // The rate being edited in place; it closes by itself when a save brings a new rates version (`rates` changes).
+  const [editingRate, setEditingRate] = useState<{ key: RateKey; rates: CalculatorRates | null } | null>(null);
   // null = show the selected rate's current value; a string = what the admin typed.
   const [rateDraft, setRateDraft] = useState<string | null>(null);
   const [ratesLocked, setRatesLocked] = useState(false);
@@ -188,6 +167,7 @@ export function SemanaTab() {
     || (Number(arqRate?.fallos_arq_consecutivos) || 0) >= 1;
   const arqMotivo = arqRate?.ultimo_motivo ?? null;
   const selectedRateValue = rateValueOf(rates, selectedRate);
+  const openRate = editingRate && editingRate.rates === rates ? editingRate.key : null;
   const rateInputValue = rateDraft ?? (selectedRateValue == null ? "" : String(selectedRateValue));
   // Migration 228: the lines "Registrar" would add (with the Guyana day each belongs to) and the ones that stay in the box.
   const draft = useMemo(() => manualEntriesFromText(rawText, Number(tarifa), guyanaToday(new Date())), [rawText, tarifa]);
@@ -797,9 +777,24 @@ export function SemanaTab() {
     box?.focus({ preventScroll: true });
   }
 
-  function showRates() {
-    document.getElementById("tarifasGlobales")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  function startEditRate(key: RateKey) {
+    setSelectedRate(key);
+    setRateDraft(null);
+    setRatesMessage(null);
+    setEditingRate({ key, rates });
   }
+
+  function cancelEditRate() {
+    setEditingRate(null);
+    setRateDraft(null);
+    setRatesMessage(null);
+  }
+
+  const arqNote = arqStale
+    ? `sin actualizar desde ${arqAgeLabel(arqMinutes!)}`
+    : arqFailed
+      ? `último intento ARQ falló${arqMotivo ? ` (${arqMotivo})` : ""}`
+      : [arqAsk, arqMinutes != null && Number.isFinite(arqMinutes) ? arqAgeLabel(arqMinutes) : null, arqTime].filter(Boolean).join(" · ");
 
   return (
     <>
@@ -807,10 +802,21 @@ export function SemanaTab() {
       entries={chatEntries}
       cutAt={cutAt}
       ready={hydrated}
-      rates={rates}
       onRegister={focusRegisterBox}
       onCloseWeek={() => { if (!clearing) setClearDialogOpen(true); }}
-      onShowRates={showRates}
+    />
+    <RatesCard
+      rates={rates}
+      arq={arqValor == null ? null : { value: arqValor, note: arqNote, warn: arqStale || arqFailed, ageLabel: arqMinutes != null && Number.isFinite(arqMinutes) ? arqAgeLabel(arqMinutes) : null }}
+      editing={openRate}
+      draft={rateInputValue}
+      locked={ratesLocked}
+      saving={ratesSaving}
+      message={ratesMessage ? { text: ratesMessage, kind: ratesMessageKind } : null}
+      onStartEdit={startEditRate}
+      onDraftChange={setRateDraft}
+      onSave={() => void actualizarTasa()}
+      onCancel={cancelEditRate}
     />
     <div className="legacyCalc legacyEmbedded">
       <div className="legacyContainer">
@@ -832,62 +838,6 @@ export function SemanaTab() {
 
         <div className="legacyCard legacyFlex">
           <div><label htmlFor="periodo">Período / Semana</label><input id="periodo" placeholder="Ej. SEMANA 1 AGOSTO" value={periodo} onChange={(event) => setPeriodo(event.target.value)} /></div>
-        </div>
-
-        <div className="legacyCard">
-          <h2>Tarifas Globales</h2>
-          <div className="legacyRateEditor" id="tarifasGlobales">
-            <div>
-              <label htmlFor="tasaSeleccionada">Tasa a cambiar</label>
-              <select
-                id="tasaSeleccionada"
-                value={selectedRate}
-                onChange={(event) => { setSelectedRate(event.target.value as RateKey); setRateDraft(null); setRatesMessage(null); }}
-                disabled={ratesLocked || ratesSaving}
-              >
-                {RATE_FIELDS.map((field) => <option key={field.key} value={field.key}>{field.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="tasaValor">Nuevo valor</label>
-              <input id="tasaValor" type="number" step="0.01" min="0" value={rateInputValue} onChange={(event) => setRateDraft(event.target.value)} disabled={ratesLocked || ratesSaving} />
-            </div>
-            <button type="button" id="actualizarTasa" onClick={() => void actualizarTasa()} disabled={ratesLocked || ratesSaving} style={{ width: "auto" }}>
-              {ratesSaving ? "Actualizando…" : "Actualizar"}
-            </button>
-          </div>
-          {ratesMessage && (
-            <div id="tasasMensaje" className={ratesMessageKind === "ok" ? "legacyNotice" : "legacyError"} role="status">{ratesMessage}</div>
-          )}
-          <h3 className="legacyRatesTitle">Tasas actuales</h3>
-          <dl className="legacyRateList" id="tasasActuales">
-            {RATE_FIELDS.map((field) => {
-              const value = rateValueOf(rates, field.key);
-              return (
-                <div className="legacyRateRow" key={field.key}>
-                  <dt>{field.label}</dt>
-                  <dd>{value == null ? "—" : formatMoneyNumber(value, { maximumFractionDigits: 20 })}</dd>
-                </div>
-              );
-            })}
-            {arqValor != null && (
-              <div className="legacyRateRow" id="tasaMexicoArq" key="mexicoArq">
-                <dt>México · USD → MXN (ARQ)</dt>
-                <dd>
-                  {formatMoneyNumber(arqValor, { maximumFractionDigits: 6 })}
-                  <span className={arqStale || arqFailed ? "legacyRateNote legacyRateNoteStale" : "legacyRateNote"}>
-                    {arqStale
-                      ? `sin actualizar desde ${arqAgeLabel(arqMinutes!)}`
-                      : arqFailed
-                        ? `último intento ARQ falló${arqMotivo ? ` (${arqMotivo})` : ""}`
-                        : [arqAsk, arqMinutes != null && Number.isFinite(arqMinutes) ? arqAgeLabel(arqMinutes) : null, arqTime]
-                            .filter(Boolean)
-                            .join(" · ")}
-                  </span>
-                </dd>
-              </div>
-            )}
-          </dl>
         </div>
 
         {pendingEntries.length > 0 && (

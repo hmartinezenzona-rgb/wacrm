@@ -59,12 +59,10 @@ function render(overrides: Partial<SemanaOverviewViewProps> = {}) {
     entries: ENTRIES,
     cutAt: CUT,
     previous: PREVIOUS,
-    rates: { usdtSellGyd: 265, usdtBuyGyd: 260, cupGlobalRate: 3 },
     now: NOW,
     ready: true,
     onRegister: vi.fn(),
     onCloseWeek: vi.fn(),
-    onShowRates: vi.fn(),
     ...overrides,
   };
   container = document.createElement("div");
@@ -228,7 +226,7 @@ describe("SemanaOverviewView", () => {
     expect(warning.className).toContain("bg-muted");
     expect(warning.className).toContain("text-foreground");
     expect(warning.className).not.toMatch(/status-attention|amber|yellow|orange|brown/);
-    expect(warning.querySelector("[data-warning-dot]")!.className).toContain("bg-status-attention");
+    expect(warning.querySelector("[data-warning-dot]")!.className).toContain("bg-amber-500");
   });
 
   it("dates the Hoy box", () => {
@@ -240,17 +238,13 @@ describe("SemanaOverviewView", () => {
     const props = render();
     act(() => button("+ Registrar línea").click());
     act(() => button("Revisar y cerrar semana").click());
-    act(() => button("Cambiar").click());
     expect(props.onRegister).toHaveBeenCalledTimes(1);
     expect(props.onCloseWeek).toHaveBeenCalledTimes(1);
-    expect(props.onShowRates).toHaveBeenCalledTimes(1);
   });
 
-  it("summarizes the rates in force", () => {
+  it("no longer carries its own rates line: the rates live in the Tasas actuales card", () => {
     render();
-    expect(text()).toContain("Venta USDT 265 GYD");
-    expect(text()).toContain("Costo USDT 260 GYD");
-    expect(text()).toContain("Tarifa CUP 3 CUP/GYD");
+    expect(text()).not.toContain("Tarifas en vigor");
   });
 
   it("shows a friendly empty state, not zeros, when the week has no operations", () => {

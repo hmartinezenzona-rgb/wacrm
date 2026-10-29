@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { useServiceName } from "@/hooks/use-service-name";
-import type { CalculatorRates } from "@/lib/calculator/ledger-read-model";
 import { guyanaToday } from "@/lib/calculator/manual-entries";
 import type { CalculatorWeek, CalculatorWeekSummary } from "@/lib/calculator/weeks";
 import { buildSemanaOverview, type DayPoint, type OverviewEntry, type PreviousWeekInput } from "@/lib/finanzas/semana-overview";
@@ -23,13 +22,11 @@ export interface SemanaOverviewViewProps {
   cutAt: string | null;
   /** undefined while the previous week is loading; null when there is none to compare with. */
   previous: PreviousWeekInput | null | undefined;
-  rates: Pick<CalculatorRates, "usdtSellGyd" | "usdtBuyGyd" | "cupGlobalRate"> | null;
   now: Date;
   /** False until the page has loaded its entries, so an empty list is not shown as an empty week. */
   ready: boolean;
   onRegister: () => void;
   onCloseWeek: () => void;
-  onShowRates: () => void;
 }
 
 function Delta({ value }: { value: number | null }) {
@@ -156,7 +153,7 @@ function TodayBox({ today, incomplete }: { today: { day: string; ops: number; fa
         {incomplete > 0 && (
           // Neutral ground, the page's own text colour and an amber dot: the dot carries the warning, never brown text.
           <div data-warning className="flex items-start gap-2 rounded-lg bg-muted px-3 py-2.5 text-[13px] text-foreground">
-            <span data-warning-dot aria-hidden="true" className="mt-1.5 size-2 shrink-0 rounded-full bg-status-attention" />
+            <span data-warning-dot aria-hidden="true" className="mt-1.5 size-2 shrink-0 rounded-full bg-amber-500" />
             <span>{t("incompletas", { count: incomplete })}</span>
           </div>
         )}
@@ -217,32 +214,8 @@ function TopClients({ rows }: { rows: ReturnType<typeof buildSemanaOverview>["cl
   );
 }
 
-function RatesLine({ rates, onShowRates }: { rates: NonNullable<SemanaOverviewViewProps["rates"]>; onShowRates: () => void }) {
-  const t = useTranslations("Finanzas.semana.tarifas");
-  const item = (label: string, value: number | null | undefined, unit: string) =>
-    value == null ? null : (
-      <span>
-        {label} <strong>{num(value, 4)} {unit}</strong>
-      </span>
-    );
-  return (
-    <div className={cn(CARD, "flex flex-wrap items-center justify-between gap-3")}>
-      <div className="flex flex-col gap-0.5">
-        <h2 className="text-base font-semibold">{t("title")}</h2>
-        <span className="text-[13px] text-muted-foreground">{t("note")}</span>
-      </div>
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
-        {item(t("ventaUsdt"), rates.usdtSellGyd, "GYD")}
-        {item(t("costoUsdt"), rates.usdtBuyGyd, "GYD")}
-        {item(t("tarifaCup"), rates.cupGlobalRate, "CUP/GYD")}
-        <Button type="button" variant="outline" className="min-h-11 px-4" onClick={onShowRates}>{t("cambiar")}</Button>
-      </div>
-    </div>
-  );
-}
-
 /** The overview with everything it needs handed in: no fetching, so it renders the same from a fixture. */
-export function SemanaOverviewView({ entries, cutAt, previous, rates, now, ready, onRegister, onCloseWeek, onShowRates }: SemanaOverviewViewProps) {
+export function SemanaOverviewView({ entries, cutAt, previous, now, ready, onRegister, onCloseWeek }: SemanaOverviewViewProps) {
   const t = useTranslations("Finanzas.semana");
   const { longDate } = useDateLabels();
   const overview = useMemo(() => buildSemanaOverview(entries, cutAt, previous ?? null, now), [entries, cutAt, previous, now]);
@@ -307,7 +280,6 @@ export function SemanaOverviewView({ entries, cutAt, previous, rates, now, ready
         </>
       )}
 
-      {rates && <RatesLine rates={rates} onShowRates={onShowRates} />}
     </section>
   );
 }

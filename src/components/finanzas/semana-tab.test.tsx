@@ -247,20 +247,6 @@ afterEach(() => {
   mockRealtime.reset();
 });
 
-const RATE_OPTIONS = [
-  ["cup_global_rate", "Tarifa CUP global"],
-  ["usdt_buy_gyd", "Compra USDT (GYD)"],
-  ["usdt_sell_gyd", "Venta USDT (GYD)"],
-  ["usdt_sell_cup", "Venta USDT (CUP)"],
-  ["zelle_sell_gyd", "Zelle desde 50 USD"],
-  ["zelle_sell_gyd_1000", "Zelle desde 1,000 USD"],
-  ["zelle_sell_gyd_2000", "Zelle desde 2,000 USD"],
-  ["efectivo_usd_gyd", "Efectivo USD (GYD por dólar)"],
-  ["recarga_costo_usdt", "Costo recarga desde 600 (USDT)"],
-  ["saldo_costo_usdt", "Costo saldo (USDT)"],
-  ["recarga_costo_usdt_500", "Costo recarga desde 500 (USDT)"],
-] as const;
-
 const FULL_RATES = {
   id: "rate-1",
   cupGlobalRate: 3,
@@ -278,89 +264,89 @@ const FULL_RATES = {
   setBy: null,
 };
 
-function selectRate(node: HTMLElement, key: string) {
-  const select = node.querySelector("#tasaSeleccionada") as HTMLSelectElement;
-  const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value")!.set!;
-  setter.call(select, key);
-  select.dispatchEvent(new Event("change", { bubbles: true }));
-}
+const rateRow = (node: HTMLElement, key: string) => node.querySelector(`[data-rate="${key}"]`) as HTMLElement;
 
+/** The rows of "Tasas actuales" in screen order: [key, text] where text is the label, the value and the unit. */
 function listRows(node: HTMLElement) {
-  return [...node.querySelectorAll("#tasasActuales .legacyRateRow")].map((row) => [
-    row.querySelector("dt")?.textContent,
-    row.querySelector("dd")?.textContent,
-  ]);
+  return [...node.querySelectorAll("[data-rate]")].map((row) => [row.getAttribute("data-rate"), row.textContent]);
 }
 
-function updateButton(node: HTMLElement) {
-  return node.querySelector("#actualizarTasa") as HTMLButtonElement;
+/** Opens the in-place editor of one rate (a click on its row). */
+function editRate(node: HTMLElement, key: string) {
+  act(() => (rateRow(node, key).querySelector("button") as HTMLButtonElement).click());
 }
 
-describe("calculator single-rate editor (Tarifas Globales)", () => {
-  it("the dropdown lists the eleven rates in order with their Spanish labels", async () => {
+function rateInput(node: HTMLElement, key: string) {
+  return rateRow(node, key).querySelector("input") as HTMLInputElement;
+}
+
+function typeRate(node: HTMLElement, key: string, value: string) {
+  const input = rateInput(node, key);
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")!.set!;
+  act(() => {
+    setter.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
+function saveButton(node: HTMLElement) {
+  return node.querySelector('[data-testid="tasas-grupos"] button[aria-label="Guardar"]') as HTMLButtonElement;
+}
+
+describe("Tasas actuales: every rate, edited in place", () => {
+  it("lists the eleven rates of the calculator in four groups, with their unit", async () => {
     const { node, root } = await renderPage(createFetchMock({ ratesGet: { rates: FULL_RATES } }));
 
-    const options = [...node.querySelectorAll("#tasaSeleccionada option")].map((o) => [
-      (o as HTMLOptionElement).value,
-      o.textContent,
+    expect(node.querySelectorAll('[data-testid="tasas-grupo"]')).toHaveLength(4);
+    expect(listRows(node)).toEqual([
+      ["usdt_buy_gyd", "Compra240GYD"],
+      ["usdt_sell_gyd", "Ventatambién Clásica, Tropical y México260GYD"],
+      ["usdt_sell_cup", "Venta en CUP975CUP"],
+      ["zelle_sell_gyd", "Desde 50 USD260GYD"],
+      ["zelle_sell_gyd_1000", "Desde 1,000 USD250GYD"],
+      ["zelle_sell_gyd_2000", "Desde 2,000 USD245GYD"],
+      ["recarga_costo_usdt_500", "Recarga desde 50019.5USDT"],
+      ["recarga_costo_usdt", "Recarga desde 6004.5USDT"],
+      ["saldo_costo_usdt", "Saldo móvil1.25USDT"],
+      ["cup_global_rate", "Tarifa CUP global3"],
+      ["efectivo_usd_gyd", "Efectivo USD290GYD"],
     ]);
-    expect(options).toEqual(RATE_OPTIONS.map(([key, label]) => [key, label]));
+    expect(node.querySelectorAll('[data-testid="tasas-grupos"] input').length).toBe(0);
     await act(async () => root.unmount());
   });
 
-  it("labels the dropdown and the value field", async () => {
-    const { node, root } = await renderPage(createFetchMock({ ratesGet: { rates: FULL_RATES } }));
-
-    expect(node.querySelector('label[for="tasaSeleccionada"]')?.textContent).toBe("Tasa a cambiar");
-    expect(node.querySelector('label[for="tasaValor"]')?.textContent).toBe("Nuevo valor");
-    expect((node.querySelector("#tasaValor") as HTMLInputElement).type).toBe("number");
-    await act(async () => root.unmount());
-  });
-
-  it("lists every current rate read-only, with a dash for the ones not set", async () => {
+  it("shows a dash for the rates not set", async () => {
     const { node, root } = await renderPage(
       createFetchMock({ ratesGet: { rates: { ...FULL_RATES, usdtSellCup: null, efectivoUsdGyd: null } } }),
     );
 
-    expect(listRows(node)).toEqual([
-      ["Tarifa CUP global", "3"],
-      ["Compra USDT (GYD)", "240"],
-      ["Venta USDT (GYD)", "260"],
-      ["Venta USDT (CUP)", "—"],
-      ["Zelle desde 50 USD", "260"],
-      ["Zelle desde 1,000 USD", "250"],
-      ["Zelle desde 2,000 USD", "245"],
-      ["Efectivo USD (GYD por dólar)", "—"],
-      ["Costo recarga desde 600 (USDT)", "4,5"],
-      ["Costo saldo (USDT)", "1,25"],
-      ["Costo recarga desde 500 (USDT)", "19,5"],
-    ]);
-    expect(node.querySelectorAll("#tasasActuales input").length).toBe(0);
+    expect(rateRow(node, "usdt_sell_cup").textContent).toBe("Venta en CUP—");
+    expect(rateRow(node, "efectivo_usd_gyd").textContent).toBe("Efectivo USD—");
     await act(async () => root.unmount());
   });
 
-  it("no rates set yet -> every value is a dash and the field is empty, never a fake default", async () => {
+  it("no rates set yet -> every value is a dash, never a fake default", async () => {
     const { node, root } = await renderPage(createFetchMock({ ratesGet: { rates: null } }));
 
-    expect(listRows(node).map(([, value]) => value)).toEqual(Array(11).fill("—"));
-    expect(inputValue(node, "tasaValor")).toBe("");
+    expect(node.querySelectorAll("[data-rate]")).toHaveLength(11);
+    for (const row of node.querySelectorAll("[data-rate]")) expect(row.textContent).toContain("—");
     await act(async () => root.unmount());
   });
 
-  it("selecting a rate fills the value field with its current value (empty when unset)", async () => {
+  it("pressing a rate opens an input holding its current value (empty when unset)", async () => {
     const { node, root } = await renderPage(
       createFetchMock({ ratesGet: { rates: { ...FULL_RATES, usdtSellCup: null } } }),
     );
 
-    expect(inputValue(node, "tasaValor")).toBe("3");
-    act(() => selectRate(node, "zelle_sell_gyd_1000"));
-    expect(inputValue(node, "tasaValor")).toBe("250");
-    act(() => selectRate(node, "usdt_sell_cup"));
-    expect(inputValue(node, "tasaValor")).toBe("");
+    editRate(node, "zelle_sell_gyd_1000");
+    expect(rateInput(node, "zelle_sell_gyd_1000").value).toBe("250");
+    editRate(node, "usdt_sell_cup");
+    expect(rateInput(node, "usdt_sell_cup").value).toBe("");
+    expect(node.querySelectorAll('[data-testid="tasas-grupos"] input')).toHaveLength(1);
     await act(async () => root.unmount());
   });
 
-  it("Actualizar posts only the selected rate with the loaded version id and refreshes the list", async () => {
+  it("Guardar posts only that rate with the loaded version id, refreshes the list and closes the editor", async () => {
     let capturedBody: { rates: Record<string, unknown>; expectedVersionId?: string } | undefined;
     const ratesPost = vi.fn((body: { rates: Record<string, unknown>; expectedVersionId?: string }): RatesPostResult => {
       capturedBody = body;
@@ -368,16 +354,35 @@ describe("calculator single-rate editor (Tarifas Globales)", () => {
     });
     const { node, root } = await renderPage(createFetchMock({ ratesGet: { rates: FULL_RATES }, ratesPost }));
 
-    act(() => selectRate(node, "zelle_sell_gyd_1000"));
-    act(() => setInputValue(node, "tasaValor", "255"));
-    await act(async () => { updateButton(node).click(); });
+    editRate(node, "zelle_sell_gyd_1000");
+    typeRate(node, "zelle_sell_gyd_1000", "255");
+    await act(async () => { saveButton(node).click(); });
     await flush();
 
     expect(ratesPost).toHaveBeenCalledTimes(1);
     expect(capturedBody).toEqual({ rates: { zelle_sell_gyd_1000: 255 }, expectedVersionId: "rate-1" });
-    expect(listRows(node)[5]).toEqual(["Zelle desde 1,000 USD", "255"]);
-    expect(inputValue(node, "tasaValor")).toBe("255");
+    expect(rateRow(node, "zelle_sell_gyd_1000").textContent).toBe("Desde 1,000 USD255GYD");
+    expect(node.querySelectorAll('[data-testid="tasas-grupos"] input')).toHaveLength(0);
     expect(node.querySelector("#tasasMensaje")?.textContent).toContain("Tasa actualizada");
+    await act(async () => root.unmount());
+  });
+
+  it("Enter saves and Escape cancels without a request", async () => {
+    const ratesPost = vi.fn((): RatesPostResult => ({ status: 200, body: { rates: { ...FULL_RATES, id: "rate-2", cupGlobalRate: 4 } } }));
+    const { node, root } = await renderPage(createFetchMock({ ratesGet: { rates: FULL_RATES }, ratesPost }));
+
+    editRate(node, "cup_global_rate");
+    typeRate(node, "cup_global_rate", "4");
+    act(() => { rateInput(node, "cup_global_rate").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+    expect(ratesPost).not.toHaveBeenCalled();
+    expect(node.querySelectorAll('[data-testid="tasas-grupos"] input')).toHaveLength(0);
+    expect(rateRow(node, "cup_global_rate").textContent).toBe("Tarifa CUP global3");
+
+    editRate(node, "cup_global_rate");
+    typeRate(node, "cup_global_rate", "4");
+    await act(async () => { rateInput(node, "cup_global_rate").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
+    await flush();
+    expect(ratesPost).toHaveBeenCalledTimes(1);
     await act(async () => root.unmount());
   });
 
@@ -389,11 +394,13 @@ describe("calculator single-rate editor (Tarifas Globales)", () => {
     });
     const { node, root } = await renderPage(createFetchMock({ ratesGet: { rates: FULL_RATES }, ratesPost }));
 
-    act(() => setInputValue(node, "tasaValor", "4"));
-    await act(async () => { updateButton(node).click(); });
+    editRate(node, "cup_global_rate");
+    typeRate(node, "cup_global_rate", "4");
+    await act(async () => { saveButton(node).click(); });
     await flush();
-    act(() => setInputValue(node, "tasaValor", "5"));
-    await act(async () => { updateButton(node).click(); });
+    editRate(node, "cup_global_rate");
+    typeRate(node, "cup_global_rate", "5");
+    await act(async () => { saveButton(node).click(); });
     await flush();
 
     expect(bodies.map((b) => b.expectedVersionId)).toEqual(["rate-1", "rate-2"]);
@@ -404,8 +411,9 @@ describe("calculator single-rate editor (Tarifas Globales)", () => {
     const ratesPost = vi.fn((): RatesPostResult => ({ status: 200, body: { rates: { ...FULL_RATES, id: "rate-1", cupGlobalRate: 3 } } }));
     const { node, root } = await renderPage(createFetchMock({ ratesGet: { rates: null }, ratesPost }));
 
-    act(() => setInputValue(node, "tasaValor", "3"));
-    await act(async () => { updateButton(node).click(); });
+    editRate(node, "cup_global_rate");
+    typeRate(node, "cup_global_rate", "3");
+    await act(async () => { saveButton(node).click(); });
     await flush();
 
     expect(ratesPost).toHaveBeenCalledWith({ rates: { cup_global_rate: 3 } });
@@ -418,8 +426,9 @@ describe("calculator single-rate editor (Tarifas Globales)", () => {
       const ratesPost = vi.fn((): RatesPostResult => ({ status: 200, body: { rates: FULL_RATES } }));
       const { node, root } = await renderPage(createFetchMock({ ratesGet: { rates: FULL_RATES }, ratesPost }));
 
-      act(() => setInputValue(node, "tasaValor", value));
-      await act(async () => { updateButton(node).click(); });
+      editRate(node, "cup_global_rate");
+      typeRate(node, "cup_global_rate", value);
+      await act(async () => { saveButton(node).click(); });
       await flush();
 
       expect(ratesPost).not.toHaveBeenCalled();
@@ -428,34 +437,34 @@ describe("calculator single-rate editor (Tarifas Globales)", () => {
     },
   );
 
-  it("403 shows the admin-only message and disables the dropdown, the field and the button", async () => {
+  it("403 shows the admin-only message and locks every rate", async () => {
     const { node, root } = await renderPage(
       createFetchMock({ ratesGet: { rates: FULL_RATES }, ratesPost: () => ({ status: 403, body: { error: "Forbidden" } }) }),
     );
 
-    act(() => setInputValue(node, "tasaValor", "4"));
-    await act(async () => { updateButton(node).click(); });
+    editRate(node, "cup_global_rate");
+    typeRate(node, "cup_global_rate", "4");
+    await act(async () => { saveButton(node).click(); });
     await flush();
 
-    expect(node.textContent).toContain("Solo un administrador puede modificar las tasas.");
-    expect((node.querySelector("#tasaSeleccionada") as HTMLSelectElement).disabled).toBe(true);
-    expect(isInputDisabled(node, "tasaValor")).toBe(true);
-    expect(updateButton(node).disabled).toBe(true);
+    expect(node.querySelector("#tasasMensaje")?.textContent).toContain("Solo un administrador puede modificar las tasas.");
+    expect(rateInput(node, "cup_global_rate").disabled).toBe(true);
     await act(async () => root.unmount());
   });
 
-  it("409 tells the user to reload, without disabling anything", async () => {
+  it("409 tells the user to reload, without locking anything", async () => {
     const { node, root } = await renderPage(
       createFetchMock({ ratesGet: { rates: FULL_RATES }, ratesPost: () => ({ status: 409, body: { error: "stale" } }) }),
     );
 
-    act(() => setInputValue(node, "tasaValor", "4"));
-    await act(async () => { updateButton(node).click(); });
+    editRate(node, "cup_global_rate");
+    typeRate(node, "cup_global_rate", "4");
+    await act(async () => { saveButton(node).click(); });
     await flush();
 
     expect(node.textContent).toContain("Las tasas se modificaron en otro lugar; recarga la página.");
-    expect(isInputDisabled(node, "tasaValor")).toBe(false);
-    expect(updateButton(node).disabled).toBe(false);
+    expect(rateInput(node, "cup_global_rate").disabled).toBe(false);
+    expect(saveButton(node).disabled).toBe(false);
     await act(async () => root.unmount());
   });
 
@@ -464,12 +473,12 @@ describe("calculator single-rate editor (Tarifas Globales)", () => {
       createFetchMock({ ratesGet: { rates: FULL_RATES }, ratesPost: () => ({ status: 500, body: { error: "boom" } }) }),
     );
 
-    act(() => setInputValue(node, "tasaValor", "4"));
-    await act(async () => { updateButton(node).click(); });
+    editRate(node, "cup_global_rate");
+    typeRate(node, "cup_global_rate", "4");
+    await act(async () => { saveButton(node).click(); });
     await flush();
 
     expect(node.textContent).toContain("No se pudieron guardar las tasas.");
-    expect(listRows(node)[0]).toEqual(["Tarifa CUP global", "3"]);
     await act(async () => root.unmount());
   });
 
@@ -2682,9 +2691,9 @@ describe("calculator ARQ USD to MXN rate (Tasas actuales)", () => {
     }));
 
     const row = node.querySelector("#tasaMexicoArq");
-    expect(row?.textContent).toContain("México · USD → MXN (ARQ)");
-    expect(row?.textContent).toContain("18,647481");
-    expect(row?.textContent).toContain("ask 18,669742");
+    expect(row?.textContent).toContain("USD → MXN · auto, hace 2 min");
+    expect(row?.textContent).toContain("18.647481");
+    expect(row?.textContent).toContain("ask 18.669742");
     expect(row?.textContent).toContain("hace 2 min");
     expect(row?.textContent).not.toContain("sin actualizar");
     await act(async () => root.unmount());

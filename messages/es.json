@@ -2313,13 +2313,15 @@
         "subtitle": "Por ganancia esta semana",
         "ops": "{count, plural, one {# operación} other {# operaciones}}"
       },
-      "tarifas": {
-        "title": "Tarifas en vigor",
-        "note": "Se aplican solo a las operaciones nuevas",
-        "ventaUsdt": "Venta USDT",
-        "costoUsdt": "Costo USDT",
-        "tarifaCup": "Tarifa CUP",
-        "cambiar": "Cambiar"
+      "tasas": {
+        "title": "Tasas actuales",
+        "hint": "Pulse una para cambiarla · se aplican a las líneas nuevas",
+        "nuevoValor": "Nuevo valor de {rate}",
+        "guardar": "Guardar",
+        "cancelar": "Cancelar",
+        "otras": "Otras tasas",
+        "arqAuto": "USD → MXN · auto, {age}",
+        "arqAutoSinEdad": "USD → MXN · auto"
       }
     },
     "cierres": {

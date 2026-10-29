@@ -108,7 +108,7 @@ Phase 2 (Finanzas):
   entries table has no filter) and "en curso sin completar" (the page holds no in-flight operations). RED: module suite
   not loadable, component suite not loadable; GREEN: `vitest run` 264 files, 3621 passed; tsc and eslint clean;
   /finanzas answers 307 on the staging dev server. Visual check left to the owner.
-- [ ] C1 Cierres redesign (owner 2026-10-29 approved the mockup https://claude.ai/artifact/TsFutkFLRp7dzwrEkW18AY: "me
+- [x] C1 Cierres redesign (owner 2026-10-29 approved the mockup https://claude.ai/artifact/TsFutkFLRp7dzwrEkW18AY: "me
   gusta, programalo asi y quiero verlo en staging"). Top to bottom: period chips (last 12 weeks | this month | last
   month | all, over archived weeks); 4 KPI cards (profit of the period with last-6 vs previous-6 change, average per
   week + ops per week, best and worst week, average margin + billed); main chart: profit per closed week as vertical
@@ -118,6 +118,17 @@ Phase 2 (Finanzas):
   export if there is one); profit by service over the period (sorted bars + share); compact archived-weeks table (ops,
   billed, profit, margin, change vs previous); FinancialCloseSection at the end ("Cuadrar un periodo", collapsible,
   unchanged behaviour, CSV kept). Replaces the current WeeklyProfitChart line. No API, DB or calculation change.
+  Done: pure module src/lib/finanzas/cierres-overview.ts (+16 tests, commit 80d4932) and src/components/finanzas/cierres-overview.tsx
+  (+22 tests), wired in cierres-tab.tsx. RED: module suite and component suite not loadable; GREEN: `vitest run` 265 files,
+  3645 passed; tsc and eslint clean; /finanzas?tab=cierres answers 307 on the staging dev server. Removed the line chart
+  (WeeklyProfitChart, WeekTooltip, week-profit-series + tests, gananciaSemana/periodo i18n keys); archived-weeks.tsx now
+  only exports ArchivedWeekDetail (the read-only week view), its tests rewritten. Omitted: "cerrada por X" (the weeks
+  table stores no closer) and "Exportar .txt" (the only export is for the open week in Semana, none for an archived one).
+  Assumptions: profit/billed/invested are the stored week totals (as the old table), ops/dates/best day/top service come
+  from the week's entries (weeks cut before migration 228 hold only the bot's entries, so their ops can be low); period
+  filters go by the week's last entry day (cut day if no entries), "Todo" covers the newest 60 weeks (detail read 6 at a
+  time, once per week); the change is the last k vs previous k weeks with k=min(6, n/2). "Cuadrar un periodo" is collapsed
+  and unmounted until opened. Visual check left to the owner.
 - [ ] F2.4 Full checks (vitest affected + full suite, tsc, eslint), staging browser check, then the production panel deploy after the go-ahead.
 
 ## Delivery

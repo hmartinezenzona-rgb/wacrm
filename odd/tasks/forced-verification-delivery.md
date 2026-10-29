@@ -44,10 +44,10 @@ Strict, on. vitest for the panel; the staging assertion for SQL (RED before the 
 
 - [x] T1 Migration 352 (staging): forced verification counts as funded. Evidence: assertion RED before (b failed, 7 expectations), then `staging-migracion.sh aplicar` dry-run/apply/assertion OK, rollback OK (md5 equal); `relacionadas` 100 assertions, 98 SAME, 2 DIFF (the new assertion, expected; delivery-feed-evidence differs only by a uuid in a pre-existing fixture error).
 - [x] T2 Panel shows the real refusal reason. Evidence: container tests RED then GREEN; `delivery-refusal.ts` maps the 22023 messages; refusals (HTTP 400) show the reason without Retry; network/5xx keep Retry. vitest full 271 files / 3755 passed, tsc clean, eslint clean.
-- [ ] T3 Production: previa, apply 352, verify; publish the panel (owner go-ahead).
+- [x] T3 Production 2026-10-29, owner go-ahead ("si, aplica la 352 y publica el panel"): previa SEGURO; 352 applied (20261029184505), verificar 1/1 EQUAL; panel release/prod-forzada = 1171d33 (pushed to privado), BUILD_ID -x45sdVm7G9luHcjQtjIR, rollback target 55847a1. Smoke: /login 200, /finanzas and /inbox 307 to login.
 
 ## Progress
 
 - 2026-10-29 created. RDD off.
 - 2026-10-29 T1+T2 done on staging/branch. Rule: when deposits do not cover the scope, delivery passes if every operation in the scope (the op, or every non-cancelled mixed-group member) has a `human_forced_verification` audit not superseded by a later `human_deposit_verification` or a later audit whose after.status is deposit_verification/incident/cancelled. Multi-beneficiary stage-failed path shares the refusal banner (no dedicated test).
-- Next: T3 (production) only after the owner's go-ahead.
+- Done. Open: whether one forced op is enough in a mixed send (owner); MMG payment requests leave no deposit row (owner question).

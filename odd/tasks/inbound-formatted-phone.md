@@ -52,7 +52,7 @@ Strict, on (global CLAUDE.md). Runner vitest: `npx vitest run <paths>`; `npx tsc
 - [x] T1 Lookup matches formatted stored phones. Commit 47a2f23. RED: 4 failed (formatted stored phones not found); GREEN: dedupe tests pass. Prefilter now `.like('phone_normalized', '%<last 8 digits>')` (generated column of migration 022, same value as the unique index).
 - [x] T2 Every panel write path stores digits only. Commit 867cdcc. RED: `phoneForStorage is not a function` (2 failed); GREEN after helper. Paths: contact-form create+edit, contact-detail-view edit, import-modal rows. Already digits: api/v1 create (sanitizePhoneForMeta), v1 PATCH cannot change phone, meta-send workingPhone variants. Not unit-tested at component level (inline Supabase calls); covered by the helper test and tsc.
 - [x] T3 Webhook writes a reason when a message is not saved. Commit cb06df6. RED: 3 failed (contacts/conversations/messages insert failure left error null); GREEN: processMessage returns `{guardado, motivo}`, webhook writes `no guardado: contacto|conversacion|mensaje`.
-- [ ] T4 Full suite, tsc, eslint (done: 266 files, 3684 passed, tsc clean, eslint 0 errors); production panel deploy open: deploy after owner go-ahead.
+- [x] T4 Full suite, tsc, eslint (266 files, 3684 passed, tsc clean, eslint 0 errors). Production deploy 2026-10-29 after the owner's go-ahead ("si, publica solo el arreglo de los telefonos"): branch release/prod-phone-fix from served dc560d2 with only the 3 fix commits (f3363c8, c93ab5b, 204091e), pushed to privado; compilar passed; served sha 204091e, BUILD_ID lHD57Tv_c2QrTUOE38NEN; rollback target dc560d2 (anterior).
 
 ## Progress
 
@@ -60,4 +60,4 @@ Strict, on (global CLAUDE.md). Runner vitest: `npx vitest run <paths>`; `npx tsc
 
 ## Next step
 
-T4: deploy after owner go-ahead (skill wacrm-publicar-panel).
+Done. Watch the next hand-made contact and any "no guardado" row in whatsapp_webhook_log.

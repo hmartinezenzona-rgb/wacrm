@@ -129,7 +129,7 @@ Phase 2 (Finanzas):
   filters go by the week's last entry day (cut day if no entries), "Todo" covers the newest 60 weeks (detail read 6 at a
   time, once per week); the change is the last k vs previous k weeks with k=min(6, n/2). "Cuadrar un periodo" is collapsed
   and unmounted until opened. Visual check left to the owner.
-- [ ] O1 Operaciones redesign (owner 2026-10-29 approved the mockup, artboard Operaciones.dc.html in
+- [x] O1 Operaciones redesign (owner 2026-10-29 approved the mockup, artboard Operaciones.dc.html in
   https://claude.ai/artifact/TsFutkFLRp7dzwrEkW18AY: "me gusta, programalo asi tambien"; then chose the new read-only
   function: "si, haz la funcion nueva de solo lectura"). DB: migration 351, a new read-only SECURITY DEFINER-or-INVOKER
   function (match the existing cerebro_dashboard_historial security model and grants) adding: free-text search
@@ -139,6 +139,23 @@ Phase 2 (Finanzas):
   filter the table when clicked; search box; service and dates; status chips with counts; table Hora (or date+time
   when the range spans days), Cliente + masked phone, Servicio, Monto GYD, Destino, Estado, "Abrir chat" (same
   mechanism as the Tablero/inbox open target); operation id copied from the row; "Exportar CSV" of the current filter.
+  Done: migration 351 (commit 3ac5ebe): `crm_historial_operaciones` (old columns + conversation_id, operacion_at, estado_grupo;
+  search by name / phone digits / operation id prefix; status group; limit capped at 200), `crm_historial_estados` (row counts
+  per group under the same filters except status) and the IMMUTABLE helper `crm_historial_estado_grupo`; all SECURITY DEFINER,
+  search_path public, EXECUTE only authenticated + service_role, `cerebro_dashboard_historial` untouched. Status groups:
+  completed = completed; in_progress = collecting_information, awaiting_deposit, deposit_verification, deposit_received,
+  ready_to_transfer, transferring; incident = incident; cancelled = cancelled. Pure helpers src/lib/finanzas/operaciones-historial.ts
+  (+15 tests, commit 9237633) and the redesigned operaciones-tab.tsx (+20 tests, commit 3f6c6ce).
+  RED: assertion failed before the migration ("function ... crm_historial_operaciones does not exist"); helper suite not
+  loadable; tab suite 19 of 20 failed against the old component. GREEN: staging `aplicar` dry-run/apply/assertion/rollback all OK
+  (assertion ALL PASS, rollback md5 equal); `relacionadas` 26 assertions, 25 SAME, 1 DIFF (the new assertion itself: base has no
+  function, migrated passes); `vitest run` 266 files, 3671 passed; tsc and eslint clean; /finanzas?tab=operaciones answers 307.
+  Omitted: phone masking (the old function already exposes the full phone to the panel, kept as is, no wider exposure); the
+  "Aplicar" button (filters apply on change). Assumptions: counts are rows, like `total` (an operation with several recipients
+  counts once per recipient, so a chip equals the table total); the operation time is COALESCE(completed_at, updated_at), the
+  instant the old `dia` comes from; the default range is empty (all history) until a card or date is chosen; pressing the active
+  card releases the range; the CSV caps at 5000 rows and says so. Visual check left to the owner.
+  Production: migration 351 pending owner go-ahead, apply before the panel deploy (`previa` not run, leave to the parent).
 - [ ] F2.4 Full checks (vitest affected + full suite, tsc, eslint), staging browser check, then the production panel deploy after the go-ahead.
 
 ## Delivery

@@ -212,7 +212,12 @@ Phase 2 (Finanzas):
     Saturday of the current week only (Sunday added only when it has sales; on a Sunday, the week ending), not every day
     since the last cut. KPIs still cover the whole open week. RED: 4 profitByDay tests + 1 component test failed;
     GREEN: finanzas suites 317 passed.
-- [ ] F2.4 Full checks (vitest affected + full suite, tsc, eslint), staging browser check, then the production panel deploy after the go-ahead.
+- [x] F2.4 Full checks, staging check by the owner (2026-10-29, incl. a PRUEBA "sin tasa" line, cleaned up), production.
+  Owner go-ahead 2026-10-29: "si, aplica la migracion y publica Finanzas". Migration 351 applied (20261029180933),
+  verificar 3/3 EQUAL. 348_outbox_partes stays staging-only: the panel does not use it. Release branch
+  release/prod-finanzas = 55847a1 (pushed to privado); compilar passed; served sha 55847a1, BUILD_ID
+  ZZOXUKTveTgxuLKDed-Ft; rollback target 204091e (anterior). Smoke: /login 200; /finanzas, /tablero, /dashboard 307 to
+  login; /calculadora and /resumen stream a redirect to /finanzas.
 
 ## Delivery
 

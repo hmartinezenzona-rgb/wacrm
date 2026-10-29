@@ -1,0 +1,51 @@
+# An admin's forced verification counts as funded; the panel says why a delivery is refused
+
+## Problem (production, 2026-10-29)
+
+- Operation f370a1d4 (recarga, 6,200 GYD) was force-verified by an admin at 17:48 UTC (audit
+  `human_forced_verification`) and moved to `ready_to_transfer`, but has no MMG deposit linked.
+- `crm_entregar_operacion` (migration 329 rule) refuses delivery unless `cerebro_fondos_operacion(op).cubierto`:
+  "the operation has 0 GYD of verified funding but needs 6200 GYD". PostgREST returned 400 at 18:04-18:25 UTC.
+- The panel (`src/components/inbox/operations/complete-transfer-container.tsx`, stage-failed branch) shows the generic
+  "La captura se envió pero la operación no pudo completarse. Reintenta para terminar." Retrying can never work.
+
+## Owner decision
+
+2026-10-29: "corrige el mensaje del panel ... igual forzar una verificacion de pago debe darse por buena porque lo hace
+un admin".
+
+## Scope
+
+- T1 Migration 352: in `crm_entregar_operacion`, the funding gate passes when the operation (or, for a mixed group,
+  every operation the gate checks) has an admin forced verification: a `remittance_admin_audit` row with action
+  `human_forced_verification` for that operation that is the latest verification event (a later return to an earlier
+  status must not keep it valid; decide from the live data and the force-verify route, document the rule). Every other
+  gate (beneficiaries, funding-case incident, recipients sum, delivery proofs, source amount > 0) stays. Do NOT change
+  `cerebro_fondos_operacion` (the bot's balance uses it). Read the live body with `pg_get_functiondef` first. ROLLBACK
+  file and a self-reverting staging assertion. Staging only; production apply needs the owner's go-ahead.
+- T2 Panel: when the deliver route is refused with a reason (RPC 22023 messages mapped by `rpcErrorResponse`), the
+  completion banner shows that reason in plain Spanish (for example "Falta verificar el deposito: tiene 0 de 6,200 GYD"
+  / "Faltan los comprobantes de N beneficiarios" / "Los beneficiarios suman X pero la operacion envia Y"), and offers
+  retry only when retrying can help (network/unknown errors). Map the known RPC messages; unknown ones show the server
+  text. Same for the other two stage-failed paths in that file.
+
+## Constraints
+
+- Do not touch the other session's uncommitted files: `pruebas/decisor/decisor.jscode`, `pruebas/decisor/correr.ts`,
+  `pruebas/decisor/decisor-notas.test.ts`, `odd/tasks/bot-brevedad.md`.
+- No real customer data (names, phones, cards) in tests, fixtures or commit messages.
+- Panel deploy and production migration only with the owner's go-ahead.
+
+## TDD
+
+Strict, on. vitest for the panel; the staging assertion for SQL (RED before the migration).
+
+## Tasks
+
+- [ ] T1 Migration 352 (staging): forced verification counts as funded.
+- [ ] T2 Panel shows the real refusal reason.
+- [ ] T3 Production: previa, apply 352, verify; publish the panel (owner go-ahead).
+
+## Progress
+
+- 2026-10-29 created. RDD off.

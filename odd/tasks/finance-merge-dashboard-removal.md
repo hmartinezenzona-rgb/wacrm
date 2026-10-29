@@ -129,6 +129,16 @@ Phase 2 (Finanzas):
   filters go by the week's last entry day (cut day if no entries), "Todo" covers the newest 60 weeks (detail read 6 at a
   time, once per week); the change is the last k vs previous k weeks with k=min(6, n/2). "Cuadrar un periodo" is collapsed
   and unmounted until opened. Visual check left to the owner.
+- [ ] O1 Operaciones redesign (owner 2026-10-29 approved the mockup, artboard Operaciones.dc.html in
+  https://claude.ai/artifact/TsFutkFLRp7dzwrEkW18AY: "me gusta, programalo asi tambien"; then chose the new read-only
+  function: "si, haz la funcion nueva de solo lectura"). DB: migration 351, a new read-only SECURITY DEFINER-or-INVOKER
+  function (match the existing cerebro_dashboard_historial security model and grants) adding: free-text search
+  (client name, phone, operation id), status filter, per-status counts for the current filters, conversation_id, and
+  the operation time (Guyana). Existing cerebro_dashboard_historial stays untouched (no breaking change). ROLLBACK and a
+  self-reverting staging assertion. Staging only; production apply needs the owner's go-ahead. UI: period cards
+  filter the table when clicked; search box; service and dates; status chips with counts; table Hora (or date+time
+  when the range spans days), Cliente + masked phone, Servicio, Monto GYD, Destino, Estado, "Abrir chat" (same
+  mechanism as the Tablero/inbox open target); operation id copied from the row; "Exportar CSV" of the current filter.
 - [ ] F2.4 Full checks (vitest affected + full suite, tsc, eslint), staging browser check, then the production panel deploy after the go-ahead.
 
 ## Delivery

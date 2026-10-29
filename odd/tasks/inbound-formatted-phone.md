@@ -61,3 +61,12 @@ Strict, on (global CLAUDE.md). Runner vitest: `npx vitest run <paths>`; `npx tsc
 ## Next step
 
 Done. Watch the next hand-made contact and any "no guardado" row in whatsapp_webhook_log.
+
+## History rewrite (2026-10-29)
+
+The tests and one commit message held a real customer phone. With the owner's go-ahead ("si, reescribe el historial y
+subelo") it was replaced by the fictitious 1 555 010 1234 and both branches were rewritten:
+- feature branch: T1 47a2f23, T2 867cdcc, T3 cb06df6 are now new ids (see `git log --grep "phone"`); final tree unchanged.
+- release/prod-phone-fix: f3363c8, c93ab5b, 204091e became c2a3ef0, fc77112, 03c53e2 (force-pushed to privado). Only
+  test data and one comment differ, so production still serves the build of 204091e (BUILD_ID lHD57Tv_c2QrTUOE38NEN),
+  functionally identical to 03c53e2. The old commits may stay reachable by id on GitHub until it garbage-collects them.

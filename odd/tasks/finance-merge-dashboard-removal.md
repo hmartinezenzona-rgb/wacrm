@@ -156,7 +156,7 @@ Phase 2 (Finanzas):
   instant the old `dia` comes from; the default range is empty (all history) until a card or date is chosen; pressing the active
   card releases the range; the CSV caps at 5000 rows and says so. Visual check left to the owner.
   Production: migration 351 pending owner go-ahead, apply before the panel deploy (`previa` not run, leave to the parent).
-- [ ] S2 Semana with the calculator merged in (owner 2026-10-29 approved the final mockup
+- [x] S2 Semana with the calculator merged in (owner 2026-10-29 approved the final mockup
   https://claude.ai/artifact/9qeDbj4Lndi7zD93EHX5Bn, variant A: "si", after a round of feedback). Display-only rework
   of the Semana tab; NO calculation, formula, rate-storage, API or DB change. Split into slices:
   - S2a Fixes in the existing overview: numbers use the panel's comma thousands / dot decimals everywhere (staging
@@ -181,6 +181,33 @@ Phase 2 (Finanzas):
     it. Warning style: neutral grey background, black text, amber dot (no brown text).
   - S2e Operaciones tab removed (Finanzas = Semana | Cierres); its history search moves into Cierres as "Buscar en el
     historial" without "Abrir chat" (uses migration 351 functions). /finanzas?tab=operaciones redirects to cierres.
+  Done (writer, 2026-10-29), one commit per slice:
+  - S2a (77b561c). Numbers: new `src/lib/finanzas/number-format.ts` (comma thousands, dot decimals), used by the Semana overview and the Cierres overview
+    (the older `format-number.ts` stays for the rest of the app). Daily chart: `profitByDay(entries, startDay, today)` now runs from the day the
+    open week opened (min 6 bars, at most the newest 14), own SVG card with a value label on every bar, "en curso" on today, "aun no" for days not reached, no y axis;
+    KPI cards equal size, ganancia in the profit colour, "Cifras en GYD" once. RED: `vitest run src/lib/finanzas` 2 failed files (5 tests; number-format not loadable),
+    overview component 11 failed; GREEN: finanzas lib + components 270 passed.
+  - S2b (93362d7). `src/lib/finanzas/rate-groups.ts` (RATE_FIELDS moved, RATE_GROUPS config, `ungroupedRates`) and `rates-card.tsx`: 4 equal flex-wrap cards with a container query,
+    value + unit, pencil on hover, edit in place with the SAME `actualizarTasa` (same body, lock on 403, 409 and error messages), ARQ row read-only with its age; a rate in
+    RATE_FIELDS but in no group falls into a last "Otras tasas" card, a rate added to RATE_GROUPS renders with no layout code. RED: rate-groups + rates-card suites not loadable;
+    GREEN: 287 passed. The old "Tarifas Globales" select and the "Tarifas en vigor" line of the overview are gone.
+  - S2c (c1e4515). `registros.ts` (status group, filters, chip counts, totals of the filtered rows), `registros-toolbar.tsx`, `quick-entry.tsx`, and the one table in `semana-tab.tsx`
+    (Dia, Cliente + "a mano", Servicio, Monto, Tasa, Facturado, Invertido, Ganancia, Estado, Acciones) with a preview row, "Poner tasa", inline edit/delete with the same handlers,
+    totals footer, the services and clients of the overview as filter buttons, "Verlas" notices in Hoy. Replaces "Registros", "Operaciones", "Desglose Semanal por Servicios"
+    and the pending banner (its reasons now show in the row's Estado). RED: registros suite not loadable, 10 of 11 new table tests failed, 4 overview tests failed; GREEN: 319 passed
+    after adapting the legacy tests (markup moved, same numbers and saves asserted). Parser, save, edit/recompute and delete code untouched.
+  - S2d (49abdd8). `cerrar-semana.tsx` at the end: totals archived (whole week, not the filtered table), sin tasa / pendientes notices with "Verlas", week name (#periodo, same state),
+    ".txt" checkbox + "Exportar .txt", "Archivar y empezar semana nueva" -> the same confirmation dialog and `clearAll`; the header button scrolls to it. RED: 10 of 10 new tests failed;
+    GREEN: 319 passed.
+  - S2e (7ed60dc). Tabs are Semana | Cierres; `/finanzas?tab=operaciones` and `/resumen` redirect (server `redirect`, 307) to `?tab=cierres`; the Operaciones tab became `historial-busqueda.tsx`
+    (git mv, same migration 351 RPCs, "Abrir chat" removed), shown in Cierres as the collapsed "Buscar en el historial". RED: 25 tests failed across tabs, view, page, cierres, history; GREEN: 324 passed.
+  Final checks: `vitest run src/lib/finanzas src/components/finanzas` 16 files, 319 passed; `vitest run` 270 files, 3749 passed; `tsc --noEmit` clean; eslint on changed files clean;
+  `/finanzas` and `/finanzas?tab=operaciones` answer 307 on the staging dev server. Visual check left to the owner.
+  Omissions and assumptions: "ultimo cambio hoy 09:12" of Tasas actuales (no rate timestamp read on this page); the "+ Viñeta" button and "Maximizar" (the quick-entry box grows with its text, `-` + space still makes a bullet);
+  the per-service breakdown cards with dots (replaced by the clickable list); the Tasa column shows the stored buy / USDT-CUP rates of the entry (a dash when it has none); Sin tasa = pending line a rate can resolve,
+  Pendientes = any other pending (a COMBO waiting for its cost, no "Poner tasa"); "Poner tasa" opens the missing rate in Tasas actuales (it does not edit the line); a completed line is never "sin tasa" even if it carries missing_rates;
+  chart: weeks open for more than 6 days grow to the newest 14 days, compact labels above 8 bars; rate names stay Spanish literals in the config (as RATE_FIELDS always was), also in en.json;
+  `calculadora.module.css` stays because the archived week detail in Cierres still uses the legacy classes; money in the Semana table shows up to 2 decimals without trailing zeros.
 - [ ] F2.4 Full checks (vitest affected + full suite, tsc, eslint), staging browser check, then the production panel deploy after the go-ahead.
 
 ## Delivery
@@ -190,6 +217,7 @@ Phase 2 (Finanzas):
 ## Progress
 
 - 2026-10-28 created. RDD off.
+- 2026-10-29 S2a-S2e programmed (display only), awaiting staging check by the owner.
 
 ## Next step
 

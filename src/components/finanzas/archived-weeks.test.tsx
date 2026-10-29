@@ -6,6 +6,10 @@ import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("./profit-charts", () => ({
+  WeeklyProfitChart: (props: { weeks: unknown[] }) => <div data-testid="week-chart" data-points={props.weeks.length} />,
+}));
+
 import { ArchivedWeeks } from "./archived-weeks";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -119,6 +123,16 @@ describe("archived weeks (Cierres tab)", () => {
     expect(card.textContent).toContain("27 000,00");
     expect(card.textContent).toContain("24 800,00");
     expect(card.textContent).toContain("2 200,00");
+    await act(async () => root.unmount());
+  });
+
+  it("puts the profit-per-week chart above the list, fed with the summaries it fetched", async () => {
+    const { node, root } = await renderWeeks(fixture());
+
+    const chart = node.querySelector("[data-testid=week-chart]")!;
+    expect(chart.getAttribute("data-points")).toBe("1");
+    const table = node.querySelector("table")!;
+    expect(chart.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     await act(async () => root.unmount());
   });
 

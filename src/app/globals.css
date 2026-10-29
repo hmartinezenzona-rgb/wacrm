@@ -40,6 +40,7 @@
   --color-money-loss: var(--money-loss);
   --color-money-out: var(--money-out);
   --color-money-in: var(--money-in);
+  --color-chart-profit: var(--chart-profit);
   /* Status tones: text-status-* and bg-status-*-soft. Service dots: bg-service-*. Fixed, not the accent. */
   --color-status-info: var(--status-info);
   --color-status-info-soft: var(--status-info-soft);
@@ -153,6 +154,9 @@ html[data-mode="dark"] {
   --money-loss: oklch(0.72 0.17 25);
   --money-out: oklch(0.82 0.15 85);
   --money-in: oklch(0.74 0.12 250);
+  /* Chart mark for profit (Finanzas > Cierres): the --money-profit hue in the L band the data-viz palette check
+   * accepts for marks on a dark surface (0.78 above is a text tone). */
+  --chart-profit: oklch(0.66 0.15 150);
   /* Tonos de estado de una operacion (pills) y su fondo suave. Propios, no siguen el
    * acento. Texto >= 4.5:1 sobre su fondo suave, en --card y en --background. */
   --status-info: oklch(0.82 0.12 250);
@@ -223,6 +227,7 @@ html[data-mode="light"] {
   --money-loss: oklch(0.5 0.19 27);
   --money-out: oklch(0.5 0.12 70);
   --money-in: oklch(0.48 0.17 255);
+  --chart-profit: oklch(0.45 0.13 150);
   /* Tonos de estado de una operacion (pills) y su fondo suave. Propios, no siguen el
    * acento. Texto >= 4.5:1 sobre su fondo suave, en --card y en --background. */
   --status-info: oklch(0.49 0.143 256);

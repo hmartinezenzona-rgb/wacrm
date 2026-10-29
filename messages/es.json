@@ -2245,6 +2245,27 @@
       "semana": "Semana",
       "cierres": "Cierres",
       "operaciones": "Operaciones"
+    },
+    "graficos": {
+      "gananciaDia": {
+        "title": "Ganancia por día",
+        "aria": "Gráfico de barras: ganancia en GYD de cada día del periodo"
+      },
+      "gananciaServicio": {
+        "title": "Ganancia por servicio",
+        "aria": "Gráfico de barras horizontales: ganancia en GYD de cada servicio, de mayor a menor"
+      },
+      "gananciaSemana": {
+        "title": "Ganancia por semana",
+        "aria": "Gráfico de líneas: ganancia en GYD de las últimas semanas archivadas, de la más antigua a la más reciente"
+      },
+      "facturado": "Facturado",
+      "invertido": "Invertido",
+      "retorno": "Retorno",
+      "ganancia": "Ganancia",
+      "margen": "Margen {pct}%",
+      "operaciones": "Operaciones: {count}",
+      "periodo": "Período: {periodo}"
     }
   },
   "Resumen": {

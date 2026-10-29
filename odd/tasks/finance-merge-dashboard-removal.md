@@ -82,12 +82,18 @@ Phase 2 (Finanzas):
 - [x] F2.2 Semana / Cierres / Operaciones content moved, behaviour unchanged. RED: `vitest run src/components/finanzas` 4 failed + archived-weeks not loadable; GREEN: 5 files, 146 passed; full suite 257 files, 3563 passed after fixing src/i18n/request.test.ts (Sidebar.resumen -> Sidebar.finanzas, missed in F2.1). Moved with git mv: calculadora page -> components/finanzas/semana-tab.tsx, resumen page -> operaciones-tab.tsx, both page tests, calculadora.module.css. Archived-weeks tests moved to archived-weeks.test.tsx. Old routes have no page until F2.3. Commit: see git log (refactor(finanzas)).
   - Correction (coordinator): panels stay mounted after first visit, hidden when inactive, so the Semana draft survives a tab switch; Cierres refetches the weeks when it turns active. RED: 4 failed (view x2, archived-weeks, cierres-tab); GREEN: `vitest run src/components/finanzas` 5 files, 150 passed; full suite 259 files all passed. Commit: see git log (fix(finanzas)).
 - [x] F2.3 /calculadora and /resumen redirect to /finanzas; header titles. RED: 2 failed (the two redirect tests); GREEN: full suite 259 files, 3566 passed; tsc clean. No in-app links to /calculadora or /resumen existed besides the sidebar (already replaced); only comments were updated. Commit: see git log (feat(finanzas) redirects).
-- [ ] G1 Charts in Cierres (owner 2026-10-28: "hay alguna forma de mostrar los datos en algun grafico" -> "si").
+- [x] G1 Charts in Cierres (owner 2026-10-28: "hay alguna forma de mostrar los datos en algun grafico" -> "si").
   Profit by day (vertical bars) and by service (horizontal bars, sorted) above FinancialCloseSection's tables, from
   the data it already loads; profit of the last 8-12 archived weeks (line) above the archived weeks, from the weeks
   API. Recharts (already a dependency, `src/components/tremor/bar-chart.tsx`). Rules from the dataviz skill: one axis
   (no dual axis), no pie/donut, fixed categorical order, palette validated light+dark, hover tooltip, legend only
   for >= 2 series, table stays as the accessible view, mobile width. No API or calculation change.
+  Done: profit by day (columns, zero baseline) and by service (sorted horizontal bars) in FinancialCloseSummary,
+  profit per week (line, last 12) above the archived weeks; new token --chart-profit (dark money-profit failed the
+  palette L band: 0.78 -> 0.66; validator PASS light #00682a / dark #3eab5e). The summaries carry profit
+  (manualTotals + chatTotals retornoGyd), no API change. RED: 2 new series suites + profit-charts suite not
+  loadable, 2 wiring tests failed; GREEN: full suite 262 files, 3595 passed; tsc and eslint clean. The close already
+  had a facturado+retorno per-day chart; the profit-only one sits under it. Visual check left to the owner.
 - [ ] F2.4 Full checks (vitest affected + full suite, tsc, eslint), staging browser check, then the production panel deploy after the go-ahead.
 
 ## Delivery

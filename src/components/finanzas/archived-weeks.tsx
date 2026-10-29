@@ -6,6 +6,7 @@ import { chatEntryAmountText, ledgerServiceLabel } from "@/lib/calculator/entry-
 import type { CalculatorWeek, CalculatorWeekSummary } from "@/lib/calculator/weeks";
 import { moneyCellProps, profitTone } from "@/lib/money-tone";
 import { cutDate, formatNumber, TotalBox } from "./legacy-calc-format";
+import { WeeklyProfitChart } from "./profit-charts";
 import "./calculadora.module.css";
 
 /**
@@ -54,6 +55,7 @@ export function ArchivedWeeks({ active = true }: { active?: boolean }) {
         <summary>Semanas anteriores{weeks.length > 0 ? ` (${weeks.length})` : ""}</summary>
         <span className="legacySmall">Cada «Limpiar Todo» guarda la semana aquí, solo para consultarla. Sus operaciones siguen contando en Finanzas y en el panel.</span>
         {weekMessage && <div className="legacyError">{weekMessage}</div>}
+        <WeeklyProfitChart weeks={weeks} className="my-3" />
         {weeks.length === 0 ? (
           <span className="legacySmall">Aún no hay semanas archivadas.</span>
         ) : (

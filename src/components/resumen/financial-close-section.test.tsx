@@ -42,6 +42,12 @@ vi.mock("@/components/tremor/bar-chart", () => ({
   ),
 }));
 
+// The profit charts are Recharts; their own suite covers the drawing. Here only where they sit and what they get.
+vi.mock("@/components/finanzas/profit-charts", () => ({
+  ProfitByDayChart: (props: { byDay: unknown[] }) => <div data-testid="profit-day" data-points={props.byDay.length} />,
+  ProfitByServiceChart: (props: { byService: unknown[] }) => <div data-testid="profit-service" data-points={props.byService.length} />,
+}));
+
 const loadFinancialClose = vi.fn();
 vi.mock("@/lib/financial-close/load", () => ({
   loadFinancialClose: (...args: unknown[]) => loadFinancialClose(...args),
@@ -194,6 +200,17 @@ describe("FinancialCloseSection", () => {
     expect(detail.textContent).toContain("11:05");
     expect(detail.textContent).toContain(T.entrega.proof_sent);
     expect(detail.textContent).toContain("Humberto");
+    await act(async () => root.unmount());
+  });
+
+  it("puts the profit-by-day chart in the per-day card and the profit-by-service chart above the service table", async () => {
+    const { node, root } = await render();
+
+    expect(node.querySelector("[data-testid='profit-day']")?.getAttribute("data-points")).toBe("2");
+    const serviceChart = node.querySelector("[data-testid='profit-service']")!;
+    expect(serviceChart.getAttribute("data-points")).toBe("2");
+    const table = node.querySelector("[data-testid='service-row']")!.closest("table")!;
+    expect(serviceChart.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     await act(async () => root.unmount());
   });
 

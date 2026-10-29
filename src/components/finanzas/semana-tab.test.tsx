@@ -19,6 +19,7 @@ import { createRoot } from "react-dom/client";
 import { NextIntlClientProvider } from "next-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import esMessages from "../../../messages/es.json";
 import { SemanaTab } from "./semana-tab";
 import { formatNumber as formatMoneyNumber } from "@/lib/format-number";
 
@@ -225,7 +226,7 @@ async function renderPage(fetchMock: ReturnType<typeof createFetchMock>) {
   document.body.appendChild(node);
   const root = createRoot(node);
   await act(async () => root.render(
-    <NextIntlClientProvider locale="es" messages={{ Common: { close: "Cerrar" } }}>
+    <NextIntlClientProvider locale="es" messages={{ ...esMessages, Common: { close: "Cerrar" } }}>
       <SemanaTab />
     </NextIntlClientProvider>,
   ));
@@ -1505,7 +1506,7 @@ describe("calculator weekly cut (Limpiar Todo)", () => {
 
 describe("calculator live entries after a weekly cut", () => {
   // The archived weeks live in the Cierres tab (archived-weeks.tsx); the Semana tab no longer lists them.
-  it("does not list the archived weeks nor read them", async () => {
+  it("does not list the archived weeks; the overview reads them only to compare", async () => {
     const fetchMock = createFetchMock({
       calculadoraGet: { rawText: "", periodo: "", chatOperations: { entries: [] } },
       ratesGet: { rates: null },
@@ -1514,10 +1515,38 @@ describe("calculator live entries after a weekly cut", () => {
     const { node, root } = await renderPage(fetchMock);
     expect(node.querySelector("#semanasAnteriores")).toBeNull();
     expect(node.textContent).not.toContain("Semanas anteriores");
-    expect(fetchMock.mock.calls.some(([url]) => String(url).startsWith("/api/calculadora/weeks"))).toBe(false);
+    expect(fetchMock.mock.calls.some(([url]) => String(url) === "/api/calculadora/weeks")).toBe(true);
     await act(async () => root.unmount());
   });
 
+  it("shows the overview above the calculator and wires its actions to the existing box and weekly cut", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const fetchMock = createFetchMock({
+      calculadoraGet: {
+        rawText: "", periodo: "",
+        chatOperations: { entries: [{
+          id: "c1", operationId: "op-1", source: "completed_operation", status: "completed", service: "ZELLE", customerName: "Ana",
+          amount: 100, amountCurrency: "USD", entryDate: today, facturadoGyd: 30000, invertidoGyd: 27000, retornoGyd: 3000, missingRates: [],
+        }] },
+      },
+      ratesGet: { rates: null },
+    });
+    // jsdom has no layout, so no scrollIntoView.
+    Element.prototype.scrollIntoView = vi.fn();
+    const { node, root } = await renderPage(fetchMock);
+    const overview = node.querySelector('section[aria-label="Resumen de la semana abierta"]')!;
+    expect(overview.textContent).toContain("Ganancia de la semana");
+    expect(overview.textContent).toContain("Ana");
+    // Above the calculator's own content.
+    expect(overview.compareDocumentPosition(node.querySelector("#rawText")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    const actions = [...overview.querySelectorAll("button")];
+    await act(async () => { actions.find((b) => b.textContent === "+ Registrar línea")!.click(); });
+    expect(document.activeElement).toBe(node.querySelector("#rawText"));
+    await act(async () => { actions.find((b) => b.textContent === "Revisar y cerrar semana")!.click(); });
+    expect(document.querySelector("[role=dialog]")!.textContent).toContain("¿Limpiar todo y empezar una semana nueva?");
+    await act(async () => root.unmount());
+  });
 
   it("a live completed entry older than the latest cut does not reappear; one after it does", async () => {
     const fetchMock = createFetchMock({

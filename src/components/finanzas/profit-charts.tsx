@@ -55,7 +55,7 @@ interface TipProps<T> {
   payload?: readonly { payload?: T }[];
 }
 
-function TipCard({ title, children }: { title: string; children: ReactNode }) {
+export function TipCard({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-md">
       <p className="mb-1 font-medium text-muted-foreground">{title}</p>
@@ -65,7 +65,7 @@ function TipCard({ title, children }: { title: string; children: ReactNode }) {
 }
 
 /** Value first and strong, the name secondary: the reader already has the series and wants the number. */
-function TipRow({ name, value }: { name: string; value: string }) {
+export function TipRow({ name, value }: { name: string; value: string }) {
   return (
     <p className="flex items-baseline justify-between gap-4 tabular-nums">
       <span className="text-muted-foreground">{name}</span>

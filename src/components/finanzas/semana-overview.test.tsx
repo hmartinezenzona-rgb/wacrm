@@ -1,0 +1,199 @@
+// @vitest-environment jsdom
+// The Semana overview: KPI cards, profit by day, the "Hoy" box, profit by service, top clients and the rates line,
+// all drawn from the entries the page already holds. The figures themselves are tested in semana-overview.test.ts.
+
+import React, { act } from "react";
+import { createRoot } from "react-dom/client";
+import { NextIntlClientProvider } from "next-intl";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import esMessages from "../../../messages/es.json";
+import { formatNumber } from "@/lib/format-number";
+import type { OverviewEntry, PreviousWeekInput } from "@/lib/finanzas/semana-overview";
+import { SemanaOverviewView, type SemanaOverviewViewProps } from "./semana-overview";
+
+(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+// Wednesday 28 Oct 2026 in Guyana; the open week was cut on Monday 26.
+const NOW = new Date("2026-10-28T15:00:00Z");
+const CUT = "2026-10-26T12:00:00Z";
+// `text()` collapses every whitespace run, narrow no-break spaces included, so the expectations do too.
+const n = (value: number) => formatNumber(value, { maximumFractionDigits: 0 }).replace(/\s/g, " ");
+
+let seq = 0;
+function entry(overrides: Partial<OverviewEntry> = {}): OverviewEntry {
+  seq += 1;
+  return {
+    id: `e${seq}`,
+    entryDate: "2026-10-27",
+    status: "completed",
+    service: "ZELLE",
+    customerName: "Ana",
+    facturadoGyd: 100000,
+    invertidoGyd: 90000,
+    retornoGyd: 10000,
+    usdtBuyGyd: 250,
+    missingRates: [],
+    ...overrides,
+  };
+}
+
+const ENTRIES: OverviewEntry[] = [
+  entry({ entryDate: "2026-10-26", service: "ZELLE", customerName: "Ana", facturadoGyd: 100000, invertidoGyd: 90000, retornoGyd: 10000 }),
+  entry({ entryDate: "2026-10-27", service: "CUP", customerName: "Bruno", facturadoGyd: 50000, invertidoGyd: 45000, retornoGyd: 5000, usdtBuyGyd: 250 }),
+  entry({ entryDate: "2026-10-28", service: "CUP", customerName: "Bruno", facturadoGyd: 50000, invertidoGyd: 45000, retornoGyd: 5000 }),
+  entry({ entryDate: "2026-10-28", status: "verified_pending", service: "MLC", customerName: "Carla", facturadoGyd: null, invertidoGyd: null, retornoGyd: null, missingRates: ["usdt_buy_gyd"] }),
+  entry({ entryDate: "2026-10-28", status: "void", customerName: "Dora", retornoGyd: 999999 }),
+];
+
+const PREVIOUS: PreviousWeekInput = {
+  startDay: "2026-10-19",
+  entries: [{ entryDate: "2026-10-20", facturadoGyd: 200000, retornoGyd: 16000 }],
+};
+
+let container: HTMLDivElement | null = null;
+let root: ReturnType<typeof createRoot> | null = null;
+
+function render(overrides: Partial<SemanaOverviewViewProps> = {}) {
+  const props: SemanaOverviewViewProps = {
+    entries: ENTRIES,
+    cutAt: CUT,
+    previous: PREVIOUS,
+    rates: { usdtSellGyd: 265, usdtBuyGyd: 260, cupGlobalRate: 3 },
+    now: NOW,
+    ready: true,
+    onRegister: vi.fn(),
+    onCloseWeek: vi.fn(),
+    onShowRates: vi.fn(),
+    ...overrides,
+  };
+  container = document.createElement("div");
+  document.body.appendChild(container);
+  root = createRoot(container);
+  act(() => {
+    root!.render(
+      <NextIntlClientProvider locale="es" messages={esMessages}>
+        <SemanaOverviewView {...props} />
+      </NextIntlClientProvider>,
+    );
+  });
+  return props;
+}
+
+const text = () => container!.textContent!.replace(/\s+/g, " ");
+const button = (label: string) => [...container!.querySelectorAll("button")].find((b) => b.textContent === label)!;
+
+afterEach(() => {
+  act(() => root?.unmount());
+  container?.remove();
+  container = null;
+  root = null;
+});
+
+describe("SemanaOverviewView", () => {
+  it("says when the open week started, in Guyana days", () => {
+    render();
+    expect(text()).toContain("Semana abierta · desde el corte del lunes 26 oct · hora de Guyana");
+  });
+
+  it("shows the four KPI cards from the completed entries only", () => {
+    render();
+    expect(text()).toContain("Ganancia de la semana");
+    expect(text()).toContain(n(20000)); // 10000 + 5000 + 5000, never the void 999999
+    expect(text()).toContain(n(200000)); // facturado
+    expect(text()).toContain("3 operaciones");
+    expect(text()).toContain(n(180000)); // invertido
+    expect(text()).toContain("10 %"); // 20000 / 200000
+    expect(text()).toContain(`Ticket medio ${n(200000 / 3)} GYD`);
+  });
+
+  it("shows USDT bought and the average cost when entries carry a rate", () => {
+    render();
+    // (90000 + 45000 + 45000) / 250 = 720 USDT, average cost 250
+    expect(text()).toContain("720 USDT · costo medio 250");
+  });
+
+  it("omits the USDT line when no entry has a rate", () => {
+    render({ entries: ENTRIES.map((e) => ({ ...e, usdtBuyGyd: null })) });
+    expect(text()).not.toContain("USDT · costo medio");
+  });
+
+  it("compares the profit with last week at the same point, with an arrow and words", () => {
+    render();
+    // 20000 now vs 16000 then = +25 %
+    expect(text()).toContain("25 %");
+    expect(text()).toContain("frente a la semana pasada a la misma altura");
+    expect(container!.textContent).toContain("▲");
+    expect(text()).toContain("Sube");
+  });
+
+  it("says so when there is no previous week", () => {
+    render({ previous: null });
+    expect(text()).toContain("sin semana anterior para comparar");
+    expect(container!.textContent).not.toContain("▲");
+  });
+
+  it("fills the Hoy box and warns about the lines that are missing a rate", () => {
+    render();
+    const hoy = container!.querySelector('[data-testid="semana-hoy"]')!.textContent!.replace(/\s+/g, " ");
+    expect(hoy).toMatch(/Operaciones completadas\s*1(?!\d)/);
+    expect(hoy).toContain(`Facturado hoy${n(50000)} GYD`);
+    expect(hoy).toContain(`Ganancia hoy${n(5000)} GYD`);
+    expect(hoy).toContain("1 línea sin tasa: revisarlas antes de cerrar la semana");
+  });
+
+  it("shows no warning when every line is complete", () => {
+    render({ entries: ENTRIES.filter((e) => e.status === "completed") });
+    expect(text()).not.toContain("sin tasa");
+  });
+
+  it("lists profit by service sorted with its margin, and the top clients", () => {
+    render();
+    const services = container!.querySelector('[data-testid="semana-servicios"]')!;
+    const rows = [...services.querySelectorAll("li")].map((li) => li.textContent!.replace(/\s+/g, " "));
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toContain(n(10000)); // CUP and ZELLE tie at 10000; ties break by key, CUP first
+    expect(rows[0]).toContain("10 %");
+    const clients = [...container!.querySelectorAll('[data-testid="semana-clientes"] li')].map((li) => li.textContent!);
+    expect(clients).toHaveLength(2);
+    expect(clients[0]).toContain("Ana");
+    expect(clients[1]).toContain("Bruno");
+  });
+
+  it("gives the day chart a label and a table twin", () => {
+    render();
+    expect(container!.querySelector('figure[aria-label^="Gráfico de columnas"]')).not.toBeNull();
+    const rows = container!.querySelectorAll('[data-testid="semana-dias"] tbody tr');
+    expect(rows).toHaveLength(6);
+  });
+
+  it("calls the handlers from the header actions and the rates link", () => {
+    const props = render();
+    act(() => button("+ Registrar línea").click());
+    act(() => button("Revisar y cerrar semana").click());
+    act(() => button("Cambiar").click());
+    expect(props.onRegister).toHaveBeenCalledTimes(1);
+    expect(props.onCloseWeek).toHaveBeenCalledTimes(1);
+    expect(props.onShowRates).toHaveBeenCalledTimes(1);
+  });
+
+  it("summarizes the rates in force", () => {
+    render();
+    expect(text()).toContain("Venta USDT 265 GYD");
+    expect(text()).toContain("Costo USDT 260 GYD");
+    expect(text()).toContain("Tarifa CUP 3 CUP/GYD");
+  });
+
+  it("shows a friendly empty state, not zeros, when the week has no operations", () => {
+    render({ entries: [], cutAt: null, previous: null });
+    expect(text()).toContain("Aún no hay operaciones en la semana abierta");
+    expect(text()).not.toContain("Ganancia de la semana");
+    expect(button("+ Registrar línea")).toBeDefined();
+  });
+
+  it("holds the place while the page is still loading", () => {
+    render({ ready: false });
+    expect(container!.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(text()).not.toContain("Aún no hay operaciones");
+  });
+});

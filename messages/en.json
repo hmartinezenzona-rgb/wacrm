@@ -506,7 +506,6 @@
         }
       }
     }
-
   },
   "Contacts": {
     "page": {
@@ -2260,6 +2259,70 @@
       "retorno": "Profit",
       "margen": "Margin {pct}%",
       "periodo": "Period: {periodo}"
+    },
+    "semana": {
+      "label": "Open week overview",
+      "subtitleCut": "Open week · since the cut of {date} · Guyana time",
+      "subtitleFirst": "Open week · since the first entry of {date} · Guyana time",
+      "registrar": "+ Add a line",
+      "cerrar": "Review and close the week",
+      "cargando": "Loading the week…",
+      "vacio": {
+        "title": "No operations in the open week yet",
+        "hint": "When the bot completes an operation or you add a line, the profit, days and clients show up here."
+      },
+      "kpi": {
+        "ganancia": "Profit this week",
+        "facturado": "Billed",
+        "invertido": "Invested",
+        "margen": "Margin",
+        "operaciones": "{count, plural, one {# operation} other {# operations}}",
+        "vsAnterior": "versus last week at the same point",
+        "sinAnterior": "no previous week to compare",
+        "sube": "Up",
+        "baja": "Down",
+        "igual": "No change",
+        "usdt": "{usdt} USDT · average cost {cost}",
+        "ticket": "Average ticket {amount}"
+      },
+      "dia": {
+        "title": "Profit by day",
+        "subtitle": "Monday to Saturday · GYD",
+        "aria": "Column chart: profit in GYD for each day, Monday to Saturday of the open week",
+        "hoy": "today",
+        "ganancia": "Profit",
+        "ops": "{count, plural, one {# operation} other {# operations}}",
+        "dia": "Day",
+        "opsCol": "Operations"
+      },
+      "hoy": {
+        "title": "Today",
+        "ops": "Completed operations",
+        "facturado": "Billed today",
+        "ganancia": "Profit today",
+        "incompletas": "{count, plural, one {# line without a rate} other {# lines without a rate}}: review them before closing the week"
+      },
+      "servicio": {
+        "title": "Where does the profit come from?",
+        "subtitle": "By service",
+        "aria": "Profit and margin of each service, highest profit first",
+        "servicio": "Service",
+        "ganancia": "Profit",
+        "margen": "Margin"
+      },
+      "clientes": {
+        "title": "Top clients",
+        "subtitle": "By profit this week",
+        "ops": "{count, plural, one {# operation} other {# operations}}"
+      },
+      "tarifas": {
+        "title": "Current rates",
+        "note": "They only apply to new operations",
+        "ventaUsdt": "USDT sale",
+        "costoUsdt": "USDT cost",
+        "tarifaCup": "CUP rate",
+        "cambiar": "Change"
+      }
     }
   },
   "Resumen": {

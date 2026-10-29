@@ -15,6 +15,7 @@ import { parseManualLineRates, parseManualUnitLine } from "@/lib/calculator/web-
 import { chatEntryAmountExportText, chatEntryAmountText, ledgerServiceLabel } from "@/lib/calculator/entry-display";
 import { applyCalculatorEntryRealtimeEvent, insertCalculatorEntry, type ChatCalculatorEntry } from "@/lib/calculator/realtime-entry";
 import { useCalculatorEntriesRealtime } from "@/hooks/use-calculator-entries-realtime";
+import { SemanaOverview } from "./semana-overview";
 import "./calculadora.module.css";
 
 const STORAGE_KEYS = {
@@ -789,7 +790,28 @@ export function SemanaTab() {
     URL.revokeObjectURL(link.href);
   }
 
+  // Header actions of the overview: they reuse the calculator's own box, rates block and weekly-cut dialog.
+  function focusRegisterBox() {
+    const box = document.getElementById("rawText");
+    box?.scrollIntoView({ behavior: "smooth", block: "center" });
+    box?.focus({ preventScroll: true });
+  }
+
+  function showRates() {
+    document.getElementById("tarifasGlobales")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
   return (
+    <>
+    <SemanaOverview
+      entries={chatEntries}
+      cutAt={cutAt}
+      ready={hydrated}
+      rates={rates}
+      onRegister={focusRegisterBox}
+      onCloseWeek={() => { if (!clearing) setClearDialogOpen(true); }}
+      onShowRates={showRates}
+    />
     <div className="legacyCalc legacyEmbedded">
       <div className="legacyContainer">
         <div className="legacyTopBar">
@@ -1141,5 +1163,6 @@ export function SemanaTab() {
 
       </div>
     </div>
+    </>
   );
 }

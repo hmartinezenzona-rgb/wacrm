@@ -506,7 +506,6 @@
         }
       }
     }
-
   },
   "Contacts": {
     "page": {
@@ -2260,6 +2259,70 @@
       "retorno": "Retorno",
       "margen": "Margen {pct}%",
       "periodo": "Período: {periodo}"
+    },
+    "semana": {
+      "label": "Resumen de la semana abierta",
+      "subtitleCut": "Semana abierta · desde el corte del {date} · hora de Guyana",
+      "subtitleFirst": "Semana abierta · desde el primer registro del {date} · hora de Guyana",
+      "registrar": "+ Registrar línea",
+      "cerrar": "Revisar y cerrar semana",
+      "cargando": "Cargando la semana…",
+      "vacio": {
+        "title": "Aún no hay operaciones en la semana abierta",
+        "hint": "Cuando el bot complete una operación o registres una línea, aquí verás la ganancia, los días y los clientes."
+      },
+      "kpi": {
+        "ganancia": "Ganancia de la semana",
+        "facturado": "Facturado",
+        "invertido": "Invertido",
+        "margen": "Margen",
+        "operaciones": "{count, plural, one {# operación} other {# operaciones}}",
+        "vsAnterior": "frente a la semana pasada a la misma altura",
+        "sinAnterior": "sin semana anterior para comparar",
+        "sube": "Sube",
+        "baja": "Baja",
+        "igual": "Sin cambio",
+        "usdt": "{usdt} USDT · costo medio {cost}",
+        "ticket": "Ticket medio {amount}"
+      },
+      "dia": {
+        "title": "Ganancia por día",
+        "subtitle": "Lunes a sábado · GYD",
+        "aria": "Gráfico de columnas: ganancia en GYD de cada día, de lunes a sábado de la semana abierta",
+        "hoy": "hoy",
+        "ganancia": "Ganancia",
+        "ops": "{count, plural, one {# operación} other {# operaciones}}",
+        "dia": "Día",
+        "opsCol": "Operaciones"
+      },
+      "hoy": {
+        "title": "Hoy",
+        "ops": "Operaciones completadas",
+        "facturado": "Facturado hoy",
+        "ganancia": "Ganancia hoy",
+        "incompletas": "{count, plural, one {# línea sin tasa} other {# líneas sin tasa}}: revisarlas antes de cerrar la semana"
+      },
+      "servicio": {
+        "title": "¿De dónde sale la ganancia?",
+        "subtitle": "Por servicio",
+        "aria": "Ganancia y margen de cada servicio, de mayor a menor ganancia",
+        "servicio": "Servicio",
+        "ganancia": "Ganancia",
+        "margen": "Margen"
+      },
+      "clientes": {
+        "title": "Mejores clientes",
+        "subtitle": "Por ganancia esta semana",
+        "ops": "{count, plural, one {# operación} other {# operaciones}}"
+      },
+      "tarifas": {
+        "title": "Tarifas en vigor",
+        "note": "Se aplican solo a las operaciones nuevas",
+        "ventaUsdt": "Venta USDT",
+        "costoUsdt": "Costo USDT",
+        "tarifaCup": "Tarifa CUP",
+        "cambiar": "Cambiar"
+      }
     }
   },
   "Resumen": {

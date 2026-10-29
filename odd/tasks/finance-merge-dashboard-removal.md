@@ -95,13 +95,19 @@ Phase 2 (Finanzas):
   loadable, 2 wiring tests failed; GREEN: full suite 262 files, 3595 passed; tsc and eslint clean. The close already
   had a facturado+retorno per-day chart, so no second by-day chart was added (coordinator decision; a profit-only
   by-day chart built first was removed, RED: section test saw it, GREEN: gone). Visual check left to the owner.
-- [ ] S1 Semana overview (owner 2026-10-28 approved the mockup https://claude.ai/artifact/Xe9pm4L1L9pCmmnXfcW54v: "me gusta,
+- [x] S1 Semana overview (owner 2026-10-28 approved the mockup https://claude.ai/artifact/Xe9pm4L1L9pCmmnXfcW54v: "me gusta,
   programalo asi, quiero verlo en staging"). Above the existing calculator in the Semana tab: 4 KPI cards (ganancia
   with change vs the previous archived week at the same point, facturado + ops, invertido GYD + USDT + average cost,
   margen + ticket), profit by day Mon-Sat (today lighter), "Hoy" box with a warning for incomplete lines, profit by
   service (bars + margin), top 5 clients by profit, the existing entries table and rates below. Open week = entries
   since the last "Limpiar todo" cut (owner's current practice; to revisit with Osmany). No API, DB or calculation
   change; numbers come from the stored per-entry figures.
+  Done: pure module src/lib/finanzas/semana-overview.ts (+19 tests) and src/components/finanzas/semana-overview.tsx above the
+  calculator. Previous week read from GET /api/calculadora/weeks and /weeks/{id} (no API change), compared at the same
+  elapsed days; day = entryDate (Guyana day); chart Mon-Sat of today's week. Not done: click-to-filter by service (the
+  entries table has no filter) and "en curso sin completar" (the page holds no in-flight operations). RED: module suite
+  not loadable, component suite not loadable; GREEN: `vitest run` 264 files, 3621 passed; tsc and eslint clean;
+  /finanzas answers 307 on the staging dev server. Visual check left to the owner.
 - [ ] F2.4 Full checks (vitest affected + full suite, tsc, eslint), staging browser check, then the production panel deploy after the go-ahead.
 
 ## Delivery

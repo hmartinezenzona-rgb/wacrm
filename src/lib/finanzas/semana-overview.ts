@@ -126,19 +126,17 @@ export interface DayPoint {
   isMax: boolean;
 }
 
-/** Fewest bars the chart shows (a week opened today still draws six days) and the most (a week left open for long). */
-const MIN_DAYS = 6;
-const MAX_DAYS = 14;
-
 /**
- * The days of the OPEN week: from the day it opened (the last cut, or the first entry) to today, padded with the days
- * not reached yet up to six, and at most the newest 14. Not the calendar week: a week opened on a Wednesday starts there.
+ * Monday to Saturday of today's week (Guyana days), the week the business is working in. Owner 2026-10-29: only the
+ * days of the current week, never the earlier days of a week left open for long. A Sunday (closed) is added only when
+ * it has sales; on a Sunday the chart shows the week that is ending.
  */
-export function profitByDay(entries: OverviewEntry[], startDay: string | null, today: string): DayPoint[] {
-  const start = startDay && startDay <= today ? dayOf(startDay) : today;
-  const elapsed = dayDiff(start, today) + 1;
-  const length = Math.min(MAX_DAYS, Math.max(MIN_DAYS, elapsed));
-  const first = elapsed > MAX_DAYS ? addDays(today, -(MAX_DAYS - 1)) : start;
+export function profitByDay(entries: OverviewEntry[], today: string): DayPoint[] {
+  const weekday = new Date(utcMs(today)).getUTCDay();
+  const first = addDays(today, -((weekday + 6) % 7));
+  const sunday = addDays(first, 6);
+  const sundaySales = entries.some((e) => isCompleted(e) && dayOf(e.entryDate) === sunday);
+  const length = sundaySales ? 7 : 6;
   const days: DayPoint[] = Array.from({ length }, (_, i) => {
     const day = addDays(first, i);
     return { day, retorno: 0, ops: 0, isToday: day === today, isFuture: day > today, isMax: false };
@@ -271,7 +269,7 @@ export function buildSemanaOverview(
     totals,
     usdt: usdtSummary(entries),
     comparison,
-    days: profitByDay(entries, startDay, day),
+    days: profitByDay(entries, day),
     services: profitByService(entries),
     clients: topClients(entries),
     ...pendingCounts(entries),

@@ -208,6 +208,10 @@ Phase 2 (Finanzas):
   Pendientes = any other pending (a COMBO waiting for its cost, no "Poner tasa"); "Poner tasa" opens the missing rate in Tasas actuales (it does not edit the line); a completed line is never "sin tasa" even if it carries missing_rates;
   chart: weeks open for more than 6 days grow to the newest 14 days, compact labels above 8 bars; rate names stay Spanish literals in the config (as RATE_FIELDS always was), also in en.json;
   `calculadora.module.css` stays because the archived week detail in Cierres still uses the legacy classes; money in the Semana table shows up to 2 decimals without trailing zeros.
+  - Correction (owner 2026-10-29: "solo deben salir ahi los de la semana en curso"): the daily chart shows Monday to
+    Saturday of the current week only (Sunday added only when it has sales; on a Sunday, the week ending), not every day
+    since the last cut. KPIs still cover the whole open week. RED: 4 profitByDay tests + 1 component test failed;
+    GREEN: finanzas suites 317 passed.
 - [ ] F2.4 Full checks (vitest affected + full suite, tsc, eslint), staging browser check, then the production panel deploy after the go-ahead.
 
 ## Delivery

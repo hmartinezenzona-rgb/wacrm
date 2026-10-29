@@ -193,13 +193,13 @@ describe("SemanaOverviewView", () => {
     expect(rows).toHaveLength(6);
   });
 
-  it("charts the days of the OPEN week, not the calendar week, and says which are in progress or not reached yet", () => {
-    // Cut on Wednesday 21: eight days to Wednesday 28.
+  it("charts only Monday to Saturday of the current week, even when the open week started earlier", () => {
+    // Cut on Wednesday 21, today Wednesday 28: the chart still starts on Monday 26 (owner 2026-10-29).
     render({ cutAt: "2026-10-21T12:00:00Z", entries: [entry({ entryDate: "2026-10-21", retornoGyd: 1200 }), ...ENTRIES] });
     const twin = [...container!.querySelectorAll('[data-testid="semana-dias"] tbody tr')].map((r) => r.firstElementChild!.textContent);
-    expect(twin).toHaveLength(8);
-    expect(twin[0]).toBe("Mié 21");
-    expect(twin[7]).toBe("Mié 28 · hoy");
+    expect(twin).toHaveLength(6);
+    expect(twin[0]).toBe("Lun");
+    expect(twin[2]).toBe("Mié · hoy");
     const chart = container!.querySelector('[data-testid="semana-dia-card"]')!.textContent!;
     expect(chart).toContain("en curso");
   });

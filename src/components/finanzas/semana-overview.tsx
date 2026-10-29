@@ -86,9 +86,8 @@ const TOP_Y = 28;
 
 function ProfitByDay({ days }: { days: DayPoint[] }) {
   const t = useTranslations("Finanzas.semana.dia");
-  const { weekdayShort, dayNumber } = useDateLabels();
-  const withDate = days.length > 7;
-  const name = (d: DayPoint) => (withDate ? `${weekdayShort(d.day)} ${dayNumber(d.day)}` : weekdayShort(d.day));
+  const { weekdayShort } = useDateLabels();
+  const name = (d: DayPoint) => weekdayShort(d.day);
   const tick = (d: DayPoint) => (d.isToday ? `${name(d)} · ${t("hoy")}` : name(d));
   const best = Math.max(...days.map((d) => d.retorno), 0);
   const slot = (CHART_W - 48) / days.length;

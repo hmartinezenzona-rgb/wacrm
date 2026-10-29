@@ -2278,17 +2278,20 @@
         "baja": "Baja",
         "igual": "Sin cambio",
         "usdt": "{usdt} USDT · costo medio {cost}",
-        "ticket": "Ticket medio {amount}"
+        "ticket": "Ticket medio {amount}",
+        "cifras": "Cifras en GYD"
       },
       "dia": {
         "title": "Ganancia por día",
-        "subtitle": "Lunes a sábado · GYD",
-        "aria": "Gráfico de columnas: ganancia en GYD de cada día, de lunes a sábado de la semana abierta",
+        "subtitle": "GYD · la barra clara es hoy, que aún suma",
+        "aria": "Gráfico de columnas: ganancia en GYD de cada día de la semana abierta, con su valor sobre la barra",
         "hoy": "hoy",
         "ganancia": "Ganancia",
         "ops": "{count, plural, one {# operación} other {# operaciones}}",
         "dia": "Día",
-        "opsCol": "Operaciones"
+        "opsCol": "Operaciones",
+        "enCurso": "en curso",
+        "aunNo": "aún no"
       },
       "hoy": {
         "title": "Hoy",

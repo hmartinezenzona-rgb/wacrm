@@ -104,26 +104,48 @@ describe("percentChange", () => {
   });
 });
 
-describe("profitByDay", () => {
-  it("returns Monday to Saturday of the week of today, flags today and the best day", () => {
-    const days = profitByDay(
-      [
-        entry({ entryDate: "2026-10-26", retornoGyd: 50 }),
-        entry({ entryDate: "2026-10-26", retornoGyd: 25 }),
-        entry({ entryDate: "2026-10-28", retornoGyd: 200 }),
-        entry({ entryDate: "2026-10-28", status: "void", retornoGyd: 5000 }),
-        entry({ entryDate: "2026-11-01", retornoGyd: 999 }), // Sunday: outside the chart
-      ],
-      "2026-10-28",
-    );
+describe("profitByDay (the days of the open week)", () => {
+  const rows = [
+    entry({ entryDate: "2026-10-26", retornoGyd: 50 }),
+    entry({ entryDate: "2026-10-26", retornoGyd: 25 }),
+    entry({ entryDate: "2026-10-28", retornoGyd: 200 }),
+    entry({ entryDate: "2026-10-28", status: "void", retornoGyd: 5000 }),
+  ];
+
+  it("starts at the day the week opened, flags today, the best day and the days not reached yet", () => {
+    const days = profitByDay(rows, "2026-10-26", "2026-10-28");
     expect(days.map((d) => d.day)).toEqual(["2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29", "2026-10-30", "2026-10-31"]);
-    expect(days[0]).toMatchObject({ retorno: 75, ops: 2, isToday: false, isMax: false });
-    expect(days[1]).toMatchObject({ retorno: 0, ops: 0 });
-    expect(days[2]).toMatchObject({ retorno: 200, ops: 1, isToday: true, isMax: true });
+    expect(days[0]).toMatchObject({ retorno: 75, ops: 2, isToday: false, isFuture: false, isMax: false });
+    expect(days[2]).toMatchObject({ retorno: 200, ops: 1, isToday: true, isMax: true, isFuture: false });
+    expect(days.slice(3).every((d) => d.isFuture)).toBe(true);
+  });
+
+  it("follows a week that opened mid-week: it is not the calendar week", () => {
+    // Opened Wednesday 14 Oct, today Thursday 15: the chart starts on the 14th, not on Monday the 12th.
+    const days = profitByDay([entry({ entryDate: "2026-10-14", retornoGyd: 10 })], "2026-10-14", "2026-10-15");
+    expect(days[0]).toMatchObject({ day: "2026-10-14", retorno: 10 });
+    expect(days[1]).toMatchObject({ day: "2026-10-15", isToday: true });
+  });
+
+  it("counts a Sunday and keeps growing when the week has been open for more than six days", () => {
+    const days = profitByDay([entry({ entryDate: "2026-10-18", retornoGyd: 7 })], "2026-10-14", "2026-10-20");
+    expect(days.map((d) => d.day)).toEqual(Array.from({ length: 7 }, (_, i) => `2026-10-${14 + i}`));
+    expect(days[4]).toMatchObject({ retorno: 7, ops: 1 });
+    expect(days.some((d) => d.isFuture)).toBe(false);
+  });
+
+  it("shows at most the newest 14 days of a week that has been open for a long time", () => {
+    const days = profitByDay([], "2026-09-01", "2026-10-28");
+    expect(days).toHaveLength(14);
+    expect(days[13]).toMatchObject({ day: "2026-10-28", isToday: true });
+  });
+
+  it("starts today when the open week has no known start", () => {
+    expect(profitByDay([], null, "2026-10-28")[0].day).toBe("2026-10-28");
   });
 
   it("flags no best day when every day is empty", () => {
-    expect(profitByDay([], "2026-10-28").some((d) => d.isMax)).toBe(false);
+    expect(profitByDay([], "2026-10-26", "2026-10-28").some((d) => d.isMax)).toBe(false);
   });
 });
 

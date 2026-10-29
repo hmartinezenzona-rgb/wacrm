@@ -17,7 +17,7 @@ import {
   type ClosedWeek,
   type ClosedWeekInput,
 } from "@/lib/finanzas/cierres-overview";
-import { formatNumber } from "@/lib/format-number";
+import { num, pctText } from "@/lib/finanzas/number-format";
 import { cn } from "@/lib/utils";
 import { ArchivedWeekDetail } from "./archived-weeks";
 import { TipCard, TipRow } from "./profit-charts";
@@ -26,9 +26,9 @@ import { TipCard, TipRow } from "./profit-charts";
 const MARK = "var(--chart-profit)";
 const AXIS_TICK = { fill: "var(--muted-foreground)", fontSize: 11 };
 const COMPACT = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
-const int = (value: number) => formatNumber(Math.round(value), { maximumFractionDigits: 0 });
+const int = (value: number) => num(Math.round(value));
 const gyd = (value: number) => `${int(value)} GYD`;
-const pct = (value: number) => `${formatNumber(value, { maximumFractionDigits: 1 })} %`;
+const pct = pctText;
 const CARD = "min-w-0 rounded-xl border border-border bg-card p-4 text-card-foreground";
 const PERIODS: CierresPeriod[] = ["last12", "thisMonth", "lastMonth", "all"];
 const COLLAPSED_ROWS = 6;

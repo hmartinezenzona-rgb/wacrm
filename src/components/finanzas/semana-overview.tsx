@@ -1,26 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { AlertTriangle } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/button";
 import { useServiceName } from "@/hooks/use-service-name";
 import type { CalculatorRates } from "@/lib/calculator/ledger-read-model";
 import { guyanaToday } from "@/lib/calculator/manual-entries";
 import type { CalculatorWeek, CalculatorWeekSummary } from "@/lib/calculator/weeks";
 import { buildSemanaOverview, type DayPoint, type OverviewEntry, type PreviousWeekInput } from "@/lib/finanzas/semana-overview";
-import { formatNumber } from "@/lib/format-number";
+import { num, pctText } from "@/lib/finanzas/number-format";
 import { cn } from "@/lib/utils";
-import { TipCard, TipRow } from "./profit-charts";
 
-// Same chart tokens as the Cierres charts: one series, so the mark wears --chart-profit and there is no legend.
-const MARK = "var(--chart-profit)";
-const AXIS_TICK = { fill: "var(--muted-foreground)", fontSize: 11 };
 const COMPACT = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
-const int = (value: number) => formatNumber(Math.round(value), { maximumFractionDigits: 0 });
+const int = (value: number) => num(Math.round(value));
 const gyd = (value: number) => `${int(value)} GYD`;
-const pct = (value: number) => `${formatNumber(value, { maximumFractionDigits: 1 })} %`;
+const pct = pctText;
 
 const CARD = "min-w-0 rounded-xl border border-border bg-card p-4 text-card-foreground";
 
@@ -53,14 +47,11 @@ function Delta({ value }: { value: number | null }) {
   );
 }
 
-function Kpi({ label, value, unit, hero, children }: { label: string; value: string; unit?: string; hero?: boolean; children?: ReactNode }) {
+function Kpi({ label, value, profit, children }: { label: string; value: string; profit?: boolean; children?: ReactNode }) {
   return (
-    <div className={cn(CARD, "flex flex-col gap-1.5")}>
+    <div className={cn(CARD, "flex flex-col gap-1.5")} data-testid="semana-kpi">
       <span className="text-xs font-semibold text-muted-foreground sm:text-[13px]">{label}</span>
-      <span className={cn("font-bold tracking-tight", hero ? "text-money-profit text-2xl sm:text-3xl" : "text-xl sm:text-2xl")}>
-        {value}
-        {unit && <span className="ml-1 text-xs font-medium text-muted-foreground">{unit}</span>}
-      </span>
+      <span data-kpi-value className={cn("text-xl font-bold tracking-tight sm:text-2xl", profit && "text-money-profit")}>{value}</span>
       <span className="text-xs text-muted-foreground sm:text-[13px]">{children}</span>
     </div>
   );
@@ -79,61 +70,62 @@ function useDateLabels() {
     const rest = clean(new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", timeZone: "UTC" }).format(at(day)));
     return `${weekday} ${rest}`;
   };
-  return { weekdayShort, longDate };
+  const dayNumber = (day: string) => new Intl.DateTimeFormat(locale, { day: "numeric", timeZone: "UTC" }).format(at(day));
+  return { weekdayShort, longDate, dayNumber };
 }
 
-function DayTooltip({ active, payload }: { active?: boolean; payload?: readonly { payload?: DayPoint & { name: string } }[] }) {
-  const t = useTranslations("Finanzas.semana.dia");
-  const point = payload?.[0]?.payload;
-  if (!active || !point) return null;
-  return (
-    <TipCard title={point.name}>
-      <TipRow name={t("ganancia")} value={gyd(point.retorno)} />
-      <p className="text-muted-foreground">{t("ops", { count: point.ops })}</p>
-    </TipCard>
-  );
-}
+const CHART_W = 640;
+const CHART_H = 170;
+const BASE_Y = 140;
+const TOP_Y = 28;
 
 function ProfitByDay({ days }: { days: DayPoint[] }) {
   const t = useTranslations("Finanzas.semana.dia");
-  const { weekdayShort } = useDateLabels();
-  const data = days.map((d) => ({
-    ...d,
-    name: weekdayShort(d.day),
-    tick: d.isToday ? `${weekdayShort(d.day)} · ${t("hoy")}` : weekdayShort(d.day),
-    maxLabel: d.isMax ? COMPACT.format(d.retorno) : undefined,
-  }));
+  const { weekdayShort, dayNumber } = useDateLabels();
+  const withDate = days.length > 7;
+  const name = (d: DayPoint) => (withDate ? `${weekdayShort(d.day)} ${dayNumber(d.day)}` : weekdayShort(d.day));
+  const tick = (d: DayPoint) => (d.isToday ? `${name(d)} · ${t("hoy")}` : name(d));
+  const best = Math.max(...days.map((d) => d.retorno), 0);
+  const slot = (CHART_W - 48) / days.length;
+  const barW = Math.min(56, slot * 0.6);
+  const label = (value: number) => (days.length > 8 ? COMPACT.format(value) : int(value));
   return (
-    <div className={cn(CARD, "flex flex-1 basis-[420px] flex-col gap-3")}>
+    <div className={cn(CARD, "flex flex-1 basis-[420px] flex-col gap-3")} data-testid="semana-dia-card">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-base font-semibold">{t("title")}</h2>
         <span className="text-[13px] text-muted-foreground">{t("subtitle")}</span>
       </div>
       <figure aria-label={t("aria")} className="m-0">
-        <div className="h-[220px] w-full min-w-0">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 20, right: 4, bottom: 0, left: 0 }}>
-              <CartesianGrid vertical={false} stroke="var(--border)" strokeWidth={1} />
-              <XAxis dataKey="tick" tick={AXIS_TICK} tickLine={false} axisLine={false} interval={0} />
-              <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} width={40} tickFormatter={(v: number) => COMPACT.format(v)} />
-              <Tooltip cursor={{ fill: "var(--muted)", opacity: 0.5 }} content={(props) => <DayTooltip {...props} />} />
-              <Bar dataKey="retorno" maxBarSize={24} radius={[4, 4, 0, 0]} isAnimationActive={false}>
-                {data.map((d) => (
-                  <Cell key={d.day} fill={MARK} fillOpacity={d.isToday ? 0.45 : 1} />
-                ))}
-                <LabelList dataKey="maxLabel" position="top" fill="var(--foreground)" fontSize={12} fontWeight={600} />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-        {/* The table twin: every value the chart draws, reachable without hovering. */}
+        <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} className="h-auto w-full" role="presentation" fill="var(--muted-foreground)" fontSize="12">
+          <line x1="40" y1={BASE_Y} x2={CHART_W - 8} y2={BASE_Y} stroke="var(--border)" strokeWidth="1" />
+          {days.map((d, i) => {
+            const cx = 40 + slot * i + slot / 2;
+            const height = best > 0 ? Math.max(d.retorno > 0 ? 2 : 0, (d.retorno / best) * (BASE_Y - TOP_Y)) : 0;
+            const y = BASE_Y - height;
+            return (
+              <g key={d.day}>
+                {height > 0 && <rect x={cx - barW / 2} y={y} width={barW} height={height} rx="4" fill="var(--chart-profit)" fillOpacity={d.isToday ? 0.45 : 1} />}
+                {d.isFuture ? (
+                  <text x={cx} y={BASE_Y - 8} textAnchor="middle" fontSize="11">{t("aunNo")}</text>
+                ) : (
+                  <>
+                    <text x={cx} y={Math.max(14, y - 7)} textAnchor="middle" fill="var(--foreground)" fontWeight={d.isMax ? 700 : 600}>{label(d.retorno)}</text>
+                    {d.isToday && <text x={cx} y={Math.min(BASE_Y - 6, y + 14)} textAnchor="middle" fontSize="11">{t("enCurso")}</text>}
+                  </>
+                )}
+                <text x={cx} y={CHART_H - 8} textAnchor="middle" fill={d.isToday ? "var(--foreground)" : undefined} fontWeight={d.isToday ? 700 : 400}>{tick(d)}</text>
+              </g>
+            );
+          })}
+        </svg>
+        {/* The table twin: every value the chart draws, reachable without reading the drawing. */}
         <table className="sr-only" data-testid="semana-dias">
           <thead>
             <tr><th>{t("dia")}</th><th>{t("ganancia")}</th><th>{t("opsCol")}</th></tr>
           </thead>
           <tbody>
-            {data.map((d) => (
-              <tr key={d.day}><td>{d.tick}</td><td>{gyd(d.retorno)}</td><td>{t("ops", { count: d.ops })}</td></tr>
+            {days.map((d) => (
+              <tr key={d.day}><td>{tick(d)}</td><td>{d.isFuture ? t("aunNo") : gyd(d.retorno)}</td><td>{d.isFuture ? "" : t("ops", { count: d.ops })}</td></tr>
             ))}
           </tbody>
         </table>
@@ -142,24 +134,29 @@ function ProfitByDay({ days }: { days: DayPoint[] }) {
   );
 }
 
-function TodayBox({ today, incomplete }: { today: { ops: number; facturado: number; retorno: number }; incomplete: number }) {
+function TodayBox({ today, incomplete }: { today: { day: string; ops: number; facturado: number; retorno: number }; incomplete: number }) {
   const t = useTranslations("Finanzas.semana.hoy");
+  const { longDate } = useDateLabels();
   const row = (label: string, value: string, strong?: boolean) => (
     <div className="flex items-baseline justify-between gap-3 text-sm">
       <span className="text-muted-foreground">{label}</span>
-      <span className={cn("font-semibold", strong && "text-money-profit")}>{value}</span>
+      <span className={cn("font-semibold tabular-nums", strong && "text-money-profit")}>{value}</span>
     </div>
   );
   return (
     <div className={cn(CARD, "flex flex-1 basis-[300px] flex-col gap-3")} data-testid="semana-hoy">
-      <h2 className="text-base font-semibold">{t("title")}</h2>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-base font-semibold">{t("title")}</h2>
+        <span className="text-[13px] text-muted-foreground">{longDate(today.day)}</span>
+      </div>
       <div className="flex flex-col gap-2.5">
         {row(t("ops"), String(today.ops))}
         {row(t("facturado"), gyd(today.facturado))}
         {row(t("ganancia"), gyd(today.retorno), true)}
         {incomplete > 0 && (
-          <div className="flex items-start gap-2 rounded-lg bg-status-attention-soft px-3 py-2.5 text-[13px] text-status-attention">
-            <AlertTriangle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+          // Neutral ground, the page's own text colour and an amber dot: the dot carries the warning, never brown text.
+          <div data-warning className="flex items-start gap-2 rounded-lg bg-muted px-3 py-2.5 text-[13px] text-foreground">
+            <span data-warning-dot aria-hidden="true" className="mt-1.5 size-2 shrink-0 rounded-full bg-status-attention" />
             <span>{t("incompletas", { count: incomplete })}</span>
           </div>
         )}
@@ -225,7 +222,7 @@ function RatesLine({ rates, onShowRates }: { rates: NonNullable<SemanaOverviewVi
   const item = (label: string, value: number | null | undefined, unit: string) =>
     value == null ? null : (
       <span>
-        {label} <strong>{formatNumber(value, { maximumFractionDigits: 4 })} {unit}</strong>
+        {label} <strong>{num(value, 4)} {unit}</strong>
       </span>
     );
   return (
@@ -278,24 +275,25 @@ export function SemanaOverviewView({ entries, cutAt, previous, rates, now, ready
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Kpi label={t("kpi.ganancia")} value={int(totals.retorno)} unit="GYD" hero>
+            <Kpi label={t("kpi.ganancia")} value={int(totals.retorno)} profit>
               {comparison && comparison.profitPct !== null ? (
                 <><Delta value={comparison.profitPct} /> {t("kpi.vsAnterior")}</>
               ) : comparing ? (
                 t("kpi.sinAnterior")
               ) : null}
             </Kpi>
-            <Kpi label={t("kpi.facturado")} value={int(totals.facturado)} unit="GYD">
+            <Kpi label={t("kpi.facturado")} value={int(totals.facturado)}>
               {t("kpi.operaciones", { count: totals.ops })}
               {comparison && comparison.facturadoPct !== null && <> · <Delta value={comparison.facturadoPct} /></>}
             </Kpi>
-            <Kpi label={t("kpi.invertido")} value={int(totals.invertido)} unit="GYD">
-              {usdt ? t("kpi.usdt", { usdt: int(usdt.usdt), cost: formatNumber(usdt.avgCost, { maximumFractionDigits: 1 }) }) : null}
+            <Kpi label={t("kpi.invertido")} value={int(totals.invertido)}>
+              {usdt ? t("kpi.usdt", { usdt: int(usdt.usdt), cost: num(usdt.avgCost, 1) }) : null}
             </Kpi>
             <Kpi label={t("kpi.margen")} value={totals.margin === null ? "—" : pct(totals.margin)}>
-              {totals.ticket !== null && t("kpi.ticket", { amount: gyd(totals.ticket) })}
+              {totals.ticket !== null && t("kpi.ticket", { amount: int(totals.ticket) })}
             </Kpi>
           </div>
+          <p className="m-0 text-xs text-muted-foreground">{t("kpi.cifras")}</p>
 
           <div className="flex flex-wrap gap-3">
             <ProfitByDay days={overview.days} />

@@ -9,7 +9,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import esMessages from "../../../messages/es.json";
-import { formatNumber } from "@/lib/format-number";
+import { num, pctText } from "@/lib/finanzas/number-format";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -26,7 +26,7 @@ vi.mock("@/components/resumen/financial-close-section", () => ({ FinancialCloseS
 
 import { CierresOverview } from "./cierres-overview";
 
-const n = (value: number) => formatNumber(Math.round(value), { maximumFractionDigits: 0 }).replace(/\s/g, " ");
+const n = (value: number) => num(Math.round(value));
 
 // Eight weeks cut on Mondays 7 Sep ... 26 Oct 2026; week i earns (i + 1) * 1000 over entries on its Tuesday and Saturday.
 const monday = (i: number) => new Date(Date.UTC(2026, 8, 7 + 7 * i, 15));
@@ -216,7 +216,7 @@ describe("CierresOverview", () => {
     expect(panel).toContain("SEMANA 8");
     expect(panel).toContain("20–24 oct"); // entries at the cut minus 6 and minus 2 days
     expect(panel).toContain(n(8000));
-    expect(panel).toContain(`${formatNumber(100 / 7, { maximumFractionDigits: 1 })} %`); // 8000 over 7000
+    expect(panel).toContain(pctText(100 / 7)); // 8000 over 7000
     expect(panel).toContain("frente a la semana anterior");
     expect(panel).toContain(n(80000)); // billed
     expect(panel).toContain(n(72000)); // invested
@@ -269,7 +269,7 @@ describe("CierresOverview", () => {
   it("the table carries ops, billed, profit, margin and the change against the previous week", async () => {
     await render();
     const first = container!.querySelector("[data-testid=cierres-tabla] tbody tr")!.textContent!.replace(/\s+/g, " ");
-    for (const part of ["SEMANA 8", "20–24 oct", "2", n(80000), n(8000), "10 %", `${formatNumber(100 / 7, { maximumFractionDigits: 1 })} %`]) expect(first).toContain(part);
+    for (const part of ["SEMANA 8", "20–24 oct", "2", n(80000), n(8000), "10 %", pctText(100 / 7)]) expect(first).toContain(part);
   });
 
   it("scrolls the table inside its own box", async () => {

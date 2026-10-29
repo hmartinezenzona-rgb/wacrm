@@ -8,7 +8,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import esMessages from "../../../messages/es.json";
-import { formatNumber } from "@/lib/format-number";
+import { num } from "@/lib/finanzas/number-format";
 import type { OverviewEntry, PreviousWeekInput } from "@/lib/finanzas/semana-overview";
 import { SemanaOverviewView, type SemanaOverviewViewProps } from "./semana-overview";
 
@@ -17,8 +17,8 @@ import { SemanaOverviewView, type SemanaOverviewViewProps } from "./semana-overv
 // Wednesday 28 Oct 2026 in Guyana; the open week was cut on Monday 26.
 const NOW = new Date("2026-10-28T15:00:00Z");
 const CUT = "2026-10-26T12:00:00Z";
-// `text()` collapses every whitespace run, narrow no-break spaces included, so the expectations do too.
-const n = (value: number) => formatNumber(value, { maximumFractionDigits: 0 }).replace(/\s/g, " ");
+// Figures use comma thousands and dot decimals, like the rest of the Finanzas mockups.
+const n = (value: number) => num(value);
 
 let seq = 0;
 function entry(overrides: Partial<OverviewEntry> = {}): OverviewEntry {
@@ -104,7 +104,7 @@ describe("SemanaOverviewView", () => {
     expect(text()).toContain("3 operaciones");
     expect(text()).toContain(n(180000)); // invertido
     expect(text()).toContain("10 %"); // 20000 / 200000
-    expect(text()).toContain(`Ticket medio ${n(200000 / 3)} GYD`);
+    expect(text()).toContain(`Ticket medio ${n(200000 / 3)}`);
   });
 
   it("shows USDT bought and the average cost when entries carry a rate", () => {
@@ -165,6 +165,75 @@ describe("SemanaOverviewView", () => {
     expect(container!.querySelector('figure[aria-label^="Gráfico de columnas"]')).not.toBeNull();
     const rows = container!.querySelectorAll('[data-testid="semana-dias"] tbody tr');
     expect(rows).toHaveLength(6);
+  });
+
+  it("charts the days of the OPEN week, not the calendar week, and says which are in progress or not reached yet", () => {
+    // Cut on Wednesday 21: eight days to Wednesday 28.
+    render({ cutAt: "2026-10-21T12:00:00Z", entries: [entry({ entryDate: "2026-10-21", retornoGyd: 1200 }), ...ENTRIES] });
+    const twin = [...container!.querySelectorAll('[data-testid="semana-dias"] tbody tr')].map((r) => r.firstElementChild!.textContent);
+    expect(twin).toHaveLength(8);
+    expect(twin[0]).toBe("Mié 21");
+    expect(twin[7]).toBe("Mié 28 · hoy");
+    const chart = container!.querySelector('[data-testid="semana-dia-card"]')!.textContent!;
+    expect(chart).toContain("en curso");
+  });
+
+  it("puts a value label on every bar, marks today as in progress and the days not reached as 'aún no', with no y axis", () => {
+    render();
+    const labels = [...container!.querySelectorAll('[data-testid="semana-dia-card"] svg text')].map((t) => t.textContent);
+    expect(labels).toContain(n(10000)); // Monday
+    expect(labels).toContain(n(5000)); // Tuesday and Wednesday
+    expect(labels.filter((l) => l === "en curso")).toHaveLength(1);
+    expect(labels.filter((l) => l === "aún no")).toHaveLength(3);
+    expect(container!.querySelector('[data-testid="semana-dia-card"] .recharts-yAxis')).toBeNull();
+  });
+
+  it("draws the day chart in its own card, apart from the Hoy box", () => {
+    render();
+    const card = container!.querySelector('[data-testid="semana-dia-card"]')!;
+    expect(card.querySelector('[data-testid="semana-hoy"]')).toBeNull();
+    expect(card.textContent).toContain("Ganancia por día");
+  });
+
+  it("writes figures with comma thousands and dot decimals", () => {
+    render({
+      entries: [entry({ entryDate: "2026-10-28", facturadoGyd: 356090, invertidoGyd: 320481, retornoGyd: 35609, usdtBuyGyd: 239.5 })],
+    });
+    expect(text()).toContain("35,609");
+    expect(text()).toContain("356,090");
+    expect(text()).toContain("239.5");
+    expect(text()).not.toMatch(/\d[\u00a0\u202f ]\d{3}/);
+  });
+
+  it("says 'Cifras en GYD' once and keeps the unit off the cards", () => {
+    render();
+    expect(text().match(/Cifras en GYD/g)).toHaveLength(1);
+    const cards = container!.querySelectorAll('[data-testid="semana-kpi"]');
+    expect(cards).toHaveLength(4);
+    cards.forEach((card) => expect(card.textContent).not.toContain("GYD"));
+  });
+
+  it("gives the profit card the same size as the others, in the profit colour", () => {
+    render();
+    const values = [...container!.querySelectorAll('[data-testid="semana-kpi"] [data-kpi-value]')] as HTMLElement[];
+    expect(values[0].className).toContain("text-money-profit");
+    expect(values[1].className).not.toContain("text-money-profit");
+    const size = (el: HTMLElement) => el.className.split(" ").filter((c) => c.startsWith("text-") && /xl|lg/.test(c)).join(" ");
+    expect(size(values[0])).toBe(size(values[1]));
+  });
+
+  it("shows the incomplete-lines warning on a neutral ground with an amber dot, never brown text", () => {
+    render();
+    const warning = container!.querySelector('[data-testid="semana-hoy"] [data-warning]') as HTMLElement;
+    expect(warning.className).toContain("bg-muted");
+    expect(warning.className).toContain("text-foreground");
+    expect(warning.className).not.toMatch(/status-attention|amber|yellow|orange|brown/);
+    expect(warning.querySelector("[data-warning-dot]")!.className).toContain("bg-status-attention");
+  });
+
+  it("dates the Hoy box", () => {
+    render();
+    expect(container!.querySelector('[data-testid="semana-hoy"]')!.textContent).toContain("miércoles 28 oct");
   });
 
   it("calls the handlers from the header actions and the rates link", () => {

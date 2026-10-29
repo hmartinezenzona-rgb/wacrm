@@ -2278,17 +2278,20 @@
         "baja": "Down",
         "igual": "No change",
         "usdt": "{usdt} USDT · average cost {cost}",
-        "ticket": "Average ticket {amount}"
+        "ticket": "Average ticket {amount}",
+        "cifras": "Figures in GYD"
       },
       "dia": {
         "title": "Profit by day",
-        "subtitle": "Monday to Saturday · GYD",
-        "aria": "Column chart: profit in GYD for each day, Monday to Saturday of the open week",
+        "subtitle": "GYD · the light bar is today, still adding up",
+        "aria": "Column chart: profit in GYD for each day of the open week, with its value above the bar",
         "hoy": "today",
         "ganancia": "Profit",
         "ops": "{count, plural, one {# operation} other {# operations}}",
         "dia": "Day",
-        "opsCol": "Operations"
+        "opsCol": "Operations",
+        "enCurso": "in progress",
+        "aunNo": "not yet"
       },
       "hoy": {
         "title": "Today",

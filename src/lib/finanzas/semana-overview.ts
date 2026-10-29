@@ -119,16 +119,28 @@ export interface DayPoint {
   retorno: number;
   ops: number;
   isToday: boolean;
-  /** The best day of the week (the only one that gets a value label). */
+  /** A day of the six-day minimum the open week has not reached yet. */
+  isFuture: boolean;
+  /** The best day of the week (kept for the table twin; every bar carries its own value label). */
   isMax: boolean;
 }
 
-/** Monday to Saturday of the week of `today`; entries of other days (Sunday, an older week) are not charted. */
-export function profitByDay(entries: OverviewEntry[], today: string): DayPoint[] {
-  const monday = mondayOf(today);
-  const days: DayPoint[] = Array.from({ length: 6 }, (_, i) => {
-    const day = addDays(monday, i);
-    return { day, retorno: 0, ops: 0, isToday: day === today, isMax: false };
+/** Fewest bars the chart shows (a week opened today still draws six days) and the most (a week left open for long). */
+const MIN_DAYS = 6;
+const MAX_DAYS = 14;
+
+/**
+ * The days of the OPEN week: from the day it opened (the last cut, or the first entry) to today, padded with the days
+ * not reached yet up to six, and at most the newest 14. Not the calendar week: a week opened on a Wednesday starts there.
+ */
+export function profitByDay(entries: OverviewEntry[], startDay: string | null, today: string): DayPoint[] {
+  const start = startDay && startDay <= today ? dayOf(startDay) : today;
+  const elapsed = dayDiff(start, today) + 1;
+  const length = Math.min(MAX_DAYS, Math.max(MIN_DAYS, elapsed));
+  const first = elapsed > MAX_DAYS ? addDays(today, -(MAX_DAYS - 1)) : start;
+  const days: DayPoint[] = Array.from({ length }, (_, i) => {
+    const day = addDays(first, i);
+    return { day, retorno: 0, ops: 0, isToday: day === today, isFuture: day > today, isMax: false };
   });
   for (const entry of entries) {
     if (!isCompleted(entry)) continue;
@@ -250,7 +262,7 @@ export function buildSemanaOverview(
     totals,
     usdt: usdtSummary(entries),
     comparison,
-    days: profitByDay(entries, day),
+    days: profitByDay(entries, startDay, day),
     services: profitByService(entries),
     clients: topClients(entries),
     incomplete: incompleteCount(entries),

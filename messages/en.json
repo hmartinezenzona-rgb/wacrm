@@ -2427,22 +2427,37 @@
         "todos": "Todos",
         "desde": "Desde",
         "hasta": "Hasta",
-        "aplicar": "Aplicar",
-        "cargando": "Cargando…"
+        "buscar": "Search",
+        "buscarPlaceholder": "Client, phone or operation ID"
       },
       "tabla": {
-        "dia": "Fecha",
         "servicio": "Servicio",
         "status": "Estado",
         "cliente": "Cliente",
-        "telefono": "Teléfono",
         "monto": "Monto (GYD)",
         "destino": "Destino",
-        "operation": "Operación",
-        "vacio": "Sin operaciones para esos filtros"
+        "vacio": "Sin operaciones para esos filtros",
+        "hora": "Time",
+        "acciones": "Actions"
       },
       "error": "No se pudo cargar: {msg}",
-      "retry": "Retry"
+      "retry": "Retry",
+      "periodoGrupo": "Period",
+      "estadoGrupo": "Status",
+      "abrirChat": "Open chat",
+      "copiarId": "Copy operation ID {id}",
+      "exportar": "Export CSV",
+      "exportando": "Exporting…",
+      "exportarTope": "The CSV has the first {max} rows of {total}: narrow the filter for the rest.",
+      "exportarError": "The CSV could not be exported.",
+      "errorHistorialFalta": "The history is unavailable: the crm_historial_operaciones function is missing in the database (migration 351).",
+      "estados": {
+        "all": "All",
+        "completed": "Completed",
+        "in_progress": "In progress",
+        "incident": "Incident",
+        "cancelled": "Cancelled"
+      }
     },
     "cierre": {
       "title": "Cierre financiero",

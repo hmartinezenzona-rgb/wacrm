@@ -2427,22 +2427,37 @@
         "todos": "Todos",
         "desde": "Desde",
         "hasta": "Hasta",
-        "aplicar": "Aplicar",
-        "cargando": "Cargando…"
+        "buscar": "Buscar",
+        "buscarPlaceholder": "Cliente, teléfono o ID de operación"
       },
       "tabla": {
-        "dia": "Fecha",
         "servicio": "Servicio",
         "status": "Estado",
         "cliente": "Cliente",
-        "telefono": "Teléfono",
         "monto": "Monto (GYD)",
         "destino": "Destino",
-        "operation": "Operación",
-        "vacio": "Sin operaciones para esos filtros"
+        "vacio": "Sin operaciones para esos filtros",
+        "hora": "Hora",
+        "acciones": "Acciones"
       },
       "error": "No se pudo cargar: {msg}",
-      "retry": "Reintentar"
+      "retry": "Reintentar",
+      "periodoGrupo": "Periodo",
+      "estadoGrupo": "Estado",
+      "abrirChat": "Abrir chat",
+      "copiarId": "Copiar el ID de la operación {id}",
+      "exportar": "Exportar CSV",
+      "exportando": "Exportando…",
+      "exportarTope": "El CSV trae las primeras {max} filas de {total}: acota el filtro para el resto.",
+      "exportarError": "No se pudo exportar el CSV.",
+      "errorHistorialFalta": "El historial no está disponible: falta la función crm_historial_operaciones en la base de datos (migración 351).",
+      "estados": {
+        "all": "Todas",
+        "completed": "Completadas",
+        "in_progress": "En curso",
+        "incident": "Incidencia",
+        "cancelled": "Canceladas"
+      }
     },
     "cierre": {
       "title": "Cierre financiero",

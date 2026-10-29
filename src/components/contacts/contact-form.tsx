@@ -10,6 +10,7 @@ import {
   findExistingContact,
   isExactMatch,
   isUniqueViolation,
+  phoneForStorage,
   type ExistingContact,
 } from '@/lib/contacts/dedupe';
 import {
@@ -125,7 +126,7 @@ export function ContactForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!phone.trim()) {
+    if (!phoneForStorage(phone)) {
       toast.error(t('phoneRequired'));
       return;
     }
@@ -154,7 +155,7 @@ export function ContactForm({
           .from('contacts')
           .update({
             name: name.trim() || null,
-            phone: phone.trim(),
+            phone: phoneForStorage(phone),
             email: email.trim() || null,
             company: company.trim() || null,
             // Lo escribio una persona: el webhook ya no puede pisarlo (080).
@@ -170,7 +171,7 @@ export function ContactForm({
             user_id: user.id,
             account_id: accountId,
             name: name.trim() || null,
-            phone: phone.trim(),
+            phone: phoneForStorage(phone),
             email: email.trim() || null,
             company: company.trim() || null,
             // Lo escribio una persona: el webhook ya no puede pisarlo (080).

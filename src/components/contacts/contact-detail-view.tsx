@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ContactAvatar } from '@/components/contacts/contact-avatar';
+import { phoneForStorage } from '@/lib/contacts/dedupe';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -179,7 +180,7 @@ export function ContactDetailView({
   }
 
   async function saveDetails() {
-    if (!contactId || !editPhone.trim()) {
+    if (!contactId || !phoneForStorage(editPhone)) {
       toast.error(t('toastPhoneRequired'));
       return;
     }
@@ -189,7 +190,7 @@ export function ContactDetailView({
       .from('contacts')
       .update({
         name: editName.trim() || null,
-        phone: editPhone.trim(),
+        phone: phoneForStorage(editPhone),
         email: editEmail.trim() || null,
         company: editCompany.trim() || null,
         updated_at: new Date().toISOString(),

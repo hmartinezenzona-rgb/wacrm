@@ -7,6 +7,7 @@ import {
   dedupeByPhone,
   isUniqueViolation,
   normalizeKey,
+  phoneForStorage,
 } from '@/lib/contacts/dedupe';
 import {
   parseContactCsv,
@@ -274,7 +275,7 @@ export function ImportModal({
         const rows = chunk.map((row) => ({
           user_id: user.id,
           account_id: accountId,
-          phone: row.phone,
+          phone: phoneForStorage(row.phone),
           name: row.name || null,
           email: row.email || null,
           company: row.company || null,

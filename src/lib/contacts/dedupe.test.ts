@@ -6,6 +6,7 @@ import {
   isExactMatch,
   isUniqueViolation,
   normalizeKey,
+  phoneForStorage,
 } from "./dedupe";
 
 describe("normalizeKey", () => {
@@ -147,5 +148,18 @@ describe("findExistingContact prefilter (formatted stored phones)", () => {
       "15550101234",
     );
     expect(hit).toBeNull();
+  });
+});
+
+describe("phoneForStorage", () => {
+  it("stores digits only, dropping +, spaces, brackets, dashes and dots", () => {
+    expect(phoneForStorage("+1 (555) 010-1234")).toBe("15550101234");
+    expect(phoneForStorage(" 1.555.010.1234 ")).toBe("15550101234");
+    expect(phoneForStorage("15550101234")).toBe("15550101234");
+  });
+
+  it("returns an empty string when there are no digits", () => {
+    expect(phoneForStorage("  ")).toBe("");
+    expect(phoneForStorage("n/a")).toBe("");
   });
 });

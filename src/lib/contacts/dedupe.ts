@@ -18,6 +18,15 @@ export function normalizeKey(phone: string): string {
   return normalizePhone(phone);
 }
 
+/**
+ * Form of a phone that panel writes store in `contacts.phone`: digits
+ * only, no leading "+" (what Meta sends and what 255 of 258 production
+ * rows hold). Keeps the stored text identical to `phone_normalized`.
+ */
+export function phoneForStorage(phone: string): string {
+  return normalizePhone(phone);
+}
+
 /** Minimal shape we need back from a contacts lookup. */
 export interface ExistingContact {
   id: string;

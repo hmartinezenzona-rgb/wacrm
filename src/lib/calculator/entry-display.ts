@@ -6,6 +6,7 @@
  * number of packages keeps the raw deposit in GYD. Every other service keeps the "amount SERVICE" reading.
  */
 
+import { num } from "@/lib/finanzas/number-format";
 import { formatNumber } from "@/lib/format-number";
 import { serviceNameEs } from "@/lib/service-name";
 
@@ -45,6 +46,11 @@ function amountLine(entry: ChatEntryAmount, figure: (value: number, maxFractionD
  */
 export function chatEntryAmountText(entry: ChatEntryAmount): string {
   return amountLine(entry, (value, max) => formatNumber(value, { ...AS_IS, maximumFractionDigits: max }));
+}
+
+/** The same reading with the Finanzas tables' separators (comma thousands, dot decimals). */
+export function chatEntryAmountCommaText(entry: ChatEntryAmount): string {
+  return amountLine(entry, (value, max) => num(value, max));
 }
 
 /**

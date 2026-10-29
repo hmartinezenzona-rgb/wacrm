@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculatorCategoryName, chatEntryAmountExportText, chatEntryAmountText, ledgerServiceLabel } from "./entry-display";
+import { calculatorCategoryName, chatEntryAmountCommaText, chatEntryAmountExportText, chatEntryAmountText, ledgerServiceLabel } from "./entry-display";
 
 const N = "\u202f";
 
@@ -47,5 +47,14 @@ describe("chat entry export text", () => {
     expect(chatEntryAmountExportText({ amount: 1800, amountCurrency: "SM", service: "SALDO_MOVIL" })).toBe("1,800 SM");
     expect(chatEntryAmountExportText({ amount: 45000, amountCurrency: "CUP", service: "CUP" })).toBe("45000 CUP");
     expect(chatEntryAmountExportText({ amount: 4000, amountCurrency: "GYD", service: "DIRECTO" })).toBe("4000 GYD");
+  });
+});
+
+describe("chatEntryAmountCommaText (the Finanzas tables: comma thousands, dot decimals)", () => {
+  it("reads like chatEntryAmountText with the Finanzas separators", () => {
+    expect(chatEntryAmountCommaText({ amount: 1800, amountCurrency: "SM", service: "SALDO_MOVIL" })).toBe("1,800 SM");
+    expect(chatEntryAmountCommaText({ amount: 50000, amountCurrency: "CUP", service: "CUP" })).toBe("50,000 CUP");
+    expect(chatEntryAmountCommaText({ amount: 4000, amountCurrency: "GYD", service: "DIRECTO" })).toBe("4,000 GYD");
+    expect(chatEntryAmountCommaText({ amount: 2.5, amountCurrency: "USD", service: "ZELLE" })).toBe("2.5 ZELLE");
   });
 });

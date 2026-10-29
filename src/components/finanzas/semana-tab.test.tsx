@@ -21,7 +21,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import esMessages from "../../../messages/es.json";
 import { SemanaTab } from "./semana-tab";
-import { formatNumber as formatMoneyNumber } from "@/lib/format-number";
+import { num } from "@/lib/finanzas/number-format";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -576,12 +576,9 @@ describe("calculator pending-entries banner", () => {
     });
     const { node, root } = await renderPage(fetchMock);
 
-    const banner = node.querySelector("#pendingBanner")!;
-    expect(banner.textContent).toContain("Marta");
-    expect(banner.textContent).toContain("Falta el costo del combo: anótalo en el panel de la conversación");
-    expect(banner.textContent).not.toContain("comboCosto");
-    expect(banner.textContent).not.toContain("tasas");
+    expect(node.querySelector('td[data-label="Cliente"]')!.textContent).toBe("Marta");
     const row = node.querySelector('td[data-label="Estado"]')!;
+    expect(row.textContent).toContain("Pendiente");
     expect(row.textContent).toContain("Falta el costo del combo: anótalo en el panel de la conversación");
     expect(row.textContent).not.toContain("comboCosto");
     // No rates-resolution action on a COMBO line: the only action is the delete (migration 226).
@@ -603,12 +600,12 @@ describe("calculator pending-entries banner", () => {
     });
     const { node, root } = await renderPage(fetchMock);
 
-    expect(node.querySelector("#pendingBanner")).toBeNull();
-    const cells = Array.from(node.querySelectorAll("#cardRegistros ~ * td, .legacyParsedTable td")).map((c) => c.textContent);
+    expect(node.querySelector("[data-show]")).toBeNull();
+    const cells = Array.from(node.querySelectorAll("#cardRegistros td")).map((c) => c.textContent);
     expect(cells).toContain("Completada");
-    expect(node.textContent).toContain("55\u202f000,00");
-    expect(node.textContent).toContain("41\u202f000,00");
-    expect(node.textContent).toContain("14\u202f000,00");
+    expect(node.textContent).toContain("55,000");
+    expect(node.textContent).toContain("41,000");
+    expect(node.textContent).toContain("14,000");
     expect(node.textContent).not.toContain("Falta el costo");
     await act(async () => root.unmount());
   });
@@ -629,9 +626,11 @@ describe("calculator pending-entries banner", () => {
     });
     const { node, root } = await renderPage(fetchMock);
 
-    const banner = node.querySelector("#pendingBanner")!;
-    expect(banner.textContent).toContain("Falta el costo del combo");
-    expect(banner.textContent).toContain("Bladimir (CUP): usdtSellCup");
+    const [combo, cup] = [...node.querySelectorAll("tr[data-entry]")];
+    expect(combo!.querySelector('td[data-label="Estado"]')!.textContent).toContain("Falta el costo del combo");
+    expect(cup!.querySelector('td[data-label="Cliente"]')!.textContent).toBe("Bladimir");
+    expect(cup!.querySelector('td[data-label="Servicio"]')!.textContent).toBe("CUP");
+    expect(cup!.querySelector('td[data-label="Estado"]')!.textContent).toBe("Sin tasausdtSellCup");
     await act(async () => root.unmount());
   });
 
@@ -660,8 +659,8 @@ describe("calculator pending-entries banner", () => {
     });
     const { node, root } = await renderPage(fetchMock);
 
-    expect(node.querySelector('td[data-label="Monto"]')!.textContent).toBe("1\u202f800 SM");
-    expect(node.querySelector('td[data-label="Tipo"]')!.textContent).toBe("Saldo móvil");
+    expect(node.querySelector('td[data-label="Monto"]')!.textContent).toBe("1,800 SM");
+    expect(node.querySelector('td[data-label="Servicio"]')!.textContent).toBe("Saldo móvil");
     expect(node.textContent).not.toContain("SALDO_MOVIL");
     await act(async () => root.unmount());
   });
@@ -679,7 +678,10 @@ describe("calculator pending-entries banner", () => {
     });
     const { node, root } = await renderPage(fetchMock);
 
-    expect(node.querySelector("#pendingBanner")!.textContent).toContain("Yilian (Saldo móvil)");
+    const row = node.querySelector("tr[data-entry]")!;
+    expect(row.querySelector('td[data-label="Cliente"]')!.textContent).toBe("Yilian");
+    expect(row.querySelector('td[data-label="Servicio"]')!.textContent).toBe("Saldo móvil");
+    expect(row.querySelector('td[data-label="Estado"]')!.textContent).toContain("saldoCostoUsdt");
     await act(async () => root.unmount());
   });
 
@@ -711,7 +713,7 @@ describe("calculator pending-entries banner", () => {
     });
     const { node, root } = await renderPage(fetchMock);
 
-    expect(node.querySelector("#pendingBanner")).toBeNull();
+    expect(node.querySelector("[data-show]")).toBeNull();
     await act(async () => root.unmount());
   });
 });
@@ -759,13 +761,14 @@ describe("calculator chat operations (read-only)", () => {
     });
     const { node, root } = await renderPage(fetchMock);
 
-    expect(node.textContent).toContain("Operaciones");
+    expect(node.textContent).toContain("Registros de la semana");
     expect(node.textContent).not.toContain("Operaciones del chat");
     expect(node.textContent).toContain("Completada");
-    expect(node.textContent).toContain("Pendiente: usdtSellCup");
+    expect(node.textContent).toContain("Sin tasa");
+    expect(node.textContent).toContain("usdtSellCup");
     // the draft "Manual 1 USDT (240/260)" would add 260 / 240 / 20: it is not an operation yet
-    const boxes = [...node.querySelectorAll(".legacyTotalBox p")].map((p) => p.textContent);
-    expect(boxes).toEqual(["26\u202f000,00", "24\u202f000,00", "+2\u202f000,00"]);
+    const totals = [...node.querySelectorAll('[data-testid="registros-totales"] td[data-label]')].map((td) => td.textContent);
+    expect(totals).toEqual(["26,000", "24,000", "2,000"]);
     await act(async () => root.unmount());
   });
 
@@ -856,7 +859,7 @@ describe("calculator chat operations (realtime, B4.2)", () => {
     });
 
     expect(node.textContent).toContain("Raúl");
-    expect(node.textContent).toContain("26\u202f000,00");
+    expect(node.textContent).toContain("26,000");
     // No page-refresh round trip: the live row came from the channel event,
     // not a re-fetch of /api/calculadora.
     expect(fetchMock).not.toHaveBeenCalled();
@@ -978,7 +981,7 @@ describe("calculator chat operations (admin correction)", () => {
     const editButton = node.querySelector("#editarEntry-entry-a") as HTMLButtonElement;
     expect(editButton.getAttribute("aria-label")).toBe("Editar");
     expect(editButton.getAttribute("title")).toBe("Editar");
-    expect(editButton.classList.contains("legacyIconButton")).toBe(true);
+    expect(editButton.classList.contains("rowIconButton")).toBe(true);
     expect(editButton.querySelector("svg")).not.toBeNull();
     expect(editButton.textContent?.trim()).toBe("");
     await act(async () => root.unmount());
@@ -990,8 +993,8 @@ describe("calculator chat operations (admin correction)", () => {
 
     const header = Array.from(node.querySelectorAll("th")).find((th) => th.textContent === "Acciones");
     const cell = node.querySelector("#editarEntry-entry-a")?.closest("td");
-    expect(header?.classList.contains("legacyActionsCell")).toBe(true);
-    expect(cell?.classList.contains("legacyActionsCell")).toBe(true);
+    expect(header?.classList.contains("actionsCell")).toBe(true);
+    expect(cell?.classList.contains("actionsCell")).toBe(true);
     await act(async () => root.unmount());
   });
 
@@ -1018,9 +1021,9 @@ describe("calculator chat operations (admin correction)", () => {
       facturadoGyd: 27000,
       invertidoGyd: 24500,
     });
-    expect(node.textContent).toContain("27\u202f000,00");
-    expect(node.textContent).toContain("24\u202f500,00");
-    expect(node.textContent).toContain("2\u202f500,00");
+    expect(node.textContent).toContain("27,000");
+    expect(node.textContent).toContain("24,500");
+    expect(node.textContent).toContain("2,500");
     expect(node.querySelector("#guardarEntry-entry-a")).toBeNull();
     expect(node.querySelector("#editarEntry-entry-a")).not.toBeNull();
     await act(async () => root.unmount());
@@ -1040,7 +1043,7 @@ describe("calculator chat operations (admin correction)", () => {
     expect(node.querySelector("#guardarEntry-entry-a")).toBeNull();
     expect(node.querySelector("#editarEntry-entry-a")).not.toBeNull();
     // Values are unchanged since the RPC never ran.
-    expect(node.textContent).toContain("26\u202f000,00");
+    expect(node.textContent).toContain("26,000");
     await act(async () => root.unmount());
   });
 
@@ -1096,7 +1099,7 @@ describe("calculator chat operations (admin correction)", () => {
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(node.querySelector("#editarEntry-entry-a")).not.toBeNull();
-    expect(node.textContent).toContain("26\u202f000,00");
+    expect(node.textContent).toContain("26,000");
     expect(node.textContent).not.toContain("99999");
     await act(async () => root.unmount());
   });
@@ -1112,7 +1115,7 @@ describe("calculator chat operations (admin correction)", () => {
     expect(cancel.getAttribute("aria-label")).toBe("Cancelar");
     expect(cancel.getAttribute("title")).toBe("Cancelar");
     for (const button of [save, cancel]) {
-      expect(button.classList.contains("legacyIconButton")).toBe(true);
+      expect(button.classList.contains("rowIconButton")).toBe(true);
       expect(button.querySelector("svg")).not.toBeNull();
       expect(button.textContent).toBe("");
     }
@@ -1201,7 +1204,7 @@ describe("calculator chat operations (admin delete)", () => {
       expect(button).not.toBeNull();
       expect(button.getAttribute("aria-label")).toBe("Eliminar");
       expect(button.getAttribute("title")).toBe("Eliminar");
-      expect(button.classList.contains("legacyIconButton")).toBe(true);
+      expect(button.classList.contains("rowIconButton")).toBe(true);
       expect(button.querySelector("svg")).not.toBeNull();
     }
     expect(node.querySelector("#editarEntry-entry-a")).not.toBeNull();
@@ -1232,11 +1235,11 @@ describe("calculator chat operations (admin delete)", () => {
     const cancel = byId(node, "cancelarEliminar-entry-a")!;
     expect(ok.getAttribute("aria-label")).toBe("Eliminar");
     expect(ok.getAttribute("title")).toBe("Eliminar");
-    expect(ok.classList.contains("legacyIconButton")).toBe(true);
+    expect(ok.classList.contains("rowIconButton")).toBe(true);
     expect(ok.querySelector("svg")).not.toBeNull();
     expect(cancel.getAttribute("aria-label")).toBe("Cancelar");
     expect(cancel.getAttribute("title")).toBe("Cancelar");
-    expect(cancel.classList.contains("legacyIconButton")).toBe(true);
+    expect(cancel.classList.contains("rowIconButton")).toBe(true);
     // pencil and trash are hidden in that row meanwhile
     expect(byId(node, "eliminarEntry-entry-a")).toBeNull();
     expect(byId(node, "editarEntry-entry-a")).toBeNull();
@@ -1244,7 +1247,7 @@ describe("calculator chat operations (admin delete)", () => {
     expect(byId(node, "eliminarEntry-entry-b")).not.toBeNull();
     expect(confirm).not.toHaveBeenCalled();
     expect(calls(fetchMock, "POST", "/api/calculator/entries")).toHaveLength(0);
-    expect(node.textContent).toContain("26\u202f000,00");
+    expect(node.textContent).toContain("26,000");
     await act(async () => root.unmount());
   });
 
@@ -1320,7 +1323,7 @@ describe("calculator chat operations (admin delete)", () => {
     const confirm = vi.spyOn(window, "confirm");
     const fetchMock = fixture();
     const { node, root } = await renderPage(fetchMock);
-    expect(node.querySelector(".legacyTotalBox")?.textContent).toContain("26\u202f000,00");
+    expect(node.querySelector('[data-testid="registros-totales"] td[data-label="Facturado"]')?.textContent).toContain("26,000");
 
     await confirmDelete(node, "entry-a");
     await flush();
@@ -1328,8 +1331,8 @@ describe("calculator chat operations (admin delete)", () => {
     expect(calls(fetchMock, "POST", "/api/calculator/entries/entry-a/delete")).toHaveLength(1);
     expect(node.querySelector("#eliminarEntry-entry-a")).toBeNull();
     expect(node.querySelector("#eliminarEntry-entry-b")).not.toBeNull();
-    expect(node.querySelector(".legacyTotalBox")?.textContent).toContain("0,00");
-    expect(node.querySelector(".legacyTotalBox")?.textContent).not.toContain("26\u202f000,00");
+    expect(node.querySelector('[data-testid="registros-totales"] td[data-label="Facturado"]')?.textContent).toContain("0");
+    expect(node.querySelector('[data-testid="registros-totales"] td[data-label="Facturado"]')?.textContent).not.toContain("26,000");
     expect(confirm).not.toHaveBeenCalled();
     await act(async () => root.unmount());
   });
@@ -1411,8 +1414,8 @@ describe("calculator weekly cut (Limpiar Todo)", () => {
     expect(dialog.textContent).toContain("«Cierres»");
     expect(dialog.textContent).toContain("Finanzas");
     expect(dialog.textContent).toContain("historial");
-    // rendered in a portal: outside the page's .legacyCalc scope, so its buttons are not restyled by it
-    expect(node.querySelector(".legacyCalc")!.contains(dialog)).toBe(false);
+    // rendered in a portal on the body, not inside the page
+    expect(node.contains(dialog)).toBe(false);
     expect(confirm).not.toHaveBeenCalled();
 
     await act(async () => { dialogButton("Cancelar")!.click(); });
@@ -1451,8 +1454,8 @@ describe("calculator weekly cut (Limpiar Todo)", () => {
     expect(inputValue(node, "periodo")).toBe("");
     expect(node.querySelector("#eliminarEntry-entry-a")).toBeNull();
     expect(node.querySelector("#eliminarEntry-entry-b")).not.toBeNull();
-    expect(node.querySelector("#pendingBanner")).not.toBeNull();
-    expect(node.querySelector(".legacyTotalBox")?.textContent).toContain("0,00");
+    expect(node.querySelector('[data-show="sinTasa"]')).not.toBeNull();
+    expect(node.querySelector('[data-testid="registros-totales"] td[data-label="Facturado"]')?.textContent).toContain("0");
     await act(async () => root.unmount());
   });
 
@@ -1612,11 +1615,11 @@ describe("manual operations as rows of the one table (migration 228)", () => {
     const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")!.set!;
     await act(async () => { setter.call(textarea(node), value); textarea(node).dispatchEvent(new Event("input", { bubbles: true })); });
   }
-  const totalBoxes = (node: HTMLElement) => [...node.querySelectorAll(".legacyTotalBox p")].map((p) => p.textContent);
+  const totalBoxes = (node: HTMLElement) => [...node.querySelectorAll('[data-testid="registros-totales"] td[data-label]')].map((td) => td.textContent);
   function operationsCard(node: HTMLElement) {
-    return [...node.querySelectorAll(".legacyCard")].find((card) => card.querySelector("h2")?.textContent === "Operaciones") as HTMLElement;
+    return node.querySelector('[data-testid="registros-tabla"]') as HTMLElement;
   }
-  const entryRows = (node: HTMLElement) => [...operationsCard(node).querySelectorAll("tbody tr")] as HTMLElement[];
+  const entryRows = (node: HTMLElement) => [...operationsCard(node).querySelectorAll("tbody tr[data-entry]")] as HTMLElement[];
   const cell = (row: HTMLElement, label: string) => row.querySelector(`td[data-label="${label}"]`) as HTMLElement;
   function entriesPosts(fetchMock: ReturnType<typeof createFetchMock>) {
     return calls(fetchMock, "POST", "/api/calculadora/entries").map(([, init]) => JSON.parse((init as RequestInit).body as string) as { lines: Array<Record<string, unknown>> });
@@ -1630,8 +1633,7 @@ describe("manual operations as rows of the one table (migration 228)", () => {
     expect(node.querySelector(".legacyDayHeader")).toBeNull();
     // the box, its help and its bullet button are where they were
     expect(textarea(node).value).toBe(TEXT);
-    expect(node.textContent).toContain("Registros de la Semana");
-    expect(node.querySelector(".legacyBulletButton")).not.toBeNull();
+    expect(node.textContent).toContain("Registros de la semana");
     await act(async () => root.unmount());
   });
 
@@ -1639,25 +1641,24 @@ describe("manual operations as rows of the one table (migration 228)", () => {
     const { node, root } = await renderPage(fixture());
 
     const headers = [...operationsCard(node).querySelectorAll("thead th")].map((th) => th.textContent);
-    expect(headers).toEqual(["Fecha", "Cliente", "Monto", "Tipo", "Estado", "Fact. (GYD)", "Inv. (GYD)", "Ganancia", "Acciones"]);
+    expect(headers).toEqual(["Día", "Cliente", "Servicio", "Monto", "Tasa", "Facturado", "Invertido", "Ganancia", "Estado", "Acciones"]);
     const [bot, manual] = entryRows(node);
-    expect(cell(bot!, "Fecha").textContent).toBe("2026-09-12");
-    expect(cell(bot!, "Tipo").textContent).toBe("Zelle");
-    expect(cell(bot!, "Tipo").textContent).not.toContain("Manual");
+    expect(cell(bot!, "Día").textContent).toBe("Sáb 12");
+    expect(cell(bot!, "Día").getAttribute("title")).toBe("2026-09-12");
+    expect(cell(bot!, "Servicio").textContent).toBe("Zelle");
+    expect(cell(bot!, "Servicio").textContent).not.toContain("Manual");
 
-    expect(cell(manual!, "Fecha").textContent).toBe("2026-10-06");
-    expect(cell(manual!, "Cliente").textContent).toBe("Iza");
-    expect(cell(manual!, "Monto").textContent).toBe("4\u202f000 GYD");
-    expect(cell(manual!, "Tipo").textContent).toContain("Trámites");
-    const mark = [...cell(manual!, "Tipo").querySelectorAll(".legacyBadge")].find((badge) => badge.textContent === "Manual");
-    expect(mark).toBeDefined();
+    expect(cell(manual!, "Día").textContent).toBe("Mar 6");
+    expect(cell(manual!, "Cliente").textContent).toBe("Izaa mano");
+    expect(cell(manual!, "Monto").textContent).toBe("4,000 GYD");
+    expect(cell(manual!, "Servicio").textContent).toContain("Trámites");
+    expect(cell(manual!, "Cliente").querySelector("span")!.textContent).toBe("a mano");
     expect(cell(manual!, "Estado").textContent).toBe("Completada");
-    expect(cell(manual!, "Fact. (GYD)").textContent).toBe("4\u202f000,00");
-    expect(cell(manual!, "Ganancia").textContent).toBe("4\u202f000,00");
+    expect(cell(manual!, "Facturado").textContent).toBe("4,000");
+    expect(cell(manual!, "Ganancia").textContent).toBe("4,000");
     expect(manual!.querySelector("#editarEntry-man-iza")).not.toBeNull();
     expect(manual!.querySelector("#eliminarEntry-man-iza")).not.toBeNull();
-    // no column was added
-    expect(manual!.querySelectorAll("td")).toHaveLength(9);
+    expect(manual!.querySelectorAll("td")).toHaveLength(10);
     await act(async () => root.unmount());
   });
 
@@ -1665,21 +1666,21 @@ describe("manual operations as rows of the one table (migration 228)", () => {
     const { node, root } = await renderPage(fixture({}, TEXT));
 
     // 26000 + 4000, 24000 + 0, 2000 + 4000: the draft (Gerardo, Ana) is not an operation until it is registered
-    expect(totalBoxes(node)).toEqual(["30\u202f000,00", "24\u202f000,00", "+6\u202f000,00"]);
-    const breakdown = [...node.querySelectorAll("h2")].find((h) => h.textContent === "Desglose Semanal por Servicios")!.parentElement!;
-    expect(breakdown.textContent).toContain("Categoría: Zelle");
-    expect(breakdown.textContent).toContain("Categoría: Trámites");
+    expect(totalBoxes(node)).toEqual(["30,000", "24,000", "6,000"]);
+    const breakdown = node.querySelector('[data-testid="semana-servicios"]')!;
+    expect(breakdown.textContent).toContain("Zelle");
+    expect(breakdown.textContent).toContain("Trámites");
     expect(breakdown.textContent).not.toContain("USDT");
 
     await typeText(node, `${TEXT}\n• Luis 1k usdt (240/260)`);
-    expect(totalBoxes(node)).toEqual(["30\u202f000,00", "24\u202f000,00", "+6\u202f000,00"]);
+    expect(totalBoxes(node)).toEqual(["30,000", "24,000", "6,000"]);
     await act(async () => root.unmount());
   });
 
   it("with only a draft the totals are zero and there is no breakdown", async () => {
     const { node, root } = await renderPage(fixture({}, TEXT, []));
-    expect(totalBoxes(node)).toEqual(["0,00", "0,00", "0,00"]);
-    expect(node.textContent).not.toContain("Categoría:");
+    expect(totalBoxes(node)).toEqual(["0", "0", "0"]);
+    expect(node.querySelector('[data-testid="semana-servicios"]')).toBeNull();
     expect(node.textContent).toContain("No hay operaciones.");
     await act(async () => root.unmount());
   });
@@ -1755,9 +1756,9 @@ describe("manual operations as rows of the one table (migration 228)", () => {
     expect(node.textContent).toContain('No interpretado: "esto no tiene formato"');
     // they are rows of the table now, newest day first, and they count
     const rows = entryRows(node);
-    expect(rows.map((row) => cell(row, "Cliente").textContent)).toEqual(["Ana", "Gerardo"]);
-    expect(rows.map((row) => cell(row, "Fecha").textContent)).toEqual(["2026-10-07", "2026-10-06"]);
-    expect(totalBoxes(node)).toEqual(["28\u202f600,00", "26\u202f400,00", "+2\u202f200,00"]);
+    expect(rows.map((row) => cell(row, "Cliente").textContent)).toEqual(["Anaa mano", "Gerardoa mano"]);
+    expect(rows.map((row) => cell(row, "Día").textContent)).toEqual(["Mié 7", "Mar 6"]);
+    expect(totalBoxes(node)).toEqual(["28,600", "26,400", "2,200"]);
     expect(node.textContent).toContain("2 operaciones registradas.");
     // only the remaining text is autosaved, still without registering anything
     await act(async () => { await vi.advanceTimersByTimeAsync(700); });
@@ -1802,7 +1803,7 @@ describe("manual operations as rows of the one table (migration 228)", () => {
 
     expect(textarea(node).value).toBe(TEXT);
     expect(entryRows(node)).toHaveLength(0);
-    expect(totalBoxes(node)).toEqual(["0,00", "0,00", "0,00"]);
+    expect(totalBoxes(node)).toEqual(["0", "0", "0"]);
     expect(node.textContent).toContain("No se pudieron registrar las operaciones; no se quitó nada del cuadro.");
     expect(registrarButton(node).disabled).toBe(false);
     await act(async () => root.unmount());
@@ -1874,10 +1875,10 @@ describe("manual operations as rows of the one table (migration 228)", () => {
       expect(posts).toHaveLength(1);
       expect(JSON.parse((posts[0]![1] as RequestInit).body as string)).toEqual({ facturadoGyd: 5000, invertidoGyd: 500 });
       const row = entryRows(node)[1]!;
-      expect(cell(row, "Fact. (GYD)").textContent).toBe("5\u202f000,00");
-      expect(cell(row, "Ganancia").textContent).toBe("4\u202f500,00");
-      expect(cell(row, "Tipo").textContent).toContain("Manual");
-      expect(totalBoxes(node)).toEqual(["31\u202f000,00", "24\u202f500,00", "+6\u202f500,00"]);
+      expect(cell(row, "Facturado").textContent).toBe("5,000");
+      expect(cell(row, "Ganancia").textContent).toBe("4,500");
+      expect(cell(row, "Cliente").textContent).toContain("a mano");
+      expect(totalBoxes(node)).toEqual(["31,000", "24,500", "6,500"]);
       await act(async () => root.unmount());
     });
 
@@ -1894,7 +1895,7 @@ describe("manual operations as rows of the one table (migration 228)", () => {
       expect(calls(fetchMock, "POST", "/api/calculator/entries/man-iza/delete")).toHaveLength(1);
       expect(node.querySelector("#eliminarEntry-man-iza")).toBeNull();
       expect(entryRows(node)).toHaveLength(1);
-      expect(totalBoxes(node)).toEqual(["26\u202f000,00", "24\u202f000,00", "+2\u202f000,00"]);
+      expect(totalBoxes(node)).toEqual(["26,000", "24,000", "2,000"]);
       await act(async () => root.unmount());
     });
 
@@ -1928,11 +1929,12 @@ describe("manual operations as rows of the one table (migration 228)", () => {
       const chan = mockRealtime.channels[0]!;
 
       act(() => { chan.handler!(live("INSERT", {})); });
-      expect(entryRows(node).map((row) => cell(row, "Cliente").textContent)).toEqual(["Pedro", "Vivo Vicente", "Iza"]);
-      expect(cell(entryRows(node)[1]!, "Tipo").textContent).toContain("Manual");
+      const clients = () => entryRows(node).map((row) => cell(row, "Cliente").querySelector("b")!.textContent);
+      expect(clients()).toEqual(["Pedro", "Vivo Vicente", "Iza"]);
+      expect(cell(entryRows(node)[1]!, "Cliente").textContent).toContain("a mano");
 
       act(() => { chan.handler!(live("UPDATE", { status: "void" })); });
-      expect(entryRows(node).map((row) => cell(row, "Cliente").textContent)).toEqual(["Pedro", "Iza"]);
+      expect(clients()).toEqual(["Pedro", "Iza"]);
       await act(async () => root.unmount());
     });
 
@@ -1970,7 +1972,7 @@ describe("manual operations as rows of the one table (migration 228)", () => {
       expect(cut).toHaveLength(1);
       expect(JSON.parse((cut[0]![1] as RequestInit).body as string)).toEqual({ rawText: "• Pendiente de registrar 5 xyz", periodo: "SEMANA 1" });
       expect(entryRows(node)).toHaveLength(0);
-      expect(totalBoxes(node)).toEqual(["0,00", "0,00", "0,00"]);
+      expect(totalBoxes(node)).toEqual(["0", "0", "0"]);
       // the emptied week saves an empty text and registers nothing
       expect(entriesPosts(fetchMock)).toHaveLength(0);
       await act(async () => root.unmount());
@@ -2037,48 +2039,44 @@ describe("calculator money tones", () => {
       weekGet: () => ({ status: 200, body: { week: WEEK } }),
     });
   }
-  const tones = (root: ParentNode) => [...root.querySelectorAll(".legacyTotalBox p [data-tone]")].map((el) => (el as HTMLElement).dataset.tone);
-  const operationsCard = (node: HTMLElement) =>
-    [...node.querySelectorAll(".legacyCard")].find((card) => card.querySelector("h2")?.textContent === "Operaciones") as HTMLElement;
+  const totalCells = (root: ParentNode) => [...root.querySelectorAll('[data-testid="registros-totales"] td[data-label]')] as HTMLElement[];
+  const tones = (root: ParentNode) => totalCells(root).map((el) => el.dataset.tone ?? "neutral");
+  const operationsCard = (node: HTMLElement) => node.querySelector('[data-testid="registros-tabla"]') as HTMLElement;
   const toneOf = (row: Element, label: string) => row.querySelector(`td[data-label="${label}"]`)?.getAttribute("data-tone") ?? null;
 
-  it("colours the totals blue / amber / green, with the sign on the result and a stripe on each box", async () => {
+  it("colours the totals of the table blue / amber / green by what each stands for", async () => {
     const { node, root } = await renderPage(fixture([DEL_COMPLETED]));
 
     expect(tones(node)).toEqual(["in", "out", "profit"]);
-    const figures = [...node.querySelectorAll(".legacyTotalBox p [data-tone]")] as HTMLElement[];
-    expect(figures.map((f) => f.className)).toEqual(["text-money-in", "text-money-out", "text-money-profit"]);
-    expect(figures.every((f) => f.querySelector("svg"))).toBe(true);
-    const boxes = [...node.querySelectorAll(".legacyTotalBox")] as HTMLElement[];
-    expect(boxes.map((b) => b.className)).toEqual([
-      expect.stringContaining("--money-in"), expect.stringContaining("--money-out"), expect.stringContaining("--money-profit"),
+    expect(totalCells(node).map((f) => f.className)).toEqual([
+      expect.stringContaining("text-money-in"), expect.stringContaining("text-money-out"), expect.stringContaining("text-money-profit"),
     ]);
     await act(async () => root.unmount());
   });
 
-  it("shows a negative result in red with a true minus sign, and a zero result neutral without a sign", async () => {
+  it("shows a negative result in red with a minus sign, and a zero result neutral", async () => {
     const loss = await renderPage(fixture([LOSS]));
     expect(tones(loss.node)).toEqual(["in", "out", "loss"]);
-    expect(loss.node.querySelectorAll(".legacyTotalBox p")[2]!.textContent).toBe("−500,00");
+    expect(totalCells(loss.node)[2]!.textContent).toBe("-500");
     await act(async () => loss.root.unmount());
 
     const empty = await renderPage(fixture([]));
     expect(tones(empty.node)).toEqual(["in", "out", "neutral"]);
-    expect(empty.node.querySelectorAll(".legacyTotalBox p")[2]!.textContent).toBe("0,00");
+    expect(totalCells(empty.node)[2]!.textContent).toBe("0");
     await act(async () => empty.root.unmount());
   });
 
-  it("tones only the Fact. / Inv. / Ganancia cells of the operations table", async () => {
+  it("tones only the Facturado / Invertido / Ganancia cells of the records table", async () => {
     const { node, root } = await renderPage(fixture([DEL_COMPLETED, LOSS, DEL_PENDING]));
 
-    const [ok, loss, pending] = [...operationsCard(node).querySelectorAll("tbody tr")];
-    expect([toneOf(ok!, "Fact. (GYD)"), toneOf(ok!, "Inv. (GYD)"), toneOf(ok!, "Ganancia")]).toEqual(["in", "out", "profit"]);
+    const [ok, loss, pending] = [...operationsCard(node).querySelectorAll("tbody tr[data-entry]")];
+    expect([toneOf(ok!, "Facturado"), toneOf(ok!, "Invertido"), toneOf(ok!, "Ganancia")]).toEqual(["in", "out", "profit"]);
     expect(toneOf(loss!, "Ganancia")).toBe("loss");
     // a missing figure is a plain dash
-    expect([toneOf(pending!, "Fact. (GYD)"), toneOf(pending!, "Inv. (GYD)"), toneOf(pending!, "Ganancia")]).toEqual([null, null, null]);
-    for (const label of ["Fecha", "Cliente", "Monto", "Tipo", "Estado"]) expect(toneOf(ok!, label)).toBeNull();
+    expect([toneOf(pending!, "Facturado"), toneOf(pending!, "Invertido"), toneOf(pending!, "Ganancia")]).toEqual([null, null, null]);
+    for (const label of ["Día", "Cliente", "Monto", "Servicio", "Estado"]) expect(toneOf(ok!, label)).toBeNull();
     // table figures are not signed
-    expect(ok!.querySelector('td[data-label="Ganancia"]')!.textContent).toBe("2 000,00");
+    expect(ok!.querySelector('td[data-label="Ganancia"]')!.textContent).toBe("2,000");
     await act(async () => root.unmount());
   });
 
@@ -2086,28 +2084,26 @@ describe("calculator money tones", () => {
   it("puts the fixed service dot before the service name in the operations table, and nowhere else in the row", async () => {
     const { node, root } = await renderPage(fixture([DEL_COMPLETED, LOSS]));
 
-    const [zelle, directo] = [...operationsCard(node).querySelectorAll("tbody tr")];
-    const dotOf = (row: Element) => row.querySelector('td[data-label="Tipo"] [data-service]') as HTMLElement | null;
+    const [zelle, directo] = [...operationsCard(node).querySelectorAll("tbody tr[data-entry]")];
+    const dotOf = (row: Element) => row.querySelector('td[data-label="Servicio"] [data-service]') as HTMLElement | null;
     expect(dotOf(zelle!)?.dataset.service).toBe("zelle");
     expect(dotOf(zelle!)?.getAttribute("aria-hidden")).toBe("true");
     expect(dotOf(zelle!)?.className).toContain("bg-service-zelle");
     expect(dotOf(directo!)?.dataset.service).toBe("directo");
-    expect(zelle!.querySelector('td[data-label="Tipo"]')!.textContent).toBe("Zelle");
+    expect(zelle!.querySelector('td[data-label="Servicio"]')!.textContent).toBe("Zelle");
     expect(zelle!.querySelectorAll("[data-service]")).toHaveLength(1);
     await act(async () => root.unmount());
   });
 
-  it("puts the dot before each category of the service breakdown and tones its Retorno by sign", async () => {
+  it("replaces the old per-service breakdown with the clickable 'De dónde sale la ganancia' list", async () => {
     const { node, root } = await renderPage(fixture([DEL_COMPLETED, LOSS]));
 
-    const breakdown = [...node.querySelectorAll("h2")].find((h) => h.textContent === "Desglose Semanal por Servicios")!.parentElement!;
-    const rows = [...breakdown.querySelectorAll(".legacyBlockRow")];
-    expect(rows.map((r) => r.querySelector("[data-service]")?.getAttribute("data-service"))).toEqual(["zelle", "directo"]);
-    expect(rows.map((r) => r.querySelector("b")!.textContent)).toEqual(["Categoría: Zelle", "Categoría: Trámites"]);
-    const retorno = rows.map((r) => r.querySelector("b[data-tone]") as HTMLElement);
-    expect(retorno.map((b) => b.dataset.tone)).toEqual(["profit", "loss"]);
-    expect(retorno[0]!.className).toBe("text-money-profit");
-    expect(breakdown.innerHTML).not.toContain("green");
+    expect(node.textContent).not.toContain("Desglose Semanal por Servicios");
+    expect(node.querySelector(".legacyBlockRow")).toBeNull();
+    const rows = [...node.querySelectorAll('[data-testid="semana-servicios"] button')].map((b) => b.textContent);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toContain("Zelle");
+    expect(rows[1]).toContain("Trámites");
     await act(async () => root.unmount());
   });
 });
@@ -2137,7 +2133,7 @@ describe("calculator shows no emojis", () => {
 
   it("the open week with bot and manual rows, an uninterpreted line and the format guide", async () => {
     const { node, root } = await renderPage(fixture(TEXT, [DEL_COMPLETED, MANUAL_ROW]));
-    expect(node.textContent).toContain("Facturado (GYD)");
+    expect(node.textContent).toContain("Registros de la semana");
     expect(node.textContent).toContain("No interpretado");
     expect(node.textContent).not.toMatch(EMOJI);
     await act(async () => root.unmount());
@@ -2146,16 +2142,6 @@ describe("calculator shows no emojis", () => {
   it("an empty Calculator", async () => {
     const { node, root } = await renderPage(fixture("", []));
     expect(node.textContent).not.toMatch(EMOJI);
-    await act(async () => root.unmount());
-  });
-
-  // Text glyphs are not emoji for the Unicode property, so the fullscreen button is checked by its exact label.
-  it("the fullscreen button carries words only, maximised or not", async () => {
-    const { node, root } = await renderPage(fixture("", []));
-    const button = () => [...node.querySelectorAll("button")].find((b) => /Maximizar|Pantalla Completa/.test(b.textContent ?? ""))!;
-    expect(button().textContent).toBe("Maximizar");
-    await act(async () => button().click());
-    expect(button().textContent).toBe("Salir de Pantalla Completa");
     await act(async () => root.unmount());
   });
 
@@ -2278,7 +2264,7 @@ describe("calculator chat operations (investment rates of one entry)", () => {
     const expectedInvertido = (106000 / 960) * 205;
     expect(inputValue(node, "editInvertido-entry-cup")).toBe(expectedInvertido.toFixed(2));
     expect(isInputDisabled(node, "editInvertido-entry-cup")).toBe(true);
-    expect(node.textContent).toContain(formatMoneyNumber(35000 - Number(expectedInvertido.toFixed(2)), { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+    expect(node.textContent).toContain(num(35000 - Number(expectedInvertido.toFixed(2)), 2));
     expect(fetchMock).not.toHaveBeenCalled();
     await act(async () => root.unmount());
   });
@@ -2305,7 +2291,7 @@ describe("calculator chat operations (investment rates of one entry)", () => {
     expect(JSON.parse((ratesCalls[0]![1] as RequestInit).body as string)).toEqual({ cupRate: 960 });
     expect(callsTo(fetchMock, "/api/calculator/entries/entry-cup/correct")).toHaveLength(0);
     expect(node.querySelector("#guardarEntry-entry-cup")).toBeNull();
-    expect(node.textContent).toContain(formatMoneyNumber(22000, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+    expect(node.textContent).toContain(num(22000, 2));
     await openEditor(node, "entry-cup");
     expect(inputValue(node, "editVentaUsdtCup-entry-cup")).toBe("960");
     await act(async () => root.unmount());
@@ -2611,7 +2597,7 @@ describe("per-operation cost of a recharge or saldo entry (migration 242)", () =
     fetchMock.mockClear();
     act(() => setInputValue(node, "editCostoUsdt-saldo-1", "1.6"));
     expect(inputValue(node, "editInvertido-saldo-1")).toBe("1152.00");
-    expect(node.textContent).toContain(formatMoneyNumber(1848, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+    expect(node.textContent).toContain(num(1848, 2));
     expect(fetchMock).not.toHaveBeenCalled();
     await act(async () => root.unmount());
   });
@@ -2748,6 +2734,180 @@ describe("calculator ARQ rate failure indicator", () => {
     }));
 
     expect(node.querySelector("#tasaMexicoArq")?.textContent).not.toContain("falló");
+    await act(async () => root.unmount());
+  });
+});
+
+// S2c: "Registros de la semana", the one table for the bot's lines and the typed ones, with the quick-entry bar, search,
+// status chips, a service filter and the totals of what the filters leave.
+describe("Registros de la semana (one table)", () => {
+  const BOT = { ...DEL_COMPLETED, source: "completed_operation", entryDate: "2026-10-27" };
+  const MANUAL = {
+    id: "man-iza", operationId: null, source: "manual", status: "completed", service: "DIRECTO", customerName: "Iza", amount: 4000,
+    amountCurrency: "GYD", entryDate: "2026-10-28", facturadoGyd: 4000, invertidoGyd: 0, retornoGyd: 4000, missingRates: [],
+  };
+  const SIN_TASA = { ...DEL_PENDING, source: "completed_operation", entryDate: "2026-10-28" };
+  const COMBO = {
+    id: "entry-combo", operationId: "op-combo", source: "completed_operation", status: "verified_pending", service: "COMBO", customerName: "Carla",
+    amount: 1, amountCurrency: "COMBO", entryDate: "2026-10-28", facturadoGyd: 90000, invertidoGyd: null, retornoGyd: null, missingRates: ["combo_cost"],
+  };
+  const ALL = [BOT, MANUAL, SIN_TASA, COMBO];
+
+  function fixture(entries: unknown[] = ALL, extra: Parameters<typeof createFetchMock>[0] = {}) {
+    return createFetchMock({
+      calculadoraGet: { rawText: "", periodo: "", cutAt: "2026-10-26T12:00:00Z", chatOperations: { entries } },
+      ratesGet: { rates: FULL_RATES },
+      ...extra,
+    });
+  }
+  const table = (node: HTMLElement) => node.querySelector('[data-testid="registros-tabla"]') as HTMLElement;
+  const rows = (node: HTMLElement) => [...table(node).querySelectorAll("tbody tr[data-entry]")] as HTMLElement[];
+  const names = (node: HTMLElement) => rows(node).map((r) => r.querySelector('td[data-label="Cliente"]')!.textContent);
+  const chip = (node: HTMLElement, id: string) => node.querySelector(`[data-chip="${id}"]`) as HTMLButtonElement;
+  const click = (el: Element) => act(() => (el as HTMLElement).click());
+
+  it("holds the bot's lines and the typed ones in one table, the typed ones marked 'a mano'", async () => {
+    const { node, root } = await renderPage(createFetchMock({
+      calculadoraGet: { rawText: "", periodo: "", chatOperations: { entries: [BOT, MANUAL] } }, ratesGet: { rates: FULL_RATES },
+    }));
+    expect(node.querySelectorAll('[data-testid="registros-tabla"]')).toHaveLength(1);
+    expect(names(node)).toEqual(["Raúl", "Izaa mano"]);
+    expect(node.textContent).toContain("Registros de la semana");
+    for (const gone of ["Desglose Semanal por Servicios", "Registros de la Semana", "Cierre Semanal PRO", "Tarifas Globales"]) expect(node.textContent).not.toContain(gone);
+    const headers = [...table(node).querySelectorAll("thead th")].map((th) => th.textContent);
+    expect(headers).toEqual(["Día", "Cliente", "Servicio", "Monto", "Tasa", "Facturado", "Invertido", "Ganancia", "Estado", "Acciones"]);
+    await act(async () => root.unmount());
+  });
+
+  it("shows no 'Abrir chat' anywhere", async () => {
+    const { node, root } = await renderPage(fixture());
+    expect(node.textContent).not.toContain("Abrir chat");
+    await act(async () => root.unmount());
+  });
+
+  it("counts the status chips and filters the table when one is pressed", async () => {
+    const { node, root } = await renderPage(fixture());
+    expect(["all", "completed", "pending", "sinTasa", "manual"].map((id) => chip(node, id).textContent)).toEqual([
+      "Todas 4", "Completadas 2", "Pendientes 1", "Sin tasa 1", "A mano 1",
+    ]);
+    expect(chip(node, "all").getAttribute("aria-pressed")).toBe("true");
+    click(chip(node, "sinTasa"));
+    expect(names(node)).toEqual(["Bladimir"]);
+    expect(chip(node, "sinTasa").getAttribute("aria-pressed")).toBe("true");
+    click(chip(node, "manual"));
+    expect(names(node)).toEqual(["Izaa mano"]);
+    click(chip(node, "pending"));
+    expect(names(node)).toEqual(["Carla"]);
+    click(chip(node, "all"));
+    expect(names(node)).toHaveLength(4);
+    await act(async () => root.unmount());
+  });
+
+  it("searches by client or operation id and filters by service", async () => {
+    const { node, root } = await renderPage(fixture());
+    const search = node.querySelector('input[type="search"]') as HTMLInputElement;
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")!.set!;
+    act(() => { setter.call(search, "raú"); search.dispatchEvent(new Event("input", { bubbles: true })); });
+    expect(names(node)).toEqual(["Raúl"]);
+    expect(chip(node, "all").textContent).toBe("Todas 1");
+    act(() => { setter.call(search, ""); search.dispatchEvent(new Event("input", { bubbles: true })); });
+    const select = node.querySelector('select[aria-label="Servicio"]') as HTMLSelectElement;
+    const selSetter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value")!.set!;
+    act(() => { selSetter.call(select, "CUP"); select.dispatchEvent(new Event("change", { bubbles: true })); });
+    expect(names(node)).toEqual(["Bladimir"]);
+    await act(async () => root.unmount());
+  });
+
+  it("filters the table when a service or a client of the overview is pressed, and releases it when pressed again", async () => {
+    const { node, root } = await renderPage(fixture());
+    const serviceButtons = [...node.querySelectorAll('[data-testid="semana-servicios"] button')] as HTMLButtonElement[];
+    const zelle = serviceButtons.find((b) => b.textContent!.includes("Zelle"))!;
+    click(zelle);
+    expect(names(node)).toEqual(["Raúl"]);
+    expect(zelle.getAttribute("aria-pressed")).toBe("true");
+    click(zelle);
+    expect(names(node)).toHaveLength(4);
+    const iza = [...node.querySelectorAll('[data-testid="semana-clientes"] button')].find((b) => b.textContent!.includes("Iza"))!;
+    click(iza);
+    expect(names(node)).toEqual(["Izaa mano"]);
+    expect(node.textContent).toContain("Cliente: Iza");
+    click(node.querySelector('button[aria-label="Quitar el filtro de cliente"]')!);
+    expect(names(node)).toHaveLength(4);
+    await act(async () => root.unmount());
+  });
+
+  it("totals only the completed lines the filters leave", async () => {
+    const { node, root } = await renderPage(fixture());
+    const totals = () => node.querySelector('[data-testid="registros-totales"]')!.textContent;
+    expect(totals()).toContain("30,000");
+    expect(totals()).toContain("24,000");
+    expect(totals()).toContain("6,000");
+    click(chip(node, "manual"));
+    expect(totals()).toContain("4,000");
+    expect(totals()).not.toContain("6,000");
+    await act(async () => root.unmount());
+  });
+
+  it("says so when the filters leave nothing, and lets the user clear them", async () => {
+    const { node, root } = await renderPage(fixture());
+    click(chip(node, "manual"));
+    click(chip(node, "sinTasa"));
+    expect(names(node)).toEqual(["Bladimir"]);
+    const search = node.querySelector('input[type="search"]') as HTMLInputElement;
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")!.set!;
+    act(() => { setter.call(search, "zzz"); search.dispatchEvent(new Event("input", { bubbles: true })); });
+    expect(node.textContent).toContain("Ninguna línea coincide con los filtros");
+    click([...node.querySelectorAll("button")].find((b) => b.textContent === "Quitar los filtros")!);
+    expect(names(node)).toHaveLength(4);
+    await act(async () => root.unmount());
+  });
+
+  it("marks a line waiting for a rate with 'Poner tasa', which opens that rate in Tasas actuales; a COMBO waiting for its cost has none", async () => {
+    const withKey = { ...SIN_TASA, missingRates: ["usdt_sell_cup"] };
+    const { node, root } = await renderPage(fixture([withKey, COMBO]));
+    const [cup, combo] = rows(node);
+    expect(cup!.querySelector('td[data-label="Estado"]')!.textContent).toContain("Sin tasa");
+    const poner = [...cup!.querySelectorAll("button")].find((b) => b.textContent === "Poner tasa")!;
+    expect([...combo!.querySelectorAll("button")].some((b) => b.textContent === "Poner tasa")).toBe(false);
+    expect(combo!.querySelector('td[data-label="Estado"]')!.textContent).toContain("Pendiente");
+    click(poner);
+    expect(node.querySelector('[data-rate="usdt_sell_cup"] input')).not.toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("jumps to the lines waiting for a rate from the Hoy notice", async () => {
+    const { node, root } = await renderPage(fixture());
+    const hoy = node.querySelector('[data-testid="semana-hoy"]')!;
+    expect(hoy.textContent).toContain("1 sin tasa");
+    expect(hoy.textContent).toContain("1 pendiente");
+    click([...hoy.querySelectorAll("button")].find((b) => b.getAttribute("data-show") === "sinTasa")!);
+    expect(names(node)).toEqual(["Bladimir"]);
+    await act(async () => root.unmount());
+  });
+
+  it("previews the typed line in the table's own columns before it is saved", async () => {
+    const { node, root } = await renderPage(fixture([BOT]));
+    const box = node.querySelector("#rawText") as HTMLTextAreaElement;
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")!.set!;
+    await act(async () => { setter.call(box, "Fran 50k CUP (235/980)"); box.dispatchEvent(new Event("input", { bubbles: true })); });
+    const preview = table(node).querySelector("tr[data-preview]") as HTMLElement;
+    expect(preview).not.toBeNull();
+    expect(preview.textContent).toContain("Fran");
+    expect(preview.textContent).toContain("Vista previa");
+    expect(preview.textContent).toContain("al guardar");
+    expect(preview.textContent).toContain("a mano");
+    expect(table(node).querySelectorAll("tr[data-preview]")).toHaveLength(1);
+    await act(async () => root.unmount());
+  });
+
+  it("offers the format hints and opens the full guide from 'Todos los formatos'", async () => {
+    const { node, root } = await renderPage(fixture([BOT]));
+    expect(node.textContent).toContain("Pedro 150 MLC (30%/240/245)");
+    const guide = node.querySelector("#guiaFormatos") as HTMLDetailsElement;
+    expect(guide.open).toBe(false);
+    click([...node.querySelectorAll("button")].find((b) => b.textContent === "Todos los formatos")!);
+    expect(guide.open).toBe(true);
+    expect(guide.textContent).toContain("Recargas Promo");
     await act(async () => root.unmount());
   });
 });

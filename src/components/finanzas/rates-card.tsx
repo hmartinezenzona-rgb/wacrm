@@ -6,6 +6,7 @@ import type { CalculatorRates } from "@/lib/calculator/ledger-read-model";
 import { num } from "@/lib/finanzas/number-format";
 import { RATE_FIELDS, RATE_GROUPS, rateValueOf, ungroupedRates, type RateField, type RateGroup, type RateKey } from "@/lib/finanzas/rate-groups";
 import { cn } from "@/lib/utils";
+import { Notice } from "./notice";
 
 export interface ArqDisplay {
   value: number;
@@ -35,16 +36,6 @@ export interface RatesCardProps {
 }
 
 const ROW = "grid min-h-11 w-full grid-cols-[minmax(0,1fr)_auto_1.25rem] items-center gap-2 border-b border-border";
-
-/** A neutral notice: grey ground, the page's own text colour, and an amber dot that carries the warning. */
-function Notice({ children, tone = "warn" }: { children: string; tone?: "warn" | "ok" }) {
-  return (
-    <div data-warning className="mt-1 flex items-start gap-2 rounded-md bg-muted px-2.5 py-1.5 text-xs text-foreground">
-      <span data-warning-dot aria-hidden="true" className={cn("mt-1 size-2 shrink-0 rounded-full", tone === "ok" ? "bg-money-profit" : "bg-amber-500")} />
-      <span>{children}</span>
-    </div>
-  );
-}
 
 export function RatesCard({ rates, fields = RATE_FIELDS, groups = RATE_GROUPS, arq, editing, draft, locked, saving, message, onStartEdit, onDraftChange, onSave, onCancel }: RatesCardProps) {
   const t = useTranslations("Finanzas.semana.tasas");
@@ -113,13 +104,13 @@ export function RatesCard({ rates, fields = RATE_FIELDS, groups = RATE_GROUPS, a
   }
 
   return (
-    <section aria-label={t("title")} className="mx-auto mb-4 max-w-[1100px] rounded-xl border border-border bg-card p-4 text-card-foreground">
+    <section id="tasasActuales" aria-label={t("title")} className="mx-auto mb-4 max-w-[1100px] rounded-xl border border-border bg-card p-4 text-card-foreground">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-[17px] font-bold">{t("title")}</h2>
         <span className="text-[13px] text-muted-foreground">{t("hint")}</span>
       </div>
       {message && (
-        <div role="status" id="tasasMensaje" className="mb-3">
+        <div id="tasasMensaje">
           <Notice tone={message.kind === "ok" ? "ok" : "warn"}>{message.text}</Notice>
         </div>
       )}
@@ -135,7 +126,7 @@ export function RatesCard({ rates, fields = RATE_FIELDS, groups = RATE_GROUPS, a
                     <span className="text-[13px] text-muted-foreground">{arq.ageLabel ? t("arqAuto", { age: arq.ageLabel }) : t("arqAutoSinEdad")}</span>
                     <span className="whitespace-nowrap text-[15px] font-bold tabular-nums">{num(arq.value, 6)}<small className="ml-1 text-[11px] font-medium text-muted-foreground">MXN</small></span>
                   </div>
-                  {arq.warn ? <Notice>{arq.note}</Notice> : arq.note ? <span className="mt-0.5 block text-[11px] text-muted-foreground">{arq.note}</span> : null}
+                  {arq.warn ? <div className="mt-1"><Notice>{arq.note}</Notice></div> : arq.note ? <span className="mt-0.5 block text-[11px] text-muted-foreground">{arq.note}</span> : null}
                 </div>
               )}
             </div>

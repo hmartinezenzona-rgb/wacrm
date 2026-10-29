@@ -63,6 +63,11 @@ function render(overrides: Partial<SemanaOverviewViewProps> = {}) {
     ready: true,
     onRegister: vi.fn(),
     onCloseWeek: vi.fn(),
+    onPickService: vi.fn(),
+    onPickClient: vi.fn(),
+    onShowPending: vi.fn(),
+    activeService: null,
+    activeClient: null,
     ...overrides,
   };
   container = document.createElement("div");
@@ -137,7 +142,30 @@ describe("SemanaOverviewView", () => {
     expect(hoy).toMatch(/Operaciones completadas\s*1(?!\d)/);
     expect(hoy).toContain(`Facturado hoy${n(50000)} GYD`);
     expect(hoy).toContain(`Ganancia hoy${n(5000)} GYD`);
-    expect(hoy).toContain("1 línea sin tasa: revisarlas antes de cerrar la semana");
+    expect(hoy).toContain("1 sin tasa · no cuentan aún");
+  });
+
+  it("counts the other pending lines apart from the ones missing a rate, each with a link to see them", () => {
+    const pending = entry({ entryDate: "2026-10-28", status: "verified_pending", service: "COMBO", customerName: "Eva", missingRates: ["combo_cost"], facturadoGyd: null, invertidoGyd: null, retornoGyd: null });
+    const props = render({ entries: [...ENTRIES, pending, { ...pending, id: "p2" }] });
+    const hoy = container!.querySelector('[data-testid="semana-hoy"]')!;
+    expect(hoy.textContent).toContain("1 sin tasa");
+    expect(hoy.textContent).toContain("2 pendientes");
+    act(() => (hoy.querySelector('[data-show="sinTasa"]') as HTMLElement).click());
+    act(() => (hoy.querySelector('[data-show="pending"]') as HTMLElement).click());
+    expect(props.onShowPending).toHaveBeenNthCalledWith(1, "sinTasa");
+    expect(props.onShowPending).toHaveBeenNthCalledWith(2, "pending");
+  });
+
+  it("turns each service and each client into a button that filters the records table", () => {
+    const props = render({ activeService: "CUP", activeClient: null });
+    const services = [...container!.querySelectorAll('[data-testid="semana-servicios"] button')] as HTMLButtonElement[];
+    expect(services.map((b) => b.getAttribute("aria-pressed"))).toEqual(["true", "false"]);
+    act(() => services[1]!.click());
+    expect(props.onPickService).toHaveBeenCalledWith("ZELLE");
+    const clients = [...container!.querySelectorAll('[data-testid="semana-clientes"] button')] as HTMLButtonElement[];
+    act(() => clients[0]!.click());
+    expect(props.onPickClient).toHaveBeenCalledWith("Ana");
   });
 
   it("shows no warning when every line is complete", () => {

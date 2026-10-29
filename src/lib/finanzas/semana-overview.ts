@@ -1,8 +1,9 @@
 // Pure figures of the Finanzas > Semana overview. No I/O, no rendering: the component hands in the entries the page
 // already loaded and gets back everything it draws. Only `completed` entries count; a pending, voided or unknown one
-// never adds to a total (a pending one only raises the "incomplete lines" warning).
+// never adds to a total (a pending one only raises the "sin tasa" and "pendientes" notices).
 
 import { guyanaToday } from "@/lib/calculator/manual-entries";
+import { entryGroup } from "./registros";
 
 /** The stored per-entry figures the overview reads (a `ChatCalculatorEntry` fits). */
 export interface OverviewEntry {
@@ -199,9 +200,16 @@ export function topClients(entries: OverviewEntry[], limit = 5): ClientRow[] {
   return [...rows.values()].sort((a, b) => b.retorno - a.retorno || a.name.localeCompare(b.name)).slice(0, limit);
 }
 
-/** Lines the week cannot count yet: waiting for a rate or with rates missing. Voided lines are not lines. */
-export function incompleteCount(entries: OverviewEntry[]): number {
-  return entries.filter((e) => isLive(e) && (e.status !== "completed" || e.missingRates.length > 0)).length;
+/** Lines the week cannot count yet: those missing a rate (somebody can set it) and the other pending ones. Voided lines are not lines. */
+export function pendingCounts(entries: OverviewEntry[]): { sinTasa: number; pending: number } {
+  let sinTasa = 0;
+  let pending = 0;
+  for (const entry of entries) {
+    if (entry.status !== "verified_pending") continue;
+    if (entryGroup(entry) === "sinTasa") sinTasa += 1;
+    else pending += 1;
+  }
+  return { sinTasa, pending };
 }
 
 export interface SemanaOverview {
@@ -215,7 +223,8 @@ export interface SemanaOverview {
   days: DayPoint[];
   services: ServiceRow[];
   clients: ClientRow[];
-  incomplete: number;
+  sinTasa: number;
+  pending: number;
 }
 
 /** The previous week up to the same elapsed day count since its own start. */
@@ -265,6 +274,6 @@ export function buildSemanaOverview(
     days: profitByDay(entries, startDay, day),
     services: profitByService(entries),
     clients: topClients(entries),
-    incomplete: incompleteCount(entries),
+    ...pendingCounts(entries),
   };
 }

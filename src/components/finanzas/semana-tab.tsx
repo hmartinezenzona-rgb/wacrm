@@ -2,23 +2,26 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { Check, Loader2, Pencil, Trash2, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { isComboCostPending, pendingReason, type CalculatorRates } from "@/lib/calculator/ledger-read-model";
+import { canResolveWithRates, pendingReason, type CalculatorRates } from "@/lib/calculator/ledger-read-model";
 import { guyanaToday, manualEntriesFromText, removeRegisteredLines } from "@/lib/calculator/manual-entries";
-import { formatNumber, TotalBox } from "./legacy-calc-format";
 import { ServiceDot } from "@/components/service/service-dot";
 import { moneyCellProps, profitTone } from "@/lib/money-tone";
 import { canEditEntryCost, canEditEntryRates, recomputeInvestment } from "@/lib/calculator/entry-rates";
 import { parseManualLineRates, parseManualUnitLine } from "@/lib/calculator/web-calculator";
-import { chatEntryAmountExportText, chatEntryAmountText, ledgerServiceLabel } from "@/lib/calculator/entry-display";
+import { chatEntryAmountCommaText, chatEntryAmountExportText, ledgerServiceLabel } from "@/lib/calculator/entry-display";
 import { applyCalculatorEntryRealtimeEvent, insertCalculatorEntry, type ChatCalculatorEntry } from "@/lib/calculator/realtime-entry";
 import { useCalculatorEntriesRealtime } from "@/hooks/use-calculator-entries-realtime";
 import { num } from "@/lib/finanzas/number-format";
-import { rateValueOf, type RateKey } from "@/lib/finanzas/rate-groups";
+import { RATE_FIELDS, rateValueOf, type RateKey } from "@/lib/finanzas/rate-groups";
+import { entryGroup, filterRegistros, NO_FILTERS, registroTotals, sameClient, serviceOptions, statusCounts, type RegistroFilters } from "@/lib/finanzas/registros";
+import { Notice } from "./notice";
+import { QuickEntry } from "./quick-entry";
 import { RatesCard } from "./rates-card";
-import { SemanaOverview } from "./semana-overview";
-import "./calculadora.module.css";
+import { RegistrosToolbar } from "./registros-toolbar";
+import { SemanaOverview, useDateLabels } from "./semana-overview";
 
 const STORAGE_KEYS = {
   raw: "remesas_rawText",
@@ -28,6 +31,13 @@ const STORAGE_KEYS = {
 /** The .txt export keeps its plain figures: the owner pastes it elsewhere. */
 function plainNumber(value: number): string {
   return value.toFixed(2);
+}
+
+/** "235 / 980": the rates a line was costed with (USDT buy, USDT sale in CUP); a dash when it has none stored. */
+function rateText(buy: number | null | undefined, cup: number | null | undefined): string {
+  if (buy != null && cup != null) return `${num(buy, 4)} / ${num(cup, 4)}`;
+  if (buy != null) return num(buy, 4);
+  return "—";
 }
 
 function chatTotals(entries: ChatCalculatorEntry[]) {
@@ -46,12 +56,6 @@ function chatTotals(entries: ChatCalculatorEntry[]) {
 
 function lineStart(value: string, cursor: number): number {
   return value.lastIndexOf("\n", cursor - 1) + 1;
-}
-
-function insertBullet(value: string, cursor: number): { value: string; cursor: number } {
-  const needsBreak = cursor > 0 && value[cursor - 1] !== "\n";
-  const insertion = `${needsBreak ? "\n" : ""}• `;
-  return { value: `${value.slice(0, cursor)}${insertion}${value.slice(cursor)}`, cursor: cursor + insertion.length };
 }
 
 /** ARQ's USD -> MXN ticker as stored by migration 297 and its health (298); read-only in this card. */
@@ -105,6 +109,9 @@ type StoredEntryFigures = Pick<ChatCalculatorEntry, "id" | "facturadoGyd" | "inv
   };
 
 export function SemanaTab() {
+  const tr = useTranslations("Finanzas.semana.registros");
+  const { weekdayShort, dayNumber } = useDateLabels();
+  const dayLabel = (day: string) => `${weekdayShort(day)} ${dayNumber(day)}`;
   const [rawText, setRawText] = useState("");
   const [periodo, setPeriodo] = useState("");
   const [rates, setRates] = useState<CalculatorRates | null>(null);
@@ -142,12 +149,8 @@ export function SemanaTab() {
   const clearingRef = useRef(false);
   const saveAbortRef = useRef<AbortController | null>(null);
   const [saveNonce, setSaveNonce] = useState(0);
-  // No local theme state: the page reads the CRM's design tokens, so it
-  // follows whatever mode and accent the operator picked in Appearance.
-  // The old `dark` boolean and its "🌗 Tema" button were a second switch
-  // that only knew light/dark, which is how this screen ended up white on
-  // a dark CRM.
-  const [fullscreen, setFullscreen] = useState(false);
+  // The filters over the one records table (status chip, service, client, search).
+  const [filters, setFilters] = useState<RegistroFilters>(NO_FILTERS);
   const [hydrated, setHydrated] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   // "Registrar": the text box only ADDS operations. `registering` is the request in flight; the box is read-only meanwhile.
@@ -173,21 +176,11 @@ export function SemanaTab() {
   const draft = useMemo(() => manualEntriesFromText(rawText, Number(tarifa), guyanaToday(new Date())), [rawText, tarifa]);
   // Totals and breakdown count the operations of the table (the bot's and the manual ones); the draft text is not one yet.
   const totals = useMemo(() => chatTotals(chatEntries), [chatEntries]);
-  const serviceTotals = useMemo(() => {
-    const byService = new Map<string, { name: string; service: string; fact: number; inv: number; ret: number }>();
-    for (const entry of chatEntries) {
-      if (entry.status !== "completed") continue;
-      const category = ledgerServiceLabel(entry.service);
-      const current = byService.get(category) ?? { name: category, service: entry.service, fact: 0, inv: 0, ret: 0 };
-      current.fact += entry.facturadoGyd ?? 0;
-      current.inv += entry.invertidoGyd ?? 0;
-      current.ret += entry.retornoGyd ?? 0;
-      byService.set(category, current);
-    }
-    return [...byService.values()];
-  }, [chatEntries]);
-  const pendingEntries = useMemo(
-    () => chatEntries.filter((entry) => entry.status === "verified_pending"),
+  const shownEntries = useMemo(() => filterRegistros(chatEntries, filters), [chatEntries, filters]);
+  const counts = useMemo(() => statusCounts(chatEntries, filters), [chatEntries, filters]);
+  const shownTotals = useMemo(() => registroTotals(shownEntries), [shownEntries]);
+  const serviceChoices = useMemo(
+    () => serviceOptions(chatEntries).map((key) => ({ key, name: ledgerServiceLabel(key) })),
     [chatEntries],
   );
 
@@ -638,18 +631,6 @@ export function SemanaTab() {
     window.requestAnimationFrame(() => { textarea.selectionStart = textarea.selectionEnd = cursor + 3; });
   }
 
-  function insertManualBullet() {
-    const textarea = document.getElementById("rawText") as HTMLTextAreaElement | null;
-    if (!textarea) return;
-    const result = insertBullet(rawText, textarea.selectionStart);
-    setRawText(result.value);
-    window.requestAnimationFrame(() => { textarea.selectionStart = textarea.selectionEnd = result.cursor; textarea.focus(); });
-  }
-
-  function toggleFullscreen() {
-    setFullscreen((value) => !value);
-  }
-
   async function clearAll() {
     if (clearing) return;
     setClearing(true);
@@ -770,11 +751,15 @@ export function SemanaTab() {
     URL.revokeObjectURL(link.href);
   }
 
-  // Header actions of the overview: they reuse the calculator's own box, rates block and weekly-cut dialog.
+  // Header actions of the overview: they reuse the quick-entry box and the weekly-cut dialog.
   function focusRegisterBox() {
     const box = document.getElementById("rawText");
-    box?.scrollIntoView({ behavior: "smooth", block: "center" });
+    box?.scrollIntoView?.({ behavior: "smooth", block: "center" });
     box?.focus({ preventScroll: true });
+  }
+
+  function jumpToRecords() {
+    document.getElementById("cardRegistros")?.scrollIntoView?.({ behavior: "smooth", block: "start" });
   }
 
   function startEditRate(key: RateKey) {
@@ -796,6 +781,53 @@ export function SemanaTab() {
       ? `último intento ARQ falló${arqMotivo ? ` (${arqMotivo})` : ""}`
       : [arqAsk, arqMinutes != null && Number.isFinite(arqMinutes) ? arqAgeLabel(arqMinutes) : null, arqTime].filter(Boolean).join(" · ");
 
+  /** "Poner tasa": the missing rate is one of the global rates, so it is set where the global rates are set. */
+  function putRate(entry: ChatCalculatorEntry) {
+    const field = RATE_FIELDS.find((f) => entry.missingRates.includes(f.key) || entry.missingRates.includes(String(f.field)));
+    if (field) startEditRate(field.key);
+    document.getElementById("tasasActuales")?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+  }
+
+  function pickService(service: string) {
+    setFilters((current) => ({ ...current, service: current.service === service ? null : service }));
+  }
+
+  function pickClient(name: string) {
+    setFilters((current) => ({ ...current, client: sameClient(current.client, name) ? null : name }));
+  }
+
+  function showPending(kind: "sinTasa" | "pending") {
+    setFilters({ ...NO_FILTERS, status: kind });
+    jumpToRecords();
+  }
+
+  const ICON_BUTTON = "rowIconButton inline-flex size-8 items-center justify-center rounded-md border border-border bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50";
+  const CELL = "px-2 py-2 align-middle";
+  // The Acciones column is as narrow as its icons, not an equal share of the table.
+  const ACTIONS = "actionsCell w-px whitespace-nowrap text-center";
+  const NUM = `${CELL} text-right tabular-nums`;
+  const EDIT_INPUT = "h-9 w-28 rounded-md border border-input bg-card px-2 text-right text-sm tabular-nums outline-none focus:border-ring";
+
+  function PreviewRows() {
+    return draft.lines.map((line) => {
+      const rates = parseManualLineRates(line.rawLine);
+      return (
+        <tr key={`preview-${line.line}`} data-preview className="border-b border-border bg-muted/40">
+          <td data-label="Día" className={CELL}>{dayLabel(line.date)}</td>
+          <td data-label="Cliente" className={CELL}><b>{line.customer}</b><span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-[11px] font-semibold">{tr("aManoTag")}</span></td>
+          <td data-label="Servicio" className={CELL}><ServiceDot service={line.service} />{ledgerServiceLabel(line.service)}</td>
+          <td data-label="Monto" className={`${NUM} whitespace-nowrap`}>{chatEntryAmountCommaText({ amount: line.amount, amountCurrency: line.currency, service: line.service })}</td>
+          <td data-label="Tasa" className={`${NUM} whitespace-nowrap`}>{rateText(rates?.buy, rates?.cupRate)}</td>
+          <td data-label="Facturado" className={`${NUM} text-muted-foreground`}>{tr("alGuardar")}</td>
+          <td data-label="Invertido" className={`${NUM} text-muted-foreground`}>{tr("alGuardar")}</td>
+          <td data-label="Ganancia" className={`${NUM} text-muted-foreground`}>{tr("alGuardar")}</td>
+          <td data-label="Estado" className={CELL}><span className="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold">{tr("vistaPrevia")}</span></td>
+          <td data-label="Acciones" className={`${CELL} ${ACTIONS}`} />
+        </tr>
+      );
+    });
+  }
+
   return (
     <>
     <SemanaOverview
@@ -804,6 +836,11 @@ export function SemanaTab() {
       ready={hydrated}
       onRegister={focusRegisterBox}
       onCloseWeek={() => { if (!clearing) setClearDialogOpen(true); }}
+      onPickService={pickService}
+      onPickClient={pickClient}
+      onShowPending={showPending}
+      activeService={filters.service}
+      activeClient={filters.client}
     />
     <RatesCard
       rates={rates}
@@ -818,301 +855,226 @@ export function SemanaTab() {
       onSave={() => void actualizarTasa()}
       onCancel={cancelEditRate}
     />
-    <div className="legacyCalc legacyEmbedded">
-      <div className="legacyContainer">
-        <div className="legacyTopBar">
-          <h1>Cierre Semanal PRO</h1>
-        </div>
-
-        <details>
-          <summary>Guía Rápida de Formatos de Registro</summary>
-          <table className="legacyHelpTable"><thead><tr><th>Servicio</th><th>Ejemplo</th><th>Cálculo</th></tr></thead><tbody>
-            <tr><td><b>CUP</b></td><td><code>• Fran 50k CUP (235/980)</code></td><td>Tarifa global para venta; paréntesis para costo.</td></tr>
-            <tr><td><b>Zelle / MLC / Clásica / Tropical</b></td><td><code>• Pedro 150 MLC (30%/240/245)</code><br /><code>• Julié 2.8k Zelle (3%/235/250)</code></td><td>Aplica % descuento (si hay) y costo/venta en GYD.</td></tr>
-            <tr><td><b>USDT</b></td><td><code>• Carlos 1k usdt (235/260)</code></td><td>Costo y venta directos en GYD por USDT.</td></tr>
-            <tr><td><b>Recargas Promo</b></td><td><code>• Josefa 1 rec promo (23.1/6.2k/242)</code></td><td><code>(USDT Costo / Venta GYD / Tasa USDT GYD)</code></td></tr>
-            <tr><td><b>Saldo móvil</b></td><td><code>• Carlos 2 saldo movil (1.25/1k/242.21)</code></td><td><code>(USDT Costo / Venta GYD / Tasa USDT GYD)</code></td></tr>
-            <tr><td><b>Servicios Directos</b></td><td><code>• Iza 1 ext visa 5k GYD</code></td><td><b>Ganancia limpia:</b> Inv = 0, Retorno = Monto.</td></tr>
-          </tbody></table>
-        </details>
-
-        <div className="legacyCard legacyFlex">
-          <div><label htmlFor="periodo">Período / Semana</label><input id="periodo" placeholder="Ej. SEMANA 1 AGOSTO" value={periodo} onChange={(event) => setPeriodo(event.target.value)} /></div>
-        </div>
-
-        {pendingEntries.length > 0 && (
-          <div className="legacyWarning" id="pendingBanner">
-            <p style={{ margin: "0 0 6px 0", fontWeight: "bold" }}>
-              {pendingEntries.length} operación{pendingEntries.length === 1 ? "" : "es"} del chat en espera {pendingEntries.every(isComboCostPending) ? "del costo" : "de tasas"} para completarse:
-            </p>
-            <ul style={{ margin: 0, paddingLeft: 18 }}>
-              {pendingEntries.map((entry) => (
-                <li key={entry.id}>
-                  {entry.customerName || "Sin nombre"} ({ledgerServiceLabel(entry.service)}): {pendingReason(entry)}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        <div className={`legacyCard${fullscreen ? " legacyFullscreen" : ""}`} id="cardRegistros">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 10 }}>
-            <h2 style={{ margin: 0 }}>Registros de la Semana</h2>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <button type="button" id="registrarEntradas" onClick={() => void registrar()} disabled={registering || draft.lines.length === 0} aria-busy={registering} style={{ width: "auto", padding: "6px 12px", fontSize: 13, minHeight: 36 }}>Registrar</button>
-              <button type="button" onClick={toggleFullscreen} style={{ width: "auto", padding: "6px 12px", fontSize: 13, minHeight: 36, background: fullscreen ? "#dc3545" : "var(--legacy-accent)" }}>{fullscreen ? "Salir de Pantalla Completa" : "Maximizar"}</button>
-            </div>
-          </div>
-          <span className="legacySmall">Usa el botón <b>+ Viñeta</b> o escribe <code>-</code> + <code>Espacio</code>. Presiona <code>Enter</code> para nueva línea.</span>
-          <textarea id="rawText" value={rawText} readOnly={registering} onChange={handleTextChange} onKeyDown={handleKeys} placeholder={'Miércoles 5\n• Fran 50k CUP (235/980)\n• Josefa 1 rec promo (23.1/6.2k/242)\n• Pedro 150 MLC (30%/240/245)\n• Carlos 2 saldo movil (1.25/1k/242.21)\n• Carlos 1k usdt (235/260)\n• Iza 1 ext visa 5k GYD'} />
-          <button type="button" className="legacyBulletButton" onClick={insertManualBullet}>+ Viñeta •</button>
-        </div>
-
-        {saveError && <div className="legacyError">{saveError}</div>}
-        {registerError && <div className="legacyError" role="status">{registerError}</div>}
-        {registerMessage && <div className="legacyNotice" role="status">{registerMessage}</div>}
-        {draft.uninterpreted.length > 0 && (
-          <div className="legacyWarning" id="lineasNoInterpretadas">
-            {draft.uninterpreted.map((item) => <p key={item.line} style={{ margin: "0 0 4px 0", color: "orange" }}>No interpretado: &quot;{item.raw}&quot;</p>)}
-          </div>
-        )}
-
-        <div className="legacyTotals">
-          <TotalBox title="Facturado (GYD)" kind="in" value={totals.fact} />
-          <TotalBox title="Invertido (GYD)" kind="out" value={totals.inv} />
-          <TotalBox title="Retorno Neto (GYD)" kind="result" value={totals.ret} />
-        </div>
-
-        <div className="legacyCard"><h2>Desglose Semanal por Servicios</h2>{serviceTotals.map((service) => <div className="legacyCard" style={{ marginBottom: 10, padding: 12 }} key={service.name}><div className="legacyBlockRow"><b><ServiceDot service={service.service} />Categoría: {service.name}</b><span>Fact: <b>{formatNumber(service.fact)} GYD</b> | Inv: <b>{formatNumber(service.inv)} GYD</b> | Retorno: <b {...moneyCellProps(profitTone(service.ret))}>{formatNumber(service.ret)} GYD</b></span></div></div>)}</div>
-
-        <div className="legacyCard">
-          <h2>Operaciones</h2>
-          {chatEntries.length === 0 ? (
-            <span className="legacySmall">No hay operaciones.</span>
-          ) : (
-            <div style={{ maxHeight: 400, overflowY: "auto" }}>
-              <table className="legacyParsedTable">
-                <thead>
-                  <tr>
-                    <th>Fecha</th><th>Cliente</th><th>Monto</th><th>Tipo</th><th>Estado</th>
-                    <th>Fact. (GYD)</th><th>Inv. (GYD)</th><th>Ganancia</th><th className="legacyActionsCell">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {chatEntries.map((entry) => {
-                    const editing = editingEntryId === entry.id;
-                    const rowMessage = entryActionMessage?.entryId === entry.id ? entryActionMessage.text : null;
-                    const editedRate = editing ? editedRates(entry) : null;
-                    // A changed rate drives invertido (the database recomputes it); otherwise the typed figure does.
-                    const shownInvertido = editedRate?.recomputed ? editedRate.recomputed.invertidoGyd.toFixed(2) : editInvertido;
-                    const editPreview = (Number(editFacturado) || 0) - (Number(shownInvertido) || 0);
-                    return (
-                      <Fragment key={entry.id}>
-                      <tr>
-                        <td data-label="Fecha">{entry.entryDate.slice(0, 10)}</td>
-                        <td data-label="Cliente"><b>{entry.customerName || "—"}</b></td>
-                        <td data-label="Monto">{chatEntryAmountText(entry)}</td>
-                        <td data-label="Tipo"><span className="legacyBadge"><ServiceDot service={entry.service} />{ledgerServiceLabel(entry.service)}</span>{entry.source === "manual" && <span className="legacyBadge" title="Registrada a mano" style={{ marginLeft: 6 }}>Manual</span>}</td>
-                        <td data-label="Estado">{entry.status === "completed" ? "Completada" : `Pendiente${entry.missingRates.length ? `: ${pendingReason(entry)}` : ""}`}</td>
-                        <td data-label="Fact. (GYD)" {...(editing ? {} : moneyCellProps(entry.facturadoGyd == null ? "neutral" : "in"))}>
-                          {editing ? (
-                            <input
-                              id={`editFacturado-${entry.id}`}
-                              type="number"
-                              step="0.01"
-                              value={editFacturado}
-                              onChange={(event) => setEditFacturado(event.target.value)}
-                              onKeyDown={(event) => handleEditKeys(event, entry.id)}
-                            />
-                          ) : entry.facturadoGyd == null ? "—" : formatNumber(entry.facturadoGyd)}
-                        </td>
-                        <td data-label="Inv. (GYD)" {...(editing ? {} : moneyCellProps(entry.invertidoGyd == null ? "neutral" : "out"))}>
-                          {editing ? (
-                            <input
-                              id={`editInvertido-${entry.id}`}
-                              type="number"
-                              step="0.01"
-                              value={shownInvertido}
-                              readOnly={Boolean(editedRate?.recomputed)}
-                              disabled={Boolean(editedRate?.recomputed)}
-                              onChange={(event) => setEditInvertido(event.target.value)}
-                              onKeyDown={(event) => handleEditKeys(event, entry.id)}
-                            />
-                          ) : entry.invertidoGyd == null ? "—" : formatNumber(entry.invertidoGyd)}
-                        </td>
-                        <td data-label="Ganancia" {...moneyCellProps(profitTone(editing ? editPreview : entry.retornoGyd))}>
-                          {editing ? formatNumber(editPreview) : entry.retornoGyd == null ? "—" : formatNumber(entry.retornoGyd)}
-                        </td>
-                        <td data-label="Acciones" className="legacyActionsCell">
-                          {editing ? (
-                            <div style={{ display: "flex", gap: 6, flexDirection: "column" }}>
-                              <div style={{ display: "inline-flex", gap: 6, justifyContent: "center" }}>
-                                <button
-                                  type="button"
-                                  id={`guardarEntry-${entry.id}`}
-                                  className="legacyIconButton"
-                                  onClick={() => void saveEditEntry(entry.id)}
-                                  disabled={editSaving}
-                                  aria-busy={editSaving}
-                                  aria-label="Guardar"
-                                  title="Guardar"
-                                >
-                                  {editSaving ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Check size={16} aria-hidden="true" />}
-                                </button>
-                                <button
-                                  type="button"
-                                  id={`cancelarEntry-${entry.id}`}
-                                  className="legacyIconButton"
-                                  onClick={cancelEditEntry}
-                                  disabled={editSaving}
-                                  aria-label="Cancelar"
-                                  title="Cancelar"
-                                >
-                                  <X size={16} aria-hidden="true" />
-                                </button>
-                              </div>
-                              {rowMessage && <div className="legacyError">{rowMessage}</div>}
-                            </div>
-                          ) : confirmingDeleteId === entry.id ? (
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
-                              <span>¿Eliminar?</span>
-                              <button
-                                type="button"
-                                id={`cancelarEliminar-${entry.id}`}
-                                className="legacyIconButton"
-                                onClick={() => setConfirmingDeleteId(null)}
-                                disabled={deletingEntryId === entry.id}
-                                aria-label="Cancelar"
-                                title="Cancelar"
-                              >
-                                <X size={16} aria-hidden="true" />
-                              </button>
-                              <button
-                                type="button"
-                                id={`confirmarEliminar-${entry.id}`}
-                                className="legacyIconButton"
-                                style={{ color: "var(--destructive)", borderColor: "var(--destructive)" }}
-                                onClick={() => void deleteEntry(entry)}
-                                disabled={deletingEntryId === entry.id}
-                                aria-busy={deletingEntryId === entry.id}
-                                aria-label="Eliminar"
-                                title="Eliminar"
-                              >
-                                {deletingEntryId === entry.id ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Check size={16} aria-hidden="true" />}
-                              </button>
-                            </span>
-                          ) : (
-                            <>
-                              {entry.status === "completed" && (
-                                <button
-                                  type="button"
-                                  id={`editarEntry-${entry.id}`}
-                                  className="legacyIconButton"
-                                  onClick={() => startEditEntry(entry)}
-                                  aria-label="Editar"
-                                  title="Editar"
-                                >
-                                  <Pencil size={16} aria-hidden="true" />
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                id={`eliminarEntry-${entry.id}`}
-                                className="legacyIconButton"
-                                onClick={() => setConfirmingDeleteId(entry.id)}
-                                aria-label="Eliminar"
-                                title="Eliminar"
-                              >
-                                <Trash2 size={16} aria-hidden="true" />
-                              </button>
-                            </>
-                          )}
-                          {!editing && rowMessage && <div className="legacyError">{rowMessage}</div>}
-                        </td>
-                      </tr>
-                      {editing && editedRate && (editedRate.editable.buy || editedRate.editable.cup || editedRate.editable.cost) && (
-                        <tr id={`tasasEntry-${entry.id}`}>
-                          <td colSpan={9}>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
-                              <span className="legacySmall">Tasas de esta operación:</span>
-                              {entry.cupGlobalRate != null && <span className="legacySmall">Tarifa CUP: <b>{entry.cupGlobalRate}</b></span>}
-                              {entry.usdtSellGyd != null && <span className="legacySmall">Venta USDT (GYD): <b>{entry.usdtSellGyd}</b></span>}
-                              {editedRate.editable.cup && (
-                                <label className="legacySmall" htmlFor={`editVentaUsdtCup-${entry.id}`}>
-                                  Venta USDT (CUP)
-                                  <input
-                                    id={`editVentaUsdtCup-${entry.id}`}
-                                    type="number"
-                                    step="any"
-                                    value={editCup}
-                                    onChange={(event) => setEditCup(event.target.value)}
-                                    onKeyDown={(event) => handleEditKeys(event, entry.id)}
-                                  />
-                                </label>
-                              )}
-                              {editedRate.editable.cost && (
-                                <label className="legacySmall" htmlFor={`editCostoUsdt-${entry.id}`}>
-                                  {entry.service === "SALDO_MOVIL" ? "Costo por 360 CUP (USDT)" : "Costo por recarga (USDT)"}
-                                  <input
-                                    id={`editCostoUsdt-${entry.id}`}
-                                    type="number"
-                                    step="any"
-                                    value={editCost}
-                                    onChange={(event) => setEditCost(event.target.value)}
-                                    onKeyDown={(event) => handleEditKeys(event, entry.id)}
-                                  />
-                                </label>
-                              )}
-                              {editedRate.editable.buy && (
-                                <label className="legacySmall" htmlFor={`editCompraUsdt-${entry.id}`}>
-                                  Compra USDT (GYD)
-                                  <input
-                                    id={`editCompraUsdt-${entry.id}`}
-                                    type="number"
-                                    step="any"
-                                    value={editBuy}
-                                    onChange={(event) => setEditBuy(event.target.value)}
-                                    onKeyDown={(event) => handleEditKeys(event, entry.id)}
-                                  />
-                                </label>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                      </Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        <div className="legacyCard legacyFlex"><button type="button" onClick={exportar}>Exportar Reporte (.txt)</button><button type="button" className="legacySecondary" onClick={() => setClearDialogOpen(true)} disabled={clearing}>{clearing ? "Limpiando…" : "Limpiar Todo"}</button></div>
-        {clearMessage && <div className="legacyError" role="status">{clearMessage}</div>}
-
-        {/* Rendered in a portal on <body>, outside .legacyCalc, so the page's legacy button styles do not reach it. */}
-        <Dialog open={clearDialogOpen} onOpenChange={(open) => { if (!clearing) setClearDialogOpen(open); }}>
-          <DialogContent showCloseButton={false}>
-            <DialogHeader>
-              <DialogTitle>¿Limpiar todo y empezar una semana nueva?</DialogTitle>
-              <DialogDescription>
-                La semana actual se guarda en «Cierres» y el historial (Finanzas, panel) sigue contando. Las
-                operaciones del chat en espera de precio se quedan en pantalla.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="ghost" onClick={() => setClearDialogOpen(false)} disabled={clearing}>Cancelar</Button>
-              <Button variant="destructive" onClick={() => void clearAll()} disabled={clearing}>
-                {clearing ? "Limpiando…" : "Limpiar todo"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
+    <section id="cardRegistros" aria-label={tr("title")} className="mx-auto mb-4 max-w-[1100px] rounded-xl border border-border bg-card p-4 text-card-foreground">
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-[17px] font-bold">{tr("title")}</h2>
+        <span className="text-[13px] text-muted-foreground">{tr("subtitle")}</span>
       </div>
+
+      <QuickEntry
+        value={rawText}
+        readOnly={registering}
+        registering={registering}
+        canRegister={draft.lines.length > 0}
+        onChange={handleTextChange}
+        onKeyDown={handleKeys}
+        onRegister={() => void registrar()}
+      />
+      {saveError && <Notice>{saveError}</Notice>}
+      {registerError && <Notice>{registerError}</Notice>}
+      {registerMessage && <Notice tone="ok">{registerMessage}</Notice>}
+      {draft.uninterpreted.length > 0 && (
+        <div id="lineasNoInterpretadas" className="mb-3 flex flex-col gap-1">
+          {draft.uninterpreted.map((item) => <Notice key={item.line}>{tr("noInterpretado", { raw: item.raw })}</Notice>)}
+        </div>
+      )}
+
+      <RegistrosToolbar filters={filters} counts={counts} services={serviceChoices} onChange={setFilters} />
+
+      <div className="max-h-[520px] overflow-auto rounded-lg border border-border">
+        <table data-testid="registros-tabla" className="w-full min-w-[900px] border-collapse text-[13px]">
+          <thead className="sticky top-0 bg-muted text-left text-xs text-muted-foreground">
+            <tr>
+              <th className={CELL}>{tr("col.dia")}</th><th className={CELL}>{tr("col.cliente")}</th><th className={CELL}>{tr("col.servicio")}</th>
+              <th className={`${CELL} text-right`}>{tr("col.monto")}</th><th className={`${CELL} text-right`} title={tr("tasaTitle")}>{tr("col.tasa")}</th>
+              <th className={`${CELL} text-right`}>{tr("col.facturado")}</th><th className={`${CELL} text-right`}>{tr("col.invertido")}</th>
+              <th className={`${CELL} text-right`}>{tr("col.ganancia")}</th><th className={CELL}>{tr("col.estado")}</th><th className={`${CELL} ${ACTIONS}`}>{tr("col.acciones")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {PreviewRows()}
+            {shownEntries.map((entry) => {
+              const editing = editingEntryId === entry.id;
+              const rowMessage = entryActionMessage?.entryId === entry.id ? entryActionMessage.text : null;
+              const editedRate = editing ? editedRates(entry) : null;
+              // A changed rate drives invertido (the database recomputes it); otherwise the typed figure does.
+              const shownInvertido = editedRate?.recomputed ? editedRate.recomputed.invertidoGyd.toFixed(2) : editInvertido;
+              const editPreview = (Number(editFacturado) || 0) - (Number(shownInvertido) || 0);
+              const group = entryGroup(entry);
+              const money = (value: number | null) => (value == null ? "—" : num(value, 2));
+              return (
+                <Fragment key={entry.id}>
+                <tr data-entry={entry.id} className={`border-b border-border ${editing ? "bg-accent/40" : ""}`}>
+                  <td data-label="Día" className={`${CELL} whitespace-nowrap text-muted-foreground`} title={entry.entryDate.slice(0, 10)}>{dayLabel(entry.entryDate)}</td>
+                  <td data-label="Cliente" className={CELL}><b>{entry.customerName || "—"}</b>{entry.source === "manual" && <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-[11px] font-semibold" title="Registrada a mano">{tr("aManoTag")}</span>}</td>
+                  <td data-label="Servicio" className={CELL}><ServiceDot service={entry.service} />{ledgerServiceLabel(entry.service)}</td>
+                  <td data-label="Monto" className={`${NUM} whitespace-nowrap`}>{chatEntryAmountCommaText(entry)}</td>
+                  <td data-label="Tasa" className={`${NUM} whitespace-nowrap`}>
+                    {group === "sinTasa" && canResolveWithRates(entry) ? (
+                      <Button type="button" variant="outline" size="sm" className="min-h-9" onClick={() => putRate(entry)}>{tr("ponerTasa")}</Button>
+                    ) : rateText(entry.usdtBuyGyd, entry.cupRate)}
+                  </td>
+                  <td data-label="Facturado" {...(editing ? { className: NUM } : moneyCellProps(entry.facturadoGyd == null ? "neutral" : "in", NUM))}>
+                    {editing ? (
+                      <input
+                        id={`editFacturado-${entry.id}`}
+                        type="number"
+                        step="0.01"
+                        className={EDIT_INPUT}
+                        value={editFacturado}
+                        onChange={(event) => setEditFacturado(event.target.value)}
+                        onKeyDown={(event) => handleEditKeys(event, entry.id)}
+                      />
+                    ) : money(entry.facturadoGyd)}
+                  </td>
+                  <td data-label="Invertido" {...(editing ? { className: NUM } : moneyCellProps(entry.invertidoGyd == null ? "neutral" : "out", NUM))}>
+                    {editing ? (
+                      <input
+                        id={`editInvertido-${entry.id}`}
+                        type="number"
+                        step="0.01"
+                        className={EDIT_INPUT}
+                        value={shownInvertido}
+                        readOnly={Boolean(editedRate?.recomputed)}
+                        disabled={Boolean(editedRate?.recomputed)}
+                        onChange={(event) => setEditInvertido(event.target.value)}
+                        onKeyDown={(event) => handleEditKeys(event, entry.id)}
+                      />
+                    ) : money(entry.invertidoGyd)}
+                  </td>
+                  <td data-label="Ganancia" {...moneyCellProps(profitTone(editing ? editPreview : entry.retornoGyd), NUM)}>
+                    {editing ? num(editPreview, 2) : money(entry.retornoGyd)}
+                  </td>
+                  <td data-label="Estado" className={CELL}>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${group === "completed" ? "bg-money-profit/15 text-foreground" : "bg-muted text-foreground"}`}>
+                      {group === "completed" ? tr("completada") : group === "sinTasa" ? tr("sinTasaPill") : tr("pendiente")}
+                    </span>
+                    {group !== "completed" && entry.missingRates.length > 0 && <span className="mt-0.5 block text-[11px] text-muted-foreground">{pendingReason(entry)}</span>}
+                  </td>
+                  <td data-label="Acciones" className={`${CELL} ${ACTIONS}`}>
+                    {editing ? (
+                      <div className="flex flex-col gap-1.5">
+                        <div className="inline-flex justify-center gap-1.5">
+                          <button type="button" id={`guardarEntry-${entry.id}`} className={ICON_BUTTON} onClick={() => void saveEditEntry(entry.id)} disabled={editSaving} aria-busy={editSaving} aria-label="Guardar" title="Guardar">
+                            {editSaving ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Check size={16} aria-hidden="true" />}
+                          </button>
+                          <button type="button" id={`cancelarEntry-${entry.id}`} className={ICON_BUTTON} onClick={cancelEditEntry} disabled={editSaving} aria-label="Cancelar" title="Cancelar">
+                            <X size={16} aria-hidden="true" />
+                          </button>
+                        </div>
+                        {rowMessage && <Notice>{rowMessage}</Notice>}
+                      </div>
+                    ) : confirmingDeleteId === entry.id ? (
+                      <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                        <span>¿Eliminar?</span>
+                        <button type="button" id={`cancelarEliminar-${entry.id}`} className={ICON_BUTTON} onClick={() => setConfirmingDeleteId(null)} disabled={deletingEntryId === entry.id} aria-label="Cancelar" title="Cancelar">
+                          <X size={16} aria-hidden="true" />
+                        </button>
+                        <button type="button" id={`confirmarEliminar-${entry.id}`} className={ICON_BUTTON} style={{ color: "var(--destructive)", borderColor: "var(--destructive)" }} onClick={() => void deleteEntry(entry)} disabled={deletingEntryId === entry.id} aria-busy={deletingEntryId === entry.id} aria-label="Eliminar" title="Eliminar">
+                          {deletingEntryId === entry.id ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Check size={16} aria-hidden="true" />}
+                        </button>
+                      </span>
+                    ) : (
+                      <span className="inline-flex gap-1.5">
+                        {entry.status === "completed" && (
+                          <button type="button" id={`editarEntry-${entry.id}`} className={ICON_BUTTON} onClick={() => startEditEntry(entry)} aria-label="Editar" title="Editar">
+                            <Pencil size={16} aria-hidden="true" />
+                          </button>
+                        )}
+                        <button type="button" id={`eliminarEntry-${entry.id}`} className={ICON_BUTTON} onClick={() => setConfirmingDeleteId(entry.id)} aria-label="Eliminar" title="Eliminar">
+                          <Trash2 size={16} aria-hidden="true" />
+                        </button>
+                      </span>
+                    )}
+                    {!editing && rowMessage && <Notice>{rowMessage}</Notice>}
+                  </td>
+                </tr>
+                {editing && editedRate && (editedRate.editable.buy || editedRate.editable.cup || editedRate.editable.cost) && (
+                  <tr id={`tasasEntry-${entry.id}`} className="border-b border-border bg-accent/40">
+                    <td colSpan={10} className={CELL}>
+                      <div className="flex flex-wrap items-end gap-3 text-xs">
+                        <span className="text-muted-foreground">Tasas de esta operación:</span>
+                        {entry.cupGlobalRate != null && <span className="text-muted-foreground">Tarifa CUP: <b>{entry.cupGlobalRate}</b></span>}
+                        {entry.usdtSellGyd != null && <span className="text-muted-foreground">Venta USDT (GYD): <b>{entry.usdtSellGyd}</b></span>}
+                        {editedRate.editable.cup && (
+                          <label className="flex flex-col gap-1 text-muted-foreground" htmlFor={`editVentaUsdtCup-${entry.id}`}>
+                            Venta USDT (CUP)
+                            <input id={`editVentaUsdtCup-${entry.id}`} type="number" step="any" className={EDIT_INPUT} value={editCup} onChange={(event) => setEditCup(event.target.value)} onKeyDown={(event) => handleEditKeys(event, entry.id)} />
+                          </label>
+                        )}
+                        {editedRate.editable.cost && (
+                          <label className="flex flex-col gap-1 text-muted-foreground" htmlFor={`editCostoUsdt-${entry.id}`}>
+                            {entry.service === "SALDO_MOVIL" ? "Costo por 360 CUP (USDT)" : "Costo por recarga (USDT)"}
+                            <input id={`editCostoUsdt-${entry.id}`} type="number" step="any" className={EDIT_INPUT} value={editCost} onChange={(event) => setEditCost(event.target.value)} onKeyDown={(event) => handleEditKeys(event, entry.id)} />
+                          </label>
+                        )}
+                        {editedRate.editable.buy && (
+                          <label className="flex flex-col gap-1 text-muted-foreground" htmlFor={`editCompraUsdt-${entry.id}`}>
+                            Compra USDT (GYD)
+                            <input id={`editCompraUsdt-${entry.id}`} type="number" step="any" className={EDIT_INPUT} value={editBuy} onChange={(event) => setEditBuy(event.target.value)} onKeyDown={(event) => handleEditKeys(event, entry.id)} />
+                          </label>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
+              );
+            })}
+            {shownEntries.length === 0 && (
+              <tr>
+                <td colSpan={10} className="px-3 py-6 text-center text-muted-foreground">
+                  {chatEntries.length === 0 ? tr("vacio") : (
+                    <span className="inline-flex flex-wrap items-center justify-center gap-3">
+                      {tr("sinCoincidencias")}
+                      <Button type="button" variant="outline" size="sm" className="min-h-9" onClick={() => setFilters(NO_FILTERS)}>{tr("quitarFiltros")}</Button>
+                    </span>
+                  )}
+                </td>
+              </tr>
+            )}
+          </tbody>
+          <tfoot>
+            <tr data-testid="registros-totales" className="bg-muted/60 font-semibold">
+              <td colSpan={5} className={CELL}>{tr("totales", { count: shownTotals.ops })}</td>
+              <td data-label="Facturado" {...moneyCellProps("in", NUM)}>{num(shownTotals.facturado, 2)}</td>
+              <td data-label="Invertido" {...moneyCellProps("out", NUM)}>{num(shownTotals.invertido, 2)}</td>
+              <td data-label="Ganancia" {...moneyCellProps(profitTone(shownTotals.retorno), NUM)}>{num(shownTotals.retorno, 2)}</td>
+              <td colSpan={2} />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+
+    <div className="mx-auto mb-4 flex max-w-[1100px] flex-wrap items-end gap-3">
+      <div className="flex min-w-[200px] flex-1 flex-col gap-1">
+        <label htmlFor="periodo" className="text-[13px] font-semibold">Período / Semana</label>
+        <input id="periodo" placeholder="Ej. SEMANA 1 AGOSTO" value={periodo} onChange={(event) => setPeriodo(event.target.value)} className="h-11 rounded-lg border border-input bg-card px-3 text-sm outline-none focus:border-ring" />
+      </div>
+      <Button type="button" className="min-h-11" onClick={exportar}>Exportar Reporte (.txt)</Button>
+      <Button type="button" variant="secondary" className="min-h-11" onClick={() => setClearDialogOpen(true)} disabled={clearing}>{clearing ? "Limpiando…" : "Limpiar Todo"}</Button>
     </div>
+    {clearMessage && <div className="mx-auto mb-4 max-w-[1100px]"><Notice>{clearMessage}</Notice></div>}
+
+    {/* Rendered in a portal on <body>. */}
+    <Dialog open={clearDialogOpen} onOpenChange={(open) => { if (!clearing) setClearDialogOpen(open); }}>
+      <DialogContent showCloseButton={false}>
+        <DialogHeader>
+          <DialogTitle>¿Limpiar todo y empezar una semana nueva?</DialogTitle>
+          <DialogDescription>
+            La semana actual se guarda en «Cierres» y el historial (Finanzas, panel) sigue contando. Las
+            operaciones del chat en espera de precio se quedan en pantalla.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setClearDialogOpen(false)} disabled={clearing}>Cancelar</Button>
+          <Button variant="destructive" onClick={() => void clearAll()} disabled={clearing}>
+            {clearing ? "Limpiando…" : "Limpiar todo"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     </>
   );
 }

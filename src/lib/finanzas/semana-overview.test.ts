@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildSemanaOverview,
   dayDiff,
-  incompleteCount,
+  pendingCounts,
   mondayOf,
   openWeekStart,
   percentChange,
@@ -183,16 +183,18 @@ describe("topClients", () => {
   });
 });
 
-describe("incompleteCount", () => {
-  it("counts pending and missing-rate lines, never voided ones", () => {
+describe("pendingCounts", () => {
+  it("splits the lines still waiting into those missing a rate and the other pending ones, never counting voided or completed lines", () => {
     expect(
-      incompleteCount([
+      pendingCounts([
         entry(),
-        entry({ status: "verified_pending" }),
-        entry({ missingRates: ["usdt_buy_gyd"] }),
+        entry({ status: "verified_pending", missingRates: ["usdt_buy_gyd"] }),
+        entry({ status: "verified_pending", missingRates: ["usdt_buy_gyd"] }),
+        entry({ status: "verified_pending", service: "COMBO", missingRates: ["combo_cost"] }),
         entry({ status: "void", missingRates: ["x"] }),
+        entry({ missingRates: ["x"] }),
       ]),
-    ).toBe(2);
+    ).toEqual({ sinTasa: 2, pending: 1 });
   });
 });
 

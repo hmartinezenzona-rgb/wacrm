@@ -156,6 +156,31 @@ Phase 2 (Finanzas):
   instant the old `dia` comes from; the default range is empty (all history) until a card or date is chosen; pressing the active
   card releases the range; the CSV caps at 5000 rows and says so. Visual check left to the owner.
   Production: migration 351 pending owner go-ahead, apply before the panel deploy (`previa` not run, leave to the parent).
+- [ ] S2 Semana with the calculator merged in (owner 2026-10-29 approved the final mockup
+  https://claude.ai/artifact/9qeDbj4Lndi7zD93EHX5Bn, variant A: "si", after a round of feedback). Display-only rework
+  of the Semana tab; NO calculation, formula, rate-storage, API or DB change. Split into slices:
+  - S2a Fixes in the existing overview: numbers use the panel's comma thousands / dot decimals everywhere (staging
+    showed "35 609" and "239,5"); "Ganancia por dia" and "Hoy" use the days of the OPEN week (entries since the last
+    cut), not the calendar week (staging week opened Wed 14 oct and the chart showed all zeros). Ganancia card same
+    size as the others, in the profit colour; "Cifras en GYD" once. Daily chart in its own card, a value label on every
+    bar, today lighter with "en curso", days not reached yet "aun no", no y-axis.
+  - S2b "Tasas actuales" card: all RATE_FIELDS plus Mexico ARQ, grouped in 4 equal cards (USDT: compra, venta (note
+    "tambien Clasica, Tropical y Mexico"), venta en CUP; Zelle: 50 / 1,000 / 2,000; Recargas y saldo: 500, 600, saldo;
+    CUP, efectivo y Mexico: CUP global, efectivo USD, USD->MXN auto with age), unit suffix per value, click to edit in
+    place with the SAME save path as today's rate editor (same lock and messages), pencil on hover. Groups come from one
+    config list (rate -> group, unit) so a new rate is one line; flex-wrap cards + container query so new groups never
+    leave holes. Replaces the "Tarifas Globales" select+input editor and the "Tasas actuales" list.
+  - S2c "Registros de la semana": one table for bot and manual lines (replaces "Registros", "Operaciones" and "Desglose
+    Semanal por Servicios" of the legacy calculator), quick-entry bar "+ Linea" (same parser and save as today's manual
+    entry) with a preview row in the table's columns, format hints + "Todos los formatos" (the existing guide), search,
+    status chips with counts (Todas / Completadas / Pendientes / Sin tasa / A mano), service filter, inline row edit
+    (same edit/save logic as today), "Poner tasa" on lines without a rate, totals of the filtered rows, no "Abrir chat".
+    Clicking a service in "De donde sale la ganancia" or a client in "Mejores clientes" filters this table.
+  - S2d "Cerrar la semana" section at the end (pending/sin tasa notices with jump links, totals archived, week name,
+    .txt checkbox, "Archivar y empezar semana nueva") using the existing close + export logic; header button scrolls to
+    it. Warning style: neutral grey background, black text, amber dot (no brown text).
+  - S2e Operaciones tab removed (Finanzas = Semana | Cierres); its history search moves into Cierres as "Buscar en el
+    historial" without "Abrir chat" (uses migration 351 functions). /finanzas?tab=operaciones redirects to cierres.
 - [ ] F2.4 Full checks (vitest affected + full suite, tsc, eslint), staging browser check, then the production panel deploy after the go-ahead.
 
 ## Delivery

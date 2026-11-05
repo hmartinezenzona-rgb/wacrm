@@ -7,6 +7,8 @@ import { describe, expect, it } from 'vitest';
 
 import { filtrar, FILTRAR_MD5_ESPERADO, ORIGEN_FILTRAR } from './correr';
 
+const LEER_SECRETO_SQL = readFileSync(new URL('./leer-secreto.sql', import.meta.url), 'utf8');
+
 const op = (service_type: string, status: string, extra: Record<string, unknown> = {}) => ({
   id: '00000000-0000-4000-8000-000000000001',
   conversation_id: '00000000-0000-4000-8000-000000000002',
@@ -119,5 +121,94 @@ describe('aviso de incidencia al admin: dice el motivo, no "Detalle: -"', () => 
 
   it('sin motivo ni notas lo dice claro, nunca "-"', () => {
     expect(incidencia(null).alerta?.detalle).toBe('El sistema no guardo el motivo: revise el chat.');
+  });
+});
+
+describe('envio mixto: un solo aviso, al completarse la ultima parte', () => {
+  // `grupo_pendientes` lo trae 'Leer secreto' (leer-secreto.sql): los OTROS miembros del grupo que no estan
+  // cancelados ni completados, contados cuando corre el notificador. Sin grupo no hay `mixed_group_id`.
+  const GRUPO = '00000000-0000-4000-8000-0000000000aa';
+  const enGrupo = (service_type: string, grupo_pendientes: number | undefined, extra: Record<string, unknown> = {}) =>
+    filtrar(
+      op(service_type, 'completed', { mixed_group_id: GRUPO, ...extra }),
+      op(service_type, 'ready_to_transfer', { mixed_group_id: GRUPO, ...extra }),
+      grupo_pendientes === undefined ? {} : { grupo_pendientes }
+    );
+  const GENERAL = 'Listo, su envío ya fue completado. Gracias por confiar en *Remesas Ya*.';
+
+  it('la primera parte en completarse no avisa al cliente', () => {
+    expect(enGrupo('remesa', 1, { delivery_method: 'clasica' })).toEqual([]);
+    expect(enGrupo('recarga', 2)).toEqual([]);
+  });
+
+  it('la ultima parte manda el aviso general, sin servicio, sin {RECIBE} y sin plantilla', () => {
+    for (const servicio of ['remesa', 'recarga', 'saldo']) {
+      const [s] = enGrupo(servicio, 0, { delivery_method: 'clasica' });
+      expect(s.json.destino, servicio).toBe('cliente');
+      expect(s.json.mensaje, servicio).toBe(GENERAL);
+      expect(s.json.mensaje, servicio).not.toContain('{RECIBE}');
+      expect(s.json.plantilla, servicio).toBeUndefined();
+    }
+  });
+
+  it('sin grupo el aviso es el de siempre, aunque venga un conteo', () => {
+    const [s] = filtrar(op('remesa', 'completed', { delivery_method: 'zelle' }), op('remesa', 'ready_to_transfer'), {
+      grupo_pendientes: 3,
+    });
+    expect(s.json.mensaje).toBe('Listo, su remesa{RECIBE} ya fue completada. Gracias por confiar en *Remesas Ya*.');
+    expect(s.json.plantilla?.name).toBe('remesa_completada');
+    const [sinId] = filtrar(op('remesa', 'completed', { mixed_group_id: null }), op('remesa', 'ready_to_transfer'), {
+      grupo_pendientes: 3,
+    });
+    expect(sinId.json.mensaje).toContain('su remesa{RECIBE}');
+  });
+
+  it('si no se sabe el estado del grupo, el aviso es el de siempre', () => {
+    const [s] = enGrupo('remesa', undefined, { delivery_method: 'zelle' });
+    expect(s.json.mensaje).toContain('su remesa{RECIBE}');
+  });
+
+  it('el silencio de siempre se mantiene dentro de un grupo', () => {
+    const silenciada = filtrar(
+      op('remesa', 'completed', { mixed_group_id: GRUPO, customer_notice_muted_for: 'completed' }),
+      op('remesa', 'ready_to_transfer', { mixed_group_id: GRUPO }),
+      { grupo_pendientes: 0 }
+    );
+    expect(silenciada).toEqual([]);
+    const desdeIncidencia = filtrar(
+      op('remesa', 'completed', { mixed_group_id: GRUPO }),
+      op('remesa', 'incident', { mixed_group_id: GRUPO }),
+      { grupo_pendientes: 0 }
+    );
+    expect(desdeIncidencia).toEqual([]);
+  });
+
+  it('las incidencias y la verificacion del deposito no cambian en un grupo', () => {
+    const [verif] = filtrar(
+      op('remesa', 'ready_to_transfer', { mixed_group_id: GRUPO, delivery_method: 'zelle' }),
+      op('remesa', 'deposit_verification', { mixed_group_id: GRUPO }),
+      { verificacion_manual: true, beneficiarios: [{ beneficiary_type: 'zelle', name: 'X', zelle_account: '1' }], grupo_pendientes: 1 }
+    );
+    expect(verif.json.mensaje).toMatch(/su remesa\{RECIBE\}/);
+    const [inc] = filtrar(
+      op('remesa', 'incident', { mixed_group_id: GRUPO, incident_reason: 'sin_correo' }),
+      op('remesa', 'deposit_verification', { mixed_group_id: GRUPO }),
+      { grupo_pendientes: 1 }
+    );
+    expect(inc.json.destino).toBe('admin');
+  });
+});
+
+describe('leer-secreto.sql: el estado del grupo', () => {
+  it('cuenta los otros miembros del grupo que no estan completados ni cancelados', () => {
+    expect(LEER_SECRETO_SQL).toMatch(/AS grupo_pendientes/);
+    expect(LEER_SECRETO_SQL).toMatch(/m\.mixed_group_id = /);
+    expect(LEER_SECRETO_SQL).toMatch(/m\.id::text <> \$1/);
+    expect(LEER_SECRETO_SQL).toMatch(/m\.status NOT IN \('completed', 'cancelled'\)/);
+  });
+
+  it('es una sola sentencia sin barra invertida (el nodo Postgres de n8n no los admite)', () => {
+    expect(LEER_SECRETO_SQL).not.toContain(';');
+    expect(LEER_SECRETO_SQL).not.toContain('\\');
   });
 });

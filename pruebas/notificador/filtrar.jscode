@@ -336,6 +336,16 @@ if (rec.status === 'completed') {
   // persona en el chat; avisar otra vez seria redundante.
   if (old.status === 'incident') { return []; }
   if (avisoClienteApagado) { return []; }
+  // ENVIO MIXTO (un deposito pagando varios servicios, migracion 253; criterio de Humberto, 5-nov-2026): un solo aviso
+  // al cliente, cuando se completa la ULTIMA parte, sin nombrar servicio. 'Leer secreto' trae grupo_pendientes: los
+  // OTROS miembros del grupo que no estan completados ni cancelados, contados al correr el notificador. Si quedan, esta
+  // parte no avisa. Si no se sabe (la consulta aun no lo trae), se avisa como siempre. No hay plantilla de Meta que diga
+  // 'su envio', asi que fuera de la ventana de 24 h este aviso no puede salir hasta que se apruebe una.
+  if (rec.mixed_group_id && cfg.grupo_pendientes !== undefined && cfg.grupo_pendientes !== null) {
+    if (Number(cfg.grupo_pendientes) > 0) { return []; }
+    return [{ json: Object.assign({}, base, { destino: 'cliente',
+      mensaje: 'Listo, su envío ya fue completado. Gracias por confiar en *Remesas Ya*.' }) }];
+  }
   // CON O SIN CAPTURA SE AVISA (decision 25-sep-2026, revisada en la prueba en
   // vivo): la captura que manda el panel va sin texto, asi que el cliente no
   // tendria confirmacion escrita. Mismo criterio que el notificador anterior.

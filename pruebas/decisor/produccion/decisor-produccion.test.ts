@@ -989,3 +989,37 @@ describe('confirmacion visible y sin promesa mientras falte un dato', () => {
     expect(n).toMatch(/PROHIBIDO decir "una vez hecha su remesa"/);
   });
 });
+
+describe('envio en efectivo: no se pide tarjeta', () => {
+  const base = { texto_completo: 'mi familiar es 53821202', celular: '53821202' };
+
+  it('riel efectivo_usd con celular y sin beneficiario: nota de efectivo, sin notas de tarjeta', () => {
+    const s = correr({
+      ctx: { riel_operacion: 'efectivo_usd', beneficiarios_registrados: [] },
+      snapshot: base,
+    });
+    expect(nota(s, 'ENTREGA EN EFECTIVO') as string).toMatch(
+      /PROHIBIDO pedir tarjeta.*nombre completo, direccion exacta o foto del carnet/
+    );
+    expect(nota(s, 'Celular cubano detectado')).toBeUndefined();
+    expect(s.notas.join('\n')).not.toContain('Falta la tarjeta');
+    expect(nota(s, 'TODAVIA NO HAY BENEFICIARIO REGISTRADO')).toBeUndefined();
+    expect(s.notas.join('\n')).not.toContain('llama gestionar_beneficiario');
+  });
+
+  it('riel cuban_card: sigue pidiendo la tarjeta', () => {
+    const s = correr({
+      ctx: { riel_operacion: 'cuban_card', beneficiarios_registrados: [] },
+      snapshot: base,
+    });
+    expect(nota(s, 'Celular cubano detectado')).toBeDefined();
+    expect(nota(s, 'TODAVIA NO HAY BENEFICIARIO REGISTRADO')).toBeDefined();
+    expect(nota(s, 'ENTREGA EN EFECTIVO')).toBeUndefined();
+  });
+
+  it('sin riel: se comporta como antes', () => {
+    const s = correr({ ctx: { beneficiarios_registrados: [] }, snapshot: base });
+    expect(nota(s, 'Celular cubano detectado')).toBeDefined();
+    expect(nota(s, 'ENTREGA EN EFECTIVO')).toBeUndefined();
+  });
+});

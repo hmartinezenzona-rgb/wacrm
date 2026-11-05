@@ -188,6 +188,8 @@ function rutaAdminAccion(ctx, texto, tel) {
 }
 // Datos del beneficiario ACUMULADOS a lo largo de la conversacion (no solo de este lote).
 // La tarjeta puede haber llegado en una imagen hace 3 mensajes y el celular ahora.
+// Cash send (USD in hand in Cuba): the card notes do not apply; one cash note is emitted instead.
+const rielEfectivo = String(ctx.riel_operacion || '') === 'efectivo_usd';
 let tarjetaCtx = s.tarjeta, celularCtx = s.celular, veniaDeAntes = false;
 let zelleNomCtx = s.zelle_nombre, zelleCtaCtx = (s.zelle_correo || s.zelle_celular);
 try {
@@ -641,7 +643,7 @@ if (s.multi_beneficiario) {
     notas.push('EL CLIENTE DICE QUE ESTA ESPERANDO LOS DATOS DE QUIEN RECIBE: se los tiene que mandar otra persona. PROHIBIDO volver a pedirselos en este turno. PROHIBIDO preguntarle cuando se los mandan. Acusale recibo en UNA linea corta y dile que quedas pendiente. Nada mas.');
   } else {
   if (tarjetaCtx) { notas.push('Tarjeta cubana detectada: ' + tarjetaCtx + '. Falta el celular ESCRITO. OJO: si el cliente lo dicto en nota de voz, NO se lo pidas de nuevo — muestraselo por escrito y pide confirmacion (regla de numeros dictados). Solo si no lo ha dado de ninguna forma, pideselo.'); }
-  if (celularCtx) { notas.push('Celular cubano detectado: ' + celularCtx + '. Falta la tarjeta ESCRITA. OJO: si el cliente la dicto en nota de voz, NO se la pidas de nuevo — muestrasela por escrito y pide confirmacion. Solo si no la ha dado de ninguna forma, pidesela.'); }
+  if (celularCtx && !rielEfectivo) { notas.push('Celular cubano detectado: ' + celularCtx + '. Falta la tarjeta ESCRITA. OJO: si el cliente la dicto en nota de voz, NO se la pidas de nuevo — muestrasela por escrito y pide confirmacion. Solo si no la ha dado de ninguna forma, pidesela.'); }
   }
 
 // ZELLE: el beneficiario no recibe CUP en una tarjeta, recibe DOLARES.
@@ -861,7 +863,9 @@ const sabeDestino = !!((tarjetaCtx && celularCtx) || zelleCompleto || ctx.tiene_
 // rechazo ese dato", y ampliar la nota de al lado obligaba a permitir que
 // desapareciera en el banco, que es debilitar la prueba para que pase.
 const datosAMedias = !!(tarjetaCtx || celularCtx || zelleNomCtx || zelleCtaCtx);
-if (!sabeDestino && !s.multi_beneficiario && datosAMedias) {
+if (!sabeDestino && !s.multi_beneficiario && datosAMedias && rielEfectivo) {
+  notas.push('ENTREGA EN EFECTIVO (USD en mano en Cuba): PROHIBIDO pedir tarjeta. Pide SOLO lo que falte de quien recibe: nombre completo, direccion exacta o foto del carnet. No repitas lo que el cliente ya dio.');
+} else if (!sabeDestino && !s.multi_beneficiario && datosAMedias) {
   const formato = (tarjetaCtx && !celularCtx)
     ? ' UN CELULAR CUBANO SON 8 DIGITOS Y EMPIEZA POR 5 O POR 63: si el numero que te dio no cumple eso, NO lo des por bueno aunque el cliente te lo confirme — dile que ese numero no es un celular cubano valido y pideselo otra vez.'
     : '';

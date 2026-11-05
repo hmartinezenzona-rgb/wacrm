@@ -93,3 +93,8 @@ Strict, on. vitest.
   New filtrar md5 8922953f. Deploy: staging OCdJoHTkV6S0aAdk, then prod wGud0KGR6eMqqfMQ after go-ahead (paste both
   nodes: Leer secreto query and Filtrar code).
 
+- 2026-11-05 T5 deployed to STAGING notifier OCdJoHTkV6S0aAdk (parent): backup
+  staging-OCdJoHTkV6S0aAdk-79c063d1-...-20261105-141023.json; versionId 79c063d1 -> 2de5ce1c (= activeVersionId);
+  "Filtrar cambio de etapa" cfb0db4c -> 8922953f; "Leer secreto" query adds grupo_pendientes (comment lines stripped;
+  query md5 15157ed1). Checked on staging DB: the PRUEBA recharge part returns grupo_pendientes 1. Production
+  wGud0KGR6eMqqfMQ (versionId c46494d5, same Filtrar cfb0db4c) waits for the owner's go-ahead.

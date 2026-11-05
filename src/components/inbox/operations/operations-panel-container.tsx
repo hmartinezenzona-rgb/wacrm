@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/hooks/use-auth";
 import { useCan } from "@/hooks/use-can";
+import { canForceVerify } from "@/lib/auth/roles";
+import { Button } from "@/components/ui/button";
 import { useServiceName } from "@/hooks/use-service-name";
 import { formatNumber } from "@/lib/format-number";
 import { currentServiceOf } from "@/lib/remittance-operations/services";
@@ -11,10 +13,11 @@ import { createClient } from "@/lib/supabase/client";
 import { Skeleton } from "@/components/dashboard/skeleton";
 import { readPrefetchedConversationOperations } from "@/lib/remittance-operations/panel-prefetch";
 import type { ConversationOperationsRead, RemittanceOperationRead } from "@/lib/remittance-operations/types";
-import { completableGroup, groupOperations, limitBlocks, mixedGroupTotal } from "./mixed-groups";
-import { CompleteMixedSendSheet, type CompleteMixedSendPart } from "./complete-mixed-send-sheet";
+import { completableGroup, groupOperations, limitBlocks } from "./mixed-groups";
+import { CompleteMixedSendSection, type CompleteMixedSendPart } from "./complete-mixed-send-section";
+import { MixedCloseControl } from "./mixed-close-control";
 import { MixedSendBlock } from "./mixed-send-block";
-import { RemittanceOperationCard, isZelleOperation } from "./remittance-operation-card";
+import { RemittanceOperationCard, isZelleOperation, needsServiceToClose } from "./remittance-operation-card";
 import { otherOpenOperationsFor } from "./reassign-targets";
 
 /** How long to wait after a `remittance_operations` change before
@@ -84,9 +87,12 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
     return { status: "idle" };
   });
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  // The open "Completar envio" sheet. Its parts are a snapshot taken on open: a delivered part turns into history on
-  // the next refetch, and the sheet must keep showing it (done) until the operator closes it.
-  const [sheet, setSheet] = useState<{ conversationId: string; parts: CompleteMixedSendPart[]; depositText: string } | null>(null);
+  // The open group action of a mixed send: its inline "Completar envio" or its "Cerrar manualmente". The completion's
+  // parts are a snapshot taken on open: a delivered part turns into history on the next refetch, and the section must
+  // keep showing it (done) until the operator closes it.
+  const [groupAction, setGroupAction] = useState<
+    { conversationId: string; groupId: string; kind: "complete"; parts: CompleteMixedSendPart[] } | { conversationId: string; groupId: string; kind: "close" } | null
+  >(null);
   const serviceName = useServiceName();
   // History is hidden until asked for, and shows only the latest
   // HISTORY_VISIBLE_COUNT until "Show more". Both are stored as the
@@ -272,6 +278,7 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
 
   const partOf = (member: RemittanceOperationRead): CompleteMixedSendPart => ({
     id: member.id,
+    method: currentServiceOf(member),
     title: `${serviceName(currentServiceOf(member))} · ${formatNumber(member.quotedSourceAmount ?? 0)} GYD`,
     isZelle: isZelleOperation(member),
     beneficiaries: member.beneficiaries.map((b) => ({ id: b.id, isZelle: b.beneficiaryType === "zelle" })),
@@ -282,17 +289,6 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
 
   return (
     <div className="space-y-2">
-      {sheet && sheet.conversationId === conversationId && (
-        <CompleteMixedSendSheet
-          conversationId={conversationId}
-          parts={sheet.parts}
-          depositText={sheet.depositText}
-          onClose={(anyDone) => {
-            setSheet(null);
-            if (anyDone) silentLoad(conversationId);
-          }}
-        />
-      )}
       {data.resolverState === "ninguna" ? (
         <p className="px-1 py-2 text-xs text-muted-foreground">{t("noOpenOperations")}</p>
       ) : (
@@ -302,8 +298,14 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
           </h3>
           <div className="space-y-2">
             {groupOperations(openOperations, data.operations).map((block) => {
+              const groupId = block.grouped ? block.members[0]!.mixedGroupId : null;
+              const action = groupAction && groupAction.conversationId === conversationId && groupAction.groupId === groupId ? groupAction : null;
               // One verified deposit pays the whole send: one "Completar envio" instead of one per part.
               const group = canEdit && block.grouped ? completableGroup(block.members, data.receiptsByOperationId) : null;
+              const completing = action?.kind === "complete";
+              // The group's own "Cerrar manualmente" is only for an owner/admin and when no member needs a service picked.
+              const canCloseGroup =
+                group !== null && accountRole !== null && canForceVerify(accountRole) && block.operations.every((member) => !needsServiceToClose(member));
               const cards = block.operations.map((operation) => (
                 <RemittanceOperationCard
                   key={operation.id}
@@ -318,22 +320,72 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
                   refreshToken={refreshToken}
                   initialReceipts={data.receiptsByOperationId?.[operation.id]}
                   mixedMembers={block.members}
-                  completedByGroup={group !== null}
+                  completedByGroup={group !== null || completing}
+                  closedByGroup={canCloseGroup}
                   // The quote belongs to the conversation, not to one
                   // operation: show it once, on the newest open card.
                   quote={operation.id === openOperations[0]?.id ? data.quote : null}
                 />
               ));
-              return block.grouped ? (
+              if (!block.grouped) return cards;
+              const dismiss = () => setGroupAction(null);
+              return (
                 <MixedSendBlock
-                  key={block.members[0]!.mixedGroupId}
+                  key={groupId}
                   members={block.members}
-                  completion={group ? { transId: group.deposit.transId, onComplete: () => setSheet({ conversationId, depositText: formatNumber(group.deposit.amount ?? mixedGroupTotal(block.members)), parts: block.members.map((member) => partOf(member)) }) } : undefined}
+                  statusChip={group || completing ? { status: "ready_to_transfer", label: t("status.ready_to_transfer") } : undefined}
+                  depositTransId={group?.deposit.transId}
+                  section={
+                    action?.kind === "complete" ? (
+                      <CompleteMixedSendSection
+                        conversationId={conversationId}
+                        parts={action.parts}
+                        onClose={(anyDone) => {
+                          dismiss();
+                          if (anyDone) silentLoad(conversationId);
+                        }}
+                      />
+                    ) : undefined
+                  }
+                  actions={
+                    group ? (
+                      action?.kind === "close" ? (
+                        <MixedCloseControl
+                          operationIds={block.operations.map((member) => member.id)}
+                          onDone={() => {
+                            dismiss();
+                            silentLoad(conversationId);
+                          }}
+                          onCancel={dismiss}
+                        />
+                      ) : (
+                        <>
+                          <Button
+                            type="button"
+                            size="lg"
+                            className="w-full"
+                            onClick={() => setGroupAction({ conversationId, groupId: groupId!, kind: "complete", parts: block.members.map((member) => partOf(member)) })}
+                          >
+                            {t("mixedSend.complete")}
+                          </Button>
+                          {canCloseGroup && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="lg"
+                              className="w-full"
+                              onClick={() => setGroupAction({ conversationId, groupId: groupId!, kind: "close" })}
+                            >
+                              {t("closing.closeButton")}
+                            </Button>
+                          )}
+                        </>
+                      )
+                    ) : undefined
+                  }
                 >
                   {cards}
                 </MixedSendBlock>
-              ) : (
-                cards
               );
             })}
           </div>

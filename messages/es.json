@@ -350,21 +350,23 @@
       },
       "completeMixedSend": {
         "title": "Completar envío",
-        "subtitle": "{parts} servicios · {beneficiaries} beneficiarios · un depósito de {amount} GYD",
         "partDone": "Completada",
         "missing": "Faltan {count} capturas",
-        "confirm": "Completar las {count} partes",
-        "confirmRest": "Completar las {count} partes que faltan",
-        "notify": "Avisar al cliente",
-        "running": "Completando…",
-        "close": "Cerrar"
+        "confirm": "Enviar y completar las {count} partes",
+        "confirmRest": "Enviar y completar las {count} partes que faltan",
+        "confirmSkip": "Completar las {count} partes",
+        "confirmSkipRest": "Completar las {count} partes que faltan",
+        "customerMessageTitle": "Mensaje al cliente",
+        "customerMessage": "Listo, su envío ya fue completado. Gracias por confiar en *Remesas Ya*."
       },
       "mixedSend": {
         "title": "Envío mixto",
         "total": "Depósito de {amount} GYD",
         "share": "{service} · {amount} GYD",
         "verifiedDeposit": "1 depósito verificado · TransID …{transId}",
-        "complete": "Completar envío"
+        "complete": "Completar envío",
+        "closeConfirm": "Cerrar el envío",
+        "closeProgress": "Cerradas {done} de {total}"
       },
       "splitDeposit": {
         "button": "Repartir depósito",

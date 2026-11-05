@@ -21,7 +21,8 @@ vi.mock("next-intl", () => ({
   },
 }));
 
-vi.mock("@/hooks/use-auth", () => ({ useAuth: () => ({ accountRole: "agent" }) }));
+const auth = vi.hoisted(() => ({ role: "agent" as string }));
+vi.mock("@/hooks/use-auth", () => ({ useAuth: () => ({ accountRole: auth.role }) }));
 vi.mock("@/hooks/use-can", () => ({ useCan: () => true }));
 vi.mock("@/lib/remittance-operations/commands", () => ({}));
 vi.mock("./deposit-review-container", () => ({ DepositReviewContainer: () => null }));
@@ -33,6 +34,7 @@ vi.mock("@/lib/supabase/client", () => ({
 }));
 
 afterEach(() => {
+  auth.role = "agent";
   document.body.replaceChildren();
   vi.unstubAllGlobals();
 });
@@ -112,8 +114,8 @@ async function tallyButtons(node: HTMLElement) {
     const article = header.closest("article")!;
     Array.from(article.querySelectorAll("button")).forEach((button) => count(button.textContent));
   }
-  // The group's own button lives outside the cards.
-  Array.from(node.querySelectorAll("section > header button")).forEach((button) => count(button.textContent));
+  // The group's own buttons sit at the end of the block, outside the cards.
+  Array.from(node.querySelectorAll("section > button")).forEach((button) => count(button.textContent));
   return tally;
 }
 
@@ -134,18 +136,62 @@ describe("OperationsPanelContainer mixed send completion", () => {
     await act(async () => root.unmount());
   });
 
-  it("opens the Completar envio sheet with one block per part", async () => {
+  it("shows the status once, in the block header, and not on each member card", async () => {
+    const { node, root } = await renderWith(groupParts(), { a: receiptsOf("a", deposit("T-0001")), b: receiptsOf("b") });
+    const label = en.Inbox.operationsPanel.status.ready_to_transfer;
+
+    expect(node.querySelector("section > header")!.textContent).toContain(label);
+    expect(node.querySelectorAll("article")).toHaveLength(2);
+    expect(node.querySelector("article")!.textContent).not.toContain(label);
+    expect(node.querySelector("section > header")!.textContent).toContain(
+      en.Inbox.operationsPanel.mixedSend.verifiedDeposit.replace("{transId}", "0001"),
+    );
+    await act(async () => root.unmount());
+  });
+
+  it("puts Completar envio after the member cards and opens the completion inline, not in a dialog", async () => {
     const { node, root } = await renderWith(groupParts(), {
       a: receiptsOf("a", deposit("T-0001")),
       b: receiptsOf("b"),
     });
-    const open = Array.from(node.querySelectorAll("section > header button")).find((b) => b.textContent === complete) as HTMLButtonElement;
+    const open = Array.from(node.querySelectorAll("section > button")).find((b) => b.textContent === complete) as HTMLButtonElement;
+    expect(node.querySelector("article:last-of-type")!.compareDocumentPosition(open) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     await act(async () => open.click());
 
-    const dialog = document.body.querySelector('[role="dialog"]')!;
-    expect(dialog.textContent).toContain(en.Inbox.operationsPanel.completeMixedSend.title);
-    expect(dialog.querySelectorAll("section")).toHaveLength(2);
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
+    const block = node.querySelector("section")!;
+    expect(block.textContent).toContain(en.Inbox.operationsPanel.completeMixedSend.title);
+    expect(block.querySelectorAll("section")).toHaveLength(2);
+    expect(block.querySelectorAll("article")).toHaveLength(0);
+    expect(Array.from(block.querySelectorAll(":scope > button"))).toHaveLength(0);
+    await act(async () => root.unmount());
+  });
+
+  it("offers one Cerrar manualmente at the end of the block to an owner, in place of the per-card ones", async () => {
+    auth.role = "owner";
+    const parts = [op("a", 18200, { mixedGroupId: "a" }), op("b", 6200, { mixedGroupId: "a", serviceType: "recarga", deliveryMethod: "recarga" })];
+    const { node, root } = await renderWith(parts, { a: receiptsOf("a", deposit("T-0001")), b: receiptsOf("b") });
+    const tally = await tallyButtons(node);
+
+    expect(tally.get(en.Inbox.operationsPanel.closing.closeButton)).toBe(1);
+    await act(async () => root.unmount());
+  });
+
+  it("keeps each card's own Cerrar manualmente when a member needs its service picked first", async () => {
+    auth.role = "owner";
+    const { node, root } = await renderWith(groupParts(), { a: receiptsOf("a", deposit("T-0001")), b: receiptsOf("b") });
+    const tally = await tallyButtons(node);
+
+    expect(tally.get(en.Inbox.operationsPanel.closing.closeButton)).toBe(2);
+    await act(async () => root.unmount());
+  });
+
+  it("offers no group Cerrar manualmente to an agent", async () => {
+    const { node, root } = await renderWith(groupParts(), { a: receiptsOf("a", deposit("T-0001")), b: receiptsOf("b") });
+    const tally = await tallyButtons(node);
+
+    expect(tally.get(en.Inbox.operationsPanel.closing.closeButton) ?? 0).toBe(0);
     await act(async () => root.unmount());
   });
 

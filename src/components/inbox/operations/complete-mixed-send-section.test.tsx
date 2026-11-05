@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// "Completar envio": the sheet completes every part of a mixed send through the existing per-operation pipeline, one
+// "Completar envio": the inline section completes every part of a mixed send through the existing per-operation pipeline, one
 // part after another. Side effects (deliver route command, image send, upload, Supabase) are mocked; the pipeline
 // (`deliverDeal`) and the per-part container run for real.
 
@@ -58,8 +58,8 @@ const S = en.Inbox.operationsPanel.completeMixedSend;
 const T = en.Inbox.operationsPanel.completeTransfer;
 
 const PARTS = [
-  { id: "op-zelle", title: "Zelle · 100 USD", isZelle: true, beneficiaries: [{ id: "b1", isZelle: true }] },
-  { id: "op-cup", title: "CUP card · 15,000 CUP", isZelle: false, beneficiaries: [{ id: "b2", isZelle: false }] },
+  { id: "op-zelle", title: "Zelle · 100 USD", method: "zelle", isZelle: true, beneficiaries: [{ id: "b1", isZelle: true }] },
+  { id: "op-cup", title: "CUP card · 15,000 CUP", method: "cuban_card", isZelle: false, beneficiaries: [{ id: "b2", isZelle: false }] },
 ];
 
 function pngFile(): File {
@@ -74,19 +74,27 @@ async function settle() {
   });
 }
 
-async function openSheet(onClose = vi.fn()) {
-  const { CompleteMixedSendSheet } = await import("./complete-mixed-send-sheet");
+async function openSection(onClose = vi.fn()) {
+  const { CompleteMixedSendSection } = await import("./complete-mixed-send-section");
   const node = document.createElement("div");
   document.body.appendChild(node);
   const root = createRoot(node);
   await act(async () =>
-    root.render(<CompleteMixedSendSheet conversationId="conv-1" parts={PARTS} depositText="31,000" onClose={onClose} />),
+    root.render(<CompleteMixedSendSection conversationId="conv-1" parts={PARTS} onClose={onClose} />),
   );
   return { root, onClose };
 }
 
+/** Icon-only buttons carry their name in aria-label. */
 const button = (label: string) =>
-  Array.from(document.body.querySelectorAll("button")).find((b) => b.textContent?.trim() === label) as HTMLButtonElement | undefined;
+  Array.from(document.body.querySelectorAll("button")).find((b) => (b.getAttribute("aria-label") ?? b.textContent?.trim()) === label) as
+    | HTMLButtonElement
+    | undefined;
+
+const skipBox = () => document.body.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+async function tickSkip() {
+  await act(async () => skipBox().click());
+}
 
 async function attach(index: number) {
   const input = document.body.querySelectorAll<HTMLInputElement>('input[type="file"]')[index]!;
@@ -98,6 +106,7 @@ async function attach(index: number) {
 }
 
 const confirmLabel = S.confirm.replace("{count}", "2");
+const confirmSkipLabel = S.confirmSkip.replace("{count}", "2");
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -119,9 +128,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("CompleteMixedSendSheet", () => {
+describe("CompleteMixedSendSection", () => {
   it("shows one block per part and keeps the confirm button disabled until every proof is attached", async () => {
-    const { root } = await openSheet();
+    const { root } = await openSection();
 
     expect(document.body.textContent).toContain(PARTS[0]!.title);
     expect(document.body.textContent).toContain(PARTS[1]!.title);
@@ -137,7 +146,7 @@ describe("CompleteMixedSendSheet", () => {
 
   it("completes every part through the deliver route, once each and in order, then closes", async () => {
     deliverOperation.mockResolvedValue({ ok: true, newStatus: "completed", completedAt: "x" });
-    const { root, onClose } = await openSheet();
+    const { root, onClose } = await openSection();
     await attach(0);
     await attach(1);
 
@@ -159,7 +168,7 @@ describe("CompleteMixedSendSheet", () => {
         error: "operation x has 0 GYD of verified funding but needs 6200 GYD",
       })
       .mockResolvedValueOnce({ ok: true, newStatus: "completed", completedAt: "x" });
-    const { root, onClose } = await openSheet();
+    const { root, onClose } = await openSection();
     await attach(0);
     await attach(1);
 
@@ -179,11 +188,12 @@ describe("CompleteMixedSendSheet", () => {
     await act(async () => root.unmount());
   });
 
-  it("completes without screenshots from the skip button, sending no image", async () => {
+  it("completes without screenshots from the one shared checkbox, sending no image", async () => {
     deliverOperation.mockResolvedValue({ ok: true, newStatus: "completed", completedAt: "x" });
-    const { root, onClose } = await openSheet();
+    const { root, onClose } = await openSection();
 
-    await act(async () => button(T.withoutScreenshot)!.click());
+    await tickSkip();
+    await act(async () => button(confirmSkipLabel)!.click());
     await settle();
 
     expect(sendProofImage).not.toHaveBeenCalled();
@@ -194,13 +204,58 @@ describe("CompleteMixedSendSheet", () => {
 
   it("passes the notify choice to every part", async () => {
     deliverOperation.mockResolvedValue({ ok: true, newStatus: "completed", completedAt: "x" });
-    const { root } = await openSheet();
+    const { root } = await openSection();
     await act(async () => document.body.querySelector<HTMLButtonElement>("button[aria-pressed]")!.click());
 
-    await act(async () => button(T.withoutScreenshot)!.click());
+    await tickSkip();
+    await act(async () => button(confirmSkipLabel)!.click());
     await settle();
 
     expect(deliverOperation.mock.calls.map((call) => call[2])).toEqual([false, false]);
+    await act(async () => root.unmount());
+  });
+
+  it("styles the section like the single-transfer one, with one title, one checkbox and one confirm row", async () => {
+    const { root } = await openSection();
+
+    const section = document.body.firstElementChild!.firstElementChild!;
+    expect(section.className).toContain("bg-muted/30");
+    expect(document.body.textContent).toContain(S.title);
+    expect(document.body.querySelectorAll('input[type="checkbox"]')).toHaveLength(1);
+    expect(document.body.textContent).toContain(T.withoutScreenshot);
+    expect(document.body.querySelectorAll("button[aria-pressed]")).toHaveLength(1);
+    await act(async () => root.unmount());
+  });
+
+  it("previews the general customer message, with the brand in bold, only while the bell is on", async () => {
+    const { root } = await openSection();
+
+    const preview = () => Array.from(document.body.querySelectorAll("div")).find((d) => d.textContent?.includes(S.customerMessageTitle));
+    expect(preview()).toBeTruthy();
+    expect(preview()!.textContent).toContain("Listo, su envío ya fue completado. Gracias por confiar en Remesas Ya.");
+    expect(preview()!.querySelector("strong")!.textContent).toBe("Remesas Ya");
+
+    await act(async () => document.body.querySelector<HTMLButtonElement>("button[aria-pressed]")!.click());
+    expect(preview()).toBeUndefined();
+    await act(async () => root.unmount());
+  });
+
+  it("keeps the check disabled until the shared checkbox is ticked or every proof is attached", async () => {
+    const { root } = await openSection();
+    expect(button(confirmLabel)!.disabled).toBe(true);
+
+    await tickSkip();
+    expect(button(confirmSkipLabel)!.disabled).toBe(false);
+    expect(document.body.textContent).not.toContain(S.missing.replace("{count}", "2"));
+    await act(async () => root.unmount());
+  });
+
+  it("closes from the X with whether a part was completed", async () => {
+    const { root, onClose } = await openSection();
+
+    await act(async () => button(en.Inbox.operationsPanel.cancel)!.click());
+
+    expect(onClose).toHaveBeenCalledWith(false);
     await act(async () => root.unmount());
   });
 });

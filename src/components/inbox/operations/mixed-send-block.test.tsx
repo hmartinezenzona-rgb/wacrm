@@ -82,3 +82,59 @@ describe("MixedSendBlock destinations", () => {
     await act(async () => root.unmount());
   });
 });
+
+// ---- Mockup v2: one status chip in the header, the deposit line, and the group's actions at the END --------------------------
+describe("MixedSendBlock completion layout", () => {
+  async function render(props: Record<string, unknown>) {
+    const { MixedSendBlock } = await import("./mixed-send-block");
+    const node = document.createElement("div");
+    document.body.appendChild(node);
+    const root = createRoot(node);
+    await act(async () =>
+      root.render(
+        <MixedSendBlock members={[member("op-1", "clasica", "remesa", 18200), member("op-2", null, "recarga", 6200)]} {...props}>
+          <article data-testid="card">card</article>
+        </MixedSendBlock>,
+      ),
+    );
+    return { node, root };
+  }
+
+  it("shows the status chip once in the header, with the verified deposit line", async () => {
+    const { node, root } = await render({ statusChip: { status: "ready_to_transfer", label: "Ready to transfer" }, depositTransId: "T-0001" });
+
+    const header = node.querySelector("section > header")!;
+    expect(header.textContent).toContain("Ready to transfer");
+    expect(header.textContent).toContain(t.verifiedDeposit.replace("{transId}", "0001"));
+    expect(node.textContent!.split("Ready to transfer")).toHaveLength(2);
+    await act(async () => root.unmount());
+  });
+
+  it("puts the actions after the member cards, not in the header", async () => {
+    const { node, root } = await render({ actions: <button type="button">Group action</button> });
+
+    const section = node.querySelector("section")!;
+    const action = [...section.querySelectorAll("button")].find((b) => b.textContent === "Group action")!;
+    expect(section.querySelector("header")!.contains(action)).toBe(false);
+    const card = node.querySelector('[data-testid="card"]')!;
+    expect(card.compareDocumentPosition(action) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await act(async () => root.unmount());
+  });
+
+  it("replaces the shares, cards and actions with the open section, keeping the title and total", async () => {
+    const { node, root } = await render({
+      statusChip: { status: "ready_to_transfer", label: "Ready to transfer" },
+      actions: <button type="button">Group action</button>,
+      section: <div data-testid="open-section">open</div>,
+    });
+
+    expect(node.querySelector('[data-testid="open-section"]')).not.toBeNull();
+    expect(node.querySelector('[data-testid="card"]')).toBeNull();
+    expect(node.querySelectorAll("li")).toHaveLength(0);
+    expect(node.textContent).not.toContain("Group action");
+    expect(node.textContent).toContain(t.total.replace("{amount}", formatNumber(24400)));
+    expect(node.textContent).toContain("Ready to transfer");
+    await act(async () => root.unmount());
+  });
+});
+

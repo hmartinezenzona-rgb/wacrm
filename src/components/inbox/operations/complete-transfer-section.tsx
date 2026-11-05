@@ -50,7 +50,7 @@ export interface CompleteTransferSectionProps {
   onNotifyChange?: (notify: boolean) => void;
   /** Optional block under the title (the CUP inventory plan); the section never depends on it. */
   extra?: ReactNode;
-  /** Part of a mixed-send sheet: no title, skip checkbox, notify bell or confirm/cancel row (the sheet owns them). */
+  /** Part of a mixed-send section: no box, title, skip checkbox, notify bell or confirm/cancel row (the sheet owns them). */
   hideActions?: boolean;
 }
 
@@ -82,7 +82,7 @@ export function CompleteTransferSection({
 
   return (
     <div
-      className="space-y-2 rounded-lg border border-border bg-muted/30 p-3"
+      className={hideActions ? "space-y-2" : "space-y-2 rounded-lg border border-border bg-muted/30 p-3"}
       onKeyDown={busy ? undefined : cancelOnEscape(onCancel)}
     >
       {!hideActions && (

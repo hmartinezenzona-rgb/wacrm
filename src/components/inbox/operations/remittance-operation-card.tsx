@@ -95,6 +95,13 @@ interface RemittanceOperationCardProps {
   mixedMembers?: RemittanceOperationRead[];
   /** True when the group's one "Completar envio" completes this operation, so its own "Completar" is not shown. */
   completedByGroup?: boolean;
+  /** True when the group's own "Cerrar manualmente" closes this operation, so its own is not shown. */
+  closedByGroup?: boolean;
+}
+
+/** The remesa has no beneficiary and no delivery method, so a manual close needs the service picked first. */
+export function needsServiceToClose(operation: RemittanceOperationRead): boolean {
+  return operation.beneficiaries.length === 0 && !operation.deliveryMethod && !isVisa(operation);
 }
 
 /** The RPC never returns these (see types.ts), but the correction API can
@@ -418,6 +425,7 @@ export function RemittanceOperationCard({
   quote,
   mixedMembers,
   completedByGroup = false,
+  closedByGroup = false,
 }: RemittanceOperationCardProps) {
   const t = useTranslations("Inbox.operationsPanel");
   const serviceName = useServiceName();
@@ -455,7 +463,7 @@ export function RemittanceOperationCard({
   const canSetComboCost = isCombo(operation) && effectiveCostRole !== null && canForceVerify(effectiveCostRole);
   const canDelete = isManager && !operation.isHistory && !NOT_DELETABLE_STATUSES.includes(operation.status);
   const canCloseManually =
-    isManager && !operation.isHistory && MANUALLY_CLOSABLE_STATUSES.includes(operation.status);
+    isManager && !operation.isHistory && MANUALLY_CLOSABLE_STATUSES.includes(operation.status) && !closedByGroup;
 
   const showCompleteTransfer = status === "ready_to_transfer" && editable && !completedByGroup;
   const summaryAmount = computeSummaryAmount(operation, t as (key: string, params?: Record<string, unknown>) => string, serviceName);
@@ -572,7 +580,8 @@ export function RemittanceOperationCard({
       </div>
 
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-        <StatusChip status={status} label={t(`status.${status}`)} />
+        {/* In a completable group the status shows once, in the block header; a member shows its own only when it differs. */}
+        {!(completedByGroup && status === "ready_to_transfer") && <StatusChip status={status} label={t(`status.${status}`)} />}
         {(operation.depositMethod !== null || isLocked("deposit_method")) && (
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title={t("depositMethod")}>
             <span aria-hidden="true">·</span>
@@ -919,7 +928,7 @@ export function RemittanceOperationCard({
               <OperationClosingControl
                 operationId={operation.id}
                 kind="close"
-                needsService={operation.beneficiaries.length === 0 && !operation.deliveryMethod && !isVisa(operation)}
+                needsService={needsServiceToClose(operation)}
                 onDone={handleChanged}
                 onCancel={() => setOpenForm(null)}
               />

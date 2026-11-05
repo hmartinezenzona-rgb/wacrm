@@ -4,13 +4,17 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/hooks/use-auth";
 import { useCan } from "@/hooks/use-can";
+import { useServiceName } from "@/hooks/use-service-name";
+import { formatNumber } from "@/lib/format-number";
+import { currentServiceOf } from "@/lib/remittance-operations/services";
 import { createClient } from "@/lib/supabase/client";
 import { Skeleton } from "@/components/dashboard/skeleton";
 import { readPrefetchedConversationOperations } from "@/lib/remittance-operations/panel-prefetch";
-import type { ConversationOperationsRead } from "@/lib/remittance-operations/types";
-import { completableGroup, groupOperations, limitBlocks } from "./mixed-groups";
+import type { ConversationOperationsRead, RemittanceOperationRead } from "@/lib/remittance-operations/types";
+import { completableGroup, groupOperations, limitBlocks, mixedGroupTotal } from "./mixed-groups";
+import { CompleteMixedSendSheet, type CompleteMixedSendPart } from "./complete-mixed-send-sheet";
 import { MixedSendBlock } from "./mixed-send-block";
-import { RemittanceOperationCard } from "./remittance-operation-card";
+import { RemittanceOperationCard, isZelleOperation } from "./remittance-operation-card";
 import { otherOpenOperationsFor } from "./reassign-targets";
 
 /** How long to wait after a `remittance_operations` change before
@@ -80,8 +84,10 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
     return { status: "idle" };
   });
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  // The mixed group whose "Completar envio" sheet is open (T2 renders it).
-  const [, setCompleteGroupId] = useState<string | null>(null);
+  // The open "Completar envio" sheet. Its parts are a snapshot taken on open: a delivered part turns into history on
+  // the next refetch, and the sheet must keep showing it (done) until the operator closes it.
+  const [sheet, setSheet] = useState<{ conversationId: string; parts: CompleteMixedSendPart[]; depositText: string } | null>(null);
+  const serviceName = useServiceName();
   // History is hidden until asked for, and shows only the latest
   // HISTORY_VISIBLE_COUNT until "Show more". Both are stored as the
   // conversation they were opened for (not a boolean) so switching
@@ -264,11 +270,29 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
     historyShowAll ? historyBlocks.length : HISTORY_VISIBLE_COUNT,
   );
 
+  const partOf = (member: RemittanceOperationRead): CompleteMixedSendPart => ({
+    id: member.id,
+    title: `${serviceName(currentServiceOf(member))} · ${formatNumber(member.quotedSourceAmount ?? 0)} GYD`,
+    isZelle: isZelleOperation(member),
+    beneficiaries: member.beneficiaries.map((b) => ({ id: b.id, isZelle: b.beneficiaryType === "zelle" })),
+  });
+
   const toggleHandlerFor = (operationId: string) => () =>
     setExpandedId((current) => (current === operationId ? null : operationId));
 
   return (
     <div className="space-y-2">
+      {sheet && sheet.conversationId === conversationId && (
+        <CompleteMixedSendSheet
+          conversationId={conversationId}
+          parts={sheet.parts}
+          depositText={sheet.depositText}
+          onClose={(anyDone) => {
+            setSheet(null);
+            if (anyDone) silentLoad(conversationId);
+          }}
+        />
+      )}
       {data.resolverState === "ninguna" ? (
         <p className="px-1 py-2 text-xs text-muted-foreground">{t("noOpenOperations")}</p>
       ) : (
@@ -304,7 +328,7 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
                 <MixedSendBlock
                   key={block.members[0]!.mixedGroupId}
                   members={block.members}
-                  completion={group ? { transId: group.deposit.transId, onComplete: () => setCompleteGroupId(block.members[0]!.mixedGroupId!) } : undefined}
+                  completion={group ? { transId: group.deposit.transId, onComplete: () => setSheet({ conversationId, depositText: formatNumber(group.deposit.amount ?? mixedGroupTotal(block.members)), parts: block.members.map((member) => partOf(member)) }) } : undefined}
                 >
                   {cards}
                 </MixedSendBlock>

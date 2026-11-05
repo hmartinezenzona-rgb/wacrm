@@ -19,7 +19,7 @@
 // `CompleteTransferSection`.
 // ============================================================
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -66,6 +66,23 @@ export interface CompleteTransferBeneficiary {
   isZelle: boolean;
 }
 
+/** What a "Completar envio" sheet can ask of one part: whether every proof it needs is attached, and to complete it. */
+export interface CompletePartHandle {
+  /** Completes this part through the usual pipeline (proofs, then the deliver route). Resolves true only when the
+   *  operation was delivered; a refusal or failure leaves its reason in this part's banner and resolves false. */
+  submit: (skip: boolean) => Promise<boolean>;
+}
+
+/** Group mode: the container is one part of a mixed-send sheet. It renders only its proof area; the sheet owns the
+ *  buttons, the notify choice and the skip choice, and drives the part through `handleRef`. */
+export interface CompletePartControl {
+  handleRef: MutableRefObject<CompletePartHandle | null>;
+  /** The sheet's notify choice (the bell), applied to this part's delivery. */
+  notify: boolean;
+  /** Reports whether every proof this part needs is attached. */
+  onReadyChange: (ready: boolean) => void;
+}
+
 export interface CompleteTransferContainerProps {
   operationId: string;
   conversationId: string;
@@ -86,6 +103,8 @@ export interface CompleteTransferContainerProps {
    *  operation out of the ready-to-transfer list. */
   onDone: () => void;
   onCancel: () => void;
+  /** Set when this container is one part of a mixed-send sheet. */
+  part?: CompletePartControl;
 }
 
 export function CompleteTransferContainer({
@@ -95,6 +114,7 @@ export function CompleteTransferContainer({
   beneficiaries = [],
   onDone,
   onCancel,
+  part,
 }: CompleteTransferContainerProps) {
   const t = useTranslations("Inbox.operationsPanel.completeTransfer");
   const canSend = useCan("send-messages");
@@ -118,7 +138,14 @@ export function CompleteTransferContainer({
     cupSourceCardRef.current = value;
     setCupSourceCardIdState(value);
   }, []);
+  // In a sheet the sheet's notify choice replaces this container's own bell.
+  const partNotify = part?.notify;
+  useEffect(() => {
+    if (partNotify !== undefined) notifyRef.current = partNotify;
+  }, [partNotify]);
   const [banner, setBanner] = useState<CompleteTransferBanner | null>(null);
+  // Set when a delivery of this operation succeeded; a sheet reads it after `submit`.
+  const deliveredRef = useRef(false);
   // The last `skip` a run actually used — a plain (no-proof) stage
   // failure has no wamid to retry from, so "Retry" just repeats the
   // exact same attempt.
@@ -213,7 +240,7 @@ export function CompleteTransferContainer({
   // panel's own `onPaste` (wired by `DeliveryProofPanel` itself) still
   // works normally when that panel's drop zone or caption box has focus.
   useEffect(() => {
-    if (multiMode) return;
+    if (multiMode || part) return;
 
     function handleDocumentPaste(event: ClipboardEvent) {
       if (event.defaultPrevented) return;
@@ -225,7 +252,7 @@ export function CompleteTransferContainer({
 
     document.addEventListener("paste", handleDocumentPaste);
     return () => document.removeEventListener("paste", handleDocumentPaste);
-  }, [acceptPastedImage, multiMode]);
+  }, [acceptPastedImage, multiMode, part]);
 
   const handleCaptionChange = useCallback(
     (caption: string) => {
@@ -375,6 +402,7 @@ export function CompleteTransferContainer({
     (result: DeliveryResult) => {
       switch (result.status) {
         case "delivered":
+          deliveredRef.current = true;
           clearDraft();
           setBanner(null);
           toast.success(t("delivered"));
@@ -514,6 +542,7 @@ export function CompleteTransferContainer({
     (result: DeliveryResult) => {
       switch (result.status) {
         case "delivered":
+          deliveredRef.current = true;
           clearAllBeneficiaryDrafts();
           setBanner(null);
           toast.success(t("delivered"));
@@ -636,6 +665,31 @@ export function CompleteTransferContainer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [beneficiaries, buildBeneficiaryDeps, buildDeps, operationId, conversationId, handleMultiDeliverResult, t]);
 
+  // Group mode: report readiness and expose `submit` to the sheet.
+  const partReady = multiMode
+    ? beneficiaries.every((b) => !!beneficiaryDrafts[b.id])
+    : draft !== null;
+  const partReadyChange = part?.onReadyChange;
+  useEffect(() => {
+    partReadyChange?.(partReady);
+  }, [partReady, partReadyChange]);
+  const partHandleRef = part?.handleRef;
+  useEffect(() => {
+    if (!partHandleRef) return;
+    partHandleRef.current = {
+      submit: async (skip) => {
+        deliveredRef.current = false;
+        if (skip) await run({ skip: true });
+        else if (multiMode) await runMulti();
+        else await run({ skip: false });
+        return deliveredRef.current;
+      },
+    };
+    return () => {
+      partHandleRef.current = null;
+    };
+  }, [partHandleRef, multiMode, run, runMulti]);
+
   if (multiMode) {
     const items: CompleteTransferProofItem[] = beneficiaries.map((b, index) => {
       const d = beneficiaryDrafts[b.id];
@@ -667,6 +721,7 @@ export function CompleteTransferContainer({
         onSubmit={() => void (skipChecked ? run({ skip: true }) : runMulti())}
         notify={notify}
         onNotifyChange={setNotify}
+        hideActions={!!part}
         extra={<CupPlanBlock operationId={operationId} sourceCardId={cupSourceCardId} onSourceCardChange={setCupSourceCardId} />}
       />
     );
@@ -691,6 +746,7 @@ export function CompleteTransferContainer({
       onSubmit={() => void run({ skip: skipChecked })}
       notify={notify}
       onNotifyChange={setNotify}
+      hideActions={!!part}
       extra={<CupPlanBlock operationId={operationId} sourceCardId={cupSourceCardId} onSourceCardChange={setCupSourceCardId} />}
     />
   );

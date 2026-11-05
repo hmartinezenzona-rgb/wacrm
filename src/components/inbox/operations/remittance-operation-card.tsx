@@ -356,7 +356,7 @@ function computeSummaryAmount(
  *  nor show it for a pure Cuban-card one. `delivery_method` is the only
  *  signal left for the legacy shape: an operation with no beneficiaries
  *  yet. */
-function isZelleOperation(operation: RemittanceOperationRead): boolean {
+export function isZelleOperation(operation: RemittanceOperationRead): boolean {
   if (operation.beneficiaries.length > 0) {
     return operation.beneficiaries.some((beneficiary) => beneficiary.beneficiaryType === "zelle");
   }

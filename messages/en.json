@@ -348,6 +348,17 @@
         "saved": "Service changed",
         "failed": "Could not change the service: {message}"
       },
+      "completeMixedSend": {
+        "title": "Complete send",
+        "subtitle": "{parts} services · {beneficiaries} beneficiaries · one deposit of {amount} GYD",
+        "partDone": "Completed",
+        "missing": "{count} screenshots missing",
+        "confirm": "Complete the {count} parts",
+        "confirmRest": "Complete the {count} remaining parts",
+        "notify": "Notify the customer",
+        "running": "Completing…",
+        "close": "Close"
+      },
       "mixedSend": {
         "title": "Mixed send",
         "total": "{amount} GYD deposit",

@@ -50,6 +50,8 @@ export interface CompleteTransferSectionProps {
   onNotifyChange?: (notify: boolean) => void;
   /** Optional block under the title (the CUP inventory plan); the section never depends on it. */
   extra?: ReactNode;
+  /** Part of a mixed-send sheet: no title, skip checkbox, notify bell or confirm/cancel row (the sheet owns them). */
+  hideActions?: boolean;
 }
 
 export function CompleteTransferSection({
@@ -71,6 +73,7 @@ export function CompleteTransferSection({
   notify = true,
   onNotifyChange,
   extra,
+  hideActions = false,
 }: CompleteTransferSectionProps) {
   const t = useTranslations("Inbox.operationsPanel.completeTransfer");
   const tCommon = useTranslations("Inbox.operationsPanel");
@@ -82,9 +85,11 @@ export function CompleteTransferSection({
       className="space-y-2 rounded-lg border border-border bg-muted/30 p-3"
       onKeyDown={busy ? undefined : cancelOnEscape(onCancel)}
     >
-      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-        {t("title")}
-      </p>
+      {!hideActions && (
+        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          {t("title")}
+        </p>
+      )}
 
       {extra}
 
@@ -108,15 +113,17 @@ export function CompleteTransferSection({
         }}
       />
 
-      <label className="flex items-center gap-2 text-xs text-foreground">
-        <input
-          type="checkbox"
-          checked={skipChecked}
-          disabled={locked}
-          onChange={(e) => onSkipChange(e.target.checked)}
-        />
-        {t("withoutScreenshot")}
-      </label>
+      {!hideActions && (
+        <label className="flex items-center gap-2 text-xs text-foreground">
+          <input
+            type="checkbox"
+            checked={skipChecked}
+            disabled={locked}
+            onChange={(e) => onSkipChange(e.target.checked)}
+          />
+          {t("withoutScreenshot")}
+        </label>
+      )}
 
       {banner && (
         <p
@@ -143,16 +150,18 @@ export function CompleteTransferSection({
         </p>
       )}
 
-      <ConfirmCancelButtons
-        onCancel={onCancel}
-        onConfirm={onSubmit}
-        cancelLabel={tCommon("cancel")}
-        confirmLabel={submitLabel}
-        pending={busy}
-        confirmDisabled={!canSend}
-      >
-        {onNotifyChange && <NotifyToggle notify={notify} onChange={onNotifyChange} disabled={locked} />}
-      </ConfirmCancelButtons>
+      {!hideActions && (
+        <ConfirmCancelButtons
+          onCancel={onCancel}
+          onConfirm={onSubmit}
+          cancelLabel={tCommon("cancel")}
+          confirmLabel={submitLabel}
+          pending={busy}
+          confirmDisabled={!canSend}
+        >
+          {onNotifyChange && <NotifyToggle notify={notify} onChange={onNotifyChange} disabled={locked} />}
+        </ConfirmCancelButtons>
+      )}
 
     </div>
   );

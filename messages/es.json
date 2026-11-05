@@ -348,6 +348,17 @@
         "saved": "Servicio cambiado",
         "failed": "No se pudo cambiar el servicio: {message}"
       },
+      "completeMixedSend": {
+        "title": "Completar envío",
+        "subtitle": "{parts} servicios · {beneficiaries} beneficiarios · un depósito de {amount} GYD",
+        "partDone": "Completada",
+        "missing": "Faltan {count} capturas",
+        "confirm": "Completar las {count} partes",
+        "confirmRest": "Completar las {count} partes que faltan",
+        "notify": "Avisar al cliente",
+        "running": "Completando…",
+        "close": "Cerrar"
+      },
       "mixedSend": {
         "title": "Envío mixto",
         "total": "Depósito de {amount} GYD",

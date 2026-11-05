@@ -134,6 +134,21 @@ describe("OperationsPanelContainer mixed send completion", () => {
     await act(async () => root.unmount());
   });
 
+  it("opens the Completar envio sheet with one block per part", async () => {
+    const { node, root } = await renderWith(groupParts(), {
+      a: receiptsOf("a", deposit("T-0001")),
+      b: receiptsOf("b"),
+    });
+    const open = Array.from(node.querySelectorAll("section > header button")).find((b) => b.textContent === complete) as HTMLButtonElement;
+
+    await act(async () => open.click());
+
+    const dialog = document.body.querySelector('[role="dialog"]')!;
+    expect(dialog.textContent).toContain(en.Inbox.operationsPanel.completeMixedSend.title);
+    expect(dialog.querySelectorAll("section")).toHaveLength(2);
+    await act(async () => root.unmount());
+  });
+
   it("keeps the per-part Completar with two deposits", async () => {
     const { node, root } = await renderWith(groupParts(), {
       a: receiptsOf("a", deposit("T-0001")),

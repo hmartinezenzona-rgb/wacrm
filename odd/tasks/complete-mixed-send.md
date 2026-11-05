@@ -46,10 +46,19 @@ Strict, on. vitest.
 
 ## Tasks
 
-- [ ] T1 Group card with one "Completar envio" when one deposit pays the whole send.
-- [ ] T2 The sheet completes every part through the existing deliver route.
+- [x] T1 Group card with one "Completar envio" when one deposit pays the whole send. (6210eaa)
+- [x] T2 The sheet completes every part through the existing deliver route. (78983d6)
 - [ ] T3 Staging check with a PRUEBA mixed send (owner), cleanup; production after go-ahead.
 
 ## Progress
 
 - 2026-11-05 created. RDD off.
+- 2026-11-05 T1 (6210eaa): "one deposit" = exactly one distinct consumed unvoided TransID across the members' prefetched
+  `receiptsByOperationId[].consumedDeposits` (the deposit sits on the anchor's deal; other members list none). A member
+  without receipts, not ready, or history keeps the per-part buttons. RED: 4 completableGroup + 1 panel test failed first.
+  Forced-verification branch NOT done: the audit is not in the panel's data (needs an endpoint or RPC change).
+- 2026-11-05 T2 (78983d6): sheet drives one `CompleteTransferContainer` per part (group mode) and calls its `submit` in order;
+  stops at the first part that does not deliver, shows its refusal in that part, done parts are not called again.
+  Sheet tests were written after the driver (no separate RED for them); the panel-open test was RED first.
+  Verification: vitest inbox+lib 758 passed; full 272 files / 3768 passed; tsc clean; eslint clean.
+  curl :3100/inbox returned 000 (staging dev server not running; not started).

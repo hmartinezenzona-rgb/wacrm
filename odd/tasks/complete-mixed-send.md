@@ -49,6 +49,20 @@ Strict, on. vitest.
 - [x] T1 Group card with one "Completar envio" when one deposit pays the whole send. (6210eaa)
 - [x] T2 The sheet completes every part through the existing deliver route. (78983d6)
 - [ ] T3 Staging check with a PRUEBA mixed send (owner), cleanup; production after go-ahead.
+- [ ] T4 Rework to mockup v2 (owner 2026-11-05: first staging look "no sigue el diseno de produccion", "listo para
+  transferir sale en cada seccion, redundante"; approved https://claude.ai/artifact/7QnurZN2BiEw7NeD1AFkcB "si, me
+  gusta"): the group's status chip once in the mixed block header (a member shows its own chip only when it differs
+  from the group); "1 deposito verificado - TransID ...last4" in the header; "Completar envio" (solid primary, w-full,
+  size lg) and "Cerrar manualmente" at the END of the mixed block, like a card's actions; clicking opens the completion
+  INLINE in the block (no dialog), styled like complete-transfer-section (bg-muted/30 rounded-lg border p-3, uppercase
+  10px title "Completar envio"), one part per service with its proof panel(s) per beneficiary and the CUP "Transferir
+  desde" picker, one shared "Completar sin captura" checkbox, a "Mensaje al cliente" preview of the general message,
+  the missing-proofs hint, and the usual ConfirmCancelButtons row (bell, X, check). Remove the dialog sheet.
+- [ ] T5 Notifier: for an operation with mixed_group_id, the completed notice goes out only when the LAST non-cancelled
+  member completes, with the general text "Listo, su envio ya fue completado. Gracias por confiar en *Remesas Ya*."
+  (no service named); earlier members send no completed notice. Proof images are unchanged (the panel sends them).
+  Code in `pruebas/notificador/` (filtrar.jscode, buscar-telefono.sql, correr.ts, notificador.test.ts) with tests; the
+  n8n deploy (staging OCdJoHTkV6S0aAdk, then prod wGud0KGR6eMqqfMQ after go-ahead) is done by the parent.
 
 ## Progress
 

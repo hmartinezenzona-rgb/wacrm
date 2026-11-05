@@ -40,9 +40,10 @@ Strict, on. The staging assertion is the test (RED before the migration).
 
 ## Tasks
 
-- [ ] T1 Migration 353 on staging: no stray card operation on a cash send.
+- [x] T1 Migration 353 on staging: no stray card operation on a cash send. Evidence: RED = new assertion failed on the old body (case a1, a second operation was created); GREEN = `staging-migracion.sh aplicar`: dry-run OK, apply OK, assertion OK, rollback OK (md5 equal to previous); `relacionadas` TOTAL 27, SAME 27, DIFF 0.
 - [ ] T2 Production after the owner's go-ahead.
 
 ## Progress
 
 - 2026-11-05 created. RDD off.
+- 2026-11-05 T1 done on staging: function `cerebro_guardar_beneficiario(p_conv, p_nombre, p_tarjeta, p_celular, p_exec, p_op, p_tool, p_posicion, p_tipo)` (the n8n tool `gestionar_beneficiario` calls it with 5 args). New branch calls `crm_registrar_datos_entrega_efectivo` so storage and audit match the cash flow. Cash rule: empty card, a name or phone given, no position/type, and an open `remittance` operation with `delivery_method = 'efectivo_usd'` (newest; must equal p_op when one is named). Production not touched.

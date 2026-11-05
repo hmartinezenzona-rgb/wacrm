@@ -42,6 +42,15 @@ Strict, on. The staging assertion is the test (RED before the migration).
 
 - [x] T1 Migration 353 on staging: no stray card operation on a cash send. Evidence: RED = new assertion failed on the old body (case a1, a second operation was created); GREEN = `staging-migracion.sh aplicar`: dry-run OK, apply OK, assertion OK, rollback OK (md5 equal to previous); `relacionadas` TOTAL 27, SAME 27, DIFF 0.
 - [ ] T2 Production after the owner's go-ahead.
+- [ ] T3 Root cause in the Decisor (owner 2026-11-05: "el arreglo creo que deberia atacar la causa real"). The LIVE Decisor
+  is `pruebas/decisor/produccion/decisor.jscode` (md5 982b147c = production versionId 6feb0fd1), NOT
+  `pruebas/decisor/decisor.jscode` (that one holds the other session's uncommitted changes and stays untouched). When
+  `ctx.riel_operacion` is the cash rail (efectivo_usd), the card notes "Celular cubano detectado ... Falta la tarjeta
+  ESCRITA" and "TODAVIA NO HAY BENEFICIARIO REGISTRADO ... llama gestionar_beneficiario ... pide la tarjeta" are not
+  emitted; instead one cash note: entrega en efectivo, NO pidas tarjeta, pide solo lo que falte (nombre completo,
+  direccion, foto del carnet). Tests in `pruebas/decisor/produccion/decisor-produccion.test.ts`, md5 pin in
+  `pruebas/decisor/produccion/correr.ts`. Deploy: staging with `CEREBRO_DECISOR_FILE` pointing at the produccion file,
+  production after go-ahead.
 
 ## Progress
 

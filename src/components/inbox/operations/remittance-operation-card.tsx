@@ -93,6 +93,8 @@ interface RemittanceOperationCardProps {
   quote?: ConversationQuoteRead | null;
   /** The operations sharing this one's deposit (a mixed send), for the split editor; the operation alone when omitted. */
   mixedMembers?: RemittanceOperationRead[];
+  /** True when the group's one "Completar envio" completes this operation, so its own "Completar" is not shown. */
+  completedByGroup?: boolean;
 }
 
 /** The RPC never returns these (see types.ts), but the correction API can
@@ -415,6 +417,7 @@ export function RemittanceOperationCard({
   initialReceipts,
   quote,
   mixedMembers,
+  completedByGroup = false,
 }: RemittanceOperationCardProps) {
   const t = useTranslations("Inbox.operationsPanel");
   const serviceName = useServiceName();
@@ -454,7 +457,7 @@ export function RemittanceOperationCard({
   const canCloseManually =
     isManager && !operation.isHistory && MANUALLY_CLOSABLE_STATUSES.includes(operation.status);
 
-  const showCompleteTransfer = status === "ready_to_transfer" && editable;
+  const showCompleteTransfer = status === "ready_to_transfer" && editable && !completedByGroup;
   const summaryAmount = computeSummaryAmount(operation, t as (key: string, params?: Record<string, unknown>) => string, serviceName);
   const shortfalls = shortfallByBeneficiary(operation, initialReceipts);
 

@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
+import { Button } from "@/components/ui/button";
 import { useServiceName } from "@/hooks/use-service-name";
 import { formatNumber } from "@/lib/format-number";
 import { currentServiceOf } from "@/lib/remittance-operations/services";
@@ -13,10 +14,13 @@ interface MixedSendBlockProps {
   members: RemittanceOperationRead[];
   /** The group's open operation cards. */
   children: ReactNode;
+  /** Set when one verified deposit pays the whole send and every part is ready: the block shows that deposit and one
+   *  "Completar envio" in place of each part's own "Completar". */
+  completion?: { transId: string; onComplete: () => void };
 }
 
 /** Header over the cards of one mixed send (migration 253): the deposit they share and each member's service and share. */
-export function MixedSendBlock({ members, children }: MixedSendBlockProps) {
+export function MixedSendBlock({ members, children, completion }: MixedSendBlockProps) {
   const t = useTranslations("Inbox.operationsPanel.mixedSend");
   const serviceName = useServiceName();
 
@@ -41,6 +45,16 @@ export function MixedSendBlock({ members, children }: MixedSendBlockProps) {
             );
           })}
         </ul>
+        {completion ? (
+          <div className="mt-2 space-y-2">
+            <p className="rounded-md border border-border bg-muted/40 px-2 py-1.5 text-xs tabular-nums text-foreground">
+              {t("verifiedDeposit", { transId: completion.transId.slice(-4) })}
+            </p>
+            <Button type="button" size="lg" className="w-full" onClick={completion.onComplete}>
+              {t("complete")}
+            </Button>
+          </div>
+        ) : null}
       </header>
       {children}
     </section>

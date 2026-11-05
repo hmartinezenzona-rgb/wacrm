@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { groupOpenOperations, groupOperations, limitBlocks, mixedGroupMembers, mixedGroupTotal } from "./mixed-groups";
-import type { RemittanceOperationRead } from "@/lib/remittance-operations/types";
+import { completableGroup, groupOpenOperations, groupOperations, limitBlocks, mixedGroupMembers, mixedGroupTotal } from "./mixed-groups";
+import type { OperationReceiptsRead, RemittanceOperationRead } from "@/lib/remittance-operations/types";
 import { formatNumber } from "@/lib/format-number";
 
 function op(id: string, amount: number | null, mixedGroupId: string | null = null, status = "ready_to_transfer"): RemittanceOperationRead {
@@ -137,5 +137,48 @@ describe("mixedShareDestination", () => {
     expect(mixedShareDestination(share(70, null))).toBeNull();
     expect(mixedShareDestination(share(null, "USD"))).toBeNull();
     expect(mixedShareDestination(share(6200, "GYD"))).toBeNull();
+  });
+});
+
+describe("completableGroup", () => {
+  const deposit = (transId: string, amount = 31000) => ({ transId, amount, currency: "GYD", receivedAt: null, consumedAt: null });
+  const receipts = (...consumed: Array<ReturnType<typeof deposit>[]>) =>
+    Object.fromEntries(
+      consumed.map((list, index) => [
+        `m${index + 1}`,
+        { operationId: `m${index + 1}`, consumedDeposits: list } as unknown as OperationReceiptsRead,
+      ]),
+    );
+  const ready = (id: string, extra: Record<string, unknown> = {}) =>
+    ({ ...op(id, 1000, "m1"), isHistory: false, beneficiariesComplete: true, ...extra }) as unknown as RemittanceOperationRead;
+
+  it("is the group's one consumed deposit when every member is ready and only one deposit pays them", () => {
+    const members = [ready("m1"), ready("m2")];
+
+    // The deposit sits on the anchor's deal; the other member has none of its own.
+    expect(completableGroup(members, receipts([deposit("T1")], []))?.deposit.transId).toBe("T1");
+    // The same deposit listed on both members is still one deposit.
+    expect(completableGroup(members, receipts([deposit("T1")], [deposit("T1")]))?.deposit.transId).toBe("T1");
+  });
+
+  it("is null with two different deposits or with none", () => {
+    const members = [ready("m1"), ready("m2")];
+
+    expect(completableGroup(members, receipts([deposit("T1")], [deposit("T2")]))).toBeNull();
+    expect(completableGroup(members, receipts([], []))).toBeNull();
+  });
+
+  it("is null when a member is not ready, is history, or its receipts are unknown", () => {
+    const one = receipts([deposit("T1")], []);
+
+    expect(completableGroup([ready("m1"), ready("m2", { status: "deposit_verification" })], one)).toBeNull();
+    expect(completableGroup([ready("m1"), ready("m2", { beneficiariesComplete: false })], one)).toBeNull();
+    expect(completableGroup([ready("m1"), ready("m2", { isHistory: true, status: "completed" })], one)).toBeNull();
+    expect(completableGroup([ready("m1"), ready("m2")], { m1: one.m1! })).toBeNull();
+    expect(completableGroup([ready("m1"), ready("m2")], undefined)).toBeNull();
+  });
+
+  it("is null for a single operation", () => {
+    expect(completableGroup([ready("m1")], receipts([deposit("T1")]))).toBeNull();
   });
 });

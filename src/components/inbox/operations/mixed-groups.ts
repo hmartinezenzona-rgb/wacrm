@@ -1,5 +1,10 @@
 import { formatNumber } from "@/lib/format-number";
-import type { RemittanceOperationRead } from "@/lib/remittance-operations/types";
+import { effectiveStatus } from "@/lib/remittance-operations/effective-status";
+import type {
+  MatchedDeposit,
+  OperationReceiptsRead,
+  RemittanceOperationRead,
+} from "@/lib/remittance-operations/types";
 
 /** The operations that share `operation`'s deposit (migration 253), history included because a completed member still
  *  holds part of the group's total; the operation alone when it is not grouped or its group shows no other member. */
@@ -77,4 +82,30 @@ export function limitBlocks(
   const visible = blocks.slice(0, limit);
   const hiddenOperations = blocks.slice(limit).reduce((sum, block) => sum + block.operations.length, 0);
   return { visible, hiddenOperations };
+}
+
+export interface CompletableGroup {
+  /** The one consumed, unvoided deposit that pays the whole send. */
+  deposit: MatchedDeposit;
+}
+
+/** Whether a mixed send can be completed from one "Completar envio": two or more members, every one ready to transfer
+ *  (history and cancelled members never count), and exactly ONE distinct consumed unvoided deposit among the members'
+ *  receipts (the deposit sits on one member's deal; the others list none). A member whose receipts are unknown makes
+ *  the answer null: the per-part buttons stay, so nothing is assumed. An admin's forced verification is not part of
+ *  the panel's data, so a forced group keeps the per-part buttons. */
+export function completableGroup(
+  members: RemittanceOperationRead[],
+  receiptsByOperationId: Record<string, OperationReceiptsRead> | undefined,
+): CompletableGroup | null {
+  if (members.length < 2 || !receiptsByOperationId) return null;
+  const deposits = new Map<string, MatchedDeposit>();
+  for (const member of members) {
+    if (member.isHistory || effectiveStatus(member) !== "ready_to_transfer") return null;
+    const receipts = receiptsByOperationId[member.id];
+    if (!receipts) return null;
+    for (const deposit of receipts.consumedDeposits) deposits.set(deposit.transId, deposit);
+  }
+  if (deposits.size !== 1) return null;
+  return { deposit: [...deposits.values()][0]! };
 }

@@ -65,11 +65,11 @@ function op(id: string, amount: number, extra: Record<string, unknown> = {}) {
   };
 }
 
-async function renderWith(operations: unknown[]) {
+async function renderWith(operations: unknown[], receiptsByOperationId?: Record<string, unknown>) {
   vi.stubGlobal(
     "fetch",
     vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ resolverState: "unica", resolverOperationId: null, resolverCandidateCount: operations.length, operations }), { status: 200 }),
+      new Response(JSON.stringify({ resolverState: "unica", resolverOperationId: null, resolverCandidateCount: operations.length, operations, receiptsByOperationId }), { status: 200 }),
     ),
   );
   const { OperationsPanelContainer } = await import("./operations-panel-container");
@@ -83,6 +83,80 @@ async function renderWith(operations: unknown[]) {
   });
   return { node, root };
 }
+
+const deposit = (transId: string) => ({ transId, amount: 24400, currency: "GYD", receivedAt: null, consumedAt: null });
+const receiptsOf = (id: string, ...consumed: ReturnType<typeof deposit>[]) => ({
+  operationId: id,
+  status: "ready_to_transfer",
+  dealId: null,
+  canVerify: false,
+  objetivo: null,
+  depositado: null,
+  saldo: null,
+  moneda: "GYD",
+  receipts: [],
+  consumedDeposits: consumed,
+});
+const groupParts = () => [
+  op("a", 18200, { mixedGroupId: "a" }),
+  op("b", 6200, { mixedGroupId: "a", serviceType: "recarga", deliveryMethod: null }),
+];
+
+/** The panel is an accordion (one card open at a time): open each card in turn and tally the buttons by label. */
+async function tallyButtons(node: HTMLElement) {
+  const tally = new Map<string, number>();
+  const count = (label: string | null) => tally.set(label ?? "", (tally.get(label ?? "") ?? 0) + 1);
+  const headers = Array.from(node.querySelectorAll("article button[aria-expanded]")) as HTMLButtonElement[];
+  for (const header of headers) {
+    await act(async () => header.click());
+    const article = header.closest("article")!;
+    Array.from(article.querySelectorAll("button")).forEach((button) => count(button.textContent));
+  }
+  // The group's own button lives outside the cards.
+  Array.from(node.querySelectorAll("section > header button")).forEach((button) => count(button.textContent));
+  return tally;
+}
+
+describe("OperationsPanelContainer mixed send completion", () => {
+  const complete = en.Inbox.operationsPanel.mixedSend.complete;
+  const perPart = en.Inbox.operationsPanel.completeTransfer.button;
+
+  it("shows one Completar envio and no per-part Completar when one deposit pays the whole group", async () => {
+    const { node, root } = await renderWith(groupParts(), {
+      a: receiptsOf("a", deposit("T-0001")),
+      b: receiptsOf("b"),
+    });
+    const tally = await tallyButtons(node);
+
+    expect(tally.get(complete)).toBe(1);
+    expect(tally.get(perPart) ?? 0).toBe(0);
+    expect(node.querySelector("section")!.textContent).toContain("0001");
+    await act(async () => root.unmount());
+  });
+
+  it("keeps the per-part Completar with two deposits", async () => {
+    const { node, root } = await renderWith(groupParts(), {
+      a: receiptsOf("a", deposit("T-0001")),
+      b: receiptsOf("b", deposit("T-0002")),
+    });
+    const tally = await tallyButtons(node);
+
+    expect(tally.get(complete) ?? 0).toBe(0);
+    expect(tally.get(perPart)).toBe(2);
+    await act(async () => root.unmount());
+  });
+
+  it("keeps the per-part Completar when a member is not ready", async () => {
+    const parts = groupParts();
+    parts[1] = op("b", 6200, { mixedGroupId: "a", status: "deposit_verification" });
+    const { node, root } = await renderWith(parts, { a: receiptsOf("a", deposit("T-0001")), b: receiptsOf("b") });
+    const tally = await tallyButtons(node);
+
+    expect(tally.get(complete) ?? 0).toBe(0);
+    expect(tally.get(perPart)).toBe(1);
+    await act(async () => root.unmount());
+  });
+});
 
 describe("OperationsPanelContainer mixed send", () => {
   it("puts the open members of a group under one header with the total and every share, next to an ungrouped card", async () => {

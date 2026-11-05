@@ -351,7 +351,9 @@
       "mixedSend": {
         "title": "Mixed send",
         "total": "{amount} GYD deposit",
-        "share": "{service} · {amount} GYD"
+        "share": "{service} · {amount} GYD",
+        "verifiedDeposit": "1 verified deposit · TransID …{transId}",
+        "complete": "Complete send"
       },
       "splitDeposit": {
         "button": "Split deposit",

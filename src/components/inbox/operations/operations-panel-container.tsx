@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Skeleton } from "@/components/dashboard/skeleton";
 import { readPrefetchedConversationOperations } from "@/lib/remittance-operations/panel-prefetch";
 import type { ConversationOperationsRead } from "@/lib/remittance-operations/types";
-import { groupOperations, limitBlocks } from "./mixed-groups";
+import { completableGroup, groupOperations, limitBlocks } from "./mixed-groups";
 import { MixedSendBlock } from "./mixed-send-block";
 import { RemittanceOperationCard } from "./remittance-operation-card";
 import { otherOpenOperationsFor } from "./reassign-targets";
@@ -80,6 +80,8 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
     return { status: "idle" };
   });
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // The mixed group whose "Completar envio" sheet is open (T2 renders it).
+  const [, setCompleteGroupId] = useState<string | null>(null);
   // History is hidden until asked for, and shows only the latest
   // HISTORY_VISIBLE_COUNT until "Show more". Both are stored as the
   // conversation they were opened for (not a boolean) so switching
@@ -276,6 +278,8 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
           </h3>
           <div className="space-y-2">
             {groupOperations(openOperations, data.operations).map((block) => {
+              // One verified deposit pays the whole send: one "Completar envio" instead of one per part.
+              const group = canEdit && block.grouped ? completableGroup(block.members, data.receiptsByOperationId) : null;
               const cards = block.operations.map((operation) => (
                 <RemittanceOperationCard
                   key={operation.id}
@@ -290,13 +294,18 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
                   refreshToken={refreshToken}
                   initialReceipts={data.receiptsByOperationId?.[operation.id]}
                   mixedMembers={block.members}
+                  completedByGroup={group !== null}
                   // The quote belongs to the conversation, not to one
                   // operation: show it once, on the newest open card.
                   quote={operation.id === openOperations[0]?.id ? data.quote : null}
                 />
               ));
               return block.grouped ? (
-                <MixedSendBlock key={block.members[0]!.mixedGroupId} members={block.members}>
+                <MixedSendBlock
+                  key={block.members[0]!.mixedGroupId}
+                  members={block.members}
+                  completion={group ? { transId: group.deposit.transId, onComplete: () => setCompleteGroupId(block.members[0]!.mixedGroupId!) } : undefined}
+                >
                   {cards}
                 </MixedSendBlock>
               ) : (

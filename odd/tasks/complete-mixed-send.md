@@ -49,7 +49,7 @@ Strict, on. vitest.
 - [x] T1 Group card with one "Completar envio" when one deposit pays the whole send. (6210eaa)
 - [x] T2 The sheet completes every part through the existing deliver route. (78983d6)
 - [ ] T3 Staging check with a PRUEBA mixed send (owner), cleanup; production after go-ahead.
-- [ ] T4 Rework to mockup v2 (owner 2026-11-05: first staging look "no sigue el diseno de produccion", "listo para
+- [x] T4 (46053f5) Rework to mockup v2 (owner 2026-11-05: first staging look "no sigue el diseno de produccion", "listo para
   transferir sale en cada seccion, redundante"; approved https://claude.ai/artifact/7QnurZN2BiEw7NeD1AFkcB "si, me
   gusta"): the group's status chip once in the mixed block header (a member shows its own chip only when it differs
   from the group); "1 deposito verificado - TransID ...last4" in the header; "Completar envio" (solid primary, w-full,
@@ -58,7 +58,7 @@ Strict, on. vitest.
   10px title "Completar envio"), one part per service with its proof panel(s) per beneficiary and the CUP "Transferir
   desde" picker, one shared "Completar sin captura" checkbox, a "Mensaje al cliente" preview of the general message,
   the missing-proofs hint, and the usual ConfirmCancelButtons row (bell, X, check). Remove the dialog sheet.
-- [ ] T5 Notifier: for an operation with mixed_group_id, the completed notice goes out only when the LAST non-cancelled
+- [x] T5 (e3c6a68, code ready, n8n deploy pending) Notifier: for an operation with mixed_group_id, the completed notice goes out only when the LAST non-cancelled
   member completes, with the general text "Listo, su envio ya fue completado. Gracias por confiar en *Remesas Ya*."
   (no service named); earlier members send no completed notice. Proof images are unchanged (the panel sends them).
   Code in `pruebas/notificador/` (filtrar.jscode, buscar-telefono.sql, correr.ts, notificador.test.ts) with tests; the
@@ -76,3 +76,20 @@ Strict, on. vitest.
   Sheet tests were written after the driver (no separate RED for them); the panel-open test was RED first.
   Verification: vitest inbox+lib 758 passed; full 272 files / 3768 passed; tsc clean; eslint clean.
   curl :3100/inbox returned 000 (staging dev server not running; not started).
+- 2026-11-05 T4 (46053f5): `complete-mixed-send-sheet` (dialog) became `complete-mixed-send-section` (inline, same driver and
+  partial-failure behaviour); the block header shows the status chip once plus the deposit line; "Completar envio" and the
+  group "Cerrar manualmente" sit after the cards. Group close = new `MixedCloseControl`, which calls the existing
+  `cerrarOperacionManual` per member in order (no server change); shown only to owner/admin and when no member needs its
+  service picked (else each card keeps its own); the CUP source-card picker is not offered there (automatic by priority).
+  RED observed: section tests (9 failed on the renamed module), block (3 failed), container (10 failed). The close-control
+  tests were written together with the component (no separate RED). Verification: vitest inbox+lib 773 passed; full 273 files /
+  3791 passed; tsc clean; eslint clean; curl :3100/inbox 307.
+- 2026-11-05 T5 (e3c6a68, code ready, n8n deploy pending): the group state cannot come from "Buscar telefono": the
+  workflow runs Webhook -> Leer secreto -> Filtrar -> Buscar telefono -> Enviar, so Filtrar (which can stop the flow) only
+  sees "Leer secreto". New column `grupo_pendientes` lives in `pruebas/notificador/leer-secreto.sql` (the node's current
+  query from the snapshots, minus its trailing `;`). Filtrar: with `mixed_group_id` and a known `grupo_pendientes`, > 0 sends
+  nothing, 0 sends the general text with no template and no {RECIBE}; unknown count or no group = today's notice. Outside
+  the 24 h window the general text cannot go out (no approved Meta template says "su envio"). RED: 3 failed first.
+  New filtrar md5 8922953f. Deploy: staging OCdJoHTkV6S0aAdk, then prod wGud0KGR6eMqqfMQ after go-ahead (paste both
+  nodes: Leer secreto query and Filtrar code).
+

@@ -34,25 +34,26 @@ END $f$;
 
 -- Runs a statement as p_uid and returns true when it fails with exactly p_state.
 CREATE FUNCTION pg_temp.uci_expect(p_sql text, p_state text, p_uid uuid) RETURNS boolean LANGUAGE plpgsql AS $f$
+DECLARE v_prev text := coalesce(current_setting('request.jwt.claims', true), '');
 BEGIN
   PERFORM pg_temp.uci_claims(p_uid);
   BEGIN
     EXECUTE p_sql;
-    PERFORM pg_temp.uci_claims(NULL);
+    PERFORM set_config('request.jwt.claims', v_prev, true);
     RETURN false;
   EXCEPTION WHEN OTHERS THEN
-    PERFORM pg_temp.uci_claims(NULL);
+    PERFORM set_config('request.jwt.claims', v_prev, true);
     RETURN SQLSTATE = p_state;
   END;
 END $f$;
 
 -- One card of the report, as a given user.
 CREATE FUNCTION pg_temp.uci_card(p_acct uuid, p_card uuid, p_uid uuid, p_inactive boolean DEFAULT false) RETURNS jsonb LANGUAGE plpgsql AS $f$
-DECLARE v jsonb;
+DECLARE v jsonb; v_prev text := coalesce(current_setting('request.jwt.claims', true), '');
 BEGIN
   PERFORM pg_temp.uci_claims(p_uid);
   v := crm_inventario_usd(p_acct, p_inactive);
-  PERFORM pg_temp.uci_claims(NULL);
+  PERFORM set_config('request.jwt.claims', v_prev, true);
   RETURN (SELECT c FROM jsonb_array_elements(v->'cards') c WHERE (c->>'id')::uuid = p_card);
 END $f$;
 
@@ -253,6 +254,7 @@ BEGIN
       v_acc, v_l1.id, v_cla.id, v_month), '23514', NULL), '');
 
   -- ---- case 8: inactive cards, totals, all lots -------------------------------------------------------------------------------------
+  PERFORM pg_temp.uci_claims(v_admin);
   v_lt := crm_cargar_lote_usd(v_acc, v_tro.id, 1000, 952.38, NULL, 'tropical');
   v_tro2 := crm_guardar_tarjeta_usd(v_acc, v_tro2.id, NULL, NULL, NULL, NULL, NULL, false);
   v_r := crm_inventario_usd(v_acc);

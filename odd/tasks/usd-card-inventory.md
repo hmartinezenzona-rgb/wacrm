@@ -100,5 +100,11 @@ Out: Zelle, bot/n8n changes, the 20 USD minimum (done), production (needs explic
 - 2026-11-06: T5. RED: panel.ts `Cannot find module './panel'`, usd-plan route module missing, refusal `expected null to deeply equal {...}`, usd-plan-block module missing.
   GREEN: full `npm test` 289 files / 3973 tests pass; tsc and eslint clean. Complete button disabled while the plan is blocked (container test).
 
+- 2026-11-06 T6 (staging, owner-authorized): 355, 356, 357 applied with infra/db/staging-migracion.sh aplicar: dry-run/apply/assertion/rollback OK each.
+  `relacionadas` for 357 (crm_resolve_pending_entry): TOTAL 9, SAME 9, DIFF 0 (pre-existing failures identical on base).
+  Demo data: cards PRUEBA Clásica ····3318 (lots 500 USD/476.19 USDT and 500/500) and PRUEBA Tropical ····9240 (100/100);
+  PRUEBA ops: 59902530101 Clásica 100 USD ready_to_transfer (op 3f981158), 59902530102 Tropical 150 USD (op 0cdb4121, must be blocked).
+  Panel local on staging at http://localhost:3100. Pending: owner check, then cleanup of PRUEBA rows and demo cards.
+
 ## Next step
 T6 (staging). T5 maps the refusal prefix and renders crm_inventario_usd_operacion.

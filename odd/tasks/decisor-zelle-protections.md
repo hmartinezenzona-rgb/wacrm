@@ -39,7 +39,7 @@ Strict, on. vitest (`npx vitest run pruebas/decisor/produccion`).
 ## Tasks
 
 - [x] T1 Port the missing protections with tests. Evidence: 6 new tests RED (6 failed / 81), then GREEN (81/81); full suite 273 files, 3806 passed; new production md5 f8de0539 (full f8de0539dcb3460b87886582a555ad13). Commit: see Progress.
-- [ ] T2 Deploy to production.
+- [x] T2 Deployed to production 2026-11-05 (owner: "ponlos tambien"): backup produccion-jEzlVLCLUaJhVwzs-158fdc43-...-20261105-182002.json; versionId 158fdc43 -> 48803b21 (= activeVersionId); Decisor 9150c4d8 -> f8de0539. Checked first: production Snapshot emits zelle_correos/zelle_celulares/zelle_nombre_cuenta (zelleVarios is derived from them); reparto_pendiente is not emitted, so item 3 stays dormant.
 
 ## Progress
 

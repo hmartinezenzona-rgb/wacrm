@@ -27,23 +27,23 @@ export interface LotPatch {
   note?: string;
 }
 
-const fail = (error: string): { ok: false; error: string } => ({ ok: false, error });
+export const fail = (error: string): { ok: false; error: string } => ({ ok: false, error });
 
-function isObject(body: unknown): body is Record<string, unknown> {
+export function isObject(body: unknown): body is Record<string, unknown> {
   return typeof body === "object" && body !== null && !Array.isArray(body);
 }
 
-function unknownKey(body: Record<string, unknown>, allowed: readonly string[]): string | null {
+export function unknownKey(body: Record<string, unknown>, allowed: readonly string[]): string | null {
   return Object.keys(body).find((key) => !allowed.includes(key)) ?? null;
 }
 
-function isPositive(value: unknown, limit: number): value is number {
+export function isPositive(value: unknown, limit: number): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0 && value < limit;
 }
 
-const AMOUNT_LIMIT = 1e12;
+export const AMOUNT_LIMIT = 1e12;
 const RATE_LIMIT = 1e9;
-const NOTE_MAX = 500;
+export const NOTE_MAX = 500;
 
 export function parseCardBody(body: unknown, mode: "create" | "update"): Parsed<CardInput> {
   if (!isObject(body)) return fail("Body must be a JSON object");
@@ -96,7 +96,7 @@ export function parseCardBody(body: unknown, mode: "create" | "update"): Parsed<
   return { ok: true, value };
 }
 
-function parseNote(note: unknown): Parsed<string> {
+export function parseNote(note: unknown): Parsed<string> {
   if (note === null) return { ok: true, value: "" };
   if (typeof note !== "string") return fail("note must be text");
   const trimmed = note.trim();

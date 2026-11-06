@@ -53,6 +53,7 @@ Out: Zelle, bot/n8n changes, the 20 USD minimum (done), production (needs explic
       untouched lot, adjust balance, report with balance and month usage) + rollback + staging assertion
 - [x] T2 (a0c4b05; assertion helper fix cc50294) Migration 356: plan / consume / return for USD, feed cost from lots, manual lines, void and
       delete paths, hard block in crm_entregar_operacion + crm_cerrar_operacion_manual, panel plan RPC; rollback; assertion
+- [x] T2b (c64241c) Migration 357: crm_resolve_pending_entry consumes USD for a resolved pending CLASICA/TROPICAL line; rollback; assertion usd-inventory-pending.sql
 - [ ] T3 API routes + lib (read model, payloads, forms, format) for USD cards and lots + tests
 - [ ] T4 Unified "Inventario de tarjetas" page per the approved design (CUP + Clásica + Tropical), sidebar, i18n, tests
 - [ ] T5 Delivery panel: USD plan block + refusal mapping for the insufficient-balance block + tests
@@ -83,7 +84,12 @@ Out: Zelle, bot/n8n changes, the 20 USD minimum (done), production (needs explic
   PER OPERATION (the feed consumes per operation; the group-wide logic in delivery only concerns verified funding); Mexico operations
   (priced as CLASICA) never consume nor block; notifications reuse type 'inventario_cup'; cost_gyd of USD entries stays NULL, the lot
   cost lands in invertido_gyd. Refusal: 22023 'usd_inventory_insufficient:<SERVICE>:<missing> (needs N USD, M USD available)'.
-- Known gap (not in T2 scope): crm_resolve_pending_entry (an admin resolving a pending CLASICA/TROPICAL line) does not consume USD yet.
+- 2026-11-06: T2b (c64241c) closes that gap. Parent default: a resolved pending line is treated like the feed (kind 'operacion', or 'manual'
+  without operation); the entry's recorded buy rate wins; shortfall/failure alert, never block; Mexico excluded. Live md5 874a3f1b62cb
+  replaced; ROLLBACK-357 restores it (same md5 and ACL). RED (355+356 only): 7 FAIL (e.g. invertido=23800 instead of 100/1.25*238, nothing
+  consumed, no alert), GREEN with 357: 13 PASS, 'ALL PASS (rolled back on purpose)'. Regression with 355+356+357 loaded: usd-card-inventory 89,
+  usd-inventory-consumption 60, usd-inventory-pending 13, cup-inventory-consumption 49, cup-inventory-panel 27, cup-source-card 31,
+  cup-card-inventory 52, cup-balance-adjust 38: 0 FAIL.
 
 ## Next step
 T3 (API routes + lib for USD cards and lots). T5 maps the refusal prefix and renders crm_inventario_usd_operacion.

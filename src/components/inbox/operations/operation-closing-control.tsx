@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useServiceName } from "@/hooks/use-service-name";
 import { Banknote, Coins, Landmark, ShoppingBasket, Smartphone, Stamp, TreePalm, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { parseDeleteRefusal } from "@/lib/remittance-operations/delete-refusal";
 import { cerrarOperacionManual, eliminarOperacion } from "@/lib/remittance-operations/commands";
 import { ConfirmCancelButtons, cancelOnEscape } from "./confirm-cancel-buttons";
 import { NotifyToggle } from "./notify-toggle";
@@ -71,7 +72,8 @@ export function OperationClosingControl({ operationId, kind, onDone, onCancel, n
     setPending(false);
 
     if (!result.ok) {
-      setError(result.error);
+      const refusal = isClose ? null : parseDeleteRefusal(result.error, result.status);
+      setError(refusal ? t(`closing.deleteRefusal.${refusal}`) : result.error);
       return;
     }
     onDone();

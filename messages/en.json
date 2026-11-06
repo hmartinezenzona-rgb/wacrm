@@ -450,7 +450,13 @@
         "deleteButton": "Delete remesa",
         "closeButton": "Close manually",
         "closeConfirm": "Close remesa",
-        "deleteConfirm": "Delete remesa"
+        "deleteConfirm": "Delete remesa",
+        "deleted": "Operation deleted",
+        "deleteRefusal": {
+          "alreadyClosed": "This operation was already deleted or closed.",
+          "verifiedDeposit": "It cannot be deleted: it has a verified deposit.",
+          "notAdmin": "Only an admin can delete operations."
+        }
       },
       "completeTransfer": {
         "title": "Complete transfer",

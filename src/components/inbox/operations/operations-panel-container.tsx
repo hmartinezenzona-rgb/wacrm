@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { useCan } from "@/hooks/use-can";
 import { canForceVerify } from "@/lib/auth/roles";
@@ -167,6 +168,20 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
     [applyLoadedData],
   );
 
+  // A card reports its operation deleted: drop it from the loaded data at once (the refetch its `onChanged` fires
+  // then agrees with it) and confirm with a toast.
+  const handleDeleted = useCallback(
+    (operationId: string) => {
+      setState((current) =>
+        current.status === "loaded"
+          ? { status: "loaded", data: { ...current.data, operations: current.data.operations.filter((op) => op.id !== operationId) } }
+          : current,
+      );
+      toast.success(t("closing.deleted"));
+    },
+    [t],
+  );
+
   useEffect(() => {
     // No direct setState here on the `!conversationId` path — deselecting
     // the active conversation leaves `state` stale on purpose. The render
@@ -314,6 +329,7 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
                   role={accountRole}
                   otherOpenOperations={otherOpenOperationsFor(operation, openOperations)}
                   onChanged={() => silentLoad(conversationId)}
+                  onDeleted={handleDeleted}
                   expanded={expandedId === operation.id}
                   onToggle={toggleHandlerFor(operation.id)}
                   conversationId={conversationId}

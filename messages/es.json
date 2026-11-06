@@ -450,7 +450,13 @@
         "deleteButton": "Eliminar remesa",
         "closeButton": "Cerrar manualmente",
         "closeConfirm": "Cerrar remesa",
-        "deleteConfirm": "Eliminar remesa"
+        "deleteConfirm": "Eliminar remesa",
+        "deleted": "Operación eliminada",
+        "deleteRefusal": {
+          "alreadyClosed": "Esta operación ya estaba eliminada o cerrada.",
+          "verifiedDeposit": "No se puede eliminar: tiene un depósito verificado.",
+          "notAdmin": "Solo un administrador puede eliminar operaciones."
+        }
       },
       "completeTransfer": {
         "title": "Completar transferencia",

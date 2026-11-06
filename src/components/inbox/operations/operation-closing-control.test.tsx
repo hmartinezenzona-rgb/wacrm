@@ -312,4 +312,31 @@ describe("OperationClosingControl service icons are told apart", () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
     await act(async () => root.unmount());
   });
+
+  describe.each([
+    ["an operation that is cancelled cannot be deleted", 400, "alreadyClosed"],
+    ["an operation that is completed cannot be deleted", 400, "alreadyClosed"],
+    ["an operation with a verified deposit cannot be deleted", 400, "verifiedDeposit"],
+    ["only an owner or admin can delete an operation", 400, "notAdmin"],
+    ["Forbidden", 403, "notAdmin"],
+  ] as const)("a refused delete (%s)", (message, status, key) => {
+    it("shows the Spanish-keyed reason and keeps the form open", async () => {
+      eliminarOperacion.mockResolvedValueOnce({ ok: false, status, error: message });
+      const { node, onDone } = await render("delete");
+
+      await act(async () => buttonByLabel(node, t.deleteConfirm).click());
+
+      expect(node.textContent).toContain(t.deleteRefusal[key]);
+      expect(onDone).not.toHaveBeenCalled();
+    });
+  });
+
+  it("shows the server text when a refused delete is not a known reason", async () => {
+    eliminarOperacion.mockResolvedValueOnce({ ok: false, status: 400, error: "an operation that is transferring cannot be deleted" });
+    const { node } = await render("delete");
+
+    await act(async () => buttonByLabel(node, t.deleteConfirm).click());
+
+    expect(node.textContent).toContain("an operation that is transferring cannot be deleted");
+  });
 });

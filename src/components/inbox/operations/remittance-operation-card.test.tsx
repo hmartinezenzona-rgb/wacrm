@@ -217,6 +217,7 @@ interface RenderOptions {
   role?: "owner" | "admin" | "agent" | "viewer" | null;
   otherOpenOperations?: { id: string; label: string }[];
   onChanged?: () => void;
+  onDeleted?: (id: string) => void;
   expanded?: boolean;
   onToggle?: () => void;
   conversationId?: string;
@@ -238,6 +239,7 @@ async function render(op: RemittanceOperationRead, options: RenderOptions = {}) 
         role={options.role ?? "agent"}
         otherOpenOperations={options.otherOpenOperations ?? []}
         onChanged={onChanged}
+        onDeleted={options.onDeleted}
         expanded={options.expanded ?? true}
         onToggle={onToggle}
         conversationId={options.conversationId ?? "conv-1"}
@@ -2397,13 +2399,15 @@ describe("RemittanceOperationCard closing actions", () => {
 
   it("clicking the trash opens the delete form; done refreshes the panel and closes it", async () => {
     const onChanged = vi.fn();
-    const { node, root } = await render(operation({ status: "deposit_verification" }), { role: "admin", onChanged });
+    const onDeleted = vi.fn();
+    const { node, root } = await render(operation({ status: "deposit_verification" }), { role: "admin", onChanged, onDeleted });
 
     await act(async () => (deleteButton(node) as HTMLButtonElement).click());
     expect(node.querySelector('[data-testid="closing-stub"]')?.getAttribute("data-kind")).toBe("delete");
 
     await act(async () => (node.querySelector('[data-testid="closing-done"]') as HTMLButtonElement).click());
     expect(onChanged).toHaveBeenCalled();
+    expect(onDeleted).toHaveBeenCalledWith(expect.any(String));
     expect(node.querySelector('[data-testid="closing-stub"]')).toBeNull();
     await act(async () => root.unmount());
   });

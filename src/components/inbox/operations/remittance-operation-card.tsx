@@ -64,6 +64,9 @@ interface RemittanceOperationCardProps {
   /** Called after a correction or reassignment succeeds, so the panel
    *  container can refetch. */
   onChanged: () => void;
+  /** Called with this operation's id after it was deleted from the panel, so the container can drop the card at
+   *  once (before the refetch `onChanged` triggers). */
+  onDeleted?: (operationId: string) => void;
   /** Whether this card's details (correction form + beneficiaries) are
    *  shown. The panel is an accordion — expansion is owned by the
    *  container, not local state, so only one card is open at a time. */
@@ -417,6 +420,7 @@ export function RemittanceOperationCard({
   costRole,
   otherOpenOperations,
   onChanged,
+  onDeleted,
   expanded,
   onToggle,
   conversationId,
@@ -446,6 +450,11 @@ export function RemittanceOperationCard({
   function handleChanged() {
     setOpenForm(null);
     onChanged();
+  }
+
+  function handleDeleted() {
+    onDeleted?.(operation.id);
+    handleChanged();
   }
 
   const source = money(operation.quotedSourceAmount, operation.sourceCurrency);
@@ -638,7 +647,7 @@ export function RemittanceOperationCard({
             <OperationClosingControl
               operationId={operation.id}
               kind="delete"
-              onDone={handleChanged}
+              onDone={handleDeleted}
               onCancel={() => setOpenForm(null)}
             />
           )}

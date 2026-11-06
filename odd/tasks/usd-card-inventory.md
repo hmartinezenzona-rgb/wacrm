@@ -58,7 +58,7 @@ Out: Zelle, bot/n8n changes, the 20 USD minimum (done), production (needs explic
 - [x] T4 (e27247f) Unified "Inventario de tarjetas" page per the approved design (CUP + Clásica + Tropical), sidebar, i18n, tests
 - [x] T5 Delivery panel: USD plan block + refusal mapping for the insufficient-balance block + tests
 - [x] T6 Staging: apply 355-356, run assertions, deploy, demo cards/lots, owner check
-- [ ] T7 Production (needs the owner's explicit go-ahead)
+- [x] T7 Production (needs the owner's explicit go-ahead)
 
 ## Acceptance criteria
 - Admin creates a Clásica card and a Tropical card, loads 500 USD for 476.19 USDT on Clásica, sees 500 USD balance
@@ -108,5 +108,11 @@ Out: Zelle, bot/n8n changes, the 20 USD minimum (done), production (needs explic
 
 - 2026-11-06 owner checked staging ("se ve bien"). Cleanup after the dry run shown to the owner: 2 PRUEBA contacts/convs/ops/beneficiaries/deposits and the 2 demo USD cards + 3 lots deleted; recount 0/0/0.
 
+- 2026-11-06 T7 production (owner go-ahead "si pasalo"): previa VEREDICTO SEGURO (7 replaced functions EQUAL to staging base).
+  aplicar: 355 OK 20261106215700, 356 OK 20261106215701; 357 first FAILED (schema_migrations version collision, same second,
+  nothing applied), re-applied alone: OK 20261106215718. verificar: VERIFICADO 23/23.
+  Panel: release/prod-usd-card-inventory = 67b60da (pushed to privado), compilar OK, BUILD_ID vdYFDzOuprQqqnI1TMzWB served;
+  rollback = 8fe363d (anterior). No USD cards in production yet, so nothing is blocked until Osmany loads his cards.
+
 ## Next step
-T7 production: owner go-ahead, then produccion-migracion.sh previa/aplicar/verificar 355-357, then publish the panel (wacrm-publicar-panel). Osmany must load his real Clásica/Tropical cards and lots afterwards; until then nothing is blocked.
+Done. Follow-up: Osmany loads his real Clásica/Tropical cards and lots on "Inventario de tarjetas".

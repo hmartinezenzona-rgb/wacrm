@@ -35,7 +35,7 @@ Strict, on. vitest.
 
 ## Tasks
 
-- [ ] T1 Deleted operations are not listed. BLOCKED, owner decision needed (see Progress 2026-11-06 T1 finding).
+- [ ] T1 Deleted operations are not listed. Owner 2026-11-06: "si, haz la migracion para ocultar las eliminadas" -> migration 354: `crm_historial_operaciones` and `crm_historial_estados` (351) exclude operations whose latest audit with after.status = cancelled is `human_operation_deleted` (rows, totals, counts and pagination stay consistent). Staging first; production after go-ahead.
 - [x] T2 Instant removal, toast and clear refusal messages. RED observed (7 failing), then GREEN.
 - [ ] T3 Production panel deploy after the owner's go-ahead.
 

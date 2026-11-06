@@ -57,7 +57,7 @@ Out: Zelle, bot/n8n changes, the 20 USD minimum (done), production (needs explic
 - [x] T3 (56466f9) API routes + lib (read model, payloads, forms, format) for USD cards and lots + tests
 - [x] T4 (e27247f) Unified "Inventario de tarjetas" page per the approved design (CUP + Clásica + Tropical), sidebar, i18n, tests
 - [x] T5 Delivery panel: USD plan block + refusal mapping for the insufficient-balance block + tests
-- [ ] T6 Staging: apply 355-356, run assertions, deploy, demo cards/lots, owner check
+- [x] T6 Staging: apply 355-356, run assertions, deploy, demo cards/lots, owner check
 - [ ] T7 Production (needs the owner's explicit go-ahead)
 
 ## Acceptance criteria
@@ -105,6 +105,8 @@ Out: Zelle, bot/n8n changes, the 20 USD minimum (done), production (needs explic
   Demo data: cards PRUEBA Clásica ····3318 (lots 500 USD/476.19 USDT and 500/500) and PRUEBA Tropical ····9240 (100/100);
   PRUEBA ops: 59902530101 Clásica 100 USD ready_to_transfer (op 3f981158), 59902530102 Tropical 150 USD (op 0cdb4121, must be blocked).
   Panel local on staging at http://localhost:3100. Pending: owner check, then cleanup of PRUEBA rows and demo cards.
+
+- 2026-11-06 owner checked staging ("se ve bien"). Cleanup after the dry run shown to the owner: 2 PRUEBA contacts/convs/ops/beneficiaries/deposits and the 2 demo USD cards + 3 lots deleted; recount 0/0/0.
 
 ## Next step
 T6 (staging). T5 maps the refusal prefix and renders crm_inventario_usd_operacion.

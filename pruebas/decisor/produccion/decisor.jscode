@@ -4,7 +4,7 @@ const ctx = $('Contexto conversacion').first().json;
 const HORA_ABRE_MIN = ctx.horario_abre_min, HORA_CIERRA_MIN = ctx.horario_cierra_min;
 const HORA_ABRE_TXT = ctx.horario_abre_texto, HORA_CIERRA_TXT = ctx.horario_cierra_texto;
 const h = $('Historial contacto').first().json;
-const s = $('Snapshot final').first().json;
+const s = { ...$('Snapshot final').first().json }; // shallow copy: the team-data guard below may blank fields
 const texto = (s.texto_completo || '').trim();
 // El 11-ago el bot le pidio los datos del beneficiario CUATRO veces en cinco
 // minutos a 5926299943, que habia dicho TRES veces que estaba esperando a que
@@ -204,6 +204,51 @@ try {
     if (mb.zelle_cuenta_final) zelleCtaCtx = mb.zelle_cuenta_final;
   }
 } catch (e) {}
+// TEAM-GIVEN DATA IS NEVER THE CUSTOMER'S RECIPIENT (2026-11-06). On 2026-11-05 a team member wrote the Zelle account where an
+// overpayment had to be returned; the customer then sent an image with that same account, the Decisor ordered the registration and
+// a Zelle send was opened. `ctx.conversacion_no_vista` carries what the team said ("Companero del equipo: ..." / "Cliente: ..."
+// lines; an unlabelled line continues the previous speaker). Any detected datum that also appears in a TEAM line is dropped here,
+// so no later note orders a registration tool for it; one note (emitted next to the team note) forbids using it.
+const claveDato = (x) => {
+  const t = String(x ?? '').trim().toLowerCase();
+  if (!t) return '';
+  if (t.includes('@')) return t;
+  let d = t.replace(/\D/g, '');
+  if (d.length === 11 && d.startsWith('1')) d = d.slice(1);
+  if (d.length === 10 && d.startsWith('53')) d = d.slice(2);
+  return d;
+};
+const datosDelEquipo = (() => {
+  const claves = new Set();
+  let esEquipo = false;
+  for (const linea of String(ctx.conversacion_no_vista || '').split(/\r?\n/)) {
+    const m = linea.match(/^\s*(compa[nñ]ero(?: del equipo)?|equipo|cliente|bot|asistente|agente)\s*:/i);
+    if (m) esEquipo = /^(compa|equipo)/i.test(m[1]);
+    if (!esEquipo) continue;
+    for (const c of (linea.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi) || [])) claves.add(claveDato(c));
+    for (const c of (linea.match(/\d[\d\s().-]*\d/g) || [])) { const k = claveDato(c); if (k.length >= 8) claves.add(k); }
+  }
+  return claves;
+})();
+const esDelEquipo = (x) => !!x && datosDelEquipo.has(claveDato(x));
+let datoDelEquipo = false;
+if (datosDelEquipo.size) {
+  const quita = (x) => { if (esDelEquipo(x)) { datoDelEquipo = true; return true; } return false; };
+  const lista = (a) => (Array.isArray(a) ? a.filter((x) => !quita(x)) : a);
+  const ctaCtxEquipo = quita(zelleCtaCtx);
+  const celularZelleEquipo = quita(s.zelle_celular), correoZelleEquipo = quita(s.zelle_correo);
+  s.zelle_celulares = lista(s.zelle_celulares); s.zelle_correos = lista(s.zelle_correos);
+  if (celularZelleEquipo) s.zelle_celular = null;
+  if (correoZelleEquipo) s.zelle_correo = null;
+  if (ctaCtxEquipo || quita(s.zelle_nombre_cuenta)) { zelleCtaCtx = null; s.zelle_nombre_cuenta = null; }
+  if (!zelleCtaCtx && !s.zelle_celular && !s.zelle_correo && !(s.zelle_celulares || []).length && !(s.zelle_correos || []).length && (ctaCtxEquipo || celularZelleEquipo || correoZelleEquipo)) {
+    s.datos_zelle = false; s.zelle_varios = false; s.zelle_nombre = null; zelleNomCtx = null;
+  }
+  if (quita(tarjetaCtx)) { tarjetaCtx = null; s.tarjeta = null; } else if (quita(s.tarjeta)) s.tarjeta = null;
+  if (quita(celularCtx)) { celularCtx = null; s.celular = null; } else if (quita(s.celular)) s.celular = null;
+  if (Array.isArray(s.tarjetas)) { s.tarjetas = lista(s.tarjetas); if (s.tarjetas.length < 2) s.multi_beneficiario = false; }
+  if (Array.isArray(s.celulares)) s.celulares = lista(s.celulares);
+}
 // SEVERAL ZELLE ACCOUNTS (ported 2026-11-05): never pick a name-account pair blindly. On 26-Oct the Snapshot carried one
 // account's name and two numbers; the first number belonged to the other account and the tool was forced with a mixed pair.
 // With more than one account nothing is registered until each pair is confirmed with the customer.
@@ -457,6 +502,9 @@ if (ctx.conversacion_no_vista) {
   notas.push('UN COMPANERO DEL EQUIPO ATENDIO ESTA CONVERSACION Y TU NO LO VISTE. Esto es lo que se dijo mientras tanto, en orden:'
     + String.fromCharCode(10) + ctx.conversacion_no_vista + String.fromCharCode(10)
     + 'CONTINUA DESDE AHI. PROHIBIDO repetir algo que ya se pregunto o se respondio ahi. PROHIBIDO contradecir lo que tu companero le dijo al cliente: si el prometio o descarto algo, eso manda sobre lo que tu creas. PROHIBIDO presentarte otra vez. Si lo que dijo tu companero te deja dudas sobre como seguir, es mejor ofrecer pasarlo con un operador que inventar.');
+}
+if (datoDelEquipo) {
+  notas.push('ESOS DATOS LOS DIO EL EQUIPO (un companero los escribio en este chat): no son de un beneficiario del cliente. PROHIBIDO registrarlos, PROHIBIDO abrir un envio con ellos y PROHIBIDO preguntar por ellos. Responde solo a lo que dice el cliente.');
 }
 const hora = new Date().toLocaleString('es-ES', { timeZone: 'America/Guyana', weekday: 'long', hour: '2-digit', minute: '2-digit' });
 const saludoCliente = (texto.match(/buen[oa]s\s+(d[ií]as|tardes|noches)/i) || [null])[0];
@@ -1100,6 +1148,19 @@ try {
   }
 } catch (e) {}
 let mensaje = texto || '(el cliente envio solo imagenes, sin texto)';
+// NO OPEN SEND AND NO NEW REQUEST (2026-11-06): detected recipient data does not order a registration tool; the model asks first.
+// "Open operation" = any of: Historial.envios_abiertos > 0, an open stage, ctx.riel_operacion, a registered beneficiary of an open
+// operation, ctx.tiene_beneficiario, a recarga/combo/visa in progress. "New request" = a receipt in this turn, ctx.servicio_pendiente
+// or a send verb in the customer's text.
+const hayEnvioAbierto = abiertos > 0 || !!(h && h.etapa_envio_abierto) || !!ctx.riel_operacion || regBen.length > 0 || !!ctx.tiene_beneficiario || recargaEnCurso || comboEnCurso || visaEnCurso;
+const pideEnvioNuevo = !!s.comprobante || !!ctx.servicio_pendiente || /\b(quiero|quisiera|necesito|voy a|vamos a|puedo)\b|\b(enviar|enviarle|enviarles|mandar|mandarle|envio|remesa|transferir|depositar|recarga|recargar)\b/i.test(texto);
+if (!hayEnvioAbierto && !pideEnvioNuevo) {
+  const ordenaRegistro = (n) => /^(TARJETA Y CELULAR DETECTADOS PERO NO REGISTRADOS|DATOS DE ZELLE DETECTADOS|TODAVIA NO HAY BENEFICIARIO REGISTRADO|TOOL OBLIGATORIA EN ESTE TURNO: registrar_beneficiario_zelle|VARIAS CUENTAS ZELLE DETECTADAS|ENVIO A VARIOS BENEFICIARIOS)/.test(n);
+  if (notas.some(ordenaRegistro)) {
+    for (let i = notas.length - 1; i >= 0; i--) if (ordenaRegistro(notas[i])) notas.splice(i, 1);
+    notas.push('No hay ningun envio abierto: antes de registrar estos datos pregunta si son para un envio nuevo.');
+  }
+}
 if (notas.length) { mensaje += '\n\n[CONTEXTO DEL SISTEMA - el cliente NO ve esto]\n- ' + notas.join('\n- ');
 }
 // ---------------------------------------------------------------------------

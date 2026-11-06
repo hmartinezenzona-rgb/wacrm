@@ -31,6 +31,19 @@ Do not touch `pruebas/decisor/decisor.jscode`, `pruebas/decisor/correr.ts`, `pru
 
 ## Tasks
 
-- [ ] T1 Team-given data is never registered.
-- [ ] T2 No open operation and no new request: ask before registering.
+- [x] T1 Team-given data is never registered.
+- [x] T2 No open operation and no new request: ask before registering.
 - [ ] T3 Production deploy after go-ahead.
+
+## Implementation notes (T1, T2)
+
+- Mode: strict TDD, vitest (`npx vitest run pruebas/decisor/produccion`). RED observed first (4 new tests failed), then GREEN.
+- Team messages come from `ctx.conversacion_no_vista` ("Companero del equipo: ..." / "Cliente: ..."); only team-labelled lines
+  (and unlabelled continuations) count. Normalization: e-mail lowercase, digits only, US phone 10 digits after +1, Cuban phone 8
+  digits after 53, card 16 digits. A matched datum is blanked before any note is built; one team-data note follows the team note.
+- T2 rule: "open operation" = `Historial.envios_abiertos > 0`, `etapa_envio_abierto`, `ctx.riel_operacion`, registered
+  beneficiaries of open operations, `ctx.tiene_beneficiario`, or a recarga/combo/visa in progress. "New request" = receipt in the
+  turn, `ctx.servicio_pendiente`, or a send verb (quiero/necesito/enviar/mandar/envio/remesa/transferir/depositar/recarga). With
+  neither, the registration-ordering notes are removed and the ask-first note is added.
+- 12 existing tests modelled a Zelle/card datum with no open operation; they now declare `historial: { envios_abiertos: 1 }`.
+- New md5 of the live Decisor: d63c936eada22ac2962fc43f569160f7.

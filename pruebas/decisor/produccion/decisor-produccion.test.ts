@@ -86,6 +86,7 @@ describe('baseline de produccion: lo que ya funciona no se toca', () => {
 
   it('Zelle: nota DATOS DE ZELLE DETECTADOS con la cuenta literal y la orden de registrar', () => {
     const s = correr({
+      historial: { envios_abiertos: 1 },
       snapshot: {
         texto_completo: 'Maria Lopez maria@correo.com',
         datos_zelle: true,
@@ -102,6 +103,7 @@ describe('baseline de produccion: lo que ya funciona no se toca', () => {
 
   it('tarjeta y celular sin registrar: manda llamar gestionar_beneficiario', () => {
     const s = correr({
+      historial: { envios_abiertos: 1 },
       ctx: { beneficiarios_registrados: [] },
       snapshot: {
         texto_completo: 'ok',
@@ -873,6 +875,7 @@ describe('datos confirmados: uno por linea y sin negrita', () => {
     [
       'tarjeta y celular sin registrar',
       {
+        historial: { envios_abiertos: 1 },
         ctx: { beneficiarios_registrados: [] },
         snapshot: {
           texto_completo: 'ok',
@@ -905,6 +908,7 @@ describe('datos confirmados: uno por linea y sin negrita', () => {
     [
       'cuenta Zelle',
       {
+        historial: { envios_abiertos: 1 },
         snapshot: {
           texto_completo: 'Maria Lopez maria@correo.com',
           datos_zelle: true,
@@ -933,6 +937,7 @@ describe('datos confirmados: uno por linea y sin negrita', () => {
 describe('confirmacion visible y sin promesa mientras falte un dato', () => {
   it('Zelle sin nombre: muestra el celular literal y prohibe hablar de la remesa', () => {
     const s = correr({
+      historial: { envios_abiertos: 1 },
       snapshot: {
         texto_completo: 'Esta es otra cuenta',
         datos_zelle: true,
@@ -947,6 +952,7 @@ describe('confirmacion visible y sin promesa mientras falte un dato', () => {
 
   it('Zelle completo: muestra nombre y cuenta y no lleva la prohibicion', () => {
     const s = correr({
+      historial: { envios_abiertos: 1 },
       snapshot: {
         texto_completo: 'Maria Lopez maria@correo.com',
         datos_zelle: true,
@@ -964,6 +970,7 @@ describe('confirmacion visible y sin promesa mientras falte un dato', () => {
 
   it('tarjeta y celular: lineas literales para confirmar', () => {
     const s = correr({
+      historial: { envios_abiertos: 1 },
       ctx: { beneficiarios_registrados: [] },
       snapshot: {
         texto_completo: 'ok',
@@ -991,7 +998,10 @@ describe('confirmacion visible y sin promesa mientras falte un dato', () => {
 });
 
 describe('envio en efectivo: no se pide tarjeta', () => {
-  const base = { texto_completo: 'mi familiar es 53821202', celular: '53821202' };
+  const base = {
+    texto_completo: 'mi familiar es 53821202',
+    celular: '53821202',
+  };
 
   it('riel efectivo_usd con celular y sin beneficiario: nota de efectivo, sin notas de tarjeta', () => {
     const s = correr({
@@ -1018,7 +1028,10 @@ describe('envio en efectivo: no se pide tarjeta', () => {
   });
 
   it('sin riel: se comporta como antes', () => {
-    const s = correr({ ctx: { beneficiarios_registrados: [] }, snapshot: base });
+    const s = correr({
+      ctx: { beneficiarios_registrados: [] },
+      snapshot: base,
+    });
     expect(nota(s, 'Celular cubano detectado')).toBeDefined();
     expect(nota(s, 'ENTREGA EN EFECTIVO')).toBeUndefined();
   });
@@ -1035,7 +1048,10 @@ describe('varias cuentas Zelle: no forzar una pareja nombre-cuenta', () => {
   };
 
   it('no empuja registrar_beneficiario_zelle y pide confirmar cada cuenta', () => {
-    const s = correr({ snapshot: { ...base, zelle_varios: true } });
+    const s = correr({
+      historial: { envios_abiertos: 1 },
+      snapshot: { ...base, zelle_varios: true },
+    });
     const n = nota(s, 'VARIAS CUENTAS ZELLE DETECTADAS') as string;
     expect(n).toBeDefined();
     expect(n).toContain('9544253182');
@@ -1049,6 +1065,7 @@ describe('varias cuentas Zelle: no forzar una pareja nombre-cuenta', () => {
 
   it('con una sola cuenta sigue ordenando la tool', () => {
     const s = correr({
+      historial: { envios_abiertos: 1 },
       snapshot: {
         ...base,
         zelle_celulares: ['9544253182'],
@@ -1062,6 +1079,7 @@ describe('varias cuentas Zelle: no forzar una pareja nombre-cuenta', () => {
 
   it('usa la cuenta atada al nombre, no el primer numero de la lista', () => {
     const s = correr({
+      historial: { envios_abiertos: 1 },
       snapshot: {
         ...base,
         zelle_celulares: ['8132940493'],
@@ -1077,6 +1095,7 @@ describe('varias cuentas Zelle: no forzar una pareja nombre-cuenta', () => {
 describe('Zelle mas CUP en el mismo envio', () => {
   it('no dice que no hay CUP ni prohibe pedir la tarjeta', () => {
     const s = correr({
+      historial: { envios_abiertos: 1 },
       snapshot: {
         texto_completo: '100 dolares por zelle y el resto en tarjeta',
         datos_zelle: true,
@@ -1093,6 +1112,7 @@ describe('Zelle mas CUP en el mismo envio', () => {
 
   it('Zelle solo sigue prohibiendo pedir tarjeta', () => {
     const s = correr({
+      historial: { envios_abiertos: 1 },
       snapshot: {
         texto_completo: 'mi zelle',
         datos_zelle: true,
@@ -1250,5 +1270,147 @@ describe('deposito que cubre un reparto planificado y confirmacion repetida', ()
     const n = nota(s, 'CALCULO A HACER') as string;
     expect(n).toMatch(/NO preguntes CUP vs GYD/);
     expect(n).toMatch(/calcular_envio/);
+  });
+});
+
+// Production incident 2026-11-05: a team member wrote the Zelle account where an overpayment had to be
+// returned; the customer then sent an image with that same account; the bot registered it as the
+// customer's beneficiary and opened a Zelle send. Data the team gave is never the customer's recipient.
+describe('datos dados por el equipo no son un beneficiario del cliente', () => {
+  const TELEFONO_EQUIPO = '(305) 555-0142';
+  const NO_VISTO = (linea: string) =>
+    ['Companero del equipo: ' + linea, 'Cliente: ok, gracias'].join('\n');
+  const AVISO = 'ESOS DATOS LOS DIO EL EQUIPO';
+  const PREGUNTA = 'No hay ningun envio abierto';
+  const imagenZelle = (celular: string) => ({
+    texto_completo: '',
+    datos_zelle: true,
+    zelle_nombre: 'Maria Lopez',
+    zelle_nombre_cuenta: celular,
+    zelle_celular: celular,
+  });
+
+  it('(a) el equipo escribio el mismo celular que leyo la imagen: no ordena registrar y avisa', () => {
+    const s = correr({
+      ctx: {
+        conversacion_no_vista: NO_VISTO(
+          'devolvemos el sobrante a Maria Lopez ' + TELEFONO_EQUIPO
+        ),
+        envios_abiertos: 1,
+      },
+      historial: { envios_abiertos: 1 },
+      snapshot: imagenZelle('+13055550142'),
+    });
+    expect(s.mensaje).not.toContain('Llama registrar_beneficiario_zelle');
+    expect(s.mensaje).not.toContain('TOOL OBLIGATORIA');
+    expect(nota(s, 'DATOS DE ZELLE DETECTADOS')).toBeUndefined();
+    expect(nota(s, 'TODAVIA NO HAY BENEFICIARIO')).toBeUndefined();
+    const n = nota(s, AVISO) as string;
+    expect(n).toContain('PROHIBIDO registrarlos');
+    expect(n).toContain('Responde solo a lo que dice el cliente');
+    expect(s.notas.filter((x) => x.startsWith(AVISO))).toHaveLength(1);
+  });
+
+  it('(a) el correo se compara en minusculas y la tarjeta sin espacios', () => {
+    const correo = correr({
+      ctx: { conversacion_no_vista: NO_VISTO('es Maria.Lopez@Correo.com') },
+      historial: { envios_abiertos: 1 },
+      snapshot: {
+        texto_completo: '',
+        datos_zelle: true,
+        zelle_nombre: 'Maria Lopez',
+        zelle_correo: 'maria.lopez@correo.com',
+      },
+    });
+    expect(nota(correo, AVISO)).toBeDefined();
+    expect(correo.mensaje).not.toContain('registrar_beneficiario_zelle');
+    const tarjeta = correr({
+      ctx: {
+        conversacion_no_vista: NO_VISTO(
+          'tarjeta 9224 0699 9292 2522 y 5382 1202'
+        ),
+      },
+      historial: { envios_abiertos: 1 },
+      snapshot: {
+        texto_completo: '',
+        tarjeta: '9224069992922522',
+        celular: '53821202',
+      },
+    });
+    expect(nota(tarjeta, AVISO)).toBeDefined();
+    expect(tarjeta.mensaje).not.toContain('gestionar_beneficiario EN ESTE');
+  });
+
+  it('(a) solo cuentan las lineas del equipo, no las del cliente', () => {
+    const s = correr({
+      ctx: {
+        conversacion_no_vista: [
+          'Companero del equipo: buenas tardes',
+          'Cliente: mi cuenta es ' + TELEFONO_EQUIPO,
+        ].join('\n'),
+      },
+      historial: { envios_abiertos: 1 },
+      snapshot: imagenZelle('+13055550142'),
+    });
+    expect(nota(s, AVISO)).toBeUndefined();
+    expect(s.mensaje).toContain('Llama registrar_beneficiario_zelle');
+  });
+
+  it('(b) el cliente da una cuenta Zelle nueva con un envio abierto: sin cambios', () => {
+    const s = correr({
+      historial: { envios_abiertos: 1 },
+      snapshot: imagenZelle('+13055550142'),
+    });
+    expect(nota(s, AVISO)).toBeUndefined();
+    expect(nota(s, PREGUNTA)).toBeUndefined();
+    expect(s.mensaje).toContain('Llama registrar_beneficiario_zelle');
+  });
+
+  it('(c) sin envio abierto y sin pedir un envio: pregunta antes de registrar', () => {
+    const s = correr({ snapshot: imagenZelle('+13055550142') });
+    expect(s.mensaje).not.toContain('Llama registrar_beneficiario_zelle');
+    expect(s.mensaje).not.toContain('TOOL OBLIGATORIA');
+    expect(nota(s, 'TODAVIA NO HAY BENEFICIARIO')).toBeUndefined();
+    const n = nota(s, PREGUNTA) as string;
+    expect(n).toContain('pregunta si son para un envio nuevo');
+  });
+
+  it('(c) tarjeta y celular sin envio abierto ni peticion: pregunta antes de registrar', () => {
+    const s = correr({
+      ctx: { beneficiarios_registrados: [] },
+      snapshot: {
+        texto_completo: '',
+        tarjeta: '9224069992922522',
+        celular: '53821202',
+      },
+    });
+    expect(
+      nota(s, 'TARJETA Y CELULAR DETECTADOS PERO NO REGISTRADOS')
+    ).toBeUndefined();
+    expect(s.mensaje).not.toContain('gestionar_beneficiario EN ESTE');
+    expect(nota(s, PREGUNTA)).toBeDefined();
+  });
+
+  it('(c) si el cliente pide un envio nuevo en este turno, registra como siempre', () => {
+    const s = correr({
+      snapshot: {
+        ...imagenZelle('+13055550142'),
+        texto_completo: 'quiero enviar por zelle a esta cuenta',
+      },
+    });
+    expect(nota(s, PREGUNTA)).toBeUndefined();
+    expect(s.mensaje).toContain('Llama registrar_beneficiario_zelle');
+  });
+
+  it('(d) el equipo escribio OTRA cuenta: el dato del cliente se registra como siempre', () => {
+    const s = correr({
+      ctx: {
+        conversacion_no_vista: NO_VISTO('devolvemos a +1 (786) 555-0199'),
+      },
+      historial: { envios_abiertos: 1 },
+      snapshot: imagenZelle('+13055550142'),
+    });
+    expect(nota(s, AVISO)).toBeUndefined();
+    expect(s.mensaje).toContain('Llama registrar_beneficiario_zelle');
   });
 });

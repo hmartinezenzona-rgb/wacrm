@@ -69,12 +69,12 @@ describe("sidebar navigation", () => {
     expect((en.Sidebar as Record<string, string>).groupTools).toBe("Tools");
   });
 
-  it("links the CUP inventory for owner/admin only, with es and en labels", () => {
+  it("links the card inventory for owner/admin only, with es and en labels", () => {
     const item = navItems.find((i) => i.href === "/inventario-cup")!;
     expect(item).toBeDefined();
     expect(item.capability).toBe("manage-cup-inventory");
     expect(item.icon).toBeDefined();
-    expect((es.Sidebar as Record<string, string>)[item.labelKey]).toBe("Inventario CUP");
-    expect((en.Sidebar as Record<string, string>)[item.labelKey]).toBe("CUP inventory");
+    expect((es.Sidebar as Record<string, string>)[item.labelKey]).toBe("Inventario de tarjetas");
+    expect((en.Sidebar as Record<string, string>)[item.labelKey]).toBe("Card inventory");
   });
 });

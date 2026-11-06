@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,22 +21,24 @@ interface LotDialogProps {
   cardName: string;
   /** The lot being corrected; null loads a new one. */
   lot: InventoryLot | null;
+  /** Card picker shown above the fields (the "Comprar saldo" flow). */
+  picker?: ReactNode;
   onClose: () => void;
   /** Saves; resolves to an error message, or null when it worked. */
   onSave: (value: LotFormValue) => Promise<string | null>;
 }
 
-export function LotDialog({ open, cardName, lot, onClose, onSave }: LotDialogProps) {
+export function LotDialog({ open, cardName, lot, picker, onClose, onSave }: LotDialogProps) {
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
       <DialogContent>
-        {open ? <LotForm key={lot?.id ?? "new"} cardName={cardName} lot={lot} onClose={onClose} onSave={onSave} /> : null}
+        {open ? <LotForm key={lot?.id ?? "new"} cardName={cardName} lot={lot} picker={picker} onClose={onClose} onSave={onSave} /> : null}
       </DialogContent>
     </Dialog>
   );
 }
 
-function LotForm({ cardName, lot, onClose, onSave }: Omit<LotDialogProps, "open">) {
+function LotForm({ cardName, lot, picker, onClose, onSave }: Omit<LotDialogProps, "open">) {
   const t = useTranslations("CupInventory");
   const [amount, setAmount] = useState(lot ? String(lot.amountCup) : "");
   const [rate, setRate] = useState(lot ? String(lot.rateCupPerUsdt) : "");
@@ -63,6 +65,7 @@ function LotForm({ cardName, lot, onClose, onSave }: Omit<LotDialogProps, "open"
       <DialogHeader>
         <DialogTitle>{lot ? t("lotForm.titleEdit", { card: cardName }) : t("lotForm.titleNew", { card: cardName })}</DialogTitle>
       </DialogHeader>
+      {picker}
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="cup-lot-amount">{t("lotForm.amount")}</Label>

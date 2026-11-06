@@ -93,7 +93,7 @@
     "menuSettings": "Configuración",
     "menuSignOut": "Cerrar sesión",
     "finanzas": "Finanzas",
-    "cupInventory": "Inventario CUP",
+    "cupInventory": "Inventario de tarjetas",
     "tablero": "Tablero de operaciones",
     "primaryNavLabel": "Principal"
   },
@@ -2889,15 +2889,15 @@
     "remesa": "Remesa"
   },
   "CupInventory": {
-    "title": "Inventario CUP",
-    "description": "Tus tarjetas de envío, los lotes de CUP cargados en cada una y cuánto límite diario les queda. Solo administradores.",
+    "title": "Inventario de tarjetas",
+    "description": "El saldo de tus tarjetas de CUP, Clásica y Tropical, lo que compraste y lo que te queda. Solo administradores.",
     "cubaDay": "Hoy en Cuba: {date}",
     "cubaDayHint": "El límite diario se renueva a medianoche de Cuba.",
     "loading": "Cargando inventario...",
     "loadError": "No se pudo cargar el inventario.",
-    "forbidden": "Solo los administradores pueden ver el inventario de CUP.",
+    "forbidden": "Solo los administradores pueden ver el inventario de tarjetas.",
     "empty": "Aún no hay tarjetas",
-    "emptyHint": "Crea la primera tarjeta y carga los lotes de CUP que tiene.",
+    "emptyHint": "Crea la primera tarjeta y compra el saldo que tiene.",
     "newCard": "Nueva tarjeta",
     "showInactive": "Mostrar tarjetas inactivas",
     "card": {
@@ -2971,7 +2971,10 @@
       "saveError": "No se pudo guardar.",
       "invalidBalance": "Escribe el saldo como número, cero o más.",
       "balanceUnchanged": "Ese ya es el saldo actual.",
-      "reasonTooLong": "El motivo admite hasta 500 caracteres."
+      "reasonTooLong": "El motivo admite hasta 500 caracteres.",
+      "invalidUsdtPaid": "Escribe el USDT pagado o un descuento.",
+      "invalidDiscount": "Escribe el descuento como 5, 5% o 1x1.",
+      "invalidMonthlyLimit": "Escribe un límite mensual mayor que cero."
     },
     "toasts": {
       "cardSaved": "Tarjeta guardada",
@@ -2987,6 +2990,75 @@
       "reason": "Motivo (opcional)",
       "hint": "Si baja: se descuenta de los lotes más antiguos. Si sube: se devuelve a los lotes más nuevos, sin pasar de lo cargado.",
       "submit": "Ajustar"
+    },
+    "usdUnavailable": "No se pudo cargar el inventario de Clásica y Tropical. Se muestran solo las tarjetas CUP.",
+    "buyBalance": "Comprar saldo",
+    "filters": {
+      "label": "Filtrar por servicio",
+      "all": "Todas",
+      "CUP": "CUP",
+      "CLASICA": "Clásica",
+      "TROPICAL": "Tropical"
+    },
+    "services": {
+      "CUP": "CUP",
+      "CLASICA": "Clásica",
+      "TROPICAL": "Tropical"
+    },
+    "totals": {
+      "label": "Saldo por servicio",
+      "cards": "Tarjetas: {n}",
+      "noBalance": "Sin saldo"
+    },
+    "row": {
+      "limitDay": "Hoy: {used} de {limit} CUP",
+      "limitMonth": "Este mes: {used} de {limit} USD",
+      "noBalance": "Sin saldo: compra más para enviar",
+      "inactive": "Inactiva"
+    },
+    "cardMonth": {
+      "monthlyLimit": "Límite mensual",
+      "usedMonth": "Usado este mes",
+      "remainingMonth": "Límite restante este mes"
+    },
+    "lotsTable": {
+      "date": "Fecha",
+      "bought": "Comprado",
+      "paid": "Pagado (USDT)",
+      "discount": "Descuento",
+      "rate": "Tasa (CUP/USDT)",
+      "left": "Queda",
+      "costPerUsd": "Costo por USD",
+      "earns": "gana {amount}",
+      "loses": "pierde {amount}",
+      "gyd": "GYD",
+      "footnote": "El costo por USD sale de lo que realmente pagaste en USDT por cada lote y de la tasa de compra de hoy. La ganancia compara ese costo con tu precio de venta de hoy."
+    },
+    "movementsMonth": {
+      "title": "Movimientos de este mes",
+      "empty": "Sin movimientos este mes"
+    },
+    "picker": {
+      "label": "Tarjeta",
+      "none": "No hay tarjetas activas. Crea una primero."
+    },
+    "newCardForm": {
+      "service": "Servicio",
+      "monthlyLimit": "Límite mensual (USD)",
+      "dailyLimit": "Límite diario (CUP)",
+      "monthlyHint": "El límite mensual es solo una referencia: no bloquea envíos."
+    },
+    "usdLotForm": {
+      "titleNew": "Comprar saldo en {card}",
+      "titleEdit": "Editar lote de {card}",
+      "amount": "Monto (USD)",
+      "usdtPaid": "Pagado (USDT)",
+      "discount": "Descuento (opcional)",
+      "discountHint": "Escribe 5, 5% o 1x1. Si escribes el USDT pagado, ese valor manda.",
+      "preview": "USDT a pagar: {usdt}"
+    },
+    "usdBalanceForm": {
+      "balance": "Saldo real (USD)"
     }
   },
   "AwayMode": {

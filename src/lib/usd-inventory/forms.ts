@@ -48,7 +48,7 @@ export function validateUsdCardForm(input: { service: UsdService; name: string; 
   const last4 = input.last4.trim();
   if (last4 !== "" && !/^\d{4}$/.test(last4)) return { ok: false, errorKey: "invalidLast4" };
   const monthlyLimitUsd = parseUsdNumber(input.monthlyLimit);
-  if (monthlyLimitUsd === null || monthlyLimitUsd >= 1e12) return { ok: false, errorKey: "invalidLimit" };
+  if (monthlyLimitUsd === null || monthlyLimitUsd >= 1e12) return { ok: false, errorKey: "invalidMonthlyLimit" };
   return { ok: true, value: { service: input.service, name, last4, monthlyLimitUsd } };
 }
 

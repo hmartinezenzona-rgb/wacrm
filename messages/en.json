@@ -93,7 +93,7 @@
     "menuSettings": "Settings",
     "menuSignOut": "Sign out",
     "finanzas": "Finances",
-    "cupInventory": "CUP inventory",
+    "cupInventory": "Card inventory",
     "tablero": "Operations board",
     "primaryNavLabel": "Primary"
   },
@@ -2889,15 +2889,15 @@
     "remesa": "Remittance"
   },
   "CupInventory": {
-    "title": "CUP inventory",
-    "description": "Your sending cards, the CUP lots loaded on each, and how much of the daily limit is left. Admins only.",
+    "title": "Card inventory",
+    "description": "The balance of your CUP, Clásica and Tropical cards, what you bought and what is left. Admins only.",
     "cubaDay": "Today in Cuba: {date}",
     "cubaDayHint": "The daily limit resets at midnight Cuba time.",
     "loading": "Loading inventory...",
     "loadError": "Could not load the inventory.",
-    "forbidden": "Only admins can see the CUP inventory.",
+    "forbidden": "Only admins can see the card inventory.",
     "empty": "No cards yet",
-    "emptyHint": "Create the first card and load the CUP lots it holds.",
+    "emptyHint": "Create the first card and buy the balance it holds.",
     "newCard": "New card",
     "showInactive": "Show inactive cards",
     "card": {
@@ -2971,7 +2971,10 @@
       "saveError": "Could not save.",
       "invalidBalance": "Enter the balance as a number, zero or more.",
       "balanceUnchanged": "That is already the current balance.",
-      "reasonTooLong": "The reason allows up to 500 characters."
+      "reasonTooLong": "The reason allows up to 500 characters.",
+      "invalidUsdtPaid": "Type the USDT paid or a discount.",
+      "invalidDiscount": "Type the discount as 5, 5% or 1x1.",
+      "invalidMonthlyLimit": "Type a monthly limit greater than zero."
     },
     "toasts": {
       "cardSaved": "Card saved",
@@ -2987,6 +2990,75 @@
       "reason": "Reason (optional)",
       "hint": "Lower: taken from the oldest lots first. Higher: returned to the newest lots, never above what was loaded.",
       "submit": "Adjust"
+    },
+    "usdUnavailable": "The Clásica and Tropical inventory could not be loaded. Only the CUP cards are shown.",
+    "buyBalance": "Buy balance",
+    "filters": {
+      "label": "Filter by service",
+      "all": "All",
+      "CUP": "CUP",
+      "CLASICA": "Clásica",
+      "TROPICAL": "Tropical"
+    },
+    "services": {
+      "CUP": "CUP",
+      "CLASICA": "Clásica",
+      "TROPICAL": "Tropical"
+    },
+    "totals": {
+      "label": "Balance by service",
+      "cards": "Cards: {n}",
+      "noBalance": "No balance"
+    },
+    "row": {
+      "limitDay": "Today: {used} of {limit} CUP",
+      "limitMonth": "This month: {used} of {limit} USD",
+      "noBalance": "No balance: buy more to send",
+      "inactive": "Inactive"
+    },
+    "cardMonth": {
+      "monthlyLimit": "Monthly limit",
+      "usedMonth": "Used this month",
+      "remainingMonth": "Limit left this month"
+    },
+    "lotsTable": {
+      "date": "Date",
+      "bought": "Bought",
+      "paid": "Paid (USDT)",
+      "discount": "Discount",
+      "rate": "Rate (CUP/USDT)",
+      "left": "Left",
+      "costPerUsd": "Cost per USD",
+      "earns": "earns {amount}",
+      "loses": "loses {amount}",
+      "gyd": "GYD",
+      "footnote": "The cost per USD comes from the USDT you actually paid for each lot and today's buy rate. The gain compares that cost with today's selling price."
+    },
+    "movementsMonth": {
+      "title": "This month's movements",
+      "empty": "No movements this month"
+    },
+    "picker": {
+      "label": "Card",
+      "none": "There are no active cards. Create one first."
+    },
+    "newCardForm": {
+      "service": "Service",
+      "monthlyLimit": "Monthly limit (USD)",
+      "dailyLimit": "Daily limit (CUP)",
+      "monthlyHint": "The monthly limit is only a reference: it never blocks a send."
+    },
+    "usdLotForm": {
+      "titleNew": "Buy balance on {card}",
+      "titleEdit": "Edit lot of {card}",
+      "amount": "Amount (USD)",
+      "usdtPaid": "Paid (USDT)",
+      "discount": "Discount (optional)",
+      "discountHint": "Type 5, 5% or 1x1. If you type the USDT paid, that value wins.",
+      "preview": "USDT to pay: {usdt}"
+    },
+    "usdBalanceForm": {
+      "balance": "Real balance (USD)"
     }
   },
   "AwayMode": {

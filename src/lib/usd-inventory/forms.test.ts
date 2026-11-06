@@ -36,7 +36,7 @@ describe("validateUsdCardForm", () => {
   it("rejects bad input", () => {
     expect(validateUsdCardForm({ service: "CLASICA", name: "", last4: "", monthlyLimit: "5000" })).toEqual({ ok: false, errorKey: "nameRequired" });
     expect(validateUsdCardForm({ service: "CLASICA", name: "A", last4: "12", monthlyLimit: "5000" })).toEqual({ ok: false, errorKey: "invalidLast4" });
-    expect(validateUsdCardForm({ service: "CLASICA", name: "A", last4: "", monthlyLimit: "0" })).toEqual({ ok: false, errorKey: "invalidLimit" });
+    expect(validateUsdCardForm({ service: "CLASICA", name: "A", last4: "", monthlyLimit: "0" })).toEqual({ ok: false, errorKey: "invalidMonthlyLimit" });
     expect(validateUsdCardForm({ service: "CLASICA", name: "x".repeat(61), last4: "", monthlyLimit: "5" })).toEqual({ ok: false, errorKey: "nameTooLong" });
   });
 });

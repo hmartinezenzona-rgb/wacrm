@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { CreditCard, Loader2, Plus } from "lucide-react";
@@ -11,13 +11,20 @@ import { Label } from "@/components/ui/label";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { CardDialog, type CardFormValue } from "@/components/inventario-cup/card-dialog";
 import { BalanceDialog, type BalanceFormValue } from "@/components/inventario-cup/balance-dialog";
-import { CardPanel } from "@/components/inventario-cup/card-panel";
+import { CardPicker } from "@/components/inventario-cup/card-picker";
+import { CardRow, type GydRates } from "@/components/inventario-cup/card-row";
+import { FilterChips, TotalsStrip } from "@/components/inventario-cup/inventory-summary";
 import { LotDialog, type LotFormValue } from "@/components/inventario-cup/lot-dialog";
 import { DeleteLotDialog } from "@/components/inventario-cup/delete-lot-dialog";
+import { ServiceCardDialog, type ServiceCardFormValue } from "@/components/inventario-cup/service-card-dialog";
+import { UsdBalanceDialog, type UsdBalanceFormValue } from "@/components/inventario-cup/usd-balance-dialog";
+import { UsdLotDialog, type UsdLotFormValue } from "@/components/inventario-cup/usd-lot-dialog";
 import { useAuth } from "@/hooks/use-auth";
 import { useCan } from "@/hooks/use-can";
 import { moveCardPriorities } from "@/lib/cup-inventory/format";
-import type { InventoryCard, InventoryLot, InventoryReport } from "@/lib/cup-inventory/read-model";
+import type { InventoryReport } from "@/lib/cup-inventory/read-model";
+import type { UsdReport } from "@/lib/usd-inventory/read-model";
+import { filterCards, serviceTotals, unifyCards, type CardFilter, type CardService, type UnifiedCard, type UnifiedLot } from "@/lib/card-inventory/unify";
 
 type LoadState = "loading" | "ok" | "error";
 
@@ -43,30 +50,78 @@ async function send(url: string, method: string, body?: unknown): Promise<string
   }
 }
 
-// Admin-only CUP inventory: sending cards in priority order, the FIFO lots loaded on each, and the daily limit left for the
-// current Cuba day. Everything is written through the admin RPCs (migration 239); this page never computes money, it shows it.
+const ROUTES: Record<CardService, string> = {
+  CUP: "/api/inventario-cup",
+  CLASICA: "/api/inventario-usd",
+  TROPICAL: "/api/inventario-usd",
+};
+
+const EMPTY_USD: UsdReport = {
+  cubaMonth: null,
+  cards: [],
+  totals: {
+    CLASICA: { cards: 0, balanceUsd: 0, monthlyLimitUsd: 0, usedThisMonthUsd: 0, remainingMonthUsd: 0 },
+    TROPICAL: { cards: 0, balanceUsd: 0, monthlyLimitUsd: 0, usedThisMonthUsd: 0, remainingMonthUsd: 0 },
+  },
+};
+
+// Admin-only card inventory: the CUP sending cards (daily limit) and the Clásica / Tropical USD cards (monthly limit) in one
+// list. One compact row per card; opening it shows the lots (FIFO), the balance figures and the movements. Everything is
+// written through the admin RPCs (migrations 239 and 355); this page never computes money, it shows it.
 export default function InventarioCupPage() {
   const t = useTranslations("CupInventory");
   const { profileLoading } = useAuth();
   const allowed = useCan("manage-cup-inventory");
 
-  const [report, setReport] = useState<InventoryReport>({ cubaDay: null, cards: [] });
+  const [cup, setCup] = useState<InventoryReport>({ cubaDay: null, cards: [] });
+  const [usd, setUsd] = useState<UsdReport>(EMPTY_USD);
+  const [usdFailed, setUsdFailed] = useState(false);
+  const [rates, setRates] = useState<GydRates | null>(null);
   const [state, setState] = useState<LoadState>("loading");
   const [showInactive, setShowInactive] = useState(false);
-  const [cardDialog, setCardDialog] = useState<{ card: InventoryCard | null } | null>(null);
-  const [lotDialog, setLotDialog] = useState<{ card: InventoryCard; lot: InventoryLot | null } | null>(null);
-  const [balanceDialog, setBalanceDialog] = useState<{ card: InventoryCard } | null>(null);
-  const [deletingLot, setDeletingLot] = useState<{ card: InventoryCard; lot: InventoryLot } | null>(null);
+  const [filter, setFilter] = useState<CardFilter>("all");
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const [cardDialog, setCardDialog] = useState<{ card: UnifiedCard | null } | null>(null);
+  const [lotDialog, setLotDialog] = useState<{ cardKey: string; lot: UnifiedLot | null; picking: boolean } | null>(null);
+  const [balanceDialog, setBalanceDialog] = useState<{ card: UnifiedCard } | null>(null);
+  const [deletingLot, setDeletingLot] = useState<{ card: UnifiedCard; lot: UnifiedLot } | null>(null);
 
   const load = useCallback(async () => {
+    const query = showInactive ? "?includeInactive=1" : "";
+    // The CUP report is the page; the USD report and the rates are best effort so a problem there never hides the CUP cards.
+    const [cupResult, usdResult, ratesResult] = await Promise.allSettled([
+      fetch(`/api/inventario-cup${query}`, { cache: "no-store" }),
+      fetch(`/api/inventario-usd${query}`, { cache: "no-store" }),
+      fetch("/api/calculator/rates", { cache: "no-store" }),
+    ]);
+
     try {
-      const response = await fetch(`/api/inventario-cup${showInactive ? "?includeInactive=1" : ""}`, { cache: "no-store" });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      setReport((await response.json()) as InventoryReport);
+      if (cupResult.status !== "fulfilled" || !cupResult.value.ok) throw new Error("cup report failed");
+      setCup((await cupResult.value.json()) as InventoryReport);
       setState("ok");
     } catch (err) {
       console.error("[inventario-cup]", err);
       setState("error");
+      return;
+    }
+
+    try {
+      if (usdResult.status !== "fulfilled" || !usdResult.value.ok) throw new Error("usd report failed");
+      const body = (await usdResult.value.json()) as Partial<UsdReport>;
+      setUsd({ ...EMPTY_USD, ...body, cards: body.cards ?? [] });
+      setUsdFailed(false);
+    } catch (err) {
+      console.error("[inventario-usd]", err);
+      setUsd(EMPTY_USD);
+      setUsdFailed(true);
+    }
+
+    try {
+      if (ratesResult.status !== "fulfilled" || !ratesResult.value.ok) throw new Error("rates failed");
+      const body = (await ratesResult.value.json()) as { rates?: { usdtBuyGyd?: number | null; usdtSellGyd?: number | null } | null };
+      setRates(body.rates ? { buy: body.rates.usdtBuyGyd ?? null, sell: body.rates.usdtSellGyd ?? null } : null);
+    } catch {
+      setRates(null);
     }
   }, [showInactive]);
 
@@ -74,6 +129,11 @@ export default function InventarioCupPage() {
     if (!allowed) return;
     void load();
   }, [allowed, load]);
+
+  const cards = useMemo(() => unifyCards(cup.cards, usd.cards), [cup.cards, usd.cards]);
+  const visible = useMemo(() => filterCards(cards, filter), [cards, filter]);
+  const totals = useMemo(() => serviceTotals(cards), [cards]);
+  const activeCards = cards.filter((card) => card.active);
 
   if (profileLoading) {
     return (
@@ -94,50 +154,77 @@ export default function InventarioCupPage() {
     );
   }
 
-  async function saveCard(card: InventoryCard | null, value: CardFormValue): Promise<string | null> {
-    const failure = card
-      ? await send(`/api/inventario-cup/cards/${card.id}`, "PATCH", {
-          name: value.name,
-          last4: value.last4 === "" ? null : value.last4,
-          dailyLimitCup: value.dailyLimitCup,
-          active: value.active,
-        })
-      : await send("/api/inventario-cup/cards", "POST", {
-          name: value.name,
-          ...(value.last4 === "" ? {} : { last4: value.last4 }),
-          dailyLimitCup: value.dailyLimitCup,
-        });
-    if (failure) return failure === "network" ? t("errors.saveError") : failure;
+  const fail = (failure: string) => (failure === "network" ? t("errors.saveError") : failure);
+
+  function toggle(key: string) {
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+  }
+
+  async function saveNewCard(value: ServiceCardFormValue): Promise<string | null> {
+    const last4 = value.last4 === "" ? {} : { last4: value.last4 };
+    const failure = value.service === "CUP"
+      ? await send("/api/inventario-cup/cards", "POST", { name: value.name, ...last4, dailyLimitCup: value.limit })
+      : await send("/api/inventario-usd/cards", "POST", { service: value.service, name: value.name, ...last4, monthlyLimitUsd: value.limit });
+    return finishCardSave(failure);
+  }
+
+  async function saveUsdCard(card: UnifiedCard, value: ServiceCardFormValue): Promise<string | null> {
+    const failure = await send(`/api/inventario-usd/cards/${card.id}`, "PATCH", {
+      name: value.name,
+      last4: value.last4 === "" ? null : value.last4,
+      monthlyLimitUsd: value.limit,
+      active: value.active,
+    });
+    return finishCardSave(failure);
+  }
+
+  async function saveCupCard(card: UnifiedCard, value: CardFormValue): Promise<string | null> {
+    const failure = await send(`/api/inventario-cup/cards/${card.id}`, "PATCH", {
+      name: value.name,
+      last4: value.last4 === "" ? null : value.last4,
+      dailyLimitCup: value.dailyLimitCup,
+      active: value.active,
+    });
+    return finishCardSave(failure);
+  }
+
+  async function finishCardSave(failure: string | null): Promise<string | null> {
+    if (failure) return fail(failure);
     toast.success(t("toasts.cardSaved"));
     setCardDialog(null);
     await load();
     return null;
   }
 
-  async function saveLot(card: InventoryCard, lot: InventoryLot | null, value: LotFormValue): Promise<string | null> {
+  async function saveLot(card: UnifiedCard, lot: UnifiedLot | null, value: LotFormValue | UsdLotFormValue): Promise<string | null> {
+    const base = ROUTES[card.service];
     const failure = lot
-      ? await send(`/api/inventario-cup/lots/${lot.id}`, "PATCH", { ...value, note: value.note ?? null })
-      : await send("/api/inventario-cup/lots", "POST", { cardId: card.id, ...value });
-    if (failure) return failure === "network" ? t("errors.saveError") : failure;
+      ? await send(`${base}/lots/${lot.id}`, "PATCH", { ...value, note: value.note ?? null })
+      : await send(`${base}/lots`, "POST", { cardId: card.id, ...value });
+    if (failure) return fail(failure);
     toast.success(t("toasts.lotSaved"));
     setLotDialog(null);
     await load();
     return null;
   }
 
-  async function saveBalance(card: InventoryCard, value: BalanceFormValue): Promise<string | null> {
-    const failure = await send(`/api/inventario-cup/cards/${card.id}/balance`, "POST", value);
-    if (failure) return failure === "network" ? t("errors.saveError") : failure;
+  async function saveBalance(card: UnifiedCard, value: BalanceFormValue | UsdBalanceFormValue): Promise<string | null> {
+    const failure = await send(`${ROUTES[card.service]}/cards/${card.id}/balance`, "POST", value);
+    if (failure) return fail(failure);
     toast.success(t("toasts.balanceAdjusted"));
     setBalanceDialog(null);
     await load();
     return null;
   }
 
-  async function deleteLot(lot: InventoryLot) {
-    const failure = await send(`/api/inventario-cup/lots/${lot.id}`, "DELETE");
+  async function deleteLot(card: UnifiedCard, lot: UnifiedLot) {
+    const failure = await send(`${ROUTES[card.service]}/lots/${lot.id}`, "DELETE");
     if (failure) {
-      toast.error(failure === "network" ? t("errors.saveError") : failure);
+      toast.error(fail(failure));
     } else {
       toast.success(t("toasts.lotDeleted"));
     }
@@ -145,16 +232,26 @@ export default function InventarioCupPage() {
     await load();
   }
 
-  async function moveCard(card: InventoryCard, direction: "up" | "down") {
-    for (const patch of moveCardPriorities(report.cards, card.id, direction)) {
-      const failure = await send(`/api/inventario-cup/cards/${patch.id}`, "PATCH", { priority: patch.priority });
+  /** Priorities are per service: the order of Clásica never mixes with CUP or Tropical. */
+  async function moveCard(card: UnifiedCard, direction: "up" | "down") {
+    const sameService = cards.filter((other) => other.service === card.service);
+    for (const patch of moveCardPriorities(sameService, card.id, direction)) {
+      const failure = await send(`${ROUTES[card.service]}/cards/${patch.id}`, "PATCH", { priority: patch.priority });
       if (failure) {
-        toast.error(failure === "network" ? t("errors.saveError") : failure);
+        toast.error(fail(failure));
         break;
       }
     }
     await load();
   }
+
+  const lotCard = lotDialog ? cards.find((card) => card.key === lotDialog.cardKey) ?? null : null;
+  const lotPicker = lotDialog?.picking && lotCard ? (
+    <CardPicker cards={activeCards} value={lotCard.key} onChange={(key) => setLotDialog((current) => (current ? { ...current, cardKey: key } : current))} />
+  ) : undefined;
+  const editingCup = cardDialog?.card?.service === "CUP" ? cup.cards.find((card) => card.id === cardDialog.card?.id) ?? null : null;
+  const editingCupLot = lotCard?.service === "CUP" && lotDialog?.lot ? cup.cards.flatMap((card) => card.lots).find((lot) => lot.id === lotDialog.lot?.id) ?? null : null;
+  const cardsOfService = (service: CardService) => cards.filter((card) => card.service === service);
 
   return (
     <PageShell>
@@ -163,16 +260,25 @@ export default function InventarioCupPage() {
         description={t("description")}
         icon={CreditCard}
         actions={
-          <Button onClick={() => setCardDialog({ card: null })}>
-            <Plus className="size-4" aria-hidden="true" />
-            {t("newCard")}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setCardDialog({ card: null })}>
+              {t("newCard")}
+            </Button>
+            <Button
+              disabled={activeCards.length === 0}
+              title={activeCards.length === 0 ? t("picker.none") : undefined}
+              onClick={() => activeCards[0] && setLotDialog({ cardKey: activeCards[0].key, lot: null, picking: true })}
+            >
+              <Plus className="size-4" aria-hidden="true" />
+              {t("buyBalance")}
+            </Button>
+          </div>
         }
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
         <p className="text-muted-foreground">
-          {report.cubaDay ? <span className="text-foreground font-medium">{t("cubaDay", { date: dayLabel(report.cubaDay) })}</span> : null}{" "}
+          {cup.cubaDay ? <span className="text-foreground font-medium">{t("cubaDay", { date: dayLabel(cup.cubaDay) })}</span> : null}{" "}
           {t("cubaDayHint")}
         </p>
         <Label>
@@ -190,37 +296,67 @@ export default function InventarioCupPage() {
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">
           {t("loadError")}
         </p>
-      ) : report.cards.length === 0 ? (
-        <EmptyState icon={CreditCard} title={t("empty")} description={t("emptyHint")} />
       ) : (
-        <div className="flex flex-col gap-4">
-          {report.cards.map((card, index) => (
-            <CardPanel
-              key={card.id}
-              card={card}
-              isFirst={index === 0}
-              isLast={index === report.cards.length - 1}
-              onMove={(direction) => void moveCard(card, direction)}
-              onEdit={() => setCardDialog({ card })}
-              onLoadLot={() => setLotDialog({ card, lot: null })}
-              onAdjustBalance={() => setBalanceDialog({ card })}
-              onEditLot={(lot) => setLotDialog({ card, lot })}
-              onDeleteLot={(lot) => setDeletingLot({ card, lot })}
-            />
-          ))}
-        </div>
+        <>
+          {usdFailed ? (
+            <p role="alert" className="text-sm text-amber-700 dark:text-amber-300">
+              {t("usdUnavailable")}
+            </p>
+          ) : null}
+          <TotalsStrip totals={totals} />
+          <FilterChips value={filter} onChange={setFilter} />
+          {cards.length === 0 ? (
+            <EmptyState icon={CreditCard} title={t("empty")} description={t("emptyHint")} />
+          ) : (
+            <div className="flex flex-col gap-3">
+              {visible.map((card) => {
+                const group = cardsOfService(card.service);
+                return (
+                  <CardRow
+                    key={card.key}
+                    card={card}
+                    expanded={expanded.has(card.key)}
+                    onToggle={() => toggle(card.key)}
+                    rates={rates}
+                    isFirst={group[0]?.id === card.id}
+                    isLast={group[group.length - 1]?.id === card.id}
+                    onMove={(direction) => void moveCard(card, direction)}
+                    onEdit={() => setCardDialog({ card })}
+                    onLoadLot={() => setLotDialog({ cardKey: card.key, lot: null, picking: false })}
+                    onAdjustBalance={() => setBalanceDialog({ card })}
+                    onEditLot={(lot) => setLotDialog({ cardKey: card.key, lot, picking: false })}
+                    onDeleteLot={(lot) => setDeletingLot({ card, lot })}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
 
       <CardDialog
-        open={cardDialog !== null}
+        open={editingCup !== null}
+        card={editingCup}
+        onClose={() => setCardDialog(null)}
+        onSave={(value) => (cardDialog?.card ? saveCupCard(cardDialog.card, value) : Promise.resolve(null))}
+      />
+      <ServiceCardDialog
+        open={cardDialog !== null && cardDialog.card?.service !== "CUP"}
         card={cardDialog?.card ?? null}
         onClose={() => setCardDialog(null)}
-        onSave={(value) => saveCard(cardDialog?.card ?? null, value)}
+        onSave={(value) => (cardDialog?.card ? saveUsdCard(cardDialog.card, value) : saveNewCard(value))}
       />
       <BalanceDialog
-        open={balanceDialog !== null}
+        open={balanceDialog?.card.service === "CUP"}
         cardName={balanceDialog?.card.name ?? ""}
-        currentBalanceCup={balanceDialog?.card.balanceCup ?? 0}
+        currentBalanceCup={balanceDialog?.card.balance ?? 0}
+        onClose={() => setBalanceDialog(null)}
+        onSave={(value) => (balanceDialog ? saveBalance(balanceDialog.card, value) : Promise.resolve(null))}
+      />
+      <UsdBalanceDialog
+        open={balanceDialog !== null && balanceDialog.card.service !== "CUP"}
+        cardName={balanceDialog?.card.name ?? ""}
+        currentBalanceUsd={balanceDialog?.card.balance ?? 0}
         onClose={() => setBalanceDialog(null)}
         onSave={(value) => (balanceDialog ? saveBalance(balanceDialog.card, value) : Promise.resolve(null))}
       />
@@ -228,14 +364,23 @@ export default function InventarioCupPage() {
         open={deletingLot !== null}
         cardName={deletingLot?.card.name ?? ""}
         onClose={() => setDeletingLot(null)}
-        onConfirm={() => (deletingLot ? deleteLot(deletingLot.lot) : Promise.resolve())}
+        onConfirm={() => (deletingLot ? deleteLot(deletingLot.card, deletingLot.lot) : Promise.resolve())}
       />
       <LotDialog
-        open={lotDialog !== null}
-        cardName={lotDialog?.card.name ?? ""}
-        lot={lotDialog?.lot ?? null}
+        open={lotDialog !== null && lotCard?.service === "CUP"}
+        cardName={lotCard?.name ?? ""}
+        lot={editingCupLot}
+        picker={lotPicker}
         onClose={() => setLotDialog(null)}
-        onSave={(value) => (lotDialog ? saveLot(lotDialog.card, lotDialog.lot, value) : Promise.resolve(null))}
+        onSave={(value) => (lotDialog && lotCard ? saveLot(lotCard, lotDialog.lot, value) : Promise.resolve(null))}
+      />
+      <UsdLotDialog
+        open={lotDialog !== null && lotCard !== null && lotCard.service !== "CUP"}
+        cardName={lotCard?.name ?? ""}
+        lot={lotDialog?.lot ?? null}
+        picker={lotPicker}
+        onClose={() => setLotDialog(null)}
+        onSave={(value) => (lotDialog && lotCard ? saveLot(lotCard, lotDialog.lot, value) : Promise.resolve(null))}
       />
     </PageShell>
   );

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-// The /inventario-cup page: admin-only; lists the sending cards in priority order with balance, what was used today and the
-// limit left for the Cuba day, and the FIFO lots with their rate; moving a card saves the changed priorities.
+// The /inventario-cup page ("Inventario de tarjetas"): admin-only; CUP, Clásica and Tropical cards in one list. Each card is a
+// collapsed row; opening it shows the balance figures, the FIFO lots and the movements. The CUP behavior (priorities, lots,
+// balance adjustment) is unchanged but now lives inside the expanded row, so `mount()` opens every row first.
 
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
@@ -36,6 +37,7 @@ const card = (over: Record<string, unknown> = {}) => ({
   id: "card-a", name: "Tarjeta A", last4: "1234", priority: 1, active: true, dailyLimitCup: 120000, balanceCup: 500000,
   usedTodayCup: 0, remainingLimitTodayCup: 120000, lots: [lot()], consumptionsToday: [], ...over,
 });
+const USD_EMPTY = { cubaMonth: "2026-11-01", cards: [], totals: {} };
 const REPORT = {
   cubaDay: "2026-10-14",
   cards: [
@@ -44,15 +46,30 @@ const REPORT = {
   ],
 };
 
+interface Served {
+  cup?: unknown;
+  usd?: unknown;
+  rates?: unknown;
+  usdFails?: boolean;
+}
+
+/** Answers each GET by URL (CUP report, USD report, calculator rates); every write succeeds. */
+function serve({ cup = REPORT, usd = USD_EMPTY, rates = { rates: null }, usdFails = false }: Served) {
+  fetchMock.mockImplementation(async (url: string, init?: { method?: string }) => {
+    if (init?.method && init.method !== "GET") return { ok: true, status: 200, json: async () => ({}) };
+    if (url.startsWith("/api/inventario-usd")) {
+      return usdFails ? { ok: false, status: 500, json: async () => ({}) } : { ok: true, status: 200, json: async () => usd };
+    }
+    if (url.startsWith("/api/calculator/rates")) return { ok: true, status: 200, json: async () => rates };
+    return { ok: true, status: 200, json: async () => cup };
+  });
+}
+
 beforeEach(() => {
   auth.profileLoading = false;
   auth.accountRole = "admin";
   fetchMock.mockReset();
-  fetchMock.mockImplementation(async (url: string, init?: { method?: string }) => ({
-    ok: true,
-    status: 200,
-    json: async () => (!init?.method || init.method === "GET" ? REPORT : {}),
-  }));
+  serve({});
   vi.stubGlobal("fetch", fetchMock);
 });
 const mounted: Array<{ unmount: () => void }> = [];
@@ -63,7 +80,7 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-async function mount() {
+async function mountCollapsed() {
   const { default: Page } = await import("./page");
   const node = document.createElement("div");
   document.body.appendChild(node);
@@ -72,6 +89,20 @@ async function mount() {
   await act(async () => {});
   mounted.push(root);
   return node;
+}
+
+/** Mounts the page and opens every card row. */
+async function mount() {
+  const node = await mountCollapsed();
+  await expandAll(node);
+  return node;
+}
+
+async function expandAll(node: HTMLElement) {
+  for (const button of [...node.querySelectorAll('button[aria-expanded="false"]')] as HTMLButtonElement[]) {
+    await act(async () => button.click());
+  }
+  await act(async () => {});
 }
 
 describe("Inventario CUP page", () => {
@@ -396,3 +427,301 @@ describe("Inventario CUP page: current balance and lot history", () => {
   });
 });
 
+
+// ---- Unified inventory: CUP + Clásica + Tropical (feature usd-card-inventory, T4) ---------------------------------------------------
+
+const usdLot = (over: Record<string, unknown> = {}) => ({
+  id: "lot-u1", amountUsd: 500, remainingUsd: 400, usdtPaid: 476.19, usdPerUsdt: 1.05, loadedAt: "2026-11-02T12:00:00Z", note: null,
+  editable: true, exhausted: false, adjusted: false, adjustmentNetUsd: 0, ...over,
+});
+const usdCard = (over: Record<string, unknown> = {}) => ({
+  id: "card-clasica", service: "CLASICA", name: "Clásica A", last4: "4321", priority: 1, active: true, monthlyLimitUsd: 5000,
+  balanceUsd: 400, usedThisMonthUsd: 100, remainingMonthUsd: 4900, lots: [usdLot()], consumptionsMonth: [], ...over,
+});
+const USD_REPORT = {
+  cubaMonth: "2026-11-01",
+  cards: [
+    usdCard(),
+    usdCard({ id: "card-tropical", service: "TROPICAL", name: "Tropical A", last4: "9876", balanceUsd: 0, usedThisMonthUsd: 0, remainingMonthUsd: 5000, lots: [usdLot({ id: "lot-u2", remainingUsd: 0, exhausted: true, editable: false })] }),
+  ],
+  totals: {},
+};
+const RATES = { rates: { usdtBuyGyd: 238, usdtSellGyd: 260 } };
+
+const chip = (node: HTMLElement, label: string) =>
+  [...node.querySelectorAll("button[aria-pressed]")].find((b) => b.textContent?.trim() === label) as HTMLButtonElement;
+const rowOf = (node: HTMLElement, name: string) =>
+  [...node.querySelectorAll("section[data-card-key]")].find((s) => s.textContent?.includes(name)) as HTMLElement;
+
+describe("Inventario de tarjetas: unified CUP + Clásica + Tropical", () => {
+  beforeEach(() => serve({ usd: USD_REPORT, rates: RATES }));
+
+  it("shows one collapsed row per card and opens its lots only on click (aria-expanded)", async () => {
+    const node = await mountCollapsed();
+    const row = rowOf(node, "Clásica A");
+    const toggle = row.querySelector("button[aria-expanded]") as HTMLButtonElement;
+
+    expect(node.querySelectorAll("section[data-card-key]")).toHaveLength(4);
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(row.querySelector("table")).toBeNull();
+
+    await act(async () => toggle.click());
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(row.querySelector("table")).not.toBeNull();
+
+    await act(async () => toggle.click());
+    expect(row.querySelector("table")).toBeNull();
+  });
+
+  it("lists CUP, then Clásica, then Tropical, each with its service chip", async () => {
+    const node = await mountCollapsed();
+    const text = node.textContent ?? "";
+    expect(text.indexOf("Tarjeta A")).toBeLessThan(text.indexOf("Clásica A"));
+    expect(text.indexOf("Clásica A")).toBeLessThan(text.indexOf("Tropical A"));
+    expect(rowOf(node, "Clásica A").querySelector('[data-service-chip="CLASICA"]')).not.toBeNull();
+    expect(rowOf(node, "Tropical A").querySelector('[data-service-chip="TROPICAL"]')).not.toBeNull();
+    expect(rowOf(node, "Tarjeta B").querySelector('[data-service-chip="CUP"]')).not.toBeNull();
+  });
+
+  it("totals strip: one box per service with its balance and card count; a service with no balance is red and says Sin saldo", async () => {
+    const node = await mountCollapsed();
+    const box = (service: string) => node.querySelector(`[data-total="${service}"]`) as HTMLElement;
+
+    expect(box("CUP").textContent).toContain(`750${NBSP}000`);
+    expect(box("CUP").textContent).toContain(t.totals.cards.replace("{n}", "2"));
+    expect(box("CLASICA").textContent).toContain("400");
+    expect(box("CLASICA").textContent).not.toContain(t.totals.noBalance);
+    expect(box("TROPICAL").textContent).toContain(t.totals.noBalance);
+    expect(box("TROPICAL").className).toMatch(/border-red/);
+    expect(box("CLASICA").className).not.toMatch(/border-red/);
+  });
+
+  it("filter chips are toggle buttons (aria-pressed) and filter the list by service", async () => {
+    const node = await mountCollapsed();
+    expect(chip(node, t.filters.all).getAttribute("aria-pressed")).toBe("true");
+
+    await act(async () => chip(node, t.filters.CLASICA).click());
+    expect(chip(node, t.filters.CLASICA).getAttribute("aria-pressed")).toBe("true");
+    expect(chip(node, t.filters.all).getAttribute("aria-pressed")).toBe("false");
+    expect(node.querySelectorAll("section[data-card-key]")).toHaveLength(1);
+    expect(node.textContent).toContain("Clásica A");
+    expect(node.textContent).not.toContain("Tarjeta A");
+
+    await act(async () => chip(node, t.filters.CUP).click());
+    expect(node.querySelectorAll("section[data-card-key]")).toHaveLength(2);
+
+    await act(async () => chip(node, t.filters.all).click());
+    expect(node.querySelectorAll("section[data-card-key]")).toHaveLength(4);
+  });
+
+  it("the USD row shows the monthly limit text, the CUP row the daily one; filter chips meet the 44px target", async () => {
+    const node = await mountCollapsed();
+    expect(rowOf(node, "Clásica A").textContent).toContain(t.row.limitMonth.replace("{used}", "100").replace("{limit}", `5${NBSP}000`));
+    expect(rowOf(node, "Tarjeta A").textContent).toContain(t.row.limitDay.replace("{used}", "0").replace("{limit}", `120${NBSP}000`));
+    expect(chip(node, t.filters.all).className).toMatch(/min-h-11/);
+  });
+
+  it("a card with zero balance gets a red tint and the buy-more message; one with balance does not", async () => {
+    const node = await mountCollapsed();
+    const empty = rowOf(node, "Tropical A");
+    expect(empty.textContent).toContain(t.row.noBalance);
+    expect(empty.className).toMatch(/border-red/);
+    expect(rowOf(node, "Clásica A").textContent).not.toContain(t.row.noBalance);
+  });
+
+  it("the expanded USD lot shows bought, paid in USDT, the discount derived from the rate, what is left and the cost per USD", async () => {
+    const node = await mount();
+    const lotRow = [...rowOf(node, "Clásica A").querySelectorAll("tbody tr")].find((r) => r.textContent?.includes("476")) as HTMLElement;
+
+    expect(lotRow.textContent).toContain("500");
+    expect(lotRow.textContent).toContain("5%");
+    expect(lotRow.textContent).toContain("400");
+    // 238 / 1.05 = 226.67 GYD; sold at 260 -> earns 33.33
+    expect(lotRow.textContent).toContain("226");
+    expect(lotRow.textContent).toContain(t.lotsTable.earns.replace("{amount}", "33"));
+    expect(rowOf(node, "Clásica A").textContent).toContain(t.lotsTable.footnote);
+  });
+
+  it("a 1x1 lot reads 1x1 and the cost per USD is the buy rate", async () => {
+    serve({ usd: { ...USD_REPORT, cards: [usdCard({ lots: [usdLot({ usdPerUsdt: 1, usdtPaid: 500, remainingUsd: 500 })] })] }, rates: RATES });
+    const node = await mount();
+    const lotRow = rowOf(node, "Clásica A").querySelector("tbody tr") as HTMLElement;
+    expect(lotRow.textContent).toContain("1x1");
+    expect(lotRow.textContent).toContain("238");
+  });
+
+  it("without current rates the cost column is omitted (no invented data)", async () => {
+    serve({ usd: USD_REPORT, rates: { rates: null } });
+    const node = await mount();
+    const row = rowOf(node, "Clásica A");
+    expect(row.textContent).not.toContain(t.lotsTable.costPerUsd);
+    expect(row.textContent).toContain(t.lotsTable.discount);
+  });
+
+  it("a CUP lot keeps the rate column; USD columns do not appear on CUP cards", async () => {
+    const node = await mount();
+    const row = rowOf(node, "Tarjeta A");
+    expect(row.textContent).toContain(t.lotsTable.rate);
+    expect(row.textContent).not.toContain(t.lotsTable.discount);
+    expect(row.textContent).not.toContain(t.lotsTable.costPerUsd);
+  });
+
+  it("this month's USD movements are listed with the lot discount", async () => {
+    serve({
+      usd: { ...USD_REPORT, cards: [usdCard({ consumptionsMonth: [{ id: "m1", consumedAt: "2026-11-03T15:00:00Z", amountUsd: 100, lotId: "lot-u1", lotUsdPerUsdt: 1.05, operationId: "op", entryId: "e", source: "completed_operation", customerName: "Cliente USD", kind: "operacion", reason: null }] })] },
+      rates: RATES,
+    });
+    const node = await mount();
+    const text = rowOf(node, "Clásica A").textContent ?? "";
+    expect(text).toContain(t.movementsMonth.title);
+    expect(text).toContain("Cliente USD");
+    expect(text).toContain(t.movements.operation);
+  });
+
+  it("USD figures use the monthly labels", async () => {
+    const node = await mount();
+    const labels = [...rowOf(node, "Clásica A").querySelectorAll("dt")].map((dt) => dt.textContent);
+    expect(labels).toEqual([t.card.balance, t.cardMonth.monthlyLimit, t.cardMonth.usedMonth, t.cardMonth.remainingMonth]);
+  });
+
+  it("if the USD inventory fails, the CUP cards still show with a notice", async () => {
+    serve({ usdFails: true });
+    const node = await mount();
+    expect(node.textContent).toContain("Tarjeta A");
+    expect(node.textContent).toContain(t.usdUnavailable);
+    expect(node.textContent).not.toContain(t.loadError);
+  });
+
+  it("Comprar saldo opens the lot dialog with a card picker; a USD card buys with a discount: 500 USD at 5% sends 476.19 USDT", async () => {
+    const node = await mountCollapsed();
+    await act(async () => buttonByText(t.buyBalance)!.click());
+    await act(async () => {});
+
+    const dialog = document.querySelector('[role="dialog"]') as HTMLElement;
+    const picker = dialog.querySelector("select") as HTMLSelectElement;
+    expect([...picker.options].map((o) => o.textContent)).toEqual(
+      expect.arrayContaining([expect.stringContaining("Tarjeta A"), expect.stringContaining("Clásica A"), expect.stringContaining("Tropical A")]),
+    );
+    // CUP form first (rate field), then pick the Clásica card -> USD form
+    expect(dialog.querySelector("#cup-lot-rate")).not.toBeNull();
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!;
+      setter.call(picker, "CLASICA:card-clasica");
+      picker.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    // the USD form is a different dialog, so look it up again
+    const usdDialog = document.querySelector('[role="dialog"]') as HTMLElement;
+    expect(usdDialog.querySelector("#cup-lot-rate")).toBeNull();
+
+    await type(usdDialog.querySelector("#usd-lot-amount") as HTMLInputElement, "500");
+    await type(usdDialog.querySelector("#usd-lot-discount") as HTMLInputElement, "5");
+    expect(usdDialog.textContent).toContain(t.usdLotForm.preview.replace("{usdt}", "476"));
+    await act(async () => buttonByText(t.actions.save)!.click());
+    await act(async () => {});
+
+    const post = fetchMock.mock.calls.find(([, init]) => init?.method === "POST")!;
+    expect(post[0]).toBe("/api/inventario-usd/lots");
+    expect(JSON.parse(post[1].body)).toEqual({ cardId: "card-clasica", amountUsd: 500, usdtPaid: 476.19 });
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    node.remove();
+  });
+
+  it("a USD lot with no USDT and no discount is refused in the dialog without calling the API", async () => {
+    await mountCollapsed();
+    await act(async () => buttonByText(t.buyBalance)!.click());
+    await act(async () => {});
+    const picker = document.querySelector('[role="dialog"] select') as HTMLSelectElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!.call(picker, "TROPICAL:card-tropical");
+      picker.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await type(document.querySelector("#usd-lot-amount") as HTMLInputElement, "500");
+    await act(async () => buttonByText(t.actions.save)!.click());
+    await act(async () => {});
+
+    expect(document.querySelector('[role="dialog"] [role="alert"]')?.textContent).toBe(t.errors.invalidUsdtPaid);
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
+  });
+
+  it("adjusting the balance of a USD card posts balanceUsd to the USD route", async () => {
+    const node = await mount();
+    const adjust = [...rowOf(node, "Clásica A").querySelectorAll("button")].find((b) => b.textContent?.trim() === t.card.adjustBalance) as HTMLButtonElement;
+    await act(async () => adjust.click());
+    await act(async () => {});
+    await type(document.querySelector("#usd-balance-value") as HTMLInputElement, "395");
+    await type(document.querySelector("#usd-balance-reason") as HTMLInputElement, "bank fee");
+    await act(async () => buttonByText(t.balanceForm.submit)!.click());
+    await act(async () => {});
+
+    const post = fetchMock.mock.calls.find(([, init]) => init?.method === "POST")!;
+    expect(post[0]).toBe("/api/inventario-usd/cards/card-clasica/balance");
+    expect(JSON.parse(post[1].body)).toEqual({ balanceUsd: 395, reason: "bank fee" });
+  });
+
+  it("deleting an untouched USD lot goes through the USD lots route", async () => {
+    const node = await mount();
+    const del = rowOf(node, "Clásica A").querySelector(`button[aria-label="${t.lots.delete}"]`) as HTMLButtonElement;
+    await act(async () => del.click());
+    await act(async () => {});
+    await act(async () => buttonByText(t.actions.delete)!.click());
+    await act(async () => {});
+
+    const deletes = fetchMock.mock.calls.filter(([, init]) => init?.method === "DELETE").map(([url]) => url);
+    expect(deletes).toEqual(["/api/inventario-usd/lots/lot-u1"]);
+  });
+
+  it("moving a Clásica card only reorders within its service", async () => {
+    serve({ usd: { ...USD_REPORT, cards: [usdCard(), usdCard({ id: "card-clasica-2", name: "Clásica B", priority: 2 })] }, rates: RATES });
+    const node = await mount();
+    const down = rowOf(node, "Clásica A").querySelector(`button[aria-label="${t.card.moveDown}"]`) as HTMLButtonElement;
+    await act(async () => down.click());
+    await act(async () => {});
+
+    const patches = fetchMock.mock.calls.filter(([, init]) => init?.method === "PATCH").map(([url, init]) => [url, JSON.parse(init.body)]);
+    expect(patches).toEqual([
+      ["/api/inventario-usd/cards/card-clasica-2", { priority: 1 }],
+      ["/api/inventario-usd/cards/card-clasica", { priority: 2 }],
+    ]);
+  });
+
+  it("Nueva tarjeta can create a Tropical card: it posts service and monthly limit to the USD route", async () => {
+    await mountCollapsed();
+    await act(async () => buttonByText(t.newCard)!.click());
+    await act(async () => {});
+    const dialog = document.querySelector('[role="dialog"]') as HTMLElement;
+    const service = dialog.querySelector("select") as HTMLSelectElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!.call(service, "TROPICAL");
+      service.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await type(dialog.querySelector("#new-card-name") as HTMLInputElement, "Tropical B");
+    await type(dialog.querySelector("#new-card-last4") as HTMLInputElement, "1111");
+    await act(async () => buttonByText(t.actions.save)!.click());
+    await act(async () => {});
+
+    const post = fetchMock.mock.calls.find(([, init]) => init?.method === "POST")!;
+    expect(post[0]).toBe("/api/inventario-usd/cards");
+    expect(JSON.parse(post[1].body)).toEqual({ service: "TROPICAL", name: "Tropical B", last4: "1111", monthlyLimitUsd: 5000 });
+  });
+
+  it("Nueva tarjeta for CUP still posts to the CUP route with the daily limit", async () => {
+    await mountCollapsed();
+    await act(async () => buttonByText(t.newCard)!.click());
+    await act(async () => {});
+    const dialog = document.querySelector('[role="dialog"]') as HTMLElement;
+    await type(dialog.querySelector("#new-card-name") as HTMLInputElement, "Nueva CUP");
+    await act(async () => buttonByText(t.actions.save)!.click());
+    await act(async () => {});
+
+    const post = fetchMock.mock.calls.find(([, init]) => init?.method === "POST")!;
+    expect(post[0]).toBe("/api/inventario-cup/cards");
+    expect(JSON.parse(post[1].body)).toEqual({ name: "Nueva CUP", dailyLimitCup: 120000 });
+  });
+
+  it("a Spanish and an English message exist for every new key", async () => {
+    const es = (await import("../../../../messages/es.json")).default as unknown as Record<string, Record<string, unknown>>;
+    const keys = (o: unknown, prefix = ""): string[] =>
+      typeof o === "object" && o !== null ? Object.entries(o).flatMap(([k, v]) => keys(v, `${prefix}${k}.`)) : [prefix];
+    expect(keys(es.CupInventory).sort()).toEqual(keys(en.CupInventory).sort());
+  });
+});

@@ -105,7 +105,7 @@ export function CardRow({ card, expanded, onToggle, rates, isFirst, isLast, onMo
   return (
     <section
       data-card-key={card.key}
-      className={cn("bg-card rounded-xl border", noBalance ? "border-red-300 bg-red-50 dark:border-red-500/50 dark:bg-red-950/20" : "border-border")}
+      className="bg-card border-border rounded-xl border"
     >
       <button
         type="button"
@@ -122,12 +122,12 @@ export function CardRow({ card, expanded, onToggle, rates, isFirst, isLast, onMo
           {card.last4 ? <span className="text-muted-foreground text-sm tabular-nums">···· {card.last4}</span> : null}
           {card.active ? null : <span className="text-muted-foreground text-xs">{t("row.inactive")}</span>}
         </span>
-        <span className={cn("text-base font-semibold tabular-nums", noBalance ? "text-red-600 dark:text-red-400" : moneyTextClass.profit)}>
+        <span className={cn("text-base font-semibold tabular-nums", noBalance ? "text-muted-foreground" : moneyTextClass.profit)}>
           {formatCup(card.balance)} <span className="text-muted-foreground text-xs font-normal">{card.unit}</span>
         </span>
         <span className="flex basis-48 flex-col gap-1 text-xs">
           {noBalance ? (
-            <span className="font-medium text-red-600 dark:text-red-400">{t("row.noBalance")}</span>
+            <span className="text-muted-foreground font-medium">{t("row.noBalance")}</span>
           ) : (
             <>
               <span className="text-muted-foreground tabular-nums">{limitText}</span>

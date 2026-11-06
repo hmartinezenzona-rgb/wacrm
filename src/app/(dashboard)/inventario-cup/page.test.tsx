@@ -483,7 +483,7 @@ describe("Inventario de tarjetas: unified CUP + Clásica + Tropical", () => {
     expect(rowOf(node, "Tarjeta B").querySelector('[data-service-chip="CUP"]')).not.toBeNull();
   });
 
-  it("totals strip: one box per service with its balance and card count; a service with no balance is red and says Sin saldo", async () => {
+  it("totals strip: one box per service with its balance and card count; a service with no balance says Sin saldo without red", async () => {
     const node = await mountCollapsed();
     const box = (service: string) => node.querySelector(`[data-total="${service}"]`) as HTMLElement;
 
@@ -492,8 +492,7 @@ describe("Inventario de tarjetas: unified CUP + Clásica + Tropical", () => {
     expect(box("CLASICA").textContent).toContain("400");
     expect(box("CLASICA").textContent).not.toContain(t.totals.noBalance);
     expect(box("TROPICAL").textContent).toContain(t.totals.noBalance);
-    expect(box("TROPICAL").className).toMatch(/border-red/);
-    expect(box("CLASICA").className).not.toMatch(/border-red/);
+    expect(box("TROPICAL").outerHTML).not.toMatch(/red-/);
   });
 
   it("filter chips are toggle buttons (aria-pressed) and filter the list by service", async () => {
@@ -521,11 +520,11 @@ describe("Inventario de tarjetas: unified CUP + Clásica + Tropical", () => {
     expect(chip(node, t.filters.all).className).toMatch(/min-h-11/);
   });
 
-  it("a card with zero balance gets a red tint and the buy-more message; one with balance does not", async () => {
+  it("a card with zero balance shows the buy-more message without red; one with balance does not", async () => {
     const node = await mountCollapsed();
     const empty = rowOf(node, "Tropical A");
     expect(empty.textContent).toContain(t.row.noBalance);
-    expect(empty.className).toMatch(/border-red/);
+    expect(empty.outerHTML).not.toMatch(/red-/);
     expect(rowOf(node, "Clásica A").textContent).not.toContain(t.row.noBalance);
   });
 

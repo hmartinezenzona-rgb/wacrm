@@ -6,7 +6,7 @@ import type { CardFilter, ServiceTotal } from "@/lib/card-inventory/unify";
 import { cn } from "@/lib/utils";
 import { SERVICE_CHIP_CLASS } from "./card-row";
 
-/** One box per service: balance in its own currency and the card count. A service without balance is red. */
+/** One box per service: balance in its own currency and the card count. A service without balance says so, without alarm colors. */
 export function TotalsStrip({ totals }: { totals: ServiceTotal[] }) {
   const t = useTranslations("CupInventory");
   return (
@@ -15,10 +15,7 @@ export function TotalsStrip({ totals }: { totals: ServiceTotal[] }) {
         <li
           key={total.service}
           data-total={total.service}
-          className={cn(
-            "bg-card flex flex-col gap-1 rounded-xl border p-3",
-            total.empty ? "border-red-400 dark:border-red-500/70" : "border-border",
-          )}
+          className="bg-card border-border flex flex-col gap-1 rounded-xl border p-3"
         >
           <span className={cn("w-fit rounded-full px-2 py-0.5 text-xs font-medium", SERVICE_CHIP_CLASS[total.service])}>{t(`services.${total.service}`)}</span>
           <span className="text-foreground text-xl font-semibold tabular-nums">
@@ -26,7 +23,7 @@ export function TotalsStrip({ totals }: { totals: ServiceTotal[] }) {
           </span>
           <span className="text-muted-foreground flex flex-wrap items-center gap-x-2 text-xs">
             {t("totals.cards", { n: total.cards })}
-            {total.empty ? <strong className="font-semibold text-red-600 dark:text-red-400">{t("totals.noBalance")}</strong> : null}
+            {total.empty ? <strong className="text-muted-foreground font-semibold">{t("totals.noBalance")}</strong> : null}
           </span>
         </li>
       ))}

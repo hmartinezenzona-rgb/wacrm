@@ -51,8 +51,8 @@ Out: Zelle, bot/n8n changes, the 20 USD minimum (done), production (needs explic
 ## Tasks
 - [x] T1 (64c523f) Migration 355: usd_cards / usd_lots / usd_lot_consumptions + admin RPCs (save card, load lot, correct/delete
       untouched lot, adjust balance, report with balance and month usage) + rollback + staging assertion
-- [ ] T2 Migration 356: plan / consume / return for USD, feed cost from lots, manual lines, void and delete paths,
-      hard block in crm_entregar_operacion + crm_cerrar_operacion_manual, panel plan RPC; rollback; assertion
+- [x] T2 (a0c4b05; assertion helper fix cc50294) Migration 356: plan / consume / return for USD, feed cost from lots, manual lines, void and
+      delete paths, hard block in crm_entregar_operacion + crm_cerrar_operacion_manual, panel plan RPC; rollback; assertion
 - [ ] T3 API routes + lib (read model, payloads, forms, format) for USD cards and lots + tests
 - [ ] T4 Unified "Inventario de tarjetas" page per the approved design (CUP + Clásica + Tropical), sidebar, i18n, tests
 - [ ] T5 Delivery panel: USD plan block + refusal mapping for the insufficient-balance block + tests
@@ -72,5 +72,18 @@ Out: Zelle, bot/n8n changes, the 20 USD minimum (done), production (needs explic
 - 2026-11-06: document created after the design approval and a read-only map of the CUP inventory.
 - 2026-11-06: T1 written in 64c523f (355, ROLLBACK-355, assertion usd-card-inventory.sql). SQL UNVERIFIED: RED/GREEN runs pending the T6 staging run; no local SQL engine.
 
+- 2026-11-06: T2 verified on STAGING in rolled-back transactions only (nothing applied). RED: assertion without 355/356 ->
+  'relation "usd_lots" does not exist'; with 355 only -> 12 FAIL lines (no consumption, invertido = 100*238 not 100/1.05*238) then
+  'function usd_planificar(uuid, unknown, integer, timestamp with time zone) does not exist'. GREEN: 355+356+assertion -> 60 PASS,
+  'ALL PASS (rolled back on purpose)'. T1 assertion (first real run) needed helper fixes (cc50294, claims were reset), then GREEN on 355.
+  CUP regression, base vs 355+356: cup-inventory-consumption 49/49, cup-inventory-panel 27/27, cup-source-card 31/31, cup-card-inventory 52/52,
+  cup-balance-adjust 38/38 (identical to base); 54 related assertions base vs mig: 53 SAME, 1 DIFF that is only a uuid in an already
+  failing fixture message (delivery-feed-evidence). ROLLBACK-356 gives back the 6 previous md5s and ACLs, 9 new functions dropped.
+- Decisions made in T2 (owner defaults, not asked): the 5,000 USD monthly limit is INFORMATIONAL (balance only restricts); the block works
+  PER OPERATION (the feed consumes per operation; the group-wide logic in delivery only concerns verified funding); Mexico operations
+  (priced as CLASICA) never consume nor block; notifications reuse type 'inventario_cup'; cost_gyd of USD entries stays NULL, the lot
+  cost lands in invertido_gyd. Refusal: 22023 'usd_inventory_insufficient:<SERVICE>:<missing> (needs N USD, M USD available)'.
+- Known gap (not in T2 scope): crm_resolve_pending_entry (an admin resolving a pending CLASICA/TROPICAL line) does not consume USD yet.
+
 ## Next step
-T2.
+T3 (API routes + lib for USD cards and lots). T5 maps the refusal prefix and renders crm_inventario_usd_operacion.

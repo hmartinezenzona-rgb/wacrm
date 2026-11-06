@@ -21,7 +21,10 @@ Phases 1 and 2 only reorganize what already exists: no calculation changes.
 - 2026-11-06 owner answers for phases 3-4: the week runs Monday to Saturday and Osmany closes everything on Saturday;
   Sunday is not a working day but he sometimes serves a client (default: Sunday work belongs to the next week, since
   Saturday's close already happened). First number: profit (ganancia). Reconciliation: still open; the owner believes
-  the purchase rates of the assets already cover it, a focused question was proposed to settle it.
+  the purchase rates of the assets already cover it.
+- 2026-11-06 reconciliation closed by the owner: Osmany uses the calculator (Semana) as his ledger; operations that do
+  not come through chats or customers are typed in as manual lines, so the week's facturado is complete by his own
+  practice. No MMG-vs-facturado cross-check is built; phase 4 keeps only the close assistant.
 
 ## Facts (code, 2026-10-28)
 

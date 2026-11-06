@@ -54,7 +54,7 @@ Out: Zelle, bot/n8n changes, the 20 USD minimum (done), production (needs explic
 - [x] T2 (a0c4b05; assertion helper fix cc50294) Migration 356: plan / consume / return for USD, feed cost from lots, manual lines, void and
       delete paths, hard block in crm_entregar_operacion + crm_cerrar_operacion_manual, panel plan RPC; rollback; assertion
 - [x] T2b (c64241c) Migration 357: crm_resolve_pending_entry consumes USD for a resolved pending CLASICA/TROPICAL line; rollback; assertion usd-inventory-pending.sql
-- [ ] T3 API routes + lib (read model, payloads, forms, format) for USD cards and lots + tests
+- [x] T3 (56466f9) API routes + lib (read model, payloads, forms, format) for USD cards and lots + tests
 - [ ] T4 Unified "Inventario de tarjetas" page per the approved design (CUP + Clásica + Tropical), sidebar, i18n, tests
 - [ ] T5 Delivery panel: USD plan block + refusal mapping for the insufficient-balance block + tests
 - [ ] T6 Staging: apply 355-356, run assertions, deploy, demo cards/lots, owner check
@@ -90,6 +90,9 @@ Out: Zelle, bot/n8n changes, the 20 USD minimum (done), production (needs explic
   consumed, no alert), GREEN with 357: 13 PASS, 'ALL PASS (rolled back on purpose)'. Regression with 355+356+357 loaded: usd-card-inventory 89,
   usd-inventory-consumption 60, usd-inventory-pending 13, cup-inventory-consumption 49, cup-inventory-panel 27, cup-source-card 31,
   cup-card-inventory 52, cup-balance-adjust 38: 0 FAIL.
+- 2026-11-06: T3 (56466f9). RED: `Cannot find module './format'` (4 lib files) and `Cannot find module '/src/app/api/inventario-usd/route'` (6 route files).
+  GREEN: usd-inventory lib 4 files + cup-inventory = 190 tests pass; inventario-usd routes + inventario-cup routes 12 files / 75 tests pass; tsc and eslint clean.
+  Only change to CUP code: cup-inventory/payloads.ts now exports its small validation helpers (fail, isObject, unknownKey, isPositive, parseNote, limits) for reuse.
 
 ## Next step
 T3 (API routes + lib for USD cards and lots). T5 maps the refusal prefix and renders crm_inventario_usd_operacion.

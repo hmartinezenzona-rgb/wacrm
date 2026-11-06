@@ -35,10 +35,22 @@ Strict, on. vitest.
 
 ## Tasks
 
-- [ ] T1 Deleted operations are not listed.
-- [ ] T2 Instant removal, toast and clear refusal messages.
+- [ ] T1 Deleted operations are not listed. BLOCKED, owner decision needed (see Progress 2026-11-06 T1 finding).
+- [x] T2 Instant removal, toast and clear refusal messages. RED observed (7 failing), then GREEN.
 - [ ] T3 Production panel deploy after the owner's go-ahead.
 
 ## Progress
 
 - 2026-11-06 created. RDD off.
+- 2026-11-06 T1 finding: the chat panel never lists cancelled operations. `crm_operaciones_de_conversacion` (migration
+  271) returns open ones (`status NOT IN ('completed','cancelled')`) and only `completed` history, so there is nothing
+  to filter in the panel. The "Historial" the owner saw is Finanzas > Operaciones (`crm_historial_operaciones`, migration
+  351), whose rows, totals and status-group counts are computed in the DB function with server-side pagination; hiding
+  deleted operations there needs a DB change (a migration), or a route post-filter that would break totals and counts.
+  Stopped per the task rule; not implemented. What the team saw in the panel (card lingering after delete) was the
+  stale card until the refetch, fixed by T2.
+- 2026-11-06 T2 done: `delete-refusal.ts` (`parseDeleteRefusal`) maps the RPC/role-gate refusals to
+  `Inbox.operationsPanel.closing.deleteRefusal.*` (es/en); `OperationClosingControl` shows the mapped text or the
+  server text; the card calls the new `onDeleted(id)` before `onChanged`; the container drops the card from state and
+  toasts `closing.deleted`. Checks: vitest on inbox + remittance-operations + api 66 files / 1079 passed; full vitest
+  275 files / 3818 passed; tsc clean; eslint clean on changed files.

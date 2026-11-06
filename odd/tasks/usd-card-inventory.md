@@ -114,5 +114,11 @@ Out: Zelle, bot/n8n changes, the 20 USD minimum (done), production (needs explic
   Panel: release/prod-usd-card-inventory = 67b60da (pushed to privado), compilar OK, BUILD_ID vdYFDzOuprQqqnI1TMzWB served;
   rollback = 8fe363d (anterior). No USD cards in production yet, so nothing is blocked until Osmany loads his cards.
 
+- 2026-11-06 owner feedback after production: no red for no-balance cards (6bb2e43, RED observed with the old
+  classes, GREEN after; owner prefers neutral "Sin saldo" + 0). Also fixed the whole panel scrolling in Finanzas:
+  sr-only/absolute descendants escaped the shell's overflow (no positioned ancestor), so `relative` on the shell
+  (db61a21; layout fix, not unit-testable in jsdom; owner checked locally). npm test 289/3973, tsc clean.
+  Published: db61a21, BUILD_ID YRLAhJJk7_F1tu8VPfull; rollback 67b60da.
+
 ## Next step
 Done. Follow-up: Osmany loads his real Clásica/Tropical cards and lots on "Inventario de tarjetas".

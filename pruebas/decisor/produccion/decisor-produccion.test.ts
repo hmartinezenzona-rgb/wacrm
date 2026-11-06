@@ -1023,3 +1023,232 @@ describe('envio en efectivo: no se pide tarjeta', () => {
     expect(nota(s, 'ENTREGA EN EFECTIVO')).toBeUndefined();
   });
 });
+
+describe('varias cuentas Zelle: no forzar una pareja nombre-cuenta', () => {
+  const base = {
+    texto_completo: 'YLT WHOLESALE FOODS LLC 954-425-3182',
+    datos_zelle: true,
+    zelle_correos: [] as string[],
+    zelle_celulares: ['9544253182', '8132940493'],
+    zelle_nombre: 'YLT WHOLESALE FOODS LLC',
+    zelle_nombre_cuenta: '8132940493',
+  };
+
+  it('no empuja registrar_beneficiario_zelle y pide confirmar cada cuenta', () => {
+    const s = correr({ snapshot: { ...base, zelle_varios: true } });
+    const n = nota(s, 'VARIAS CUENTAS ZELLE DETECTADAS') as string;
+    expect(n).toBeDefined();
+    expect(n).toContain('9544253182');
+    expect(n).toContain('8132940493');
+    expect(n).toMatch(/NO registres ninguna/);
+    expect(nota(s, 'TOOL OBLIGATORIA') ?? '').not.toContain(
+      'registrar_beneficiario_zelle'
+    );
+    expect(nota(s, 'DATOS DE ZELLE DETECTADOS')).toBeUndefined();
+  });
+
+  it('con una sola cuenta sigue ordenando la tool', () => {
+    const s = correr({
+      snapshot: {
+        ...base,
+        zelle_celulares: ['9544253182'],
+        zelle_nombre_cuenta: '9544253182',
+      },
+    });
+    const tools = nota(s, 'TOOL OBLIGATORIA') as string;
+    expect(tools).toContain('registrar_beneficiario_zelle');
+    expect(tools).toContain('9544253182');
+  });
+
+  it('usa la cuenta atada al nombre, no el primer numero de la lista', () => {
+    const s = correr({
+      snapshot: {
+        ...base,
+        zelle_celulares: ['8132940493'],
+        zelle_nombre_cuenta: '9544253182',
+      },
+    });
+    const tools = nota(s, 'TOOL OBLIGATORIA') as string;
+    expect(tools).toContain('9544253182');
+    expect(tools).not.toContain('8132940493');
+  });
+});
+
+describe('Zelle mas CUP en el mismo envio', () => {
+  it('no dice que no hay CUP ni prohibe pedir la tarjeta', () => {
+    const s = correr({
+      snapshot: {
+        texto_completo: '100 dolares por zelle y el resto en tarjeta',
+        datos_zelle: true,
+        zelle_celulares: ['9544253182'],
+        zelle_nombre: 'YLT WHOLESALE FOODS LLC',
+        zelle_nombre_cuenta: '9544253182',
+      },
+    });
+    const n = nota(s, 'DATOS DE ZELLE DETECTADOS') as string;
+    expect(n).toBeDefined();
+    expect(n).toMatch(/ADEMAS el resto en CUP/);
+    expect(n).not.toMatch(/PROHIBIDO pedirle tarjeta/);
+  });
+
+  it('Zelle solo sigue prohibiendo pedir tarjeta', () => {
+    const s = correr({
+      snapshot: {
+        texto_completo: 'mi zelle',
+        datos_zelle: true,
+        zelle_celulares: ['9544253182'],
+        zelle_nombre: 'YLT WHOLESALE FOODS LLC',
+        zelle_nombre_cuenta: '9544253182',
+      },
+    });
+    expect(nota(s, 'DATOS DE ZELLE DETECTADOS') as string).toMatch(
+      /PROHIBIDO pedirle tarjeta/
+    );
+  });
+});
+
+describe('Zelle parcial y lista para transferir', () => {
+  const zelle = {
+    datos_zelle: true,
+    zelle_celulares: ['9544253182'],
+    zelle_nombre: 'YLT WHOLESALE FOODS LLC',
+    zelle_nombre_cuenta: '9544253182',
+  };
+  const ctxZelle = (monto: number) => ({
+    mensajes_cliente: 2,
+    monto_recibe_valor: 100,
+    monto_recibe_moneda: 'USD',
+    tiene_beneficiario: true,
+    beneficiarios_registrados: [
+      {
+        t: 'zelle',
+        nombre: 'YLT WHOLESALE FOODS LLC',
+        cuenta: '9544253182',
+        monto,
+        moneda: 'USD',
+      },
+    ],
+  });
+
+  it('con 50 de 100 USD asignados avisa que faltan 50 y no da por completo', () => {
+    const s = correr({
+      ctx: ctxZelle(50),
+      snapshot: { texto_completo: 'A esta cuenta 50 dólares', ...zelle },
+    });
+    const n = nota(s, 'FALTAN') as string;
+    expect(n).toBeDefined();
+    expect(n).toContain('50 USD');
+    expect(n).toMatch(/NO digas que esta completo/);
+  });
+
+  it('con 100 de 100 USD asignados no avisa de faltantes', () => {
+    const s = correr({
+      ctx: ctxZelle(100),
+      snapshot: { texto_completo: 'hola', ...zelle },
+    });
+    expect(nota(s, 'FALTAN')).toBeUndefined();
+  });
+
+  it('lista para transferir no promete "enseguida"', () => {
+    const s = correr({
+      ctx: { mensajes_cliente: 2, tiene_beneficiario: true },
+      historial: { etapa_envio_abierto: 'Lista para transferir' },
+      snapshot: { texto_completo: 'como va lo mio' },
+    });
+    const n = nota(s, 'ESTADO REAL DEL ENVIO EN CURSO') as string;
+    expect(n).toBeDefined();
+    expect(n).toMatch(/operador/);
+    expect(n).not.toMatch(/enseguida/);
+  });
+});
+
+describe('deposito que cubre un reparto planificado y confirmacion repetida', () => {
+  it('un deposito que coincide con las partes no es "mando mas" ni incidencia', () => {
+    const s = correr({
+      snapshot: {
+        texto_completo: 'Listo ahí le deposite',
+        comprobante: {
+          estado: 'LEGIBLE',
+          monto: 26000,
+          moneda: 'GYD',
+          referencia: '20404215436140',
+          alertas: [],
+        },
+      },
+      mmg: {
+        resultado: 'verificado_de_mas',
+        objetivo: 13000,
+        depositado: 26000,
+        saldo: 13000,
+      },
+      ctx: {
+        servicio_resuelto: {
+          en_curso: 'cuban_card',
+          reparto_pendiente: {
+            deposito_gyd: 26000,
+            partes: [
+              { servicio: 'cuban_card', monto_gyd: 13000 },
+              { servicio: 'zelle', monto_gyd: 13000 },
+            ],
+          },
+        },
+      },
+    });
+    const n = nota(s, 'EL CLIENTE DEPOSITO') as string;
+    expect(n).toBeDefined();
+    expect(n).toMatch(/NO es un deposito de mas/);
+    expect(n).toMatch(/NO le digas que mando mas/);
+    expect(n).toMatch(/repartir_envio/);
+    expect(n).not.toMatch(/Incidencia y lo revisa/);
+  });
+
+  it('sin reparto planificado, el deposito de mas sigue siendo incidencia', () => {
+    const s = correr({
+      snapshot: {
+        texto_completo: 'Listo ahí le deposite',
+        comprobante: {
+          estado: 'LEGIBLE',
+          monto: 26000,
+          moneda: 'GYD',
+          referencia: '20404215436140',
+          alertas: [],
+        },
+      },
+      mmg: {
+        resultado: 'verificado_de_mas',
+        objetivo: 13000,
+        depositado: 26000,
+        saldo: 13000,
+      },
+    });
+    expect(nota(s, 'EL CLIENTE DEPOSITO MAS') as string).toMatch(/Incidencia/);
+  });
+
+  it('si el cliente solo acusa recibo, no repite tarjeta ni celular', () => {
+    const s = correr({
+      snapshot: { texto_completo: 'perfecto' },
+      beneficiario: {
+        tarjeta_final: '9224069992922522',
+        celular_final: '53821202',
+      },
+      ctx: {
+        beneficiarios_registrados: [
+          { t: 'cuban_card', tarjeta: '9224069992922522', celular: '53821202' },
+        ],
+      },
+    });
+    const n = nota(s, 'Beneficiario YA REGISTRADO') as string;
+    expect(n).toBeDefined();
+    expect(n).toMatch(/NO repitas tarjeta ni celular/);
+    expect(n).not.toMatch(/OBLIGATORIO/);
+  });
+
+  it('"5 mil pesos" se cotiza como GYD sin preguntar CUP vs GYD', () => {
+    const s = correr({
+      snapshot: { texto_completo: 'cuanto le llega si envio 5 mil pesos?' },
+    });
+    const n = nota(s, 'CALCULO A HACER') as string;
+    expect(n).toMatch(/NO preguntes CUP vs GYD/);
+    expect(n).toMatch(/calcular_envio/);
+  });
+});

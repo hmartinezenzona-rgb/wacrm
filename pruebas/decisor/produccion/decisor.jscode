@@ -191,7 +191,7 @@ function rutaAdminAccion(ctx, texto, tel) {
 // Cash send (USD in hand in Cuba): the card notes do not apply; one cash note is emitted instead.
 const rielEfectivo = String(ctx.riel_operacion || '') === 'efectivo_usd';
 let tarjetaCtx = s.tarjeta, celularCtx = s.celular, veniaDeAntes = false;
-let zelleNomCtx = s.zelle_nombre, zelleCtaCtx = (s.zelle_correo || s.zelle_celular);
+let zelleNomCtx = s.zelle_nombre, zelleCtaCtx = (s.zelle_nombre_cuenta || s.zelle_correo || s.zelle_celular);
 try {
   const mb = $('Merge beneficiario').first().json;
   if (mb) {
@@ -204,6 +204,14 @@ try {
     if (mb.zelle_cuenta_final) zelleCtaCtx = mb.zelle_cuenta_final;
   }
 } catch (e) {}
+// SEVERAL ZELLE ACCOUNTS (ported 2026-11-05): never pick a name-account pair blindly. On 26-Oct the Snapshot carried one
+// account's name and two numbers; the first number belonged to the other account and the tool was forced with a mixed pair.
+// With more than one account nothing is registered until each pair is confirmed with the customer.
+const zelleCuentas = Array.from(new Set([...(s.zelle_correos || []), ...(s.zelle_celulares || [])]));
+const zelleVarios = !!s.zelle_varios || zelleCuentas.length > 1;
+if (zelleVarios) { zelleNomCtx = null; zelleCtaCtx = null; }
+// Resolver state (optional): the planned split of one deposit between services, when the context node supplies it.
+const R = (ctx.servicio_resuelto && typeof ctx.servicio_resuelto === 'object') ? ctx.servicio_resuelto : null;
 // RECARGA EN CURSO (13-ago-2026): hoy la recarga de la promo de Etecsa entro
 // como "Remesa" y el bot pidio LA TARJETA (Yilian, +5926595697). La senal
 // persistente la trae `Contexto conversacion` (recarga_en_curso): el cliente
@@ -647,10 +655,15 @@ if (s.multi_beneficiario) {
   }
 
 // ZELLE: el beneficiario no recibe CUP en una tarjeta, recibe DOLARES.
-if (s.datos_zelle) {
+if (zelleVarios) {
+  notas.push('VARIAS CUENTAS ZELLE DETECTADAS: ' + zelleCuentas.join(', ') + '. NO registres ninguna todavía ni mezcles un nombre con un número. Confirma con el cliente, UNA por UNA, qué nombre va con cada cuenta y cuánto va a cada una; después registra cada cuenta por separado con registrar_beneficiario_zelle (posicion/agregar/monto). PROHIBIDO asumir que el primer nombre va con el primer número.');
+}
+if (s.datos_zelle && !zelleVarios) {
   const cuenta = [s.zelle_nombre ? 'nombre ' + s.zelle_nombre : null,
                   s.zelle_celular ? 'celular de EEUU ' + s.zelle_celular : null,
                   s.zelle_correo ? 'correo ' + s.zelle_correo : null].filter(Boolean).join(' y ');
+  // Zelle plus CUP in the same send: the Zelle note must not forbid the CUP part.
+  const zelleMixto = /(resto|restante|rest|tarjeta|cup|moneda nacional|supervielle)/i.test(texto);
   // LO ACUMULADO, NO SOLO ESTE LOTE (17-ago-2026). Esta guarda preguntaba por
   // `s.tarjeta || s.celular` -el lote- mientras todo el bloque que la rodea usa
   // `tarjetaCtx / celularCtx` -lo acumulado entre lotes-. Con la tarjeta dada en
@@ -676,7 +689,7 @@ if (s.datos_zelle) {
       .concat(!s.zelle_celular && !s.zelle_correo && zelleCtaCtx ? ['Cuenta: ' + zelleCtaCtx] : [])
       .join(String.fromCharCode(10));
     const faltaZelle = !zelleNomCtx ? 'FALTA EL NOMBRE del titular' : (!zelleCtaCtx ? 'FALTA LA CUENTA (correo o celular de EEUU)' : '');
-    notas.push('DATOS DE ZELLE DETECTADOS: ' + cuenta + '. Este cliente quiere ZELLE (no CUP ni tarjeta Clasica/Tropical). PROHIBIDO pedirle tarjeta ni celular cubano. Confirmaselos COPIADOS TAL CUAL, sin cambiar ni un caracter, uno por linea (Etiqueta: valor), sin negrita. El NOMBRE de la cuenta es OBLIGATORIO: si no lo ha dado, pideselo.' + (zelleRegistrado ? ' YA ESTA REGISTRADO EN EL TABLERO: NO hay ninguna tool que llamar para esto, solo confirmaselo con palabras.' : ' NO ESTA REGISTRADO TODAVIA. Llama registrar_beneficiario_zelle EN ESTE MISMO TURNO con lo que haya (el nombre y/o la cuenta, la cuenta LITERAL tal como esta aqui arriba) y pide lo que falte.') + (faltaZelle ? ' ' + faltaZelle + ': PROHIBIDO decir "una vez hecha su remesa", "le notificamos" ni hablar de cuando se hace: sin ese dato no se puede hacer. Termina con UNA sola pregunta, la de ese dato.' : '') + ' Muestra al cliente EXACTAMENTE estas lineas, cada una en su linea:' + String.fromCharCode(10) + lineasZelle);
+    notas.push('DATOS DE ZELLE DETECTADOS: ' + cuenta + '. ' + (zelleMixto ? 'El cliente quiere ZELLE y ADEMAS el resto en CUP/tarjeta: NO le digas que no hay CUP ni le prohibas pedir la tarjeta; confirma la cuenta Zelle y pide la tarjeta y el celular de la parte CUP.' : 'Este cliente quiere ZELLE (no CUP ni tarjeta Clasica/Tropical). PROHIBIDO pedirle tarjeta ni celular cubano.') + ' Confirmaselos COPIADOS TAL CUAL, sin cambiar ni un caracter, uno por linea (Etiqueta: valor), sin negrita. El NOMBRE de la cuenta es OBLIGATORIO: si no lo ha dado, pideselo.' + (zelleRegistrado ? ' YA ESTA REGISTRADO EN EL TABLERO: NO hay ninguna tool que llamar para esto, solo confirmaselo con palabras.' : ' NO ESTA REGISTRADO TODAVIA. Llama registrar_beneficiario_zelle EN ESTE MISMO TURNO con lo que haya (el nombre y/o la cuenta, la cuenta LITERAL tal como esta aqui arriba) y pide lo que falte.') + (faltaZelle ? ' ' + faltaZelle + ': PROHIBIDO decir "una vez hecha su remesa", "le notificamos" ni hablar de cuando se hace: sin ese dato no se puede hacer. Termina con UNA sola pregunta, la de ese dato.' : '') + ' Muestra al cliente EXACTAMENTE estas lineas, cada una en su linea:' + String.fromCharCode(10) + lineasZelle);
   }
 }
 }
@@ -737,6 +750,9 @@ if (s.comprobante && !s.comprobante_duplicado) {
   const sumables = !!s.comprobantes_sumables;
   const totalRafaga = Number(s.comprobantes_total ?? 0);
   const monedaRafaga = String(s.comprobante.moneda ?? 'GYD');
+  const splitDeMas = !!(R && R.reparto_pendiente && Array.isArray(R.reparto_pendiente.partes) && R.reparto_pendiente.partes.length >= 2);
+  const nomDeMas = (sv) => ({ cuban_card: 'cup', efectivo_usd: 'efectivo' }[String(sv)] || String(sv));
+  const listaDeMas = splitDeMas ? R.reparto_pendiente.partes.map((p) => nomDeMas(p.servicio) + ' ' + Number(p.monto_gyd)).join(', ') : '';
   const importeDudoso = estadoV === 'DESCONOCIDO' || alertasV.includes('no esta claro');
   // `datos` NO cambia: es el comprobante unico, igual que siempre. Meter aqui
   // la rafaga entera alteraba el texto de ramas que no tienen nada que ver
@@ -752,6 +768,8 @@ if (s.comprobante && !s.comprobante_duplicado) {
     notas.push('RECIBIDO Y VERIFICADO CONTRA EL BANCO, PERO EL ENVIO TODAVIA NO ESTA COMPLETO. El cliente dijo que iba a enviar *'
       + fmtG(objetivoEnvio) + ' ' + monedaRafaga + '* y hasta ahora lleva *' + fmtG(depositado) + ' ' + monedaRafaga
       + '*: FALTAN *' + fmtG(saldo) + ' ' + monedaRafaga + '*. Confirmale que recibiste lo que mando, DILE CUANTO LLEVA Y CUANTO FALTA con esas tres cifras exactas, y dile que quedas esperando el resto para completar el envio. PROHIBIDO sumar ni restar tu nada: las cifras ya vienen calculadas. PROHIBIDO decir que ya se le va a transferir. PROHIBIDO decir que el envio esta completo. PROHIBIDO pedirle que reenvie lo que ya mando.');
+  } else if (veredicto === 'verificado_de_mas' && splitDeMas) {
+    notas.push('EL CLIENTE DEPOSITO *' + fmtG(depositado) + ' ' + monedaRafaga + '* y ese dinero ES EXACTAMENTE el reparto ya calculado (' + listaDeMas + '). NO es un deposito de mas ni una incidencia: NO le digas que mando mas, que se equivoco o que un companero lo revisa. Llama repartir_envio con TODAS las partes ya calculadas y confirma solo lo que devuelva la tool; PROHIBIDO decir completo o que la transferencia sale antes de la tool.');
   } else if (veredicto === 'verificado_de_mas') {
     notas.push('EL CLIENTE DEPOSITO MAS DE LO QUE DIJO QUE IBA A ENVIAR: dijo *'
       + fmtG(objetivoEnvio) + ' ' + monedaRafaga + '* y lleva *' + fmtG(depositado) + ' ' + monedaRafaga
@@ -837,7 +855,16 @@ if (ctx.via_deposito_ya_usada) {
 // muerto. Lo encontro una prueba end-to-end el 10-ago.
 // Lo ACUMULADO, no solo lo de este lote: el nombre pudo llegar en un mensaje
 // y la cuenta en otro, y el registro determinista ya los junto.
-const zelleCompleto = !!(zelleNomCtx && zelleCtaCtx);
+// Partly assigned Zelle (e.g. 50 of 100 USD): say how much is still unassigned; never treat it as complete.
+const montoRecibeZelle = Number(ctx.monto_recibe_valor);
+const monedaRecibeZelle = String(ctx.monto_recibe_moneda || '').toUpperCase();
+const zelleAsignado = regBen.filter(b => b.t === 'zelle' && b.monto != null).reduce((a,b) => a + Number(b.monto || 0), 0);
+const esZelle = !!(s.datos_zelle || zelleVarios || regBen.some(b => b.t === 'zelle') || (R && String(R.en_curso || '') === 'zelle'));
+const zellePorAsignar = (esZelle && monedaRecibeZelle === 'USD' && Number.isFinite(montoRecibeZelle) && montoRecibeZelle > 0) ? Math.max(0, montoRecibeZelle - zelleAsignado) : 0;
+const zelleCompleto = !!(zelleNomCtx && zelleCtaCtx) && zellePorAsignar <= 0.009;
+if (zellePorAsignar > 0.009) {
+  notas.push('FALTAN *' + zellePorAsignar.toLocaleString('en-US') + ' USD* POR ASIGNAR: el deposito cubre *' + montoRecibeZelle.toLocaleString('en-US') + ' USD* por Zelle y ya hay *' + zelleAsignado.toLocaleString('en-US') + ' USD* asignados. NO digas que esta completo ni que la transferencia sale; pide el nombre y la cuenta de los *' + zellePorAsignar.toLocaleString('en-US') + ' USD* que faltan. Si en ESTE mismo turno registras la cuenta que cubre el resto, entonces si puedes confirmar completo.');
+}
 // Para una RECARGA el destino queda sabido con el numero a recargar, sin
 // tarjeta: es la naturaleza del servicio, no una excepcion de la guarda.
 const sabeDestino = !!((tarjetaCtx && celularCtx) || zelleCompleto || ctx.tiene_beneficiario || (recargaEnCurso && celularCtx) || (comboEnCurso && comboCompleto) || visaEnCurso);
@@ -897,6 +924,7 @@ if (s.comprobante && !sabeDestino) {
   else if (celularCtx && !tarjetaCtx) { falta = 'la TARJETA de quien recibe en Cuba'; }
   else if (zelleCtaCtx && !zelleNomCtx) { falta = 'el NOMBRE del titular de la cuenta Zelle (la cuenta ya la dio: ' + zelleCtaCtx + ')'; }
   else if (zelleNomCtx && !zelleCtaCtx) { falta = 'la CUENTA Zelle (el correo o el celular de EEUU). El nombre ya lo dio: ' + zelleNomCtx; }
+  else if (zelleVarios) { falta = 'confirmar qué nombre va con cada cuenta Zelle y cuánto va a cada una'; }
   else if (s.datos_zelle) { falta = 'lo que falte de la cuenta Zelle (nombre del titular o numero)'; }
   if (falta) {
     notas.push('FALTAN DATOS DE QUIEN RECIBE: falta ' + falta + '. PROHIBIDO decir que le vas a hacer la transferencia. PROHIBIDO decir "en breve le hacemos la transferencia" ni "apenas lo verifiquemos le transferimos". Acusa recibo del deposito y PIDE ' + falta + '.');

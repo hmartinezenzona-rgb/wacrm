@@ -38,9 +38,14 @@ Strict, on. vitest (`npx vitest run pruebas/decisor/produccion`).
 
 ## Tasks
 
-- [ ] T1 Port the missing protections with tests.
+- [x] T1 Port the missing protections with tests. Evidence: 6 new tests RED (6 failed / 81), then GREEN (81/81); full suite 273 files, 3806 passed; new production md5 f8de0539 (full f8de0539dcb3460b87886582a555ad13). Commit: see Progress.
 - [ ] T2 Deploy to production.
 
 ## Progress
 
 - 2026-11-05 created. RDD off.
+- 2026-11-05 T1 done. Ported: several Zelle accounts (no forced pair, zelle_nombre_cuenta wins), Zelle+CUP note,
+  deposit equal to planned split (reads optional ctx.servicio_resuelto.reparto_pendiente; dormant until the context node
+  supplies it, production had no resolver state), partly assigned Zelle (FALTAN x USD). Already present in production:
+  acknowledgement-only summary (soloAcuse), "5 mil pesos" as GYD, follow-up brevity (own cotizacionPrevia design),
+  "Lista para transferir" without "enseguida". Not ported: rp325 / resolver-based etapa logic (different lineage).

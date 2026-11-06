@@ -665,3 +665,42 @@ describe("CompleteTransferContainer: CUP source card (migration 257)", () => {
     await act(async () => root.unmount());
   });
 });
+
+describe("CompleteTransferContainer: Clásica / Tropical balance block", () => {
+  const blockedPlan = {
+    state: "plan", estimate: true, cubaMonth: "2026-11-01", blocked: true,
+    services: [{ service: "TROPICAL", neededUsd: 400, plannedUsd: 250, missingUsd: 150, blocked: true, investedUsdt: 238, lines: [] }],
+  };
+  const okPlan = { ...blockedPlan, blocked: false, services: [{ ...blockedPlan.services[0], blocked: false, missingUsd: 0 }] };
+
+  function stubUsd(plan: unknown) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) =>
+        url.includes("/usd-plan")
+          ? Promise.resolve(new Response(JSON.stringify({ usdPlan: plan }), { status: 200 }))
+          : Promise.resolve(readyOperationsResponse()),
+      ),
+    );
+  }
+
+  it("a short balance shows the red message and disables completing", async () => {
+    stubUsd(blockedPlan);
+    const { node, root } = await renderContainer();
+    await flush();
+
+    expect(node.textContent).toContain("150 USD missing on Tropical: buy balance before completing");
+    expect(submitButton(node).disabled).toBe(true);
+    await act(async () => root.unmount());
+  });
+
+  it("with enough balance the complete button stays enabled", async () => {
+    stubUsd(okPlan);
+    const { node, root } = await renderContainer();
+    await flush();
+
+    expect(node.textContent).not.toContain("150 USD missing");
+    expect(submitButton(node).disabled).toBe(false);
+    await act(async () => root.unmount());
+  });
+});

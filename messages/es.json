@@ -482,7 +482,8 @@
           "noSourceAmount": "La operación no tiene un monto de origen que financiar.",
           "fundingMissing": "Falta verificar el depósito: tiene {deposited} de {required} GYD",
           "recipientsMismatch": "Los beneficiarios suman {sum} {currency} pero la operación envía {sent} {currency}. Complétalos antes de entregar.",
-          "proofsMissing": "Faltan los comprobantes de entrega: {count}"
+          "proofsMissing": "Faltan los comprobantes de entrega: {count}",
+          "usdInventoryInsufficient": "Faltan {missing} USD en {service}. Compra saldo en el inventario de tarjetas antes de completar."
         },
         "proof": {
           "dropHint": "Pega (Ctrl+V), suelta o elige una captura",
@@ -500,6 +501,19 @@
         "sourceCardAuto": "Automática (por prioridad)",
         "sourceCardOption": "{name} ·{last4} · {amount} CUP",
         "sourceCardOptionNoLast4": "{name} · {amount} CUP"
+      },
+      "usdPlan": {
+        "planTitle": "Sale de (estimado)",
+        "usedTitle": "Salió de",
+        "line": "{card} ···· {last4}: {amount} USD ({lot})",
+        "lineNoLast4": "{card}: {amount} USD ({lot})",
+        "lotAt": "lote al {discount}",
+        "lot1x1": "lote 1x1",
+        "blocked": "Faltan {amount} USD en {service}: compra saldo antes de completar",
+        "serviceCLASICA": "Clásica",
+        "serviceTROPICAL": "Tropical",
+        "cost": "Costo real: {usdt} USDT",
+        "shortfall": "No había saldo para {amount} USD: revisa el inventario"
       },
       "viewer": {
         "zoomOut": "Alejar",

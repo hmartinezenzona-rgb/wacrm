@@ -46,3 +46,16 @@ describe("parseDeliveryRefusal", () => {
     expect(parseDeliveryRefusal("Network error")).toBeNull();
   });
 });
+
+describe("parseDeliveryRefusal: USD inventory block", () => {
+  it("maps usd_inventory_insufficient with the service and the missing amount", () => {
+    expect(parseDeliveryRefusal("usd_inventory_insufficient:TROPICAL:150 (needs 400 USD, 250 USD available)")).toEqual({
+      key: "usdInventoryInsufficient",
+      params: { service: "Tropical", missing: "150" },
+    });
+    expect(parseDeliveryRefusal("usd_inventory_insufficient:CLASICA:1234.5 (needs 2000 USD, 765.5 USD available)")).toEqual({
+      key: "usdInventoryInsufficient",
+      params: { service: "Clásica", missing: "1,234.5" },
+    });
+  });
+});

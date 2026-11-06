@@ -54,6 +54,7 @@ import { parseDeliveryRefusal } from "@/lib/remittance-operations/delivery-refus
 import type { ConversationOperationsRead } from "@/lib/remittance-operations/types";
 import { CompleteTransferSection, type CompleteTransferBanner } from "./complete-transfer-section";
 import { CupPlanBlock } from "./cup-plan-block";
+import { UsdPlanBlock } from "./usd-plan-block";
 import { CompleteTransferMultiSection, type CompleteTransferProofItem } from "./complete-transfer-multi-section";
 
 /** A current beneficiary, as far as this container needs to know: which
@@ -134,6 +135,8 @@ export function CompleteTransferContainer({
   // (257) The sending card the CUP leaves from; null = automatic (by priority). Read through a ref by `buildDeps` like `notify`.
   const [cupSourceCardId, setCupSourceCardIdState] = useState<string | null>(null);
   const cupSourceCardRef = useRef<string | null>(null);
+  // Clásica / Tropical: the plan says the card balance is short, so completing is disabled until more balance is bought.
+  const [usdBlocked, setUsdBlocked] = useState(false);
   const setCupSourceCardId = useCallback((value: string | null) => {
     cupSourceCardRef.current = value;
     setCupSourceCardIdState(value);
@@ -690,6 +693,14 @@ export function CompleteTransferContainer({
     };
   }, [partHandleRef, multiMode, run, runMulti]);
 
+  const planBlocks = (
+    <>
+      <CupPlanBlock operationId={operationId} sourceCardId={cupSourceCardId} onSourceCardChange={setCupSourceCardId} />
+      <UsdPlanBlock operationId={operationId} onBlockedChange={setUsdBlocked} />
+    </>
+  );
+  const canComplete = canSend && !usdBlocked;
+
   if (multiMode) {
     const items: CompleteTransferProofItem[] = beneficiaries.map((b, index) => {
       const d = beneficiaryDrafts[b.id];
@@ -714,7 +725,7 @@ export function CompleteTransferContainer({
         skipChecked={skipChecked}
         onSkipChange={setSkipChecked}
         busy={busy}
-        canSend={canSend}
+        canSend={canComplete}
         canSubmit={canSubmit}
         banner={banner}
         onCancel={handleCancel}
@@ -722,7 +733,7 @@ export function CompleteTransferContainer({
         notify={notify}
         onNotifyChange={setNotify}
         hideActions={!!part}
-        extra={<CupPlanBlock operationId={operationId} sourceCardId={cupSourceCardId} onSourceCardChange={setCupSourceCardId} />}
+        extra={planBlocks}
       />
     );
   }
@@ -740,14 +751,14 @@ export function CompleteTransferContainer({
       skipChecked={skipChecked}
       onSkipChange={setSkipChecked}
       busy={busy}
-      canSend={canSend}
+      canSend={canComplete}
       banner={banner}
       onCancel={handleCancel}
       onSubmit={() => void run({ skip: skipChecked })}
       notify={notify}
       onNotifyChange={setNotify}
       hideActions={!!part}
-      extra={<CupPlanBlock operationId={operationId} sourceCardId={cupSourceCardId} onSourceCardChange={setCupSourceCardId} />}
+      extra={planBlocks}
     />
   );
 }

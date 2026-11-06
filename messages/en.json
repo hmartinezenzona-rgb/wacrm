@@ -482,7 +482,8 @@
           "noSourceAmount": "The operation has no source amount to fund.",
           "fundingMissing": "Deposit not verified yet: it has {deposited} of {required} GYD",
           "recipientsMismatch": "The recipients add up to {sum} {currency} but the operation sends {sent} {currency}. Complete them before delivering.",
-          "proofsMissing": "Missing delivery proofs: {count}"
+          "proofsMissing": "Missing delivery proofs: {count}",
+          "usdInventoryInsufficient": "{missing} USD missing on {service}. Buy balance in the card inventory before completing."
         },
         "proof": {
           "dropHint": "Paste (Ctrl+V), drop or choose a screenshot",
@@ -500,6 +501,19 @@
         "sourceCardAuto": "Automatic (by priority)",
         "sourceCardOption": "{name} ·{last4} · {amount} CUP",
         "sourceCardOptionNoLast4": "{name} · {amount} CUP"
+      },
+      "usdPlan": {
+        "planTitle": "Leaves from (estimate)",
+        "usedTitle": "Left from",
+        "line": "{card} ···· {last4}: {amount} USD ({lot})",
+        "lineNoLast4": "{card}: {amount} USD ({lot})",
+        "lotAt": "{discount} lot",
+        "lot1x1": "1x1 lot",
+        "blocked": "{amount} USD missing on {service}: buy balance before completing",
+        "serviceCLASICA": "Clásica",
+        "serviceTROPICAL": "Tropical",
+        "cost": "Real cost: {usdt} USDT",
+        "shortfall": "There was no balance for {amount} USD: check the inventory"
       },
       "viewer": {
         "zoomOut": "Zoom out",

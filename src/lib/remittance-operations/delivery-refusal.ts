@@ -16,7 +16,8 @@ export interface DeliveryRefusal {
     | "noSourceAmount"
     | "fundingMissing"
     | "recipientsMismatch"
-    | "proofsMissing";
+    | "proofsMissing"
+    | "usdInventoryInsufficient";
   params: Record<string, string | number>;
 }
 
@@ -62,6 +63,14 @@ export function parseDeliveryRefusal(message: string): DeliveryRefusal | null {
   const proofs = /every beneficiary needs its delivery proof.*\((\d+) missing\)/.exec(message);
   if (proofs) {
     return { key: "proofsMissing", params: { count: Number(proofs[1]) } };
+  }
+  // Migration 356: Clásica / Tropical balance is short -> `usd_inventory_insufficient:<SERVICE>:<missing_usd> (needs N USD, M USD available)`.
+  const usd = /usd_inventory_insufficient:(CLASICA|TROPICAL):([\d.]+)/.exec(message);
+  if (usd) {
+    return {
+      key: "usdInventoryInsufficient",
+      params: { service: usd[1] === "CLASICA" ? "Clásica" : "Tropical", missing: formatAmount(usd[2]) },
+    };
   }
   return null;
 }

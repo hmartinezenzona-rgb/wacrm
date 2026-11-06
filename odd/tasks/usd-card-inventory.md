@@ -49,7 +49,7 @@ Out: Zelle, bot/n8n changes, the 20 USD minimum (done), production (needs explic
   Forecast well above 400 authored lines; slices are the tasks below.
 
 ## Tasks
-- [ ] T1 Migration 355: usd_cards / usd_lots / usd_lot_consumptions + admin RPCs (save card, load lot, correct/delete
+- [x] T1 (64c523f) Migration 355: usd_cards / usd_lots / usd_lot_consumptions + admin RPCs (save card, load lot, correct/delete
       untouched lot, adjust balance, report with balance and month usage) + rollback + staging assertion
 - [ ] T2 Migration 356: plan / consume / return for USD, feed cost from lots, manual lines, void and delete paths,
       hard block in crm_entregar_operacion + crm_cerrar_operacion_manual, panel plan RPC; rollback; assertion
@@ -70,6 +70,7 @@ Out: Zelle, bot/n8n changes, the 20 USD minimum (done), production (needs explic
 
 ## Progress / evidence
 - 2026-11-06: document created after the design approval and a read-only map of the CUP inventory.
+- 2026-11-06: T1 written in 64c523f (355, ROLLBACK-355, assertion usd-card-inventory.sql). SQL UNVERIFIED: RED/GREEN runs pending the T6 staging run; no local SQL engine.
 
 ## Next step
-T1.
+T2.

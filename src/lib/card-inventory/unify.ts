@@ -154,7 +154,7 @@ export interface ServiceTotal {
   unit: CardUnit;
   cards: number;
   balance: number;
-  /** No balance at all (also when the service has no card yet): the strip paints it red. */
+  /** No balance at all (also when the service has no card yet): the strip says "Sin saldo". */
   empty: boolean;
 }
 

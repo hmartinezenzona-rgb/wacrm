@@ -55,8 +55,8 @@ Out: Zelle, bot/n8n changes, the 20 USD minimum (done), production (needs explic
       delete paths, hard block in crm_entregar_operacion + crm_cerrar_operacion_manual, panel plan RPC; rollback; assertion
 - [x] T2b (c64241c) Migration 357: crm_resolve_pending_entry consumes USD for a resolved pending CLASICA/TROPICAL line; rollback; assertion usd-inventory-pending.sql
 - [x] T3 (56466f9) API routes + lib (read model, payloads, forms, format) for USD cards and lots + tests
-- [ ] T4 Unified "Inventario de tarjetas" page per the approved design (CUP + Clásica + Tropical), sidebar, i18n, tests
-- [ ] T5 Delivery panel: USD plan block + refusal mapping for the insufficient-balance block + tests
+- [x] T4 (e27247f) Unified "Inventario de tarjetas" page per the approved design (CUP + Clásica + Tropical), sidebar, i18n, tests
+- [x] T5 Delivery panel: USD plan block + refusal mapping for the insufficient-balance block + tests
 - [ ] T6 Staging: apply 355-356, run assertions, deploy, demo cards/lots, owner check
 - [ ] T7 Production (needs the owner's explicit go-ahead)
 
@@ -93,6 +93,12 @@ Out: Zelle, bot/n8n changes, the 20 USD minimum (done), production (needs explic
 - 2026-11-06: T3 (56466f9). RED: `Cannot find module './format'` (4 lib files) and `Cannot find module '/src/app/api/inventario-usd/route'` (6 route files).
   GREEN: usd-inventory lib 4 files + cup-inventory = 190 tests pass; inventario-usd routes + inventario-cup routes 12 files / 75 tests pass; tsc and eslint clean.
   Only change to CUP code: cup-inventory/payloads.ts now exports its small validation helpers (fail, isObject, unknownKey, isPositive, parseNote, limits) for reuse.
+- 2026-11-06: T4 (e27247f). RED: 20 page tests failed (e.g. `TypeError: Cannot read properties of undefined (reading 'querySelector')`), unify lib `Cannot find module './unify'`.
+  GREEN: page 39 tests, unify 8, sidebar-nav after label change; tsc/eslint clean. Adapted CUP tests: page.test.tsx (mount() now expands rows, fetch mocked by URL because the page also reads
+  /api/inventario-usd and /api/calculator/rates) and sidebar-nav.test.ts (nav label now "Inventario de tarjetas"/"Card inventory"). card-panel.tsx replaced by card-row.tsx.
+  Cost per USD column uses GET /api/calculator/rates (usdtBuyGyd/usdtSellGyd, today's rates, not historic); omitted when rates are absent.
+- 2026-11-06: T5. RED: panel.ts `Cannot find module './panel'`, usd-plan route module missing, refusal `expected null to deeply equal {...}`, usd-plan-block module missing.
+  GREEN: full `npm test` 289 files / 3973 tests pass; tsc and eslint clean. Complete button disabled while the plan is blocked (container test).
 
 ## Next step
-T3 (API routes + lib for USD cards and lots). T5 maps the refusal prefix and renders crm_inventario_usd_operacion.
+T6 (staging). T5 maps the refusal prefix and renders crm_inventario_usd_operacion.

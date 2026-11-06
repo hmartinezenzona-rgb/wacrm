@@ -35,7 +35,7 @@ Strict, on. vitest.
 
 ## Tasks
 
-- [ ] T1 Deleted operations are not listed. Owner 2026-11-06: "si, haz la migracion para ocultar las eliminadas" -> migration 354: `crm_historial_operaciones` and `crm_historial_estados` (351) exclude operations whose latest audit with after.status = cancelled is `human_operation_deleted` (rows, totals, counts and pagination stay consistent). Staging first; production after go-ahead.
+- [x] T1 Deleted operations are not listed. Owner 2026-11-06: "si, haz la migracion para ocultar las eliminadas" -> migration 354: `crm_historial_operaciones` and `crm_historial_estados` (351) exclude operations whose latest audit with after.status = cancelled is `human_operation_deleted` (rows, totals, counts and pagination stay consistent). Staging first; production after go-ahead.
 - [x] T2 Instant removal, toast and clear refusal messages. RED observed (7 failing), then GREEN.
 - [ ] T3 Production panel deploy after the owner's go-ahead.
 
@@ -54,3 +54,9 @@ Strict, on. vitest.
   server text; the card calls the new `onDeleted(id)` before `onChanged`; the container drops the card from state and
   toasts `closing.deleted`. Checks: vitest on inbox + remittance-operations + api 66 files / 1079 passed; full vitest
   275 files / 3818 passed; tsc clean; eslint clean on changed files.
+- 2026-11-06 T1 done on staging (production pending the owner's go-ahead): migration 354 redefines
+  `crm_historial_operaciones` and `crm_historial_estados`; `base` excludes status = 'cancelled' operations whose latest
+  `remittance_admin_audit` row (table_name 'remittance_operations', row_id = op id, after->>'status' = 'cancelled') has
+  action `human_operation_deleted`. Assertion `historial-oculta-eliminadas.sql`: RED before (case 1, 2 rows), GREEN after.
+  `staging-migracion.sh aplicar`: dry-run/apply/assertion/rollback OK (md5 equal to previous). `relacionadas crm_historial`
+  with `--ya-aplicada`: historial-busqueda SAME (ALL PASS), new assertion DIFF (base fails, mig passes), as intended.

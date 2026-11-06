@@ -25,6 +25,10 @@ Phases 1 and 2 only reorganize what already exists: no calculation changes.
 - 2026-11-06 reconciliation closed by the owner: Osmany uses the calculator (Semana) as his ledger; operations that do
   not come through chats or customers are typed in as manual lines, so the week's facturado is complete by his own
   practice. No MMG-vs-facturado cross-check is built; phase 4 keeps only the close assistant.
+- 2026-11-06 review: phases 3 and 4 were already absorbed by S1/S2 (KPIs with ganancia first and the change vs the
+  previous week, profit by day Mon-Sat, "Hoy" box, top 5 clients by profit, "Cerrar la semana" section). The open
+  week = entries since the last archive; Osmany archives on Saturday, so the week is Mon-Sat and Sunday work falls in
+  the next week with no code change. Nothing left to build unless the owner asks for something new.
 
 ## Facts (code, 2026-10-28)
 

@@ -18,6 +18,10 @@ Phases 1 and 2 only reorganize what already exists: no calculation changes.
 - 2026-10-28: "quisiera fusionar finanzas con control semanal y eliminar el dashboard ya que Osmany ni lo usa".
 - Research structure B accepted. "si, empieza con las fases 1 y 2".
 - Phases 3 and 4 wait for Osmany's answers: what a week is, which number first, the MMG/USDT reconciliation.
+- 2026-11-06 owner answers for phases 3-4: the week runs Monday to Saturday and Osmany closes everything on Saturday;
+  Sunday is not a working day but he sometimes serves a client (default: Sunday work belongs to the next week, since
+  Saturday's close already happened). First number: profit (ganancia). Reconciliation: still open; the owner believes
+  the purchase rates of the assets already cover it, a focused question was proposed to settle it.
 
 ## Facts (code, 2026-10-28)
 

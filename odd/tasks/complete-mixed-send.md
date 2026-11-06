@@ -48,7 +48,7 @@ Strict, on. vitest.
 
 - [x] T1 Group card with one "Completar envio" when one deposit pays the whole send. (6210eaa)
 - [x] T2 The sheet completes every part through the existing deliver route. (78983d6)
-- [ ] T3 Staging check with a PRUEBA mixed send (owner), cleanup; production after go-ahead.
+- [x] T3 Owner checked staging ("ya vi completar envio, pasalo a produccion", 2026-11-06). Panel release/prod-completar-envio = e043ffe (pushed to privado), BUILD_ID nlLPYhsroh5WQzumMdTfP, rollback target 1171d33. Notifier prod wGud0KGR6eMqqfMQ: backup ...-c46494d5-...-20261106-091944.json, versionId c46494d5 -> 28b67642 (= active), Filtrar 8922953f, Leer secreto query 15157ed1; grupo_pendientes checked on prod group 2490c045. Staging fixture 0032 cleaned (0 rows left).
 - [x] T4 (46053f5) Rework to mockup v2 (owner 2026-11-05: first staging look "no sigue el diseno de produccion", "listo para
   transferir sale en cada seccion, redundante"; approved https://claude.ai/artifact/7QnurZN2BiEw7NeD1AFkcB "si, me
   gusta"): the group's status chip once in the mixed block header (a member shows its own chip only when it differs

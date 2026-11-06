@@ -52,7 +52,10 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 
   return (
     <AwayModeProvider>
-      <div className="flex h-dvh overflow-hidden bg-background">
+      {/* `relative` makes this box the containing block of absolutely positioned descendants (sr-only
+          text, icons) so its overflow-hidden clips them; otherwise they extend the document and the
+          whole panel scrolls. */}
+      <div className="relative flex h-dvh overflow-hidden bg-background">
         {/* Reports this tab's online/away presence once we know a user is
             signed in. Headless — renders nothing. */}
         <PresenceHeartbeat />

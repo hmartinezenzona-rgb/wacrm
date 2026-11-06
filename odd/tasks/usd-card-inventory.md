@@ -109,4 +109,4 @@ Out: Zelle, bot/n8n changes, the 20 USD minimum (done), production (needs explic
 - 2026-11-06 owner checked staging ("se ve bien"). Cleanup after the dry run shown to the owner: 2 PRUEBA contacts/convs/ops/beneficiaries/deposits and the 2 demo USD cards + 3 lots deleted; recount 0/0/0.
 
 ## Next step
-T6 (staging). T5 maps the refusal prefix and renders crm_inventario_usd_operacion.
+T7 production: owner go-ahead, then produccion-migracion.sh previa/aplicar/verificar 355-357, then publish the panel (wacrm-publicar-panel). Osmany must load his real Clásica/Tropical cards and lots afterwards; until then nothing is blocked.

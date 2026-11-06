@@ -33,7 +33,7 @@ Do not touch `pruebas/decisor/decisor.jscode`, `pruebas/decisor/correr.ts`, `pru
 
 - [x] T1 Team-given data is never registered.
 - [x] T2 No open operation and no new request: ask before registering.
-- [ ] T3 Production deploy after go-ahead.
+- [x] T3 Production 2026-11-06 (owner: "ok"): backup produccion-jEzlVLCLUaJhVwzs-48803b21-...-20261106-093538.json; versionId 48803b21 -> 3500084d (= active); Decisor f8de0539 -> d63c936e.
 
 ## Implementation notes (T1, T2)
 

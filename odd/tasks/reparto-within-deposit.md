@@ -52,7 +52,7 @@ Out: the orphan cerebro_aplicar_reparto; Zelle (already guarded by 335); the pan
 - RDD off. TDD on (user global config), runner npm test / vitest.
 
 ## Tasks
-- [ ] T1 Migration 358: reparto total helper (available GYD/CUP/USD for an operation, null when not verified) and the
+- [x] T1 (28ae52d) Migration 358: reparto total helper (available GYD/CUP/USD for an operation, null when not verified) and the
       guard inside cerebro_guardar_reparto (over -> refuse, partial -> remaining, complete-under -> FALTA leftover);
       ROLLBACK; assertion (both 2026-11-07 cases as fixtures, partial, mixed CUP+USD, unverified op unchanged,
       empty-amount patch unchanged)
@@ -72,6 +72,20 @@ Out: the orphan cerebro_aplicar_reparto; Zelle (already guarded by 335); the pan
 
 ## Progress / evidence
 - 2026-11-07: root cause and map done (read-only; executions 668756, 666918, 666930; live md5 346793f8).
+- 2026-11-07 T1 done, commit 28ae52d (not applied on staging yet; only rolled-back transactions). Staging and production
+  `cerebro_guardar_reparto` were identical (md5 346793f8) before writing. Added `cerebro_reparto_disponible(op)` ->
+  (base_gyd, tasa_cup, total_cup, tasa_usd, total_usd), all NULL while the deposit is not verified (status
+  ready_to_transfer/transferring or cerebro_fondos_operacion.cubierto); guard in `cerebro_guardar_reparto` on the merged
+  slots, compared in GYD, tolerance 1 CUP / 1 USD per card; numbers in replies are plain digits (no thousands separator).
+  - RED (current live function, assertion reparto-within-deposit.sql): `ERROR: 14 expectation(s) failed` (cases 1a-1d,
+    2b, 2c, 4b, 5a, 5b, 8b-8d, 9c, 10a); the unchanged-behavior cases (3, 6, 7, 8a, 9a, 9b) passed.
+  - GREEN (BEGIN; 358; assertion; ROLLBACK): 40 `ok`, `ERROR: ALL PASS (rolled back on purpose)`;
+    `staging-migracion.sh aplicar ... ` with DRY_ONLY=1: `dry-run OK`.
+  - Rollback check (358 then ROLLBACK-358 in a rolled-back transaction): md5 346793f8 and ACL restored, helper gone.
+  - relacionadas: `cerebro_guardar_reparto` pattern TOTAL 5 SAME 5 DIFF 0; wider pattern
+    `registrar_reparto_multiple|cerebro_guardar_reparto|cerebro_guardar_beneficiario` TOTAL 28 SAME 28 DIFF 0 (7 of them
+    already failed on the base for unrelated reasons: agreed-amount, deposit-anchor, grants-mirror-production,
+    reparto-destino-node-adapters, saldo-model, visa-model, writers-resolver).
 
 ## Next step
-T1.
+T2 (context `reparto_cuadre`, using `cerebro_reparto_disponible`).

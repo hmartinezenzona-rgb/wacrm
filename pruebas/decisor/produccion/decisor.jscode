@@ -507,7 +507,8 @@ if (datoDelEquipo) {
   notas.push('ESOS DATOS LOS DIO EL EQUIPO (un companero los escribio en este chat): no son de un beneficiario del cliente. PROHIBIDO registrarlos, PROHIBIDO abrir un envio con ellos y PROHIBIDO preguntar por ellos. Responde solo a lo que dice el cliente.');
 }
 const hora = new Date().toLocaleString('es-ES', { timeZone: 'America/Guyana', weekday: 'long', hour: '2-digit', minute: '2-digit' });
-const saludoCliente = (texto.match(/buen[oa]s\s+(d[ií]as|tardes|noches)/i) || [null])[0];
+// (2026-11-07) The LAST greeting wins: "Buenos dias ... buenas tardes ya" is a self-correction.
+const saludoCliente = (texto.match(/buen[oa]s\s+(d[ií]as|tardes|noches)/gi) || [null]).slice(-1)[0];
 const salu2 = /\b(hola|buenas|hey|que tal|qué tal)\b/i.test(texto);
 // PRESENTACION: una vez al dia. SALUDO: siempre que el cliente salude.
 const franja = saludoCliente ? ('la MISMA franja que uso el cliente ("' + saludoCliente + '"), aunque la hora del negocio sea otra') : ('la franja que corresponda a la hora del negocio (' + hora + ')');
@@ -737,7 +738,13 @@ if (s.datos_zelle && !zelleVarios) {
       .concat(!s.zelle_celular && !s.zelle_correo && zelleCtaCtx ? ['Cuenta: ' + zelleCtaCtx] : [])
       .join(String.fromCharCode(10));
     const faltaZelle = !zelleNomCtx ? 'FALTA EL NOMBRE del titular' : (!zelleCtaCtx ? 'FALTA LA CUENTA (correo o celular de EEUU)' : '');
-    notas.push('DATOS DE ZELLE DETECTADOS: ' + cuenta + '. ' + (zelleMixto ? 'El cliente quiere ZELLE y ADEMAS el resto en CUP/tarjeta: NO le digas que no hay CUP ni le prohibas pedir la tarjeta; confirma la cuenta Zelle y pide la tarjeta y el celular de la parte CUP.' : 'Este cliente quiere ZELLE (no CUP ni tarjeta Clasica/Tropical). PROHIBIDO pedirle tarjeta ni celular cubano.') + ' Confirmaselos COPIADOS TAL CUAL, sin cambiar ni un caracter, uno por linea (Etiqueta: valor), sin negrita. El NOMBRE de la cuenta es OBLIGATORIO: si no lo ha dado, pideselo.' + (zelleRegistrado ? ' YA ESTA REGISTRADO EN EL TABLERO: NO hay ninguna tool que llamar para esto, solo confirmaselo con palabras.' : ' NO ESTA REGISTRADO TODAVIA. Llama registrar_beneficiario_zelle EN ESTE MISMO TURNO con lo que haya (el nombre y/o la cuenta, la cuenta LITERAL tal como esta aqui arriba) y pide lo que falte.') + (faltaZelle ? ' ' + faltaZelle + ': PROHIBIDO decir "una vez hecha su remesa", "le notificamos" ni hablar de cuando se hace: sin ese dato no se puede hacer. Termina con UNA sola pregunta, la de ese dato.' : '') + ' Muestra al cliente EXACTAMENTE estas lineas, cada una en su linea:' + String.fromCharCode(10) + lineasZelle);
+    const zelleYaConfirmada = zelleRegistrado && !faltaZelle;
+    notas.push('DATOS DE ZELLE DETECTADOS: ' + cuenta + '. ' + (zelleMixto ? 'El cliente quiere ZELLE y ADEMAS el resto en CUP/tarjeta: NO le digas que no hay CUP ni le prohibas pedir la tarjeta; confirma la cuenta Zelle y pide la tarjeta y el celular de la parte CUP.' : 'Este cliente quiere ZELLE (no CUP ni tarjeta Clasica/Tropical). PROHIBIDO pedirle tarjeta ni celular cubano.')
+      // (2026-11-07) Registered in an earlier turn = already shown to the customer: a resent contact card must
+      // not repeat the "Cuenta Zelle anotada" block.
+      + (zelleYaConfirmada
+        ? ' ESA CUENTA YA ESTABA ANOTADA en el tablero y ya se la confirmaste antes: NO hay ninguna tool que llamar y NO repitas las lineas de la cuenta. Si hace falta, di solo "Esa cuenta ya la tengo anotada." y responde lo nuevo que diga el cliente.'
+        : ' Confirmaselos COPIADOS TAL CUAL, sin cambiar ni un caracter, uno por linea (Etiqueta: valor), sin negrita. El NOMBRE de la cuenta es OBLIGATORIO: si no lo ha dado, pideselo.' + (zelleRegistrado ? ' YA ESTA REGISTRADO EN EL TABLERO: NO hay ninguna tool que llamar para esto, solo confirmaselo con palabras.' : ' NO ESTA REGISTRADO TODAVIA. Llama registrar_beneficiario_zelle EN ESTE MISMO TURNO con lo que haya (el nombre y/o la cuenta, la cuenta LITERAL tal como esta aqui arriba) y pide lo que falte.') + (faltaZelle ? ' ' + faltaZelle + ': PROHIBIDO decir "una vez hecha su remesa", "le notificamos" ni hablar de cuando se hace: sin ese dato no se puede hacer. Termina con UNA sola pregunta, la de ese dato.' : '') + ' Muestra al cliente EXACTAMENTE estas lineas, cada una en su linea:' + String.fromCharCode(10) + lineasZelle));
   }
 }
 }

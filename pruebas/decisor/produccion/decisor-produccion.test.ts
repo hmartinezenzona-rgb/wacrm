@@ -1414,3 +1414,56 @@ describe('datos dados por el equipo no son un beneficiario del cliente', () => {
     expect(s.mensaje).toContain('Llama registrar_beneficiario_zelle');
   });
 });
+
+// Owner 2026-11-07 (conversation review of 2026-11-06): the customer said "Buenos dias ... buenas tardes ya" at
+// 14:19 Guyana and the bot answered "Buenos dias": it mirrored the FIRST greeting instead of the correction.
+describe('saludo: se copia el ultimo saludo del cliente', () => {
+  it('con una autocorreccion usa la franja corregida', () => {
+    const s = correr({
+      historial: { primer_del_dia: true },
+      snapshot: { texto_completo: 'Buenos días, buenas tardes ya. Es para poner trece mil' },
+    });
+    const n = nota(s, 'PRIMER CONTACTO DEL DIA') as string;
+    expect(n).toContain('"buenas tardes"');
+    expect(n).not.toContain('"Buenos días"');
+  });
+
+  it('con un solo saludo lo sigue copiando', () => {
+    const s = correr({
+      historial: { primer_del_dia: true },
+      snapshot: { texto_completo: 'Buenas noches, quiero enviar' },
+    });
+    expect(nota(s, 'PRIMER CONTACTO DEL DIA') as string).toContain('"Buenas noches"');
+  });
+});
+
+// Owner 2026-11-07: the customer resent the same Zelle contact card and the bot showed "Cuenta Zelle anotada"
+// a second time a minute later. An account already registered in an earlier turn was already confirmed.
+describe('Zelle ya anotada en un turno anterior: no se repite la confirmacion', () => {
+  const yaRegistrada: Entradas = {
+    historial: { envios_abiertos: 1 },
+    ctx: { beneficiarios_registrados: [{ t: 'zelle', nombre: 'Maria Lopez', cuenta: '3051234567' }] },
+    snapshot: {
+      texto_completo: 'Maria Lopez 13051234567',
+      datos_zelle: true,
+      zelle_nombre: 'Maria Lopez',
+      zelle_celular: '13051234567',
+    },
+  };
+
+  it('no ordena mostrar otra vez las lineas de la cuenta', () => {
+    const s = correr(yaRegistrada);
+    expect(s.mensaje).not.toContain('Cuenta Zelle anotada:');
+    const n = nota(s, 'DATOS DE ZELLE DETECTADOS') as string;
+    expect(n).toMatch(/YA ESTABA ANOTADA/);
+    expect(n).toMatch(/NO repitas/);
+  });
+
+  it('una cuenta nueva sigue mostrando sus lineas', () => {
+    const s = correr({
+      ...yaRegistrada,
+      snapshot: { ...yaRegistrada.snapshot, texto_completo: 'Ana Perez 13059876543', zelle_nombre: 'Ana Perez', zelle_celular: '13059876543' },
+    });
+    expect(s.mensaje).toContain('Cuenta Zelle anotada:\nNombre: Ana Perez');
+  });
+});

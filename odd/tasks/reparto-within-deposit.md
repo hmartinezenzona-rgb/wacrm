@@ -56,9 +56,9 @@ Out: the orphan cerebro_aplicar_reparto; Zelle (already guarded by 335); the pan
       guard inside cerebro_guardar_reparto (over -> refuse, partial -> remaining, complete-under -> FALTA leftover);
       ROLLBACK; assertion (both 2026-11-07 cases as fixtures, partial, mixed CUP+USD, unverified op unchanged,
       empty-amount patch unchanged)
-- [ ] T2 Context: a `reparto_cuadre` field for the open reparto (available, sum, difference) exposed by
+- [x] T2 (dad2c07) Context: a `reparto_cuadre` field for the open reparto (available, sum, difference) exposed by
       Contexto conversacion (SQL function + node query, staging then production)
-- [ ] T3 Decisor: with a verified deposit and a reparto, no g82 per-card guessing; a note with the deposit-derived
+- [x] T3 (d05bbad) Decisor: with a verified deposit and a reparto, no g82 per-card guessing; a note with the deposit-derived
       totals and the mismatch from ctx.reparto_cuadre; tests with the two real cases
 - [ ] T4 Staging: apply, assertions, related assertions, Contexto node on staging; owner check if wanted
 - [ ] T5 Production (needs go-ahead): migrations, Contexto node, Decisor
@@ -87,5 +87,30 @@ Out: the orphan cerebro_aplicar_reparto; Zelle (already guarded by 335); the pan
     already failed on the base for unrelated reasons: agreed-amount, deposit-anchor, grants-mirror-production,
     reparto-destino-node-adapters, saldo-model, visa-model, writers-resolver).
 
+- 2026-11-07 T2 done, commit dad2c07 (migration 359; rolled-back transactions only, staging not changed). New
+  `cerebro_reparto_sumas(slots text[], n, base_gyd, tasa_cup, tasa_usd)` (IMMUTABLE; one arithmetic and one `estado` for the
+  tool and the context) and `cerebro_reparto_cuadre(conv uuid) -> jsonb` (STABLE SECURITY DEFINER, service_role only; NULL
+  without a verified deposit, without a reparto of 2-3 vigente slots, or for closed operations). `cerebro_guardar_reparto`
+  redefined from the 358 body only to call the shared function. jsonb: op_id, base_gyd, total_cup, total_usd, tarjetas,
+  suma_cup_equiv, asignado [{posicion, monto, moneda}], estado (excede | faltan_montos | sobra | cuadra), diferencia_cup
+  (signed, positive = left over), por_tarjeta_igual_cup.
+  - RED (358 only, assertion reparto-cuadre.sql): `FAIL [0 cerebro_reparto_cuadre exists]`, `ERROR: 1 expectation(s) failed
+    (function missing)`. GREEN (358 + 359 + assertion): 24 `ok`, 0 FAIL, `ALL PASS (rolled back on purpose)`; the 358 assertion
+    with 358+359: 33 `ok`, ALL PASS. Rollback (358, 359, ROLLBACK-359): body md5 back to the 358 body, ACL kept, no leftovers.
+  - relacionadas (base = 358 applied, mig = 359; pattern guardar_reparto|guardar_beneficiario|registrar_reparto_multiple|
+    cerebro_reparto): TOTAL 32 SAME 32 DIFF 0.
+  - Contexto node: the query change (one field, `cerebro_reparto_cuadre(v.id) AS reparto_cuadre`, per-environment anchor) is
+    prepared in `contexto_reparto_cuadre.py` (scratchpad, not committed, not run). Runs on staging inside a rolled-back
+    transaction with 358+359: parses, returns jsonb. Production: PREPARE of the modified query parses on the read-only user.
+- 2026-11-07 T3 done, commit d05bbad (production lineage only). With `ctx.reparto_cuadre` the Decisor skips the g82 per-card
+  note and pushes `REPARTO Y DEPOSITO: ...` (deposit totals, equal share, estado -> instruction, plus the "amounts must fit
+  the deposit" sentence when the customer wrote amounts). Without the field: unchanged.
+  - RED: 6 of the 7 new tests failed (the absent-field one passed); GREEN: `npx vitest run pruebas/decisor/produccion` 100 passed.
+    md5 pin `DECISOR_PRODUCCION_MD5_ESPERADO` -> 3b06d338...
+  - Pending: apply 358+359 on staging, Contexto node on staging, Decisor deploy (T4); production (T5). The Decisor must not be
+    deployed before the Contexto node carries the field (it is inert without it, but the g82 guess stays until then).
+
 ## Next step
-T2 (context `reparto_cuadre`, using `cerebro_reparto_disponible`).
+T4: staging. Apply 358 and 359 (aplicar), then the Contexto node (`contexto_reparto_cuadre.py staging <versionId prefix>`),
+then the Decisor deploy: note that `publicar-decisor` pushes the root (staging-lineage) file, not
+`pruebas/decisor/produccion/decisor.jscode`, so the production-lineage deploy needs its own step.

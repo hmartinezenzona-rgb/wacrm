@@ -398,6 +398,29 @@ if (g82EnReparto && g82Montos.length && !g82MonedaDicha) {
     g82NotaMonto = base + 'Por tarjeta: ' + lista + '. ' + partes.join(' ');
   }
 }
+// (359, 2026-11-07) REPARTO VS DEPOSITO VERIFICADO. ctx.reparto_cuadre comes from the database (cerebro_reparto_cuadre): present only
+// when the open operation has a reparto AND a verified deposit. Then the Decisor does NOT guess per-card amounts from the customer's
+// words (96d81952: "10.000 mas para ponerle 5 a cada tarjeta" became 10,000 GYD per card; f80a33a0: "15mil a cada una" became 45,000
+// GYD): it states what the database knows. Flat estado -> instruction mapping, nothing for the model to weigh (DeepSeek thinking
+// mode, see the deliberative-language notes below). Without the field (older Contexto, deposit not verified) nothing changes.
+const g359 = (ctx && ctx.reparto_cuadre && typeof ctx.reparto_cuadre === 'object') ? ctx.reparto_cuadre : null;
+const g359Valido = !!g359 && Number.isFinite(Number(g359.total_cup)) && Number(g359.total_cup) > 0 && Number(g359.tarjetas) >= 2;
+let g359Nota = '';
+if (g359Valido) {
+  const dif = Math.abs(Number(g359.diferencia_cup) || 0);
+  g359Nota = 'REPARTO Y DEPOSITO: el deposito verificado es ' + g82N(g359.base_gyd) + ' GYD = ' + g82N(g359.total_cup) + ' CUP (o '
+    + g82N(g359.total_usd) + ' USD en tarjeta Clasica/Tropical). Entre ' + Number(g359.tarjetas) + ' tarjetas a partes iguales serian '
+    + g82N(g359.por_tarjeta_igual_cup) + ' CUP cada una.'
+    + ({
+      excede: ' Los montos guardados suman mas que el deposito: PREGUNTA al cliente como repartir ese total; no confirmes montos.',
+      sobra: ' Sobran ' + g82N(dif) + ' CUP: pide al cliente que reparta todo el deposito o que diga que hacer con ese monto.',
+      faltan_montos: ' Quedan ' + g82N(dif) + ' CUP por asignar.',
+    }[String(g359.estado)] || '')
+    + (g82Montos.length
+      ? ' El cliente escribio montos: un monto sin moneda tiene que caber en el total del deposito (' + g82N(g359.total_cup)
+        + ' CUP) y registrar_reparto_multiple rechaza lo que pase de ahi. Si no te dice cuanto va a cada tarjeta, PREGUNTA, no inventes montos por tarjeta en GYD.'
+      : '');
+}
 const recargaEnCurso = !!ctx.recarga_en_curso && !tarjetaCtx && !s.datos_zelle && !s.multi_beneficiario;
 // (207/104, 4-oct-2026) RECARGA ANOTADA: taken ahead of a confirmed promo ('DD/MM' of its start), done that day.
 const anotadaPara = ctx.recarga_anotada_para || null;
@@ -473,7 +496,8 @@ try {
   }
 } catch (e) {}
 if (g82MinimosTxt && (/m[ií]nimo/i.test(texto) || g82Montos.length)) notas.push(g82MinimosTxt);
-if (g82NotaMonto) notas.push(g82NotaMonto);
+if (g359Nota) notas.push(g359Nota);
+else if (g82NotaMonto) notas.push(g82NotaMonto);
 // MINIMO DE ZELLE, DICHO POR EL SISTEMA (14-ago-2026, Osmany).
 // El UNICO minimo que conocia el bot era el de las recargas, asi que ante un
 // "cuanto es lo minimo?" o ante alguien pidiendo menos de la cuenta se lo

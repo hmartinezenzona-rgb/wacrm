@@ -1467,3 +1467,113 @@ describe('Zelle ya anotada en un turno anterior: no se repite la confirmacion', 
     expect(s.mensaje).toContain('Cuenta Zelle anotada:\nNombre: Ana Perez');
   });
 });
+
+// Owner 2026-11-07, root fix: with a VERIFIED deposit and a reparto the Decisor stops guessing per-card amounts from
+// the customer's words (96d81952: "10.000 mas para ponerle 5 a cada tarjeta" became 10,000 GYD per card; f80a33a0:
+// "15mil a cada una" became 45,000 GYD). It states what the database knows (ctx.reparto_cuadre, migration 359).
+describe('reparto con deposito verificado: el Decisor dice lo que sabe la base, no adivina por tarjeta', () => {
+  const slots = (montos: number[]) =>
+    montos.map((monto, i) => ({
+      t: 'multiple_distribution',
+      posicion: i + 1,
+      tarjeta: `92240699929225${20 + i}`,
+      celular: `5382120${i + 2}`,
+      monto,
+    }));
+  const minimos = { minimo_gyd_cup: 3000, minimo_gyd_usd: 10000 };
+  const cuadre = (c: Record<string, unknown>) => ({
+    op_id: 'op-prueba',
+    base_gyd: 10000,
+    total_cup: 36000,
+    total_usd: 38,
+    tarjetas: 2,
+    suma_cup_equiv: 36000,
+    asignado: [],
+    estado: 'cuadra',
+    diferencia_cup: 0,
+    por_tarjeta_igual_cup: 18000,
+    ...c,
+  });
+  const caso96d81952 = (c: Record<string, unknown> = {}): Entradas => ({
+    ctx: {
+      minimos,
+      beneficiarios_registrados: slots([36000, 36000]),
+      reparto_cuadre: cuadre({ estado: 'excede', suma_cup_equiv: 72000, diferencia_cup: -36000, ...c }),
+    },
+    snapshot: { texto_completo: '10.000 más para ponerle 5 a cada tarjeta' },
+  });
+  const MONTO_GYD = 'MONTO EN GYD PARA EL REPARTO';
+
+  it('96d81952 (excede): no adivina 10,000 GYD por tarjeta; da el total del deposito y manda preguntar', () => {
+    const s = correr(caso96d81952());
+    expect(nota(s, MONTO_GYD)).toBeUndefined();
+    const n = nota(s, 'REPARTO Y DEPOSITO') as string;
+    expect(n).toBeDefined();
+    expect(n).toContain('el deposito verificado es 10,000 GYD = 36,000 CUP (o 38 USD en tarjeta Clasica/Tropical)');
+    expect(n).toContain('Entre 2 tarjetas a partes iguales serian 18,000 CUP cada una.');
+    expect(n).toContain('Los montos guardados suman mas que el deposito: PREGUNTA al cliente como repartir ese total; no confirmes montos.');
+    expect(n).not.toMatch(/Sobran|Quedan/);
+  });
+
+  it('con montos escritos avisa que deben caber en el deposito y que la herramienta rechaza lo que pase', () => {
+    const n = nota(correr(caso96d81952()), 'REPARTO Y DEPOSITO') as string;
+    expect(n).toMatch(/monto sin moneda tiene que caber en el total del deposito \(36,000 CUP\)/);
+    expect(n).toMatch(/registrar_reparto_multiple rechaza lo que pase de ahi/);
+    expect(n).toMatch(/PREGUNTA, no inventes montos por tarjeta en GYD/);
+  });
+
+  it('sin montos en el mensaje no repite el aviso de montos', () => {
+    const e = caso96d81952();
+    e.snapshot = { texto_completo: 'gracias' };
+    const n = nota(correr(e), 'REPARTO Y DEPOSITO') as string;
+    expect(n).toBeDefined();
+    expect(n).not.toMatch(/monto sin moneda/);
+  });
+
+  it('f80a33a0 (sobra 9000): dice cuanto sobra y pide repartir todo el deposito', () => {
+    const s = correr({
+      ctx: {
+        minimos,
+        beneficiarios_registrados: slots([15000, 15000, 15000]),
+        reparto_cuadre: cuadre({
+          base_gyd: 15000,
+          total_cup: 54000,
+          total_usd: 57,
+          tarjetas: 3,
+          suma_cup_equiv: 45000,
+          estado: 'sobra',
+          diferencia_cup: 9000,
+        }),
+      },
+      snapshot: { texto_completo: 'Son 3 tarjetas 15mil a cada una' },
+    });
+    expect(nota(s, MONTO_GYD)).toBeUndefined();
+    const n = nota(s, 'REPARTO Y DEPOSITO') as string;
+    expect(n).toContain('el deposito verificado es 15,000 GYD = 54,000 CUP');
+    expect(n).toContain('Entre 3 tarjetas a partes iguales serian 18,000 CUP cada una.');
+    expect(n).toContain('Sobran 9,000 CUP: pide al cliente que reparta todo el deposito o que diga que hacer con ese monto.');
+  });
+
+  it('faltan_montos: dice cuantos CUP quedan por asignar', () => {
+    const e = caso96d81952({ estado: 'faltan_montos', suma_cup_equiv: 18000, diferencia_cup: 18000 });
+    const n = nota(correr(e), 'REPARTO Y DEPOSITO') as string;
+    expect(n).toContain('Quedan 18,000 CUP por asignar.');
+    expect(n).not.toMatch(/Sobran|suman mas/);
+  });
+
+  it('cuadra: solo los hechos del deposito, sin instruccion extra', () => {
+    const e = caso96d81952({ estado: 'cuadra', suma_cup_equiv: 36000, diferencia_cup: 0 });
+    e.snapshot = { texto_completo: 'gracias' };
+    const n = nota(correr(e), 'REPARTO Y DEPOSITO') as string;
+    expect(n).toBeDefined();
+    expect(n).not.toMatch(/Sobran|Quedan|suman mas|PREGUNTA/);
+  });
+
+  it('sin ctx.reparto_cuadre (Contexto viejo o deposito sin verificar): conserva la nota anterior', () => {
+    const e = caso96d81952();
+    delete (e.ctx as Record<string, unknown>).reparto_cuadre;
+    const s = correr(e);
+    expect(nota(s, 'REPARTO Y DEPOSITO')).toBeUndefined();
+    expect(nota(s, MONTO_GYD)).toBeDefined();
+  });
+});

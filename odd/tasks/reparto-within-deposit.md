@@ -60,7 +60,7 @@ Out: the orphan cerebro_aplicar_reparto; Zelle (already guarded by 335); the pan
       Contexto conversacion (SQL function + node query, staging then production)
 - [x] T3 (d05bbad) Decisor: with a verified deposit and a reparto, no g82 per-card guessing; a note with the deposit-derived
       totals and the mismatch from ctx.reparto_cuadre; tests with the two real cases
-- [ ] T4 Staging: apply, assertions, related assertions, Contexto node on staging; owner check if wanted
+- [x] T4 Staging: apply, assertions, related assertions, Contexto node on staging; owner check if wanted
 - [ ] T5 Production (needs go-ahead): migrations, Contexto node, Decisor
 
 ## Acceptance criteria
@@ -110,7 +110,12 @@ Out: the orphan cerebro_aplicar_reparto; Zelle (already guarded by 335); the pan
   - Pending: apply 358+359 on staging, Contexto node on staging, Decisor deploy (T4); production (T5). The Decisor must not be
     deployed before the Contexto node carries the field (it is inert without it, but the g82 guess stays until then).
 
+- 2026-11-07 T4 staging: 358 and 359 applied with staging-migracion.sh aplicar (apply/assertion/rollback OK each;
+  cerebro_guardar_reparto e5c47941, cerebro_reparto_cuadre 74ed10ff, cerebro_reparto_sumas db4b3aab).
+  Contexto conversacion on staging: reparto_cuadre added (backup staging-...-5b7bcdcf-...-20261107-130155.json),
+  versionId b5ff9a88 = activeVersionId, other nodes untouched. The staging Cerebro runs the other session's Decisor,
+  so the production-lineage Decisor is not deployed to staging; it ships in T5 with its tests (100 passed).
+
 ## Next step
-T4: staging. Apply 358 and 359 (aplicar), then the Contexto node (`contexto_reparto_cuadre.py staging <versionId prefix>`),
-then the Decisor deploy: note that `publicar-decisor` pushes the root (staging-lineage) file, not
-`pruebas/decisor/produccion/decisor.jscode`, so the production-lineage deploy needs its own step.
+T5 production (owner go-ahead): previa/aplicar/verificar 358-359, Contexto node, Decisor
+(CEREBRO_DECISOR_FILE=pruebas/decisor/produccion/decisor.jscode publicar-decisor produccion).

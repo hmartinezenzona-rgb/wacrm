@@ -79,7 +79,7 @@ Out: the orphan cerebro_aplicar_reparto; Zelle (already guarded by 335); the pan
   slots, compared in GYD, tolerance 1 CUP / 1 USD per card; numbers in replies are plain digits (no thousands separator).
   - RED (current live function, assertion reparto-within-deposit.sql): `ERROR: 14 expectation(s) failed` (cases 1a-1d,
     2b, 2c, 4b, 5a, 5b, 8b-8d, 9c, 10a); the unchanged-behavior cases (3, 6, 7, 8a, 9a, 9b) passed.
-  - GREEN (BEGIN; 358; assertion; ROLLBACK): 40 `ok`, `ERROR: ALL PASS (rolled back on purpose)`;
+  - GREEN (BEGIN; 358; assertion; ROLLBACK): 33 `ok`, 0 FAIL, `ERROR: ALL PASS (rolled back on purpose)`;
     `staging-migracion.sh aplicar ... ` with DRY_ONLY=1: `dry-run OK`.
   - Rollback check (358 then ROLLBACK-358 in a rolled-back transaction): md5 346793f8 and ACL restored, helper gone.
   - relacionadas: `cerebro_guardar_reparto` pattern TOTAL 5 SAME 5 DIFF 0; wider pattern

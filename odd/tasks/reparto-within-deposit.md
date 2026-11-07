@@ -61,7 +61,7 @@ Out: the orphan cerebro_aplicar_reparto; Zelle (already guarded by 335); the pan
 - [x] T3 (d05bbad) Decisor: with a verified deposit and a reparto, no g82 per-card guessing; a note with the deposit-derived
       totals and the mismatch from ctx.reparto_cuadre; tests with the two real cases
 - [x] T4 Staging: apply, assertions, related assertions, Contexto node on staging; owner check if wanted
-- [ ] T5 Production (needs go-ahead): migrations, Contexto node, Decisor
+- [x] T5 Production (needs go-ahead): migrations, Contexto node, Decisor
 
 ## Acceptance criteria
 - 10,000 GYD verified + "36,000 CUP each" for 2 cards -> nothing saved; reply states 36,000 CUP available, 72,000 asked.
@@ -116,6 +116,12 @@ Out: the orphan cerebro_aplicar_reparto; Zelle (already guarded by 335); the pan
   versionId b5ff9a88 = activeVersionId, other nodes untouched. The staging Cerebro runs the other session's Decisor,
   so the production-lineage Decisor is not deployed to staging; it ships in T5 with its tests (100 passed).
 
+- 2026-11-07 T5 production (owner go-ahead "ok"): previa SEGURO; 358 OK 20261107190327, 359 OK 20261107190331
+  (applied one by one), verificar 4/4. Contexto conversacion: reparto_cuadre added (backup
+  produccion-...-d5e304bb-...-20261107-130343.json; versionId faae16d7 = active, other nodes untouched). Decisor
+  c78d450a -> 3b06d338 (backup ...-faae16d7-...-20261107-130355.json; versionId f696f951 = active). Live check:
+  executions 669824 and 669857 ran Contexto (reparto_cuadre present) and Decisor without errors; 669854/669856 were
+  short buffer runs that do not reach the context (normal).
+
 ## Next step
-T5 production (owner go-ahead): previa/aplicar/verificar 358-359, Contexto node, Decisor
-(CEREBRO_DECISOR_FILE=pruebas/decisor/produccion/decisor.jscode publicar-decisor produccion).
+Done. Watch the next real multi-card reparto with a verified deposit.

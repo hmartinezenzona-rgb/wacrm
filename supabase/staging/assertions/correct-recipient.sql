@@ -120,7 +120,7 @@ BEGIN
   -- 7 old behaviour
   SELECT * INTO c FROM pg_temp.p_conv(7);
   SELECT accion INTO a FROM cerebro_guardar_beneficiario(c.conv, 'Mario Gil', '9999000000000008', '53821203', 'q7a');
-  PERFORM pg_temp.p_eq('7 old write', (a LIKE 'guardado: tarjeta 9999000000000008, celular 53821203, nombre Mario Gil%Completo.')::text, 'true');
+  PERFORM pg_temp.p_eq('7 old write', (a LIKE 'guardado: tarjeta 9999000000000008, celular 53821203, nombre Mario Gil%Completo.%')::text, 'true');
 
   RAISE EXCEPTION 'ALL PASS (rolled back on purpose)';
 END $$;

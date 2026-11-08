@@ -10,13 +10,14 @@
 -- longer silent: it writes an audit row, and the writer's reply states that a new send was opened.
 --   * _cerebro_completada_reciente(conv): completion time of the latest operation of the conversation completed within the window
 --     (config key envio_completado_ventana_horas, default 6 h), NULL when none.
---   * _cerebro_senal_envio_nuevo(conv, since): a new-send signal after that completion: a declared service, a pending rail
+--   * _cerebro_senal_envio_nuevo(conv, since, only_intent): a new-send signal after that completion: a declared service, a pending rail
 --     (cerebro_destino_pendiente), a quote (cerebro_cotizacion / cerebro_ultima_cotizacion), an agreed amount
 --     (cerebro_objetivo_envio still open) or a registered deposit.
 --   * cerebro_guardia_envio_nuevo(conv, cards, phones, accounts): NULL = proceed; text = refusal. No open operation + a send
 --     completed in the window + (rule A) data matching a beneficiary of that send -> "NO SE GUARDO NADA ... ya se completo";
 --     (rule B) no new-send signal -> "NO SE ABRIO NINGUN ENVIO ... pregunta al cliente si quiere un envio nuevo".
---     Rule A is not softened by a signal (owner default). Open operation present, no completion in the window, or a signal: NULL.
+--     Rule A yields only to an explicit intent (declared service, pending rail, deposit; owner decision 2026-11-08), not to a quote or
+--     an agreed amount alone. Open operation present, no completion in the window, or a signal for rule B: NULL.
 --   * _cerebro_auditar_envio_abierto(op, why): remittance_admin_audit row (agent_service_change, reason 'recipient write opened ...');
 --     called from cerebro_escribir_bloque_beneficiario at both places where it creates an operation.
 --   * _cerebro_envio_abierto_ahora(op): true when an agent_service_change audit row for the operation was written in this transaction (created_at >= now(), the transaction start; the audit default is clock_timestamp());
@@ -37,7 +38,7 @@ AS $function$
          > now() - make_interval(hours => COALESCE(NULLIF(cerebro_config_get('envio_completado_ventana_horas'), '')::int, 6));
 $function$;
 
-CREATE OR REPLACE FUNCTION public._cerebro_senal_envio_nuevo(p_conv uuid, p_desde timestamp with time zone)
+CREATE OR REPLACE FUNCTION public._cerebro_senal_envio_nuevo(p_conv uuid, p_desde timestamp with time zone, p_solo_intencion boolean DEFAULT false)
  RETURNS boolean
  LANGUAGE sql
  STABLE SECURITY DEFINER
@@ -45,9 +46,9 @@ CREATE OR REPLACE FUNCTION public._cerebro_senal_envio_nuevo(p_conv uuid, p_desd
 AS $function$
   SELECT EXISTS (SELECT 1 FROM cerebro_servicio_declarado d WHERE d.conversation_id = p_conv AND d.declarado_at > p_desde)
       OR EXISTS (SELECT 1 FROM cerebro_destino_pendiente dp WHERE dp.conversation_id = p_conv AND dp.actualizado > p_desde)
-      OR EXISTS (SELECT 1 FROM cerebro_cotizacion c WHERE c.conversation_id = p_conv AND c.cotizado_en > p_desde)
-      OR EXISTS (SELECT 1 FROM cerebro_ultima_cotizacion u WHERE u.conversation_id = p_conv AND u.cotizado_en > p_desde)
-      OR EXISTS (SELECT 1 FROM cerebro_objetivo_envio g WHERE g.conversation_id = p_conv AND g.cerrado_en IS NULL AND g.fijado_en > p_desde)
+      OR (NOT p_solo_intencion AND EXISTS (SELECT 1 FROM cerebro_cotizacion c WHERE c.conversation_id = p_conv AND c.cotizado_en > p_desde))
+      OR (NOT p_solo_intencion AND EXISTS (SELECT 1 FROM cerebro_ultima_cotizacion u WHERE u.conversation_id = p_conv AND u.cotizado_en > p_desde))
+      OR (NOT p_solo_intencion AND EXISTS (SELECT 1 FROM cerebro_objetivo_envio g WHERE g.conversation_id = p_conv AND g.cerrado_en IS NULL AND g.fijado_en > p_desde))
       OR EXISTS (SELECT 1 FROM depositos_mmg d JOIN remittance_operations o ON o.id = d.operation_id
                   WHERE o.conversation_id = p_conv AND d.anulado_en IS NULL AND d.descartado_en IS NULL
                     AND coalesce(d.creado_en, d.recibido_en) > p_desde);
@@ -78,7 +79,10 @@ BEGIN
          OR (b.card_number IS NOT NULL AND b.card_number = ANY (ARRAY(SELECT x FROM unnest(p_tarjetas) x WHERE x IS NOT NULL AND x <> '' AND x <> '!')))
          OR (b.phone IS NOT NULL AND b.phone = ANY (ARRAY(SELECT x FROM unnest(p_celulares) x WHERE x IS NOT NULL AND x <> '' AND x <> '!'))))
   ) INTO v_mismo;
+  -- Owner decision 2026-11-08: rule A yields only to an explicit send intent newer than the completion (declared service, pending
+  -- rail, registered deposit); a quote or an agreed amount alone does not (when in doubt, ask).
   IF v_mismo THEN
+    IF _cerebro_senal_envio_nuevo(p_conv, v_desde, true) THEN RETURN NULL; END IF;
     RETURN 'NO SE GUARDO NADA y no se abrio ningun envio: esos datos son del envio que ya se completo hace ' || v_horas
            || ' h. Dile al cliente que ese envio ya esta completo. Solo si quiere hacer OTRO envio, preguntaselo y que diga el servicio y el monto.';
   END IF;
@@ -120,7 +124,7 @@ AS $function$
 $function$;
 
 REVOKE ALL ON FUNCTION public._cerebro_completada_reciente(uuid) FROM PUBLIC, anon, authenticated, service_role;
-REVOKE ALL ON FUNCTION public._cerebro_senal_envio_nuevo(uuid, timestamp with time zone) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public._cerebro_senal_envio_nuevo(uuid, timestamp with time zone, boolean) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.cerebro_guardia_envio_nuevo(uuid, text[], text[], text[]) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public._cerebro_auditar_envio_abierto(uuid, text) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public._cerebro_envio_abierto_ahora(uuid) FROM PUBLIC, anon, authenticated, service_role;

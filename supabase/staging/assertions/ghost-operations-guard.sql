@@ -8,6 +8,8 @@ BEGIN;
 --   1. Sandra shape: operation completed 1 h ago, Zelle write with another account, no new-send signal -> no operation opens,
 --      reply starts "NO SE ABRIO NINGUN ENVIO" (rule B). Same for the card writer, the reparto writer and the automatic Zelle reader.
 --   2. Rule A: the account / card / phone of the completed send -> refused, nothing opens, reply says it belongs to the completed send.
+--      Owner override: rule A yields ONLY to an explicit send intent newer than the completion (declared service, pending rail,
+--      registered deposit); a quote or an agreed amount alone does not (cases 2f-2k).
 --   3. Completed 7 h ago (outside the 6 h window): the operation opens, an audit row is written, the reply says a new send was opened.
 --   4. No completed operation at all (legit first send "account first, deposit later"): opens, audited, reply says so (4 writers).
 --   5. Inside the window with a new-send signal (mismatched declared service, quote, agreed amount, pending rail, deposit): opens.
@@ -108,6 +110,33 @@ BEGIN
   SELECT * INTO v_conv, v_done FROM pg_temp.fx('09', 1);
   v_r := pg_temp.w_auto(v_conv, 'prueba360done@example.com');
   PERFORM pg_temp.chk(pg_temp.nops(v_conv) = 1 AND v_r LIKE 'NO SE GUARDO NADA%', '2e zelle auto with the completed account: ' || coalesce(v_r, 'null'));
+
+  -- 2f-2k. Rule A and explicit intent: same recipient + declared service / pending rail / deposit opens; quote or agreed amount alone is refused.
+  SELECT * INTO v_conv, v_done FROM pg_temp.fx('23', 1);
+  INSERT INTO cerebro_servicio_declarado (conversation_id, servicio, declarado_at, actor) VALUES (v_conv, 'cuban_card', now(), 'agent:test');
+  v_r := pg_temp.w_zelle(v_conv, 'prueba360done@example.com');
+  PERFORM pg_temp.chk(pg_temp.nops(v_conv) = 2 AND pg_temp.naudit(v_conv) = 1, '2f same recipient + declared service: opens, audited (ops=' || pg_temp.nops(v_conv) || ')');
+  SELECT * INTO v_conv, v_done FROM pg_temp.fx('24', 1);
+  INSERT INTO cerebro_destino_pendiente (conversation_id, tipo, actualizado, origen) VALUES (v_conv, 'clasica', now(), 'cliente');
+  v_r := pg_temp.w_card(v_conv, '9238123432101987', '53821201');
+  PERFORM pg_temp.chk(pg_temp.nops(v_conv) = 2 AND pg_temp.naudit(v_conv) = 1, '2g same recipient + pending rail: opens, audited');
+  SELECT * INTO v_conv, v_done FROM pg_temp.fx('25', 1);
+  INSERT INTO depositos_mmg (trans_id, monto, moneda, asunto, recibido_en, operation_id)
+  VALUES ('361' || (extract(epoch FROM clock_timestamp()) * 1000)::bigint::text, 5000, 'GYD', 'PRUEBA360', now(), v_done);
+  v_r := pg_temp.w_zelle(v_conv, 'prueba360done@example.com');
+  PERFORM pg_temp.chk(pg_temp.nops(v_conv) = 2, '2h same recipient + deposit: opens');
+  SELECT * INTO v_conv, v_done FROM pg_temp.fx('26', 1);
+  INSERT INTO cerebro_cotizacion (conversation_id, gyd, texto, cotizado_en) VALUES (v_conv, 9000, 'PRUEBA', now());
+  v_r := pg_temp.w_zelle(v_conv, 'prueba360done@example.com');
+  PERFORM pg_temp.chk(pg_temp.nops(v_conv) = 1 AND v_r LIKE 'NO SE GUARDO NADA%', '2i same recipient + quote only: refused: ' || coalesce(v_r, 'null'));
+  SELECT * INTO v_conv, v_done FROM pg_temp.fx('27', 1);
+  INSERT INTO cerebro_objetivo_envio (conversation_id, monto, moneda, fijado_en) VALUES (v_conv, 50, 'USD', now())
+  ON CONFLICT (conversation_id) DO UPDATE SET monto = 50, moneda = 'USD', fijado_en = now(), cerrado_en = NULL, operation_id = NULL;
+  v_r := pg_temp.w_card(v_conv, '9238123432101987', '53821201');
+  PERFORM pg_temp.chk(pg_temp.nops(v_conv) = 1 AND v_r LIKE 'NO SE GUARDO NADA%', '2j same recipient + agreed amount only: refused: ' || coalesce(v_r, 'null'));
+  SELECT * INTO v_conv, v_done FROM pg_temp.fx('28', 1);
+  v_r := pg_temp.w_rep(v_conv, '9238123432101987', cB);
+  PERFORM pg_temp.chk(pg_temp.nops(v_conv) = 1 AND v_r LIKE 'NO SE GUARDO NADA%', '2k same recipient, no signal (reparto): refused');
 
   -- 3. Completed 7 h ago: outside the window, the write opens a send, audited, and the reply says so.
   SELECT * INTO v_conv, v_done FROM pg_temp.fx('10', 7);

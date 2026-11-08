@@ -631,5 +631,5 @@ END $function$;
 DROP FUNCTION IF EXISTS public.cerebro_guardia_envio_nuevo(uuid, text[], text[], text[]);
 DROP FUNCTION IF EXISTS public._cerebro_envio_abierto_ahora(uuid);
 DROP FUNCTION IF EXISTS public._cerebro_auditar_envio_abierto(uuid, text);
-DROP FUNCTION IF EXISTS public._cerebro_senal_envio_nuevo(uuid, timestamp with time zone);
+DROP FUNCTION IF EXISTS public._cerebro_senal_envio_nuevo(uuid, timestamp with time zone, boolean);
 DROP FUNCTION IF EXISTS public._cerebro_completada_reciente(uuid);

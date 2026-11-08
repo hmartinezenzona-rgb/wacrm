@@ -20,8 +20,14 @@ is still talking about a send that was just completed. The guarantee lives in th
 ## Owner decisions
 - 2026-11-08: root-cause fix. Window after a completed operation: 6 hours (owner "ok" to the 6 h proposal).
 
+- 2026-11-08: rule A override. Owner: "si el cliente envia la misma cuenta y dice que quiere enviar, hay que crearle la operacion;
+  ante la duda es mejor preguntar". Rule A (same recipient as an op completed within the window) yields ONLY to an explicit send
+  intent newer than the completion: declared service, pending rail or registered deposit. A quote or an agreed amount alone does
+  NOT override it (refused, the model asks). Rule B unchanged (any of the 6 signals opens).
+
 ## Claude defaults (stated to the owner)
-- Rule A (same send): data matching the account/card of an operation completed within 6 h is refused; nothing opens.
+- Rule A (same send): data matching the account/card of an operation completed within 6 h is refused; nothing opens
+  (overridden only by an explicit intent, see Owner decisions).
 - Rule B (just completed): within 6 h of a completed operation in the same conversation, a recipient write with no
   new-send signal (declared/pending service, quote or agreed amount, deposit) opens nothing. Reply:
   "NO SE ABRIO NINGUN ENVIO ... pregunta al cliente si quiere hacer un envio nuevo".
@@ -73,6 +79,13 @@ Out: Decisor changes, panel UI, deleting existing ghost operations.
   - Staging apply (`staging-migracion.sh aplicar`): dry-run OK, apply OK, assertion OK, rollback OK (md5 igual al previo).
     md5 after apply: escribir_bloque b48e00df9172, guardar_beneficiario 2ed102214804, guardar_reparto ed0a74504d4b,
     guardar_zelle_auto 5416426c9c17 (unchanged), guardar_zelle a7300c9e59fb; ACLs postgres + service_role kept.
+- 2026-11-08 rule A override (owner decision above). Edited 360 in place (production has not recorded it; 360 only uses
+  CREATE OR REPLACE, so one migration reaches production). Staging was brought to the pre-360 state with the previously committed
+  ROLLBACK-360 and 360 re-applied through `staging-migracion.sh aplicar` (a plain re-apply would have left a second overload of
+  `_cerebro_senal_envio_nuevo` and failed the rollback md5 step). `_cerebro_senal_envio_nuevo` gained `p_solo_intencion`.
+  - RED (new cases 2f-2k vs staging with the old 360): `ERROR:  3 expectation(s) failed` (2f declared service, 2g pending rail, 2h deposit).
+  - relacionadas (--ya-aplicada ROLLBACK-360): TOTAL 41 | SAME 41 | DIFF 0.
+  - GREEN: aplicar dry-run OK, apply OK, assertion OK, rollback OK (md5 igual al previo); writer md5s unchanged (only the helper changed).
 
 ## Next step
 T3 production: needs the owner's go-ahead (previa, aplicar, verificar).

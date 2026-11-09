@@ -53,7 +53,7 @@ Out: Decisor changes, panel UI, deleting existing ghost operations.
       fallback creation, audit + "new send opened" reply; ROLLBACK; assertion with the Sandra shape as fixture,
       legit first send unchanged, write with new-send signal inside the window still opens, open op unchanged
 - [x] T2 Staging: apply, assertion, related assertions
-- [ ] T3 Production (needs go-ahead): previa, apply, verificar; watch the next real recipient writes
+- [x] T3 Production (owner go-ahead "si" 2026-11-09): previa, apply, verificar; watch the next real recipient writes
 
 ## Acceptance criteria
 - Completed op < 6 h ago + recipient write with no new-send signal -> no operation created, refusal reply.
@@ -87,5 +87,8 @@ Out: Decisor changes, panel UI, deleting existing ghost operations.
   - relacionadas (--ya-aplicada ROLLBACK-360): TOTAL 41 | SAME 41 | DIFF 0.
   - GREEN: aplicar dry-run OK, apply OK, assertion OK, rollback OK (md5 igual al previo); writer md5s unchanged (only the helper changed).
 
+- 2026-11-09 T3 production (owner go-ahead "si"): previa VEREDICTO SEGURO (4 writers EQUAL to the pre-360 base, 5 helpers
+  NEW); aplicar `OK 360_ghost_operations_guard 20261109061454`; verificar `VERIFICADO: 9/9 iguales` (prod md5 = staging).
+
 ## Next step
-T3 production: needs the owner's go-ahead (previa, aplicar, verificar).
+Done. Watch the next real recipient writes after a completed send (refusals and "SE ABRIO UN ENVIO NUEVO" audits).

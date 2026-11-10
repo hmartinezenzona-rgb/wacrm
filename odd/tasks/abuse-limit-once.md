@@ -40,7 +40,7 @@ then production with go-ahead. Out: notifier text, Decisor.
       `cerebro_registrar_derivacion` re-firing; ROLLBACK; assertion (c791477d shape, first lock alerts once, later passes
       silent, human-active no lock, unlock then relock alerts again)
 - [x] T3 Staging: apply migration; `Control de abuso` node on staging calls the function; backup first
-- [ ] T4 Production (needs go-ahead): migration, node
+- [x] T4 Production (owner go-ahead 2026-11-10): migration, node
 
 ## Acceptance criteria
 - 64 messages/hour from a flooding number with nobody attending -> one lock, one alert, one waiting message.
@@ -72,8 +72,13 @@ then production with go-ahead. Out: notifier text, Decisor.
   grants-mirror-production, reparto-destino-node-adapters, identical with and without 361).
   Note: the `bucle` alert in the node still re-fires every pass (cerebro_registrar_derivacion returns a row each time); out of scope here.
 
+- 2026-11-10 T4 production (owner "si, pásalo a producción"): previa SEGURO; `OK 361_abuse_limit_once 20261110070308`;
+  verificar 1/1 equal (cerebro_control_abuso b8ccdeb8). n8n backup
+  /home/onlinefreedom/cerebro-fase1/respaldos-n8n/produccion-jEzlVLCLUaJhVwzs-f696f951-4070-4b3d-8951-82dd6ffa1b44-20261110-010318.json;
+  node query md5 da863e74, other nodes and connections untouched, versionId f696f951 -> 31a711a2 = activeVersionId, 128 nodes.
+
 ## Next step
-T4 (production, needs go-ahead): migration 361 via produccion-migracion.sh previa/aplicar/verificar, then the node script (respaldo produccion first; an n8n activate cycle may be needed).
+Done. Watch the next real flood (one LIMITE alert). Follow-up candidate: the bucle alert re-fires every pass (same class).
 - T3 (staging only, nothing executed): backup /home/onlinefreedom/cerebro-fase1/respaldos-n8n/staging-U52y1kSNvhgxvWeb-b5ff9a88-ecee-4dda-9c91-e5758af143cd-20261110-005846.json.
   Node `Control de abuso` query rewritten (old md5 09784da8, new da863e74): removed the `cnt` CTE, new `abuso` CTE = cerebro_control_abuso($1, repeated
   questions), `derivar` now only the bucle derivation (skipped when abuso already excedes), BUCLE alert unchanged, output columns keep their names

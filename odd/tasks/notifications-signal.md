@@ -50,7 +50,7 @@ Out: second-batch items; Cerebro Decisor; notifier WhatsApp alerts to the admin 
       7-day cutoff; ROLLBACK; assertions (TV Muares shape, sanchesirina shape still alerts once, read row not
       re-created, new customer message re-arms, ignored chat silent, customer writes -> un-ignored)
 - [x] T2 Panel: "No es del negocio" / "Reactivar" button and visible state in the chat; API route; tests
-- [ ] T3 Migration 365: daily digest for the four technical types (stop per-run rows, one digest per profile per day),
+- [x] T3 Migration 365: daily digest for the four technical types (stop per-run rows, one digest per profile per day),
       schedule (reuse the existing mechanism: pg_cron or the n8n watcher), notifications page label/icon; assertions
 - [ ] T4 Staging: apply, related assertions, panel on staging for the owner to try
 - [ ] T5 Production (needs go-ahead): migrations, panel publish, schedule
@@ -65,6 +65,7 @@ Out: second-batch items; Cerebro Decisor; notifier WhatsApp alerts to the admin 
 - 2026-11-10: audit done (read-only; counts above).
 - T1 commit d0b761d. Live bodies (staging = production md5) of cerebro_avisar_chats_atascados/mensajes_fallidos/mensajes_perdidos/remesas_abiertas_viejas confirmed equal before redefining. RED: assertion without 364 -> "FAIL [1 crm_marcar_no_negocio exists]". GREEN: 364 + assertion dry run -> 27 ok lines, ALL PASS (rolled back on purpose). Design notes: detection loop moved unchanged into _cerebro_atascados_detectar (testable outside business hours); chat_atascado_max_dias default 7; p_repetir_min and *_repetir_* keys no longer used; backfill marks current backlog as already alerted; the n8n watcher only does SELECT * so function results are not consumed.
 - T2 commit b69f1a9. RED: not-business-control.test.tsx failed to load (module missing). GREEN: 5 tests pass; tsc clean; eslint clean on touched files (3 pre-existing errors elsewhere: notifications/page.tsx:83, use-ausencia.test.tsx, use-media-src.ts); related suites (inbox, i18n, dashboard pages, lib/inbox) 779 pass, 27 timeouts in conversation-list/notifications page tests under parallel load, those files pass 29/29 alone. Design: direct supabase.rpc from the client like the status/assignment controls (no API route); header button + banner with Reactivar.
+- T3 commit 1cea6f1. RED: digest assertion without 365 -> "FAIL [1 cerebro_resumen_diario exists]"; page test "shows the daily summary with its badge" failed. GREEN: 365 + assertion -> 25 ok lines, ALL PASS (rolled back on purpose); page tests 10/10, tsc clean, eslint on page.tsx only the pre-existing setState-in-effect error. Mechanism: BEFORE INSERT trigger diverts the four types into notification_digest_items (emitters untouched; their ROW_COUNT now 0, n8n only SELECTs it); cerebro_resumen_diario() via pg_cron 'resumen-diario-notificaciones' at 12:30 UTC Mon-Sat (08:30 Guyana). Deviation to confirm with owner: the actionable "Nueva promocion de Etecsa detectada" notice is exempt (still immediate); the failed-read notice is digested.
 
 ## Next step
 T1.

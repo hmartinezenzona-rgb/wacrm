@@ -31,7 +31,7 @@ Out: loop detection criteria, notifier text.
       assertion (repeated passes -> one alert; held for abuso then loop -> silent; unassign then loop -> alert again;
       other motivos unchanged)
 - [x] T2 Staging: apply; node query on staging; backup first
-- [ ] T3 Production (needs go-ahead): migration, node
+- [x] T3 Production (owner go-ahead 2026-11-10): migration, node
 
 ## Acceptance criteria
 - A loop detected on N consecutive passes -> exactly one BUCLE alert and one waiting message.
@@ -61,5 +61,10 @@ Out: loop detection criteria, notifier text.
   Script (not in the repo): /tmp/claude-1000/-home-onlinefreedom/650315b7-dab0-45e4-8750-257f1bb931ca/scratchpad/loop_alert_once_nodo.py (md5 0041fbf2),
   usage `loop_alert_once_nodo.py <staging|produccion> <versionId prefix> [--dry-run]`. Production --dry-run (read-only) against 31a711a2: builds the same new query, md5 dc5cd429. Not run on production.
 
+- 2026-11-10 T3 production (owner "si, pásalo a producción"): previa SEGURO; `OK 363_loop_alert_once 20261110073342`;
+  verificar 1/1 equal (cerebro_control_bucle 6e181ac0). n8n backup
+  /home/onlinefreedom/cerebro-fase1/respaldos-n8n/produccion-jEzlVLCLUaJhVwzs-31a711a2-8711-43e1-a2f5-2cabe8d29bb2-20261110-013350.json;
+  node query md5 dc5cd429, other nodes and connections untouched, versionId 31a711a2 -> f2da489f = activeVersionId, 128 nodes.
+
 ## Next step
-T3 needs the owner's go-ahead: production migration 363 (previa first), then the node with the script (respaldo produccion first).
+Done. Watch the next real loop handoff (one BUCLE alert).

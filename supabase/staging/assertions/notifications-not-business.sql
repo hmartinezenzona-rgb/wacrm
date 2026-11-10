@@ -11,12 +11,16 @@ BEGIN;
 --   3  the alert is read: the next passes do not re-create it (the 323 six-hour re-insert is gone);
 --   4  a new customer message re-arms it: one new alert per profile;
 --   5  person-assigned chat (the other real shape) alerts once and stays silent on the repeat;
---   6  RPC: a team member marks a chat not business (who/when stored, its unread alerts become read); the chat stays silent;
+--   6  RPC: a team member marks a chat not business (who/when stored, its unread alerts are deleted); the chat stays silent;
 --   7  the customer writes again: the mark clears by itself and the chat alerts again; an agent message does not clear it;
 --   8  RPC clear (false) removes the mark; a stranger and an unauthenticated caller get 42501; unknown chat gets P0002;
---   9  cutoff: a customer message 8 days old never alerts, 6 days old does;
+--   9  cutoff (chat_atascado_max_dias default 2): a customer message 3 days old never alerts, 1 day old does;
 --   10 courtesy last message ("gracias") still does not alert;
---   11 money alerts do not look at the flag (no money emitter mentions not_business).
+--   11 money alerts do not look at the flag (no money emitter mentions not_business);
+--   12 hiding a chat (deleted_at NULL -> value): its unread chat_atascado rows are deleted for every profile, read rows and
+--      other types stay, un-hiding without a new customer message does not re-alert, a new customer message re-arms;
+--   13 marking not business (RPC) deletes the unread chat_atascado rows too, keeps read rows and other types, and a new
+--      customer message re-arms.
 -- =====================================================================
 CREATE OR REPLACE FUNCTION pg_temp.chk(p_ok boolean, p_label text) RETURNS void LANGUAGE plpgsql AS $$
 BEGIN
@@ -63,7 +67,7 @@ DO $$
 DECLARE
   v_bot constant uuid := '377b0c8c-c025-46ff-8088-7a929080831e';
   v_person uuid; v_stranger uuid; v_acc uuid; v_np int;
-  v_a uuid; v_b uuid; v_c uuid; v_d uuid; v_e uuid; v_f uuid; v_g uuid;
+  v_a uuid; v_b uuid; v_c uuid; v_d uuid; v_e uuid; v_f uuid; v_g uuid; v_h uuid; v_i uuid; v_j uuid; v_u uuid; v_n int;
   v_state text; v_err text; v_r jsonb;
 BEGIN
   PERFORM pg_temp.chk(to_regprocedure('public.crm_marcar_no_negocio(uuid,boolean)') IS NOT NULL, '1 crm_marcar_no_negocio exists');
@@ -112,7 +116,7 @@ BEGIN
   PERFORM pg_temp.as_user(NULL);
   PERFORM pg_temp.chk((v_r ->> 'no_negocio')::boolean AND (v_r ->> 'not_business_by')::uuid = v_person, '6 RPC returns the mark and who');
   PERFORM pg_temp.chk((SELECT not_business_at IS NOT NULL AND not_business_by = v_person FROM conversations WHERE id = v_c), '6 who/when stored');
-  PERFORM pg_temp.chk(pg_temp.rows(v_c, true) = 0, '6 its unread alerts became read');
+  PERFORM pg_temp.chk(pg_temp.rows(v_c, true) = 0, '6 its unread alerts are gone');
   UPDATE notifications SET read_at = NULL WHERE conversation_id = v_c AND type = 'chat_atascado';
   DELETE FROM notifications WHERE conversation_id = v_c AND type = 'chat_atascado';
   DELETE FROM chat_atascado_avisos WHERE conversation_id = v_c;
@@ -150,12 +154,12 @@ BEGIN
 
   -- 9: cutoff
   v_d := pg_temp.fx('04', v_bot);
-  PERFORM pg_temp.msg(v_d, 'customer', 'mensaje viejo de hace 8 dias', interval '8 days');
+  PERFORM pg_temp.msg(v_d, 'customer', 'mensaje viejo de hace 3 dias', interval '3 days');
   v_e := pg_temp.fx('05', v_bot);
-  PERFORM pg_temp.msg(v_e, 'customer', 'mensaje de hace 6 dias', interval '6 days');
+  PERFORM pg_temp.msg(v_e, 'customer', 'mensaje de hace 1 dia', interval '1 day');
   PERFORM pg_temp.pass();
-  PERFORM pg_temp.chk(pg_temp.rows(v_d) = 0, '9 8-day-old message does not alert');
-  PERFORM pg_temp.chk(pg_temp.rows(v_e) = v_np, '9 6-day-old message alerts');
+  PERFORM pg_temp.chk(pg_temp.rows(v_d) = 0, '9 3-day-old message does not alert');
+  PERFORM pg_temp.chk(pg_temp.rows(v_e) = v_np, '9 1-day-old message alerts');
 
   -- 10: courtesy
   v_f := pg_temp.fx('06', v_bot);
@@ -167,6 +171,59 @@ BEGIN
   PERFORM pg_temp.chk(NOT EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace
       AND p.proname IN ('cerebro_avisar_envios_sin_beneficiario', 'cerebro_avisar_envios_incompletos')
       AND p.prosrc ILIKE '%not_business%'), '11 money alert emitters ignore the flag');
+
+  -- 12: hiding the chat (the panel sets deleted_at)
+  v_g := pg_temp.fx('07', v_bot);
+  PERFORM pg_temp.msg(v_g, 'customer', 'necesito enviar dinero, me atienden?', interval '2 hours');
+  PERFORM pg_temp.pass();
+  PERFORM pg_temp.chk(pg_temp.rows(v_g, true) = v_np AND v_np > 0, '12 chat alerts first (' || pg_temp.rows(v_g, true) || '/' || v_np || ')');
+  SELECT user_id INTO v_u FROM notifications WHERE type = 'chat_atascado' AND conversation_id = v_g LIMIT 1;
+  -- a second chat whose row for v_u was already read (read rows may stay)
+  v_i := pg_temp.fx('09', v_bot);
+  PERFORM pg_temp.msg(v_i, 'customer', 'otra consulta de envio', interval '2 hours');
+  PERFORM pg_temp.pass();
+  UPDATE notifications SET read_at = now() WHERE type = 'chat_atascado' AND conversation_id = v_i AND user_id = v_u;
+  v_n := pg_temp.rows(v_i) - pg_temp.rows(v_i, true);
+  INSERT INTO notifications (account_id, user_id, type, conversation_id, title, body)
+  VALUES (v_acc, v_u, 'deal_incidencia', v_g, 'PRUEBA364 money alert', 'must stay');
+  UPDATE conversations SET deleted_at = now() WHERE id = v_g;
+  UPDATE conversations SET deleted_at = now() WHERE id = v_i;
+  PERFORM pg_temp.chk(pg_temp.rows(v_g) = 0, '12 hide deletes the pending chat_atascado rows for every profile');
+  PERFORM pg_temp.chk(pg_temp.rows(v_i) = v_n AND v_n = 1 AND pg_temp.rows(v_i, true) = 0, '12 hide keeps the read row and deletes the unread ones');
+  PERFORM pg_temp.chk((SELECT count(*) FROM notifications WHERE type = 'deal_incidencia' AND conversation_id = v_g) = 1, '12 other types stay');
+  PERFORM pg_temp.chk((SELECT message_id FROM chat_atascado_avisos WHERE conversation_id = v_g)
+      = (SELECT id FROM messages WHERE conversation_id = v_g AND sender_type = 'customer' ORDER BY created_at DESC LIMIT 1),
+      '12 alert state is closed for the last customer message');
+  UPDATE conversations SET deleted_at = NULL WHERE id = v_g;
+  PERFORM pg_temp.pass(); PERFORM pg_temp.pass();
+  PERFORM pg_temp.chk(pg_temp.rows(v_g) = 0, '12 un-hiding without a new customer message does not re-alert');
+  PERFORM pg_temp.msg(v_g, 'customer', 'sigo esperando', interval '20 minutes');
+  PERFORM pg_temp.pass();
+  PERFORM pg_temp.chk(pg_temp.rows(v_g, true) = v_np, '12 a new customer message re-arms (' || pg_temp.rows(v_g, true) || '/' || v_np || ')');
+
+  -- 13: marking not business
+  v_h := pg_temp.fx('08', v_bot);
+  PERFORM pg_temp.msg(v_h, 'customer', 'quiero cambiar dolares, hay alguien?', interval '2 hours');
+  PERFORM pg_temp.pass();
+  PERFORM pg_temp.chk(pg_temp.rows(v_h, true) = v_np, '13 chat alerts first');
+  v_j := pg_temp.fx('10', v_bot);
+  PERFORM pg_temp.msg(v_j, 'customer', 'consulta de cambio', interval '2 hours');
+  PERFORM pg_temp.pass();
+  UPDATE notifications SET read_at = now() WHERE type = 'chat_atascado' AND conversation_id = v_j AND user_id = v_u;
+  INSERT INTO notifications (account_id, user_id, type, conversation_id, title, body)
+  VALUES (v_acc, v_u, 'deal_incidencia', v_h, 'PRUEBA364 money alert', 'must stay');
+  PERFORM pg_temp.as_user(v_person);
+  PERFORM crm_marcar_no_negocio(v_h, true);
+  PERFORM crm_marcar_no_negocio(v_j, true);
+  PERFORM pg_temp.as_user(NULL);
+  PERFORM pg_temp.chk(pg_temp.rows(v_h) = 0, '13 not business deletes the pending chat_atascado rows');
+  PERFORM pg_temp.chk(pg_temp.rows(v_j) = 1 AND pg_temp.rows(v_j, true) = 0, '13 the read row stays, unread ones go');
+  PERFORM pg_temp.chk((SELECT count(*) FROM notifications WHERE type = 'deal_incidencia' AND conversation_id = v_h) = 1, '13 other types stay');
+  PERFORM pg_temp.pass(); PERFORM pg_temp.pass();
+  PERFORM pg_temp.chk(pg_temp.rows(v_h, true) = 0, '13 stays silent');
+  PERFORM pg_temp.msg(v_h, 'customer', 'hola otra vez', interval '20 minutes');
+  PERFORM pg_temp.pass();
+  PERFORM pg_temp.chk(pg_temp.rows(v_h, true) = v_np, '13 a new customer message re-arms');
 
   IF coalesce(nullif(current_setting('t364.fail', true), ''), '0')::int > 0 THEN
     RAISE EXCEPTION '% expectation(s) failed', current_setting('t364.fail', true);

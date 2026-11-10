@@ -7,13 +7,18 @@
 -- What this does:
 --   * conversations.not_business_at / not_business_by: a team member marks a chat "not business" (who and when). The state
 --     is cleared by crm_marcar_no_negocio(conv, false) or automatically when a NEW customer message arrives (trigger on
---     messages, customer rows only). Marking it also marks the chat's unread chat_atascado notifications as read.
+--     messages, customer rows only). Marking it also deletes the chat's unread chat_atascado notifications (see the close trigger below).
 --   * chat_atascado_avisos: the last customer message each conversation was alerted for. A conversation is alerted at most
 --     once per last customer message (never re-created after it was read); a new customer message re-arms it.
 --   * cerebro_avisar_chats_atascados: same liberation, business hours and courtesy filter as 323; the detection loop moves
 --     unchanged into _cerebro_atascados_detectar (so it can be tested outside business hours) with three new filters:
---     not_business_at IS NULL, last customer message newer than cerebro_config chat_atascado_max_dias (default 7 days),
+--     not_business_at IS NULL, last customer message newer than cerebro_config chat_atascado_max_dias (default 2 days),
 --     and not already alerted for that message. p_repetir_min and the *_repetir_* keys are no longer used (signature kept).
+--   * Closing a chat (owner decision 2026-11-11): when a conversation is hidden (deleted_at NULL -> value, what the panel
+--     does) or marked not business (not_business_at NULL -> value), an AFTER UPDATE trigger deletes its unread chat_atascado
+--     notifications for every profile and records the last customer message as already alerted, so it does not re-alert.
+--     Read rows and every other notification type stay. A new customer message re-arms the chat (a new message id; the
+--     webhook also clears deleted_at, and the customer message clears the not-business mark).
 --   * Backfill: every conversation that already has a chat_atascado alert key is marked as alerted for its current last
 --     customer message, so applying this does not re-sound the current backlog.
 -- Money alerts (deal_incidencia, envio_sin_beneficiario, ...) never look at the flag.
@@ -63,9 +68,7 @@ BEGIN
        SET not_business_at = now(), not_business_by = auth.uid()
      WHERE id = p_conversation_id
     RETURNING * INTO v_conv;
-    -- The chat is not business: its open stuck-chat alerts stop being actionable.
-    UPDATE notifications SET read_at = now()
-     WHERE conversation_id = p_conversation_id AND type = 'chat_atascado' AND read_at IS NULL;
+    -- Its unread stuck-chat alerts are deleted by trigger zzz_conversations_cerrar_atascado.
   ELSE
     UPDATE conversations
        SET not_business_at = NULL, not_business_by = NULL
@@ -104,6 +107,34 @@ CREATE TRIGGER zzz_messages_reactivar_no_negocio
   FOR EACH ROW WHEN (NEW.sender_type = 'customer')
   EXECUTE FUNCTION public.cerebro_reactivar_no_negocio();
 
+-- Hiding a chat or marking it not business closes its pending stuck-chat alerts.
+CREATE OR REPLACE FUNCTION public.cerebro_cerrar_atascado_conversacion()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  DELETE FROM notifications
+   WHERE conversation_id = NEW.id AND type = 'chat_atascado' AND read_at IS NULL;
+  -- Closed for the current last customer message: only a newer customer message alerts again.
+  INSERT INTO chat_atascado_avisos (conversation_id, message_id)
+  SELECT NEW.id, m.id FROM messages m
+   WHERE m.conversation_id = NEW.id AND m.sender_type = 'customer'
+   ORDER BY m.created_at DESC LIMIT 1
+  ON CONFLICT (conversation_id) DO UPDATE SET message_id = EXCLUDED.message_id, avisado_at = now();
+  RETURN NULL;
+END $function$;
+
+REVOKE ALL ON FUNCTION public.cerebro_cerrar_atascado_conversacion() FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS zzz_conversations_cerrar_atascado ON public.conversations;
+CREATE TRIGGER zzz_conversations_cerrar_atascado
+  AFTER UPDATE OF deleted_at, not_business_at ON public.conversations
+  FOR EACH ROW WHEN ((OLD.deleted_at IS NULL AND NEW.deleted_at IS NOT NULL)
+                  OR (OLD.not_business_at IS NULL AND NEW.not_business_at IS NOT NULL))
+  EXECUTE FUNCTION public.cerebro_cerrar_atascado_conversacion();
+
 -- Detection loop of 323 (unchanged) plus the three new filters. Returns (stuck chats found, notification rows touched).
 CREATE OR REPLACE FUNCTION public._cerebro_atascados_detectar(p_minutos integer)
  RETURNS TABLE(atascados integer, avisos_creados integer)
@@ -118,7 +149,7 @@ DECLARE
   v_n int := 0; v_avisos int := 0; v_creados int;
   v_espera text; v_quien text; r record;
 BEGIN
-  v_max_dias := COALESCE(NULLIF(cerebro_config_get('chat_atascado_max_dias'), '')::int, 7);
+  v_max_dias := COALESCE(NULLIF(cerebro_config_get('chat_atascado_max_dias'), '')::int, 2);
   v_caduca   := COALESCE(NULLIF(cerebro_config_get('asignacion_caduca_minutos'), '')::int, 10);
 
   FOR r IN

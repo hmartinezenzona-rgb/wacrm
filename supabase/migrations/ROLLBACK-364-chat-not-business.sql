@@ -107,6 +107,8 @@ $function$
 
 ;
 
+DROP TRIGGER IF EXISTS zzz_conversations_cerrar_atascado ON public.conversations;
+DROP FUNCTION IF EXISTS public.cerebro_cerrar_atascado_conversacion();
 DROP TRIGGER IF EXISTS zzz_messages_reactivar_no_negocio ON public.messages;
 DROP FUNCTION IF EXISTS public.cerebro_reactivar_no_negocio();
 DROP FUNCTION IF EXISTS public.crm_marcar_no_negocio(uuid, boolean);

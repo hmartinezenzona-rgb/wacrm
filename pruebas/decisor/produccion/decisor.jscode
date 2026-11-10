@@ -947,7 +947,12 @@ if (zellePorAsignar > 0.009) {
 }
 // Para una RECARGA el destino queda sabido con el numero a recargar, sin
 // tarjeta: es la naturaleza del servicio, no una excepcion de la guarda.
-const sabeDestino = !!((tarjetaCtx && celularCtx) || zelleCompleto || ctx.tiene_beneficiario || (recargaEnCurso && celularCtx) || (comboEnCurso && comboCompleto) || visaEnCurso);
+// EFECTIVO (10-nov-2026, exec 700098): la entrega en efectivo no deja `tiene_beneficiario`; lo que dice si falta
+// algo es `entrega_efectivo_falta` del Contexto (telefono, direccion, carnet). En curso y sin faltantes el destino
+// ya esta completo, carnet incluido. Un contexto sin el campo (version vieja) deja el comportamiento de siempre.
+const faltaEfectivo = (rielEfectivo && ctx.entrega_efectivo_en_curso && Array.isArray(ctx.entrega_efectivo_falta)) ? ctx.entrega_efectivo_falta.map(String) : null;
+const efectivoCompleto = !!(faltaEfectivo && faltaEfectivo.length === 0);
+const sabeDestino = !!((tarjetaCtx && celularCtx) || zelleCompleto || ctx.tiene_beneficiario || (recargaEnCurso && celularCtx) || (comboEnCurso && comboCompleto) || visaEnCurso || efectivoCompleto);
 // EL "ANOTADO" QUE NO ANOTA (14-ago-2026). Tres casos en cuatro dias en los
 // que el sistema no registro NINGUN beneficiario y el modelo le dijo al
 // cliente que si. Gardy dio "674 2713" — siete digitos, no es un celular
@@ -970,7 +975,12 @@ const sabeDestino = !!((tarjetaCtx && celularCtx) || zelleCompleto || ctx.tiene_
 // rechazo ese dato", y ampliar la nota de al lado obligaba a permitir que
 // desapareciera en el banco, que es debilitar la prueba para que pase.
 const datosAMedias = !!(tarjetaCtx || celularCtx || zelleNomCtx || zelleCtaCtx);
-if (!sabeDestino && !s.multi_beneficiario && datosAMedias && rielEfectivo) {
+if (efectivoCompleto && !s.multi_beneficiario) {
+  notas.push('ENTREGA EN EFECTIVO (USD en mano en Cuba): los datos de entrega de quien recibe ya estan completos y guardados, incluido el carnet. PROHIBIDO pedir datos de entrega (nombre, telefono, direccion, carnet, tarjeta) otra vez ni decir que falta alguno. Si el cliente solo pregunta o espera, respondele sobre el estado del envio.');
+} else if (!sabeDestino && !s.multi_beneficiario && rielEfectivo && faltaEfectivo && faltaEfectivo.length > 0) {
+  const pideEf = faltaEfectivo.map((x) => ({ telefono: 'telefono de quien recibe', direccion: 'direccion exacta', carnet: 'foto del carnet' }[x] || x)).join(', ');
+  notas.push('ENTREGA EN EFECTIVO (USD en mano en Cuba): PROHIBIDO pedir tarjeta. Falta SOLO: ' + pideEf + '. Pide unicamente eso; NO pidas nada mas ni repitas lo que el cliente ya dio.');
+} else if (!sabeDestino && !s.multi_beneficiario && datosAMedias && rielEfectivo) {
   notas.push('ENTREGA EN EFECTIVO (USD en mano en Cuba): PROHIBIDO pedir tarjeta. Pide SOLO lo que falte de quien recibe: nombre completo, direccion exacta o foto del carnet. No repitas lo que el cliente ya dio.');
 } else if (!sabeDestino && !s.multi_beneficiario && datosAMedias) {
   const formato = (tarjetaCtx && !celularCtx)
@@ -1067,7 +1077,9 @@ if (!ctx.es_admin && ctx.grupo_enviado === false && !(h && Number(h.envios_previ
 // Estado del ciclo: decide como tratar un gracias/acuse.
 // El SKIP es SOLO para acuses puros: si el mensaje trae saludo, pregunta o intencion nueva, SIEMPRE se responde.
 const abiertos = Number((h && h.envios_abiertos) ?? 0);
-const hayOperacionNueva = !!(s.comprobante || s.tarjeta || s.celular || tarjetaCtx || celularCtx);
+// 10-nov-2026 (exec 700098): solo cuenta lo que trae ESTE lote. El celular o la tarjeta guardados en el contexto
+// (tarjetaCtx / celularCtx) no son datos nuevos: contarlos forzaba responder a un audio sin datos.
+const hayOperacionNueva = !!(s.comprobante || s.tarjeta || s.celular);
 const esSaludo = !!saludoCliente || salu2 || /\boig[ae]\b/i.test(texto);
 const esPregunta = /[?¿]/.test(texto) || /\b(cuanto|cuánto|como|cómo|cuando|cuándo|donde|dónde|quiero|necesito|puede|pueden|estan|están|hay|tasa|cambio|enviar|mandar)\b/i.test(texto);
 // ORDEN IMPORTANTE: si el lote trae datos, el SKIP queda PROHIBIDO aunque el texto parezca un acuse.

@@ -1037,6 +1037,101 @@ describe('envio en efectivo: no se pide tarjeta', () => {
   });
 });
 
+describe('efectivo con datos de entrega ya guardados: no se vuelven a pedir (2026-11-10, exec 700098)', () => {
+  // conv ce686768: carnet guardado a las 17:44, a las 19:13 un audio sin datos recibio "me envia la foto del
+  // carnet". El Contexto traia entrega_efectivo_falta [] y entrega_efectivo_en_curso true.
+  const ctxEfectivo = {
+    riel_operacion: 'efectivo_usd',
+    beneficiarios_registrados: [],
+    entrega_efectivo_en_curso: true,
+  };
+  const audio = { texto_completo: '[audio] ya le dije que si, estoy esperando' };
+
+  it('en curso y falta []: ni pide carnet ni datos, y prohibe pedirlos', () => {
+    const s = correr({
+      ctx: { ...ctxEfectivo, entrega_efectivo_falta: [] },
+      beneficiario: { celular_final: '53821202' },
+      snapshot: audio,
+    });
+    const todo = s.notas.join('\n');
+    expect(nota(s, 'ENTREGA EN EFECTIVO') as string).toMatch(
+      /PROHIBIDO pedir datos de entrega/
+    );
+    expect(todo).not.toContain('foto del carnet');
+    expect(todo).not.toContain('Pide SOLO lo que falte');
+    expect(todo).not.toContain('TODAVIA NO SE SABE A QUIEN TRANSFERIRLE');
+    expect(todo).not.toContain('PROHIBIDO RESPONDER SKIP');
+  });
+
+  it('en curso y falta [] con el envio en verificacion: no dice que falta el destino', () => {
+    const s = correr({
+      ctx: { ...ctxEfectivo, entrega_efectivo_falta: [] },
+      beneficiario: { celular_final: '53821202' },
+      historial: { etapa_envio_abierto: 'Por verificar', envios_abiertos: 1 },
+      snapshot: audio,
+    });
+    expect(s.notas.join('\n')).not.toContain(
+      'TODAVIA NO SE SABE A QUIEN TRANSFERIRLE'
+    );
+  });
+
+  it('falta solo el carnet: pide unicamente la foto del carnet', () => {
+    const s = correr({
+      ctx: { ...ctxEfectivo, entrega_efectivo_falta: ['carnet'] },
+      beneficiario: { celular_final: '53821202' },
+      snapshot: audio,
+    });
+    const n = nota(s, 'ENTREGA EN EFECTIVO') as string;
+    expect(n).toMatch(/foto del carnet/);
+    expect(n).not.toMatch(/nombre completo|direccion exacta|telefono/);
+  });
+
+  it('falta telefono y direccion: pide solo esos dos', () => {
+    const s = correr({
+      ctx: { ...ctxEfectivo, entrega_efectivo_falta: ['telefono', 'direccion'] },
+      beneficiario: { celular_final: '53821202' },
+      snapshot: audio,
+    });
+    const n = nota(s, 'ENTREGA EN EFECTIVO') as string;
+    expect(n).toMatch(/telefono/);
+    expect(n).toMatch(/direccion/);
+    expect(n).not.toMatch(/carnet/);
+  });
+
+  it('contexto viejo sin entrega_efectivo_falta: la nota de siempre', () => {
+    const s = correr({
+      ctx: ctxEfectivo,
+      beneficiario: { celular_final: '53821202' },
+      snapshot: audio,
+    });
+    expect(nota(s, 'ENTREGA EN EFECTIVO') as string).toMatch(
+      /nombre completo, direccion exacta o foto del carnet/
+    );
+  });
+});
+
+describe('dato solo guardado en el contexto no es "datos nuevos" del lote (2026-11-10)', () => {
+  it('celular guardado y texto sin datos: no fuerza responder', () => {
+    const s = correr({
+      ctx: { riel_operacion: 'cuban_card', beneficiarios_registrados: [] },
+      beneficiario: { celular_final: '53821202' },
+      snapshot: { texto_completo: 'ok gracias' },
+    });
+    expect(s.notas.join('\n')).not.toContain('ESTE LOTE TRAE DATOS NUEVOS');
+  });
+
+  it('celular en este lote: sigue forzando responder', () => {
+    const s = correr({
+      ctx: { riel_operacion: 'cuban_card', beneficiarios_registrados: [] },
+      snapshot: {
+        texto_completo: 'mi familiar es 53821202',
+        celular: '53821202',
+      },
+    });
+    expect(s.notas.join('\n')).toContain('ESTE LOTE TRAE DATOS NUEVOS');
+  });
+});
+
 describe('varias cuentas Zelle: no forzar una pareja nombre-cuenta', () => {
   const base = {
     texto_completo: 'YLT WHOLESALE FOODS LLC 954-425-3182',

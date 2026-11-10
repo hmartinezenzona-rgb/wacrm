@@ -13,6 +13,10 @@ BEGIN
 
   SELECT pg_get_functiondef(p.oid) INTO v_def
     FROM pg_proc p WHERE p.proname = 'cerebro_avisar_chats_atascados' AND p.pronamespace = 'public'::regnamespace;
+  -- 364 moved the detection loop (and its courtesy filter) into _cerebro_atascados_detectar.
+  v_def := v_def || COALESCE(
+    (SELECT pg_get_functiondef(p.oid) FROM pg_proc p
+      WHERE p.proname = '_cerebro_atascados_detectar' AND p.pronamespace = 'public'::regnamespace), '');
   IF v_def ILIKE '%a.sender_type = ''agent''%' THEN
     v_fail := v_fail || ' 3:condicion-vieja';
   END IF;

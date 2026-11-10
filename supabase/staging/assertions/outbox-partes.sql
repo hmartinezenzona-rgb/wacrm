@@ -7,6 +7,15 @@
 -- valid status; (7) shadow mode sends one joined message; (8) the flag exists and is off.
 -- Needs 348 applied (staging-migracion.sh runs it after the migration). Rolls back on purpose.
 \set ON_ERROR_STOP on
+-- 365 diverts the four technical notification types into notification_digest_items; this assertion checks the
+-- emitters' own rows, so the diversion trigger is off for this (rolled back) transaction. The digest has its own
+-- assertion (notifications-digest.sql).
+DO $digest_off$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'zzz_notifications_to_digest' AND tgrelid = 'public.notifications'::regclass) THEN
+    ALTER TABLE public.notifications DISABLE TRIGGER zzz_notifications_to_digest;
+  END IF;
+END $digest_off$;
+
 DO $$
 DECLARE
   v_conv uuid; v_acc uuid;

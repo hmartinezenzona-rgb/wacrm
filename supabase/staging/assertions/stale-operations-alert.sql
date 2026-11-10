@@ -2,6 +2,15 @@
 -- Assertion for migration 134 (daily alert of remesas left open).
 -- Self-reverting: run as  BEGIN; \i this file; ROLLBACK;
 -- =====================================================================
+-- 365 diverts the four technical notification types into notification_digest_items; this assertion checks the
+-- emitters' own rows, so the diversion trigger is off for this (rolled back) transaction. The digest has its own
+-- assertion (notifications-digest.sql).
+DO $digest_off$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'zzz_notifications_to_digest' AND tgrelid = 'public.notifications'::regclass) THEN
+    ALTER TABLE public.notifications DISABLE TRIGGER zzz_notifications_to_digest;
+  END IF;
+END $digest_off$;
+
 DO $$
 DECLARE
   v_user uuid; v_acc uuid; v_ct uuid; v_conv uuid; v_deal uuid; v_r record; v_body text; v_menciones int;

@@ -510,6 +510,15 @@ END $fn$;
 -- ---------------------------------------------------------------------
 -- The assertions.
 -- ---------------------------------------------------------------------
+-- 365 diverts the four technical notification types into notification_digest_items; this assertion checks the
+-- emitters' own rows, so the diversion trigger is off for this (rolled back) transaction. The digest has its own
+-- assertion (notifications-digest.sql).
+DO $digest_off$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'zzz_notifications_to_digest' AND tgrelid = 'public.notifications'::regclass) THEN
+    ALTER TABLE public.notifications DISABLE TRIGGER zzz_notifications_to_digest;
+  END IF;
+END $digest_off$;
+
 DO $body$
 DECLARE
   v_fail         integer := 0;

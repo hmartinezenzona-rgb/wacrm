@@ -204,7 +204,8 @@ export type NotificationType =
   | 'conversation_assigned'
   | 'deal_incidencia'
   | 'mensaje_fallido'
-  | 'promo_etecsa';
+  | 'promo_etecsa'
+  | 'resumen_diario';
 
 export interface Notification {
   id: string;

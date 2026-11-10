@@ -15,6 +15,7 @@ import {
   Loader2,
   MessageSquareX,
   Percent,
+  ClipboardList,
   Trash2,
   X,
   XCircle,
@@ -42,6 +43,7 @@ const TYPE_ICON: Record<Notification["type"], typeof Bell> = {
   deal_incidencia: AlertTriangle,
   mensaje_fallido: MessageSquareX,
   promo_etecsa: Percent,
+  resumen_diario: ClipboardList,
 };
 
 export default function NotificationsPage() {
@@ -323,6 +325,11 @@ export default function NotificationsPage() {
                         >
                           {n.title}
                         </span>
+                        {n.type === "resumen_diario" && (
+                          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                            {t("digestBadge")}
+                          </span>
+                        )}
                         {isUnread && (
                           <span
                             aria-label={t("unread")}

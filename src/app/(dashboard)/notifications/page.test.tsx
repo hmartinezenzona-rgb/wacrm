@@ -90,6 +90,22 @@ async function mount() {
 const byLabel = (label: string) => Array.from(document.querySelectorAll("button")).filter((b) => b.getAttribute("aria-label") === label);
 const byText = (text: string) => Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.trim() === text);
 
+describe("NotificationsPage digest", () => {
+  it("shows the daily summary with its badge and the multi-line body", async () => {
+    rows = [note("1", { type: "resumen_diario", conversation_id: null, title: "Resumen tecnico del dia: 3 avisos", body: "Mensajes que no llegaron: 2\n- uno\n- dos" })];
+    const node = await mount();
+    expect(node.textContent).toContain(t.digestBadge);
+    expect(node.textContent).toContain("Resumen tecnico del dia: 3 avisos");
+    expect(node.textContent).toContain("- dos");
+  });
+
+  it("does not show the digest badge on other notifications", async () => {
+    rows = [note("1")];
+    const node = await mount();
+    expect(node.textContent).not.toContain(t.digestBadge);
+  });
+});
+
 describe("NotificationsPage deleting", () => {
   it("shows an accessible X on every notification", async () => {
     rows = [note("1"), note("2")];

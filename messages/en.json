@@ -2687,6 +2687,7 @@
   },
   "Notifications": {
     "deleteOne": "Delete notification",
+    "digestBadge": "Daily summary",
     "deleteAll": "Delete all",
     "deleteAllTitle": "Delete all notifications?",
     "deleteAllDescription": "All your notifications will be deleted, including the unread ones. This cannot be undone.",

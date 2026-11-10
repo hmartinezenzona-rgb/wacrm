@@ -2687,6 +2687,7 @@
   },
   "Notifications": {
     "deleteOne": "Borrar notificación",
+    "digestBadge": "Resumen del día",
     "deleteAll": "Borrar todas",
     "deleteAllTitle": "¿Borrar todas las notificaciones?",
     "deleteAllDescription": "Se borrarán todas tus notificaciones, incluidas las que no has leído. No se puede deshacer.",

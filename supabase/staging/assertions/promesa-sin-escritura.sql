@@ -19,6 +19,10 @@ BEGIN
   INSERT INTO messages (id, conversation_id, sender_type, content_type, status, content_text, ai_generated, is_panel_action)
   VALUES (v_msg, v_conv, 'agent', 'text', 'sent', 'Anotado, es Oberto', true, false);
 
+  -- 362: the case is recorded when the candidate is evaluated (2 min later); evaluate now. Absent on the 313 base.
+  IF to_regprocedure('cerebro_promesa_evaluar(timestamptz)') IS NOT NULL THEN
+    EXECUTE 'SELECT cerebro_promesa_evaluar(now() + interval ''3 minutes'')';
+  END IF;
   IF (SELECT count(*) FROM cerebro_promesas_sin_escritura WHERE message_id = v_msg) <> 1 THEN
     v_fail := v_fail || ' 5:sin-auditoria';
   END IF;
@@ -32,13 +36,22 @@ BEGIN
     v_fail := v_fail || ' 6:sin-nota';
   END IF;
 
-  -- 2. Same promise, but a write tool ran a minute before -> ignored.
+  -- 2. Same promise with a tool logged a minute before. Before 362 any tool row silenced the case; since 362 only saved
+  -- state does (see promise-alert-by-state.sql), so this case is judged by state: nothing saved -> still recorded.
   INSERT INTO tool_execution_log (idempotency_key, tool_name, execution_id, conversation_id, outcome)
   VALUES ('prueba-296-' || gen_random_uuid(), 'registrar_beneficiario', 'prueba-296', v_conv, 'ok');
   INSERT INTO messages (id, conversation_id, sender_type, content_type, status, content_text, ai_generated, is_panel_action)
   VALUES (v_msg_write, v_conv, 'agent', 'text', 'sent', 'Anotado el celular', true, false);
-  IF EXISTS (SELECT 1 FROM cerebro_promesas_sin_escritura WHERE message_id = v_msg_write) THEN
-    v_fail := v_fail || ' 7:ignora-escritura';
+  -- 362: the case is recorded when the candidate is evaluated (2 min later); evaluate now. Absent on the 313 base.
+  IF to_regprocedure('cerebro_promesa_evaluar(timestamptz)') IS NOT NULL THEN
+    EXECUTE 'SELECT cerebro_promesa_evaluar(now() + interval ''3 minutes'')';
+  END IF;
+  IF to_regprocedure('cerebro_promesa_evaluar(timestamptz)') IS NULL THEN
+    IF EXISTS (SELECT 1 FROM cerebro_promesas_sin_escritura WHERE message_id = v_msg_write) THEN
+      v_fail := v_fail || ' 7:ignora-escritura';
+    END IF;
+  ELSIF NOT EXISTS (SELECT 1 FROM cerebro_promesas_sin_escritura WHERE message_id = v_msg_write) THEN
+    v_fail := v_fail || ' 7:herramienta-sola-no-silencia';
   END IF;
 
   -- 3. Customer message with the same words -> ignored.

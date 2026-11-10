@@ -29,6 +29,10 @@ BEGIN
   VALUES (v_conv_cli, 'agent', 'text', 'Anotado el celular 53821208.', true, 'sent')
   RETURNING id INTO v_msg;
 
+  -- 362: the case is recorded when the candidate is evaluated (2 min later); evaluate now. Absent on the 313 base.
+  IF to_regprocedure('cerebro_promesa_evaluar(timestamptz)') IS NOT NULL THEN
+    EXECUTE 'SELECT cerebro_promesa_evaluar(now() + interval ''3 minutes'')';
+  END IF;
   SELECT count(*) INTO v_n FROM cerebro_promesas_sin_escritura WHERE message_id = v_msg;
   IF v_n <> 1 THEN v_fail := v_fail || ' 1:sin-registro=' || v_n; END IF;
   SELECT count(*) INTO v_aviso FROM message_outbox

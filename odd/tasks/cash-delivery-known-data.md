@@ -31,7 +31,7 @@ production deploy with go-ahead. Out: Contexto SQL (the field already exists), t
 - [x] T1 Decisor: cash rail reads ctx.entrega_efectivo_falta (empty + en curso -> destination known, note forbidding
       any data request; non-empty -> ask only the listed items); stored data (celularCtx/tarjetaCtx) no longer counts
       as new data in hayOperacionNueva; tests (ce686768 shape, partial missing list, card rail unchanged)
-- [ ] T2 Production (needs go-ahead): backup, publish, first executions check
+- [x] T2 Production (needs go-ahead): backup, publish, first executions check (first executions check pending real traffic)
 
 ## Acceptance criteria
 - Cash send with everything saved + audio without data -> no request for carnet or any delivery data.
@@ -47,5 +47,9 @@ production deploy with go-ahead. Out: Contexto SQL (the field already exists), t
   RED: 5 of 7 new tests failed (2 guards passed). GREEN: `npx vitest run pruebas/decisor/produccion` 112/112.
   New md5 97469eb2a5da7a61f68d2528d50a9a0b (was fe8fb5ae...), pin updated in produccion/correr.ts.
 
+- 2026-11-10 T2 production (owner "si"): backup produccion-jEzlVLCLUaJhVwzs-930441b1-...-20261110-162425.json;
+  publicar-decisor --esperado fe8fb5ae OK; versionId 930441b1 -> d0ef24b5 = activeVersionId, active, 128 nodes,
+  decisor_md5 97469eb2. Rollback: restaurar produccion <that backup> --esperado d0ef24b5.
+
 ## Next step
-T2 (needs owner go-ahead).
+Watch the first cash-delivery executions after the publish (no data re-request when falta is empty).

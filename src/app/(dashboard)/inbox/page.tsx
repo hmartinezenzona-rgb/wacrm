@@ -14,6 +14,7 @@ import { createChatSoundGate } from "@/lib/inbox/chat-sound-gate";
 import { takeInboxOpenTarget } from "@/lib/inbox/open-target";
 import { ConversationList } from "@/components/inbox/conversation-list";
 import { MessageThread } from "@/components/inbox/message-thread";
+import type { NotBusinessPatch } from "@/components/inbox/not-business-control";
 import { ContactSidebar } from "@/components/inbox/contact-sidebar";
 import { toast } from "sonner";
 import { WifiOff } from "lucide-react";
@@ -572,6 +573,18 @@ export default function InboxPage() {
     [activeConversation]
   );
 
+  const handleNotBusinessChange = useCallback(
+    (conversationId: string, patch: NotBusinessPatch) => {
+      setConversations((prev) =>
+        prev.map((c) => (c.id === conversationId ? { ...c, ...patch } : c))
+      );
+      if (activeConversation?.id === conversationId) {
+        setActiveConversation((prev) => (prev ? { ...prev, ...patch } : prev));
+      }
+    },
+    [activeConversation]
+  );
+
   // On mobile (<lg) we show a SINGLE pane — either the list or the
   // thread — rather than cramming both side-by-side. Selecting a
   // conversation slides the thread in; the thread's back button pops
@@ -645,6 +658,7 @@ export default function InboxPage() {
             onUpdateMessage={handleUpdateMessage}
             onStatusChange={handleStatusChange}
             onAssignChange={handleAssignChange}
+            onNotBusinessChange={handleNotBusinessChange}
             onBack={handleCloseConversation}
             resyncToken={resyncToken}
             onRefresh={handleManualRefresh}

@@ -54,6 +54,7 @@ import {
 } from "@/lib/inbox/session-window";
 import { TemplatePicker } from "./template-picker";
 import { AiThreadBanner } from "./ai-thread-banner";
+import { NotBusinessBanner, NotBusinessButton, type NotBusinessPatch } from "./not-business-control";
 import { buildReplyPreview } from "./reply-quote";
 import { toast } from "sonner";
 import { renderTemplateBody } from "@/lib/whatsapp/template-send-builder";
@@ -83,6 +84,8 @@ interface MessageThreadProps {
    * mobile only.
    */
   onBack?: () => void;
+  /** Patch the parent's copy of the conversation after the "not business" mark changes. */
+  onNotBusinessChange?: (conversationId: string, patch: NotBusinessPatch) => void;
   /**
    * Increment to force the messages + reactions fetch effects to refire.
    * Parent bumps this on realtime reconnect / tab visibility → visible
@@ -166,6 +169,7 @@ export function MessageThread({
   onUpdateMessage,
   onStatusChange,
   onAssignChange,
+  onNotBusinessChange,
   onBack,
   resyncToken = 0,
   onRefresh,
@@ -1096,6 +1100,13 @@ export function MessageThread({
             </button>
           )}
 
+          {/* "Not business": silences the unanswered-chat alert until the customer writes again */}
+          <NotBusinessButton
+            conversationId={conversation.id}
+            notBusinessAt={conversation.not_business_at}
+            onChange={(patch) => onNotBusinessChange?.(conversation.id, patch)}
+          />
+
           {/* Status dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger className={cn(
@@ -1188,6 +1199,12 @@ export function MessageThread({
           </DropdownMenu>
         </div>
       </div>
+
+      <NotBusinessBanner
+        conversationId={conversation.id}
+        notBusinessAt={conversation.not_business_at}
+        onChange={(patch) => onNotBusinessChange?.(conversation.id, patch)}
+      />
 
       {/* Messages Area */}
       {/* `loading` alone used to gate this — true on every resync too

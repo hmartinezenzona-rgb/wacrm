@@ -176,6 +176,13 @@
       "unknownContact": "Desconocido",
       "loadingOlder": "Cargando mensajes anteriores…"
     },
+    "notBusiness": {
+      "mark": "No es del negocio",
+      "markHint": "Marca este chat como no del negocio: deja de avisar que está sin responder hasta que el cliente escriba de nuevo",
+      "banner": "Chat marcado como no del negocio. No genera avisos de chat sin responder hasta que el cliente escriba de nuevo.",
+      "reactivate": "Reactivar",
+      "failed": "No se pudo cambiar la marca del chat"
+    },
     "sessionTimer": {
       "expired": "Vencida",
       "xhRemaining": "Quedan {hours} h",

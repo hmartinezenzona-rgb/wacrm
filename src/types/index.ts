@@ -191,6 +191,9 @@ export interface Conversation {
   /** Internal source/timestamp for an automatic Cerebro handoff (093). */
   ai_handoff_reason?: string | null;
   ai_handoff_at?: string | null;
+  /** Marked "not business" by a team member (364); cleared when the customer writes again. */
+  not_business_at?: string | null;
+  not_business_by?: string | null;
 }
 
 // ============================================================

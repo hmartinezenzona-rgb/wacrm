@@ -176,6 +176,13 @@
       "unknownContact": "Unknown",
       "loadingOlder": "Loading earlier messages…"
     },
+    "notBusiness": {
+      "mark": "Not business",
+      "markHint": "Mark this chat as not business: it stops raising unanswered-chat alerts until the customer writes again",
+      "banner": "Chat marked as not business. It raises no unanswered-chat alerts until the customer writes again.",
+      "reactivate": "Reactivate",
+      "failed": "Could not change the chat mark"
+    },
     "sessionTimer": {
       "expired": "Expired",
       "xhRemaining": "{hours}h remaining",

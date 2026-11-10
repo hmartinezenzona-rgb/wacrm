@@ -1435,6 +1435,24 @@ describe('saludo: se copia el ultimo saludo del cliente', () => {
     });
     expect(nota(s, 'PRIMER CONTACTO DEL DIA') as string).toContain('"Buenas noches"');
   });
+
+  // Owner 2026-11-10 (exec 689460): "hola buen día" at 18:11 UTC got "buenas tardes" by the clock.
+  it.each([
+    ['hola buen día', '"buen día"'],
+    ['Buen dia, una pregunta', '"Buen dia"'],
+    ['buena tarde quiero enviar', '"buena tarde"'],
+    ['Buena noche', '"Buena noche"'],
+  ])('reconoce el singular: %s', (texto, esperado) => {
+    const s = correr({ historial: { primer_del_dia: true }, snapshot: { texto_completo: texto } });
+    expect(nota(s, 'PRIMER CONTACTO DEL DIA') as string).toContain(esperado);
+  });
+
+  it('con saludo singular ya presentado devuelve el saludo', () => {
+    const s = correr({ historial: { primer_del_dia: false }, snapshot: { texto_completo: 'buen día, ya deposité' } });
+    const n = nota(s, 'YA te presentaste hoy') as string;
+    expect(n).toContain('DEVUELVELE EL SALUDO');
+    expect(n).toContain('"buen día"');
+  });
 });
 
 // Owner 2026-11-07: the customer resent the same Zelle contact card and the bot showed "Cuenta Zelle anotada"

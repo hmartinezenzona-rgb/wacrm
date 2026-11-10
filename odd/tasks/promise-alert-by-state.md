@@ -34,7 +34,7 @@ Out: prompt wording, Decisor, the holiday/horario inconsistency (exec 689460, se
       any writer including automatic paths); alert only when nothing was saved; ROLLBACK; assertion with the 36-alert
       classes as fixtures (off-hours notice, saved before, saved 40 s after, automatic path, read-only tool, real miss)
 - [x] T2 Staging: apply, related assertions; replay the 36 historical alerts read-only against the new rule
-- [ ] T3 Production (needs go-ahead)
+- [x] T3 Production (owner go-ahead "ok" 2026-11-10)
 
 ## Acceptance criteria
 - Off-hours notice never alerts.
@@ -70,5 +70,8 @@ Out: prompt wording, Decisor, the holiday/horario inconsistency (exec 689460, se
   alert (31 are the off-hours notice, no claim; 4 saved by beneficiary/operation/receipt/MMG evidence); 1 would
   still alert (conv f80a33a0, 2026-11-07 14:03: claim, only saves 48 min before and 22 min after the message).
 
+- 2026-11-10 T3 production: previa SEGURO; `OK 362_promise_alert_by_state 20261110071813`; verificar 4/4 equal;
+  cron job `evaluar-promesas` present and active on production.
+
 ## Next step
-T3 production needs the owner's go-ahead: `produccion-migracion.sh previa`, then `aplicar` after the answer.
+Done. Watch the first real candidates (cerebro_promesa_candidatas statuses, cron run details).

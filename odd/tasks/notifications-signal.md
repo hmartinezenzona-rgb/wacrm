@@ -58,7 +58,7 @@ Out: second-batch items; Cerebro Decisor; notifier WhatsApp alerts to the admin 
 - [x] T4 Staging: apply, related assertions, panel on staging for the owner to try (browser click-through NOT done: no browser tool in that session; DB-level equivalent done)
 - [x] T4b Owner follow-up (2026-11-11): hiding a chat (deleted_at) or marking it not business removes its pending
       chat_atascado notifications automatically; chat_atascado_max_dias 7 -> 2; tests; staging
-- [ ] T5 Production (needs go-ahead): migrations, panel publish, schedule
+- [x] T5 Production (needs go-ahead): migrations, panel publish, schedule
 
 ## Acceptance criteria
 - A chat marked "No es del negocio" produces no unanswered-chat alert until the customer writes again.
@@ -76,5 +76,13 @@ Out: second-batch items; Cerebro Decisor; notifier WhatsApp alerts to the admin 
 - T4 DB check with a PRUEBA fixture (5990253 0901, cleaned up): as an owner/admin profile, crm_marcar_no_negocio(true) -> no_negocio true with who/when; (false) -> cleared; marked again, inserting a customer message cleared it (trigger); a mensaje_fallido insert went to notification_digest_items (0 notifications rows), cerebro_resumen_diario() returned 1 and created type resumen_diario "Resumen tecnico del dia: 1 aviso" (rolled back). Panel components and notifications page vitest: 41 files / 660 tests pass. Cleanup: limpieza.sql dry run then real; fixture conversation 0 rows, no PRUEBA digest or notification rows (one older PRUEBA contact from 2026-10-14 is not from this run).
 - T4b (2026-11-11) commit af89485. Route: 364 edited in place (not in production, one clean production apply, no 366 that would redefine what 364 just created). New trigger zzz_conversations_cerrar_atascado (AFTER UPDATE OF deleted_at, not_business_at, WHEN NULL -> value): deletes unread chat_atascado rows for all profiles and records the last customer message in chat_atascado_avisos; read rows and other types stay; un-hide without a new customer message does not re-alert, a new customer message re-arms. The RPC no longer marks rows read (the trigger deletes them). Default chat_atascado_max_dias 7 -> 2 (staging cerebro_config had no such row, nothing to set). RED (current staging, extended assertion): FAIL [9 3-day-old message does not alert], FAIL [12 hide deletes the pending chat_atascado rows for every profile], FAIL [12 un-hiding without a new customer message does not re-alert], FAIL [13 not business deletes the pending chat_atascado rows]. GREEN: clean production path in one rolled-back transaction (ROLLBACK-365, ROLLBACK-364, 364, 365, assertion) -> ALL PASS; staging aplicar 364 (idempotent re-run, no rollback so the owner's PRUEBA fixture marks survive): dry-run OK, apply OK, assertion OK, rollback OK. relacionadas --ya-aplicada: TOTAL 44, SAME 42, DIFF 2 (notifications-not-business expected, base lacks 364; delivery-feed-evidence same fixture failure on both sides, only the uuid differs, as in T4). Staging has one profile, so the multi-profile "every profile" check is exercised with one row; production has 3.
 
+- 2026-11-10 T5 production (owner "si, pásalo a producción" after trying the panel on staging): previa SEGURO;
+  `OK 364_chat_not_business 20261110172945`, `OK 365_notifications_daily_digest 20261110172949` (one by one);
+  verificar 7/7 equal; cron `resumen-diario-notificaciones` `30 12 * * 1-6` active; triggers
+  zzz_conversations_cerrar_atascado and zzz_notifications_to_digest present. Panel: release/prod-notificaciones
+  (pushed to privado) sha f4c4036, compilar OK (vitest, tsc), BUILD_ID nt69y2tN1f7ITsTlf9IH1 served; rollback
+  sha db61a21 (anterior). Staging PRUEBA fixture 59902530912 cleaned (0 rows).
+
 ## Next step
-T5 production needs the owner's go-ahead: migrations 364 then 365 (previa/aplicar/verificar), panel publish, confirm the pg_cron digest job. Owner to confirm: the Etecsa new-promotion notice stays immediate; and try the button/banner/digest page in the staging panel.
+Done. Watch tomorrow's 08:30 Guyana digest and the chat_atascado volume. Second batch (business-intent
+escalation, one live row per operation for envio_sin_beneficiario, sound by severity, auto-clear) awaits the owner.

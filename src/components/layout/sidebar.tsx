@@ -9,6 +9,7 @@ import { useTotalUnread } from "@/hooks/use-total-unread";
 import { useUnreadNotifications } from "@/hooks/use-unread-notifications";
 import {
   ChefHat,
+  UtensilsCrossed,
   Crown,
   GitBranch,
   LogOut,
@@ -90,6 +91,7 @@ const navItems: NavItem[] = [
   { href: "/pipelines", labelKey: "pipelines", icon: GitBranch },
   { href: "/inbox", labelKey: "inbox", icon: MessageSquare },
   { href: "/cocinar", labelKey: "cocinar", icon: ChefHat },
+  { href: "/menu", labelKey: "menu", icon: UtensilsCrossed },
   { href: "/contacts", labelKey: "contacts", icon: Users },
 ];
 

@@ -17,6 +17,11 @@ BEGIN;
 --   6  the account already vigente on the operation -> not refused ("sin cambios")
 --   7  other callers (p_tool not a bot tool) are never guarded
 --   8  the automatic reader (cerebro_guardar_zelle_auto) is guarded too
+--   3b "la misma tasa" / "a la misma tasa" are NOT a same-account request (the account word must be near "misma")
+--   10 an IMAGE: the account read by the vision node (cerebro_lecturas_vision, correo / celular_us, written after the last closed send)
+--      counts as given by the customer; an image whose reading has another account, or a reading older than the last closed send, does not
+--   11 an AUDIO from the customer after the last closed send (no transcription is stored anywhere) means "do not refuse"; an audio older
+--      than the last closed send does not
 --   9  messages of the agent/bot do not count as the customer giving the account; a message older than the last closed send does not
 -- =====================================================================
 CREATE FUNCTION pg_temp.chk(p_ok boolean, p_label text) RETURNS void LANGUAGE plpgsql AS $f$
@@ -54,6 +59,14 @@ CREATE FUNCTION pg_temp.msg(p_conv uuid, p_who text, p_text text, p_ago interval
   INSERT INTO messages (conversation_id, sender_type, content_type, content_text, status, ai_generated, is_panel_action, created_at)
   VALUES (p_conv, p_who, 'text', p_text, 'sent', false, false, now() - p_ago)
 $f$;
+CREATE FUNCTION pg_temp.media(p_conv uuid, p_type text, p_ago interval) RETURNS void LANGUAGE sql AS $f$
+  INSERT INTO messages (conversation_id, sender_type, content_type, media_url, status, ai_generated, is_panel_action, created_at)
+  VALUES (p_conv, 'customer', p_type, 'https://example.invalid/prueba367', 'sent', false, false, now() - p_ago)
+$f$;
+CREATE FUNCTION pg_temp.lectura(p_conv uuid, p_correo text, p_cel text, p_ago interval) RETURNS void LANGUAGE sql AS $f$
+  INSERT INTO cerebro_lecturas_vision (creado, conversation_id, wamid, hash_imagen, tipo, correo, celular_us, datos)
+  VALUES (now() - p_ago, p_conv, 'wamid-' || gen_random_uuid(), 'h-' || gen_random_uuid(), 'cuenta_zelle', lower(p_correo), p_cel, '{}'::jsonb)
+$f$;
 CREATE FUNCTION pg_temp.x() RETURNS text LANGUAGE sql AS $f$ SELECT 'x' || gen_random_uuid()::text $f$;
 CREATE FUNCTION pg_temp.w(p_conv uuid, p_acct text, p_tool text DEFAULT 'registrar_beneficiario_zelle') RETURNS text LANGUAGE sql AS $f$
   SELECT accion FROM cerebro_guardar_zelle(p_conv, 'PRUEBA Titular Tres', p_acct, pg_temp.x(), NULL, p_tool) $f$;
@@ -79,13 +92,22 @@ BEGIN
                       AND EXISTS (SELECT 1 FROM remittance_beneficiaries WHERE operation_id = c.o_op AND status = 'vigente' AND lower(zelle_account) = cB), '2 later account saved, only recipient: ' || coalesce(v_r, 'null'));
 
   -- 3 explicit "same account"
-  FOREACH v_alt IN ARRAY ARRAY['a la misma cuenta de la otra vez', 'la de siempre', 'igual que la vez pasada', 'la anterior porfa', 'mismo zelle', 'igual que la otra'] LOOP
+  FOREACH v_alt IN ARRAY ARRAY['a la misma cuenta de la otra vez', 'la de siempre', 'igual que la vez pasada', 'la anterior porfa', 'mismo zelle', 'igual que la otra', 'a la misma', 'a la misma.', 'el mismo correo', 'la misma persona de antes', 'la misma zelle'] LOOP
     v_i := v_i + 1;
     SELECT * INTO c FROM pg_temp.fx(300 + v_i, cA);
     PERFORM pg_temp.msg(c.o_conv, 'customer', 'Pásame 58 zelle ' || v_alt, interval '1 minute');
     v_r := pg_temp.w(c.o_conv, cA);
     PERFORM pg_temp.chk(v_r LIKE 'guardado%' AND pg_temp.nrec(c.o_op) = 1, '3 same-account phrase saved [' || v_alt || ']: ' || coalesce(v_r, 'null'));
   END LOOP;
+  -- 3b the account word must be near "misma"
+  FOREACH v_alt IN ARRAY ARRAY['quiero zelle, la misma tasa de ayer?', 'a la misma tasa de ayer', 'la misma cantidad que ayer'] LOOP
+    v_i := v_i + 1;
+    SELECT * INTO c FROM pg_temp.fx(320 + v_i, cA);
+    PERFORM pg_temp.msg(c.o_conv, 'customer', v_alt, interval '1 minute');
+    v_r := pg_temp.w(c.o_conv, cA);
+    PERFORM pg_temp.chk(v_r LIKE 'NO SE GUARDO NADA%' AND pg_temp.nrec(c.o_op) = 0, '3b not a same-account request [' || v_alt || ']: ' || coalesce(v_r, 'null'));
+  END LOOP;
+
   -- 4 first-ever send
   SELECT * INTO c FROM pg_temp.fx(4, NULL);
   PERFORM pg_temp.msg(c.o_conv, 'customer', 'quiero enviar 58 zelle', interval '1 minute');
@@ -126,6 +148,40 @@ BEGIN
   SELECT * INTO c FROM pg_temp.fx(8, cA);
   SELECT accion INTO v_r FROM cerebro_guardar_zelle_auto(c.o_conv, 'PRUEBA Titular Tres', cA, pg_temp.x());
   PERFORM pg_temp.chk(v_r LIKE 'NO SE GUARDO NADA%' AND pg_temp.nrec(c.o_op) = 0, '8 automatic reader guarded: ' || coalesce(v_r, 'null'));
+
+  -- 10 images: the vision reading of the screenshot
+  SELECT * INTO c FROM pg_temp.fx(10, cA);
+  PERFORM pg_temp.media(c.o_conv, 'image', interval '2 minutes');
+  v_r := pg_temp.w(c.o_conv, cA);
+  PERFORM pg_temp.chk(v_r LIKE 'NO SE GUARDO NADA%', '10a an image alone does not unlock the old account: ' || coalesce(v_r, 'null'));
+  PERFORM pg_temp.lectura(c.o_conv, upper(cB), NULL, interval '90 seconds');
+  v_r := pg_temp.w(c.o_conv, cB);
+  PERFORM pg_temp.chk(v_r LIKE 'guardado%' AND pg_temp.nrec(c.o_op) = 1, '10b account read from the screenshot (email) saved: ' || coalesce(v_r, 'null'));
+  SELECT * INTO c FROM pg_temp.fx(101, cA);
+  PERFORM pg_temp.media(c.o_conv, 'image', interval '2 minutes');
+  PERFORM pg_temp.lectura(c.o_conv, NULL, '(602) 317-3696', interval '90 seconds');
+  v_r := pg_temp.w(c.o_conv, '6023173696');
+  PERFORM pg_temp.chk(v_r LIKE 'guardado%', '10c phone read from the screenshot matches by last 10 digits: ' || coalesce(v_r, 'null'));
+  SELECT * INTO c FROM pg_temp.fx(102, cA);
+  PERFORM pg_temp.media(c.o_conv, 'image', interval '2 minutes');
+  PERFORM pg_temp.lectura(c.o_conv, cA, NULL, interval '30 hours');   -- a reading older than the last closed send
+  v_r := pg_temp.w(c.o_conv, cA);
+  PERFORM pg_temp.chk(v_r LIKE 'NO SE GUARDO NADA%', '10d a reading older than the last closed send does not count: ' || coalesce(v_r, 'null'));
+  SELECT * INTO c FROM pg_temp.fx(103, cA);
+  PERFORM pg_temp.media(c.o_conv, 'image', interval '2 minutes');
+  PERFORM pg_temp.lectura(c.o_conv, cB, NULL, interval '90 seconds');
+  v_r := pg_temp.w(c.o_conv, cA);
+  PERFORM pg_temp.chk(v_r LIKE 'NO SE GUARDO NADA%', '10e a screenshot with ANOTHER account does not unlock the old one: ' || coalesce(v_r, 'null'));
+
+  -- 11 audio: no transcription is stored, so a customer audio after the last closed send is not refused
+  SELECT * INTO c FROM pg_temp.fx(11, cA);
+  PERFORM pg_temp.media(c.o_conv, 'audio', interval '1 minute');
+  v_r := pg_temp.w(c.o_conv, cA);
+  PERFORM pg_temp.chk(v_r LIKE 'guardado%' AND pg_temp.nrec(c.o_op) = 1, '11a audio after the closed send: not refused: ' || coalesce(v_r, 'null'));
+  SELECT * INTO c FROM pg_temp.fx(111, cA);
+  PERFORM pg_temp.media(c.o_conv, 'audio', interval '30 hours');
+  v_r := pg_temp.w(c.o_conv, cA);
+  PERFORM pg_temp.chk(v_r LIKE 'NO SE GUARDO NADA%', '11b audio older than the closed send does not count: ' || coalesce(v_r, 'null'));
 
   -- 9 bot/agent messages do not count; the cut is the last closed send
   SELECT * INTO c FROM pg_temp.fx(9, cA);

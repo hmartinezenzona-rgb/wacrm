@@ -16,7 +16,9 @@
 -- only (p_tool 'registrar_beneficiario_zelle' and 'Registrar zelle auto'; the panel and the admin writers never call this function), an account that is
 -- not already a vigente recipient of the operation is refused ("NO SE GUARDO NADA ... pregunta a que cuenta") when the conversation has a closed send
 -- and no customer message written after the latest closed one contains that account (emails compared lowercase; phones by their last 10 digits) nor
--- asks for the same account (misma cuenta, la misma, la de siempre, la anterior, igual que la otra/anterior/vez pasada, mismo zelle, de la otra vez).
+-- asks for the same account (misma cuenta, mismo zelle, el mismo correo/numero, la misma persona, a la misma, la de siempre, la anterior, igual que la
+-- otra/anterior/vez pasada; "la misma tasa" does not count). Images: the account the vision node read (cerebro_lecturas_vision, correo/celular_us, saved
+-- after the last closed send) counts as given. Voice notes have no stored transcription, so a customer audio after the last closed send means "not refused".
 -- The messages are read at call time, so the account arriving in a later message passes on its own call. No closed send: unchanged.
 -- Bodies redefined from the live production bodies (read 2026-11-12, equal to 293 and 360). Rollback: ROLLBACK-367-split-and-zelle-history-guard.sql.
 
@@ -350,15 +352,32 @@ BEGIN
      WHERE o.conversation_id = p_conv AND o.status IN ('completed', 'cancelled') AND o.id IS DISTINCT FROM v_r.o_op;
     IF v_corte IS NOT NULL THEN
       v_dig := regexp_replace(v_a, '[^0-9]', '', 'g');
+      -- typed text
       SELECT coalesce(bool_or(
                CASE WHEN v_a LIKE '%@%' THEN position(lower(v_a) IN lower(m.content_text)) > 0
                     WHEN length(v_dig) >= 10 THEN regexp_replace(m.content_text, '[^0-9]', '', 'g') LIKE '%' || right(v_dig, 10) || '%'
                     ELSE position(lower(v_a) IN lower(m.content_text)) > 0 END), false),
-             coalesce(bool_or(m.content_text ~* '(\mmisma\s+cuenta\M|\mla\s+misma\M|\mel\s+mismo\s+(zelle|correo|n[uú]mero)\M|\mmismo\s+zelle\M|\mla\s+de\s+siempre\M|\mla\s+anterior\M|\mcuenta\s+anterior\M|\migual\s+que\s+(la|el)\s+(otra|anterior|vez\s+pasada|[uú]ltim[ao])|\mla\s+de\s+la\s+(otra|[uú]ltima)\s+vez\M|\mde\s+la\s+(otra|[uú]ltima)\s+vez\M)'), false)
+             coalesce(bool_or(m.content_text ~* '(\mmisma\s+cuenta\M|\mmismo\s+zelle\M|\mel\s+mismo\s+(zelle|correo|n[uú]mero|titular|beneficiario)\M|\mla\s+misma\s+(zelle|persona|de\s+(siempre|antes))\M|\mmism[oa]\s+persona\M|\ma\s+la\s+misma(\s*[.,!?;]|\s*$|\s+(porfa|por\s+favor|que\s+la\s+otra))|\mla\s+de\s+siempre\M|\mla\s+anterior\M|\mcuenta\s+anterior\M|\migual\s+que\s+(la|el)\s+(otra|anterior|vez\s+pasada|[uú]ltim[ao])|\mla\s+de\s+la\s+(otra|[uú]ltima)\s+vez\M)'), false)
         INTO v_visto, v_pidio
         FROM messages m
        WHERE m.conversation_id = p_conv AND m.sender_type = 'customer' AND m.created_at > v_corte
          AND coalesce(m.content_text, '') <> '';
+      -- screenshots: what the vision node read from the customer's images (cerebro_lecturas_vision, saved before the model runs)
+      IF NOT v_visto THEN
+        SELECT EXISTS (
+          SELECT 1 FROM cerebro_lecturas_vision l
+           WHERE l.conversation_id = p_conv AND l.creado > v_corte
+             AND ((v_a LIKE '%@%' AND lower(coalesce(l.correo, '')) = lower(v_a))
+               OR (v_a NOT LIKE '%@%' AND length(v_dig) >= 10 AND length(regexp_replace(coalesce(l.celular_us, ''), '[^0-9]', '', 'g')) >= 10
+                   AND right(regexp_replace(l.celular_us, '[^0-9]', '', 'g'), 10) = right(v_dig, 10)))
+        ) INTO v_visto;
+      END IF;
+      -- voice notes: no transcription is stored per conversation, so a customer audio after the last closed send means the bot may have
+      -- heard the account there: not refused
+      IF NOT v_visto AND NOT v_pidio THEN
+        SELECT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = p_conv AND m.sender_type = 'customer'
+                          AND m.content_type = 'audio' AND m.created_at > v_corte) INTO v_pidio;
+      END IF;
       IF NOT v_visto AND NOT v_pidio THEN
         RETURN QUERY SELECT NULL::uuid, ('NO SE GUARDO NADA: el cliente no ha dado esa cuenta (' || v_a || ') para este envio; solo aparece en un envio anterior. '
           || 'No asumas ni uses una cuenta anterior. Preguntale al cliente a que cuenta Zelle (correo o celular de EEUU) quiere enviar y guarda solo la que el te diga.')::text;

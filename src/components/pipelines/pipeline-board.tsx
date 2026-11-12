@@ -5,7 +5,8 @@ import {
   DndContext,
   DragOverlay,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   useDroppable,
@@ -63,8 +64,12 @@ export function PipelineBoard({
   }, [sortedStages, deals]);
 
   const sensors = useSensors(
-    // 5px activation distance avoids clicks being interpreted as drags.
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    // Mouse: 5px activation distance avoids clicks being interpreted as drags.
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    // Touch (celular): hay que DEJAR PRESIONADA la tarjeta ~0.4 s para
+    // arrastrarla. Deslizar normal solo recorre el tablero; antes, al
+    // deslizar para ver otra columna, el dedo agarraba una tarjeta y la movía.
+    useSensor(TouchSensor, { activationConstraint: { delay: 400, tolerance: 8 } }),
     // Keyboard drag support: focus a card, Space to pick up, arrows to move,
     // Space to drop, Escape to cancel.
     useSensor(KeyboardSensor),
@@ -127,6 +132,8 @@ export function PipelineBoard({
               onAddDeal={onAddDeal}
               onEditDeal={onEditDeal}
               dealsWithProof={dealsWithProof}
+              nextStage={siguienteEtapa(sortedStages, stage)}
+              onMove={onDealMoved}
             />
           );
         })}
@@ -203,6 +210,8 @@ function StageColumn({
   onAddDeal,
   onEditDeal,
   dealsWithProof,
+  nextStage,
+  onMove,
 }: {
   stage: PipelineStage;
   deals: Deal[];
@@ -211,6 +220,8 @@ function StageColumn({
   onAddDeal: (stageId: string) => void;
   onEditDeal: (deal: Deal) => void;
   dealsWithProof?: ReadonlySet<string>;
+  nextStage: PipelineStage | null;
+  onMove: (dealId: string, newStageId: string) => void;
 }) {
   const t = useTranslations("Pipelines.board");
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
@@ -260,6 +271,8 @@ function StageColumn({
               stage={stage}
               onEdit={onEditDeal}
               hasProof={dealsWithProof?.has(deal.id)}
+              nextStage={nextStage}
+              onMove={onMove}
             />
           ))
         )}
@@ -278,16 +291,44 @@ function StageColumn({
   );
 }
 
+// La columna que sigue, para el botón de un toque. No se ofrece pasar a
+// una columna de cancelados: cancelar se hace desde la ficha (pide confirmar).
+function siguienteEtapa(stages: PipelineStage[], stage: PipelineStage): PipelineStage | null {
+  const i = stages.findIndex((s) => s.id === stage.id);
+  const next = i >= 0 ? stages[i + 1] : undefined;
+  if (!next || /cancel|perdid|lost/i.test(next.name) || /cancel|perdid|lost/i.test(stage.name)) return null;
+  return next;
+}
+
+// Texto blanco u oscuro según qué tan claro sea el color de la columna.
+function colorTexto(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
+  if (!m) return "#fff";
+  const n = parseInt(m[1], 16);
+  const lum = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  return lum > 0.6 ? "#0b0d12" : "#fff";
+}
+
+function textoMover(next: PipelineStage): string {
+  if (/pag/i.test(next.name)) return "✅ Ya pagó";
+  if (/entreg/i.test(next.name)) return "📦 Ya lo entregué";
+  return `Pasar a ${next.name}`;
+}
+
 function DraggableDealCard({
   deal,
   stage,
   onEdit,
   hasProof,
+  nextStage,
+  onMove,
 }: {
   deal: Deal;
   stage: PipelineStage;
   onEdit: (deal: Deal) => void;
   hasProof?: boolean;
+  nextStage: PipelineStage | null;
+  onMove: (dealId: string, newStageId: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: deal.id,
@@ -298,9 +339,31 @@ function DraggableDealCard({
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      style={{ opacity: isDragging ? 0.3 : 1, touchAction: "none" }}
+      // `manipulation` deja deslizar el tablero con el dedo; el arrastre
+      // solo empieza tras dejar presionado (TouchSensor). Sin menú ni
+      // selección de texto al presionar largo.
+      className="select-none [-webkit-touch-callout:none]"
+      style={{ opacity: isDragging ? 0.3 : 1, touchAction: "manipulation" }}
     >
       <DealCard deal={deal} stage={stage} onEdit={onEdit} hasProof={hasProof} />
+      {nextStage && (
+        <button
+          type="button"
+          // Que el botón no arranque un arrastre ni abra la ficha.
+          onPointerDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onMove(deal.id, nextStage.id);
+          }}
+          className="mt-1.5 flex h-11 w-full items-center justify-center gap-1.5 rounded-lg text-sm font-bold shadow-sm active:scale-[0.98]"
+          style={{ backgroundColor: nextStage.color, color: colorTexto(nextStage.color) }}
+        >
+          {textoMover(nextStage)}
+        </button>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -30,6 +30,7 @@ import {
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { DeliveryProofPanel } from "./delivery-proof";
+import { EncargoDetalle, leerEncargo } from "./encargo-detalle";
 import { acceptsDeliveryProof } from "@/lib/pipelines/delivery-stages";
 import type {
   DeliveryProofDraft,
@@ -100,6 +101,9 @@ export function DealForm({
   const [contacts, setContacts] = useState<Contact[]>([]);
   // La lista de usuarios ya no se muestra (sin «Asignado a»); se sigue cargando sin uso.
   const [, setProfiles] = useState<Profile[]>([]);
+  // «Lo que lleva» se muestra en limpio; «Editar» enseña el texto tal cual.
+  const [editandoNotas, setEditandoNotas] = useState(false);
+  const encargoLeido = useMemo(() => leerEncargo(notes), [notes]);
   const [linkedConversation, setLinkedConversation] =
     useState<Conversation | null>(null);
 
@@ -133,6 +137,7 @@ export function DealForm({
       setAssignedTo(deal.assigned_to ?? "");
       setExpectedCloseDate(deal.expected_close_date ?? "");
       setNotes(deal.notes ?? "");
+      setEditandoNotas(false);
     } else {
       setTitle("");
       setValue("");
@@ -142,6 +147,7 @@ export function DealForm({
       setAssignedTo("");
       setExpectedCloseDate("");
       setNotes("");
+      setEditandoNotas(false);
     }
   }, [open, deal, defaultStageId, stages, defaultCurrency]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -402,13 +408,28 @@ export function DealForm({
 
             {/* «Asignado a» se quitó en la edición Doña Miriam (una sola cocina). */}
             <div className="grid gap-2">
-              <Label className="text-muted-foreground">{t("notes")}</Label>
-              <Textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder={t("notesPlaceholder")}
-                className="min-h-[100px] border-border bg-muted text-foreground"
-              />
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-muted-foreground">{t("notes")}</Label>
+                {encargoLeido && (
+                  <button
+                    type="button"
+                    onClick={() => setEditandoNotas((v) => !v)}
+                    className="rounded-md px-2 py-1 text-sm font-semibold text-primary hover:bg-muted"
+                  >
+                    {editandoNotas ? "Ver en limpio" : "✏️ Editar"}
+                  </button>
+                )}
+              </div>
+              {encargoLeido && !editandoNotas ? (
+                <EncargoDetalle encargo={encargoLeido} />
+              ) : (
+                <Textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder={t("notesPlaceholder")}
+                  className="min-h-[140px] border-border bg-muted text-base text-foreground"
+                />
+              )}
             </div>
 
             {/* Delivery proof. Note that its caption is NOT part of

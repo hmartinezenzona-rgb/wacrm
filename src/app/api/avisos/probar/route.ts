@@ -8,7 +8,7 @@ export async function POST() {
     const ctx = await getCurrentAccount()
     const r = await avisar(
       { accountId: ctx.accountId, userId: ctx.userId },
-      { title: '🔔 Avisos activados', body: 'Así te van a llegar los encargos nuevos.', url: '/pipelines', tag: 'prueba' },
+      { title: 'Avisos activados', body: 'Así te van a llegar los encargos nuevos.', url: '/pipelines', tag: 'prueba' },
     )
     return NextResponse.json(r)
   } catch (err) {

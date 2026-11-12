@@ -416,12 +416,12 @@ export function DealForm({
                     onClick={() => setEditandoNotas((v) => !v)}
                     className="rounded-md px-2 py-1 text-sm font-semibold text-primary hover:bg-muted"
                   >
-                    {editandoNotas ? "Ver en limpio" : "✏️ Editar"}
+                    {editandoNotas ? "Ver en limpio" : "Editar"}
                   </button>
                 )}
               </div>
               {encargoLeido && !editandoNotas ? (
-                <EncargoDetalle encargo={encargoLeido} />
+                <EncargoDetalle bloques={encargoLeido} />
               ) : (
                 <Textarea
                   value={notes}

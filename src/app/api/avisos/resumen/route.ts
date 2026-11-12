@@ -46,7 +46,7 @@ export async function POST() {
     resultados[accountId] = await avisar(
       { accountId },
       {
-        title: `🍳 Mañana ${fechaCorta(manana).split(' ')[0]}: ${charolas} ${charolas === 1 ? 'charola' : 'charolas'}`,
+        title: `Mañana ${fechaCorta(manana).split(' ')[0]}: ${charolas} ${charolas === 1 ? 'charola' : 'charolas'}`,
         body: `${vivos.length} ${vivos.length === 1 ? 'encargo' : 'encargos'}. ${top}. Toca para ver la lista.`,
         url: '/cocinar',
         tag: `resumen-${manana}`,

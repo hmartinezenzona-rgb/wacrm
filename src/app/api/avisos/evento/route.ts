@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   const r = await avisar(
     { accountId: deal.account_id },
     {
-      title: '🆕 Nuevo encargo',
+      title: 'Nuevo encargo',
       body: `${nombre} · ${charolas}${cuando} · $${Number(deal.value).toLocaleString('es-MX')}`,
       url: '/pipelines',
       tag: `encargo-${deal.id}`,

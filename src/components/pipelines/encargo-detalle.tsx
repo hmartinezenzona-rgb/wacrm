@@ -3,9 +3,8 @@
 // ============================================================
 // «Lo que lleva» en limpio — edición Doña Miriam.
 //
-// Las notas del encargo se guardan como texto, una línea por cosa
-// (así las escribe la página web / encargo_web y así las suma
-// «Qué cocinar»):
+// Las notas del encargo se guardan como texto, una línea por cosa (así las
+// escribe encargo_web y así las suma «Qué cocinar»):
 //
 //   Charola 1: Congrí, Fricasé de pollo, Tostones, Frijoles negros
 //   Extra: Ración extra de arroz
@@ -13,129 +12,75 @@
 //   Anticipo: $150
 //   Pidió por la página web · folio DM-ABC123
 //
-// Aquí se muestran como tarjetitas fáciles de leer: cada charola con su
-// arroz, carne, vianda y potaje; las iguales se juntan («× 2»); la nota
-// del cliente resaltada. El texto original no se toca.
+// Aquí se muestran en el mismo orden, pero cada charola como lista:
+//
+//   Charola 1:
+//   • Congrí
+//   • Fricasé de pollo
+//   …
+//   Extra: Ración extra de arroz
+//   Nota: sin cebolla
+//
+// El texto guardado no se toca.
 // ============================================================
 
-const PARTES = [
-  { emoji: "🍚", titulo: "Arroz" },
-  { emoji: "🍖", titulo: "Carne" },
-  { emoji: "🍌", titulo: "Vianda" },
-  { emoji: "🫘", titulo: "Potaje" },
-];
+type Bloque =
+  | { tipo: "charola"; titulo: string; platos: string[] }
+  | { tipo: "linea"; etiqueta: string; texto: string }
+  | { tipo: "dato"; texto: string };
 
-interface Charola {
-  partes: string[];
-  extras: string[];
-}
-
-export interface EncargoLeido {
-  charolas: { charola: Charola; veces: number }[];
-  extrasSueltos: string[];
-  nota: string | null;
-  anticipo: string | null;
-  otros: string[];
-}
-
-export function leerEncargo(notes: string | null | undefined): EncargoLeido | null {
-  const lista: Charola[] = [];
-  const extrasSueltos: string[] = [];
-  const otros: string[] = [];
-  let nota: string | null = null;
-  let anticipo: string | null = null;
-
+export function leerEncargo(notes: string | null | undefined): Bloque[] | null {
+  const bloques: Bloque[] = [];
+  let hayCharola = false;
   for (const cruda of (notes || "").split("\n")) {
     const linea = cruda.trim();
     if (!linea) continue;
     let m: RegExpMatchArray | null;
-    if ((m = linea.match(/^charola[^:]*:\s*(.+)$/i))) {
-      lista.push({ partes: m[1].split(",").map((x) => x.trim()).filter(Boolean), extras: [] });
-    } else if ((m = linea.match(/^extra\s*:\s*(.+)$/i))) {
-      if (lista.length) lista[lista.length - 1].extras.push(m[1].trim());
-      else extrasSueltos.push(m[1].trim());
-    } else if ((m = linea.match(/^nota\s*:\s*(.+)$/i))) {
-      nota = nota ? `${nota} · ${m[1].trim()}` : m[1].trim();
-    } else if ((m = linea.match(/^anticipo\s*:\s*(.+)$/i))) {
-      anticipo = m[1].trim();
+    if ((m = linea.match(/^(charola[^:]*):\s*(.+)$/i))) {
+      hayCharola = true;
+      bloques.push({
+        tipo: "charola",
+        titulo: m[1].trim(),
+        platos: m[2].split(",").map((x) => x.trim()).filter(Boolean),
+      });
+    } else if ((m = linea.match(/^(extra|nota)\s*:\s*(.+)$/i))) {
+      bloques.push({ tipo: "linea", etiqueta: m[1][0].toUpperCase() + m[1].slice(1).toLowerCase(), texto: m[2].trim() });
     } else {
-      otros.push(linea);
+      bloques.push({ tipo: "dato", texto: linea });
     }
   }
-  if (!lista.length) return null;
-
-  // Juntar charolas idénticas (mismo plato y mismos extras).
-  const juntas: { charola: Charola; veces: number }[] = [];
-  for (const c of lista) {
-    const clave = JSON.stringify(c);
-    const ya = juntas.find((j) => JSON.stringify(j.charola) === clave);
-    if (ya) ya.veces++;
-    else juntas.push({ charola: c, veces: 1 });
-  }
-  return { charolas: juntas, extrasSueltos, nota, anticipo, otros };
+  return hayCharola ? bloques : null;
 }
 
-export function EncargoDetalle({ encargo }: { encargo: EncargoLeido }) {
-  // Número de la primera charola de cada grupo (1, 3, 4…).
-  const inicios = encargo.charolas.reduce<number[]>(
-    (acc, g, i) => [...acc, i === 0 ? 1 : acc[i - 1] + encargo.charolas[i - 1].veces],
-    [],
-  );
+export function EncargoDetalle({ bloques }: { bloques: Bloque[] }) {
+  const datos = bloques.filter((b): b is Extract<Bloque, { tipo: "dato" }> => b.tipo === "dato");
   return (
-    <div className="flex flex-col gap-2.5">
-      {encargo.charolas.map(({ charola, veces }, i) => {
-        const desde = inicios[i];
-        const hasta = desde + veces - 1;
-        const titulo = veces > 1 ? `Charolas ${desde} a ${hasta}` : `Charola ${desde}`;
-        return (
-          <div key={i} className="overflow-hidden rounded-xl border border-border bg-muted/60">
-            <div className="flex items-center justify-between gap-2 border-b border-border/60 px-3 py-2">
-              <span className="text-sm font-bold">{titulo}</span>
-              {veces > 1 && (
-                <span className="rounded-full bg-primary px-2.5 py-0.5 text-sm font-bold text-primary-foreground">× {veces}</span>
-              )}
+    <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/60 p-3 text-base leading-snug">
+      {bloques.map((b, i) => {
+        if (b.tipo === "charola") {
+          return (
+            <div key={i}>
+              <p className="font-bold">{b.titulo}:</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-5 marker:text-muted-foreground">
+                {b.platos.map((p, k) => (
+                  <li key={k}>{p}</li>
+                ))}
+              </ul>
             </div>
-            <dl className="divide-y divide-border/50">
-              {charola.partes.map((p, k) => (
-                <div key={k} className="flex items-baseline gap-3 px-3 py-2">
-                  <dt className="w-20 shrink-0 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    {PARTES[k] ? `${PARTES[k].emoji} ${PARTES[k].titulo}` : "•"}
-                  </dt>
-                  <dd className="min-w-0 text-base font-semibold">{p}</dd>
-                </div>
-              ))}
-              {charola.extras.map((e, k) => (
-                <div key={`e${k}`} className="flex items-baseline gap-3 px-3 py-2">
-                  <dt className="w-20 shrink-0 text-xs font-semibold uppercase tracking-wider text-muted-foreground">➕ Extra</dt>
-                  <dd className="min-w-0 text-base font-semibold">{e}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        );
+          );
+        }
+        if (b.tipo === "linea") {
+          return (
+            <p key={i} className={b.etiqueta === "Nota" ? "rounded-md bg-amber-500/15 px-2 py-1.5" : ""}>
+              <span className="font-bold">{b.etiqueta}:</span> {b.texto}
+            </p>
+          );
+        }
+        return null;
       })}
-
-      {encargo.extrasSueltos.length > 0 && (
-        <div className="rounded-xl border border-border bg-muted/60 px-3 py-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">➕ Extras</span>
-          <ul className="mt-1 text-base font-semibold">
-            {encargo.extrasSueltos.map((e, k) => (
-              <li key={k}>{e}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {encargo.nota && (
-        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5">
-          <span className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-300">📝 Nota del cliente</span>
-          <p className="mt-0.5 text-base font-semibold">{encargo.nota}</p>
-        </div>
-      )}
-
-      {(encargo.anticipo || encargo.otros.length > 0) && (
-        <p className="text-sm text-muted-foreground">
-          {[encargo.anticipo ? `Anticipo ${encargo.anticipo}` : null, ...encargo.otros].filter(Boolean).join(" · ")}
+      {datos.length > 0 && (
+        <p className="border-t border-border/60 pt-2 text-sm text-muted-foreground">
+          {datos.map((d) => d.texto).join(" · ")}
         </p>
       )}
     </div>

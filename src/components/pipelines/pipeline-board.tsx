@@ -310,8 +310,8 @@ function colorTexto(hex: string): string {
 }
 
 function textoMover(next: PipelineStage): string {
-  if (/pag/i.test(next.name)) return "✅ Ya pagó";
-  if (/entreg/i.test(next.name)) return "📦 Ya lo entregué";
+  if (/pag/i.test(next.name)) return "Ya pagó";
+  if (/entreg/i.test(next.name)) return "Ya lo entregué";
   return `Pasar a ${next.name}`;
 }
 

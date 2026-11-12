@@ -103,7 +103,7 @@ export function ActivarAvisos() {
               disabled={estado === "activando"}
               className="h-12 self-start rounded-lg bg-primary px-5 text-base font-bold text-primary-foreground disabled:opacity-60"
             >
-              {estado === "activando" ? "Activando…" : "🔔 Activar avisos"}
+              {estado === "activando" ? "Activando…" : "Activar avisos"}
             </button>
           </>
         ) : estado === "listo" ? (

@@ -192,7 +192,7 @@ export default function CocinarPage() {
           <ul className="flex flex-col gap-1.5 text-base">
             {notas.map((n, i) => (
               <li key={i}>
-                📝 <b>{n.quien}:</b> {n.t}
+                <b>{n.quien}:</b> {n.t}
               </li>
             ))}
           </ul>

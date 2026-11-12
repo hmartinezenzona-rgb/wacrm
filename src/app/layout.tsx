@@ -32,7 +32,9 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [{ url: "/icon" }],
+    apple: [{ url: "/icon-192.png" }],
   },
+  manifest: "/manifest.webmanifest",
   formatDetection: {
     email: false,
     address: false,

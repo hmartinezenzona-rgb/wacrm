@@ -38,12 +38,12 @@ Out: Decisor (no change needed), panel, n8n nodes.
   odd/tasks/bot-brevedad.md. No AI attribution in commits. RDD off.
 
 ## Tasks
-- [ ] T1 Quote parser: cerebro_monto_cotizado records the bot's re-quote phrasings ("con *X GYD* (le )salen/llegan *",
+- [x] T1 Quote parser: cerebro_monto_cotizado records the bot's re-quote phrasings ("con *X GYD* (le )salen/llegan *",
       "los *X GYD* quedan ... *Y*"); the per-card exclusion matches only the minimum/per-card notices, not "para cada";
       assertions with the 15:09 and 15:23 texts (-> 10000) and existing negatives unchanged
-- [ ] T2 Reparto collapse: a reparto call with one person writes one recipient (no carry-over of a previous person 2);
+- [x] T2 Reparto collapse: a reparto call with one person writes one recipient (no carry-over of a previous person 2);
       a person with amount 0 and no card/phone is never written as a recipient; assertions (block shapes above)
-- [ ] T3 Staging: apply 366, related assertions (`relacionadas`)
+- [x] T3 Staging: apply 366, related assertions (`relacionadas`)
 - [ ] T4 Production (needs go-ahead)
 
 ## Acceptance criteria
@@ -56,5 +56,20 @@ Out: Decisor (no change needed), panel, n8n nodes.
 - 2026-11-12: root cause (read-only production: cerebro_cotizacion row, tool_execution_log execs 708472/708528,
   remittance_beneficiaries blocks 1-5 of af44d909, remittance_admin_audit).
 
+- 2026-11-12 T1 (commit 8d69756): migration 366 part A, assertion supabase/staging/assertions/stale-quote-requote.sql.
+  RED (staging, no 366): `p2: "Con X GYD salen" re-quote, got <NULL>`. GREEN (with 366): `PASS parser`, `PASS negatives
+  unchanged`, `PASS trigger: quote follows the latest re-quote`, `ALL PASS`. Exclusion `a cada` became `\ma cada`
+  (per-card share notices keep excluding; "para cada tarjeta" no longer does); "a esa tarjeta" does not match "en esa misma
+  tarjeta", checked by the p3 case. Live production bodies read read-only before redefining: equal to the repo (171).
+- 2026-11-12 T2 (commit f5613bc): migration 366 part B, assertion supabase/staging/assertions/reparto-collapse.sql.
+  RED: `case 1: one recipient expected, got 1=...:36000CUP | 2=_:_:18000CUP`. GREEN: PASS 1, 2, 3, 3b, 3c, 4, 5, 6, `ALL PASS`.
+  Design: carry-over by position is kept (tool contract: "lo que mandas se suma a lo guardado"); only a call naming ONE person
+  whose CUP amount raises its own and is >= the sum of all saved amounts drops the other persons; a person with amount 0/none and
+  no card/phone is never written.
+- 2026-11-12 T3: `staging-migracion.sh aplicar ... reparto-collapse.sql ... cerebro_monto_cotizado,cerebro_guardar_reparto`:
+  dry-run OK, apply OK, assertion OK, rollback OK (md5 equal to previous); ACLs preserved. `relacionadas` (reparto, quote and
+  cotizacion assertions): TOTAL 24, SAME 23, DIFF 1 (stale-quote-requote, the new RED->GREEN assertion; expected). The SAME ones
+  that fail on both sides fail for pre-existing reasons (missing pg_temp helpers or staging state), identical on base.
+
 ## Next step
-T1.
+T4 (production, needs the owner's go-ahead).

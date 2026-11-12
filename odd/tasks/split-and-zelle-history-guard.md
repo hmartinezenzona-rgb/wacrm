@@ -33,15 +33,15 @@ Out: Decisor, prompt, panel, n8n nodes; the data of d9e9f333 (separate owner dec
   odd/tasks/bot-brevedad.md. No AI attribution in commits. RDD off.
 
 ## Tasks
-- [ ] T1 Split guard: cerebro_repartir_envio plan path refuses (no operations, no plan) when a completed op within
+- [x] T1 (e59fdb8) Split guard: cerebro_repartir_envio plan path refuses (no operations, no plan) when a completed op within
       envio_completado_ventana_horas holds a consumed deposit that covers the parts' total; hands off to a person
       (cerebro_registrar_derivacion, like the ambiguous case) and tells the bot not to say the deposit is missing;
       a split with no recent consumed deposit still plans as today; assertions (d9e9f333 shape)
-- [ ] T2 Zelle history guard: cerebro_guardar_zelle refuses an account for a send when it does not appear in a customer
+- [x] T2 (31ea4b1) Zelle history guard: cerebro_guardar_zelle refuses an account for a send when it does not appear in a customer
       message after the conversation's last completed/cancelled op and the customer did not ask for the same account
       ("misma cuenta", "la de siempre", "la anterior", "igual que la otra"...); the refusal tells the bot to ask which
       account; assertions (1727ef31 shape, legitimate new account, explicit "la misma")
-- [ ] T3 Staging: apply 367, related assertions
+- [x] T3 Staging: apply 367, related assertions
 - [ ] T4 Production (needs go-ahead)
 
 ## Acceptance criteria
@@ -54,5 +54,26 @@ Out: Decisor, prompt, panel, n8n nodes; the data of d9e9f333 (separate owner dec
 - 2026-11-12: root causes (read-only production: tool_execution_log, executions 720756/720768/721005/721014,
   remittance_beneficiaries, remittance_admin_audit).
 
+- 2026-11-12 T1 (e59fdb8): live production body of cerebro_repartir_envio read-only == repo 293. RED (staging, 367 not applied):
+  `split-completed-deposit-guard.sql`: "ERROR: 6 expectation(s) failed" (1a-1e, 6; cases 2-5, 7 plan as today). GREEN (367 in a rolled-back
+  transaction): "ERROR: ALL PASS (rolled back on purpose)".
+- 2026-11-12 T2 (31ea4b1): live cerebro_guardar_zelle == repo 360. RED `zelle-history-guard.sql`: "ERROR: 6 expectation(s) failed" (1a, 1b, 2, 5c, 8, 9a).
+  GREEN: "ERROR: ALL PASS (rolled back on purpose)" (18 ok lines). Guard covers only p_tool 'registrar_beneficiario_zelle' and
+  'Registrar zelle auto' (n8n tools; the panel never calls cerebro_guardar_zelle; the 4-arg cerebro_registrar_beneficiario_zelle is legacy,
+  does not route through guardar_zelle, and is not called by the Cerebro workflows).
+- 2026-11-12 T2 follow-up (b421fa4), coordinator request: RED `zelle-history-guard.sql` "6 expectation(s) failed" (3b x3, 10b, 10c, 11a),
+  GREEN "ALL PASS (rolled back on purpose)". Screenshots: accounts read by the vision node (cerebro_lecturas_vision correo/celular_us, created
+  after the last closed send) count as given by the customer. Audio: no transcription is stored (session_events.contenido empty for 0 of 444
+  audios; messages.content_text empty; cerebro_memoria has no timestamp), so a customer audio after the last closed send means "not refused".
+  "la misma" needs an account word nearby; "la misma tasa" is refused.
+- 2026-11-12 T3 staging: `staging-migracion.sh aplicar 367 ... zelle-history-guard.sql ... cerebro_repartir_envio,cerebro_guardar_zelle`:
+  dry-run OK, apply OK, assertion OK, rollback OK (md5 igual al previo). `split-completed-deposit-guard.sql` also ALL PASS on the applied staging.
+  `relacionadas 'reparto|repartir|zelle|split|ghost|beneficiar|planned' --ya-aplicada ROLLBACK-367`: TOTAL 174, SAME 170, DIFF 4:
+  split-completed-deposit-guard and zelle-history-guard (new, RED on base, ALL PASS with 367: expected); contexto-envio-mixto (flaky, does not
+  call any redefined function: its ORDER BY created_at, id ties inside one transaction, repeated runs alternate PASS/FAIL on the same state);
+  delivery-feed-evidence (same "fixture setup failed" error on both sides, only the uuid in the message differs). The first run had one
+  real regression, ghost-operations-guard (11 failures: its fixtures wrote a new Zelle account with no customer message after a closed send,
+  the case the new guard refuses); fixed in the assertion (4fc18c7, the helpers type the account first), ALL PASS on base and with 367, SAME.
+
 ## Next step
-T1.
+T4 (production, needs the owner's go-ahead): previa, then aplicar/verificar of 367.

@@ -44,7 +44,7 @@ Out: Decisor (no change needed), panel, n8n nodes.
 - [x] T2 Reparto collapse: a reparto call with one person writes one recipient (no carry-over of a previous person 2);
       a person with amount 0 and no card/phone is never written as a recipient; assertions (block shapes above)
 - [x] T3 Staging: apply 366, related assertions (`relacionadas`)
-- [ ] T4 Production (needs go-ahead)
+- [x] T4 Production (needs go-ahead)
 
 ## Acceptance criteria
 - Quote 5,000 then re-quote 10,000 -> deposit 10,000 is not an excess; objetivo 10,000.
@@ -71,5 +71,9 @@ Out: Decisor (no change needed), panel, n8n nodes.
   cotizacion assertions): TOTAL 24, SAME 23, DIFF 1 (stale-quote-requote, the new RED->GREEN assertion; expected). The SAME ones
   that fail on both sides fail for pre-existing reasons (missing pg_temp helpers or staging state), identical on base.
 
+- 2026-11-12 T4 production (owner "si, pásalo a producción"): previa EQUAL x2, VEREDICTO SEGURO;
+  `OK 366_stale_quote_and_reparto_collapse 20261112044330`; verificar 2/2 equal (guardar_reparto 38345527,
+  monto_cotizado 9f354e4e). Rollback: ROLLBACK-366-stale-quote-and-reparto-collapse.sql.
+
 ## Next step
-T4 (production, needs the owner's go-ahead).
+Done. Watch the next re-quote and the next reparto collapsed to one card in production.

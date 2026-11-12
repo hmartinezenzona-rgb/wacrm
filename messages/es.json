@@ -40,7 +40,7 @@
     "menuSettings": "Configuración",
     "menuSignOut": "Cerrar sesión",
     "resumen": "Resumen",
-    "cocinar": "Cook list"
+    "cocinar": "Qué cocinar"
   },
   "Header": {
     "dashboard": "Inicio",
@@ -59,7 +59,7 @@
     "menuSettings": "Configuración",
     "menuSignOut": "Cerrar sesión",
     "resumen": "Resumen",
-    "cocinar": "Cook list"
+    "cocinar": "Qué cocinar"
   },
   "ModeToggle": {
     "switchMode": "Cambiar a modo {mode}"

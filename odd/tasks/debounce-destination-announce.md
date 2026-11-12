@@ -30,7 +30,7 @@ staging publish; production publish with go-ahead. Out: wait amounts (30 s / 25 
 - [x] T2 Rule: trailing destination without data ("a la cuenta", "a esta cuenta", "a la tarjeta", "al zelle", "a este
       numero/número", "a mi mamá"-style is OUT) and Zelle asked with no account (email or US phone) in the batch -> incompleto;
       negatives (complete Zelle with account, plain greetings, "gracias") stay complete
-- [ ] T3 Staging publish (backup, PUT node, verify versionId == activeVersionId, md5)
+- [x] T3 Staging publish (backup, PUT node, verify versionId == activeVersionId, md5)
 - [ ] T4 Production (needs go-ahead)
 
 ## Acceptance criteria
@@ -44,6 +44,8 @@ staging publish; production publish with go-ahead. Out: wait amounts (30 s / 25 
   cases; existing triggers green). GREEN: 9 passed; new md5 e7958007. Rules added: trailing destination without data
   ((a|al|en) [la|el|esta|este|esa|ese] cuenta|tarjeta|zelle|numero|celular at the end; "misma" never matches) and Zelle in
   the batch with no e-mail, no US phone, no "same account" phrase and no question mark.
+- 2026-11-12 T3 staging: backup staging-U52y1kSNvhgxvWeb-e400cbb0-...-antes-completitud.json; versionId e400cbb0 -> a8c8ffe4
+  (= activeVersionId), nodes 132 == 132, node md5 e7958007 == repo. Not executed (never run the workflow).
 
 ## Next step
-T3 (staging).
+T4 (production, needs go-ahead): same script, esperado 01304015.

@@ -3,57 +3,28 @@
 // ============================================================
 // «Lo que lleva» en limpio — edición Doña Miriam.
 //
-// Las notas del encargo se guardan como texto, una línea por cosa (así las
-// escribe encargo_web y así las suma «Qué cocinar»):
-//
-//   Charola 1: Congrí, Fricasé de pollo, Tostones, Frijoles negros
-//   Extra: Ración extra de arroz
-//   Nota: sin cebolla
-//   Anticipo: $150
-//   Pidió por la página web · folio DM-ABC123
-//
-// Aquí se muestran en el mismo orden, pero cada charola como lista:
+// Muestra el texto del encargo como lo escribiría Miriam:
 //
 //   Charola 1:
 //   • Congrí
 //   • Fricasé de pollo
-//   …
+//
 //   Extra: Ración extra de arroz
 //   Nota: sin cebolla
 //
-// El texto guardado no se toca.
+// Lee los dos formatos (ver src/lib/encargos/leer.ts). El texto guardado
+// no se toca.
 // ============================================================
 
-type Bloque =
-  | { tipo: "charola"; titulo: string; platos: string[] }
-  | { tipo: "linea"; etiqueta: string; texto: string }
-  | { tipo: "dato"; texto: string };
+import { leerBloques, type BloqueEncargo } from "@/lib/encargos/leer";
 
-export function leerEncargo(notes: string | null | undefined): Bloque[] | null {
-  const bloques: Bloque[] = [];
-  let hayCharola = false;
-  for (const cruda of (notes || "").split("\n")) {
-    const linea = cruda.trim();
-    if (!linea) continue;
-    let m: RegExpMatchArray | null;
-    if ((m = linea.match(/^(charola[^:]*):\s*(.+)$/i))) {
-      hayCharola = true;
-      bloques.push({
-        tipo: "charola",
-        titulo: m[1].trim(),
-        platos: m[2].split(",").map((x) => x.trim()).filter(Boolean),
-      });
-    } else if ((m = linea.match(/^(extra|nota)\s*:\s*(.+)$/i))) {
-      bloques.push({ tipo: "linea", etiqueta: m[1][0].toUpperCase() + m[1].slice(1).toLowerCase(), texto: m[2].trim() });
-    } else {
-      bloques.push({ tipo: "dato", texto: linea });
-    }
-  }
-  return hayCharola ? bloques : null;
+export function leerEncargo(notes: string | null | undefined): BloqueEncargo[] | null {
+  const bloques = leerBloques(notes);
+  return bloques.some((b) => b.tipo === "charola") ? bloques : null;
 }
 
-export function EncargoDetalle({ bloques }: { bloques: Bloque[] }) {
-  const datos = bloques.filter((b): b is Extract<Bloque, { tipo: "dato" }> => b.tipo === "dato");
+export function EncargoDetalle({ bloques }: { bloques: BloqueEncargo[] }) {
+  const datos = bloques.filter((b): b is Extract<BloqueEncargo, { tipo: "dato" }> => b.tipo === "dato");
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/60 p-3 text-base leading-snug">
       {bloques.map((b, i) => {

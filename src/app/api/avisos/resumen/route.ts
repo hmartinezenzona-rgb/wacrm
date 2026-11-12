@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { avisar, fechaCorta, hoySaltillo } from '@/lib/avisos/push'
+import { sumarEncargo } from '@/lib/encargos/leer'
 
 // Resumen de la noche (cron 302, 7 pm Saltillo): qué hay que cocinar mañana.
 // Se manda una sola vez por cuenta y por día (push_resumenes), aunque el cron
@@ -31,12 +32,9 @@ export async function POST() {
     let charolas = 0
     const cuenta: Record<string, number> = {}
     for (const d of vivos) {
-      for (const linea of (d.notes || '').split('\n')) {
-        const m = linea.match(/^\s*charola[^:]*:\s*(.+)$/i)
-        if (!m) continue
-        charolas++
-        for (const x of m[1].split(',').map((s: string) => s.trim()).filter(Boolean)) cuenta[x] = (cuenta[x] || 0) + 1
-      }
+      const e = sumarEncargo(d.notes)
+      charolas += e.charolas
+      for (const [k, v] of Object.entries(e.platos)) cuenta[k] = (cuenta[k] || 0) + v
     }
     const top = Object.entries(cuenta)
       .sort((a, b) => b[1] - a[1])

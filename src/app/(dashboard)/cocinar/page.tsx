@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { ChefHat, Loader2 } from "lucide-react";
+import { sumarEncargo } from "@/lib/encargos/leer";
 
 interface Fila {
   id: string;
@@ -54,8 +55,11 @@ function largo(iso: string) {
 
 export default function CocinarPage() {
   const supabase = useMemo(() => createClient(), []);
-  const hoy = isoLocal(new Date());
-  const manana = isoLocal(new Date(Date.now() + 86400000));
+  // Hoy y mañana se fijan al abrir la pantalla.
+  const [{ hoy, manana }] = useState(() => {
+    const ahora = new Date();
+    return { hoy: isoLocal(ahora), manana: isoLocal(new Date(ahora.getTime() + 86400000)) };
+  });
   const [filas, setFilas] = useState<Fila[]>([]);
   const [cargando, setCargando] = useState(true);
   const [dia, setDia] = useState(hoy);
@@ -71,6 +75,8 @@ export default function CocinarPage() {
   }, [supabase, hoy]);
 
   useEffect(() => {
+    // Carga inicial desde Supabase (asíncrona); mismo patrón que el resto del CRM.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     cargar();
     const ch = supabase
       .channel("cocinar-deals")
@@ -95,19 +101,11 @@ export default function CocinarPage() {
     filas
       .filter((f) => f.expected_close_date === dia)
       .forEach((f) => {
-        (f.notes || "").split("\n").forEach((linea) => {
-          const m = linea.match(/^\s*(charola[^:]*|extra|nota)\s*:\s*(.+)$/i);
-          if (!m) return;
-          const tipo = m[1].toLowerCase();
-          if (tipo.startsWith("charola")) {
-            charolas++;
-            m[2].split(",").map((x) => x.trim()).filter(Boolean).forEach((x) => (cuenta[x] = (cuenta[x] || 0) + 1));
-          } else if (tipo === "extra") {
-            extras[m[2].trim()] = (extras[m[2].trim()] || 0) + 1;
-          } else {
-            notas.push({ quien: f.title, t: m[2].trim() });
-          }
-        });
+        const e = sumarEncargo(f.notes);
+        charolas += e.charolas;
+        for (const [k, v] of Object.entries(e.platos)) cuenta[k] = (cuenta[k] || 0) + v;
+        for (const [k, v] of Object.entries(e.extras)) extras[k] = (extras[k] || 0) + v;
+        for (const t of e.notas) notas.push({ quien: f.title, t });
       });
     return { charolas, cuenta, extras, notas };
   }, [filas, dia]);

@@ -22,10 +22,10 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "Remesas YA",
-    template: "%s — Remesas YA",
+    default: "Doña Miriam · Encargos",
+    template: "%s — Doña Miriam",
   },
-  description: "Remesas YA — CRM para remesas sobre WhatsApp.",
+  description: "Encargos de Doña Miriam.",
   robots: {
     index: false,
     follow: false,

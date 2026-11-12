@@ -18,11 +18,17 @@ interface DealCardProps {
   isOverlay?: boolean;
 }
 
+// Fecha de entrega en español (ej. "jue 12 nov"). Una fecha sola
+// ("2026-11-12") se lee a mediodía local: `new Date("2026-11-12")` es
+// medianoche UTC y en México la mostraba como el día anterior.
 function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("en-US", {
-    month: "short",
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
+    ? new Date(dateStr + "T12:00:00")
+    : new Date(dateStr);
+  return d.toLocaleDateString("es-MX", {
+    weekday: "short",
     day: "numeric",
-    year: "numeric",
+    month: "short",
   });
 }
 

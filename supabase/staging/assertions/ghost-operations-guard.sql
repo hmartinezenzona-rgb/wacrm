@@ -61,10 +61,25 @@ $$;
 CREATE OR REPLACE FUNCTION pg_temp.x() RETURNS text LANGUAGE sql AS $$ SELECT 'x' || gen_random_uuid()::text $$;
 
 -- The four writers, with the given recipient data.
-CREATE OR REPLACE FUNCTION pg_temp.w_zelle(p_conv uuid, p_acct text) RETURNS text LANGUAGE sql AS $$
-  SELECT accion FROM cerebro_guardar_zelle(p_conv, 'PRUEBA Titular Tres', p_acct, pg_temp.x()) $$;
-CREATE OR REPLACE FUNCTION pg_temp.w_auto(p_conv uuid, p_acct text) RETURNS text LANGUAGE sql AS $$
-  SELECT accion FROM cerebro_guardar_zelle_auto(p_conv, 'PRUEBA Titular Tres', p_acct, pg_temp.x()) $$;
+-- (367) the customer types the account in a message before the bot's tool writes it (the Zelle history guard refuses an account that
+-- is not in a customer message written after the last closed send)
+CREATE OR REPLACE FUNCTION pg_temp.typed(p_conv uuid, p_acct text) RETURNS void LANGUAGE sql AS $$
+  INSERT INTO messages (conversation_id, sender_type, content_type, content_text, status, ai_generated, is_panel_action)
+  VALUES (p_conv, 'customer', 'text', 'mi zelle es ' || coalesce(p_acct, ''), 'sent', false, false) $$;
+CREATE OR REPLACE FUNCTION pg_temp.w_zelle(p_conv uuid, p_acct text) RETURNS text LANGUAGE plpgsql AS $$
+DECLARE v_r text;
+BEGIN
+  PERFORM pg_temp.typed(p_conv, p_acct);
+  SELECT accion INTO v_r FROM cerebro_guardar_zelle(p_conv, 'PRUEBA Titular Tres', p_acct, pg_temp.x());
+  RETURN v_r;
+END $$;
+CREATE OR REPLACE FUNCTION pg_temp.w_auto(p_conv uuid, p_acct text) RETURNS text LANGUAGE plpgsql AS $$
+DECLARE v_r text;
+BEGIN
+  PERFORM pg_temp.typed(p_conv, p_acct);
+  SELECT accion INTO v_r FROM cerebro_guardar_zelle_auto(p_conv, 'PRUEBA Titular Tres', p_acct, pg_temp.x());
+  RETURN v_r;
+END $$;
 CREATE OR REPLACE FUNCTION pg_temp.w_card(p_conv uuid, p_card text, p_phone text) RETURNS text LANGUAGE sql AS $$
   SELECT accion FROM cerebro_guardar_beneficiario(p_conv, 'PRUEBA Titular Cuatro', p_card, p_phone, pg_temp.x()) $$;
 CREATE OR REPLACE FUNCTION pg_temp.w_rep(p_conv uuid, p_c1 text, p_c2 text) RETURNS text LANGUAGE sql AS $$

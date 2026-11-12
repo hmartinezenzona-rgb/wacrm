@@ -228,3 +228,7 @@ html[data-theme="rose"] {
     @apply font-sans;
   }
 }
+/* Edición Doña Miriam: todo un poco más grande para leer cómodo en el celular. */
+html {
+  font-size: 106.25%;
+}

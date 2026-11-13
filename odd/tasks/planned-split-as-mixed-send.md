@@ -32,7 +32,7 @@ Out: Decisor; quote parser and debounce rule (separate follow-ups below).
   pruebas/decisor/decisor-notas.test.ts, odd/tasks/bot-brevedad.md). No AI attribution in commits. RDD off.
 
 ## Tasks
-- [ ] T1 Map: how mixed sends are represented and shown (mixed_group_id = anchor id, panel rendering, crm_repartir_envio,
+- [x] T1 Map: how mixed sends are represented and shown (mixed_group_id = anchor id, panel rendering, crm_repartir_envio,
       _cerebro_repartir_envio_core), how a plan is applied at deposit (cerebro_registrar_deposito, _cerebro_aplicar_plan_reparto),
       and what breaks if the group exists before the deposit
 - [ ] T2 Plan creates the mixed send: parts grouped, each with its agreed amount; deposit of exactly the total applies to the
@@ -51,6 +51,17 @@ Out: Decisor; quote parser and debounce rule (separate follow-ups below).
 - A deposit of 25,400 completes the plan as today; a different deposit gives the same facts as today.
 
 ## Progress / evidence
+- T1 (2026-11-13): live prod bodies of the 20 reparto/deposit/recarga/zelle functions read-only = staging (md5 list equal); repo
+  latest = 367/293/277/280/291. Findings: (a) the panel groups only by mixedGroupId and totals the members' quoted amounts
+  (mixed-groups.ts), so a real group with amounts renders parts + total with no panel change; (b) a virtual group would need a
+  panel/read-model change (no panel code reads cerebro_reparto_planeado); (c) `_cerebro_op_monto_acordado` is false for any grouped
+  op, so an eagerly grouped part reads as "holding money" to every guard: cerebro_modificar_operacion (cancelar, unir, mover_deposito
+  answer en_grupo "forma parte de un reparto con deposito"), crm_registrar_numeros_recarga (last number removed does not cancel),
+  _cerebro_aplicar_servicio_base ('aparte' empty-op reuse, cancel_ids skip), _cerebro_fijar_monto_acordado ('en_grupo'),
+  cerebro_repartir_envio holder choice (a member qualifies as holder, so a repeated repartir goes to the core and deletes the plan),
+  cerebro_registrar_deposito movido guard (member with recipient + saldo>0 is excluded -> phantom 'creado' op) and its
+  `quoted_source_amount = p_monto` overwrite of a member. STOPPED here: decision needed (see Next step).
+
 
 ## Next step
-T1.
+Owner decision on how to show the plan before the deposit (options in the T1 report); T2 not started.

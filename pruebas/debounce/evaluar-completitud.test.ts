@@ -56,3 +56,25 @@ describe('lo completo no espera de mas', () => {
     }
   });
 });
+
+describe('no espera de mas cuando no viene nada', () => {
+  it('el cliente dice que los datos llegan despues (caso real 2026-11-13, exec 728308)', () => {
+    expect(
+      incompleto([t('quiero hacer dos recargas a estos números 53821204 , 53821205 y tmbn poner 50 zelle , en un rato le paso los datos y el depósito')])
+    ).toBe(false);
+    for (const s of ['quiero 100 por zelle, luego te mando la cuenta', 'mándalo a la cuenta, mañana te la paso', 'zelle 50, más tarde le paso los datos']) {
+      expect(incompleto([t(s)]), s).toBe(false);
+    }
+  });
+  it('los celulares de una recarga no son una tarjeta a medias', () => {
+    expect(incompleto([t('recarga a estos numeros 53821204 y 53821205')])).toBe(false);
+    expect(incompleto([t('ponle saldo al 53821204')])).toBe(false);
+  });
+  it('un celular suelto sin tarjeta sigue esperando la tarjeta', () => {
+    expect(incompleto([t('53821204')])).toBe(true);
+  });
+  it('anunciar que viene YA sigue esperando', () => {
+    expect(incompleto([t('quiero 100 por zelle, ahora te paso la cuenta')])).toBe(true);
+  });
+});
+

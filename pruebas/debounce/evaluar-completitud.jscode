@@ -18,7 +18,9 @@ if ($runIndex === 0 && evs.length) {
     // El run de 24 digitos ya NO se parte (fase 1B): un numero pegado a otro no
     // es "tarjeta y celular", es un numero que hay que volver a pedir.
   }
-  const datosAMedias = hayTarjeta !== hayCelular;
+  // A recarga / saldo request carries Cuban phones without a card by design (2026-11-13, exec 728308).
+  const esRecarga = /recarg|saldo/i.test(todo);
+  const datosAMedias = hayTarjeta !== hayCelular && !(esRecarga && !hayTarjeta);
   // 3) The last text names a destination still to come ("a la cuenta", "al zelle", "a este numero") (2026-11-12, case
   //    1727ef31: the account arrived 9 s after the batch was answered). "a la misma cuenta" is a complete answer.
   const destinoAnunciado = /(?:^|\s)(?:a|al|en)\s+(?:(?:la|el|esta|este|esa|ese)\s+)?(?:cuenta|tarjeta|zelle|n[uú]mero|celular)\s*[.!]*$/i.test(ultimo);
@@ -27,7 +29,9 @@ if ($runIndex === 0 && evs.length) {
   const tieneUs = /(?:\+?1[\s.\-]*)?\(?\d{3}\)?[\s.\-]*\d{3}[\s.\-]*\d{4}\b/.test(todo);
   const pideMisma = /\bmism[oa]\s+(cuenta|zelle|correo|n[uú]mero|persona)|\bla de siempre\b|\b(la|cuenta) anterior\b/i.test(todo);
   const zelleSinCuenta = /\bzelle\b/i.test(todo) && !/\?/.test(todo) && !tieneCorreo && !tieneUs && !pideMisma;
-  incompleto = anuncio || datosAMedias || destinoAnunciado || zelleSinCuenta;
+  // The customer says the data comes LATER (not now): nothing is in flight, do not wait for it.
+  const vieneDespues = /(en un rato|al rato|m[a\u00e1]s tarde|luego|despu[e\u00e9]s|ma[n\u00f1]ana)/i.test(todo);
+  incompleto = !vieneDespues && (anuncio || datosAMedias || destinoAnunciado || zelleSinCuenta);
 }
 const maxId = evs.length ? Math.max(...evs.map(e => Number(e.id))) : 0;
 return [{ json: { id: maxId, incompleto } }];

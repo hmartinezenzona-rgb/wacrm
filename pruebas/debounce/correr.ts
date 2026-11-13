@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /** md5 of the node code as it stands (updated with every deliberate change). */
-export const COMPLETITUD_MD5_ESPERADO = 'e7958007';
+export const COMPLETITUD_MD5_ESPERADO = '73b86c91';
 
 export const ORIGEN_COMPLETITUD = join(dirname(fileURLToPath(import.meta.url)), 'evaluar-completitud.jscode');
 

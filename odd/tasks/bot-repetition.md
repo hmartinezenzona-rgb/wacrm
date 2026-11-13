@@ -52,7 +52,7 @@ prompt; SQL unless a context field is missing (then a migration with assertions)
       (ok, gracias, dale, en un momento, ahorita, aa ok...) or does not touch the pending item and the same item was asked
       less than N minutes ago (default 30, from history); tests (9ea48754 shape, unrelated question, real new data still
       asked/confirmed)
-- [ ] T3 Production (needs go-ahead): migration 368, node query, then Decisor (backup, publish, first executions check)
+- [x] T3 Production (needs go-ahead): migration 368, node query, then Decisor (backup, publish, first executions check)
 
 ## Acceptance criteria
 - A conversation off hours hears the hours line once that day.
@@ -77,6 +77,11 @@ prompt; SQL unless a context field is missing (then a migration with assertions)
   Staging publish: backup staging-...-a8c8ffe4-...-antes-historial.json; versionId a8c8ffe4 -> af2e649d (= active), nodes 132,
   query md5 4f5fb4c0 -> 912d4362. Parent spot check: `npx vitest run pruebas/decisor/produccion` 126 passed, md5 3e123673.
 
+- 2026-11-13 T3 production (owner "si"): 368 previa SEGURO (NEW fn), `OK 368_bot_repetition_facts 20261113070840`, verificar 1/1
+  (869823ca); grants equal to cerebro_control_abuso/cerebro_reclamar_lote. Node "Historial contacto": backup
+  produccion-...-181e9479-...-antes-historial.json, query 6ad2c614 -> 008b5921, versionId 181e9479 -> c2195129. Decisor:
+  publicar-decisor --esperado 97469eb2 OK, versionId c2195129 -> 2c99d677 (= active), decisor_md5 3e123673, 128 nodes.
+  First execution check pending (no traffic at 07:09 UTC); watcher running.
+
 ## Next step
-T3 (needs go-ahead), in order: migration 368 (previa/aplicar/verificar); "Historial contacto" production query (live md5 prefix
-from a fresh GET, same append); Decisor publish --esperado 97469eb2.
+Check the first production execution (Historial contacto returns `repeticion`, no error); then the freshness-check feature.

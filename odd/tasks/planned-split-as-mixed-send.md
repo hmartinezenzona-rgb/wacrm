@@ -41,7 +41,7 @@ Out: Decisor; quote parser and debounce rule (separate follow-ups below).
 - [x] T3 Panel: read model exposes the conversation's planned split (new read RPC or route field, viewer auth) and groupOperations
       shows the plan's operations as one mixed send with parts and total; vitest RED/GREEN; tsc, eslint
 - [x] T4 Staging: apply, related assertions (owner check in the panel pending: coordinator runs the local staging panel)
-- [ ] T5 Production (needs go-ahead)
+- [x] T5 Production (needs go-ahead)
 
 ## Follow-ups seen in the same test (not in this feature)
 - cerebro_monto_cotizado does not record "Total a depositar: *25,400 GYD*" (no "Cotizado" line).
@@ -87,5 +87,11 @@ Out: Decisor; quote parser and debounce rule (separate follow-ups below).
   (flaky, not caused by 369: orders two rows created in one transaction by random id, 3 of 6 runs fail on the same state) and
   delivery-feed-evidence (fixture setup failed on both base and migration, only the random deal uuid differs: pre-existing).
 
+- 2026-11-13 T5 production (owner "pasalo a produccion", without the staging panel check): previa SEGURO (EQUAL planner, NEW
+  read fn); `OK 369_planned_split_agreed_amounts 20261113171832`, `OK 370_planned_split_panel_read 20261113171835`, verificar
+  1/1 each. Panel: release/prod-envio-mixto (pushed to privado) sha a7a469a0, compilar OK (vitest, tsc), BUILD_ID
+  tYUD0E9ktma5v52APWdqt served; rollback sha f4c4036 (anterior). Only 205b5aa4 touched app files since the served release.
+
 ## Next step
-Owner check in the local staging panel (coordinator). Then T5 production (needs go-ahead; 370 and 369 pending, previa first).
+Done. Clean the staging fixture PRUEBA reparto planeado (conv cb85fd38, phone 59902530931) after showing the owner the dry
+run. Watch the first real planned split in the production panel.

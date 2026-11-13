@@ -40,7 +40,7 @@ Out: Decisor, prompt, panel (369/370 already render a plan), n8n nodes unless a 
 - [x] T2 Implementation + assertions (exec 727547 shape; price-question negative; second service data arriving later; drop a part)
 - [x] T3 Staging: apply, related assertions
 - [x] T4 Production (needs go-ahead)
-- [ ] T5 Surface the doubt so the bot asks: n8n "Contexto conversacion" adds `cerebro_declaracion_pendiente(v.id) AS declaracion_pendiente`
+- [x] T5 Surface the doubt so the bot asks: n8n "Contexto conversacion" adds `cerebro_declaracion_pendiente(v.id) AS declaracion_pendiente`
       (staging, then production with go-ahead); production Decisor note from ctx.declaracion_pendiente (vitest RED/GREEN, md5 pin);
       publish with go-ahead
       - [x] T5a Decisor part (2026-11-13): note `DECLARACION PENDIENTE` from ctx.declaracion_pendiente in pruebas/decisor/produccion/decisor.jscode.
@@ -193,5 +193,10 @@ Out: Decisor, prompt, panel (369/370 already render a plan), n8n nodes unless a 
 - 2026-11-13 T4 production (owner "ok"): previa SEGURO (EQUAL coherence fn, 2 NEW); `OK 371_declaracion_doble 20261113183858`;
   verificar 3/3 equal (9c4e14b6, c0d764e9, 8e0d1bfa). Rollback: ROLLBACK-371.
 
+- 2026-11-13 T5 production (owner "si"): staging Contexto conversacion query 48c95840 -> 1324c6f1 (versionId 596a93bf); production
+  backup taken, Contexto conversacion query e44a012c -> 5bd5c056 (versionId a2a1f9d3 -> 120d0ebc), Decisor publicar-decisor
+  --esperado 3e123673 OK -> 3219bc40, versionId 25a25036 (= active), 129 nodes (includes the temporary test-mode node).
+  First-execution check: watcher running.
+
 ## Next step
-T5.
+Done. Watch the first real double declaration (tool_execution_log tool_name 'declaracion_doble', cerebro_declaracion_duda rows).

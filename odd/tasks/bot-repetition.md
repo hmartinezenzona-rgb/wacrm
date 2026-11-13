@@ -39,16 +39,16 @@ prompt; SQL unless a context field is missing (then a migration with assertions)
   odd/tasks/bot-brevedad.md. No AI attribution in commits. RDD off.
 
 ## Tasks
-- [ ] T0 Context facts (the Decisor does not receive them; checked 2026-11-13): migration 368 `cerebro_repeticion_turno(conv)`
+- [x] T0 Context facts (the Decisor does not receive them; checked 2026-11-13): migration 368 `cerebro_repeticion_turno(conv)`
       returning `horario_ya_dicho_hoy` (an agent message today, America/Guyana date, matching "fuera de horario" or
       "a partir de las 9") and `ultimo_pedido_bot` ({texto, hace_min}: last agent ai_generated message ending in a question
       within 6 h); SQL assertions; n8n node "Historial contacto" adds
       `(SELECT row_to_json(r) FROM cerebro_repeticion_turno($1::uuid) r) AS repeticion` (staging, then production with
       go-ahead; the other Decisor ignores the extra field)
-- [ ] T1 Hours line once per day: the FUERA DE HORARIO note and LINEA_HORARIO_OBLIGATORIA fire only when no bot message of
+- [x] T1 Hours line once per day: the FUERA DE HORARIO note and LINEA_HORARIO_OBLIGATORIA fire only when no bot message of
       this conversation today (Guyana day) already carried the line; tests (first turn says it, follow-up does not,
       next day says it again, deposit turn after it was said does not repeat it)
-- [ ] T2 No re-ask: the follow-up "pide el dato que falta" is suppressed when the customer's batch is only an ack
+- [x] T2 No re-ask: the follow-up "pide el dato que falta" is suppressed when the customer's batch is only an ack
       (ok, gracias, dale, en un momento, ahorita, aa ok...) or does not touch the pending item and the same item was asked
       less than N minutes ago (default 30, from history); tests (9ea48754 shape, unrelated question, real new data still
       asked/confirmed)
@@ -63,5 +63,15 @@ prompt; SQL unless a context field is missing (then a migration with assertions)
 - 2026-11-13: audit (counts above); hold-message fan-out verified fixed (cerebro_control_abuso/bucle atomic; 30-day history
   only the 2026-11-09 incident).
 
+- 2026-11-13 T0 (c33bc22b): `cerebro_repeticion_turno(conv)` -> {horario_ya_dicho_hoy, ultimo_pedido_bot}. RED: assertion against staging
+  without 368 `ERROR: function cerebro_repeticion_turno(uuid) does not exist`; GREEN: `ALL PASS (rolled back on purpose)`;
+  `staging-migracion.sh aplicar`: dry-run OK, apply OK, assertion OK, rollback OK (md5 igual al previo). Staging only.
+- 2026-11-13 T1 (321e5197): Decisor reads `h.repeticion` (absent -> as before); hours line suppressed when horario_ya_dicho_hoy.
+  RED: 3 failed | 116 passed (119); GREEN: 119 passed; md5 7b9b25499fc74b8a4788c3cf763db114.
+- 2026-11-13 T2 (ee4065d4): "NO REPITAS LA PETICION" when ultimo_pedido_bot.hace_min < 30 and the batch is only an ack (every line) or does
+  not touch the asked item; real data (tarjeta/celular/comprobante in the snapshot) never suppressed. RED: 3 failed | 123 passed (126);
+  GREEN: 126 passed; md5 3e123673ce9b50a5739445fb0ae9023a (pin updated).
+
 ## Next step
-T1.
+T3 (production, needs the owner's go-ahead): migration 368 on production, then the `Historial contacto` node change, then the Decisor
+(backup, publicar-decisor --esperado <live md5 97469eb2...>, new md5 3e123673ce9b50a5739445fb0ae9023a, check the first executions).

@@ -32,6 +32,9 @@ staging publish; production publish with go-ahead. Out: wait amounts (30 s / 25 
       negatives (complete Zelle with account, plain greetings, "gracias") stay complete
 - [x] T3 Staging publish (backup, PUT node, verify versionId == activeVersionId, md5)
 - [x] T4 Production (needs go-ahead)
+- [x] T5 Refinement (owner "si" 2026-11-13): no extra wait when the customer says the data comes later; recarga / saldo phones
+      are not "celular sin tarjeta"; tests; staging
+- [ ] T6 Production of T5 (needs go-ahead)
 
 ## Acceptance criteria
 - "Pásame 58 zelle a la cuenta" -> incompleto (extra 25 s).
@@ -50,5 +53,10 @@ staging publish; production publish with go-ahead. Out: wait amounts (30 s / 25 
 - 2026-11-13 T4 production (owner "si, pásalo a producción"): backup produccion-jEzlVLCLUaJhVwzs-d0ef24b5-...-antes-completitud.json;
   versionId d0ef24b5 -> 181e9479 (= activeVersionId), nodes 128 == 128, node md5 e7958007 == repo, Decisor 97469eb2 unchanged.
 
+- 2026-11-13 T5 (commit 85b47ef2): owner test exec 728308 waited 25 s extra for a message that said "en un rato le paso los
+  datos". RED: `npx vitest run pruebas/debounce` 2 failed | 11 passed. GREEN: 13 passed; md5 e7958007 -> 73b86c91. Rules:
+  vieneDespues (en un rato, al rato, más tarde, luego, después, mañana) cancels every extension; a recarga/saldo text with phones
+  and no card is not half data. Staging: versionId 596a93bf -> 59b29594 (= active), node md5 73b86c91.
+
 ## Next step
-Done. Watch executions that take "Espera extra" after a destination/Zelle announcement.
+T6 (production, needs go-ahead): publicar_nodo_completitud.py produccion e7958007.

@@ -6,6 +6,11 @@ const HORA_ABRE_TXT = ctx.horario_abre_texto, HORA_CIERRA_TXT = ctx.horario_cier
 const h = $('Historial contacto').first().json;
 const s = { ...$('Snapshot final').first().json }; // shallow copy: the team-data guard below may blank fields
 const texto = (s.texto_completo || '').trim();
+// (368) Facts about the bot's own earlier messages, from `Historial contacto.repeticion`. An old node without the field
+// gives null, and everything below behaves exactly as before.
+const repeticion = (h && h.repeticion && typeof h.repeticion === 'object') ? h.repeticion : null;
+// The hours line is said ONCE per conversation per Guyana day: later turns (deposits included) do not repeat it.
+const horarioYaDicho = !!(repeticion && repeticion.horario_ya_dicho_hoy === true);
 // El 11-ago el bot le pidio los datos del beneficiario CUATRO veces en cinco
 // minutos a 5926299943, que habia dicho TRES veces que estaba esperando a que
 // se los mandaran. No es sordera del modelo: nadie se lo estaba diciendo.
@@ -552,8 +557,23 @@ try { cotizacionPrevia = $('Ultima cotizacion').first().json.ultima_cotizacion |
 const pideCotizacion = /(cuanto|cuánto|que|qué)\s+(le\s+)?(llega|llegan|llegaria|llegaría|llegarian|llegarían|recibe|reciben|recibiria|recibiría)/i.test(texto) || /(cuanto|cuánto)\s+(tengo que |debo |debe |deberia |debería |tendria |tendría |seria |sería |hay que |necesito )*(depositar|enviar|mandar|poner|dar)/i.test(texto);
 // The customer only acknowledges (ok/perfecto/gracias): do not repeat what was already confirmed.
 const soloAcuse = /^(ok|okay|perfecto|gracias|listo|de acuerdo|bien|dale|👍)[.! ]*$/i.test(texto);
+// (368) NO RE-ASK: the bot already asked for a datum less than 30 minutes ago and the customer only acknowledged it
+// ("ok", "aa ok", "gracias", "en un momento"...) or wrote something that does not touch it. Asking again is the repetition
+// measured on 2026-10-30..11-13 (conv 9ea48754: "Ok" and "Aa ok" were each answered with another ask).
+const ultimoPedido = (repeticion && repeticion.ultimo_pedido_bot && typeof repeticion.ultimo_pedido_bot === 'object') ? repeticion.ultimo_pedido_bot : null;
+const lineasCliente = texto.split(/\n+/).map(l => l.trim()).filter(Boolean);
+const ACUSE_LINEA = /^(?:(?:a+h*\s+)?(?:ok(?:ey|ay)?|dale|gracias|muchas gracias|listo|vale|bien|perfecto|si|sí|ya|de acuerdo|en un momento|un momento|ahorita|ya te (?:lo|los|la|las) (?:paso|mando|envio|envío)|👍)[\s.,!]*)+$/i;
+const soloAcuseLote = lineasCliente.length > 0 && lineasCliente.every(l => ACUSE_LINEA.test(l));
+const TEMAS_PEDIDO = /tarjeta|celular|tel[eé]fono|n[uú]mero|nombre|direcci[oó]n|carnet|foto|cuenta|beneficiari/i;
+const datoNuevo = !!(s.tarjeta || s.celular || s.comprobante || (s.tarjetas || []).length || (s.celulares || []).length);
+const tocaElDato = datoNuevo || /\d{6,}/.test(texto) || /^\[/m.test(texto) || TEMAS_PEDIDO.test(texto);
+const pedidoReciente = !!(ultimoPedido && typeof ultimoPedido.texto === 'string' && ultimoPedido.texto && typeof ultimoPedido.hace_min === 'number' && ultimoPedido.hace_min < 30);
+const noRepetirPedido = pedidoReciente && !datoNuevo && (soloAcuseLote || (TEMAS_PEDIDO.test(ultimoPedido.texto) && !tocaElDato));
+if (noRepetirPedido) {
+  notas.push('NO REPITAS LA PETICION: hace ' + ultimoPedido.hace_min + ' min ya le pediste esto al cliente ("' + ultimoPedido.texto.slice(0, 160) + '") y ' + (soloAcuseLote ? 'ahora solo acuso recibo' : 'ahora escribe de otra cosa') + '. PROHIBIDO pedirselo otra vez en este mensaje, ni con otras palabras. ' + (soloAcuseLote ? 'Si no hay nada nuevo que responder, contesta con un acuse muy corto (una frase) o no anadas nada.' : 'Responde solo a lo que pregunta ahora, en 1-2 frases.') + ' Si mas adelante manda el dato, lo confirmas como siempre.');
+}
 if (cotizacionPrevia && !pideCotizacion) {
-  notas.push('TURNO DE SEGUIMIENTO (BREVEDAD): NO re-listes la cotizacion, las tasas, los minimos ni la tabla; NO repitas el desglose ni la pregunta anterior. Responde solo a lo nuevo en 1-2 frases, sin tabla. Pide SOLO el dato que falta, por ejemplo "la tarjeta" o "el celular"; PROHIBIDO "los datos de quien recibe" o pedir el paquete entero. Si el cliente pide confirmacion, di el total y el dato que falta, sin "Total a depositar".');
+  notas.push('TURNO DE SEGUIMIENTO (BREVEDAD): NO re-listes la cotizacion, las tasas, los minimos ni la tabla; NO repitas el desglose ni la pregunta anterior. Responde solo a lo nuevo en 1-2 frases, sin tabla. ' + (noRepetirPedido ? 'NO pidas ningun dato en este mensaje (ya se pidio hace poco; ver la nota NO REPITAS LA PETICION).' : 'Pide SOLO el dato que falta, por ejemplo "la tarjeta" o "el celular"; PROHIBIDO "los datos de quien recibe" o pedir el paquete entero. Si el cliente pide confirmacion, di el total y el dato que falta, sin "Total a depositar".') + '');
 }
 // (gate 83, 2026-10-02) MONTO DE DESTINO: an amount with the destination currency attached is what the
 // beneficiary RECEIVES, whatever the verb (owner: "si el cliente dice que quiere recibir X en una moneda, eso
@@ -635,11 +655,6 @@ const proximoHabil = ce.proximo_habil || null;
 const avisoCierre = ce.proximo_cierre || null;
 // Turno con deposito o transferencia: comprobante, envio por verificar o listo para transferir, o el cliente los nombra.
 const turnoConDeposito = !!s.comprobante || !!(h && (h.etapa_envio_abierto === 'Por verificar' || h.etapa_envio_abierto === 'Lista para transferir')) || /deposit|transfer|comprobante|transid/i.test(texto);
-// (368) Facts about the bot's own earlier messages, from `Historial contacto.repeticion`. An old node without the field
-// gives null, and everything below behaves exactly as before.
-const repeticion = (h && h.repeticion && typeof h.repeticion === 'object') ? h.repeticion : null;
-// The hours line is said ONCE per conversation per Guyana day: later turns (deposits included) do not repeat it.
-const horarioYaDicho = !!(repeticion && repeticion.horario_ya_dicho_hoy === true);
 const LINEA_HORARIO_OBLIGATORIA = turnoConDeposito && !horarioYaDicho ? ' OBLIGATORIO: este turno trata de un deposito o una transferencia, asi que tu respuesta DEBE incluir la linea del horario: "queda registrado y se procesa a partir de las ' + HORA_ABRE_TXT + ' (hora de Guyana)". Sin esa linea la respuesta esta incompleta.' : '';
 const abierto = diaGy !== 0 && minGy >= HORA_ABRE_MIN && minGy < HORA_CIERRA_MIN && !hoyCerrado;
 // PROXIMO A CERRAR va PRIMERO y NO depende de `abierto`: lo calcula el SQL de

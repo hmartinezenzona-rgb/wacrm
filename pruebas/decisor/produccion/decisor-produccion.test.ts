@@ -1777,3 +1777,97 @@ describe('repeticion: la linea de horario se dice una vez por dia y por conversa
     expect(nota(s, 'EL NEGOCIO ESTA ABIERTO')).toBeDefined();
   });
 });
+
+describe('repeticion: no se vuelve a pedir el dato pendiente tras un acuse o un tema ajeno', () => {
+  const ABIERTO = '2026-10-21T15:00:00Z';
+  const NO_REPITAS = 'NO REPITAS LA PETICION';
+  const COTIZADO = { ultima_cotizacion: 'Por *8,000 GYD* llegan *24,000 CUP* a Cuba.' };
+  const PIDE_SOLO = 'Pide SOLO el dato que falta';
+  const pedido = (hace_min: number, texto = 'Perfecto. ¿Me pasa la tarjeta de quien recibe?') => ({
+    repeticion: { horario_ya_dicho_hoy: false, ultimo_pedido_bot: { texto, hace_min } },
+  });
+
+  function en(e: Entradas) {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(ABIERTO));
+    try {
+      return correr(e);
+    } finally {
+      vi.useRealTimers();
+    }
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('forma 9ea48754: pidio la tarjeta, el cliente dice "Ok" y luego "Aa ok": no se vuelve a pedir', () => {
+    for (const texto of ['Ok', 'Aa ok', 'Ok\nAa ok']) {
+      const s = en({
+        cotizacion: COTIZADO,
+        historial: pedido(3),
+        snapshot: { texto_completo: texto },
+      });
+      const n = nota(s, NO_REPITAS) as string;
+      expect(n, texto).toBeDefined();
+      expect(n, texto).toContain('tarjeta');
+      expect(nota(s, 'TURNO DE SEGUIMIENTO (BREVEDAD)') ?? '', texto).not.toContain(PIDE_SOLO);
+    }
+  });
+
+  it('otros acuses (gracias, dale, en un momento, ahorita, ya te lo paso, si) tambien', () => {
+    for (const texto of ['gracias', 'dale', 'En un momento', 'ahorita', 'ya te lo paso', 'si', 'okey gracias']) {
+      const s = en({ historial: pedido(10), snapshot: { texto_completo: texto } });
+      expect(nota(s, NO_REPITAS), texto).toBeDefined();
+    }
+  });
+
+  it('un mensaje que no toca el dato pendiente (otra pregunta) tampoco dispara otro pedido', () => {
+    const s = en({
+      cotizacion: COTIZADO,
+      historial: pedido(8),
+      snapshot: { texto_completo: 'a que hora abren manana?' },
+    });
+    expect(nota(s, NO_REPITAS)).toBeDefined();
+    expect(nota(s, 'TURNO DE SEGUIMIENTO (BREVEDAD)') ?? '').not.toContain(PIDE_SOLO);
+  });
+
+  it('pasados 30 minutos desde el ultimo pedido, se puede volver a pedir', () => {
+    const s = en({
+      cotizacion: COTIZADO,
+      historial: pedido(45),
+      snapshot: { texto_completo: 'ok' },
+    });
+    expect(nota(s, NO_REPITAS)).toBeUndefined();
+    expect(nota(s, 'TURNO DE SEGUIMIENTO (BREVEDAD)')).toContain(PIDE_SOLO);
+  });
+
+  it('dato nuevo real (tarjeta, celular, comprobante) se sigue confirmando como antes', () => {
+    for (const snapshot of [
+      { texto_completo: 'la tarjeta es 9224069992922522', tarjeta: '9224069992922522' },
+      { texto_completo: 'mi celular 53821202', celular: '53821202' },
+      { texto_completo: 'ok', comprobante: { moneda: 'GYD', estado: 'OK', alertas: [] } },
+    ]) {
+      const s = en({ cotizacion: COTIZADO, historial: pedido(2), snapshot });
+      expect(nota(s, NO_REPITAS), snapshot.texto_completo).toBeUndefined();
+      expect(nota(s, 'TURNO DE SEGUIMIENTO (BREVEDAD)'), snapshot.texto_completo).toContain(PIDE_SOLO);
+    }
+  });
+
+  it('si el cliente habla del dato pendiente ("no tengo la tarjeta a la mano") no se silencia', () => {
+    const s = en({
+      cotizacion: COTIZADO,
+      historial: pedido(2),
+      snapshot: { texto_completo: 'no tengo la tarjeta a la mano' },
+    });
+    expect(nota(s, NO_REPITAS)).toBeUndefined();
+  });
+
+  it('sin pedido previo del bot o sin el campo (nodo viejo): se comporta como hasta ahora', () => {
+    for (const historial of [{}, { repeticion: { horario_ya_dicho_hoy: false, ultimo_pedido_bot: null } }]) {
+      const s = en({ cotizacion: COTIZADO, historial, snapshot: { texto_completo: 'ok' } });
+      expect(nota(s, NO_REPITAS)).toBeUndefined();
+      expect(nota(s, 'TURNO DE SEGUIMIENTO (BREVEDAD)')).toContain(PIDE_SOLO);
+    }
+  });
+});

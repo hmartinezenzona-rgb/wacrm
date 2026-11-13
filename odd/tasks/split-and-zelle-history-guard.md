@@ -42,7 +42,7 @@ Out: Decisor, prompt, panel, n8n nodes; the data of d9e9f333 (separate owner dec
       ("misma cuenta", "la de siempre", "la anterior", "igual que la otra"...); the refusal tells the bot to ask which
       account; assertions (1727ef31 shape, legitimate new account, explicit "la misma")
 - [x] T3 Staging: apply 367, related assertions
-- [ ] T4 Production (needs go-ahead)
+- [x] T4 Production (needs go-ahead)
 
 ## Acceptance criteria
 - Deposit used by a send completed 1 h ago + split call -> no operation created, case handed to a person.
@@ -75,5 +75,8 @@ Out: Decisor, prompt, panel, n8n nodes; the data of d9e9f333 (separate owner dec
   real regression, ghost-operations-guard (11 failures: its fixtures wrote a new Zelle account with no customer message after a closed send,
   the case the new guard refuses); fixed in the assertion (4fc18c7, the helpers type the account first), ALL PASS on base and with 367, SAME.
 
+- 2026-11-13 T4 production (owner "si, pásalo a producción"): previa EQUAL x2 SEGURO; `OK 367_split_and_zelle_history_guard
+  20261113054713`; verificar 2/2 equal (guardar_zelle 83cdd5c2, repartir_envio 3d8d1e88). Rollback: ROLLBACK-367.
+
 ## Next step
-T4 (production, needs the owner's go-ahead): previa, then aplicar/verificar of 367.
+Done. Watch the next repartir_envio derivation (deposito_ya_aplicado) and Zelle refusals in tool_execution_log.

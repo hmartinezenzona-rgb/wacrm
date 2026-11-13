@@ -31,7 +31,7 @@ staging publish; production publish with go-ahead. Out: wait amounts (30 s / 25 
       numero/número", "a mi mamá"-style is OUT) and Zelle asked with no account (email or US phone) in the batch -> incompleto;
       negatives (complete Zelle with account, plain greetings, "gracias") stay complete
 - [x] T3 Staging publish (backup, PUT node, verify versionId == activeVersionId, md5)
-- [ ] T4 Production (needs go-ahead)
+- [x] T4 Production (needs go-ahead)
 
 ## Acceptance criteria
 - "Pásame 58 zelle a la cuenta" -> incompleto (extra 25 s).
@@ -47,5 +47,8 @@ staging publish; production publish with go-ahead. Out: wait amounts (30 s / 25 
 - 2026-11-12 T3 staging: backup staging-U52y1kSNvhgxvWeb-e400cbb0-...-antes-completitud.json; versionId e400cbb0 -> a8c8ffe4
   (= activeVersionId), nodes 132 == 132, node md5 e7958007 == repo. Not executed (never run the workflow).
 
+- 2026-11-13 T4 production (owner "si, pásalo a producción"): backup produccion-jEzlVLCLUaJhVwzs-d0ef24b5-...-antes-completitud.json;
+  versionId d0ef24b5 -> 181e9479 (= activeVersionId), nodes 128 == 128, node md5 e7958007 == repo, Decisor 97469eb2 unchanged.
+
 ## Next step
-T4 (production, needs go-ahead): same script, esperado 01304015.
+Done. Watch executions that take "Espera extra" after a destination/Zelle announcement.

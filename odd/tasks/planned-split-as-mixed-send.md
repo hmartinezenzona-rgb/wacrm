@@ -80,4 +80,7 @@ Out: Decisor; quote parser and debounce rule (separate follow-ups below).
   read-model and route folders; i18n parity 18 passed); tsc exit 0; eslint clean on the 10 touched files.
 
 ## Next step
-T4.
+Paused 2026-11-13 ~08:30 UTC by the owner (laptop off). T2 (cd652a22) and T3 (205b5aa4) committed. The writer was stopped
+mid-work right after recording a RED with 9 failures (unknown which step; nothing uncommitted left). On resume: check whether
+369 is already applied on staging (cerebro_reparto_planear / _cerebro_reparto_planear body vs 369), rerun the T2/T3 checks
+(SQL assertion, vitest, tsc), then T4 (staging aplicar + relacionadas, local staging panel for the owner).

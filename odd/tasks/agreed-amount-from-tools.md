@@ -37,13 +37,13 @@ Out: Decisor; prompt (contradictions are a separate feature); panel.
 ## Tasks
 - [x] T1 Objective under a plan: while cerebro_reparto_planeado exists for the conversation and no deposit is applied, the
       objective stays the plan total; a recipient writer (Zelle sum) must not shrink it; assertions (exec 728365 shape)
-- [ ] T2 Map + design: what each calculator writes today, what "commitment" means in cerebro_fijar_objetivo, where the panel
+- [x] T2 Map + design: what each calculator writes today, what "commitment" means in cerebro_fijar_objetivo, where the panel
       "Cotizado" line and the deposit check read from (cerebro_cotizacion / cerebro_cotizacion_vigente / objetivo), and the
       smallest change that makes a tool-computed amount the stored agreed quote (e.g. calculators upsert cerebro_cotizacion with
       the GYD total they return, tagged with the execution; the turn's reply total "Total / En total" for a plan = plan total).
       STOP and report only if an owner decision is needed; otherwise continue
-- [ ] T3 Implementation + assertions (single quote, re-quote, comparison of two services, plan total, refusal text)
-- [ ] T4 Staging: apply, related assertions
+- [x] T3 Implementation + assertions (single quote, re-quote, comparison of two services, plan total, refusal text)
+- [x] T4 Staging: apply, related assertions
 - [ ] T5 Production (needs go-ahead)
 
 ## Acceptance criteria
@@ -62,4 +62,26 @@ Out: Decisor; prompt (contradictions are a separate feature); panel.
   deal uuid differs, pre-existing fixture failure). Note: planear (_cerebro_reparto_planear) does not itself fix the objective; the 371 hook does.
 
 ## Next step
-T2/T3 (design recorded above).
+T5 production (previa 372+373, then aplicar with the owner's go-ahead; n8n node change is optional).
+- T4 staging: 372 and 373 applied on staging (aplicar OK, md5 equal on rollback). relacionadas with pattern
+  objetivo|cotiza|quote|reparto|plan|zelle|deposit|declar and --ya-aplicada: 372 -> TOTAL 206, SAME 204, DIFF 2; 373 -> TOTAL 207, SAME 205, DIFF 2.
+  DIFFs explained: objetivo-bajo-reparto (372) and tool-quote-is-agreed-quote (373) are the new assertions going RED -> GREEN; delivery-feed-evidence
+  fails identically on base and with the migration ("no operation created for deal", only the deal uuid differs; pre-existing). No existing
+  assertion was changed.
+
+## T2 map and design (2026-11-13)
+Today (live bodies read 2026-11-13): each calculator node calls cerebro_registrar_cotizacion (-> cerebro_ultima_cotizacion, per currency, evidence only),
+cerebro_registrar_via_cotizada (-> tool_execution_log, evidence for the coherence net) and, calcular_usd only, cerebro_fijar_objetivo (commitment
+needed, result column hidden from the model). The AGREED quote store is cerebro_cotizacion (one row per conversation, gyd + texto), written only by the
+text trigger; read by cerebro_cotizacion_vigente (6 h window, newer than the last closed send) -> cerebro_objetivo_minimo / cerebro_aplicar_cotizacion
+and by the panel line crm_cotizacion_de_conversacion (187, which parses '*N CUP|USD*' from texto).
+Design (373, no n8n edit): cerebro_registrar_via_cotizada (called by all four nodes and cerebro_cotizar with the execution, via and GYD origin) now also
+calls _cerebro_cotizacion_acordar, which upserts cerebro_cotizacion (new column ejecucion) with the GYD the tool computed (plan total while a plan
+exists), a texto the panel line parses, then cerebro_aplicar_cotizacion like the trigger. Two services quoted in one execution (>= 2 distinct vias)
+is a comparison: the quote of that execution is removed and so is an objective fixed in the turn for one of those amounts (not under a plan). No via or
+no GYD origin: nothing stored. The text parser is untouched (fallback; newest write wins). No owner decision was needed.
+Not done on purpose: the tool RESULT cannot carry "NO se fijo" because the nodes return fixed columns and calcular_usd discards cerebro_fijar_objetivo's
+output; that needs an n8n node change (reported to the coordinator, optional).
+T3 evidence: assertion tool-quote-is-agreed-quote.sql (8 cases: single quote, re-quote, comparison, next execution, plan total, parsed replaced, no
+via/no origin, closed send). RED on staging before the migration (column ejecucion missing / no quote stored), GREEN after
+(aplicar: dry-run/apply/assertion/rollback OK, md5 equal).

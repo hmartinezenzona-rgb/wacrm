@@ -72,6 +72,11 @@ prompt; SQL unless a context field is missing (then a migration with assertions)
   not touch the asked item; real data (tarjeta/celular/comprobante in the snapshot) never suppressed. RED: 3 failed | 123 passed (126);
   GREEN: 126 passed; md5 3e123673ce9b50a5739445fb0ae9023a (pin updated).
 
+- 2026-11-13 T0 node (parent): "Historial contacto" query + `(SELECT row_to_json(r) FROM cerebro_repeticion_turno($1::uuid) r) AS
+  repeticion` (appended to the last SELECT). Fragment run read-only on staging -> {"horario_ya_dicho_hoy":false,"ultimo_pedido_bot":null}.
+  Staging publish: backup staging-...-a8c8ffe4-...-antes-historial.json; versionId a8c8ffe4 -> af2e649d (= active), nodes 132,
+  query md5 4f5fb4c0 -> 912d4362. Parent spot check: `npx vitest run pruebas/decisor/produccion` 126 passed, md5 3e123673.
+
 ## Next step
-T3 (production, needs the owner's go-ahead): migration 368 on production, then the `Historial contacto` node change, then the Decisor
-(backup, publicar-decisor --esperado <live md5 97469eb2...>, new md5 3e123673ce9b50a5739445fb0ae9023a, check the first executions).
+T3 (needs go-ahead), in order: migration 368 (previa/aplicar/verificar); "Historial contacto" production query (live md5 prefix
+from a fresh GET, same append); Decisor publish --esperado 97469eb2.

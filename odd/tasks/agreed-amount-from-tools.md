@@ -35,7 +35,7 @@ Out: Decisor; prompt (contradictions are a separate feature); panel.
   pruebas/decisor/decisor-notas.test.ts, odd/tasks/bot-brevedad.md). No AI attribution in commits. RDD off.
 
 ## Tasks
-- [ ] T1 Objective under a plan: while cerebro_reparto_planeado exists for the conversation and no deposit is applied, the
+- [x] T1 Objective under a plan: while cerebro_reparto_planeado exists for the conversation and no deposit is applied, the
       objective stays the plan total; a recipient writer (Zelle sum) must not shrink it; assertions (exec 728365 shape)
 - [ ] T2 Map + design: what each calculator writes today, what "commitment" means in cerebro_fijar_objetivo, where the panel
       "Cotizado" line and the deposit check read from (cerebro_cotizacion / cerebro_cotizacion_vigente / objetivo), and the
@@ -52,6 +52,14 @@ Out: Decisor; prompt (contradictions are a separate feature); panel.
 - Two different services quoted in one turn -> no objective fixed; the tool result says so.
 
 ## Progress / evidence
+- T1 (migration 372, cerebro_fijar_objetivo): live prod body read 2026-11-13 equals repo 278 (no diff). Design: the single writer
+  cerebro_fijar_objetivo refuses any amount other than cerebro_reparto_planeado.total_gyd while the plan row exists (the row lives until the
+  deposit is applied or the plan is dropped, 277/280/281); the plan total itself is accepted (371 hook). Refusal text: "NO se fijo: hay un
+  reparto planeado de X GYD ...". Covers cerebro_guardar_zelle and every other caller (calcular_usd, cerebro_cotizar, 283/293 writers).
+  Assertion objetivo-bajo-reparto.sql: RED on staging before the migration (case 1 expected 25400, got 13000 = exec 728365), GREEN after
+  (staging-migracion aplicar: dry-run/apply/assertion/rollback OK, md5 equal). Related (pattern objetivo|cotiza|quote|reparto|plan|zelle|deposit|declar,
+  --ya-aplicada): TOTAL 206, SAME 204, DIFF 2 (objetivo-bajo-reparto = RED->GREEN as intended; delivery-feed-evidence = same error text, only the
+  deal uuid differs, pre-existing fixture failure). Note: planear (_cerebro_reparto_planear) does not itself fix the objective; the 371 hook does.
 
 ## Next step
-T1.
+T2/T3 (design recorded above).

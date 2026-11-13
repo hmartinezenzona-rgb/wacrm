@@ -40,7 +40,7 @@ Out: Decisor; quote parser and debounce rule (separate follow-ups below).
       updated only for the agreed amounts)
 - [x] T3 Panel: read model exposes the conversation's planned split (new read RPC or route field, viewer auth) and groupOperations
       shows the plan's operations as one mixed send with parts and total; vitest RED/GREEN; tsc, eslint
-- [ ] T4 Staging: apply, related assertions, owner check in the panel
+- [x] T4 Staging: apply, related assertions (owner check in the panel pending: coordinator runs the local staging panel)
 - [ ] T5 Production (needs go-ahead)
 
 ## Follow-ups seen in the same test (not in this feature)
@@ -78,9 +78,14 @@ Out: Decisor; quote parser and debounce rule (separate follow-ups below).
   operations of >=2 plan parts one panel-only group id `planned:<conv>` (plan amount shown when an op has none), MixedSendBlock `awaitingDeposit`
   line ("Esperando depósito"/"Waiting for the deposit", es+en). vitest RED (9 failed) -> GREEN (65 files / 1076 tests in the operations,
   read-model and route folders; i18n parity 18 passed); tsc exit 0; eslint clean on the 10 touched files.
+- T4 (2026-11-13, resumed 17:05 UTC): the 9-failure RED was the T3 vitest RED (new tests written first), already GREEN in 205b5aa4. 369 and 370
+  applied on staging by `staging-migracion.sh aplicar` (dry-run, apply, assertion OK, rollback md5 equal; ACLs unchanged for the planner, 370 =
+  postgres+service_role+authenticated). Re-run: 3 assertions ALL PASS, vitest 69 files/1094 tests, tsc 0, eslint 0.
+  `relacionadas ... 'reparto|repartir|mixto|mixed|deposit|plan|recarga|zelle' --ya-aplicada ROLLBACK-369`: TOTAL 187, SAME 182, DIFF 5:
+  planned-split-agreed-amounts and planned-split-before-deposit (base fails by design: the new/updated expectation of the agreed amounts);
+  partial-deposit-split (case 1 pending CUP part now 15000 agreed instead of 0: intended, fixture updated, ALL PASS); contexto-envio-mixto
+  (flaky, not caused by 369: orders two rows created in one transaction by random id, 3 of 6 runs fail on the same state) and
+  delivery-feed-evidence (fixture setup failed on both base and migration, only the random deal uuid differs: pre-existing).
 
 ## Next step
-Paused 2026-11-13 ~08:30 UTC by the owner (laptop off). T2 (cd652a22) and T3 (205b5aa4) committed. The writer was stopped
-mid-work right after recording a RED with 9 failures (unknown which step; nothing uncommitted left). On resume: check whether
-369 is already applied on staging (cerebro_reparto_planear / _cerebro_reparto_planear body vs 369), rerun the T2/T3 checks
-(SQL assertion, vitest, tsc), then T4 (staging aplicar + relacionadas, local staging panel for the owner).
+Owner check in the local staging panel (coordinator). Then T5 production (needs go-ahead; 370 and 369 pending, previa first).

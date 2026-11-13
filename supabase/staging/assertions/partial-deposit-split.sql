@@ -101,7 +101,7 @@ BEGIN
   v_a := cerebro_repartir_envio(c.conv, 'zelle 39000, efectivo 29000', 'q1b');
   PERFORM pg_temp.p_eq('1 partial text', (v_a LIKE 'Reparto parcial hecho%' AND v_a LIKE '%zelle 39,000 GYD%' AND v_a LIKE '%efectivo USD 29,000 GYD%'
                                            AND v_a LIKE '%sobran 3,200 GYD%' AND v_a LIKE '%tarjeta CUP 15,000 GYD%')::text, 'true');
-  PERFORM pg_temp.p_eq('1 amounts', pg_temp.p_ops(c.conv), 'cuban_card/0;efectivo_usd/29000;zelle/39000');
+  PERFORM pg_temp.p_eq('1 amounts', pg_temp.p_ops(c.conv), 'cuban_card/15000;efectivo_usd/29000;zelle/39000');
   PERFORM pg_temp.p_eq('1 one group of two', (SELECT count(*)::text FROM remittance_operations WHERE conversation_id = c.conv AND mixed_group_id IS NOT NULL) || '/' || pg_temp.p_grupos(c.conv), '2/1');
   PERFORM pg_temp.p_eq('1 recipients kept (pending one too)', pg_temp.p_benef(c.conv), 'cuban_card:1;efectivo_usd:1;zelle:1');
   PERFORM pg_temp.p_eq('1 plan keeps the pending part', (SELECT total_gyd::text || ':' || jsonb_array_length(partes) FROM cerebro_reparto_planeado WHERE conversation_id = c.conv), '15000:1');

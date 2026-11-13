@@ -35,9 +35,11 @@ Out: Decisor; quote parser and debounce rule (separate follow-ups below).
 - [x] T1 Map: how mixed sends are represented and shown (mixed_group_id = anchor id, panel rendering, crm_repartir_envio,
       _cerebro_repartir_envio_core), how a plan is applied at deposit (cerebro_registrar_deposito, _cerebro_aplicar_plan_reparto),
       and what breaks if the group exists before the deposit
-- [ ] T2 Plan creates the mixed send: parts grouped, each with its agreed amount; deposit of exactly the total applies to the
-      existing group; other deposits keep today's behaviour (facts for the bot); assertions (2 recargas + Zelle shape)
-- [ ] T3 Panel check (grouped send without deposit shows parts and total); change + tests only if needed
+- [ ] T2 (option 2) Plan sets each part's agreed amount (_cerebro_fijar_monto_acordado: zelle 13,000, recarga 12,400), no
+      mixed_group_id before the deposit; deposit behaviour unchanged; assertions (2 recargas + Zelle shape; planned-split-before-deposit
+      updated only for the agreed amounts)
+- [ ] T3 Panel: read model exposes the conversation's planned split (new read RPC or route field, viewer auth) and groupOperations
+      shows the plan's operations as one mixed send with parts and total; vitest RED/GREEN; tsc, eslint
 - [ ] T4 Staging: apply, related assertions, owner check in the panel
 - [ ] T5 Production (needs go-ahead)
 
@@ -63,5 +65,8 @@ Out: Decisor; quote parser and debounce rule (separate follow-ups below).
   `quoted_source_amount = p_monto` overwrite of a member. STOPPED here: decision needed (see Next step).
 
 
+- 2026-11-13 owner chose option 2 ("si"): agreed amounts per part in SQL + virtual mixed group in the panel from the plan; no
+  mixed_group_id before the deposit, so no bot behaviour change.
+
 ## Next step
-Owner decision on how to show the plan before the deposit (options in the T1 report); T2 not started.
+T2.

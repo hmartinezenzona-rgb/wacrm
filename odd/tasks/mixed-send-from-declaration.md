@@ -38,7 +38,7 @@ Out: Decisor, prompt, panel (369/370 already render a plan), n8n nodes unless a 
       deterministic signal means "two services declared" vs "price question", how a wrong plan is undone (customer drops a
       part, deposits only one part), and the proposed trigger point with its false-positive cases
 - [x] T2 Implementation + assertions (exec 727547 shape; price-question negative; second service data arriving later; drop a part)
-- [ ] T3 Staging: apply, related assertions
+- [x] T3 Staging: apply, related assertions
 - [ ] T4 Production (needs go-ahead)
 
 ## Acceptance criteria
@@ -168,6 +168,20 @@ Out: Decisor, prompt, panel (369/370 already render a plan), n8n nodes unless a 
 - Findings while testing: a receipt-only deposit leaves a plain recarga in `incident` (baseline), so cases 16/17 compare with the same operations without the hook.
   Cancelling one planned part leaves a 1-part plan (`_cerebro_reparto_planear` refuses 1 part, so it is only reachable through cancelar); the remaining recarga takes its deposit
   like a recarga that never had a plan (case 16).
+
+### T3 evidence (2026-11-13, staging only)
+- `infra/db/staging-migracion.sh aplicar 371... declaracion-doble.sql ROLLBACK-371... cerebro_verificar_coherencia_servicio`: dry-run OK, apply OK, assertion OK,
+  rollback OK (md5 igual al previo). Applied md5 of the redefined function 9c4e14b66098; ACLs: hook none, reader service_role, table RLS on.
+- `infra/db/staging-migracion.sh relacionadas ... --ya-aplicada ROLLBACK-371` (33 assertions touching the coherence check, planear, repartir, objective, via-quote or the
+  log): TOTAL 33 | SAME 33 | DIFF 0. Failing in BOTH base and migration (pre-existing on staging, identical first error): agreed-amount (case 2 second quote),
+  bot-mixed-split (cerebro_objetivo_envio_pkey duplicate), cup-excess-equivalent (pg_temp schema), deal-free-beneficiary-writers, deposit-anchor (case 5 needs the
+  implicit:cotizar declaration no node writes), grants-mirror-production (crm_registrar_datos_entrega_efectivo missing on staging), objetivo-requiere-compromiso (fixture),
+  reparto-destino-node-adapters, zelle-objective-tier, zelle-quote-tier. Every other related assertion passes in both.
+- Surface the doubt (NOT applied; n8n/Decisor untouched): in the `Contexto conversacion` query, add after `cerebro_reparto_cuadre(v.id) AS reparto_cuadre`:
+  `, cerebro_declaracion_pendiente(v.id) AS declaracion_pendiente` (NULL or {servicio, monto_gyd, servicio_actual, monto_actual_gyd, motivo, creado_at}); the Decisor reads
+  `ctx.declaracion_pendiente`. Suggested note: "El cliente pidio {servicio_actual} ({monto_actual_gyd} GYD) y se cotizo {servicio} ({monto_gyd} GYD), pero no esta claro
+  que quiera ambos: pregunta al cliente si tambien quiere {servicio}. Si dice que si, llama repartir_envio con ambas partes ({servicio_actual} {monto_actual_gyd},
+  {servicio} {monto_gyd}); si no, no registres nada de {servicio}."
 
 ## Next step
 T3 done on staging; T4 production needs the owner's explicit go-ahead (previa first).

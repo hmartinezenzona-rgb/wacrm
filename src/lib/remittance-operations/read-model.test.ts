@@ -6,7 +6,7 @@
 // appear in the conversation thread on this screen.
 
 import { describe, expect, it } from "vitest";
-import { mapQuoteRows, mapRemittanceOperationsRows } from "./read-model";
+import { mapPlannedSplitRows, mapQuoteRows, mapRemittanceOperationsRows } from "./read-model";
 import type { RemittanceOperationsRpcRow } from "./types";
 
 function row(overrides: Partial<RemittanceOperationsRpcRow>): RemittanceOperationsRpcRow {
@@ -438,6 +438,35 @@ describe("mapQuoteRows", () => {
     expect(mapQuoteRows(null)).toBeNull();
     expect(
       mapQuoteRows([{ gyd: "abc", destino_monto: null, destino_moneda: null, cotizado_en: "2026-10-02T10:00:00Z" }]),
+    ).toBeNull();
+  });
+});
+
+describe("mapPlannedSplitRows", () => {
+  it("maps the parts in order with the plan total and coerces numeric strings", () => {
+    expect(
+      mapPlannedSplitRows([
+        { servicio: "recarga", monto_gyd: "12400.00", posicion: 1, total_gyd: "25400.00" },
+        { servicio: "zelle", monto_gyd: 13000, posicion: 2, total_gyd: 25400 },
+      ]),
+    ).toEqual({
+      totalGyd: 25400,
+      parts: [
+        { service: "recarga", amountGyd: 12400 },
+        { service: "zelle", amountGyd: 13000 },
+      ],
+    });
+  });
+
+  it("is null without rows, with a single part or with an unusable amount", () => {
+    expect(mapPlannedSplitRows(null)).toBeNull();
+    expect(mapPlannedSplitRows([])).toBeNull();
+    expect(mapPlannedSplitRows([{ servicio: "zelle", monto_gyd: 13000, posicion: 1, total_gyd: 13000 }])).toBeNull();
+    expect(
+      mapPlannedSplitRows([
+        { servicio: "zelle", monto_gyd: "abc", posicion: 1, total_gyd: 1 },
+        { servicio: "recarga", monto_gyd: 1, posicion: 2, total_gyd: 1 },
+      ]),
     ).toBeNull();
   });
 });

@@ -64,6 +64,24 @@ describe("MixedSendBlock", () => {
   });
 });
 
+describe("MixedSendBlock waiting for the deposit", () => {
+  it("says the send is waiting for the deposit only when asked to", async () => {
+    const { MixedSendBlock } = await import("./mixed-send-block");
+    const node = document.createElement("div");
+    document.body.appendChild(node);
+    const root = createRoot(node);
+    const members = [member("op-1", "zelle", "remesa", 13000), member("op-2", null, "recarga", 12400)];
+
+    await act(async () => root.render(<MixedSendBlock members={members} awaitingDeposit><p>card</p></MixedSendBlock>));
+    expect(node.textContent).toContain(t.awaitingDeposit);
+    expect(node.textContent).toContain(t.total.replace("{amount}", formatNumber(25400)));
+
+    await act(async () => root.render(<MixedSendBlock members={members}><p>card</p></MixedSendBlock>));
+    expect(node.textContent).not.toContain(t.awaitingDeposit);
+    await act(async () => root.unmount());
+  });
+});
+
 // ---- Trial (local model): each share shows what the recipient gets ------------------------------------------------------
 describe("MixedSendBlock destinations", () => {
   it("adds '→ <amount> <currency>' after a share that has a destination, and nothing after one that has none", async () => {

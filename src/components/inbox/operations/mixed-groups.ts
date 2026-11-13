@@ -1,8 +1,10 @@
 import { formatNumber } from "@/lib/format-number";
 import { effectiveStatus } from "@/lib/remittance-operations/effective-status";
+import { currentServiceOf } from "@/lib/remittance-operations/services";
 import type {
   MatchedDeposit,
   OperationReceiptsRead,
+  PlannedSplitRead,
   RemittanceOperationRead,
 } from "@/lib/remittance-operations/types";
 
@@ -108,4 +110,45 @@ export function completableGroup(
   }
   if (deposits.size !== 1) return null;
   return { deposit: [...deposits.values()][0]! };
+}
+
+const PLANNED_GROUP_PREFIX = "planned:";
+
+/** Whether `groupId` is the panel's own group for a split planned before the deposit (it is not a database group). */
+export function isPlannedGroupId(groupId: string | null | undefined): boolean {
+  return typeof groupId === "string" && groupId.startsWith(PLANNED_GROUP_PREFIX);
+}
+
+/** A split planned before the deposit (migrations 277, 369, 370) is not grouped in the database until its deposit arrives, but it
+ *  is one send to the customer. Gives the open, ungrouped, unfunded operations of the plan's parts one panel-only group id so they
+ *  render as one mixed send (parts and total) waiting for the deposit. One operation per part (the first of the list), at least two
+ *  parts matched; anything else is returned untouched. A part whose operation has no amount yet shows the plan's amount. */
+export function withPlannedSplit(
+  operations: RemittanceOperationRead[],
+  plan: PlannedSplitRead | null | undefined,
+  conversationId: string,
+): RemittanceOperationRead[] {
+  if (!plan || plan.parts.length < 2) return operations;
+  const matched = new Map<string, RemittanceOperationRead>();
+  for (const part of plan.parts) {
+    const found = operations.find(
+      (operation) =>
+        !operation.isHistory &&
+        !operation.mixedGroupId &&
+        (operation.status === "collecting_information" || operation.status === "awaiting_deposit") &&
+        currentServiceOf(operation) === part.service &&
+        ![...matched.values()].includes(operation),
+    );
+    if (found) matched.set(part.service, found);
+  }
+  if (matched.size < 2) return operations;
+  const groupId = `${PLANNED_GROUP_PREFIX}${conversationId}`;
+  const amounts = new Map(plan.parts.map((part) => [part.service, part.amountGyd]));
+  const byOperation = new Map([...matched].map(([service, operation]) => [operation.id, service]));
+  return operations.map((operation) => {
+    const service = byOperation.get(operation.id);
+    if (service === undefined) return operation;
+    const own = operation.quotedSourceAmount ?? 0;
+    return { ...operation, mixedGroupId: groupId, quotedSourceAmount: own > 0 ? own : (amounts.get(service) ?? own) };
+  });
 }

@@ -185,6 +185,20 @@ export interface ConversationQuoteRpcRow {
   cotizado_en: string;
 }
 
+/** A split planned before the deposit (migrations 277, 369, 370): the parts the customer listed and their total. */
+export interface PlannedSplitRead {
+  totalGyd: number;
+  parts: { service: string; amountGyd: number }[];
+}
+
+/** Raw row of `crm_reparto_planeado_de_conversacion` (one per part). `numeric` columns may arrive as strings. */
+export interface PlannedSplitRpcRow {
+  servicio: string;
+  monto_gyd: number | string;
+  posicion: number;
+  total_gyd: number | string;
+}
+
 export interface ConversationOperationsRead {
   resolverState: ResolverState;
   resolverOperationId: string | null;
@@ -215,6 +229,9 @@ export interface ConversationOperationsRead {
    *  failed (convenience data: never fatal to the request). Absent only
    *  on responses that predate this field. */
   quote?: ConversationQuoteRead | null;
+  /** The conversation's split planned before the deposit, composed by the route (migration 370). `null` when there is
+   *  none or its read failed (convenience data: never fatal). */
+  plannedSplit?: PlannedSplitRead | null;
 }
 
 /**

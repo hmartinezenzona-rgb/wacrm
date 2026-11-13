@@ -371,6 +371,7 @@
         "total": "{amount} GYD deposit",
         "share": "{service} · {amount} GYD",
         "verifiedDeposit": "1 verified deposit · TransID …{transId}",
+        "awaitingDeposit": "Waiting for the deposit",
         "complete": "Complete send",
         "closeConfirm": "Close the send",
         "closeProgress": "Closed {done} of {total}"

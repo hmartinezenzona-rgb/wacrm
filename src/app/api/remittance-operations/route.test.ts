@@ -413,3 +413,55 @@ describe("GET /api/remittance-operations — quote", () => {
     errorSpy.mockRestore();
   });
 });
+
+// A split planned before the deposit rides along as `plannedSplit` (migration 370). Convenience data: never fatal.
+describe("GET /api/remittance-operations — planned split", () => {
+  const PLAN_ROWS = [
+    { servicio: "recarga", monto_gyd: "12400", posicion: 1, total_gyd: "25400" },
+    { servicio: "zelle", monto_gyd: "13000", posicion: 2, total_gyd: "25400" },
+  ];
+
+  function planCtx(planImpl: () => Promise<{ data: unknown; error: unknown }>) {
+    const rpc = vi.fn((name: string) => {
+      if (name === "crm_operaciones_de_conversacion") return Promise.resolve({ data: [operationRow("op-1")], error: null });
+      if (name === "crm_comprobantes_de_operacion") return Promise.resolve({ data: receiptsPayload("op-1"), error: null });
+      if (name === "crm_cotizacion_de_conversacion") return Promise.resolve({ data: [], error: null });
+      if (name === "crm_reparto_planeado_de_conversacion") return planImpl();
+      throw new Error(`unexpected rpc: ${name}`);
+    });
+    const from = vi.fn(() => profileBuilder({ data: { beta_features: ["operations_panel"] }, error: null }));
+    return { supabase: { from, rpc }, userId: USER_ID, accountId: "account-a", role: "viewer" as const, account: { id: "account-a", name: "A" } };
+  }
+
+  it("returns the mapped plan and asks for the same conversation", async () => {
+    const { GET } = await import("./route");
+    const callCtx = planCtx(() => Promise.resolve({ data: PLAN_ROWS, error: null }));
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const body = await (await GET(request(CONVERSATION_ID))).json();
+
+    expect(body.plannedSplit).toEqual({
+      totalGyd: 25400,
+      parts: [
+        { service: "recarga", amountGyd: 12400 },
+        { service: "zelle", amountGyd: 13000 },
+      ],
+    });
+    expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_reparto_planeado_de_conversacion", { p_conversation_id: CONVERSATION_ID });
+  });
+
+  it("plannedSplit is null when there is no plan, and a failing read still returns the operations", async () => {
+    const { GET } = await import("./route");
+    requireRole.mockResolvedValueOnce(planCtx(() => Promise.resolve({ data: [], error: null })));
+    expect((await (await GET(request(CONVERSATION_ID))).json()).plannedSplit).toBeNull();
+
+    requireRole.mockResolvedValueOnce(planCtx(() => Promise.resolve({ data: null, error: { code: "42883", message: "function does not exist" } })));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const response = await GET(request(CONVERSATION_ID));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.operations).toHaveLength(1);
+    expect(body.plannedSplit).toBeNull();
+    errorSpy.mockRestore();
+  });
+});

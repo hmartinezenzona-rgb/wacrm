@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { completableGroup, groupOpenOperations, groupOperations, limitBlocks, mixedGroupMembers, mixedGroupTotal } from "./mixed-groups";
-import type { OperationReceiptsRead, RemittanceOperationRead } from "@/lib/remittance-operations/types";
+import { completableGroup, groupOpenOperations, groupOperations, isPlannedGroupId, limitBlocks, mixedGroupMembers, mixedGroupTotal, withPlannedSplit } from "./mixed-groups";
+import type { OperationReceiptsRead, PlannedSplitRead, RemittanceOperationRead } from "@/lib/remittance-operations/types";
 import { formatNumber } from "@/lib/format-number";
 
 function op(id: string, amount: number | null, mixedGroupId: string | null = null, status = "ready_to_transfer"): RemittanceOperationRead {
@@ -180,5 +180,59 @@ describe("completableGroup", () => {
 
   it("is null for a single operation", () => {
     expect(completableGroup([ready("m1")], receipts([deposit("T1")]))).toBeNull();
+  });
+});
+
+// ---- A split planned before the deposit shows as one mixed send waiting for it (migrations 369, 370) -----------------------
+describe("withPlannedSplit", () => {
+  const plan: PlannedSplitRead = {
+    totalGyd: 25400,
+    parts: [
+      { service: "recarga", amountGyd: 12400 },
+      { service: "zelle", amountGyd: 13000 },
+    ],
+  };
+  function planned(id: string, serviceType: string, deliveryMethod: string | null, amount: number | null, status = "collecting_information", extra: Partial<RemittanceOperationRead> = {}) {
+    return { id, serviceType, deliveryMethod, quotedSourceAmount: amount, mixedGroupId: null, status, isHistory: false, beneficiaries: [], ...extra } as unknown as RemittanceOperationRead;
+  }
+
+  it("puts the operations of the plan's parts in one planned group, so they render as one mixed send with the plan's total", () => {
+    const recarga = planned("r", "recarga", null, 12400);
+    const zelle = planned("z", "remesa", "zelle", 13000);
+
+    const result = withPlannedSplit([zelle, recarga], plan, "conv-1");
+    const blocks = groupOperations(result, result);
+
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]!.grouped).toBe(true);
+    expect(isPlannedGroupId(blocks[0]!.members[0]!.mixedGroupId)).toBe(true);
+    expect(mixedGroupTotal(blocks[0]!.members)).toBe(25400);
+  });
+
+  it("shows the plan's amount for a part whose operation still has none (a plan made before 369)", () => {
+    const result = withPlannedSplit([planned("z", "remesa", "zelle", 0), planned("r", "recarga", null, 12400)], plan, "conv-1");
+
+    expect(mixedGroupTotal(result)).toBe(25400);
+  });
+
+  it("changes nothing without a plan, with one matching part, or when an operation is already grouped, funded or closed", () => {
+    const recarga = planned("r", "recarga", null, 12400);
+    const zelle = planned("z", "remesa", "zelle", 13000);
+
+    expect(withPlannedSplit([recarga, zelle], null, "conv-1")).toEqual([recarga, zelle]);
+    expect(withPlannedSplit([recarga], plan, "conv-1")).toEqual([recarga]);
+    const grouped = planned("z", "remesa", "zelle", 13000, "collecting_information", { mixedGroupId: "g" });
+    expect(withPlannedSplit([recarga, grouped], plan, "conv-1")).toEqual([recarga, grouped]);
+    const funded = planned("z", "remesa", "zelle", 13000, "deposit_verification");
+    expect(withPlannedSplit([recarga, funded], plan, "conv-1")).toEqual([recarga, funded]);
+    const history = planned("z", "remesa", "zelle", 13000, "completed", { isHistory: true });
+    expect(withPlannedSplit([recarga, history], plan, "conv-1")).toEqual([recarga, history]);
+  });
+
+  it("leaves an operation of a service outside the plan alone", () => {
+    const other = planned("o", "remesa", "clasica", 5000);
+    const result = withPlannedSplit([planned("r", "recarga", null, 12400), planned("z", "remesa", "zelle", 13000), other], plan, "conv-1");
+
+    expect(result.find((operation) => operation.id === "o")!.mixedGroupId).toBeNull();
   });
 });

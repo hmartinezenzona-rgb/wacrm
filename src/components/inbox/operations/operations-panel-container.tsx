@@ -14,7 +14,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Skeleton } from "@/components/dashboard/skeleton";
 import { readPrefetchedConversationOperations } from "@/lib/remittance-operations/panel-prefetch";
 import type { ConversationOperationsRead, RemittanceOperationRead } from "@/lib/remittance-operations/types";
-import { completableGroup, groupOperations, limitBlocks } from "./mixed-groups";
+import { completableGroup, groupOperations, isPlannedGroupId, limitBlocks, withPlannedSplit } from "./mixed-groups";
 import { CompleteMixedSendSection, type CompleteMixedSendPart } from "./complete-mixed-send-section";
 import { MixedCloseControl } from "./mixed-close-control";
 import { MixedSendBlock } from "./mixed-send-block";
@@ -279,7 +279,10 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
 
   // History rows (migration 102) never affect the resolver banner or the
   // single-open-op auto-expand rule — both stay scoped to open operations.
-  const openOperations = data.operations.filter((operation) => !operation.isHistory);
+  // A split planned before the deposit reads as one mixed send waiting for it (the operations are grouped in the database only
+  // when the deposit arrives): the panel gives them one group of its own.
+  const allOperations = withPlannedSplit(data.operations, data.plannedSplit, conversationId);
+  const openOperations = allOperations.filter((operation) => !operation.isHistory);
   const historyOperations = data.operations.filter((operation) => operation.isHistory);
   const historyOpen = historyOpenFor !== null && historyOpenFor === conversationId;
   const historyShowAll = historyShowAllFor !== null && historyShowAllFor === conversationId;
@@ -312,7 +315,7 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
             {t("title")}
           </h3>
           <div className="space-y-2">
-            {groupOperations(openOperations, data.operations).map((block) => {
+            {groupOperations(openOperations, allOperations).map((block) => {
               const groupId = block.grouped ? block.members[0]!.mixedGroupId : null;
               const action = groupAction && groupAction.conversationId === conversationId && groupAction.groupId === groupId ? groupAction : null;
               // One verified deposit pays the whole send: one "Completar envio" instead of one per part.
@@ -349,6 +352,7 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
                 <MixedSendBlock
                   key={groupId}
                   members={block.members}
+                  awaitingDeposit={isPlannedGroupId(groupId)}
                   statusChip={group || completing ? { status: "ready_to_transfer", label: t("status.ready_to_transfer") } : undefined}
                   depositTransId={group?.deposit.transId}
                   section={

@@ -7,6 +7,8 @@ import type {
   ConversationOperationsRead,
   ConversationQuoteRead,
   ConversationQuoteRpcRow,
+  PlannedSplitRead,
+  PlannedSplitRpcRow,
   RemittanceOperationRead,
   RemittanceOperationsRpcRow,
 } from "./types";
@@ -127,4 +129,21 @@ export function mapQuoteRows(
     destinationCurrency,
     quotedAt: row.cotizado_en,
   };
+}
+
+/**
+ * Maps `crm_reparto_planeado_de_conversacion`'s rows (one per part) to the panel's planned split. `null` when there is
+ * no plan, fewer than two parts, or an unusable amount: the panel then shows its operations as they are.
+ */
+export function mapPlannedSplitRows(rows: PlannedSplitRpcRow[] | null | undefined): PlannedSplitRead | null {
+  if (!rows || rows.length < 2) return null;
+  const parts: PlannedSplitRead["parts"] = [];
+  for (const row of rows) {
+    const amountGyd = toNullableNumber(row.monto_gyd);
+    if (amountGyd === null || !row.servicio) return null;
+    parts.push({ service: row.servicio, amountGyd });
+  }
+  const totalGyd = toNullableNumber(rows[0]!.total_gyd);
+  if (totalGyd === null) return null;
+  return { totalGyd, parts };
 }

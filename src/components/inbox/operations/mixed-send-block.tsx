@@ -20,12 +20,14 @@ interface MixedSendBlockProps {
   depositTransId?: string;
   /** The group's actions ("Completar envio", "Cerrar manualmente"), placed after the cards like a card's own. */
   actions?: ReactNode;
+  /** The send is a split planned before the deposit (not grouped in the database yet): says it waits for the deposit. */
+  awaitingDeposit?: boolean;
   /** The open inline completion: it replaces the shares, cards and actions under the header. */
   section?: ReactNode;
 }
 
 /** Header over the cards of one mixed send (migration 253): the deposit they share and each member's service and share. */
-export function MixedSendBlock({ members, children, statusChip, depositTransId, actions, section }: MixedSendBlockProps) {
+export function MixedSendBlock({ members, children, statusChip, depositTransId, actions, section, awaitingDeposit }: MixedSendBlockProps) {
   const t = useTranslations("Inbox.operationsPanel.mixedSend");
   const serviceName = useServiceName();
 
@@ -39,6 +41,7 @@ export function MixedSendBlock({ members, children, statusChip, depositTransId, 
         <p className="text-sm font-semibold tabular-nums text-foreground">
           {t("total", { amount: formatNumber(mixedGroupTotal(members)) })}
         </p>
+        {awaitingDeposit ? <p className="text-xs text-muted-foreground">{t("awaitingDeposit")}</p> : null}
         {!section && (
           <ul className="text-xs tabular-nums text-muted-foreground">
             {members.map((member) => {

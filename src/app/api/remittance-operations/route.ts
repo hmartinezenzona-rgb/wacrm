@@ -15,11 +15,13 @@
 
 import { NextResponse } from "next/server";
 import { requireRole, toErrorResponse } from "@/lib/auth/account";
-import { mapQuoteRows, mapRemittanceOperationsRows } from "@/lib/remittance-operations/read-model";
+import { mapPlannedSplitRows, mapQuoteRows, mapRemittanceOperationsRows } from "@/lib/remittance-operations/read-model";
 import { mapOperationReceiptsPayload } from "@/lib/remittance-operations/receipts-read-model";
 import type {
   ConversationQuoteRead,
   ConversationQuoteRpcRow,
+  PlannedSplitRead,
+  PlannedSplitRpcRow,
   OperationReceiptsRead,
   OperationReceiptsRpcPayload,
   RemittanceOperationsRpcRow,
@@ -102,6 +104,29 @@ async function fetchConversationQuote(
   }
 }
 
+/**
+ * Fetches the split the bot planned before any deposit (`crm_reparto_planeado_de_conversacion`, migration 370). Never
+ * throws, like the quote: a failed call (or the function not existing yet) is logged and mapped to `null`.
+ */
+async function fetchPlannedSplit(
+  supabase: SessionSupabaseClient,
+  conversationId: string,
+): Promise<PlannedSplitRead | null> {
+  try {
+    const { data, error } = await supabase.rpc("crm_reparto_planeado_de_conversacion", {
+      p_conversation_id: conversationId,
+    });
+    if (error) {
+      console.error("[remittance-operations GET] planned split RPC error:", error);
+      return null;
+    }
+    return mapPlannedSplitRows(data as PlannedSplitRpcRow[] | null);
+  } catch (cause) {
+    console.error("[remittance-operations GET] planned split read threw:", cause);
+    return null;
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const ctx = await requireRole("viewer");
@@ -143,6 +168,7 @@ export async function GET(request: Request) {
     // before any of those calls is awaited — genuinely parallel, not a
     // sequential loop — and `Promise.all` waits for all of them together.
     const quotePromise = fetchConversationQuote(ctx.supabase, conversationId);
+    const plannedSplitPromise = fetchPlannedSplit(ctx.supabase, conversationId);
     const receiptsEntries = await Promise.all(
       result.operations.map(async (operation) => {
         const receipts = await fetchOperationReceiptsRead(
@@ -158,9 +184,10 @@ export async function GET(request: Request) {
     }
 
     const quote = await quotePromise;
+    const plannedSplit = await plannedSplitPromise;
 
     return NextResponse.json(
-      { ...result, receiptsByOperationId, quote },
+      { ...result, receiptsByOperationId, quote, plannedSplit },
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (error) {

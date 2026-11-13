@@ -38,7 +38,7 @@ Out: Decisor; quote parser and debounce rule (separate follow-ups below).
 - [x] T2 (option 2) Plan sets each part's agreed amount (_cerebro_fijar_monto_acordado: zelle 13,000, recarga 12,400), no
       mixed_group_id before the deposit; deposit behaviour unchanged; assertions (2 recargas + Zelle shape; planned-split-before-deposit
       updated only for the agreed amounts)
-- [ ] T3 Panel: read model exposes the conversation's planned split (new read RPC or route field, viewer auth) and groupOperations
+- [x] T3 Panel: read model exposes the conversation's planned split (new read RPC or route field, viewer auth) and groupOperations
       shows the plan's operations as one mixed send with parts and total; vitest RED/GREEN; tsc, eslint
 - [ ] T4 Staging: apply, related assertions, owner check in the panel
 - [ ] T5 Production (needs go-ahead)
@@ -72,6 +72,12 @@ Out: Decisor; quote parser and debounce rule (separate follow-ups below).
   part), replan writes nothing, deposit 25,400 -> one group 12,400/13,000 plan gone saldo objective 25,400, deposit 20,000 -> facts + nothing
   grouped, locked part kept). planned-split-before-deposit.sql updated only for the intended agreed amounts (case 1 expected amounts); dry-run OK.
   Live `_cerebro_reparto_planear` body read from prod 2026-11-13 equals repo 277/288.
+- T3 (2026-11-13): migration 370 `crm_reparto_planeado_de_conversacion(uuid)` (viewer auth 42501, authenticated+service_role only, read-only) +
+  ROLLBACK + assertion planned-split-panel-read.sql: RED "function crm_reparto_planeado_de_conversacion(uuid) does not exist", GREEN "ALL PASS".
+  Panel: route returns `plannedSplit` (never fatal), read-model `mapPlannedSplitRows`, `withPlannedSplit` gives the open, ungrouped, unfunded
+  operations of >=2 plan parts one panel-only group id `planned:<conv>` (plan amount shown when an op has none), MixedSendBlock `awaitingDeposit`
+  line ("Esperando depósito"/"Waiting for the deposit", es+en). vitest RED (9 failed) -> GREEN (65 files / 1076 tests in the operations,
+  read-model and route folders; i18n parity 18 passed); tsc exit 0; eslint clean on the 10 touched files.
 
 ## Next step
-T3.
+T4.

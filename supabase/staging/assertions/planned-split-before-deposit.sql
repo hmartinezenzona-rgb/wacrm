@@ -8,7 +8,7 @@ BEGIN;
 -- odd/notes/db-tools-progress.md (277, gap 3 of the S5b measurement: M3b "No hay un deposito registrado para repartir todavia",
 -- and the Marlene shape: parts 150 + 100 USD + 15,000 but a 71,200 deposit).
 -- Cases (number = label in the failure message):
---   1  cerebro_repartir_envio with no deposit PLANS the split: the plan is persisted (parts, total), one empty operation per part
+--   1  cerebro_repartir_envio with no deposit PLANS the split: the plan is persisted (parts, total), one operation per part with its agreed amount (369)
 --      is opened (mexico, efectivo_usd, cuban_card), the answer lists parts with USD and says nothing is applied yet;
 --      cerebro_resolver_servicio shows reparto_planeado (parts with usd, total, deposito 0, diferencia, coincide false)
 --   2  data lands on its part: card -> the CUP part, cash data -> the cash part, the Mexico recipient -> the mexico part
@@ -71,7 +71,7 @@ BEGIN
   SELECT * INTO c FROM pg_temp.p_conv(1);
   v_a := cerebro_repartir_envio(c.conv, 'mexico 39000, efectivo 29000, cup 15000', 'p1');
   PERFORM pg_temp.p_eq('1 planned text', (v_a LIKE 'Reparto planeado%' AND v_a LIKE '%150 USD%' AND v_a LIKE '%100 USD%')::text, 'true');
-  PERFORM pg_temp.p_eq('1 one empty operation per part', pg_temp.p_ops(c.conv), 'cuban_card/0;efectivo_usd/0;mexico/0');
+  PERFORM pg_temp.p_eq('1 one operation per part with its agreed amount', pg_temp.p_ops(c.conv), 'cuban_card/15000;efectivo_usd/29000;mexico/39000');
   PERFORM pg_temp.p_eq('1 plan row', (SELECT total_gyd::text FROM cerebro_reparto_planeado WHERE conversation_id = c.conv), '83000');
   v_p := pg_temp.p_plan(c.conv);
   PERFORM pg_temp.p_eq('1 resolver total', v_p ->> 'total_gyd', '83000');
@@ -81,7 +81,7 @@ BEGIN
                                              FROM jsonb_array_elements(v_p -> 'partes') WITH ORDINALITY t(e, ord)),
                        'mexico=39000/150;efectivo_usd=29000/100;cuban_card=15000/-');
   v_a := cerebro_repartir_envio(c.conv, 'mexico 39000, efectivo 29000, cup 15000', 'p1b');
-  PERFORM pg_temp.p_eq('1 same plan again opens nothing new', pg_temp.p_ops(c.conv), 'cuban_card/0;efectivo_usd/0;mexico/0');
+  PERFORM pg_temp.p_eq('1 same plan again opens nothing new', pg_temp.p_ops(c.conv), 'cuban_card/15000;efectivo_usd/29000;mexico/39000');
 
   -- 2 data lands on its part
   PERFORM cerebro_guardar_beneficiario(c.conv, '', c_card, '53821203', 'p2a');

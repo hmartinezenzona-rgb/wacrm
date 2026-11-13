@@ -35,7 +35,7 @@ Out: Decisor; quote parser and debounce rule (separate follow-ups below).
 - [x] T1 Map: how mixed sends are represented and shown (mixed_group_id = anchor id, panel rendering, crm_repartir_envio,
       _cerebro_repartir_envio_core), how a plan is applied at deposit (cerebro_registrar_deposito, _cerebro_aplicar_plan_reparto),
       and what breaks if the group exists before the deposit
-- [ ] T2 (option 2) Plan sets each part's agreed amount (_cerebro_fijar_monto_acordado: zelle 13,000, recarga 12,400), no
+- [x] T2 (option 2) Plan sets each part's agreed amount (_cerebro_fijar_monto_acordado: zelle 13,000, recarga 12,400), no
       mixed_group_id before the deposit; deposit behaviour unchanged; assertions (2 recargas + Zelle shape; planned-split-before-deposit
       updated only for the agreed amounts)
 - [ ] T3 Panel: read model exposes the conversation's planned split (new read RPC or route field, viewer auth) and groupOperations
@@ -67,6 +67,11 @@ Out: Decisor; quote parser and debounce rule (separate follow-ups below).
 
 - 2026-11-13 owner chose option 2 ("si"): agreed amounts per part in SQL + virtual mixed group in the panel from the plan; no
   mixed_group_id before the deposit, so no bot behaviour change.
+- T2 (2026-11-13): RED `planned-split-agreed-amounts.sql` on the live state: "case 1 amounts: expected [recarga/12400;zelle/13000], got
+  [recarga/12400;zelle/0]". GREEN: `DRY_ONLY=1 staging-migracion.sh aplicar 369 ...` dry-run OK (5 cases: shape, no double-set (1 audit row per
+  part), replan writes nothing, deposit 25,400 -> one group 12,400/13,000 plan gone saldo objective 25,400, deposit 20,000 -> facts + nothing
+  grouped, locked part kept). planned-split-before-deposit.sql updated only for the intended agreed amounts (case 1 expected amounts); dry-run OK.
+  Live `_cerebro_reparto_planear` body read from prod 2026-11-13 equals repo 277/288.
 
 ## Next step
-T2.
+T3.

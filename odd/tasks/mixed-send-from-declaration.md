@@ -39,7 +39,10 @@ Out: Decisor, prompt, panel (369/370 already render a plan), n8n nodes unless a 
       part, deposits only one part), and the proposed trigger point with its false-positive cases
 - [x] T2 Implementation + assertions (exec 727547 shape; price-question negative; second service data arriving later; drop a part)
 - [x] T3 Staging: apply, related assertions
-- [ ] T4 Production (needs go-ahead)
+- [x] T4 Production (needs go-ahead)
+- [ ] T5 Surface the doubt so the bot asks: n8n "Contexto conversacion" adds `cerebro_declaracion_pendiente(v.id) AS declaracion_pendiente`
+      (staging, then production with go-ahead); production Decisor note from ctx.declaracion_pendiente (vitest RED/GREEN, md5 pin);
+      publish with go-ahead
 
 ## Acceptance criteria
 - "2 recargas + Zelle 50 USD" in one request, Zelle account missing -> plan recarga 12,400 + zelle 13,000 (total 25,400) and the
@@ -183,5 +186,8 @@ Out: Decisor, prompt, panel (369/370 already render a plan), n8n nodes unless a 
   que quiera ambos: pregunta al cliente si tambien quiere {servicio}. Si dice que si, llama repartir_envio con ambas partes ({servicio_actual} {monto_actual_gyd},
   {servicio} {monto_gyd}); si no, no registres nada de {servicio}."
 
+- 2026-11-13 T4 production (owner "ok"): previa SEGURO (EQUAL coherence fn, 2 NEW); `OK 371_declaracion_doble 20261113183858`;
+  verificar 3/3 equal (9c4e14b6, c0d764e9, 8e0d1bfa). Rollback: ROLLBACK-371.
+
 ## Next step
-T3 done on staging; T4 production needs the owner's explicit go-ahead (previa first).
+T5.

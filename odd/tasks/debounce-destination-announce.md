@@ -34,7 +34,7 @@ staging publish; production publish with go-ahead. Out: wait amounts (30 s / 25 
 - [x] T4 Production (needs go-ahead)
 - [x] T5 Refinement (owner "si" 2026-11-13): no extra wait when the customer says the data comes later; recarga / saldo phones
       are not "celular sin tarjeta"; tests; staging
-- [ ] T6 Production of T5 (needs go-ahead)
+- [x] T6 Production of T5 (needs go-ahead)
 
 ## Acceptance criteria
 - "Pásame 58 zelle a la cuenta" -> incompleto (extra 25 s).
@@ -58,5 +58,8 @@ staging publish; production publish with go-ahead. Out: wait amounts (30 s / 25 
   vieneDespues (en un rato, al rato, más tarde, luego, después, mañana) cancels every extension; a recarga/saldo text with phones
   and no card is not half data. Staging: versionId 596a93bf -> 59b29594 (= active), node md5 73b86c91.
 
+- 2026-11-13 T6 production (owner "si"): backup taken; node md5 e7958007 -> 73b86c91; versionId 25a25036 -> 580ca551
+  (= active), 129 nodes, Decisor 3219bc40 unchanged.
+
 ## Next step
-T6 (production, needs go-ahead): publicar_nodo_completitud.py produccion e7958007.
+Done. Watch executions that skip "Espera extra" when the customer says the data comes later.

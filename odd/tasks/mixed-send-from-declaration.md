@@ -37,7 +37,7 @@ Out: Decisor, prompt, panel (369/370 already render a plan), n8n nodes unless a 
       consultar_servicio, "servicio declarado" state and its trigger, execution id available to each function), which
       deterministic signal means "two services declared" vs "price question", how a wrong plan is undone (customer drops a
       part, deposits only one part), and the proposed trigger point with its false-positive cases
-- [ ] T2 Implementation + assertions (exec 727547 shape; price-question negative; second service data arriving later; drop a part)
+- [x] T2 Implementation + assertions (exec 727547 shape; price-question negative; second service data arriving later; drop a part)
 - [ ] T3 Staging: apply, related assertions
 - [ ] T4 Production (needs go-ahead)
 
@@ -154,5 +154,20 @@ Out: Decisor, prompt, panel (369/370 already render a plan), n8n nodes unless a 
   ambiguous, create nothing and leave a pending fact (row/flag readable by the context) so the next turn can ask the customer
   whether he also wants Y; report where that fact should surface (Contexto conversacion field) without editing n8n or the Decisor.
 
+
+### T2 evidence (2026-11-13)
+- Live production bodies read read-only before redefining: `cerebro_verificar_coherencia_servicio` md5 5b849da27e0478a0626e0df56331c397 (= staging, = the
+  fingerprint recorded in odd/tasks/bot-change-service.md), `_cerebro_reparto_planear` 034a2e63..., `cerebro_fijar_objetivo` d7f33beb..., `_cerebro_op_monto_acordado`
+  c85ed2b5... all equal on staging. ROLLBACK-371 carries the live coherence body verbatim.
+- Files: `supabase/migrations/371_declaracion_doble.sql`, `ROLLBACK-371-declaracion-doble.sql`, `supabase/staging/assertions/declaracion-doble.sql`.
+  New: table `cerebro_declaracion_duda` (RLS on, closed to anon/authenticated), `_cerebro_declaracion_doble(uuid,text)` (no grants), `cerebro_declaracion_pendiente(uuid)`
+  (service_role). `cerebro_verificar_coherencia_servicio` only gains the guarded PERFORM after its advisory lock; its answer is unchanged.
+- RED: assertion alone on staging before the migration: `ERROR: case 1 plan: expected [25400:recarga/12400;zelle/13000], got [-]`.
+- GREEN: migration + assertion in a rolled-back transaction: `ERROR: ALL PASS (rolled back on purpose)`. Mutation checks (each makes the assertion fail): no price
+  veto -> case 3; X agreed in an earlier turn accepted -> case 10; no minimum -> case 11.
+- Findings while testing: a receipt-only deposit leaves a plain recarga in `incident` (baseline), so cases 16/17 compare with the same operations without the hook.
+  Cancelling one planned part leaves a 1-part plan (`_cerebro_reparto_planear` refuses 1 part, so it is only reachable through cancelar); the remaining recarga takes its deposit
+  like a recarga that never had a plan (case 16).
+
 ## Next step
-T2.
+T3 done on staging; T4 production needs the owner's explicit go-ahead (previa first).

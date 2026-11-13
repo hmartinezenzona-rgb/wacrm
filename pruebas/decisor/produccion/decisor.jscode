@@ -575,6 +575,25 @@ if (noRepetirPedido) {
 if (cotizacionPrevia && !pideCotizacion) {
   notas.push('TURNO DE SEGUIMIENTO (BREVEDAD): NO re-listes la cotizacion, las tasas, los minimos ni la tabla; NO repitas el desglose ni la pregunta anterior. Responde solo a lo nuevo en 1-2 frases, sin tabla. ' + (noRepetirPedido ? 'NO pidas ningun dato en este mensaje (ya se pidio hace poco; ver la nota NO REPITAS LA PETICION).' : 'Pide SOLO el dato que falta, por ejemplo "la tarjeta" o "el celular"; PROHIBIDO "los datos de quien recibe" o pedir el paquete entero. Si el cliente pide confirmacion, di el total y el dato que falta, sin "Total a depositar".') + '');
 }
+// (T5, 2026-11-13) DECLARACION PENDIENTE. ctx.declaracion_pendiente comes from the database (cerebro_declaracion_pendiente): the customer asked
+// for servicio_actual and a DIFFERENT service was quoted in the same turn, but it is unclear whether he wants both. The bot asks once; this
+// question wins over re-asking pending data. Not shown when the batch already answers it: it names the pending service (data or yes/no about it)
+// or is a bare "no". A bare "si" gets the confirm variant. Without the field (or with an incomplete one) nothing changes.
+const gDecl = (ctx && ctx.declaracion_pendiente && typeof ctx.declaracion_pendiente === 'object') ? ctx.declaracion_pendiente : null;
+if (gDecl && gDecl.servicio && gDecl.servicio_actual && Number(gDecl.monto_gyd) > 0 && Number(gDecl.monto_actual_gyd) > 0) {
+  const dSrv = String(gDecl.servicio), dAct = String(gDecl.servicio_actual);
+  const dEsc = dSrv.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const dNombra = new RegExp('(^|[^a-z0-9])' + dEsc + '([^a-z0-9]|$)', 'i').test(texto);
+  const dNo = /^\s*(no|nop|nel|no gracias|no, gracias)[\s.!]*$/i.test(texto);
+  const dSi = /^\s*(si|sí|sii+|claro|dale|ok si|si por favor|sí por favor)[\s.!]*$/i.test(texto);
+  const dPartes = dAct + ' ' + g82N(gDecl.monto_actual_gyd) + ', ' + dSrv + ' ' + g82N(gDecl.monto_gyd);
+  if (!dNombra && !dNo) {
+    notas.push('DECLARACION PENDIENTE: el cliente pidio ' + dAct + ' (' + g82N(gDecl.monto_actual_gyd) + ' GYD) y se cotizo ' + dSrv + ' (' + g82N(gDecl.monto_gyd) + ' GYD), pero no esta claro que quiera ambos. '
+      + (dSi
+        ? 'El cliente acaba de decir que si: llama repartir_envio con ambas partes ("' + dPartes + '") y confirmaselo; NO vuelvas a preguntar.'
+        : 'PREGUNTA al cliente si tambien quiere ' + dSrv + '. Esta pregunta tiene prioridad sobre pedir datos pendientes: en este mensaje haz UNA sola pregunta, esta, y no pidas ningun otro dato. Si dice que si, llama repartir_envio con ambas partes ("' + dPartes + '"); si dice que no, no registres nada de ' + dSrv + '.'));
+  }
+}
 // (gate 83, 2026-10-02) MONTO DE DESTINO: an amount with the destination currency attached is what the
 // beneficiary RECEIVES, whatever the verb (owner: "si el cliente dice que quiere recibir X en una moneda, eso
 // lleva calculo inverso"). Production test 2026-10-02 13:03 UTC (exec 304592): "quiero enviar 15 mil CUP" was

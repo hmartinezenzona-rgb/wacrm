@@ -43,6 +43,10 @@ Out: Decisor, prompt, panel (369/370 already render a plan), n8n nodes unless a 
 - [ ] T5 Surface the doubt so the bot asks: n8n "Contexto conversacion" adds `cerebro_declaracion_pendiente(v.id) AS declaracion_pendiente`
       (staging, then production with go-ahead); production Decisor note from ctx.declaracion_pendiente (vitest RED/GREEN, md5 pin);
       publish with go-ahead
+      - [x] T5a Decisor part (2026-11-13): note `DECLARACION PENDIENTE` from ctx.declaracion_pendiente in pruebas/decisor/produccion/decisor.jscode.
+        RED: 3 failed | 128 passed (131). GREEN: 131 passed (131). New md5 3219bc40af69ee371160e413596dfae5 (pin updated; was 3e123673...).
+        Hidden when the batch names the pending service or is a bare "no"; bare "si" gets the confirm variant (repartir_envio, no re-ask).
+        Commit: see git log (feat(decisor): ask ...). n8n node change and publishing still pending (go-ahead).
 
 ## Acceptance criteria
 - "2 recargas + Zelle 50 USD" in one request, Zelle account missing -> plan recarga 12,400 + zelle 13,000 (total 25,400) and the

@@ -1871,3 +1871,89 @@ describe('repeticion: no se vuelve a pedir el dato pendiente tras un acuse o un 
     }
   });
 });
+
+describe('declaracion pendiente: pedir un servicio y cotizar otro en el mismo turno, sin saber si quiere ambos', () => {
+  const PREFIJO = 'DECLARACION PENDIENTE';
+  const DECL = {
+    servicio: 'zelle',
+    monto_gyd: 13000,
+    servicio_actual: 'recarga',
+    monto_actual_gyd: 12400,
+    motivo: 'cotizado_en_el_mismo_turno',
+    creado_at: '2026-11-13T18:00:00Z',
+  };
+  const ABIERTO = '2026-10-21T15:00:00Z';
+
+  function en(e: Entradas) {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(ABIERTO));
+    try {
+      return correr(e);
+    } finally {
+      vi.useRealTimers();
+    }
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('con la declaracion: una nota con los dos servicios, los montos formateados y la regla de preguntar', () => {
+    const s = en({
+      ctx: { declaracion_pendiente: DECL },
+      snapshot: { texto_completo: 'mando el numero luego' },
+    });
+    const n = nota(s, PREFIJO) as string;
+    expect(n).toBeDefined();
+    expect(n).toContain('recarga (12,400 GYD)');
+    expect(n).toContain('zelle (13,000 GYD)');
+    expect(n).toMatch(/PREGUNTA al cliente si tambien quiere zelle/);
+    expect(n).toContain('repartir_envio');
+    expect(n).toContain('recarga 12,400, zelle 13,000');
+    expect(n).toMatch(/no registres nada de zelle/);
+    expect(n).toMatch(/UNA sola pregunta/);
+    expect(s.notas.filter((x) => x.startsWith(PREFIJO))).toHaveLength(1);
+  });
+
+  it('sin el campo, null o incompleto: no hay nota (comportamiento de hoy)', () => {
+    for (const ctx of [{}, { declaracion_pendiente: null }, { declaracion_pendiente: { servicio: 'zelle' } }]) {
+      const s = en({ ctx, snapshot: { texto_completo: 'hola' } });
+      expect(nota(s, PREFIJO), JSON.stringify(ctx)).toBeUndefined();
+    }
+  });
+
+  it('el lote ya lo responde: nombra el servicio pendiente o dice que no -> sin nota', () => {
+    for (const texto of ['si, tambien el zelle', 'el zelle es a nombre de Ana', 'no', 'No, gracias', 'solo la recarga no quiero zelle']) {
+      const s = en({ ctx: { declaracion_pendiente: DECL }, snapshot: { texto_completo: texto } });
+      expect(nota(s, PREFIJO), texto).toBeUndefined();
+    }
+  });
+
+  it('un "si" suelto confirma: la nota manda repartir_envio con ambas partes sin volver a preguntar', () => {
+    const s = en({ ctx: { declaracion_pendiente: DECL }, snapshot: { texto_completo: 'si' } });
+    const n = nota(s, PREFIJO) as string;
+    expect(n).toBeDefined();
+    expect(n).toContain('repartir_envio');
+    expect(n).toContain('recarga 12,400, zelle 13,000');
+    expect(n).not.toMatch(/PREGUNTA/);
+  });
+
+  it('convive con seguimiento y no-repetir: la pregunta tiene prioridad sobre pedir datos', () => {
+    const s = en({
+      ctx: { declaracion_pendiente: DECL },
+      cotizacion: { ultima_cotizacion: 'Por *8,000 GYD* llegan *24,000 CUP* a Cuba.' },
+      historial: {
+        repeticion: {
+          horario_ya_dicho_hoy: false,
+          ultimo_pedido_bot: { texto: 'Me pasa la tarjeta?', hace_min: 3 },
+        },
+      },
+      snapshot: { texto_completo: 'ok' },
+    });
+    expect(nota(s, 'NO REPITAS LA PETICION')).toBeDefined();
+    expect(nota(s, 'TURNO DE SEGUIMIENTO (BREVEDAD)')).toBeDefined();
+    const n = nota(s, PREFIJO) as string;
+    expect(n).toBeDefined();
+    expect(n).toMatch(/prioridad sobre pedir datos pendientes/);
+  });
+});

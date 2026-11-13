@@ -1690,3 +1690,90 @@ describe('reparto con deposito verificado: el Decisor dice lo que sabe la base, 
     expect(nota(s, MONTO_GYD)).toBeDefined();
   });
 });
+
+describe('repeticion: la linea de horario se dice una vez por dia y por conversacion', () => {
+  const CERRADO = '2026-10-21T07:00:00Z'; // Wednesday 03:00 Guyana
+  const comp = { moneda: 'GYD', estado: 'OK', alertas: [] };
+  const LINEA = 'queda registrado y se procesa a partir de las 8:00 am (hora de Guyana)';
+  const OBLIGA = 'tu respuesta DEBE incluir la linea del horario';
+  const rep = (horario_ya_dicho_hoy: boolean) => ({
+    repeticion: { horario_ya_dicho_hoy, ultimo_pedido_bot: null },
+  });
+
+  function en(hora: string, e: Entradas) {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(hora));
+    try {
+      return correr(e);
+    } finally {
+      vi.useRealTimers();
+    }
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('primer turno del dia fuera de horario: dice la linea (tambien al dia siguiente, cuando el dato vuelve a ser false)', () => {
+    const s = en(CERRADO, {
+      historial: rep(false),
+      snapshot: { texto_completo: 'quiero enviar 8000' },
+    });
+    const n = nota(s, 'FUERA DE HORARIO: ahora mismo') as string;
+    expect(n).toContain(LINEA);
+    expect(nota(s, 'FUERA DE HORARIO (YA AVISADO HOY)')).toBeUndefined();
+  });
+
+  it('turno de seguimiento el mismo dia: no repite la linea', () => {
+    const s = en(CERRADO, {
+      historial: rep(true),
+      snapshot: { texto_completo: 'la tarjeta es 9224069992922522' },
+    });
+    expect(nota(s, 'FUERA DE HORARIO: ahora mismo')).toBeUndefined();
+    const n = nota(s, 'FUERA DE HORARIO (YA AVISADO HOY)') as string;
+    expect(n).toBeDefined();
+    expect(n).toMatch(/NO repitas/);
+    expect(n).not.toContain(LINEA);
+    expect(n).toMatch(/PROHIBIDO decir "en breve" o "enseguida"/);
+  });
+
+  it('turno con deposito despues de haberla dicho: tampoco la exige', () => {
+    const s = en(CERRADO, {
+      historial: rep(true),
+      snapshot: { texto_completo: 'ok', comprobante: comp },
+    });
+    expect(s.notas.join('\n')).not.toContain(OBLIGA);
+    expect(nota(s, 'FUERA DE HORARIO (YA AVISADO HOY)')).toBeDefined();
+  });
+
+  it('turno con deposito la primera vez del dia: sigue siendo obligatoria', () => {
+    const s = en(CERRADO, {
+      historial: rep(false),
+      snapshot: { texto_completo: 'ok', comprobante: comp },
+    });
+    expect(nota(s, 'FUERA DE HORARIO: ahora mismo')).toContain(OBLIGA);
+  });
+
+  it('dia cerrado entero y ya avisado: no repite el aviso', () => {
+    const s = en('2026-10-21T15:00:00Z', {
+      historial: rep(true),
+      ctx: { cierre_especial: { hoy_motivo: 'por feriado', proximo_habil: 'el jueves' } },
+    });
+    expect(nota(s, 'FUERA DE HORARIO: HOY NO SE TRABAJA')).toBeUndefined();
+    expect(nota(s, 'FUERA DE HORARIO (YA AVISADO HOY)')).toBeDefined();
+  });
+
+  it('sin el campo repeticion (nodo viejo): se comporta como hasta ahora', () => {
+    const s = en(CERRADO, {
+      snapshot: { texto_completo: 'ok', comprobante: comp },
+    });
+    expect(nota(s, 'FUERA DE HORARIO: ahora mismo')).toContain(OBLIGA);
+    expect(nota(s, 'FUERA DE HORARIO (YA AVISADO HOY)')).toBeUndefined();
+  });
+
+  it('abierto: el dato no cambia nada', () => {
+    const s = en('2026-10-21T15:00:00Z', { historial: rep(true) });
+    expect(nota(s, 'FUERA DE HORARIO (YA AVISADO HOY)')).toBeUndefined();
+    expect(nota(s, 'EL NEGOCIO ESTA ABIERTO')).toBeDefined();
+  });
+});

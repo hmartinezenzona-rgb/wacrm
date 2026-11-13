@@ -39,6 +39,12 @@ prompt; SQL unless a context field is missing (then a migration with assertions)
   odd/tasks/bot-brevedad.md. No AI attribution in commits. RDD off.
 
 ## Tasks
+- [ ] T0 Context facts (the Decisor does not receive them; checked 2026-11-13): migration 368 `cerebro_repeticion_turno(conv)`
+      returning `horario_ya_dicho_hoy` (an agent message today, America/Guyana date, matching "fuera de horario" or
+      "a partir de las 9") and `ultimo_pedido_bot` ({texto, hace_min}: last agent ai_generated message ending in a question
+      within 6 h); SQL assertions; n8n node "Historial contacto" adds
+      `(SELECT row_to_json(r) FROM cerebro_repeticion_turno($1::uuid) r) AS repeticion` (staging, then production with
+      go-ahead; the other Decisor ignores the extra field)
 - [ ] T1 Hours line once per day: the FUERA DE HORARIO note and LINEA_HORARIO_OBLIGATORIA fire only when no bot message of
       this conversation today (Guyana day) already carried the line; tests (first turn says it, follow-up does not,
       next day says it again, deposit turn after it was said does not repeat it)
@@ -46,7 +52,7 @@ prompt; SQL unless a context field is missing (then a migration with assertions)
       (ok, gracias, dale, en un momento, ahorita, aa ok...) or does not touch the pending item and the same item was asked
       less than N minutes ago (default 30, from history); tests (9ea48754 shape, unrelated question, real new data still
       asked/confirmed)
-- [ ] T3 Production (needs go-ahead): backup, publish, first executions check
+- [ ] T3 Production (needs go-ahead): migration 368, node query, then Decisor (backup, publish, first executions check)
 
 ## Acceptance criteria
 - A conversation off hours hears the hours line once that day.

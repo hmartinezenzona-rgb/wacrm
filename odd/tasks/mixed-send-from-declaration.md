@@ -146,5 +146,13 @@ Out: Decisor, prompt, panel (369/370 already render a plan), n8n nodes unless a 
 - Open owner questions: (1) accept the text veto/requirement (G5) or prefer tool-only evidence with the price-question false positive? (2) add an expiry for
   empty hook-made ops/plans (none exists, out of scope here)? (3) should the hook also set the objective to the plan total? (277 does not; assert it is harmless).
 
+- 2026-11-13 owner direction after T1: implement it; principle "the tools must be able to do what the bot confirms in the chat;
+  when in doubt, ask; the bot must adapt to how customers ask, including shapes not seen yet". Design decisions (parent):
+  the recommended design (_cerebro_declaracion_doble at end of turn inside cerebro_verificar_coherencia_servicio, all guards,
+  customer text only as requirement + veto); objective = plan total after the hook plans; no expiry for plans (unchanged);
+  "when in doubt, ask": when the tool evidence matches (X written this turn + exactly one Y quoted) but the text guard fails or is
+  ambiguous, create nothing and leave a pending fact (row/flag readable by the context) so the next turn can ask the customer
+  whether he also wants Y; report where that fact should surface (Contexto conversacion field) without editing n8n or the Decisor.
+
 ## Next step
-Design decision by parent/owner (T1 done; no SQL written). Then T2.
+T2.

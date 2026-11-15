@@ -50,7 +50,7 @@ Out: the other session's files (`pruebas/decisor/decisor.jscode`, `pruebas/decis
 - [x] T7 Split data in any order (owner 2026-11-15): pairing by position for block shapes, by adjacency otherwise; what cannot be
       paired is named so the bot asks only about it; tests
 - [x] T8a n8n staging: lock on "Respuesta valida?" (an answer of a capture turn is never sent)
-- [ ] T8b n8n production: the same lock, then Decisor 45374132 (needs go-ahead; lock FIRST)
+- [x] T8b n8n production: the same lock, then Decisor 45374132 (lock FIRST)
 
 ## Acceptance criteria
 - Exec 739599 replayed through the new Decisor: the note lists card 1 with phone 1 and card 2 with phone 2 and forbids asking for them.
@@ -104,6 +104,11 @@ Out: the other session's files (`pruebas/decisor/decisor.jscode`, `pruebas/decis
 - Known limits: a capture turn stores the model's "SKIP" in the chat memory like any skipped turn; a registration made in capture can
   move the send to the next stage and the stage notifier may then message the customer (same as when an admin verifies by hand: T4).
 
+- T8b production (2026-11-15, owner "si"): lock 1ce8c7d4 -> fed878b8 (5 conditions, backup `…-1ce8c7d4-…-antes-candado-captura.json`);
+  Decisor fed878b8 -> 451889bd (= active), md5 8b1fbe6e -> 45374132, repo match yes, backup `…-fed878b8-…-20261115-123545.json`.
+  130 nodes. Rollback order: restore the Decisor backup first (capture turns stop), then the lock backup.
+  Not yet seen with real traffic: a capture turn, a paired split.
+
 ## Next step
-Watch the first human-attended chat with a Zelle account (tool_execution_log / recipient with source of the reader) and the first split
-with interleaved phones. Then T4: owner decision on the stage notice asking for data while a human attends.
+Watch the first capture turn (telemetry ruta=agente with a human attending, entrega=skip, a registration tool in tool_execution_log)
+and the first split with phones. Then T4: owner decision on the stage notifier messaging the customer while a human attends.

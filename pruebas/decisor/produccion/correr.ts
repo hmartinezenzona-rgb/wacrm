@@ -6,9 +6,15 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import type { Entradas, Salida } from '../correr';
+import type { Entradas as EntradasBase, Salida } from '../correr';
 
-export type { Entradas, Salida };
+/** The production node also reads the raw batch (`Armar snapshot`) and the vision readings (`Parsear vision`). */
+export type Entradas = EntradasBase & {
+  eventos?: Record<string, unknown>[];
+  vision?: Record<string, unknown>[];
+};
+
+export type { Salida };
 
 /** md5 of the node code as vendored from the live production workflow on 2026-10-28. */
 export const DECISOR_PRODUCCION_MD5_VENDORIZADO =
@@ -16,7 +22,7 @@ export const DECISOR_PRODUCCION_MD5_VENDORIZADO =
 
 /** md5 of the copy in this repo as it stands (updated with every deliberate change). */
 export const DECISOR_PRODUCCION_MD5_ESPERADO =
-  '3219bc40af69ee371160e413596dfae5';
+  '8b1fbe6e9ae6277ee8ed15f55a9b9a69';
 
 export const ORIGEN_PRODUCCION = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -59,6 +65,13 @@ function stub(e: Entradas) {
   return (nombre: string) => {
     if (nombre === 'Datos del negocio') {
       return { params: { jsonOutput: JSON.stringify(negocio) } };
+    }
+    // Optional nodes: absent unless the test provides them, as in a workflow that does not have them.
+    if (nombre === 'Armar snapshot' && e.eventos) {
+      return { first: () => ({ json: { eventos: e.eventos } }) };
+    }
+    if (nombre === 'Parsear vision' && e.vision) {
+      return { all: () => (e.vision ?? []).map((json) => ({ json })) };
     }
     const json = tabla[nombre];
     if (json === undefined) {

@@ -726,7 +726,53 @@ if (aus && aus.motivo && aus.hasta_texto && abierto) {
 }
 if (s.multi_beneficiario) {
   const nt = (s.tarjetas || []).length;
+  // PAIRS BY ARRIVAL ORDER (2026-11-14, exec 739599): the customer sent card, phone, card (a photo), phone and the bot
+  // asked for both phones again, because this note said the phones had no owner. The raw batch (`Armar snapshot`) and
+  // the vision readings (`Parsear vision`) keep the arrival order. The pairing is known in two shapes only: each phone
+  // right after its card, or all the cards and then all the phones. Any other order, a different count, or a workflow
+  // without those nodes keeps the old note, which asks.
+  const paresPorOrden = (() => {
+    try {
+      const tj = s.tarjetas || [], ce = s.celulares || [];
+      if (tj.length < 2 || tj.length > 3 || tj.length !== ce.length) return null;
+      const eventos = $('Armar snapshot').first().json.eventos || [];
+      let vis = [];
+      try { vis = $('Parsear vision').all().map((i) => i.json); } catch (e) {}
+      const sec = [], vistos = new Set();
+      const anota = (tipo, v) => { if (v && !vistos.has(v)) { vistos.add(v); sec.push({ tipo, v }); } };
+      for (const ev of eventos) {
+        if (ev.tipo === 'text') {
+          const dig = String(ev.contenido ?? '').replace(/(?<=\d)[ \t\-_.  ]+(?=\d)/g, '');
+          const hall = [];
+          for (const m of dig.matchAll(/\d+/g)) {
+            const r = m[0];
+            const t16 = tj.find((x) => r === x);
+            const c8 = ce.find((x) => r === x || ((r.length === 10 || r.length === 11) && /^(53|053)/.test(r) && r.endsWith(x)));
+            if (t16) hall.push({ tipo: 'T', v: t16 }); else if (c8) hall.push({ tipo: 'C', v: c8 });
+          }
+          hall.forEach((x) => anota(x.tipo, x.v));
+        } else {
+          const v = vis.find((x) => x && x.wamid && x.wamid === ev.whatsapp_message_id);
+          if (!v) continue;
+          const t16 = String(v.numero_tarjeta ?? '').replace(/\D/g, '');
+          if (tj.includes(t16)) anota('T', t16);
+          const c8 = String(v.celular ?? '').replace(/\D/g, '').slice(-8);
+          if (ce.includes(c8)) anota('C', c8);
+        }
+      }
+      if (sec.length !== tj.length * 2) return null;
+      const forma = sec.map((x) => x.tipo).join('');
+      const n = tj.length;
+      if (forma === 'TC'.repeat(n)) return Array.from({ length: n }, (_, k) => ({ tarjeta: sec[2 * k].v, celular: sec[2 * k + 1].v }));
+      if (forma === 'T'.repeat(n) + 'C'.repeat(n)) return Array.from({ length: n }, (_, k) => ({ tarjeta: sec[k].v, celular: sec[n + k].v }));
+      return null;
+    } catch (e) { return null; }
+  })();
+  if (paresPorOrden) {
+    notas.push('ENVIO A VARIOS BENEFICIARIOS: el cliente dio ' + nt + ' tarjetas y el celular de cada una, en este orden: ' + paresPorOrden.map((p, k) => (k + 1) + ') tarjeta ' + p.tarjeta + ' con celular ' + p.celular).join('; ') + '. Cada celular llego junto a su tarjeta, asi que YA sabes de quien es cada uno: PROHIBIDO preguntar o volver a pedir un celular de esta lista. NO se registro nada automaticamente. ESTO LO ATIENDES TU: NO llames derivar_humano. Llama registrar_reparto_multiple YA con cada tarjeta Y su celular (cadena vacia en lo que falte) y otra vez con cada dato nuevo; pide SOLO lo que la herramienta diga que FALTA, UNA pregunta por mensaje. Al confirmar muestra cada persona con su Tarjeta y su Celular, para que el cliente lo corrija si alguno no es asi. Si el cliente quiere repartir entre MAS DE 3 personas, ahi si llama derivar_humano.');
+  } else {
   notas.push('ENVIO A VARIOS BENEFICIARIOS: el cliente dio ' + nt + ' tarjetas (' + (s.tarjetas || []).join(', ') + ')' + ((s.celulares || []).length ? ' y estos celulares (' + s.celulares.join(', ') + ')' : ' y ningun celular todavia') + '. NO se registro nada automaticamente. ESTO LO ATIENDES TU: NO llames derivar_humano. Faltan dos cosas y las pides con naturalidad, UNA pregunta por mensaje: el celular que corresponde a cada tarjeta, y CUANTOS CUP recibe cada persona. Llama registrar_reparto_multiple YA con lo que tengas (cadena vacia en lo que falte) y otra vez con cada dato nuevo; pide lo que la herramienta diga que FALTA. Si el cliente quiere repartir entre MAS DE 3 personas, ahi si llama derivar_humano.');
+  }
   if (g82RepartoVigente) notas.push(g82NotaReparto());
 } else if (g82RepartoVigente) {
   notas.push(g82NotaReparto());

@@ -1957,3 +1957,101 @@ describe('declaracion pendiente: pedir un servicio y cotizar otro en el mismo tu
     expect(n).toMatch(/prioridad sobre pedir datos pendientes/);
   });
 });
+
+// 2026-11-14, exec 739599: the customer sent card, phone, card (as a photo), phone. The note told the agent
+// to ask which phone belongs to which card, so the bot asked for both phones again. When each phone arrives
+// next to its card the pairing is known; the question is only fair when the order does not say it.
+describe('reparto: el celular que llega junto a su tarjeta no se vuelve a pedir', () => {
+  const PREFIJO = 'ENVIO A VARIOS BENEFICIARIOS';
+  const T1 = '9200111122223333';
+  const T2 = '9200444455556666';
+  const C1 = '51112222';
+  const C2 = '53334444';
+  const ev = (tipo: string, contenido: string, wamid: string) => ({
+    tipo,
+    contenido,
+    whatsapp_message_id: wamid,
+  });
+  const snapshot = {
+    texto_completo: 'x',
+    tarjetas: [T1, T2],
+    celulares: [C1, C2],
+    tarjeta: T1,
+    celular: C1,
+    multi_beneficiario: true,
+  };
+  // The deposit is already registered: there is an open send, so registration notes are kept.
+  const historial = { envios_abiertos: 1 };
+
+  it('tarjeta, celular, foto de tarjeta, celular: empareja por orden de llegada', () => {
+    const s = correr({
+      historial,
+      snapshot,
+      eventos: [
+        ev('text', '9200 1111 2222 3333', 'w1'),
+        ev('text', '+53' + C1, 'w2'),
+        ev('image', '', 'w3'),
+        ev('text', C2, 'w4'),
+      ],
+      vision: [{ tipo: 'tarjeta_cubana', numero_tarjeta: T2, wamid: 'w3' }],
+    });
+    const n = nota(s, PREFIJO) as string;
+    expect(n).toBeDefined();
+    expect(n).toContain(`1) tarjeta ${T1} con celular ${C1}`);
+    expect(n).toContain(`2) tarjeta ${T2} con celular ${C2}`);
+    expect(n).toMatch(/PROHIBIDO preguntar o volver a pedir un celular/);
+    expect(n).not.toMatch(/el celular que corresponde a cada tarjeta/);
+    expect(n).toMatch(/registrar_reparto_multiple/);
+  });
+
+  it('las tarjetas primero y los celulares despues, en el mismo orden', () => {
+    const s = correr({
+      historial,
+      snapshot,
+      eventos: [
+        ev('text', `${T1}\n${T2}`, 'w1'),
+        ev('text', `${C1}\n${C2}`, 'w2'),
+      ],
+    });
+    const n = nota(s, PREFIJO) as string;
+    expect(n).toContain(`1) tarjeta ${T1} con celular ${C1}`);
+    expect(n).toContain(`2) tarjeta ${T2} con celular ${C2}`);
+  });
+
+  it('un orden que no dice de quien es cada celular: se sigue preguntando', () => {
+    const s = correr({
+      historial,
+      snapshot,
+      eventos: [
+        ev('text', `${T1}`, 'w1'),
+        ev('text', `${C1}\n${C2}`, 'w2'),
+        ev('text', `${T2}`, 'w3'),
+      ],
+    });
+    const n = nota(s, PREFIJO) as string;
+    expect(n).toMatch(/el celular que corresponde a cada tarjeta/);
+    expect(n).not.toMatch(/con celular/);
+  });
+
+  it('menos celulares que tarjetas: se sigue preguntando', () => {
+    const s = correr({
+      historial,
+      snapshot: { ...snapshot, celulares: [C1] },
+      eventos: [
+        ev('text', T1, 'w1'),
+        ev('text', C1, 'w2'),
+        ev('text', T2, 'w3'),
+      ],
+    });
+    expect(nota(s, PREFIJO)).toMatch(
+      /el celular que corresponde a cada tarjeta/
+    );
+  });
+
+  it('sin los eventos del lote (nodo antiguo) la nota queda como estaba', () => {
+    const s = correr({ historial, snapshot });
+    expect(nota(s, PREFIJO)).toMatch(
+      /el celular que corresponde a cada tarjeta/
+    );
+  });
+});

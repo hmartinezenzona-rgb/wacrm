@@ -22,7 +22,7 @@ export const DECISOR_PRODUCCION_MD5_VENDORIZADO =
 
 /** md5 of the copy in this repo as it stands (updated with every deliberate change). */
 export const DECISOR_PRODUCCION_MD5_ESPERADO =
-  '8b1fbe6e9ae6277ee8ed15f55a9b9a69';
+  '45374132e86ef9beb3c914f0e3cd1659';
 
 export const ORIGEN_PRODUCCION = join(
   dirname(fileURLToPath(import.meta.url)),

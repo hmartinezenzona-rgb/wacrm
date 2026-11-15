@@ -2018,40 +2018,119 @@ describe('reparto: el celular que llega junto a su tarjeta no se vuelve a pedir'
     expect(n).toContain(`2) tarjeta ${T2} con celular ${C2}`);
   });
 
-  it('un orden que no dice de quien es cada celular: se sigue preguntando', () => {
+  it('celular antes de su tarjeta, y celulares primero y tarjetas despues', () => {
+    const a = correr({
+      historial,
+      snapshot,
+      eventos: [ev('text', C1, 'w1'), ev('text', T1, 'w2'), ev('text', C2, 'w3'), ev('text', T2, 'w4')],
+    });
+    expect(nota(a, PREFIJO)).toContain(`1) tarjeta ${T1} con celular ${C1}`);
+    expect(nota(a, PREFIJO)).toContain(`2) tarjeta ${T2} con celular ${C2}`);
+    const b = correr({
+      historial,
+      snapshot,
+      eventos: [ev('text', `${C1}\n${C2}`, 'w1'), ev('text', `${T1}\n${T2}`, 'w2')],
+    });
+    expect(nota(b, PREFIJO)).toContain(`1) tarjeta ${T1} con celular ${C1}`);
+    expect(nota(b, PREFIJO)).toContain(`2) tarjeta ${T2} con celular ${C2}`);
+  });
+
+  it('tarjeta, celular, celular, tarjeta: cada celular va con la tarjeta que tiene al lado', () => {
     const s = correr({
       historial,
       snapshot,
-      eventos: [
-        ev('text', `${T1}`, 'w1'),
-        ev('text', `${C1}\n${C2}`, 'w2'),
-        ev('text', `${T2}`, 'w3'),
-      ],
+      eventos: [ev('text', T1, 'w1'), ev('text', `${C1}\n${C2}`, 'w2'), ev('text', T2, 'w3')],
     });
     const n = nota(s, PREFIJO) as string;
-    expect(n).toMatch(/el celular que corresponde a cada tarjeta/);
-    expect(n).not.toMatch(/con celular/);
+    expect(n).toContain(`1) tarjeta ${T1} con celular ${C1}`);
+    expect(n).toContain(`2) tarjeta ${T2} con celular ${C2}`);
   });
 
-  it('menos celulares que tarjetas: se sigue preguntando', () => {
+  it('una tarjeta sin celular: se pide solo ese celular', () => {
     const s = correr({
       historial,
       snapshot: { ...snapshot, celulares: [C1] },
-      eventos: [
-        ev('text', T1, 'w1'),
-        ev('text', C1, 'w2'),
-        ev('text', T2, 'w3'),
-      ],
+      eventos: [ev('text', T1, 'w1'), ev('text', C1, 'w2'), ev('text', T2, 'w3')],
     });
-    expect(nota(s, PREFIJO)).toMatch(
-      /el celular que corresponde a cada tarjeta/
-    );
+    const n = nota(s, PREFIJO) as string;
+    expect(n).toContain(`1) tarjeta ${T1} con celular ${C1}`);
+    expect(n).toContain(`Sin celular todavia: tarjeta ${T2}; pide SOLO ese celular.`);
+    expect(n).not.toMatch(/el celular que corresponde a cada tarjeta/);
+  });
+
+  it('dos tarjetas y despues un solo celular: se pregunta solo de cual es', () => {
+    const s = correr({
+      historial,
+      snapshot: { ...snapshot, celulares: [C1] },
+      eventos: [ev('text', `${T1}\n${T2}`, 'w1'), ev('text', C1, 'w2')],
+    });
+    const n = nota(s, PREFIJO) as string;
+    expect(n).toContain(`este celular sin decir de cual es (${C1})`);
+    expect(n).toMatch(/Pregunta SOLO de cual tarjeta es ese celular/);
+    expect(n).not.toMatch(/con celular/);
   });
 
   it('sin los eventos del lote (nodo antiguo) la nota queda como estaba', () => {
     const s = correr({ historial, snapshot });
-    expect(nota(s, PREFIJO)).toMatch(
-      /el celular que corresponde a cada tarjeta/
-    );
+    expect(nota(s, PREFIJO)).toMatch(/el celular que corresponde a cada tarjeta/);
+  });
+});
+
+// Owner, 2026-11-15: while an admin attends, the bot does not answer but it must collect the data of ANY kind of send.
+describe('modo captura: con una persona atendiendo se guardan los datos y no se responde', () => {
+  const abierto = { envios_abiertos: 1 };
+  const MODO = 'MODO CAPTURA';
+
+  it('un humano acaba de escribir y el lote trae una cuenta: va al agente en captura', () => {
+    const s = correr({
+      historial: abierto,
+      ctx: { humano_reciente: true },
+      snapshot: { texto_completo: 'Te sale registrado como PRUEBA FARM LLC\n+1 551 555-0101' },
+    });
+    expect(s.ruta).toBe('agente');
+    expect((s as unknown as { captura?: boolean }).captura).toBe(true);
+    expect(s.notas[0]).toMatch(/^MODO CAPTURA/);
+    expect(s.notas[0]).toMatch(/exactamente SKIP/);
+    expect(s.notas[s.notas.length - 1]).toMatch(/^RECUERDA: MODO CAPTURA/);
+    expect(nota(s, 'ESTE LOTE TRAE DATOS NUEVOS')).toBeUndefined();
+  });
+
+  it('vale para cualquier dato: recarga con el bot pausado, direccion con el chat asignado', () => {
+    const a = correr({ historial: abierto, ctx: { bot_pausado: true }, snapshot: { texto_completo: 'recarga al 53821204' } });
+    expect(a.ruta).toBe('agente');
+    expect(nota(a, MODO)).toBeDefined();
+    const b = correr({
+      historial: abierto,
+      ctx: { asignado: true },
+      snapshot: { texto_completo: 'La direccion es calle 10 entre A y B, a nombre de Prueba Uno' },
+    });
+    expect(b.ruta).toBe('agente');
+    expect(nota(b, MODO)).toBeDefined();
+  });
+
+  it('sin datos en el lote el chat sigue en silencio con el mismo motivo', () => {
+    const s = correr({ historial: abierto, ctx: { humano_reciente: true }, snapshot: { texto_completo: 'Ok gracias' } });
+    expect(s.ruta).toBe('silencio');
+    expect((s as unknown as { motivo?: string }).motivo).toBe('un humano del equipo acaba de escribir');
+  });
+
+  it('sin envio abierto ni pedido nuevo no se abre nada: silencio', () => {
+    const s = correr({ ctx: { humano_reciente: true }, snapshot: { texto_completo: '+1 551 555-0101' } });
+    expect(s.ruta).toBe('silencio');
+    expect((s as unknown as { motivo?: string }).motivo).toBe('un humano del equipo acaba de escribir');
+  });
+
+  it('chat oculto y mensajes del admin no se capturan', () => {
+    const a = correr({ historial: abierto, ctx: { bot_pausado: true, oculta: true }, snapshot: { texto_completo: '53821204' } });
+    expect(a.ruta).toBe('silencio');
+    const b = correr({ historial: abierto, ctx: { humano_reciente: true, es_admin: true }, snapshot: { texto_completo: '53821204' } });
+    expect(b.ruta).toBe('silencio');
+  });
+
+  it('sin nadie atendiendo no hay captura', () => {
+    const s = correr({ historial: abierto, snapshot: { texto_completo: 'recarga al 53821204' } });
+    expect(s.ruta).toBe('agente');
+    expect((s as unknown as { captura?: boolean }).captura).toBeUndefined();
+    expect(nota(s, MODO)).toBeUndefined();
   });
 });

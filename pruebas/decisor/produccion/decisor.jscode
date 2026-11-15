@@ -38,13 +38,29 @@ if (tel && !tel.startsWith('+')) { tel = '+' + tel; }
 // que llamarla aqui es valido y evita mover 60 lineas de sitio.
 const accionAdmin = rutaAdminAccion(ctx, texto, tel);
 if (accionAdmin) { return accionAdmin; }
-if (ctx.bot_pausado) { return [{ json: { ruta: 'silencio', motivo: 'bot pausado a mano en esta conversacion' } }]; }
+// CAPTURE MODE (375, owner 2026-11-15): while a person of the team attends the chat the bot does not answer, but the data
+// the customer sends must still be stored, for EVERY kind of send, so the operations panel is filled when the person finishes
+// and nobody asks the customer again. When the chat is human-attended AND this batch carries data, the turn goes to the agent
+// with `captura: true`: the agent only calls its registration tools and the workflow never sends its answer (the IF node
+// "Respuesta valida?" refuses any answer of a capture turn; the model is not trusted for that). A batch without data, a hidden
+// chat and an admin's own messages stay silent exactly as before.
+const g375Humano = ctx.bot_pausado ? 'bot pausado a mano en esta conversacion'
+  : ((ctx.asignado && !ctx.cierra_cortesia) ? 'chat asignado a humano'
+  : (ctx.humano_reciente ? 'un humano del equipo acaba de escribir' : null));
+const g375TraeDatos = (() => {
+  const dig = texto.replace(/(?<=\d)[ \t\-_.()  ]+(?=\d)/g, '');
+  return /\d{6,}/.test(dig) || /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/.test(texto)
+    || !!s.tarjeta || !!s.celular || !!s.datos_zelle || !!s.foto_carnet_wamid
+    || /\b(calle|entre|esquina|edificio|apto|apartamento|reparto|municipio|provincia|direcci[oó]n|a nombre de|titular|se llama)\b/i.test(texto);
+})();
+const g375Captura = !!g375Humano && !ctx.oculta && !ctx.es_admin && g375TraeDatos;
+if (ctx.bot_pausado && !g375Captura) { return [{ json: { ruta: 'silencio', motivo: 'bot pausado a mano en esta conversacion' } }]; }
 if (ctx.oculta) { return [{ json: { ruta: 'silencio', motivo: 'chat oculto por el operador' } }]; }
-  if (ctx.asignado && !ctx.cierra_cortesia) { return [{ json: { ruta: 'silencio', motivo: 'chat asignado a humano' } }]; }
+  if (ctx.asignado && !ctx.cierra_cortesia && !g375Captura) { return [{ json: { ruta: 'silencio', motivo: 'chat asignado a humano' } }]; }
 // Ventana de silencio: si una persona del equipo acaba de escribir, el bot
 // se calla 5 minutos para no pisarle la conversacion ni contradecirla.
 // Pasada la ventana retoma solo, sin que nadie tenga que liberar nada.
-if (ctx.humano_reciente) { return [{ json: { ruta: 'silencio', motivo: 'un humano del equipo acaba de escribir' } }]; }
+if (ctx.humano_reciente && !g375Captura) { return [{ json: { ruta: 'silencio', motivo: 'un humano del equipo acaba de escribir' } }]; }
 // UN ADMIN SIN ACCION RECONOCIDA NO ES UN CLIENTE (18-ago-2026, doc 44).
 // Va ANTES de la rama de cortesia a proposito: hasta hoy, un admin que escribia
 // 'hola' en un chat asignado con cortesia pendiente entraba en la rama del
@@ -726,31 +742,30 @@ if (aus && aus.motivo && aus.hasta_texto && abierto) {
 }
 if (s.multi_beneficiario) {
   const nt = (s.tarjetas || []).length;
-  // PAIRS BY ARRIVAL ORDER (2026-11-14, exec 739599): the customer sent card, phone, card (a photo), phone and the bot
-  // asked for both phones again, because this note said the phones had no owner. The raw batch (`Armar snapshot`) and
-  // the vision readings (`Parsear vision`) keep the arrival order. The pairing is known in two shapes only: each phone
-  // right after its card, or all the cards and then all the phones. Any other order, a different count, or a workflow
-  // without those nodes keeps the old note, which asks.
-  const paresPorOrden = (() => {
+  // PAIRS BY ARRIVAL ORDER (2026-11-14, exec 739599; any order since 2026-11-15, owner: the bot must take the data in whatever
+  // order it comes). The raw batch (`Armar snapshot`) and the vision readings (`Parsear vision`) keep the arrival order.
+  //   * all the cards and then all the phones (or the reverse), same count: paired by position;
+  //   * any other order: a phone belongs to the card right before it, or else to the card right after it;
+  //   * what cannot be paired that way is NAMED, so the bot asks only about that card or that phone.
+  // A workflow without those nodes, or a batch whose order cannot be read, keeps the old note, which asks for everything.
+  const g375Orden = (() => {
     try {
       const tj = s.tarjetas || [], ce = s.celulares || [];
-      if (tj.length < 2 || tj.length > 3 || tj.length !== ce.length) return null;
+      if (tj.length < 2 || tj.length > 3) return null;
       const eventos = $('Armar snapshot').first().json.eventos || [];
       let vis = [];
       try { vis = $('Parsear vision').all().map((i) => i.json); } catch (e) {}
       const sec = [], vistos = new Set();
-      const anota = (tipo, v) => { if (v && !vistos.has(v)) { vistos.add(v); sec.push({ tipo, v }); } };
+      const anota = (tipo, v) => { if (v && !vistos.has(v)) { vistos.add(v); sec.push({ tipo, v, par: null }); } };
       for (const ev of eventos) {
         if (ev.tipo === 'text') {
           const dig = String(ev.contenido ?? '').replace(/(?<=\d)[ \t\-_.  ]+(?=\d)/g, '');
-          const hall = [];
           for (const m of dig.matchAll(/\d+/g)) {
             const r = m[0];
             const t16 = tj.find((x) => r === x);
             const c8 = ce.find((x) => r === x || ((r.length === 10 || r.length === 11) && /^(53|053)/.test(r) && r.endsWith(x)));
-            if (t16) hall.push({ tipo: 'T', v: t16 }); else if (c8) hall.push({ tipo: 'C', v: c8 });
+            if (t16) anota('T', t16); else if (c8) anota('C', c8);
           }
-          hall.forEach((x) => anota(x.tipo, x.v));
         } else {
           const v = vis.find((x) => x && x.wamid && x.wamid === ev.whatsapp_message_id);
           if (!v) continue;
@@ -760,18 +775,36 @@ if (s.multi_beneficiario) {
           if (ce.includes(c8)) anota('C', c8);
         }
       }
-      if (sec.length !== tj.length * 2) return null;
+      const T = sec.filter((x) => x.tipo === 'T'), C = sec.filter((x) => x.tipo === 'C');
+      if (T.length !== tj.length || C.length !== ce.length) return null;   // the order of some datum could not be read
       const forma = sec.map((x) => x.tipo).join('');
-      const n = tj.length;
-      if (forma === 'TC'.repeat(n)) return Array.from({ length: n }, (_, k) => ({ tarjeta: sec[2 * k].v, celular: sec[2 * k + 1].v }));
-      if (forma === 'T'.repeat(n) + 'C'.repeat(n)) return Array.from({ length: n }, (_, k) => ({ tarjeta: sec[k].v, celular: sec[n + k].v }));
-      return null;
+      if (/^T+C+$/.test(forma) || /^C+T+$/.test(forma)) {
+        if (T.length === C.length) T.forEach((x, k) => { x.par = C[k].v; C[k].par = x.v; });
+      } else {
+        sec.forEach((x, k) => {
+          if (x.tipo !== 'C') return;
+          const ant = sec[k - 1], sig = sec[k + 1];
+          const libre = (y) => y && y.tipo === 'T' && !y.par;
+          const due = libre(ant) ? ant : (libre(sig) ? sig : null);
+          if (due) { due.par = x.v; x.par = due.v; }
+        });
+      }
+      return {
+        pares: T.filter((x) => x.par).map((x) => ({ tarjeta: x.v, celular: x.par })),
+        sinCelular: T.filter((x) => !x.par).map((x) => x.v),
+        sinDueno: C.filter((x) => !x.par).map((x) => x.v),
+      };
     } catch (e) { return null; }
   })();
-  if (paresPorOrden) {
-    notas.push('ENVIO A VARIOS BENEFICIARIOS: el cliente dio ' + nt + ' tarjetas y el celular de cada una, en este orden: ' + paresPorOrden.map((p, k) => (k + 1) + ') tarjeta ' + p.tarjeta + ' con celular ' + p.celular).join('; ') + '. Cada celular llego junto a su tarjeta, asi que YA sabes de quien es cada uno: PROHIBIDO preguntar o volver a pedir un celular de esta lista. NO se registro nada automaticamente. ESTO LO ATIENDES TU: NO llames derivar_humano. Llama registrar_reparto_multiple YA con cada tarjeta Y su celular (cadena vacia en lo que falte) y otra vez con cada dato nuevo; pide SOLO lo que la herramienta diga que FALTA, UNA pregunta por mensaje. Al confirmar muestra cada persona con su Tarjeta y su Celular, para que el cliente lo corrija si alguno no es asi. Si el cliente quiere repartir entre MAS DE 3 personas, ahi si llama derivar_humano.');
+  if (g375Orden && g375Orden.pares.length) {
+    const lista = g375Orden.pares.map((p, k) => (k + 1) + ') tarjeta ' + p.tarjeta + ' con celular ' + p.celular).join('; ');
+    const resto = (g375Orden.sinCelular.length ? ' Sin celular todavia: tarjeta ' + g375Orden.sinCelular.join(', ') + (g375Orden.sinDueno.length ? '' : '; pide SOLO ese celular.') : '')
+      + (g375Orden.sinDueno.length ? ' Celular sin dueno claro: ' + g375Orden.sinDueno.join(', ') + '; pregunta SOLO de cual tarjeta es ese celular.' : '');
+    notas.push('ENVIO A VARIOS BENEFICIARIOS: el cliente dio ' + nt + ' tarjetas y, por el orden en que llegaron, ya se sabe de quien es cada celular: ' + lista + '.' + resto + ' PROHIBIDO preguntar o volver a pedir un celular que ya esta emparejado en esta lista. NO se registro nada automaticamente. ESTO LO ATIENDES TU: NO llames derivar_humano. Llama registrar_reparto_multiple YA con cada tarjeta Y su celular (cadena vacia en lo que falte) y otra vez con cada dato nuevo; pide SOLO lo que la herramienta diga que FALTA, UNA pregunta por mensaje. Al confirmar muestra cada persona con su Tarjeta y su Celular, para que el cliente lo corrija si alguno no es asi. Si el cliente quiere repartir entre MAS DE 3 personas, ahi si llama derivar_humano.');
+  } else if (g375Orden && g375Orden.sinDueno.length) {
+    notas.push('ENVIO A VARIOS BENEFICIARIOS: el cliente dio ' + nt + ' tarjetas (' + (s.tarjetas || []).join(', ') + ') y este celular sin decir de cual es (' + g375Orden.sinDueno.join(', ') + '). NO se registro nada automaticamente. ESTO LO ATIENDES TU: NO llames derivar_humano. Pregunta SOLO de cual tarjeta es ese celular (no lo vuelvas a pedir) y CUANTOS CUP recibe cada persona, UNA pregunta por mensaje. Llama registrar_reparto_multiple YA con las tarjetas (cadena vacia en lo que falte) y otra vez con cada dato nuevo; pide lo que la herramienta diga que FALTA. Si el cliente quiere repartir entre MAS DE 3 personas, ahi si llama derivar_humano.');
   } else {
-  notas.push('ENVIO A VARIOS BENEFICIARIOS: el cliente dio ' + nt + ' tarjetas (' + (s.tarjetas || []).join(', ') + ')' + ((s.celulares || []).length ? ' y estos celulares (' + s.celulares.join(', ') + ')' : ' y ningun celular todavia') + '. NO se registro nada automaticamente. ESTO LO ATIENDES TU: NO llames derivar_humano. Faltan dos cosas y las pides con naturalidad, UNA pregunta por mensaje: el celular que corresponde a cada tarjeta, y CUANTOS CUP recibe cada persona. Llama registrar_reparto_multiple YA con lo que tengas (cadena vacia en lo que falte) y otra vez con cada dato nuevo; pide lo que la herramienta diga que FALTA. Si el cliente quiere repartir entre MAS DE 3 personas, ahi si llama derivar_humano.');
+    notas.push('ENVIO A VARIOS BENEFICIARIOS: el cliente dio ' + nt + ' tarjetas (' + (s.tarjetas || []).join(', ') + ')' + ((s.celulares || []).length ? ' y estos celulares (' + s.celulares.join(', ') + ')' : ' y ningun celular todavia') + '. NO se registro nada automaticamente. ESTO LO ATIENDES TU: NO llames derivar_humano. Faltan dos cosas y las pides con naturalidad, UNA pregunta por mensaje: el celular que corresponde a cada tarjeta, y CUANTOS CUP recibe cada persona. Llama registrar_reparto_multiple YA con lo que tengas (cadena vacia en lo que falte) y otra vez con cada dato nuevo; pide lo que la herramienta diga que FALTA. Si el cliente quiere repartir entre MAS DE 3 personas, ahi si llama derivar_humano.');
   }
   if (g82RepartoVigente) notas.push(g82NotaReparto());
 } else if (g82RepartoVigente) {
@@ -1285,12 +1318,21 @@ let mensaje = texto || '(el cliente envio solo imagenes, sin texto)';
 // or a send verb in the customer's text.
 const hayEnvioAbierto = abiertos > 0 || !!(h && h.etapa_envio_abierto) || !!ctx.riel_operacion || regBen.length > 0 || !!ctx.tiene_beneficiario || recargaEnCurso || comboEnCurso || visaEnCurso;
 const pideEnvioNuevo = !!s.comprobante || !!ctx.servicio_pendiente || /\b(quiero|quisiera|necesito|voy a|vamos a|puedo)\b|\b(enviar|enviarle|enviarles|mandar|mandarle|envio|remesa|transferir|depositar|recarga|recargar)\b/i.test(texto);
+// (375) Capture mode never opens a send out of loose data: with no open send and no new request the chat stays silent, as before.
+if (g375Captura && !hayEnvioAbierto && !pideEnvioNuevo) { return [{ json: { ruta: 'silencio', motivo: g375Humano } }]; }
 if (!hayEnvioAbierto && !pideEnvioNuevo) {
   const ordenaRegistro = (n) => /^(TARJETA Y CELULAR DETECTADOS PERO NO REGISTRADOS|DATOS DE ZELLE DETECTADOS|TODAVIA NO HAY BENEFICIARIO REGISTRADO|TOOL OBLIGATORIA EN ESTE TURNO: registrar_beneficiario_zelle|VARIAS CUENTAS ZELLE DETECTADAS|ENVIO A VARIOS BENEFICIARIOS)/.test(n);
   if (notas.some(ordenaRegistro)) {
     for (let i = notas.length - 1; i >= 0; i--) if (ordenaRegistro(notas[i])) notas.splice(i, 1);
     notas.push('No hay ningun envio abierto: antes de registrar estos datos pregunta si son para un envio nuevo.');
   }
+}
+if (g375Captura) {
+  // The capture order goes FIRST and LAST; notes that order an answer are dropped (they would fight it for nothing).
+  const g375Nota = 'MODO CAPTURA (MANDA sobre todas las demas notas): un companero del equipo esta atendiendo este chat ahora mismo. NO le respondas al cliente: tu respuesta final debe ser exactamente SKIP, sin nada mas. Tu UNICO trabajo en este turno es GUARDAR, con las herramientas de registro, los datos que el cliente escribio en este mensaje: tarjeta y celular, cuenta y titular de Zelle, numeros a recargar, datos de entrega en efectivo, destinatario de Mexico o de combo, o el reparto entre varias personas. Usa solo lo que el cliente escribio, tal cual; no inventes ni completes nada. PROHIBIDO llamar derivar_humano, cambiar_servicio, repartir_envio o las herramientas de calculo: eso lo decide el companero. Si en el mensaje no hay ningun dato que guardar, no llames ninguna herramienta. Termina con SKIP.';
+  for (let i = notas.length - 1; i >= 0; i--) if (/^(ESTE LOTE TRAE DATOS NUEVOS|No hay ningun envio abierto)/.test(notas[i])) notas.splice(i, 1);
+  notas.unshift(g375Nota);
+  notas.push('RECUERDA: MODO CAPTURA. Guarda los datos con las herramientas y responde solo SKIP.');
 }
 if (notas.length) { mensaje += '\n\n[CONTEXTO DEL SISTEMA - el cliente NO ve esto]\n- ' + notas.join('\n- ');
 }
@@ -1366,4 +1408,5 @@ try {
 } catch (e) { plan = null; }
 
 return [{ json: { ruta: 'agente', mensaje, telefono_e164: tel,
-                  conversation_id: s.conversation_id, plan } }];
+                  conversation_id: s.conversation_id, plan,
+                  ...(g375Captura ? { captura: true, motivo_captura: g375Humano } : {}) } }];

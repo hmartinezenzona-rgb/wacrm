@@ -45,6 +45,13 @@ Out: the other session's files (`pruebas/decisor/decisor.jscode`, `pruebas/decis
 - [ ] T4 Stage notice while a human attends: find where "nos falta el nombre y la cuenta" is produced and decide with the owner
 - [x] T5 Publish the Decisor to production (staging does not use this copy); watching the first real split is pending
 
+- [x] T6 Capture mode for every kind of send (owner 2026-11-15: "debe aplicarse a toda operacion no solo zelle"): Decisor routes a
+      human-attended batch that carries data to the agent with `captura: true`; tests; replay; model check
+- [x] T7 Split data in any order (owner 2026-11-15): pairing by position for block shapes, by adjacency otherwise; what cannot be
+      paired is named so the bot asks only about it; tests
+- [x] T8a n8n staging: lock on "Respuesta valida?" (an answer of a capture turn is never sent)
+- [ ] T8b n8n production: the same lock, then Decisor 45374132 (needs go-ahead; lock FIRST)
+
 ## Acceptance criteria
 - Exec 739599 replayed through the new Decisor: the note lists card 1 with phone 1 and card 2 with phone 2 and forbids asking for them.
 - An order that does not tell the owner of each phone, a different count, or a workflow without the batch nodes keeps the old note.
@@ -79,6 +86,23 @@ Out: the other session's files (`pruebas/decisor/decisor.jscode`, `pruebas/decis
   bae80cdf -> 1ce8c7d4 (= active), md5 3219bc40 -> 8b1fbe6e, repo match yes, backup `…-bae80cdf-…-20261115-103219.json`.
   Rollback order: restore the Decisor backup, remove the node (restore the 580ca551 backup), then ROLLBACK-374.
   Not yet seen with real traffic: a silent capture, a paired split.
+
+- T6/T7 (2026-11-15, Decisor md5 45374132, was 8b1fbe6e): 144/144 vitest (`npx vitest run pruebas/decisor/produccion`). The code was
+  written before its tests this time (order slip); the tests were added right after and one defect they exposed was fixed (a wrongly
+  copied fallback line). Capture applies when the chat is paused by hand, assigned or a human wrote in the last 5 minutes, AND the batch
+  carries data (6+ digit run, e-mail, card/phone/Zelle/ID photo in the snapshot, or address/holder words), AND a send is open or the text
+  asks for a new one; hidden chats and admin messages stay silent; a batch without data stays silent with the same reason as before.
+  Regression replay, old Decisor 3219bc40 vs new, clock frozen at each execution's start: 42 production executions still kept by n8n
+  -> 41 identical, 1 different (739599, the split note); the 12 saved executions of the two cases -> 10 identical, 736897 goes from
+  `silencio` to `agente CAPTURA`, 739599 changes its split note.
+  Model check with the production contract (prompt, model, tools mocked), 3 runs each: capture case -> registrar_beneficiario_zelle
+  called 3/3 with the account and the holder taken from the customer's free sentence, answer exactly SKIP 3/3; split case ->
+  registrar_reparto_multiple called 3/3 with both phones paired, phones shown in the confirmation, only the amount asked.
+- T8a (2026-11-15): staging Cerebro dd7dc9ce -> 7b6eff78 (= active), "Respuesta valida?" 4 -> 5 conditions (AND), the new one
+  `$('Decisor').first().json.captura === true` must be false; false output goes to "SKIP - no responder". Checked on the production
+  graph: the only customer send after the agent is behind that IF. Staging's Decisor is another lineage and never sets `captura`.
+- Known limits: a capture turn stores the model's "SKIP" in the chat memory like any skipped turn; a registration made in capture can
+  move the send to the next stage and the stage notifier may then message the customer (same as when an admin verifies by hand: T4).
 
 ## Next step
 Watch the first human-attended chat with a Zelle account (tool_execution_log / recipient with source of the reader) and the first split

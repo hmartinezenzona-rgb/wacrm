@@ -41,9 +41,9 @@ Out: the other session's files (`pruebas/decisor/decisor.jscode`, `pruebas/decis
 - [x] T2 Silent Zelle capture: SQL function (guards: human-attending silence, exactly one distinct account in THIS batch, no multi
       recipients, never overwrite) + assertions; map which other data types are agent-only on the silence route
 - [x] T3a n8n staging: node "Captura en silencio" between "Silencio admin" and "Cerrar lote"
-- [ ] T3b n8n production: same node (needs go-ahead; migration 374 first)
+- [x] T3b n8n production: same node (migration 374 first)
 - [ ] T4 Stage notice while a human attends: find where "nos falta el nombre y la cuenta" is produced and decide with the owner
-- [ ] T5 Publish the Decisor (staging does not use this copy; production with go-ahead) and watch the first real split
+- [x] T5 Publish the Decisor to production (staging does not use this copy); watching the first real split is pending
 
 ## Acceptance criteria
 - Exec 739599 replayed through the new Decisor: the note lists card 1 with phone 1 and card 2 with phone 2 and forbids asking for them.
@@ -73,6 +73,13 @@ Out: the other session's files (`pruebas/decisor/decisor.jscode`, `pruebas/decis
 - Still agent-only on the silence route (not captured while a human attends): recarga numbers, cash-delivery data, Mexico recipient,
   combo recipient, a split between several cards.
 
+- Production (2026-11-15, owner "si pasalo a produccion"): previa SEGURO (function NEW); `OK 374_silent_capture 20261115163145`,
+  verificar 1/1 EQUAL (ea5bd647). Node: Cerebro jEzlVLCLUaJhVwzs 580ca551 -> bae80cdf, 129 -> 130 nodes, backup
+  `produccion-jEzlVLCLUaJhVwzs-580ca551-…-antes-captura-silencio.json`, credential cloned from production's own reader. Decisor:
+  bae80cdf -> 1ce8c7d4 (= active), md5 3219bc40 -> 8b1fbe6e, repo match yes, backup `…-bae80cdf-…-20261115-103219.json`.
+  Rollback order: restore the Decisor backup, remove the node (restore the 580ca551 backup), then ROLLBACK-374.
+  Not yet seen with real traffic: a silent capture, a paired split.
+
 ## Next step
-Owner go-ahead for production: migration 374, the node (T3b), Decisor 8b1fbe6e (T5). Then T4: decide with the owner whether the stage
-notice drops its question while a human attends.
+Watch the first human-attended chat with a Zelle account (tool_execution_log / recipient with source of the reader) and the first split
+with interleaved phones. Then T4: owner decision on the stage notice asking for data while a human attends.

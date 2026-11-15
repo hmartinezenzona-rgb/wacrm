@@ -162,7 +162,7 @@ function SignupPageInner() {
               <Input
                 id="fullName"
                 type="text"
-                placeholder="Miriam"
+                placeholder="Paulette"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 required

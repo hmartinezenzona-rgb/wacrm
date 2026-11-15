@@ -1,14 +1,17 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
-import { avisar, fechaCorta, hoySaltillo } from '@/lib/avisos/push'
-import { sumarEncargo } from '@/lib/encargos/leer'
+import { avisar, hoySaltillo } from '@/lib/avisos/push'
 
-// Resumen de la noche (cron 302, 7 pm Saltillo): qué hay que cocinar mañana.
-// Se manda una sola vez por cuenta y por día (push_resumenes), aunque el cron
-// o alguien llame la ruta varias veces.
+// Seguimiento de cotizaciones (cron 311, lun–vie 9 am Saltillo).
+// Avisa de las cotizaciones que llevan 3 días o más en «Cotización enviada»
+// sin que el cliente conteste. Una sola vez por cuenta y por día
+// (push_resumenes), aunque el cron o alguien llame la ruta varias veces.
+const DIAS_SIN_RESPUESTA = 3
+
 export async function POST() {
   const db = supabaseAdmin()
-  const manana = hoySaltillo(1)
+  const hoy = hoySaltillo(0)
+  const limite = new Date(Date.now() - DIAS_SIN_RESPUESTA * 24 * 60 * 60 * 1000).toISOString()
   const { data: cuentas } = await db.from('push_suscripciones').select('account_id')
   const ids = [...new Set((cuentas ?? []).map((c) => c.account_id as string))]
   const resultados: Record<string, unknown> = {}
@@ -16,40 +19,35 @@ export async function POST() {
   for (const accountId of ids) {
     const { data: deals } = await db
       .from('deals')
-      .select('title, notes, stage:pipeline_stages(name)')
+      .select('title, etapa_desde, stage:pipeline_stages(name)')
       .eq('account_id', accountId)
-      .eq('expected_close_date', manana)
-    const vivos = (deals ?? []).filter((d) => !/cancel/i.test((d.stage as { name?: string } | null)?.name || ''))
-    if (vivos.length === 0) {
-      resultados[accountId] = 'sin encargos'
+      .lte('etapa_desde', limite)
+    const pendientes = (deals ?? []).filter((d) =>
+      /enviada/i.test((d.stage as { name?: string } | null)?.name || ''),
+    )
+    if (pendientes.length === 0) {
+      resultados[accountId] = 'sin pendientes'
       continue
     }
-    const { error: ya } = await db.from('push_resumenes').insert({ account_id: accountId, fecha: manana })
+    const { error: ya } = await db.from('push_resumenes').insert({ account_id: accountId, fecha: hoy })
     if (ya) {
       resultados[accountId] = 'ya enviado'
       continue
     }
-    let charolas = 0
-    const cuenta: Record<string, number> = {}
-    for (const d of vivos) {
-      const e = sumarEncargo(d.notes)
-      charolas += e.charolas
-      for (const [k, v] of Object.entries(e.platos)) cuenta[k] = (cuenta[k] || 0) + v
-    }
-    const top = Object.entries(cuenta)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([k, v]) => `${v} ${k.toLowerCase()}`)
+    const nombres = pendientes
+      .slice(0, 4)
+      .map((d) => d.title)
       .join(', ')
+    const n = pendientes.length
     resultados[accountId] = await avisar(
       { accountId },
       {
-        title: `Mañana ${fechaCorta(manana).split(' ')[0]}: ${charolas} ${charolas === 1 ? 'charola' : 'charolas'}`,
-        body: `${vivos.length} ${vivos.length === 1 ? 'encargo' : 'encargos'}. ${top}. Toca para ver la lista.`,
-        url: '/cocinar',
-        tag: `resumen-${manana}`,
+        title: `${n} ${n === 1 ? 'cotización' : 'cotizaciones'} sin respuesta`,
+        body: `${nombres}${n > 4 ? ' y más' : ''}. Llevan ${DIAS_SIN_RESPUESTA} días o más. Buen momento para dar seguimiento.`,
+        url: '/pipelines',
+        tag: `seguimiento-${hoy}`,
       },
     )
   }
-  return NextResponse.json({ ok: true, manana, resultados })
+  return NextResponse.json({ ok: true, hoy, resultados })
 }

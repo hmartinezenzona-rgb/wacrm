@@ -406,7 +406,7 @@ export function DealForm({
               </select>
             </div>
 
-            {/* «Asignado a» se quitó en la edición Doña Miriam (una sola cocina). */}
+            {/* «Asignado a» se quitó (edición Doña Miriam / AP: una sola persona atiende). */}
             <div className="grid gap-2">
               <div className="flex items-center justify-between gap-2">
                 <Label className="text-muted-foreground">{t("notes")}</Label>

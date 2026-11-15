@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
-import { avisar, fechaCorta } from '@/lib/avisos/push'
+import { avisar } from '@/lib/avisos/push'
 
-// Lo llama la base de datos (trigger 302) cuando se crea un encargo.
+// Lo llama la base de datos (trigger 302/311) cuando llega una solicitud de cotización.
 // No confía en lo que recibe: con el id relee el encargo y solo avisa si es
 // de los últimos 15 minutos y todavía no se avisó (el UPDATE lo marca de
 // forma atómica, así que un aviso nunca sale dos veces).
@@ -20,20 +20,21 @@ export async function POST(request: Request) {
     .eq('id', dealId)
     .is('avisado_en', null)
     .gte('created_at', hace15)
-    .select('id, account_id, title, value, expected_close_date, contact:contacts(name)')
+    .select('id, account_id, title, notes, contact:contacts(name)')
     .maybeSingle()
   if (!deal) return NextResponse.json({ ok: true, avisado: false })
 
-  const nombre = (deal.contact as { name?: string } | null)?.name || 'Un cliente'
-  const charolas = (deal.title.match(/^(\d+ charolas?)/) || [])[1] || deal.title
-  const cuando = deal.expected_close_date ? ` para el ${fechaCorta(deal.expected_close_date)}` : ''
+  const nombre = (deal.contact as { name?: string } | null)?.name || ''
+  // Primer producto de la lista («- 10 pz · Válvulas: solenoide…»).
+  const primero = (deal.notes || '').split('\n').find((l: string) => l.startsWith('- '))?.slice(2) || ''
+  const quien = nombre && nombre !== deal.title ? `${deal.title} (${nombre})` : deal.title
   const r = await avisar(
     { accountId: deal.account_id },
     {
-      title: 'Nuevo encargo',
-      body: `${nombre} · ${charolas}${cuando} · $${Number(deal.value).toLocaleString('es-MX')}`,
+      title: 'Nueva solicitud de cotización',
+      body: primero ? `${quien} · ${primero}` : quien,
       url: '/pipelines',
-      tag: `encargo-${deal.id}`,
+      tag: `cotizacion-${deal.id}`,
     },
   )
   return NextResponse.json({ ok: true, avisado: true, ...r })

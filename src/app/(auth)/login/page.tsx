@@ -79,11 +79,11 @@ function LoginPageInner() {
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src="/logo-dona-miriam.png"
-              alt="Doña Miriam"
-              width={640}
-              height={558}
-              className="mb-2 h-40 w-auto"
+              src="/logo-ap.svg"
+              alt="AP Suministros"
+              width={511}
+              height={114}
+              className="mb-4 h-14 w-auto"
             />
           )}
           <CardTitle className="text-xl text-foreground">

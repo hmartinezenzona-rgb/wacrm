@@ -16,7 +16,7 @@
 
 export type BloqueEncargo =
   | { tipo: "charola"; titulo: string; platos: string[] }
-  | { tipo: "linea"; etiqueta: "Extra" | "Nota"; texto: string }
+  | { tipo: "linea"; etiqueta: string; texto: string }
   | { tipo: "dato"; texto: string };
 
 export function leerBloques(notes: string | null | undefined): BloqueEncargo[] {
@@ -36,8 +36,17 @@ export function leerBloques(notes: string | null | undefined): BloqueEncargo[] {
         platos: m[2].split(",").map((x) => x.trim()).filter(Boolean),
       };
       bloques.push(actual);
-    } else if (actual && (m = linea.match(/^[-•*·]\s*(.+)$/))) {
+    } else if ((m = linea.match(/^[-•*·]\s*(.+)$/))) {
+      // Edición AP: los productos de una cotización vienen como «- …»
+      // sin encabezado; se juntan en un bloque «Productos».
+      if (!actual) {
+        actual = { tipo: "charola", titulo: "Productos", platos: [] };
+        bloques.push(actual);
+      }
       actual.platos.push(m[1].trim());
+    } else if ((m = linea.match(/^(empresa|correo|para cuándo)\s*:\s*(.+)$/i))) {
+      actual = null;
+      bloques.push({ tipo: "linea", etiqueta: m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase(), texto: m[2].trim() });
     } else if ((m = linea.match(/^(extra|nota)s?\s*:\s*(.+)$/i))) {
       actual = null;
       bloques.push({ tipo: "linea", etiqueta: /^e/i.test(m[1]) ? "Extra" : "Nota", texto: m[2].trim() });

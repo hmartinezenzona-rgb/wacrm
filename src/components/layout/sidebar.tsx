@@ -8,10 +8,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
 import { useUnreadNotifications } from "@/hooks/use-unread-notifications";
 import {
-  ChefHat,
-  UtensilsCrossed,
   Crown,
   GitBranch,
+  Package,
   LogOut,
   MessageSquare,
   Settings,
@@ -85,13 +84,12 @@ interface NavItem {
   beta?: boolean;
 }
 
-// Edición Doña Miriam: solo lo que ella usa. Las demás páginas siguen
+// Edición AP Suministros: solo lo que usa ventas. Las demás páginas siguen
 // existiendo (para Julio) pero no salen en el menú.
 const navItems: NavItem[] = [
   { href: "/pipelines", labelKey: "pipelines", icon: GitBranch },
   { href: "/inbox", labelKey: "inbox", icon: MessageSquare },
-  { href: "/cocinar", labelKey: "cocinar", icon: ChefHat },
-  { href: "/menu", labelKey: "menu", icon: UtensilsCrossed },
+  { href: "/catalogo", labelKey: "catalogo", icon: Package },
   { href: "/contacts", labelKey: "contacts", icon: Users },
 ];
 
@@ -188,11 +186,11 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/logo-dona-miriam.png"
+              src="/logo-ap.svg"
               alt={t("title")}
-              width={640}
-              height={558}
-              className="h-24 w-auto"
+              width={511}
+              height={114}
+              className="h-10 w-auto"
             />
           </Link>
           <button

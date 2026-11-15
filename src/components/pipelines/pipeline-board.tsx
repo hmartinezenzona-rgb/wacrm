@@ -310,8 +310,10 @@ function colorTexto(hex: string): string {
 }
 
 function textoMover(next: PipelineStage): string {
-  if (/pag/i.test(next.name)) return "Ya pagó";
-  if (/entreg/i.test(next.name)) return "Ya lo entregué";
+  if (/cotizando/i.test(next.name)) return "Empezar a cotizar";
+  if (/enviada/i.test(next.name)) return "Ya la envié";
+  if (/ganad/i.test(next.name)) return "La aceptó";
+  if (/entreg/i.test(next.name)) return "Ya se entregó";
   return `Pasar a ${next.name}`;
 }
 

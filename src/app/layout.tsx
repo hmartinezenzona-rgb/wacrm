@@ -22,10 +22,10 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "Doña Miriam · Encargos",
-    template: "%s — Doña Miriam",
+    default: "AP Suministros · Cotizaciones",
+    template: "%s — AP Suministros",
   },
-  description: "Encargos de Doña Miriam.",
+  description: "Cotizaciones de AP Suministros.",
   robots: {
     index: false,
     follow: false,

@@ -38,9 +38,10 @@ Out: the other session's files (`pruebas/decisor/decisor.jscode`, `pruebas/decis
 
 ## Tasks
 - [x] T1 Decisor: pairs by arrival order in the "ENVIO A VARIOS BENEFICIARIOS" note (tests, replay on exec 739599)
-- [ ] T2 Silent Zelle capture: SQL function (guards: human-attending silence, exactly one distinct account in THIS batch, no multi
+- [x] T2 Silent Zelle capture: SQL function (guards: human-attending silence, exactly one distinct account in THIS batch, no multi
       recipients, never overwrite) + assertions; map which other data types are agent-only on the silence route
-- [ ] T3 n8n: node on the silence branch calling T2 (staging), then production with go-ahead
+- [x] T3a n8n staging: node "Captura en silencio" between "Silencio admin" and "Cerrar lote"
+- [ ] T3b n8n production: same node (needs go-ahead; migration 374 first)
 - [ ] T4 Stage notice while a human attends: find where "nos falta el nombre y la cuenta" is produced and decide with the owner
 - [ ] T5 Publish the Decisor (staging does not use this copy; production with go-ahead) and watch the first real split
 
@@ -57,5 +58,21 @@ Out: the other session's files (`pruebas/decisor/decisor.jscode`, `pruebas/decis
   Shapes accepted: card-phone repeated, or all cards then all phones (2-3 cards, same count). The harness stub now serves the optional
   nodes `Armar snapshot` and `Parsear vision`.
 
+- T2 (2026-11-15, migration 374 `cerebro_capturar_en_silencio`, commit 09f4363f): staging-migracion aplicar = dry-run/apply/assertion/
+  rollback OK. Assertion `silent-capture.sql` (9 case groups): RED on the base (function absent), GREEN after. Related
+  (pattern guardar_zelle|zelle_auto|silent, --ya-aplicada): TOTAL 40, SAME 39, DIFF 1 (silent-capture RED->GREEN). The write is the
+  unchanged `cerebro_guardar_zelle_auto`.
+- T3a (2026-11-15): staging Cerebro U52y1kSNvhgxvWeb 59b29594 -> dd7dc9ce (= active), 132 -> 133 nodes, backup
+  `staging-U52y1kSNvhgxvWeb-59b29594-…-antes-captura-silencio.json`. Node cloned from staging's `Registrar zelle auto` (credential
+  Supabase STAGING), `onError: continueRegularOutput` so a failure never keeps the batch open. Not executed (rule). The parameter
+  expression evaluated offline against the saved production exec 736897 gives: reason "un humano del equipo acaba de escribir", empty
+  holder, the same account twice, multi false.
+- Found while exploring T4: the 14:43 message to the customer came from the stage notifier (workflow wGud0KGR6eMqqfMQ, node "Filtrar
+  cambio de etapa", `ready_to_transfer` with a missing recipient), not from the agent (exec 736911 answered SKIP). With the account
+  stored it would still have asked for the holder's name, which the customer had written in free text and the snapshot did not extract.
+- Still agent-only on the silence route (not captured while a human attends): recarga numbers, cash-delivery data, Mexico recipient,
+  combo recipient, a split between several cards.
+
 ## Next step
-T2: read `cerebro_guardar_zelle_auto` live, design the guarded silent writer, assertions RED then GREEN on staging.
+Owner go-ahead for production: migration 374, the node (T3b), Decisor 8b1fbe6e (T5). Then T4: decide with the owner whether the stage
+notice drops its question while a human attends.

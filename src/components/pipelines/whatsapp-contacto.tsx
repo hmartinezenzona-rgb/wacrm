@@ -26,6 +26,17 @@ import { fetchLastCustomerMessageAt } from "@/lib/inbox/last-customer-message";
 
 const PLANTILLA = "ap_solicitud_recibida";
 
+/** 529624017470 → +52 962 401 7470 (México); otros países: +código y dígitos. */
+export function telefonoBonito(raw?: string | null): string {
+  const d = (raw ?? "").replace(/\D/g, "");
+  const mx = /^52(1)?(\d{10})$/.exec(d);
+  if (mx) {
+    const n = mx[2];
+    return `+52 ${n.slice(0, 3)} ${n.slice(3, 6)} ${n.slice(6)}`;
+  }
+  return d ? `+${d}` : "";
+}
+
 export function folioDeNotas(notes?: string | null): string | null {
   return /\bAP-[A-Z0-9]{4,}\b/i.exec(notes ?? "")?.[0]?.toUpperCase() ?? null;
 }
@@ -52,7 +63,6 @@ export function WhatsappContacto({
 
   useEffect(() => {
     if (!contactId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCargando(false);
       return;
     }
@@ -157,7 +167,7 @@ export function WhatsappContacto({
       <div className="flex items-center gap-2">
         <MessageCircle className="h-4 w-4 shrink-0 text-emerald-500" />
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-          WhatsApp {contact.phone ? `· ${contact.phone}` : ""}
+          WhatsApp {contact.phone ? `· ${telefonoBonito(contact.phone)}` : ""}
         </span>
         {cargando ? (
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />

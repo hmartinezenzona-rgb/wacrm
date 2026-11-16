@@ -71,6 +71,12 @@ export function phoneVariants(sanitized: string): string[] {
   // 1. Original
   push(sanitized)
 
+  // México: WhatsApp entrega los celulares como 521 + 10 dígitos, pero la
+  // lista de destinatarios de prueba (y a veces Meta al enviar) usa
+  // 52 + 10 dígitos. Se prueba la otra forma.
+  if (sanitized.length === 13 && sanitized.startsWith('521')) push('52' + sanitized.slice(3))
+  if (sanitized.length === 12 && sanitized.startsWith('52')) push('521' + sanitized.slice(2))
+
   // 2. Insert a 0 after each plausible country-code length
   for (const ccLen of [1, 2, 3]) {
     if (sanitized.length <= ccLen) continue

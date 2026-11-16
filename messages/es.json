@@ -267,7 +267,7 @@
       "contactInfo": "Datos del cliente",
       "tags": "Etiquetas",
       "notes": "Notas",
-      "deals": "Encargos",
+      "deals": "Cotizaciones",
       "noTags": "Sin etiquetas",
       "noDeals": "Sin cotizaciones",
       "addNotePlaceholder": "Escribe una nota...",
@@ -374,7 +374,7 @@
         "activity": "Actividad",
         "notes": "Notas",
         "custom": "Extra",
-        "deals": "Encargos",
+        "deals": "Cotizaciones",
         "noTags": "Sin etiquetas",
         "noDeals": "Sin cotizaciones",
         "addNotePlaceholder": "Escribe una nota..."
@@ -501,7 +501,7 @@
       "createPipeline": "Crear tablero",
       "newPipeline": "Nuevo tablero",
       "pipelineName": "Nombre del tablero",
-      "pipelineNamePlaceholder": "Ej. Encargos",
+      "pipelineNamePlaceholder": "Ej. Cotizaciones",
       "defaultStagesDesc": "Se crearán las columnas básicas automáticamente.",
       "cancel": "Cancelar",
       "creating": "Creando...",
@@ -523,7 +523,7 @@
       "proofPrepared": "Prueba de entrega preparada"
     },
     "form": {
-      "editDeal": "Encargo",
+      "editDeal": "Cotización",
       "newDeal": "Nueva cotización",
       "title": "Título",
       "titlePlaceholder": "Ej. 2 charolas · Ana",
@@ -555,14 +555,14 @@
       "toastNotSignedIn": "No has iniciado sesión",
       "toastNotLinked": "Tu perfil no está ligado a una cuenta.",
       "toastFailedCreate": "No se pudo anotar la cotización",
-      "toastUpdated": "Encargo guardado",
-      "toastCreated": "Encargo anotado",
+      "toastUpdated": "Cotización guardada",
+      "toastCreated": "Cotización anotada",
       "toastFailedStatus": "No se pudo cambiar el estado",
       "toastMarkedWon": "Marcado como pagado",
       "toastMarkedLost": "Marcado como cancelado",
-      "toastReopened": "Encargo reabierto",
+      "toastReopened": "Cotización reabierta",
       "toastFailedDelete": "No se pudo borrar",
-      "toastDeleted": "Encargo borrado"
+      "toastDeleted": "Cotización borrada"
     },
     "settings": {
       "managePipeline": "Configurar tablero",
@@ -589,18 +589,18 @@
       "toastDeleted": "Tablero borrado"
     },
     "analytics": {
-      "totalDeals": "Encargos",
-      "totalDealsTooltip": "Encargos de este tablero que no están cancelados.",
-      "pipelineValue": "Total vendido",
+      "totalDeals": "Cotizaciones",
+      "totalDealsTooltip": "Cotizaciones de este tablero que no están perdidas.",
+      "pipelineValue": "Total cotizado",
       "pipelineValueTooltip": "Suma de lo cotizado, sin las perdidas.",
       "avgDealSize": "Promedio por cotización",
       "avgDealSizeTooltip": "Monto cotizado entre número de cotizaciones.",
       "weightedValue": "Valor ponderado",
       "weightedValueTooltip": "Estimado según la columna de cada cotización.",
-      "wonThisMonth": "Pagados este mes",
-      "wonThisMonthTooltip": "Encargos marcados como pagados este mes.",
-      "lostThisMonth": "Cancelados este mes",
-      "lostThisMonthTooltip": "Encargos cancelados este mes.",
+      "wonThisMonth": "Ganadas este mes",
+      "wonThisMonthTooltip": "Cotizaciones ganadas este mes.",
+      "lostThisMonth": "Perdidas este mes",
+      "lostThisMonthTooltip": "Cotizaciones perdidas este mes.",
       "howCalculated": "Cómo se calcula {label}"
     },
     "deliveryProof": {

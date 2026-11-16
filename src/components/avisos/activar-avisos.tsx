@@ -96,7 +96,7 @@ export function ActivarAvisos() {
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         {estado === "pedir" || estado === "activando" ? (
           <>
-            <p className="text-base font-semibold">Recibe un aviso en este celular cada vez que llegue un encargo</p>
+            <p className="text-base font-semibold">Recibe un aviso en este celular cada vez que llegue una solicitud de cotización</p>
             <button
               type="button"
               onClick={activar}
@@ -107,7 +107,7 @@ export function ActivarAvisos() {
             </button>
           </>
         ) : estado === "listo" ? (
-          <p className="text-base font-semibold">¡Listo! Te mandé un aviso de prueba. Así te van a llegar los encargos.</p>
+          <p className="text-base font-semibold">¡Listo! Te mandé un aviso de prueba. Así te van a llegar las solicitudes.</p>
         ) : estado === "bloqueado" ? (
           <p className="text-base">
             Los avisos están bloqueados en este navegador. Toca el candado junto a la dirección, entra a{" "}

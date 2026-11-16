@@ -17,8 +17,7 @@ import {
 } from "@dnd-kit/core";
 import type { Deal, PipelineStage } from "@/types";
 import { DealCard } from "./deal-card";
-import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { formatCurrency } from "@/lib/currency";
 import { useTranslations } from "next-intl";
@@ -115,7 +114,7 @@ export function PipelineBoard({
           natural layout. The board can still overflow horizontally on
           lg+ once a pipeline has many stages (columns keep a 260px
           min-width), so a thin scrollbar stays visible on desktop. */}
-      <div className="pipeline-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-4 lg:snap-none">
+      <div className="pipeline-scroll flex snap-x snap-mandatory gap-2 overflow-x-auto pb-4 lg:snap-none">
         {sortedStages.map((stage) => {
           const stageDeals = dealsByStage.get(stage.id) ?? [];
           const totalValue = stageDeals.reduce(
@@ -233,34 +232,35 @@ function StageColumn({
     // restore the flex-1 share-the-row behavior. The droppable ref is
     // on the inner messages region below — intentionally NOT here, so
     // a drag over the column header doesn't highlight the whole column.
-    <div className="flex w-[85vw] min-w-[260px] max-w-[320px] shrink-0 snap-start flex-col rounded-xl border border-border bg-card/60 p-4 lg:w-auto lg:max-w-none lg:flex-1 lg:basis-[260px] lg:shrink lg:snap-none">
-      {/* 3px colored top border — sits above the column's padding */}
-      <div
-        className="-mx-4 -mt-4 h-[3px] rounded-t-xl"
-        style={{ backgroundColor: stage.color }}
-      />
-      <div className="flex items-center justify-between pt-3">
-        <h3 className="truncate text-sm font-semibold text-foreground">
-          {stage.name}
-        </h3>
-        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-          {deals.length}
-        </span>
+    <div className="flex w-[82vw] min-w-[248px] max-w-[300px] shrink-0 snap-start flex-col rounded-xl bg-muted/40 p-2 lg:w-auto lg:max-w-none lg:flex-1 lg:basis-[230px] lg:shrink lg:snap-none">
+      {/* Encabezado compacto: punto de color, nombre, cuántas y total */}
+      <div className="px-1.5 pb-2 pt-1">
+        <div className="flex items-center gap-2">
+          <span
+            aria-hidden
+            className="h-2 w-2 shrink-0 rounded-full"
+            style={{ backgroundColor: stage.color }}
+          />
+          <h3 className="truncate text-[13px] font-semibold text-foreground">
+            {stage.name}
+          </h3>
+          <span className="ml-auto shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
+            {deals.length}
+          </span>
+        </div>
+        <p className="mt-0.5 pl-4 text-[11px] tabular-nums text-muted-foreground">
+          {totalValue > 0 ? formatCurrency(totalValue, currency) : "\u2014"}
+        </p>
       </div>
-      <p className="text-xs text-muted-foreground">
-        {formatCurrency(totalValue, currency)}
-      </p>
 
       <div
         ref={setNodeRef}
-        className={`mt-3 flex flex-1 flex-col gap-2 rounded-lg transition-all ${
-          isOver
-            ? "bg-primary/5 outline outline-2 outline-dashed outline-primary outline-offset-2"
-            : ""
+        className={`flex min-h-[120px] flex-1 flex-col gap-1.5 rounded-lg transition-colors ${
+          isOver ? "bg-primary/10 outline outline-2 outline-dashed outline-primary/60" : ""
         }`}
       >
         {deals.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center rounded-lg border-2 border-dashed border-border py-10 text-xs text-muted-foreground">
+          <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-border/70 py-8 text-[11px] text-muted-foreground">
             {t("dropDealHere")}
           </div>
         ) : (
@@ -278,15 +278,14 @@ function StageColumn({
         )}
       </div>
 
-      <Button
-        variant="ghost"
-        size="sm"
+      <button
+        type="button"
         onClick={() => onAddDeal(stage.id)}
-        className="mt-3 w-full justify-start border border-dashed border-border bg-transparent text-muted-foreground hover:border-border hover:bg-muted hover:text-foreground"
+        className="mt-1.5 flex items-center gap-1 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
       >
-        <Plus className="mr-1 h-3 w-3" />
+        <Plus className="h-3.5 w-3.5" />
         {t("addDeal")}
-      </Button>
+      </button>
     </div>
   );
 }
@@ -347,25 +346,33 @@ function DraggableDealCard({
       className="select-none [-webkit-touch-callout:none]"
       style={{ opacity: isDragging ? 0.3 : 1, touchAction: "manipulation" }}
     >
-      <DealCard deal={deal} stage={stage} onEdit={onEdit} hasProof={hasProof} />
-      {nextStage && (
-        <button
-          type="button"
-          // Que el botón no arranque un arrastre ni abra la ficha.
-          onPointerDown={(e) => e.stopPropagation()}
-          onTouchStart={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          onKeyDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-            onMove(deal.id, nextStage.id);
-          }}
-          className="mt-1.5 flex h-11 w-full items-center justify-center gap-1.5 rounded-lg text-sm font-bold shadow-sm active:scale-[0.98]"
-          style={{ backgroundColor: nextStage.color, color: colorTexto(nextStage.color) }}
-        >
-          {textoMover(nextStage)}
-        </button>
-      )}
+      <DealCard
+        deal={deal}
+        stage={stage}
+        onEdit={onEdit}
+        hasProof={hasProof}
+        footerAction={
+          nextStage ? (
+            <button
+              type="button"
+              // Que el botón no arranque un arrastre ni abra la ficha.
+              onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onMove(deal.id, nextStage.id);
+              }}
+              className="mt-2 flex h-8 w-full items-center justify-center gap-1 rounded-md border border-border text-xs font-semibold text-foreground/90 transition-colors hover:border-transparent active:scale-[0.98] [@media(hover:hover)]:hover:[background-color:var(--siguiente)] [@media(hover:hover)]:hover:[color:var(--siguiente-texto)]"
+              style={{ ["--siguiente" as string]: nextStage.color, ["--siguiente-texto" as string]: colorTexto(nextStage.color) }}
+            >
+              {textoMover(nextStage)}
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          ) : null
+        }
+      />
     </div>
   );
 }

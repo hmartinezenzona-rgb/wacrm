@@ -6,14 +6,19 @@
 // Las líneas de producto y servicio con las marcas que se manejan
 // (tabla catalogo, migración 310). Es la única fuente: la página web y el
 // bot de WhatsApp leen de aquí. Si una línea se apaga, el bot deja de
-// ofrecerla. Cada cambio se guarda al salir del campo.
+// ofrecerla.
+//
+// Diseño tipo lista de productos (Pipedrive/HubSpot): una fila por línea
+// con interruptor, nombre, descripción corta y marcas como etiquetas.
+// Al tocar una fila se abre para editarla ahí mismo. Nombre y descripción
+// se guardan al salir del campo; las marcas al agregarlas o quitarlas.
 // ============================================================
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, Loader2, Plus, Search, Trash2, X } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
 interface Linea {
@@ -25,17 +30,25 @@ interface Linea {
   orden: number;
 }
 
+const separarMarcas = (m: string | null) =>
+  (m ?? "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+
 function Campo({
   valor,
   placeholder,
   multilinea,
   className,
+  autoFocus,
   onGuardar,
 }: {
   valor: string;
   placeholder: string;
   multilinea?: boolean;
   className?: string;
+  autoFocus?: boolean;
   onGuardar: (v: string) => void;
 }) {
   const [v, setV] = useState(valor);
@@ -45,15 +58,65 @@ function Campo({
   const comun = {
     value: v,
     placeholder,
+    autoFocus,
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setV(e.target.value),
     onBlur: () => {
       if (v.trim() !== valor.trim()) onGuardar(v.trim());
     },
     className:
-      "w-full rounded-lg border border-transparent bg-transparent px-2 py-1.5 outline-none hover:border-border focus:border-primary focus:bg-background " +
+      "w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary " +
       (className ?? ""),
   };
-  return multilinea ? <textarea rows={2} {...comun} /> : <input {...comun} />;
+  return multilinea ? <textarea rows={3} {...comun} /> : <input {...comun} />;
+}
+
+/** Marcas como etiquetas: Enter o coma agrega, la X quita. */
+function EditorMarcas({ marcas, onCambiar }: { marcas: string[]; onCambiar: (m: string[]) => void }) {
+  const [texto, setTexto] = useState("");
+  function agregar() {
+    const nuevas = texto
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean)
+      .filter((x) => !marcas.some((m) => m.toLowerCase() === x.toLowerCase()));
+    setTexto("");
+    if (nuevas.length) onCambiar([...marcas, ...nuevas]);
+  }
+  return (
+    <div className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1.5 focus-within:border-primary">
+      {marcas.map((m) => (
+        <span
+          key={m}
+          className="inline-flex items-center gap-1 rounded-md bg-primary/10 py-0.5 pl-2 pr-1 text-xs font-medium text-primary"
+        >
+          {m}
+          <button
+            type="button"
+            onClick={() => onCambiar(marcas.filter((x) => x !== m))}
+            className="rounded p-0.5 hover:bg-primary/20"
+            aria-label={`Quitar ${m}`}
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </span>
+      ))}
+      <input
+        value={texto}
+        onChange={(e) => setTexto(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === ",") {
+            e.preventDefault();
+            agregar();
+          } else if (e.key === "Backspace" && !texto && marcas.length) {
+            onCambiar(marcas.slice(0, -1));
+          }
+        }}
+        onBlur={agregar}
+        placeholder={marcas.length ? "Agregar marca" : "Ej. Fluke, Mitutoyo (Enter para agregar)"}
+        className="h-7 min-w-[140px] flex-1 bg-transparent text-sm outline-none"
+      />
+    </div>
+  );
 }
 
 export default function CatalogoPage() {
@@ -62,8 +125,10 @@ export default function CatalogoPage() {
   const accountId = account?.id;
   const [lineas, setLineas] = useState<Linea[]>([]);
   const [cargando, setCargando] = useState(true);
-  const [nueva, setNueva] = useState("");
+  const [abierta, setAbierta] = useState<string | null>(null);
   const [borrando, setBorrando] = useState<string | null>(null);
+  const [buscar, setBuscar] = useState("");
+  const [nueva, setNueva] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     if (!accountId) return;
@@ -96,7 +161,7 @@ export default function CatalogoPage() {
   }
 
   async function agregar() {
-    const nombre = nueva.trim();
+    const nombre = (nueva ?? "").trim();
     if (!nombre || !accountId) return;
     const orden = Math.max(-1, ...lineas.map((x) => x.orden)) + 1;
     const { data, error } = await supabase
@@ -109,20 +174,31 @@ export default function CatalogoPage() {
       return;
     }
     setLineas((xs) => [...xs, data as Linea]);
-    setNueva("");
-    toast.success(`Agregado: ${nombre}`);
+    setNueva(null);
+    setAbierta((data as Linea).id);
+    toast.success(`Agregada: ${nombre}`);
   }
 
   async function borrar(id: string) {
     const l = lineas.find((x) => x.id === id);
     setBorrando(null);
+    setAbierta(null);
     setLineas((xs) => xs.filter((x) => x.id !== id));
     const { error } = await supabase.from("catalogo").delete().eq("id", id);
     if (error) {
       toast.error("No se pudo borrar");
       cargar();
-    } else toast.success(`Borrado: ${l?.nombre ?? ""}`);
+    } else toast.success(`Borrada: ${l?.nombre ?? ""}`);
   }
+
+  const q = buscar.trim().toLowerCase();
+  const visibles = q
+    ? lineas.filter((l) =>
+        [l.nombre, l.descripcion ?? "", l.marcas ?? ""].some((x) => x.toLowerCase().includes(q)),
+      )
+    : lineas;
+  const activas = lineas.filter((l) => l.disponible).length;
+  const totalMarcas = new Set(lineas.flatMap((l) => separarMarcas(l.marcas).map((m) => m.toLowerCase()))).size;
 
   if (cargando || !accountId) {
     return (
@@ -133,97 +209,220 @@ export default function CatalogoPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4 pb-10">
-      <p className="text-sm text-muted-foreground">
-        Lo que aparece aquí es lo que el bot de WhatsApp y la página ofrecen. Apaga una línea si por ahora no la
-        manejan. Los precios no van aquí: cada cotización lleva el suyo.
-      </p>
+    <div className="mx-auto flex max-w-5xl flex-col gap-4 pb-10">
+      {/* Resumen y acciones */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm text-muted-foreground">
+            Lo que el bot de WhatsApp y la página ofrecen. Apaga una línea si por ahora no la manejan. Los precios no
+            van aquí: cada cotización lleva el suyo.
+          </p>
+          <p className="mt-1 text-xs tabular-nums text-muted-foreground">
+            <span className="font-semibold text-foreground">{lineas.length}</span> líneas ·{" "}
+            <span className="font-semibold text-foreground">{activas}</span> se ofrecen ·{" "}
+            <span className="font-semibold text-foreground">{totalMarcas}</span> marcas
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <div className="relative flex-1 sm:w-64 sm:flex-none">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={buscar}
+              onChange={(e) => setBuscar(e.target.value)}
+              placeholder="Buscar línea o marca"
+              className="h-9 w-full rounded-md border border-border bg-background pl-8 pr-3 text-sm outline-none focus:border-primary"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setNueva("")}
+            className="flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
+          >
+            <Plus className="h-4 w-4" /> Nueva línea
+          </button>
+        </div>
+      </div>
 
-      <ul className="flex flex-col gap-3">
-        {lineas.map((l) => (
-          <li key={l.id} className="rounded-xl border border-border bg-card p-3">
-            <div className="flex items-start gap-3">
-              <div className="min-w-0 flex-1">
-                <Campo
-                  valor={l.nombre}
-                  placeholder="Nombre de la línea"
-                  className={"text-base font-bold " + (l.disponible ? "" : "text-muted-foreground line-through")}
-                  onGuardar={(v) => (v ? guardar(l.id, { nombre: v }) : cargar())}
-                />
-                <Campo
-                  valor={l.descripcion ?? ""}
-                  placeholder="Qué incluye (productos, medidas, servicios)"
-                  multilinea
-                  className="text-sm text-muted-foreground"
-                  onGuardar={(v) => guardar(l.id, { descripcion: v || null })}
-                />
-                <div className="flex items-center gap-1 px-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Marcas</span>
-                  <Campo
-                    valor={l.marcas ?? ""}
-                    placeholder="Ej. Fluke, Mitutoyo"
-                    className="text-sm"
-                    onGuardar={(v) => guardar(l.id, { marcas: v || null })}
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
+        {/* Encabezado de la lista (solo escritorio) */}
+        <div className="hidden grid-cols-[52px_minmax(0,1.3fr)_minmax(0,1fr)_32px] items-center gap-3 border-b border-border bg-muted/40 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground md:grid">
+          <span>Se ofrece</span>
+          <span>Línea</span>
+          <span>Marcas</span>
+          <span />
+        </div>
+
+        {nueva !== null && (
+          <div className="flex gap-2 border-b border-border bg-primary/5 px-4 py-3">
+            <input
+              autoFocus
+              value={nueva}
+              onChange={(e) => setNueva(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") agregar();
+                if (e.key === "Escape") setNueva(null);
+              }}
+              placeholder="Nombre de la nueva línea (ej. Seguridad industrial)"
+              className="h-9 min-w-0 flex-1 rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+            />
+            <button
+              type="button"
+              onClick={agregar}
+              disabled={!nueva.trim()}
+              className="h-9 rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+            >
+              Agregar
+            </button>
+            <button
+              type="button"
+              onClick={() => setNueva(null)}
+              className="h-9 rounded-md px-3 text-sm text-muted-foreground hover:bg-muted"
+            >
+              Cancelar
+            </button>
+          </div>
+        )}
+
+        {visibles.length === 0 && (
+          <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+            {q ? "Nada coincide con la búsqueda." : "Todavía no hay líneas en el catálogo."}
+          </p>
+        )}
+
+        <ul className="divide-y divide-border">
+          {visibles.map((l) => {
+            const marcas = separarMarcas(l.marcas);
+            const open = abierta === l.id;
+            return (
+              <li key={l.id} className={open ? "bg-muted/30" : ""}>
+                {/* Fila */}
+                <div
+                  className={`grid cursor-pointer grid-cols-[44px_minmax(0,1fr)_28px] items-start gap-3 px-4 py-3 hover:bg-muted/30 md:grid-cols-[52px_minmax(0,1.3fr)_minmax(0,1fr)_32px] md:items-center ${
+                    l.disponible ? "" : "opacity-55"
+                  }`}
+                  onClick={() => setAbierta(open ? null : l.id)}
+                >
+                  <div onClick={(e) => e.stopPropagation()} className="pt-0.5 md:pt-0">
+                    <Switch
+                      checked={l.disponible}
+                      onCheckedChange={(v: boolean) =>
+                        guardar(l.id, { disponible: v }, v ? `${l.nombre}: se ofrece` : `${l.nombre}: apagada`)
+                      }
+                      aria-label={`Ofrecer ${l.nombre}`}
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-sm font-semibold text-foreground">{l.nombre}</span>
+                      {!l.disponible && (
+                        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                          Apagada
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
+                      {l.descripcion || "Sin descripción"}
+                    </p>
+                    {/* Marcas en celular, debajo */}
+                    {marcas.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1 md:hidden">
+                        {marcas.map((m) => (
+                          <span key={m} className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-foreground/80">
+                            {m}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="hidden flex-wrap gap-1 md:flex">
+                    {marcas.length ? (
+                      marcas.map((m) => (
+                        <span key={m} className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-foreground/80">
+                          {m}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-muted-foreground/60">—</span>
+                    )}
+                  </div>
+                  <ChevronDown
+                    className={`mt-1 h-4 w-4 justify-self-end text-muted-foreground transition-transform md:mt-0 ${
+                      open ? "rotate-180" : ""
+                    }`}
                   />
                 </div>
-              </div>
-              <div className="flex flex-col items-end gap-3 pt-1.5">
-                <Switch
-                  checked={l.disponible}
-                  onCheckedChange={(v: boolean) =>
-                    guardar(l.id, { disponible: v }, v ? `${l.nombre}: se ofrece` : `${l.nombre}: apagada`)
-                  }
-                  aria-label={`Ofrecer ${l.nombre}`}
-                />
-                {borrando === l.id ? (
-                  <div className="flex gap-1">
-                    <button
-                      type="button"
-                      onClick={() => borrar(l.id)}
-                      className="rounded-md bg-destructive px-2 py-1 text-xs font-semibold text-white"
-                    >
-                      Borrar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setBorrando(null)}
-                      className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
-                    >
-                      No
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setBorrando(l.id)}
-                    className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                    aria-label={`Borrar ${l.nombre}`}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-            </div>
-          </li>
-        ))}
-      </ul>
 
-      <div className="flex gap-2">
-        <input
-          value={nueva}
-          onChange={(e) => setNueva(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && agregar()}
-          placeholder="Nueva línea de producto o servicio"
-          className="h-11 min-w-0 flex-1 rounded-lg border border-border bg-background px-3 text-base outline-none focus:border-primary"
-        />
-        <button
-          type="button"
-          onClick={agregar}
-          disabled={!nueva.trim()}
-          className="flex h-11 items-center gap-1.5 rounded-lg bg-primary px-4 text-base font-semibold text-primary-foreground disabled:opacity-50"
-        >
-          <Plus className="h-4 w-4" /> Agregar
-        </button>
+                {/* Edición en la misma fila */}
+                {open && (
+                  <div className="grid gap-3 px-4 pb-4 md:grid-cols-2 md:pl-[84px]">
+                    <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+                      Nombre
+                      <Campo
+                        valor={l.nombre}
+                        placeholder="Nombre de la línea"
+                        className="font-semibold text-foreground"
+                        onGuardar={(v) => (v ? guardar(l.id, { nombre: v }) : cargar())}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground md:row-span-2">
+                      Qué incluye
+                      <Campo
+                        valor={l.descripcion ?? ""}
+                        placeholder="Productos, medidas, materiales o servicios de esta línea"
+                        multilinea
+                        className="text-foreground"
+                        onGuardar={(v) => guardar(l.id, { descripcion: v || null })}
+                      />
+                    </label>
+                    <div className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+                      Marcas
+                      <EditorMarcas
+                        marcas={marcas}
+                        onCambiar={(m) => guardar(l.id, { marcas: m.length ? m.join(", ") : null })}
+                      />
+                    </div>
+                    <div className="flex items-center justify-end gap-2 md:col-span-2">
+                      {borrando === l.id ? (
+                        <>
+                          <span className="text-xs text-muted-foreground">¿Borrar «{l.nombre}»?</span>
+                          <button
+                            type="button"
+                            onClick={() => borrar(l.id)}
+                            className="h-8 rounded-md bg-destructive px-3 text-xs font-semibold text-white"
+                          >
+                            Sí, borrar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setBorrando(null)}
+                            className="h-8 rounded-md px-3 text-xs text-muted-foreground hover:bg-muted"
+                          >
+                            No
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setBorrando(l.id)}
+                          className="flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" /> Borrar línea
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setAbierta(null)}
+                        className="h-8 rounded-md border border-border px-3 text-xs font-medium hover:bg-muted"
+                      >
+                        Listo
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
       </div>
     </div>
   );

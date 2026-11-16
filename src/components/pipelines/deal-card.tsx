@@ -1,7 +1,21 @@
 "use client";
 
+// ============================================================
+// Ficha del tablero — edición AP Suministros.
+//
+// Compacta, al estilo de Pipedrive/HubSpot: lo que se ve sin abrir la
+// ficha es lo que decide qué atender primero.
+//   1. Empresa (título) + etiqueta URGENTE si la pidieron así.
+//   2. Quién pide y por dónde llegó (WhatsApp o página).
+//   3. Resumen de lo que piden ("3 productos · Válvulas").
+//   4. Monto (si ya se cotizó) y cuánto lleva en la columna. Si lleva
+//      demasiado, la etiqueta se pone ámbar/roja ("estancada", como el
+//      "rotting" de Pipedrive): solicitud nueva sin tocar > 1 día,
+//      cotización enviada sin respuesta >= 3 días.
+// ============================================================
+
 import type { Deal, PipelineStage } from "@/types";
-import { Calendar, Check, Paperclip, X } from "lucide-react";
+import { Check, Globe, MessageCircle, Paperclip, X } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
 import { useTranslations } from "next-intl";
 
@@ -16,26 +30,55 @@ interface DealCardProps {
    */
   hasProof?: boolean;
   isOverlay?: boolean;
+  /** Botón de un toque para pasar a la siguiente columna (lo pone el tablero). */
+  footerAction?: React.ReactNode;
 }
 
-// Fecha de entrega en español (ej. "jue 12 nov"). Una fecha sola
-// ("2026-11-12") se lee a mediodía local: `new Date("2026-11-12")` es
-// medianoche UTC y en México la mostraba como el día anterior.
-function formatDate(dateStr: string) {
-  const d = /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
-    ? new Date(dateStr + "T12:00:00")
-    : new Date(dateStr);
-  return d.toLocaleDateString("es-MX", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
+const URGENTE = /\s*·\s*URGENTE\s*$/i;
+
+/** Lee las notas que escribe cotizacion_solicitar (migración 310). */
+function resumenNotas(notes?: string | null) {
+  const lineas = (notes ?? "").split("\n").map((l) => l.trim());
+  const productos = lineas.filter((l) => l.startsWith("- ")).map((l) => l.slice(2));
+  // "- 10 pz · Válvulas: bola 1in · marca X" → "Válvulas"
+  const lineasProducto = productos
+    .map((p) => {
+      const sinCant = p.includes(" · ") ? p.split(" · ").slice(1).join(" · ") : p;
+      return sinCant.split(":")[0].trim();
+    })
+    .filter(Boolean);
+  const unicas = [...new Set(lineasProducto)];
+  const origenTxt = lineas.find((l) => /^Llegó por /i.test(l)) ?? "";
+  const origen: "whatsapp" | "web" | null = /whatsapp/i.test(origenTxt)
+    ? "whatsapp"
+    : /p[aá]gina/i.test(origenTxt)
+      ? "web"
+      : null;
+  return { cuantos: productos.length, lineas: unicas, origen };
 }
 
-function initials(name?: string, fallback?: string) {
-  const source = (name || fallback || "?").trim();
-  if (!source) return "?";
-  return source.charAt(0).toUpperCase();
+function diasDesde(iso?: string | null) {
+  if (!iso) return null;
+  const ms = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return 0;
+  return Math.floor(ms / 86_400_000);
+}
+
+function textoAntiguedad(dias: number, iso: string) {
+  if (dias === 0) {
+    const horas = Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000);
+    return horas <= 0 ? "ahora" : `${horas} h`;
+  }
+  return `${dias} d`;
+}
+
+/** Cuántos días en la columna ya es "estancada" (null = nunca). */
+function limiteDias(stageName?: string): number | null {
+  if (!stageName) return null;
+  if (/nueva/i.test(stageName)) return 1;
+  if (/cotizando/i.test(stageName)) return 2;
+  if (/enviada/i.test(stageName)) return 3;
+  return null;
 }
 
 export function DealCard({
@@ -44,91 +87,109 @@ export function DealCard({
   onEdit,
   hasProof,
   isOverlay,
+  footerAction,
 }: DealCardProps) {
   const t = useTranslations("Pipelines.card");
-  const contactLabel = deal.contact?.name || deal.contact?.phone || t("noContact");
-  const assigneeLabel = deal.assignee?.full_name || null;
+  const urgente = URGENTE.test(deal.title);
+  const titulo = deal.title.replace(URGENTE, "");
+  const contacto = deal.contact?.name || deal.contact?.phone || t("noContact");
+  const mostrarContacto = contacto !== titulo;
+  const { cuantos, lineas, origen } = resumenNotas(deal.notes);
+
+  const desde = deal.etapa_desde || deal.created_at;
+  const dias = diasDesde(desde);
+  const limite = limiteDias(stage?.name);
+  const cerrada = deal.status === "won" || deal.status === "lost";
+  const estancada = !cerrada && limite !== null && dias !== null && dias >= limite;
+  const porVencer = !cerrada && !estancada && limite !== null && dias !== null && limite > 1 && dias === limite - 1;
+
+  const valor = Number(deal.value || 0);
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={-1}
       onClick={(e) => {
-        // `onClick` still fires after a non-drag tap because the PointerSensor
-        // requires 5px movement before it counts as a drag.
+        // `onClick` still fires after a non-drag tap because the sensors
+        // require movement / a long press before it counts as a drag.
         if (isOverlay) return;
         e.stopPropagation();
         onEdit(deal);
       }}
-      className={`group relative w-full cursor-pointer rounded-xl border border-border/50 bg-muted/70 pl-4 pr-3 py-3 text-left shadow-sm transition-all ${
-        isOverlay
-          ? "shadow-xl"
-          : "hover:-translate-y-0.5 hover:border-border hover:bg-muted hover:shadow-lg"
-      }`}
+      className={`group w-full cursor-pointer rounded-lg border bg-card px-3 py-2.5 text-left transition-colors ${
+        estancada ? "border-red-500/40" : "border-border"
+      } ${isOverlay ? "shadow-xl ring-1 ring-primary/40" : "hover:border-primary/50 hover:bg-muted/40"}`}
     >
-      {/* 4px left accent bar using stage color */}
-      <span
-        aria-hidden
-        className="absolute left-0 top-0 h-full w-1 rounded-l-xl"
-        style={{ backgroundColor: stage?.color ?? "#94a3b8" }}
-      />
-
-      <div className="flex items-start justify-between gap-2">
-        <h4 className="flex-1 text-sm font-semibold leading-snug text-foreground break-words">
-          {deal.title}
+      {/* 1. Empresa + etiquetas */}
+      <div className="flex items-start gap-1.5">
+        <h4 className="line-clamp-2 flex-1 text-[13px] font-semibold leading-snug text-foreground">
+          {titulo}
         </h4>
-        {hasProof && (
-          <span
-            title={t("proofPrepared")}
-            aria-label={t("proofPrepared")}
-            className="inline-flex shrink-0 items-center rounded-full bg-primary/15 p-1 text-primary"
-          >
-            <Paperclip className="h-3 w-3" />
+        {urgente && (
+          <span className="shrink-0 rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-red-500">
+            URGENTE
           </span>
         )}
+        {hasProof && (
+          <Paperclip className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-label={t("proofPrepared")} />
+        )}
         {deal.status === "won" && (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
+          <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-500">
             <Check className="h-3 w-3" />
             {t("won")}
           </span>
         )}
         {deal.status === "lost" && (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-400">
+          <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-red-500">
             <X className="h-3 w-3" />
             {t("lost")}
           </span>
         )}
       </div>
 
-      {/* Contact row */}
-      <div className="mt-2 flex items-center gap-2">
-        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-foreground">
-          {initials(deal.contact?.name, deal.contact?.phone)}
-        </span>
-        <span className="truncate text-xs text-muted-foreground">{contactLabel}</span>
-      </div>
+      {/* 2. Quién y por dónde */}
+      {(mostrarContacto || origen) && (
+        <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+          {origen === "whatsapp" && (
+            <MessageCircle className="h-3 w-3 shrink-0 text-emerald-500" aria-label="Llegó por WhatsApp" />
+          )}
+          {origen === "web" && <Globe className="h-3 w-3 shrink-0 text-sky-500" aria-label="Llegó por la página" />}
+          {mostrarContacto && <span className="truncate">{contacto}</span>}
+        </div>
+      )}
 
-      <div className="mt-2 flex items-center justify-between">
-        <span className="text-sm font-bold text-primary">
-          {formatCurrency(deal.value, deal.currency)}
+      {/* 3. Qué piden */}
+      {cuantos > 0 && (
+        <p className="mt-1 truncate text-xs text-muted-foreground/90">
+          <span className="font-medium text-foreground/80">
+            {cuantos} {cuantos === 1 ? "producto" : "productos"}
+          </span>
+          {lineas.length > 0 && <> · {lineas.slice(0, 2).join(", ")}{lineas.length > 2 ? "…" : ""}</>}
+        </p>
+      )}
+
+      {/* 4. Monto y tiempo en la columna */}
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <span className={`text-[13px] font-semibold ${valor > 0 ? "text-foreground" : "text-muted-foreground/60"}`}>
+          {valor > 0 ? formatCurrency(valor, deal.currency) : "Sin monto"}
         </span>
-        {deal.expected_close_date && (
-          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-            <Calendar className="h-3 w-3" />
-            {formatDate(deal.expected_close_date)}
+        {dias !== null && desde && (
+          <span
+            title={estancada ? "Lleva demasiado en esta columna" : "Tiempo en esta columna"}
+            className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${
+              estancada
+                ? "bg-red-500/15 text-red-500"
+                : porVencer
+                  ? "bg-amber-500/15 text-amber-500"
+                  : "bg-muted text-muted-foreground"
+            }`}
+          >
+            {textoAntiguedad(dias, desde)}
           </span>
         )}
       </div>
 
-      {assigneeLabel && (
-        <div className="mt-2 flex items-center justify-end">
-          <span
-            title={assigneeLabel}
-            className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/15 text-[10px] font-semibold text-primary"
-          >
-            {initials(assigneeLabel)}
-          </span>
-        </div>
-      )}
-    </button>
+      {footerAction}
+    </div>
   );
 }

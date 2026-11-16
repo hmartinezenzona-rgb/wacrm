@@ -381,6 +381,8 @@ export interface Deal {
   notes?: string;
   expected_close_date?: string;
   status?: DealStatus;
+  /** AP (migración 310): cuándo entró a la columna actual. */
+  etapa_desde?: string | null;
   created_at: string;
   updated_at?: string;
   contact?: Contact;

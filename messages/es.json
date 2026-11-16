@@ -518,8 +518,8 @@
     },
     "card": {
       "noContact": "Sin cliente",
-      "won": "Pagado",
-      "lost": "Cancelado",
+      "won": "Ganada",
+      "lost": "Perdida",
       "proofPrepared": "Prueba de entrega preparada"
     },
     "form": {

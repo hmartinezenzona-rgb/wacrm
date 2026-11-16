@@ -1,0 +1,594 @@
+{
+ "name": "AP Suministros — Bot de WhatsApp",
+ "nodes": [
+  {
+   "id": "sticky-1",
+   "name": "Nota",
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    -60,
+    -380
+   ],
+   "parameters": {
+    "width": 620,
+    "height": 300,
+    "content": "## Bot de WhatsApp — AP Suministros\nEl CRM (crm-ap-suministros) manda cada mensaje que llega (evento message.received) a este webhook. El bot contesta por la API del CRM, así la respuesta queda en Mensajes.\n\n- No contesta si el chat está en pausa (botón **Tomar el control** en Mensajes o después de pasar a humano).\n- Herramientas: catálogo y solicitud de cotización (Supabase de AP) y pasar a humano (pausa el chat y avisa al celular).\n- Nunca da precios.\n\n**Una sola vez:** con el flujo activo, ejecutar la rama de abajo \"Registrar webhook en el CRM\"."
+   }
+  },
+  {
+   "id": "webhook",
+   "name": "Mensaje del CRM",
+   "type": "n8n-nodes-base.webhook",
+   "typeVersion": 2,
+   "position": [
+    0,
+    0
+   ],
+   "parameters": {
+    "httpMethod": "POST",
+    "path": "ap-suministros-bot-c7d4a4c86739",
+    "responseMode": "onReceived",
+    "options": {}
+   },
+   "webhookId": "ap-suministros-bot-c7d4a4c86739"
+  },
+  {
+   "id": "datos",
+   "name": "Datos del mensaje",
+   "type": "n8n-nodes-base.set",
+   "typeVersion": 3.4,
+   "position": [
+    220,
+    0
+   ],
+   "parameters": {
+    "assignments": {
+     "assignments": [
+      {
+       "id": "a1",
+       "name": "conversation_id",
+       "value": "={{ $json.body.data.conversation_id }}",
+       "type": "string"
+      },
+      {
+       "id": "a2",
+       "name": "tipo",
+       "value": "={{ $json.body.data.content_type }}",
+       "type": "string"
+      },
+      {
+       "id": "a3",
+       "name": "texto",
+       "value": "={{ ($json.body.data.text || '').trim() }}",
+       "type": "string"
+      },
+      {
+       "id": "a4",
+       "name": "evento",
+       "value": "={{ $json.body.event }}",
+       "type": "string"
+      }
+     ]
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "leer",
+   "name": "Leer conversación",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    440,
+    0
+   ],
+   "parameters": {
+    "authentication": "genericCredentialType",
+    "genericAuthType": "httpHeaderAuth",
+    "url": "=https://crm-ap-suministros.vercel.app/api/v1/conversations/{{ $json.conversation_id }}",
+    "options": {}
+   }
+  },
+  {
+   "id": "activo",
+   "name": "¿Contesta el bot?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    660,
+    0
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "typeValidation": "loose",
+      "version": 2
+     },
+     "combinator": "and",
+     "conditions": [
+      {
+       "id": "c1",
+       "leftValue": "={{ $('Datos del mensaje').item.json.evento }}",
+       "rightValue": "message.received",
+       "operator": {
+        "type": "string",
+        "operation": "equals"
+       }
+      },
+      {
+       "id": "c2",
+       "leftValue": "={{ $json.data.ai_autoreply_disabled }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "false",
+        "singleValue": true
+       }
+      },
+      {
+       "id": "c3",
+       "leftValue": "={{ $json.data.assigned_agent_id }}",
+       "rightValue": "",
+       "operator": {
+        "type": "string",
+        "operation": "empty",
+        "singleValue": true
+       }
+      }
+     ]
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "estexto",
+   "name": "¿Es texto?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    880,
+    -100
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "typeValidation": "loose",
+      "version": 2
+     },
+     "combinator": "and",
+     "conditions": [
+      {
+       "id": "t1",
+       "leftValue": "={{ $('Datos del mensaje').item.json.texto }}",
+       "rightValue": "",
+       "operator": {
+        "type": "string",
+        "operation": "notEmpty",
+        "singleValue": true
+       }
+      }
+     ]
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "agente",
+   "name": "Asistente AP",
+   "type": "@n8n/n8n-nodes-langchain.agent",
+   "typeVersion": 2,
+   "position": [
+    1120,
+    -200
+   ],
+   "parameters": {
+    "promptType": "define",
+    "text": "={{ $('Datos del mensaje').item.json.texto }}",
+    "options": {
+     "systemMessage": "Eres el asistente de WhatsApp de AP Suministros, proveedor industrial en Saltillo, Coahuila (válvulas, conexiones, instrumentación, neumática, herramienta y otros suministros para planta). Atiendes a compradores, ingenieros y encargados de mantenimiento.\n\nTu trabajo:\n1. Saludar y entender qué necesita el cliente.\n2. Decir qué líneas y marcas manejamos. Para eso usa SIEMPRE la herramienta ver_catalogo; no inventes líneas ni marcas.\n3. Tomar la solicitud de cotización y registrarla con crear_solicitud.\n4. Pasar el chat a una persona con pasar_a_humano cuando haga falta.\n\nDatos del negocio (no inventes otros):\n- Dirección: Porvenir 1054, entre Abasolo y Armillita, Zona Centro, 25000 Saltillo, Coah.\n- Teléfono: 844 385 3346. Correo: salesapsuministros@gmail.com.\n- Gerente de ventas: Ing. Paulette Alegría.\n- Horario: no lo tienes confirmado; si lo preguntan, di que una persona se lo confirma.\n\nReglas que nunca rompes:\n- NUNCA des precios, descuentos, existencias ni tiempos de entrega. Eso lo da la gerente en la cotización. Si insisten, explica que la cotización llega por este mismo WhatsApp o por correo.\n- No prometas nada que no puedas cumplir y no inventes datos técnicos. Si no sabes, dilo y ofrece pasar con una persona.\n- Si la pieza no está en el catálogo, igual toma la solicitud: AP consigue material sobre pedido.\n\nCómo tomar una solicitud de cotización:\n- Necesitas como mínimo: qué producto (con la mayor precisión posible: medida, material, presión, modelo o número de parte), cantidad y nombre de quien pide. Pregunta también la empresa y para cuándo lo necesita; marca y correo son opcionales.\n- Pregunta solo lo que falte, una o dos cosas por mensaje. No hagas interrogatorios.\n- Antes de registrar, repite en una lista corta lo que vas a pedir y pregunta si está correcto.\n- Cuando el cliente confirme, llama a crear_solicitud una sola vez con todos los productos. Después dile el folio que te regresa la herramienta y que la gerente le enviará la cotización.\n- Si después quiere agregar algo, registra una solicitud nueva solo con lo agregado.\n\nCuándo usar pasar_a_humano (y después ya no sigas contestando ese tema):\n- Pide hablar con una persona, con la gerente o con ventas.\n- Pregunta por una cotización que ya le enviaron, un pedido, factura, pago, garantía o una queja.\n- Es urgente (planta parada) y necesita respuesta inmediata.\n- No entiendes lo que necesita después de dos intentos.\nAl usarla, dile al cliente que una persona le contesta en breve por este mismo chat.\n\nEstilo:\n- Español de México, trato de usted, tono profesional y amable.\n- Mensajes cortos, propios de WhatsApp: 1 a 4 líneas. Listas con guiones solo para resumir productos.\n- Sin emojis.\n- No digas que eres una inteligencia artificial salvo que lo pregunten; si lo preguntan, di que eres el asistente automático de AP Suministros.\n\nCliente en este chat: {{ $('Leer conversación').item.json.data.contact.name || 'sin nombre' }} (WhatsApp {{ $('Leer conversación').item.json.data.contact.phone }}). Fecha y hora: {{ $now.setZone('America/Monterrey').toFormat('cccc d LLL yyyy, HH:mm') }}.",
+     "maxIterations": 6
+    }
+   }
+  },
+  {
+   "id": "modelo",
+   "name": "Modelo",
+   "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+   "typeVersion": 1.2,
+   "position": [
+    980,
+    60
+   ],
+   "parameters": {
+    "model": {
+     "__rl": true,
+     "value": "gpt-4.1-mini",
+     "mode": "list",
+     "cachedResultName": "gpt-4.1-mini"
+    },
+    "options": {
+     "temperature": 0.3
+    }
+   }
+  },
+  {
+   "id": "memoria",
+   "name": "Memoria del chat",
+   "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+   "typeVersion": 1.3,
+   "position": [
+    1110,
+    60
+   ],
+   "parameters": {
+    "sessionIdType": "customKey",
+    "sessionKey": "={{ $('Datos del mensaje').item.json.conversation_id }}",
+    "contextWindowLength": 20
+   }
+  },
+  {
+   "id": "t-cat",
+   "name": "ver_catalogo",
+   "type": "n8n-nodes-base.httpRequestTool",
+   "typeVersion": 4.2,
+   "position": [
+    1240,
+    60
+   ],
+   "parameters": {
+    "toolDescription": "Devuelve las líneas de producto que maneja AP Suministros con su descripción y marcas. Úsala cuando pregunten qué venden, si manejan un producto o una marca.",
+    "method": "POST",
+    "url": "https://oyihmbnafveykpkbnqhs.supabase.co/rest/v1/rpc/catalogo_publico",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "apikey",
+       "value": "sb_publishable_tqQKjs1hytD2FTDrekkCoA_SubTBctd"
+      },
+      {
+       "name": "Authorization",
+       "value": "Bearer sb_publishable_tqQKjs1hytD2FTDrekkCoA_SubTBctd"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={\"p_account\": \"39beb051-96d0-4ee8-9d2f-f26a7ab4d9a7\"}",
+    "options": {}
+   }
+  },
+  {
+   "id": "t-sol",
+   "name": "crear_solicitud",
+   "type": "n8n-nodes-base.httpRequestTool",
+   "typeVersion": 4.2,
+   "position": [
+    1370,
+    60
+   ],
+   "parameters": {
+    "toolDescription": "Registra la solicitud de cotización en el CRM de AP cuando el cliente ya confirmó la lista. Regresa el folio. Llámala una sola vez por solicitud.",
+    "method": "POST",
+    "url": "https://oyihmbnafveykpkbnqhs.supabase.co/rest/v1/rpc/cotizacion_solicitar",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "apikey",
+       "value": "sb_publishable_tqQKjs1hytD2FTDrekkCoA_SubTBctd"
+      },
+      {
+       "name": "Authorization",
+       "value": "Bearer sb_publishable_tqQKjs1hytD2FTDrekkCoA_SubTBctd"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ p_account: '39beb051-96d0-4ee8-9d2f-f26a7ab4d9a7', p: { origen: 'whatsapp', folio: 'AP-' + Math.random().toString(36).slice(2, 8).toUpperCase(), telefono: $('Leer conversación').item.json.data.contact.phone, nombre: $fromAI('nombre', 'Nombre de la persona que pide', 'string'), empresa: $fromAI('empresa', 'Empresa o planta; vacío si no la dio', 'string'), correo: $fromAI('correo', 'Correo; vacío si no lo dio', 'string'), para_cuando: $fromAI('para_cuando', 'Para cuándo lo necesita, en palabras del cliente; si es urgente empieza con la palabra URGENTE; vacío si no lo dijo', 'string'), notas: $fromAI('notas', 'Comentarios adicionales del cliente; vacío si no hay', 'string'), productos: $fromAI('productos', 'Lista JSON de productos: [{\"linea\": línea del catálogo o \"Otro\", \"detalle\": descripción con medida/material/modelo, \"marca\": marca o vacío, \"cantidad\": número o texto con unidad}]', 'json') } }) }}",
+    "options": {}
+   }
+  },
+  {
+   "id": "t-hum",
+   "name": "pasar_a_humano",
+   "type": "n8n-nodes-base.httpRequestTool",
+   "typeVersion": 4.2,
+   "position": [
+    1500,
+    60
+   ],
+   "parameters": {
+    "toolDescription": "Pasa el chat a una persona de AP: pausa el bot en este chat y avisa a la gerente. Úsala según las reglas de cuándo pasar a humano.",
+    "method": "POST",
+    "url": "https://oyihmbnafveykpkbnqhs.supabase.co/rest/v1/rpc/bot_pasar_a_humano",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "apikey",
+       "value": "sb_publishable_tqQKjs1hytD2FTDrekkCoA_SubTBctd"
+      },
+      {
+       "name": "Authorization",
+       "value": "Bearer sb_publishable_tqQKjs1hytD2FTDrekkCoA_SubTBctd"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ p_account: '39beb051-96d0-4ee8-9d2f-f26a7ab4d9a7', p_conversation: $('Datos del mensaje').item.json.conversation_id, p_motivo: $fromAI('motivo', 'Motivo en pocas palabras para la gerente, por ejemplo: quiere saber de su cotización AP-123', 'string') }) }}",
+    "options": {}
+   }
+  },
+  {
+   "id": "hayresp",
+   "name": "¿Hay respuesta?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    1480,
+    -200
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "typeValidation": "loose",
+      "version": 2
+     },
+     "combinator": "and",
+     "conditions": [
+      {
+       "id": "r1",
+       "leftValue": "={{ ($json.output || '').trim() }}",
+       "rightValue": "",
+       "operator": {
+        "type": "string",
+        "operation": "notEmpty",
+        "singleValue": true
+       }
+      }
+     ]
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "enviar",
+   "name": "Enviar respuesta",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    1700,
+    -200
+   ],
+   "parameters": {
+    "authentication": "genericCredentialType",
+    "genericAuthType": "httpHeaderAuth",
+    "method": "POST",
+    "url": "https://crm-ap-suministros.vercel.app/api/v1/messages",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ to: $('Leer conversación').item.json.data.contact.phone, type: 'text', text: $json.output.trim() }) }}",
+    "options": {}
+   },
+   "retryOnFail": true,
+   "maxTries": 2
+  },
+  {
+   "id": "notexto",
+   "name": "Responder: solo texto",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    1120,
+    220
+   ],
+   "parameters": {
+    "authentication": "genericCredentialType",
+    "genericAuthType": "httpHeaderAuth",
+    "method": "POST",
+    "url": "https://crm-ap-suministros.vercel.app/api/v1/messages",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ to: $('Leer conversación').item.json.data.contact.phone, type: 'text', text: 'Gracias. Por ahora solo puedo leer mensajes de texto. Escríbame qué producto necesita (medida, material o modelo y cantidad) y le ayudo con su cotización. Si prefiere, le paso con una persona.' }) }}",
+    "options": {}
+   }
+  },
+  {
+   "id": "manual",
+   "name": "Registrar webhook en el CRM (una vez)",
+   "type": "n8n-nodes-base.manualTrigger",
+   "typeVersion": 1,
+   "position": [
+    0,
+    420
+   ],
+   "parameters": {}
+  },
+  {
+   "id": "registrar",
+   "name": "Crear webhook en el CRM",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    240,
+    420
+   ],
+   "parameters": {
+    "authentication": "genericCredentialType",
+    "genericAuthType": "httpHeaderAuth",
+    "method": "POST",
+    "url": "https://crm-ap-suministros.vercel.app/api/v1/webhooks",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ url: 'https://automatizaciones-n8n.ttjgax.easypanel.host/webhook/ap-suministros-bot-c7d4a4c86739', events: ['message.received'] }) }}",
+    "options": {}
+   }
+  }
+ ],
+ "connections": {
+  "Mensaje del CRM": {
+   "main": [
+    [
+     {
+      "node": "Datos del mensaje",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Datos del mensaje": {
+   "main": [
+    [
+     {
+      "node": "Leer conversación",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Leer conversación": {
+   "main": [
+    [
+     {
+      "node": "¿Contesta el bot?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "¿Contesta el bot?": {
+   "main": [
+    [
+     {
+      "node": "¿Es texto?",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    []
+   ]
+  },
+  "¿Es texto?": {
+   "main": [
+    [
+     {
+      "node": "Asistente AP",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Responder: solo texto",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Asistente AP": {
+   "main": [
+    [
+     {
+      "node": "¿Hay respuesta?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "¿Hay respuesta?": {
+   "main": [
+    [
+     {
+      "node": "Enviar respuesta",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    []
+   ]
+  },
+  "Modelo": {
+   "ai_languageModel": [
+    [
+     {
+      "node": "Asistente AP",
+      "type": "ai_languageModel",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Memoria del chat": {
+   "ai_memory": [
+    [
+     {
+      "node": "Asistente AP",
+      "type": "ai_memory",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "ver_catalogo": {
+   "ai_tool": [
+    [
+     {
+      "node": "Asistente AP",
+      "type": "ai_tool",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "crear_solicitud": {
+   "ai_tool": [
+    [
+     {
+      "node": "Asistente AP",
+      "type": "ai_tool",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "pasar_a_humano": {
+   "ai_tool": [
+    [
+     {
+      "node": "Asistente AP",
+      "type": "ai_tool",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Registrar webhook en el CRM (una vez)": {
+   "main": [
+    [
+     {
+      "node": "Crear webhook en el CRM",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  }
+ },
+ "settings": {
+  "executionOrder": "v1",
+  "timezone": "America/Monterrey"
+ },
+ "pinData": {}
+}

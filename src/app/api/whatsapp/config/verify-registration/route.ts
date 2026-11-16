@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import {
   getSubscribedApps,
+  subscribeWabaToApp,
   verifyPhoneNumber,
 } from '@/lib/whatsapp/meta-api'
 
@@ -153,4 +154,60 @@ export async function GET() {
     registered_at: config.registered_at ?? null,
     subscribed_apps_at: config.subscribed_apps_at ?? null,
   })
+}
+
+// POST — vuelve a suscribir la cuenta de WhatsApp (WABA) a esta app con el
+// token guardado y devuelve qué apps quedaron suscritas. Sirve cuando se le
+// dieron permisos al usuario del sistema después de guardar la configuración
+// (el guardado intenta suscribir, falla sin bloquear y los mensajes reales
+// nunca llegan al webhook). No pide volver a pegar el token.
+export async function POST() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('account_id')
+    .eq('user_id', user.id)
+    .maybeSingle()
+  const accountId = profile?.account_id as string | undefined
+  if (!accountId) {
+    return NextResponse.json({ error: 'Sin cuenta' }, { status: 403 })
+  }
+  const { data: config } = await supabase
+    .from('whatsapp_config')
+    .select('id, waba_id, access_token')
+    .eq('account_id', accountId)
+    .maybeSingle()
+  if (!config?.waba_id) {
+    return NextResponse.json({ error: 'Falta la configuración o el WABA ID' }, { status: 400 })
+  }
+  let accessToken: string
+  try {
+    accessToken = decrypt(config.access_token)
+  } catch {
+    return NextResponse.json({ error: 'No se pudo leer el token guardado' }, { status: 500 })
+  }
+  try {
+    await subscribeWabaToApp({ wabaId: config.waba_id, accessToken })
+    await supabase
+      .from('whatsapp_config')
+      .update({ subscribed_apps_at: new Date().toISOString() })
+      .eq('id', config.id)
+    const apps = await getSubscribedApps({ wabaId: config.waba_id, accessToken })
+    return NextResponse.json({
+      ok: true,
+      apps: apps.map((a) => a.whatsapp_business_api_data?.name ?? a.whatsapp_business_api_data?.id ?? '?'),
+    })
+  } catch (err) {
+    return NextResponse.json(
+      { ok: false, error: err instanceof Error ? err.message : String(err) },
+      { status: 502 },
+    )
+  }
 }

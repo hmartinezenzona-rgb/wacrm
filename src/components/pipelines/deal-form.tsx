@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { DeliveryProofPanel } from "./delivery-proof";
 import { EncargoDetalle, leerEncargo } from "./encargo-detalle";
+import { WhatsappContacto, folioDeNotas } from "./whatsapp-contacto";
 import { acceptsDeliveryProof } from "@/lib/pipelines/delivery-stages";
 import type {
   DeliveryProofDraft,
@@ -353,15 +354,24 @@ export function DealForm({
                 ))}
               </select>
 
-              {linkedConversation && (
+              {/* AP: escribirle por WhatsApp aunque haya llegado por la página. */}
+              {deal && contactId ? (
+                <div className="mt-1">
+                  <WhatsappContacto
+                    contact={contacts.find((c) => c.id === contactId) ?? deal.contact ?? null}
+                    folio={folioDeNotas(deal.notes)}
+                    canSend={canSendMessages !== false}
+                  />
+                </div>
+              ) : linkedConversation ? (
                 <Link
-                  href="/inbox"
+                  href={`/inbox?c=${linkedConversation.id}`}
                   className="mt-1 inline-flex items-center gap-1.5 self-start rounded-md bg-primary/10 px-2 py-1 text-xs text-primary hover:bg-primary/20"
                 >
                   <MessageSquare className="h-3 w-3" />
                   {t("linkToConversation")}
                 </Link>
-              )}
+              ) : null}
             </div>
 
             {/* Edición Doña Miriam: solo el total; la moneda es siempre la de la

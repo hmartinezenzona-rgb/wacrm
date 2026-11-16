@@ -114,6 +114,7 @@ interface WhatsAppWebhookEntry {
         status: string
         timestamp: string
         recipient_id: string
+        errors?: Array<{ code?: number; title?: string; message?: string; error_data?: { details?: string } }>
       }>
     }
     field: string
@@ -272,6 +273,14 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
       // Handle status updates
       if (value.statuses) {
         for (const status of value.statuses) {
+          // Meta explica en `errors` por qué no entregó un mensaje; sin este
+          // log un "failed" no deja rastro (código, título, detalle).
+          if (status.status === 'failed') {
+            console.warn('[webhook] mensaje no entregado', JSON.stringify({
+              id: status.id,
+              errors: status.errors,
+            }))
+          }
           await handleStatusUpdate(status)
         }
       }

@@ -40,6 +40,13 @@ import {
   SendMessageError,
 } from '@/lib/whatsapp/send-message';
 import type { InteractiveMessagePayload } from '@/lib/whatsapp/interactive';
+import { prepararRespuestaBot } from '@/lib/whatsapp/formato-bot';
+
+// Cuentas cuyo bot externo (n8n) manda texto de un modelo de lenguaje: se
+// le da formato de WhatsApp, se parte en burbujas y se agregan botones.
+// Otra cuenta lo pide con "formato": "bot"; "formato": "tal_cual" lo apaga.
+const CUENTAS_FORMATO_BOT = new Set(['39beb051-96d0-4ee8-9d2f-f26a7ab4d9a7']);
+const PAUSA_ENTRE_BURBUJAS_MS = 700;
 
 export async function POST(request: Request) {
   try {
@@ -104,6 +111,53 @@ export async function POST(request: Request) {
       to,
       typeof body.name === 'string' ? body.name : null
     );
+
+    const formato = typeof body.formato === 'string' ? body.formato : '';
+    const darFormato =
+      type === 'text' &&
+      typeof body.text === 'string' &&
+      formato !== 'tal_cual' &&
+      (formato === 'bot' || CUENTAS_FORMATO_BOT.has(ctx.accountId));
+
+    if (darFormato) {
+      const piezas = prepararRespuestaBot(body.text as string);
+      if (piezas.length === 0) {
+        return fail('bad_request', "'text' is empty", 400);
+      }
+      const ids: string[] = [];
+      let ultimo: { messageId: string; whatsappMessageId: string | null } | null = null;
+      for (const [i, pieza] of piezas.entries()) {
+        if (i > 0) await new Promise((r) => setTimeout(r, PAUSA_ENTRE_BURBUJAS_MS));
+        const r = await sendMessageToConversation(ctx.supabase, ctx.accountId, {
+          conversationId: resolved.conversationId,
+          messageType: pieza.tipo === 'texto' ? 'text' : 'interactive',
+          contentText: pieza.tipo === 'texto' ? pieza.texto : pieza.payload.body,
+          mediaUrl: null,
+          filename: null,
+          templateName: null,
+          templateLanguage: null,
+          interactivePayload: pieza.tipo === 'botones' ? pieza.payload : null,
+          replyToMessageId:
+            i === 0 && typeof body.reply_to_message_id === 'string'
+              ? body.reply_to_message_id
+              : null,
+          aiGenerated: true,
+        });
+        ids.push(r.messageId);
+        ultimo = { messageId: r.messageId, whatsappMessageId: r.whatsappMessageId ?? null };
+      }
+      return ok(
+        {
+          message_id: ultimo!.messageId,
+          whatsapp_message_id: ultimo!.whatsappMessageId,
+          message_ids: ids,
+          conversation_id: resolved.conversationId,
+          contact_id: resolved.contactId,
+          contact_created: resolved.contactCreated,
+        },
+        201
+      );
+    }
 
     const result = await sendMessageToConversation(
       ctx.supabase,

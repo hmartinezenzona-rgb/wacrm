@@ -339,12 +339,14 @@ export function DealForm({
               />
             </div>
 
-            <div className="grid gap-2">
+            {/* minmax(0,1fr): un nombre de cliente largo en la lista no puede
+                ensanchar la columna (en el celular se salía de la pantalla). */}
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
               <Label className="text-muted-foreground">{t("contact")}</Label>
               <select
                 value={contactId}
                 onChange={(e) => setContactId(e.target.value)}
-                className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                className="h-9 w-full min-w-0 max-w-full truncate rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
               >
                 <option value="">{t("selectContact")}</option>
                 {contacts.map((c) => (

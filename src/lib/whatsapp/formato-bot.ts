@@ -1,0 +1,150 @@
+/**
+ * Presentación de las respuestas del bot en WhatsApp (AP Suministros).
+ *
+ * Los modelos de lenguaje escriben en Markdown (**negrita**, ## títulos,
+ * [texto](url), "* viñeta") y en párrafos largos. WhatsApp no entiende
+ * Markdown: muestra los asteriscos dobles y los gatos tal cual, y un bloque
+ * largo en una sola burbuja se lee mal en el celular.
+ *
+ * Aquí se hace tres cosas antes de mandar:
+ *  1. Pasar Markdown al formato propio de WhatsApp (*negrita*, _cursiva_,
+ *     "- " para viñetas, "1. " para numeradas).
+ *  2. Partir un texto largo en 2 o 3 burbujas, siempre en un salto de
+ *     párrafo (nunca a media frase).
+ *  3. Si el mensaje termina pidiendo confirmar ("¿Está correcto?"), la
+ *     última burbuja sale con botones de respuesta rápida: el cliente toca
+ *     en vez de escribir. El bot también puede pedir botones a mano con una
+ *     última línea "[botones: Opción A | Opción B]".
+ */
+import type { InteractiveButtonsPayload } from './interactive'
+
+export type PiezaBot =
+  | { tipo: 'texto'; texto: string }
+  | { tipo: 'botones'; payload: InteractiveButtonsPayload }
+
+/** Más de esto en una sola burbuja se parte en párrafos. */
+const LARGO_BURBUJA = 380
+const MAX_BURBUJAS = 3
+const MAX_TITULO_BOTON = 20
+
+export function aFormatoWhatsapp(entrada: string): string {
+  let t = (entrada ?? '').replace(/\r\n?/g, '\n')
+
+  // Bloques de código: WhatsApp los muestra feos; se quedan solo los ``` de monoespacio.
+  t = t.replace(/```[a-z]*\n?/gi, '```')
+
+  // Títulos Markdown → renglón en negrita.
+  t = t.replace(/^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/gm, (_m, x: string) => `*${limpiarNegrita(x)}*`)
+
+  // **negrita** / __negrita__ → *negrita*
+  t = t.replace(/\*\*(.+?)\*\*/g, (_m, x: string) => `*${x.trim()}*`)
+  t = t.replace(/__(.+?)__/g, (_m, x: string) => `*${x.trim()}*`)
+
+  // Viñetas "* " o "• " al inicio del renglón → "- " (las entiende WhatsApp).
+  t = t.replace(/^(\s*)[*•·]\s+/gm, '$1- ')
+
+  // Numeradas "1) " → "1. "
+  t = t.replace(/^(\s*)(\d{1,2})\)\s+/gm, '$1$2. ')
+
+  // [texto](url) → texto: url
+  t = t.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, (_m, txt: string, url: string) =>
+    txt.trim() === url ? url : `${txt.trim()}: ${url}`,
+  )
+
+  // Separadores "---" y tablas no existen en WhatsApp.
+  t = t.replace(/^\s*([-*_])\1{2,}\s*$/gm, '')
+  t = t.replace(/^\s*\|?(\s*:?-{3,}:?\s*\|)+\s*:?-*:?\s*$/gm, '')
+  t = t.replace(/^\s*\|(.+)\|\s*$/gm, (_m, fila: string) =>
+    '- ' + fila.split('|').map((c) => c.trim()).filter(Boolean).join(' · '),
+  )
+
+  // Espacios sobrantes y más de una línea en blanco seguida.
+  t = t.replace(/[ \t]+$/gm, '')
+  t = t.replace(/\n{3,}/g, '\n\n')
+  return t.trim()
+}
+
+function limpiarNegrita(x: string): string {
+  return x.replace(/\*+/g, '').trim()
+}
+
+/** Parte en burbujas solo por párrafos; agrupa párrafos cortos. */
+export function partirEnBurbujas(texto: string): string[] {
+  if (texto.length <= LARGO_BURBUJA) return [texto]
+  const parrafos = texto.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean)
+  if (parrafos.length < 2) return [texto]
+
+  const burbujas: string[] = []
+  let actual = ''
+  for (const p of parrafos) {
+    const junto = actual ? `${actual}\n\n${p}` : p
+    // Una lista que viene justo después de su encabezado ("Su solicitud:")
+    // no se separa de él.
+    const esContinuacion = /^(-|\d{1,2}\.)\s/.test(p) && /:\s*$/.test(actual)
+    if (actual && junto.length > LARGO_BURBUJA && !esContinuacion) {
+      burbujas.push(actual)
+      actual = p
+    } else {
+      actual = junto
+    }
+  }
+  if (actual) burbujas.push(actual)
+
+  // Nunca más de 3 burbujas seguidas: lo que sobra se junta en la última.
+  while (burbujas.length > MAX_BURBUJAS) {
+    const ultima = burbujas.pop() as string
+    burbujas[burbujas.length - 1] += `\n\n${ultima}`
+  }
+  return burbujas
+}
+
+const PIDE_CONFIRMAR =
+  /¿\s*(?:(?:es|está|esta|son|están|estan|queda|quedó)\s+(?:todo\s+)?(?:correct[oa]s?|bien)|lo\s+registro|la\s+registro|confirma(?:mos)?|le\s+parece\s+bien|procedo)[^?]*\?\s*$/i
+
+function tituloBoton(x: string): string {
+  const t = x.replace(/[*_~`]/g, '').trim()
+  return t.length <= MAX_TITULO_BOTON ? t : t.slice(0, MAX_TITULO_BOTON - 1).trimEnd() + '…'
+}
+
+/**
+ * Convierte la respuesta del bot en las piezas a enviar, en orden.
+ * Si la última burbuja lleva botones, va como mensaje interactivo.
+ */
+export function prepararRespuestaBot(entrada: string): PiezaBot[] {
+  let texto = aFormatoWhatsapp(entrada)
+  if (!texto) return []
+
+  // Botones pedidos por el bot: última línea "[botones: A | B | C]".
+  let botones: string[] | null = null
+  const marca = texto.match(/\n?\s*\[botones?\s*:\s*([^\]]+)\]\s*$/i)
+  if (marca) {
+    botones = marca[1].split('|').map(tituloBoton).filter(Boolean).slice(0, 3)
+    texto = texto.slice(0, marca.index).trim()
+  } else if (PIDE_CONFIRMAR.test(texto)) {
+    botones = ['Sí, es correcto', 'Corregir algo']
+  }
+
+  const burbujas = partirEnBurbujas(texto)
+  const piezas: PiezaBot[] = burbujas.map((b) => ({ tipo: 'texto', texto: b }))
+
+  const ultima = burbujas[burbujas.length - 1]
+  if (botones && botones.length > 0 && ultima && ultima.length <= 1024) {
+    const ids = new Set<string>()
+    piezas[piezas.length - 1] = {
+      tipo: 'botones',
+      payload: {
+        kind: 'buttons',
+        body: ultima,
+        buttons: botones
+          .filter((b) => {
+            const k = b.toLowerCase()
+            if (ids.has(k)) return false
+            ids.add(k)
+            return true
+          })
+          .map((title, i) => ({ id: `bot_${i + 1}`, title })),
+      },
+    }
+  }
+  return piezas
+}

@@ -163,10 +163,12 @@ export function WhatsappContacto({
   const sinTelefono = !contact.phone;
 
   return (
-    <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
-      <div className="flex items-center gap-2">
+    <div className="min-w-0 max-w-full rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
+      {/* En el celular el botón baja a su propio renglón, a todo lo ancho;
+          en pantalla grande va a la derecha del teléfono. */}
+      <div className="flex flex-wrap items-center gap-2">
         <MessageCircle className="h-4 w-4 shrink-0 text-emerald-500" />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+        <span className="min-w-0 flex-1 text-sm font-medium text-foreground">
           WhatsApp {contact.phone ? `· ${telefonoBonito(contact.phone)}` : ""}
         </span>
         {cargando ? (
@@ -177,7 +179,7 @@ export function WhatsappContacto({
           <button
             type="button"
             onClick={() => router.push(`/inbox?c=${convId}`)}
-            className="h-8 shrink-0 rounded-md bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700"
+            className="h-9 w-full shrink-0 rounded-md bg-emerald-600 px-3 sm:h-8 sm:w-auto text-xs font-semibold text-white hover:bg-emerald-700"
           >
             Abrir chat
           </button>
@@ -186,7 +188,7 @@ export function WhatsappContacto({
             type="button"
             disabled={!canSend || enviando}
             onClick={escribir}
-            className="flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+            className="flex h-9 w-full shrink-0 items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-3 sm:h-8 sm:w-auto text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
           >
             {enviando && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             Escribir por WhatsApp

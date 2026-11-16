@@ -281,14 +281,14 @@
       "botError": "Couldn't change the bot state"
     },
     "aiBanner": {
-      "pausedTitle": "AI assistant is paused here",
-      "activeText": "AI assistant is replying automatically",
-      "takeOver": "Take over",
-      "resume": "Resume AI",
-      "tookOver": "You’ve taken over this chat.",
-      "resumed": "AI resumed.",
-      "updateError": "Couldn’t update the AI assistant.",
-      "networkError": "Couldn’t reach the server."
+      "pausedTitle": "El bot está en pausa en este chat",
+      "activeText": "El bot está contestando este chat",
+      "takeOver": "Tomar el control",
+      "resume": "Reanudar bot",
+      "tookOver": "Tomaste el control de este chat.",
+      "resumed": "El bot volvió a contestar.",
+      "updateError": "No se pudo cambiar el bot.",
+      "networkError": "No se pudo conectar con el servidor."
     }
   },
   "Contacts": {

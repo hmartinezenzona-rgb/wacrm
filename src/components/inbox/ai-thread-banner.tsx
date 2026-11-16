@@ -21,6 +21,7 @@ import { useAuth } from "@/hooks/use-auth";
 interface AiAccountStatus {
   autoReplyOn: boolean;
 }
+const BOT_EXTERNO = true;
 const statusCache = new Map<string, AiAccountStatus>();
 
 async function fetchAiAccountStatus(accountId: string): Promise<AiAccountStatus> {
@@ -135,7 +136,9 @@ export function AiThreadBanner({
   );
 
   // Account has no auto-reply → nothing to show. (Still loading → nothing.)
-  if (!autoReplyOn) return null;
+  // AP: el bot vive en n8n (no en la IA integrada), así que el aviso y los
+  // botones Tomar el control / Reanudar bot se muestran siempre.
+  if (!autoReplyOn && !BOT_EXTERNO) return null;
 
   // Paused here (a human took over, or the model handed off).
   if (paused) {

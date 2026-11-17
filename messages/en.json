@@ -434,6 +434,11 @@
       "optionalAmount": "Optional",
       "changeStatus": "Change state",
       "confirmChangeStatus": "Confirm the state change",
+      "attachReceipt": {
+        "label": "Attach a receipt from the chat",
+        "attachedPrefilled": "Receipt attached. The reference and the amount came from the image: check them and verify.",
+        "attached": "Receipt attached. Type the reference and the amount and verify."
+      },
       "depositMove": {
         "button": "Release or move this deposit",
         "choose": "What to do with the deposit?",

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { canForceVerify, type AccountRole } from "@/lib/auth/roles";
 import { fetchOperationReceipts, forceVerifyDeposit, verifyDeposit } from "@/lib/remittance-operations/commands";
+import { AttachReceiptControl } from "./attach-receipt-control";
 import { ConsumedDepositsControl } from "./consumed-deposits-control";
 import { FreeDepositsPicker } from "./free-deposits-picker";
 import type { OperationReceiptsRead, VerifyDepositItem } from "@/lib/remittance-operations/types";
@@ -42,6 +43,8 @@ interface DepositReviewContainerProps {
   initialData?: OperationReceiptsRead;
   /** The other open operations of the same conversation: where a verified deposit can be moved (migration 381). */
   moveTargets?: { id: string; label: string }[];
+  /** The operation's conversation: where the "attach a receipt from the chat" picker reads the images (migration 382). */
+  conversationId?: string;
 }
 
 type ResultBanner = { kind: "success" | "error"; message: string } | null;
@@ -91,6 +94,7 @@ export function DepositReviewContainer({
   refreshToken,
   initialData,
   moveTargets,
+  conversationId,
 }: DepositReviewContainerProps) {
   const t = useTranslations("Inbox.operationsPanel");
   const [state, setState] = useState<FetchState>(() =>
@@ -236,6 +240,10 @@ export function DepositReviewContainer({
         summaryAmount={summaryAmount}
         onAddAmount={onAddAmount}
       />
+      {canEdit && conversationId && data.status !== "completed" && data.status !== "cancelled" && (
+        // (382) An image of the chat becomes a receipt of this operation (it verifies nothing: the verify above does).
+        <AttachReceiptControl operationId={operationId} conversationId={conversationId} onAttached={load} />
+      )}
       {canEdit && data.consumedDeposits.length > 0 && data.status !== "completed" && data.status !== "cancelled" && (
         // (381) A verified deposit is released (free again) or moved to another open operation of the conversation.
         <ConsumedDepositsControl

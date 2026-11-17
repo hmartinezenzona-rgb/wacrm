@@ -182,6 +182,28 @@ export async function moverDeposito(
   return { ok: true, ...response.data };
 }
 
+export type AdjuntarComprobanteCommandResult =
+  | { ok: true; compId: string | null; reference: string | null; amount: number | null; prefilled: boolean }
+  | { ok: false; status: number; error: string };
+
+/** `crm_adjuntar_comprobante` (migration 382): attaches an image of the chat as a receipt of the operation. Only the image is required:
+ *  the reference and the amount are the typed ones or the ones of the system's own reading of that image. It verifies nothing. */
+export async function adjuntarComprobante(
+  operationId: string,
+  wamid: string,
+  ref: string | null = null,
+  monto: number | null = null,
+): Promise<AdjuntarComprobanteCommandResult> {
+  const response = await postJsonResult<{
+    compId: string | null;
+    reference: string | null;
+    amount: number | null;
+    prefilled: boolean;
+  }>(`/api/remittance-operations/${operationId}/receipts`, "POST", { wamid, ref, monto });
+  if (!response.ok) return response;
+  return { ok: true, ...response.data };
+}
+
 export type CrearOperacionCommandResult =
   | { ok: true; id: string; service: string }
   | { ok: false; status: number; error: string };

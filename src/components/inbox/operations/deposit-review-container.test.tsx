@@ -45,6 +45,16 @@ vi.mock("@/lib/remittance-operations/commands", () => ({
 
 // The release/move control has its own form and request (consumed-deposits-control.test.tsx): here it is a stub that exposes what the
 // container hands it and "moves" on click, so this file tests where the container puts it and what it does afterwards.
+// The attach-receipt control owns the chat-image picker and its request (attach-receipt-control.test.tsx): here a stub that shows what the
+// container hands it and "attaches" on click.
+vi.mock("./attach-receipt-control", () => ({
+  AttachReceiptControl: ({ operationId, conversationId, onAttached }: { operationId: string; conversationId: string; onAttached: () => void }) => (
+    <button type="button" data-testid="attach-receipt" data-op={operationId} data-conversation={conversationId} onClick={onAttached}>
+      attach
+    </button>
+  ),
+}));
+
 vi.mock("./consumed-deposits-control", () => ({
   ConsumedDepositsControl: ({ operationId, deposits, targets, onMoved }: { operationId: string; deposits: unknown[]; targets: { id: string }[]; onMoved: () => void }) => (
     <button type="button" data-testid="move-deposits" data-op={operationId} data-count={deposits.length} data-targets={targets.map((x) => x.id).join(",")} onClick={onMoved}>
@@ -118,6 +128,7 @@ interface RenderOptions {
   summaryAmount?: SummaryAmount | null;
   onAddAmount?: () => void;
   moveTargets?: { id: string; label: string }[];
+  conversationId?: string;
 }
 
 async function renderContainer(options: RenderOptions = {}) {
@@ -136,6 +147,7 @@ async function renderContainer(options: RenderOptions = {}) {
         summaryAmount={options.summaryAmount}
         onAddAmount={options.onAddAmount}
         moveTargets={options.moveTargets}
+        conversationId={options.conversationId}
       />,
     ),
   );
@@ -560,5 +572,48 @@ describe("DepositReviewContainer: release or move a verified deposit", () => {
 
     expect(fetchOperationReceipts).toHaveBeenCalledTimes(2);
     expect(onChanged).toHaveBeenCalledTimes(1);
+  });
+});
+
+// panel-fully-editable T3a: attach a chat image as a receipt from the deposit block.
+describe("DepositReviewContainer: attach a receipt from the chat", () => {
+  const attach = (node: Element) => node.querySelector<HTMLButtonElement>('[data-testid="attach-receipt"]');
+
+  it("offers the control with the conversation to an editor on an open operation", async () => {
+    fetchOperationReceipts.mockResolvedValue({ ok: true, data: readModel({ receipts: [] }) });
+    const { node } = await renderContainer({ conversationId: "conv-1" });
+    await flush();
+
+    expect(attach(node)).not.toBeNull();
+    expect(attach(node)!.dataset.op).toBe("op-1");
+    expect(attach(node)!.dataset.conversation).toBe("conv-1");
+  });
+
+  it("offers nothing without a conversation, to a user who cannot edit, nor on a closed operation", async () => {
+    fetchOperationReceipts.mockResolvedValue({ ok: true, data: readModel({ receipts: [] }) });
+    const a = await renderContainer();
+    await flush();
+    expect(attach(a.node)).toBeNull();
+
+    const b = await renderContainer({ conversationId: "conv-1", canEdit: false });
+    await flush();
+    expect(attach(b.node)).toBeNull();
+
+    fetchOperationReceipts.mockResolvedValue({ ok: true, data: readModel({ status: "completed", canVerify: false }) });
+    const c = await renderContainer({ conversationId: "conv-1" });
+    await flush();
+    expect(attach(c.node)).toBeNull();
+  });
+
+  it("once a receipt is attached it reloads the receipts", async () => {
+    fetchOperationReceipts.mockResolvedValue({ ok: true, data: readModel({ receipts: [] }) });
+    const { node } = await renderContainer({ conversationId: "conv-1" });
+    await flush();
+    expect(fetchOperationReceipts).toHaveBeenCalledTimes(1);
+
+    await act(async () => attach(node)!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await flush();
+
+    expect(fetchOperationReceipts).toHaveBeenCalledTimes(2);
   });
 });

@@ -434,6 +434,11 @@
       "optionalAmount": "Opcional",
       "changeStatus": "Cambiar estado",
       "confirmChangeStatus": "Confirmar el cambio de estado",
+      "attachReceipt": {
+        "label": "Adjuntar comprobante del chat",
+        "attachedPrefilled": "Comprobante adjuntado. La referencia y el monto salieron de la imagen: revísalos y verifica.",
+        "attached": "Comprobante adjuntado. Escribe la referencia y el monto y verifica."
+      },
       "depositMove": {
         "button": "Soltar o mover este depósito",
         "choose": "¿Qué hacer con el depósito?",

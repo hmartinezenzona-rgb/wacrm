@@ -695,6 +695,7 @@ export function RemittanceOperationCard({
             refreshToken={refreshToken}
             initialData={initialReceipts}
             moveTargets={otherOpenOperations}
+            conversationId={conversationId}
           />
 
           {!isVisa(operation) && (

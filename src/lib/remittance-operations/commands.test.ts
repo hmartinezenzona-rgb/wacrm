@@ -12,6 +12,7 @@ import {
   cambiarEstado,
   fetchFreeDeposits,
   moverDeposito,
+  adjuntarComprobante,
   fetchOperationReceipts,
   fetchChatImages,
   verifyDeposit,
@@ -754,5 +755,37 @@ describe("moverDeposito", () => {
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ error: "the target operation is closed" }, 400));
 
     expect(await moverDeposito(OPERATION_ID, "T-1", TARGET_OPERATION_ID)).toEqual({ ok: false, status: 400, error: "the target operation is closed" });
+  });
+});
+
+describe("adjuntarComprobante", () => {
+  it("POSTs the image (and the typed reference and amount) to the receipts route", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ok: true, compId: "COMP-1", reference: "104", amount: 13000, prefilled: true }));
+
+    const result = await adjuntarComprobante(OPERATION_ID, "wamid.X", "104", 13000);
+
+    expect(fetch).toHaveBeenCalledWith(
+      `/api/remittance-operations/${OPERATION_ID}/receipts`,
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wamid: "wamid.X", ref: "104", monto: 13000 }),
+      }),
+    );
+    expect(result).toEqual({ ok: true, compId: "COMP-1", reference: "104", amount: 13000, prefilled: true });
+  });
+
+  it("with only the image the reference and the amount go as null", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ok: true, compId: "COMP-1", reference: null, amount: null, prefilled: false }));
+
+    await adjuntarComprobante(OPERATION_ID, "wamid.X");
+
+    expect(fetch).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ body: JSON.stringify({ wamid: "wamid.X", ref: null, monto: null }) }));
+  });
+
+  it("maps a refusal to ok:false with status and error message", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ error: "this image is already a receipt of the operation" }, 400));
+
+    expect(await adjuntarComprobante(OPERATION_ID, "wamid.X")).toEqual({ ok: false, status: 400, error: "this image is already a receipt of the operation" });
   });
 });

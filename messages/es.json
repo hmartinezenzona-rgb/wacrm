@@ -437,7 +437,8 @@
       "attachReceipt": {
         "label": "Adjuntar comprobante del chat",
         "attachedPrefilled": "Comprobante adjuntado. La referencia y el monto salieron de la imagen: revísalos y verifica.",
-        "attached": "Comprobante adjuntado. Escribe la referencia y el monto y verifica."
+        "attached": "Comprobante adjuntado. Escribe la referencia y el monto y verifica.",
+        "attachedNeedsStage": "Comprobante adjuntado. Pásalo a «Verificación de depósito» para verificarlo."
       },
       "depositMove": {
         "button": "Soltar o mover este depósito",
@@ -567,6 +568,7 @@
         "amountDeposited": "Monto depositado",
         "transId": "TransID",
         "verify": "Verificar depósito",
+        "moveToVerification": "Pasar a verificación de depósito",
         "force": "Forzar verificación…",
         "forceConfirm": "Forzar",
         "cancel": "Cancelar",

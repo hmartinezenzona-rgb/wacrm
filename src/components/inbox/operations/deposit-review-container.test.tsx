@@ -14,6 +14,7 @@ import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import en from "../../../../messages/en.json";
+import es from "../../../../messages/es.json";
 import type { OperationReceiptsRead, VerifyDepositResult } from "@/lib/remittance-operations/types";
 import type { SummaryAmount } from "./deposit-review-section";
 
@@ -36,7 +37,9 @@ const fetchOperationReceipts = vi.fn();
 const verifyDeposit = vi.fn();
 const forceVerifyDeposit = vi.fn();
 const fetchFreeDeposits = vi.fn();
+const cambiarEstado = vi.fn();
 vi.mock("@/lib/remittance-operations/commands", () => ({
+  cambiarEstado: (...args: unknown[]) => cambiarEstado(...args),
   fetchFreeDeposits: (...args: unknown[]) => fetchFreeDeposits(...args),
   fetchOperationReceipts: (...args: unknown[]) => fetchOperationReceipts(...args),
   verifyDeposit: (...args: unknown[]) => verifyDeposit(...args),
@@ -629,5 +632,58 @@ describe("DepositReviewContainer: attach a receipt from the chat", () => {
     await flush();
 
     expect(fetchOperationReceipts).toHaveBeenCalledTimes(2);
+  });
+});
+
+// Staging 2026-11-17: an operation created from scratch stays in
+// collecting_information, so a just-attached receipt had no verify form.
+// The receipt block offers the audited status change (migration 379) that
+// moves it to deposit_verification, where the verify form lives.
+describe("DepositReviewContainer: move to deposit verification from the receipt block", () => {
+  const moveButton = (node: Element) => textButton(node, en.Inbox.operationsPanel.depositReview.moveToVerification);
+  const collecting = () => readModel({ status: "collecting_information", canVerify: false });
+
+  it("offers the action to an editor on an open operation with a receipt and no verification to run", async () => {
+    fetchOperationReceipts.mockResolvedValue({ ok: true, data: collecting() });
+    const { node } = await renderContainer();
+    await flush();
+
+    expect(moveButton(node)).not.toBeUndefined();
+    expect(es.Inbox.operationsPanel.depositReview.moveToVerification).toBe("Pasar a verificación de depósito");
+    expect(en.Inbox.operationsPanel.depositReview.moveToVerification).toBe("Move to deposit verification");
+  });
+
+  it("clicking it changes the status, refetches the receipts and tells the panel", async () => {
+    fetchOperationReceipts
+      .mockResolvedValueOnce({ ok: true, data: collecting() })
+      .mockResolvedValueOnce({ ok: true, data: readModel({ status: "deposit_verification", canVerify: true }) });
+    cambiarEstado.mockResolvedValue({ ok: true, changed: true, newStatus: "deposit_verification" });
+    const onChanged = vi.fn();
+    const { node } = await renderContainer({ onChanged });
+    await flush();
+    expect(fetchOperationReceipts).toHaveBeenCalledTimes(1);
+
+    await act(async () => moveButton(node)!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await flush();
+
+    expect(cambiarEstado).toHaveBeenCalledWith("op-1", "deposit_verification", false);
+    expect(fetchOperationReceipts).toHaveBeenCalledTimes(2);
+    expect(onChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers nothing once verification is already available", async () => {
+    fetchOperationReceipts.mockResolvedValue({ ok: true, data: readModel() });
+    const { node } = await renderContainer();
+    await flush();
+
+    expect(moveButton(node)).toBeUndefined();
+  });
+
+  it("offers nothing to a user who cannot edit", async () => {
+    fetchOperationReceipts.mockResolvedValue({ ok: true, data: collecting() });
+    const { node } = await renderContainer({ canEdit: false });
+    await flush();
+
+    expect(moveButton(node)).toBeUndefined();
   });
 });

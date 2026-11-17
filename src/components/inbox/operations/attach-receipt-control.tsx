@@ -10,6 +10,10 @@ interface AttachReceiptControlProps {
   conversationId: string;
   /** The receipt was attached: the panel reloads the receipts. */
   onAttached: () => void;
+  /** Whether the operation is in a state where the verify form exists. When
+   *  it is not, the note tells the person to move the operation to deposit
+   *  verification instead of pointing at a form that isn't there. */
+  verifyAvailable?: boolean;
 }
 
 /**
@@ -18,7 +22,7 @@ interface AttachReceiptControlProps {
  * nothing: the person types or checks the reference and the amount and uses the verify of the deposit block. The server re-checks role, the
  * state of the operation and that the image belongs to its conversation.
  */
-export function AttachReceiptControl({ operationId, conversationId, onAttached }: AttachReceiptControlProps) {
+export function AttachReceiptControl({ operationId, conversationId, onAttached, verifyAvailable = true }: AttachReceiptControlProps) {
   const t = useTranslations("Inbox.operationsPanel");
   const [pending, setPending] = useState(false);
   const [note, setNote] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
@@ -33,7 +37,14 @@ export function AttachReceiptControl({ operationId, conversationId, onAttached }
       setNote({ kind: "error", text: result.error });
       return;
     }
-    setNote({ kind: "ok", text: result.prefilled ? t("attachReceipt.attachedPrefilled") : t("attachReceipt.attached") });
+    setNote({
+      kind: "ok",
+      text: verifyAvailable
+        ? result.prefilled
+          ? t("attachReceipt.attachedPrefilled")
+          : t("attachReceipt.attached")
+        : t("attachReceipt.attachedNeedsStage"),
+    });
     onAttached();
   }
 

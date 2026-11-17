@@ -38,12 +38,16 @@ afterEach(() => {
 
 const A = en.Inbox.operationsPanel.attachReceipt;
 
-async function render(onAttached = vi.fn()) {
+async function render(onAttached = vi.fn(), verifyAvailable?: boolean) {
   const { AttachReceiptControl } = await import("./attach-receipt-control");
   const node = document.createElement("div");
   document.body.appendChild(node);
   const root = createRoot(node);
-  await act(async () => root.render(<AttachReceiptControl operationId="op-1" conversationId="conv-1" onAttached={onAttached} />));
+  await act(async () =>
+    root.render(
+      <AttachReceiptControl operationId="op-1" conversationId="conv-1" onAttached={onAttached} verifyAvailable={verifyAvailable} />,
+    ),
+  );
   return { node, root, onAttached };
 }
 
@@ -79,6 +83,28 @@ describe("AttachReceiptControl", () => {
 
     expect(node.textContent).toContain(A.attached);
     expect(node.textContent).not.toContain(A.attachedPrefilled);
+    await act(async () => root.unmount());
+  });
+
+  it("when there is no verification to run it says to move the operation to deposit verification", async () => {
+    adjuntarComprobante.mockResolvedValue({ ok: true, compId: "COMP-1", reference: "104", amount: 13000, prefilled: true });
+    const { node, root } = await render(vi.fn(), false);
+
+    await pickImage(node);
+
+    expect(node.textContent).toContain(A.attachedNeedsStage);
+    expect(node.textContent).not.toContain(A.attachedPrefilled);
+    await act(async () => root.unmount());
+  });
+
+  it("with verification available it keeps saying to check the data and verify", async () => {
+    adjuntarComprobante.mockResolvedValue({ ok: true, compId: "COMP-1", reference: "104", amount: 13000, prefilled: true });
+    const { node, root } = await render(vi.fn(), true);
+
+    await pickImage(node);
+
+    expect(node.textContent).toContain(A.attachedPrefilled);
+    expect(node.textContent).not.toContain(A.attachedNeedsStage);
     await act(async () => root.unmount());
   });
 

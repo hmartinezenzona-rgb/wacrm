@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { canForceVerify, type AccountRole } from "@/lib/auth/roles";
-import { fetchOperationReceipts, forceVerifyDeposit, verifyDeposit } from "@/lib/remittance-operations/commands";
+import { Button } from "@/components/ui/button";
+import { cambiarEstado, fetchOperationReceipts, forceVerifyDeposit, verifyDeposit } from "@/lib/remittance-operations/commands";
 import { AttachReceiptControl } from "./attach-receipt-control";
 import { ConsumedDepositsControl } from "./consumed-deposits-control";
 import { FreeDepositsPicker } from "./free-deposits-picker";
@@ -189,6 +190,25 @@ export function DepositReviewContainer({
     onChanged();
   }
 
+  /** `crm_cambiar_estado` (migration 379), muted: an operation created from
+   *  scratch stays in collecting_information, where a just-attached receipt
+   *  has no verify form to run against. Moving it to deposit_verification
+   *  is what makes that form exist at all. */
+  async function handleMoveToVerification() {
+    setBusy(true);
+    const response = await cambiarEstado(operationId, "deposit_verification", false);
+    setBusy(false);
+
+    if (!response.ok) {
+      setResult({ kind: "error", message: response.status === 409 ? t("depositReview.conflict") : response.error });
+      return;
+    }
+
+    setResult(null);
+    await load();
+    onChanged();
+  }
+
   if (state.status === "loading") {
     // A skeleton in the block's own shape — same fix as the panel
     // container's own loading state (operations-panel-container.tsx):
@@ -226,6 +246,10 @@ export function DepositReviewContainer({
   const canForce = role !== null && canForceVerify(role);
   const isOpen = data.status !== "completed" && data.status !== "cancelled";
   const canAttach = canEdit && Boolean(conversationId) && isOpen;
+  // Staging 2026-11-17: a receipt attached to an operation that is not
+  // awaiting verification has no verify form. The card offers the audited
+  // status change that puts it in the state where the form exists.
+  const canMoveToVerification = canEdit && isOpen && data.receipts.length > 0 && !data.canVerify;
   const canMoveDeposit = canEdit && isOpen && data.consumedDeposits.length > 0;
   // The attach and the deposit-release controls live outside the verification stage: an open
   // operation with no receipts still needs its chat image attached (staging, 2026-11-17).
@@ -250,7 +274,20 @@ export function DepositReviewContainer({
       )}
       {canAttach && (
         // (382) An image of the chat becomes a receipt of this operation (it verifies nothing: the verify above does).
-        <AttachReceiptControl operationId={operationId} conversationId={conversationId!} onAttached={load} />
+        <AttachReceiptControl operationId={operationId} conversationId={conversationId!} onAttached={load} verifyAvailable={canVerify} />
+      )}
+      {canMoveToVerification && (
+        // (379) This operation is not awaiting verification, so the verify form does not exist yet: move it there.
+        <div className="space-y-1">
+          <Button type="button" className="w-full" disabled={busy} onClick={handleMoveToVerification}>
+            {t("depositReview.moveToVerification")}
+          </Button>
+          {result && (
+            <p role="status" className={result.kind === "success" ? "text-xs text-emerald-600" : "text-xs text-destructive"}>
+              {result.message}
+            </p>
+          )}
+        </div>
       )}
       {canMoveDeposit && (
         // (381) A verified deposit is released (free again) or moved to another open operation of the conversation.

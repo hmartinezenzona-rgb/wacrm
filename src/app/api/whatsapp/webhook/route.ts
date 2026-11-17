@@ -965,6 +965,11 @@ async function processMessage(
     whatsapp_message_id: message.id,
     content_type: contentType,
     text: contentText,
+    // Para que un bot externo pueda escuchar audios y ver fotos: la URL
+    // pública del archivo guardado en Storage (null si no se pudo guardar
+    // y quedó la ruta interna /api/whatsapp/media/…, que pide sesión).
+    media_url: mediaUrl && /^https?:\/\//.test(mediaUrl) ? mediaUrl : null,
+    mime_type: mediaType,
   })
   // El mensaje está guardado en `messages` — el único true legítimo.
   return true

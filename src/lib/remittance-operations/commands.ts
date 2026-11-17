@@ -140,6 +140,26 @@ export function reasignarBeneficiario(
   );
 }
 
+export type CrearOperacionCommandResult =
+  | { ok: true; id: string; service: string }
+  | { ok: false; status: number; error: string };
+
+/** `crm_crear_operacion` (migration 378): creates an open operation from scratch in the conversation. `servicio` is one of the
+ *  panel's "Servicio" choices; `monto` is the deposit in GYD (null only for a combo, whose total is its recipients' sum). */
+export async function crearOperacion(
+  conversationId: string,
+  servicio: string,
+  monto: number | null,
+): Promise<CrearOperacionCommandResult> {
+  const response = await postJsonResult<{ id: string; service: string }>(
+    "/api/remittance-operations",
+    "POST",
+    { conversationId, servicio, monto },
+  );
+  if (!response.ok) return response;
+  return { ok: true, id: response.data.id, service: response.data.service };
+}
+
 export type QuitarBeneficiarioCommandResult =
   | { ok: true; id: string; complete: boolean }
   | { ok: false; status: number; error: string };

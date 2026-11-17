@@ -29,8 +29,9 @@ vi.mock("next-intl", () => ({
 // canEdit gate: `useCan` composes with `useAuth`, which needs a provider
 // this test doesn't set up. Mocked directly so the container's own
 // canEdit-computation logic is what's under test, not the auth context.
+const useCanMock = vi.fn(() => true);
 vi.mock("@/hooks/use-can", () => ({
-  useCan: () => true,
+  useCan: () => useCanMock(),
 }));
 
 const corregirBeneficiario = vi.fn();
@@ -38,6 +39,16 @@ vi.mock("@/lib/remittance-operations/commands", () => ({
   corregirOperacion: vi.fn(),
   corregirBeneficiario: (...args: unknown[]) => corregirBeneficiario(...args),
   reasignarBeneficiario: vi.fn(),
+}));
+
+// The "new operation" control has its own form and request (operation-create-control.test.tsx): here it is a button that "creates"
+// operation op-new, so this file tests where the container puts it and what it does once an operation is created.
+vi.mock("./operation-create-control", () => ({
+  OperationCreateControl: ({ conversationId, onCreated }: { conversationId: string; onCreated: (id: string) => void }) => (
+    <button type="button" data-testid="new-operation" data-conversation={conversationId} onClick={() => onCreated("op-new")}>
+      new operation
+    </button>
+  ),
 }));
 
 // Deposit review has its own fetch/network flow, covered by
@@ -787,6 +798,58 @@ describe("OperationsPanelContainer — the bot's quote", () => {
 
     expect(node.querySelectorAll("article")).toHaveLength(1);
     expect(node.textContent).not.toContain("Quoted:");
+    await act(async () => root.unmount());
+  });
+});
+
+describe("OperationsPanelContainer: new operation (panel-fully-editable T2)", () => {
+  const newOperationButton = (node: Element) => node.querySelector<HTMLButtonElement>('[data-testid="new-operation"]');
+
+  it("offers a new operation next to the title when the user can edit, and also when no operation is open", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ resolverState: "unica", resolverOperationId: "op-1", resolverCandidateCount: 1, operations: [OP1] })));
+    const a = await renderContainer("conv-1");
+    await flush();
+    expect(newOperationButton(a.node)).not.toBeNull();
+    expect(newOperationButton(a.node)!.dataset.conversation).toBe("conv-1");
+    await act(async () => a.root.unmount());
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ resolverState: "ninguna", resolverOperationId: null, resolverCandidateCount: 0, operations: [] })));
+    const b = await renderContainer("conv-2");
+    await flush();
+    expect(newOperationButton(b.node)).not.toBeNull();
+    await act(async () => b.root.unmount());
+  });
+
+  it("offers nothing to a user who cannot edit", async () => {
+    useCanMock.mockReturnValue(false);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ resolverState: "unica", resolverOperationId: "op-1", resolverCandidateCount: 1, operations: [OP1] })));
+    const { node, root } = await renderContainer("conv-1");
+    await flush();
+
+    expect(newOperationButton(node)).toBeNull();
+    useCanMock.mockReturnValue(true);
+    await act(async () => root.unmount());
+  });
+
+  it("once an operation is created the panel refetches and opens the new one", async () => {
+    const NEW = { ...OP2, id: "op-new", status: "collecting_information" as const };
+    const first = { resolverState: "unica", resolverOperationId: "op-1", resolverCandidateCount: 1, operations: [OP1] };
+    const second = { resolverState: "ambigua", resolverOperationId: null, resolverCandidateCount: 2, operations: [OP1, NEW] };
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse(first)).mockResolvedValue(jsonResponse(second));
+    vi.stubGlobal("fetch", fetchMock);
+    const { node, root } = await renderContainer("conv-1");
+    await flush();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await click(newOperationButton(node)!);
+    await flush();
+
+    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+    const cards = Array.from(node.querySelectorAll("article"));
+    expect(cards).toHaveLength(2);
+    const opened = toggleButtons(node).filter((button) => button.getAttribute("aria-expanded") === "true");
+    expect(opened).toHaveLength(1);
+    expect(opened[0]!.closest("article")).toBe(cards[1]);
     await act(async () => root.unmount());
   });
 });

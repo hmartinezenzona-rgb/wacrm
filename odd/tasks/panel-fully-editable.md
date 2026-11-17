@@ -41,7 +41,7 @@ Out: the bot, the Decisor, the notifier.
 ## Tasks
 - [~] T1 (code + tests done, staging panel check and production pending) Remove a recipient: `crm_quitar_beneficiario` (migration 377) + assertion; DELETE route; client command; button with inline
       confirm on each recipient; messages es/en; vitest
-- [ ] T2 Create an operation from scratch (design first: conversation, service, amount, recipients)
+- [~] T2 (code + tests done, staging panel check and production pending) Create an operation from scratch: `crm_crear_operacion` (migration 378), POST on the collection route, command, "New operation" control next to the panel title
 - [ ] T3 Attach a chat image as a receipt (owner decision first)
 - [ ] T4 Edit more values of an open operation (status, deposit, conversation links) with audit
 - [ ] T5 Edit closed operations, ledger-safe (owner decision first)
@@ -69,6 +69,20 @@ Out: the bot, the Decisor, the notifier.
 - Environment: the symlinked `node_modules` lacked jsdom; replaced with `npm ci --ignore-scripts` in this worktree (git-ignored).
   Also fixed a type error of my notifier test (dotAll regex flag), commit c3e40d76.
 
+- T2 SQL (commit a76c5c5e): assertion `create-operation.sql` RED on the base (function absent), GREEN with migration 378
+  (`staging-migracion.sh aplicar`: dry-run/apply/assertion/rollback OK, function md5 7e8a8de3). Design: `crm_crear_operacion(conversation,
+  service, amount)`: an open remesa (collecting_information, GYD) with the typed amount, then the panel's own `_cambiar_servicio_core`
+  applies the service (type, rail, destination currency, rail lock; a Mexico send pays out in MXN). Amount > 0 required except for a
+  combo (its total is the sum of its recipients): a 0 GYD operation is a ghost (the Elisvan case). Audit `human_operation_created`
+  (the audit-action constraint is re-created with the staging list after 377 plus the new action; ROLLBACK-378 re-adds the old list NOT VALID).
+  Related assertions (pattern crm_cambiar_servicio|_cambiar_servicio_core|crm_crear_operacion|admin_audit_action_chk|human_operation,
+  --ya-aplicada): TOTAL 13, SAME 12, DIFF 1 (create-operation RED->GREEN); grants-mirror-production and saldo-model fail identically on the base.
+- T2 app: route POST `/api/remittance-operations` (10 tests, `route.post.test.ts`), command `crearOperacion` (3 tests), component
+  `operation-create-control.tsx` (7 tests: button -> inline form with service + deposit, combo without amount, other services need an amount,
+  refusal shown, cancel), the container shows it next to the title when the user can edit (also with no open operation), refetches and
+  opens the new card (3 container tests, the control stubbed there like DepositReviewContainer). RED first on each. `npx vitest run
+  src/components/inbox/operations` 38 files, 637 tests; `npx tsc --noEmit` clean; eslint clean on the new files.
+
 ## Next step
-T1: look at it in the local staging panel with the owner (wacrm-probar-staging), then production migration 377 + panel publish, each
-with a go-ahead. Then T2.
+T1 and T2: look at them in the local staging panel (http://localhost:3100, fixture PRUEBA quitar destinatario, still in staging), then
+production: migrations 377 and 378 in that order, then the panel publish, each with a go-ahead. Then T3 (owner decision first).

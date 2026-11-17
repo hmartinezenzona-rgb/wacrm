@@ -8,6 +8,7 @@ import {
   corregirBeneficiario,
   reasignarBeneficiario,
   quitarBeneficiario,
+  crearOperacion,
   fetchOperationReceipts,
   fetchChatImages,
   verifyDeposit,
@@ -639,5 +640,42 @@ describe("quitarBeneficiario", () => {
     const result = await quitarBeneficiario(BENEFICIARY_ID);
 
     expect(result).toEqual({ ok: false, status: 400, error: "operation is closed" });
+  });
+});
+
+describe("crearOperacion", () => {
+  it("POSTs the conversation, the service and the amount to the collection route", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ok: true, id: OPERATION_ID, service: "zelle" }));
+
+    const result = await crearOperacion("conv-1", "zelle", 13000);
+
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/remittance-operations",
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId: "conv-1", servicio: "zelle", monto: 13000 }),
+      }),
+    );
+    expect(result).toEqual({ ok: true, id: OPERATION_ID, service: "zelle" });
+  });
+
+  it("sends a null amount for a combo with no amount", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ok: true, id: OPERATION_ID, service: "combo" }));
+
+    await crearOperacion("conv-1", "combo", null);
+
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/remittance-operations",
+      expect.objectContaining({ body: JSON.stringify({ conversationId: "conv-1", servicio: "combo", monto: null }) }),
+    );
+  });
+
+  it("maps a refusal to ok:false with status and error message", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ error: "amount must be greater than 0" }, 400));
+
+    const result = await crearOperacion("conv-1", "zelle", 0);
+
+    expect(result).toEqual({ ok: false, status: 400, error: "amount must be greater than 0" });
   });
 });

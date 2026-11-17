@@ -1,5 +1,7 @@
 // ============================================================
-// GET /api/remittance-operations?conversationId=<uuid>
+// GET  /api/remittance-operations?conversationId=<uuid>
+// POST /api/remittance-operations  { conversationId, servicio, monto }  (creates an operation from scratch, crm_crear_operacion,
+//                                   migration 378; same session client and beta gate as the sibling writes)
 //
 // Read-only Slice 5 endpoint for the in-chat remesa operations panel.
 // Uses the caller's own SESSION Supabase client (never service role) so
@@ -14,6 +16,7 @@
 // ============================================================
 
 import { NextResponse } from "next/server";
+import { isOperationService } from "@/lib/remittance-operations/services";
 import { requireRole, toErrorResponse } from "@/lib/auth/account";
 import { mapPlannedSplitRows, mapQuoteRows, mapRemittanceOperationsRows } from "@/lib/remittance-operations/read-model";
 import { mapOperationReceiptsPayload } from "@/lib/remittance-operations/receipts-read-model";
@@ -188,6 +191,59 @@ export async function GET(request: Request) {
 
     return NextResponse.json(
       { ...result, receiptsByOperationId, quote, plannedSplit },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const ctx = await requireRole("agent");
+
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+
+    const { conversationId, servicio, monto } = (body ?? {}) as {
+      conversationId?: unknown;
+      servicio?: unknown;
+      monto?: unknown;
+    };
+    if (typeof conversationId !== "string" || !UUID_RE.test(conversationId)) {
+      return NextResponse.json({ error: "conversationId must be a UUID" }, { status: 400 });
+    }
+    if (!isOperationService(servicio)) {
+      return NextResponse.json({ error: "servicio is not a known service" }, { status: 400 });
+    }
+    if (monto !== undefined && monto !== null && !(typeof monto === "number" && Number.isFinite(monto))) {
+      return NextResponse.json({ error: "monto must be a number" }, { status: 400 });
+    }
+
+    const enabled = await isOperationsPanelEnabled(ctx.supabase, ctx.userId);
+    if (!enabled) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    const { data, error } = await ctx.supabase.rpc("crm_crear_operacion", {
+      p_conversation_id: conversationId,
+      p_servicio: servicio,
+      p_monto: monto ?? null,
+    });
+    if (error) {
+      const errorResponse = rpcErrorResponse(error);
+      if (errorResponse) return errorResponse;
+      console.error("[remittance-operations POST] RPC error:", error);
+      throw new Error("operation creation failed");
+    }
+
+    const result = (data ?? {}) as { id?: string; service?: string };
+    return NextResponse.json(
+      { ok: true, id: result.id, service: result.service ?? servicio },
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (error) {

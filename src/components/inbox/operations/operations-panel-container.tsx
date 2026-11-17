@@ -18,6 +18,7 @@ import { completableGroup, groupOperations, isPlannedGroupId, limitBlocks, withP
 import { CompleteMixedSendSection, type CompleteMixedSendPart } from "./complete-mixed-send-section";
 import { MixedCloseControl } from "./mixed-close-control";
 import { MixedSendBlock } from "./mixed-send-block";
+import { OperationCreateControl } from "./operation-create-control";
 import { RemittanceOperationCard, isZelleOperation, needsServiceToClose } from "./remittance-operation-card";
 import { otherOpenOperationsFor } from "./reassign-targets";
 
@@ -305,15 +306,32 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
   const toggleHandlerFor = (operationId: string) => () =>
     setExpandedId((current) => (current === operationId ? null : operationId));
 
+  // (378) "New operation": whoever can edit creates an open operation from scratch; the panel refreshes and opens it.
+  const newOperationControl = canEdit ? (
+    <OperationCreateControl
+      conversationId={conversationId}
+      onCreated={(operationId) => {
+        setExpandedId(operationId);
+        silentLoad(conversationId);
+      }}
+    />
+  ) : null;
+
   return (
     <div className="space-y-2">
       {data.resolverState === "ninguna" ? (
-        <p className="px-1 py-2 text-xs text-muted-foreground">{t("noOpenOperations")}</p>
+        <div className="flex flex-wrap items-center gap-1">
+          <p className="flex-1 px-1 py-2 text-xs text-muted-foreground">{t("noOpenOperations")}</p>
+          {newOperationControl}
+        </div>
       ) : (
         <>
-          <h3 className="px-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            {t("title")}
-          </h3>
+          <div className="flex flex-wrap items-center gap-1">
+            <h3 className="flex-1 px-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              {t("title")}
+            </h3>
+            {newOperationControl}
+          </div>
           <div className="space-y-2">
             {groupOperations(openOperations, allOperations).map((block) => {
               const groupId = block.grouped ? block.members[0]!.mixedGroupId : null;

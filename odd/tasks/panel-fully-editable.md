@@ -42,10 +42,27 @@ Out: the bot, the Decisor, the notifier.
 - [~] T1 (code + tests done, staging panel check and production pending) Remove a recipient: `crm_quitar_beneficiario` (migration 377) + assertion; DELETE route; client command; button with inline
       confirm on each recipient; messages es/en; vitest
 - [~] T2 (code + tests done, staging panel check and production pending) Create an operation from scratch: `crm_crear_operacion` (migration 378), POST on the collection route, command, "New operation" control next to the panel title
-- [ ] T3 Attach a chat image as a receipt (owner decision first)
-- [ ] T4 Edit more values of an open operation (status, deposit, conversation links) with audit
-- [ ] T5 Edit closed operations, ledger-safe (owner decision first)
-- [ ] T6 Panel publish for each finished group (needs go-ahead)
+- [ ] T3a Attach a chat image as a receipt: `crm_adjuntar_comprobante(operation, wamid, ref?, amount?)` creates the `comprobantes_hashes`
+      mapping and a `remittance_operation_receipts` row (source admin), prefilled from the vision reading of that image when the bot already
+      read it (`cerebro_lecturas_vision`: referencia, monto), otherwise typed; then the card's existing verify flow runs. Reuses the image
+      picker. Attach only, no automatic verification (PROPOSED, owner to approve)
+- [ ] T3b Link a deposit from the MMG ledger that has no owner (61 in the last 30 days): a list (newest first, amount, TransID, date) and a
+      pick; it runs the same crossing as `crm_verificar_deposito` with that TransID and amount (PROPOSED)
+- [ ] T3c Release a linked deposit from an operation or move it to another one (36 of the 298 audited developer corrections of 2026-10-03
+      to 2026-11-13 were deposit links), reusing the core of the bot's `mover_deposito` (PROPOSED)
+- [ ] T4 Move an open operation between open states from the panel (new -> awaiting deposit -> deposit verification -> ready to transfer, and back),
+      audited, with the notify-customer bell. Needed: verify and force-verify only work from `deposit_verification` / `incident`, so an
+      operation created from scratch (T2) cannot be verified today (PROPOSED)
+- [ ] T5 Edit closed operations (completed / cancelled): recipients, service / rail, amounts, audited, with a banner that the calculator
+      and the inventories are not recomputed (they are edited in the calculator, which already allows it). Re-feeding the calculator line
+      from the operation is NOT in scope unless the owner asks (PROPOSED)
+- [ ] T6 Panel publish for the finished groups, with the migrations 377+ in order (needs go-ahead)
+
+## Evidence for the scope (production audit, read-only, 2026-11-17)
+298 audited corrections made by the developer on 2026-10-03..2026-11-13 (`remittance_admin_audit`, actor `claude-code:*`): deposit <-> operation
+links 36 (depositos_mmg), operation status 11 + 9 deleted + 8 manual close, delivery_method 115 (one bulk backfill), contact name 15,
+bot objective 8, conversation history 7, service type 3, mixed split 4, recipient amount 3, source amount 3, calculator line delete 4.
+151 closed operations were touched. Verify / force-verify require status `deposit_verification` or `incident`.
 
 ## Acceptance criteria
 - T1: an agent removes a current recipient of an open operation: the row becomes `reemplazado` (history kept), the operation is locked

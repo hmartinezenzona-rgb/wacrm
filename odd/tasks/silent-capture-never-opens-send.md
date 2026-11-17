@@ -5,6 +5,8 @@
 never open a send.
 
 ## Problem / why
+NOTE (2026-11-17, later): the operation described below as a "0 GYD send that made the bot ask for a new deposit" turned out to be a real new send whose deposit was not linked; the capture opening it early was still wrong in principle, but the customer's problem came from the multi-receipt burst. See T3.
+
 Production conversation 78e3540b (customer Elisvan, 2026-11-17): chat paused for a person, previous send 66ab11eb already completed, the
 customer sent holder + account so the money could be re-sent after a bounced transfer. 374 delegated to `cerebro_guardar_zelle_auto`,
 whose "no open send + holder + account" branch opens a send: it opened 73a89429 (0 GYD, waiting for deposit; audit
@@ -25,7 +27,7 @@ Strict TDD (user CLAUDE.md). Staging first. No AI attribution in commits. Never 
 ## Tasks
 - [x] T1 Assertion first (8a/8b no open send, 8c Elisvan shape, 10 two open sends) RED, then migration 376 GREEN on staging
 - [x] T2 Production migration 376
-- [ ] T3 Phantom operation 73a89429: an admin deletes it from the panel (not verified, 0 GYD) or I do it audited on request
+- [ ] T3 CORRECTED 2026-11-17: operation 73a89429 is NOT a phantom: it is the operation of a real new 13,000 GYD send whose deposit (ref ending 9977) was never linked (a burst of several receipts: only one was processed). Do NOT delete it; link the free deposit to it (panel T3b) and check its calculator line. See engram bug/multi-receipt-burst-only-one-processed
 
 ## Acceptance criteria
 - No open send: nothing written and no send opened (account alone, holder + account). Only a completed send: same. Two open sends and no

@@ -1,7 +1,7 @@
 \set ON_ERROR_STOP on
 BEGIN;
 -- =====================================================================
--- Assertion for migration 374 (silent capture while a human of the team attends the chat).
+-- Assertion for migrations 374 and 376 (silent capture while a human of the team attends the chat; 376: it NEVER opens a send).
 -- Self-reverting: ends in RAISE EXCEPTION 'ALL PASS (rolled back on purpose)'. Run it wrapped by infra/db/staging-migracion.sh.
 -- Synthetic fixtures only: contacts 'PRUEBA374', phones 5990374xxxx.
 -- Shape of production exec 736897 (2026-11-14): the Decisor routed `silencio` because an admin had just written; the batch carried one
@@ -14,7 +14,10 @@ BEGIN;
 --   5  a split between several people in the batch -> nothing written
 --   6  the send already has a vigente Zelle recipient with ANOTHER account (agent or admin wrote it) -> not overwritten
 --   7  the send already has that same account -> still one recipient
---   8  no open send: account alone opens nothing; holder + account opens the send (same rule as the automatic reader)
+--   8  no open send: nothing is written and NO send is opened, with the account alone or with holder + account (376; 374 opened one)
+--   8c shape of production conversation 78e3540b (2026-11-17): the previous send is COMPLETED, the customer sends holder + account to
+--      have the money re-sent -> no new send, nothing written (374 opened a 0 GYD send that made the bot ask for a new deposit)
+--   10 two open sends and no way to tell which one -> nothing written
 --   9  no account in the batch -> nothing written
 -- =====================================================================
 CREATE FUNCTION pg_temp.chk(p_ok boolean, p_label text) RETURNS void LANGUAGE plpgsql AS $f$
@@ -44,6 +47,26 @@ CREATE FUNCTION pg_temp.msg(p_conv uuid, p_text text) RETURNS void LANGUAGE sql 
   VALUES (p_conv, 'customer', 'text', p_text, 'sent', false, false, now() - interval '20 seconds')
 $f$;
 CREATE FUNCTION pg_temp.x() RETURNS text LANGUAGE sql AS $f$ SELECT 'x' || gen_random_uuid()::text $f$;
+CREATE FUNCTION pg_temp.nops(p_conv uuid) RETURNS int LANGUAGE sql AS $f$ SELECT count(*)::int FROM remittance_operations WHERE conversation_id = p_conv $f$;
+-- a second open send, empty
+CREATE FUNCTION pg_temp.abierta(p_conv uuid) RETURNS void LANGUAGE plpgsql AS $f$
+DECLARE v_acc uuid; v_ct uuid;
+BEGIN
+  SELECT account_id, contact_id INTO v_acc, v_ct FROM conversations WHERE id = p_conv;
+  INSERT INTO remittance_operations (account_id, conversation_id, contact_id, status, service_type, source_currency, quoted_source_amount, delivery_method)
+  VALUES (v_acc, p_conv, v_ct, 'collecting_information', 'remesa', 'GYD', 14000, 'zelle');
+END $f$;
+-- a send already completed (the closing needs the admin origin)
+CREATE FUNCTION pg_temp.cerrada(p_conv uuid) RETURNS void LANGUAGE plpgsql AS $f$
+DECLARE v_acc uuid; v_ct uuid; v_op uuid;
+BEGIN
+  SELECT account_id, contact_id INTO v_acc, v_ct FROM conversations WHERE id = p_conv;
+  INSERT INTO remittance_operations (account_id, conversation_id, contact_id, status, service_type, source_currency, quoted_source_amount, delivery_method, created_at)
+  VALUES (v_acc, p_conv, v_ct, 'collecting_information', 'remesa', 'GYD', 39000, 'zelle', now() - interval '1 day') RETURNING id INTO v_op;
+  PERFORM set_config('wacrm.origin', 'admin', true);
+  UPDATE remittance_operations SET status = 'completed', completed_at = now() - interval '20 hours' WHERE id = v_op;
+  PERFORM set_config('wacrm.origin', '', true);
+END $f$;
 CREATE FUNCTION pg_temp.nrec(p_conv uuid) RETURNS int LANGUAGE sql AS $f$
   SELECT count(*)::int FROM remittance_beneficiaries b JOIN remittance_operations o ON o.id = b.operation_id
    WHERE o.conversation_id = p_conv AND b.status = 'vigente' AND b.beneficiary_type = 'zelle' $f$;
@@ -115,13 +138,26 @@ BEGIN
   SELECT accion INTO v_r FROM cerebro_capturar_en_silencio(c.o_conv, cHumano, '', ARRAY[cA], false, pg_temp.x());
   PERFORM pg_temp.chk(pg_temp.nrec(c.o_conv) = 1 AND pg_temp.tiene(c.o_conv, cA), '7 same account, still one: ' || coalesce(v_r, 'null'));
 
-  -- 8 no open send
+  -- 8 no open send: never opens one (376)
   SELECT * INTO c FROM pg_temp.fx(8, false);
   PERFORM pg_temp.msg(c.o_conv, '+1 551 555-0101');
   SELECT accion INTO v_r FROM cerebro_capturar_en_silencio(c.o_conv, cHumano, '', ARRAY[cA], false, pg_temp.x());
-  PERFORM pg_temp.chk(pg_temp.nrec(c.o_conv) = 0, '8a account alone opens nothing: ' || coalesce(v_r, 'null'));
+  PERFORM pg_temp.chk(pg_temp.nrec(c.o_conv) = 0 AND pg_temp.nops(c.o_conv) = 0 AND v_r LIKE 'no se guarda%', '8a account alone, no send opened: ' || coalesce(v_r, 'null'));
   SELECT accion INTO v_r FROM cerebro_capturar_en_silencio(c.o_conv, cHumano, 'PRUEBA Titular Dos', ARRAY[cA], false, pg_temp.x());
-  PERFORM pg_temp.chk(pg_temp.nrec(c.o_conv) = 1 AND pg_temp.tiene(c.o_conv, cA), '8b holder + account opens the send: ' || coalesce(v_r, 'null'));
+  PERFORM pg_temp.chk(pg_temp.nrec(c.o_conv) = 0 AND pg_temp.nops(c.o_conv) = 0 AND v_r LIKE 'no se guarda%', '8b holder + account, no send opened: ' || coalesce(v_r, 'null'));
+
+  -- 8c the previous send is completed (re-send after a bounced transfer)
+  SELECT * INTO c FROM pg_temp.fx(80, false);
+  PERFORM pg_temp.cerrada(c.o_conv);
+  PERFORM pg_temp.msg(c.o_conv, 'PRUEBA Titular Tres +1 551 555-0101');
+  SELECT accion INTO v_r FROM cerebro_capturar_en_silencio(c.o_conv, cHumano, 'PRUEBA Titular Tres', ARRAY[cA], false, pg_temp.x());
+  PERFORM pg_temp.chk(pg_temp.nrec(c.o_conv) = 0 AND pg_temp.nops(c.o_conv) = 1 AND v_r LIKE 'no se guarda%', '8c completed send only, no new send: ' || coalesce(v_r, 'null'));
+
+  -- 10 two open sends, nothing tells which one
+  SELECT * INTO c FROM pg_temp.fx(100, true);
+  PERFORM pg_temp.abierta(c.o_conv);
+  SELECT accion INTO v_r FROM cerebro_capturar_en_silencio(c.o_conv, cHumano, '', ARRAY[cA], false, pg_temp.x());
+  PERFORM pg_temp.chk(pg_temp.nrec(c.o_conv) = 0 AND pg_temp.nops(c.o_conv) = 2 AND v_r LIKE 'no se guarda%', '10 two open sends: ' || coalesce(v_r, 'null'));
 
   -- 9 no account
   SELECT * INTO c FROM pg_temp.fx(9, true);

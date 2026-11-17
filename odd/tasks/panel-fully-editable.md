@@ -165,7 +165,13 @@ bot objective 8, conversation history 7, service type 3, mixed split 4, recipien
   383 20261117212201, 384 20261117212205. Two API version collisions (`23505 schema_migrations_pkey`) aborted 379 and later 381 inside the
   batch because the Management API stamps versions at second granularity; both rolled back whole and were re-applied alone. `verificar`:
   **12/12 EQUAL** (`prod = stg` md5 for every function, including `remittance_operations_objetivo_desde_op` 9a9d757d).
-- Pending: publish the panel (`wacrm-publicar-panel`), with its own explicit go-ahead. Fixtures still on staging for cleanup.
+- Panel published in production (2026-11-17, owner go-ahead): release branch `release/prod-panel-fully-editable` at `559d2c1b`
+  (pushed to `privado`), artifact `build_id gl5T1u8LrDq-8_3wymdpX`, `current -> 559d2c1b...`, rollback `anterior -> a7a469a0...`.
+  `compilar --sin-pruebas` because the prod-build `node_modules` has no dev deps (`vitest/config` unresolvable); vitest and tsc had run on
+  the same sha in mejora-legacy (710 tests, clean). The build itself ran in `node:20`.
+- Pending: staging fixture cleanup. The standard `limpieza.sql` fails on the closed fixture because its completed operation fed the
+  calculator and completed calculator rows are append-only (DELETE refused). The dry run succeeds when the fixture's completed calculator
+  rows are voided first (`status='void', voided_at=now()`, figures untouched, allowed by the guard) inside the same transaction.
 
 - Operational note for the next production apply: do not send two migrations in the same second through the Management API; apply one per
   invocation or space them, otherwise `schema_migrations_pkey` collides.

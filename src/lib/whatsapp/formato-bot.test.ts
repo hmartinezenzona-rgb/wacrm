@@ -45,23 +45,12 @@ describe('partirEnBurbujas', () => {
 })
 
 describe('prepararRespuestaBot', () => {
-  it('pone botones cuando pide confirmar', () => {
-    const p = prepararRespuestaBot('*Su solicitud:*\n- 10 · válvula\n\n¿Está correcto?')
-    expect(p).toHaveLength(2)
-    expect(p[0]).toEqual({ tipo: 'texto', texto: '*Su solicitud:*\n- 10 · válvula' })
-    expect(p[1].tipo).toBe('botones')
-    if (p[1].tipo === 'botones') {
-      expect(p[1].payload.body).toBe('¿Está correcto?')
-      expect(p[1].payload.buttons.map((b) => b.title)).toEqual(['Sí, es correcto', 'Corregir algo'])
-    }
-  })
-  it('respeta botones pedidos por el bot', () => {
-    const p = prepararRespuestaBot('¿Qué prefiere?\n[botones: Cotizar | Hablar con ventas]')
-    expect(p[0].tipo).toBe('botones')
-    if (p[0].tipo === 'botones') {
-      expect(p[0].payload.body).toBe('¿Qué prefiere?')
-      expect(p[0].payload.buttons.map((b) => b.title)).toEqual(['Cotizar', 'Hablar con ventas'])
-    }
+  it('no manda botones: quita la marca y deja la pregunta', () => {
+    expect(prepararRespuestaBot('Listo.\n\n¿Necesita algo más?\n[botones: Agregar | Es todo]')).toEqual([
+      { tipo: 'texto', texto: 'Listo.' },
+      { tipo: 'texto', texto: '¿Necesita algo más?' },
+    ])
+    expect(prepararRespuestaBot('Resumen.\n\n¿Está correcto?').every((p) => p.tipo === 'texto')).toBe(true)
   })
   it('texto normal va como texto', () => {
     expect(prepararRespuestaBot('Con gusto. ¿Qué medida necesita?')).toEqual([

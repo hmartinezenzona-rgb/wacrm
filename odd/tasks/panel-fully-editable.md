@@ -42,20 +42,20 @@ Out: the bot, the Decisor, the notifier.
 - [~] T1 (code + tests done, staging panel check and production pending) Remove a recipient: `crm_quitar_beneficiario` (migration 377) + assertion; DELETE route; client command; button with inline
       confirm on each recipient; messages es/en; vitest
 - [~] T2 (code + tests done, staging panel check and production pending) Create an operation from scratch: `crm_crear_operacion` (migration 378), POST on the collection route, command, "New operation" control next to the panel title
-- [ ] T3a Attach a chat image as a receipt: `crm_adjuntar_comprobante(operation, wamid, ref?, amount?)` creates the `comprobantes_hashes`
+- [x] T3a (code + tests done; staging panel check and production pending) Attach a chat image as a receipt: `crm_adjuntar_comprobante(operation, wamid, ref?, amount?)` creates the `comprobantes_hashes`
       mapping and a `remittance_operation_receipts` row (source admin), prefilled from the vision reading of that image when the bot already
       read it (`cerebro_lecturas_vision`: referencia, monto), otherwise typed; then the card's existing verify flow runs. Reuses the image
-      picker. Attach only, no automatic verification (PROPOSED, owner to approve)
-- [ ] T3b Link a deposit from the MMG ledger that has no owner (61 in the last 30 days): a list (newest first, amount, TransID, date) and a
-      pick; it runs the same crossing as `crm_verificar_deposito` with that TransID and amount (PROPOSED)
-- [ ] T3c Release a linked deposit from an operation or move it to another one (36 of the 298 audited developer corrections of 2026-10-03
-      to 2026-11-13 were deposit links), reusing the core of the bot's `mover_deposito` (PROPOSED)
+      picker. Attach only, no automatic verification
+- [x] T3b (code + tests done; staging panel check and production pending) Link a deposit from the MMG ledger that has no owner (61 in the last 30 days): a list (newest first, amount, TransID, date) and a
+      pick; it runs the same crossing as `crm_verificar_deposito` with that TransID and amount
+- [x] T3c (code + tests done; staging panel check and production pending) Release a linked deposit from an operation or move it to another one (36 of the 298 audited developer corrections of 2026-10-03
+      to 2026-11-13 were deposit links), reusing the core of the bot's `mover_deposito`
 - [x] T4 (code + tests done; staging panel check and production pending) Move an open operation between open states from the panel (new -> awaiting deposit -> deposit verification -> ready to transfer, and back),
       audited, with the notify-customer bell. Needed: verify and force-verify only work from `deposit_verification` / `incident`, so an
       operation created from scratch (T2) cannot be verified today (PROPOSED)
-- [ ] T5 Edit closed operations (completed / cancelled): recipients, service / rail, amounts, audited, with a banner that the calculator
+- [x] T5 (code + tests done; staging panel check and production pending) Edit closed operations (completed / cancelled): recipients, service / rail, amounts, audited, with a banner that the calculator
       and the inventories are not recomputed (they are edited in the calculator, which already allows it). Re-feeding the calculator line
-      from the operation is NOT in scope unless the owner asks (PROPOSED)
+      from the operation is NOT in scope unless the owner asks
 - [ ] T6 Panel publish for the finished groups, with the migrations 377+ in order (needs go-ahead)
 
 ## Evidence for the scope (production audit, read-only, 2026-11-17)
@@ -110,6 +110,29 @@ bot objective 8, conversation history 7, service type 3, mixed split 4, recipien
   states minus the current one, the bell only for ready_to_transfer and off by default), a Flag button in the card's action row (2 new tests; 2
   layout tests updated for the new button). `npx vitest run src/components/inbox/operations` 39 files, 646 tests; tsc clean.
 
+- T3b (commits 621db910, d81c8f61): `crm_depositos_mmg_libres` (migration 380) read function + assertion; route
+  `/free-deposits` (107-line test), `free-deposits-picker.tsx` (153-line test), command and types, wired into `deposit-review-container`.
+  Linking reuses the existing verify crossing (`crm_verificar_deposito`), no new write function.
+- T3c (commits 5f563c8d, 4bf72184): `crm_mover_deposito` (migration 381) + assertion (235 lines, replaces the older move-deposit
+  assertion), route `/move-deposit`, `consumed-deposits-control.tsx` (169-line test), command and messages.
+- T3a (commits 4fd8b584, 8471c66a): `crm_adjuntar_comprobante` (migration 382) + assertion; route `/receipts`, `attach-receipt-control.tsx`,
+  command, wired into the deposit block. Attach only: it does not verify.
+- T5 SQL (commit 0c786efb): migration 383 relaxes the closed guard of `crm_corregir_operacion`, `crm_corregir_beneficiario`,
+  `crm_agregar_beneficiario`, `crm_quitar_beneficiario` and `crm_cambiar_servicio` for owner/admin (agent still refused, 22023); every closed
+  edit writes `human_closed_operation_edit`; the calculator is not fed and the destination amount is not recomputed. Assertion
+  `closed-operation-edit.sql` covers completed, cancelled and the agent refusal on the five functions.
+- T5 app (commit 3afd000d): the card splits `editable` (open-only) from `closedEditable` (owner/admin + completed/cancelled) and
+  `sharedEditable` (amounts, recipients add/edit/remove, service). Status, deliver, verify, close-manual, delete, split and reassign stay
+  open-only. New `closed-edit-banner.tsx` (es/en: audited, calculator and inventories are not recalculated). History cards in
+  `operations-panel-container.tsx` now receive `canEdit` and the real `accountRole` on both the plain and grouped paths. TDD: RED observed on
+  the three touched test files (20 failed), GREEN `npx vitest run src/components/inbox/operations` 44 files / 703 tests, `tsc --noEmit` clean,
+  eslint clean. Parent spot check re-ran the two new test files: 23 passed.
+- NOT yet recorded as evidence: whether migrations 380-383 were applied to staging (the 377-379 entries above record their dry-run/apply md5;
+  the later ones have no such entry in this document). Verify before the staging browser check.
+
 ## Next step
-T3b: a read function for ledger deposits without an owner and a picker that links one with the existing verify; then T3c, T3a, T5, then
-the staging check of everything and production.
+T6: staging cycle for migrations 380-383 (dry-run, apply, assertions, rollback where applicable) and the browser check of the whole feature
+with PRUEBA fixtures (tear down the `PRUEBA quitar destinatario` fixture, conv ec09ae34, first, with a dry run shown to the owner), then
+production migrations 377-383 in order and the panel publish — each only with an explicit go-ahead. Open product decisions to confirm with the
+owner before production: what the attach does when the receipt already exists, and whether history cards should also expose the service change
+outside the correction form.

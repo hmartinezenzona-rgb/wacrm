@@ -38,7 +38,7 @@ Out: the Decisor, the agent prompt, capture mode, the `incident` alert, the `com
 - [x] T1 Migration 375 `cerebro_humano_atendiendo(conv)`: assertion RED then GREEN on staging; related assertions
 - [x] T2 Notifier: `leer-secreto.sql` adds `humano_atendiendo`; `filtrar.jscode` drops the question when it is true; vitest RED then GREEN
 - [x] T3 Staging: publish both nodes to the staging notifier `OCdJoHTkV6S0aAdk` (not executed)
-- [ ] T4 Production (needs go-ahead): migration 375, then both nodes on `wGud0KGR6eMqqfMQ`
+- [x] T4 Production: migration 375, then both nodes on `wGud0KGR6eMqqfMQ`
 
 ## Acceptance criteria
 - A human message 2 minutes ago, or a live pause, or a live assignment -> true; the same facts expired, a bot/notifier message, a panel
@@ -65,6 +65,12 @@ Out: the Decisor, the agent prompt, capture mode, the `incident` alert, the `com
   so the admin may have handed the chat back before the notice; this rule may not have covered that exact moment. What removes that
   case is capture mode (production since 2026-11-15), which stores the account and holder when the customer sends them.
 
+- T4 production (2026-11-17, owner "si"): `OK 375_human_attending_fact 20261117164627`, verificar 1/1 EQUAL (e432ea28). Notifier
+  wGud0KGR6eMqqfMQ d631f1a4 -> abeed618 (= active), 5 nodes, Filtrar 724f1f26 and Leer secreto c7466e35 equal to the repo copies, backup
+  `notificador-produccion-wGud0KGR6eMqqfMQ-d631f1a4-…-antes-humano-atendiendo.json`. Rollback: restore that backup, then ROLLBACK-375.
+- Seen while checking (not mine): the production Cerebro has an UNPUBLISHED draft (saved 2026-11-17 06:16 UTC, 126 nodes) that removes
+  "Claude Haiku (OpenRouter)", "DeepSeek sin pensamiento (comunidad)", "OpenAI Chat Model" and "Silencio"; the active version is still
+  451889bd with Decisor 45374132, the capture node and the lock. A publish of that draft keeps them (they are not among the removed).
+
 ## Next step
-T4: owner go-ahead for production (migration 375, then the two notifier nodes). Then watch the first manual verification with a person
-attending.
+Watch the first manual verification with a person attending (notice must be the verified sentence only) and the first capture turn.

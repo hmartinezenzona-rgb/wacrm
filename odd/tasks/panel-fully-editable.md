@@ -146,8 +146,16 @@ bot objective 8, conversation history 7, service type 3, mixed split 4, recipien
   `contexto-envio-mixto` (flaky in base, identical-created_at ordering) and `delivery-feed-evidence` (fixture setup fails identically in base).
 - Not a bug (owner's first close attempt): the audit shows `human_correction quoted_source_amount 24400 -> 29000` on op 83988f69 at 19:34:30,
   so the deposit of 24,400 correctly did not cover 29,000 and the panel refused the verification; the manual close is the deliberate exit.
-- Pending before production: the owner's browser retest of the whole feature (the two fixes above), migrations 377-384 in order on production,
-  and the panel publish, each with its own explicit go-ahead.
+- Gap fixed from the retest (commit d330d470): an operation created from scratch stays in `collecting_information`, where an attached receipt
+  has no verify form (verify/force-verify exist only in `deposit_verification`/`incident`). The deposit block now shows "Pasar a verificación
+  de depósito" when the user can edit, the operation is open, there is at least one receipt and `can_verify` is false; it calls the audited,
+  muted `crm_cambiar_estado` to `deposit_verification`, refetches and reloads the card. The attach note no longer promises a verify form that
+  is not there (`attachReceipt.attachedNeedsStage`). TDD RED 3 failed, GREEN 44 files / 710 tests, tsc clean; parent spot check 37/37.
+- Retest evidence (2026-11-17 late): T3b end-to-end worked — the 29.000 PRUEBA deposit was linked with `human_deposit_verification`
+  (`saldo 0.00`, exact) and the operation reached `ready_to_transfer` without forcing. The owner then cancelled that operation and created a
+  new one from scratch, which released the deposit (`op=libre`) and exposed the missing verification path above.
+- Pending before production: the owner's browser retest of this last fix, migrations 377-384 in order on production, and the panel publish,
+  each with its own explicit go-ahead.
 
 ## Next step
 Owner retest in the browser with the two fixtures (attach on an open operation, then correct the amount and confirm the header and the

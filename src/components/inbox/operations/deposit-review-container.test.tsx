@@ -589,6 +589,20 @@ describe("DepositReviewContainer: attach a receipt from the chat", () => {
     expect(attach(node)!.dataset.conversation).toBe("conv-1");
   });
 
+  it("offers the control on an open operation even with no receipts and no verification to run", async () => {
+    // Staging 2026-11-17: a ready_to_transfer operation with no receipts hid the
+    // whole block, so its admin could not attach the chat image of the receipt.
+    fetchOperationReceipts.mockResolvedValue({
+      ok: true,
+      data: readModel({ status: "ready_to_transfer", canVerify: false, receipts: [] }),
+    });
+    const { node } = await renderContainer({ conversationId: "conv-1" });
+    await flush();
+
+    expect(attach(node)).not.toBeNull();
+    expect(attach(node)!.dataset.conversation).toBe("conv-1");
+  });
+
   it("offers nothing without a conversation, to a user who cannot edit, nor on a closed operation", async () => {
     fetchOperationReceipts.mockResolvedValue({ ok: true, data: readModel({ receipts: [] }) });
     const a = await renderContainer();

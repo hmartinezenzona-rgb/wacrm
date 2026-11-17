@@ -224,27 +224,35 @@ export function DepositReviewContainer({
   const { data } = state;
   const canVerify = data.canVerify && canEdit;
   const canForce = role !== null && canForceVerify(role);
+  const isOpen = data.status !== "completed" && data.status !== "cancelled";
+  const canAttach = canEdit && Boolean(conversationId) && isOpen;
+  const canMoveDeposit = canEdit && isOpen && data.consumedDeposits.length > 0;
+  // The attach and the deposit-release controls live outside the verification stage: an open
+  // operation with no receipts still needs its chat image attached (staging, 2026-11-17).
+  const showSection = data.receipts.length > 0 || canVerify;
 
-  if (data.receipts.length === 0 && !canVerify) return null;
+  if (!showSection && !canAttach && !canMoveDeposit) return null;
 
   return (
     <>
-      <DepositReviewSection
-        data={data}
-        canVerify={canVerify}
-        canForce={canForce}
-        busy={busy}
-        result={result}
-        onVerify={handleVerify}
-        onForce={handleForce}
-        summaryAmount={summaryAmount}
-        onAddAmount={onAddAmount}
-      />
-      {canEdit && conversationId && data.status !== "completed" && data.status !== "cancelled" && (
-        // (382) An image of the chat becomes a receipt of this operation (it verifies nothing: the verify above does).
-        <AttachReceiptControl operationId={operationId} conversationId={conversationId} onAttached={load} />
+      {showSection && (
+        <DepositReviewSection
+          data={data}
+          canVerify={canVerify}
+          canForce={canForce}
+          busy={busy}
+          result={result}
+          onVerify={handleVerify}
+          onForce={handleForce}
+          summaryAmount={summaryAmount}
+          onAddAmount={onAddAmount}
+        />
       )}
-      {canEdit && data.consumedDeposits.length > 0 && data.status !== "completed" && data.status !== "cancelled" && (
+      {canAttach && (
+        // (382) An image of the chat becomes a receipt of this operation (it verifies nothing: the verify above does).
+        <AttachReceiptControl operationId={operationId} conversationId={conversationId!} onAttached={load} />
+      )}
+      {canMoveDeposit && (
         // (381) A verified deposit is released (free again) or moved to another open operation of the conversation.
         <ConsumedDepositsControl
           operationId={operationId}

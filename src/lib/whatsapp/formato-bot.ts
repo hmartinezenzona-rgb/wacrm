@@ -98,6 +98,59 @@ export function partirEnBurbujas(texto: string): string[] {
   return burbujas
 }
 
+/*
+ * Frontera de salida (idea del "Normalizar formato" del Cerebro de Remesas
+ * Ya): lo que el cliente nunca debe ver, se quita en código, sin depender de
+ * que el modelo obedezca.
+ *  - Razonamiento filtrado: renglones como "El cliente quiere…", "Voy a
+ *    preguntar…", "Debo llamar a crear_solicitud".
+ *  - Nombres de herramientas o marcas internas ([CONTEXTO], (El cliente
+ *    mandó una foto…) repetido de vuelta).
+ *  - Precios: AP nunca da precios por el bot. Una frase con "$ 1,200",
+ *    "350 pesos", "precio unitario: …" se quita y se dice una sola vez que
+ *    el precio va en la cotización.
+ */
+const RE_RAZONAMIENTO =
+  /^(?:\(?\s*)(?:el (?:cliente|usuario)\b|parece que el (?:cliente|usuario)|(?:no )?debo (?:preguntar|pedir|confirmar|llamar|usar|registrar)|voy a (?:llamar|usar|registrar|preguntar|pedir)\b|necesito (?:llamar|usar) (?:a |la )?|ahora (?:llamo|uso)\b|the (?:client|user|customer)\b|i (?:will|should|need to)\b|let me\b)/i
+const RE_INTERNO =
+  /\b(?:crear_solicitud|ver_catalogo|pasar_a_humano|\$fromAI|tool_call|function_call)\b|\[(?:contexto|sistema|system|nota interna)[^\]]*\]|^\(el cliente mandó (?:una|un) /i
+const RE_PRECIO =
+  /\$\s?\d|\b\d[\d.,]*\s?(?:pesos|mxn|m\.n\.|dlls?|d[oó]lares|usd)\b|\bprecios?\s+(?:es|de|unitario|total|por pieza|aproximado)\b[^.?!\n]*\d/i
+const AVISO_PRECIO = 'El precio se lo enviamos en la cotización.'
+
+export function fronteraSalida(texto: string): string {
+  let quitoPrecio = false
+  const parrafos = texto.split(/\n\s*\n/).map((par) => {
+    const renglones = par.split('\n').filter((r) => {
+      const t = r.trim()
+      if (!t) return false
+      if (RE_RAZONAMIENTO.test(t) || RE_INTERNO.test(t)) return false
+      return true
+    })
+    return renglones
+      .map((r) => {
+        if (!RE_PRECIO.test(r)) return r
+        // Se quita solo la frase con el precio, no el renglón entero.
+        const frases = r.split(/(?<=[.!?])\s+/)
+        const quedan = frases.filter((f) => !RE_PRECIO.test(f))
+        quitoPrecio = true
+        return quedan.join(' ')
+      })
+      .filter((r) => r.trim())
+      .join('\n')
+  })
+  let limpio = parrafos.filter((par) => par.trim()).join('\n\n').trim()
+  if (quitoPrecio && !limpio.includes(AVISO_PRECIO)) {
+    // El aviso va antes de la pregunta final, si la hay.
+    const ps = limpio ? limpio.split('\n\n') : []
+    const ultima = ps[ps.length - 1] ?? ''
+    if (/\?\s*$/.test(ultima) && ps.length > 0) ps.splice(ps.length - 1, 0, AVISO_PRECIO)
+    else ps.push(AVISO_PRECIO)
+    limpio = ps.join('\n\n')
+  }
+  return limpio
+}
+
 /**
  * Convierte la respuesta del bot en las burbujas de texto a enviar, en orden.
  *
@@ -106,7 +159,7 @@ export function partirEnBurbujas(texto: string): string[] {
  * "[botones: …]", se quita y queda solo la pregunta.
  */
 export function prepararRespuestaBot(entrada: string): PiezaBot[] {
-  let texto = aFormatoWhatsapp(entrada)
+  let texto = fronteraSalida(aFormatoWhatsapp(entrada))
   texto = texto.replace(/\n?\s*\[botones?\s*:[^\]]*\]\s*$/i, '').trim()
   if (!texto) return []
   return partirEnBurbujas(texto).map((b) => ({ tipo: 'texto', texto: b }))

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { aFormatoWhatsapp, partirEnBurbujas, prepararRespuestaBot } from './formato-bot'
+import { aFormatoWhatsapp, fronteraSalida, partirEnBurbujas, prepararRespuestaBot } from './formato-bot'
 
 describe('aFormatoWhatsapp', () => {
   it('pasa Markdown a formato de WhatsApp', () => {
@@ -40,5 +40,21 @@ describe('prepararRespuestaBot', () => {
     expect(prepararRespuestaBot('Con gusto. ¿Qué medida necesita?')).toEqual([
       { tipo: 'texto', texto: 'Con gusto. ¿Qué medida necesita?' },
     ])
+  })
+})
+
+describe('fronteraSalida', () => {
+  it('quita razonamiento y nombres de herramientas', () => {
+    expect(fronteraSalida('El cliente quiere válvulas, debo preguntar la medida.\nVoy a llamar a ver_catalogo.\n\n¿Qué medida necesita?')).toBe('¿Qué medida necesita?')
+  })
+  it('quita precios y avisa una vez antes de la pregunta', () => {
+    expect(fronteraSalida('Manejamos Swagelok. Cada válvula cuesta $1,250 más IVA.\n\n¿Cuántas necesita?')).toBe(
+      'Manejamos Swagelok.\n\nEl precio se lo enviamos en la cotización.\n\n¿Cuántas necesita?',
+    )
+    expect(fronteraSalida('Sale en 300 pesos.')).toBe('El precio se lo enviamos en la cotización.')
+  })
+  it('no toca medidas, cantidades ni folios', () => {
+    const t = 'Le resumo lo que registro:\n\n- 10 válvulas de bola de 1/2" inoxidable 3000 psi\n\nSu folio es *AP-X1Y2Z3*.'
+    expect(fronteraSalida(t)).toBe(t)
   })
 })

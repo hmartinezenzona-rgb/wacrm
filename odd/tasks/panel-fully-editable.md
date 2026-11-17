@@ -50,7 +50,7 @@ Out: the bot, the Decisor, the notifier.
       pick; it runs the same crossing as `crm_verificar_deposito` with that TransID and amount (PROPOSED)
 - [ ] T3c Release a linked deposit from an operation or move it to another one (36 of the 298 audited developer corrections of 2026-10-03
       to 2026-11-13 were deposit links), reusing the core of the bot's `mover_deposito` (PROPOSED)
-- [ ] T4 Move an open operation between open states from the panel (new -> awaiting deposit -> deposit verification -> ready to transfer, and back),
+- [x] T4 (code + tests done; staging panel check and production pending) Move an open operation between open states from the panel (new -> awaiting deposit -> deposit verification -> ready to transfer, and back),
       audited, with the notify-customer bell. Needed: verify and force-verify only work from `deposit_verification` / `incident`, so an
       operation created from scratch (T2) cannot be verified today (PROPOSED)
 - [ ] T5 Edit closed operations (completed / cancelled): recipients, service / rail, amounts, audited, with a banner that the calculator
@@ -100,6 +100,16 @@ bot objective 8, conversation history 7, service type 3, mixed split 4, recipien
   opens the new card (3 container tests, the control stubbed there like DepositReviewContainer). RED first on each. `npx vitest run
   src/components/inbox/operations` 38 files, 637 tests; `npx tsc --noEmit` clean; eslint clean on the new files.
 
+- T4 (2026-11-17, owner approved the scope: "si dale"): SQL commit acb79072: assertion `change-status.sql` RED on the base, GREEN with migration
+  379 (`staging-migracion.sh aplicar` OK, function md5 19d3e715). `crm_cambiar_estado(op, estado, notify)`: any OPEN state -> collecting_information |
+  awaiting_deposit | deposit_verification | ready_to_transfer; leaving an incident clears its reason; same state = no-op; the customer notice
+  of the new state is muted unless notify and target ready_to_transfer (then a `human_forced_verification` audit row lets the notifier speak);
+  audit `human_status_change` (constraint list = staging after 378 + the new action). The assertion proves the reason for it: force-verify from
+  collecting_information is still refused, but after moving to deposit_verification an operation created from scratch force-verifies.
+  App: route POST `/api/remittance-operations/[operationId]/status` (8 tests), `cambiarEstado` (2), `operation-status-control.tsx` (7: four
+  states minus the current one, the bell only for ready_to_transfer and off by default), a Flag button in the card's action row (2 new tests; 2
+  layout tests updated for the new button). `npx vitest run src/components/inbox/operations` 39 files, 646 tests; tsc clean.
+
 ## Next step
-T1 and T2: look at them in the local staging panel (http://localhost:3100, fixture PRUEBA quitar destinatario, still in staging), then
-production: migrations 377 and 378 in that order, then the panel publish, each with a go-ahead. Then T3 (owner decision first).
+T3b: a read function for ledger deposits without an owner and a picker that links one with the existing verify; then T3c, T3a, T5, then
+the staging check of everything and production.

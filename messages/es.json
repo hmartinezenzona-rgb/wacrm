@@ -432,6 +432,8 @@
       "newOperation": "Nueva operación",
       "confirmNewOperation": "Crear operación",
       "optionalAmount": "Opcional",
+      "changeStatus": "Cambiar estado",
+      "confirmChangeStatus": "Confirmar el cambio de estado",
       "selectTarget": "Selecciona la operación de destino",
       "noChanges": "No hay cambios que guardar",
       "cannotBeEmpty": "Este campo no puede quedar vacío",

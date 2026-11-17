@@ -9,6 +9,7 @@ import {
   reasignarBeneficiario,
   quitarBeneficiario,
   crearOperacion,
+  cambiarEstado,
   fetchOperationReceipts,
   fetchChatImages,
   verifyDeposit,
@@ -677,5 +678,29 @@ describe("crearOperacion", () => {
     const result = await crearOperacion("conv-1", "zelle", 0);
 
     expect(result).toEqual({ ok: false, status: 400, error: "amount must be greater than 0" });
+  });
+});
+
+describe("cambiarEstado", () => {
+  it("POSTs the state and the bell to the status route", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ok: true, changed: true, newStatus: "ready_to_transfer" }));
+
+    const result = await cambiarEstado(OPERATION_ID, "ready_to_transfer", true);
+
+    expect(fetch).toHaveBeenCalledWith(
+      `/api/remittance-operations/${OPERATION_ID}/status`,
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ estado: "ready_to_transfer", notify: true }),
+      }),
+    );
+    expect(result).toEqual({ ok: true, changed: true, newStatus: "ready_to_transfer" });
+  });
+
+  it("maps a refusal to ok:false with status and error message", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ error: "operation is closed" }, 400));
+
+    expect(await cambiarEstado(OPERATION_ID, "awaiting_deposit", false)).toEqual({ ok: false, status: 400, error: "operation is closed" });
   });
 });

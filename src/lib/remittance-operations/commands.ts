@@ -140,6 +140,26 @@ export function reasignarBeneficiario(
   );
 }
 
+export type CambiarEstadoCommandResult =
+  | { ok: true; changed: boolean; newStatus: string }
+  | { ok: false; status: number; error: string };
+
+/** `crm_cambiar_estado` (migration 379): moves an open operation between collecting_information, awaiting_deposit, deposit_verification
+ *  and ready_to_transfer. `notify` (the bell) only matters for ready_to_transfer: the customer notice is sent only when it is on. */
+export async function cambiarEstado(
+  operationId: string,
+  estado: string,
+  notify: boolean,
+): Promise<CambiarEstadoCommandResult> {
+  const response = await postJsonResult<{ changed: boolean; newStatus: string }>(
+    `/api/remittance-operations/${operationId}/status`,
+    "POST",
+    { estado, notify },
+  );
+  if (!response.ok) return response;
+  return { ok: true, changed: response.data.changed, newStatus: response.data.newStatus };
+}
+
 export type CrearOperacionCommandResult =
   | { ok: true; id: string; service: string }
   | { ok: false; status: number; error: string };

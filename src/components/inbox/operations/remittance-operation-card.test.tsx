@@ -46,6 +46,7 @@ vi.mock("@/lib/remittance-operations/commands", () => ({
   corregirBeneficiario: (...args: unknown[]) => corregirBeneficiario(...args),
   reasignarBeneficiario: vi.fn(),
   quitarBeneficiario: (...args: unknown[]) => quitarBeneficiario(...args),
+  cambiarEstado: vi.fn(),
   agregarBeneficiario: vi.fn(),
 }));
 
@@ -2442,7 +2443,7 @@ describe("RemittanceOperationCard header layout", () => {
   };
   const amountRow = (node: Element) => node.querySelector("article button[aria-expanded]")!.parentElement!;
 
-  it("puts delete, split and edit in their own row above the amount row when expanded", async () => {
+  it("puts delete, split, change state and edit in their own row above the amount row when expanded", async () => {
     const { node, root } = await render(operation(), { role: "owner" });
 
     const row = actionsRow(node)!;
@@ -2450,6 +2451,7 @@ describe("RemittanceOperationCard header layout", () => {
     expect(Array.from(row.querySelectorAll("button")).map((b) => b.getAttribute("aria-label"))).toEqual([
       en.Inbox.operationsPanel.closing.deleteButton,
       en.Inbox.operationsPanel.splitDeposit.button,
+      en.Inbox.operationsPanel.changeStatus,
       en.Inbox.operationsPanel.editOperation,
     ]);
     expect(row.className).toContain("justify-end");
@@ -2472,11 +2474,15 @@ describe("RemittanceOperationCard header layout", () => {
     await act(async () => root.unmount());
   });
 
-  it("keeps only split and the pencil in the row for a non-manager", async () => {
+  it("keeps only split, change state and the pencil in the row for a non-manager", async () => {
     const { node, root } = await render(operation(), { role: "agent" });
 
     const labels = Array.from(actionsRow(node)!.querySelectorAll("button")).map((b) => b.getAttribute("aria-label"));
-    expect(labels).toEqual([en.Inbox.operationsPanel.splitDeposit.button, en.Inbox.operationsPanel.editOperation]);
+    expect(labels).toEqual([
+      en.Inbox.operationsPanel.splitDeposit.button,
+      en.Inbox.operationsPanel.changeStatus,
+      en.Inbox.operationsPanel.editOperation,
+    ]);
     await act(async () => root.unmount());
   });
 
@@ -2554,5 +2560,31 @@ describe("RemittanceOperationCard: remove a recipient", () => {
     expect(quitarBeneficiario).toHaveBeenCalledWith("b-2");
     expect(onChanged).toHaveBeenCalled();
     await act(async () => root.unmount());
+  });
+});
+
+// panel-fully-editable T4: move the operation between open states from the card.
+describe("RemittanceOperationCard: change the state", () => {
+  const P = en.Inbox.operationsPanel;
+  const click = (el: Element) => act(async () => el.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+  it("an editable open card offers Change state, and it opens the state control", async () => {
+    const { node, root } = await render(operation({ status: "collecting_information" }));
+
+    expect(button(node, P.changeStatus)).not.toBeNull();
+    expect(node.querySelector("#operation-new-status")).toBeNull();
+    await click(button(node, P.changeStatus)!);
+    expect(node.querySelector("#operation-new-status")).not.toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("a card that cannot be edited, and a completed one, offer no Change state", async () => {
+    const a = await render(operation({ status: "collecting_information" }), { canEdit: false });
+    expect(button(a.node, P.changeStatus)).toBeNull();
+    await act(async () => a.root.unmount());
+
+    const b = await render(operation({ status: "completed", isHistory: true }));
+    expect(button(b.node, P.changeStatus)).toBeNull();
+    await act(async () => b.root.unmount());
   });
 });

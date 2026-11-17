@@ -432,6 +432,8 @@
       "newOperation": "New operation",
       "confirmNewOperation": "Create operation",
       "optionalAmount": "Optional",
+      "changeStatus": "Change state",
+      "confirmChangeStatus": "Confirm the state change",
       "selectTarget": "Select target operation",
       "noChanges": "No changes to save",
       "cannotBeEmpty": "This can't be left empty",

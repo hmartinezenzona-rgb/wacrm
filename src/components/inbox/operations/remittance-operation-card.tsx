@@ -3,7 +3,7 @@
 import { useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useServiceName } from "@/hooks/use-service-name";
-import { ArrowRightLeft, AtSign, Banknote, Building2, ChevronDown, CreditCard, Landmark, Lock, MapPin, Pencil, Phone, Split, Trash2, UserPlus, UserRound, Users } from "lucide-react";
+import { ArrowRightLeft, AtSign, Banknote, Building2, ChevronDown, CreditCard, Flag, Landmark, Lock, MapPin, Pencil, Phone, Split, Trash2, UserPlus, UserRound, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { canForceVerify, type AccountRole } from "@/lib/auth/roles";
 import { corregirBeneficiario } from "@/lib/remittance-operations/commands";
@@ -22,6 +22,7 @@ import { BeneficiaryAddControl } from "./beneficiary-add-control";
 import { BeneficiaryIdPhoto, IdPhotoFormRow } from "./beneficiary-id-photo";
 import { BeneficiaryReassignControl } from "./beneficiary-reassign-control";
 import { BeneficiaryRemoveControl } from "./beneficiary-remove-control";
+import { OperationStatusControl } from "./operation-status-control";
 import { ComboBeneficiaryEditFields } from "./combo-beneficiary-edit-fields";
 import { ComboCostField } from "./combo-cost-field";
 import { CompleteTransferContainer } from "./complete-transfer-container";
@@ -120,7 +121,7 @@ const NOT_DELETABLE_STATUSES: ReadonlyArray<string> = ["completed", "cancelled",
  *  (`crm_cerrar_operacion_manual`, migration 190). */
 const MANUALLY_CLOSABLE_STATUSES: ReadonlyArray<string> = ["ready_to_transfer", "transferring"];
 
-type OpenFormKind = "operation" | "beneficiary" | "reassign" | "removeBeneficiary" | "complete" | "addBeneficiary" | "close" | "delete" | "split";
+type OpenFormKind = "operation" | "status" | "beneficiary" | "reassign" | "removeBeneficiary" | "complete" | "addBeneficiary" | "close" | "delete" | "split";
 
 interface OpenFormState {
   kind: OpenFormKind;
@@ -558,6 +559,18 @@ export function RemittanceOperationCard({
               type="button"
               variant="ghost"
               size="icon-xs"
+              aria-label={t("changeStatus")}
+              title={t("changeStatus")}
+              onClick={() => toggleForm({ kind: "status" })}
+            >
+              <Flag aria-hidden="true" />
+            </Button>
+          )}
+          {editable && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
               aria-label={t("editOperation")}
               title={t("editOperation")}
               onClick={() => toggleForm({ kind: "operation" })}
@@ -649,6 +662,15 @@ export function RemittanceOperationCard({
             <SplitDepositForm
               operationId={operation.id}
               members={mixedMembers ?? [operation]}
+              onDone={handleChanged}
+              onCancel={() => setOpenForm(null)}
+            />
+          )}
+
+          {openForm?.kind === "status" && (
+            <OperationStatusControl
+              operationId={operation.id}
+              currentStatus={operation.status}
               onDone={handleChanged}
               onCancel={() => setOpenForm(null)}
             />

@@ -39,11 +39,13 @@ vi.mock("next-intl", () => ({
 }));
 
 const corregirBeneficiario = vi.fn();
+const quitarBeneficiario = vi.fn();
 vi.mock("@/lib/remittance-operations/commands", () => ({
   fetchCalculatorRates: vi.fn().mockResolvedValue(null),
   corregirOperacion: vi.fn(),
   corregirBeneficiario: (...args: unknown[]) => corregirBeneficiario(...args),
   reasignarBeneficiario: vi.fn(),
+  quitarBeneficiario: (...args: unknown[]) => quitarBeneficiario(...args),
   agregarBeneficiario: vi.fn(),
 }));
 
@@ -2508,6 +2510,49 @@ describe("RemittanceOperationCard header layout", () => {
     expect(method.querySelector("svg")).toBeNull();
     expect(method.querySelector(".sr-only")!.textContent).toContain(en.Inbox.operationsPanel.depositMethod);
     expect(method.getAttribute("title")).toBe(en.Inbox.operationsPanel.depositMethod);
+    await act(async () => root.unmount());
+  });
+});
+
+// panel-fully-editable T1: remove a recipient from the card.
+describe("RemittanceOperationCard: remove a recipient", () => {
+  const P = en.Inbox.operationsPanel;
+  const click = (el: Element) => act(async () => el.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+  const two = () =>
+    operation({
+      beneficiaries: [
+        beneficiary({ id: "b-1", beneficiaryType: "zelle", name: "Persona Uno", zelleAccount: "uno@example.invalid" }),
+        beneficiary({ id: "b-2", beneficiaryType: "zelle", name: "Persona Dos", zelleAccount: "dos@example.invalid", position: 2 }),
+      ],
+    });
+
+  it("an editable card offers Remove on every recipient, and a single recipient too", async () => {
+    const a = await render(two());
+    expect(a.node.querySelectorAll(`button[aria-label="${P.removeBeneficiary}"]`)).toHaveLength(2);
+    await act(async () => a.root.unmount());
+
+    const b = await render(operation({ beneficiaries: [beneficiary({ id: "b-1", beneficiaryType: "zelle", name: "Solo", zelleAccount: "solo@example.invalid" })] }));
+    expect(button(b.node, P.removeBeneficiary)).not.toBeNull();
+    await act(async () => b.root.unmount());
+  });
+
+  it("a card that cannot be edited offers no Remove", async () => {
+    const { node, root } = await render(two(), { canEdit: false });
+    expect(button(node, P.removeBeneficiary)).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("Remove asks first, then removes that recipient and refreshes the panel", async () => {
+    quitarBeneficiario.mockResolvedValue({ ok: true, id: "b-2", complete: true });
+    const { node, root, onChanged } = await render(two());
+
+    await click(node.querySelectorAll(`button[aria-label="${P.removeBeneficiary}"]`)[1]!);
+    expect(node.textContent).toContain(P.removeBeneficiaryWarning);
+    expect(quitarBeneficiario).not.toHaveBeenCalled();
+
+    await click(button(node, P.confirmRemoveBeneficiary)!);
+    expect(quitarBeneficiario).toHaveBeenCalledWith("b-2");
+    expect(onChanged).toHaveBeenCalled();
     await act(async () => root.unmount());
   });
 });

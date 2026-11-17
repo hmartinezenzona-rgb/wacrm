@@ -21,6 +21,7 @@ import { OperationCorrectionForm } from "./operation-correction-form";
 import { BeneficiaryAddControl } from "./beneficiary-add-control";
 import { BeneficiaryIdPhoto, IdPhotoFormRow } from "./beneficiary-id-photo";
 import { BeneficiaryReassignControl } from "./beneficiary-reassign-control";
+import { BeneficiaryRemoveControl } from "./beneficiary-remove-control";
 import { ComboBeneficiaryEditFields } from "./combo-beneficiary-edit-fields";
 import { ComboCostField } from "./combo-cost-field";
 import { CompleteTransferContainer } from "./complete-transfer-container";
@@ -119,7 +120,7 @@ const NOT_DELETABLE_STATUSES: ReadonlyArray<string> = ["completed", "cancelled",
  *  (`crm_cerrar_operacion_manual`, migration 190). */
 const MANUALLY_CLOSABLE_STATUSES: ReadonlyArray<string> = ["ready_to_transfer", "transferring"];
 
-type OpenFormKind = "operation" | "beneficiary" | "reassign" | "complete" | "addBeneficiary" | "close" | "delete" | "split";
+type OpenFormKind = "operation" | "beneficiary" | "reassign" | "removeBeneficiary" | "complete" | "addBeneficiary" | "close" | "delete" | "split";
 
 interface OpenFormState {
   kind: OpenFormKind;
@@ -509,6 +510,16 @@ export function RemittanceOperationCard({
             <ArrowRightLeft aria-hidden="true" />
           </Button>
         )}
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          aria-label={t("removeBeneficiary")}
+          title={t("removeBeneficiary")}
+          onClick={() => toggleForm({ kind: "removeBeneficiary", beneficiaryId: beneficiary.id })}
+        >
+          <Trash2 aria-hidden="true" />
+        </Button>
       </>
     );
 
@@ -732,6 +743,8 @@ export function RemittanceOperationCard({
                     openForm?.kind === "beneficiary" && openForm.beneficiaryId === beneficiary.id;
                   const isMovingBeneficiary =
                     openForm?.kind === "reassign" && openForm.beneficiaryId === beneficiary.id;
+                  const isRemovingBeneficiary =
+                    openForm?.kind === "removeBeneficiary" && openForm.beneficiaryId === beneficiary.id;
 
                   return (
                     <li key={beneficiary.id} className="space-y-1.5 text-xs">
@@ -882,6 +895,16 @@ export function RemittanceOperationCard({
                           <BeneficiaryReassignControl
                             beneficiaryId={beneficiary.id}
                             targets={otherOpenOperations}
+                            onDone={handleChanged}
+                            onCancel={() => setOpenForm(null)}
+                          />
+                        </div>
+                      )}
+
+                      {isRemovingBeneficiary && (
+                        <div className="mt-1.5">
+                          <BeneficiaryRemoveControl
+                            beneficiaryId={beneficiary.id}
                             onDone={handleChanged}
                             onCancel={() => setOpenForm(null)}
                           />

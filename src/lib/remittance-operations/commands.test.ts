@@ -7,6 +7,7 @@ import {
   corregirOperacion,
   corregirBeneficiario,
   reasignarBeneficiario,
+  quitarBeneficiario,
   fetchOperationReceipts,
   fetchChatImages,
   verifyDeposit,
@@ -616,5 +617,27 @@ describe("CUP source card (migration 257)", () => {
 
     await cerrarOperacionManual(OPERATION_ID, false, undefined, CARD_ID);
     expect(JSON.parse(vi.mocked(fetch).mock.calls[0]![1]!.body as string)).toEqual({ notify: false, cupSourceCardId: CARD_ID });
+  });
+});
+
+describe("quitarBeneficiario", () => {
+  it("POSTs to the remove route and returns the id and whether the operation is still complete", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ok: true, id: BENEFICIARY_ID, complete: false }));
+
+    const result = await quitarBeneficiario(BENEFICIARY_ID);
+
+    expect(fetch).toHaveBeenCalledWith(
+      `/api/remittance-operations/beneficiaries/${BENEFICIARY_ID}/remove`,
+      expect.objectContaining({ method: "POST", headers: { "Content-Type": "application/json" } }),
+    );
+    expect(result).toEqual({ ok: true, id: BENEFICIARY_ID, complete: false });
+  });
+
+  it("maps a refusal to ok:false with status and error message", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ error: "operation is closed" }, 400));
+
+    const result = await quitarBeneficiario(BENEFICIARY_ID);
+
+    expect(result).toEqual({ ok: false, status: 400, error: "operation is closed" });
   });
 });

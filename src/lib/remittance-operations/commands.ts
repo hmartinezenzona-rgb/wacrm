@@ -140,6 +140,22 @@ export function reasignarBeneficiario(
   );
 }
 
+export type QuitarBeneficiarioCommandResult =
+  | { ok: true; id: string; complete: boolean }
+  | { ok: false; status: number; error: string };
+
+/** `crm_quitar_beneficiario` (migration 377): removes a current recipient of an open operation (kept as `reemplazado`,
+ *  audited). `complete` says whether the operation still has all its recipient data. */
+export async function quitarBeneficiario(beneficiaryId: string): Promise<QuitarBeneficiarioCommandResult> {
+  const response = await postJsonResult<{ id: string; complete: boolean }>(
+    `/api/remittance-operations/beneficiaries/${beneficiaryId}/remove`,
+    "POST",
+    {},
+  );
+  if (!response.ok) return response;
+  return { ok: true, id: response.data.id, complete: response.data.complete };
+}
+
 export type AgregarBeneficiarioCommandResult =
   | { ok: true; id: string; complete: boolean }
   | { ok: false; status: number; error: string };

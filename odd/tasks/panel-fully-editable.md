@@ -39,7 +39,7 @@ Out: the bot, the Decisor, the notifier.
 - The panel is published with `wacrm-publicar-panel` (release branch to remote `privado`, build in prod-build), only with a go-ahead.
 
 ## Tasks
-- [ ] T1 Remove a recipient: `crm_quitar_beneficiario` (migration 377) + assertion; DELETE route; client command; button with inline
+- [~] T1 (code + tests done, staging panel check and production pending) Remove a recipient: `crm_quitar_beneficiario` (migration 377) + assertion; DELETE route; client command; button with inline
       confirm on each recipient; messages es/en; vitest
 - [ ] T2 Create an operation from scratch (design first: conversation, service, amount, recipients)
 - [ ] T3 Attach a chat image as a receipt (owner decision first)
@@ -54,6 +54,21 @@ Out: the bot, the Decisor, the notifier.
   asks for confirmation and refreshes the card.
 
 ## Progress / evidence
+- T1 SQL (2026-11-17, commit a81727cb): assertion `remove-beneficiary.sql` RED on the base (function absent), GREEN with migration 377
+  (`staging-migracion.sh aplicar`: dry-run/apply/assertion/rollback OK, function md5 cd1fffcc). The first run failed on the audit table:
+  `remittance_admin_audit_action_chk` only accepts listed actions, so 377 re-creates the constraint with the production list plus
+  `human_beneficiary_removed` (ROLLBACK-377 re-adds the old list as NOT VALID so audit rows already written are kept). Related
+  assertions (pattern crm_agregar_beneficiario|crm_corregir_beneficiario|crm_quitar_beneficiario|admin_audit_action_chk|human_beneficiary,
+  --ya-aplicada): TOTAL 14, SAME 13, DIFF 1 (remove-beneficiary RED->GREEN). The SAME failures (grants-mirror-production, saldo-model)
+  fail identically on the base. Removal = `status 'reemplazado'` + `replaced_at` (the table only allows vigente/reemplazado), the
+  operation is locked for beneficiaries, a combo total is recomputed, the audit row keeps the removed data in `before`.
+- T1 app: route POST `/api/remittance-operations/beneficiaries/[beneficiaryId]/remove` (7 route tests), command `quitarBeneficiario`
+  (2 tests), component `beneficiary-remove-control.tsx` (4 tests) and a Remove (trash) button beside Edit / Move on every recipient of an
+  editable card, one or several (3 card tests), messages es/en. RED first on each (missing route / component / button), GREEN after:
+  `npx vitest run src/components/inbox/operations` 37 files, 627 tests; `npx tsc --noEmit` clean; eslint clean on the new files.
+- Environment: the symlinked `node_modules` lacked jsdom; replaced with `npm ci --ignore-scripts` in this worktree (git-ignored).
+  Also fixed a type error of my notifier test (dotAll regex flag), commit c3e40d76.
 
 ## Next step
-T1: write the SQL assertion first.
+T1: look at it in the local staging panel with the owner (wacrm-probar-staging), then production migration 377 + panel publish, each
+with a go-ahead. Then T2.

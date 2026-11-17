@@ -127,12 +127,30 @@ bot objective 8, conversation history 7, service type 3, mixed split 4, recipien
   `operations-panel-container.tsx` now receive `canEdit` and the real `accountRole` on both the plain and grouped paths. TDD: RED observed on
   the three touched test files (20 failed), GREEN `npx vitest run src/components/inbox/operations` 44 files / 703 tests, `tsc --noEmit` clean,
   eslint clean. Parent spot check re-ran the two new test files: 23 passed.
-- NOT yet recorded as evidence: whether migrations 380-383 were applied to staging (the 377-379 entries above record their dry-run/apply md5;
-  the later ones have no such entry in this document). Verify before the staging browser check.
+- T6 staging (2026-11-17): migrations 380-383 were already applied on staging (verified: the nine functions of 380-383 exist and
+  `remittance_admin_audit_action_chk` includes `human_closed_operation_edit`). The four assertions run against the applied state with
+  `ALL PASS (rolled back on purpose)`: free-deposits, move-deposit, attach-receipt, closed-operation-edit. Re-applying 380 ended with the
+  rollback test failing because the function already existed; that test only applies to a first apply, not to an idempotent re-apply.
+- Staging fixtures (2026-11-17): `PRUEBA quitar destinatario` (conv ec09ae34) cleaned with a dry run shown first and zero rows left. New
+  fixture `PRUEBA panel editable` (59902530378, op 238c536d now completed) for the closed-operation edit, and `PRUEBA comprobante chat`
+  (59902530379, op 83988f69) with a free deposit 21402978530091 and one chat image.
+- Bug fixed from the owner's browser test (commit 7d7e0905): the deposit block returned null when there were no receipts and no
+  verification to run, so the attach control never rendered on `ready_to_transfer`/`awaiting_deposit`. Now the attach (and the
+  deposit-release control) render on any open editable operation; TDD RED `expected null not to be null`, GREEN 44 files / 704 tests, tsc clean.
+- Bug fixed from the owner's browser test (commit 46e610af, migration 384): correcting `quoted_source_amount` left
+  `cerebro_objetivo_envio.monto` behind when the open objective belonged to the same operation (the 320 trigger only seeds the objective when
+  none is open), so the card showed 29,000 GYD and "missing 24,400 GYD" at once. The trigger gains a third branch: an open objective that
+  belongs to the operation follows a corrected amount; conversation-level objectives, another operation's objective, closed operations and
+  operations with a consumed deposit stay untouched. TDD RED `case a: the objective did not follow the corrected amount: 24400`, GREEN:
+  dry-run/apply/assertion/rollback OK (md5 previo = after rollback), related assertions TOTAL 177 SAME 174 DIFF 3 — the new one RED->GREEN plus
+  `contexto-envio-mixto` (flaky in base, identical-created_at ordering) and `delivery-feed-evidence` (fixture setup fails identically in base).
+- Not a bug (owner's first close attempt): the audit shows `human_correction quoted_source_amount 24400 -> 29000` on op 83988f69 at 19:34:30,
+  so the deposit of 24,400 correctly did not cover 29,000 and the panel refused the verification; the manual close is the deliberate exit.
+- Pending before production: the owner's browser retest of the whole feature (the two fixes above), migrations 377-384 in order on production,
+  and the panel publish, each with its own explicit go-ahead.
 
 ## Next step
-T6: staging cycle for migrations 380-383 (dry-run, apply, assertions, rollback where applicable) and the browser check of the whole feature
-with PRUEBA fixtures (tear down the `PRUEBA quitar destinatario` fixture, conv ec09ae34, first, with a dry run shown to the owner), then
-production migrations 377-383 in order and the panel publish — each only with an explicit go-ahead. Open product decisions to confirm with the
-owner before production: what the attach does when the receipt already exists, and whether history cards should also expose the service change
-outside the correction form.
+Owner retest in the browser with the two fixtures (attach on an open operation, then correct the amount and confirm the header and the
+"missing" line agree), then production migrations 377-384 in order and the panel publish, each only with an explicit go-ahead. Open product
+decisions to confirm before production: should attaching also be allowed on a closed operation (the 382 function refuses completed/cancelled),
+and the English fallback message when the image is already a receipt.

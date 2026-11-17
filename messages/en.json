@@ -434,6 +434,13 @@
       "optionalAmount": "Optional",
       "changeStatus": "Change state",
       "confirmChangeStatus": "Confirm the state change",
+      "freeDeposits": {
+        "button": "Link a deposit without an owner",
+        "empty": "No deposits without an owner in the last 45 days",
+        "loadError": "Could not load the deposits",
+        "link": "Link this deposit",
+        "loading": "Loading deposits…"
+      },
       "selectTarget": "Select target operation",
       "noChanges": "No changes to save",
       "cannotBeEmpty": "This can't be left empty",

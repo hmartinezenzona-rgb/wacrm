@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { canForceVerify, type AccountRole } from "@/lib/auth/roles";
 import { fetchOperationReceipts, forceVerifyDeposit, verifyDeposit } from "@/lib/remittance-operations/commands";
+import { FreeDepositsPicker } from "./free-deposits-picker";
 import type { OperationReceiptsRead, VerifyDepositItem } from "@/lib/remittance-operations/types";
 import { Skeleton } from "@/components/dashboard/skeleton";
 import { DepositReviewSection, type SummaryAmount } from "./deposit-review-section";
@@ -219,16 +220,26 @@ export function DepositReviewContainer({
   if (data.receipts.length === 0 && !canVerify) return null;
 
   return (
-    <DepositReviewSection
-      data={data}
-      canVerify={canVerify}
-      canForce={canForce}
-      busy={busy}
-      result={result}
-      onVerify={handleVerify}
-      onForce={handleForce}
-      summaryAmount={summaryAmount}
-      onAddAmount={onAddAmount}
-    />
+    <>
+      <DepositReviewSection
+        data={data}
+        canVerify={canVerify}
+        canForce={canForce}
+        busy={busy}
+        result={result}
+        onVerify={handleVerify}
+        onForce={handleForce}
+        summaryAmount={summaryAmount}
+        onAddAmount={onAddAmount}
+      />
+      {canVerify && (
+        // (380) A deposit of the MMG ledger nobody owns is linked with the same verify: its TransID and amount.
+        <FreeDepositsPicker
+          operationId={operationId}
+          busy={busy}
+          onLink={(deposit, notify) => handleVerify([{ ref: deposit.transId, amount: deposit.amount }], notify)}
+        />
+      )}
+    </>
   );
 }

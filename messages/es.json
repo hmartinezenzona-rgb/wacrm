@@ -434,6 +434,13 @@
       "optionalAmount": "Opcional",
       "changeStatus": "Cambiar estado",
       "confirmChangeStatus": "Confirmar el cambio de estado",
+      "freeDeposits": {
+        "button": "Vincular depósito sin dueño",
+        "empty": "No hay depósitos sin dueño en los últimos 45 días",
+        "loadError": "No se pudieron cargar los depósitos",
+        "link": "Vincular este depósito",
+        "loading": "Cargando depósitos…"
+      },
       "selectTarget": "Selecciona la operación de destino",
       "noChanges": "No hay cambios que guardar",
       "cannotBeEmpty": "Este campo no puede quedar vacío",

@@ -10,6 +10,7 @@ import {
   quitarBeneficiario,
   crearOperacion,
   cambiarEstado,
+  fetchFreeDeposits,
   fetchOperationReceipts,
   fetchChatImages,
   verifyDeposit,
@@ -702,5 +703,23 @@ describe("cambiarEstado", () => {
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ error: "operation is closed" }, 400));
 
     expect(await cambiarEstado(OPERATION_ID, "awaiting_deposit", false)).toEqual({ ok: false, status: 400, error: "operation is closed" });
+  });
+});
+
+describe("fetchFreeDeposits", () => {
+  it("GETs the free deposits of the operation", async () => {
+    const deposits = [{ transId: "T-1", amount: 13000, currency: "GYD", receivedAt: "2026-11-17T14:18:14Z", holder: null }];
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ deposits }));
+
+    const result = await fetchFreeDeposits(OPERATION_ID);
+
+    expect(fetch).toHaveBeenCalledWith(`/api/remittance-operations/${OPERATION_ID}/free-deposits`);
+    expect(result).toEqual({ ok: true, data: deposits });
+  });
+
+  it("maps a refusal to ok:false with status and error message", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ error: "Not found" }, 404));
+
+    expect(await fetchFreeDeposits(OPERATION_ID)).toEqual({ ok: false, status: 404, error: "Not found" });
   });
 });

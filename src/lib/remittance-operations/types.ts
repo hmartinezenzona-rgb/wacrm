@@ -404,6 +404,23 @@ export interface VerifyDepositRpcPayload {
 /** One image message of a conversation the panel may offer as a cash recipient's ID photo
  *  (`crm_imagenes_de_conversacion`, migration 233). `wamid` is `messages.message_id`, the value stored in
  *  `remittance_beneficiaries.id_photo_wamid`. */
+/** A MMG ledger deposit nobody owns (crm_depositos_sin_dueno, migration 380): the panel links one to an operation. */
+export interface FreeDeposit {
+  transId: string;
+  amount: number;
+  currency: string;
+  receivedAt: string;
+  holder: string | null;
+}
+
+export interface FreeDepositRpcRow {
+  trans_id: string;
+  amount: number | string;
+  currency: string;
+  received_at: string;
+  holder: string | null;
+}
+
 export interface ChatImage {
   id: string;
   wamid: string;

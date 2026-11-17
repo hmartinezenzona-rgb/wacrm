@@ -35,7 +35,9 @@ vi.mock("next-intl", () => ({
 const fetchOperationReceipts = vi.fn();
 const verifyDeposit = vi.fn();
 const forceVerifyDeposit = vi.fn();
+const fetchFreeDeposits = vi.fn();
 vi.mock("@/lib/remittance-operations/commands", () => ({
+  fetchFreeDeposits: (...args: unknown[]) => fetchFreeDeposits(...args),
   fetchOperationReceipts: (...args: unknown[]) => fetchOperationReceipts(...args),
   verifyDeposit: (...args: unknown[]) => verifyDeposit(...args),
   forceVerifyDeposit: (...args: unknown[]) => forceVerifyDeposit(...args),
@@ -451,5 +453,52 @@ describe("DepositReviewContainer", () => {
     expect(fetchOperationReceipts).toHaveBeenCalledTimes(1);
     expect(node.textContent).not.toContain(T.loading);
     await act(async () => root.unmount());
+  });
+});
+
+// panel-fully-editable T3b: link a ledger deposit nobody owns with the verify the container already has.
+describe("DepositReviewContainer: link a deposit without an owner", () => {
+  const F = en.Inbox.operationsPanel.freeDeposits;
+  const DEPOSIT = { transId: "10400000009977", amount: 13000, currency: "GYD", receivedAt: "2026-11-17T14:18:14Z", holder: "Pagador Uno" };
+  const click = (el: Element | null | undefined) => act(async () => el!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+  const pickerButton = (node: Element) => node.querySelector(`button[aria-label="${F.button}"]`);
+
+  it("offers the picker while the operation awaits verification and the user can edit", async () => {
+    fetchOperationReceipts.mockResolvedValue({ ok: true, data: readModel({ receipts: [] }) });
+    const { node } = await renderContainer();
+    await flush();
+
+    expect(pickerButton(node)).not.toBeNull();
+  });
+
+  it("offers nothing to a user who cannot edit, nor once the operation is not awaiting verification", async () => {
+    fetchOperationReceipts.mockResolvedValue({ ok: true, data: readModel() });
+    const a = await renderContainer({ canEdit: false });
+    await flush();
+    expect(pickerButton(a.node)).toBeNull();
+
+    fetchOperationReceipts.mockResolvedValue({ ok: true, data: readModel({ canVerify: false, status: "ready_to_transfer" }) });
+    const b = await renderContainer();
+    await flush();
+    expect(pickerButton(b.node)).toBeNull();
+  });
+
+  it("linking a deposit runs the existing verify with its TransID and amount, refetches and tells the panel", async () => {
+    fetchOperationReceipts.mockResolvedValue({ ok: true, data: readModel({ receipts: [] }) });
+    fetchFreeDeposits.mockResolvedValue({ ok: true, data: [DEPOSIT] });
+    verifyDeposit.mockResolvedValue({ ok: true, result: verifyResult() });
+    const onChanged = vi.fn();
+    const { node } = await renderContainer({ onChanged });
+    await flush();
+
+    await click(pickerButton(node));
+    await flush();
+    await click(node.querySelector(`button[aria-label="${F.link}"]`));
+    await flush();
+
+    expect(verifyDeposit).toHaveBeenCalledWith("op-1", [{ ref: "10400000009977", amount: 13000 }], true);
+    expect(fetchOperationReceipts).toHaveBeenCalledTimes(2);
+    expect(onChanged).toHaveBeenCalledTimes(1);
+    expect(node.textContent).toContain(T.results.verificado);
   });
 });

@@ -7,6 +7,7 @@
 
 import type {
   ChatImage,
+  FreeDeposit,
   OperationReceiptsRead,
   VerifyDepositItem,
   VerifyDepositResult,
@@ -224,6 +225,13 @@ export async function fetchOperationReceipts(
     ok: true,
     data: (result.data as { receipts: OperationReceiptsRead }).receipts,
   };
+}
+
+/** The MMG ledger deposits nobody owns (migration 380), newest first: the panel's "link a deposit" picker. */
+export async function fetchFreeDeposits(operationId: string): Promise<FetchResult<FreeDeposit[]>> {
+  const result = await getJson(`/api/remittance-operations/${operationId}/free-deposits`);
+  if (!result.ok) return result;
+  return { ok: true, data: (result.data as { deposits: FreeDeposit[] }).deposits };
 }
 
 /** The image messages of a conversation (newest first), for the cash recipient's ID photo picker. */

@@ -35,9 +35,9 @@ Out: the Decisor, the agent prompt, capture mode, the `incident` alert, the `com
   (`pruebas/decisor/decisor.jscode`, `pruebas/decisor/correr.ts`, `pruebas/decisor/decisor-notas.test.ts`, `odd/tasks/bot-brevedad.md`).
 
 ## Tasks
-- [ ] T1 Migration 375 `cerebro_humano_atendiendo(conv)`: assertion RED then GREEN on staging; related assertions
-- [ ] T2 Notifier: `leer-secreto.sql` adds `humano_atendiendo`; `filtrar.jscode` drops the question when it is true; vitest RED then GREEN
-- [ ] T3 Staging: publish both nodes to the staging notifier `OCdJoHTkV6S0aAdk` (not executed)
+- [x] T1 Migration 375 `cerebro_humano_atendiendo(conv)`: assertion RED then GREEN on staging; related assertions
+- [x] T2 Notifier: `leer-secreto.sql` adds `humano_atendiendo`; `filtrar.jscode` drops the question when it is true; vitest RED then GREEN
+- [x] T3 Staging: publish both nodes to the staging notifier `OCdJoHTkV6S0aAdk` (not executed)
 - [ ] T4 Production (needs go-ahead): migration 375, then both nodes on `wGud0KGR6eMqqfMQ`
 
 ## Acceptance criteria
@@ -47,6 +47,24 @@ Out: the Decisor, the agent prompt, capture mode, the `incident` alert, the `com
   -> the question as today. Notice with data complete, completed notice and incident alert -> unchanged in both cases.
 
 ## Progress / evidence
+- T1 (2026-11-15, commit de3669c3): assertion `human-attending.sql` RED on the base (function absent), GREEN after migration 375 on
+  staging (`staging-migracion.sh aplicar`: dry-run/apply/assertion/rollback OK, md5 equal; function ACL postgres + service_role). 20
+  expectations. The first run failed one case (6b) because of the fixture, not the function: the BEFORE trigger
+  `cerebro_marcar_asignacion` sets `assigned_at = now()` whenever `assigned_agent_id` changes, so the fixture sets the date in a second
+  UPDATE. The assertion also proves the function is read-only (an expired pause and an expired assignment are NOT released).
+- T2 (commit 6ca6375e): `npx vitest run pruebas/notificador` RED 4 of 30 (the three behaviours and the SQL), GREEN 30/30. Notifier
+  code md5 8922953f -> 724f1f26; "Leer secreto" query adds `humano_atendiendo`. The new query ran against a real staging operation
+  (read-only transaction): returns `humano_atendiendo=false` with the other fields intact. `node_modules` of this worktree was missing:
+  symlinked to the main checkout's (vitest 4.1.9), git-ignored.
+- T3 (2026-11-15): staging notifier OCdJoHTkV6S0aAdk 2de5ce1c -> 0b488e1f (= active), 5 nodes, md5 of both nodes equal to the repo
+  copies, backup `notificador-staging-OCdJoHTkV6S0aAdk-2de5ce1c-…-antes-humano-atendiendo.json`. Not executed.
+- Production dry run (nothing written): `produccion-migracion.sh previa` and the publish script in simulation, live notifier
+  wGud0KGR6eMqqfMQ d631f1a4, Filtrar 8922953f, as expected. Order for production: migration 375 FIRST (a node that calls a missing
+  function breaks the whole "Leer secreto" read), then the two nodes. Rollback: restore the node backup, then ROLLBACK-375.
+- Known limit: in conversation 5a4c0ab8 the Decisor recorded `humano_reciente = false` at 14:42:36 although a person wrote at 14:40:59,
+  so the admin may have handed the chat back before the notice; this rule may not have covered that exact moment. What removes that
+  case is capture mode (production since 2026-11-15), which stores the account and holder when the customer sends them.
 
 ## Next step
-T1: write the assertion first.
+T4: owner go-ahead for production (migration 375, then the two notifier nodes). Then watch the first manual verification with a person
+attending.

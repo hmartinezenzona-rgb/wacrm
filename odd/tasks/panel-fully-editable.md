@@ -151,6 +151,11 @@ bot objective 8, conversation history 7, service type 3, mixed split 4, recipien
   de depósito" when the user can edit, the operation is open, there is at least one receipt and `can_verify` is false; it calls the audited,
   muted `crm_cambiar_estado` to `deposit_verification`, refetches and reloads the card. The attach note no longer promises a verify form that
   is not there (`attachReceipt.attachedNeedsStage`). TDD RED 3 failed, GREEN 44 files / 710 tests, tsc clean; parent spot check 37/37.
+- Wording fixed from the retest (commit a12c429f): the force path is named "Forzar verificación (sin confirmación en el correo)…" and the
+  `ya_reclamado` result now explains it ("Este TransID ya se usó en otra transferencia. Si el depósito no tiene confirmación en el correo,
+  puedes forzar la verificación."). Owner's domain rule (2026-11-17): the MMG ledger is fed from email, so a deposit whose email never
+  arrived has no row to cross — force exists exactly for that case and must stay. Three distinct cases: a free ledger deposit (link it), a
+  claimed TransID (look for the right one, or force with evidence), no email confirmation (force). Tests 44 files / 710, JSON valid.
 - Retest evidence (2026-11-17 late): T3b end-to-end worked — the 29.000 PRUEBA deposit was linked with `human_deposit_verification`
   (`saldo 0.00`, exact) and the operation reached `ready_to_transfer` without forcing. The owner then cancelled that operation and created a
   new one from scratch, which released the deposit (`op=libre`) and exposed the missing verification path above.

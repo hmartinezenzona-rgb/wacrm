@@ -434,6 +434,13 @@
       "optionalAmount": "Opcional",
       "changeStatus": "Cambiar estado",
       "confirmChangeStatus": "Confirmar el cambio de estado",
+      "depositMove": {
+        "button": "Soltar o mover este depósito",
+        "choose": "¿Qué hacer con el depósito?",
+        "release": "Dejarlo sin dueño",
+        "confirm": "Confirmar",
+        "warning": "El depósito se suelta de esta operación: el estado cambia y no se avisa al cliente."
+      },
       "freeDeposits": {
         "button": "Vincular depósito sin dueño",
         "empty": "No hay depósitos sin dueño en los últimos 45 días",

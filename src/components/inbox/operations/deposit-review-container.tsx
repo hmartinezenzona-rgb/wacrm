@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { canForceVerify, type AccountRole } from "@/lib/auth/roles";
 import { fetchOperationReceipts, forceVerifyDeposit, verifyDeposit } from "@/lib/remittance-operations/commands";
+import { ConsumedDepositsControl } from "./consumed-deposits-control";
 import { FreeDepositsPicker } from "./free-deposits-picker";
 import type { OperationReceiptsRead, VerifyDepositItem } from "@/lib/remittance-operations/types";
 import { Skeleton } from "@/components/dashboard/skeleton";
@@ -39,6 +40,8 @@ interface DepositReviewContainerProps {
    *  prefetch failed for this operation, or wasn't composed) falls back
    *  to fetching here exactly as before. */
   initialData?: OperationReceiptsRead;
+  /** The other open operations of the same conversation: where a verified deposit can be moved (migration 381). */
+  moveTargets?: { id: string; label: string }[];
 }
 
 type ResultBanner = { kind: "success" | "error"; message: string } | null;
@@ -87,6 +90,7 @@ export function DepositReviewContainer({
   onAddAmount,
   refreshToken,
   initialData,
+  moveTargets,
 }: DepositReviewContainerProps) {
   const t = useTranslations("Inbox.operationsPanel");
   const [state, setState] = useState<FetchState>(() =>
@@ -232,6 +236,18 @@ export function DepositReviewContainer({
         summaryAmount={summaryAmount}
         onAddAmount={onAddAmount}
       />
+      {canEdit && data.consumedDeposits.length > 0 && data.status !== "completed" && data.status !== "cancelled" && (
+        // (381) A verified deposit is released (free again) or moved to another open operation of the conversation.
+        <ConsumedDepositsControl
+          operationId={operationId}
+          deposits={data.consumedDeposits}
+          targets={moveTargets ?? []}
+          onMoved={async () => {
+            await load();
+            onChanged();
+          }}
+        />
+      )}
       {canVerify && (
         // (380) A deposit of the MMG ledger nobody owns is linked with the same verify: its TransID and amount.
         <FreeDepositsPicker

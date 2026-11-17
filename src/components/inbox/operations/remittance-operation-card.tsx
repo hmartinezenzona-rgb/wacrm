@@ -694,6 +694,7 @@ export function RemittanceOperationCard({
             onAddAmount={editable ? () => toggleForm({ kind: "operation" }) : undefined}
             refreshToken={refreshToken}
             initialData={initialReceipts}
+            moveTargets={otherOpenOperations}
           />
 
           {!isVisa(operation) && (

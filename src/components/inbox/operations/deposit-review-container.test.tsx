@@ -43,6 +43,16 @@ vi.mock("@/lib/remittance-operations/commands", () => ({
   forceVerifyDeposit: (...args: unknown[]) => forceVerifyDeposit(...args),
 }));
 
+// The release/move control has its own form and request (consumed-deposits-control.test.tsx): here it is a stub that exposes what the
+// container hands it and "moves" on click, so this file tests where the container puts it and what it does afterwards.
+vi.mock("./consumed-deposits-control", () => ({
+  ConsumedDepositsControl: ({ operationId, deposits, targets, onMoved }: { operationId: string; deposits: unknown[]; targets: { id: string }[]; onMoved: () => void }) => (
+    <button type="button" data-testid="move-deposits" data-op={operationId} data-count={deposits.length} data-targets={targets.map((x) => x.id).join(",")} onClick={onMoved}>
+      move
+    </button>
+  ),
+}));
+
 afterEach(() => {
   document.body.replaceChildren();
   vi.restoreAllMocks();
@@ -107,6 +117,7 @@ interface RenderOptions {
   onChanged?: () => void;
   summaryAmount?: SummaryAmount | null;
   onAddAmount?: () => void;
+  moveTargets?: { id: string; label: string }[];
 }
 
 async function renderContainer(options: RenderOptions = {}) {
@@ -124,6 +135,7 @@ async function renderContainer(options: RenderOptions = {}) {
         onChanged={onChanged}
         summaryAmount={options.summaryAmount}
         onAddAmount={options.onAddAmount}
+        moveTargets={options.moveTargets}
       />,
     ),
   );
@@ -500,5 +512,53 @@ describe("DepositReviewContainer: link a deposit without an owner", () => {
     expect(fetchOperationReceipts).toHaveBeenCalledTimes(2);
     expect(onChanged).toHaveBeenCalledTimes(1);
     expect(node.textContent).toContain(T.results.verificado);
+  });
+});
+
+// panel-fully-editable T3c: release or move a verified deposit from the deposit block.
+describe("DepositReviewContainer: release or move a verified deposit", () => {
+  const DEP = { transId: "10400000009977", amount: 13000, currency: "GYD", receivedAt: "2026-11-17T14:18:14Z", consumedAt: "2026-11-17T14:30:00Z" };
+  const stub = (node: Element) => node.querySelector<HTMLButtonElement>('[data-testid="move-deposits"]');
+
+  it("offers the control with the verified deposits and the other open operations as targets", async () => {
+    fetchOperationReceipts.mockResolvedValue({ ok: true, data: readModel({ status: "ready_to_transfer", canVerify: false, consumedDeposits: [DEP] }) });
+    const { node } = await renderContainer({ moveTargets: [{ id: "op-2", label: "x" }, { id: "op-3", label: "y" }] });
+    await flush();
+
+    expect(stub(node)).not.toBeNull();
+    expect(stub(node)!.dataset.op).toBe("op-1");
+    expect(stub(node)!.dataset.count).toBe("1");
+    expect(stub(node)!.dataset.targets).toBe("op-2,op-3");
+  });
+
+  it("offers nothing without verified deposits, to a user who cannot edit, nor on a closed operation", async () => {
+    fetchOperationReceipts.mockResolvedValue({ ok: true, data: readModel({ status: "ready_to_transfer", canVerify: false, consumedDeposits: [] }) });
+    const a = await renderContainer();
+    await flush();
+    expect(stub(a.node)).toBeNull();
+
+    fetchOperationReceipts.mockResolvedValue({ ok: true, data: readModel({ status: "ready_to_transfer", canVerify: false, consumedDeposits: [DEP] }) });
+    const b = await renderContainer({ canEdit: false });
+    await flush();
+    expect(stub(b.node)).toBeNull();
+
+    fetchOperationReceipts.mockResolvedValue({ ok: true, data: readModel({ status: "completed", canVerify: false, consumedDeposits: [DEP] }) });
+    const c = await renderContainer();
+    await flush();
+    expect(stub(c.node)).toBeNull();
+  });
+
+  it("once a deposit is moved it refetches and tells the panel", async () => {
+    fetchOperationReceipts.mockResolvedValue({ ok: true, data: readModel({ status: "ready_to_transfer", canVerify: false, consumedDeposits: [DEP] }) });
+    const onChanged = vi.fn();
+    const { node } = await renderContainer({ onChanged });
+    await flush();
+    expect(fetchOperationReceipts).toHaveBeenCalledTimes(1);
+
+    await act(async () => stub(node)!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await flush();
+
+    expect(fetchOperationReceipts).toHaveBeenCalledTimes(2);
+    expect(onChanged).toHaveBeenCalledTimes(1);
   });
 });

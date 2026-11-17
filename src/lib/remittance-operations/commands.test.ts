@@ -11,6 +11,7 @@ import {
   crearOperacion,
   cambiarEstado,
   fetchFreeDeposits,
+  moverDeposito,
   fetchOperationReceipts,
   fetchChatImages,
   verifyDeposit,
@@ -721,5 +722,37 @@ describe("fetchFreeDeposits", () => {
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ error: "Not found" }, 404));
 
     expect(await fetchFreeDeposits(OPERATION_ID)).toEqual({ ok: false, status: 404, error: "Not found" });
+  });
+});
+
+describe("moverDeposito", () => {
+  it("POSTs the TransID and the target to the move-deposit route", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ok: true, moved: true, released: false, sourceStatus: "awaiting_deposit", targetStatus: "ready_to_transfer" }));
+
+    const result = await moverDeposito(OPERATION_ID, "10400000009977", TARGET_OPERATION_ID);
+
+    expect(fetch).toHaveBeenCalledWith(
+      `/api/remittance-operations/${OPERATION_ID}/move-deposit`,
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transId: "10400000009977", destino: TARGET_OPERATION_ID }),
+      }),
+    );
+    expect(result).toEqual({ ok: true, moved: true, released: false, sourceStatus: "awaiting_deposit", targetStatus: "ready_to_transfer" });
+  });
+
+  it("a null target releases the deposit", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ok: true, moved: false, released: true, sourceStatus: "awaiting_deposit", targetStatus: null }));
+
+    await moverDeposito(OPERATION_ID, "T-1", null);
+
+    expect(fetch).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ body: JSON.stringify({ transId: "T-1", destino: null }) }));
+  });
+
+  it("maps a refusal to ok:false with status and error message", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ error: "the target operation is closed" }, 400));
+
+    expect(await moverDeposito(OPERATION_ID, "T-1", TARGET_OPERATION_ID)).toEqual({ ok: false, status: 400, error: "the target operation is closed" });
   });
 });

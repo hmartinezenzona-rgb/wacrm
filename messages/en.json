@@ -434,6 +434,13 @@
       "optionalAmount": "Optional",
       "changeStatus": "Change state",
       "confirmChangeStatus": "Confirm the state change",
+      "depositMove": {
+        "button": "Release or move this deposit",
+        "choose": "What to do with the deposit?",
+        "release": "Leave it without an owner",
+        "confirm": "Confirm",
+        "warning": "The deposit leaves this operation: the state changes and the customer is not notified."
+      },
       "freeDeposits": {
         "button": "Link a deposit without an owner",
         "empty": "No deposits without an owner in the last 45 days",

@@ -161,6 +161,27 @@ export async function cambiarEstado(
   return { ok: true, changed: response.data.changed, newStatus: response.data.newStatus };
 }
 
+export type MoverDepositoCommandResult =
+  | { ok: true; moved: boolean; released: boolean; sourceStatus: string | null; targetStatus: string | null }
+  | { ok: false; status: number; error: string };
+
+/** `crm_mover_deposito` (migration 381): releases a verified deposit from the operation (`destino` null: it becomes a free ledger deposit
+ *  again) or moves it to another open operation of the same conversation. The deposit moves whole; the new states are muted. */
+export async function moverDeposito(
+  operationId: string,
+  transId: string,
+  destino: string | null,
+): Promise<MoverDepositoCommandResult> {
+  const response = await postJsonResult<{
+    moved: boolean;
+    released: boolean;
+    sourceStatus: string | null;
+    targetStatus: string | null;
+  }>(`/api/remittance-operations/${operationId}/move-deposit`, "POST", { transId, destino });
+  if (!response.ok) return response;
+  return { ok: true, ...response.data };
+}
+
 export type CrearOperacionCommandResult =
   | { ok: true; id: string; service: string }
   | { ok: false; status: number; error: string };

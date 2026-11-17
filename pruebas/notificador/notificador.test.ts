@@ -212,3 +212,73 @@ describe('leer-secreto.sql: el estado del grupo', () => {
     expect(LEER_SECRETO_SQL).not.toContain('\\');
   });
 });
+
+// 2026-11-14, conversation 5a4c0ab8: a person chatted with the customer, forced the verification from the panel and the notifier asked
+// the customer for data he had just sent. While a person attends the chat the question is dropped; the verified sentence stays.
+describe('deposito verificado a mano con una persona atendiendo el chat: no se pregunta', () => {
+  const dinero = { quoted_source_amount: 14000, source_currency: 'GYD', delivery_method: 'zelle' };
+  const verificarCon = (cfg: Record<string, unknown>, extra: Record<string, unknown> = {}) =>
+    filtrar(op('remesa', 'ready_to_transfer', { ...dinero, ...extra }), op('remesa', 'deposit_verification', { ...dinero, ...extra }), {
+      verificacion_manual: true,
+      ...cfg,
+    });
+  const zelleCompleto = [{ beneficiary_type: 'zelle', name: 'Persona Uno', zelle_account: '5515550101' }];
+
+  it('faltan datos y una persona atiende: solo dice que el deposito esta verificado', () => {
+    const [s] = verificarCon({ beneficiarios: [], humano_atendiendo: true });
+    expect(s.json.destino).toBe('cliente');
+    expect(s.json.mensaje).toBe('Su deposito de *14,000 GYD* ya fue verificado.');
+  });
+
+  it('sin importe tambien', () => {
+    const [s] = verificarCon({ beneficiarios: [], humano_atendiendo: true }, { quoted_source_amount: null });
+    expect(s.json.mensaje).toBe('Su deposito ya fue verificado.');
+  });
+
+  it('vale para cualquier servicio que pregunte: saldo movil sin el numero', () => {
+    const [s] = filtrar(op('saldo', 'ready_to_transfer', dinero), op('saldo', 'deposit_verification', dinero), {
+      verificacion_manual: true,
+      beneficiarios: [],
+      humano_atendiendo: true,
+    });
+    expect(s.json.mensaje).toBe('Su deposito de *14,000 GYD* ya fue verificado.');
+  });
+
+  it('faltan datos y nadie atiende: la pregunta de siempre', () => {
+    for (const cfg of [{ humano_atendiendo: false }, {}, { humano_atendiendo: null }]) {
+      const [s] = verificarCon({ beneficiarios: [], ...cfg });
+      expect(s.json.mensaje).toMatch(/nos falta el nombre y la cuenta Zelle de quien recibe/);
+      expect(s.json.mensaje).toMatch(/¿Me lo pasa\?/);
+    }
+  });
+
+  it('con los datos completos el aviso no cambia, atienda quien atienda', () => {
+    const [a] = verificarCon({ beneficiarios: zelleCompleto, humano_atendiendo: true });
+    const [b] = verificarCon({ beneficiarios: zelleCompleto, humano_atendiendo: false });
+    for (const s of [a, b]) {
+      expect(s.json.mensaje).toMatch(/^Su deposito de \*14,000 GYD\* ya fue verificado\.\n\n.*(acá|aquí|aqui|aca)/s);
+      expect(s.json.mensaje).not.toMatch(/falta/);
+    }
+  });
+
+  it('el aviso de completada y la alerta de incidencia no cambian', () => {
+    const [c] = filtrar(op('remesa', 'completed', dinero), op('remesa', 'ready_to_transfer', dinero), { humano_atendiendo: true });
+    expect(c.json.destino).toBe('cliente');
+    expect(c.json.mensaje).toMatch(/Listo, su remesa\{RECIBE\} ya fue completada/);
+    const [i] = filtrar(op('remesa', 'incident', { incident_reason: 'sin_correo' }), op('remesa', 'deposit_verification'), {
+      humano_atendiendo: true,
+    });
+    expect(i.json.destino).toBe('admin');
+  });
+});
+
+describe('leer-secreto.sql: si una persona atiende el chat', () => {
+  it('lee el hecho de la operacion con la funcion de la base', () => {
+    expect(LEER_SECRETO_SQL).toMatch(/cerebro_humano_atendiendo\(o\.conversation_id\)/);
+    expect(LEER_SECRETO_SQL).toMatch(/o\.id::text = \$1\) AS humano_atendiendo/);
+  });
+  it('sigue siendo una sola sentencia sin barra invertida', () => {
+    expect(LEER_SECRETO_SQL).not.toContain(';');
+    expect(LEER_SECRETO_SQL).not.toContain('\\');
+  });
+});

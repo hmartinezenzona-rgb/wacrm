@@ -290,8 +290,13 @@ if (rec.status === 'ready_to_transfer') {
     : 'Su deposito ya fue verificado.';
   // Salto de parrafo a mano: este workflow NO pasa por 'Normalizar formato'.
   const NL = String.fromCharCode(10) + String.fromCharCode(10);
+  // A PERSON ATTENDS THE CHAT (375, 2026-11-15, owner "si hazlo"): production conversation 5a4c0ab8 (2026-11-14) - an admin chatted
+  // with the customer, forced the verification from the panel and this notice asked for data the customer had just sent. While a
+  // person attends (cfg.humano_atendiendo, from cerebro_humano_atendiendo, same definition as the Decisor's) the question is
+  // dropped and only the fact stays: the deposit is verified. Without the fact (old query) or when nobody attends: as before.
+  const personaAtiende = cfg.humano_atendiendo === true;
   const plural = falta.startsWith('los ');
-  const mensaje = falta
+  const mensaje = (falta && personaAtiende) ? frase : falta
     ? frase + NL + (esCombo ? 'Para poder enviar su combo nos ' : esSaldo ? 'Para poder enviar su saldo móvil nos ' : 'Para poder hacer ' + (esRecarga ? 'la recarga' : 'la transferencia') + ' nos ') + (plural ? 'faltan ' : 'falta ') + falta + '. ' + (plural ? '¿Me los pasa?' : '¿Me lo pasa?')
     : frase + NL + (() => {
         // SIN PROMETER TIEMPOS NI REPETIR DATOS (85b, 3-oct-2026, criterio de Humberto): casi nunca sale al momento, y

@@ -24,4 +24,6 @@ SELECT cerebro_config_get('notify_secret') AS secreto,
          WHERE m.mixed_group_id IS NOT NULL
            AND m.mixed_group_id = (SELECT g.mixed_group_id FROM remittance_operations g WHERE g.id::text = $1)
            AND m.id::text <> $1
-           AND m.status NOT IN ('completed', 'cancelled')) AS grupo_pendientes
+           AND m.status NOT IN ('completed', 'cancelled')) AS grupo_pendientes,
+       (SELECT cerebro_humano_atendiendo(o.conversation_id) FROM remittance_operations o
+         WHERE o.id::text = $1) AS humano_atendiendo

@@ -8,7 +8,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /** md5 of the node code as it stands (updated with every deliberate change). */
-export const FILTRAR_MD5_ESPERADO = '8922953fe6410c8faf117d9790226734';
+export const FILTRAR_MD5_ESPERADO = '724f1f26c01a1aaea05bf404373b6eee';
 
 export const ORIGEN_FILTRAR = join(dirname(fileURLToPath(import.meta.url)), 'filtrar.jscode');
 

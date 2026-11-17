@@ -152,5 +152,5 @@ bot objective 8, conversation history 7, service type 3, mixed split 4, recipien
 ## Next step
 Owner retest in the browser with the two fixtures (attach on an open operation, then correct the amount and confirm the header and the
 "missing" line agree), then production migrations 377-384 in order and the panel publish, each only with an explicit go-ahead. Open product
-decisions to confirm before production: should attaching also be allowed on a closed operation (the 382 function refuses completed/cancelled),
-and the English fallback message when the image is already a receipt.
+decisions: owner decision 2026-11-17 — attaching a receipt on a closed operation stays refused (the 382 function rejects completed/cancelled
+and the card hides the control; do not change it). Still open: the English fallback message when the image is already a receipt.

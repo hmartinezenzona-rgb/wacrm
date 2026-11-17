@@ -293,8 +293,11 @@ BEGIN
   RAISE NOTICE 'PASS g: same service is a no-op';
 
   -- ---- h. refusals ----
+  -- (383) An owner or an admin may edit a closed operation now; the refusal below is the AGENT's. The role change is rolled back with the rest.
+  UPDATE profiles SET account_role = 'agent' WHERE user_id = v_user;
   IF pg_temp.t222_try(v_closed1, 'clasica', v_user) <> '22023' THEN RAISE EXCEPTION 'case h: a completed operation must be refused'; END IF;
   IF pg_temp.t222_try(v_closed2, 'clasica', v_user) <> '22023' THEN RAISE EXCEPTION 'case h: a cancelled operation must be refused'; END IF;
+  UPDATE profiles SET account_role = 'owner' WHERE user_id = v_user;
   IF pg_temp.t222_try(v_op, 'clasica', v_stranger) <> '42501' THEN RAISE EXCEPTION 'case h: a non-member must be refused'; END IF;
   IF pg_temp.t222_try(v_op, 'clasica', NULL) <> '42501' THEN RAISE EXCEPTION 'case h: an unauthenticated call must be refused'; END IF;
   IF pg_temp.t222_try(v_op, 'bitcoin', v_user) <> '22023' THEN RAISE EXCEPTION 'case h: an unknown service must be refused'; END IF;

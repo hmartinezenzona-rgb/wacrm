@@ -8,7 +8,7 @@
 --      `human_beneficiary_removed` keeps the removed account, the operation is locked for beneficiaries, the answer carries `complete`
 --   2  the only recipient of an operation is removed: allowed, the operation stays open and is no longer complete
 --   3  a combo recipient is removed: the combo total follows (sum of the vigente combo amounts)
---   4  refused: a completed operation, a recipient that is not current, an unknown id, a user who is not a member
+--   4  refused: a completed operation (to an agent), a recipient that is not current, an unknown id, a user who is not a member
 -- =====================================================================
 DO $$
 DECLARE
@@ -69,7 +69,7 @@ BEGIN
   BEGIN PERFORM crm_quitar_beneficiario(gen_random_uuid());
   EXCEPTION WHEN SQLSTATE 'P0002' THEN v_ok := true; END;
   IF NOT v_ok THEN RAISE EXCEPTION 'case 4b: an unknown recipient must be refused'; END IF;
-  -- 4c completed operation
+  -- 4c completed operation (refused to an agent; an owner or admin may edit it since 383)
   INSERT INTO remittance_operations (account_id, conversation_id, contact_id, status, service_type, source_currency, quoted_source_amount, delivery_method)
   VALUES (v_acc, v_conv, v_ct, 'collecting_information', 'remesa', 'GYD', 13000, 'zelle') RETURNING id INTO v_op;
   INSERT INTO remittance_beneficiaries (operation_id, beneficiary_type, name, zelle_account, amount, currency, position, block_index, source, status)
@@ -77,10 +77,13 @@ BEGIN
   PERFORM set_config('wacrm.origin', 'admin', true);
   UPDATE remittance_operations SET status = 'completed', completed_at = now() WHERE id = v_op;
   PERFORM set_config('wacrm.origin', '', true);
+  -- (383) An owner or an admin may edit a closed operation now; the refusal below is the AGENT's. The role change is rolled back with the rest.
+  UPDATE profiles SET account_role = 'agent' WHERE user_id = v_user;
   v_ok := false;
   BEGIN PERFORM crm_quitar_beneficiario(v_b2);
   EXCEPTION WHEN SQLSTATE '22023' THEN v_ok := true; END;
   IF NOT v_ok THEN RAISE EXCEPTION 'case 4c: removing a recipient of a completed operation must be refused'; END IF;
+  UPDATE profiles SET account_role = 'owner' WHERE user_id = v_user;
   IF (SELECT status FROM remittance_beneficiaries WHERE id = v_b2) <> 'vigente' THEN RAISE EXCEPTION 'case 4c: the recipient must be untouched'; END IF;
   -- 4d not a member
   INSERT INTO remittance_operations (account_id, conversation_id, contact_id, status, service_type, source_currency, quoted_source_amount, delivery_method)

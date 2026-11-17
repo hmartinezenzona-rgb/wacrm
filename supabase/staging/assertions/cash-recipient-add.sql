@@ -211,10 +211,13 @@ BEGIN
 
   -- ---- f. refusals ----
   v_op := pg_temp.t225_op(v_user, v_acc, '59902250009', 'remesa', 'efectivo_usd', v_dep);
+  -- (383) An owner or an admin may edit a closed operation now; the refusal below is the AGENT's. The role change is rolled back with the rest.
+  UPDATE profiles SET account_role = 'agent' WHERE user_id = v_user;
   IF pg_temp.t225_try(v_closed1, '{"beneficiary_type":"efectivo_usd","phone":"52123456","address":"Calle 1"}'::jsonb, v_user) <> '22023' THEN
     RAISE EXCEPTION 'case f: a completed operation must be refused'; END IF;
   IF pg_temp.t225_try(v_closed2, '{"beneficiary_type":"efectivo_usd","phone":"52123456","address":"Calle 1"}'::jsonb, v_user) <> '22023' THEN
     RAISE EXCEPTION 'case f: a cancelled operation must be refused'; END IF;
+  UPDATE profiles SET account_role = 'owner' WHERE user_id = v_user;
   IF pg_temp.t225_try(v_op, '{"beneficiary_type":"efectivo_usd","phone":"52123456","address":"Calle 1"}'::jsonb, v_stranger) <> '42501' THEN
     RAISE EXCEPTION 'case f: a non-member must be refused'; END IF;
   IF pg_temp.t225_try(v_op, '{"beneficiary_type":"efectivo_usd","phone":"52123456","address":"Calle 1"}'::jsonb, NULL) <> '42501' THEN

@@ -343,8 +343,11 @@ BEGIN
   -- ---- l. the panel RPC still refuses what it refused ----
   v_op := pg_temp.t230_op(v_user, v_acc, '59902300016', 'cuban_card', 47100, 'completed');
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_user, 'role', 'authenticated')::text, true);
+  -- (383) An owner or an admin may edit a closed operation now; the refusal below is the AGENT's. The role change is rolled back with the rest.
+  UPDATE profiles SET account_role = 'agent' WHERE user_id = v_user;
   BEGIN PERFORM crm_cambiar_servicio(v_op, 'clasica'); RAISE EXCEPTION 'case l: a completed operation must be refused';
   EXCEPTION WHEN SQLSTATE '22023' THEN NULL; END;
+  UPDATE profiles SET account_role = 'owner' WHERE user_id = v_user;
   BEGIN PERFORM crm_cambiar_servicio(v_op, 'bitcoin'); RAISE EXCEPTION 'case l: an unknown service must be refused';
   EXCEPTION WHEN SQLSTATE '22023' THEN NULL; END;
   PERFORM set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);

@@ -169,9 +169,12 @@ bot objective 8, conversation history 7, service type 3, mixed split 4, recipien
   (pushed to `privado`), artifact `build_id gl5T1u8LrDq-8_3wymdpX`, `current -> 559d2c1b...`, rollback `anterior -> a7a469a0...`.
   `compilar --sin-pruebas` because the prod-build `node_modules` has no dev deps (`vitest/config` unresolvable); vitest and tsc had run on
   the same sha in mejora-legacy (710 tests, clean). The build itself ran in `node:20`.
-- Pending: staging fixture cleanup. The standard `limpieza.sql` fails on the closed fixture because its completed operation fed the
-  calculator and completed calculator rows are append-only (DELETE refused). The dry run succeeds when the fixture's completed calculator
-  rows are voided first (`status='void', voided_at=now()`, figures untouched, allowed by the guard) inside the same transaction.
+- Staging fixture cleanup done (2026-11-17): the standard `limpieza.sql` failed on the closed fixture because its completed operation fed the
+  calculator and completed calculator rows are append-only (DELETE refused). The working recipe voids them first inside the same transaction
+  (`status='void', voided_at=now()`, figures untouched, allowed by the guard). Both fixtures deleted; verified zero PRUEBA contacts,
+  deposits and operations in staging.
+- Known open polish (not blocking): attaching an image that is already a receipt surfaces the raw English server message
+  ("this image is already a receipt of the operation") in an otherwise Spanish panel.
 
 - Operational note for the next production apply: do not send two migrations in the same second through the Management API; apply one per
   invocation or space them, otherwise `schema_migrations_pkey` collides.

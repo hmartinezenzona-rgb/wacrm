@@ -159,8 +159,16 @@ bot objective 8, conversation history 7, service type 3, mixed split 4, recipien
 - Retest evidence (2026-11-17 late): T3b end-to-end worked — the 29.000 PRUEBA deposit was linked with `human_deposit_verification`
   (`saldo 0.00`, exact) and the operation reached `ready_to_transfer` without forcing. The owner then cancelled that operation and created a
   new one from scratch, which released the deposit (`op=libre`) and exposed the missing verification path above.
-- Pending before production: the owner's browser retest of this last fix, migrations 377-384 in order on production, and the panel publish,
-  each with its own explicit go-ahead.
+- Production (2026-11-17, owner go-ahead "aplica las ocho en orden"): `previa` ended `REVISAR (2 diferencias)` both times, both only the
+  `NOT VALID` flag of the two constraints the migrations drop and recreate; the allowed lists matched production. Applied versions:
+  377 20261117212118, 378 20261117212120, 379 20261117212148, 380 20261117212149, 381 20261117212155, 382 20261117212158,
+  383 20261117212201, 384 20261117212205. Two API version collisions (`23505 schema_migrations_pkey`) aborted 379 and later 381 inside the
+  batch because the Management API stamps versions at second granularity; both rolled back whole and were re-applied alone. `verificar`:
+  **12/12 EQUAL** (`prod = stg` md5 for every function, including `remittance_operations_objetivo_desde_op` 9a9d757d).
+- Pending: publish the panel (`wacrm-publicar-panel`), with its own explicit go-ahead. Fixtures still on staging for cleanup.
+
+- Operational note for the next production apply: do not send two migrations in the same second through the Management API; apply one per
+  invocation or space them, otherwise `schema_migrations_pkey` collides.
 
 ## Next step
 Owner retest in the browser with the two fixtures (attach on an open operation, then correct the amount and confirm the header and the

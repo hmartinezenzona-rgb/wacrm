@@ -24,7 +24,7 @@ Strict TDD (user CLAUDE.md). Staging first. No AI attribution in commits. Never 
 
 ## Tasks
 - [x] T1 Assertion first (8a/8b no open send, 8c Elisvan shape, 10 two open sends) RED, then migration 376 GREEN on staging
-- [ ] T2 Production migration 376 (needs go-ahead)
+- [x] T2 Production migration 376
 - [ ] T3 Phantom operation 73a89429: an admin deletes it from the panel (not verified, 0 GYD) or I do it audited on request
 
 ## Acceptance criteria
@@ -40,5 +40,10 @@ Strict TDD (user CLAUDE.md). Staging first. No AI attribution in commits. Never 
   zelle-payee-resave, deal-free-beneficiary-writers) fail identically on the base. Production dry run: previa SEGURO, live function is
   still the 374 body (md5 ea5bd647).
 
+- T2 production (2026-11-17, owner "si"): `OK 376_silent_capture_never_opens_send 20261117174528`, verificar 1/1 EQUAL (af0a162a = staging).
+  Rollback: ROLLBACK-376 (restores the 374 body; not recommended). No n8n change needed: the node "Captura en silencio" calls the same
+  function. Not yet seen with real traffic.
+
 ## Next step
-T2: owner go-ahead for production migration 376.
+T3: the phantom operation 73a89429 (an admin deletes it from the panel, or I do it audited on request). Owner decisions pending: the 5 min
+derivation expiry and the "re-send of a completed remittance" behaviour.

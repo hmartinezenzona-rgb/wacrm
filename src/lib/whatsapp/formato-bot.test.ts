@@ -12,8 +12,24 @@ describe('aFormatoWhatsapp', () => {
 })
 
 describe('partirEnBurbujas', () => {
-  it('no parte textos cortos', () => {
-    expect(partirEnBurbujas('Hola\n\nQué tal')).toHaveLength(1)
+  it('un solo párrafo va en una burbuja', () => {
+    expect(partirEnBurbujas('Con gusto. ¿Qué medida necesita?')).toHaveLength(1)
+  })
+  it('la pregunta final va sola en su burbuja', () => {
+    expect(partirEnBurbujas('Manejamos estas marcas:\n- ASCO\n- Parker\n\n¿Le interesa alguna?')).toEqual([
+      'Manejamos estas marcas:\n- ASCO\n- Parker',
+      '¿Le interesa alguna?',
+    ])
+    expect(partirEnBurbujas('Listo, su folio es *AP-1*.\n\nLa gerente le enviará la cotización. ¿Desea agregar algo más?')).toEqual([
+      'Listo, su folio es *AP-1*.',
+      'La gerente le enviará la cotización. ¿Desea agregar algo más?',
+    ])
+  })
+  it('el resumen queda junto y la pregunta aparte', () => {
+    expect(partirEnBurbujas('*Su solicitud:*\n- 10 pzas · válvula\n\n*A nombre de:* Humberto\n*Para:* sábado\n\n¿Está correcto?')).toEqual([
+      '*Su solicitud:*\n- 10 pzas · válvula\n\n*A nombre de:* Humberto\n*Para:* sábado',
+      '¿Está correcto?',
+    ])
   })
   it('parte por párrafos y nunca más de 3', () => {
     const p = 'x'.repeat(300)
@@ -31,10 +47,12 @@ describe('partirEnBurbujas', () => {
 describe('prepararRespuestaBot', () => {
   it('pone botones cuando pide confirmar', () => {
     const p = prepararRespuestaBot('*Su solicitud:*\n- 10 · válvula\n\n¿Está correcto?')
-    expect(p).toHaveLength(1)
-    expect(p[0].tipo).toBe('botones')
-    if (p[0].tipo === 'botones') {
-      expect(p[0].payload.buttons.map((b) => b.title)).toEqual(['Sí, es correcto', 'Corregir algo'])
+    expect(p).toHaveLength(2)
+    expect(p[0]).toEqual({ tipo: 'texto', texto: '*Su solicitud:*\n- 10 · válvula' })
+    expect(p[1].tipo).toBe('botones')
+    if (p[1].tipo === 'botones') {
+      expect(p[1].payload.body).toBe('¿Está correcto?')
+      expect(p[1].payload.buttons.map((b) => b.title)).toEqual(['Sí, es correcto', 'Corregir algo'])
     }
   })
   it('respeta botones pedidos por el bot', () => {

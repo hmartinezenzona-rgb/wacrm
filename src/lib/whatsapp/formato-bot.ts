@@ -68,19 +68,32 @@ function limpiarNegrita(x: string): string {
   return x.replace(/\*+/g, '').trim()
 }
 
-/** Parte en burbujas solo por párrafos; agrupa párrafos cortos. */
+const ES_LISTA = /^(-|\d{1,2}\.)\s/
+const TERMINA_EN_PREGUNTA = /\?\s*$/
+
+/**
+ * Parte en burbujas solo por párrafos, como escribiría una persona:
+ *  - La pregunta final va sola en su propia burbuja (se lee y se contesta).
+ *  - Lo demás se agrupa en burbujas de hasta ~380 letras.
+ *  - Una lista nunca se separa del renglón que la presenta ("Su solicitud:").
+ *  - Nunca más de 3 burbujas.
+ */
 export function partirEnBurbujas(texto: string): string[] {
-  if (texto.length <= LARGO_BURBUJA) return [texto]
   const parrafos = texto.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean)
   if (parrafos.length < 2) return [texto]
+
+  // La pregunta final se aparta, salvo que sea parte de una lista.
+  let pregunta: string | null = null
+  const ultimo = parrafos[parrafos.length - 1]
+  if (TERMINA_EN_PREGUNTA.test(ultimo) && !ES_LISTA.test(ultimo) && ultimo.length <= 300) {
+    pregunta = parrafos.pop() as string
+  }
 
   const burbujas: string[] = []
   let actual = ''
   for (const p of parrafos) {
     const junto = actual ? `${actual}\n\n${p}` : p
-    // Una lista que viene justo después de su encabezado ("Su solicitud:")
-    // no se separa de él.
-    const esContinuacion = /^(-|\d{1,2}\.)\s/.test(p) && /:\s*$/.test(actual)
+    const esContinuacion = ES_LISTA.test(p) && /:\s*$/.test(actual)
     if (actual && junto.length > LARGO_BURBUJA && !esContinuacion) {
       burbujas.push(actual)
       actual = p
@@ -89,11 +102,13 @@ export function partirEnBurbujas(texto: string): string[] {
     }
   }
   if (actual) burbujas.push(actual)
+  if (pregunta) burbujas.push(pregunta)
 
-  // Nunca más de 3 burbujas seguidas: lo que sobra se junta en la última.
+  // Nunca más de 3 burbujas: se juntan las del medio, la pregunta queda sola.
   while (burbujas.length > MAX_BURBUJAS) {
-    const ultima = burbujas.pop() as string
-    burbujas[burbujas.length - 1] += `\n\n${ultima}`
+    const fin = pregunta ? 2 : 1
+    const i = burbujas.length - fin - 1
+    burbujas.splice(i - 1, 2, `${burbujas[i - 1]}\n\n${burbujas[i]}`)
   }
   return burbujas
 }

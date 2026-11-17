@@ -1,153 +1,112 @@
-\set ON_ERROR_STOP on
-BEGIN;
 -- =====================================================================
--- Assertion for migration 287 (cerebro_modificar_operacion p_accion 'mover_deposito').
--- Self-reverting. Synthetic fixtures: contacts 'PRUEBA mover N', phones 5990287xxxx; MMG rows inserted already verified (consumido_en) and attached.
--- Cases:
---   1  a verified 26,000 deposit moves from a Zelle operation to another Zelle operation that asks 26,000: the row now belongs to the target (ONE row, not duplicated),
---      target ready_to_transfer, source awaiting_deposit, two audit rows with the real actor, message in Spanish, tool log
---   2  a target that asks nothing yet takes the deposit as its amount
---   3  below the target's minimum (5,000 into a Zelle): refused with faltante 8,000, nothing moved
---   4  larger than what the target asks: refused, nothing moved
---   5  refusals: target in another conversation, closed target, transferring target, source without a verified deposit, same operation, no target given
---   6  a lock a person left on the target: refused; a split group member: refused
---   7  a source with two verified deposits: the reference is required; the named one moves, the other stays and the source keeps its status logic
+-- Assertion for migration 381 (crm_mover_deposito: an agent releases a verified deposit from an operation, or moves it to another open
+-- operation of the same conversation, from the operations panel).
+-- Self-reverting: one DO block that ends in RAISE EXCEPTION 'ALL PASS'. Run it wrapped by infra/db/staging-migracion.sh.
+-- Synthetic fixtures only: contacts 'PRUEBA381', phones 5990381xxxx, deposits 'PRUEBA381-...'.
+-- The deposit moves WHOLE (one ledger row). Releasing makes it free again (the picker of 380 lists it); moving gives it to the target, which
+-- becomes ready_to_transfer when it covers its request (an empty request becomes the deposit) or stays in verification. The source goes back
+-- to awaiting a deposit when that was its only money. The customer notice of every new state is muted. Cases:
+--   1  release: the deposit is free (no operation, not consumed), its funding-case link is gone, the source is awaiting_deposit and muted, audit
+--      `human_deposit_release`; the deposit appears in crm_depositos_sin_dueno
+--   2  move: the deposit belongs to the target, the target is ready_to_transfer (covered), an empty request becomes the deposit, the source is
+--      awaiting_deposit, one audit row `human_deposit_move` on each operation
+--   3  the source keeps another deposit: it falls from ready_to_transfer to deposit_verification when what is left does not cover it
+--   4  a target whose request is larger than the deposit stays in deposit_verification
+--   5  refused: a deposit that is not linked, an unknown deposit, a deposit of another operation, a closed source, a closed target, a target of
+--      another conversation, the same operation, an operation of a mixed send, a user who is not a member
 -- =====================================================================
-CREATE FUNCTION pg_temp.p_conv(p_n int) RETURNS TABLE(acc uuid, usr uuid, contact uuid, conv uuid)
-LANGUAGE plpgsql AS $f$
-DECLARE v_user uuid; v_acc uuid; v_ct uuid; v_cv uuid;
-BEGIN
-  SELECT p.user_id, p.account_id INTO v_user, v_acc
-    FROM whatsapp_config w JOIN profiles p ON p.account_id = w.account_id
-   ORDER BY (p.account_role = 'owner') DESC LIMIT 1;
-  INSERT INTO contacts (id, user_id, phone, name, account_id)
-    VALUES (gen_random_uuid(), v_user, '5990287' || lpad(p_n::text, 4, '0'), 'PRUEBA mover ' || p_n, v_acc) RETURNING id INTO v_ct;
-  INSERT INTO conversations (id, user_id, contact_id, account_id)
-    VALUES (gen_random_uuid(), v_user, v_ct, v_acc) RETURNING id INTO v_cv;
-  RETURN QUERY SELECT v_acc, v_user, v_ct, v_cv;
-END $f$;
-
-CREATE FUNCTION pg_temp.p_eq(p_label text, p_got text, p_exp text) RETURNS void
-LANGUAGE plpgsql AS $f$
-BEGIN
-  IF p_got IS DISTINCT FROM p_exp THEN RAISE EXCEPTION 'case %: expected [%], got [%]', p_label, p_exp, p_got; END IF;
-END $f$;
-
-CREATE FUNCTION pg_temp.p_plan(p_conv uuid) RETURNS jsonb
-LANGUAGE sql AS $f$ SELECT cerebro_resolver_servicio(p_conv) -> 'reparto_planeado'; $f$;
-
--- a deposit that is verified: MMG row in the ledger + registrar + cruce (same as split-deposit-minimums)
-
-CREATE FUNCTION pg_temp.p_op(p_conv uuid, p_rail text, p_quoted numeric, p_status text DEFAULT 'collecting_information') RETURNS uuid
-LANGUAGE plpgsql AS $f$
-DECLARE v_op uuid; v_acc uuid; v_ct uuid;
-BEGIN
-  SELECT account_id, contact_id INTO v_acc, v_ct FROM conversations WHERE id = p_conv;
-  INSERT INTO remittance_operations (account_id, conversation_id, contact_id, status, service_type, delivery_method, source_currency, quoted_source_amount)
-  VALUES (v_acc, p_conv, v_ct, p_status, 'remesa', p_rail, 'GYD', p_quoted) RETURNING id INTO v_op;
-  RETURN v_op;
-END $f$;
-
-CREATE FUNCTION pg_temp.p_dep(p_op uuid, p_ref text, p_monto numeric) RETURNS void
-LANGUAGE sql AS $f$
-  INSERT INTO depositos_mmg (trans_id, monto, moneda, titular, asunto, recibido_en, operation_id, consumido_en)
-  VALUES (p_ref, p_monto, 'GYD', 'Osmany', 'test287', now(), p_op, now());
-$f$;
-
-CREATE FUNCTION pg_temp.p_st(p_op uuid) RETURNS text
-LANGUAGE sql AS $f$ SELECT status || '/' || coalesce(trim_scale(quoted_source_amount)::text, '-') FROM remittance_operations WHERE id = p_op; $f$;
-
-CREATE FUNCTION pg_temp.p_dop(p_ref text) RETURNS uuid
-LANGUAGE sql AS $f$ SELECT operation_id FROM depositos_mmg WHERE trans_id = p_ref; $f$;
-
 DO $$
-DECLARE c record; c2 record; a uuid; b uuid; r jsonb;
+DECLARE
+  v_user uuid; v_acc uuid; v_ct uuid; v_ct2 uuid; v_conv uuid; v_conv2 uuid; v_a uuid; v_b uuid; v_c uuid; v_other uuid; v_r jsonb; v_row remittance_operations%ROWTYPE;
+  v_n int; v_ok boolean; v_case uuid; v_free jsonb;
 BEGIN
-  -- 1
-  SELECT * INTO c FROM pg_temp.p_conv(1);
-  a := pg_temp.p_op(c.conv, 'zelle', 26000, 'ready_to_transfer'); PERFORM pg_temp.p_dep(a, '9040999003100', 26000);
-  b := pg_temp.p_op(c.conv, 'zelle', 26000);
-  r := cerebro_modificar_operacion(c.conv, a, 'mover_deposito', jsonb_build_object('a', b), 'm1');
-  PERFORM pg_temp.p_eq('1 ok', r ->> 'ok', 'true');
-  PERFORM pg_temp.p_eq('1 deposit belongs to the target', (pg_temp.p_dop('9040999003100') = b)::text, 'true');
-  PERFORM pg_temp.p_eq('1 not duplicated', (SELECT count(*)::text FROM depositos_mmg WHERE trans_id = '9040999003100'), '1');
-  PERFORM pg_temp.p_eq('1 target', pg_temp.p_st(b), 'ready_to_transfer/26000');
-  PERFORM pg_temp.p_eq('1 source', pg_temp.p_st(a), 'awaiting_deposit/26000');
-  PERFORM pg_temp.p_eq('1 audit', (SELECT count(*)::text FROM remittance_admin_audit WHERE action = 'agent_deposit_move' AND row_id IN (a, b) AND actor = 'agent:modificar_operacion n8n:m1'), '2');
-  PERFORM pg_temp.p_eq('1 message', (r ->> 'mensaje' LIKE 'Listo: movi el deposito de 26,000 GYD%operacion de origen queda esperando su deposito.')::text, 'true');
-  PERFORM pg_temp.p_eq('1 log', (SELECT outcome FROM tool_execution_log WHERE tool_name = 'modificar_operacion' AND execution_id = 'm1'), 'deposito_movido');
+  SELECT p.user_id, w.account_id INTO v_user, v_acc FROM whatsapp_config w JOIN profiles p ON p.account_id = w.account_id
+   ORDER BY (p.account_role = 'owner') DESC LIMIT 1;
+  INSERT INTO contacts (user_id, account_id, phone, name) VALUES (v_user, v_acc, '5990381001', 'PRUEBA381 a') RETURNING id INTO v_ct;
+  INSERT INTO conversations (user_id, account_id, contact_id) VALUES (v_user, v_acc, v_ct) RETURNING id INTO v_conv;
+  INSERT INTO contacts (user_id, account_id, phone, name) VALUES (v_user, v_acc, '5990381002', 'PRUEBA381 b') RETURNING id INTO v_ct2;
+  INSERT INTO conversations (user_id, account_id, contact_id) VALUES (v_user, v_acc, v_ct2) RETURNING id INTO v_conv2;
+  -- A: ready_to_transfer with its deposit of 13000; B: empty request; C: asks 26000
+  INSERT INTO remittance_operations (account_id, conversation_id, contact_id, status, service_type, source_currency, quoted_source_amount, delivery_method)
+  VALUES (v_acc, v_conv, v_ct, 'ready_to_transfer', 'remesa', 'GYD', 13000, 'zelle') RETURNING id INTO v_a;
+  INSERT INTO remittance_operations (account_id, conversation_id, contact_id, status, service_type, source_currency, quoted_source_amount, delivery_method)
+  VALUES (v_acc, v_conv, v_ct, 'awaiting_deposit', 'remesa', 'GYD', 0, 'zelle') RETURNING id INTO v_b;
+  INSERT INTO remittance_operations (account_id, conversation_id, contact_id, status, service_type, source_currency, quoted_source_amount, delivery_method)
+  VALUES (v_acc, v_conv, v_ct, 'awaiting_deposit', 'remesa', 'GYD', 26000, 'zelle') RETURNING id INTO v_c;
+  INSERT INTO remittance_operations (account_id, conversation_id, contact_id, status, service_type, source_currency, quoted_source_amount, delivery_method)
+  VALUES (v_acc, v_conv2, v_ct2, 'awaiting_deposit', 'remesa', 'GYD', 13000, 'zelle') RETURNING id INTO v_other;
+  INSERT INTO depositos_mmg (trans_id, monto, moneda, asunto, recibido_en, consumido_en, operation_id)
+  VALUES ('PRUEBA381-D1', 13000, 'GYD', 'CASH_IN_TO_AGENT_OK_RECEIVER', now() - interval '1 hour', now(), v_a);
+  v_case := funding_case_abrir(v_conv, 'prueba');
+  INSERT INTO case_deposits (case_id, deposit_trans_id, linked_by) VALUES (v_case, 'PRUEBA381-D1', 'prueba');
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_user, 'role', 'authenticated')::text, true);
 
-  -- 2 empty target
-  SELECT * INTO c FROM pg_temp.p_conv(2);
-  a := pg_temp.p_op(c.conv, 'zelle', 26000, 'ready_to_transfer'); PERFORM pg_temp.p_dep(a, '9040999003101', 26000);
-  b := pg_temp.p_op(c.conv, 'zelle', 0);
-  r := cerebro_modificar_operacion(c.conv, a, 'mover_deposito', jsonb_build_object('a', b), 'm2');
-  PERFORM pg_temp.p_eq('2 target takes the deposit', (r ->> 'ok') || '/' || pg_temp.p_st(b), 'true/ready_to_transfer/26000');
+  -- 1 release
+  v_r := crm_mover_deposito(v_a, 'PRUEBA381-D1', NULL);
+  IF EXISTS (SELECT 1 FROM depositos_mmg WHERE trans_id = 'PRUEBA381-D1' AND (operation_id IS NOT NULL OR consumido_en IS NOT NULL)) THEN
+    RAISE EXCEPTION 'case 1: the released deposit must be free'; END IF;
+  IF EXISTS (SELECT 1 FROM case_deposits WHERE deposit_trans_id = 'PRUEBA381-D1') THEN RAISE EXCEPTION 'case 1: the funding-case link must be gone'; END IF;
+  SELECT * INTO v_row FROM remittance_operations WHERE id = v_a;
+  IF v_row.status <> 'awaiting_deposit' OR v_row.customer_notice_muted_for IS DISTINCT FROM 'awaiting_deposit' THEN
+    RAISE EXCEPTION 'case 1: the source must await a deposit and be muted: % / %', v_row.status, v_row.customer_notice_muted_for; END IF;
+  IF NOT EXISTS (SELECT 1 FROM remittance_admin_audit WHERE row_id = v_a AND action = 'human_deposit_release' AND before ->> 'trans_id' = 'PRUEBA381-D1') THEN
+    RAISE EXCEPTION 'case 1: the audit row human_deposit_release is missing'; END IF;
+  v_free := crm_depositos_sin_dueno(v_a);
+  IF NOT EXISTS (SELECT 1 FROM jsonb_array_elements(v_free) e WHERE e ->> 'trans_id' = 'PRUEBA381-D1') THEN RAISE EXCEPTION 'case 1: the released deposit must appear as free'; END IF;
+  IF (v_r ->> 'released')::boolean IS NOT TRUE THEN RAISE EXCEPTION 'case 1: the answer must say released: %', v_r; END IF;
 
-  -- 3 below the minimum
-  SELECT * INTO c FROM pg_temp.p_conv(3);
-  a := pg_temp.p_op(c.conv, 'cuban_card', 5000, 'ready_to_transfer'); PERFORM pg_temp.p_dep(a, '9040999003102', 5000);
-  b := pg_temp.p_op(c.conv, 'zelle', 13000);
-  r := cerebro_modificar_operacion(c.conv, a, 'mover_deposito', jsonb_build_object('a', b), 'm3');
-  PERFORM pg_temp.p_eq('3 refused with the gap', (r ->> 'motivo') || '/' || trim_scale((r ->> 'faltante_gyd')::numeric)::text, 'por_debajo_del_minimo/8000');
-  PERFORM pg_temp.p_eq('3 nothing moved', (pg_temp.p_dop('9040999003102') = a)::text || '/' || pg_temp.p_st(a) || '/' || pg_temp.p_st(b), 'true/ready_to_transfer/5000/collecting_information/13000');
+  -- 2 move to an operation with an empty request
+  UPDATE depositos_mmg SET consumido_en = now(), operation_id = v_a WHERE trans_id = 'PRUEBA381-D1';
+  UPDATE remittance_operations SET status = 'ready_to_transfer' WHERE id = v_a;
+  v_r := crm_mover_deposito(v_a, 'PRUEBA381-D1', v_b);
+  IF (SELECT operation_id FROM depositos_mmg WHERE trans_id = 'PRUEBA381-D1') IS DISTINCT FROM v_b THEN RAISE EXCEPTION 'case 2: the deposit must belong to the target'; END IF;
+  SELECT * INTO v_row FROM remittance_operations WHERE id = v_b;
+  IF v_row.status <> 'ready_to_transfer' OR v_row.quoted_source_amount <> 13000 OR v_row.customer_notice_muted_for IS DISTINCT FROM 'ready_to_transfer' THEN
+    RAISE EXCEPTION 'case 2: the target must be ready (covered), take the deposit as its amount and be muted: % / % / %', v_row.status, v_row.quoted_source_amount, v_row.customer_notice_muted_for; END IF;
+  IF (SELECT status FROM remittance_operations WHERE id = v_a) <> 'awaiting_deposit' THEN RAISE EXCEPTION 'case 2: the source must await a deposit'; END IF;
+  SELECT count(*) INTO v_n FROM remittance_admin_audit WHERE action = 'human_deposit_move' AND row_id IN (v_a, v_b);
+  IF v_n <> 2 THEN RAISE EXCEPTION 'case 2: one audit row on each operation, got %', v_n; END IF;
+  IF (v_r ->> 'moved')::boolean IS NOT TRUE THEN RAISE EXCEPTION 'case 2: the answer must say moved: %', v_r; END IF;
 
-  -- 4 larger than the request
-  SELECT * INTO c FROM pg_temp.p_conv(4);
-  a := pg_temp.p_op(c.conv, 'zelle', 26000, 'ready_to_transfer'); PERFORM pg_temp.p_dep(a, '9040999003103', 26000);
-  b := pg_temp.p_op(c.conv, 'zelle', 13000);
-  r := cerebro_modificar_operacion(c.conv, a, 'mover_deposito', jsonb_build_object('a', b), 'm4');
-  PERFORM pg_temp.p_eq('4 refused', r ->> 'motivo', 'deposito_mayor_que_el_envio');
-  PERFORM pg_temp.p_eq('4 nothing moved', (pg_temp.p_dop('9040999003103') = a)::text, 'true');
+  -- 3 the source keeps another deposit
+  UPDATE remittance_operations SET status = 'ready_to_transfer', quoted_source_amount = 26000 WHERE id = v_c;
+  INSERT INTO depositos_mmg (trans_id, monto, moneda, asunto, recibido_en, consumido_en, operation_id) VALUES
+    ('PRUEBA381-D2', 13000, 'GYD', 'CASH_IN_TO_AGENT_OK_RECEIVER', now() - interval '2 hours', now(), v_c),
+    ('PRUEBA381-D3', 13000, 'GYD', 'CASH_IN_TO_AGENT_OK_RECEIVER', now() - interval '3 hours', now(), v_c);
+  PERFORM crm_mover_deposito(v_c, 'PRUEBA381-D2', NULL);
+  IF (SELECT status FROM remittance_operations WHERE id = v_c) <> 'deposit_verification' THEN
+    RAISE EXCEPTION 'case 3: with 13000 left of 26000 the source must be in deposit_verification, got %', (SELECT status FROM remittance_operations WHERE id = v_c); END IF;
+
+  -- 4 a target with a larger request stays in verification
+  UPDATE remittance_operations SET status = 'awaiting_deposit', quoted_source_amount = 26000 WHERE id = v_a;
+  PERFORM crm_mover_deposito(v_c, 'PRUEBA381-D3', v_a);
+  IF (SELECT status FROM remittance_operations WHERE id = v_a) <> 'deposit_verification' THEN
+    RAISE EXCEPTION 'case 4: a target asking 26000 with 13000 must be in deposit_verification, got %', (SELECT status FROM remittance_operations WHERE id = v_a); END IF;
 
   -- 5 refusals
-  SELECT * INTO c2 FROM pg_temp.p_conv(5);
-  a := pg_temp.p_op(c2.conv, 'zelle', 26000, 'ready_to_transfer'); PERFORM pg_temp.p_dep(a, '9040999003104', 26000);
-  b := pg_temp.p_op(c.conv, 'zelle', 0);
-  r := cerebro_modificar_operacion(c2.conv, a, 'mover_deposito', jsonb_build_object('a', b), 'm5a');
-  PERFORM pg_temp.p_eq('5 other conversation', r ->> 'motivo', 'operacion_no_encontrada');
-  b := pg_temp.p_op(c2.conv, 'zelle', 0, 'transferring');
-  r := cerebro_modificar_operacion(c2.conv, a, 'mover_deposito', jsonb_build_object('a', b), 'm5b');
-  PERFORM pg_temp.p_eq('5 transferring target', r ->> 'motivo', 'estado_no_permite');
-  b := pg_temp.p_op(c2.conv, 'zelle', 0, 'cancelled');
-  r := cerebro_modificar_operacion(c2.conv, a, 'mover_deposito', jsonb_build_object('a', b), 'm5c');
-  PERFORM pg_temp.p_eq('5 closed target', r ->> 'motivo', 'estado_no_permite');
-  r := cerebro_modificar_operacion(c2.conv, a, 'mover_deposito', jsonb_build_object('a', a), 'm5d');
-  PERFORM pg_temp.p_eq('5 same operation', r ->> 'motivo', 'falta_destino');
-  r := cerebro_modificar_operacion(c2.conv, a, 'mover_deposito', NULL, 'm5e');
-  PERFORM pg_temp.p_eq('5 no target', r ->> 'motivo', 'falta_destino');
-  b := pg_temp.p_op(c2.conv, 'zelle', 0);
-  r := cerebro_modificar_operacion(c2.conv, b, 'mover_deposito', jsonb_build_object('a', a), 'm5f');
-  PERFORM pg_temp.p_eq('5 source without a verified deposit', r ->> 'motivo', 'sin_deposito_verificado');
-  PERFORM pg_temp.p_eq('5 deposit stayed', (pg_temp.p_dop('9040999003104') = a)::text, 'true');
-
-  -- 6 locks / group
-  SELECT * INTO c FROM pg_temp.p_conv(6);
-  a := pg_temp.p_op(c.conv, 'zelle', 26000, 'ready_to_transfer'); PERFORM pg_temp.p_dep(a, '9040999003105', 26000);
-  b := pg_temp.p_op(c.conv, 'zelle', 0);
+  v_ok := false; BEGIN PERFORM crm_mover_deposito(v_a, 'PRUEBA381-D2', NULL); EXCEPTION WHEN SQLSTATE '22023' THEN v_ok := true; END;
+  IF NOT v_ok THEN RAISE EXCEPTION 'case 5a: a deposit that is not linked must be refused'; END IF;
+  v_ok := false; BEGIN PERFORM crm_mover_deposito(v_a, 'PRUEBA381-NO-EXISTE', NULL); EXCEPTION WHEN SQLSTATE 'P0002' THEN v_ok := true; END;
+  IF NOT v_ok THEN RAISE EXCEPTION 'case 5b: an unknown deposit must be refused'; END IF;
+  v_ok := false; BEGIN PERFORM crm_mover_deposito(v_b, 'PRUEBA381-D3', NULL); EXCEPTION WHEN SQLSTATE '22023' THEN v_ok := true; END;
+  IF NOT v_ok THEN RAISE EXCEPTION 'case 5c: a deposit of another operation must be refused'; END IF;
+  v_ok := false; BEGIN PERFORM crm_mover_deposito(v_a, 'PRUEBA381-D3', v_a); EXCEPTION WHEN SQLSTATE '22023' THEN v_ok := true; END;
+  IF NOT v_ok THEN RAISE EXCEPTION 'case 5d: moving to the same operation must be refused'; END IF;
+  v_ok := false; BEGIN PERFORM crm_mover_deposito(v_a, 'PRUEBA381-D3', v_other); EXCEPTION WHEN SQLSTATE '22023' THEN v_ok := true; END;
+  IF NOT v_ok THEN RAISE EXCEPTION 'case 5e: a target of another conversation must be refused'; END IF;
   PERFORM set_config('wacrm.origin', 'admin', true);
-  UPDATE remittance_operations SET admin_locked_fields = jsonb_build_object('delivery_method', jsonb_build_object('by', '11111111-1111-1111-1111-111111111111', 'at', now())) WHERE id = b;
+  UPDATE remittance_operations SET status = 'completed', completed_at = now() WHERE id = v_c;
   PERFORM set_config('wacrm.origin', '', true);
-  r := cerebro_modificar_operacion(c.conv, a, 'mover_deposito', jsonb_build_object('a', b), 'm6a');
-  PERFORM pg_temp.p_eq('6 human lock', r ->> 'motivo', 'bloqueado_por_humano');
-  SELECT * INTO c FROM pg_temp.p_conv(7);
-  a := pg_temp.p_op(c.conv, 'zelle', 26000, 'ready_to_transfer'); PERFORM pg_temp.p_dep(a, '9040999003106', 26000);
-  b := pg_temp.p_op(c.conv, 'zelle', 0);
-  UPDATE remittance_operations SET mixed_group_id = b WHERE id = b;
-  r := cerebro_modificar_operacion(c.conv, a, 'mover_deposito', jsonb_build_object('a', b), 'm6b');
-  PERFORM pg_temp.p_eq('6 group', r ->> 'motivo', 'en_grupo');
-
-  -- 7 two deposits
-  SELECT * INTO c FROM pg_temp.p_conv(8);
-  a := pg_temp.p_op(c.conv, 'zelle', 26000, 'ready_to_transfer');
-  PERFORM pg_temp.p_dep(a, '9040999003107', 13000); PERFORM pg_temp.p_dep(a, '9040999003108', 13000);
-  b := pg_temp.p_op(c.conv, 'zelle', 13000);
-  r := cerebro_modificar_operacion(c.conv, a, 'mover_deposito', jsonb_build_object('a', b), 'm7a');
-  PERFORM pg_temp.p_eq('7 asks which', r ->> 'motivo', 'varios_depositos');
-  r := cerebro_modificar_operacion(c.conv, a, 'mover_deposito', jsonb_build_object('a', b, 'deposito', '9040999003107'), 'm7b');
-  PERFORM pg_temp.p_eq('7 moved one', (r ->> 'ok') || '/' || (pg_temp.p_dop('9040999003107') = b)::text || '/' || (pg_temp.p_dop('9040999003108') = a)::text, 'true/true/true');
-  PERFORM pg_temp.p_eq('7 states', pg_temp.p_st(a) || '|' || pg_temp.p_st(b), 'deposit_verification/26000|ready_to_transfer/13000');
+  v_ok := false; BEGIN PERFORM crm_mover_deposito(v_a, 'PRUEBA381-D3', v_c); EXCEPTION WHEN SQLSTATE '22023' THEN v_ok := true; END;
+  IF NOT v_ok THEN RAISE EXCEPTION 'case 5f: a closed target must be refused'; END IF;
+  PERFORM set_config('wacrm.origin', 'admin', true);
+  UPDATE remittance_operations SET status = 'completed', completed_at = now() WHERE id = v_a;
+  PERFORM set_config('wacrm.origin', '', true);
+  v_ok := false; BEGIN PERFORM crm_mover_deposito(v_a, 'PRUEBA381-D3', NULL); EXCEPTION WHEN SQLSTATE '22023' THEN v_ok := true; END;
+  IF NOT v_ok THEN RAISE EXCEPTION 'case 5g: a closed source must be refused'; END IF;
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
+  v_ok := false; BEGIN PERFORM crm_mover_deposito(v_a, 'PRUEBA381-D3', NULL); EXCEPTION WHEN SQLSTATE '42501' THEN v_ok := true; END;
+  IF NOT v_ok THEN RAISE EXCEPTION 'case 5h: a user who is not a member must be refused'; END IF;
 
   RAISE EXCEPTION 'ALL PASS (rolled back on purpose)';
 END $$;
-ROLLBACK;

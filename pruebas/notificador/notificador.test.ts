@@ -256,7 +256,7 @@ describe('deposito verificado a mano con una persona atendiendo el chat: no se p
     const [a] = verificarCon({ beneficiarios: zelleCompleto, humano_atendiendo: true });
     const [b] = verificarCon({ beneficiarios: zelleCompleto, humano_atendiendo: false });
     for (const s of [a, b]) {
-      expect(s.json.mensaje).toMatch(/^Su deposito de \*14,000 GYD\* ya fue verificado\.\n\n.*(acá|aquí|aqui|aca)/s);
+      expect(s.json.mensaje).toMatch(/^Su deposito de \*14,000 GYD\* ya fue verificado\.\n\n[\s\S]*(acá|aquí|aqui|aca)/);
       expect(s.json.mensaje).not.toMatch(/falta/);
     }
   });

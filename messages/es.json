@@ -477,6 +477,10 @@
         "skipProof": "ventana cerrada, sin captura",
         "closedManually": "Cerrada manualmente"
       },
+      "closedEdit": {
+        "title": "Edición de una operación cerrada",
+        "body": "Este cambio queda registrado en la auditoría. Las líneas de la calculadora y los inventarios de la tarjeta no se recalculan; edítalos en la calculadora."
+      },
       "notify": {
         "on": "Se notificará al cliente. Haz clic para desactivar.",
         "off": "No se notificará al cliente. Haz clic para activar."

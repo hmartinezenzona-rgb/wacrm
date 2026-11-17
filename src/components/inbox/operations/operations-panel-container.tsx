@@ -449,11 +449,12 @@ export function OperationsPanelContainer({ conversationId }: OperationsPanelCont
                   <RemittanceOperationCard
                     key={operation.id}
                     operation={operation}
-                    // A history op must never be passed editable/canForce —
-                    // the card itself also guards on `operation.isHistory`,
-                    // this is the same invariant enforced at the boundary too.
-                    canEdit={false}
-                    role={null}
+                    // History cards get the real permission: the card itself
+                    // keeps them read-only and only exposes the closed-edit
+                    // affordances to an owner/admin (migration 383). Open-only
+                    // controls stay gated inside the card on `isHistory`/status.
+                    canEdit={canEdit}
+                    role={accountRole}
                     costRole={accountRole}
                     otherOpenOperations={[]}
                     onChanged={() => silentLoad(conversationId)}

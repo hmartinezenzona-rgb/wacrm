@@ -34,6 +34,16 @@ vi.mock("@/hooks/use-can", () => ({
   useCan: () => useCanMock(),
 }));
 
+// The container reads the account role to gate the closed-operation edits
+// (owner/admin only). Mutable so each test can choose it; null is the
+// least-privileged default, matching the real provider's fallback.
+const authState = vi.hoisted(() => ({
+  accountRole: null as "owner" | "admin" | "agent" | "viewer" | null,
+}));
+vi.mock("@/hooks/use-auth", () => ({
+  useAuth: () => authState,
+}));
+
 const corregirBeneficiario = vi.fn();
 vi.mock("@/lib/remittance-operations/commands", () => ({
   corregirOperacion: vi.fn(),
@@ -136,6 +146,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.useRealTimers();
   mockRealtime.reset();
+  authState.accountRole = null;
+  useCanMock.mockReturnValue(true);
 });
 
 function jsonResponse(body: unknown, status = 200) {
@@ -570,7 +582,7 @@ describe("OperationsPanelContainer", () => {
       await act(async () => root.unmount());
     });
 
-    it("renders a history card fully read-only: no edit-operation pencil and no Complete transfer button, even though canEdit is true", async () => {
+    it("renders a history card read-only while the account role is unknown: no edit-operation pencil and no Complete transfer button", async () => {
       const data: ConversationOperationsRead = {
         resolverState: "unica",
         resolverOperationId: "op-1",
@@ -589,6 +601,85 @@ describe("OperationsPanelContainer", () => {
         historyArticle.querySelector(`button[aria-label="${en.Inbox.operationsPanel.editOperation}"]`),
       ).toBeNull();
       expect(historyArticle.textContent).not.toContain(en.Inbox.operationsPanel.completeTransfer.button);
+      await act(async () => root.unmount());
+    });
+
+    it.each(["owner", "admin"] as const)(
+      "hands a history card the real canEdit/role: a %s gets the closed-edit pencil",
+      async (role) => {
+        authState.accountRole = role;
+        const data: ConversationOperationsRead = {
+          resolverState: "unica",
+          resolverOperationId: "op-1",
+          resolverCandidateCount: 1,
+          operations: [OP1, HISTORY_OP],
+        };
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(data)));
+
+        const { node, root } = await renderContainer(`conv-hist-${role}`);
+        await flush();
+        await click(historyToggle(node)!);
+        await click(toggleButtons(node)[1]);
+
+        const historyArticle = node.querySelectorAll("article")[1]!;
+        expect(
+          historyArticle.querySelector(`button[aria-label="${en.Inbox.operationsPanel.editOperation}"]`),
+        ).not.toBeNull();
+        expect(historyArticle.textContent).toContain(en.Inbox.operationsPanel.closedEdit.title);
+        expect(historyArticle.textContent).not.toContain(en.Inbox.operationsPanel.completeTransfer.button);
+        await act(async () => root.unmount());
+      },
+    );
+
+    it.each(["agent", "viewer"] as const)(
+      "a %s cannot edit a history card: no closed-edit pencil and no banner",
+      async (role) => {
+        authState.accountRole = role;
+        const data: ConversationOperationsRead = {
+          resolverState: "unica",
+          resolverOperationId: "op-1",
+          resolverCandidateCount: 1,
+          operations: [OP1, HISTORY_OP],
+        };
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(data)));
+
+        const { node, root } = await renderContainer(`conv-hist-${role}`);
+        await flush();
+        await click(historyToggle(node)!);
+        await click(toggleButtons(node)[1]);
+
+        const historyArticle = node.querySelectorAll("article")[1]!;
+        expect(
+          historyArticle.querySelector(`button[aria-label="${en.Inbox.operationsPanel.editOperation}"]`),
+        ).toBeNull();
+        expect(historyArticle.textContent).not.toContain(en.Inbox.operationsPanel.closedEdit.title);
+        await act(async () => root.unmount());
+      },
+    );
+
+    it("a manager still needs canEdit: no closed-edit pencil when useCan is false", async () => {
+      authState.accountRole = "owner";
+      useCanMock.mockReturnValue(false);
+      const data: ConversationOperationsRead = {
+        resolverState: "unica",
+        resolverOperationId: "op-1",
+        resolverCandidateCount: 1,
+        operations: [OP1, HISTORY_OP],
+      };
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(data)));
+
+      const { node, root } = await renderContainer("conv-hist-nocan");
+      await flush();
+      await click(historyToggle(node)!);
+      await click(toggleButtons(node)[1]);
+
+      const historyArticle = node.querySelectorAll("article")[1]!;
+      expect(
+        historyArticle.querySelector(`button[aria-label="${en.Inbox.operationsPanel.editOperation}"]`),
+      ).toBeNull();
+      expect(historyArticle.textContent).not.toContain(en.Inbox.operationsPanel.closedEdit.title);
+
+      useCanMock.mockReturnValue(true);
       await act(async () => root.unmount());
     });
   });

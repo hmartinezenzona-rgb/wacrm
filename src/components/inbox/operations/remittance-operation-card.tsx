@@ -22,6 +22,7 @@ import { BeneficiaryAddControl } from "./beneficiary-add-control";
 import { BeneficiaryIdPhoto, IdPhotoFormRow } from "./beneficiary-id-photo";
 import { BeneficiaryReassignControl } from "./beneficiary-reassign-control";
 import { BeneficiaryRemoveControl } from "./beneficiary-remove-control";
+import { ClosedEditBanner } from "./closed-edit-banner";
 import { OperationStatusControl } from "./operation-status-control";
 import { ComboBeneficiaryEditFields } from "./combo-beneficiary-edit-fields";
 import { ComboCostField } from "./combo-cost-field";
@@ -56,8 +57,8 @@ interface RemittanceOperationCardProps {
    *  force-verify escalation (`canForceVerify`, owner/admin only). */
   role: AccountRole | null;
   /** Role that decides who sees the combo cost field; defaults to `role`. The panel
-   *  hands history cards `role={null}` (no actions) but still passes the real role
-   *  here, since a completed combo with no cost is exactly what needs one. */
+   *  passes the real role on history cards too: a completed combo with no cost
+   *  is exactly what needs one. */
   costRole?: AccountRole | null;
   /** Other open (non-terminal) remesa operations of the same
    *  conversation, offered as reassignment targets for this card's
@@ -437,9 +438,19 @@ export function RemittanceOperationCard({
   const serviceName = useServiceName();
   const [openForm, setOpenForm] = useState<OpenFormState | null>(null);
 
-  // A history row is always read-only, on top of (and regardless of) the
-  // terminal-status check below — see the type's `isHistory` doc comment.
-  const editable = canEdit && !operation.isHistory && !TERMINAL_STATUSES.includes(operation.status);
+  // Owner/admin only. The raw status (not the effective one) decides, since
+  // that is what the RPCs check.
+  const isManager = role !== null && canForceVerify(role);
+  const isClosed = TERMINAL_STATUSES.includes(operation.status);
+  // Open-only controls (change state, complete/deliver, deposit verify, close,
+  // delete, split, reassign): a history row is never editable and a closed
+  // operation keeps every one of them off.
+  const editable = canEdit && !operation.isHistory && !isClosed;
+  // Migration 383 lets an owner/admin correct a closed operation. Only the
+  // shared edits (amounts, recipients, service) are exposed, through the
+  // existing forms; the open-only flags above stay false.
+  const closedEditable = canEdit && isManager && isClosed;
+  const sharedEditable = editable || closedEditable;
   const isLocked = (key: string) => key in operation.adminLockedFields;
   const status = effectiveStatus(operation);
 
@@ -467,9 +478,7 @@ export function RemittanceOperationCard({
 
   const lock = <Lock className="size-3 shrink-0" aria-label={t("lockedByOperator")} />;
 
-  // Owner/admin only. The raw status (not the effective one) decides, since
-  // that is what the RPCs check.
-  const isManager = role !== null && canForceVerify(role);
+  // The combo cost follows its own role so a history card can still get it.
   const effectiveCostRole = costRole === undefined ? role : costRole;
   const canSetComboCost = isCombo(operation) && effectiveCostRole !== null && canForceVerify(effectiveCostRole);
   const canDelete = isManager && !operation.isHistory && !NOT_DELETABLE_STATUSES.includes(operation.status);
@@ -484,7 +493,7 @@ export function RemittanceOperationCard({
     beneficiary: RemittanceOperationRead["beneficiaries"][number],
     hideEdit = false,
   ) =>
-    editable &&
+    sharedEditable &&
     (
       <>
         {!hideEdit && (
@@ -499,7 +508,7 @@ export function RemittanceOperationCard({
             <Pencil aria-hidden="true" />
           </Button>
         )}
-        {otherOpenOperations.length > 0 && (
+        {editable && otherOpenOperations.length > 0 && (
           <Button
             type="button"
             variant="ghost"
@@ -528,7 +537,7 @@ export function RemittanceOperationCard({
     <article
       className={`rounded-xl border px-2 py-2.5 ${operation.isHistory ? "border-border bg-muted/50 opacity-85" : "bg-card"} ${expanded ? "border-primary/40 shadow-[0_1px_3px_rgba(15,38,34,0.08)]" : operation.isHistory ? "" : "border-border"}`}
     >
-      {expanded && (canDelete || editable) && (
+      {expanded && (canDelete || editable || closedEditable) && (
         <div className="mb-1 flex items-center justify-end gap-1">
           {canDelete && (
             <Button
@@ -566,7 +575,7 @@ export function RemittanceOperationCard({
               <Flag aria-hidden="true" />
             </Button>
           )}
-          {editable && (
+          {sharedEditable && (
             <Button
               type="button"
               variant="ghost"
@@ -654,6 +663,8 @@ export function RemittanceOperationCard({
 
       {expanded && (
         <div className="mt-3 space-y-2.5">
+          {closedEditable && <ClosedEditBanner />}
+
           {openForm?.kind === "operation" && (
             <OperationCorrectionForm operation={operation} onDone={handleChanged} onCancel={() => setOpenForm(null)} />
           )}
@@ -691,7 +702,7 @@ export function RemittanceOperationCard({
             role={operation.isHistory ? null : role}
             onChanged={onChanged}
             summaryAmount={summaryAmount}
-            onAddAmount={editable ? () => toggleForm({ kind: "operation" }) : undefined}
+            onAddAmount={sharedEditable ? () => toggleForm({ kind: "operation" }) : undefined}
             refreshToken={refreshToken}
             initialData={initialReceipts}
             moveTargets={otherOpenOperations}
@@ -710,7 +721,7 @@ export function RemittanceOperationCard({
                   operation.beneficiaries[0],
                   openForm?.kind === "beneficiary" && openForm.beneficiaryId === operation.beneficiaries[0]!.id,
                 )}
-              {editable && openForm?.kind !== "addBeneficiary" && !(isSaldo(operation) && operation.beneficiaries.length >= 1) &&
+              {sharedEditable && openForm?.kind !== "addBeneficiary" && !(isSaldo(operation) && operation.beneficiaries.length >= 1) &&
                 !operation.beneficiaries.some((b) => b.beneficiaryType === "efectivo_usd") && (
                 <Button
                   type="button"
@@ -772,7 +783,7 @@ export function RemittanceOperationCard({
 
                   return (
                     <li key={beneficiary.id} className="space-y-1.5 text-xs">
-                      {operation.beneficiaries.length >= 2 && editable && (
+                      {operation.beneficiaries.length >= 2 && sharedEditable && (
                         <div className="flex justify-end gap-1">
                           {beneficiaryActions(beneficiary, isEditingBeneficiary)}
                         </div>

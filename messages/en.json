@@ -477,6 +477,10 @@
         "skipProof": "window closed, no screenshot",
         "closedManually": "Closed manually"
       },
+      "closedEdit": {
+        "title": "Editing a closed operation",
+        "body": "This change is logged in the audit trail. The calculator lines and the card inventories are not recalculated; edit them in the calculator."
+      },
       "notify": {
         "on": "The customer will be notified. Click to turn off.",
         "off": "The customer will not be notified. Click to turn on."

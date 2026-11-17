@@ -34,7 +34,10 @@ export function AttachReceiptControl({ operationId, conversationId, onAttached, 
     setPending(false);
 
     if (!result.ok) {
-      setNote({ kind: "error", text: result.error });
+      setNote({
+        kind: "error",
+        text: result.error === "receipt_already_attached" ? t("attachReceipt.alreadyAttached") : result.error,
+      });
       return;
     }
     setNote({

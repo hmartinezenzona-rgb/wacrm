@@ -438,7 +438,8 @@
         "label": "Attach a receipt from the chat",
         "attachedPrefilled": "Receipt attached. The reference and the amount came from the image: check them and verify.",
         "attached": "Receipt attached. Type the reference and the amount and verify.",
-        "attachedNeedsStage": "Receipt attached. Move it to deposit verification to verify it."
+        "attachedNeedsStage": "Receipt attached. Move it to deposit verification to verify it.",
+        "alreadyAttached": "That image is already a receipt of this operation."
       },
       "depositMove": {
         "button": "Release or move this deposit",

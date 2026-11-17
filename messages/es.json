@@ -438,7 +438,8 @@
         "label": "Adjuntar comprobante del chat",
         "attachedPrefilled": "Comprobante adjuntado. La referencia y el monto salieron de la imagen: revísalos y verifica.",
         "attached": "Comprobante adjuntado. Escribe la referencia y el monto y verifica.",
-        "attachedNeedsStage": "Comprobante adjuntado. Pásalo a «Verificación de depósito» para verificarlo."
+        "attachedNeedsStage": "Comprobante adjuntado. Pásalo a «Verificación de depósito» para verificarlo.",
+        "alreadyAttached": "Esa imagen ya es un comprobante de esta operación."
       },
       "depositMove": {
         "button": "Soltar o mover este depósito",

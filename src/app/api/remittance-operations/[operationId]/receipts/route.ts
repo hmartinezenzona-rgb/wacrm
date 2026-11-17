@@ -112,6 +112,11 @@ export async function POST(
       p_monto: monto ?? null,
     });
     if (error) {
+      // Duplicate attachment is a user-facing case, not a validation failure: answer a stable code the panel
+      // translates, instead of the RPC's English sentence.
+      if (error.code === "22023" && error.message?.includes("already a receipt of the operation")) {
+        return NextResponse.json({ error: "receipt_already_attached" }, { status: 409 });
+      }
       const errorResponse = rpcErrorResponse(error);
       if (errorResponse) return errorResponse;
       console.error("[remittance-operations receipts POST] RPC error:", error);

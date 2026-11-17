@@ -89,13 +89,23 @@ describe("POST /api/remittance-operations/[operationId]/receipts", () => {
     requireRole.mockResolvedValueOnce(ctx(ENABLED_PROFILE, { data: null, error: { code: "42501", message: "insufficient_privilege" } }));
     expect((await POST(request({ wamid: "wamid.X" }), paramsFor(OPERATION_ID))).status).toBe(403);
 
-    requireRole.mockResolvedValueOnce(ctx(ENABLED_PROFILE, { data: null, error: { code: "22023", message: "this image is already a receipt of the operation" } }));
+    requireRole.mockResolvedValueOnce(ctx(ENABLED_PROFILE, { data: null, error: { code: "22023", message: "amount must be positive" } }));
     const refused = await POST(request({ wamid: "wamid.X" }), paramsFor(OPERATION_ID));
     expect(refused.status).toBe(400);
-    expect((await refused.json()).error).toBe("this image is already a receipt of the operation");
+    expect((await refused.json()).error).toBe("amount must be positive");
 
     requireRole.mockResolvedValueOnce(ctx(ENABLED_PROFILE, { data: null, error: { code: "P0002", message: "operation not found" } }));
     expect((await POST(request({ wamid: "wamid.X" }), paramsFor(OPERATION_ID))).status).toBe(404);
+  });
+
+  it("an image that is already a receipt of the operation -> 409 receipt_already_attached, not the raw server sentence", async () => {
+    const { POST } = await import("./route");
+    requireRole.mockResolvedValueOnce(ctx(ENABLED_PROFILE, { data: null, error: { code: "22023", message: "this image is already a receipt of the operation" } }));
+
+    const response = await POST(request({ wamid: "wamid.X" }), paramsFor(OPERATION_ID));
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "receipt_already_attached" });
   });
 
   it("success -> 200 { ok, compId, reference, amount, prefilled } and the RPC gets the image, the typed reference and amount", async () => {

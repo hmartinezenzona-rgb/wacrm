@@ -108,6 +108,18 @@ describe("AttachReceiptControl", () => {
     await act(async () => root.unmount());
   });
 
+  it("an image that is already a receipt shows the translated note instead of the server code", async () => {
+    adjuntarComprobante.mockResolvedValue({ ok: false, status: 409, error: "receipt_already_attached" });
+    const { node, root, onAttached } = await render();
+
+    await pickImage(node);
+
+    expect(node.textContent).toContain(A.alreadyAttached);
+    expect(node.textContent).not.toContain("receipt_already_attached");
+    expect(onAttached).not.toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
+
   it("a refusal shows the server's message and does not tell the panel", async () => {
     adjuntarComprobante.mockResolvedValue({ ok: false, status: 400, error: "this image is already a receipt of the operation" });
     const { node, root, onAttached } = await render();

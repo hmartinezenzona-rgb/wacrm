@@ -173,8 +173,10 @@ bot objective 8, conversation history 7, service type 3, mixed split 4, recipien
   calculator and completed calculator rows are append-only (DELETE refused). The working recipe voids them first inside the same transaction
   (`status='void', voided_at=now()`, figures untouched, allowed by the guard). Both fixtures deleted; verified zero PRUEBA contacts,
   deposits and operations in staging.
-- Known open polish (not blocking): attaching an image that is already a receipt surfaces the raw English server message
-  ("this image is already a receipt of the operation") in an otherwise Spanish panel.
+- Duplicate-receipt polish fixed (commit 63a4f601): the POST route maps SQLSTATE 22023 with "already a receipt of the operation" to
+  409 `receipt_already_attached`, and the attach control shows a translated message; other errors stay raw. TDD RED 2 failed, GREEN 44
+  files / 711 tests, tsc clean; parent spot check 15/15. Panel republished: release branch at `63a4f601`, artifact
+  `build_id e6rq4qscvFeR9ZS2EYJ4v`, `current -> 63a4f601`, rollback `anterior -> 559d2c1b`.
 
 - Operational note for the next production apply: do not send two migrations in the same second through the Management API; apply one per
   invocation or space them, otherwise `schema_migrations_pkey` collides.

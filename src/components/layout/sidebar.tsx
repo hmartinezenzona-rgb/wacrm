@@ -84,7 +84,7 @@ interface NavItem {
   beta?: boolean;
 }
 
-// Edición AP Suministros: solo lo que usa ventas. Las demás páginas siguen
+// Edición Onlinefreedom (igual que AP): solo lo que usa ventas. Las demás páginas siguen
 // existiendo (para Julio) pero no salen en el menú.
 const navItems: NavItem[] = [
   { href: "/pipelines", labelKey: "pipelines", icon: GitBranch },
@@ -186,10 +186,10 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/logo-ap.svg"
+              src="/logo-onlinefreedom.svg"
               alt={t("title")}
-              width={511}
-              height={114}
+              width={262}
+              height={64}
               className="h-10 w-auto"
             />
           </Link>

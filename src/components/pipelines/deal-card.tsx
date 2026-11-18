@@ -1,7 +1,7 @@
 "use client";
 
 // ============================================================
-// Ficha del tablero — edición AP Suministros.
+// Ficha del tablero — edición AP Suministros / Onlinefreedom.
 //
 // Compacta, al estilo de Pipedrive/HubSpot: lo que se ve sin abrir la
 // ficha es lo que decide qué atender primero.
@@ -54,7 +54,11 @@ function resumenNotas(notes?: string | null) {
     : /p[aá]gina/i.test(origenTxt)
       ? "web"
       : null;
-  return { cuantos: productos.length, lineas: unicas, origen };
+  // Onlinefreedom: prospecto con «Giro: …» y «Reto: …».
+  const dato = (k: string) =>
+    lineas.find((l) => l.toLowerCase().startsWith(k + ":"))?.slice(k.length + 1).trim() || "";
+  const perfil = [dato("giro"), dato("reto")].filter(Boolean).join(" · ");
+  return { cuantos: productos.length, lineas: unicas, origen, perfil };
 }
 
 function diasDesde(iso?: string | null) {
@@ -75,7 +79,8 @@ function textoAntiguedad(dias: number, iso: string) {
 /** Cuántos días en la columna ya es "estancada" (null = nunca). */
 function limiteDias(stageName?: string): number | null {
   if (!stageName) return null;
-  if (/nueva/i.test(stageName)) return 1;
+  if (/nueva|nuevo/i.test(stageName)) return 1;
+  if (/diagn[oó]stico hecho/i.test(stageName)) return 2;
   if (/cotizando/i.test(stageName)) return 2;
   if (/enviada/i.test(stageName)) return 3;
   return null;
@@ -94,7 +99,7 @@ export function DealCard({
   const titulo = deal.title.replace(URGENTE, "");
   const contacto = deal.contact?.name || deal.contact?.phone || t("noContact");
   const mostrarContacto = contacto !== titulo;
-  const { cuantos, lineas, origen } = resumenNotas(deal.notes);
+  const { cuantos, lineas, origen, perfil } = resumenNotas(deal.notes);
 
   const desde = deal.etapa_desde || deal.created_at;
   const dias = diasDesde(desde);
@@ -166,6 +171,10 @@ export function DealCard({
           </span>
           {lineas.length > 0 && <> · {lineas.slice(0, 2).join(", ")}{lineas.length > 2 ? "…" : ""}</>}
         </p>
+      )}
+
+      {cuantos === 0 && perfil && (
+        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground/90">{perfil}</p>
       )}
 
       {/* 4. Monto y tiempo en la columna */}

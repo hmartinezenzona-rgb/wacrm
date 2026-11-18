@@ -22,10 +22,10 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "AP Suministros · Cotizaciones",
-    template: "%s — AP Suministros",
+    default: "Onlinefreedom · Ventas",
+    template: "%s — Onlinefreedom",
   },
-  description: "Cotizaciones de AP Suministros.",
+  description: "CRM de ventas de Onlinefreedom.",
   robots: {
     index: false,
     follow: false,

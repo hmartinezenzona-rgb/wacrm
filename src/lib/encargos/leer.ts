@@ -44,7 +44,7 @@ export function leerBloques(notes: string | null | undefined): BloqueEncargo[] {
         bloques.push(actual);
       }
       actual.platos.push(m[1].trim());
-    } else if ((m = linea.match(/^(empresa|correo|para cuándo)\s*:\s*(.+)$/i))) {
+    } else if ((m = linea.match(/^(empresa|correo|para cuándo|giro|ciudad|reto|paquete|presupuesto|decide)\s*:\s*(.+)$/i))) {
       actual = null;
       bloques.push({ tipo: "linea", etiqueta: m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase(), texto: m[2].trim() });
     } else if ((m = linea.match(/^(extra|nota)s?\s*:\s*(.+)$/i))) {

@@ -38,7 +38,7 @@ export function telefonoBonito(raw?: string | null): string {
 }
 
 export function folioDeNotas(notes?: string | null): string | null {
-  return /\bAP-[A-Z0-9]{4,}\b/i.exec(notes ?? "")?.[0]?.toUpperCase() ?? null;
+  return /\b(?:AP|OF)-[A-Z0-9]{4,}\b/i.exec(notes ?? "")?.[0]?.toUpperCase() ?? null;
 }
 
 export function WhatsappContacto({
@@ -152,7 +152,7 @@ export function WhatsappContacto({
   function escribir() {
     if (plantilla) {
       const nombre = (contact?.name || "").split(" ")[0] || "buen día";
-      enviar(plantilla, { body: [nombre, folio || "de cotización"] } as TemplateSendValues);
+      enviar(plantilla, { body: [nombre, folio || "de diagnóstico"] } as TemplateSendValues);
     } else {
       setElegir(true);
     }

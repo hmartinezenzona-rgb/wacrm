@@ -1,11 +1,11 @@
 {
-  "name": "AP Suministros · Cotizaciones",
-  "short_name": "AP Cotizaciones",
+  "name": "Onlinefreedom · Ventas",
+  "short_name": "Onlinefreedom",
   "start_url": "/pipelines",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#111317",
-  "theme_color": "#111317",
+  "background_color": "#0A1626",
+  "theme_color": "#0A1626",
   "lang": "es-MX",
   "icons": [
     {

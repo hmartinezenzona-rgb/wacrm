@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { avisar, hoySaltillo } from '@/lib/avisos/push'
 
-// Seguimiento de cotizaciones (cron 311, lun–vie 9 am Saltillo).
-// Avisa de las cotizaciones que llevan 3 días o más en «Cotización enviada»
+// Seguimiento de propuestas (cron 320, lun–sáb 9 am Saltillo).
+// Avisa de las propuestas que llevan 3 días o más en «Propuesta enviada»
 // sin que el cliente conteste. Una sola vez por cuenta y por día
 // (push_resumenes), aunque el cron o alguien llame la ruta varias veces.
 const DIAS_SIN_RESPUESTA = 3
@@ -42,7 +42,7 @@ export async function POST() {
     resultados[accountId] = await avisar(
       { accountId },
       {
-        title: `${n} ${n === 1 ? 'cotización' : 'cotizaciones'} sin respuesta`,
+        title: `${n} ${n === 1 ? 'propuesta' : 'propuestas'} sin respuesta`,
         body: `${nombres}${n > 4 ? ' y más' : ''}. Llevan ${DIAS_SIN_RESPUESTA} días o más. Buen momento para dar seguimiento.`,
         url: '/pipelines',
         tag: `seguimiento-${hoy}`,

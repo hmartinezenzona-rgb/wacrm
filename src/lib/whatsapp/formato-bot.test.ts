@@ -47,11 +47,15 @@ describe('fronteraSalida', () => {
   it('quita razonamiento y nombres de herramientas', () => {
     expect(fronteraSalida('El cliente quiere válvulas, debo preguntar la medida.\nVoy a llamar a ver_catalogo.\n\n¿Qué medida necesita?')).toBe('¿Qué medida necesita?')
   })
-  it('quita precios y avisa una vez antes de la pregunta', () => {
-    expect(fronteraSalida('Manejamos Swagelok. Cada válvula cuesta $1,250 más IVA.\n\n¿Cuántas necesita?')).toBe(
-      'Manejamos Swagelok.\n\nEl precio se lo enviamos en la cotización.\n\n¿Cuántas necesita?',
+  it('quita precios inventados y avisa una vez antes de la pregunta', () => {
+    expect(fronteraSalida('Hago sitios web. Uno sencillo te sale en $1,800.\n\n¿Qué giro tiene tu negocio?')).toBe(
+      'Hago sitios web.\n\nEl precio exacto te lo doy después del diagnóstico gratis.\n\n¿Qué giro tiene tu negocio?',
     )
-    expect(fronteraSalida('Sale en 300 pesos.')).toBe('El precio se lo enviamos en la cotización.')
+    expect(fronteraSalida('Sale en 300 pesos.')).toBe('El precio exacto te lo doy después del diagnóstico gratis.')
+  })
+  it('deja los precios publicados de los paquetes', () => {
+    const t = 'El paquete Arranque cuesta $2,500 de instalación y $299 al mes.\n\nEl Pro con IA es $6,000 + desde $1,200 al mes.'
+    expect(fronteraSalida(t)).toBe(t)
   })
   it('no toca medidas, cantidades ni folios', () => {
     const t = 'Le resumo lo que registro:\n\n- 10 válvulas de bola de 1/2" inoxidable 3000 psi\n\nSu folio es *AP-X1Y2Z3*.'

@@ -309,6 +309,12 @@ function colorTexto(hex: string): string {
 }
 
 function textoMover(next: PipelineStage): string {
+  if (/diagn[oó]stico agendado/i.test(next.name)) return "Ya agendamos";
+  if (/diagn[oó]stico hecho/i.test(next.name)) return "Ya lo hice";
+  if (/propuesta/i.test(next.name)) return "Ya la envié";
+  if (/anticipo/i.test(next.name)) return "Ya pagó anticipo";
+  if (/implementaci/i.test(next.name)) return "Empezar a construir";
+  if (/cliente activo/i.test(next.name)) return "Ya está en línea";
   if (/cotizando/i.test(next.name)) return "Empezar a cotizar";
   if (/enviada/i.test(next.name)) return "Ya la envié";
   if (/ganad/i.test(next.name)) return "La aceptó";

@@ -79,10 +79,10 @@ function LoginPageInner() {
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src="/logo-ap.svg"
-              alt="AP Suministros"
-              width={511}
-              height={114}
+              src="/logo-onlinefreedom.svg"
+              alt="Onlinefreedom"
+              width={262}
+              height={64}
               className="mb-4 h-14 w-auto"
             />
           )}

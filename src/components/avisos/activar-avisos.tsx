@@ -96,7 +96,7 @@ export function ActivarAvisos() {
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         {estado === "pedir" || estado === "activando" ? (
           <>
-            <p className="text-base font-semibold">Recibe un aviso en este celular cada vez que llegue una solicitud de cotización</p>
+            <p className="text-base font-semibold">Recibe un aviso en este celular cada vez que llegue un prospecto nuevo o un cliente pida hablar contigo</p>
             <button
               type="button"
               onClick={activar}

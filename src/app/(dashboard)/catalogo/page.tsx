@@ -1,10 +1,10 @@
 "use client";
 
 // ============================================================
-// Catálogo — edición AP Suministros.
+// Paquetes — edición Onlinefreedom (sale del catálogo de AP).
 //
-// Las líneas de producto y servicio con las marcas que se manejan
-// (tabla catalogo, migración 310). Es la única fuente: la página web y el
+// Los paquetes con su precio y lo que incluyen (tabla catalogo,
+// migraciones 310 y 320; «marcas» guarda lo que incluye, separado por «;»). Es la única fuente: la página web y el
 // bot de WhatsApp leen de aquí. Si una línea se apaga, el bot deja de
 // ofrecerla.
 //
@@ -26,13 +26,14 @@ interface Linea {
   nombre: string;
   descripcion: string | null;
   marcas: string | null;
+  precio: string | null;
   disponible: boolean;
   orden: number;
 }
 
 const separarMarcas = (m: string | null) =>
   (m ?? "")
-    .split(",")
+    .split(";")
     .map((x) => x.trim())
     .filter(Boolean);
 
@@ -75,7 +76,7 @@ function EditorMarcas({ marcas, onCambiar }: { marcas: string[]; onCambiar: (m: 
   const [texto, setTexto] = useState("");
   function agregar() {
     const nuevas = texto
-      .split(",")
+      .split(";")
       .map((x) => x.trim())
       .filter(Boolean)
       .filter((x) => !marcas.some((m) => m.toLowerCase() === x.toLowerCase()));
@@ -104,7 +105,7 @@ function EditorMarcas({ marcas, onCambiar }: { marcas: string[]; onCambiar: (m: 
         value={texto}
         onChange={(e) => setTexto(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === ",") {
+          if (e.key === "Enter" || e.key === ";") {
             e.preventDefault();
             agregar();
           } else if (e.key === "Backspace" && !texto && marcas.length) {
@@ -112,7 +113,7 @@ function EditorMarcas({ marcas, onCambiar }: { marcas: string[]; onCambiar: (m: 
           }
         }}
         onBlur={agregar}
-        placeholder={marcas.length ? "Agregar marca" : "Ej. Fluke, Mitutoyo (Enter para agregar)"}
+        placeholder={marcas.length ? "Agregar otra cosa que incluye" : "Ej. Sitio web con tu dominio (Enter para agregar)"}
         className="h-7 min-w-[140px] flex-1 bg-transparent text-sm outline-none"
       />
     </div>
@@ -155,7 +156,7 @@ export default function CatalogoPage() {
       .update({ ...cambio, updated_at: new Date().toISOString() })
       .eq("id", id);
     if (error) {
-      toast.error(error.code === "23505" ? "Ya hay una línea con ese nombre" : "No se pudo guardar");
+      toast.error(error.code === "23505" ? "Ya hay un paquete con ese nombre" : "No se pudo guardar");
       cargar();
     } else toast.success(aviso);
   }
@@ -170,13 +171,13 @@ export default function CatalogoPage() {
       .select()
       .single();
     if (error) {
-      toast.error(error.code === "23505" ? "Esa línea ya está en el catálogo" : "No se pudo agregar");
+      toast.error(error.code === "23505" ? "Ese paquete ya existe" : "No se pudo agregar");
       return;
     }
     setLineas((xs) => [...xs, data as Linea]);
     setNueva(null);
     setAbierta((data as Linea).id);
-    toast.success(`Agregada: ${nombre}`);
+    toast.success(`Agregado: ${nombre}`);
   }
 
   async function borrar(id: string) {
@@ -188,17 +189,16 @@ export default function CatalogoPage() {
     if (error) {
       toast.error("No se pudo borrar");
       cargar();
-    } else toast.success(`Borrada: ${l?.nombre ?? ""}`);
+    } else toast.success(`Borrado: ${l?.nombre ?? ""}`);
   }
 
   const q = buscar.trim().toLowerCase();
   const visibles = q
     ? lineas.filter((l) =>
-        [l.nombre, l.descripcion ?? "", l.marcas ?? ""].some((x) => x.toLowerCase().includes(q)),
+        [l.nombre, l.descripcion ?? "", l.marcas ?? "", l.precio ?? ""].some((x) => x.toLowerCase().includes(q)),
       )
     : lineas;
   const activas = lineas.filter((l) => l.disponible).length;
-  const totalMarcas = new Set(lineas.flatMap((l) => separarMarcas(l.marcas).map((m) => m.toLowerCase()))).size;
 
   if (cargando || !accountId) {
     return (
@@ -214,13 +214,12 @@ export default function CatalogoPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0 flex-1">
           <p className="text-sm text-muted-foreground">
-            Lo que el bot de WhatsApp y la página ofrecen. Apaga una línea si por ahora no la manejan. Los precios no
-            van aquí: cada cotización lleva el suyo.
+            Lo que el agente de WhatsApp ofrece, con su precio. Si cambias un precio aquí, el agente lo dice así desde
+            el siguiente mensaje. Apaga un paquete si por ahora no lo vendes.
           </p>
           <p className="mt-1 text-xs tabular-nums text-muted-foreground">
-            <span className="font-semibold text-foreground">{lineas.length}</span> líneas ·{" "}
-            <span className="font-semibold text-foreground">{activas}</span> se ofrecen ·{" "}
-            <span className="font-semibold text-foreground">{totalMarcas}</span> marcas
+            <span className="font-semibold text-foreground">{lineas.length}</span> paquetes ·{" "}
+            <span className="font-semibold text-foreground">{activas}</span> se ofrecen
           </p>
         </div>
         <div className="flex gap-2">
@@ -229,7 +228,7 @@ export default function CatalogoPage() {
             <input
               value={buscar}
               onChange={(e) => setBuscar(e.target.value)}
-              placeholder="Buscar línea o marca"
+              placeholder="Buscar paquete"
               className="h-9 w-full rounded-md border border-border bg-background pl-8 pr-3 text-sm outline-none focus:border-primary"
             />
           </div>
@@ -238,7 +237,7 @@ export default function CatalogoPage() {
             onClick={() => setNueva("")}
             className="flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
           >
-            <Plus className="h-4 w-4" /> Nueva línea
+            <Plus className="h-4 w-4" /> Nuevo paquete
           </button>
         </div>
       </div>
@@ -246,9 +245,9 @@ export default function CatalogoPage() {
       <div className="overflow-hidden rounded-xl border border-border bg-card">
         {/* Encabezado de la lista (solo escritorio) */}
         <div className="hidden grid-cols-[52px_minmax(0,1.3fr)_minmax(0,1fr)_32px] items-center gap-3 border-b border-border bg-muted/40 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground md:grid">
-          <span>Activa</span>
-          <span>Línea</span>
-          <span>Marcas</span>
+          <span>Activo</span>
+          <span>Paquete</span>
+          <span>Precio</span>
           <span />
         </div>
 
@@ -262,7 +261,7 @@ export default function CatalogoPage() {
                 if (e.key === "Enter") agregar();
                 if (e.key === "Escape") setNueva(null);
               }}
-              placeholder="Nombre de la nueva línea (ej. Seguridad industrial)"
+              placeholder="Nombre del nuevo paquete (ej. Solo agente de IA)"
               className="h-9 min-w-0 flex-1 rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
             />
             <button
@@ -285,7 +284,7 @@ export default function CatalogoPage() {
 
         {visibles.length === 0 && (
           <p className="px-4 py-10 text-center text-sm text-muted-foreground">
-            {q ? "Nada coincide con la búsqueda." : "Todavía no hay líneas en el catálogo."}
+            {q ? "Nada coincide con la búsqueda." : "Todavía no hay paquetes."}
           </p>
         )}
 
@@ -306,7 +305,7 @@ export default function CatalogoPage() {
                     <Switch
                       checked={l.disponible}
                       onCheckedChange={(v: boolean) =>
-                        guardar(l.id, { disponible: v }, v ? `${l.nombre}: se ofrece` : `${l.nombre}: apagada`)
+                        guardar(l.id, { disponible: v }, v ? `${l.nombre}: se ofrece` : `${l.nombre}: apagado`)
                       }
                       aria-label={`Ofrecer ${l.nombre}`}
                     />
@@ -316,34 +315,20 @@ export default function CatalogoPage() {
                       <span className="truncate text-sm font-semibold text-foreground">{l.nombre}</span>
                       {!l.disponible && (
                         <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                          Apagada
+                          Apagado
                         </span>
                       )}
                     </div>
                     <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
                       {l.descripcion || "Sin descripción"}
                     </p>
-                    {/* Marcas en celular, debajo */}
-                    {marcas.length > 0 && (
-                      <div className="mt-1.5 flex flex-wrap gap-1 md:hidden">
-                        {marcas.map((m) => (
-                          <span key={m} className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-foreground/80">
-                            {m}
-                          </span>
-                        ))}
-                      </div>
+                    {/* Precio en celular, debajo */}
+                    {l.precio && (
+                      <p className="mt-1 text-xs font-semibold text-foreground/90 md:hidden">{l.precio}</p>
                     )}
                   </div>
-                  <div className="hidden flex-wrap gap-1 md:flex">
-                    {marcas.length ? (
-                      marcas.map((m) => (
-                        <span key={m} className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-foreground/80">
-                          {m}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-xs text-muted-foreground/60">—</span>
-                    )}
+                  <div className="hidden text-sm font-semibold text-foreground/90 md:block">
+                    {l.precio || <span className="text-xs font-normal text-muted-foreground/60">—</span>}
                   </div>
                   <ChevronDown
                     className={`mt-1 h-4 w-4 justify-self-end text-muted-foreground transition-transform md:mt-0 ${
@@ -359,26 +344,35 @@ export default function CatalogoPage() {
                       Nombre
                       <Campo
                         valor={l.nombre}
-                        placeholder="Nombre de la línea"
+                        placeholder="Nombre del paquete"
                         className="font-semibold text-foreground"
                         onGuardar={(v) => (v ? guardar(l.id, { nombre: v }) : cargar())}
                       />
                     </label>
                     <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground md:row-span-2">
-                      Qué incluye
+                      Para quién es
                       <Campo
                         valor={l.descripcion ?? ""}
-                        placeholder="Productos, medidas, materiales o servicios de esta línea"
+                        placeholder="Una frase corta: para qué le sirve al cliente"
                         multilinea
                         className="text-foreground"
                         onGuardar={(v) => guardar(l.id, { descripcion: v || null })}
                       />
                     </label>
                     <div className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
-                      Marcas
+                      Precio
+                      <Campo
+                        valor={l.precio ?? ""}
+                        placeholder="Ej. $2,500 instalación + $299 al mes"
+                        className="text-foreground"
+                        onGuardar={(v) => guardar(l.id, { precio: v || null })}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1 text-xs font-medium text-muted-foreground md:col-span-2">
+                      Incluye
                       <EditorMarcas
                         marcas={marcas}
-                        onCambiar={(m) => guardar(l.id, { marcas: m.length ? m.join(", ") : null })}
+                        onCambiar={(m) => guardar(l.id, { marcas: m.length ? m.join("; ") : null })}
                       />
                     </div>
                     <div className="flex items-center justify-end gap-2 md:col-span-2">
@@ -406,7 +400,7 @@ export default function CatalogoPage() {
                           onClick={() => setBorrando(l.id)}
                           className="flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                         >
-                          <Trash2 className="h-3.5 w-3.5" /> Borrar línea
+                          <Trash2 className="h-3.5 w-3.5" /> Borrar paquete
                         </button>
                       )}
                       <button

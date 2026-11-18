@@ -1,5 +1,5 @@
 /**
- * Presentación de las respuestas del bot en WhatsApp (AP Suministros).
+ * Presentación de las respuestas del bot en WhatsApp (AP Suministros / Onlinefreedom).
  *
  * Los modelos de lenguaje escriben en Markdown (**negrita**, ## títulos,
  * [texto](url), "* viñeta") y en párrafos largos. WhatsApp no entiende
@@ -116,7 +116,20 @@ const RE_INTERNO =
   /\b(?:crear_solicitud|ver_catalogo|pasar_a_humano|\$fromAI|tool_call|function_call)\b|\[(?:contexto|sistema|system|nota interna)[^\]]*\]|^\(el cliente mandó (?:una|un) /i
 const RE_PRECIO =
   /\$\s?\d|\b\d[\d.,]*\s?(?:pesos|mxn|m\.n\.|dlls?|d[oó]lares|usd)\b|\bprecios?\s+(?:es|de|unitario|total|por pieza|aproximado)\b[^.?!\n]*\d/i
-const AVISO_PRECIO = 'El precio se lo enviamos en la cotización.'
+// Onlinefreedom: los precios de los paquetes son públicos (están en la
+// página). El agente puede decirlos; cualquier otra cifra se quita.
+const PRECIOS_PERMITIDOS = new Set(['2500', '299', '3500', '499', '6000', '1200', '0'])
+const AVISO_PRECIO = 'El precio exacto te lo doy después del diagnóstico gratis.'
+
+function precioNoPermitido(frase: string): boolean {
+  if (!RE_PRECIO.test(frase)) return false
+  const cifras = [
+    ...frase.matchAll(/\$\s?(\d[\d.,]*)/g),
+    ...frase.matchAll(/(\d[\d.,]*)\s?(?:mil\s+)?(?:pesos|mxn|m\.n\.)/gi),
+  ].map((m) => m[1].replace(/[.,](?=\d{3}\b)/g, '').replace(/[.,]00$/, '').replace(/[.,]$/, ''))
+  if (cifras.length === 0) return true
+  return cifras.some((c) => !PRECIOS_PERMITIDOS.has(c))
+}
 
 export function fronteraSalida(texto: string): string {
   let quitoPrecio = false
@@ -129,10 +142,10 @@ export function fronteraSalida(texto: string): string {
     })
     return renglones
       .map((r) => {
-        if (!RE_PRECIO.test(r)) return r
+        if (!precioNoPermitido(r)) return r
         // Se quita solo la frase con el precio, no el renglón entero.
         const frases = r.split(/(?<=[.!?])\s+/)
-        const quedan = frases.filter((f) => !RE_PRECIO.test(f))
+        const quedan = frases.filter((f) => !precioNoPermitido(f))
         quitoPrecio = true
         return quedan.join(' ')
       })

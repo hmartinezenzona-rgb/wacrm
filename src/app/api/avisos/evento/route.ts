@@ -26,16 +26,18 @@ export async function POST(request: Request) {
   if (!deal) return NextResponse.json({ ok: true, avisado: false })
 
   const nombre = (deal.contact as { name?: string } | null)?.name || ''
-  // Primer producto de la lista («- 10 pz · Válvulas: solenoide…»).
-  const primero = (deal.notes || '').split('\n').find((l: string) => l.startsWith('- '))?.slice(2) || ''
+  // Onlinefreedom: giro y reto del prospecto («Giro: …», «Reto: …»).
+  const dato = (k: string) =>
+    (deal.notes || '').split('\n').find((l: string) => l.toLowerCase().startsWith(k + ':'))?.slice(k.length + 1).trim() || ''
+  const primero = [dato('giro'), dato('reto')].filter(Boolean).join(' · ')
   const quien = nombre && nombre !== deal.title ? `${deal.title} (${nombre})` : deal.title
   const r = await avisar(
     { accountId: deal.account_id },
     {
-      title: 'Nueva solicitud de cotización',
+      title: 'Nuevo prospecto',
       body: primero ? `${quien} · ${primero}` : quien,
       url: '/pipelines',
-      tag: `cotizacion-${deal.id}`,
+      tag: `prospecto-${deal.id}`,
     },
   )
   return NextResponse.json({ ok: true, avisado: true, ...r })

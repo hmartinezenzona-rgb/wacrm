@@ -113,7 +113,7 @@ export function partirEnBurbujas(texto: string): string[] {
 const RE_RAZONAMIENTO =
   /^(?:\(?\s*)(?:el (?:cliente|usuario)\b|parece que el (?:cliente|usuario)|(?:no )?debo (?:preguntar|pedir|confirmar|llamar|usar|registrar)|voy a (?:llamar|usar|registrar|preguntar|pedir)\b|necesito (?:llamar|usar) (?:a |la )?|ahora (?:llamo|uso)\b|the (?:client|user|customer)\b|i (?:will|should|need to)\b|let me\b)/i
 const RE_INTERNO =
-  /\b(?:crear_solicitud|ver_catalogo|pasar_a_humano|\$fromAI|tool_call|function_call)\b|\[(?:contexto|sistema|system|nota interna)[^\]]*\]|^\(el cliente mandó (?:una|un) /i
+  /\b(?:crear_solicitud|ver_catalogo|registrar_prospecto|ver_paquetes|pasar_a_humano|\$fromAI|tool_call|function_call)\b|\[(?:contexto|sistema|system|nota interna)[^\]]*\]|^\(el cliente mandó (?:una|un) /i
 const RE_PRECIO =
   /\$\s?\d|\b\d[\d.,]*\s?(?:pesos|mxn|m\.n\.|dlls?|d[oó]lares|usd)\b|\bprecios?\s+(?:es|de|unitario|total|por pieza|aproximado)\b[^.?!\n]*\d/i
 // Onlinefreedom: los precios de los paquetes son públicos (están en la

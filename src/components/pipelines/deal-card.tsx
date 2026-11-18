@@ -58,7 +58,8 @@ function resumenNotas(notes?: string | null) {
   const dato = (k: string) =>
     lineas.find((l) => l.toLowerCase().startsWith(k + ":"))?.slice(k.length + 1).trim() || "";
   const perfil = [dato("giro"), dato("reto")].filter(Boolean).join(" · ");
-  return { cuantos: productos.length, lineas: unicas, origen, perfil };
+  const llamada = dato("llamada");
+  return { cuantos: productos.length, lineas: unicas, origen, perfil, llamada };
 }
 
 function diasDesde(iso?: string | null) {
@@ -99,7 +100,7 @@ export function DealCard({
   const titulo = deal.title.replace(URGENTE, "");
   const contacto = deal.contact?.name || deal.contact?.phone || t("noContact");
   const mostrarContacto = contacto !== titulo;
-  const { cuantos, lineas, origen, perfil } = resumenNotas(deal.notes);
+  const { cuantos, lineas, origen, perfil, llamada } = resumenNotas(deal.notes);
 
   const desde = deal.etapa_desde || deal.created_at;
   const dias = diasDesde(desde);
@@ -175,6 +176,9 @@ export function DealCard({
 
       {cuantos === 0 && perfil && (
         <p className="mt-1 line-clamp-2 text-xs text-muted-foreground/90">{perfil}</p>
+      )}
+      {llamada && (
+        <p className="mt-1 truncate text-xs font-medium text-sky-500">Llamada: {llamada}</p>
       )}
 
       {/* 4. Monto y tiempo en la columna */}

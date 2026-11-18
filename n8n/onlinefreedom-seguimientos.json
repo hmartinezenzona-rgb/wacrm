@@ -1,0 +1,192 @@
+{
+ "name": "Onlinefreedom — Seguimientos WhatsApp",
+ "nodes": [
+  {
+   "id": "f1b3ac13-0531-451a-86e8-c3bde25bbf53",
+   "name": "Nota",
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    -40,
+    -260
+   ],
+   "parameters": {
+    "width": 520,
+    "height": 200,
+    "content": "## Seguimientos — Onlinefreedom\nCada hora de 9 a 20 h (Saltillo). Si el cliente dejó una pregunta del asistente sin contestar: a la 1 h \"¿sigues por ahí?\"; a las 20 h despedida y cierre del chat (bot_seguimientos / bot_seguimiento_hecho, migración 321). Solo dentro de la ventana de 24 h de WhatsApp."
+   }
+  },
+  {
+   "id": "c50e526f-781e-4e29-af46-2807e31354b4",
+   "name": "Cada hora",
+   "type": "n8n-nodes-base.scheduleTrigger",
+   "typeVersion": 1.2,
+   "position": [
+    0,
+    0
+   ],
+   "parameters": {
+    "rule": {
+     "interval": [
+      {
+       "field": "cronExpression",
+       "expression": "5 9-20 * * *"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "9bb974c6-3600-4cca-a49c-a3112a4e551b",
+   "name": "Buscar pendientes",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    220,
+    0
+   ],
+   "parameters": {
+    "method": "POST",
+    "url": "https://uvfjtsjroydvhjpgvmdu.supabase.co/rest/v1/rpc/bot_seguimientos",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "apikey",
+       "value": "sb_publishable_IdXNIhavHl-GbnYiwuVIzw_T1BFdHYs"
+      },
+      {
+       "name": "Authorization",
+       "value": "Bearer sb_publishable_IdXNIhavHl-GbnYiwuVIzw_T1BFdHYs"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={\"p_account\": \"52bbe7a4-e6e2-41bb-aacd-a4045e15325a\"}",
+    "options": {}
+   }
+  },
+  {
+   "id": "fa9a6493-83e8-45ae-b197-3b4b14a5ad18",
+   "name": "Uno por chat",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    440,
+    0
+   ],
+   "parameters": {
+    "jsCode": "const lista = $input.all().flatMap(i => Array.isArray(i.json) ? i.json : (i.json && i.json.conversation_id ? [i.json] : []));\nreturn lista.slice(0, 50).map(j => ({ json: j }));"
+   }
+  },
+  {
+   "id": "ed66229f-2cb5-4543-a4b2-c3aa25a687df",
+   "name": "Mandar seguimiento",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    660,
+    0
+   ],
+   "credentials": {
+    "httpHeaderAuth": {
+     "id": "__CRED__",
+     "name": "CRM Onlinefreedom (API)"
+    }
+   },
+   "parameters": {
+    "authentication": "genericCredentialType",
+    "genericAuthType": "httpHeaderAuth",
+    "method": "POST",
+    "url": "https://crm-onlinefreedom.vercel.app/api/v1/messages",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ to: $json.telefono, type: 'text', text: $json.paso === 1 ? ('Hola' + ($json.nombre ? ' ' + $json.nombre : '') + ', ¿sigues por ahí? Cuando puedas me cuentas y seguimos.') : 'Te dejo por ahora para no quitarte más tiempo. Cuando quieras retomar, escríbeme por aquí y seguimos.' }) }}",
+    "options": {}
+   },
+   "onError": "continueRegularOutput"
+  },
+  {
+   "id": "b8a7d7cc-59e1-400a-b973-9a8d2da7bd50",
+   "name": "Marcar hecho",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    880,
+    0
+   ],
+   "parameters": {
+    "method": "POST",
+    "url": "https://uvfjtsjroydvhjpgvmdu.supabase.co/rest/v1/rpc/bot_seguimiento_hecho",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "apikey",
+       "value": "sb_publishable_IdXNIhavHl-GbnYiwuVIzw_T1BFdHYs"
+      },
+      {
+       "name": "Authorization",
+       "value": "Bearer sb_publishable_IdXNIhavHl-GbnYiwuVIzw_T1BFdHYs"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ p_account: '52bbe7a4-e6e2-41bb-aacd-a4045e15325a', p_conversation: $('Uno por chat').item.json.conversation_id, p_paso: $('Uno por chat').item.json.paso }) }}",
+    "options": {}
+   }
+  }
+ ],
+ "connections": {
+  "Cada hora": {
+   "main": [
+    [
+     {
+      "node": "Buscar pendientes",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Buscar pendientes": {
+   "main": [
+    [
+     {
+      "node": "Uno por chat",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Uno por chat": {
+   "main": [
+    [
+     {
+      "node": "Mandar seguimiento",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Mandar seguimiento": {
+   "main": [
+    [
+     {
+      "node": "Marcar hecho",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  }
+ },
+ "settings": {
+  "executionOrder": "v1",
+  "timezone": "America/Monterrey"
+ }
+}

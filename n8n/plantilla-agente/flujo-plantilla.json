@@ -303,7 +303,7 @@
    "type": "n8n-nodes-base.httpRequest",
    "typeVersion": 4.2,
    "position": [
-    4480,
+    5140,
     -140
    ],
    "parameters": {
@@ -1076,7 +1076,7 @@
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
    "position": [
-    3660,
+    4320,
     -300
    ],
    "parameters": {
@@ -1090,7 +1090,7 @@
    "type": "n8n-nodes-base.if",
    "typeVersion": 2.2,
    "position": [
-    3860,
+    4520,
     -300
    ],
    "parameters": {
@@ -1122,7 +1122,7 @@
    "type": "n8n-nodes-base.httpRequest",
    "typeVersion": 4.2,
    "position": [
-    4060,
+    4720,
     -400
    ],
    "parameters": {
@@ -1145,7 +1145,7 @@
    "type": "n8n-nodes-base.set",
    "typeVersion": 3.4,
    "position": [
-    4260,
+    4920,
     -400
    ],
    "parameters": {
@@ -1264,6 +1264,76 @@
     "options": {}
    },
    "onError": "continueRegularOutput"
+  },
+  {
+   "id": "usar-editor",
+   "name": "¿Usar editor?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    3660,
+    -140
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "typeValidation": "loose",
+      "version": 2
+     },
+     "combinator": "and",
+     "conditions": [
+      {
+       "id": "e1",
+       "leftValue": "={{ $('Configuración del bot').item.json.editor !== false }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ]
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "editor",
+   "name": "Editor",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    3860,
+    -240
+   ],
+   "parameters": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/chat/completions",
+    "authentication": "predefinedCredentialType",
+    "nodeCredentialType": "openAiApi",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ (() => { const c = $('Configuración del bot').item.json; return JSON.stringify({ model: 'gpt-4.1-mini', temperature: 0.3, response_format: { type: 'json_object' }, messages: [ { role: 'system', content: 'Eres editor de mensajes de WhatsApp. Recibes el borrador que ' + (c.voz || 'un asesor') + ' le va a mandar a un cliente y lo dejas como lo escribiría una persona real desde su celular. Español de México, trato de ' + (c.trato || 'tú') + '.\\n\\nQUÉ CAMBIAS\\n- Quita muletillas al arrancar: Claro, Perfecto, Excelente, Genial, Entiendo, Por supuesto, Con gusto, Qué bien, Gracias por compartir. Si el borrador devuelve un saludo (hola, buenas noches), déjalo.\\n- Quita relleno y cierres vacíos: Quedo atento, No dudes en escribirme, Estoy aquí para ayudarte, Espero que te sirva, Cualquier cosa me dices.\\n- Quita adulación (Qué buen negocio, Excelente decisión) y palabras de folleto: potenciar, impulsar, transformar, optimizar, soluciones integrales, siguiente nivel, de manera eficiente, experiencia única, sin complicaciones.\\n- Cambia frases tipo \\'no solo X, sino también Y\\' y listas de tres por costumbre por algo directo.\\n- Si el borrador repite lo que el cliente acaba de decir, quítalo.\\n- Frases cortas, de plática. Si el cliente escribió corto, deja el mensaje corto.\\n- Sin rayas largas (—), sin comillas curvas, sin emojis, sin signos de admiración de más.\\n\\nQUÉ NO CAMBIAS (obligatorio)\\n- Precios, cantidades, fechas, días, horas, nombres de personas, links y nombres de paquetes o productos: cópialos exactos, con su *negrita* si la traen.\\n- La información: no agregues datos, promesas, ofertas, saludos ni preguntas; no quites nada que el cliente necesite saber.\\n- La pregunta: si el borrador tiene una, déjala con el mismo sentido, al final, sola en su renglón y con una línea en blanco antes. Nunca más de una pregunta. Si no tiene pregunta, no agregues ninguna.\\n- Formato de WhatsApp: negrita con UN asterisco, listas con \\'- \\', párrafos de 2 o 3 renglones separados por una línea en blanco.\\n- Si el borrador ya suena natural, devuélvelo igual.\\n\\nDevuelve solo JSON: {\"texto\": \"el mensaje final\"}' }, { role: 'user', content: 'Lo último que escribió el cliente:\\n' + ($('Juntar mensajes').item.json.texto || '') + '\\n\\nBorrador:\\n' + String($json.output || '').trim() } ] }); })() }}",
+    "options": {
+     "timeout": 20000
+    }
+   },
+   "onError": "continueRegularOutput"
+  },
+  {
+   "id": "revisar-edicion",
+   "name": "Revisar edición",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    4060,
+    -240
+   ],
+   "parameters": {
+    "mode": "runOnceForEachItem",
+    "jsCode": "// Revisar edición: el editor solo puede cambiar el tono. Si tocó cifras, links,\n// nombres en negrita o la pregunta, o si alargó / recortó de más, se manda el borrador.\nconst borrador = String($('¿Hay respuesta?').item.json.output || '').trim();\nlet editado = '';\ntry {\n  editado = String(JSON.parse($json.choices[0].message.content).texto || '').trim();\n} catch (e) {}\n\nconst cifras = (s) => (s.match(/\\d[\\d.,:]*/g) || []).map((n) => n.replace(/[.,:]+$/, '').replace(/[.,]/g, '')).sort();\nconst links = (s) => (s.match(/https?:\\/\\/[^\\s)]+/g) || []).sort();\nconst negritas = (s) => (s.match(/\\*([^*\\n]+)\\*/g) || []).map((x) => x.replace(/\\*/g, '').trim().toLowerCase());\nconst preguntas = (s) => (s.match(/¿[^?]*\\?/g) || []).length || (s.match(/\\?/g) || []).length;\nconst igual = (a, b) => JSON.stringify(a) === JSON.stringify(b);\n\nconst motivos = [];\nif (!editado) motivos.push('sin respuesta del editor');\nelse {\n  if (!igual(cifras(borrador), cifras(editado))) motivos.push('cambió cifras');\n  if (!igual(links(borrador), links(editado))) motivos.push('cambió links');\n  const plano = editado.replace(/\\*/g, '').toLowerCase();\n  if (negritas(borrador).some((n) => !plano.includes(n))) motivos.push('quitó un nombre en negrita');\n  const pb = preguntas(borrador), pe = preguntas(editado);\n  if (pb === 0 && pe > 0) motivos.push('agregó una pregunta');\n  if (pb > 0 && pe !== 1) motivos.push('pregunta mal (' + pe + ')');\n  if (editado.length > borrador.length * 1.15 + 30) motivos.push('lo alargó');\n  if (borrador.length > 120 && editado.length < borrador.length * 0.35) motivos.push('recortó de más');\n  if (/\\[SIN_RESPUESTA\\]/i.test(editado)) motivos.push('marca interna');\n}\n\nconst usar = motivos.length === 0;\nreturn {\n  json: {\n    output: usar ? editado : borrador,\n    borrador,\n    editor: usar ? (editado === borrador ? 'sin cambios' : 'editado') : 'descartado: ' + motivos.join(', '),\n  },\n};\n"
+   }
   }
  ],
  "connections": {
@@ -1345,7 +1415,7 @@
    "main": [
     [
      {
-      "node": "Contar preguntas",
+      "node": "¿Usar editor?",
       "type": "main",
       "index": 0
      }
@@ -1735,6 +1805,46 @@
     [
      {
       "node": "Qué falta",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "¿Usar editor?": {
+   "main": [
+    [
+     {
+      "node": "Editor",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Contar preguntas",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Editor": {
+   "main": [
+    [
+     {
+      "node": "Revisar edición",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Revisar edición": {
+   "main": [
+    [
+     {
+      "node": "Contar preguntas",
       "type": "main",
       "index": 0
      }

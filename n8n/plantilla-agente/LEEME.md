@@ -24,6 +24,7 @@ Un solo diseño de agente para todos los negocios. Lo que cambia de un negocio a
    - `conocer`: lista ordenada de datos a pedir. Cada uno: `clave` (nombre, negocio o la clave que acepta la RPC), `etiqueta` (cómo aparece en la ficha: Giro, Reto, Llamada…), `pregunta` (qué preguntar, el modelo lo dice con sus palabras), `obligatorio`, `requiere` (claves que deben estar antes), `guardar` (opcional: cómo anotarlo en la ficha, por ejemplo el nombre exacto del paquete)
    - `registro`: `rpc`, `campos` (claves que acepta esa función), `instrucciones`
    - `reglas_extra` y `humano_extra` (listas), `aviso_precio`, `ejemplos` (2 o 3 diálogos cortos)
+   - `editor` (opcional): `false` para apagar el editor humanizer en ese negocio. Por defecto está prendido.
 3. **n8n**: importa `flujo-plantilla.json`, y en el nodo **Configuración** pon `crm_url`, `supabase_url`, `supabase_key` (publicable), `cuenta`, `msg_archivo`, `contexto_audio`, `contexto_foto`. Cambia el `path` del webhook. Asigna las credenciales: llave del CRM (Header Auth `Authorization: Bearer wacrm_live_…`) y OpenAI. Activa.
 4. **CRM → n8n**: corre una vez el nodo "Crear webhook en el CRM" (o regístralo por API) para que cada mensaje llegue al flujo.
 5. **Seguimientos** (opcional): importa `../onlinefreedom-seguimientos.json` y cambia cuenta, URL y llave.
@@ -38,5 +39,6 @@ Un solo diseño de agente para todos los negocios. Lo que cambia de un negocio a
 Basado en cómo lo resuelven plataformas maduras (patrón "slot filling" de Google CX Agent Studio y los `collect` de Rasa CALM; validadores con re-pregunta de Guardrails AI):
 1. **El código decide qué falta, el modelo solo redacta.** El nodo "Qué falta" lee la ficha del CRM y `bot_config.conocer` y le pasa al modelo UN solo "siguiente dato". El modelo nunca ve la lista de preguntas futuras.
 2. **Extracción en lote.** Cada vez que el cliente da un dato, el modelo registra todo lo que sabe; así la ficha (el estado) siempre está al día.
-3. **Validador con re-pregunta.** "Contar preguntas" revisa la respuesta; si trae más de una, "Corregir respuesta" (una llamada corta al modelo, temperatura 0) la reescribe con una sola. Solo cuesta tiempo cuando falla.
-4. **Red final en el CRM.** `soloUnaPregunta()` en formato-bot deja solo la última si algo se colara.
+3. **Editor humanizer.** Después del agente, "Editor" (gpt-4.1-mini, temperatura 0.3) reescribe la respuesta para quitar lo que suena a bot (muletillas, relleno, palabras de folleto), con la `voz` y el `trato` del negocio. "Revisar edición" compara en código el borrador con lo editado: si cambió cifras, links o nombres en negrita, agregó o quitó la pregunta, lo alargó o recortó de más, se manda el borrador original. En la ejecución queda el campo `editor` (editado / sin cambios / descartado: motivo) y el `borrador`.
+4. **Validador con re-pregunta.** "Contar preguntas" revisa la respuesta; si trae más de una, "Corregir respuesta" (una llamada corta al modelo, temperatura 0) la reescribe con una sola. Solo cuesta tiempo cuando falla.
+5. **Red final en el CRM.** `soloUnaPregunta()` en formato-bot deja solo la última si algo se colara.

@@ -40,7 +40,8 @@ import {
   SendMessageError,
 } from '@/lib/whatsapp/send-message';
 import type { InteractiveMessagePayload } from '@/lib/whatsapp/interactive';
-import { prepararRespuestaBot } from '@/lib/whatsapp/formato-bot';
+import { prepararRespuestaBot, type OpcionesBot } from '@/lib/whatsapp/formato-bot';
+import { supabaseAdmin } from '@/lib/ai/admin-client';
 
 // Cuentas cuyo bot externo (n8n) manda texto de un modelo de lenguaje: se
 // le da formato de WhatsApp, se parte en burbujas y se agregan botones.
@@ -120,7 +121,18 @@ export async function POST(request: Request) {
       (formato === 'bot' || CUENTAS_FORMATO_BOT.has(ctx.accountId));
 
     if (darFormato) {
-      const piezas = prepararRespuestaBot(body.text as string);
+      // Precios que el agente puede decir: los del catálogo de esta cuenta
+      // (migración 322). Si la cuenta no tiene, se usan los de por defecto.
+      const opciones: OpcionesBot = {};
+      try {
+        const { data: cfg } = await supabaseAdmin().rpc('bot_precios', { p_account: ctx.accountId });
+        const lista = Array.isArray(cfg?.precios) ? (cfg.precios as string[]) : [];
+        if (lista.length) opciones.precios = new Set([...lista, '0']);
+        if (typeof cfg?.aviso === 'string' && cfg.aviso) opciones.avisoPrecio = cfg.aviso;
+      } catch {
+        // Sin configuración: valores por defecto.
+      }
+      const piezas = prepararRespuestaBot(body.text as string, opciones);
       if (piezas.length === 0) {
         return fail('bad_request', "'text' is empty", 400);
       }

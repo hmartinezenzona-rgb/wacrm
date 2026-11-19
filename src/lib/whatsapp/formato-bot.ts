@@ -113,7 +113,7 @@ export function partirEnBurbujas(texto: string): string[] {
 const RE_RAZONAMIENTO =
   /^(?:\(?\s*)(?:el (?:cliente|usuario)\b|parece que el (?:cliente|usuario)|(?:no )?debo (?:preguntar|pedir|confirmar|llamar|usar|registrar)|voy a (?:llamar|usar|registrar|preguntar|pedir)\b|necesito (?:llamar|usar) (?:a |la )?|ahora (?:llamo|uso)\b|the (?:client|user|customer)\b|i (?:will|should|need to)\b|let me\b)/i
 const RE_INTERNO =
-  /\b(?:crear_solicitud|ver_catalogo|registrar_prospecto|ver_paquetes|pasar_a_humano|nota_interna|cerrar_chat|\$fromAI|tool_call|function_call)\b|\[(?:contexto|sistema|system|nota interna|sin_respuesta)[^\]]*\]|^\(el cliente mandó (?:una|un) /i
+  /\b(?:crear_solicitud|ver_catalogo|registrar_prospecto|registrar_cliente|ver_paquetes|pasar_a_humano|nota_interna|cerrar_chat|\$fromAI|tool_call|function_call)\b|\[(?:contexto|sistema|system|nota interna|sin_respuesta)[^\]]*\]|^\(el cliente mandó (?:una|un) /i
 const RE_PRECIO =
   /\$\s?\d|\b\d[\d.,]*\s?(?:pesos|mxn|m\.n\.|dlls?|d[oó]lares|usd)\b|\bprecios?\s+(?:es|de|unitario|total|por pieza|aproximado)\b[^.?!\n]*\d/i
 // Onlinefreedom: los precios de los paquetes son públicos (están en la
@@ -121,17 +121,26 @@ const RE_PRECIO =
 const PRECIOS_PERMITIDOS = new Set(['2500', '299', '3500', '499', '6000', '1200', '0'])
 const AVISO_PRECIO = 'El precio exacto te lo doy después del diagnóstico gratis.'
 
-function precioNoPermitido(frase: string): boolean {
+export interface OpcionesBot {
+  /** Cifras que el agente sí puede decir (sin comas). Por defecto, los paquetes de Onlinefreedom. */
+  precios?: Set<string>
+  /** Frase que se pone cuando se quitó un precio. */
+  avisoPrecio?: string
+}
+
+function precioNoPermitido(frase: string, permitidos: Set<string> = PRECIOS_PERMITIDOS): boolean {
   if (!RE_PRECIO.test(frase)) return false
   const cifras = [
     ...frase.matchAll(/\$\s?(\d[\d.,]*)/g),
     ...frase.matchAll(/(\d[\d.,]*)\s?(?:mil\s+)?(?:pesos|mxn|m\.n\.)/gi),
   ].map((m) => m[1].replace(/[.,](?=\d{3}\b)/g, '').replace(/[.,]00$/, '').replace(/[.,]$/, ''))
   if (cifras.length === 0) return true
-  return cifras.some((c) => !PRECIOS_PERMITIDOS.has(c))
+  return cifras.some((c) => !permitidos.has(c))
 }
 
-export function fronteraSalida(texto: string): string {
+export function fronteraSalida(texto: string, opciones: OpcionesBot = {}): string {
+  const permitidos = opciones.precios ?? PRECIOS_PERMITIDOS
+  const aviso = opciones.avisoPrecio || AVISO_PRECIO
   let quitoPrecio = false
   const parrafos = texto.split(/\n\s*\n/).map((par) => {
     const renglones = par.split('\n').filter((r) => {
@@ -142,10 +151,10 @@ export function fronteraSalida(texto: string): string {
     })
     return renglones
       .map((r) => {
-        if (!precioNoPermitido(r)) return r
+        if (!precioNoPermitido(r, permitidos)) return r
         // Se quita solo la frase con el precio, no el renglón entero.
         const frases = r.split(/(?<=[.!?])\s+/)
-        const quedan = frases.filter((f) => !precioNoPermitido(f))
+        const quedan = frases.filter((f) => !precioNoPermitido(f, permitidos))
         quitoPrecio = true
         return quedan.join(' ')
       })
@@ -153,12 +162,12 @@ export function fronteraSalida(texto: string): string {
       .join('\n')
   })
   let limpio = parrafos.filter((par) => par.trim()).join('\n\n').trim()
-  if (quitoPrecio && !limpio.includes(AVISO_PRECIO)) {
+  if (quitoPrecio && !limpio.includes(aviso)) {
     // El aviso va antes de la pregunta final, si la hay.
     const ps = limpio ? limpio.split('\n\n') : []
     const ultima = ps[ps.length - 1] ?? ''
-    if (/\?\s*$/.test(ultima) && ps.length > 0) ps.splice(ps.length - 1, 0, AVISO_PRECIO)
-    else ps.push(AVISO_PRECIO)
+    if (/\?\s*$/.test(ultima) && ps.length > 0) ps.splice(ps.length - 1, 0, aviso)
+    else ps.push(aviso)
     limpio = ps.join('\n\n')
   }
   return limpio
@@ -208,8 +217,8 @@ export function humanizar(texto: string): string {
  * chat de WhatsApp. Si el modelo todavía escribe una línea
  * "[botones: …]", se quita y queda solo la pregunta.
  */
-export function prepararRespuestaBot(entrada: string): PiezaBot[] {
-  let texto = humanizar(fronteraSalida(aFormatoWhatsapp(entrada)))
+export function prepararRespuestaBot(entrada: string, opciones: OpcionesBot = {}): PiezaBot[] {
+  let texto = humanizar(fronteraSalida(aFormatoWhatsapp(entrada), opciones))
   texto = texto.replace(/\n?\s*\[botones?\s*:[^\]]*\]\s*$/i, '').trim()
   if (!texto) return []
   return partirEnBurbujas(texto).map((b) => ({ tipo: 'texto', texto: b }))

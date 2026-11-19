@@ -1,0 +1,1470 @@
+{
+ "name": "Agente de WhatsApp — Onlinefreedom",
+ "nodes": [
+  {
+   "id": "sticky-1",
+   "name": "Nota",
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    -60,
+    -380
+   ],
+   "parameters": {
+    "width": 620,
+    "height": 300,
+    "content": "## Agente de WhatsApp (plantilla reutilizable)\nPara otro negocio: duplica este flujo, cambia el nodo Configuración (URL del CRM, Supabase, llave publicable, cuenta y los 3 textos), cambia el path del webhook y las 2 credenciales, y llena bot_config de esa cuenta (ver n8n/plantilla-agente/LEEME.md). El prompt NO se edita aquí: sale de bot_config + plantilla."
+   }
+  },
+  {
+   "id": "webhook",
+   "name": "Mensaje del CRM",
+   "type": "n8n-nodes-base.webhook",
+   "typeVersion": 2,
+   "position": [
+    0,
+    0
+   ],
+   "parameters": {
+    "httpMethod": "POST",
+    "path": "onlinefreedom-ventas-eca4b952ae0f",
+    "responseMode": "onReceived",
+    "options": {}
+   },
+   "webhookId": "onlinefreedom-ventas-eca4b952ae0f"
+  },
+  {
+   "id": "datos",
+   "name": "Datos del mensaje",
+   "type": "n8n-nodes-base.set",
+   "typeVersion": 3.4,
+   "position": [
+    220,
+    0
+   ],
+   "parameters": {
+    "assignments": {
+     "assignments": [
+      {
+       "id": "a1",
+       "name": "conversation_id",
+       "value": "={{ $('Mensaje del CRM').item.json.body.data.conversation_id }}",
+       "type": "string"
+      },
+      {
+       "id": "a2",
+       "name": "tipo",
+       "value": "={{ $('Mensaje del CRM').item.json.body.data.content_type }}",
+       "type": "string"
+      },
+      {
+       "id": "a3",
+       "name": "texto",
+       "value": "={{ ($('Mensaje del CRM').item.json.body.data.text || '').trim() }}",
+       "type": "string"
+      },
+      {
+       "id": "a4",
+       "name": "evento",
+       "value": "={{ $('Mensaje del CRM').item.json.body.event }}",
+       "type": "string"
+      },
+      {
+       "id": "a5",
+       "name": "media_url",
+       "value": "={{ $('Mensaje del CRM').item.json.body.data.media_url || '' }}",
+       "type": "string"
+      },
+      {
+       "id": "a6",
+       "name": "recibido",
+       "value": "={{ $now.toISO() }}",
+       "type": "string"
+      }
+     ]
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "leer",
+   "name": "Leer conversación",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    440,
+    0
+   ],
+   "parameters": {
+    "authentication": "genericCredentialType",
+    "genericAuthType": "httpHeaderAuth",
+    "url": "={{ $('Configuración').first().json.crm_url }}/api/v1/conversations/{{ $json.conversation_id }}",
+    "options": {}
+   }
+  },
+  {
+   "id": "activo",
+   "name": "¿Contesta el bot?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    660,
+    0
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "typeValidation": "loose",
+      "version": 2
+     },
+     "combinator": "and",
+     "conditions": [
+      {
+       "id": "c1",
+       "leftValue": "={{ $('Datos del mensaje').item.json.evento }}",
+       "rightValue": "message.received",
+       "operator": {
+        "type": "string",
+        "operation": "equals"
+       }
+      },
+      {
+       "id": "c2",
+       "leftValue": "={{ $json.data.ai_autoreply_disabled }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "false",
+        "singleValue": true
+       }
+      },
+      {
+       "id": "c3",
+       "leftValue": "={{ $json.data.assigned_agent_id }}",
+       "rightValue": "",
+       "operator": {
+        "type": "string",
+        "operation": "empty",
+        "singleValue": true
+       }
+      }
+     ]
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "estexto",
+   "name": "¿Es texto?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    1760,
+    -100
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "typeValidation": "loose",
+      "version": 2
+     },
+     "combinator": "and",
+     "conditions": [
+      {
+       "id": "t1",
+       "leftValue": "={{ $json.texto }}",
+       "rightValue": "",
+       "operator": {
+        "type": "string",
+        "operation": "notEmpty",
+        "singleValue": true
+       }
+      }
+     ]
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "modelo",
+   "name": "Modelo",
+   "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+   "typeVersion": 1.2,
+   "position": [
+    1860,
+    60
+   ],
+   "parameters": {
+    "model": {
+     "__rl": true,
+     "value": "gpt-4.1-mini",
+     "mode": "list",
+     "cachedResultName": "gpt-4.1-mini"
+    },
+    "options": {
+     "temperature": 0.3
+    }
+   }
+  },
+  {
+   "id": "memoria",
+   "name": "Memoria del chat",
+   "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+   "typeVersion": 1.3,
+   "position": [
+    2870,
+    60
+   ],
+   "parameters": {
+    "sessionIdType": "customKey",
+    "sessionKey": "={{ $('Datos del mensaje').item.json.conversation_id }}",
+    "contextWindowLength": 20
+   }
+  },
+  {
+   "id": "t-hum",
+   "name": "pasar_a_humano",
+   "type": "n8n-nodes-base.httpRequestTool",
+   "typeVersion": 4.2,
+   "position": [
+    3260,
+    60
+   ],
+   "parameters": {
+    "toolDescription": "Pasa el chat a una persona de Onlinefreedom: pausa el asistente en este chat y avisa al celular. Úsala según \"Cuándo usar pasar_a_humano\".",
+    "method": "POST",
+    "url": "={{ $('Configuración').first().json.supabase_url }}/rest/v1/rpc/bot_pasar_a_humano",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "apikey",
+       "value": "={{ $('Configuración').first().json.supabase_key }}"
+      },
+      {
+       "name": "Authorization",
+       "value": "=Bearer {{ $('Configuración').first().json.supabase_key }}"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ p_account: $('Configuración').first().json.cuenta, p_conversation: $('Datos del mensaje').item.json.conversation_id, p_motivo: $fromAI('motivo', 'Motivo en pocas palabras, por ejemplo: quiere pagar el anticipo del paquete Pro', 'string') }) }}",
+    "options": {}
+   }
+  },
+  {
+   "id": "hayresp",
+   "name": "¿Hay respuesta?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    3460,
+    -140
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "typeValidation": "loose",
+      "version": 2
+     },
+     "combinator": "and",
+     "conditions": [
+      {
+       "id": "r1",
+       "leftValue": "={{ ($json.output || '').trim() }}",
+       "rightValue": "",
+       "operator": {
+        "type": "string",
+        "operation": "notEmpty",
+        "singleValue": true
+       }
+      },
+      {
+       "id": "r2",
+       "leftValue": "={{ ($json.output || '') }}",
+       "rightValue": "[SIN_RESPUESTA]",
+       "operator": {
+        "type": "string",
+        "operation": "notContains"
+       }
+      }
+     ]
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "enviar",
+   "name": "Enviar respuesta",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    3680,
+    -140
+   ],
+   "parameters": {
+    "authentication": "genericCredentialType",
+    "genericAuthType": "httpHeaderAuth",
+    "method": "POST",
+    "url": "={{ $('Configuración').first().json.crm_url }}/api/v1/messages",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ to: $('Leer conversación').item.json.data.contact.phone, type: 'text', text: $json.output.trim(), formato: 'bot' }) }}",
+    "options": {}
+   },
+   "retryOnFail": true,
+   "maxTries": 2
+  },
+  {
+   "id": "notexto",
+   "name": "Responder: solo texto",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    2880,
+    220
+   ],
+   "parameters": {
+    "authentication": "genericCredentialType",
+    "genericAuthType": "httpHeaderAuth",
+    "method": "POST",
+    "url": "={{ $('Configuración').first().json.crm_url }}/api/v1/messages",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ to: $('Leer conversación').item.json.data.contact.phone, type: 'text', text: $('Configuración').first().json.msg_archivo || 'Gracias. No alcancé a revisar ese archivo. ¿Me lo puedes escribir?' }) }}",
+    "options": {}
+   }
+  },
+  {
+   "id": "manual",
+   "name": "Registrar webhook en el CRM (una vez)",
+   "type": "n8n-nodes-base.manualTrigger",
+   "typeVersion": 1,
+   "position": [
+    0,
+    420
+   ],
+   "parameters": {}
+  },
+  {
+   "id": "registrar",
+   "name": "Crear webhook en el CRM",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    240,
+    420
+   ],
+   "parameters": {
+    "authentication": "genericCredentialType",
+    "genericAuthType": "httpHeaderAuth",
+    "method": "POST",
+    "url": "={{ $('Configuración').first().json.crm_url }}/api/v1/webhooks",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ url: 'https://automatizaciones-n8n.ttjgax.easypanel.host/webhook/' + $('Mensaje del CRM').params.path, events: ['message.received'] }) }}",
+    "options": {}
+   }
+  },
+  {
+   "id": "sw-tipo",
+   "name": "¿Qué mandó?",
+   "type": "n8n-nodes-base.switch",
+   "typeVersion": 3.2,
+   "position": [
+    880,
+    -100
+   ],
+   "parameters": {
+    "rules": {
+     "values": [
+      {
+       "conditions": {
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "loose",
+         "version": 2
+        },
+        "combinator": "and",
+        "conditions": [
+         {
+          "id": "audio1",
+          "leftValue": "={{ $('Datos del mensaje').item.json.tipo }}",
+          "rightValue": "audio",
+          "operator": {
+           "type": "string",
+           "operation": "equals"
+          }
+         },
+         {
+          "id": "audio2",
+          "leftValue": "={{ $('Datos del mensaje').item.json.media_url }}",
+          "rightValue": "",
+          "operator": {
+           "type": "string",
+           "operation": "notEmpty",
+           "singleValue": true
+          }
+         }
+        ]
+       },
+       "renameOutput": true,
+       "outputKey": "audio"
+      },
+      {
+       "conditions": {
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "loose",
+         "version": 2
+        },
+        "combinator": "and",
+        "conditions": [
+         {
+          "id": "image1",
+          "leftValue": "={{ $('Datos del mensaje').item.json.tipo }}",
+          "rightValue": "image",
+          "operator": {
+           "type": "string",
+           "operation": "equals"
+          }
+         },
+         {
+          "id": "image2",
+          "leftValue": "={{ $('Datos del mensaje').item.json.media_url }}",
+          "rightValue": "",
+          "operator": {
+           "type": "string",
+           "operation": "notEmpty",
+           "singleValue": true
+          }
+         }
+        ]
+       },
+       "renameOutput": true,
+       "outputKey": "foto"
+      }
+     ]
+    },
+    "options": {
+     "fallbackOutput": "extra",
+     "renameFallbackOutput": "texto"
+    }
+   }
+  },
+  {
+   "id": "dl-audio",
+   "name": "Descargar audio",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    1100,
+    -320
+   ],
+   "parameters": {
+    "url": "={{ $('Datos del mensaje').item.json.media_url }}",
+    "options": {
+     "response": {
+      "response": {
+       "responseFormat": "file"
+      }
+     }
+    }
+   },
+   "onError": "continueRegularOutput"
+  },
+  {
+   "id": "tr-audio",
+   "name": "Transcribir audio",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    1320,
+    -320
+   ],
+   "parameters": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/audio/transcriptions",
+    "authentication": "predefinedCredentialType",
+    "nodeCredentialType": "openAiApi",
+    "sendBody": true,
+    "contentType": "multipart-form-data",
+    "bodyParameters": {
+     "parameters": [
+      {
+       "parameterType": "formBinaryData",
+       "name": "file",
+       "inputDataFieldName": "data"
+      },
+      {
+       "name": "model",
+       "value": "gpt-4o-mini-transcribe"
+      },
+      {
+       "name": "language",
+       "value": "es"
+      },
+      {
+       "name": "prompt",
+       "value": "={{ $('Configuración').first().json.contexto_audio }}"
+      }
+     ]
+    },
+    "options": {}
+   },
+   "onError": "continueRegularOutput"
+  },
+  {
+   "id": "in-audio",
+   "name": "Entrada: audio",
+   "type": "n8n-nodes-base.set",
+   "typeVersion": 3.4,
+   "position": [
+    1540,
+    -320
+   ],
+   "parameters": {
+    "mode": "manual",
+    "assignments": {
+     "assignments": [
+      {
+       "id": "t1",
+       "name": "texto",
+       "type": "string",
+       "value": "={{ ($json.text || '').trim() ? '(El cliente mandó una nota de voz. Esto es lo que dice:) ' + $json.text.trim() : '' }}"
+      }
+     ]
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "vi-foto",
+   "name": "Ver foto",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    1320,
+    -100
+   ],
+   "parameters": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/chat/completions",
+    "authentication": "predefinedCredentialType",
+    "nodeCredentialType": "openAiApi",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ model: 'gpt-4.1-mini', max_tokens: 500, messages: [ { role: 'system', content: $('Configuración').first().json.contexto_foto }, { role: 'user', content: [ { type: 'text', text: $('Datos del mensaje').item.json.texto ? 'El cliente escribió junto con la foto: ' + $('Datos del mensaje').item.json.texto : 'Describe la foto.' }, { type: 'image_url', image_url: { url: $('Datos del mensaje').item.json.media_url } } ] } ] }) }}",
+    "options": {}
+   },
+   "onError": "continueRegularOutput"
+  },
+  {
+   "id": "in-foto",
+   "name": "Entrada: foto",
+   "type": "n8n-nodes-base.set",
+   "typeVersion": 3.4,
+   "position": [
+    1540,
+    -100
+   ],
+   "parameters": {
+    "mode": "manual",
+    "assignments": {
+     "assignments": [
+      {
+       "id": "t1",
+       "name": "texto",
+       "type": "string",
+       "value": "={{ (($json.choices || [])[0]?.message?.content || '').trim() ? '(El cliente mandó una foto. Lo que se ve en ella:) ' + $json.choices[0].message.content.trim() + ($('Datos del mensaje').item.json.texto ? '\\n\\nY escribió con la foto: ' + $('Datos del mensaje').item.json.texto : '') : '' }}"
+      }
+     ]
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "in-texto",
+   "name": "Entrada: texto",
+   "type": "n8n-nodes-base.set",
+   "typeVersion": 3.4,
+   "position": [
+    1540,
+    120
+   ],
+   "parameters": {
+    "mode": "manual",
+    "assignments": {
+     "assignments": [
+      {
+       "id": "t1",
+       "name": "texto",
+       "type": "string",
+       "value": "={{ $('Datos del mensaje').item.json.texto }}"
+      }
+     ]
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "guardar-msg",
+   "name": "Guardar mensaje",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    1980,
+    -200
+   ],
+   "parameters": {
+    "method": "POST",
+    "url": "={{ $('Configuración').first().json.supabase_url }}/rest/v1/rpc/bot_guardar_evento",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "apikey",
+       "value": "={{ $('Configuración').first().json.supabase_key }}"
+      },
+      {
+       "name": "Authorization",
+       "value": "=Bearer {{ $('Configuración').first().json.supabase_key }}"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ p_account: $('Configuración').first().json.cuenta, p_conversation: $('Datos del mensaje').item.json.conversation_id, p_texto: $json.texto, p_recibido: $('Datos del mensaje').item.json.recibido }) }}",
+    "options": {}
+   }
+  },
+  {
+   "id": "demasiados",
+   "name": "¿Demasiados mensajes?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    2200,
+    -200
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "loose",
+      "version": 2
+     },
+     "combinator": "and",
+     "conditions": [
+      {
+       "id": "d1",
+       "leftValue": "={{ $json.mensajes_hora }}",
+       "rightValue": 40,
+       "operator": {
+        "type": "number",
+        "operation": "gt"
+       }
+      }
+     ]
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "pausar-exceso",
+   "name": "Pausar por exceso",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    2420,
+    -380
+   ],
+   "parameters": {
+    "method": "POST",
+    "url": "={{ $('Configuración').first().json.supabase_url }}/rest/v1/rpc/bot_pasar_a_humano",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "apikey",
+       "value": "={{ $('Configuración').first().json.supabase_key }}"
+      },
+      {
+       "name": "Authorization",
+       "value": "=Bearer {{ $('Configuración').first().json.supabase_key }}"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ p_account: $('Configuración').first().json.cuenta, p_conversation: $('Datos del mensaje').item.json.conversation_id, p_motivo: 'Mandó muchos mensajes en una hora; el bot se pausó' }) }}",
+    "options": {}
+   },
+   "onError": "continueRegularOutput"
+  },
+  {
+   "id": "avisar-exceso",
+   "name": "Avisar al cliente",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    2640,
+    -380
+   ],
+   "parameters": {
+    "authentication": "genericCredentialType",
+    "genericAuthType": "httpHeaderAuth",
+    "method": "POST",
+    "url": "={{ $('Configuración').first().json.crm_url }}/api/v1/messages",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ to: $('Leer conversación').item.json.data.contact.phone, type: 'text', text: 'Un momento, en seguida te atiende una persona por este mismo chat.' }) }}",
+    "options": {}
+   }
+  },
+  {
+   "id": "esperar",
+   "name": "Esperar más mensajes",
+   "type": "n8n-nodes-base.wait",
+   "typeVersion": 1.1,
+   "position": [
+    2420,
+    -140
+   ],
+   "webhookId": "a0acd95b-7f4e-41c7-be07-ce73dff59984",
+   "parameters": {
+    "resume": "timeInterval",
+    "amount": 20,
+    "unit": "seconds"
+   }
+  },
+  {
+   "id": "juntar",
+   "name": "Juntar mensajes",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    2640,
+    -140
+   ],
+   "parameters": {
+    "method": "POST",
+    "url": "={{ $('Configuración').first().json.supabase_url }}/rest/v1/rpc/bot_reclamar_lote",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "apikey",
+       "value": "={{ $('Configuración').first().json.supabase_key }}"
+      },
+      {
+       "name": "Authorization",
+       "value": "=Bearer {{ $('Configuración').first().json.supabase_key }}"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ p_account: $('Configuración').first().json.cuenta, p_conversation: $('Datos del mensaje').item.json.conversation_id, p_id: $('Guardar mensaje').item.json.id }) }}",
+    "options": {}
+   }
+  },
+  {
+   "id": "ultimo",
+   "name": "¿Soy el último?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    2860,
+    -140
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "loose",
+      "version": 2
+     },
+     "combinator": "and",
+     "conditions": [
+      {
+       "id": "u1",
+       "leftValue": "={{ $json.ultimo }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      },
+      {
+       "id": "u2",
+       "leftValue": "={{ $json.texto }}",
+       "rightValue": "",
+       "operator": {
+        "type": "string",
+        "operation": "notEmpty",
+        "singleValue": true
+       }
+      }
+     ]
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "agente",
+   "name": "Agente",
+   "type": "@n8n/n8n-nodes-langchain.agent",
+   "typeVersion": 2,
+   "position": [
+    3200,
+    -140
+   ],
+   "parameters": {
+    "promptType": "define",
+    "text": "={{ $('Juntar mensajes').item.json.texto }}",
+    "options": {
+     "systemMessage": "=## DATOS (hechos de este momento; no los vuelvas a preguntar)\n- Fecha y hora: {{ $now.setZone($('Configuración del bot').item.json.zona_horaria || 'America/Monterrey').setLocale('es').toFormat(\"cccc d 'de' LLLL 'de' yyyy, HH:mm\") }}.\n- Horario de atención de una persona: {{ $('Configuración del bot').item.json.horario.texto }}. Ahora mismo: {{ (() => { const c = $('Configuración del bot').item.json; const h = $now.setZone(c.zona_horaria || 'America/Monterrey'); return (c.horario.dias || []).includes(h.weekday) && h.hour >= c.horario.abre && h.hour < c.horario.cierra ? 'DENTRO de horario' : 'FUERA de horario'; })() }}.\n- WhatsApp del cliente: {{ $('Leer conversación').item.json.data.contact.phone }}.\n- Nombre de la persona: {{ ($('Leer ficha').item.json.nombre || '').trim() || '(no lo sabemos; pregúntalo pronto, de forma natural)' }}.\n- Negocio o empresa del cliente: {{ ($('Leer ficha').item.json.negocio || '').trim() || '(no lo sabemos)' }}.\n- Columna en el tablero: {{ $('Leer ficha').item.json.columna || '(todavía no está registrado)' }}.\n- Lo que ya anotamos de él:\n{{ ($('Leer ficha').item.json.datos || '(nada todavía)').split('\\n').filter(l => !/^Llegó por/i.test(l)).map(l => '  - ' + l).join('\\n') }}\n\n## ROL\n{{ $('Configuración del bot').item.json.rol }}\n\n## TAREA\n{{ $('Configuración del bot').item.json.objetivo }} Para eso:\n{{ ($('Configuración del bot').item.json.pasos || []).map((p, i) => (i + 1) + '. ' + p).join('\\n') }}\n{{ ($('Configuración del bot').item.json.pasos || []).length + 1 }}. Pasas el chat a una persona con pasar_a_humano cuando haga falta (antes dejas una nota_interna).\n{{ ($('Configuración del bot').item.json.pasos || []).length + 2 }}. Cierras el chat con cerrar_chat cuando la plática terminó.\n\n## CONTEXTO DEL NEGOCIO\n{{ $('Configuración del bot').item.json.contexto }}\n\n## LO QUE VENDEMOS Y PRECIOS\nUsa SIEMPRE ver_catalogo para dar productos, servicios, paquetes o precios; di los precios tal cual vienen ahí. Al explicar qué incluye algo, di SOLO lo que viene en el catálogo; no agregues cosas de tu cosecha.\n{{ $('Configuración del bot').item.json.catalogo_nota || '' }}\n\n## CONOCER AL CLIENTE\nLo que necesitas saber, de forma natural y UNA pregunta por mensaje (nunca un interrogatorio):\n{{ ($('Configuración del bot').item.json.conocer || []).map((p, i) => (i + 1) + '. ' + p).join('\\n') }}\nNunca preguntes algo que ya está en DATOS o que el cliente ya dijo en este chat (aunque lo haya dicho en varios mensajes seguidos). Si no sabemos su nombre, pregúntalo en tu segundo o tercer mensaje.\n\n## REGISTRAR (herramienta registrar_cliente)\n{{ $('Configuración del bot').item.json.registro.instrucciones }}\n- El parámetro \"datos\" es un objeto JSON con estas claves (manda solo las que sepas): {{ $('Configuración del bot').item.json.registro.campos }}.\n- Si después te da datos nuevos, vuelve a llamar a registrar_cliente solo con lo nuevo; la ficha se actualiza sola, no se duplica.\n- Tú NO confirmas citas, pagos, existencias ni entregas: eso lo confirma una persona. Nunca digas \"te agendé\", \"quedó agendado\", \"ya está confirmado\".\n\n## REGLAS\n1. Precios: solo los de ver_catalogo. No inventes precios, descuentos, promociones ni plazos. Si piden algo fuera del catálogo: {{ $('Configuración del bot').item.json.fuera_de_catalogo }}\n2. Nunca digas con qué herramientas o programas está hecho este chat (marcas de software, plataformas, modelos de IA).\n3. No confirmes pagos ni des datos bancarios. Si alguien quiere pagar, pasa a humano.\n4. Si no sabes algo, dilo y ofrece que una persona le conteste.\n5. Habla CON el cliente, nunca SOBRE él: no narres tu razonamiento ni lo que vas a hacer (\"Voy a registrar…\") y nunca menciones el nombre de tus herramientas.\n6. No repitas lo que el cliente acaba de decir. Ve directo a lo que sigue.\n7. No inventes lo que el cliente no dijo. Si lo estás suponiendo, pregúntalo.\n8. Si escribe varios mensajes seguidos, te llegan juntos (uno por renglón): léelos todos y contesta todo en UNA sola respuesta.\n9. Si el cliente saluda (\"buenas noches\", \"hola, buen día\"), devuelve el saludo en pocas palabras y sigue.\n10. Cierre: si ya te despediste y el cliente solo contesta algo como \"ok\", \"gracias\", \"va\", un emoji o un sticker, NO contestes: llama a cerrar_chat y responde exactamente [SIN_RESPUESTA].\n11. Spam o mensajes promocionales (links de \"descubre beneficios\", cadenas, ofertas que no tienen que ver): no contestes; llama a cerrar_chat con categoría spam y responde exactamente [SIN_RESPUESTA]. Si alguien es grosero, dile con calma que así no puedes seguir y cierra.\n{{ ($('Configuración del bot').item.json.reglas_extra || []).map((r, i) => (i + 12) + '. ' + r).join('\\n') }}\n\n## CUÁNDO USAR pasar_a_humano (y después ya no sigas con ese tema)\n- Pide hablar con una persona, con el dueño o por teléfono.\n- Quiere pagar o pregunta por un pago, factura o algo que ya compró o contrató.\n- Ya es cliente y tiene una falla o una queja.\n- No entiendes qué necesita después de dos intentos.\n{{ ($('Configuración del bot').item.json.humano_extra || []).map(r => '- ' + r).join('\\n') }}\nAntes de usarla, llama a nota_interna con: resumen en 2 renglones, qué le interesa y qué le recomendaste, y el siguiente paso sugerido.\nAl usarla, dile la verdad según el horario de DATOS:\n- DENTRO de horario: \"Le paso tu mensaje a {{ $('Configuración del bot').item.json.quien_atiende }}; te contestamos en un rato por aquí.\"\n- FUERA de horario: \"Le paso tu mensaje a {{ $('Configuración del bot').item.json.quien_atiende }}; te contestamos {{ $('Configuración del bot').item.json.horario.siguiente }} por aquí.\"\n\n## CUÁNDO USAR cerrar_chat\n- El cliente ya no tiene más dudas y se despidió, o ya quedó registrado y no quiere nada más.\n- Spam (regla 11).\nCon un resumen de 2 o 3 renglones (qué quería, qué se le ofreció, en qué quedó), la categoría (venta, pago, duda, otro, spam) y cómo se sintió el cliente (positivo, neutral, negativo). No cierres si acabas de pasar el chat a una persona.\n\n## NOTAS DE VOZ Y FOTOS\n- Si el mensaje empieza con \"(El cliente mandó una nota de voz…)\", es lo que dijo: contesta como si lo hubiera escrito. Si no tiene sentido, la transcripción falló: pide que lo repita o lo escriba; no pases a humano por eso.\n- Si empieza con \"(El cliente mandó una foto…)\", es lo que se ve en la foto. Úsalo para entender qué necesita; habla como si tú la hubieras visto.\n\n## QUE SUENE A PERSONA (no a bot)\nEscribe como {{ $('Configuración del bot').item.json.voz }} que contesta desde su celular, no como un asistente virtual.\n- Arranca directo con la respuesta. Nada de \"¡Claro!\", \"¡Perfecto!\", \"¡Excelente pregunta!\", \"Entiendo perfectamente\", \"Con gusto\".\n- No cierres con frases de relleno: \"Quedo atento a cualquier duda\", \"No dudes en escribirme\", \"Estoy aquí para ayudarte\", \"Espero que te sirva\". Si ya no hay nada que decir, no digas nada.\n- No hagas preguntas de relleno (\"¿Hay algo más en lo que te pueda ayudar?\", \"¿Algo más que quieras revisar?\"). Si quieres pedir algo, pide algo concreto y útil.\n- No adules (\"¡Qué buen negocio!\", \"¡Excelente decisión!\").\n- Nada de palabras de folleto: \"potenciar\", \"impulsar\", \"transformar\", \"soluciones integrales\", \"llevar tu negocio al siguiente nivel\", \"experiencia única\", \"de manera eficiente\".\n- No uses \"no solo X, sino también Y\" ni listas de tres cosas por costumbre. Di lo que aplica a ESTE cliente.\n- Concreto en vez de genérico.\n- Iguala al cliente: si escribe corto, contesta corto (una o dos líneas). Si pregunta algo largo, ahí sí explica.\n- Varía cómo empiezas cada mensaje y el largo de las frases. Usa palabras de aquí cuando quepan (\"va\", \"sale\", \"ahorita\"), sin exagerar.\n- Sin rayas largas (—); usa comas o punto. Pocas negritas: solo nombres de producto o un dato clave.\n- Si no sabes algo, dilo con naturalidad, sin rodeos ni disculpas largas.\n\n## FORMATO (WhatsApp en el celular)\n- Español de México, de *{{ $('Configuración del bot').item.json.trato || 'tú' }}*. Sin emojis.\n- Mensajes cortos: máximo 2 o 3 renglones por párrafo; si son dos ideas, sepáralas con una línea en blanco.\n- Formato de WhatsApp, no Markdown: negrita con UN asterisco (*así*), nunca **doble**, sin #, sin tablas, sin enlaces [texto](url).\n- Listas con guion (\"- \"), máximo 5 renglones.\n- UNA sola pregunta por mensaje, al final, sola en su renglón y con una línea en blanco antes. Nunca dos preguntas en el mismo mensaje.\n- Sin botones ni opciones numeradas para elegir; pregunta natural.\n- No digas que eres una IA salvo que lo pregunten; si lo preguntan, di que eres el asistente automático de {{ $('Configuración del bot').item.json.negocio }}.\n\n## EJEMPLOS\n{{ $('Configuración del bot').item.json.ejemplos }}\n",
+     "maxIterations": 6
+    }
+   }
+  },
+  {
+   "id": "t-cat",
+   "name": "ver_catalogo",
+   "type": "n8n-nodes-base.httpRequestTool",
+   "typeVersion": 4.2,
+   "position": [
+    3000,
+    60
+   ],
+   "parameters": {
+    "toolDescription": "Devuelve lo que vende el negocio (productos, servicios o paquetes) con su precio y lo que incluye. Úsala siempre antes de dar precios, recomendar algo o explicar qué incluye. No la uses para registrar a nadie.",
+    "method": "POST",
+    "url": "={{ $('Configuración').first().json.supabase_url }}/rest/v1/rpc/catalogo_publico",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "apikey",
+       "value": "={{ $('Configuración').first().json.supabase_key }}"
+      },
+      {
+       "name": "Authorization",
+       "value": "=Bearer {{ $('Configuración').first().json.supabase_key }}"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ p_account: $('Configuración').first().json.cuenta }) }}",
+    "options": {}
+   }
+  },
+  {
+   "id": "t-sol",
+   "name": "registrar_cliente",
+   "type": "n8n-nodes-base.httpRequestTool",
+   "typeVersion": 4.2,
+   "position": [
+    3130,
+    60
+   ],
+   "parameters": {
+    "toolDescription": "Anota o actualiza al cliente en el tablero del CRM. Úsala cuando la sección REGISTRAR lo indique, y otra vez si el cliente da datos nuevos. Manda solo lo que sabes.",
+    "method": "POST",
+    "url": "={{ $('Configuración').first().json.supabase_url }}/rest/v1/rpc/{{ $('Configuración del bot').first().json.registro.rpc }}",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "apikey",
+       "value": "={{ $('Configuración').first().json.supabase_key }}"
+      },
+      {
+       "name": "Authorization",
+       "value": "=Bearer {{ $('Configuración').first().json.supabase_key }}"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ p_account: $('Configuración').first().json.cuenta, p: Object.assign({ origen: 'whatsapp', folio: 'OF-' + Math.random().toString(36).slice(2, 8).toUpperCase(), telefono: $('Leer conversación').item.json.data.contact.phone }, (() => { const d = $fromAI('datos', 'Objeto JSON con los datos del cliente; usa solo las claves que indica la sección REGISTRAR del prompt y deja fuera las que no sepas', 'json'); return typeof d === 'string' ? JSON.parse(d || '{}') : (d || {}); })()) }) }}",
+    "options": {}
+   }
+  },
+  {
+   "id": "ea94585d-230f-4b24-ac86-ce5bb408a5f3",
+   "name": "Leer ficha",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    2980,
+    -140
+   ],
+   "parameters": {
+    "method": "POST",
+    "url": "={{ $('Configuración').first().json.supabase_url }}/rest/v1/rpc/bot_ficha",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "apikey",
+       "value": "={{ $('Configuración').first().json.supabase_key }}"
+      },
+      {
+       "name": "Authorization",
+       "value": "=Bearer {{ $('Configuración').first().json.supabase_key }}"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ p_account: $('Configuración').first().json.cuenta, p_conversation: $('Datos del mensaje').item.json.conversation_id }) }}",
+    "options": {}
+   }
+  },
+  {
+   "id": "7e524ff9-61d1-4203-8dd2-e9f9eaeae60b",
+   "name": "nota_interna",
+   "type": "n8n-nodes-base.httpRequestTool",
+   "typeVersion": 4.2,
+   "position": [
+    3520,
+    160
+   ],
+   "parameters": {
+    "toolDescription": "Deja una nota interna para el equipo en la ficha del cliente (el cliente no la ve). Úsala justo antes de pasar_a_humano con: resumen en 2 renglones, qué le interesa y qué le recomendaste, y el siguiente paso sugerido.",
+    "method": "POST",
+    "url": "={{ $('Configuración').first().json.supabase_url }}/rest/v1/rpc/bot_nota_interna",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "apikey",
+       "value": "={{ $('Configuración').first().json.supabase_key }}"
+      },
+      {
+       "name": "Authorization",
+       "value": "=Bearer {{ $('Configuración').first().json.supabase_key }}"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ p_account: $('Configuración').first().json.cuenta, p_conversation: $('Datos del mensaje').item.json.conversation_id, p_texto: $fromAI('texto', 'La nota: resumen, interés y siguiente paso', 'string') }) }}",
+    "options": {}
+   }
+  },
+  {
+   "id": "147cc1bc-f12e-4248-bd36-870fa3aae213",
+   "name": "cerrar_chat",
+   "type": "n8n-nodes-base.httpRequestTool",
+   "typeVersion": 4.2,
+   "position": [
+    3680,
+    160
+   ],
+   "parameters": {
+    "toolDescription": "Cierra la conversación con un resumen. Úsala cuando la plática terminó (se despidió, ya no quiere nada más) o es spam. No la uses si acabas de pasar el chat a una persona.",
+    "method": "POST",
+    "url": "={{ $('Configuración').first().json.supabase_url }}/rest/v1/rpc/bot_cerrar",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "apikey",
+       "value": "={{ $('Configuración').first().json.supabase_key }}"
+      },
+      {
+       "name": "Authorization",
+       "value": "=Bearer {{ $('Configuración').first().json.supabase_key }}"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ p_account: $('Configuración').first().json.cuenta, p_conversation: $('Datos del mensaje').item.json.conversation_id, p_resumen: $fromAI('resumen', 'Resumen de 2 o 3 renglones: qué quería, qué se le ofreció y en qué quedó', 'string'), p_categoria: $fromAI('categoria', 'Una de: venta, pago, duda, otro, spam', 'string'), p_sentimiento: $fromAI('sentimiento', 'Cómo se sintió el cliente: positivo, neutral o negativo', 'string') }) }}",
+    "options": {}
+   }
+  },
+  {
+   "id": "7f8bd576-598d-4c1b-a0f5-94161c9c229a",
+   "name": "Configuración",
+   "type": "n8n-nodes-base.set",
+   "typeVersion": 3.4,
+   "position": [
+    0,
+    -260
+   ],
+   "parameters": {
+    "mode": "manual",
+    "assignments": {
+     "assignments": [
+      {
+       "id": "k1",
+       "name": "crm_url",
+       "type": "string",
+       "value": "https://crm-onlinefreedom.vercel.app"
+      },
+      {
+       "id": "k2",
+       "name": "supabase_url",
+       "type": "string",
+       "value": "https://uvfjtsjroydvhjpgvmdu.supabase.co"
+      },
+      {
+       "id": "k3",
+       "name": "supabase_key",
+       "type": "string",
+       "value": "sb_publishable_IdXNIhavHl-GbnYiwuVIzw_T1BFdHYs"
+      },
+      {
+       "id": "k4",
+       "name": "cuenta",
+       "type": "string",
+       "value": "52bbe7a4-e6e2-41bb-aacd-a4045e15325a"
+      },
+      {
+       "id": "k5",
+       "name": "msg_archivo",
+       "type": "string",
+       "value": "Gracias. No alcancé a revisar ese archivo. ¿Me cuentas por escrito qué negocio tienes y qué te gustaría resolver?"
+      },
+      {
+       "id": "k6",
+       "name": "contexto_audio",
+       "type": "string",
+       "value": "Dueño de un negocio en México platicando por WhatsApp con una agencia de sitios web, agentes de IA y CRM: menciona su negocio, giro, ciudad, paquetes Arranque, Negocio o Pro con IA, diagnóstico, días y horas."
+      },
+      {
+       "id": "k7",
+       "name": "contexto_foto",
+       "type": "string",
+       "value": "Eres los ojos del asistente de ventas de Onlinefreedom (sitios web, agentes de IA para WhatsApp y CRM para negocios). Un posible cliente mandó esta foto por WhatsApp. Describe en español, breve y concreto, qué se ve: si es una página web, un menú, un catálogo, un anuncio, un logo, un local o un documento, y el texto legible importante (nombre del negocio, giro, precios, teléfonos). Si no se alcanza a leer, dilo. No inventes. Máximo 8 renglones, sin introducción."
+      }
+     ]
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "b8be6264-cce5-4d77-973e-8cab4d2f4993",
+   "name": "Configuración del bot",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    3090,
+    20
+   ],
+   "parameters": {
+    "method": "POST",
+    "url": "={{ $('Configuración').first().json.supabase_url }}/rest/v1/rpc/bot_config_leer",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "apikey",
+       "value": "={{ $('Configuración').first().json.supabase_key }}"
+      },
+      {
+       "name": "Authorization",
+       "value": "=Bearer {{ $('Configuración').first().json.supabase_key }}"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ p_account: $('Configuración').first().json.cuenta }) }}",
+    "options": {}
+   }
+  }
+ ],
+ "connections": {
+  "Mensaje del CRM": {
+   "main": [
+    [
+     {
+      "node": "Configuración",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Datos del mensaje": {
+   "main": [
+    [
+     {
+      "node": "Leer conversación",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Leer conversación": {
+   "main": [
+    [
+     {
+      "node": "¿Contesta el bot?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "¿Contesta el bot?": {
+   "main": [
+    [
+     {
+      "node": "¿Qué mandó?",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    []
+   ]
+  },
+  "¿Es texto?": {
+   "main": [
+    [
+     {
+      "node": "Guardar mensaje",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Responder: solo texto",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Agente": {
+   "main": [
+    [
+     {
+      "node": "¿Hay respuesta?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "¿Hay respuesta?": {
+   "main": [
+    [
+     {
+      "node": "Enviar respuesta",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    []
+   ]
+  },
+  "Modelo": {
+   "ai_languageModel": [
+    [
+     {
+      "node": "Agente",
+      "type": "ai_languageModel",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Memoria del chat": {
+   "ai_memory": [
+    [
+     {
+      "node": "Agente",
+      "type": "ai_memory",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "ver_catalogo": {
+   "ai_tool": [
+    [
+     {
+      "node": "Agente",
+      "type": "ai_tool",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "registrar_cliente": {
+   "ai_tool": [
+    [
+     {
+      "node": "Agente",
+      "type": "ai_tool",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "pasar_a_humano": {
+   "ai_tool": [
+    [
+     {
+      "node": "Agente",
+      "type": "ai_tool",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Registrar webhook en el CRM (una vez)": {
+   "main": [
+    [
+     {
+      "node": "Crear webhook en el CRM",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "¿Qué mandó?": {
+   "main": [
+    [
+     {
+      "node": "Descargar audio",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Ver foto",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Entrada: texto",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Descargar audio": {
+   "main": [
+    [
+     {
+      "node": "Transcribir audio",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Transcribir audio": {
+   "main": [
+    [
+     {
+      "node": "Entrada: audio",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Ver foto": {
+   "main": [
+    [
+     {
+      "node": "Entrada: foto",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Entrada: audio": {
+   "main": [
+    [
+     {
+      "node": "¿Es texto?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Entrada: foto": {
+   "main": [
+    [
+     {
+      "node": "¿Es texto?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Entrada: texto": {
+   "main": [
+    [
+     {
+      "node": "¿Es texto?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Guardar mensaje": {
+   "main": [
+    [
+     {
+      "node": "¿Demasiados mensajes?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "¿Demasiados mensajes?": {
+   "main": [
+    [
+     {
+      "node": "Pausar por exceso",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Esperar más mensajes",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Pausar por exceso": {
+   "main": [
+    [
+     {
+      "node": "Avisar al cliente",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Esperar más mensajes": {
+   "main": [
+    [
+     {
+      "node": "Juntar mensajes",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Juntar mensajes": {
+   "main": [
+    [
+     {
+      "node": "¿Soy el último?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "¿Soy el último?": {
+   "main": [
+    [
+     {
+      "node": "Leer ficha",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    []
+   ]
+  },
+  "Leer ficha": {
+   "main": [
+    [
+     {
+      "node": "Configuración del bot",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "nota_interna": {
+   "ai_tool": [
+    [
+     {
+      "node": "Agente",
+      "type": "ai_tool",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "cerrar_chat": {
+   "ai_tool": [
+    [
+     {
+      "node": "Agente",
+      "type": "ai_tool",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Configuración": {
+   "main": [
+    [
+     {
+      "node": "Datos del mensaje",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Configuración del bot": {
+   "main": [
+    [
+     {
+      "node": "Agente",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  }
+ },
+ "settings": {
+  "executionOrder": "v1",
+  "timezone": "America/Monterrey"
+ }
+}

@@ -1,5 +1,5 @@
 {
- "name": "Onlinefreedom — Agente de ventas WhatsApp",
+ "name": "Agente de WhatsApp — PLANTILLA",
  "nodes": [
   {
    "id": "sticky-1",
@@ -13,7 +13,7 @@
    "parameters": {
     "width": 620,
     "height": 300,
-    "content": "## Agente de ventas — Onlinefreedom\nEl CRM (crm-onlinefreedom) manda cada mensaje que llega (evento message.received) a este flujo. Junta los mensajes seguidos (8 s), entiende audios y fotos, contesta con el agente y usa ver_paquetes, registrar_prospecto (tablero Ventas) y pasar_a_humano.\nCopia de \"AP Suministros — Bot de WhatsApp\"."
+    "content": "## Agente de WhatsApp (plantilla reutilizable)\nPara otro negocio: duplica este flujo, cambia el nodo Configuración (URL del CRM, Supabase, llave publicable, cuenta y los 3 textos), cambia el path del webhook y las 2 credenciales, y llena bot_config de esa cuenta (ver n8n/plantilla-agente/LEEME.md). El prompt NO se edita aquí: sale de bot_config + plantilla."
    }
   },
   {
@@ -27,7 +27,7 @@
    ],
    "parameters": {
     "httpMethod": "POST",
-    "path": "onlinefreedom-ventas-eca4b952ae0f",
+    "path": "<negocio>-agente-<aleatorio>",
     "responseMode": "onReceived",
     "options": {}
    },
@@ -48,31 +48,31 @@
       {
        "id": "a1",
        "name": "conversation_id",
-       "value": "={{ $json.body.data.conversation_id }}",
+       "value": "={{ $('Mensaje del CRM').item.json.body.data.conversation_id }}",
        "type": "string"
       },
       {
        "id": "a2",
        "name": "tipo",
-       "value": "={{ $json.body.data.content_type }}",
+       "value": "={{ $('Mensaje del CRM').item.json.body.data.content_type }}",
        "type": "string"
       },
       {
        "id": "a3",
        "name": "texto",
-       "value": "={{ ($json.body.data.text || '').trim() }}",
+       "value": "={{ ($('Mensaje del CRM').item.json.body.data.text || '').trim() }}",
        "type": "string"
       },
       {
        "id": "a4",
        "name": "evento",
-       "value": "={{ $json.body.event }}",
+       "value": "={{ $('Mensaje del CRM').item.json.body.event }}",
        "type": "string"
       },
       {
        "id": "a5",
        "name": "media_url",
-       "value": "={{ $json.body.data.media_url || '' }}",
+       "value": "={{ $('Mensaje del CRM').item.json.body.data.media_url || '' }}",
        "type": "string"
       },
       {
@@ -98,7 +98,7 @@
    "parameters": {
     "authentication": "genericCredentialType",
     "genericAuthType": "httpHeaderAuth",
-    "url": "=https://crm-onlinefreedom.vercel.app/api/v1/conversations/{{ $json.conversation_id }}",
+    "url": "={{ $('Configuración').first().json.crm_url }}/api/v1/conversations/{{ $json.conversation_id }}",
     "options": {}
    }
   },
@@ -235,23 +235,23 @@
    "parameters": {
     "toolDescription": "Pasa el chat a una persona de Onlinefreedom: pausa el asistente en este chat y avisa al celular. Úsala según \"Cuándo usar pasar_a_humano\".",
     "method": "POST",
-    "url": "https://uvfjtsjroydvhjpgvmdu.supabase.co/rest/v1/rpc/bot_pasar_a_humano",
+    "url": "={{ $('Configuración').first().json.supabase_url }}/rest/v1/rpc/bot_pasar_a_humano",
     "sendHeaders": true,
     "headerParameters": {
      "parameters": [
       {
        "name": "apikey",
-       "value": "sb_publishable_IdXNIhavHl-GbnYiwuVIzw_T1BFdHYs"
+       "value": "={{ $('Configuración').first().json.supabase_key }}"
       },
       {
        "name": "Authorization",
-       "value": "Bearer sb_publishable_IdXNIhavHl-GbnYiwuVIzw_T1BFdHYs"
+       "value": "=Bearer {{ $('Configuración').first().json.supabase_key }}"
       }
      ]
     },
     "sendBody": true,
     "specifyBody": "json",
-    "jsonBody": "={{ JSON.stringify({ p_account: '52bbe7a4-e6e2-41bb-aacd-a4045e15325a', p_conversation: $('Datos del mensaje').item.json.conversation_id, p_motivo: $fromAI('motivo', 'Motivo en pocas palabras, por ejemplo: quiere pagar el anticipo del paquete Pro', 'string') }) }}",
+    "jsonBody": "={{ JSON.stringify({ p_account: $('Configuración').first().json.cuenta, p_conversation: $('Datos del mensaje').item.json.conversation_id, p_motivo: $fromAI('motivo', 'Motivo en pocas palabras, por ejemplo: quiere pagar el anticipo del paquete Pro', 'string') }) }}",
     "options": {}
    }
   },
@@ -310,10 +310,10 @@
     "authentication": "genericCredentialType",
     "genericAuthType": "httpHeaderAuth",
     "method": "POST",
-    "url": "https://crm-onlinefreedom.vercel.app/api/v1/messages",
+    "url": "={{ $('Configuración').first().json.crm_url }}/api/v1/messages",
     "sendBody": true,
     "specifyBody": "json",
-    "jsonBody": "={{ JSON.stringify({ to: $('Leer conversación').item.json.data.contact.phone, type: 'text', text: $json.output.trim() }) }}",
+    "jsonBody": "={{ JSON.stringify({ to: $('Leer conversación').item.json.data.contact.phone, type: 'text', text: $json.output.trim(), formato: 'bot' }) }}",
     "options": {}
    },
    "retryOnFail": true,
@@ -332,10 +332,10 @@
     "authentication": "genericCredentialType",
     "genericAuthType": "httpHeaderAuth",
     "method": "POST",
-    "url": "https://crm-onlinefreedom.vercel.app/api/v1/messages",
+    "url": "={{ $('Configuración').first().json.crm_url }}/api/v1/messages",
     "sendBody": true,
     "specifyBody": "json",
-    "jsonBody": "={{ JSON.stringify({ to: $('Leer conversación').item.json.data.contact.phone, type: 'text', text: 'Gracias. No alcancé a revisar ese archivo. ¿Me cuentas por escrito qué negocio tienes y qué te gustaría resolver?' }) }}",
+    "jsonBody": "={{ JSON.stringify({ to: $('Leer conversación').item.json.data.contact.phone, type: 'text', text: $('Configuración').first().json.msg_archivo || 'Gracias. No alcancé a revisar ese archivo. ¿Me lo puedes escribir?' }) }}",
     "options": {}
    }
   },
@@ -363,10 +363,10 @@
     "authentication": "genericCredentialType",
     "genericAuthType": "httpHeaderAuth",
     "method": "POST",
-    "url": "https://crm-onlinefreedom.vercel.app/api/v1/webhooks",
+    "url": "={{ $('Configuración').first().json.crm_url }}/api/v1/webhooks",
     "sendBody": true,
     "specifyBody": "json",
-    "jsonBody": "={{ JSON.stringify({ url: 'https://automatizaciones-n8n.ttjgax.easypanel.host/webhook/onlinefreedom-ventas-eca4b952ae0f', events: ['message.received'] }) }}",
+    "jsonBody": "={{ JSON.stringify({ url: 'https://automatizaciones-n8n.ttjgax.easypanel.host/webhook/' + $('Mensaje del CRM').params.path, events: ['message.received'] }) }}",
     "options": {}
    }
   },
@@ -512,7 +512,7 @@
       },
       {
        "name": "prompt",
-       "value": "Cliente de un proveedor industrial en México pidiendo cotización: válvulas, conexiones, tubería, neumática, instrumentación, herramienta. Marcas como Swagelok, Parker, ASCO, Festo, Truper."
+       "value": "={{ $('Configuración').first().json.contexto_audio }}"
       }
      ]
     },
@@ -560,7 +560,7 @@
     "nodeCredentialType": "openAiApi",
     "sendBody": true,
     "specifyBody": "json",
-    "jsonBody": "={{ JSON.stringify({ model: 'gpt-4.1-mini', max_tokens: 500, messages: [ { role: 'system', content: \"Eres los ojos del asistente de ventas de Onlinefreedom (sitios web, agentes de IA para WhatsApp y CRM para negocios). Un posible cliente mandó esta foto por WhatsApp. Describe en español, breve y concreto, qué se ve: si es una página web, un menú, un catálogo, un anuncio, un logo, un local o un documento, y el texto legible importante (nombre del negocio, giro, precios, teléfonos). Si no se alcanza a leer, dilo. No inventes. Máximo 8 renglones, sin introducción.\" }, { role: 'user', content: [ { type: 'text', text: $('Datos del mensaje').item.json.texto ? 'El cliente escribió junto con la foto: ' + $('Datos del mensaje').item.json.texto : 'Describe la foto.' }, { type: 'image_url', image_url: { url: $('Datos del mensaje').item.json.media_url } } ] } ] }) }}",
+    "jsonBody": "={{ JSON.stringify({ model: 'gpt-4.1-mini', max_tokens: 500, messages: [ { role: 'system', content: $('Configuración').first().json.contexto_foto }, { role: 'user', content: [ { type: 'text', text: $('Datos del mensaje').item.json.texto ? 'El cliente escribió junto con la foto: ' + $('Datos del mensaje').item.json.texto : 'Describe la foto.' }, { type: 'image_url', image_url: { url: $('Datos del mensaje').item.json.media_url } } ] } ] }) }}",
     "options": {}
    },
    "onError": "continueRegularOutput"
@@ -624,23 +624,23 @@
    ],
    "parameters": {
     "method": "POST",
-    "url": "https://uvfjtsjroydvhjpgvmdu.supabase.co/rest/v1/rpc/bot_guardar_evento",
+    "url": "={{ $('Configuración').first().json.supabase_url }}/rest/v1/rpc/bot_guardar_evento",
     "sendHeaders": true,
     "headerParameters": {
      "parameters": [
       {
        "name": "apikey",
-       "value": "sb_publishable_IdXNIhavHl-GbnYiwuVIzw_T1BFdHYs"
+       "value": "={{ $('Configuración').first().json.supabase_key }}"
       },
       {
        "name": "Authorization",
-       "value": "Bearer sb_publishable_IdXNIhavHl-GbnYiwuVIzw_T1BFdHYs"
+       "value": "=Bearer {{ $('Configuración').first().json.supabase_key }}"
       }
      ]
     },
     "sendBody": true,
     "specifyBody": "json",
-    "jsonBody": "={{ JSON.stringify({ p_account: '52bbe7a4-e6e2-41bb-aacd-a4045e15325a', p_conversation: $('Datos del mensaje').item.json.conversation_id, p_texto: $json.texto, p_recibido: $('Datos del mensaje').item.json.recibido }) }}",
+    "jsonBody": "={{ JSON.stringify({ p_account: $('Configuración').first().json.cuenta, p_conversation: $('Datos del mensaje').item.json.conversation_id, p_texto: $json.texto, p_recibido: $('Datos del mensaje').item.json.recibido }) }}",
     "options": {}
    }
   },
@@ -688,23 +688,23 @@
    ],
    "parameters": {
     "method": "POST",
-    "url": "https://uvfjtsjroydvhjpgvmdu.supabase.co/rest/v1/rpc/bot_pasar_a_humano",
+    "url": "={{ $('Configuración').first().json.supabase_url }}/rest/v1/rpc/bot_pasar_a_humano",
     "sendHeaders": true,
     "headerParameters": {
      "parameters": [
       {
        "name": "apikey",
-       "value": "sb_publishable_IdXNIhavHl-GbnYiwuVIzw_T1BFdHYs"
+       "value": "={{ $('Configuración').first().json.supabase_key }}"
       },
       {
        "name": "Authorization",
-       "value": "Bearer sb_publishable_IdXNIhavHl-GbnYiwuVIzw_T1BFdHYs"
+       "value": "=Bearer {{ $('Configuración').first().json.supabase_key }}"
       }
      ]
     },
     "sendBody": true,
     "specifyBody": "json",
-    "jsonBody": "={{ JSON.stringify({ p_account: '52bbe7a4-e6e2-41bb-aacd-a4045e15325a', p_conversation: $('Datos del mensaje').item.json.conversation_id, p_motivo: 'Mandó muchos mensajes en una hora; el bot se pausó' }) }}",
+    "jsonBody": "={{ JSON.stringify({ p_account: $('Configuración').first().json.cuenta, p_conversation: $('Datos del mensaje').item.json.conversation_id, p_motivo: 'Mandó muchos mensajes en una hora; el bot se pausó' }) }}",
     "options": {}
    },
    "onError": "continueRegularOutput"
@@ -722,7 +722,7 @@
     "authentication": "genericCredentialType",
     "genericAuthType": "httpHeaderAuth",
     "method": "POST",
-    "url": "https://crm-onlinefreedom.vercel.app/api/v1/messages",
+    "url": "={{ $('Configuración').first().json.crm_url }}/api/v1/messages",
     "sendBody": true,
     "specifyBody": "json",
     "jsonBody": "={{ JSON.stringify({ to: $('Leer conversación').item.json.data.contact.phone, type: 'text', text: 'Un momento, en seguida te atiende una persona por este mismo chat.' }) }}",
@@ -741,7 +741,7 @@
    "webhookId": "a0acd95b-7f4e-41c7-be07-ce73dff59984",
    "parameters": {
     "resume": "timeInterval",
-    "amount": 8,
+    "amount": 20,
     "unit": "seconds"
    }
   },
@@ -756,23 +756,23 @@
    ],
    "parameters": {
     "method": "POST",
-    "url": "https://uvfjtsjroydvhjpgvmdu.supabase.co/rest/v1/rpc/bot_reclamar_lote",
+    "url": "={{ $('Configuración').first().json.supabase_url }}/rest/v1/rpc/bot_reclamar_lote",
     "sendHeaders": true,
     "headerParameters": {
      "parameters": [
       {
        "name": "apikey",
-       "value": "sb_publishable_IdXNIhavHl-GbnYiwuVIzw_T1BFdHYs"
+       "value": "={{ $('Configuración').first().json.supabase_key }}"
       },
       {
        "name": "Authorization",
-       "value": "Bearer sb_publishable_IdXNIhavHl-GbnYiwuVIzw_T1BFdHYs"
+       "value": "=Bearer {{ $('Configuración').first().json.supabase_key }}"
       }
      ]
     },
     "sendBody": true,
     "specifyBody": "json",
-    "jsonBody": "={{ JSON.stringify({ p_account: '52bbe7a4-e6e2-41bb-aacd-a4045e15325a', p_conversation: $('Datos del mensaje').item.json.conversation_id, p_id: $('Guardar mensaje').item.json.id }) }}",
+    "jsonBody": "={{ JSON.stringify({ p_account: $('Configuración').first().json.cuenta, p_conversation: $('Datos del mensaje').item.json.conversation_id, p_id: $('Guardar mensaje').item.json.id }) }}",
     "options": {}
    }
   },
@@ -822,7 +822,7 @@
   },
   {
    "id": "agente",
-   "name": "Agente de ventas",
+   "name": "Agente",
    "type": "@n8n/n8n-nodes-langchain.agent",
    "typeVersion": 2,
    "position": [
@@ -833,14 +833,14 @@
     "promptType": "define",
     "text": "={{ $('Juntar mensajes').item.json.texto }}",
     "options": {
-     "systemMessage": "=## DATOS (hechos de este momento; no los vuelvas a preguntar)\n- Fecha y hora en Saltillo: {{ $now.setZone('America/Monterrey').setLocale('es').toFormat(\"cccc d 'de' LLLL 'de' yyyy, HH:mm\") }}.\n- Horario de atención de una persona: lunes a sábado de 9:00 a 19:00. Ahora mismo: {{ ($now.setZone('America/Monterrey').weekday <= 6 && $now.setZone('America/Monterrey').hour >= 9 && $now.setZone('America/Monterrey').hour < 19) ? 'DENTRO de horario' : 'FUERA de horario' }}.\n- WhatsApp del cliente: {{ $('Leer conversación').item.json.data.contact.phone }}.\n- Nombre de la persona: {{ ($('Leer ficha').item.json.nombre || '').trim() || '(no lo sabemos; pregúntalo pronto, de forma natural)' }}.\n- Negocio: {{ ($('Leer ficha').item.json.negocio || '').trim() || '(no lo sabemos)' }}.\n- Columna en el tablero de ventas: {{ $('Leer ficha').item.json.columna || '(todavía no está registrado)' }}.\n- Lo que ya anotamos de él:\n{{ ($('Leer ficha').item.json.datos || '(nada todavía)').split('\\n').filter(l => !/^Llegó por/i.test(l)).map(l => '  - ' + l).join('\\n') }}\n\n## ROL\nEres el asistente de WhatsApp de Onlinefreedom, una agencia de Saltillo, Coahuila, que hace sitios web, agentes de IA para WhatsApp, CRM y automatizaciones para negocios locales de todo México. Atiendes a dueños y encargados de negocios que quieren vender más y dejar de hacer todo a mano.\n\n## TAREA\nQue cada persona interesada termine con su *diagnóstico gratis* apartado. Para eso:\n1. Entiendes qué negocio tiene y qué le duele.\n2. Le explicas en simple qué le podemos hacer y cuánto cuesta.\n3. Haces las preguntas para conocerlo (ver \"Conocer al prospecto\").\n4. Le ofreces el diagnóstico, le preguntas qué día y hora le acomodan y lo registras con registrar_prospecto.\n5. Pasas el chat a una persona con pasar_a_humano cuando haga falta (antes dejas una nota_interna).\n6. Cierras el chat con cerrar_chat cuando la plática terminó.\n\n## CONTEXTO: qué hacemos\n- Sitio web profesional: rápido, se ve bien en el celular, con dominio y correo propio. En línea en unos 3 días.\n- Agente de IA en WhatsApp: responde dudas, da precios, toma pedidos y agenda citas a cualquier hora; pasa la conversación a una persona cuando hace falta. El cliente no tiene que cambiar su número.\n- CRM con IA: un tablero con clientes, pedidos o citas y mensajes en un solo lugar, con avisos al celular.\n- Automatizaciones: tareas repetitivas que se hacen solas (registrar ventas, recordatorios, mover datos entre apps).\n- Perfil de Google: el negocio en Google Maps con fotos, horario y reseñas.\n- Redes, servidores y VPN para negocios que necesitan algo más.\n- Cómo trabajamos: 1) diagnóstico, 2) elegimos juntos lo que más ahorra, 3) construimos y enseñamos a usarlo, 4) cada mes revisamos y ajustamos.\n- Diagnóstico gratis: una llamada en la que revisamos cómo le llegan los clientes, cómo vende, cómo cobra y cómo entrega. Se lleva un plan por pasos aunque no contrate.\n- Prueba real: usamos estos mismos sistemas en negocios propios (envíos de dinero por WhatsApp, hasta 50 conversaciones al día).\n- Sin contrato forzoso: instalación una vez (50% de anticipo) y mensualidad mes a mes. El dominio y los archivos quedan a nombre del cliente.\n- Sitio: https://proyect.onlinefreedom.site · correo: onlinefreedom.proyect@gmail.com · atendemos Saltillo y todo México, en línea.\n\n## CONTEXTO: paquetes y precios\nUsa SIEMPRE ver_paquetes para dar paquetes y precios; di los precios tal cual vienen ahí. Hoy son:\n- *Arranque*: $2,500 de instalación + $299 al mes. Sitio web, dominio y hosting, perfil de Google, botones de WhatsApp y llamada.\n- *Negocio*: $3,500 + $499 al mes. Todo lo de Arranque más CRM adaptado al giro, avisos al celular, reseñas automáticas y reporte mensual.\n- *Pro con IA*: $6,000 + desde $1,200 al mes. Todo lo de Negocio más agente de IA en su WhatsApp conectado al CRM, recordatorios a clientes, publicaciones en Google; consumo de WhatsApp e IA incluido con tope.\n- *A la medida*: se cotiza después del diagnóstico.\nExtras (logo, fotos, catálogo digital, anuncios) se cotizan aparte.\n\n## CONOCER AL PROSPECTO\nLo que necesitas saber, en este orden aproximado y de forma natural (una o dos preguntas por mensaje, nunca un interrogatorio):\n1. Nombre y nombre del negocio.\n2. Giro (qué vende o qué servicio da) y ciudad.\n3. Su reto principal: qué le quita tiempo o clientes hoy.\n4. Qué paquete le late o qué quiere resolver primero.\n5. Si es quien decide o lo ve con alguien más.\n6. Cuánto tiene pensado invertir (si no quiere decir, no insistas).\n7. Para cuándo lo quiere.\n8. Qué día y hora le acomoda para la llamada del diagnóstico.\nNunca preguntes algo que ya está en DATOS. Si no sabemos su nombre, pregúntalo en tu segundo o tercer mensaje (\"¿Con quién tengo el gusto?\").\nNo hace falta tenerlo todo: con nombre, negocio y giro ya puedes registrar. Lo que falte, se pregunta en la llamada.\n\n## REGISTRAR Y AGENDAR\n- Orden correcto: primero preguntas qué día y hora le acomodan para la llamada; cuando te lo diga, llamas a registrar_prospecto (con dia_llamada) y hasta entonces le dices que quedó apartado.\n- Si ya tienes nombre, negocio y giro pero todavía no quiere dar día, igual registra (sin dia_llamada).\n- Si después te da datos nuevos, vuelve a llamar a registrar_prospecto solo con lo nuevo; la ficha se actualiza sola, no se duplica.\n- Tú NO confirmas citas. Nunca digas \"te agendé\", \"quedó agendado\" ni \"te agendamos\". Di: \"Te aparto el sábado a las 3; te confirmamos la hora por aquí.\" (fuera de horario: \"te la confirmamos mañana a partir de las 9\").\n\n## REGLAS\n1. Precios: solo los de ver_paquetes. No inventes precios de extras, descuentos, promociones ni plazos distintos. Si piden algo fuera de los paquetes: \"Eso te lo cotizo después del diagnóstico gratis\".\n2. No prometas resultados en números (ventas, clientes) ni fechas distintas a \"un sitio en unos 3 días; con CRM y agente, alrededor de una semana\".\n3. Nunca digas con qué herramientas o programas se construye (marcas de software, plataformas, modelos de IA). Si preguntan, di que usamos herramientas profesionales y que el cliente es dueño de su dominio y sus archivos.\n4. No confirmes pagos ni des datos bancarios. Si alguien quiere pagar, pasa a humano.\n5. Si no sabes algo, dilo y ofrece que una persona le conteste.\n6. Habla CON el cliente, nunca SOBRE él: no narres tu razonamiento ni lo que vas a hacer (\"Voy a registrar…\") y nunca menciones el nombre de tus herramientas.\n7. No repitas lo que el cliente acaba de decir. Ve directo a lo que sigue.\n8. No inventes lo que el cliente no dijo. Si lo estás suponiendo, pregúntalo.\n9. Si escribe varios mensajes seguidos, te llegan juntos (uno por renglón): contesta todo en UNA sola respuesta.\n10. Cierre: si ya te despediste y el cliente solo contesta algo como \"ok\", \"gracias\", \"va\", un emoji o un sticker, NO contestes: llama a cerrar_chat y responde exactamente [SIN_RESPUESTA].\n11. Spam o mensajes promocionales (links de \"descubre beneficios\", cadenas, ofertas que no tienen que ver): no contestes; llama a cerrar_chat con categoría spam y responde exactamente [SIN_RESPUESTA]. Si alguien es grosero, dile con calma que así no puedes seguir y cierra.\n\n## CUÁNDO USAR pasar_a_humano (y después ya no sigas con ese tema)\n- Pide hablar con una persona, con el dueño o por teléfono.\n- Quiere pagar, pregunta por un anticipo, factura o por un servicio que ya contrató.\n- Ya es cliente y tiene una falla o una queja.\n- Pide algo muy a la medida que no puedes explicar con los paquetes y no quiere esperar al diagnóstico.\n- No entiendes qué necesita después de dos intentos.\nAntes de usarla, llama a nota_interna con: resumen en 2 renglones, qué le interesa y qué paquete le recomendaste, y el siguiente paso sugerido.\nAl usarla, dile la verdad según el horario de DATOS:\n- DENTRO de horario: \"Le paso tu mensaje al equipo; te contestamos en un rato por aquí.\"\n- FUERA de horario: \"Le paso tu mensaje al equipo; te contestamos mañana a partir de las 9 por aquí.\"\n\n## CUÁNDO USAR cerrar_chat\n- El cliente ya no tiene más dudas y se despidió, o ya quedó registrado y no quiere nada más.\n- Spam (ver regla 11).\nCon un resumen de 2 o 3 renglones (qué quería, qué se le ofreció, en qué quedó), la categoría (venta, pago, duda, otro, spam) y cómo se sintió el cliente (positivo, neutral, negativo). No cierres si acabas de pasar el chat a una persona.\n\n## NOTAS DE VOZ Y FOTOS\n- Si el mensaje empieza con \"(El cliente mandó una nota de voz…)\", es lo que dijo: contesta como si lo hubiera escrito. Si no tiene sentido, la transcripción falló: pide que lo repita o lo escriba; no pases a humano por eso.\n- Si empieza con \"(El cliente mandó una foto…)\", es lo que se ve en la foto (p. ej. su página actual o su menú). Úsalo para entender su negocio; habla como si tú la hubieras visto.\n\n## QUE SUENE A PERSONA (no a bot)\nEscribe como un asesor de Saltillo que contesta desde su celular, no como un asistente virtual.\n- Arranca directo con la respuesta. Nada de \"¡Claro!\", \"¡Perfecto!\", \"¡Excelente pregunta!\", \"Entiendo perfectamente\", \"Con gusto\".\n- No cierres con frases de relleno: \"Quedo atento a cualquier duda\", \"No dudes en escribirme\", \"Estoy aquí para ayudarte\", \"Espero que te sirva\". Si ya no hay nada que decir, no digas nada.\n- No adules (\"¡Qué buen negocio!\", \"¡Excelente decisión!\").\n- Nada de palabras de folleto: \"potenciar\", \"impulsar\", \"transformar\", \"soluciones integrales\", \"llevar tu negocio al siguiente nivel\", \"experiencia única\", \"de manera eficiente\".\n- No uses \"no solo X, sino también Y\" ni listas de tres cosas por costumbre. Di lo que aplica a ESTE cliente.\n- Concreto en vez de genérico: \"te contesta los pedidos a las 11 de la noche\" en vez de \"mejora la atención al cliente\".\n- Iguala al cliente: si escribe corto, contesta corto (una o dos líneas). Si pregunta algo largo, ahí sí explica.\n- Varía cómo empiezas cada mensaje y el largo de las frases. Usa palabras de aquí cuando quepan (\"va\", \"sale\", \"ahorita\", \"¿te late?\"), sin exagerar.\n- Sin rayas largas (—); usa comas o punto. Pocas negritas: solo nombres de paquete o un dato clave.\n- Si no sabes algo, dilo con naturalidad (\"eso no lo tengo a la mano, te lo confirma el equipo\"), sin rodeos ni disculpas largas.\n\n## FORMATO (WhatsApp en el celular)\n- Español de México, de *tú*, cercano y profesional. Sin emojis.\n- Mensajes cortos: máximo 2 o 3 renglones por párrafo; si son dos ideas, sepáralas con una línea en blanco.\n- Formato de WhatsApp, no Markdown: negrita con UN asterisco (*así*), nunca **doble**, sin #, sin tablas, sin enlaces [texto](url).\n- Listas con guion (\"- \"), máximo 5 renglones. Para paquetes: nombre en negrita, precio y una línea de qué incluye.\n- Termina con UNA sola pregunta, sola en su propio renglón y con una línea en blanco antes.\n- No empieces todos los mensajes con la misma palabra (\"Perfecto\", \"Claro\"). Casi siempre lo natural es ir directo.\n- Sin botones ni opciones numeradas para elegir; pregunta natural.\n- No digas que eres una IA salvo que lo pregunten; si lo preguntan, di que eres el asistente automático de Onlinefreedom (y que es justo lo que hacemos para otros negocios).\n\n## EJEMPLOS\nCliente: \"Hola, vi su página. Tengo una taquería y no me da tiempo de contestar los pedidos por WhatsApp\"\nTú:\nJusto eso resolvemos: un agente que contesta tus pedidos de WhatsApp a cualquier hora, te los deja ordenados en un tablero y te avisa al celular.\n\n¿Cómo se llama tu taquería y en qué ciudad estás?\n\nCliente: \"¿Cuánto cuesta la página?\"\nTú:\nEl sitio va en el paquete *Arranque*: $2,500 de instalación y $299 al mes, con dominio, hosting y tu perfil de Google.\n\nSi además quieres que te contesten y ordenen los pedidos, está el *Pro con IA*: $6,000 y desde $1,200 al mes.\n\n¿De qué es tu negocio?\n\nCuando ya te dio el día:\nTe aparto el sábado a las 3 de la tarde para tu diagnóstico gratis. Te confirmamos la hora por aquí.\n\n¿Hay algo más que quieras que revisemos en la llamada?\n\n",
+     "systemMessage": "=## DATOS (hechos de este momento; no los vuelvas a preguntar)\n- Fecha y hora: {{ $now.setZone($('Configuración del bot').item.json.zona_horaria || 'America/Monterrey').setLocale('es').toFormat(\"cccc d 'de' LLLL 'de' yyyy, HH:mm\") }}.\n- Horario de atención de una persona: {{ $('Configuración del bot').item.json.horario.texto }}. Ahora mismo: {{ (() => { const c = $('Configuración del bot').item.json; const h = $now.setZone(c.zona_horaria || 'America/Monterrey'); return (c.horario.dias || []).includes(h.weekday) && h.hour >= c.horario.abre && h.hour < c.horario.cierra ? 'DENTRO de horario' : 'FUERA de horario'; })() }}.\n- WhatsApp del cliente: {{ $('Leer conversación').item.json.data.contact.phone }}.\n- Nombre de la persona: {{ ($('Leer ficha').item.json.nombre || '').trim() || '(no lo sabemos; pregúntalo pronto, de forma natural)' }}.\n- Negocio o empresa del cliente: {{ ($('Leer ficha').item.json.negocio || '').trim() || '(no lo sabemos)' }}.\n- Columna en el tablero: {{ $('Leer ficha').item.json.columna || '(todavía no está registrado)' }}.\n- Lo que ya anotamos de él:\n{{ ($('Leer ficha').item.json.datos || '(nada todavía)').split('\\n').filter(l => !/^Llegó por/i.test(l)).map(l => '  - ' + l).join('\\n') }}\n\n## ROL\n{{ $('Configuración del bot').item.json.rol }}\n\n## TAREA\n{{ $('Configuración del bot').item.json.objetivo }} Para eso:\n{{ ($('Configuración del bot').item.json.pasos || []).map((p, i) => (i + 1) + '. ' + p).join('\\n') }}\n{{ ($('Configuración del bot').item.json.pasos || []).length + 1 }}. Pasas el chat a una persona con pasar_a_humano cuando haga falta (antes dejas una nota_interna).\n{{ ($('Configuración del bot').item.json.pasos || []).length + 2 }}. Cierras el chat con cerrar_chat cuando la plática terminó.\n\n## CONTEXTO DEL NEGOCIO\n{{ $('Configuración del bot').item.json.contexto }}\n\n## LO QUE VENDEMOS Y PRECIOS\nUsa SIEMPRE ver_catalogo para dar productos, servicios, paquetes o precios; di los precios tal cual vienen ahí. Al explicar qué incluye algo, di SOLO lo que viene en el catálogo; no agregues cosas de tu cosecha.\n{{ $('Configuración del bot').item.json.catalogo_nota || '' }}\n\n## CONOCER AL CLIENTE\nLo que necesitas saber, de forma natural y UNA pregunta por mensaje (nunca un interrogatorio):\n{{ ($('Configuración del bot').item.json.conocer || []).map((p, i) => (i + 1) + '. ' + p).join('\\n') }}\nNunca preguntes algo que ya está en DATOS o que el cliente ya dijo en este chat (aunque lo haya dicho en varios mensajes seguidos). Si no sabemos su nombre, pregúntalo en tu segundo o tercer mensaje.\n\n## REGISTRAR (herramienta registrar_cliente)\n{{ $('Configuración del bot').item.json.registro.instrucciones }}\n- El parámetro \"datos\" es un objeto JSON con estas claves (manda solo las que sepas): {{ $('Configuración del bot').item.json.registro.campos }}.\n- Si después te da datos nuevos, vuelve a llamar a registrar_cliente solo con lo nuevo; la ficha se actualiza sola, no se duplica.\n- Tú NO confirmas citas, pagos, existencias ni entregas: eso lo confirma una persona. Nunca digas \"te agendé\", \"quedó agendado\", \"ya está confirmado\".\n\n## REGLAS\n1. Precios: solo los de ver_catalogo. No inventes precios, descuentos, promociones ni plazos. Si piden algo fuera del catálogo: {{ $('Configuración del bot').item.json.fuera_de_catalogo }}\n2. Nunca digas con qué herramientas o programas está hecho este chat (marcas de software, plataformas, modelos de IA).\n3. No confirmes pagos ni des datos bancarios. Si alguien quiere pagar, pasa a humano.\n4. Si no sabes algo, dilo y ofrece que una persona le conteste.\n5. Habla CON el cliente, nunca SOBRE él: no narres tu razonamiento ni lo que vas a hacer (\"Voy a registrar…\") y nunca menciones el nombre de tus herramientas.\n6. No repitas lo que el cliente acaba de decir. Ve directo a lo que sigue.\n7. No inventes lo que el cliente no dijo. Si lo estás suponiendo, pregúntalo.\n8. Si escribe varios mensajes seguidos, te llegan juntos (uno por renglón): léelos todos y contesta todo en UNA sola respuesta.\n9. Si el cliente saluda (\"buenas noches\", \"hola, buen día\"), devuelve el saludo en pocas palabras y sigue.\n10. Cierre: si ya te despediste y el cliente solo contesta algo como \"ok\", \"gracias\", \"va\", un emoji o un sticker, NO contestes: llama a cerrar_chat y responde exactamente [SIN_RESPUESTA].\n11. Spam o mensajes promocionales (links de \"descubre beneficios\", cadenas, ofertas que no tienen que ver): no contestes; llama a cerrar_chat con categoría spam y responde exactamente [SIN_RESPUESTA]. Si alguien es grosero, dile con calma que así no puedes seguir y cierra.\n{{ ($('Configuración del bot').item.json.reglas_extra || []).map((r, i) => (i + 12) + '. ' + r).join('\\n') }}\n\n## CUÁNDO USAR pasar_a_humano (y después ya no sigas con ese tema)\n- Pide hablar con una persona, con el dueño o por teléfono.\n- Quiere pagar o pregunta por un pago, factura o algo que ya compró o contrató.\n- Ya es cliente y tiene una falla o una queja.\n- No entiendes qué necesita después de dos intentos.\n{{ ($('Configuración del bot').item.json.humano_extra || []).map(r => '- ' + r).join('\\n') }}\nAntes de usarla, llama a nota_interna con: resumen en 2 renglones, qué le interesa y qué le recomendaste, y el siguiente paso sugerido.\nAl usarla, dile la verdad según el horario de DATOS:\n- DENTRO de horario: \"Le paso tu mensaje a {{ $('Configuración del bot').item.json.quien_atiende }}; te contestamos en un rato por aquí.\"\n- FUERA de horario: \"Le paso tu mensaje a {{ $('Configuración del bot').item.json.quien_atiende }}; te contestamos {{ $('Configuración del bot').item.json.horario.siguiente }} por aquí.\"\n\n## CUÁNDO USAR cerrar_chat\n- El cliente ya no tiene más dudas y se despidió, o ya quedó registrado y no quiere nada más.\n- Spam (regla 11).\nCon un resumen de 2 o 3 renglones (qué quería, qué se le ofreció, en qué quedó), la categoría (venta, pago, duda, otro, spam) y cómo se sintió el cliente (positivo, neutral, negativo). No cierres si acabas de pasar el chat a una persona.\n\n## NOTAS DE VOZ Y FOTOS\n- Si el mensaje empieza con \"(El cliente mandó una nota de voz…)\", es lo que dijo: contesta como si lo hubiera escrito. Si no tiene sentido, la transcripción falló: pide que lo repita o lo escriba; no pases a humano por eso.\n- Si empieza con \"(El cliente mandó una foto…)\", es lo que se ve en la foto. Úsalo para entender qué necesita; habla como si tú la hubieras visto.\n\n## QUE SUENE A PERSONA (no a bot)\nEscribe como {{ $('Configuración del bot').item.json.voz }} que contesta desde su celular, no como un asistente virtual.\n- Arranca directo con la respuesta. Nada de \"¡Claro!\", \"¡Perfecto!\", \"¡Excelente pregunta!\", \"Entiendo perfectamente\", \"Con gusto\".\n- No cierres con frases de relleno: \"Quedo atento a cualquier duda\", \"No dudes en escribirme\", \"Estoy aquí para ayudarte\", \"Espero que te sirva\". Si ya no hay nada que decir, no digas nada.\n- No hagas preguntas de relleno (\"¿Hay algo más en lo que te pueda ayudar?\", \"¿Algo más que quieras revisar?\"). Si quieres pedir algo, pide algo concreto y útil.\n- No adules (\"¡Qué buen negocio!\", \"¡Excelente decisión!\").\n- Nada de palabras de folleto: \"potenciar\", \"impulsar\", \"transformar\", \"soluciones integrales\", \"llevar tu negocio al siguiente nivel\", \"experiencia única\", \"de manera eficiente\".\n- No uses \"no solo X, sino también Y\" ni listas de tres cosas por costumbre. Di lo que aplica a ESTE cliente.\n- Concreto en vez de genérico.\n- Iguala al cliente: si escribe corto, contesta corto (una o dos líneas). Si pregunta algo largo, ahí sí explica.\n- Varía cómo empiezas cada mensaje y el largo de las frases. Usa palabras de aquí cuando quepan (\"va\", \"sale\", \"ahorita\"), sin exagerar.\n- Sin rayas largas (—); usa comas o punto. Pocas negritas: solo nombres de producto o un dato clave.\n- Si no sabes algo, dilo con naturalidad, sin rodeos ni disculpas largas.\n\n## FORMATO (WhatsApp en el celular)\n- Español de México, de *{{ $('Configuración del bot').item.json.trato || 'tú' }}*. Sin emojis.\n- Mensajes cortos: máximo 2 o 3 renglones por párrafo; si son dos ideas, sepáralas con una línea en blanco.\n- Formato de WhatsApp, no Markdown: negrita con UN asterisco (*así*), nunca **doble**, sin #, sin tablas, sin enlaces [texto](url).\n- Listas con guion (\"- \"), máximo 5 renglones.\n- UNA sola pregunta por mensaje, al final, sola en su renglón y con una línea en blanco antes. Nunca dos preguntas en el mismo mensaje.\n- Sin botones ni opciones numeradas para elegir; pregunta natural.\n- No digas que eres una IA salvo que lo pregunten; si lo preguntan, di que eres el asistente automático de {{ $('Configuración del bot').item.json.negocio }}.\n\n## EJEMPLOS\n{{ $('Configuración del bot').item.json.ejemplos }}\n",
      "maxIterations": 6
     }
    }
   },
   {
    "id": "t-cat",
-   "name": "ver_paquetes",
+   "name": "ver_catalogo",
    "type": "n8n-nodes-base.httpRequestTool",
    "typeVersion": 4.2,
    "position": [
@@ -848,31 +848,31 @@
     60
    ],
    "parameters": {
-    "toolDescription": "Devuelve los paquetes de Onlinefreedom con su precio y lo que incluye. Úsala cuando pregunten qué hacemos, cuánto cuesta, qué incluye un paquete o cuál le conviene. No la uses para registrar a nadie.",
+    "toolDescription": "Devuelve lo que vende el negocio (productos, servicios o paquetes) con su precio y lo que incluye. Úsala siempre antes de dar precios, recomendar algo o explicar qué incluye. No la uses para registrar a nadie.",
     "method": "POST",
-    "url": "https://uvfjtsjroydvhjpgvmdu.supabase.co/rest/v1/rpc/catalogo_publico",
+    "url": "={{ $('Configuración').first().json.supabase_url }}/rest/v1/rpc/catalogo_publico",
     "sendHeaders": true,
     "headerParameters": {
      "parameters": [
       {
        "name": "apikey",
-       "value": "sb_publishable_IdXNIhavHl-GbnYiwuVIzw_T1BFdHYs"
+       "value": "={{ $('Configuración').first().json.supabase_key }}"
       },
       {
        "name": "Authorization",
-       "value": "Bearer sb_publishable_IdXNIhavHl-GbnYiwuVIzw_T1BFdHYs"
+       "value": "=Bearer {{ $('Configuración').first().json.supabase_key }}"
       }
      ]
     },
     "sendBody": true,
     "specifyBody": "json",
-    "jsonBody": "={\"p_account\": \"52bbe7a4-e6e2-41bb-aacd-a4045e15325a\"}",
+    "jsonBody": "={{ JSON.stringify({ p_account: $('Configuración').first().json.cuenta }) }}",
     "options": {}
    }
   },
   {
    "id": "t-sol",
-   "name": "registrar_prospecto",
+   "name": "registrar_cliente",
    "type": "n8n-nodes-base.httpRequestTool",
    "typeVersion": 4.2,
    "position": [
@@ -880,25 +880,25 @@
     60
    ],
    "parameters": {
-    "toolDescription": "Anota o actualiza al prospecto en el tablero de Ventas. Úsala cuando ya sepas nombre, negocio y giro, y otra vez cuando te dé el día y hora para la llamada (dia_llamada) u otro dato nuevo. Manda solo lo que sabes; deja vacío lo demás. La ficha se actualiza sola, no se duplica.",
+    "toolDescription": "Anota o actualiza al cliente en el tablero del CRM. Úsala cuando la sección REGISTRAR lo indique, y otra vez si el cliente da datos nuevos. Manda solo lo que sabes.",
     "method": "POST",
-    "url": "https://uvfjtsjroydvhjpgvmdu.supabase.co/rest/v1/rpc/diagnostico_solicitar",
+    "url": "={{ $('Configuración').first().json.supabase_url }}/rest/v1/rpc/{{ $('Configuración del bot').first().json.registro.rpc }}",
     "sendHeaders": true,
     "headerParameters": {
      "parameters": [
       {
        "name": "apikey",
-       "value": "sb_publishable_IdXNIhavHl-GbnYiwuVIzw_T1BFdHYs"
+       "value": "={{ $('Configuración').first().json.supabase_key }}"
       },
       {
        "name": "Authorization",
-       "value": "Bearer sb_publishable_IdXNIhavHl-GbnYiwuVIzw_T1BFdHYs"
+       "value": "=Bearer {{ $('Configuración').first().json.supabase_key }}"
       }
      ]
     },
     "sendBody": true,
     "specifyBody": "json",
-    "jsonBody": "={{ JSON.stringify({ p_account: '52bbe7a4-e6e2-41bb-aacd-a4045e15325a', p: { origen: 'whatsapp', folio: 'OF-' + Math.random().toString(36).slice(2, 8).toUpperCase(), telefono: $('Leer conversación').item.json.data.contact.phone, nombre: $fromAI('nombre', 'Nombre de la persona', 'string'), negocio: $fromAI('negocio', 'Nombre del negocio; vacío si no lo dio', 'string'), giro: $fromAI('giro', 'Qué vende o qué servicio da', 'string'), ciudad: $fromAI('ciudad', 'Ciudad; vacío si no la dijo', 'string'), reto: $fromAI('reto', 'Su reto principal en sus palabras, breve', 'string'), paquete: $fromAI('paquete', 'Paquete que le interesa (Arranque, Negocio, Pro con IA, A la medida) o lo que quiere resolver; vacío si no lo dijo', 'string'), presupuesto: $fromAI('presupuesto', 'Cuánto quiere invertir en sus palabras; vacío si no lo dijo', 'string'), decide: $fromAI('decide', 'Si decide él/ella o con quién lo ve; vacío si no lo dijo', 'string'), para_cuando: $fromAI('para_cuando', 'Para cuándo lo quiere; vacío si no lo dijo', 'string'), dia_llamada: $fromAI('dia_llamada', 'Día y hora que el cliente pidió para la llamada del diagnóstico, en sus palabras (ej. sábado 3 pm); vacío si todavía no lo dijo', 'string'), notas: $fromAI('notas', 'Otro dato útil que no quepa en los demás campos; vacío si no hay', 'string') } }) }}",
+    "jsonBody": "={{ JSON.stringify({ p_account: $('Configuración').first().json.cuenta, p: Object.assign({ origen: 'whatsapp', folio: 'OF-' + Math.random().toString(36).slice(2, 8).toUpperCase(), telefono: $('Leer conversación').item.json.data.contact.phone }, (() => { const d = $fromAI('datos', 'Objeto JSON con los datos del cliente; usa solo las claves que indica la sección REGISTRAR del prompt y deja fuera las que no sepas', 'json'); return typeof d === 'string' ? JSON.parse(d || '{}') : (d || {}); })()) }) }}",
     "options": {}
    }
   },
@@ -913,23 +913,23 @@
    ],
    "parameters": {
     "method": "POST",
-    "url": "https://uvfjtsjroydvhjpgvmdu.supabase.co/rest/v1/rpc/bot_ficha",
+    "url": "={{ $('Configuración').first().json.supabase_url }}/rest/v1/rpc/bot_ficha",
     "sendHeaders": true,
     "headerParameters": {
      "parameters": [
       {
        "name": "apikey",
-       "value": "sb_publishable_IdXNIhavHl-GbnYiwuVIzw_T1BFdHYs"
+       "value": "={{ $('Configuración').first().json.supabase_key }}"
       },
       {
        "name": "Authorization",
-       "value": "Bearer sb_publishable_IdXNIhavHl-GbnYiwuVIzw_T1BFdHYs"
+       "value": "=Bearer {{ $('Configuración').first().json.supabase_key }}"
       }
      ]
     },
     "sendBody": true,
     "specifyBody": "json",
-    "jsonBody": "={{ JSON.stringify({ p_account: '52bbe7a4-e6e2-41bb-aacd-a4045e15325a', p_conversation: $('Datos del mensaje').item.json.conversation_id }) }}",
+    "jsonBody": "={{ JSON.stringify({ p_account: $('Configuración').first().json.cuenta, p_conversation: $('Datos del mensaje').item.json.conversation_id }) }}",
     "options": {}
    }
   },
@@ -945,23 +945,23 @@
    "parameters": {
     "toolDescription": "Deja una nota interna para el equipo en la ficha del cliente (el cliente no la ve). Úsala justo antes de pasar_a_humano con: resumen en 2 renglones, qué le interesa y qué le recomendaste, y el siguiente paso sugerido.",
     "method": "POST",
-    "url": "https://uvfjtsjroydvhjpgvmdu.supabase.co/rest/v1/rpc/bot_nota_interna",
+    "url": "={{ $('Configuración').first().json.supabase_url }}/rest/v1/rpc/bot_nota_interna",
     "sendHeaders": true,
     "headerParameters": {
      "parameters": [
       {
        "name": "apikey",
-       "value": "sb_publishable_IdXNIhavHl-GbnYiwuVIzw_T1BFdHYs"
+       "value": "={{ $('Configuración').first().json.supabase_key }}"
       },
       {
        "name": "Authorization",
-       "value": "Bearer sb_publishable_IdXNIhavHl-GbnYiwuVIzw_T1BFdHYs"
+       "value": "=Bearer {{ $('Configuración').first().json.supabase_key }}"
       }
      ]
     },
     "sendBody": true,
     "specifyBody": "json",
-    "jsonBody": "={{ JSON.stringify({ p_account: '52bbe7a4-e6e2-41bb-aacd-a4045e15325a', p_conversation: $('Datos del mensaje').item.json.conversation_id, p_texto: $fromAI('texto', 'La nota: resumen, interés y siguiente paso', 'string') }) }}",
+    "jsonBody": "={{ JSON.stringify({ p_account: $('Configuración').first().json.cuenta, p_conversation: $('Datos del mensaje').item.json.conversation_id, p_texto: $fromAI('texto', 'La nota: resumen, interés y siguiente paso', 'string') }) }}",
     "options": {}
    }
   },
@@ -977,23 +977,114 @@
    "parameters": {
     "toolDescription": "Cierra la conversación con un resumen. Úsala cuando la plática terminó (se despidió, ya no quiere nada más) o es spam. No la uses si acabas de pasar el chat a una persona.",
     "method": "POST",
-    "url": "https://uvfjtsjroydvhjpgvmdu.supabase.co/rest/v1/rpc/bot_cerrar",
+    "url": "={{ $('Configuración').first().json.supabase_url }}/rest/v1/rpc/bot_cerrar",
     "sendHeaders": true,
     "headerParameters": {
      "parameters": [
       {
        "name": "apikey",
-       "value": "sb_publishable_IdXNIhavHl-GbnYiwuVIzw_T1BFdHYs"
+       "value": "={{ $('Configuración').first().json.supabase_key }}"
       },
       {
        "name": "Authorization",
-       "value": "Bearer sb_publishable_IdXNIhavHl-GbnYiwuVIzw_T1BFdHYs"
+       "value": "=Bearer {{ $('Configuración').first().json.supabase_key }}"
       }
      ]
     },
     "sendBody": true,
     "specifyBody": "json",
-    "jsonBody": "={{ JSON.stringify({ p_account: '52bbe7a4-e6e2-41bb-aacd-a4045e15325a', p_conversation: $('Datos del mensaje').item.json.conversation_id, p_resumen: $fromAI('resumen', 'Resumen de 2 o 3 renglones: qué quería, qué se le ofreció y en qué quedó', 'string'), p_categoria: $fromAI('categoria', 'Una de: venta, pago, duda, otro, spam', 'string'), p_sentimiento: $fromAI('sentimiento', 'Cómo se sintió el cliente: positivo, neutral o negativo', 'string') }) }}",
+    "jsonBody": "={{ JSON.stringify({ p_account: $('Configuración').first().json.cuenta, p_conversation: $('Datos del mensaje').item.json.conversation_id, p_resumen: $fromAI('resumen', 'Resumen de 2 o 3 renglones: qué quería, qué se le ofreció y en qué quedó', 'string'), p_categoria: $fromAI('categoria', 'Una de: venta, pago, duda, otro, spam', 'string'), p_sentimiento: $fromAI('sentimiento', 'Cómo se sintió el cliente: positivo, neutral o negativo', 'string') }) }}",
+    "options": {}
+   }
+  },
+  {
+   "id": "7f8bd576-598d-4c1b-a0f5-94161c9c229a",
+   "name": "Configuración",
+   "type": "n8n-nodes-base.set",
+   "typeVersion": 3.4,
+   "position": [
+    0,
+    -260
+   ],
+   "parameters": {
+    "mode": "manual",
+    "assignments": {
+     "assignments": [
+      {
+       "id": "k1",
+       "name": "crm_url",
+       "type": "string",
+       "value": "<crm_url>"
+      },
+      {
+       "id": "k2",
+       "name": "supabase_url",
+       "type": "string",
+       "value": "<supabase_url>"
+      },
+      {
+       "id": "k3",
+       "name": "supabase_key",
+       "type": "string",
+       "value": "<supabase_key>"
+      },
+      {
+       "id": "k4",
+       "name": "cuenta",
+       "type": "string",
+       "value": "<cuenta>"
+      },
+      {
+       "id": "k5",
+       "name": "msg_archivo",
+       "type": "string",
+       "value": "<msg_archivo>"
+      },
+      {
+       "id": "k6",
+       "name": "contexto_audio",
+       "type": "string",
+       "value": "<contexto_audio>"
+      },
+      {
+       "id": "k7",
+       "name": "contexto_foto",
+       "type": "string",
+       "value": "<contexto_foto>"
+      }
+     ]
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "b8be6264-cce5-4d77-973e-8cab4d2f4993",
+   "name": "Configuración del bot",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    3090,
+    20
+   ],
+   "parameters": {
+    "method": "POST",
+    "url": "={{ $('Configuración').first().json.supabase_url }}/rest/v1/rpc/bot_config_leer",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "apikey",
+       "value": "={{ $('Configuración').first().json.supabase_key }}"
+      },
+      {
+       "name": "Authorization",
+       "value": "=Bearer {{ $('Configuración').first().json.supabase_key }}"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ p_account: $('Configuración').first().json.cuenta }) }}",
     "options": {}
    }
   }
@@ -1003,7 +1094,7 @@
    "main": [
     [
      {
-      "node": "Datos del mensaje",
+      "node": "Configuración",
       "type": "main",
       "index": 0
      }
@@ -1062,7 +1153,7 @@
     ]
    ]
   },
-  "Agente de ventas": {
+  "Agente": {
    "main": [
     [
      {
@@ -1089,7 +1180,7 @@
    "ai_languageModel": [
     [
      {
-      "node": "Agente de ventas",
+      "node": "Agente",
       "type": "ai_languageModel",
       "index": 0
      }
@@ -1100,29 +1191,29 @@
    "ai_memory": [
     [
      {
-      "node": "Agente de ventas",
+      "node": "Agente",
       "type": "ai_memory",
       "index": 0
      }
     ]
    ]
   },
-  "ver_paquetes": {
+  "ver_catalogo": {
    "ai_tool": [
     [
      {
-      "node": "Agente de ventas",
+      "node": "Agente",
       "type": "ai_tool",
       "index": 0
      }
     ]
    ]
   },
-  "registrar_prospecto": {
+  "registrar_cliente": {
    "ai_tool": [
     [
      {
-      "node": "Agente de ventas",
+      "node": "Agente",
       "type": "ai_tool",
       "index": 0
      }
@@ -1133,7 +1224,7 @@
    "ai_tool": [
     [
      {
-      "node": "Agente de ventas",
+      "node": "Agente",
       "type": "ai_tool",
       "index": 0
      }
@@ -1320,7 +1411,7 @@
    "main": [
     [
      {
-      "node": "Agente de ventas",
+      "node": "Configuración del bot",
       "type": "main",
       "index": 0
      }
@@ -1331,7 +1422,7 @@
    "ai_tool": [
     [
      {
-      "node": "Agente de ventas",
+      "node": "Agente",
       "type": "ai_tool",
       "index": 0
      }
@@ -1342,8 +1433,30 @@
    "ai_tool": [
     [
      {
-      "node": "Agente de ventas",
+      "node": "Agente",
       "type": "ai_tool",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Configuración": {
+   "main": [
+    [
+     {
+      "node": "Datos del mensaje",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Configuración del bot": {
+   "main": [
+    [
+     {
+      "node": "Agente",
+      "type": "main",
       "index": 0
      }
     ]

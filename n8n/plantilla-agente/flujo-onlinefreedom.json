@@ -190,19 +190,16 @@
   {
    "id": "modelo",
    "name": "Modelo",
-   "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
-   "typeVersion": 1.2,
+   "type": "n8n-nodes-deepseek-chat-model.lmChatDeepSeek",
+   "typeVersion": 1,
    "position": [
     1860,
     60
    ],
    "parameters": {
-    "model": {
-     "__rl": true,
-     "value": "gpt-4.1-mini",
-     "mode": "list",
-     "cachedResultName": "gpt-4.1-mini"
-    },
+    "model": "custom",
+    "customModel": "deepseek-flash",
+    "thinkingEnabled": false,
     "options": {
      "temperature": 0.3
     }
@@ -547,21 +544,30 @@
   {
    "id": "vi-foto",
    "name": "Ver foto",
-   "type": "n8n-nodes-base.httpRequest",
-   "typeVersion": 4.2,
+   "type": "@n8n/n8n-nodes-langchain.chainLlm",
+   "typeVersion": 1.9,
    "position": [
     1320,
     -100
    ],
    "parameters": {
-    "method": "POST",
-    "url": "https://api.openai.com/v1/chat/completions",
-    "authentication": "predefinedCredentialType",
-    "nodeCredentialType": "openAiApi",
-    "sendBody": true,
-    "specifyBody": "json",
-    "jsonBody": "={{ JSON.stringify({ model: 'gpt-4.1-mini', max_tokens: 500, messages: [ { role: 'system', content: $('Configuración').first().json.contexto_foto }, { role: 'user', content: [ { type: 'text', text: $('Datos del mensaje').item.json.texto ? 'El cliente escribió junto con la foto: ' + $('Datos del mensaje').item.json.texto : 'Describe la foto.' }, { type: 'image_url', image_url: { url: $('Datos del mensaje').item.json.media_url } } ] } ] }) }}",
-    "options": {}
+    "promptType": "define",
+    "text": "={{ ($('Datos del mensaje').item.json.texto ? 'El cliente escribió junto con la foto: ' + $('Datos del mensaje').item.json.texto : 'Describe la foto.').replace(/[{}]/g, '') }}",
+    "messages": {
+     "messageValues": [
+      {
+       "type": "SystemMessagePromptTemplate",
+       "message": "={{ String($('Configuración').first().json.contexto_foto || '').replace(/[{}]/g, '') }}"
+      },
+      {
+       "type": "HumanMessagePromptTemplate",
+       "messageType": "imageBinary",
+       "binaryImageDataKey": "imagen",
+       "imageDetail": "auto"
+      }
+     ]
+    },
+    "needsFallback": true
    },
    "onError": "continueRegularOutput"
   },
@@ -582,7 +588,7 @@
        "id": "t1",
        "name": "texto",
        "type": "string",
-       "value": "={{ (($json.choices || [])[0]?.message?.content || '').trim() ? '(El cliente mandó una foto. Lo que se ve en ella:) ' + $json.choices[0].message.content.trim() + ($('Datos del mensaje').item.json.texto ? '\\n\\nY escribió con la foto: ' + $('Datos del mensaje').item.json.texto : '') : '' }}"
+       "value": "={{ String($json.text || '').trim() ? '(El cliente mandó una foto. Lo que se ve en ella:) ' + String($json.text).trim() + ($('Datos del mensaje').item.json.texto ? '\\n\\nY escribió con la foto: ' + $('Datos del mensaje').item.json.texto : '') : '' }}"
       }
      ]
     },
@@ -1119,22 +1125,22 @@
   {
    "id": "db5040fe-897f-43f7-912c-b5737b27a310",
    "name": "Corregir respuesta",
-   "type": "n8n-nodes-base.httpRequest",
-   "typeVersion": 4.2,
+   "type": "@n8n/n8n-nodes-langchain.chainLlm",
+   "typeVersion": 1.9,
    "position": [
     4720,
     -400
    ],
    "parameters": {
-    "method": "POST",
-    "url": "https://api.openai.com/v1/chat/completions",
-    "authentication": "predefinedCredentialType",
-    "nodeCredentialType": "openAiApi",
-    "sendBody": true,
-    "specifyBody": "json",
-    "jsonBody": "={{ JSON.stringify({ model: 'gpt-4.1-mini', temperature: 0, messages: [ { role: 'system', content: 'Corriges mensajes de WhatsApp de un asesor. El mensaje tiene más de una pregunta. Devuelve el MISMO mensaje con UNA sola pregunta al final: conserva la que hace avanzar la venta (normalmente la última), quita las demás preguntas o conviértelas en afirmación si tienen información útil. No cambies precios, datos ni el resto del texto. No agregues nada. Devuelve solo el mensaje.' }, { role: 'user', content: $json.output } ] }) }}",
-    "options": {
-     "timeout": 20000
+    "promptType": "define",
+    "text": "={{ String($json.output || '').replace(/[{}]/g, '') }}",
+    "messages": {
+     "messageValues": [
+      {
+       "type": "SystemMessagePromptTemplate",
+       "message": "Corriges mensajes de WhatsApp de un asesor. El mensaje tiene más de una pregunta. Devuelve el MISMO mensaje con UNA sola pregunta al final: conserva la que hace avanzar la venta (normalmente la última), quita las demás preguntas o conviértelas en afirmación si tienen información útil. No cambies precios, datos ni el resto del texto. No agregues nada. Devuelve solo el mensaje."
+      }
+     ]
     }
    },
    "onError": "continueRegularOutput"
@@ -1156,7 +1162,7 @@
        "id": "o1",
        "name": "output",
        "type": "string",
-       "value": "={{ ($json.choices && $json.choices[0] && $json.choices[0].message.content || '').trim() || $('Contar preguntas').item.json.output }}"
+       "value": "={{ String($json.text || '').trim() || $('Contar preguntas').item.json.output }}"
       }
      ]
     },
@@ -1166,22 +1172,22 @@
   {
    "id": "e935b84b-d431-4f2b-9853-1cf8ddc0cb42",
    "name": "Extraer datos",
-   "type": "n8n-nodes-base.httpRequest",
-   "typeVersion": 4.2,
+   "type": "@n8n/n8n-nodes-langchain.chainLlm",
+   "typeVersion": 1.9,
    "position": [
     3190,
     200
    ],
    "parameters": {
-    "method": "POST",
-    "url": "https://api.openai.com/v1/chat/completions",
-    "authentication": "predefinedCredentialType",
-    "nodeCredentialType": "openAiApi",
-    "sendBody": true,
-    "specifyBody": "json",
-    "jsonBody": "={{ (() => { const c = $('Configuración del bot').item.json; const slots = (c.conocer || []).filter(s => s && s.clave); const claves = slots.map(s => '- ' + s.clave + ': ' + s.pregunta + (s.guardar ? ' (cómo guardarlo: ' + s.guardar + ')' : '')).join('\\n'); return JSON.stringify({ model: 'gpt-4.1-mini', temperature: 0, response_format: { type: 'json_object' }, messages: [ { role: 'system', content: 'Extraes datos de una plática de WhatsApp entre un asesor y un cliente. Devuelve SOLO un objeto JSON con las claves de esta lista que el CLIENTE haya dicho de forma explícita en la plática (si no lo dijo, no pongas la clave):\\n' + claves + '\\nReglas: nombre es el nombre de la persona (no el del negocio; usa la respuesta del cliente cuando el asesor le preguntó cómo se llama). negocio es el nombre comercial. reto es lo que le complica, en pocas palabras del cliente. dia_llamada solo si el cliente propuso o aceptó un día y hora. Valores cortos, en español, tal como los dijo. No inventes ni completes.' }, { role: 'user', content: 'Ficha actual:\\n' + ($('Leer ficha').item.json.datos || '(vacía)') + '\\n\\nPlática (lo más reciente al final):\\n' + ($('Leer ficha').item.json.ultimos || $('Juntar mensajes').item.json.texto) } ] }); })() }}",
-    "options": {
-     "timeout": 20000
+    "promptType": "define",
+    "text": "={{ ('Ficha actual:\\n' + ($('Leer ficha').item.json.datos || '(vacía)') + '\\n\\nPlática (lo más reciente al final):\\n' + ($('Leer ficha').item.json.ultimos || $('Juntar mensajes').item.json.texto)).replace(/[{}]/g, '') }}",
+    "messages": {
+     "messageValues": [
+      {
+       "type": "SystemMessagePromptTemplate",
+       "message": "={{ (() => { const c = $('Configuración del bot').item.json; const slots = (c.conocer || []).filter(s => s && s.clave); const claves = slots.map(s => '- ' + s.clave + ': ' + s.pregunta + (s.guardar ? ' (cómo guardarlo: ' + s.guardar + ')' : '')).join('\\n'); return ('Extraes datos de una plática de WhatsApp entre un asesor y un cliente. Devuelve SOLO un objeto JSON con las claves de esta lista que el CLIENTE haya dicho de forma explícita en la plática (si no lo dijo, no pongas la clave):\\n' + claves + '\\nReglas: nombre es el nombre de la persona (no el del negocio; usa la respuesta del cliente cuando el asesor le preguntó cómo se llama). negocio es el nombre comercial. reto es lo que le complica, en pocas palabras del cliente. dia_llamada solo si el cliente propuso o aceptó un día y hora. Valores cortos, en español, tal como los dijo. No inventes ni completes.').replace(/[{}]/g, ''); })() }}"
+      }
+     ]
     }
    },
    "onError": "continueRegularOutput"
@@ -1197,7 +1203,7 @@
    ],
    "parameters": {
     "mode": "runOnceForEachItem",
-    "jsCode": "// Datos que el modelo extrajo → solo los nuevos o cambiados.\nconst cfg = $('Configuración del bot').item.json || {};\nconst ficha = $('Leer ficha').item.json || {};\nlet ext = {};\ntry { ext = JSON.parse(($json.choices && $json.choices[0] && $json.choices[0].message.content) || '{}'); } catch (e) { ext = {}; }\nconst slots = (cfg.conocer || []).filter(s => s && s.clave);\nconst lineas = String(ficha.datos || '').split('\\n');\nconst actual = (s) => {\n  if (s.clave === 'nombre') return String(ficha.nombre || '').trim();\n  if (s.clave === 'negocio') return String(ficha.negocio || '').trim();\n  const l = lineas.find(x => x.toLowerCase().startsWith(String(s.etiqueta || s.clave).toLowerCase() + ':'));\n  return l ? l.slice(l.indexOf(':') + 1).replace(/\\(por confirmar\\)\\s*$/i, '').trim() : '';\n};\nconst nuevos = {};\nfor (const s of slots) {\n  const v = ext[s.clave];\n  if (v === undefined || v === null) continue;\n  const t = String(v).trim();\n  if (!t || t.toLowerCase() === String(actual(s)).toLowerCase()) continue;\n  nuevos[s.clave] = t.slice(0, 300);\n}\nreturn { json: { nuevos, hay: Object.keys(nuevos).length > 0 } };"
+    "jsCode": "// Datos que el modelo extrajo → solo los nuevos o cambiados.\nconst cfg = $('Configuración del bot').item.json || {};\nconst ficha = $('Leer ficha').item.json || {};\nlet ext = {};\ntry { ext = JSON.parse(String($json.text || '{}').replace(/^```(?:json)?\\s*|\\s*```$/g, '')); } catch (e) { ext = {}; }\nconst slots = (cfg.conocer || []).filter(s => s && s.clave);\nconst lineas = String(ficha.datos || '').split('\\n');\nconst actual = (s) => {\n  if (s.clave === 'nombre') return String(ficha.nombre || '').trim();\n  if (s.clave === 'negocio') return String(ficha.negocio || '').trim();\n  const l = lineas.find(x => x.toLowerCase().startsWith(String(s.etiqueta || s.clave).toLowerCase() + ':'));\n  return l ? l.slice(l.indexOf(':') + 1).replace(/\\(por confirmar\\)\\s*$/i, '').trim() : '';\n};\nconst nuevos = {};\nfor (const s of slots) {\n  const v = ext[s.clave];\n  if (v === undefined || v === null) continue;\n  const t = String(v).trim();\n  if (!t || t.toLowerCase() === String(actual(s)).toLowerCase()) continue;\n  nuevos[s.clave] = t.slice(0, 300);\n}\nreturn { json: { nuevos, hay: Object.keys(nuevos).length > 0 } };"
    }
   },
   {
@@ -1301,22 +1307,22 @@
   {
    "id": "editor",
    "name": "Editor",
-   "type": "n8n-nodes-base.httpRequest",
-   "typeVersion": 4.2,
+   "type": "@n8n/n8n-nodes-langchain.chainLlm",
+   "typeVersion": 1.9,
    "position": [
     3860,
     -240
    ],
    "parameters": {
-    "method": "POST",
-    "url": "https://api.openai.com/v1/chat/completions",
-    "authentication": "predefinedCredentialType",
-    "nodeCredentialType": "openAiApi",
-    "sendBody": true,
-    "specifyBody": "json",
-    "jsonBody": "={{ (() => { const c = $('Configuración del bot').item.json; return JSON.stringify({ model: 'gpt-4.1-mini', temperature: 0.3, response_format: { type: 'json_object' }, messages: [ { role: 'system', content: 'Eres editor de mensajes de WhatsApp. Recibes el borrador que ' + (c.voz || 'un asesor') + ' le va a mandar a un cliente y lo dejas como lo escribiría una persona real desde su celular. Español de México, trato de ' + (c.trato || 'tú') + '.\\n\\nQUÉ CAMBIAS\\n- Quita muletillas al arrancar: Claro, Perfecto, Excelente, Genial, Entiendo, Por supuesto, Con gusto, Qué bien, Gracias por compartir. Si el borrador devuelve un saludo (hola, buenas noches), déjalo.\\n- Quita relleno y cierres vacíos: Quedo atento, No dudes en escribirme, Estoy aquí para ayudarte, Espero que te sirva, Cualquier cosa me dices.\\n- Quita adulación (Qué buen negocio, Excelente decisión) y palabras de folleto: potenciar, impulsar, transformar, optimizar, soluciones integrales, siguiente nivel, de manera eficiente, experiencia única, sin complicaciones.\\n- Cambia frases tipo \\'no solo X, sino también Y\\' y listas de tres por costumbre por algo directo.\\n- Si el borrador repite lo que el cliente acaba de decir, quítalo.\\n- Frases cortas, de plática. Si el cliente escribió corto, deja el mensaje corto.\\n- Sin rayas largas (—), sin comillas curvas, sin emojis, sin signos de admiración de más.\\n\\nQUÉ NO CAMBIAS (obligatorio)\\n- Precios, cantidades, fechas, días, horas, nombres de personas, links y nombres de paquetes o productos: cópialos exactos, con su *negrita* si la traen.\\n- La información: no agregues datos, promesas, ofertas, saludos ni preguntas; no quites nada que el cliente necesite saber.\\n- La pregunta: si el borrador tiene una, déjala con el mismo sentido, al final, sola en su renglón y con una línea en blanco antes. Nunca más de una pregunta. Si no tiene pregunta, no agregues ninguna.\\n- Formato de WhatsApp: negrita con UN asterisco, listas con \\'- \\', párrafos de 2 o 3 renglones separados por una línea en blanco.\\n- Si el borrador ya suena natural, devuélvelo igual.\\n\\nDevuelve solo JSON: {\"texto\": \"el mensaje final\"}' }, { role: 'user', content: 'Lo último que escribió el cliente:\\n' + ($('Juntar mensajes').item.json.texto || '') + '\\n\\nBorrador:\\n' + String($json.output || '').trim() } ] }); })() }}",
-    "options": {
-     "timeout": 20000
+    "promptType": "define",
+    "text": "={{ ('Lo último que escribió el cliente:\\n' + ($('Juntar mensajes').item.json.texto || '') + '\\n\\nBorrador:\\n' + String($json.output || '').trim()).replace(/[{}]/g, '') }}",
+    "messages": {
+     "messageValues": [
+      {
+       "type": "SystemMessagePromptTemplate",
+       "message": "={{ (() => { const c = $('Configuración del bot').item.json; return 'Eres editor de mensajes de WhatsApp. Recibes el borrador que ' + (c.voz || 'un asesor') + ' le va a mandar a un cliente y lo dejas como lo escribiría una persona real desde su celular. Español de México, trato de ' + (c.trato || 'tú') + '.\\n\\nQUÉ CAMBIAS\\n- Quita muletillas al arrancar: Claro, Perfecto, Excelente, Genial, Entiendo, Por supuesto, Con gusto, Qué bien, Gracias por compartir. Si el borrador devuelve un saludo (hola, buenas noches), déjalo.\\n- Quita relleno y cierres vacíos: Quedo atento, No dudes en escribirme, Estoy aquí para ayudarte, Espero que te sirva, Cualquier cosa me dices.\\n- Quita adulación (Qué buen negocio, Excelente decisión) y palabras de folleto: potenciar, impulsar, transformar, optimizar, soluciones integrales, siguiente nivel, de manera eficiente, experiencia única, sin complicaciones.\\n- Cambia frases tipo \\'no solo X, sino también Y\\' y listas de tres por costumbre por algo directo.\\n- Si el borrador repite lo que el cliente acaba de decir, quítalo.\\n- Frases cortas, de plática. Si el cliente escribió corto, deja el mensaje corto.\\n- Sin rayas largas (—), sin comillas curvas, sin emojis, sin signos de admiración de más.\\n\\nQUÉ NO CAMBIAS (obligatorio)\\n- Precios, cantidades, fechas, días, horas, nombres de personas, links y nombres de paquetes o productos: cópialos exactos, con su *negrita* si la traen.\\n- La información: no agregues datos, promesas, ofertas, saludos ni preguntas; no quites nada que el cliente necesite saber.\\n- La pregunta: si el borrador tiene una, déjala con el mismo sentido, al final, sola en su renglón y con una línea en blanco antes. Nunca más de una pregunta. Si no tiene pregunta, no agregues ninguna.\\n- Formato de WhatsApp: negrita con UN asterisco, listas con \\'- \\', párrafos de 2 o 3 renglones separados por una línea en blanco.\\n- Si el borrador ya suena natural, devuélvelo igual.\\n\\nDevuelve solo un objeto JSON con una sola clave, texto, que lleve el mensaje final.'; })() }}"
+      }
+     ]
     }
    },
    "onError": "continueRegularOutput"
@@ -1332,8 +1338,108 @@
    ],
    "parameters": {
     "mode": "runOnceForEachItem",
-    "jsCode": "// Revisar edición: el editor solo puede cambiar el tono. Si tocó cifras, links,\n// nombres en negrita o la pregunta, o si alargó / recortó de más, se manda el borrador.\nconst borrador = String($('¿Hay respuesta?').item.json.output || '').trim();\nlet editado = '';\ntry {\n  editado = String(JSON.parse($json.choices[0].message.content).texto || '').trim();\n} catch (e) {}\n\nconst cifras = (s) => (s.match(/\\d[\\d.,:]*/g) || []).map((n) => n.replace(/[.,:]+$/, '').replace(/[.,]/g, '')).sort();\nconst links = (s) => (s.match(/https?:\\/\\/[^\\s)]+/g) || []).sort();\nconst negritas = (s) => (s.match(/\\*([^*\\n]+)\\*/g) || []).map((x) => x.replace(/\\*/g, '').trim().toLowerCase());\nconst preguntas = (s) => (s.match(/¿[^?]*\\?/g) || []).length || (s.match(/\\?/g) || []).length;\nconst igual = (a, b) => JSON.stringify(a) === JSON.stringify(b);\n\nconst motivos = [];\nif (!editado) motivos.push('sin respuesta del editor');\nelse {\n  if (!igual(cifras(borrador), cifras(editado))) motivos.push('cambió cifras');\n  if (!igual(links(borrador), links(editado))) motivos.push('cambió links');\n  const plano = editado.replace(/\\*/g, '').toLowerCase();\n  if (negritas(borrador).some((n) => !plano.includes(n))) motivos.push('quitó un nombre en negrita');\n  const pb = preguntas(borrador), pe = preguntas(editado);\n  if (pb === 0 && pe > 0) motivos.push('agregó una pregunta');\n  if (pb > 0 && pe !== 1) motivos.push('pregunta mal (' + pe + ')');\n  if (editado.length > borrador.length * 1.15 + 30) motivos.push('lo alargó');\n  if (borrador.length > 120 && editado.length < borrador.length * 0.35) motivos.push('recortó de más');\n  if (/\\[SIN_RESPUESTA\\]/i.test(editado)) motivos.push('marca interna');\n}\n\nconst usar = motivos.length === 0;\nreturn {\n  json: {\n    output: usar ? editado : borrador,\n    borrador,\n    editor: usar ? (editado === borrador ? 'sin cambios' : 'editado') : 'descartado: ' + motivos.join(', '),\n  },\n};\n"
+    "jsCode": "// Revisar edición: el editor solo puede cambiar el tono. Si tocó cifras, links,\n// nombres en negrita o la pregunta, o si alargó / recortó de más, se manda el borrador.\nconst borrador = String($('¿Hay respuesta?').item.json.output || '').trim();\nlet editado = '';\ntry {\n  editado = String(JSON.parse(String($json.text || '').replace(/^```(?:json)?\\s*|\\s*```$/g, '')).texto || '').trim();\n} catch (e) {}\n\nconst cifras = (s) => (s.match(/\\d[\\d.,:]*/g) || []).map((n) => n.replace(/[.,:]+$/, '').replace(/[.,]/g, '')).sort();\nconst links = (s) => (s.match(/https?:\\/\\/[^\\s)]+/g) || []).sort();\nconst negritas = (s) => (s.match(/\\*([^*\\n]+)\\*/g) || []).map((x) => x.replace(/\\*/g, '').trim().toLowerCase());\nconst preguntas = (s) => (s.match(/¿[^?]*\\?/g) || []).length || (s.match(/\\?/g) || []).length;\nconst igual = (a, b) => JSON.stringify(a) === JSON.stringify(b);\n\nconst motivos = [];\nif (!editado) motivos.push('sin respuesta del editor');\nelse {\n  if (!igual(cifras(borrador), cifras(editado))) motivos.push('cambió cifras');\n  if (!igual(links(borrador), links(editado))) motivos.push('cambió links');\n  const plano = editado.replace(/\\*/g, '').toLowerCase();\n  if (negritas(borrador).some((n) => !plano.includes(n))) motivos.push('quitó un nombre en negrita');\n  const pb = preguntas(borrador), pe = preguntas(editado);\n  if (pb === 0 && pe > 0) motivos.push('agregó una pregunta');\n  if (pb > 0 && pe !== 1) motivos.push('pregunta mal (' + pe + ')');\n  if (editado.length > borrador.length * 1.15 + 30) motivos.push('lo alargó');\n  if (borrador.length > 120 && editado.length < borrador.length * 0.35) motivos.push('recortó de más');\n  if (/\\[SIN_RESPUESTA\\]/i.test(editado)) motivos.push('marca interna');\n}\n\nconst usar = motivos.length === 0;\nreturn {\n  json: {\n    output: usar ? editado : borrador,\n    borrador,\n    editor: usar ? (editado === borrador ? 'sin cambios' : 'editado') : 'descartado: ' + motivos.join(', '),\n  },\n};\n"
    }
+  },
+  {
+   "id": "modelo-json",
+   "name": "Modelo JSON",
+   "type": "n8n-nodes-deepseek-chat-model.lmChatDeepSeek",
+   "typeVersion": 1,
+   "position": [
+    3190,
+    420
+   ],
+   "parameters": {
+    "model": "custom",
+    "customModel": "deepseek-flash",
+    "thinkingEnabled": false,
+    "options": {
+     "temperature": 0.1,
+     "responseFormat": "json_object"
+    }
+   }
+  },
+  {
+   "id": "modelo-texto",
+   "name": "Modelo texto",
+   "type": "n8n-nodes-deepseek-chat-model.lmChatDeepSeek",
+   "typeVersion": 1,
+   "position": [
+    4720,
+    -220
+   ],
+   "parameters": {
+    "model": "custom",
+    "customModel": "deepseek-flash",
+    "thinkingEnabled": false,
+    "options": {
+     "temperature": 0
+    }
+   }
+  },
+  {
+   "id": "modelo-visi-n",
+   "name": "Modelo visión",
+   "type": "n8n-nodes-deepseek-chat-model.lmChatDeepSeek",
+   "typeVersion": 1,
+   "position": [
+    1320,
+    80
+   ],
+   "parameters": {
+    "model": "custom",
+    "customModel": "deepseek-flash",
+    "thinkingEnabled": false,
+    "options": {
+     "temperature": 0,
+     "maxTokens": 500
+    }
+   }
+  },
+  {
+   "id": "modelo-vision-respaldo",
+   "name": "Modelo visión respaldo (OpenAI)",
+   "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+   "typeVersion": 1.2,
+   "position": [
+    1440,
+    80
+   ],
+   "parameters": {
+    "model": {
+     "__rl": true,
+     "value": "gpt-4.1-mini",
+     "mode": "list",
+     "cachedResultName": "gpt-4.1-mini"
+    },
+    "options": {
+     "temperature": 0,
+     "maxTokens": 500
+    }
+   }
+  },
+  {
+   "id": "descargar-foto",
+   "name": "Descargar foto",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    1100,
+    -100
+   ],
+   "parameters": {
+    "url": "={{ $('Datos del mensaje').item.json.media_url }}",
+    "options": {
+     "response": {
+      "response": {
+       "responseFormat": "file",
+       "outputPropertyName": "imagen"
+      }
+     }
+    }
+   },
+   "onError": "continueRegularOutput"
   }
  ],
  "connections": {
@@ -1489,7 +1595,7 @@
     ],
     [
      {
-      "node": "Ver foto",
+      "node": "Descargar foto",
       "type": "main",
       "index": 0
      }
@@ -1847,6 +1953,66 @@
       "node": "Contar preguntas",
       "type": "main",
       "index": 0
+     }
+    ]
+   ]
+  },
+  "Descargar foto": {
+   "main": [
+    [
+     {
+      "node": "Ver foto",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Modelo JSON": {
+   "ai_languageModel": [
+    [
+     {
+      "node": "Extraer datos",
+      "type": "ai_languageModel",
+      "index": 0
+     },
+     {
+      "node": "Editor",
+      "type": "ai_languageModel",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Modelo texto": {
+   "ai_languageModel": [
+    [
+     {
+      "node": "Corregir respuesta",
+      "type": "ai_languageModel",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Modelo visión": {
+   "ai_languageModel": [
+    [
+     {
+      "node": "Ver foto",
+      "type": "ai_languageModel",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Modelo visión respaldo (OpenAI)": {
+   "ai_languageModel": [
+    [
+     {
+      "node": "Ver foto",
+      "type": "ai_languageModel",
+      "index": 1
      }
     ]
    ]

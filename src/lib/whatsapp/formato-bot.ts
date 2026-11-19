@@ -165,6 +165,43 @@ export function fronteraSalida(texto: string): string {
 }
 
 /**
+ * Quita las marcas más obvias de texto de IA (basado en la skill "humanizer",
+ * que sigue la guía "Signs of AI writing" de Wikipedia, adaptada a WhatsApp en
+ * español de México). Es la red de seguridad; el prompt pide lo mismo.
+ * - Muletillas de chatbot al inicio: "¡Claro!", "¡Perfecto!", "¡Excelente pregunta!"…
+ * - Cierres genéricos: "Quedo atento a cualquier duda", "No dudes en escribirme"…
+ * - Raya larga (—) → coma. Comillas curvas → rectas.
+ */
+const RE_MULETILLA_INICIO =
+  /^(?:¡\s*)?(?:claro(?: que sí)?|perfecto|excelente(?: pregunta)?|genial|qué buena pregunta|muy buena pregunta|entiendo perfectamente|por supuesto|con gusto|¡?hola de nuevo)\s*[!.,]+\s*/i
+const RE_CIERRE_GENERICO =
+  /^(?:quedo (?:atento|a tus órdenes|pendiente)[^.?!]*|no dudes en [^.?!]*|estoy aquí para (?:ayudarte|lo que necesites)[^.?!]*|cualquier (?:otra )?duda,? (?:aquí estoy|estoy para servirte)[^.?!]*|espero (?:que )?(?:esto )?te (?:sirva|ayude)[^.?!]*)[.!]*$/i
+
+export function humanizar(texto: string): string {
+  let t = texto
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/\s*—\s*/g, ', ')
+  // Muletilla al inicio solo si queda texto después.
+  const sinMuletilla = t.replace(RE_MULETILLA_INICIO, '')
+  if (sinMuletilla.trim() && sinMuletilla !== t) {
+    t = sinMuletilla.charAt(0).toUpperCase() + sinMuletilla.slice(1)
+  }
+  // Cierre genérico como último renglón: se quita si hay algo más.
+  const ps = t.split('\n\n')
+  const ult = ps[ps.length - 1].trim()
+  if (ps.length > 1 && RE_CIERRE_GENERICO.test(ult)) ps.pop()
+  else if (ps.length === 1) {
+    const frases = ult.split(/(?<=[.!?])\s+/)
+    if (frases.length > 1 && RE_CIERRE_GENERICO.test(frases[frases.length - 1])) {
+      frases.pop()
+      ps[0] = frases.join(' ')
+    }
+  }
+  return ps.join('\n\n').trim()
+}
+
+/**
  * Convierte la respuesta del bot en las burbujas de texto a enviar, en orden.
  *
  * Sin botones: Julio los probó (16-nov-2026) y se sienten robóticos en un
@@ -172,7 +209,7 @@ export function fronteraSalida(texto: string): string {
  * "[botones: …]", se quita y queda solo la pregunta.
  */
 export function prepararRespuestaBot(entrada: string): PiezaBot[] {
-  let texto = fronteraSalida(aFormatoWhatsapp(entrada))
+  let texto = humanizar(fronteraSalida(aFormatoWhatsapp(entrada)))
   texto = texto.replace(/\n?\s*\[botones?\s*:[^\]]*\]\s*$/i, '').trim()
   if (!texto) return []
   return partirEnBurbujas(texto).map((b) => ({ tipo: 'texto', texto: b }))

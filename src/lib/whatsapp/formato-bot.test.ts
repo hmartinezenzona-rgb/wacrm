@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { aFormatoWhatsapp, fronteraSalida, partirEnBurbujas, prepararRespuestaBot } from './formato-bot'
+import { aFormatoWhatsapp, fronteraSalida, humanizar, partirEnBurbujas, prepararRespuestaBot } from './formato-bot'
 
 describe('aFormatoWhatsapp', () => {
   it('pasa Markdown a formato de WhatsApp', () => {
@@ -38,7 +38,7 @@ describe('prepararRespuestaBot', () => {
   })
   it('texto normal va como texto', () => {
     expect(prepararRespuestaBot('Con gusto. ¿Qué medida necesita?')).toEqual([
-      { tipo: 'texto', texto: 'Con gusto. ¿Qué medida necesita?' },
+      { tipo: 'texto', texto: '¿Qué medida necesita?' },
     ])
   })
 })
@@ -60,5 +60,22 @@ describe('fronteraSalida', () => {
   it('no toca medidas, cantidades ni folios', () => {
     const t = 'Le resumo lo que registro:\n\n- 10 válvulas de bola de 1/2" inoxidable 3000 psi\n\nSu folio es *AP-X1Y2Z3*.'
     expect(fronteraSalida(t)).toBe(t)
+  })
+})
+
+describe('humanizar', () => {
+  it('quita muletillas de chatbot al inicio', () => {
+    expect(humanizar('¡Claro! El paquete Arranque incluye tu sitio.')).toBe('El paquete Arranque incluye tu sitio.')
+    expect(humanizar('¡Excelente pregunta! Sí, el dominio queda a tu nombre.')).toBe('Sí, el dominio queda a tu nombre.')
+  })
+  it('no deja el mensaje vacío', () => {
+    expect(humanizar('¡Perfecto!')).toBe('¡Perfecto!')
+  })
+  it('quita cierres genéricos', () => {
+    expect(humanizar('Te aparto el sábado a las 3.\n\nQuedo atento a cualquier duda.')).toBe('Te aparto el sábado a las 3.')
+    expect(humanizar('Listo, quedó anotado. No dudes en escribirme si necesitas algo.')).toBe('Listo, quedó anotado.')
+  })
+  it('cambia la raya larga por coma', () => {
+    expect(humanizar('Tu sitio queda en 3 días — con dominio incluido.')).toBe('Tu sitio queda en 3 días, con dominio incluido.')
   })
 })

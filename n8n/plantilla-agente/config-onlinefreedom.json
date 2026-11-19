@@ -52,12 +52,14 @@
   {
    "clave": "reto",
    "etiqueta": "Reto",
-   "pregunta": "qué le quita más tiempo o clientes hoy"
+   "pregunta": "qué le quita más tiempo o clientes hoy",
+   "guardar": "una frase que junte todo lo que contó, no solo la primera parte"
   },
   {
    "clave": "paquete",
    "etiqueta": "Paquete",
-   "pregunta": "qué paquete le late (después de mostrarle la opción que le queda)"
+   "pregunta": "qué paquete le late (después de mostrarle la opción que le queda)",
+   "guardar": "con el nombre del catálogo: Arranque, Negocio, Pro con IA o A la medida"
   },
   {
    "clave": "dia_llamada",

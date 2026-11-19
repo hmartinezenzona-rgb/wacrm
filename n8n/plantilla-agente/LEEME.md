@@ -21,7 +21,7 @@ Un solo diseño de agente para todos los negocios. Lo que cambia de un negocio a
    - `horario`: `texto`, `dias` (1 = lunes … 7 = domingo), `abre`, `cierra`, `siguiente` ("mañana a partir de las 9")
    - `rol`, `objetivo`, `pasos` (lista), `contexto` (viñetas con todo lo que el agente debe saber)
    - `catalogo_nota` (cómo presentar el catálogo), `fuera_de_catalogo` (qué decir si piden algo que no está)
-   - `conocer`: lista ordenada de datos a pedir. Cada uno: `clave` (nombre, negocio o la clave que acepta la RPC), `etiqueta` (cómo aparece en la ficha: Giro, Reto, Llamada…), `pregunta` (qué preguntar, el modelo lo dice con sus palabras), `obligatorio`, `requiere` (claves que deben estar antes)
+   - `conocer`: lista ordenada de datos a pedir. Cada uno: `clave` (nombre, negocio o la clave que acepta la RPC), `etiqueta` (cómo aparece en la ficha: Giro, Reto, Llamada…), `pregunta` (qué preguntar, el modelo lo dice con sus palabras), `obligatorio`, `requiere` (claves que deben estar antes), `guardar` (opcional: cómo anotarlo en la ficha, por ejemplo el nombre exacto del paquete)
    - `registro`: `rpc`, `campos` (claves que acepta esa función), `instrucciones`
    - `reglas_extra` y `humano_extra` (listas), `aviso_precio`, `ejemplos` (2 o 3 diálogos cortos)
 3. **n8n**: importa `flujo-plantilla.json`, y en el nodo **Configuración** pon `crm_url`, `supabase_url`, `supabase_key` (publicable), `cuenta`, `msg_archivo`, `contexto_audio`, `contexto_foto`. Cambia el `path` del webhook. Asigna las credenciales: llave del CRM (Header Auth `Authorization: Bearer wacrm_live_…`) y OpenAI. Activa.

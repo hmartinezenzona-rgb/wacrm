@@ -182,7 +182,7 @@ export function fronteraSalida(texto: string, opciones: OpcionesBot = {}): strin
  * - Raya larga (—) → coma. Comillas curvas → rectas.
  */
 const RE_MULETILLA_INICIO =
-  /^(?:¡\s*)?(?:claro(?: que sí)?|perfecto|excelente(?: pregunta)?|genial|qué buena pregunta|muy buena pregunta|entiendo perfectamente|por supuesto|con gusto|¡?hola de nuevo)\s*[!.,]+\s*/i
+  /^(?:¡\s*)?(?:claro(?: que sí)?|perfecto|excelente(?: pregunta)?|genial|qué buena pregunta|muy buena pregunta|entiendo perfectamente|por supuesto|con gusto|¡?hola de nuevo)(?:\s*,\s*[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?\s*[!.,]+\s*/i
 const RE_CIERRE_GENERICO =
   /^(?:quedo (?:atento|a tus órdenes|pendiente)[^.?!]*|no dudes en [^.?!]*|estoy aquí para (?:ayudarte|lo que necesites)[^.?!]*|cualquier (?:otra )?duda,? (?:aquí estoy|estoy para servirte)[^.?!]*|espero (?:que )?(?:esto )?te (?:sirva|ayude)[^.?!]*)[.!]*$/i
 

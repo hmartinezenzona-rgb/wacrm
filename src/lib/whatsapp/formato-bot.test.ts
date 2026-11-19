@@ -68,6 +68,10 @@ describe('humanizar', () => {
     expect(humanizar('Perfecto, Humberto. ¿En qué ciudad estás?')).toBe('¿En qué ciudad estás?')
     expect(humanizar('Perfecto, Saltillo es buena zona.')).toBe('Saltillo es buena zona.')
   })
+  it('quita frases de relleno a media respuesta', () => {
+    expect(humanizar('Buenas noches, te atiende Onlinefreedom. Estoy aquí para ayudarte con tu negocio. ¿Cómo te llamas?')).toBe('Buenas noches, te atiende Onlinefreedom. ¿Cómo te llamas?')
+    expect(humanizar('Estoy aquí para ayudarte.')).toBe('Estoy aquí para ayudarte.')
+  })
   it('quita muletillas de chatbot al inicio', () => {
     expect(humanizar('¡Claro! El paquete Arranque incluye tu sitio.')).toBe('El paquete Arranque incluye tu sitio.')
     expect(humanizar('¡Excelente pregunta! Sí, el dominio queda a tu nombre.')).toBe('Sí, el dominio queda a tu nombre.')

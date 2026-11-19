@@ -196,18 +196,19 @@ export function humanizar(texto: string): string {
   if (sinMuletilla.trim() && sinMuletilla !== t) {
     t = sinMuletilla.charAt(0).toUpperCase() + sinMuletilla.slice(1)
   }
-  // Cierre genérico como último renglón: se quita si hay algo más.
-  const ps = t.split('\n\n')
-  const ult = ps[ps.length - 1].trim()
-  if (ps.length > 1 && RE_CIERRE_GENERICO.test(ult)) ps.pop()
-  else if (ps.length === 1) {
-    const frases = ult.split(/(?<=[.!?])\s+/)
-    if (frases.length > 1 && RE_CIERRE_GENERICO.test(frases[frases.length - 1])) {
-      frases.pop()
-      ps[0] = frases.join(' ')
-    }
-  }
-  return ps.join('\n\n').trim()
+  // Frases de relleno ("Estoy aquí para ayudarte…", "Quedo atento…") en
+  // cualquier lugar: se quitan siempre que quede algo más.
+  const ps = t
+    .split('\n\n')
+    .map((par) =>
+      par
+        .split(/(?<=[.!?])\s+/)
+        .filter((f) => !RE_CIERRE_GENERICO.test(f.trim()))
+        .join(' ')
+        .trim(),
+    )
+    .filter(Boolean)
+  return ps.length ? ps.join('\n\n').trim() : t.trim()
 }
 
 /**

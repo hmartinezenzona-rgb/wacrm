@@ -38,7 +38,8 @@
    "clave": "giro",
    "etiqueta": "Giro",
    "pregunta": "qué vende o qué servicio da",
-   "obligatorio": true
+   "obligatorio": true,
+   "guardar": "como giro en pocas palabras (ej. \"venta de cremas por WhatsApp\"), no la frase completa del cliente"
   },
   {
    "clave": "ciudad",
@@ -69,7 +70,8 @@
    "requiere": [
     "nombre",
     "giro"
-   ]
+   ],
+   "guardar": "solo si cae de lunes a sábado entre 9:00 y 19:00; si pidió domingo u otra hora fuera de eso, no la pongas"
   }
  ],
  "registro": {

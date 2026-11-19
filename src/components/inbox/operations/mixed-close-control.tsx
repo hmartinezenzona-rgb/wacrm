@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { cerrarOperacionManual } from "@/lib/remittance-operations/commands";
+import { parseDeliveryRefusal } from "@/lib/remittance-operations/delivery-refusal";
 import { ConfirmCancelButtons, cancelOnEscape } from "./confirm-cancel-buttons";
 import { NotifyToggle } from "./notify-toggle";
 
@@ -36,7 +37,9 @@ export function MixedCloseControl({ operationIds, onDone, onCancel }: MixedClose
         if (closed.current.has(id)) continue;
         const result = await cerrarOperacionManual(id, notify);
         if (!result.ok) {
-          setError(result.error);
+          // Same server checks as a delivery (e.g. the USD inventory block of migration 356): say why in plain words.
+          const known = parseDeliveryRefusal(result.error);
+          setError(known ? t(`completeTransfer.refusal.${known.key}`, known.params) : result.error);
           return;
         }
         closed.current.add(id);

@@ -87,6 +87,25 @@ describe("MixedCloseControl", () => {
     await act(async () => root.unmount());
   });
 
+  it("a member refused for an empty Clásica inventory shows the translated reason, not the machine code", async () => {
+    cerrarOperacionManual.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      error: "usd_inventory_insufficient:CLASICA:50 (needs 50 USD, 0 USD available)",
+    });
+    const { root, onDone } = await open();
+
+    await act(async () => byLabel(S.closeConfirm).click());
+
+    const expected = en.Inbox.operationsPanel.completeTransfer.refusal.usdInventoryInsufficient
+      .replace("{missing}", "50")
+      .replace("{service}", "Clásica");
+    expect(document.body.textContent).toContain(expected);
+    expect(document.body.textContent).not.toContain("usd_inventory_insufficient");
+    expect(onDone).not.toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
+
   it("cancels from the X without closing anything", async () => {
     const { root, onCancel } = await open();
 

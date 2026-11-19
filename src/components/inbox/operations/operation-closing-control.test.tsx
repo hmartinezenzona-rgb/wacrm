@@ -331,6 +331,30 @@ describe("OperationClosingControl service icons are told apart", () => {
     });
   });
 
+  it("a close refused for an empty Clásica inventory shows the translated reason, not the machine code", async () => {
+    cerrarOperacionManual.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      error: "usd_inventory_insufficient:CLASICA:50 (needs 50 USD, 0 USD available)",
+    });
+    const { node, onDone } = await render("close");
+
+    await act(async () => buttonByLabel(node, t.closeConfirm).click());
+
+    expect(node.textContent).toContain(en.Inbox.operationsPanel.completeTransfer.refusal.usdInventoryInsufficient);
+    expect(node.textContent).not.toContain("usd_inventory_insufficient");
+    expect(onDone).not.toHaveBeenCalled();
+  });
+
+  it("shows the server text when a refused close is not a known reason", async () => {
+    cerrarOperacionManual.mockResolvedValueOnce({ ok: false, status: 400, error: "some unexpected refusal" });
+    const { node } = await render("close");
+
+    await act(async () => buttonByLabel(node, t.closeConfirm).click());
+
+    expect(node.textContent).toContain("some unexpected refusal");
+  });
+
   it("shows the server text when a refused delete is not a known reason", async () => {
     eliminarOperacion.mockResolvedValueOnce({ ok: false, status: 400, error: "an operation that is transferring cannot be deleted" });
     const { node } = await render("delete");

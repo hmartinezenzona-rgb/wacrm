@@ -21,7 +21,7 @@ Un solo diseño de agente para todos los negocios. Lo que cambia de un negocio a
    - `horario`: `texto`, `dias` (1 = lunes … 7 = domingo), `abre`, `cierra`, `siguiente` ("mañana a partir de las 9")
    - `rol`, `objetivo`, `pasos` (lista), `contexto` (viñetas con todo lo que el agente debe saber)
    - `catalogo_nota` (cómo presentar el catálogo), `fuera_de_catalogo` (qué decir si piden algo que no está)
-   - `conocer` (lista de datos a preguntar, en orden)
+   - `conocer`: lista ordenada de datos a pedir. Cada uno: `clave` (nombre, negocio o la clave que acepta la RPC), `etiqueta` (cómo aparece en la ficha: Giro, Reto, Llamada…), `pregunta` (qué preguntar, el modelo lo dice con sus palabras), `obligatorio`, `requiere` (claves que deben estar antes)
    - `registro`: `rpc`, `campos` (claves que acepta esa función), `instrucciones`
    - `reglas_extra` y `humano_extra` (listas), `aviso_precio`, `ejemplos` (2 o 3 diálogos cortos)
 3. **n8n**: importa `flujo-plantilla.json`, y en el nodo **Configuración** pon `crm_url`, `supabase_url`, `supabase_key` (publicable), `cuenta`, `msg_archivo`, `contexto_audio`, `contexto_foto`. Cambia el `path` del webhook. Asigna las credenciales: llave del CRM (Header Auth `Authorization: Bearer wacrm_live_…`) y OpenAI. Activa.
@@ -33,3 +33,10 @@ Un solo diseño de agente para todos los negocios. Lo que cambia de un negocio a
 - Lo que dice / pregunta / cómo registra → editar su `bot_config` (efecto inmediato, sin tocar n8n).
 - Precios → pantalla de catálogo del CRM.
 - Una regla que debería valer para TODOS → `prompt.md` y actualizar el nodo Agente en cada flujo.
+
+## Cómo evita hacer dos preguntas (y otros errores) — en capas
+Basado en cómo lo resuelven plataformas maduras (patrón "slot filling" de Google CX Agent Studio y los `collect` de Rasa CALM; validadores con re-pregunta de Guardrails AI):
+1. **El código decide qué falta, el modelo solo redacta.** El nodo "Qué falta" lee la ficha del CRM y `bot_config.conocer` y le pasa al modelo UN solo "siguiente dato". El modelo nunca ve la lista de preguntas futuras.
+2. **Extracción en lote.** Cada vez que el cliente da un dato, el modelo registra todo lo que sabe; así la ficha (el estado) siempre está al día.
+3. **Validador con re-pregunta.** "Contar preguntas" revisa la respuesta; si trae más de una, "Corregir respuesta" (una llamada corta al modelo, temperatura 0) la reescribe con una sola. Solo cuesta tiempo cuando falla.
+4. **Red final en el CRM.** `soloUnaPregunta()` en formato-bot deja solo la última si algo se colara.

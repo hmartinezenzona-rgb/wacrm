@@ -211,6 +211,24 @@ export function humanizar(texto: string): string {
 }
 
 /**
+ * Una sola pregunta por mensaje (última red de seguridad; antes ya pasó el
+ * validador con re-pregunta en n8n). Si quedan varias, se conserva la última
+ * y las anteriores se quitan; si un párrafo queda vacío, se quita.
+ */
+export function soloUnaPregunta(texto: string): string {
+  const RE = /¿[^¿?]*\?/g
+  const todas = texto.match(RE) || []
+  if (todas.length <= 1) return texto
+  let quedan = todas.length
+  const sin = texto.replace(RE, (m) => (--quedan === 0 ? m : ''))
+  return sin
+    .split('\n\n')
+    .map((par) => par.replace(/[ \t]{2,}/g, ' ').replace(/^\s*[,.;]\s*/, '').trim())
+    .filter(Boolean)
+    .join('\n\n')
+}
+
+/**
  * Convierte la respuesta del bot en las burbujas de texto a enviar, en orden.
  *
  * Sin botones: Julio los probó (16-nov-2026) y se sienten robóticos en un
@@ -218,7 +236,7 @@ export function humanizar(texto: string): string {
  * "[botones: …]", se quita y queda solo la pregunta.
  */
 export function prepararRespuestaBot(entrada: string, opciones: OpcionesBot = {}): PiezaBot[] {
-  let texto = humanizar(fronteraSalida(aFormatoWhatsapp(entrada), opciones))
+  let texto = soloUnaPregunta(humanizar(fronteraSalida(aFormatoWhatsapp(entrada), opciones)))
   texto = texto.replace(/\n?\s*\[botones?\s*:[^\]]*\]\s*$/i, '').trim()
   if (!texto) return []
   return partirEnBurbujas(texto).map((b) => ({ tipo: 'texto', texto: b }))

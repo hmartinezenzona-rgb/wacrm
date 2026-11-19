@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { aFormatoWhatsapp, fronteraSalida, humanizar, partirEnBurbujas, prepararRespuestaBot } from './formato-bot'
+import { aFormatoWhatsapp, fronteraSalida, humanizar, partirEnBurbujas, prepararRespuestaBot, soloUnaPregunta } from './formato-bot'
 
 describe('aFormatoWhatsapp', () => {
   it('pasa Markdown a formato de WhatsApp', () => {
@@ -77,5 +77,17 @@ describe('humanizar', () => {
   })
   it('cambia la raya larga por coma', () => {
     expect(humanizar('Tu sitio queda en 3 días — con dominio incluido.')).toBe('Tu sitio queda en 3 días, con dominio incluido.')
+  })
+})
+
+describe('soloUnaPregunta', () => {
+  it('deja solo la última pregunta', () => {
+    expect(soloUnaPregunta('El Pro cuesta $6,000.\n\n¿Te explico los otros paquetes?\n\n¿Qué día te acomoda para la llamada?')).toBe(
+      'El Pro cuesta $6,000.\n\n¿Qué día te acomoda para la llamada?',
+    )
+    expect(soloUnaPregunta('Qué tal, ¿cómo se llama tu negocio? ¿Y qué te complica hoy?')).toBe('Qué tal, ¿Y qué te complica hoy?')
+  })
+  it('no toca mensajes con una sola pregunta', () => {
+    expect(soloUnaPregunta('Va.\n\n¿Cómo te llamas?')).toBe('Va.\n\n¿Cómo te llamas?')
   })
 })

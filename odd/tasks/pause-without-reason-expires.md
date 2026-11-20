@@ -31,8 +31,8 @@ stays forever. On 2026-11-20, 13 production conversations were paused with NULL 
 
 ## Tasks
 
-- [x] T1 Panel pause stamps `ai_handoff_at` (route `src/app/api/ai/autoreply/[conversationId]/route.ts` + test).
-- [x] T2 Migration 385 + ROLLBACK + assertion; staging cycle all OK.
+- [ ] T1 Panel pause stamps `ai_handoff_at` (route `src/app/api/ai/autoreply/[conversationId]/route.ts` + test).
+- [ ] T2 Migration 385 + ROLLBACK + assertion; staging cycle all OK.
 - [ ] T3 Publish the panel (owner go-ahead).
 - [ ] T4 Apply 385 in production (owner go-ahead), `verificar` n/n.
 
@@ -43,7 +43,4 @@ stays forever. On 2026-11-20, 13 production conversations were paused with NULL 
 
 ## Progress
 
-- T1 commit 65b7a858: RED (ai_handoff_at NaN) then GREEN, vitest 2/2, tsc clean.
-- T2: assertion RED on staging before 385 (7 failed), staging cycle dry-run/apply/assertion/rollback OK (md5 equal);
-  relacionadas 8 assertions: SAME 7, DIFF 1 (the new one, failing -> ALL PASS). `previa` production: 3 EQUAL, VEREDICTO SEGURO.
-- Next: T3 publish panel (go-ahead), then T4 apply 385 (go-ahead).
+(empty)

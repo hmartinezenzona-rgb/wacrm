@@ -1,0 +1,206 @@
+{
+ "modo_etiqueta": "Entrevista",
+ "cierre": "Ya terminó la entrevista. Agradece en una frase y dile que en 2 o 3 días le mandamos su prueba funcionando por aquí. Si no se ha apartado una llamada, puedes ofrecerle verla juntos en una llamada. No vuelvas a pedir nada que ya se haya hablado en la plática (fotos, menú, datos).",
+ "preguntas": [
+  {
+   "clave": "e_vende",
+   "etiqueta": "Vende",
+   "pregunta": "qué vende o qué servicio da, y cuáles son las 3 cosas que más vende",
+   "ayuda": "Para que el agente sepa qué ofrecer primero, por ejemplo: tacos de asada, de pastor y quesadillas."
+  },
+  {
+   "clave": "e_zona",
+   "etiqueta": "Zona y horario",
+   "pregunta": "en qué zona atiende y en qué horario, y qué días descansa",
+   "ayuda": "Hasta dónde atiende o entrega, a qué hora abre y cierra, y qué días no trabaja."
+  },
+  {
+   "clave": "e_atiende",
+   "etiqueta": "Quién atiende",
+   "pregunta": "quién atiende a los clientes y por dónde le escriben (WhatsApp, Facebook, llamadas o en persona)",
+   "ayuda": "Si contesta usted, un familiar o un empleado, y si los clientes le escriben por WhatsApp, Facebook, le llaman o llegan al local."
+  },
+  {
+   "clave": "e_volumen",
+   "etiqueta": "Pedidos por semana",
+   "pregunta": "más o menos cuántos pedidos o clientes tiene en una semana normal",
+   "ayuda": "Un número aproximado basta, por ejemplo: unos 10 al día o como 50 a la semana."
+  },
+  {
+   "clave": "e_ultimo",
+   "etiqueta": "Último cliente",
+   "pregunta": "cómo atendió a su último cliente, desde que le escribió hasta que quedó listo",
+   "guardar": "un resumen corto de los pasos",
+   "ayuda": "Que me cuente paso a paso qué pasó con el último cliente: qué le escribió, qué le contestó, cómo le cobró y cómo se lo entregó."
+  },
+  {
+   "clave": "e_datos",
+   "etiqueta": "Datos que pide",
+   "pregunta": "qué datos le pide al cliente para atenderlo (nombre, dirección, lo que quiere, para cuándo)",
+   "ayuda": "Lo que siempre le pregunta a un cliente antes de atenderlo, por ejemplo: su nombre, qué quiere, para qué hora y si es para llevar o a domicilio."
+  },
+  {
+   "clave": "e_pago",
+   "etiqueta": "Cobro",
+   "pregunta": "cómo le pagan sus clientes y cómo se da cuenta de que ya le pagaron",
+   "ayuda": "Si le pagan en efectivo, con transferencia o con tarjeta, y cómo revisa que el pago sí llegó."
+  },
+  {
+   "clave": "e_preguntas",
+   "etiqueta": "Preguntas frecuentes",
+   "pregunta": "qué es lo que más le preguntan sus clientes",
+   "ayuda": "Las dudas que más se repiten, por ejemplo: el precio, el horario, si hay servicio a domicilio, cuánto tarda."
+  },
+  {
+   "clave": "eleccion",
+   "etiqueta": "Quiere resolver",
+   "pregunta": "qué le ayudaría más hoy: que lo conozca más gente, que alguien conteste los mensajes y tome los pedidos por él, o no perder pedidos y saber cómo va su negocio (puede elegir varias)",
+   "guardar": "con las palabras clientes, contestar y pedidos, separadas por coma, solo las que eligió (si dijo todas, las tres)",
+   "ayuda": "Son tres cosas que le podemos armar: que más gente lo encuentre (sitio, Google, anuncios), que alguien conteste sus mensajes por usted, o tener sus pedidos ordenados con avisos al celular. Puede elegir una o varias."
+  },
+  {
+   "clave": "a_trato",
+   "etiqueta": "Trato a clientes",
+   "pregunta": "si a sus clientes les habla de usted o de tú, y que si puede nos mande 2 o 3 mensajes que les haya escrito",
+   "si": [
+    {
+     "clave": "eleccion",
+     "contiene": "contestar"
+    }
+   ],
+   "ayuda": "Para que el agente le escriba a sus clientes como usted les escribe. Si tiene a la mano unos mensajes suyos, mejor."
+  },
+  {
+   "clave": "a_nunca",
+   "etiqueta": "Nunca prometer",
+   "pregunta": "qué cosas nunca le diría o prometería a un cliente (por ejemplo, una hora exacta de entrega o un descuento)",
+   "si": [
+    {
+     "clave": "eleccion",
+     "contiene": "contestar"
+    }
+   ],
+   "ayuda": "Por ejemplo: no prometer una hora exacta de entrega, no dar descuentos o no fiar."
+  },
+  {
+   "clave": "a_el",
+   "etiqueta": "Contesta él",
+   "pregunta": "en qué casos prefiere contestar él mismo",
+   "si": [
+    {
+     "clave": "eleccion",
+     "contiene": "contestar"
+    }
+   ],
+   "ayuda": "Por ejemplo: cuando alguien se queja, pide un descuento o hace un pedido muy grande."
+  },
+  {
+   "clave": "a_seguimiento",
+   "etiqueta": "Seguimiento",
+   "pregunta": "si alguien pregunta el precio y ya no vuelve a escribir, si le gustaría que le mandáramos un mensaje unos días después",
+   "si": [
+    {
+     "clave": "eleccion",
+     "contiene": "contestar"
+    }
+   ],
+   "ayuda": "Un mensaje corto días después a quien preguntó y ya no contestó, para recordarle. Solo si a usted le parece bien."
+  },
+  {
+   "clave": "b_inicio",
+   "etiqueta": "Ver al iniciar",
+   "pregunta": "qué es lo primero que necesita saber cuando empieza su día",
+   "si": [
+    {
+     "clave": "eleccion",
+     "contiene": "pedidos"
+    }
+   ],
+   "ayuda": "Por ejemplo: cuántos pedidos tiene para hoy, quién no ha pagado o qué falta entregar."
+  },
+  {
+   "clave": "b_avisos",
+   "etiqueta": "Avisos al celular",
+   "pregunta": "de qué le gustaría que le llegara un aviso al celular (pedido nuevo, pago, cliente molesto)",
+   "si": [
+    {
+     "clave": "eleccion",
+     "contiene": "pedidos"
+    }
+   ],
+   "ayuda": "Un aviso como notificación en su celular cuando pase algo importante: un pedido nuevo, un pago o un cliente que pide hablar con usted."
+  },
+  {
+   "clave": "b_equipo",
+   "etiqueta": "Equipo",
+   "pregunta": "si alguien más le ayuda a atender y si hay algo que esa persona no debe ver",
+   "si": [
+    {
+     "clave": "eleccion",
+     "contiene": "pedidos"
+    }
+   ],
+   "ayuda": "Si alguien más le ayuda a atender y si hay algo que esa persona no debe ver, por ejemplo cuánto vende."
+  },
+  {
+   "clave": "c_redes",
+   "etiqueta": "Redes",
+   "pregunta": "qué redes del negocio tiene (Facebook, Instagram, TikTok) y cuál usa más",
+   "si": [
+    {
+     "clave": "eleccion",
+     "contiene": "clientes"
+    }
+   ],
+   "ayuda": "Si el negocio tiene página de Facebook, Instagram o TikTok, y en cuál publica más."
+  },
+  {
+   "clave": "c_publicidad",
+   "etiqueta": "Publicidad",
+   "pregunta": "si ha pagado publicidad alguna vez y cuánto podría invertir al mes en anuncios",
+   "si": [
+    {
+     "clave": "eleccion",
+     "contiene": "clientes"
+    }
+   ],
+   "ayuda": "Si alguna vez pagó para que Facebook o Instagram muestre sus publicaciones, y cuánto podría poner al mes, aunque sea poco."
+  },
+  {
+   "clave": "c_publico",
+   "etiqueta": "Público",
+   "pregunta": "a qué gente le quiere llegar y en qué zona",
+   "si": [
+    {
+     "clave": "eleccion",
+     "contiene": "clientes"
+    }
+   ],
+   "ayuda": "Qué tipo de personas quiere que lo vean (por ejemplo, oficinistas cerca de su local) y de qué colonias o ciudad."
+  },
+  {
+   "clave": "c_accion",
+   "etiqueta": "Acción del anuncio",
+   "pregunta": "qué quiere que haga la gente al ver su anuncio: escribirle por WhatsApp, llamarle o ir a su local",
+   "si": [
+    {
+     "clave": "eleccion",
+     "contiene": "clientes"
+    }
+   ],
+   "ayuda": "Qué quiere que hagan al ver el anuncio: que le escriban por WhatsApp, que le llamen o que vayan a su local."
+  },
+  {
+   "clave": "c_material",
+   "etiqueta": "Logo y fotos",
+   "pregunta": "si tiene logo y fotos de su negocio o de sus trabajos",
+   "si": [
+    {
+     "clave": "eleccion",
+     "contiene": "clientes"
+    }
+   ],
+   "ayuda": "Si tiene un logo y fotos de su producto o de su local para usar en el sitio y en los anuncios."
+  }
+ ]
+}

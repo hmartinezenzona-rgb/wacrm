@@ -65,6 +65,10 @@ export async function POST(request: Request, { params }: Params) {
     const update: Record<string, unknown> = { ai_autoreply_disabled: paused }
 
     if (paused) {
+      // 385 — a pause without reason expires after pausa_humana_caduca_minutos without human activity,
+      // counted from the later of this moment and the last human message. Without the stamp the cron
+      // would measure from an old message and release the pause on its next tick.
+      update.ai_handoff_at = new Date().toISOString()
       if (assignToMe) update.assigned_agent_id = userId
     } else {
       // Resuming hands the thread *back to the bot*. Clear the pause and

@@ -37,7 +37,10 @@ AS $$
     FROM pdf
    WHERE pdf_en IS NOT NULL
      AND pdf_en < now() - make_interval(hours => p_horas)
-     AND (cliente_en IS NULL OR cliente_en < pdf_en);
+     AND (cliente_en IS NULL OR cliente_en < pdf_en)
+     -- Solo en horario de atención (lun–sáb, 9:00–19:00 hora de Saltillo).
+     AND extract(isodow FROM now() AT TIME ZONE 'America/Monterrey') < 7
+     AND extract(hour FROM now() AT TIME ZONE 'America/Monterrey') BETWEEN 9 AND 18;
 $$;
 REVOKE ALL ON FUNCTION public.bot_seguimientos_pdf(UUID, INT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.bot_seguimientos_pdf(UUID, INT) TO anon, authenticated, service_role;

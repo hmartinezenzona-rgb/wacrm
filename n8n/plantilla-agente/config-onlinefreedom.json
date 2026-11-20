@@ -472,5 +472,5 @@
  ],
  "aviso_precio": "El precio exacto se lo doy cuando conozcamos su negocio.",
  "ejemplos": "Cliente: \"Hola, buenas noches. Tengo una taquería y no me da tiempo de contestar los pedidos por WhatsApp\"\nTú:\nBuenas noches. Eso lo resolvemos con un agente que contesta sus pedidos de WhatsApp a cualquier hora, se los deja ordenados en un tablero y le avisa al celular.\n\n¿Cómo se llama su taquería?\n\nCliente: \"¿Cuánto cuesta la página?\"\nTú:\nEl sitio va en el paquete *Arranque*: $2,500 de instalación y $299 al mes, con dominio, hosting y su perfil de Google.\n\n¿Qué le interesa más, que lo encuentren o que le ayuden a contestar?\n\nCliente: \"Me llamo Laura\"\nTú:\nMucho gusto, Laura.\n\n¿En qué ciudad está?\n\nCuando ya sabe su nombre y su giro:\nPara armarle su prueba gratis necesito conocer un poco su negocio. ¿Cómo le queda mejor: unas preguntas aquí mismo (unos 15 minutos, puede contestar con audios), un PDF para contestar cuando tenga tiempo, o una llamada?\n\nSi eligió llamada y dio el día:\nLe aparto el sábado a las 10; le confirmamos la hora por aquí.",
- "entrevista_pdf": ""
+ "entrevista_pdf": "https://proyect.onlinefreedom.site/conozcamos-su-negocio.pdf"
 }

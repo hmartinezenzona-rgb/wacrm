@@ -42,27 +42,6 @@
    "guardar": "como giro en pocas palabras (ej. \"venta de cremas por WhatsApp\"), no la frase completa del cliente"
   },
   {
-   "clave": "ciudad",
-   "etiqueta": "Ciudad",
-   "pregunta": "en qué ciudad está"
-  },
-  {
-   "clave": "negocio",
-   "pregunta": "cómo se llama su negocio"
-  },
-  {
-   "clave": "reto",
-   "etiqueta": "Reto",
-   "pregunta": "qué le quita más tiempo o clientes hoy",
-   "guardar": "una frase que junte todo lo que contó, no solo la primera parte"
-  },
-  {
-   "clave": "paquete",
-   "etiqueta": "Paquete",
-   "pregunta": "qué paquete le late (después de mostrarle la opción que le queda)",
-   "guardar": "con el nombre del catálogo: Arranque, Negocio, Pro con IA o A la medida"
-  },
-  {
    "clave": "modo_entrevista",
    "etiqueta": "Entrevista",
    "obligatorio": true,
@@ -90,6 +69,27 @@
      ]
     }
    ]
+  },
+  {
+   "clave": "ciudad",
+   "etiqueta": "Ciudad",
+   "pregunta": "en qué ciudad está"
+  },
+  {
+   "clave": "negocio",
+   "pregunta": "cómo se llama su negocio"
+  },
+  {
+   "clave": "reto",
+   "etiqueta": "Reto",
+   "pregunta": "qué le quita más tiempo o clientes hoy",
+   "guardar": "una frase que junte todo lo que contó, no solo la primera parte"
+  },
+  {
+   "clave": "paquete",
+   "etiqueta": "Paquete",
+   "pregunta": "qué paquete le late (después de mostrarle la opción que le queda)",
+   "guardar": "con el nombre del catálogo: Arranque, Negocio, Pro con IA o A la medida"
   }
  ],
  "registro": {

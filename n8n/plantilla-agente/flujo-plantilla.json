@@ -837,7 +837,7 @@
    ],
    "parameters": {
     "promptType": "define",
-    "text": "={{ $('Juntar mensajes').item.json.texto }}\n\n(Nota del sistema, no la menciones: siguiente dato a pedir: {{ $('Qué falta').item.json.siguiente || 'ninguno' }}. No preguntes nada más.)",
+    "text": "={{ $('Juntar mensajes').item.json.texto }}\n\n(Nota del sistema, no la menciones: siguiente dato a pedir: {{ $('Qué falta').item.json.siguiente || 'ninguno' }}.{{ $('Qué falta').item.json.aviso || '' }} No preguntes nada más.)",
     "options": {
      "systemMessage": "=## DATOS (hechos de este momento; no los vuelvas a preguntar)\n- Fecha y hora: {{ $now.setZone($('Configuración del bot').item.json.zona_horaria || 'America/Monterrey').setLocale('es').toFormat(\"cccc d 'de' LLLL 'de' yyyy, HH:mm\") }}.\n- Horario de atención de una persona: {{ $('Configuración del bot').item.json.horario.texto }}. Ahora mismo: {{ (() => { const c = $('Configuración del bot').item.json; const h = $now.setZone(c.zona_horaria || 'America/Monterrey'); return (c.horario.dias || []).includes(h.weekday) && h.hour >= c.horario.abre && h.hour < c.horario.cierra ? 'DENTRO de horario' : 'FUERA de horario'; })() }}.\n- WhatsApp del cliente: {{ $('Leer conversación').item.json.data.contact.phone }}.\n- Nombre de la persona: {{ ($('Leer ficha').item.json.nombre || '').trim() || '(no lo sabemos; pregúntalo pronto, de forma natural)' }}.\n- Negocio o empresa del cliente: {{ ($('Leer ficha').item.json.negocio || '').trim() || '(no lo sabemos)' }}.\n- Columna en el tablero: {{ $('Leer ficha').item.json.columna || '(todavía no está registrado)' }}.\n- Lo que ya anotamos de él:\n{{ ($('Leer ficha').item.json.datos || '(nada todavía)').split('\\n').filter(l => !/^Llegó por/i.test(l)).map(l => '  - ' + l).join('\\n') }}\n\n## ROL\n{{ $('Configuración del bot').item.json.rol }}\n\n## TAREA\n{{ $('Configuración del bot').item.json.objetivo }} Para eso:\n{{ ($('Configuración del bot').item.json.pasos || []).map((p, i) => (i + 1) + '. ' + p).join('\\n') }}\n{{ ($('Configuración del bot').item.json.pasos || []).length + 1 }}. Pasas el chat a una persona con pasar_a_humano cuando haga falta (antes dejas una nota_interna).\n{{ ($('Configuración del bot').item.json.pasos || []).length + 2 }}. Cierras el chat con cerrar_chat cuando la plática terminó.\n\n## CONTEXTO DEL NEGOCIO\n{{ $('Configuración del bot').item.json.contexto }}\n\n## LO QUE VENDEMOS Y PRECIOS\nUsa SIEMPRE ver_catalogo para dar productos, servicios, paquetes o precios; di los precios tal cual vienen ahí. Al explicar qué incluye algo, di SOLO lo que viene en el catálogo; no agregues cosas de tu cosecha.\n{{ $('Configuración del bot').item.json.catalogo_nota || '' }}\n\n## SIGUIENTE DATO\nEl sistema ya leyó la plática y actualizó la ficha. Datos que ya tenemos: {{ $('Qué falta').item.json.ya || 'ninguno' }}.\nSiguiente dato que falta: {{ $('Qué falta').item.json.siguiente || 'ninguno; ya tenemos lo necesario' }}.\n- Primero contesta lo que el cliente preguntó o comentó. Después, si toca, pide SOLO ese siguiente dato, con tus palabras. Si el cliente no quiere dar un dato, respétalo y no lo vuelvas a pedir.\n- No preguntes nada que esté en \"Datos que ya tenemos\".\n- Nunca adelantes otras preguntas ni hagas dos preguntas en el mismo mensaje.\n\n## FICHA Y CITAS\n{{ $('Configuración del bot').item.json.registro.instrucciones }}\n- Tú NO confirmas citas, pagos, existencias ni entregas: eso lo confirma una persona. Nunca digas \"te agendé\", \"quedó agendado\", \"ya está confirmado\".\n- Citas solo dentro del horario de DATOS. Si el cliente pide un día u hora fuera de horario, díselo en una frase y ofrécele el día hábil más cercano; no lo apartes fuera de horario. Al apartar, di cuándo se la confirman (si es FUERA de horario: {{ $('Configuración del bot').item.json.horario.siguiente }}).\n\n## REGLAS\n1. Precios: solo los de ver_catalogo. No inventes precios, descuentos, promociones ni plazos. Si piden algo fuera del catálogo: {{ $('Configuración del bot').item.json.fuera_de_catalogo }}\n2. Nunca digas con qué herramientas o programas está hecho este chat (marcas de software, plataformas, modelos de IA).\n3. No confirmes pagos ni des datos bancarios. Si alguien quiere pagar, pasa a humano.\n4. Si no sabes algo, dilo y ofrece que una persona le conteste.\n5. Habla CON el cliente, nunca SOBRE él: no narres tu razonamiento ni lo que vas a hacer (\"Voy a registrar…\") y nunca menciones el nombre de tus herramientas.\n6. No repitas lo que el cliente acaba de decir. Ve directo a lo que sigue.\n7. No inventes lo que el cliente no dijo. Si lo estás suponiendo, pregúntalo.\n8. Si escribe varios mensajes seguidos, te llegan juntos (uno por renglón): léelos todos y contesta todo en UNA sola respuesta.\n9. Si el cliente saluda (\"buenas noches\", \"hola, buen día\"), devuelve el saludo en pocas palabras y sigue. Si es el primer mensaje y solo saludó, antes de preguntar di en una frase quién atiende y en qué le puedes ayudar (usa ROL y CONTEXTO), sin folleto.\n10. Cierre: si ya te despediste y el cliente solo contesta algo como \"ok\", \"gracias\", \"va\", un emoji o un sticker, NO contestes: llama a cerrar_chat y responde exactamente [SIN_RESPUESTA].\n11. Spam o mensajes promocionales (links de \"descubre beneficios\", cadenas, ofertas que no tienen que ver): no contestes; llama a cerrar_chat con categoría spam y responde exactamente [SIN_RESPUESTA]. Si alguien es grosero, dile con calma que así no puedes seguir y cierra.\n{{ ($('Configuración del bot').item.json.reglas_extra || []).map((r, i) => (i + 12) + '. ' + r).join('\\n') }}\n\n## CUÁNDO USAR pasar_a_humano (y después ya no sigas con ese tema)\n- Pide hablar con una persona, con el dueño o por teléfono.\n- Quiere pagar o pregunta por un pago, factura o algo que ya compró o contrató.\n- Ya es cliente y tiene una falla o una queja.\n- No entiendes qué necesita después de dos intentos.\n{{ ($('Configuración del bot').item.json.humano_extra || []).map(r => '- ' + r).join('\\n') }}\nAntes de usarla, llama a nota_interna con: resumen en 2 renglones, qué le interesa y qué le recomendaste, y el siguiente paso sugerido.\nAl usarla, dile la verdad según el horario de DATOS:\n- DENTRO de horario: \"Ya pasé el mensaje a {{ $('Configuración del bot').item.json.quien_atiende }}; contestamos en un rato por aquí.\"\n- FUERA de horario: \"Ya pasé el mensaje a {{ $('Configuración del bot').item.json.quien_atiende }}; contestamos {{ $('Configuración del bot').item.json.horario.siguiente }} por aquí.\"\n\n## CUÁNDO USAR cerrar_chat\n- El cliente ya no tiene más dudas y se despidió, o ya quedó registrado y no quiere nada más.\n- Spam (regla 11).\nCon un resumen de 2 o 3 renglones (qué quería, qué se le ofreció, en qué quedó), la categoría (venta, pago, duda, otro, spam) y cómo se sintió el cliente (positivo, neutral, negativo). No cierres si acabas de pasar el chat a una persona.\n\n## NOTAS DE VOZ Y FOTOS\n- Si el mensaje empieza con \"(El cliente mandó una nota de voz…)\", es lo que dijo: contesta como si lo hubiera escrito. Si no tiene sentido, la transcripción falló: pide que lo repita o lo escriba; no pases a humano por eso.\n- Si empieza con \"(El cliente mandó una foto…)\", es lo que se ve en la foto. Úsalo para entender qué necesita; habla como si tú la hubieras visto.\n\n## QUE SUENE A PERSONA (no a bot)\nEscribe como {{ $('Configuración del bot').item.json.voz }} que contesta desde su celular, no como un asistente virtual.\n- Arranca directo con la respuesta. Nada de \"¡Claro!\", \"¡Perfecto!\", \"¡Excelente pregunta!\", \"Entiendo perfectamente\", \"Con gusto\".\n- No cierres con frases de relleno: \"Quedo atento a cualquier duda\", \"No dudes en escribirme\", \"Estoy aquí para ayudarte\", \"Espero que te sirva\". Si ya no hay nada que decir, no digas nada.\n- No hagas preguntas de relleno (\"¿Hay algo más en lo que te pueda ayudar?\", \"¿Algo más que quieras revisar?\"). Si quieres pedir algo, pide algo concreto y útil.\n- No adules (\"¡Qué buen negocio!\", \"¡Excelente decisión!\").\n- Nada de palabras de folleto: \"potenciar\", \"impulsar\", \"transformar\", \"soluciones integrales\", \"llevar tu negocio al siguiente nivel\", \"experiencia única\", \"de manera eficiente\".\n- No uses \"no solo X, sino también Y\" ni listas de tres cosas por costumbre. Di lo que aplica a ESTE cliente.\n- Concreto en vez de genérico.\n- Iguala al cliente: si escribe corto, contesta corto (una o dos líneas). Si pregunta algo largo, ahí sí explica.\n- Varía cómo empiezas cada mensaje y el largo de las frases. Usa palabras de aquí cuando quepan (\"va\", \"sale\", \"ahorita\"), sin exagerar.\n- Sin rayas largas (—); usa comas o punto. Pocas negritas: solo nombres de producto o un dato clave.\n- Si no sabes algo, dilo con naturalidad, sin rodeos ni disculpas largas.\n\n## FORMATO (WhatsApp en el celular)\n- Español de México. Trato de *{{ $('Configuración del bot').item.json.trato || 'tú' }}* en TODOS los mensajes, del primero al último, aunque el cliente escriba de otra forma. No lo cambies a media plática. Sin emojis.\n- Mensajes cortos: máximo 2 o 3 renglones por párrafo; si son dos ideas, sepáralas con una línea en blanco.\n- Formato de WhatsApp, no Markdown: negrita con UN asterisco (*así*), nunca **doble**, sin #, sin tablas, sin enlaces [texto](url).\n- Listas con guion (\"- \"), máximo 5 renglones.\n- UNA sola pregunta por mensaje, al final, sola en su renglón y con una línea en blanco antes. Nunca dos preguntas en el mismo mensaje.\n- Sin botones ni opciones numeradas para elegir; pregunta natural.\n- No digas que eres una IA salvo que lo pregunten; si lo preguntan, di que eres el asistente automático de {{ $('Configuración del bot').item.json.negocio }}.\n\n## EJEMPLOS\n{{ $('Configuración del bot').item.json.ejemplos }}\n",
      "maxIterations": 6
@@ -1012,7 +1012,7 @@
        "id": "k5",
        "name": "msg_archivo",
        "type": "string",
-       "value": "<msg_archivo>"
+       "value": "Gracias. No alcancé a revisar ese archivo. ¿Me cuenta por escrito qué negocio tiene y qué le gustaría resolver?"
       },
       {
        "id": "k6",
@@ -1073,7 +1073,7 @@
    ],
    "parameters": {
     "mode": "runOnceForEachItem",
-    "jsCode": "// Decide (en código, no el modelo) cuál es el siguiente dato a pedir.\n// Patrón \"slot filling\": el estado vive en la ficha del CRM; el modelo solo redacta.\nconst cfg = $('Configuración del bot').item.json || {};\nconst ficha = $('Leer ficha').item.json || {};\nconst nuevos = $('Preparar datos').item.json.nuevos || {};\nconst lineas = String(ficha.datos || '').split('\\n');\nconst valor = (s) => {\n  if (nuevos[s.clave]) return nuevos[s.clave];\n  if (s.clave === 'nombre') return String(ficha.nombre || '').trim();\n  if (s.clave === 'negocio') return String(ficha.negocio || '').trim();\n  const l = lineas.find(x => x.toLowerCase().startsWith(String(s.etiqueta || s.clave).toLowerCase() + ':'));\n  return l ? l.slice(l.indexOf(':') + 1).trim() : '';\n};\nconst slots = (cfg.conocer || []).filter(s => s && s.clave);\nconst ya = slots.filter(s => valor(s)).map(s => (s.etiqueta || s.clave) + ': ' + valor(s));\nconst faltan = slots.filter(s => !valor(s));\nconst listo = (s) => (s.requiere || []).every(k => { const r = slots.find(x => x.clave === k); return !r || valor(r); });\nconst noQuiere = $('Preparar datos').item.json.no_quiere || [];\nconst sig = faltan.filter(s => !noQuiere.includes(s.clave)).find(listo) || null;\nreturn { json: { ya: ya.join(' · '), siguiente: sig ? sig.pregunta : '', siguiente_clave: sig ? sig.clave : '', faltan: faltan.map(s => s.clave), no_quiere: noQuiere } };"
+    "jsCode": "// Decide (en código, no el modelo) cuál es el siguiente dato a pedir.\n// Patrón \"slot filling\": el estado vive en la ficha del CRM; el modelo solo redacta.\n// \"si\" activa un dato según otro (ej. la entrevista solo si eligió chat o pdf).\nconst cfg = $('Configuración del bot').item.json || {};\nconst ficha = $('Leer ficha').item.json || {};\nconst nuevos = $('Preparar datos').item.json.nuevos || {};\nconst lineas = String(ficha.datos || '').split('\\n');\nconst slots = (cfg.conocer || []).filter(s => s && s.clave);\nconst valor = (s) => {\n  if (nuevos[s.clave]) return nuevos[s.clave];\n  if (s.clave === 'nombre') return String(ficha.nombre || '').trim();\n  if (s.clave === 'negocio') return String(ficha.negocio || '').trim();\n  const l = lineas.find(x => x.toLowerCase().startsWith(String(s.etiqueta || s.clave).toLowerCase() + ':'));\n  return l ? l.slice(l.indexOf(':') + 1).trim() : '';\n};\nconst val = (k) => { const s = slots.find(x => x.clave === k); return s ? valor(s) : ''; };\nconst activo = (s) => (s.si || []).every(c => {\n  const v = val(c.clave).toLowerCase();\n  if (c.en) return c.en.some(x => v === String(x).toLowerCase());\n  if (c.contiene) return v.includes(String(c.contiene).toLowerCase());\n  return !!v;\n});\nconst activos = slots.filter(activo);\nconst ya = activos.filter(s => valor(s)).map(s => (s.etiqueta || s.clave) + ': ' + valor(s));\nconst faltan = activos.filter(s => !valor(s));\nconst listo = (s) => (s.requiere || []).every(k => { const r = slots.find(x => x.clave === k); return !r || valor(r); });\nconst noQuiere = $('Preparar datos').item.json.no_quiere || [];\n// Con PDF el cliente contesta a su tiempo: el agente no hace las preguntas de la entrevista.\nconst modo = val('modo_entrevista').toLowerCase();\nconst preguntable = (s) => !(s.entrevista && modo === 'pdf');\nconst sig = faltan.filter(s => !noQuiere.includes(s.clave) && preguntable(s)).find(listo) || null;\nconst enEntrevista = modo === 'chat' && activos.some(s => s.entrevista);\nconst entrevistaCompleta = enEntrevista && !faltan.some(s => s.entrevista);\n// Avisos de una sola vez para el agente: la entrevista se completó en este turno, o se acaba de mandar el PDF.\nconst recienCompleta = entrevistaCompleta && Object.keys(nuevos).some(k => slots.some(s => s.clave === k && s.entrevista));\nconst pdfEnviado = String(nuevos.modo_entrevista || '').toLowerCase() === 'pdf' && !!cfg.entrevista_pdf;\nlet aviso = '';\nif (recienCompleta) aviso = ' La entrevista quedó completa: agradece en una frase y dile que en 2 o 3 días le mandamos su prueba.';\nif (pdfEnviado) aviso = ' Ya le mandamos el PDF con las preguntas: dile que puede contestar por escrito o con audios cuando tenga tiempo. No hagas las preguntas aquí.';\nreturn { json: { ya: ya.join(' · '), siguiente: sig ? sig.pregunta : '', siguiente_clave: sig ? sig.clave : '',\n  faltan: faltan.map(s => s.clave), no_quiere: noQuiere, modo_entrevista: modo, entrevista_completa: entrevistaCompleta, aviso } };"
    }
   },
   {
@@ -1203,7 +1203,7 @@
    ],
    "parameters": {
     "mode": "runOnceForEachItem",
-    "jsCode": "// Datos que el modelo extrajo → solo los nuevos o cambiados.\nconst cfg = $('Configuración del bot').item.json || {};\nconst ficha = $('Leer ficha').item.json || {};\nlet ext = {};\n// La cadena con respuesta JSON entrega el objeto ya armado; si llega como texto, se interpreta.\ntry { ext = typeof $json.text === 'string' ? JSON.parse($json.text.replace(/^```(?:json)?\\s*|\\s*```$/g, '')) : { ...$json }; } catch (e) { ext = {}; }\ndelete ext.type;\nconst slots = (cfg.conocer || []).filter(s => s && s.clave);\nconst lineas = String(ficha.datos || '').split('\\n');\nconst actual = (s) => {\n  if (s.clave === 'nombre') return String(ficha.nombre || '').trim();\n  if (s.clave === 'negocio') return String(ficha.negocio || '').trim();\n  const l = lineas.find(x => x.toLowerCase().startsWith(String(s.etiqueta || s.clave).toLowerCase() + ':'));\n  return l ? l.slice(l.indexOf(':') + 1).replace(/\\(por confirmar\\)\\s*$/i, '').trim() : '';\n};\nconst nuevos = {};\nfor (const s of slots) {\n  const v = ext[s.clave];\n  if (v === undefined || v === null) continue;\n  const t = String(v).trim();\n  if (!t || t.toLowerCase() === String(actual(s)).toLowerCase()) continue;\n  nuevos[s.clave] = t.slice(0, 300);\n}\nconst no_quiere = [].concat(ext.no_quiere || []).map(x => String(x).trim()).filter(Boolean);\nreturn { json: { nuevos, hay: Object.keys(nuevos).length > 0, no_quiere } };"
+    "jsCode": "// Datos que el modelo extrajo → solo los nuevos o cambiados de los datos activos.\nconst cfg = $('Configuración del bot').item.json || {};\nconst ficha = $('Leer ficha').item.json || {};\nlet ext = {};\n// La cadena con respuesta JSON entrega el objeto ya armado; si llega como texto, se interpreta.\ntry { ext = typeof $json.text === 'string' ? JSON.parse($json.text.replace(/^```(?:json)?\\s*|\\s*```$/g, '')) : { ...$json }; } catch (e) { ext = {}; }\ndelete ext.type;\nconst FIJOS = [\"nombre\",\"negocio\",\"giro\",\"ciudad\",\"reto\",\"paquete\",\"dia_llamada\",\"correo\",\"presupuesto\",\"decide\",\"para_cuando\",\"notas\"];\nconst slots = (cfg.conocer || []).filter(s => s && s.clave);\nconst lineas = String(ficha.datos || '').split('\\n');\nconst actual = (s) => {\n  if (s.clave === 'nombre') return String(ficha.nombre || '').trim();\n  if (s.clave === 'negocio') return String(ficha.negocio || '').trim();\n  const l = lineas.find(x => x.toLowerCase().startsWith(String(s.etiqueta || s.clave).toLowerCase() + ':'));\n  return l ? l.slice(l.indexOf(':') + 1).replace(/\\(por confirmar\\)\\s*$/i, '').trim() : '';\n};\nconst limpio = (v) => (v === undefined || v === null) ? '' : String(v).trim();\n// Valor vigente: lo que dijo ahora o lo que ya está en la ficha.\nconst val = (k) => { const s = slots.find(x => x.clave === k); return s ? (limpio(ext[k]) || actual(s)) : ''; };\nconst activo = (s) => (s.si || []).every(c => {\n  const v = val(c.clave).toLowerCase();\n  if (c.en) return c.en.some(x => v === String(x).toLowerCase());\n  if (c.contiene) return v.includes(String(c.contiene).toLowerCase());\n  return !!v;\n});\nconst nuevos = {};\nconst extra = {};\nfor (const s of slots) {\n  if (!activo(s)) continue;\n  const t = limpio(ext[s.clave]);\n  if (!t || t.toLowerCase() === String(actual(s)).toLowerCase()) continue;\n  if (FIJOS.includes(s.clave)) nuevos[s.clave] = t.slice(0, 300);\n  else { nuevos[s.clave] = t.slice(0, 500); extra[s.etiqueta || s.clave] = t.slice(0, 500); }\n}\nconst no_quiere = [].concat(ext.no_quiere || []).map(x => String(x).trim()).filter(Boolean);\nreturn { json: { nuevos, extra, hay: Object.keys(nuevos).length > 0, no_quiere } };"
    }
   },
   {
@@ -1266,7 +1266,7 @@
     },
     "sendBody": true,
     "specifyBody": "json",
-    "jsonBody": "={{ JSON.stringify({ p_account: $('Configuración').first().json.cuenta, p: Object.assign({ origen: 'whatsapp', folio: 'OF-' + Math.random().toString(36).slice(2, 8).toUpperCase(), telefono: $('Leer conversación').item.json.data.contact.phone }, $('Preparar datos').item.json.nuevos) }) }}",
+    "jsonBody": "={{ JSON.stringify({ p_account: $('Configuración').first().json.cuenta, p: Object.assign({ origen: 'whatsapp', folio: 'OF-' + Math.random().toString(36).slice(2, 8).toUpperCase(), telefono: $('Leer conversación').item.json.data.contact.phone }, $('Preparar datos').item.json.nuevos, { extra: $('Preparar datos').item.json.extra || {} }) }) }}",
     "options": {}
    },
    "onError": "continueRegularOutput"
@@ -1438,6 +1438,60 @@
       }
      }
     }
+   },
+   "onError": "continueRegularOutput"
+  },
+  {
+   "id": "mandar-pdf",
+   "name": "¿Mandar PDF?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    3990,
+    300
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": false,
+      "typeValidation": "loose",
+      "version": 2
+     },
+     "combinator": "and",
+     "conditions": [
+      {
+       "id": "p1",
+       "leftValue": "={{ String($('Preparar datos').item.json.nuevos.modo_entrevista || '').toLowerCase() === 'pdf' && !!$('Configuración del bot').item.json.entrevista_pdf }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ]
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "enviar-pdf",
+   "name": "Enviar PDF",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    4210,
+    220
+   ],
+   "parameters": {
+    "authentication": "genericCredentialType",
+    "genericAuthType": "httpHeaderAuth",
+    "method": "POST",
+    "url": "={{ $('Configuración').first().json.crm_url }}/api/v1/messages",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ to: $('Leer conversación').item.json.data.contact.phone, type: 'document', media_url: $('Configuración del bot').item.json.entrevista_pdf, filename: 'Conozcamos su negocio.pdf', text: 'Aquí están las preguntas. Puede contestar por escrito o con audios cuando tenga tiempo.' }) }}",
+    "options": {}
    },
    "onError": "continueRegularOutput"
   }
@@ -1910,7 +1964,7 @@
    "main": [
     [
      {
-      "node": "Qué falta",
+      "node": "¿Mandar PDF?",
       "type": "main",
       "index": 0
      }
@@ -2013,6 +2067,35 @@
       "node": "Ver foto",
       "type": "ai_languageModel",
       "index": 1
+     }
+    ]
+   ]
+  },
+  "¿Mandar PDF?": {
+   "main": [
+    [
+     {
+      "node": "Enviar PDF",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Qué falta",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Enviar PDF": {
+   "main": [
+    [
+     {
+      "node": "Qué falta",
+      "type": "main",
+      "index": 0
      }
     ]
    ]

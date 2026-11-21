@@ -1,12 +1,19 @@
 {
  "modo_etiqueta": "Entrevista",
- "cierre": "Ya terminó la entrevista. Agradece en una frase y dile que en 2 o 3 días le mandamos su prueba funcionando por aquí. Si no se ha apartado una llamada, puedes ofrecerle verla juntos en una llamada. No vuelvas a pedir nada que ya se haya hablado en la plática (fotos, menú, datos).",
+ "cierre": "Ya terminó la entrevista. Agradece en una frase y dile que en 2 o 3 días le mandamos por aquí su prueba funcionando, armada con datos e imágenes de ejemplo para que vea cómo queda. Puedes decirle que, si quiere, mande su lista de precios o fotos, pero que no es necesario. Si no se ha apartado una llamada, puedes ofrecerle verla juntos. No vuelvas a pedir nada que ya se haya hablado.",
  "preguntas": [
   {
    "clave": "e_vende",
    "etiqueta": "Vende",
    "pregunta": "qué vende o qué servicios da, y qué es lo que más le piden",
    "ayuda": "Para que el agente sepa qué ofrecer primero, por ejemplo: tacos de asada, de pastor y quesadillas."
+  },
+  {
+   "clave": "e_negocio",
+   "etiqueta": "Negocio, zona y horario",
+   "pregunta": "cómo se llama su negocio, en qué zona está y en qué horario atiende",
+   "ayuda": "Para que el agente pueda contestar si están abiertos o si llegan a su colonia, y para su perfil de Google.",
+   "guardar": "nombre del negocio, zona o colonia y horario, lo que haya dicho"
   },
   {
    "clave": "e_como",

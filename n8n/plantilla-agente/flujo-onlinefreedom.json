@@ -1569,7 +1569,7 @@
    ],
    "parameters": {
     "method": "POST",
-    "url": "={{ $('Configuración').first().json.supabase_url }}/rest/v1/rpc/bot_entrevista",
+    "url": "={{ $('Configuración').first().json.supabase_url }}/rest/v1/rpc/bot_entrevista_turno",
     "sendHeaders": true,
     "headerParameters": {
      "parameters": [

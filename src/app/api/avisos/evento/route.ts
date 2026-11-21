@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { avisar } from '@/lib/avisos/push'
+import { resumenDeNotas } from '@/lib/negocio/config'
+import { negocioDeCuenta } from '@/lib/negocio/servidor'
 
-// Lo llama la base de datos (trigger 302/311) cuando llega una solicitud de cotización.
+// Lo llama la base de datos (trigger 302/311) cuando llega una tarjeta nueva.
 // No confía en lo que recibe: con el id relee el encargo y solo avisa si es
 // de los últimos 15 minutos y todavía no se avisó (el UPDATE lo marca de
 // forma atómica, así que un aviso nunca sale dos veces).
@@ -26,18 +28,17 @@ export async function POST(request: Request) {
   if (!deal) return NextResponse.json({ ok: true, avisado: false })
 
   const nombre = (deal.contact as { name?: string } | null)?.name || ''
-  // Onlinefreedom: giro y reto del prospecto («Giro: …», «Reto: …»).
-  const dato = (k: string) =>
-    (deal.notes || '').split('\n').find((l: string) => l.toLowerCase().startsWith(k + ':'))?.slice(k.length + 1).trim() || ''
-  const primero = [dato('giro'), dato('reto')].filter(Boolean).join(' · ')
+  // Qué dice el aviso lo decide cada negocio (negocio_config.avisos.nuevo).
+  const negocio = await negocioDeCuenta(db, deal.account_id)
+  const primero = resumenDeNotas(deal.notes, negocio.avisos.nuevo.resumen)
   const quien = nombre && nombre !== deal.title ? `${deal.title} (${nombre})` : deal.title
   const r = await avisar(
     { accountId: deal.account_id },
     {
-      title: 'Nuevo prospecto',
+      title: negocio.avisos.nuevo.titulo,
       body: primero ? `${quien} · ${primero}` : quien,
       url: '/pipelines',
-      tag: `prospecto-${deal.id}`,
+      tag: `nuevo-${deal.id}`,
     },
   )
   return NextResponse.json({ ok: true, avisado: true, ...r })

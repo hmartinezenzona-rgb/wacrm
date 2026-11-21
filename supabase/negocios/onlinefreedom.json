@@ -1,0 +1,23 @@
+{
+ "nombre": "Onlinefreedom",
+ "logo": {"src": "/logo-onlinefreedom.svg", "ancho": 262, "alto": 64},
+ "menu": ["pipelines", "inbox", "catalogo", "contacts"],
+ "textos": {},
+ "tarjeta": {
+  "resumen": ["Giro", "Reto"],
+  "destacar": [{"clave": "Llamada", "etiqueta": "Llamada"}]
+ },
+ "columnas": {
+  "Nuevo contacto": {"alerta_dias": 1},
+  "Llamada agendada": {"boton": "Ya agendamos"},
+  "Entrevista lista": {"boton": "Ya tenemos la entrevista", "alerta_dias": 2},
+  "Propuesta enviada": {"boton": "Ya la envié", "alerta_dias": 3},
+  "Anticipo pagado": {"boton": "Ya pagó anticipo"},
+  "En implementación": {"boton": "Empezar a construir"},
+  "Cliente activo": {"boton": "Ya está en línea"}
+ },
+ "avisos": {
+  "nuevo": {"titulo": "Nuevo prospecto", "resumen": ["Giro", "Reto"]},
+  "seguimiento": {"columna": "Propuesta enviada", "dias": 3, "singular": "propuesta", "plural": "propuestas"}
+ }
+}

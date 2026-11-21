@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
 import { useUnreadNotifications } from "@/hooks/use-unread-notifications";
 import {
+  ChefHat,
   Crown,
   GitBranch,
   Package,
@@ -19,8 +20,11 @@ import {
   UserCog,
   Users,
   UsersRound,
+  UtensilsCrossed,
   X,
 } from "lucide-react";
+import { useNegocio } from "@/hooks/use-negocio";
+import type { Seccion } from "@/lib/negocio/config";
 import type { AccountRole } from "@/lib/auth/roles";
 
 // Per-role chip metadata used in the sidebar's account strip + the
@@ -84,14 +88,17 @@ interface NavItem {
   beta?: boolean;
 }
 
-// Edición Onlinefreedom (igual que AP): solo lo que usa ventas. Las demás páginas siguen
-// existiendo (para Julio) pero no salen en el menú.
-const navItems: NavItem[] = [
-  { href: "/pipelines", labelKey: "pipelines", icon: GitBranch },
-  { href: "/inbox", labelKey: "inbox", icon: MessageSquare },
-  { href: "/catalogo", labelKey: "catalogo", icon: Package },
-  { href: "/contacts", labelKey: "contacts", icon: Users },
-];
+// Secciones que puede tener el menú. Cada negocio elige cuáles se ven y en
+// qué orden (negocio_config.menu). Las demás páginas siguen existiendo
+// (para Julio) pero no salen en el menú.
+const SECCIONES_MENU: Record<Seccion, NavItem> = {
+  pipelines: { href: "/pipelines", labelKey: "pipelines", icon: GitBranch },
+  inbox: { href: "/inbox", labelKey: "inbox", icon: MessageSquare },
+  catalogo: { href: "/catalogo", labelKey: "catalogo", icon: Package },
+  cocinar: { href: "/cocinar", labelKey: "cocinar", icon: ChefHat },
+  menu: { href: "/menu", labelKey: "menu", icon: UtensilsCrossed },
+  contacts: { href: "/contacts", labelKey: "contacts", icon: Users },
+};
 
 const bottomNavItems = [
   { href: "/settings", labelKey: "settings", icon: Settings },
@@ -108,6 +115,8 @@ import { useTranslations } from "next-intl";
 export function Sidebar({ open = false, onClose }: SidebarProps) {
   const t = useTranslations("Sidebar");
   const pathname = usePathname();
+  const { negocio } = useNegocio();
+  const navItems = negocio.menu.map((s) => SECCIONES_MENU[s]);
   const { profile, profileLoading, account, accountRole, signOut } = useAuth();
   const totalUnread = useTotalUnread();
   const unreadNotifications = useUnreadNotifications();
@@ -186,10 +195,10 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/logo-onlinefreedom.svg"
+              src={negocio.logo.src}
               alt={t("title")}
-              width={262}
-              height={64}
+              width={negocio.logo.ancho}
+              height={negocio.logo.alto}
               className="h-10 w-auto"
             />
           </Link>

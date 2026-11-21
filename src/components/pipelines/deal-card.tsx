@@ -18,6 +18,8 @@ import type { Deal, PipelineStage } from "@/types";
 import { Check, Globe, MessageCircle, Paperclip, X } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
 import { useTranslations } from "next-intl";
+import { useNegocio } from "@/hooks/use-negocio";
+import { columna, datoDeNotas, resumenDeNotas } from "@/lib/negocio/config";
 
 interface DealCardProps {
   deal: Deal;
@@ -54,12 +56,7 @@ function resumenNotas(notes?: string | null) {
     : /p[aá]gina/i.test(origenTxt)
       ? "web"
       : null;
-  // Onlinefreedom: prospecto con «Giro: …» y «Reto: …».
-  const dato = (k: string) =>
-    lineas.find((l) => l.toLowerCase().startsWith(k + ":"))?.slice(k.length + 1).trim() || "";
-  const perfil = [dato("giro"), dato("reto")].filter(Boolean).join(" · ");
-  const llamada = dato("llamada");
-  return { cuantos: productos.length, lineas: unicas, origen, perfil, llamada };
+  return { cuantos: productos.length, lineas: unicas, origen };
 }
 
 function diasDesde(iso?: string | null) {
@@ -77,16 +74,6 @@ function textoAntiguedad(dias: number, iso: string) {
   return `${dias} d`;
 }
 
-/** Cuántos días en la columna ya es "estancada" (null = nunca). */
-function limiteDias(stageName?: string): number | null {
-  if (!stageName) return null;
-  if (/nueva|nuevo/i.test(stageName)) return 1;
-  if (/diagn[oó]stico hecho/i.test(stageName)) return 2;
-  if (/cotizando/i.test(stageName)) return 2;
-  if (/enviada/i.test(stageName)) return 3;
-  return null;
-}
-
 export function DealCard({
   deal,
   stage,
@@ -100,11 +87,18 @@ export function DealCard({
   const titulo = deal.title.replace(URGENTE, "");
   const contacto = deal.contact?.name || deal.contact?.phone || t("noContact");
   const mostrarContacto = contacto !== titulo;
-  const { cuantos, lineas, origen, perfil, llamada } = resumenNotas(deal.notes);
+  const { negocio } = useNegocio();
+  const { cuantos, lineas, origen } = resumenNotas(deal.notes);
+  // Lo que cada negocio quiere ver en la tarjeta (negocio_config.tarjeta).
+  const perfil = resumenDeNotas(deal.notes, negocio.tarjeta.resumen);
+  const destacados = negocio.tarjeta.destacar
+    .map((d) => ({ etiqueta: d.etiqueta, valor: datoDeNotas(deal.notes, d.clave) }))
+    .filter((d) => d.valor);
 
   const desde = deal.etapa_desde || deal.created_at;
   const dias = diasDesde(desde);
-  const limite = limiteDias(stage?.name);
+  // Días en la columna para marcarla como estancada (negocio_config.columnas).
+  const limite = columna(negocio, stage?.name).alerta_dias ?? null;
   const cerrada = deal.status === "won" || deal.status === "lost";
   const estancada = !cerrada && limite !== null && dias !== null && dias >= limite;
   const porVencer = !cerrada && !estancada && limite !== null && dias !== null && limite > 1 && dias === limite - 1;
@@ -177,9 +171,11 @@ export function DealCard({
       {cuantos === 0 && perfil && (
         <p className="mt-1 line-clamp-2 text-xs text-muted-foreground/90">{perfil}</p>
       )}
-      {llamada && (
-        <p className="mt-1 truncate text-xs font-medium text-sky-500">Llamada: {llamada}</p>
-      )}
+      {destacados.map((d) => (
+        <p key={d.etiqueta} className="mt-1 truncate text-xs font-medium text-sky-500">
+          {d.etiqueta}: {d.valor}
+        </p>
+      ))}
 
       {/* 4. Monto y tiempo en la columna */}
       <div className="mt-2 flex items-center justify-between gap-2">

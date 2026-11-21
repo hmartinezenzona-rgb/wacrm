@@ -21,6 +21,8 @@ import { ChevronRight, Plus } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { formatCurrency } from "@/lib/currency";
 import { useTranslations } from "next-intl";
+import { useNegocio } from "@/hooks/use-negocio";
+import { textoBoton } from "@/lib/negocio/config";
 
 interface PipelineBoardProps {
   stages: PipelineStage[];
@@ -308,20 +310,6 @@ function colorTexto(hex: string): string {
   return lum > 0.6 ? "#0b0d12" : "#fff";
 }
 
-function textoMover(next: PipelineStage): string {
-  if (/diagn[oó]stico agendado/i.test(next.name)) return "Ya agendamos";
-  if (/diagn[oó]stico hecho/i.test(next.name)) return "Ya lo hice";
-  if (/propuesta/i.test(next.name)) return "Ya la envié";
-  if (/anticipo/i.test(next.name)) return "Ya pagó anticipo";
-  if (/implementaci/i.test(next.name)) return "Empezar a construir";
-  if (/cliente activo/i.test(next.name)) return "Ya está en línea";
-  if (/cotizando/i.test(next.name)) return "Empezar a cotizar";
-  if (/enviada/i.test(next.name)) return "Ya la envié";
-  if (/ganad/i.test(next.name)) return "La aceptó";
-  if (/entreg/i.test(next.name)) return "Ya se entregó";
-  return `Pasar a ${next.name}`;
-}
-
 function DraggableDealCard({
   deal,
   stage,
@@ -340,6 +328,7 @@ function DraggableDealCard({
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: deal.id,
   });
+  const { negocio } = useNegocio();
 
   return (
     <div
@@ -373,7 +362,7 @@ function DraggableDealCard({
               className="mt-2 flex h-8 w-full items-center justify-center gap-1 rounded-md border border-border text-xs font-semibold text-foreground/90 transition-colors hover:border-transparent active:scale-[0.98] [@media(hover:hover)]:hover:[background-color:var(--siguiente)] [@media(hover:hover)]:hover:[color:var(--siguiente-texto)]"
               style={{ ["--siguiente" as string]: nextStage.color, ["--siguiente-texto" as string]: colorTexto(nextStage.color) }}
             >
-              {textoMover(nextStage)}
+              {textoBoton(negocio, nextStage.name)}
               <ChevronRight className="h-3.5 w-3.5" />
             </button>
           ) : null

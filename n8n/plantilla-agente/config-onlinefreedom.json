@@ -89,7 +89,8 @@
    "clave": "paquete",
    "etiqueta": "Paquete",
    "pregunta": "qué paquete le late (después de mostrarle la opción que le queda)",
-   "guardar": "con el nombre del catálogo: Arranque, Negocio, Pro con IA o A la medida"
+   "guardar": "con el nombre del catálogo: Arranque, Negocio, Pro con IA o A la medida",
+   "solo_si_lo_dice": true
   }
  ],
  "registro": {

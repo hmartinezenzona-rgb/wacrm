@@ -59,3 +59,7 @@ Igual que el Cerebro v2 de Remesas Ya: DeepSeek `deepseek-flash` con el nodo de 
 - Audio: OpenAI `gpt-4o-mini-transcribe`.
 - Las cadenas usan plantillas de LangChain: las llaves { } se toman como variables. Por eso los textos de sistema no llevan llaves y a lo que viene del cliente se le quitan.
 - CUIDADO con DeepSeek V4: si el prompt le pide deliberar ("piensa", "decide cuál herramienta", "evalúa"), puede ponerse a razonar; razonar + llamar herramienta hace que la API exija reenviar `reasoning_content`, que n8n no conserva, y el agente truena. En `prompt.md` y en `bot_config` nada de lenguaje deliberativo: reglas planas y ejemplos.
+
+## Editar sin tocar código (21 nov)
+En el CRM: Configuración › **Tu negocio** (solo dueño o admin). Tres pestañas: CRM (`negocio_config`: menú, logo, botones y alertas por columna, tarjeta, avisos, textos), Agente (`bot_config`) y Entrevista (`bot_entrevista`). Cada una tiene «Editar como JSON» para lo avanzado.
+Desde ahí, la base es la fuente de verdad: los archivos `config-*.json`, `entrevista-*.json` y `supabase/negocios/*.json` sirven para dar de alta un negocio nuevo, pero pueden quedar atrás de lo que se cambió en el CRM.

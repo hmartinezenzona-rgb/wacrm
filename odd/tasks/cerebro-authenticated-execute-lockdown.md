@@ -26,5 +26,7 @@
   - RED: 4 cases failed (`authenticated can EXECUTE ...`); cases 4-5 skipped (staging has no remesas_handoff).
   - Staging cycle: dry-run/apply/assertion/rollback OK.
   - Staging post-apply: all four ACLs are `{postgres, service_role}` only.
-- [ ] T2 Production apply after go-ahead; verify ACLs read-only.
+- [x] T2 Production apply after go-ahead; verify ACLs read-only.
   - Production pre-388: authenticated on all four; remesas_handoff on `cerebro_registrar_derivacion`.
+  - Applied 2026-11-22 20:44Z: `OK 388_cerebro_authenticated_execute_lockdown 20261122204448`.
+  - Post-388: authenticated can execute none; service_role missing none; the three other ACLs are `{postgres, service_role}`; `remesas_handoff` keeps only `cerebro_registrar_derivacion`; ledger row present.

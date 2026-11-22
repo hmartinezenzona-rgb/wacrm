@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the WaCRM production backup daily
+
+[Timer]
+OnCalendar=*-*-* 03:15:00
+RandomizedDelaySec=15min
+Persistent=true
+Unit=wacrm-respaldo.service
+
+[Install]
+WantedBy=timers.target

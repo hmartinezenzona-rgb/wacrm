@@ -1,0 +1,13 @@
+[Unit]
+Description=WaCRM daily production database backup
+Documentation=file:%h/wacrm-worktrees/mejora-legacy/odd/tasks/hardening-produccion.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/wacrm-worktrees/mejora-legacy/infra/db/respaldo-diario.sh produccion
+TimeoutStartSec=30min
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

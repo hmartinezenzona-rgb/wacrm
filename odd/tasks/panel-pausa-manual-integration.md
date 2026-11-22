@@ -17,5 +17,10 @@
 
 ## Tasks
 
-- [ ] T1 Commit this plan, merge `privado/release/prod-pausa-manual` into the feature branch.
-- [ ] T2 Verify file parity with production and run typecheck + targeted tests.
+- [x] T1 Commit this plan, merge `privado/release/prod-pausa-manual` into the feature branch.
+  - Merge commit `1ed446a0`, no conflicts; 5 files, +100/-9.
+- [x] T2 Verify file parity with production and run typecheck + targeted tests.
+  - `git diff fa51b1e0 HEAD` over the five affected paths: empty.
+  - `npx tsc --noEmit`: exit 0.
+  - Full suite: 305 files, 4224 tests passed (25.8 s).
+  - The four files from the other session remain untouched.

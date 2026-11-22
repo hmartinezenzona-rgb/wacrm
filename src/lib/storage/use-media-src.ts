@@ -11,18 +11,23 @@ import { resolveMediaSrc } from './signed-media';
  * URL would immediately replace.
  */
 export function useMediaSrc(url: string | null | undefined): string | null {
-  const [src, setSrc] = useState<string | null>(null);
+  // The resolved URL is stored together with the input it belongs to. While a
+  // new URL resolves, the derived return value is null, so callers keep their
+  // loading state instead of showing the previous image.
+  const [resolved, setResolved] = useState<{
+    url: string | null | undefined;
+    src: string | null;
+  }>({ url, src: null });
 
   useEffect(() => {
     let alive = true;
-    setSrc(null);
-    void resolveMediaSrc(url).then((resolved) => {
-      if (alive) setSrc(resolved || null);
+    void resolveMediaSrc(url).then((value) => {
+      if (alive) setResolved({ url, src: value || null });
     });
     return () => {
       alive = false;
     };
   }, [url]);
 
-  return src;
+  return resolved.url === url ? resolved.src : null;
 }

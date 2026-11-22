@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import React, { act } from "react";
+import React, { act, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { NextIntlClientProvider } from "next-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -30,9 +30,14 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
-let api: ReturnType<typeof useAusencia>;
+const captured: { current: ReturnType<typeof useAusencia> | null } = {
+  current: null,
+};
 function Probe() {
-  api = useAusencia();
+  const api = useAusencia();
+  useEffect(() => {
+    captured.current = api;
+  });
   return null;
 }
 
@@ -75,8 +80,8 @@ describe("useAusencia", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][0]).toBe("/api/ausencia");
     expect(fetchMock.mock.calls[0][1]).toMatchObject({ cache: "no-store" });
-    expect(api.ausencia).toEqual(AUS);
-    expect(api.loading).toBe(false);
+    expect(captured.current!.ausencia).toEqual(AUS);
+    expect(captured.current!.loading).toBe(false);
   });
 
   it("refetches every 60 seconds and on window focus", async () => {
@@ -95,20 +100,20 @@ describe("useAusencia", () => {
   it("treats the absence as null locally once hasta passes", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ ausencia: { ...AUS, hasta: "2026-10-22T15:00:30.000Z" } }));
     await mount();
-    expect(api.ausencia).not.toBeNull();
+    expect(captured.current!.ausencia).not.toBeNull();
     // Stub keeps returning it; the expiry timer must hide it without a fetch.
     fetchMock.mockClear();
     await act(async () => {
       vi.setSystemTime(new Date("2026-10-22T15:00:31Z"));
       await vi.advanceTimersByTimeAsync(31_000 - 1);
     });
-    expect(api.ausencia).toBeNull();
+    expect(captured.current!.ausencia).toBeNull();
   });
 
   it("an already expired absence from the server is null", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ ausencia: { ...AUS, hasta: "2026-10-22T14:00:00.000Z" } }));
     await mount();
-    expect(api.ausencia).toBeNull();
+    expect(captured.current!.ausencia).toBeNull();
   });
 
   it("set sends PUT with hasta and motivo and stores the response", async () => {
@@ -117,7 +122,7 @@ describe("useAusencia", () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ ausencia: AUS }));
     let ok = false;
     await act(async () => {
-      ok = await api.set(new Date("2026-10-22T19:00:00Z"), "porque tuvimos que salir");
+      ok = await captured.current!.set(new Date("2026-10-22T19:00:00Z"), "porque tuvimos que salir");
     });
     const [url, init] = fetchMock.mock.calls[1];
     expect(url).toBe("/api/ausencia");
@@ -127,7 +132,7 @@ describe("useAusencia", () => {
       motivo: "porque tuvimos que salir",
     });
     expect(ok).toBe(true);
-    expect(api.ausencia).toEqual(AUS);
+    expect(captured.current!.ausencia).toEqual(AUS);
   });
 
   it("set shows the server error text on a 400", async () => {
@@ -136,7 +141,7 @@ describe("useAusencia", () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: "La hora debe ser futura" }, 400));
     let ok = true;
     await act(async () => {
-      ok = await api.set(new Date("2026-10-22T19:00:00Z"), "x");
+      ok = await captured.current!.set(new Date("2026-10-22T19:00:00Z"), "x");
     });
     expect(ok).toBe(false);
     expect(toastError).toHaveBeenCalledWith("La hora debe ser futura");
@@ -147,7 +152,7 @@ describe("useAusencia", () => {
     await mount();
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: "boom" }, 500));
     await act(async () => {
-      await api.set(new Date("2026-10-22T19:00:00Z"), "x");
+      await captured.current!.set(new Date("2026-10-22T19:00:00Z"), "x");
     });
     expect(toastError).toHaveBeenCalledWith(es.AwayMode.errors.save);
   });
@@ -157,10 +162,10 @@ describe("useAusencia", () => {
     await mount();
     fetchMock.mockResolvedValueOnce(jsonResponse({ ausencia: null }));
     await act(async () => {
-      await api.clear();
+      await captured.current!.clear();
     });
     expect(fetchMock.mock.calls[1][1].method).toBe("DELETE");
-    expect(api.ausencia).toBeNull();
+    expect(captured.current!.ausencia).toBeNull();
   });
 
   it("a failed load keeps the previous state and does not toast", async () => {
@@ -168,9 +173,9 @@ describe("useAusencia", () => {
     await mount();
     fetchMock.mockRejectedValueOnce(new Error("offline"));
     await act(async () => {
-      await api.refresh();
+      await captured.current!.refresh();
     });
-    expect(api.ausencia).toEqual(AUS);
+    expect(captured.current!.ausencia).toEqual(AUS);
     expect(toastError).not.toHaveBeenCalled();
   });
 });

@@ -82,6 +82,9 @@ export default function NotificationsPage() {
   }, [accountId]);
 
   useEffect(() => {
+    // load() only sets state after awaiting the query; the compiler cannot
+    // follow that boundary and flags the synchronous call.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
 

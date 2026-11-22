@@ -20,5 +20,7 @@
   - RED: 7 cases failed (`anon can EXECUTE ...`).
   - Staging cycle: dry-run/apply/assertion/rollback OK.
   - Staging post-apply: `anon_can_execute=[]`, `peek_anon=true`; assertion cases 2-3 confirm authenticated and service_role keep EXECUTE.
-- [ ] T2 Production apply after go-ahead; verify with read-only SQL.
+- [x] T2 Production apply after go-ahead; verify with read-only SQL.
   - Production pre-387: anon can execute all 7; `peek_anon=true`.
+  - Applied 2026-11-22 19:23Z: `OK 387_cerebro_anon_execute_lockdown 20261122192327`.
+  - Production post-387: `anon_can_execute=[]`, `auth_missing=[]`, `svc_missing=[]`, `peek_anon=true`, ledger row present.

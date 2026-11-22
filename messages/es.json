@@ -286,6 +286,7 @@
       "resumeBot": "Reanudar bot",
       "botActiveHint": "El bot está respondiendo este chat. Páusalo para atenderlo tú.",
       "botPausedHint": "El bot está en pausa en este chat. No responderá hasta que lo reanudes.",
+      "botAutoPausedHint": "En pausa porque respondiste tú. El bot vuelve solo 5 minutos después de tu último mensaje. Actívalo para dejarlo en pausa hasta que lo reanudes.",
       "botPaused": "Bot en pausa en este chat",
       "botResumed": "Bot de vuelta en este chat",
       "botError": "No se pudo cambiar el estado del bot"

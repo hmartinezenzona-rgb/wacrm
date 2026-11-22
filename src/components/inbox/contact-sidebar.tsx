@@ -54,13 +54,27 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
   // servidor por realtime.
   const [botPaused, setBotPaused] = useState(false);
   const [botBusy, setBotBusy] = useState(false);
+  // Dos pausas distintas, decision del dueno (21-nov-2026):
+  //  - AUTOMATICA: una persona escribio desde el panel (`agent_replied`). El
+  //    bot vuelve solo 5 min despues del ultimo mensaje humano.
+  //  - MANUAL: alguien activo este interruptor. No caduca nunca; solo vuelve
+  //    con el interruptor.
+  // El interruptor representa SOLO la manual. Antes una pausa automatica lo
+  // pintaba encendido y al tocarlo para "pausar" se reanudaba el bot (21-nov,
+  // el bot contesto encima de un admin 13 s despues de su ultimo mensaje).
+  const [botAutoPausa, setBotAutoPausa] = useState(false);
   useEffect(() => {
-    setBotPaused(conversation?.ai_autoreply_disabled ?? false);
-  }, [conversation?.id, conversation?.ai_autoreply_disabled]);
+    const pausado = conversation?.ai_autoreply_disabled ?? false;
+    setBotPaused(pausado);
+    setBotAutoPausa(pausado && conversation?.ai_handoff_reason === "agent_replied");
+  }, [conversation?.id, conversation?.ai_autoreply_disabled, conversation?.ai_handoff_reason]);
+  const botPausaManual = botPaused && !botAutoPausa;
 
   const toggleBot = useCallback(async () => {
     if (!conversation) return;
-    const next = !botPaused;
+    // Con pausa automatica, tocar el interruptor la vuelve manual (sigue
+    // pausado, ya sin caducar). Solo se reanuda desde una pausa manual.
+    const next = !botPausaManual;
     setBotBusy(true);
     try {
       // Se reusa el endpoint que ya existia. `assign_to_me` se OMITE a
@@ -77,13 +91,14 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
         return;
       }
       setBotPaused(next);
+      setBotAutoPausa(false);
       toast.success(next ? tSidebar("botPaused") : tSidebar("botResumed"));
     } catch {
       toast.error(tSidebar("botError"));
     } finally {
       setBotBusy(false);
     }
-  }, [conversation, botPaused, tSidebar]);
+  }, [conversation, botPausaManual, tSidebar]);
 
   const fetchContactData = useCallback(async () => {
     if (!contact) return;
@@ -230,14 +245,18 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
                     {tSidebar("bot")}
                   </div>
                   <Switch
-                    checked={botPaused}
+                    checked={botPausaManual}
                     onCheckedChange={toggleBot}
                     disabled={botBusy}
-                    aria-label={botPaused ? tSidebar("resumeBot") : tSidebar("pauseBot")}
+                    aria-label={botPausaManual ? tSidebar("resumeBot") : tSidebar("pauseBot")}
                   />
                 </div>
                 <p className="mt-1.5 px-1 text-[10px] leading-snug text-muted-foreground">
-                  {botPaused ? tSidebar("botPausedHint") : tSidebar("botActiveHint")}
+                  {botPausaManual
+                    ? tSidebar("botPausedHint")
+                    : botAutoPausa
+                      ? tSidebar("botAutoPausedHint")
+                      : tSidebar("botActiveHint")}
                 </p>
               </div>
             </>

@@ -24,9 +24,9 @@
 
 ## Tasks
 
-- [x] T1 Migration 386 written (migration + ROLLBACK + assertion). Staging: RED confirmed before the migration (cases 1-3 failed), then `aplicar` ended dry-run/apply/assertion/rollback OK. Post-apply staging: `policy=0`, `anon_insert=false`, `anon_update=false`, `auth_insert=true`. Production pending the owner's go-ahead.
+- [x] T1 Migration 386 written (migration + ROLLBACK + assertion). Staging: RED confirmed before the migration (cases 1-3 failed), then `aplicar` ended dry-run/apply/assertion/rollback OK. Post-apply staging: `policy=0`, `anon_insert=false`, `anon_update=false`, `auth_insert=true`. Production applied 2026-11-22 19:12Z (version `20261122191200`, ledger row present) with the owner's explicit go-ahead.
 - [x] T2 Daily backup: `infra/db/respaldo-diario.sh` (dump + sha256 verify + retention), systemd service/timer in `infra/deployment/systemd/`, installed and enabled for user `onlinefreedom` (`Linger=yes`). Guard test `infra/db/tests/probar_respaldo.sh` ALL PASS.
-- [ ] T3 Evidence: production backup verified 2026-11-22T19:07Z (134 data tables, 548 functions, sha256 `e7899d7f…`, 44 s); retention pruned 24 dumps older than 30 days. Timer next run 2026-11-23 03:17 CST. Pending: production apply of 386 and its evidence.
+- [x] T3 Evidence: production backup verified 2026-11-22T19:07Z (134 data tables, 548 functions, sha256 `e7899d7f…`, 44 s); retention pruned 24 dumps older than 30 days. Timer next run 2026-11-23 03:17 CST. Production post-386: `policy=0`, `anon_insert=false`, `anon_update=false`, `anon_delete=false`, `auth_insert=true`, `rls=true`.
 
 **Production precheck**: `produccion-migracion.sh previa` refuses policy/ACL-only migrations ("no encontre ninguna funcion, tabla ni vista"). Equivalent read-only check on production: `policy=1`, `anon_insert=true`, `anon_update=true`, `auth_insert=true` — exactly the staging pre-state. Staging post-apply is the target state.
 

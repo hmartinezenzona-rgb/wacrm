@@ -38,7 +38,10 @@
   - `infra/ia/clasificar_riesgo.py` + `infra/ia/tests/test_clasificar_riesgo.py`, 7/7 green.
   - Low only when the changed prompt lines touch no protected group; decisor/code always high.
   - Note: over-blocking is intentional (falls back to the owner); tune after real reports.
-- [ ] T2 Day collector: read-only turns of the last 24 h (local query or Hermes read tools).
+- [x] T2 Day collector: read-only turns of the last 24 h (local query or Hermes read tools).
+  - `infra/ia/colectar_dia.py` + `infra/ia/tests/test_colectar_dia.py`, 3/3 green.
+  - SQL runs inside `BEGIN READ ONLY ... ROLLBACK`; output is a 0600 JSON under `~/cerebro-fase1/mejora-nocturna/dias/`; never prints customer text.
+  - Real run 2026-11-23: 28 conversations, 24 operations, 8 tools, 5 without reply, 3 paused, 0 assigned.
 - [ ] T3 Reviewer prompt/orchestrator: run the two skills, produce the report and the proposed diff.
 - [ ] T4 Staging eval gate: apply candidate to staging, run the affected subset x5, compare per case.
 - [ ] T5 Production apply + rollback watcher: backup, apply, verify, auto-revert on regression.

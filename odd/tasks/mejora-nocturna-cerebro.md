@@ -47,6 +47,9 @@
   - Sends the two skills, the current prompt and a compacted day digest to `hermes -z`; requires one JSON block; runs `clasificar_riesgo.py` on V1/V2; writes a 0600 report and, only when low-risk, a candidate file. Nothing is applied here.
   - Dry build with the real day (28 conversations) and the refreshed production prompt (27,574 chars): 86,853 chars, under the 120k budget.
   - The wrapper must refresh the contract first: `cd ~/cerebro-fase1/pruebas/evals && python3 evaluar.py --exportar-contrato` (read-only).
+  - **V1 is now a list of exact patches** (`{buscar, reemplazar}`), applied locally with a one-occurrence check and a length guard (max(200 chars, 10%)). V2 is a full rewrite for human review and is never auto-chosen. Full rewrites and invalid patches are high-risk.
+  - Real run 2026-11-23: 20 conversations reviewed; one finding (duplicate consecutive messages after a receipt verification); V1 empty, V2 high-risk; no candidate, nothing applied. The raw Hermes answer is saved as `respuesta-*.txt` (0600) for audit.
+  - Hermes needed the **original** FreeLLMAPI server, not a fresh Docker container: it runs from `~/.local/share/freellmapi-app` with its original DB (`server/data/freeapi.db`); started with `nohup setsid npm start -w server` (port 3001). A fresh container has a new key and returns 401.
 - [ ] T4 Staging eval gate: apply candidate to staging, run the affected subset x5, compare per case.
 - [ ] T5 Production apply + rollback watcher: backup, apply, verify, auto-revert on regression.
 - [ ] T6 systemd timer and notification.

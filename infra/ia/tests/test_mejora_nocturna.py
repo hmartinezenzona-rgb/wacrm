@@ -14,14 +14,20 @@ LOW = {
     "resumen": "1 chat con muletilla",
     "hallazgos": [{"chat": "c1", "problema": "muletilla", "cita": "¡Claro!",
                    "causa": "tono", "arreglo": "quitarla"}],
-    "propuesta": {"v1": "Sí. Atiendo remesas.\n", "v2": "Atiendo remesas a Cuba.\n"},
+    "propuesta": {
+        "v1": [{"buscar": "¡Claro! Atiendo remesas.\n", "reemplazar": "Sí. Atiendo remesas.\n"}],
+        "v2": "Atiendo remesas a Cuba.\n",
+    },
     "casos_prueba": ["cliente saluda"],
     "riesgo_sugerido": "bajo",
 }
 HIGH = {
     "resumen": "precio cambiado",
     "hallazgos": [{"chat": "c1", "problema": "precio", "cita": "100", "causa": "regla", "arreglo": "120"}],
-    "propuesta": {"v1": "El precio es 120 GYD.\n", "v2": "El precio es 150 GYD.\n"},
+    "propuesta": {
+        "v1": [{"buscar": "El precio es 100 GYD.\n", "reemplazar": "El precio es 120 GYD.\n"}],
+        "v2": "El precio es 150 GYD.\n",
+    },
     "casos_prueba": ["precio"],
     "riesgo_sugerido": "alto",
 }
@@ -79,11 +85,30 @@ class MejoraNocturnaTest(unittest.TestCase):
         self.assertNotIn("¡Claro!", p.stdout)
 
     def test_high_risk_reports_without_candidate(self):
+        self.prompt.write_text("El precio es 100 GYD.\n", encoding="utf-8")
         p = self.run_review(HIGH)
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertEqual(len(list(self.salida.glob("candidato-*.txt"))), 0)
         report = list(self.salida.glob("informe-*.md"))[0].read_text(encoding="utf-8")
         self.assertIn("alto", report)
+        self.assertIn("candidato=ninguno", p.stdout)
+
+    def test_patch_not_found_reports_without_candidate(self):
+        malo = {
+            "resumen": "parche invalido",
+            "hallazgos": [],
+            "propuesta": {
+                "v1": [{"buscar": "texto que no existe", "reemplazar": "otra cosa"}],
+                "v2": "Atiendo remesas.\n",
+            },
+            "casos_prueba": [],
+            "riesgo_sugerido": "bajo",
+        }
+        p = self.run_review(malo)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(len(list(self.salida.glob("candidato-*.txt"))), 0)
+        report = list(self.salida.glob("informe-*.md"))[0].read_text(encoding="utf-8")
+        self.assertIn("buscar aparece 0", report)
         self.assertIn("candidato=ninguno", p.stdout)
 
     def test_malformed_hermes_output_fails_without_report(self):

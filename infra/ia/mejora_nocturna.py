@@ -131,7 +131,7 @@ def extraer_json(salida: str) -> dict:
 def llamar_hermes(prompt: str, timeout: int) -> str:
     with tempfile.TemporaryDirectory() as tmp:
         r = subprocess.run(
-            ["hermes", "-z", prompt, "-t", "todo", "--in", tmp],
+            ["hermes", "-z", prompt, "--in", tmp],  # no toolset: `todo` is disabled on this CLI
             capture_output=True, text=True, timeout=timeout,
         )
     if r.returncode != 0:

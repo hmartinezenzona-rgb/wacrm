@@ -88,6 +88,13 @@ class AplicarCandidatoTest(unittest.TestCase):
         self.assertNotIn("EVAL", self.calls())
         self.assertNotIn("DEPLOY", self.calls())
 
+    def test_uses_the_subset_casos_path(self):
+        subset = self.dir / "subconjunto.json"
+        subset.write_text('{"version":1,"casos":[]}', encoding="utf-8")
+        p = self.run_apply("--casos", str(subset))
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn(f"--casos {subset}", self.calls())
+
 
 if __name__ == "__main__":
     unittest.main()

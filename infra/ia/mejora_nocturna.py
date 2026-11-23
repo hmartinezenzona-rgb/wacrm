@@ -21,6 +21,7 @@ import sys
 import tempfile
 import urllib.error
 import urllib.request
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -29,6 +30,7 @@ from clasificar_riesgo import clasificar
 SKILLS = ("revisar-agente-whatsapp", "prompt-crafter-pro")
 DEST = Path.home() / "cerebro-fase1" / "mejora-nocturna"
 SKILLS_DEFAULT = Path.home() / ".claude" / "skills" / "synced"
+CASOS_DEFAULT = Path.home() / "cerebro-fase1" / "pruebas" / "evals" / "casos" / "casos-conversaciones.json"
 BUDGET = 120_000
 
 
@@ -86,6 +88,7 @@ Devuelve UN bloque ```json con este esquema exacto y nada mas:
   "hallazgos": [{"chat":"id","problema":"robot|error|venta_perdida","cita":"texto exacto","causa":"que regla o dato fallo","arreglo":"que cambiar"}],
   "propuesta": {"v1": [{"buscar": "texto exacto del PROMPT ACTUAL", "reemplazar": "texto nuevo"}], "v2": "prompt completo reescrito con las 6 dimensiones"},
   "casos_prueba": ["caso 1", "caso 2", "caso 3"],
+  "familias_afectadas": ["comprobante"],
   "riesgo_sugerido": "bajo|alto"
 }
 
@@ -94,16 +97,42 @@ Reglas:
 - V1 no puede cambiar precios, montos, reglas de derivacion, herramientas ni seguridad.
 - Si el problema no se arregla con el prompt, dilo en causa y deja la propuesta igual al prompt actual.
 - No repitas telefonos, cuentas ni datos personales en los hallazgos; usa el id del chat.
+- "familias_afectadas" solo puede usar nombres de la lista FAMILIAS DISPONIBLES. Si no puedes identificar ninguna, deja la lista vacia.
 """
 
 
-def construir_prompt(dia: dict, prompt_actual: str, skills: dict[str, str]) -> str:
+def leer_casos(ruta: Path) -> tuple[object, list[dict]]:
+    data = json.loads(ruta.read_text(encoding="utf-8"))
+    casos = data.get("casos")
+    if not isinstance(casos, list):
+        error(f"{ruta} no tiene una lista de casos")
+    return data.get("version", 1), casos
+
+
+def resumen_familias(casos: list[dict]) -> str:
+    cuenta = Counter(c.get("familia") or "(sin familia)" for c in casos)
+    return "\n".join(f"- {f} ({n} casos)" for f, n in sorted(cuenta.items(), key=lambda x: (-x[1], x[0])))
+
+
+def validar_familias(data: dict, casos: list[dict]) -> tuple[list[str], list[str]]:
+    pedidas = data.get("familias_afectadas")
+    validas = {c.get("familia") for c in casos if c.get("familia")}
+    if not isinstance(pedidas, list):
+        return [], ["familias_afectadas ausente o invalida"]
+    ok = sorted({f for f in pedidas if isinstance(f, str) and f in validas})
+    malas = [f for f in pedidas if not (isinstance(f, str) and f in validas)]
+    return ok, malas
+
+
+def construir_prompt(dia: dict, prompt_actual: str, skills: dict[str, str],
+                     familias: str) -> str:
     for max_conv, max_msgs, max_chars in ((40, 12, 300), (20, 8, 200), (10, 6, 150)):
         datos = json.dumps(digest(dia, max_conv, max_msgs, max_chars), ensure_ascii=False)
         texto = (
             INSTRUCCIONES
             + "\n\n### SKILL: revisar-agente-whatsapp\n" + skills["revisar-agente-whatsapp"]
             + "\n\n### SKILL: prompt-crafter-pro\n" + skills["prompt-crafter-pro"]
+            + "\n\n### FAMILIAS DISPONIBLES (para familias_afectadas)\n" + familias
             + "\n\n### PROMPT ACTUAL DEL BOT\n" + prompt_actual
             + "\n\n### CONVERSACIONES DEL DIA (JSON)\n" + datos
         )
@@ -234,10 +263,9 @@ def clasificar_propuestas(prompt_actual: str, propuesta: dict) -> tuple[str | No
 
 def escribir(salida_dir: Path, data: dict, prompt_actual: str, elegido: str | None,
              elegido_texto: str | None, resultados: dict,
-             notas: list[str]) -> tuple[Path, Path | None]:
+             notas: list[str], familias: list[str], stamp: str) -> tuple[Path, Path | None]:
     salida_dir.mkdir(parents=True, exist_ok=True)
     os.chmod(salida_dir, 0o700)
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     informe = salida_dir / f"informe-{stamp}.md"
 
     lineas = [f"# Mejora nocturna {stamp}", "", "## Resumen", str(data.get("resumen", "")), "", "## Hallazgos"]
@@ -249,6 +277,8 @@ def escribir(salida_dir: Path, data: dict, prompt_actual: str, elegido: str | No
         lineas.append(f"- {nombre}: **{res['riesgo']}** ({motivos}; {res['lineas_cambiadas']} lineas)")
     lineas += ["", "## Notas"]
     lineas += [f"- {n}" for n in notas] or ["- sin notas"]
+    lineas += ["", "## Familias afectadas"]
+    lineas += [f"- {f}" for f in familias] or ["- ninguna (no se auto-aplica)"]
     lineas += ["", "## Casos de prueba"]
     lineas += [f"- {c}" for c in data.get("casos_prueba", [])]
     lineas += ["", "## Siguiente paso"]
@@ -267,11 +297,26 @@ def escribir(salida_dir: Path, data: dict, prompt_actual: str, elegido: str | No
     return informe, candidato
 
 
+def escribir_subconjunto(salida_dir: Path, casos: list[dict], familias: list[str],
+                         stamp: str, version: object) -> Path:
+    sub = [c for c in casos if c.get("familia") in familias]
+    data = {
+        "version": version,
+        "descripcion": "Subconjunto nocturno: " + ", ".join(familias),
+        "casos": sub,
+    }
+    ruta = salida_dir / f"subconjunto-{stamp}.json"
+    ruta.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+    os.chmod(ruta, 0o600)
+    return ruta
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description="Nightly Cerebro review via Hermes")
     p.add_argument("--dia", type=Path, required=True)
     p.add_argument("--prompt-actual", type=Path, required=True)
     p.add_argument("--skills-dir", type=Path, default=SKILLS_DEFAULT)
+    p.add_argument("--casos-file", type=Path, default=CASOS_DEFAULT)
     p.add_argument("--salida-dir", type=Path, default=DEST)
     p.add_argument("--timeout", type=int, default=900)
     p.add_argument("--backend", choices=["crm", "cli"], default="crm",
@@ -286,11 +331,15 @@ def main() -> int:
         error(f"falta {args.dia}")
     if not args.prompt_actual.is_file():
         error(f"falta {args.prompt_actual}")
+    if not args.casos_file.is_file():
+        error(f"falta {args.casos_file}")
 
     dia = json.loads(args.dia.read_text(encoding="utf-8"))
     prompt_actual = args.prompt_actual.read_text(encoding="utf-8")
+    version, casos = leer_casos(args.casos_file)
+    familias_txt = resumen_familias(casos)
     skills = leer_skills(args.skills_dir)
-    prompt = construir_prompt(dia, prompt_actual, skills)
+    prompt = construir_prompt(dia, prompt_actual, skills, familias_txt)
 
     if args.dry:
         print(f"ok prompt={len(prompt)} caracteres conversaciones={len(dia.get('conversaciones', []))}")
@@ -313,13 +362,23 @@ def main() -> int:
     crudo.write_text(salida, encoding="utf-8")
     os.chmod(crudo, 0o600)
     data = extraer_json(salida)
+    familias, malas = validar_familias(data, casos)
     elegido, elegido_texto, resultados, notas = clasificar_propuestas(prompt_actual, data["propuesta"])
+    if malas:
+        notas.append("familias no reconocidas: " + ", ".join(map(str, malas)))
+    if elegido and not familias:
+        notas.append("sin familias afectadas validas: no se auto-aplica")
+        elegido, elegido_texto = None, None
     informe, candidato = escribir(args.salida_dir, data, prompt_actual, elegido, elegido_texto,
-                                  resultados, notas)
+                                  resultados, notas, familias, stamp)
+    subconjunto = None
+    if elegido:
+        subconjunto = escribir_subconjunto(args.salida_dir, casos, familias, stamp, version)
 
     riesgos = ",".join(f"{k}={v['riesgo']}" for k, v in resultados.items())
     estado = "listo" if candidato else "ninguno"
-    print(f"ok informe={informe} candidato={estado} riesgos={riesgos}")
+    print(f"ok informe={informe} candidato={estado} familias={','.join(familias) or 'ninguna'} "
+          f"subconjunto={subconjunto or 'ninguno'} riesgos={riesgos}")
     return 0
 
 

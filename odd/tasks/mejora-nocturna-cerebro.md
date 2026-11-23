@@ -51,8 +51,10 @@
   - Real run 2026-11-23: 20 conversations reviewed; one finding (duplicate consecutive messages after a receipt verification); V1 empty, V2 high-risk; no candidate, nothing applied. The raw Hermes answer is saved as `respuesta-*.txt` (0600) for audit.
   - **Corrección 2026-11-23**: el backend por defecto es `crm`, no el CLI local. El revisor hace POST a `/api/internal/hermes/review` (ruta interna del CRM) con `x-cerebro-secret`; la ruta añade `HERMES_API_KEY` del servidor y llama al Hermes del CRM. `--backend cli` queda solo para pruebas locales. La ruta está implementada (`src/app/api/internal/hermes/review/route.ts`) con 6 tests; **falta publicar el panel** para que exista en producción.
 - [x] T4 Staging eval gate: apply candidate to staging, run the affected subset x5, compare per case.
-  - `infra/ia/aplicar_candidato.py` + `infra/ia/tests/test_aplicar_candidato.py`, 4/4 green.
-  - Refuses any risk other than `bajo`; runs the full gold battery (`casos/casos-conversaciones.json`) with `evaluar.py --reps 5 --prompt <candidate>`; requires exit 0 (all green) before anything else.
+  - `infra/ia/aplicar_candidato.py` + tests.
+  - Refuses any risk other than `bajo`; runs only the **affected-family subset** with `evaluar.py --reps 5 --casos <subconjunto>`; requires exit 0 (all green) before anything else.
+  - The reviewer asks Hermes for `familias_afectadas`, validates the names against `casos/casos-conversaciones.json`, and writes `subconjunto-*.json` (0600). If no valid family is named, no candidate is produced (report-only).
+  - Time: full battery 117 cases x5 = 585 runs ~2h55m; a 3-family subset (24 cases) = 120 runs ~36m (−79%); one family (11 cases) = 55 runs ~16m (−90%). Tokens drop proportionally.
 - [x] T5 Production apply + rollback record.
   - With `--aplicar`, after a green battery it runs `desplegar_prompt.py --candidato <file> --etiqueta nocturna-YYYYMMDD`, requires `COINCIDE`, and records the rollback path (`~/cerebro-fase1/ROLLBACK-v2-antes-<tag>.json`) in `~/cerebro-fase1/mejora-nocturna/estado.json`.
   - Manual rollback (auto watcher pending): `python3 infra/n8n/cerebro_n8n.py estado produccion`, then `python3 infra/n8n/cerebro_n8n.py restaurar produccion <rollback> --esperado <versionId prefix>`.

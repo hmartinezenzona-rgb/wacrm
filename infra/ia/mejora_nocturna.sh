@@ -67,22 +67,23 @@ python3 "$ROOT/infra/ia/mejora_nocturna.py" --dia "$DIA" --prompt-actual "$PROMP
   --salida-dir "$SALIDA" --backend crm --crm-url "$CRM_URL" --secret-file "$SECRET_FILE" \
   || fallo "la revision fallo"
 
-# 5. Apply only a candidate created by this run and classified low-risk.
+# 5. Apply only a candidate created by this run, with a valid family subset.
 CAND="$(ls -t "$SALIDA"/candidato-*.txt 2>/dev/null | head -1 || true)"
-if [[ -n "$CAND" && "$CAND" -nt "$MARCA" ]]; then
+SUBSET="$(ls -t "$SALIDA"/subconjunto-*.json 2>/dev/null | head -1 || true)"
+if [[ -n "$CAND" && -n "$SUBSET" && "$CAND" -nt "$MARCA" && "$SUBSET" -nt "$MARCA" ]]; then
   if [[ $APLICAR == 1 ]]; then
-    paso "candidato bajo: compuerta de evals y aplicacion -> $CAND"
+    paso "candidato bajo: compuerta de evals (subconjunto) y aplicacion -> $CAND"
     python3 "$ROOT/infra/ia/aplicar_candidato.py" --candidato "$CAND" --riesgo bajo \
-      --etiqueta "nocturna-$(date -u +%Y%m%d)" --aplicar \
+      --casos "$SUBSET" --etiqueta "nocturna-$(date -u +%Y%m%d)" --aplicar \
       || fallo "la compuerta de evals rechazo el candidato"
   else
-    paso "candidato bajo: solo compuerta de evals (sin aplicar)"
+    paso "candidato bajo: solo compuerta de evals (subconjunto, sin aplicar)"
     python3 "$ROOT/infra/ia/aplicar_candidato.py" --candidato "$CAND" --riesgo bajo \
-      --etiqueta "nocturna-$(date -u +%Y%m%d)" \
+      --casos "$SUBSET" --etiqueta "nocturna-$(date -u +%Y%m%d)" \
       || fallo "la compuerta de evals rechazo el candidato"
   fi
 else
-  paso "sin candidato de bajo riesgo; solo queda el informe"
+  paso "sin candidato de bajo riesgo con subconjunto; solo queda el informe"
 fi
 
 paso "listo; informes en $SALIDA"

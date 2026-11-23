@@ -21,6 +21,7 @@ LOW = {
         "v2": "Atiendo remesas a Cuba.\n",
     },
     "casos_prueba": ["cliente saluda"],
+    "familias_afectadas": ["comprobante"],
     "riesgo_sugerido": "bajo",
 }
 HIGH = {
@@ -31,6 +32,7 @@ HIGH = {
         "v2": "El precio es 150 GYD.\n",
     },
     "casos_prueba": ["precio"],
+    "familias_afectadas": ["comprobante"],
     "riesgo_sugerido": "alto",
 }
 
@@ -51,6 +53,17 @@ class MejoraNocturnaTest(unittest.TestCase):
         self.dia.write_text(json.dumps({"conversaciones": [{"id": "c1", "mensajes": [{"texto": "hola"}]}]}), encoding="utf-8")
         self.prompt = self.dir / "prompt.txt"
         self.prompt.write_text("¡Claro! Atiendo remesas.\n", encoding="utf-8")
+        self.casos_file = self.dir / "casos.json"
+        self.casos_file.write_text(json.dumps({
+            "version": 1,
+            "descripcion": "test",
+            "casos": [
+                {"id": "c1", "familia": "comprobante"},
+                {"id": "c2", "familia": "comprobante"},
+                {"id": "c3", "familia": "saldo-envio"},
+                {"id": "c4", "familia": "otros"},
+            ],
+        }), encoding="utf-8")
         self.answer = self.dir / "answer.txt"
         fake = self.bin / "hermes"
         fake.write_text(
@@ -69,7 +82,8 @@ class MejoraNocturnaTest(unittest.TestCase):
         return subprocess.run(
             [sys.executable, str(SCRIPT), "--dia", str(self.dia),
              "--prompt-actual", str(self.prompt), "--skills-dir", str(self.skills),
-             "--salida-dir", str(self.salida), "--backend", "cli"],
+             "--salida-dir", str(self.salida), "--backend", "cli",
+             "--casos-file", str(self.casos_file)],
             capture_output=True, text=True, env=env,
         )
 
@@ -85,6 +99,10 @@ class MejoraNocturnaTest(unittest.TestCase):
         self.assertIn("bajo", reports[0].read_text(encoding="utf-8"))
         self.assertIn("candidato=listo", p.stdout)
         self.assertNotIn("¡Claro!", p.stdout)
+        subsets = list(self.salida.glob("subconjunto-*.json"))
+        self.assertEqual(len(subsets), 1)
+        subset = json.loads(subsets[0].read_text(encoding="utf-8"))
+        self.assertEqual([c["id"] for c in subset["casos"]], ["c1", "c2"])
 
     def test_high_risk_reports_without_candidate(self):
         self.prompt.write_text("El precio es 100 GYD.\n", encoding="utf-8")
@@ -104,6 +122,7 @@ class MejoraNocturnaTest(unittest.TestCase):
                 "v2": "Atiendo remesas.\n",
             },
             "casos_prueba": [],
+            "familias_afectadas": ["comprobante"],
             "riesgo_sugerido": "bajo",
         }
         p = self.run_review(malo)
@@ -113,6 +132,17 @@ class MejoraNocturnaTest(unittest.TestCase):
         self.assertIn("buscar aparece 0", report)
         self.assertIn("candidato=ninguno", p.stdout)
 
+    def test_invalid_families_blocks_candidate(self):
+        payload = json.loads(json.dumps(LOW))
+        payload["familias_afectadas"] = ["no-existe"]
+        p = self.run_review(payload)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(len(list(self.salida.glob("candidato-*.txt"))), 0)
+        self.assertEqual(len(list(self.salida.glob("subconjunto-*.json"))), 0)
+        report = list(self.salida.glob("informe-*.md"))[0].read_text(encoding="utf-8")
+        self.assertIn("familias", report.lower())
+        self.assertIn("candidato=ninguno", p.stdout)
+
     def test_malformed_hermes_output_fails_without_report(self):
         self.answer.write_text("no es json\n", encoding="utf-8")
         env = dict(os.environ)
@@ -120,7 +150,8 @@ class MejoraNocturnaTest(unittest.TestCase):
         p = subprocess.run(
             [sys.executable, str(SCRIPT), "--dia", str(self.dia),
              "--prompt-actual", str(self.prompt), "--skills-dir", str(self.skills),
-             "--salida-dir", str(self.salida), "--backend", "cli"],
+             "--salida-dir", str(self.salida), "--backend", "cli",
+             "--casos-file", str(self.casos_file)],
             capture_output=True, text=True, env=env,
         )
         self.assertNotEqual(p.returncode, 0)
@@ -155,7 +186,8 @@ class MejoraNocturnaTest(unittest.TestCase):
             p = subprocess.run(
                 [sys.executable, str(SCRIPT), "--dia", str(self.dia),
                  "--prompt-actual", str(self.prompt), "--skills-dir", str(self.skills),
-                 "--salida-dir", str(self.salida), "--backend", "crm", "--crm-url", url],
+                 "--salida-dir", str(self.salida), "--backend", "crm", "--crm-url", url,
+                 "--casos-file", str(self.casos_file)],
                 capture_output=True, text=True, env=env,
             )
             self.assertEqual(p.returncode, 0, p.stderr)

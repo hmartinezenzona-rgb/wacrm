@@ -42,7 +42,11 @@
   - `infra/ia/colectar_dia.py` + `infra/ia/tests/test_colectar_dia.py`, 3/3 green.
   - SQL runs inside `BEGIN READ ONLY ... ROLLBACK`; output is a 0600 JSON under `~/cerebro-fase1/mejora-nocturna/dias/`; never prints customer text.
   - Real run 2026-11-23: 28 conversations, 24 operations, 8 tools, 5 without reply, 3 paused, 0 assigned.
-- [ ] T3 Reviewer prompt/orchestrator: run the two skills, produce the report and the proposed diff.
+- [x] T3 Reviewer prompt/orchestrator: run the two skills, produce the report and the proposed diff.
+  - `infra/ia/mejora_nocturna.py` + `infra/ia/tests/test_mejora_nocturna.py`, 3/3 green.
+  - Sends the two skills, the current prompt and a compacted day digest to `hermes -z`; requires one JSON block; runs `clasificar_riesgo.py` on V1/V2; writes a 0600 report and, only when low-risk, a candidate file. Nothing is applied here.
+  - Dry build with the real day (28 conversations) and the refreshed production prompt (27,574 chars): 86,853 chars, under the 120k budget.
+  - The wrapper must refresh the contract first: `cd ~/cerebro-fase1/pruebas/evals && python3 evaluar.py --exportar-contrato` (read-only).
 - [ ] T4 Staging eval gate: apply candidate to staging, run the affected subset x5, compare per case.
 - [ ] T5 Production apply + rollback watcher: backup, apply, verify, auto-revert on regression.
 - [ ] T6 systemd timer and notification.

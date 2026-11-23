@@ -49,18 +49,28 @@ The guard allowlists 088 and 168; any new duplicate fails.
 - 79 migrations <= 126 have no ROLLBACK. None >= 127 is missing one (guard enforces it).
 - 13 staging assertions do not end with `ALL PASS` (from the 2026-11-22 audit; not re-verified here).
 
-### 6. Staging holds an experiment production does not have
-Nine tables, 21 functions and 76 columns exist only in staging and in no repo migration:
-`cerebro_turns`, `tool_invocations`, `cerebro_outbox_v3`, `claim_checks`, `cerebro_cuentas_deposito`, `cerebro_negocio`, `cerebro_prompt_modulos`, `remittance_calculator_clearances`, `eval_memoria_replay`; plus `cerebro_claim_ready`, `cerebro_outbox_v3_*`, `cerebro_ingesta`, `cerebro_prompt_modular`.
+### 6. Staging holds an experiment production does not have (not abandoned)
+Seven tables, their functions and 76 columns exist only in staging and in no repo migration:
+`cerebro_turns`, `tool_invocations`, `cerebro_outbox_v3`, `claim_checks`, `cerebro_cuentas_deposito`, `cerebro_negocio`, `cerebro_prompt_modulos`; plus `cerebro_claim_ready`, `cerebro_outbox_v3_*`, `cerebro_ingesta`, `cerebro_prompt_modular` and the v3 tool functions (`cerebro_cotizar_tool`, `cerebro_registrar_destino_tool`, `cerebro_ajustar_envio_tool`, `cerebro_completar_turno`, `cerebro_reclamar_turno`, `cerebro_verificar_claims_v3`, `cerebro_cuentas_activas`, `cerebro_negocio_get/completo`, `cerebro_retirar_cuenta`).
 
-Verified: none of these tables or functions exists in production, and none appears in any branch or ODD task. They look like an abandoned staging experiment applied directly via SQL.
+Verified absent from production and from every branch. **Correction (2026-11-23): this is not dormant scaffolding.**
+- `cerebro_prompt_modulos` holds 13 config rows; `cerebro_cuentas_deposito` and `cerebro_negocio` one each.
+- `pg_stat_statements` shows real calls: `cerebro_cuentas_activas` 115, deletes on `cerebro_outbox_v3` 87, `cerebro_verificar_claims_v3` 47, `cerebro_prompt_modular` 24+11.
+- The staging n8n workflow carries extra tool nodes (`agregar_servicio`, `declarar_servicio`, `modificar_operacion`) that map to these functions.
+- The queue tables are empty, so the turn pipeline is not processing, but the configuration and tool surface are wired.
+
+Two of the audit's nine objects are not part of this experiment:
+- `cerebro_ingesta_perdida` **is in the repo** (migration 300), has rows from 2026-10-26 to 2026-11-17, and `hermes_alertas` (314) reads it. Keep it.
+- `remittance_calculator_clearances` + `crm_limpiar_calculadora` belong to the calculator-delete feature, empty today; `eval_memoria_replay` is the empty replay harness. Neither is v3.
+
+Consequence: a blanket discard would break the staging v3 path and its tool tests. The safe options are to capture the v3 objects into a migration (reproducible) or keep them documented as staging-only.
 
 ### 7. 348 is staging-ahead on purpose
 `348_outbox_partes.sql` is not in the production ledger; production lacks `message_outbox.grupo_id/parte/partes`, the extended status CHECK and `cerebro_outbox_encolar_partes`. Production works in single-message mode (`opt_partir_respuesta` absent). This is a feature not yet released, not a lost migration.
 
 ## Decisions needed
 
-1. **Staging experiment (section 6)**: promote it into a migration (reproducible, but commits an undocumented design) or discard it from staging (loses the experiment). Recommendation: discard unless it is going to be resumed; nothing in the repo or production uses it.
+1. **Staging experiment (section 6)**: capture it into a migration so it is reproducible, or keep it documented as staging-only. Discarding it requires reverting the staging workflow's extra tool nodes and accepting the loss of the v3 prompt/tool path; it is wired, not abandoned. Recommendation: capture it if the v3 work will resume; otherwise keep it documented and do not drop while staging still uses it.
 2. **348**: keep it staging-ahead until the reply-splitting feature ships, or release it now. Recommendation: keep it staging-ahead.
 3. **Ledger backfill (section 1)**: leave it as a documented historical baseline (recommended; backfilling would record rows nobody can verify) or insert rows for the repo names after object-by-object verification.
 

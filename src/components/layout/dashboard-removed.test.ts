@@ -11,8 +11,8 @@ const root = join(__dirname, "../../..");
 const read = (rel: string) => readFileSync(join(root, rel), "utf8");
 
 describe("dashboard removal", () => {
-  // The middleware keeps "/dashboard" in protectedPaths on purpose: an old bookmark goes through the login first.
-  it.each(["src/app/(auth)/login/page.tsx", "src/app/join/[token]/page.tsx", "src/middleware.ts"])(
+  // The proxy keeps "/dashboard" in protectedPaths on purpose: an old bookmark goes through the login first.
+  it.each(["src/app/(auth)/login/page.tsx", "src/app/join/[token]/page.tsx", "src/proxy.ts"])(
     "%s lands on /tablero, not /dashboard",
     (file) => {
       const src = read(file);
@@ -21,8 +21,8 @@ describe("dashboard removal", () => {
     },
   );
 
-  it("keeps /tablero behind the login in the middleware", () => {
-    expect(read("src/middleware.ts")).toMatch(/protectedPaths = \[[^\]]*'\/tablero'/);
+  it("keeps /tablero behind the login in the proxy", () => {
+    expect(read("src/proxy.ts")).toMatch(/protectedPaths = \[[^\]]*'\/tablero'/);
   });
 
   it("the sidebar and the header no longer know /dashboard", () => {

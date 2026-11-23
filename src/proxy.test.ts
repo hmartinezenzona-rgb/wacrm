@@ -7,7 +7,7 @@ import { NextRequest } from "next/server";
 // `refreshedCookies` — cookies Supabase writes via setAll() during getUser(),
 //                      i.e. the freshly *rotated* auth token. The whole point
 //                      of the test is that these must survive onto whatever
-//                      response the middleware returns — including redirects.
+//                      response the proxy returns — including redirects.
 let mockUser: { id: string } | null = null;
 let refreshedCookies: Array<{
   name: string;
@@ -36,7 +36,7 @@ vi.mock("@supabase/ssr", () => ({
 }));
 
 // Imported after the mock is registered.
-const { middleware } = await import("./middleware");
+const { proxy } = await import("./proxy");
 
 beforeEach(() => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = "https://test.supabase.co";
@@ -53,12 +53,12 @@ const ROTATED = {
   options: { path: "/", httpOnly: true },
 };
 
-describe("middleware — refreshed auth cookies survive redirects", () => {
+describe("proxy — refreshed auth cookies survive redirects", () => {
   it("carries the rotated token when redirecting a signed-in user off /login", async () => {
     mockUser = { id: "user-1" };
     refreshedCookies = [ROTATED];
 
-    const res = await middleware(
+    const res = await proxy(
       new NextRequest("https://app.test/login"),
     );
 
@@ -77,7 +77,7 @@ describe("middleware — refreshed auth cookies survive redirects", () => {
     // clearing a dead session); those must not be dropped on the redirect.
     refreshedCookies = [{ ...ROTATED, value: "cleared" }];
 
-    const res = await middleware(
+    const res = await proxy(
       new NextRequest("https://app.test/tablero"),
     );
 
@@ -89,7 +89,7 @@ describe("middleware — refreshed auth cookies survive redirects", () => {
   it("keeps /finanzas behind the login", async () => {
     mockUser = null;
 
-    const res = await middleware(new NextRequest("https://app.test/finanzas?tab=cierres"));
+    const res = await proxy(new NextRequest("https://app.test/finanzas?tab=cierres"));
 
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
@@ -99,7 +99,7 @@ describe("middleware — refreshed auth cookies survive redirects", () => {
     mockUser = { id: "user-1" };
     refreshedCookies = [ROTATED];
 
-    const res = await middleware(
+    const res = await proxy(
       new NextRequest("https://app.test/login?invite=abc123"),
     );
 
@@ -111,7 +111,7 @@ describe("middleware — refreshed auth cookies survive redirects", () => {
     mockUser = { id: "user-1" };
     refreshedCookies = [ROTATED];
 
-    const res = await middleware(
+    const res = await proxy(
       new NextRequest("https://app.test/tablero"),
     );
 

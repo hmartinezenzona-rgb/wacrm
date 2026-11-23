@@ -116,13 +116,18 @@ def leer_url(env_file: Path) -> str:
 def consultar(url: str, sql: str) -> str:
     # The URL goes in through the environment, never on the command line.
     cmd = [
-        "docker", "run", "--rm", "--network", "host", "-i", "--env-file", str(ENV_PROD_FILE),
+        "docker", "run", "--rm", "--network", "host", "-i",
+        "-e", "PGCONNECT_TIMEOUT=10", "--env-file", str(ENV_PROD_FILE),
         "postgres:17-alpine",
         "sh", "-c", f'psql -X -q -A -t "${VAR_PROD}" -v ON_ERROR_STOP=1 -f -',
     ]
     entorno = dict(os.environ)
     entorno[VAR_PROD] = url
-    r = subprocess.run(cmd, input=sql, capture_output=True, text=True, env=entorno)
+    try:
+        r = subprocess.run(cmd, input=sql, capture_output=True, text=True,
+                           env=entorno, timeout=180)
+    except subprocess.TimeoutExpired:
+        error("psql excedio 180 s")
     if r.returncode != 0:
         lineas = [l for l in (r.stderr or "").strip().splitlines() if l]
         error(lineas[-1] if lineas else f"psql codigo {r.returncode}")

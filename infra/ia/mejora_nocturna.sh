@@ -44,7 +44,8 @@ SECRET_FILE="$(mktemp)"; chmod 600 "$SECRET_FILE"
 SQL_FILE="$(mktemp)"
 printf "select valor from cerebro_config where clave = 'notify_secret';\n" > "$SQL_FILE"
 for intento in 1 2 3; do
-  docker run --rm --network host -i --env-file "$ENV_PROD" postgres:17-alpine \
+  timeout 90 docker run --rm --network host -i -e PGCONNECT_TIMEOUT=10 \
+    --env-file "$ENV_PROD" postgres:17-alpine \
     sh -c 'psql -X -q -A -t "$PROD_DATABASE_URL" -v ON_ERROR_STOP=1 -f -' \
     < "$SQL_FILE" > "$SECRET_FILE" 2>/dev/null && break
   paso "reintento del secreto ($intento/3)"

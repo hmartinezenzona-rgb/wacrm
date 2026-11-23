@@ -70,7 +70,7 @@ Consequence: a blanket discard would break the staging v3 path and its tool test
 
 ## Decisions needed
 
-1. **Staging experiment (section 6)**: capture it into a migration so it is reproducible, or keep it documented as staging-only. Discarding it requires reverting the staging workflow's extra tool nodes and accepting the loss of the v3 prompt/tool path; it is wired, not abandoned. Recommendation: capture it if the v3 work will resume; otherwise keep it documented and do not drop while staging still uses it.
+1. **Staging experiment (section 6)** — **DECIDED 2026-11-23: keep it documented as staging-only and do not touch it.** It is wired into the staging workflow and holds live config, so it is neither dropped nor captured now. Revisit only if the v3 work resumes or staging is rebuilt; a rebuild from migrations would lose it and must be handled then.
 2. **348**: keep it staging-ahead until the reply-splitting feature ships, or release it now. Recommendation: keep it staging-ahead.
 3. **Ledger backfill (section 1)**: leave it as a documented historical baseline (recommended; backfilling would record rows nobody can verify) or insert rows for the repo names after object-by-object verification.
 

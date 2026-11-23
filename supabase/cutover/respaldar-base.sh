@@ -29,12 +29,12 @@ OUT="$ENTORNO-$STAMP.dump"
 
 echo "== Respaldo de $ENTORNO ($REF) -> $DEST/$OUT"
 # The URL goes in through the environment (-e VAR), not on the command line.
-docker run --rm --user "$(id -u):$(id -g)" -e PGURL="$URL" -v "$DEST":/out postgres:17 \
+docker run --rm --network host --user "$(id -u):$(id -g)" -e PGURL="$URL" -v "$DEST":/out postgres:17 \
   sh -c 'pg_dump --format=custom --no-owner --no-privileges \
            --schema=public --schema=auth --schema=storage \
            --file=/out/'"$OUT"' "$PGURL"'
 
-docker run --rm --user "$(id -u):$(id -g)" -v "$DEST":/out postgres:17 pg_restore --list "/out/$OUT" > "$DEST/$OUT.list"
+docker run --rm --network host --user "$(id -u):$(id -g)" -v "$DEST":/out postgres:17 pg_restore --list "/out/$OUT" > "$DEST/$OUT.list"
 ( cd "$DEST" && sha256sum "$OUT" > "$OUT.sha256" )
 chmod 600 "$DEST/$OUT" "$DEST/$OUT.list" "$DEST/$OUT.sha256"
 

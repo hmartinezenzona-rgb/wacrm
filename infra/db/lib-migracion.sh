@@ -14,7 +14,7 @@ quitar_tx() { grep -v -E '^(\\set ON_ERROR_STOP on|BEGIN;|ROLLBACK;|COMMIT;)$' "
 # Lee SQL por stdin y lo corre contra staging (postgres:17 en Docker, URL de .env.staging).
 psql_staging() {
     [[ -f "$RAIZ/.env.staging" ]] || die "falta $RAIZ/.env.staging (CRM_STAGING_DATABASE_URL)"
-    ( cd "$RAIZ" && docker run --rm -i --env-file .env.staging postgres:17 \
+    ( cd "$RAIZ" && docker run --rm --network host -i --env-file .env.staging postgres:17 \
         sh -c 'psql -X -q -A -t "$CRM_STAGING_DATABASE_URL" -v ON_ERROR_STOP=1 -f -' )
 }
 

@@ -43,17 +43,26 @@ fi
 SECRET_FILE="$(mktemp)"; chmod 600 "$SECRET_FILE"
 SQL_FILE="$(mktemp)"
 printf "select valor from cerebro_config where clave = 'notify_secret';\n" > "$SQL_FILE"
-docker run --rm -i --env-file "$ENV_PROD" postgres:17-alpine \
-  sh -c 'psql -X -q -A -t "$PROD_DATABASE_URL" -v ON_ERROR_STOP=1 -f -' \
-  < "$SQL_FILE" > "$SECRET_FILE" || fallo "no se pudo leer notify_secret"
-[[ -s "$SECRET_FILE" ]] || fallo "notify_secret vacio"
+for intento in 1 2 3; do
+  docker run --rm --network host -i --env-file "$ENV_PROD" postgres:17-alpine \
+    sh -c 'psql -X -q -A -t "$PROD_DATABASE_URL" -v ON_ERROR_STOP=1 -f -' \
+    < "$SQL_FILE" > "$SECRET_FILE" 2>/dev/null && break
+  paso "reintento del secreto ($intento/3)"
+  sleep 5
+done
+[[ -s "$SECRET_FILE" ]] || fallo "no se pudo leer notify_secret"
 paso "secreto de la ruta interna listo"
 
 # 2. Collect the last 24 h (read-only).
 mkdir -p "$SALIDA/dias"; chmod 700 "$SALIDA" "$SALIDA/dias"
 DIA="$SALIDA/dias/dia-$(date -u +%Y%m%dT%H%M%SZ).json"
 paso "colectando el dia -> $DIA"
-python3 "$ROOT/infra/ia/colectar_dia.py" --horas 24 --salida "$DIA" || fallo "el colector fallo"
+for intento in 1 2 3; do
+  python3 "$ROOT/infra/ia/colectar_dia.py" --horas 24 --salida "$DIA" && break
+  paso "reintento del colector ($intento/3)"
+  sleep 5
+done
+[[ -s "$DIA" ]] || fallo "el colector fallo"
 
 # 3. Refresh the production prompt snapshot (read-only against n8n).
 paso "refrescando el contrato del prompt"

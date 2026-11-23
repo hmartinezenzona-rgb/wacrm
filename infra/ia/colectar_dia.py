@@ -116,7 +116,7 @@ def leer_url(env_file: Path) -> str:
 def consultar(url: str, sql: str) -> str:
     # The URL goes in through the environment, never on the command line.
     cmd = [
-        "docker", "run", "--rm", "-i", "--env-file", str(ENV_PROD_FILE),
+        "docker", "run", "--rm", "--network", "host", "-i", "--env-file", str(ENV_PROD_FILE),
         "postgres:17-alpine",
         "sh", "-c", f'psql -X -q -A -t "${VAR_PROD}" -v ON_ERROR_STOP=1 -f -',
     ]

@@ -75,8 +75,9 @@ class MejoraNocturnaTest(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def run_review(self, payload):
-        self.answer.write_text("```json\n" + json.dumps(payload, ensure_ascii=False) + "\n```\n", encoding="utf-8")
+    def run_review(self, payload=None):
+        if payload is not None:
+            self.answer.write_text("```json\n" + json.dumps(payload, ensure_ascii=False) + "\n```\n", encoding="utf-8")
         env = dict(os.environ)
         env["PATH"] = f"{self.bin}:{env['PATH']}"
         return subprocess.run(
@@ -156,6 +157,67 @@ class MejoraNocturnaTest(unittest.TestCase):
         )
         self.assertNotEqual(p.returncode, 0)
         self.assertEqual(len(list(self.salida.glob("informe-*.md"))), 0)
+
+    def test_control_chars_and_missing_proposal_reports_only(self):
+        raw = (
+            '```json\n'
+            '{"resumen":"x","hallazgos":[{"chat":"c1","problema":"error",'
+            '"cita":"linea1\nlinea2","causa":"c","arreglo":"a"}],'
+            '"familias_afectadas":["comprobante"],"riesgo_sugerido":"alto"}\n'
+            '```\n'
+        )
+        self.answer.write_text(raw, encoding="utf-8")
+        p = self.run_review(None)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(len(list(self.salida.glob("candidato-*.txt"))), 0)
+        self.assertEqual(len(list(self.salida.glob("informe-*.md"))), 1)
+        self.assertIn("candidato=ninguno", p.stdout)
+
+    def test_crm_timeout_retries_with_a_compact_prompt(self):
+        import time
+        prompts = []
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_POST(self):
+                n = int(self.headers.get('Content-Length', '0'))
+                body = json.loads(self.rfile.read(n))
+                prompts.append(body.get('prompt', ''))
+                if len(prompts) == 1:
+                    time.sleep(1.5)  # longer than --timeout 1: the client gives up
+                ans = "```json\n" + json.dumps(LOW, ensure_ascii=False) + "\n```\n"
+                payload = json.dumps({"content": ans}).encode()
+                try:
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.send_header('Content-Length', str(len(payload)))
+                    self.end_headers()
+                    self.wfile.write(payload)
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+
+            def log_message(self, *args):
+                pass
+
+        server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            url = f"http://127.0.0.1:{server.server_address[1]}/review"
+            env = dict(os.environ)
+            env["CRM_REVIEW_SECRET"] = "s3"
+            p = subprocess.run(
+                [sys.executable, str(SCRIPT), "--dia", str(self.dia),
+                 "--prompt-actual", str(self.prompt), "--skills-dir", str(self.skills),
+                 "--salida-dir", str(self.salida), "--backend", "crm", "--crm-url", url,
+                 "--casos-file", str(self.casos_file), "--timeout", "1"],
+                capture_output=True, text=True, env=env,
+            )
+            self.assertEqual(p.returncode, 0, p.stderr)
+            self.assertGreaterEqual(len(prompts), 2)
+            self.assertIn("reintento compacto", p.stderr)
+            self.assertEqual(len(list(self.salida.glob("candidato-*.txt"))), 1)
+        finally:
+            server.shutdown()
+            server.server_close()
 
     def test_crm_backend_posts_prompt_and_parses_content(self):
         captured = {}

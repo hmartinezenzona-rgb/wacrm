@@ -34,6 +34,10 @@ CASOS_DEFAULT = Path.home() / "cerebro-fase1" / "pruebas" / "evals" / "casos" / 
 BUDGET = 120_000
 
 
+class HermesTimeout(Exception):
+    """The CRM route did not answer within the client timeout."""
+
+
 def error(msg: str) -> "NoReturn":  # noqa: F821
     print(msg, file=sys.stderr)
     raise SystemExit(2)
@@ -125,7 +129,7 @@ def validar_familias(data: dict, casos: list[dict]) -> tuple[list[str], list[str
 
 
 def construir_prompt(dia: dict, prompt_actual: str, skills: dict[str, str],
-                     familias: str) -> str:
+                     familias: str, budget: int = BUDGET) -> str:
     for max_conv, max_msgs, max_chars in ((40, 12, 300), (20, 8, 200), (10, 6, 150)):
         datos = json.dumps(digest(dia, max_conv, max_msgs, max_chars), ensure_ascii=False)
         texto = (
@@ -136,9 +140,9 @@ def construir_prompt(dia: dict, prompt_actual: str, skills: dict[str, str],
             + "\n\n### PROMPT ACTUAL DEL BOT\n" + prompt_actual
             + "\n\n### CONVERSACIONES DEL DIA (JSON)\n" + datos
         )
-        if len(texto) <= BUDGET:
+        if len(texto) <= budget:
             return texto
-    error(f"el prompt para Hermes supera {BUDGET} caracteres incluso compactado")
+    error(f"el prompt para Hermes supera {budget} caracteres incluso compactado")
 
 
 def extraer_json(salida: str) -> dict:
@@ -152,10 +156,14 @@ def extraer_json(salida: str) -> dict:
             candidatos.append(salida[i:j + 1])
     for c in reversed(candidatos):
         try:
-            data = json.loads(c)
+            # strict=False tolerates literal newlines/tabs inside JSON strings,
+            # which the CRM Hermes emits when it quotes a chat message.
+            data = json.loads(c, strict=False)
         except json.JSONDecodeError:
             continue
-        if isinstance(data.get("propuesta"), dict) and isinstance(data.get("hallazgos"), list):
+        if isinstance(data.get("hallazgos"), list):
+            if not isinstance(data.get("propuesta"), dict):
+                data["propuesta"] = {}
             return data
     error("Hermes no devolvio el JSON esperado")
 
@@ -177,7 +185,7 @@ def llamar_hermes(prompt: str, timeout: int, backend: str = "cli",
             detalle = exc.read().decode("utf-8", "replace")[:300]
             error(f"la ruta interna respondio {exc.code}: {detalle}")
         except (urllib.error.URLError, TimeoutError) as exc:
-            error(f"no se pudo contactar la ruta interna: {exc}")
+            raise HermesTimeout(str(exc)) from exc
         contenido = data.get("content")
         if not isinstance(contenido, str) or not contenido.strip():
             error("la ruta interna devolvio una respuesta vacia")
@@ -318,7 +326,9 @@ def main() -> int:
     p.add_argument("--skills-dir", type=Path, default=SKILLS_DEFAULT)
     p.add_argument("--casos-file", type=Path, default=CASOS_DEFAULT)
     p.add_argument("--salida-dir", type=Path, default=DEST)
-    p.add_argument("--timeout", type=int, default=900)
+    p.add_argument("--timeout", type=int, default=300)
+    p.add_argument("--prompt-budget", type=int, default=60_000,
+                   help="max prompt chars for the CRM backend (compact digest)")
     p.add_argument("--backend", choices=["crm", "cli"], default="crm",
                    help="crm = Hermes del CRM via ruta interna; cli = hermes local (pruebas)")
     p.add_argument("--crm-url", default="https://wacrm.onlinefreedom.site/api/internal/hermes/review")
@@ -339,7 +349,8 @@ def main() -> int:
     version, casos = leer_casos(args.casos_file)
     familias_txt = resumen_familias(casos)
     skills = leer_skills(args.skills_dir)
-    prompt = construir_prompt(dia, prompt_actual, skills, familias_txt)
+    presupuesto = args.prompt_budget if args.backend == "crm" else BUDGET
+    prompt = construir_prompt(dia, prompt_actual, skills, familias_txt, presupuesto)
 
     if args.dry:
         print(f"ok prompt={len(prompt)} caracteres conversaciones={len(dia.get('conversaciones', []))}")
@@ -354,7 +365,19 @@ def main() -> int:
         if not secret:
             error(f"backend crm: falta el secreto (--secret-file o {args.secret_env})")
 
-    salida = llamar_hermes(prompt, args.timeout, args.backend, args.crm_url, secret)
+    try:
+        salida = llamar_hermes(prompt, args.timeout, args.backend, args.crm_url, secret)
+    except HermesTimeout as exc:
+        if args.backend != "crm":
+            error(f"hermes no respondio a tiempo: {exc}")
+        prompt = construir_prompt(dia, prompt_actual, skills, familias_txt,
+                                  min(presupuesto, 40_000))
+        print("reintento compacto: el Hermes del CRM no respondio a tiempo", file=sys.stderr)
+        try:
+            salida = llamar_hermes(prompt, min(args.timeout, 240), args.backend,
+                                   args.crm_url, secret)
+        except HermesTimeout as exc2:
+            error(f"el Hermes del CRM no respondio tras el reintento: {exc2}")
     args.salida_dir.mkdir(parents=True, exist_ok=True)
     os.chmod(args.salida_dir, 0o700)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")

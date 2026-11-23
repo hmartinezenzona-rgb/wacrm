@@ -50,6 +50,12 @@
   - **V1 is now a list of exact patches** (`{buscar, reemplazar}`), applied locally with a one-occurrence check and a length guard (max(200 chars, 10%)). V2 is a full rewrite for human review and is never auto-chosen. Full rewrites and invalid patches are high-risk.
   - Real run 2026-11-23: 20 conversations reviewed; one finding (duplicate consecutive messages after a receipt verification); V1 empty, V2 high-risk; no candidate, nothing applied. The raw Hermes answer is saved as `respuesta-*.txt` (0600) for audit.
   - Hermes needed the **original** FreeLLMAPI server, not a fresh Docker container: it runs from `~/.local/share/freellmapi-app` with its original DB (`server/data/freeapi.db`); started with `nohup setsid npm start -w server` (port 3001). A fresh container has a new key and returns 401.
-- [ ] T4 Staging eval gate: apply candidate to staging, run the affected subset x5, compare per case.
-- [ ] T5 Production apply + rollback watcher: backup, apply, verify, auto-revert on regression.
-- [ ] T6 systemd timer and notification.
+- [x] T4 Staging eval gate: apply candidate to staging, run the affected subset x5, compare per case.
+  - `infra/ia/aplicar_candidato.py` + `infra/ia/tests/test_aplicar_candidato.py`, 4/4 green.
+  - Refuses any risk other than `bajo`; runs the full gold battery (`casos/casos-conversaciones.json`) with `evaluar.py --reps 5 --prompt <candidate>`; requires exit 0 (all green) before anything else.
+- [x] T5 Production apply + rollback record.
+  - With `--aplicar`, after a green battery it runs `desplegar_prompt.py --candidato <file> --etiqueta nocturna-YYYYMMDD`, requires `COINCIDE`, and records the rollback path (`~/cerebro-fase1/ROLLBACK-v2-antes-<tag>.json`) in `~/cerebro-fase1/mejora-nocturna/estado.json`.
+  - Manual rollback (auto watcher pending): `python3 infra/n8n/cerebro_n8n.py estado produccion`, then `python3 infra/n8n/cerebro_n8n.py restaurar produccion <rollback> --esperado <versionId prefix>`.
+- [x] T6 systemd timer and notification.
+  - `infra/ia/mejora_nocturna.sh` runs router check/start, collect, contract refresh, review, and apply-if-low.
+  - `wacrm-mejora-nocturna.{service,timer}` installed and enabled; next run 2026-11-24 00:24 CST. Notification is journal-only for now; the report stays local.

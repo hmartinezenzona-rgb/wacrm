@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the WaCRM nightly Cerebro review
+
+[Timer]
+OnCalendar=*-*-* 00:15:00
+RandomizedDelaySec=10min
+Persistent=true
+Unit=wacrm-mejora-nocturna.service
+
+[Install]
+WantedBy=timers.target

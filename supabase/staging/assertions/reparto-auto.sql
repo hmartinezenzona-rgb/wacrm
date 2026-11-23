@@ -204,3 +204,6 @@ BEGIN
   END IF;
   RAISE NOTICE 'PASS 13: other numbers starting with 6 are still refused';
 END $$;
+
+-- Convention: reaching this point means every case above passed.
+DO $$ BEGIN RAISE EXCEPTION 'ALL PASS (rolled back on purpose)'; END $$;

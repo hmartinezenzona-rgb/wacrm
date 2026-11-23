@@ -109,3 +109,6 @@ BEGIN
   IF v_n <> 0 THEN RAISE EXCEPTION 'case 4: a deal without conversation got % operation(s)', v_n; END IF;
   RAISE NOTICE 'PASS 4: deal without conversation gets no operation';
 END $$;
+
+-- Convention: reaching this point means every case above passed.
+DO $$ BEGIN RAISE EXCEPTION 'ALL PASS (rolled back on purpose)'; END $$;

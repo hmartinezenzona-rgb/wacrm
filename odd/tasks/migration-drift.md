@@ -79,5 +79,9 @@ Consequence: a blanket discard would break the staging v3 path and its tool test
 - Alias map and measured state recorded here.
 
 ## Follow-ups
-- Add `ALL PASS` to the 13 legacy assertions.
+- [x] 13 legacy assertions closed 2026-11-23:
+  - 10 received the `ALL PASS` marker and pass.
+  - `stale-operations-alert` was rewritten to insert `remittance_operations` directly (its deal-based fixture relied on triggers retired by 172) and passes.
+  - `deal-insert-creates-operation` and `tag-sync-without-deals` moved to `supabase/staging/assertions/legacy/` with a README: both exercise deal triggers that 172 deliberately dropped.
+  - New `sync-tags-cliente.sql` covers the live `sync_tags_cliente` (Nuevo/Cliente/Recurrentes/Admin) and passes.
 - Consider a read-only `estado-migraciones` command that prints this classification automatically against both ledgers.

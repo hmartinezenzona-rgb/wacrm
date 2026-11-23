@@ -782,3 +782,6 @@ $q$;
 END $do$;
 
 ROLLBACK TO SAVEPOINT wu4b_parity;
+
+-- Convention: reaching this point means every case above passed.
+DO $$ BEGIN RAISE EXCEPTION 'ALL PASS (rolled back on purpose)'; END $$;

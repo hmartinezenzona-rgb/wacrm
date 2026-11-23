@@ -13,23 +13,20 @@ END $digest_off$;
 
 DO $$
 DECLARE
-  v_user uuid; v_acc uuid; v_ct uuid; v_conv uuid; v_deal uuid; v_r record; v_body text; v_menciones int;
-  c_pipeline CONSTANT uuid := '78220927-0745-45a8-ba08-a1b33734dbf1';
-  c_lista CONSTANT uuid := 'f5cf87f8-b570-4d71-b6ea-a3cafd458c63';
+  v_user uuid; v_acc uuid; v_ct uuid; v_conv uuid; v_op uuid; v_r record; v_body text; v_menciones int;
 BEGIN
   SELECT user_id, account_id INTO v_user, v_acc FROM conversations LIMIT 1;
   DELETE FROM cerebro_alertas WHERE clave LIKE 'remesas_viejas:%';
-  -- A remesa paid 3 days ago and never closed in the panel (real shape: 1727ef31, 19-Sep).
+  -- A remesa paid 3 days ago and never closed in the panel.
   INSERT INTO contacts (user_id, account_id, phone, name) VALUES (v_user, v_acc, '59900134001', 'Test134 Vieja') RETURNING id INTO v_ct;
   INSERT INTO conversations (user_id, account_id, contact_id) VALUES (v_user, v_acc, v_ct) RETURNING id INTO v_conv;
-  INSERT INTO deals (user_id, account_id, contact_id, conversation_id, pipeline_id, stage_id, title, value, currency, notes, status)
-  VALUES (v_user, v_acc, v_ct, v_conv, c_pipeline, c_lista, 'test134', 32500, 'GYD', 'DEPOSITO: 32,500 GYD', 'open') RETURNING id INTO v_deal;
-  UPDATE remittance_operations SET created_at = now() - interval '3 days', status = 'ready_to_transfer', quoted_source_amount = 32500 WHERE deal_id = v_deal;
+  INSERT INTO remittance_operations (account_id, conversation_id, contact_id, status, service_type, source_currency, quoted_source_amount, created_at)
+  VALUES (v_acc, v_conv, v_ct, 'ready_to_transfer', 'remesa', 'GYD', 32500, now() - interval '3 days') RETURNING id INTO v_op;
   -- A remesa of today: never in the alert.
   INSERT INTO contacts (user_id, account_id, phone, name) VALUES (v_user, v_acc, '59900134002', 'Test134 Nueva') RETURNING id INTO v_ct;
   INSERT INTO conversations (user_id, account_id, contact_id) VALUES (v_user, v_acc, v_ct) RETURNING id INTO v_conv;
-  INSERT INTO deals (user_id, account_id, contact_id, conversation_id, pipeline_id, stage_id, title, value, currency, notes, status)
-  VALUES (v_user, v_acc, v_ct, v_conv, c_pipeline, c_lista, 'test134b', 52000, 'GYD', 'DEPOSITO: 52,000 GYD', 'open');
+  INSERT INTO remittance_operations (account_id, conversation_id, contact_id, status, service_type, source_currency, quoted_source_amount, created_at)
+  VALUES (v_acc, v_conv, v_ct, 'ready_to_transfer', 'remesa', 'GYD', 52000, now());
 
   -- 1. The old one is listed, with its amount and age; today's is not.
   SELECT * INTO v_r FROM cerebro_avisar_remesas_abiertas_viejas(NULL, true);
@@ -49,7 +46,7 @@ BEGIN
   DELETE FROM cerebro_alertas WHERE clave LIKE 'remesas_viejas:%';
   -- only a person in the panel can complete a remesa (automation completions are suppressed)
   PERFORM set_config('wacrm.origin', 'admin', true);
-  UPDATE remittance_operations SET status = 'completed', completed_at = now() WHERE deal_id = v_deal;
+  UPDATE remittance_operations SET status = 'completed', completed_at = now() WHERE id = v_op;
   PERFORM set_config('wacrm.origin', '', true);
   SELECT count(*) INTO v_menciones FROM notifications WHERE type = 'remesa_abierta_vieja' AND body LIKE '%Test134 Vieja%';
   SELECT * INTO v_r FROM cerebro_avisar_remesas_abiertas_viejas(NULL, true);
@@ -63,3 +60,6 @@ BEGIN
   END IF;
   RAISE NOTICE 'PASS 4: not exposed to anon';
 END $$;
+
+-- Convention: reaching this point means every case above passed.
+DO $$ BEGIN RAISE EXCEPTION 'ALL PASS (rolled back on purpose)'; END $$;

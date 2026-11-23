@@ -526,3 +526,6 @@ BEGIN
   END IF;
   RAISE NOTICE 'OK tag-sync-without-deals: every check passed';
 END $$;
+
+-- Convention: reaching this point means every case above passed.
+DO $$ BEGIN RAISE EXCEPTION 'ALL PASS (rolled back on purpose)'; END $$;

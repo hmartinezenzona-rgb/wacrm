@@ -210,3 +210,6 @@ BEGIN
   END IF;
   RAISE NOTICE 'PASS 9: a reused account without amount goes to the new remesa';
 END $$;
+
+-- Convention: reaching this point means every case above passed.
+DO $$ BEGIN RAISE EXCEPTION 'ALL PASS (rolled back on purpose)'; END $$;

@@ -54,3 +54,6 @@ BEGIN
   END IF;
   RAISE NOTICE 'PASS 5: not exposed to anon';
 END $$;
+
+-- Convention: reaching this point means every case above passed.
+DO $$ BEGIN RAISE EXCEPTION 'ALL PASS (rolled back on purpose)'; END $$;

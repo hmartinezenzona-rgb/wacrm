@@ -90,3 +90,6 @@ BEGIN
   IF NOT (v_r->>'aplicado')::boolean OR v_n <> 2 THEN RAISE EXCEPTION 'case 5: a plain CUP reparto should apply, got % (%)', v_r, v_n; END IF;
   RAISE NOTICE 'PASS 5: a plain two-card CUP reparto is unchanged';
 END $$;
+
+-- Convention: reaching this point means every case above passed.
+DO $$ BEGIN RAISE EXCEPTION 'ALL PASS (rolled back on purpose)'; END $$;

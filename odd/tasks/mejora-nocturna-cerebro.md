@@ -49,7 +49,7 @@
   - The wrapper must refresh the contract first: `cd ~/cerebro-fase1/pruebas/evals && python3 evaluar.py --exportar-contrato` (read-only).
   - **V1 is now a list of exact patches** (`{buscar, reemplazar}`), applied locally with a one-occurrence check and a length guard (max(200 chars, 10%)). V2 is a full rewrite for human review and is never auto-chosen. Full rewrites and invalid patches are high-risk.
   - Real run 2026-11-23: 20 conversations reviewed; one finding (duplicate consecutive messages after a receipt verification); V1 empty, V2 high-risk; no candidate, nothing applied. The raw Hermes answer is saved as `respuesta-*.txt` (0600) for audit.
-  - Hermes needed the **original** FreeLLMAPI server, not a fresh Docker container: it runs from `~/.local/share/freellmapi-app` with its original DB (`server/data/freeapi.db`); started with `nohup setsid npm start -w server` (port 3001). A fresh container has a new key and returns 401.
+  - **Corrección 2026-11-23**: el backend por defecto es `crm`, no el CLI local. El revisor hace POST a `/api/internal/hermes/review` (ruta interna del CRM) con `x-cerebro-secret`; la ruta añade `HERMES_API_KEY` del servidor y llama al Hermes del CRM. `--backend cli` queda solo para pruebas locales. La ruta está implementada (`src/app/api/internal/hermes/review/route.ts`) con 6 tests; **falta publicar el panel** para que exista en producción.
 - [x] T4 Staging eval gate: apply candidate to staging, run the affected subset x5, compare per case.
   - `infra/ia/aplicar_candidato.py` + `infra/ia/tests/test_aplicar_candidato.py`, 4/4 green.
   - Refuses any risk other than `bajo`; runs the full gold battery (`casos/casos-conversaciones.json`) with `evaluar.py --reps 5 --prompt <candidate>`; requires exit 0 (all green) before anything else.
@@ -58,4 +58,4 @@
   - Manual rollback (auto watcher pending): `python3 infra/n8n/cerebro_n8n.py estado produccion`, then `python3 infra/n8n/cerebro_n8n.py restaurar produccion <rollback> --esperado <versionId prefix>`.
 - [x] T6 systemd timer and notification.
   - `infra/ia/mejora_nocturna.sh` runs router check/start, collect, contract refresh, review, and apply-if-low.
-  - `wacrm-mejora-nocturna.{service,timer}` installed and enabled; next run 2026-11-24 00:24 CST. Notification is journal-only for now; the report stays local.
+  - `wacrm-mejora-nocturna.{service,timer}` installed; the timer is **disabled** until the panel with `/api/internal/hermes/review` is published. Re-enable with `systemctl --user enable --now wacrm-mejora-nocturna.timer`.

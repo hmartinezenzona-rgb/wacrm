@@ -19,6 +19,8 @@ import os
 import subprocess
 import sys
 import tempfile
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -129,7 +131,29 @@ def extraer_json(salida: str) -> dict:
     error("Hermes no devolvio el JSON esperado")
 
 
-def llamar_hermes(prompt: str, timeout: int) -> str:
+def llamar_hermes(prompt: str, timeout: int, backend: str = "cli",
+                  crm_url: str | None = None, secret: str | None = None) -> str:
+    if backend == "crm":
+        if not crm_url or not secret:
+            error("backend crm: faltan la URL o el secreto de la ruta interna")
+        cuerpo = json.dumps({"prompt": prompt}).encode("utf-8")
+        req = urllib.request.Request(
+            crm_url, data=cuerpo, method="POST",
+            headers={"Content-Type": "application/json", "x-cerebro-secret": secret},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                data = json.loads(r.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            detalle = exc.read().decode("utf-8", "replace")[:300]
+            error(f"la ruta interna respondio {exc.code}: {detalle}")
+        except (urllib.error.URLError, TimeoutError) as exc:
+            error(f"no se pudo contactar la ruta interna: {exc}")
+        contenido = data.get("content")
+        if not isinstance(contenido, str) or not contenido.strip():
+            error("la ruta interna devolvio una respuesta vacia")
+        return contenido
+
     with tempfile.TemporaryDirectory() as tmp:
         r = subprocess.run(
             ["hermes", "-z", prompt, "--in", tmp],  # no toolset: `todo` is disabled on this CLI
@@ -250,6 +274,11 @@ def main() -> int:
     p.add_argument("--skills-dir", type=Path, default=SKILLS_DEFAULT)
     p.add_argument("--salida-dir", type=Path, default=DEST)
     p.add_argument("--timeout", type=int, default=900)
+    p.add_argument("--backend", choices=["crm", "cli"], default="crm",
+                   help="crm = Hermes del CRM via ruta interna; cli = hermes local (pruebas)")
+    p.add_argument("--crm-url", default="https://wacrm.onlinefreedom.site/api/internal/hermes/review")
+    p.add_argument("--secret-file", type=Path, default=None)
+    p.add_argument("--secret-env", default="CRM_REVIEW_SECRET")
     p.add_argument("--dry", action="store_true", help="build the prompt and print its size only")
     args = p.parse_args()
 
@@ -267,7 +296,16 @@ def main() -> int:
         print(f"ok prompt={len(prompt)} caracteres conversaciones={len(dia.get('conversaciones', []))}")
         return 0
 
-    salida = llamar_hermes(prompt, args.timeout)
+    secret = None
+    if args.backend == "crm":
+        if args.secret_file:
+            secret = args.secret_file.read_text(encoding="utf-8").strip()
+        else:
+            secret = os.environ.get(args.secret_env, "").strip()
+        if not secret:
+            error(f"backend crm: falta el secreto (--secret-file o {args.secret_env})")
+
+    salida = llamar_hermes(prompt, args.timeout, args.backend, args.crm_url, secret)
     args.salida_dir.mkdir(parents=True, exist_ok=True)
     os.chmod(args.salida_dir, 0o700)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")

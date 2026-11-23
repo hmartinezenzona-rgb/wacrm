@@ -1,10 +1,12 @@
 """Guard tests for mejora_nocturna.py. Hermes is replaced by a fake on PATH."""
+import http.server
 import json
 import os
 import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 
@@ -67,7 +69,7 @@ class MejoraNocturnaTest(unittest.TestCase):
         return subprocess.run(
             [sys.executable, str(SCRIPT), "--dia", str(self.dia),
              "--prompt-actual", str(self.prompt), "--skills-dir", str(self.skills),
-             "--salida-dir", str(self.salida)],
+             "--salida-dir", str(self.salida), "--backend", "cli"],
             capture_output=True, text=True, env=env,
         )
 
@@ -118,11 +120,51 @@ class MejoraNocturnaTest(unittest.TestCase):
         p = subprocess.run(
             [sys.executable, str(SCRIPT), "--dia", str(self.dia),
              "--prompt-actual", str(self.prompt), "--skills-dir", str(self.skills),
-             "--salida-dir", str(self.salida)],
+             "--salida-dir", str(self.salida), "--backend", "cli"],
             capture_output=True, text=True, env=env,
         )
         self.assertNotEqual(p.returncode, 0)
         self.assertEqual(len(list(self.salida.glob("informe-*.md"))), 0)
+
+    def test_crm_backend_posts_prompt_and_parses_content(self):
+        captured = {}
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_POST(self):
+                n = int(self.headers.get('Content-Length', '0'))
+                body = json.loads(self.rfile.read(n))
+                captured['secret'] = self.headers.get('x-cerebro-secret')
+                captured['prompt'] = body.get('prompt')
+                ans = "```json\n" + json.dumps(LOW, ensure_ascii=False) + "\n```\n"
+                payload = json.dumps({"content": ans}).encode()
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Content-Length', str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+
+            def log_message(self, *args):
+                pass
+
+        server = http.server.HTTPServer(('127.0.0.1', 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            url = f"http://127.0.0.1:{server.server_address[1]}/review"
+            env = dict(os.environ)
+            env["CRM_REVIEW_SECRET"] = "s3"
+            p = subprocess.run(
+                [sys.executable, str(SCRIPT), "--dia", str(self.dia),
+                 "--prompt-actual", str(self.prompt), "--skills-dir", str(self.skills),
+                 "--salida-dir", str(self.salida), "--backend", "crm", "--crm-url", url],
+                capture_output=True, text=True, env=env,
+            )
+            self.assertEqual(p.returncode, 0, p.stderr)
+            self.assertEqual(captured["secret"], "s3")
+            self.assertIn("### CONVERSACIONES DEL DIA", captured["prompt"])
+            self.assertEqual(len(list(self.salida.glob("candidato-*.txt"))), 1)
+        finally:
+            server.shutdown()
+            server.server_close()
 
 
 if __name__ == "__main__":

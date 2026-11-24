@@ -46,3 +46,16 @@ Button: `Unirme al grupo` → `https://chat.whatsapp.com/GFznWMcrlHa5RSBo76Vw81`
 ## Verification evidence
 
 - Pending.
+
+## 2026-11-24 — botón interactivo para clientes nuevos (sin plantilla)
+
+Decisión: no se envía una plantilla Marketing por cada cliente nuevo. El primer mensaje del cliente abre la ventana de 24 h, así que el webhook manda un **mensaje interactivo `cta_url`** (sin aprobación de Meta) con el botón “Unirme al grupo” apuntando al `/grupo` del panel.
+
+- [x] Soporte `cta_url` en el núcleo de mensajes interactivos + tests.
+- [x] Webhook: al primer mensaje de un cliente nuevo, envía la invitación con tres guardas: flag `cerebro_config.grupo_boton` (apagado por defecto), contacto sin etiqueta Admin, y sin un `cta_url` previo en el hilo.
+- [x] Panel de producción con el código, **flag apagado** (BUILD_ID Md8Guw4ttKvI7IZkL6YgR, rollback 42f5a1e2).
+- [x] Decisor de staging sin la invitación en texto (md5 d64e8009, versionId 105ef1da, repo match).
+- [ ] Producción: publicar el Decisor sin el texto y encender `grupo_boton='si'` (requiere go-ahead). Probar con un contacto nuevo.
+- [ ] T6 original (plantilla + broadcast a existentes): la plantilla debe apuntar al `/grupo`, no a `chat.whatsapp.com` (Meta rechaza ese host en botones).
+
+Nota: el staging local no recibe webhooks de Meta; la prueba real del botón se hace en producción con un contacto nuevo.

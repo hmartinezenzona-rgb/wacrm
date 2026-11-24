@@ -32,7 +32,7 @@ interface PartRow {
 
 /** A typed GYD amount as a number. A dot that groups thousands ("20.000") is dropped and a comma is the decimal;
  *  anything else is read as typed, so an unreadable text is NaN and keeps the form locked. */
-function parseAmount(text: string): number {
+export function parseAmount(text: string): number {
   const compact = text.replace(/[\s ]/g, "");
   const grouped = /^\d{1,3}(\.\d{3})+(,\d+)?$/.test(compact) ? compact.replace(/\./g, "") : compact;
   return Number(grouped.replace(",", "."));

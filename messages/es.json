@@ -389,6 +389,26 @@
         "saved": "Depósito repartido",
         "failed": "No se pudo repartir el depósito: {message}"
       },
+      "editSplit": {
+        "button": "Editar reparto",
+        "type": "Tipo",
+        "name": "Nombre",
+        "card": "Tarjeta",
+        "phone": "Teléfono",
+        "amount": "Monto",
+        "addRow": "Agregar una parte",
+        "removeRow": "Quitar esta parte",
+        "confirm": "Guardar reparto",
+        "summary": "Suma {sum} / Total {total} — diferencia {difference}",
+        "noTotal": "La operación no tiene total de destino: corrígelo primero con Editar operación",
+        "saved": "Reparto guardado",
+        "types": {
+          "cuban_card": "Tarjeta CUP",
+          "clasica": "Clásica",
+          "tropical": "Tropical",
+          "multiple_distribution": "Reparto"
+        }
+      },
       "comboCost": {
         "label": "Costo del combo (GYD)",
         "clear": "Borrar",

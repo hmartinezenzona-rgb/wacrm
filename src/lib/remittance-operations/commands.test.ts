@@ -22,6 +22,7 @@ import {
   setComboCosto,
   cambiarServicio,
   repartirEnvio,
+  editarReparto,
   eliminarOperacion,
   registerBeneficiaryProof,
 } from "./commands";
@@ -787,5 +788,36 @@ describe("adjuntarComprobante", () => {
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ error: "this image is already a receipt of the operation" }, 400));
 
     expect(await adjuntarComprobante(OPERATION_ID, "wamid.X")).toEqual({ ok: false, status: 400, error: "this image is already a receipt of the operation" });
+  });
+});
+
+describe("editarReparto", () => {
+  const PARTES = [
+    { id: BENEFICIARY_ID, beneficiary_type: "cuban_card", name: null, card_number: "9205000000000001", phone: null, amount: 100, currency: "CUP" },
+    { id: null, beneficiary_type: "cuban_card", name: "Persona", card_number: "9205000000000002", phone: "55500001", amount: 50, currency: "CUP" },
+  ];
+
+  it("POSTs the partes to the reparto route and unwraps the summary", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse({ ok: true, retired: ["a"], created: ["b"], kept: [BENEFICIARY_ID], complete: true }),
+    );
+
+    const response = await editarReparto(OPERATION_ID, PARTES);
+
+    expect(fetch).toHaveBeenCalledWith(
+      `/api/remittance-operations/${OPERATION_ID}/reparto`,
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ partes: PARTES }),
+      }),
+    );
+    expect(response).toEqual({ ok: true, retired: ["a"], created: ["b"], kept: [BENEFICIARY_ID], complete: true });
+  });
+
+  it("surfaces a failure's status and message", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ error: "Las partes suman 1" }, 400));
+
+    expect(await editarReparto(OPERATION_ID, PARTES)).toEqual({ ok: false, status: 400, error: "Las partes suman 1" });
   });
 });

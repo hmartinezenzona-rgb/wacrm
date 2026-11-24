@@ -389,6 +389,26 @@
         "saved": "Deposit split",
         "failed": "Could not split the deposit: {message}"
       },
+      "editSplit": {
+        "button": "Edit split",
+        "type": "Type",
+        "name": "Name",
+        "card": "Card",
+        "phone": "Phone",
+        "amount": "Amount",
+        "addRow": "Add a share",
+        "removeRow": "Remove this share",
+        "confirm": "Save split",
+        "summary": "Sum {sum} / Total {total} — difference {difference}",
+        "noTotal": "The operation has no destination total: fix it first with Edit operation",
+        "saved": "Split saved",
+        "types": {
+          "cuban_card": "CUP card",
+          "clasica": "Clásica",
+          "tropical": "Tropical",
+          "multiple_distribution": "Split"
+        }
+      },
       "comboCost": {
         "label": "Combo cost (GYD)",
         "clear": "Clear",

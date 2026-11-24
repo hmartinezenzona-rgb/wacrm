@@ -465,6 +465,37 @@ export async function repartirEnvio(
   return { ok: true, group, deposited, balance, parts: splitParts };
 }
 
+export interface SplitEditShare {
+  /** The current share's id, or null for a new share. */
+  id: string | null;
+  beneficiary_type: string;
+  name: string | null;
+  card_number: string;
+  phone: string | null;
+  amount: number;
+  currency: string;
+}
+
+export type EditSplitCommandResult =
+  | { ok: true; retired: string[]; created: string[]; kept: string[]; complete: boolean }
+  | { ok: false; status: number; error: string };
+
+/** `crm_editar_reparto` (migration 394): replaces every card share of a remesa in one audited step. The shares must
+ *  add up exactly to the operation's destination total; kept shares carry their id, new ones null. */
+export async function editarReparto(
+  operationId: string,
+  partes: SplitEditShare[],
+): Promise<EditSplitCommandResult> {
+  const response = await postJsonResult<{ retired: string[]; created: string[]; kept: string[]; complete: boolean }>(
+    `/api/remittance-operations/${operationId}/reparto`,
+    "POST",
+    { partes },
+  );
+  if (!response.ok) return response;
+  const { retired, created, kept, complete } = response.data;
+  return { ok: true, retired, created, kept, complete };
+}
+
 export type DeleteOperationCommandResult =
   | { ok: true; newStatus: string }
   | { ok: false; status: number; error: string };

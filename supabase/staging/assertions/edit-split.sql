@@ -11,6 +11,8 @@ BEGIN;
 --      one human_correction audit row with before / after, destination total untouched
 --   2  a sum that differs from the total is refused with both numbers (22023) and nothing changes (same current ids, no new audit row)
 --   3  a share of another operation, a repeated id, fewer than 2 shares, a total not set, a wrong currency, a Zelle share, bad card: refused
+--   5  a calculated total: after a valid edit the origin is manual, quoted_destination_amount is locked and in the audit 'after', and a
+--      later correction of one share does not clear the total
 --   4  closed (completed) operation: an agent is refused, the owner is applied and leaves the human_closed_operation_edit audit row
 -- =====================================================================
 CREATE FUNCTION pg_temp.p_refused(p_op uuid, p_partes jsonb, p_sqlstate text) RETURNS text
@@ -34,6 +36,7 @@ DECLARE
   s1 uuid; s2 uuid; s3 uuid; s4 uuid; o1 uuid; o2 uuid; z1 uuid;
   v_res jsonb; v_msg text; v_ids text; v_n int; v_audit int; v_row remittance_operations%ROWTYPE; v_aud remittance_admin_audit%ROWTYPE;
   v_pos text;
+  v_op5 uuid; t1 uuid; t2 uuid; v_new uuid;
 BEGIN
   SELECT p.user_id, w.account_id INTO v_user, v_acc FROM whatsapp_config w JOIN profiles p ON p.account_id = w.account_id
    ORDER BY (p.account_role = 'owner') DESC LIMIT 1;
@@ -148,7 +151,7 @@ BEGIN
   IF NOT (v_row.admin_locked_fields ? 'beneficiaries') OR v_row.admin_locked_fields -> 'beneficiaries' ->> 'by' IS NULL THEN RAISE EXCEPTION 'case 1: beneficiaries must be locked with actor'; END IF;
   IF v_row.quoted_destination_amount <> 40000 OR v_row.destination_currency <> 'CUP' OR v_row.status <> 'ready_to_transfer' THEN RAISE EXCEPTION 'case 1: the operation total/status must not change: %', to_jsonb(v_row); END IF;
   SELECT * INTO v_aud FROM remittance_admin_audit WHERE row_id = v_op AND action = 'human_correction' ORDER BY created_at DESC LIMIT 1;
-  IF v_aud.id IS NULL OR jsonb_array_length(v_aud.before) <> 4 OR jsonb_array_length(v_aud.after) <> 4 THEN RAISE EXCEPTION 'case 1: audit row with before/after of the shares is missing: %', to_jsonb(v_aud); END IF;
+  IF v_aud.id IS NULL OR jsonb_array_length(v_aud.before -> 'shares') <> 4 OR jsonb_array_length(v_aud.after -> 'shares') <> 4 THEN RAISE EXCEPTION 'case 1: audit row with before/after of the shares is missing: %', to_jsonb(v_aud); END IF;
   IF (SELECT count(*) FROM remittance_admin_audit WHERE row_id = v_op AND action = 'human_correction') <> 1 THEN RAISE EXCEPTION 'case 1: exactly one audit row expected'; END IF;
   IF EXISTS (SELECT 1 FROM remittance_admin_audit WHERE row_id = v_op AND action = 'human_closed_operation_edit') THEN RAISE EXCEPTION 'case 1: an open operation leaves no closed-edit row'; END IF;
 
@@ -167,6 +170,30 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM remittance_admin_audit WHERE row_id = v_op3 AND action = 'human_closed_operation_edit' AND after ->> 'via' = 'crm_editar_reparto')
      OR NOT EXISTS (SELECT 1 FROM remittance_admin_audit WHERE row_id = v_op3 AND action = 'human_correction') THEN
     RAISE EXCEPTION 'case 4: the closed-edit and the correction audit rows are missing'; END IF;
+
+  -- 5 a calculated total becomes the operator's: manual origin + lock, and a later single-share correction keeps it
+  INSERT INTO remittance_operations (account_id, conversation_id, contact_id, status, service_type, source_currency, quoted_source_amount, delivery_method, destination_currency, quoted_destination_amount, quoted_destination_origin)
+  VALUES (v_acc, v_conv, v_ct, 'ready_to_transfer', 'remesa', 'GYD', 10000, 'multiple_distribution', 'CUP', 20000, 'manual') RETURNING id INTO v_op5;
+  INSERT INTO remittance_beneficiaries (operation_id, beneficiary_type, name, card_number, phone, amount, currency, position, block_index, source, status, amount_origin) VALUES
+    (v_op5, 'cuban_card', 'PRUEBA Cinco A', '9990394000000051', '53821251', 10000, 'CUP', 1, 1, 'notes_parse', 'vigente', 'manual'),
+    (v_op5, 'cuban_card', 'PRUEBA Cinco B', '9990394000000052', '53821252', 10000, 'CUP', 2, 2, 'notes_parse', 'vigente', 'manual');
+  UPDATE remittance_operations SET quoted_destination_origin = 'calculated', admin_locked_fields = admin_locked_fields - 'quoted_destination_amount' WHERE id = v_op5;
+  SELECT id INTO t1 FROM remittance_beneficiaries WHERE operation_id = v_op5 AND position = 1;
+  SELECT id INTO t2 FROM remittance_beneficiaries WHERE operation_id = v_op5 AND position = 2;
+  IF (SELECT quoted_destination_origin FROM remittance_operations WHERE id = v_op5) <> 'calculated' THEN RAISE EXCEPTION 'case 5: fixture must be calculated'; END IF;
+  PERFORM crm_editar_reparto(v_op5, jsonb_build_array(
+      jsonb_build_object('id', t1, 'beneficiary_type', 'cuban_card', 'name', 'PRUEBA Cinco A', 'card_number', '9990394000000051', 'phone', '53821251', 'amount', 12000, 'currency', 'CUP'),
+      jsonb_build_object('id', t2, 'beneficiary_type', 'cuban_card', 'name', 'PRUEBA Cinco B', 'card_number', '9990394000000052', 'phone', '53821252', 'amount', 8000, 'currency', 'CUP')));
+  SELECT * INTO v_row FROM remittance_operations WHERE id = v_op5;
+  IF v_row.quoted_destination_origin <> 'manual' OR NOT (v_row.admin_locked_fields ? 'quoted_destination_amount') OR v_row.quoted_destination_amount <> 20000 THEN
+    RAISE EXCEPTION 'case 5: the total must be manual, locked and unchanged: %', to_jsonb(v_row); END IF;
+  SELECT * INTO v_aud FROM remittance_admin_audit WHERE row_id = v_op5 AND action = 'human_correction' ORDER BY created_at DESC LIMIT 1;
+  IF v_aud.after ->> 'quoted_destination_origin' <> 'manual' OR v_aud.before ->> 'quoted_destination_origin' <> 'calculated' THEN
+    RAISE EXCEPTION 'case 5: the audit after must record the manual total: %', to_jsonb(v_aud); END IF;
+  SELECT id INTO v_new FROM remittance_beneficiaries WHERE operation_id = v_op5 AND status = 'vigente' AND position = 1;
+  PERFORM crm_corregir_beneficiario(v_new, '{"name": "PRUEBA Cinco X"}'::jsonb);
+  IF (SELECT quoted_destination_amount FROM remittance_operations WHERE id = v_op5) IS DISTINCT FROM 20000 THEN
+    RAISE EXCEPTION 'case 5: a later share correction cleared the total'; END IF;
 
   RAISE EXCEPTION 'ALL PASS (rolled back on purpose)';
 END $$;

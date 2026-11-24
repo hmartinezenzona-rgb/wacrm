@@ -12,6 +12,9 @@
 --     inserted (source 'admin_addition'). Positions end up 1..N in the given order.
 --   * Same auth, closed-operation rule (owner/admin only, extra 'human_closed_operation_edit' audit row), lock (admin_locked_fields.beneficiaries)
 --     and audit style as the sibling panel functions (377/383). One 'human_correction' audit row with the before / after of the shares.
+--   * The validated total becomes the operator's: quoted_destination_origin = 'manual' and admin_locked_fields.quoted_destination_amount (the
+--     lock 096 places on a human write of that column), so a later share touch cannot clear it. The audit before / after are objects
+--     {shares, quoted_destination_amount, quoted_destination_origin}.
 --   * The destination recalculation (crm_calcular_monto_destino) is suspended inside the call: a transient single-share state must not
 --     clear or rewrite the total the sum was checked against.
 -- Zelle is not a card rail (it takes zelle_account, USD, one recipient per tier) and is refused: edit it with the single-share functions.
@@ -55,9 +58,10 @@ DECLARE
   v_kept         uuid[] := ARRAY[]::uuid[];
   v_changed      boolean;
   v_row          record;
+  v_origin       text;
 BEGIN
-  SELECT account_id, status, service_type, quoted_destination_amount, destination_currency
-    INTO v_account_id, v_op_status, v_service, v_total, v_dest_cur
+  SELECT account_id, status, service_type, quoted_destination_amount, destination_currency, quoted_destination_origin
+    INTO v_account_id, v_op_status, v_service, v_total, v_dest_cur, v_origin
     FROM remittance_operations
    WHERE id = p_operation_id
    FOR UPDATE;
@@ -247,7 +251,9 @@ BEGIN
   -- Lock the recipients of this operation so automation does not overwrite the split (098).
   UPDATE remittance_operations
      SET admin_locked_fields = admin_locked_fields ||
-         jsonb_build_object('beneficiaries', jsonb_build_object('by', wacrm_current_actor(), 'at', now()))
+         jsonb_build_object('beneficiaries', jsonb_build_object('by', wacrm_current_actor(), 'at', now()),
+                            'quoted_destination_amount', jsonb_build_object('by', wacrm_current_actor(), 'at', now())),
+         quoted_destination_origin = 'manual'
    WHERE id = p_operation_id;
 
   SELECT coalesce(jsonb_agg(jsonb_build_object('id', b.id, 'beneficiary_type', b.beneficiary_type, 'name', b.name, 'card_number', b.card_number,
@@ -257,7 +263,9 @@ BEGIN
     FROM remittance_beneficiaries b WHERE b.operation_id = p_operation_id AND b.status = 'vigente';
 
   INSERT INTO remittance_admin_audit (account_id, table_name, row_id, field_name, action, actor, before, after)
-  VALUES (v_account_id, 'remittance_operations', p_operation_id, 'beneficiaries', 'human_correction', wacrm_current_actor(), v_before, v_after);
+  VALUES (v_account_id, 'remittance_operations', p_operation_id, 'beneficiaries', 'human_correction', wacrm_current_actor(),
+          jsonb_build_object('shares', v_before, 'quoted_destination_amount', v_total, 'quoted_destination_origin', v_origin),
+          jsonb_build_object('shares', v_after, 'quoted_destination_amount', v_total, 'quoted_destination_origin', 'manual'));
 
   RETURN jsonb_build_object(
     'operation_id', p_operation_id,

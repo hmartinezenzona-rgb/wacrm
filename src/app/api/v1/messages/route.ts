@@ -118,21 +118,32 @@ export async function POST(request: Request) {
     // CTA or a body over Meta's 1024-char cap fall back to the normal
     // text send and the webhook's separate invitation.
     if (type === 'text' && contentText && groupInvite) {
+      const puede = await puedeInvitarGrupo(
+        ctx.supabase,
+        resolved.conversationId,
+        resolved.contactId
+      );
+      const primera = await esPrimeraRespuestaAgente(
+        ctx.supabase,
+        resolved.conversationId
+      );
       const invitacion =
-        (await puedeInvitarGrupo(
-          ctx.supabase,
-          resolved.conversationId,
-          resolved.contactId
-        )) &&
-        (await esPrimeraRespuestaAgente(
-          ctx.supabase,
-          resolved.conversationId
-        ))
+        puede && primera
           ? construirInvitacionGrupoConTexto(
               contentText,
               new URL(request.url).origin
             )
           : null;
+
+      console.warn(
+        '[v1/messages] group_invite',
+        JSON.stringify({
+          puede,
+          primera,
+          combined: Boolean(invitacion),
+          textLen: contentText.length,
+        })
+      );
 
       if (invitacion) {
         validateSendMessageParams({

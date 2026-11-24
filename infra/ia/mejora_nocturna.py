@@ -61,12 +61,17 @@ def digest(dia: dict, max_conv: int, max_msgs: int, max_chars: int) -> dict:
             msgs.append({
                 "remite": m.get("remite"),
                 "tipo": m.get("tipo"),
+                "autor": m.get("autor"),
+                "autor_nombre": m.get("autor_nombre"),
+                "ai_generated": m.get("ai_generated"),
+                "is_panel_action": m.get("is_panel_action"),
                 "hora": m.get("hora"),
                 "texto": (m.get("texto") or "")[:max_chars],
             })
         conversaciones.append({
             "id": c.get("id"),
             "contacto": c.get("contacto"),
+            "etiquetas": c.get("etiquetas", []),
             "bot_pausado": c.get("bot_pausado"),
             "pausa_razon": c.get("pausa_razon"),
             "asignada": c.get("asignada"),
@@ -89,12 +94,20 @@ Revisa SOLO las conversaciones dadas. No inventes chats ni citas.
 Devuelve UN bloque ```json con este esquema exacto y nada mas:
 {
   "resumen": "una frase",
-  "hallazgos": [{"chat":"id","problema":"robot|error|venta_perdida","cita":"texto exacto","causa":"que regla o dato fallo","arreglo":"que cambiar"}],
+  "hallazgos": [{"chat":"id","autor":"bot|humano|sistema|indeterminado","problema":"robot|error|venta_perdida","cita":"texto exacto","causa":"que regla o dato fallo","arreglo":"que cambiar"}],
   "propuesta": {"v1": [{"buscar": "texto exacto del PROMPT ACTUAL", "reemplazar": "texto nuevo"}], "v2": "prompt completo reescrito con las 6 dimensiones"},
   "casos_prueba": ["caso 1", "caso 2", "caso 3"],
   "familias_afectadas": ["comprobante"],
   "riesgo_sugerido": "bajo|alto"
 }
+
+### AUTORIA Y ETIQUETAS (obligatorio)
+Cada mensaje trae "autor": cliente | bot | humano | sistema | indeterminado.
+- Solo juzga los mensajes con autor "bot". Los de humano y sistema son contexto, no fallos del bot.
+- "indeterminado" no se atribuye al bot; dilo en el hallazgo.
+- Si la conversacion tiene etiquetas Admin o Revendedor, es interna: no la reportes como fuga a cliente; a lo sumo como dato interno.
+- Si bot_pausado=true en ese momento, una persona atendia: no atribuyas sus mensajes al bot.
+- Cita el autor y la etiqueta en el hallazgo cuando importe.
 
 Reglas:
 - V1 son parches exactos sobre el prompt actual (0 a 5). NO reescribas el prompt entero. Cada "buscar" debe aparecer UNA sola vez y copiarse literal del prompt actual.

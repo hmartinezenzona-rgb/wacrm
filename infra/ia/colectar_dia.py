@@ -28,28 +28,49 @@ WITH rango AS (
 ),
 msgs AS (
   SELECT m.conversation_id, m.sender_type, m.content_type, m.created_at,
+         m.ai_generated, m.is_panel_action,
+         COALESCE(p.full_name, '') AS autor_nombre,
+         CASE
+           WHEN m.sender_type = 'customer' THEN 'cliente'
+           WHEN m.content_type = 'template' OR m.is_panel_action THEN 'sistema'
+           WHEN m.ai_generated THEN 'bot'
+           WHEN m.sender_id IS NOT NULL THEN 'humano'
+           ELSE 'indeterminado'
+         END AS autor,
          left(COALESCE(NULLIF(m.content_text, ''),
                        CASE WHEN m.content_type <> 'text' THEN '[media]' ELSE '' END), 600) AS texto,
          row_number() OVER (PARTITION BY m.conversation_id ORDER BY m.created_at DESC) AS rn
-    FROM messages m, rango r
+    FROM messages m
+    LEFT JOIN profiles p ON p.user_id = m.sender_id
+    CROSS JOIN rango r
    WHERE m.created_at >= r.ini AND m.created_at < r.fin
 ),
 ultimos AS (SELECT * FROM msgs WHERE rn <= {max_msg}),
+tags AS (
+  SELECT ct.contact_id, jsonb_agg(t.name ORDER BY t.name) AS lista
+    FROM contact_tags ct
+    JOIN tags t ON t.id = ct.tag_id
+   GROUP BY ct.contact_id
+),
 conv AS (
   SELECT u.conversation_id AS id,
          COALESCE(NULLIF(c.name, ''), c.phone) AS contacto,
          v.ai_autoreply_disabled AS bot_pausado,
          v.ai_handoff_reason AS pausa_razon,
          (v.assigned_agent_id IS NOT NULL) AS asignada,
+         COALESCE(tg.lista, '[]'::jsonb) AS etiquetas,
          max(u.created_at) AS ultimo,
          jsonb_agg(jsonb_build_object(
            'remite', u.sender_type, 'tipo', u.content_type,
+           'autor', u.autor, 'autor_nombre', u.autor_nombre,
+           'ai_generated', u.ai_generated, 'is_panel_action', u.is_panel_action,
            'hora', to_char(u.created_at AT TIME ZONE 'UTC', 'HH24:MI'),
            'texto', u.texto) ORDER BY u.created_at) AS mensajes
     FROM ultimos u
     JOIN conversations v ON v.id = u.conversation_id
     JOIN contacts c ON c.id = v.contact_id
-   GROUP BY 1, 2, 3, 4, 5
+    LEFT JOIN tags tg ON tg.contact_id = c.id
+   GROUP BY 1, 2, 3, 4, 5, 6
    ORDER BY ultimo DESC
    LIMIT {max_conv}
 ),

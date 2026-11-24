@@ -68,6 +68,8 @@ class ColectarDiaTest(unittest.TestCase):
         self.assertNotIn("insert ", sql)
         self.assertNotIn("update ", sql)
         self.assertNotIn("delete ", sql)
+        for term in ("ai_generated", "is_panel_action", "autor", "etiquetas", "contact_tags"):
+            self.assertIn(term, sql)
 
     def test_missing_env_file_fails_without_running_docker(self):
         self.envfile.unlink()

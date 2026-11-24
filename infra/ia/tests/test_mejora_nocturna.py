@@ -255,6 +255,8 @@ class MejoraNocturnaTest(unittest.TestCase):
             self.assertEqual(p.returncode, 0, p.stderr)
             self.assertEqual(captured["secret"], "s3")
             self.assertIn("### CONVERSACIONES DEL DIA", captured["prompt"])
+            self.assertIn("AUTORIA Y ETIQUETAS", captured["prompt"])
+            self.assertIn('"autor"', captured["prompt"])
             self.assertEqual(len(list(self.salida.glob("candidato-*.txt"))), 1)
         finally:
             server.shutdown()

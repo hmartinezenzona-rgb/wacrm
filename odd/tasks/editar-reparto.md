@@ -1,6 +1,6 @@
 # Edit a multi-recipient split in one step ("Editar reparto")
 
-Status: in progress · Branch: feat/port-chat-operations-calculator · Worktree: wacrm-worktrees/mejora-legacy · 2026-11-24
+Status: live in production · Branch: feat/port-chat-operations-calculator · Worktree: wacrm-worktrees/mejora-legacy · 2026-11-24
 
 ## Objective
 
@@ -37,7 +37,7 @@ Mode: strict, on (global CLAUDE.md). Runners: SQL assertions via `infra/db/stagi
 - [x] T2 API route `POST /api/remittance-operations/[operationId]/reparto` + route test.
 - [x] T3 UI "Editar reparto" form on the operation card + vitest.
 - [x] T4 Staging browser check (wacrm-probar-staging) with PRUEBA fixtures and cleanup.
-- [ ] T5 Production: migration (previa/aplicar/verificar) and panel publish, each with owner go-ahead.
+- [x] T5 Production: migration (previa/aplicar/verificar) and panel publish, each with owner go-ahead.
 
 ## Acceptance criteria
 
@@ -60,7 +60,8 @@ Forecast ~800-1000 authored lines over the tasks (above the ~400 heuristic). The
 
 - 2026-11-24 T4: local panel (next dev, port 3100, staging) restarted (previous dev server hung 7 days). Fixture PRUEBA conv 063ef190 / op 51bd210a (remesa 10000 GYD, 36000 CUP, one card). Owner split it into 2 x 18000 in the browser: one POST /reparto 200; DB: old share reemplazado, 2 vigente shares pos 1-2 (admin_correction + admin_addition), total 36000 origin manual, locks beneficiaries + quoted_destination_amount, one human_correction audit row (2 shares after). Owner then closed it (human_manual_close). Calculator line on close = 30000 CUP: calculator_feed_operation prices from quoted_source_amount x cup_global_rate (calculator_amount_from_basis), not from the manual destination total (known out-of-scope gap 5). Cleanup: calculator line voided (completed rows can only be voided), limpieza.sql dry run shown, real run OK, 0 rows left for the fixture. Pre-existing unrelated contact `PRUEBA TASAS` (2026-10-14) left untouched.
 - 2026-11-24 T5 step 1 (owner go-ahead): production `previa 394` VEREDICTO SEGURO (NEW crm_editar_reparto); `aplicar` OK 20261124222933; `verificar` VERIFICADO 1/1 (prod=stg 98e93f24).
+- 2026-11-24 T5 step 2 (owner go-ahead): release branch `release/prod-editar-reparto` (39a3aa9c) pushed to privado; prod-build `compilar --sin-pruebas` (tests/tsc run in mejora-legacy: 1292 vitest pass, tsc 0) -> build_id MltUGYLs9EunSf_uqisSI; `publicar` -> current 39a3aa9c, rollback `anterior` 32d68619; wacrm.onlinefreedom.site serves MltUGYLs9EunSf_uqisSI.
 
 ## Next step
 
-T5 step 2: panel publish (wacrm-publicar-panel) after owner go-ahead. Panel diff since live build 32d68619: only editar-reparto files (13 files).
+Done. Later (out of scope): re-split closed mixed groups, calculator after closed edit, CUP <-> USD with several shares.

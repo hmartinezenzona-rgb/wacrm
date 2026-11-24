@@ -37,7 +37,7 @@ Mode: strict, on. Source: global CLAUDE.md ("Strict TDD Mode: enabled"). Runner:
 ## Tasks
 
 - [x] T1 Writer never opens an operation to hold data that matches a recipient of a closed send of the conversation (no time window), and never opens one in capture / paused mode. Functions: `cerebro_guardia_envio_nuevo`, `cerebro_escribir_bloque_beneficiario`.
-- [ ] T2 Deposit target: an open operation that holds no money and is older than the completion window, or whose rail does not fit the deposit amount (`cerebro_servicio_por_monto`), is not eligible in `cerebro_registrar_deposito` (`v_ex`). Review `deposit-reuses-recipient-first-operation.sql`.
+- [x] T2 Deposit target: an open operation that holds no money and is older than the completion window is not eligible in `cerebro_registrar_deposito` (`v_ex`). The rail-fit half (deposit below the rail minimum) was tried and dropped: it broke `split-deposit-minimums` case 1 (3,000 then 10,000 on Zelle); a first partial deposit must reach its recipient-first op. `deposit-reuses-recipient-first-operation.sql` unchanged and passing.
 - [ ] T3 Recarga intent: when the batch text asks for a recarga (`cerebro_texto_pide_recarga`) and carries Cuban mobiles, declare `recarga` and register ALL numbers; never write a `cuban_card` from a bare mobile when several mobiles are present. `Snapshot final` exposes the full `celulares` array.
 - [ ] T4 Production rollout: `previa`, owner go-ahead, `aplicar`, `verificar`; n8n nodes after go-ahead.
 
@@ -53,7 +53,10 @@ Mode: strict, on. Source: global CLAUDE.md ("Strict TDD Mode: enabled"). Runner:
 - T1 related assertions: `staging-migracion.sh relacionadas 390 'ghost|zelle|capture|beneficiar|guard|reparto|recarga|card' '' --ya-aplicada ROLLBACK-390`: 217 run, 213 SAME, 4 DIFF; ghost-operations-guard, zelle-history-guard, silent-capture, partial-beneficiary-auto all end ALL PASS. DIFFs: capture-closed-send-guard (RED to GREEN, expected), ghost-operations-guard (base now fails only on updated case 3d, see below), contexto-envio-mixto (base failed 1d, mig passes), delivery-feed-evidence (same fixture error on both, only uuids differ).
 - T1 commit: aab3f38a.
 - T1 assertion change: ghost-operations-guard case 3d encoded the old windowed rule A (same account as a send completed 7 h ago opened a new op); it now expects the refusal, which is the new required behaviour.
+- T2 (migration 391, staging only): new assertion `deposit-skips-stale-or-misfit-operation.sql`. RED on staging without 391 (assertion run alone through psql_staging): 4 expectation(s) failed (A stale zelle op took 12400, A2 stale op took 29000, B, E stale op won over a fresh one). Rule: in the `v_ex` lookup, an operation with no money (same definition as the 232 guard: no unlocked quoted amount, no receipt row, nothing deposited, not incident, amount not locked) is eligible only when `created_at` is inside `completar_ventana_horas`. First version also excluded rails whose minimum (`cerebro_minimo_gyd`) is above the deposit; `relacionadas` showed it breaks `split-deposit-minimums` case 1 and `deal-free-money-rules` (partial deposit below the Zelle minimum), so it was dropped and case B now asserts the partial deposit still attaches. GREEN: `staging-migracion.sh aplicar 391 ... cerebro_registrar_deposito` -> dry-run OK, apply OK, assertion OK, rollback OK (md5 equal to the 293 body on the first run; on the re-run the previous state was the first 391 version, so the md5 comparison reported the expected mismatch).
+- T2 related assertions: `staging-migracion.sh relacionadas 391 'deposit|deposito|anchor|saldo|mixed|reparto|recarga|zelle|objetivo' '' --ya-aplicada ROLLBACK-391`: 202 run, 199 SAME, 3 DIFF. DIFFs: deposit-skips-stale-or-misfit-operation (RED to GREEN, expected), delivery-feed-evidence (same fixture setup error on both, only uuids differ), contexto-envio-mixto (base fails 1d, mig passes; same base failure seen in T1, not caused by 391).
+- T2 commit: see git log (`fix(cerebro): keep stale operations from taking a new deposit`).
 
 ## Next step
 
-T2.
+T3.

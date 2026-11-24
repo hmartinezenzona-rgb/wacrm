@@ -59,3 +59,21 @@ Decisión: no se envía una plantilla Marketing por cada cliente nuevo. El prime
 - [ ] T6 original (plantilla + broadcast a existentes): la plantilla debe apuntar al `/grupo`, no a `chat.whatsapp.com` (Meta rechaza ese host en botones).
 
 Nota: el staging local no recibe webhooks de Meta; la prueba real del botón se hace en producción con un contacto nuevo.
+
+## 2026-11-24 — un solo mensaje y texto mejorado
+
+Objetivo: la respuesta del bot y el botón del grupo viajan en **un único mensaje interactivo** (`cta_url`), con una invitación más directa.
+
+Copy nuevo: `Únete a nuestro grupo de WhatsApp de *Remesas Ya* y recibe las tasas, promociones y avisos al instante.` Botón: `Unirme al grupo`. Footer: `Remesas Ya`.
+
+Diseño:
+- El endpoint público del bot (`POST /api/v1/messages`) recibe `group_invite: true` desde el nodo `Responder por WaCRM`.
+- Solo en la **primera respuesta del bot** a una conversación, sin etiqueta Admin y con `grupo_boton=si`, el texto del bot se envía como cuerpo de un único `cta_url` (texto + invitación + botón). Si el cuerpo supera 1024 caracteres, cae al flujo de dos mensajes.
+- El webhook detecta el CTA ya enviado y no manda el segundo; su envío separado queda solo como respaldo si el bot no responde.
+- El webhook espera la respuesta del bot; el CTA combinado cuenta como respuesta y evita el duplicado.
+
+Tareas:
+- [ ] T7: builder `construirInvitacionGrupoConTexto`, helpers `puedeInvitarGrupo`/`esPrimeraRespuestaAgente`, copy nuevo y tests.
+- [ ] T8: rama `group_invite` en `/api/v1/messages`, tests de ruta y suite.
+- [ ] T9: agregar `group_invite: true` al nodo `Responder por WaCRM` en staging y producción (respaldo + go-ahead).
+- [ ] T10: publicar el panel y probar con el número de prueba: un solo mensaje, botón después del texto.

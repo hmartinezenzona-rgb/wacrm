@@ -6,16 +6,36 @@ import type { InteractiveCtaUrlPayload } from './interactive'
 /** cerebro_config key: 'si' turns the first-message group CTA on. */
 export const GRUPO_BOTON_CLAVE = 'grupo_boton'
 
+/** Meta's cta_url body cap; above it the invite falls back to a second message. */
+export const INVITACION_CUERPO_MAX = 1024
+
 /** The interactive invitation sent to a new client's first message. */
 export function construirInvitacionGrupo(origin: string): InteractiveCtaUrlPayload {
   const base = origin.replace(/\/$/, '')
   return {
     kind: 'cta_url',
-    body: 'Tenemos un grupo de WhatsApp de Remesas Ya donde compartimos tasas, promociones y avisos al instante.',
+    body: 'Únete a nuestro grupo de WhatsApp de *Remesas Ya* y recibe las tasas, promociones y avisos al instante.',
     footer: 'Remesas Ya',
     button_label: 'Unirme al grupo',
     url: `${base}/grupo`,
   }
+}
+
+/**
+ * One message: the bot's answer as the body plus the group invitation and
+ * button. Returns null when the combined body would exceed Meta's limit;
+ * the caller then falls back to the previous two-message flow.
+ */
+export function construirInvitacionGrupoConTexto(
+  texto: string,
+  origin: string,
+): InteractiveCtaUrlPayload | null {
+  const limpio = texto.trim()
+  if (!limpio) return null
+  const base = construirInvitacionGrupo(origin)
+  const body = `${limpio}\n\n${base.body}`
+  if (body.length > INVITACION_CUERPO_MAX) return null
+  return { ...base, body }
 }
 
 async function grupoBotonActivo(db: SupabaseClient): Promise<boolean> {
@@ -58,6 +78,32 @@ async function invitacionYaEnviada(
   return ((data ?? []) as Array<{ interactive_payload: unknown }>).some(
     (m) => (m.interactive_payload as { kind?: string } | null)?.kind === 'cta_url',
   )
+}
+
+/** Flag, Admin tag and a previous CTA: the invitation is allowed. */
+export async function puedeInvitarGrupo(
+  db: SupabaseClient,
+  conversationId: string,
+  contactId: string,
+): Promise<boolean> {
+  if (!(await grupoBotonActivo(db))) return false
+  if (await contactoEsAdmin(db, contactId)) return false
+  if (await invitacionYaEnviada(db, conversationId)) return false
+  return true
+}
+
+/** True when the bot has not answered this conversation yet. */
+export async function esPrimeraRespuestaAgente(
+  db: SupabaseClient,
+  conversationId: string,
+): Promise<boolean> {
+  const { data } = await db
+    .from('messages')
+    .select('id')
+    .eq('conversation_id', conversationId)
+    .eq('sender_type', 'agent')
+    .limit(1)
+  return ((data ?? []) as unknown[]).length === 0
 }
 
 const dormir = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
@@ -105,9 +151,7 @@ export async function enviarInvitacionTrasRespuesta(
   desde: string,
   opts: { timeoutMs?: number; intervalMs?: number } = {},
 ): Promise<boolean> {
-  if (!(await grupoBotonActivo(db))) return false
-  if (await contactoEsAdmin(db, contactId)) return false
-  if (await invitacionYaEnviada(db, conversationId)) return false
+  if (!(await puedeInvitarGrupo(db, conversationId, contactId))) return false
   await esperarRespuestaBot(db, conversationId, desde, opts)
   return enviarInvitacionGrupo(db, accountId, conversationId, contactId, origin)
 }

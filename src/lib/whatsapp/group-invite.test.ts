@@ -5,9 +5,13 @@ vi.mock('./send-message', () => ({ sendMessageToConversation: sendMock }))
 
 import {
   construirInvitacionGrupo,
+  construirInvitacionGrupoConTexto,
   enviarInvitacionGrupo,
   enviarInvitacionTrasRespuesta,
+  esPrimeraRespuestaAgente,
   esperarRespuestaBot,
+  INVITACION_CUERPO_MAX,
+  puedeInvitarGrupo,
 } from './group-invite'
 
 type Rows = {
@@ -46,8 +50,72 @@ describe('construirInvitacionGrupo', () => {
     expect(p.kind).toBe('cta_url')
     expect(p.url).toBe('https://app.test/grupo')
     expect(p.button_label).toBe('Unirme al grupo')
-    expect(p.body).toContain('grupo de WhatsApp')
+    expect(p.body).toContain('Únete a nuestro grupo de WhatsApp')
     expect(p.footer).toBe('Remesas Ya')
+  })
+})
+
+describe('construirInvitacionGrupoConTexto', () => {
+  it('combines the bot answer and the invitation in one body', () => {
+    const p = construirInvitacionGrupoConTexto(
+      'Hola, ¿en qué le ayudo?',
+      'https://app.test',
+    )
+    expect(p?.kind).toBe('cta_url')
+    expect(p?.body).toBe(
+      'Hola, ¿en qué le ayudo?\n\nÚnete a nuestro grupo de WhatsApp de *Remesas Ya* y recibe las tasas, promociones y avisos al instante.',
+    )
+    expect((p?.body.length ?? 0)).toBeLessThanOrEqual(INVITACION_CUERPO_MAX)
+    expect(p?.button_label).toBe('Unirme al grupo')
+  })
+
+  it("returns null when the combined body exceeds Meta's limit", () => {
+    const p = construirInvitacionGrupoConTexto(
+      'x'.repeat(INVITACION_CUERPO_MAX),
+      'https://app.test',
+    )
+    expect(p).toBeNull()
+  })
+})
+
+describe('puedeInvitarGrupo', () => {
+  it('allows the invitation with the flag on, no Admin and no CTA', async () => {
+    const db = fakeDb({ config: { valor: 'si' } })
+    await expect(puedeInvitarGrupo(db, 'conv', 'contact')).resolves.toBe(true)
+  })
+
+  it('refuses with the flag off', async () => {
+    const db = fakeDb({ config: { valor: 'no' } })
+    await expect(puedeInvitarGrupo(db, 'conv', 'contact')).resolves.toBe(false)
+  })
+
+  it('refuses an Admin contact', async () => {
+    const db = fakeDb({
+      config: { valor: 'si' },
+      contactTags: [{ tag_id: 't1' }],
+      tags: [{ name: 'Admin' }],
+    })
+    await expect(puedeInvitarGrupo(db, 'conv', 'contact')).resolves.toBe(false)
+  })
+
+  it('refuses when a CTA already exists', async () => {
+    const db = fakeDb({
+      config: { valor: 'si' },
+      messages: [{ id: 'm1', interactive_payload: { kind: 'cta_url' } }],
+    })
+    await expect(puedeInvitarGrupo(db, 'conv', 'contact')).resolves.toBe(false)
+  })
+})
+
+describe('esPrimeraRespuestaAgente', () => {
+  it('is true when the bot has not answered yet', async () => {
+    const db = fakeDb({ messages: [] })
+    await expect(esPrimeraRespuestaAgente(db, 'conv')).resolves.toBe(true)
+  })
+
+  it('is false when an agent message exists', async () => {
+    const db = fakeDb({ messages: [{ id: 'm1', interactive_payload: null }] })
+    await expect(esPrimeraRespuestaAgente(db, 'conv')).resolves.toBe(false)
   })
 })
 

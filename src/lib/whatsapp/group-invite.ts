@@ -60,6 +60,58 @@ async function invitacionYaEnviada(
   )
 }
 
+const dormir = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+
+/**
+ * Wait for the bot's first reply after `desde`. The webhook fires on the
+ * inbound message, but the Cerebro reply is generated asynchronously and
+ * can take ~35s; sending the CTA first made it preempt the answer.
+ */
+export async function esperarRespuestaBot(
+  db: SupabaseClient,
+  conversationId: string,
+  desde: string,
+  opts: { timeoutMs?: number; intervalMs?: number } = {},
+): Promise<boolean> {
+  const timeoutMs = opts.timeoutMs ?? 75000
+  const intervalMs = opts.intervalMs ?? 2000
+  const limite = Date.now() + timeoutMs
+  while (Date.now() < limite) {
+    const { data } = await db
+      .from('messages')
+      .select('id')
+      .eq('conversation_id', conversationId)
+      .eq('sender_type', 'agent')
+      .eq('ai_generated', true)
+      .gt('created_at', desde)
+      .limit(1)
+    if (((data ?? []) as unknown[]).length > 0) return true
+    await dormir(intervalMs)
+  }
+  return false
+}
+
+/**
+ * First-message invitation, ordered after the bot's answer. If the bot
+ * stays silent (modelo_skip) or slow, the CTA is sent after the timeout
+ * anyway; the guards are re-checked so it is still once per thread.
+ */
+export async function enviarInvitacionTrasRespuesta(
+  db: SupabaseClient,
+  accountId: string,
+  conversationId: string,
+  contactId: string,
+  origin: string,
+  desde: string,
+  opts: { timeoutMs?: number; intervalMs?: number } = {},
+): Promise<boolean> {
+  if (!(await grupoBotonActivo(db))) return false
+  if (await contactoEsAdmin(db, contactId)) return false
+  if (await invitacionYaEnviada(db, conversationId)) return false
+  await esperarRespuestaBot(db, conversationId, desde, opts)
+  return enviarInvitacionGrupo(db, accountId, conversationId, contactId, origin)
+}
+
 /**
  * Send the group invitation once, on a new client's first inbound message.
  * The flag, the Admin tag and a previous CTA in the thread are all guards;

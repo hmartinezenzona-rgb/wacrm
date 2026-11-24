@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
 import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
-import { enviarInvitacionGrupo } from '@/lib/whatsapp/group-invite'
+import { enviarInvitacionTrasRespuesta } from '@/lib/whatsapp/group-invite'
 import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe'
 import { findConversationForContact } from '@/lib/whatsapp/find-conversation'
 import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
@@ -373,6 +373,13 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }, origin: 
 
       const decryptedAccessToken = decrypt(config.access_token)
 
+      const invitaciones: Array<{
+        accountId: string
+        conversationId: string
+        contactId: string
+        desde: string
+      }> = []
+
       for (let i = 0; i < value.messages.length; i++) {
         const message = value.messages[i]
         const contact = value.contacts?.[i] ?? value.contacts?.[0]
@@ -398,7 +405,14 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }, origin: 
             // the admin who saved the WhatsApp config.
             config.user_id,
             decryptedAccessToken,
-            origin
+            (conversationId, contactId, desde) => {
+              invitaciones.push({
+                accountId: config.account_id,
+                conversationId,
+                contactId,
+                desde,
+              })
+            }
           )
           // procesado=true SOLO cuando el mensaje quedó guardado en
           // `messages` (o se manejó deliberadamente, p.ej. reacción).
@@ -434,6 +448,24 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }, origin: 
               error: err instanceof Error ? err.message : String(err),
             })
           )
+        }
+      }
+
+      // La invitacion al grupo espera la primera respuesta del bot:
+      // mandarla antes hacia que el mensaje interactivo se adelantara
+      // a la respuesta que el cliente acababa de recibir.
+      for (const inv of invitaciones) {
+        try {
+          await enviarInvitacionTrasRespuesta(
+            supabaseAdmin(),
+            inv.accountId,
+            inv.conversationId,
+            inv.contactId,
+            origin,
+            inv.desde,
+          )
+        } catch (inviteErr) {
+          console.error('[webhook] group invite failed:', inviteErr)
         }
       }
     }
@@ -706,7 +738,11 @@ async function processMessage(
   // WhatsApp config; the choice is arbitrary post-017 but stable.
   configOwnerUserId: string,
   accessToken: string,
-  origin: string
+  onFirstInbound?: (
+    conversationId: string,
+    contactId: string,
+    desde: string,
+  ) => void
 ): Promise<ProcesoMensaje> {
   // Devuelve guardado=true SOLO si el mensaje quedó guardado en
   // `messages` (o se manejó deliberadamente, como una reacción). El
@@ -836,21 +872,11 @@ async function processMessage(
     return { guardado: false, motivo: 'no guardado: mensaje' }
   }
 
-  // New client: send the group invitation as an interactive CTA URL. The
-  // flag defaults off; the Decisor text invitation is removed before it is
-  // enabled, so the client never gets both.
+  // New client: the caller sends the group invitation as an interactive
+  // CTA URL, AFTER the bot's first reply so it never preempts it. The
+  // flag defaults off; the Decisor text invitation is already removed.
   if (isFirstInboundMessage) {
-    try {
-      await enviarInvitacionGrupo(
-        supabaseAdmin(),
-        accountId,
-        conversation.id,
-        contactRecord.id,
-        origin,
-      )
-    } catch (inviteErr) {
-      console.error('[webhook] group invite failed:', inviteErr)
-    }
+    onFirstInbound?.(conversation.id, contactRecord.id, new Date().toISOString())
   }
 
   // Update conversation

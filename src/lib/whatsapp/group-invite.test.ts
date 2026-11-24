@@ -3,7 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const { sendMock } = vi.hoisted(() => ({ sendMock: vi.fn() }))
 vi.mock('./send-message', () => ({ sendMessageToConversation: sendMock }))
 
-import { construirInvitacionGrupo, enviarInvitacionGrupo } from './group-invite'
+import {
+  construirInvitacionGrupo,
+  enviarInvitacionGrupo,
+  enviarInvitacionTrasRespuesta,
+  esperarRespuestaBot,
+} from './group-invite'
 
 type Rows = {
   config?: { valor: string } | null
@@ -22,7 +27,7 @@ function fakeDb(rows: Rows) {
   return {
     from(table: string) {
       const b: Record<string, unknown> = {}
-      for (const m of ['select', 'eq', 'in', 'limit']) b[m] = () => b
+      for (const m of ['select', 'eq', 'in', 'limit', 'gt']) b[m] = () => b
       b.maybeSingle = async () => ({ data: data[table] ?? null, error: null })
       b.then = (resolve: (v: unknown) => unknown) => resolve({ data: data[table] ?? [], error: null })
       return b
@@ -84,6 +89,53 @@ describe('enviarInvitacionGrupo', () => {
       messages: [{ id: 'm1', interactive_payload: { kind: 'cta_url' } }],
     })
     const ok = await enviarInvitacionGrupo(db, 'acct', 'conv', 'contact', 'https://app.test')
+    expect(ok).toBe(false)
+    expect(sendMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('esperarRespuestaBot', () => {
+  it('returns true when an agent message appears after the inbound', async () => {
+    const db = fakeDb({ messages: [{ id: 'm1', interactive_payload: null }] })
+    await expect(
+      esperarRespuestaBot(db, 'conv', new Date(0).toISOString(), {
+        timeoutMs: 100,
+        intervalMs: 5,
+      }),
+    ).resolves.toBe(true)
+  })
+
+  it('returns false when the bot stays silent past the timeout', async () => {
+    const db = fakeDb({ messages: [] })
+    await expect(
+      esperarRespuestaBot(db, 'conv', new Date(0).toISOString(), {
+        timeoutMs: 20,
+        intervalMs: 5,
+      }),
+    ).resolves.toBe(false)
+  })
+})
+
+describe('enviarInvitacionTrasRespuesta', () => {
+  it('waits for the bot reply and then sends the CTA', async () => {
+    const db = fakeDb({
+      config: { valor: 'si' },
+      messages: [{ id: 'm1', interactive_payload: null }],
+    })
+    const ok = await enviarInvitacionTrasRespuesta(
+      db, 'acct', 'conv', 'contact', 'https://app.test', new Date(0).toISOString(),
+      { timeoutMs: 100, intervalMs: 5 },
+    )
+    expect(ok).toBe(true)
+    expect(sendMock).toHaveBeenCalled()
+  })
+
+  it('does not wait when the flag is off', async () => {
+    const db = fakeDb({ config: { valor: 'no' } })
+    const ok = await enviarInvitacionTrasRespuesta(
+      db, 'acct', 'conv', 'contact', 'https://app.test', new Date(0).toISOString(),
+      { timeoutMs: 100, intervalMs: 5 },
+    )
     expect(ok).toBe(false)
     expect(sendMock).not.toHaveBeenCalled()
   })

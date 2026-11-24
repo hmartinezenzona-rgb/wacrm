@@ -1,6 +1,7 @@
 {
  "modo_etiqueta": "Entrevista",
  "arranque": "Va, empezamos.",
+ "tope_turnos": 16,
  "cierre": "Ya terminó la entrevista. Agradece en una frase y dile que en 2 o 3 días le mandamos por aquí su prueba funcionando, armada con datos e imágenes de ejemplo para que vea cómo queda. Puedes decirle que, si quiere, mande su lista de precios o fotos, pero que no es necesario. Si no se ha apartado una llamada, puedes ofrecerle verla juntos. No vuelvas a pedir nada que ya se haya hablado.",
  "preguntas": [
   {
@@ -22,7 +23,7 @@
    "clave": "e_como",
    "etiqueta": "Cómo trabaja",
    "pregunta": "cómo le llega un cliente y qué pasa desde que le escribe hasta que le paga",
-   "texto": "¿Cómo le llega un cliente y qué pasa desde que le escribe hasta que le paga?",
+   "texto": "¿Me cuenta cómo fue con su último cliente, desde que le escribió hasta que le pagó?",
    "ayuda": "Que me cuente cómo fue con su último cliente: por dónde le escribió, cómo le dio el precio, cómo le pagó y cómo le entregó.",
    "guardar": "una o dos frases con el camino del cliente: por dónde llega, cómo cotiza, cómo cobra y cómo entrega"
   },

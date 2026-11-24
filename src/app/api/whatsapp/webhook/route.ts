@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
 import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
+import { enviarInvitacionGrupo } from '@/lib/whatsapp/group-invite'
 import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe'
 import { findConversationForContact } from '@/lib/whatsapp/find-conversation'
 import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
@@ -242,7 +243,7 @@ export async function POST(request: Request) {
   // maxDuration).
   after(async () => {
     try {
-      await processWebhook(body)
+      await processWebhook(body, new URL(request.url).origin)
     } catch (error) {
       console.error('Error processing webhook:', error)
     }
@@ -251,7 +252,7 @@ export async function POST(request: Request) {
   return NextResponse.json({ status: 'received' }, { status: 200 })
 }
 
-async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
+async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }, origin: string) {
   if (!body.entry) return
 
   for (const entry of body.entry) {
@@ -396,7 +397,8 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
             // inserts that need it for NOT NULL FK compliance. Always
             // the admin who saved the WhatsApp config.
             config.user_id,
-            decryptedAccessToken
+            decryptedAccessToken,
+            origin
           )
           // procesado=true SOLO cuando el mensaje quedó guardado en
           // `messages` (o se manejó deliberadamente, p.ej. reacción).
@@ -703,7 +705,8 @@ async function processMessage(
   // (contacts, conversations). Always the admin who saved the
   // WhatsApp config; the choice is arbitrary post-017 but stable.
   configOwnerUserId: string,
-  accessToken: string
+  accessToken: string,
+  origin: string
 ): Promise<ProcesoMensaje> {
   // Devuelve guardado=true SOLO si el mensaje quedó guardado en
   // `messages` (o se manejó deliberadamente, como una reacción). El
@@ -831,6 +834,23 @@ async function processMessage(
   if (msgError) {
     console.error('Error inserting message:', msgError)
     return { guardado: false, motivo: 'no guardado: mensaje' }
+  }
+
+  // New client: send the group invitation as an interactive CTA URL. The
+  // flag defaults off; the Decisor text invitation is removed before it is
+  // enabled, so the client never gets both.
+  if (isFirstInboundMessage) {
+    try {
+      await enviarInvitacionGrupo(
+        supabaseAdmin(),
+        accountId,
+        conversation.id,
+        contactRecord.id,
+        origin,
+      )
+    } catch (inviteErr) {
+      console.error('[webhook] group invite failed:', inviteErr)
+    }
   }
 
   // Update conversation

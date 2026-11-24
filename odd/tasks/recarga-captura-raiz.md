@@ -40,7 +40,7 @@ Mode: strict, on. Source: global CLAUDE.md ("Strict TDD Mode: enabled"). Runner:
 - [x] T2 Deposit target: an open operation that holds no money and is older than the completion window is not eligible in `cerebro_registrar_deposito` (`v_ex`). The rail-fit half (deposit below the rail minimum) was tried and dropped: it broke `split-deposit-minimums` case 1 (3,000 then 10,000 on Zelle); a first partial deposit must reach its recipient-first op. `deposit-reuses-recipient-first-operation.sql` unchanged and passing.
 - [x] T3 Recarga intent: when the batch text asks for a recarga (`cerebro_texto_pide_recarga`) and carries Cuban mobiles, declare `recarga` and register ALL numbers; never write a `cuban_card` from a bare mobile when several mobiles are present. `Snapshot final` exposes the full `celulares` array.
 - [x] T3b `crm_registrar_numeros_recarga` never opens an operation while the conversation is paused (agent tool and 268 branch), same rule and helper as T1 (`_cerebro_conversacion_pausada`). Owner approved 2026-11-24.
-- [ ] T4 Production rollout: `previa`, owner go-ahead, `aplicar`, `verificar`; n8n nodes after go-ahead.
+- [x] T4 Production rollout: `previa`, owner go-ahead, `aplicar`, `verificar`; n8n nodes after go-ahead.
 
 ## Acceptance criteria
 
@@ -66,7 +66,7 @@ Mode: strict, on. Source: global CLAUDE.md ("Strict TDD Mode: enabled"). Runner:
 - T3b related assertions: `relacionadas 393 'recarga|capture|pausa|paused|beneficiar' '' --ya-aplicada ROLLBACK-393`: 175 run, 172 SAME, 3 DIFF: recarga-numbers-pause (RED to GREEN, expected), delivery-feed-evidence (same fixture setup error on both, only uuids differ), contexto-envio-mixto (flaky: this run base passed and mig failed 1d; rerun alone on the applied state and on the rollback state both ALL PASS, and earlier tasks saw the opposite direction, so 1d is non-deterministic and unrelated to 393).
 
 - T4 step 1 (owner go-ahead 2026-11-24): production `previa` 390-393 VEREDICTO: SEGURO; `aplicar` 390, 391, 392 OK; 393 first failed (schema_migrations version collision 20261124202542 with 392, nothing applied), re-applied alone after owner go-ahead: OK 20261124205135. `verificar` 390-393: VERIFICADO 7/7.
-- T4 step 2 pending: production n8n node `Registrar beneficiario auto` $7 = `Snapshot final`.texto_completo (owner go-ahead required).
+- T4 step 2 (owner go-ahead 2026-11-24): production n8n node `Registrar beneficiario auto` now passes $7 = `Snapshot final`.texto_completo (query and queryReplacement copied from staging; other params equal). Backup `cerebro-fase1/respaldos-n8n/produccion-jEzlVLCLUaJhVwzs-10ae6f8b-...-20261124-150226.json`. versionId 10ae6f8b -> a3d439e9, activeVersionId equal, 126 nodes, Decisor md5 d64e8009 matches repo; no deactivate needed. Pending: confirm the node runs without error in a later production execution.
 
 ## Open questions
 

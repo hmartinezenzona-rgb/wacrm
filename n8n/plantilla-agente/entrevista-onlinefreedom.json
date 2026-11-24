@@ -1,17 +1,20 @@
 {
  "modo_etiqueta": "Entrevista",
+ "arranque": "Va, empezamos.",
  "cierre": "Ya terminó la entrevista. Agradece en una frase y dile que en 2 o 3 días le mandamos por aquí su prueba funcionando, armada con datos e imágenes de ejemplo para que vea cómo queda. Puedes decirle que, si quiere, mande su lista de precios o fotos, pero que no es necesario. Si no se ha apartado una llamada, puedes ofrecerle verla juntos. No vuelvas a pedir nada que ya se haya hablado.",
  "preguntas": [
   {
    "clave": "e_vende",
    "etiqueta": "Vende",
    "pregunta": "qué vende o qué servicios da, y qué es lo que más le piden",
+   "texto": "¿Qué vende o qué servicios da, y qué es lo que más le piden?",
    "ayuda": "Para que el agente sepa qué ofrecer primero, por ejemplo: tacos de asada, de pastor y quesadillas."
   },
   {
    "clave": "e_negocio",
    "etiqueta": "Negocio, zona y horario",
    "pregunta": "cómo se llama su negocio, en qué zona está y en qué horario atiende",
+   "texto": "¿Cómo se llama su negocio, en qué zona está y en qué horario atiende?",
    "ayuda": "Para que el agente pueda contestar si están abiertos o si llegan a su colonia, y para su perfil de Google.",
    "guardar": "nombre del negocio, zona o colonia y horario, lo que haya dicho"
   },
@@ -19,6 +22,7 @@
    "clave": "e_como",
    "etiqueta": "Cómo trabaja",
    "pregunta": "cómo le llega un cliente y qué pasa desde que le escribe hasta que le paga",
+   "texto": "¿Cómo le llega un cliente y qué pasa desde que le escribe hasta que le paga?",
    "ayuda": "Que me cuente cómo fue con su último cliente: por dónde le escribió, cómo le dio el precio, cómo le pagó y cómo le entregó.",
    "guardar": "una o dos frases con el camino del cliente: por dónde llega, cómo cotiza, cómo cobra y cómo entrega"
   },
@@ -26,12 +30,14 @@
    "clave": "e_volumen",
    "etiqueta": "Clientes por semana",
    "pregunta": "más o menos cuántos clientes le escriben en una semana y cuántos terminan comprando",
+   "texto": "¿Más o menos cuántos clientes le escriben en una semana y cuántos terminan comprando?",
    "ayuda": "Un aproximado basta, por ejemplo: me escriben 20 y compran 5."
   },
   {
    "clave": "reto",
    "etiqueta": "Reto",
    "pregunta": "qué es lo que más tiempo le quita o le hace perder clientes",
+   "texto": "¿Qué es lo que más tiempo le quita o le hace perder clientes?",
    "ayuda": "Por ejemplo: contestar lo mismo muchas veces, que le escriban de noche y no alcance a contestar, que se le olviden pedidos o que nadie lo encuentre en internet.",
    "guardar": "un problema que el cliente dijo (qué le quita tiempo o le hace perder clientes), en una frase que junte todo lo que contó; nunca el giro ni lo que vende"
   },
@@ -39,18 +45,20 @@
    "clave": "eleccion",
    "etiqueta": "Quiere resolver",
    "pregunta": "de estas tres, cuál le urge más: que más gente lo encuentre, que alguien conteste sus mensajes por usted, o tener sus pedidos ordenados con avisos al celular",
+   "texto": "De estas tres, ¿cuál le urge más: que más gente lo encuentre, que alguien conteste sus mensajes, o tener sus pedidos ordenados con avisos al celular?",
    "ayuda": "Son tres cosas que le podemos armar. Para la prueba empezamos por la que más le urge; las otras se pueden agregar después.",
-   "guardar": "solo una palabra: clientes, contestar o pedidos (la que diga que le urge más; si dice varias, la que diga que más le ayuda)"
+   "guardar": "solo una de estas tres frases, tal cual: «más clientes», «contestar mensajes» o «pedidos ordenados» (la que diga que le urge más; si dice varias, la que más le ayude)"
   },
   {
    "clave": "a_preguntas",
    "etiqueta": "Preguntas frecuentes",
    "pregunta": "qué es lo que más le preguntan sus clientes",
+   "texto": "¿Qué es lo que más le preguntan sus clientes?",
    "ayuda": "Las dudas que se repiten, por ejemplo: el precio, el horario, si hay servicio a domicilio o cuánto tarda.",
    "si": [
     {
      "clave": "eleccion",
-     "contiene": "contestar"
+     "contiene": "contest"
     }
    ]
   },
@@ -58,11 +66,12 @@
    "clave": "b_avisos",
    "etiqueta": "Avisos al celular",
    "pregunta": "de qué le gustaría que le llegara aviso al celular",
+   "texto": "¿De qué le gustaría que le llegara aviso al celular?",
    "ayuda": "Una notificación en su celular cuando pase algo importante: un pedido nuevo, un pago o un cliente que pide hablar con usted.",
    "si": [
     {
      "clave": "eleccion",
-     "contiene": "pedidos"
+     "contiene": "pedido"
     }
    ]
   },
@@ -70,11 +79,12 @@
    "clave": "c_redes",
    "etiqueta": "Redes y publicidad",
    "pregunta": "qué redes tiene el negocio y si ha pagado publicidad en Facebook o Instagram",
+   "texto": "¿Qué redes tiene el negocio y ha pagado publicidad en Facebook o Instagram?",
    "ayuda": "Si tiene página de Facebook, Instagram o TikTok, y si alguna vez pagó para que muestren sus publicaciones.",
    "si": [
     {
      "clave": "eleccion",
-     "contiene": "clientes"
+     "contiene": "client"
     }
    ]
   }

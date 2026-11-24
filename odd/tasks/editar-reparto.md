@@ -64,4 +64,4 @@ Forecast ~800-1000 authored lines over the tasks (above the ~400 heuristic). The
 
 ## Next step
 
-Done. Later (out of scope): re-split closed mixed groups, calculator after closed edit, CUP <-> USD with several shares.
+Done. Owner decision 2026-11-24: closed mixed groups stay non-re-splittable (not planned); "Editar reparto" keeps allowing closed operations for owner/admin (agents refused). Later (out of scope): calculator after closed edit, CUP <-> USD with several shares.

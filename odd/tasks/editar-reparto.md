@@ -36,7 +36,7 @@ Mode: strict, on (global CLAUDE.md). Runners: SQL assertions via `infra/db/stagi
 - [x] T1 SQL: `crm_editar_reparto(p_operation_id, p_partes jsonb)` atomic replace with sum check, closed-op role rule, audit, lock. Migration + ROLLBACK + assertion on staging.
 - [x] T2 API route `POST /api/remittance-operations/[operationId]/reparto` + route test.
 - [x] T3 UI "Editar reparto" form on the operation card + vitest.
-- [ ] T4 Staging browser check (wacrm-probar-staging) with PRUEBA fixtures and cleanup.
+- [x] T4 Staging browser check (wacrm-probar-staging) with PRUEBA fixtures and cleanup.
 - [ ] T5 Production: migration (previa/aplicar/verificar) and panel publish, each with owner go-ahead.
 
 ## Acceptance criteria
@@ -57,6 +57,8 @@ Forecast ~800-1000 authored lines over the tasks (above the ~400 heuristic). The
 - 2026-11-24 T2 (24a63f2a): route `reparto/route.ts` + `split-edit-errors.ts` (Spanish translation of the 22023 messages, sum difference kept; 42501 -> 403 Spanish, P0002 -> 404, 40001 -> 409). RED: `npx vitest run .../reparto --maxWorkers=4` 32 failed (route missing). GREEN: 35 passed. `npx tsc --noEmit` exit 0.
 - 2026-11-24 T3 (ca499379): `split-edit-form.tsx` (+ `canEditSplit`), `editarReparto` command, "Editar reparto" button on the card (shown for `sharedEditable` remesas with >= 2 shares, all card rails), es/en messages `editSplit`. RED: 3 test files failed (module/function missing, `editSplit` messages undefined). GREEN: 84 passed in the 3 files. Full: `npx vitest run src/components/inbox/operations src/app/api/remittance-operations src/lib/remittance-operations --maxWorkers=4` 82 files / 1290 tests passed; messages/i18n tests 23 passed; `npx tsc --noEmit` exit 0. No known failures.
 - 2026-11-24 T3 amendment (coordinator decision, gap 3): the button shows for a remesa with 0, 1 or more card shares (hidden with any non-card recipient); the form pads empty rows up to 2, saving still needs >= 2. RED: 4 failed (canEditSplit 0/1, button with 1 and 0 recipients, row padding). GREEN: `npx vitest run src/components/inbox/operations src/app/api/remittance-operations src/lib/remittance-operations --maxWorkers=4` 82 files / 1292 tests passed (2 header-layout expectations in `remittance-operation-card.test.tsx` updated: a recipient-less remesa now lists the new button); `npx tsc --noEmit` exit 0.
+
+- 2026-11-24 T4: local panel (next dev, port 3100, staging) restarted (previous dev server hung 7 days). Fixture PRUEBA conv 063ef190 / op 51bd210a (remesa 10000 GYD, 36000 CUP, one card). Owner split it into 2 x 18000 in the browser: one POST /reparto 200; DB: old share reemplazado, 2 vigente shares pos 1-2 (admin_correction + admin_addition), total 36000 origin manual, locks beneficiaries + quoted_destination_amount, one human_correction audit row (2 shares after). Owner then closed it (human_manual_close). Calculator line on close = 30000 CUP: calculator_feed_operation prices from quoted_source_amount x cup_global_rate (calculator_amount_from_basis), not from the manual destination total (known out-of-scope gap 5). Cleanup: calculator line voided (completed rows can only be voided), limpieza.sql dry run shown, real run OK, 0 rows left for the fixture. Pre-existing unrelated contact `PRUEBA TASAS` (2026-10-14) left untouched.
 
 ## Next step
 

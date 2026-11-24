@@ -7,6 +7,7 @@ import {
   sendTemplateMessage,
   sendInteractiveButtons,
   sendInteractiveList,
+  sendInteractiveCtaUrl,
 } from "./meta-api";
 
 // All assertions in this file run BEFORE the network call. We stub fetch
@@ -357,5 +358,54 @@ describe("sendTemplateMessage — chat-media header", () => {
     ).rejects.toThrow(/another account/);
     expect(signChatMediaUrl).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("sendInteractiveCtaUrl — validation and payload", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn(neverFetch));
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("rejects an empty label", async () => {
+    await expect(
+      sendInteractiveCtaUrl({ ...BASE_ARGS, buttonLabel: "", url: "https://example.com/grupo" }),
+    ).rejects.toThrow(/label/);
+  });
+
+  it("rejects a label longer than 20 chars", async () => {
+    await expect(
+      sendInteractiveCtaUrl({ ...BASE_ARGS, buttonLabel: "x".repeat(21), url: "https://example.com" }),
+    ).rejects.toThrow(/20/);
+  });
+
+  it("rejects a non-http URL", async () => {
+    await expect(
+      sendInteractiveCtaUrl({ ...BASE_ARGS, buttonLabel: "Join", url: "javascript:alert(1)" }),
+    ).rejects.toThrow(/http/);
+  });
+
+  it("sends the cta_url payload", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ messages: [{ id: "wamid.cta" }] }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const res = await sendInteractiveCtaUrl({
+      ...BASE_ARGS,
+      buttonLabel: "Join group",
+      url: "https://wacrm.onlinefreedom.site/grupo",
+    });
+    expect(res.messageId).toBe("wamid.cta");
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.interactive.type).toBe("cta_url");
+    expect(body.interactive.action).toEqual({
+      name: "cta_url",
+      parameters: {
+        display_text: "Join group",
+        url: "https://wacrm.onlinefreedom.site/grupo",
+      },
+    });
   });
 });

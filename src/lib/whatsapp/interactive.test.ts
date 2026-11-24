@@ -5,6 +5,7 @@ import {
   interactivePayloadPreviewText,
   type InteractiveButtonsPayload,
   type InteractiveListPayload,
+  type InteractiveCtaUrlPayload,
 } from './interactive'
 
 const validButtons: InteractiveButtonsPayload = {
@@ -131,6 +132,34 @@ describe('validateInteractivePayload — list', () => {
   })
 })
 
+const validCta: InteractiveCtaUrlPayload = {
+  kind: 'cta_url',
+  body: 'Join our group',
+  button_label: 'Join group',
+  url: 'https://wacrm.onlinefreedom.site/grupo',
+}
+
+describe('validateInteractivePayload — cta_url', () => {
+  it('accepts a well-formed cta_url payload', () => {
+    expect(validateInteractivePayload(validCta)).toEqual({ ok: true })
+  })
+
+  it('requires a non-empty label within 20 chars', () => {
+    expect(validateInteractivePayload({ ...validCta, button_label: '' }).ok).toBe(false)
+    expect(
+      validateInteractivePayload({ ...validCta, button_label: 'x'.repeat(21) }).ok,
+    ).toBe(false)
+  })
+
+  it('requires a valid http(s) URL', () => {
+    expect(validateInteractivePayload({ ...validCta, url: '' }).ok).toBe(false)
+    expect(validateInteractivePayload({ ...validCta, url: 'not-a-url' }).ok).toBe(false)
+    expect(
+      validateInteractivePayload({ ...validCta, url: 'javascript:alert(1)' }).ok,
+    ).toBe(false)
+  })
+})
+
 describe('interactivePayloadPreviewText', () => {
   it('returns the trimmed body', () => {
     expect(interactivePayloadPreviewText({ ...validButtons, body: '  Hi  ' })).toBe('Hi')
@@ -138,5 +167,6 @@ describe('interactivePayloadPreviewText', () => {
   it('falls back when body is blank', () => {
     expect(interactivePayloadPreviewText({ ...validButtons, body: '   ' })).toBe('[buttons]')
     expect(interactivePayloadPreviewText({ ...validList, body: '' })).toBe('[list]')
+    expect(interactivePayloadPreviewText({ ...validCta, body: '' })).toBe('[cta_url]')
   })
 })

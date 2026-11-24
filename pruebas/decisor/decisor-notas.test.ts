@@ -457,7 +457,7 @@ describe('ausencia temporal (away mode): aviso solo con el negocio abierto', () 
 
 describe('(estilo) turno de seguimiento: brevedad y dato concreto', () => {
   it('un turno de seguimiento lleva la nota de brevedad', () => {
-    const s = correrDecisor({ ctx: { mensajes_cliente: 2 } });
+    const s = correrDecisor({ ctx: { mensajes_cliente: 2, cierra_cortesia: [1] } });
     const n = nota(s, 'TURNO DE SEGUIMIENTO') as string;
     expect(n).toBeDefined();
     expect(n).toMatch(/1-2 frases/);
@@ -948,26 +948,15 @@ describe('293: PARTES ACORDADAS - cada parte con su monto acordado, lo que cubre
 });
 
 describe('invitacion al grupo de WhatsApp', () => {
-  const LINK = 'https://chat.whatsapp.com/GFznWMcrlHa5RSBo76Vw81';
-
-  it('la anade en el primer mensaje del cliente', () => {
+  it('el Decisor ya no la agrega: la envia el webhook como CTA interactiva', () => {
     const out = turno('hola', { ctx: { mensajes_cliente: 1 } });
-    expect(out.mensaje).toContain('CLIENTE NUEVO');
-    expect(out.mensaje).toContain('*Remesas Ya*');
-    expect(out.mensaje).toContain(LINK);
-    expect(out.mensaje).toMatch(/UNA sola vez/);
-  });
-
-  it('no la repite cuando el cliente ya habia escrito', () => {
-    const out = turno('hola', { ctx: { mensajes_cliente: 3 } });
     expect(out.mensaje).not.toContain('CLIENTE NUEVO');
-    expect(out.mensaje).not.toContain(LINK);
+    expect(out.mensaje).not.toContain('chat.whatsapp.com');
   });
 
-  it('no se le manda a un admin', () => {
+  it('un admin sigue en silencio', () => {
     const out = turno('hola', { ctx: { mensajes_cliente: 1, es_admin: true } });
     expect(out.ruta).toBe('silencio');
-    expect(out.mensaje ?? '').not.toContain(LINK);
   });
 });
 
@@ -1270,5 +1259,185 @@ describe('(333) el expediente en conflicto manda en el contexto', () => {
   it('sin conflicto no aparece la nota', () => {
     const s = correrDecisor({ ctx: ctx({ estado: 'allocating', nota: null }) });
     expect(nota(s, 'EXPEDIENTE EN CONFLICTO')).toBeUndefined();
+  });
+});
+
+describe('varias cuentas Zelle: no forzar una pareja nombre-cuenta', () => {
+  const base = {
+    texto_completo: 'YLT WHOLESALE FOODS LLC 954-425-3182',
+    datos_zelle: true,
+    zelle_correos: [] as string[],
+    zelle_celulares: ['9544253182', '8132940493'],
+    zelle_nombre: 'YLT WHOLESALE FOODS LLC',
+    zelle_nombre_cuenta: '8132940493',
+  };
+
+  it('no empuja registrar_beneficiario_zelle y pide confirmar cada cuenta', () => {
+    const s = correrDecisor({ snapshot: { ...base, zelle_varios: true } });
+    const n = nota(s, 'VARIAS CUENTAS ZELLE DETECTADAS') as string;
+    expect(n).toBeDefined();
+    expect(n).toContain('9544253182');
+    expect(n).toContain('8132940493');
+    expect(n).toMatch(/NO registres ninguna/);
+    expect(nota(s, 'TOOL OBLIGATORIA') ?? '').not.toContain(
+      'registrar_beneficiario_zelle'
+    );
+  });
+
+  it('con una sola cuenta sigue ordenando la tool', () => {
+    const s = correrDecisor({
+      snapshot: {
+        ...base,
+        zelle_celulares: ['9544253182'],
+        zelle_nombre_cuenta: '9544253182',
+      },
+    });
+    const tools = nota(s, 'TOOL OBLIGATORIA') as string;
+    expect(tools).toContain('registrar_beneficiario_zelle');
+    expect(tools).toContain('9544253182');
+  });
+
+  it('usa la cuenta atada al nombre, no el primer numero de la lista', () => {
+    const s = correrDecisor({
+      snapshot: {
+        ...base,
+        zelle_celulares: ['8132940493'],
+        zelle_nombre_cuenta: '9544253182',
+      },
+    });
+    const tools = nota(s, 'TOOL OBLIGATORIA') as string;
+    expect(tools).toContain('9544253182');
+    expect(tools).not.toContain('8132940493');
+  });
+});
+
+describe('cotizacion, seguimiento y Zelle parcial', () => {
+  it('"5 mil pesos" se cotiza como GYD para CUP, sin preguntar CUP vs GYD', () => {
+    const s = correrDecisor({
+      snapshot: { texto_completo: 'cuanto le llega si envio 5 mil pesos?' },
+    });
+    const n = notaDeCalculo(s) as string;
+    expect(n).toBeDefined();
+    expect(n).toMatch(/tarjeta en pesos cubanos|calcular_envio/);
+    expect(n).not.toMatch(/VIA NO SE SABE/);
+    expect(n).toMatch(/NO preguntes CUP vs GYD/);
+  });
+
+  it('una cotizacion nueva no dispara TURNO DE SEGUIMIENTO; un seguimiento si', () => {
+    const quote = correrDecisor({
+      ctx: { mensajes_cliente: 3 },
+      snapshot: { texto_completo: 'cuanto le llega si envio 5 mil pesos?' },
+    });
+    expect(nota(quote, 'TURNO DE SEGUIMIENTO')).toBeUndefined();
+
+    const follow = correrDecisor({
+      ctx: { mensajes_cliente: 3, cierra_cortesia: [1] },
+      snapshot: { texto_completo: '¿me entendió?' },
+    });
+    expect(nota(follow, 'TURNO DE SEGUIMIENTO')).toBeDefined();
+  });
+
+  it('lista para transferir no promete "enseguida"; dice que la hace el operador', () => {
+    const s = correrDecisor({
+      ctx: {
+        mensajes_cliente: 2,
+        monto_recibe_valor: 100,
+        monto_recibe_moneda: 'USD',
+        tiene_beneficiario: true,
+        beneficiarios_registrados: [
+          { t: 'zelle', nombre: 'YLT WHOLESALE FOODS LLC', cuenta: '9544253182', monto: 100, moneda: 'USD' },
+        ],
+        servicio_resuelto: {
+          en_curso: 'zelle',
+          operaciones: [{ id: 'op-1', servicio: 'zelle', status: 'ready_to_transfer' }],
+        },
+      },
+      snapshot: {
+        texto_completo: 'hola',
+        datos_zelle: true,
+        zelle_celulares: ['9544253182'],
+        zelle_nombre: 'YLT WHOLESALE FOODS LLC',
+        zelle_nombre_cuenta: '9544253182',
+      },
+    });
+    const n = nota(s, 'ESTADO REAL DEL ENVIO EN CURSO') as string;
+    expect(n).toBeDefined();
+    expect(n).toMatch(/operador/);
+    expect(n).not.toMatch(/la transferencia sale enseguida/);
+  });
+
+  it('con 50 de 100 USD asignados avisa que faltan 50 y no da por completo', () => {
+    const s = correrDecisor({
+      ctx: {
+        mensajes_cliente: 2,
+        monto_recibe_valor: 100,
+        monto_recibe_moneda: 'USD',
+        tiene_beneficiario: true,
+        beneficiarios_registrados: [
+          { t: 'zelle', nombre: 'YLT WHOLESALE FOODS LLC', cuenta: '9544253182', monto: 50, moneda: 'USD' },
+        ],
+      },
+      snapshot: {
+        texto_completo: 'A esta cuenta 50 dólares',
+        datos_zelle: true,
+        zelle_celulares: ['9544253182'],
+        zelle_nombre: 'YLT WHOLESALE FOODS LLC',
+        zelle_nombre_cuenta: '9544253182',
+      },
+    });
+    const n = nota(s, 'FALTAN') as string;
+    expect(n).toBeDefined();
+    expect(n).toContain('50 USD');
+    expect(n).toMatch(/NO digas que esta completo/);
+  });
+});
+
+describe('deposito que cubre un reparto planificado y confirmacion repetida', () => {
+  it('un deposito que coincide con las partes no es "mando mas" ni incidencia', () => {
+    const s = correrDecisor({
+      snapshot: {
+        texto_completo: 'Listo ahí le deposite',
+        comprobante: { estado: 'LEGIBLE', monto: 26000, moneda: 'GYD', referencia: '20404215436140', alertas: [] },
+      },
+      mmg: { resultado: 'verificado_de_mas', objetivo: 13000, depositado: 26000, saldo: 13000 },
+      ctx: {
+        servicio_resuelto: {
+          en_curso: 'cuban_card',
+          operaciones: [
+            { id: 'op1', servicio: 'cuban_card', status: 'ready_to_transfer', tiene_deposito: true, dinero_gyd: 13000 },
+            { id: 'op2', servicio: 'zelle', status: 'ready_to_transfer', tiene_deposito: true, dinero_gyd: 13000 },
+          ],
+          reparto_pendiente: {
+            deposito_gyd: 26000,
+            partes: [
+              { servicio: 'cuban_card', monto_gyd: 13000 },
+              { servicio: 'zelle', monto_gyd: 13000 },
+            ],
+          },
+        },
+      },
+    });
+    const n = nota(s, 'EL CLIENTE DEPOSITO') as string;
+    expect(n).toBeDefined();
+    expect(n).toMatch(/NO es un deposito de mas/);
+    expect(n).not.toMatch(/El envio esta en Incidencia/);
+    expect(n).toMatch(/NO le digas que mando mas/);
+    expect(n).toMatch(/repartir_envio/);
+  });
+
+  it('si el beneficiario ya se confirmo antes, no repite tarjeta ni celular', () => {
+    const s = correrDecisor({
+      snapshot: { texto_completo: 'Listo ahí le deposite' },
+      beneficiario: { tarjeta_final: '9224069992922522', celular_final: '53821202' },
+      ctx: {
+        beneficiarios_registrados: [
+          { t: 'cuban_card', tarjeta: '9224069992922522', celular: '53821202' },
+        ],
+      },
+    });
+    const n = nota(s, 'Beneficiario YA REGISTRADO') as string;
+    expect(n).toBeDefined();
+    expect(n).toMatch(/NO repitas tarjeta ni celular/);
+    expect(n).not.toMatch(/OBLIGATORIO/);
   });
 });

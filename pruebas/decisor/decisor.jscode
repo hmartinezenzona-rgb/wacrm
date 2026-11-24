@@ -189,7 +189,7 @@ function rutaAdminAccion(ctx, texto, tel) {
 // Datos del beneficiario ACUMULADOS a lo largo de la conversacion (no solo de este lote).
 // La tarjeta puede haber llegado en una imagen hace 3 mensajes y el celular ahora.
 let tarjetaCtx = s.tarjeta, celularCtx = s.celular, veniaDeAntes = false;
-let zelleNomCtx = s.zelle_nombre, zelleCtaCtx = (s.zelle_correo || s.zelle_celular);
+let zelleNomCtx = s.zelle_nombre, zelleCtaCtx = (s.zelle_nombre_cuenta || s.zelle_correo || s.zelle_celular);
 try {
   const mb = $('Merge beneficiario').first().json;
   if (mb) {
@@ -202,6 +202,14 @@ try {
     if (mb.zelle_cuenta_final) zelleCtaCtx = mb.zelle_cuenta_final;
   }
 } catch (e) {}
+// (2026-10-27) VARIAS CUENTAS ZELLE: no elegir una pareja nombre-cuenta a ciegas.
+// El caso del 26-oct: el Snapshot traia el nombre de una cuenta y dos numeros; el
+// primer numero era el de la otra cuenta y el Decisor forzo la tool con el nombre
+// de una y el numero de la otra. Con mas de una cuenta no se registra nada hasta
+// confirmar cada pareja con el cliente.
+const zelleCuentas = Array.from(new Set([...(s.zelle_correos || []), ...(s.zelle_celulares || [])]));
+const zelleVarios = !!s.zelle_varios || zelleCuentas.length > 1;
+if (zelleVarios) { zelleNomCtx = null; zelleCtaCtx = null; }
 // RECARGA EN CURSO (13-ago-2026): hoy la recarga de la promo de Etecsa entro
 // como "Remesa" y el bot pidio LA TARJETA (Yilian, +5926595697). La senal
 // persistente la trae `Contexto conversacion` (recarga_en_curso): el cliente
@@ -494,6 +502,8 @@ try {
 // un 'NO hay tool que llamar' del bloque del comprobante se llevo por delante la
 // orden de registrar el beneficiario Zelle y el deal quedo sin destinatario.
 const toolsPendientes = [];
+// El cliente solo acusa recibo (ok/perfecto/gracias): no repetir el desglose.
+const soloAcuse = /^(ok|okay|perfecto|gracias|listo|de acuerdo|bien|dale|👍)[.! ]*$/i.test(texto);
 // La memoria del agente solo guarda lo que el propio agente contesto. Si un
 // companero atendio a mano, o si el bot callo por la ventana de silencio, todo
 // eso le es invisible y al retomar repetiria preguntas o contradiria acuerdos.
@@ -517,19 +527,13 @@ if (h && h.primer_del_dia) {
 }
 // (estilo) TURNO DE SEGUIMIENTO: el cliente ya tiene la cotizacion y los datos; no se le repite la
 // tabla. La nota es interna; el modelo solo ve las reglas, no el texto de la nota.
-if (Number(ctx.mensajes_cliente) > 1) {
+const pideCotizacion = /(cuanto|cuánto|que|qué)\s+(le\s+)?(llega|llegan|llegaria|llegaría|llegarian|llegarían|recibe|reciben|recibiria|recibiría)/i.test(texto) || /(cuanto|cuánto)\s+(tengo que |debo |debe |deberia |debería |tendria |tendría |seria |sería |hay que |necesito )*(depositar|enviar|mandar|poner|dar)/i.test(texto);
+const huboRespuestaAgente = Array.isArray(ctx.cierra_cortesia) && Number(ctx.cierra_cortesia.length) < Number(ctx.mensajes_cliente || 0);
+if (Number(ctx.mensajes_cliente) > 1 && !pideCotizacion && (huboRespuestaAgente || ctx.tiene_beneficiario)) {
   notas.push('TURNO DE SEGUIMIENTO (BREVEDAD): NO re-listes la cotizacion, las tasas, los minimos ni la tabla; NO repitas el desglose ni la pregunta anterior. Responde solo a lo nuevo en 1-2 frases, sin tabla. Pide SOLO el dato que falta, por ejemplo "la tarjeta" o "el celular"; PROHIBIDO "los datos de quien recibe" o pedir el paquete entero. Si el cliente pide confirmacion, di el total y el dato que falta, sin "Total a depositar".');
 }
-// INVITACION AL GRUPO (2026-10-24, peticion de Osmany). Solo en el PRIMER mensaje del cliente en esta
-// conversacion: el Contexto trae `mensajes_cliente` y el mensaje actual ya esta guardado, asi que 1 = nuevo.
-// El texto y el enlace van LITERALES: el modelo no los reescribe ni cambia una palabra. Un admin no la recibe
-// (sus mensajes se silencian aguas arriba y ahi no hay invitacion que valga).
-if (!ctx.es_admin && Number(ctx.mensajes_cliente) === 1) {
-  notas.push('CLIENTE NUEVO (es el primer mensaje suyo en esta conversacion): al FINAL de tu respuesta, en el MISMO mensaje y despues de atender lo que pide, anade estas dos lineas COPIADAS LITERALMENTE, sin cambiar ni una palabra ni el enlace de la ultima linea:'
-    + String.fromCharCode(10) + 'Tenemos un grupo de WhatsApp de *Remesas Ya* donde compartimos tasas, promociones y avisos al instante. Únete aquí:'
-    + String.fromCharCode(10) + 'https://chat.whatsapp.com/GFznWMcrlHa5RSBo76Vw81'
-    + String.fromCharCode(10) + 'Si el cliente solo saluda, despues de la invitacion preguntale en que puedes ayudarle. Es UNA sola vez: no la repitas en los mensajes siguientes.');
-}
+// La invitacion al grupo la envia el webhook como mensaje interactivo (CTA URL) en el primer mensaje del
+// cliente (2026-11-24). El Decisor ya no agrega el texto ni el enlace.
 // (gate 83, 2026-10-02) MONTO DE DESTINO: an amount with the destination currency attached is what the
 // beneficiary RECEIVES, whatever the verb (owner: "si el cliente dice que quiere recibir X en una moneda, eso
 // lleva calculo inverso"). Production test 2026-10-02 13:03 UTC (exec 304592): "quiero enviar 15 mil CUP" was
@@ -603,8 +607,9 @@ try {
       efectivo_usd: { nombre: 'efectivo en Cuba', deposita: "consultar_servicio('efectivo_usd') y SOLO lo que devuelva, que tiene su propia tasa", destino: "consultar_servicio('efectivo_usd') y SOLO lo que devuelva, que tiene su propia tasa" },
       mexico: { nombre: 'la entrega en Mexico', deposita: 'calcular_usd_desde_gyd con via=mexico', destino: 'calcular_usd con via=mexico' },
     };
-    const via = rielOp ? VIAS[rielOp] : null;
     const esDestino = pideDeposito && !pideLlegada;
+    const pesosSinApellido = /\b\d+(?:[.,]\d+)?\s*(mil|k)?\s*pesos\b/i.test(texto) && !/pesos\s+cubanos?/i.test(texto) && !/pesos\s+(guyaneses|gy|gyd)/i.test(texto);
+    const via = rielOp ? VIAS[rielOp] : (pesosSinApellido && !esDestino ? VIAS.cuban_card : null);
     const lado = esDestino
       ? 'el cliente pide que LLEGUEN ese monto, o sea es el monto de DESTINO, NO lo que deposita'
       : 'el cliente pregunta CUANTO LLEGA, o sea el monto que dijo es lo que EL DEPOSITA, en GYD, aunque la transcripcion diga otra moneda';
@@ -612,6 +617,7 @@ try {
       const base = 'LADO DEL MONTO (lo resolvio el sistema, no lo replantees): ' + lado + '. ';
       notas.push(via
         ? base + 'La via de esta operacion ya esta elegida: ' + via.nombre + '. Cotiza con ' + (esDestino ? via.destino : via.deposita) + '.'
+          + (pesosSinApellido && !esDestino ? ' El cliente dijo "X pesos" sin apellido: son GYD que DEPOSITA (minimo 5,000 GYD); NO preguntes CUP vs GYD ni uses calcular_inverso.' : '')
         : base + 'La VIA NO SE SABE: nadie ha dicho por donde recibe quien recibe, y hay varias. PROHIBIDO asumir una y PROHIBIDO dar una cifra todavia. Pregunta primero en que moneda quiere que le llegue y, cuando lo diga, cotiza con la herramienta de ESA via.');
     }
   }
@@ -684,8 +690,15 @@ if (s.multi_beneficiario) {
   notas.push(g82NotaReparto());
 } else if (tarjetaCtx && celularCtx && regBenDisponible && !cubanoRegistrado) {
   notas.push('TARJETA Y CELULAR DETECTADOS PERO NO REGISTRADOS: tarjeta ' + tarjetaCtx + ' y celular ' + celularCtx + '. Todavia NO estan guardados en el envio. Llama gestionar_beneficiario EN ESTE MISMO TURNO con esos datos y confirmaselos al cliente con la tarjeta y el celular COMPLETOS en *negrita*. PROHIBIDO decir anotado sin haber llamado la herramienta.');
+  toolsPendientes.push('gestionar_beneficiario con tarjeta "' + tarjetaCtx + '" y celular "' + celularCtx + '"');
 } else if (tarjetaCtx && celularCtx) {
-  notas.push('Beneficiario YA REGISTRADO automaticamente en el tablero: tarjeta ' + tarjetaCtx + ' y celular ' + celularCtx + (veniaDeAntes ? ' (uno de los dos lo dio antes en esta misma conversacion; el sistema los junto)' : '') + '. NO llames gestionar_beneficiario (ya esta hecho, igual que el deposito). OBLIGATORIO: tu respuesta a ESTE lote DEBE incluir la confirmacion de estos datos con palabras, tarjeta y celular COMPLETOS en *negrita* — aunque el lote traiga ademas un audio o texto hablando de otra cosa, la confirmacion va en el mismo mensaje. Responder solo al resto (un "aqui estoy pendiente" pelado) es un ERROR GRAVE. PROHIBIDO pedirle los datos del beneficiario: ya los dio.');
+  if (soloAcuse) {
+    notas.push('Beneficiario YA REGISTRADO automaticamente en el tablero: tarjeta ' + tarjetaCtx + ' y celular ' + celularCtx + '. El cliente solo acusa recibo: responde en UNA frase corta confirmando que quedo registrado; NO repitas tarjeta ni celular si ya se confirmaron en el turno anterior.');
+  } else if (veniaDeAntes) {
+    notas.push('Beneficiario YA REGISTRADO automaticamente en el tablero: tarjeta ' + tarjetaCtx + ' y celular ' + celularCtx + ' (uno de los dos lo dio antes en esta misma conversacion; el sistema los junto). El beneficiario YA se confirmo en un turno anterior: NO repitas tarjeta ni celular; confirma solo lo nuevo (el deposito y/o el reparto).');
+  } else {
+    notas.push('Beneficiario YA REGISTRADO automaticamente en el tablero: tarjeta ' + tarjetaCtx + ' y celular ' + celularCtx + (veniaDeAntes ? ' (uno de los dos lo dio antes en esta misma conversacion; el sistema los junto)' : '') + '. NO llames gestionar_beneficiario (ya esta hecho, igual que el deposito). OBLIGATORIO: tu respuesta a ESTE lote DEBE incluir la confirmacion de estos datos con palabras, tarjeta y celular COMPLETOS en *negrita* — aunque el lote traiga ademas un audio o texto hablando de otra cosa, la confirmacion va en el mismo mensaje. Responder solo al resto (un "aqui estoy pendiente" pelado) es un ERROR GRAVE. PROHIBIDO pedirle los datos del beneficiario: ya los dio.');
+  }
 } else if (visaEnCurso) {
   notas.push('OPERACION EN CURSO: EXTENSION DE VISA, no remesa. NO hace falta ningun dato de destino: PROHIBIDO pedir tarjeta, celular, cuenta o datos de quien recibe. El cliente llena el formulario de la extension (https://acortar.link/extension_de_visa) y paga 5,000 GYD por persona por MMG, todo por adelantado; la captura del deposito la manda por aqui. Si confirma que quiere hacerla, llama abrir_extension_visa con cuantas personas. Despues de pagar, el equipo sube la aplicacion y le avisa.');
 } else if (comboEnCurso) {
@@ -714,10 +727,14 @@ if (s.multi_beneficiario) {
   }
 
 // ZELLE: el beneficiario no recibe CUP en una tarjeta, recibe DOLARES.
-if (s.datos_zelle) {
+if (zelleVarios) {
+  notas.push('VARIAS CUENTAS ZELLE DETECTADAS: ' + zelleCuentas.join(', ') + '. NO registres ninguna todavía ni mezcles un nombre con un número. Confirma con el cliente, UNA por UNA, qué nombre va con cada cuenta y cuánto va a cada una; después registra cada cuenta por separado con registrar_beneficiario_zelle (posicion/agregar/monto). PROHIBIDO asumir que el primer nombre va con el primer número.');
+}
+if (s.datos_zelle && !zelleVarios) {
   const cuenta = [s.zelle_nombre ? 'nombre ' + s.zelle_nombre : null,
                   s.zelle_celular ? 'celular de EEUU ' + s.zelle_celular : null,
                   s.zelle_correo ? 'correo ' + s.zelle_correo : null].filter(Boolean).join(' y ');
+  const zelleMixto = /(resto|restante|rest|tarjeta|cup|moneda nacional|supervielle)/i.test(texto);
   // LO ACUMULADO, NO SOLO ESTE LOTE (17-ago-2026). Esta guarda preguntaba por
   // `s.tarjeta || s.celular` -el lote- mientras todo el bloque que la rodea usa
   // `tarjetaCtx / celularCtx` -lo acumulado entre lotes-. Con la tarjeta dada en
@@ -735,7 +752,7 @@ if (s.datos_zelle) {
     if (!zelleRegistrado && zelleNomCtx && zelleCtaCtx) {
       toolsPendientes.push('registrar_beneficiario_zelle con nombre "' + zelleNomCtx + '" y cuenta LITERAL "' + zelleCtaCtx + '"');
     }
-    notas.push('DATOS DE ZELLE DETECTADOS: ' + cuenta + '. Este cliente quiere ZELLE (no CUP ni tarjeta Clasica/Tropical). PROHIBIDO pedirle tarjeta ni celular cubano. Confirmaselos COPIADOS TAL CUAL, sin cambiar ni un caracter, en *negrita*. El NOMBRE de la cuenta es OBLIGATORIO: si no lo ha dado, pideselo.' + (zelleRegistrado ? ' YA ESTA REGISTRADO EN EL TABLERO: NO hay ninguna tool que llamar para esto, solo confirmaselo con palabras.' : ' NO ESTA REGISTRADO TODAVIA. Llama registrar_beneficiario_zelle EN ESTE MISMO TURNO con lo que haya (el nombre y/o la cuenta, la cuenta LITERAL tal como esta aqui arriba) y pide lo que falte.'));
+    notas.push('DATOS DE ZELLE DETECTADOS: ' + cuenta + '. ' + (zelleMixto ? "El cliente quiere ZELLE y ADEMAS el resto en CUP/tarjeta: NO le digas que no hay CUP ni le prohibas pedir la tarjeta; confirma la cuenta Zelle y pide la tarjeta y el celular de la parte CUP." : "Este cliente quiere ZELLE (no CUP ni tarjeta Clasica/Tropical). PROHIBIDO pedirle tarjeta ni celular cubano.") + ' Confirmaselos COPIADOS TAL CUAL, sin cambiar ni un caracter, en *negrita*. El NOMBRE de la cuenta es OBLIGATORIO: si no lo ha dado, pideselo.' + (zelleRegistrado ? ' YA ESTA REGISTRADO EN EL TABLERO: NO hay ninguna tool que llamar para esto, solo confirmaselo con palabras.' : ' NO ESTA REGISTRADO TODAVIA. Llama registrar_beneficiario_zelle EN ESTE MISMO TURNO con lo que haya (el nombre y/o la cuenta, la cuenta LITERAL tal como esta aqui arriba) y pide lo que falte.'));
   }
 }
 }
@@ -839,7 +856,12 @@ if (s.comprobante && !s.comprobante_duplicado) {
     }
     // S6: the conversation already has a mixed send (ctx.envio_mixto, from `Contexto conversacion`): never "mando de mas".
     const mixtoDeMas = !!(ctx.envio_mixto && Array.isArray(ctx.envio_mixto.partes) && ctx.envio_mixto.partes.length > 1);
-    if (mixtoDeMas) {
+    const splitDeMas = !!(R && R.reparto_pendiente && Array.isArray(R.reparto_pendiente.partes) && R.reparto_pendiente.partes.length >= 2);
+    const nomDeMas = (sv) => ({ cuban_card: 'cup', efectivo_usd: 'efectivo' }[String(sv)] || String(sv));
+    const listaDeMas = splitDeMas ? R.reparto_pendiente.partes.map((p) => nomDeMas(p.servicio) + ' ' + Number(p.monto_gyd)).join(', ') : '';
+    if (splitDeMas) {
+      notas.push('EL CLIENTE DEPOSITO *' + fmtG(depositado) + ' ' + monedaRafaga + '* y ese dinero ES EXACTAMENTE el reparto ya calculado (' + listaDeMas + '). NO es un deposito de mas ni una incidencia: NO le digas que mando mas, que se equivoco o que un companero lo revisa. Llama repartir_envio con TODAS las partes ya calculadas y confirma solo lo que devuelva la tool; PROHIBIDO decir completo o que la transferencia sale antes de la tool.');
+    } else if (mixtoDeMas) {
       notas.push('EL CLIENTE DEPOSITO MAS DE LO QUE DIJO QUE IBA A ENVIAR: dijo *'
         + fmtG(objetivoEnvio) + ' ' + monedaRafaga + '* y lleva *' + fmtG(depositado) + ' ' + monedaRafaga
         + '*, o sea ' + fmtG(Math.abs(saldo)) + ' de mas. Esta conversacion ya es un ENVIO MIXTO (un solo deposito repartido entre varios servicios, ver la nota ENVIO MIXTO). NO le digas que mando de mas ni que es un error. Confirma con el cliente como queda repartido ese deposito entre los servicios (cuantos GYD para cada uno) y, cuando te lo diga, llama repartir_envio con TODAS las partes; las partes tienen que sumar exactamente lo depositado. Responde con lo que devuelva la tool, sin inventar cifras. PROHIBIDO decirle que se le va a transferir antes de que la tool confirme el reparto.');
@@ -934,7 +956,15 @@ if (ctx.via_deposito_ya_usada) {
 // muerto. Lo encontro una prueba end-to-end el 10-ago.
 // Lo ACUMULADO, no solo lo de este lote: el nombre pudo llegar en un mensaje
 // y la cuenta en otro, y el registro determinista ya los junto.
-const zelleCompleto = !!(zelleNomCtx && zelleCtaCtx);
+const montoRecibeZelle = Number(ctx.monto_recibe_valor);
+const monedaRecibeZelle = String(ctx.monto_recibe_moneda || '').toUpperCase();
+const zelleAsignado = regBen.filter(b => b.t === 'zelle' && b.monto != null).reduce((a,b) => a + Number(b.monto || 0), 0);
+const esZelle = !!(s.datos_zelle || zelleVarios || regBen.some(b => b.t === 'zelle') || (R && String(R.en_curso || '') === 'zelle'));
+const zellePorAsignar = (esZelle && monedaRecibeZelle === 'USD' && Number.isFinite(montoRecibeZelle) && montoRecibeZelle > 0) ? Math.max(0, montoRecibeZelle - zelleAsignado) : 0;
+const zelleCompleto = !!(zelleNomCtx && zelleCtaCtx) && zellePorAsignar <= 0.009;
+if (zellePorAsignar > 0.009) {
+  notas.push('FALTAN *' + zellePorAsignar.toLocaleString('en-US') + ' USD* POR ASIGNAR: el deposito cubre *' + montoRecibeZelle.toLocaleString('en-US') + ' USD* por Zelle y ya hay *' + zelleAsignado.toLocaleString('en-US') + ' USD* asignados. NO digas que esta completo ni que la transferencia sale; pide el nombre y la cuenta de los *' + zellePorAsignar.toLocaleString('en-US') + ' USD* que faltan. Si en ESTE mismo turno registras la cuenta que cubre el resto, entonces si puedes confirmar completo.');
+}
 // Para una RECARGA el destino queda sabido con el numero a recargar, sin
 // tarjeta: es la naturaleza del servicio, no una excepcion de la guarda.
 // (291 follow-up) Mexico recipients live in remittance_beneficiaries without card or phone, so `tiene_beneficiario` and the
@@ -1020,6 +1050,7 @@ if (s.comprobante && !sabeDestino) {
   else if (celularCtx && !tarjetaCtx) { falta = 'la TARJETA de quien recibe en Cuba'; }
   else if (zelleCtaCtx && !zelleNomCtx) { falta = 'el NOMBRE del titular de la cuenta Zelle (la cuenta ya la dio: ' + zelleCtaCtx + ')'; }
   else if (zelleNomCtx && !zelleCtaCtx) { falta = 'la CUENTA Zelle (el correo o el celular de EEUU). El nombre ya lo dio: ' + zelleNomCtx; }
+  else if (zelleVarios) { falta = 'confirmar qué nombre va con cada cuenta Zelle y cuánto va a cada una'; }
   else if (s.datos_zelle) { falta = 'lo que falte de la cuenta Zelle (nombre del titular o numero)'; }
   if (falta) {
     notas.push('FALTAN DATOS DE QUIEN RECIBE: falta ' + falta + '. PROHIBIDO decir que le vas a hacer la transferencia. PROHIBIDO decir "en breve le hacemos la transferencia" ni "apenas lo verifiquemos le transferimos". Acusa recibo del deposito y PIDE ' + falta + '.');
@@ -1211,13 +1242,13 @@ const etapaR = (() => {
   return ({ collecting_information: 'Solicitada', awaiting_deposit: 'Solicitada', deposit_verification: 'Por verificar', ready_to_transfer: 'Lista para transferir', incident: 'Incidencia' })[String(titular.status)] || null;
 })();
 const etapaAbierta = etapaR || (h && h.etapa_envio_abierto) || null;
-if (etapaAbierta) {
+if (etapaAbierta && !rp325) {
   const et = etapaAbierta;
   const monto = h && h.monto_envio_abierto ? (' (' + h.monto_envio_abierto + ')') : '';
   let est = null;
   if (et === 'Solicitada') { est = 'ESTADO REAL DEL ENVIO EN CURSO: anotado, pero su deposito TODAVIA NO HA LLEGADO. Si el cliente pregunta como va lo suyo, dile que estan pendientes de recibir el deposito. NO digas que se esta verificando: no hay nada que verificar aun.'; }
   else if (et === 'Por verificar') { est = 'ESTADO REAL DEL ENVIO EN CURSO' + monto + ': el deposito YA LLEGO y esta EN VERIFICACION. Si el cliente pregunta como va lo suyo, dile que lo estan verificando y que apenas quede le hacen la transferencia.'; }
-  else if (et === 'Lista para transferir') { est = 'ESTADO REAL DEL ENVIO EN CURSO' + monto + ': el deposito YA FUE VERIFICADO y la transferencia esta por hacerse. Si el cliente pregunta como va lo suyo, dile que ya quedo verificado y que la transferencia sale enseguida. SIGUE sin poder confirmar que ya se envio: eso lo confirma el operador.'; }
+  else if (et === 'Lista para transferir') { est = 'ESTADO REAL DEL ENVIO EN CURSO' + monto + ': el deposito YA FUE VERIFICADO y la operacion esta lista para transferir. Si el cliente pregunta como va lo suyo, dile que ya quedo verificado y que la transferencia la hace el operador; NO prometas hora ni "enseguida". SIGUE sin poder confirmar que ya se envio: eso lo confirma el operador.'; }
   else if (et === 'Incidencia') { est = 'ESTADO REAL DEL ENVIO EN CURSO' + monto + ': hay una INCIDENCIA y un operador la esta revisando. Si el cliente pregunta como va lo suyo, dile con calma que lo estan revisando y que le confirman en cuanto quede. NO inventes el motivo ni prometas tiempos.'; }
   // NO CONTRADECIR LA GUARDA DE BENEFICIARIO.
   // El 10-ago esta nota decia "la transferencia sale enseguida" mientras la

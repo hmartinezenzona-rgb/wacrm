@@ -133,6 +133,16 @@ describe("RemittanceOperationCard edit split", () => {
     await act(async () => root.unmount());
   });
 
+  it.each([
+    ["one card share", [{ ...SHARE, id: "ben-1", amount: 150 }]],
+    ["no recipients", []],
+  ])("is offered with %s so a split can be built", async (_label, beneficiaries) => {
+    const { node, root } = await render(operation({ beneficiaries: beneficiaries as never }));
+
+    expect(editButton(node)).not.toBeNull();
+    await act(async () => root.unmount());
+  });
+
   it("is hidden on a closed operation for an agent", async () => {
     const { node, root } = await render(operation({ status: "completed" }), { role: "agent" });
 
@@ -144,7 +154,6 @@ describe("RemittanceOperationCard edit split", () => {
     ["a viewer", operation(), { canEdit: false }],
     ["a collapsed card", operation(), { expanded: false }],
     ["a history row", operation({ isHistory: true }), {}],
-    ["a single share", operation({ beneficiaries: [{ ...SHARE, id: "ben-1", amount: 150 }] as never }), {}],
     ["a non-card recipient", operation({ beneficiaries: [{ ...SHARE, id: "ben-1", amount: 100 }, { ...SHARE, id: "ben-2", amount: 50, beneficiaryType: "zelle" }] as never }), {}],
     ["a recharge", operation({ serviceType: "recarga" }), {}],
   ])("is hidden for %s", async (_label, op, options) => {

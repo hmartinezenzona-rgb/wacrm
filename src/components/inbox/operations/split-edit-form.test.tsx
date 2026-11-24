@@ -93,12 +93,13 @@ async function type(input: HTMLInputElement, value: string) {
 }
 
 describe("canEditSplit", () => {
-  it("is true only for a remesa whose recipients are all card rails and are at least two", async () => {
+  it("is true for a remesa whose recipients (none, one or several) are all card rails", async () => {
     const { canEditSplit } = await import("./split-edit-form");
     const op = (serviceType: string, shares: RemittanceBeneficiaryRead[]) => ({ serviceType, beneficiaries: shares }) as never;
 
     expect(canEditSplit(op("remesa", SHARES))).toBe(true);
-    expect(canEditSplit(op("remesa", [SHARES[0]!]))).toBe(false);
+    expect(canEditSplit(op("remesa", [SHARES[0]!]))).toBe(true);
+    expect(canEditSplit(op("remesa", []))).toBe(true);
     expect(canEditSplit(op("recarga", SHARES))).toBe(false);
     expect(canEditSplit(op("remesa", [...SHARES, share("z", 1, "", { beneficiaryType: "zelle" })]))).toBe(false);
     expect(canEditSplit(op("remesa", [share("a", 1, "1", { beneficiaryType: "clasica" }), share("b", 1, "1", { beneficiaryType: "multiple_distribution" })]))).toBe(true);
@@ -106,6 +107,27 @@ describe("canEditSplit", () => {
 });
 
 describe("SplitEditForm", () => {
+  it("pads the rows with empty ones up to two when the operation has fewer shares", async () => {
+    const one = await render({ shares: [SHARES[0]!], total: 150 });
+    expect(inputs(one.node, E.card).map((i) => i.value)).toEqual(["9205000000000001", ""]);
+    expect(saveButton(one.node).disabled).toBe(true);
+    await act(async () => one.root.unmount());
+
+    const none = await render({ shares: [], total: 150 });
+    expect(inputs(none.node, E.card)).toHaveLength(2);
+    await type(inputs(none.node, E.card)[0]!, "9205000000000001");
+    await type(inputs(none.node, E.amount)[0]!, "100");
+    await type(inputs(none.node, E.card)[1]!, "9205000000000002");
+    await type(inputs(none.node, E.amount)[1]!, "50");
+    expect(saveButton(none.node).disabled).toBe(false);
+    await act(async () => saveButton(none.node).click());
+    expect(editarReparto).toHaveBeenCalledWith("op-1", [
+      expect.objectContaining({ id: null, card_number: "9205000000000001", amount: 100 }),
+      expect.objectContaining({ id: null, card_number: "9205000000000002", amount: 50 }),
+    ]);
+    await act(async () => none.root.unmount());
+  });
+
   it("lists one row per share prefilled and shows the matching sum", async () => {
     const { node, root } = await render();
 

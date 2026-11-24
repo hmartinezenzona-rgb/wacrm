@@ -2450,6 +2450,8 @@ describe("RemittanceOperationCard header layout", () => {
     expect(row).not.toBeNull();
     expect(Array.from(row.querySelectorAll("button")).map((b) => b.getAttribute("aria-label"))).toEqual([
       en.Inbox.operationsPanel.closing.deleteButton,
+      // A remesa with no recipients yet can build a split from scratch.
+      en.Inbox.operationsPanel.editSplit.button,
       en.Inbox.operationsPanel.splitDeposit.button,
       en.Inbox.operationsPanel.changeStatus,
       en.Inbox.operationsPanel.editOperation,
@@ -2474,11 +2476,12 @@ describe("RemittanceOperationCard header layout", () => {
     await act(async () => root.unmount());
   });
 
-  it("keeps only split, change state and the pencil in the row for a non-manager", async () => {
+  it("keeps only edit split, split, change state and the pencil in the row for a non-manager", async () => {
     const { node, root } = await render(operation(), { role: "agent" });
 
     const labels = Array.from(actionsRow(node)!.querySelectorAll("button")).map((b) => b.getAttribute("aria-label"));
     expect(labels).toEqual([
+      en.Inbox.operationsPanel.editSplit.button,
       en.Inbox.operationsPanel.splitDeposit.button,
       en.Inbox.operationsPanel.changeStatus,
       en.Inbox.operationsPanel.editOperation,

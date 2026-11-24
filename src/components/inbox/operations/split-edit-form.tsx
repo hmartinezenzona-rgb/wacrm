@@ -19,11 +19,11 @@ const CARD_PATTERN = /^\d{16}$/;
 const PHONE_PATTERN = /^\d{8,15}$/;
 const MIN_SHARES = 2;
 
-/** Whether the card offers "Editar reparto": a remesa whose current recipients are two or more and all card rails. */
+/** Whether the card offers "Editar reparto": a remesa whose current recipients (none, one or several) are all card
+ *  rails. With fewer than two the form pads empty rows, so a split can be built from scratch. */
 export function canEditSplit(operation: Pick<RemittanceOperationRead, "serviceType" | "beneficiaries">): boolean {
   return (
     operation.serviceType === "remesa" &&
-    operation.beneficiaries.length >= MIN_SHARES &&
     operation.beneficiaries.every((beneficiary) => CARD_RAILS.includes(beneficiary.beneficiaryType))
   );
 }
@@ -64,18 +64,24 @@ const digitsOf = (text: string) => text.replace(/\D/g, "");
 export function SplitEditForm({ operationId, beneficiaries, total, currency, onDone, onCancel }: SplitEditFormProps) {
   const t = useTranslations("Inbox.operationsPanel");
 
+  // Padded with empty rows up to the two shares a split needs, so one or no recipient can grow into a split.
+  const initialRows = Math.max(beneficiaries.length, MIN_SHARES);
   const [rows, setRows] = useState<ShareRow[]>(() =>
-    beneficiaries.map((beneficiary, index) => ({
-      key: index,
-      id: beneficiary.id,
-      type: beneficiary.beneficiaryType,
-      name: beneficiary.name ?? "",
-      card: beneficiary.cardNumber ?? "",
-      phone: beneficiary.phone ?? "",
-      amount: beneficiary.amount === null ? "" : String(beneficiary.amount),
-    })),
+    Array.from({ length: initialRows }, (_, index): ShareRow => {
+      const beneficiary = beneficiaries[index];
+      if (!beneficiary) return { key: index, id: null, type: "cuban_card", name: "", card: "", phone: "", amount: "" };
+      return {
+        key: index,
+        id: beneficiary.id,
+        type: beneficiary.beneficiaryType,
+        name: beneficiary.name ?? "",
+        card: beneficiary.cardNumber ?? "",
+        phone: beneficiary.phone ?? "",
+        amount: beneficiary.amount === null ? "" : String(beneficiary.amount),
+      };
+    }),
   );
-  const [nextKey, setNextKey] = useState(beneficiaries.length);
+  const [nextKey, setNextKey] = useState(initialRows);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

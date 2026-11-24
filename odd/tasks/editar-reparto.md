@@ -62,4 +62,4 @@ Forecast ~800-1000 authored lines over the tasks (above the ~400 heuristic). The
 
 ## Next step
 
-T4 (staging browser check with PRUEBA fixtures; the staging panel must be built from this branch).
+T5 (production: migration 394, then panel publish; owner go-ahead per step).

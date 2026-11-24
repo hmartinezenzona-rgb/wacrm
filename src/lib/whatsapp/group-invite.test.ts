@@ -50,7 +50,7 @@ describe('construirInvitacionGrupo', () => {
     expect(p.kind).toBe('cta_url')
     expect(p.url).toBe('https://app.test/grupo')
     expect(p.button_label).toBe('Unirme al grupo')
-    expect(p.body).toContain('Únete a nuestro grupo de WhatsApp')
+    expect(p.body).toContain('Únete a nuestro grupo para estar al día.')
     expect(p.footer).toBe('Remesas Ya')
   })
 })
@@ -63,7 +63,7 @@ describe('construirInvitacionGrupoConTexto', () => {
     )
     expect(p?.kind).toBe('cta_url')
     expect(p?.body).toBe(
-      'Hola, ¿en qué le ayudo?\n\nÚnete a nuestro grupo de WhatsApp de *Remesas Ya* y recibe las tasas, promociones y avisos al instante.',
+      'Hola, ¿en qué le ayudo?\n\nÚnete a nuestro grupo para estar al día.',
     )
     expect((p?.body.length ?? 0)).toBeLessThanOrEqual(INVITACION_CUERPO_MAX)
     expect(p?.button_label).toBe('Unirme al grupo')

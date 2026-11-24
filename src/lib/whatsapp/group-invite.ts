@@ -14,7 +14,7 @@ export function construirInvitacionGrupo(origin: string): InteractiveCtaUrlPaylo
   const base = origin.replace(/\/$/, '')
   return {
     kind: 'cta_url',
-    body: 'Únete a nuestro grupo de WhatsApp de *Remesas Ya* y recibe las tasas, promociones y avisos al instante.',
+    body: 'Únete a nuestro grupo para estar al día.',
     footer: 'Remesas Ya',
     button_label: 'Unirme al grupo',
     url: `${base}/grupo`,

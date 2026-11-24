@@ -10,7 +10,7 @@ BEGIN;
 --   2. Rule A: the account / card / phone of the completed send -> refused, nothing opens, reply says it belongs to the completed send.
 --      Owner override: rule A yields ONLY to an explicit send intent newer than the completion (declared service, pending rail,
 --      registered deposit); a quote or an agreed amount alone does not (cases 2f-2k).
---   3. Completed 7 h ago (outside the 6 h window): the operation opens, an audit row is written, the reply says a new send was opened.
+--   3. Completed 7 h ago (outside the 6 h window): a NEW recipient opens (390: the same recipient is refused, rule A has no window), an audit row is written, the reply says a new send was opened.
 --   4. No completed operation at all (legit first send "account first, deposit later"): opens, audited, reply says so (4 writers).
 --   5. Inside the window with a new-send signal (mismatched declared service, quote, agreed amount, pending rail, deposit): opens.
 --   6. An open operation present: unchanged (data goes to it, nothing new opens, no new-send notice).
@@ -159,10 +159,10 @@ BEGIN
   PERFORM pg_temp.chk(pg_temp.nops(v_conv) = 2, '3a opened a new operation (ops=' || pg_temp.nops(v_conv) || ')');
   PERFORM pg_temp.chk(pg_temp.naudit(v_conv) = 1, '3b audit row written (' || pg_temp.naudit(v_conv) || ')');
   PERFORM pg_temp.chk(v_r ILIKE '%SE ABRIO UN ENVIO NUEVO%', '3c reply says a new send was opened: ' || coalesce(v_r, 'null'));
-  -- same account as the long-completed send is NOT refused outside the window
+  -- (390) rule A has no window: the same account as the long-completed send is refused, however long ago it closed
   SELECT * INTO v_conv, v_done FROM pg_temp.fx('11', 7);
   v_r := pg_temp.w_zelle(v_conv, 'prueba360done@example.com');
-  PERFORM pg_temp.chk(pg_temp.nops(v_conv) = 2, '3d same account outside the window still opens');
+  PERFORM pg_temp.chk(pg_temp.nops(v_conv) = 1 AND v_r LIKE 'NO SE GUARDO NADA%', '3d same account outside the window is refused too (390): ' || coalesce(v_r, 'null'));
 
   -- 4. No completed operation: the legit first send, account first, deposit later; every writer.
   SELECT * INTO v_conv, v_done FROM pg_temp.fx('12', NULL);

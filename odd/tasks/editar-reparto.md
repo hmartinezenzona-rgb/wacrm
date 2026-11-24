@@ -34,8 +34,8 @@ Mode: strict, on (global CLAUDE.md). Runners: SQL assertions via `infra/db/stagi
 ## Tasks
 
 - [x] T1 SQL: `crm_editar_reparto(p_operation_id, p_partes jsonb)` atomic replace with sum check, closed-op role rule, audit, lock. Migration + ROLLBACK + assertion on staging.
-- [ ] T2 API route `POST /api/remittance-operations/[operationId]/reparto` + route test.
-- [ ] T3 UI "Editar reparto" form on the operation card + vitest.
+- [x] T2 API route `POST /api/remittance-operations/[operationId]/reparto` + route test.
+- [x] T3 UI "Editar reparto" form on the operation card + vitest.
 - [ ] T4 Staging browser check (wacrm-probar-staging) with PRUEBA fixtures and cleanup.
 - [ ] T5 Production: migration (previa/aplicar/verificar) and panel publish, each with owner go-ahead.
 
@@ -54,7 +54,9 @@ Forecast ~800-1000 authored lines over the tasks (above the ~400 heuristic). The
 - 2026-11-24: mapped current editing (panel-fully-editable 377-384). Scope approved by owner.
 - 2026-11-24 T1: migration 394_crm_editar_reparto (+ ROLLBACK-394, assertion `supabase/staging/assertions/edit-split.sql`). RED: assertion without the migration failed `function crm_editar_reparto(uuid, jsonb) does not exist` (42883). GREEN: `staging-migracion.sh aplicar` dry-run/apply/assertion/rollback all OK (rollback md5 equal), ACL `postgres, authenticated`. `relacionadas 'beneficiar|reparto|closed|correct|recipient' --ya-aplicada ROLLBACK-394`: 190 assertions, 188 SAME, 2 DIFF: edit-split (expected, base lacks the function) and delivery (same fixture error on both sides, only a short deal id differs). Zelle excluded (not a card rail); non-card recipients on the operation are refused. Commit: see git log (feat(operations): add crm_editar_reparto).
 - 2026-11-24 T1 amendment (394 amended in place, not in production): after the sum check the operation's `quoted_destination_origin` becomes 'manual' and `admin_locked_fields.quoted_destination_amount` is set, so a later share touch cannot clear the validated total; audit before/after are now objects `{shares, quoted_destination_amount, quoted_destination_origin}`. RED: new case 5 failed against the applied 394 (origin stayed 'calculated', no lock). GREEN: assertion ALL PASS with the amended file; `aplicar` dry-run/apply/assertion OK; rollback step FAIL on md5 only because staging already held the previous 394 body (the rollback drops the function; the pre-migration md5 was the old function, not absence), not a defect of the rollback. `relacionadas`: 190, 188 SAME, 2 DIFF (edit-split expected, delivery-feed-evidence known fixture noise). `authenticated` only, no service_role (owner decision).
+- 2026-11-24 T2 (24a63f2a): route `reparto/route.ts` + `split-edit-errors.ts` (Spanish translation of the 22023 messages, sum difference kept; 42501 -> 403 Spanish, P0002 -> 404, 40001 -> 409). RED: `npx vitest run .../reparto --maxWorkers=4` 32 failed (route missing). GREEN: 35 passed. `npx tsc --noEmit` exit 0.
+- 2026-11-24 T3 (ca499379): `split-edit-form.tsx` (+ `canEditSplit`), `editarReparto` command, "Editar reparto" button on the card (shown for `sharedEditable` remesas with >= 2 shares, all card rails), es/en messages `editSplit`. RED: 3 test files failed (module/function missing, `editSplit` messages undefined). GREEN: 84 passed in the 3 files. Full: `npx vitest run src/components/inbox/operations src/app/api/remittance-operations src/lib/remittance-operations --maxWorkers=4` 82 files / 1290 tests passed; messages/i18n tests 23 passed; `npx tsc --noEmit` exit 0. No known failures.
 
 ## Next step
 
-T2 (API route).
+T4 (staging browser check with PRUEBA fixtures; the staging panel must be built from this branch).

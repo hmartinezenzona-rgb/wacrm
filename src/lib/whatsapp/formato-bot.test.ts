@@ -64,6 +64,13 @@ describe('fronteraSalida', () => {
 })
 
 describe('humanizar', () => {
+  it('no junta los renglones de una lista', () => {
+    const lista = 'Le platico rápido:\n\n- *Arranque*: $2,500 de instalación.\n- *Negocio*: $3,500 al mes.\n- *Pro con IA*: $6,000.'
+    expect(humanizar(lista)).toBe(lista)
+  })
+  it('quita el relleno de un renglón sin tocar los demás', () => {
+    expect(humanizar('- Sitio web.\n- Perfil de Google. Quedo atento a cualquier duda.')).toBe('- Sitio web.\n- Perfil de Google.')
+  })
   it('quita la muletilla junto con el nombre para no dejar "Humberto." suelto', () => {
     expect(humanizar('Perfecto, Humberto. ¿En qué ciudad estás?')).toBe('¿En qué ciudad estás?')
     expect(humanizar('Perfecto, Saltillo es buena zona.')).toBe('Saltillo es buena zona.')

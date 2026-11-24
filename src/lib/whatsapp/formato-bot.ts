@@ -198,14 +198,22 @@ export function humanizar(texto: string): string {
   }
   // Frases de relleno ("Estoy aquí para ayudarte…", "Quedo atento…") en
   // cualquier lugar: se quitan siempre que quede algo más.
+  // Renglón por renglón: partir oraciones solo por espacios, nunca por el
+  // salto de línea, o una lista ("- A.\n- B.") quedaba en un solo renglón.
   const ps = t
     .split('\n\n')
     .map((par) =>
       par
-        .split(/(?<=[.!?])\s+/)
-        .filter((f) => !RE_CIERRE_GENERICO.test(f.trim()))
-        .join(' ')
-        .trim(),
+        .split('\n')
+        .map((renglon) =>
+          renglon
+            .split(/(?<=[.!?])[ \t]+/)
+            .filter((f) => !RE_CIERRE_GENERICO.test(f.trim()))
+            .join(' ')
+            .trim(),
+        )
+        .filter(Boolean)
+        .join('\n'),
     )
     .filter(Boolean)
   return ps.length ? ps.join('\n\n').trim() : t.trim()

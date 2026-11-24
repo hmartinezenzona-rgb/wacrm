@@ -11,7 +11,10 @@ export const INVITACION_CUERPO_MAX = 1024
 
 /** The interactive invitation sent to a new client's first message. */
 export function construirInvitacionGrupo(origin: string): InteractiveCtaUrlPayload {
-  const base = origin.replace(/\/$/, '')
+  // The request origin behind nginx can be the internal address, which a
+  // phone cannot open; the public site URL wins when it is configured.
+  const publica = process.env.NEXT_PUBLIC_SITE_URL?.trim()
+  const base = (publica || origin).replace(/\/+$/, '')
   return {
     kind: 'cta_url',
     body: 'Únete a nuestro grupo para estar al día.',

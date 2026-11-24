@@ -40,12 +40,26 @@ function fakeDb(rows: Rows) {
 }
 
 beforeEach(() => {
+  vi.unstubAllEnvs()
   sendMock.mockReset()
   sendMock.mockResolvedValue({ whatsapp_message_id: 'wamid.invite' })
 })
 
 describe('construirInvitacionGrupo', () => {
+  // Behind nginx, request.url can carry the internal address the phone cannot
+  // open; the public site URL wins whenever it is configured.
+  it('points the button at the public site URL when configured', () => {
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://wacrm.example.com/')
+    try {
+      const p = construirInvitacionGrupo('http://localhost:3000')
+      expect(p.url).toBe('https://wacrm.example.com/grupo')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('builds a cta_url payload pointing at /grupo', () => {
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', '')
     const p = construirInvitacionGrupo('https://app.test/')
     expect(p.kind).toBe('cta_url')
     expect(p.url).toBe('https://app.test/grupo')

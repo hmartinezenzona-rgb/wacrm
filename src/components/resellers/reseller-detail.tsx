@@ -35,14 +35,18 @@ export function ResellerDetailView({ detail }: { detail: ResellerDetail }) {
             ? tRoot("periodFrom", { date: formatResellerDate(current.periodStart, locale) })
             : tRoot("periodAllTime")}
         </p>
-        <dl className="grid grid-cols-3 gap-2 text-sm">
+        <dl className="grid grid-cols-2 gap-2 text-sm">
           <div>
-            <dt className="text-xs text-muted-foreground">{t("operations")}</dt>
-            <dd className="font-semibold tabular-nums text-foreground">{formatGyd(current.operationsGyd)}</dd>
-            <dd className="text-[11px] text-muted-foreground">{current.operationsCount}</dd>
+            <dt className="text-xs text-muted-foreground">{tRoot("deposited")}</dt>
+            <dd className="font-semibold tabular-nums text-foreground">{formatGyd(current.countedGyd)}</dd>
           </div>
           <div>
-            <dt className="text-xs text-muted-foreground">{t("adjustments")}</dt>
+            <dt className="text-xs text-muted-foreground">{tRoot("deposits")}</dt>
+            <dd className="font-semibold tabular-nums text-foreground">{formatGyd(current.depositsGyd)}</dd>
+            <dd className="text-[11px] text-muted-foreground">{current.depositsCount}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">{tRoot("adjustments")}</dt>
             <dd className="font-semibold tabular-nums text-foreground">{formatSignedGyd(current.adjustmentsGyd)}</dd>
             <dd className="text-[11px] text-muted-foreground">{current.adjustmentsCount}</dd>
           </div>
@@ -51,6 +55,23 @@ export function ResellerDetailView({ detail }: { detail: ResellerDetail }) {
             <dd className="font-semibold tabular-nums text-foreground">{formatGyd(current.totalGyd)}</dd>
           </div>
         </dl>
+        {current.historicalOperationsGyd !== 0 ? (
+          <p className="text-xs text-muted-foreground">
+            {tRoot("historicalOperations")}:{" "}
+            <span className="font-medium tabular-nums text-foreground">
+              {formatGyd(current.historicalOperationsGyd)}
+            </span>
+          </p>
+        ) : null}
+        {detail.pendingClaims > 0 ? (
+          <div
+            role="status"
+            className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-700 dark:text-amber-400"
+          >
+            <p className="font-medium">{tRoot("pendingClaims", { count: detail.pendingClaims })}</p>
+            <p className="text-muted-foreground">{tRoot("pendingClaimsHint")}</p>
+          </div>
+        ) : null}
         {current.operationsMissingAmount > 0 ? (
           <p className="text-xs text-amber-600 dark:text-amber-400">
             {t("missingAmount", { count: current.operationsMissingAmount })}

@@ -70,6 +70,16 @@ export function ResellerHistory({
                   {t("total", { amount: formatGyd(period.totalGyd) })}
                 </span>
               </div>
+              {period.depositsGyd !== 0 ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {t("deposits", { amount: formatGyd(period.depositsGyd) })}
+                </p>
+              ) : null}
+              {period.closedDepositsGyd !== period.depositsGyd ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {t("closedDeposits", { amount: formatGyd(period.closedDepositsGyd) })}
+                </p>
+              ) : null}
               {period.closedTotalGyd !== period.totalGyd ? (
                 <p className="mt-1 text-xs text-muted-foreground">
                   {t("closedSnapshot", { amount: formatGyd(period.closedTotalGyd) })}

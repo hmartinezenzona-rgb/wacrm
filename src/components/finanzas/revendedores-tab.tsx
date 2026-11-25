@@ -119,10 +119,14 @@ export function RevendedoresTab({ active = true }: { active?: boolean }) {
                 </Button>
               ) : null}
             </div>
-            <dl className="mt-3 grid grid-cols-3 gap-2 text-sm">
+            <dl className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
               <div>
-                <dt className="text-xs text-muted-foreground">{t("grandOperations")}</dt>
-                <dd className="font-medium tabular-nums text-foreground">{formatGyd(data.grand.operationsGyd)}</dd>
+                <dt className="text-xs text-muted-foreground">{t("deposited")}</dt>
+                <dd className="font-medium tabular-nums text-foreground">{formatGyd(data.grand.countedGyd)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">{t("deposits")}</dt>
+                <dd className="font-medium tabular-nums text-foreground">{formatGyd(data.grand.depositsGyd)}</dd>
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">{t("grandAdjustments")}</dt>
@@ -133,6 +137,14 @@ export function RevendedoresTab({ active = true }: { active?: boolean }) {
                 <dd className="font-medium text-foreground">{t("resellerCount", { count: data.grand.resellers })}</dd>
               </div>
             </dl>
+            {data.grand.historicalOperationsGyd !== 0 ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                {t("historicalOperations")}:{" "}
+                <span className="font-medium tabular-nums text-foreground">
+                  {formatGyd(data.grand.historicalOperationsGyd)}
+                </span>
+              </p>
+            ) : null}
           </section>
 
           {data.resellers.length === 0 ? (
@@ -142,7 +154,7 @@ export function RevendedoresTab({ active = true }: { active?: boolean }) {
               <div className="grid grid-cols-[1.4fr_1fr_1fr_1fr_auto] gap-2 border-b border-border bg-muted/50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 <span>{t("columns.reseller")}</span>
                 <span>{t("columns.period")}</span>
-                <span className="text-right">{t("columns.operations")}</span>
+                <span className="text-right">{t("columns.deposited")}</span>
                 <span className="text-right">{t("columns.adjustments")}</span>
                 <span className="text-right">{t("columns.total")}</span>
               </div>
@@ -162,7 +174,17 @@ export function RevendedoresTab({ active = true }: { active?: boolean }) {
                         ? t("periodFrom", { date: formatResellerDate(row.periodStart, locale) })
                         : t("periodAllTime")}
                     </span>
-                    <span className="text-right tabular-nums text-foreground">{formatGyd(row.operationsGyd)}</span>
+                    <span className="flex flex-col items-end text-right">
+                      <span className="tabular-nums text-foreground">{formatGyd(row.countedGyd)}</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {t("deposits")}: {formatGyd(row.depositsGyd)}
+                      </span>
+                      {row.historicalOperationsGyd !== 0 ? (
+                        <span className="text-[10px] text-muted-foreground">
+                          {t("historicalOperations")}: {formatGyd(row.historicalOperationsGyd)}
+                        </span>
+                      ) : null}
+                    </span>
                     <span className="text-right tabular-nums text-foreground">{formatGyd(row.adjustmentsGyd)}</span>
                     <span className="flex items-center justify-end gap-1">
                       <span className="mr-1 font-semibold tabular-nums text-foreground">{formatGyd(row.totalGyd)}</span>
@@ -220,6 +242,15 @@ export function RevendedoresTab({ active = true }: { active?: boolean }) {
         contactId={resetTarget?.contactId}
         resellerName={resetTarget?.name ?? resetTarget?.phone ?? null}
         amountGyd={resetTarget?.totalGyd ?? 0}
+        breakdown={
+          resetTarget
+            ? {
+                depositsGyd: resetTarget.depositsGyd,
+                historicalOperationsGyd: resetTarget.historicalOperationsGyd,
+                adjustmentsGyd: resetTarget.adjustmentsGyd,
+              }
+            : null
+        }
         onClose={() => setResetTarget(null)}
         onDone={afterWrite}
       />
@@ -227,6 +258,15 @@ export function RevendedoresTab({ active = true }: { active?: boolean }) {
         open={resetAllOpen}
         mode="all"
         amountGyd={data?.grand.totalGyd ?? 0}
+        breakdown={
+          data
+            ? {
+                depositsGyd: data.grand.depositsGyd,
+                historicalOperationsGyd: data.grand.historicalOperationsGyd,
+                adjustmentsGyd: data.grand.adjustmentsGyd,
+              }
+            : null
+        }
         resellerIds={data?.resellers.map((row) => row.contactId) ?? []}
         onClose={() => setResetAllOpen(false)}
         onDone={afterWrite}

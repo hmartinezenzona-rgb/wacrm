@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/hooks/use-auth";
 import { canManageResellers } from "@/lib/auth/roles";
 import { fetchResellerDetail } from "@/lib/resellers/client";
-import { formatGyd, formatResellerDate } from "@/lib/resellers/format";
+import { formatGyd, formatResellerDate, formatSignedGyd } from "@/lib/resellers/format";
 import type { ResellerDetail } from "@/lib/resellers/read-model";
 import { Button } from "@/components/ui/button";
 import { ResellerAdjustDialog } from "./reseller-adjust-dialog";
@@ -78,18 +78,37 @@ export function ResellerSidebarBlock({ contactId }: { contactId: string }) {
         </p>
         <dl className="mt-1 grid grid-cols-2 gap-1 text-[11px]">
           <div>
-            <dt className="text-muted-foreground">{t("operations")}</dt>
+            <dt className="text-muted-foreground">{t("deposited")}</dt>
             <dd className="font-medium tabular-nums text-foreground">
-              {formatGyd(current.operationsGyd)}
+              {formatGyd(current.countedGyd)}
             </dd>
           </div>
           <div>
+            <dt className="text-muted-foreground">{t("deposits")}</dt>
+            <dd className="font-medium tabular-nums text-foreground">
+              {formatGyd(current.depositsGyd)}
+            </dd>
+          </div>
+          {current.historicalOperationsGyd !== 0 ? (
+            <div>
+              <dt className="text-muted-foreground">{t("historicalOperations")}</dt>
+              <dd className="font-medium tabular-nums text-foreground">
+                {formatGyd(current.historicalOperationsGyd)}
+              </dd>
+            </div>
+          ) : null}
+          <div>
             <dt className="text-muted-foreground">{t("adjustments")}</dt>
             <dd className="font-medium tabular-nums text-foreground">
-              {formatGyd(current.adjustmentsGyd)}
+              {formatSignedGyd(current.adjustmentsGyd)}
             </dd>
           </div>
         </dl>
+        {detail.pendingClaims > 0 ? (
+          <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+            {t("pendingClaims", { count: detail.pendingClaims })}
+          </p>
+        ) : null}
         {current.operationsMissingAmount > 0 ? (
           <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
             {t("missingAmount", { count: current.operationsMissingAmount })}
@@ -120,6 +139,11 @@ export function ResellerSidebarBlock({ contactId }: { contactId: string }) {
         contactId={contactId}
         resellerName={detail.name}
         amountGyd={current.totalGyd}
+        breakdown={{
+          depositsGyd: current.depositsGyd,
+          historicalOperationsGyd: current.historicalOperationsGyd,
+          adjustmentsGyd: current.adjustmentsGyd,
+        }}
         onClose={() => setResetOpen(false)}
         onDone={() => setVersion((value) => value + 1)}
       />

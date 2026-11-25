@@ -23,13 +23,18 @@ const detail = {
     name: "Ana",
     phone: "5551234",
     isReseller: true,
+    pendingClaims: 1,
     current: {
       periodStart: "2026-11-21T12:00:00Z",
-      operationsGyd: 12000,
+      depositsGyd: 8000,
+      depositsCount: 2,
+      operationsGyd: 4000,
+      historicalOperationsGyd: 4000,
       operationsCount: 2,
       operationsMissingAmount: 1,
       adjustmentsGyd: -2000,
       adjustmentsCount: 1,
+      countedGyd: 12000,
       totalGyd: 10000,
       adjustments: [],
     },
@@ -57,7 +62,7 @@ async function settle() {
 }
 
 describe("ResellerSidebarBlock", () => {
-  it("fetches and shows the current total, the split and the period start", async () => {
+  it("fetches and shows the current total, the deposit breakdown and the period start", async () => {
     const fetchMock = stubDetail();
     const { text, unmount } = await renderWithIntl(<ResellerSidebarBlock contactId="c1" />);
     await settle();
@@ -67,9 +72,22 @@ describe("ResellerSidebarBlock", () => {
     expect(body).toContain(copy.title);
     expect(body).toContain("10,000 GYD");
     expect(body).toContain("Periodo desde");
+    expect(body).toContain(copy.deposits);
+    expect(body).toContain("8,000 GYD");
+    expect(body).toContain(copy.historicalOperations);
+    expect(body).toContain("4,000 GYD");
     expect(body).toContain("12,000 GYD");
     expect(body).toContain("2,000 GYD");
     expect(body).toContain("1 operación sin monto");
+    await unmount();
+  });
+
+  it("shows the pending claims count", async () => {
+    stubDetail();
+    const { text, unmount } = await renderWithIntl(<ResellerSidebarBlock contactId="c1" />);
+    await settle();
+
+    expect(text()).toContain("1 comprobante pendiente");
     await unmount();
   });
 
@@ -98,6 +116,8 @@ describe("ResellerSidebarBlock", () => {
 
     expect(text()).toContain(es.Resellers.resetDialog.amountLabel);
     expect(text()).toContain("10,000 GYD");
+    expect(text()).toContain(es.Resellers.deposits);
+    expect(text()).toContain("8,000 GYD");
     await unmount();
   });
 

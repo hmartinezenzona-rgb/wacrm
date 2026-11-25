@@ -1,6 +1,12 @@
 // ============================================================
-// Pure mapping from the 397 reseller totals RPC jsonb payloads
+// Pure mapping from the reseller totals RPC jsonb payloads
 // (snake_case) into the panel's typed camelCase read model. No I/O.
+//
+// Migration 398 re-pointed the five 397 RPCs additively: the period line is
+// now `deposits_gyd` (verified reseller deposits) + `operations_gyd`
+// (historical operations created before the cutover) = `counted_gyd`, plus
+// `adjustments_gyd` = `total_gyd`. The 397 keys are kept, so a payload that
+// predates 398 still maps: absent deposit keys default to zero.
 //
 // Numeric columns arrive inside jsonb either as JSON numbers or, when
 // PostgREST serializes them from a numeric builtin, as decimal strings;
@@ -8,16 +14,28 @@
 // ============================================================
 
 export interface ResellerTotals {
+  /** Verified reseller deposits in the period (398). */
+  depositsGyd: number;
+  depositsCount: number;
+  /** The RPC's `operations_gyd`; post-398 this is historical operations only. */
   operationsGyd: number;
+  /** Explicit name for `operationsGyd`: operations created before the cutover. */
+  historicalOperationsGyd: number;
   operationsCount: number;
   operationsMissingAmount: number;
   adjustmentsGyd: number;
+  /** Deposits + historical operations (the RPC's `counted_gyd`). */
+  countedGyd: number;
   totalGyd: number;
 }
 
 export interface GrandTotal {
+  depositsGyd: number;
+  depositsCount: number;
   operationsGyd: number;
+  historicalOperationsGyd: number;
   adjustmentsGyd: number;
+  countedGyd: number;
   totalGyd: number;
   resellers: number;
 }
@@ -48,10 +66,15 @@ export interface ResellerPeriod {
   resetId: string;
   start: string | null;
   end: string;
+  depositsGyd: number;
+  depositsCount: number;
   operationsGyd: number;
+  historicalOperationsGyd: number;
+  countedGyd: number;
   adjustmentsGyd: number;
   totalGyd: number;
   closedTotalGyd: number;
+  closedDepositsGyd: number;
   batchId: string | null;
   resetByName: string | null;
   reason: string | null;
@@ -68,6 +91,8 @@ export interface ResellerDetail {
   name: string | null;
   phone: string;
   isReseller: boolean;
+  /** Pending (unverified) reseller receipt claims; never counted in the total. */
+  pendingClaims: number;
   current: ResellerCurrentPeriod;
   /** Newest first, at most 100 (the RPC limit). */
   periods: ResellerPeriod[];
@@ -86,7 +111,14 @@ export interface ResellerResetResult {
   resetId: string;
   contactId: string;
   resetAt: string;
-  closed: { operationsGyd: number; adjustmentsGyd: number; totalGyd: number };
+  closed: {
+    depositsGyd: number;
+    operationsGyd: number;
+    historicalOperationsGyd: number;
+    adjustmentsGyd: number;
+    countedGyd: number;
+    totalGyd: number;
+  };
 }
 
 export interface ResellerBatchReset {
@@ -132,11 +164,16 @@ function nullableStr(value: unknown): string | null {
 }
 
 function mapTotals(row: Record<string, unknown>): ResellerTotals {
+  const operationsGyd = num(row.operations_gyd);
   return {
-    operationsGyd: num(row.operations_gyd),
+    depositsGyd: num(row.deposits_gyd),
+    depositsCount: num(row.deposits_count),
+    operationsGyd,
+    historicalOperationsGyd: operationsGyd,
     operationsCount: num(row.operations_count),
     operationsMissingAmount: num(row.operations_missing_amount),
     adjustmentsGyd: num(row.adjustments_gyd),
+    countedGyd: num(row.counted_gyd),
     totalGyd: num(row.total_gyd),
   };
 }
@@ -144,10 +181,15 @@ function mapTotals(row: Record<string, unknown>): ResellerTotals {
 export function mapResellerSummaryRead(payload: unknown): ResellerSummaryRead {
   const root = obj(payload);
   const grand = obj(root.grand);
+  const grandOperationsGyd = num(grand.operations_gyd);
   return {
     grand: {
-      operationsGyd: num(grand.operations_gyd),
+      depositsGyd: num(grand.deposits_gyd),
+      depositsCount: num(grand.deposits_count),
+      operationsGyd: grandOperationsGyd,
+      historicalOperationsGyd: grandOperationsGyd,
       adjustmentsGyd: num(grand.adjustments_gyd),
+      countedGyd: num(grand.counted_gyd),
       totalGyd: num(grand.total_gyd),
       resellers: num(grand.resellers),
     },
@@ -173,6 +215,7 @@ export function mapResellerDetail(payload: unknown): ResellerDetail {
     name: nullableStr(root.name),
     phone: str(root.phone),
     isReseller: root.is_reseller === true,
+    pendingClaims: num(root.pending_claims),
     current: {
       periodStart: nullableStr(current.period_start),
       ...mapTotals(current),
@@ -190,14 +233,20 @@ export function mapResellerDetail(payload: unknown): ResellerDetail {
     },
     periods: list(root.periods).map((entry) => {
       const row = obj(entry);
+      const operationsGyd = num(row.operations_gyd);
       return {
         resetId: str(row.reset_id),
         start: nullableStr(row.start),
         end: str(row.end),
-        operationsGyd: num(row.operations_gyd),
+        depositsGyd: num(row.deposits_gyd),
+        depositsCount: num(row.deposits_count),
+        operationsGyd,
+        historicalOperationsGyd: operationsGyd,
+        countedGyd: num(row.counted_gyd),
         adjustmentsGyd: num(row.adjustments_gyd),
         totalGyd: num(row.total_gyd),
         closedTotalGyd: num(row.closed_total_gyd),
+        closedDepositsGyd: num(row.closed_deposits_gyd),
         batchId: nullableStr(row.batch_id),
         resetByName: nullableStr(row.reset_by_name),
         reason: nullableStr(row.reason),
@@ -221,13 +270,17 @@ export function mapAdjustmentResult(payload: unknown): ResellerAdjustmentResult 
 export function mapResetResult(payload: unknown): ResellerResetResult {
   const row = obj(payload);
   const closed = obj(row.closed);
+  const operationsGyd = num(closed.operations_gyd);
   return {
     resetId: str(row.reset_id),
     contactId: str(row.contact_id),
     resetAt: str(row.reset_at),
     closed: {
-      operationsGyd: num(closed.operations_gyd),
+      depositsGyd: num(closed.deposits_gyd),
+      operationsGyd,
+      historicalOperationsGyd: operationsGyd,
       adjustmentsGyd: num(closed.adjustments_gyd),
+      countedGyd: num(closed.counted_gyd),
       totalGyd: num(closed.total_gyd),
     },
   };

@@ -14,18 +14,29 @@ import {
 describe("mapResellerSummaryRead", () => {
   it("maps the grand total and every reseller row, coercing numeric strings", () => {
     const read = mapResellerSummaryRead({
-      grand: { operations_gyd: "12000", adjustments_gyd: "-2000", total_gyd: "10000", resellers: 2 },
+      grand: {
+        deposits_gyd: "15000",
+        deposits_count: 3,
+        operations_gyd: "12000",
+        adjustments_gyd: "-2000",
+        counted_gyd: "27000",
+        total_gyd: "25000",
+        resellers: 2,
+      },
       resellers: [
         {
           contact_id: "contact-1",
           name: "Ana",
           phone: "+584120000000",
           period_start: "2026-11-01T10:00:00Z",
-          operations_gyd: "9000",
-          operations_count: 2,
+          deposits_gyd: "6000",
+          deposits_count: 2,
+          operations_gyd: "3000",
+          operations_count: 1,
           operations_missing_amount: 0,
           adjustments_gyd: "-1000",
           adjustments_count: 1,
+          counted_gyd: "9000",
           total_gyd: "8000",
         },
         {
@@ -33,20 +44,27 @@ describe("mapResellerSummaryRead", () => {
           name: null,
           phone: "+584120000001",
           period_start: null,
+          deposits_gyd: 0,
+          deposits_count: 0,
           operations_gyd: 3000,
           operations_count: 1,
           operations_missing_amount: 1,
           adjustments_gyd: -1000,
           adjustments_count: 1,
+          counted_gyd: 3000,
           total_gyd: 2000,
         },
       ],
     });
 
     expect(read.grand).toEqual({
+      depositsGyd: 15000,
+      depositsCount: 3,
       operationsGyd: 12000,
+      historicalOperationsGyd: 12000,
       adjustmentsGyd: -2000,
-      totalGyd: 10000,
+      countedGyd: 27000,
+      totalGyd: 25000,
       resellers: 2,
     });
     expect(read.resellers).toHaveLength(2);
@@ -55,25 +73,68 @@ describe("mapResellerSummaryRead", () => {
       name: "Ana",
       phone: "+584120000000",
       periodStart: "2026-11-01T10:00:00Z",
-      operationsGyd: 9000,
-      operationsCount: 2,
+      depositsGyd: 6000,
+      depositsCount: 2,
+      operationsGyd: 3000,
+      historicalOperationsGyd: 3000,
+      operationsCount: 1,
       operationsMissingAmount: 0,
       adjustmentsGyd: -1000,
       adjustmentsCount: 1,
+      countedGyd: 9000,
       totalGyd: 8000,
     });
     expect(read.resellers[1]).toMatchObject({
       contactId: "contact-2",
       name: null,
       periodStart: null,
+      depositsGyd: 0,
       operationsMissingAmount: 1,
+      countedGyd: 3000,
       totalGyd: 2000,
+    });
+  });
+
+  it("defaults the 398 deposit keys to zero when the payload is still 397-shaped", () => {
+    const read = mapResellerSummaryRead({
+      grand: { operations_gyd: "12000", adjustments_gyd: 0, total_gyd: "12000", resellers: 1 },
+      resellers: [
+        {
+          contact_id: "contact-1",
+          name: "Ana",
+          phone: "1",
+          period_start: null,
+          operations_gyd: "12000",
+          adjustments_gyd: 0,
+          total_gyd: "12000",
+        },
+      ],
+    });
+
+    expect(read.grand.depositsGyd).toBe(0);
+    expect(read.grand.depositsCount).toBe(0);
+    expect(read.grand.countedGyd).toBe(0);
+    expect(read.grand.historicalOperationsGyd).toBe(12000);
+    expect(read.resellers[0]).toMatchObject({
+      depositsGyd: 0,
+      depositsCount: 0,
+      countedGyd: 0,
+      historicalOperationsGyd: 12000,
     });
   });
 
   it("returns zeros and an empty list for a null payload", () => {
     expect(mapResellerSummaryRead(null)).toEqual({
-      grand: { operationsGyd: 0, adjustmentsGyd: 0, totalGyd: 0, resellers: 0 },
+      grand: {
+        depositsGyd: 0,
+        depositsCount: 0,
+        operationsGyd: 0,
+        historicalOperationsGyd: 0,
+        adjustmentsGyd: 0,
+        countedGyd: 0,
+        totalGyd: 0,
+        resellers: 0,
+      },
       resellers: [],
     });
   });
@@ -97,14 +158,18 @@ describe("mapResellerDetail", () => {
       name: "Ana",
       phone: "+584120000000",
       is_reseller: true,
+      pending_claims: 2,
       current: {
         period_start: "2026-11-01T10:00:00Z",
+        deposits_gyd: "5000",
+        deposits_count: 2,
         operations_gyd: "9000",
         operations_count: 2,
         operations_missing_amount: 0,
         adjustments_gyd: "-1000",
         adjustments_count: 1,
-        total_gyd: "8000",
+        counted_gyd: "14000",
+        total_gyd: "13000",
         adjustments: [
           {
             id: "adj-1",
@@ -120,10 +185,14 @@ describe("mapResellerDetail", () => {
           reset_id: "reset-1",
           start: null,
           end: "2026-11-01T10:00:00Z",
-          operations_gyd: "2100",
+          deposits_gyd: "1100",
+          deposits_count: 1,
+          operations_gyd: "1000",
           adjustments_gyd: 0,
+          counted_gyd: "2100",
           total_gyd: "2100",
           closed_total_gyd: "2100",
+          closed_deposits_gyd: "1100",
           batch_id: null,
           reset_by_name: "Admin",
           reason: null,
@@ -136,14 +205,19 @@ describe("mapResellerDetail", () => {
       name: "Ana",
       phone: "+584120000000",
       isReseller: true,
+      pendingClaims: 2,
       current: {
         periodStart: "2026-11-01T10:00:00Z",
+        depositsGyd: 5000,
+        depositsCount: 2,
         operationsGyd: 9000,
+        historicalOperationsGyd: 9000,
         operationsCount: 2,
         operationsMissingAmount: 0,
         adjustmentsGyd: -1000,
         adjustmentsCount: 1,
-        totalGyd: 8000,
+        countedGyd: 14000,
+        totalGyd: 13000,
         adjustments: [
           {
             id: "adj-1",
@@ -159,10 +233,15 @@ describe("mapResellerDetail", () => {
           resetId: "reset-1",
           start: null,
           end: "2026-11-01T10:00:00Z",
-          operationsGyd: 2100,
+          depositsGyd: 1100,
+          depositsCount: 1,
+          operationsGyd: 1000,
+          historicalOperationsGyd: 1000,
+          countedGyd: 2100,
           adjustmentsGyd: 0,
           totalGyd: 2100,
           closedTotalGyd: 2100,
+          closedDepositsGyd: 1100,
           batchId: null,
           resetByName: "Admin",
           reason: null,
@@ -177,13 +256,17 @@ describe("mapResellerDetail", () => {
       name: null,
       phone: "+584120000009",
       is_reseller: false,
+      pending_claims: 0,
       current: {
         period_start: null,
+        deposits_gyd: 0,
+        deposits_count: 0,
         operations_gyd: 0,
         operations_count: 0,
         operations_missing_amount: 0,
         adjustments_gyd: 0,
         adjustments_count: 0,
+        counted_gyd: 0,
         total_gyd: 0,
         adjustments: [],
       },
@@ -191,6 +274,7 @@ describe("mapResellerDetail", () => {
     });
 
     expect(detail.isReseller).toBe(false);
+    expect(detail.pendingClaims).toBe(0);
     expect(detail.current.adjustments).toEqual([]);
     expect(detail.periods).toEqual([]);
     expect(detail.name).toBeNull();
@@ -227,13 +311,26 @@ describe("mapResetResult", () => {
         reset_id: "reset-1",
         contact_id: "contact-1",
         reset_at: "2026-11-24T10:00:00Z",
-        closed: { operations_gyd: "2100", adjustments_gyd: "0", total_gyd: "2100" },
+        closed: {
+          deposits_gyd: "1600",
+          operations_gyd: "500",
+          adjustments_gyd: "0",
+          counted_gyd: "2100",
+          total_gyd: "2100",
+        },
       }),
     ).toEqual({
       resetId: "reset-1",
       contactId: "contact-1",
       resetAt: "2026-11-24T10:00:00Z",
-      closed: { operationsGyd: 2100, adjustmentsGyd: 0, totalGyd: 2100 },
+      closed: {
+        depositsGyd: 1600,
+        operationsGyd: 500,
+        historicalOperationsGyd: 500,
+        adjustmentsGyd: 0,
+        countedGyd: 2100,
+        totalGyd: 2100,
+      },
     });
   });
 });

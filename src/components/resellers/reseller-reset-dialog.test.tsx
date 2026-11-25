@@ -42,6 +42,28 @@ describe("ResellerResetDialog", () => {
     await unmount();
   });
 
+  it("shows the amount being closed with its deposit breakdown", async () => {
+    const { text, unmount } = await renderWithIntl(
+      <ResellerResetDialog
+        open
+        mode="single"
+        contactId="c1"
+        resellerName="Ana"
+        amountGyd={15000}
+        breakdown={{ depositsGyd: 12000, historicalOperationsGyd: 3000, adjustmentsGyd: 0 }}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(text()).toContain(resetDialog.amountLabel);
+    expect(text()).toContain("15,000 GYD");
+    expect(text()).toContain(es.Resellers.deposits);
+    expect(text()).toContain("12,000 GYD");
+    expect(text()).toContain(es.Resellers.historicalOperations);
+    expect(text()).toContain("3,000 GYD");
+    await unmount();
+  });
+
   it("all mode shows the grand total and, after success, the written and skipped counts", async () => {
     stubFetch(async () =>
       jsonResponse({

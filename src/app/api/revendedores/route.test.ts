@@ -26,18 +26,29 @@ function ctx(rpcResult: { data: unknown; error: unknown }) {
 }
 
 const SUMMARY = {
-  grand: { operations_gyd: "12000", adjustments_gyd: "-2000", total_gyd: "10000", resellers: 2 },
+  grand: {
+    deposits_gyd: "15000",
+    deposits_count: 3,
+    operations_gyd: "12000",
+    adjustments_gyd: "-2000",
+    counted_gyd: "27000",
+    total_gyd: "25000",
+    resellers: 2,
+  },
   resellers: [
     {
       contact_id: "contact-1",
       name: "Ana",
       phone: "+584120000000",
       period_start: "2026-11-01T10:00:00Z",
-      operations_gyd: "9000",
-      operations_count: 2,
+      deposits_gyd: "6000",
+      deposits_count: 2,
+      operations_gyd: "3000",
+      operations_count: 1,
       operations_missing_amount: 0,
       adjustments_gyd: "-1000",
       adjustments_count: 1,
+      counted_gyd: "9000",
       total_gyd: "8000",
     },
   ],
@@ -71,12 +82,21 @@ describe("GET /api/revendedores", () => {
       p_account_id: "account-a",
     });
     expect(body.grand).toEqual({
+      depositsGyd: 15000,
+      depositsCount: 3,
       operationsGyd: 12000,
+      historicalOperationsGyd: 12000,
       adjustmentsGyd: -2000,
-      totalGyd: 10000,
+      countedGyd: 27000,
+      totalGyd: 25000,
       resellers: 2,
     });
-    expect(body.resellers[0]).toMatchObject({ contactId: "contact-1", totalGyd: 8000 });
+    expect(body.resellers[0]).toMatchObject({
+      contactId: "contact-1",
+      depositsGyd: 6000,
+      countedGyd: 9000,
+      totalGyd: 8000,
+    });
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
   });
 
@@ -87,7 +107,16 @@ describe("GET /api/revendedores", () => {
     const body = await (await GET()).json();
 
     expect(body).toEqual({
-      grand: { operationsGyd: 0, adjustmentsGyd: 0, totalGyd: 0, resellers: 0 },
+      grand: {
+        depositsGyd: 0,
+        depositsCount: 0,
+        operationsGyd: 0,
+        historicalOperationsGyd: 0,
+        adjustmentsGyd: 0,
+        countedGyd: 0,
+        totalGyd: 0,
+        resellers: 0,
+      },
       resellers: [],
     });
   });

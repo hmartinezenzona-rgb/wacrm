@@ -22,10 +22,15 @@ const older: ResellerPeriod = {
   resetId: "r1",
   start: null,
   end: "2026-11-10T12:00:00Z",
+  depositsGyd: 0,
+  depositsCount: 0,
   operationsGyd: 1000,
+  historicalOperationsGyd: 1000,
+  countedGyd: 1000,
   adjustmentsGyd: 0,
   totalGyd: 1000,
   closedTotalGyd: 900,
+  closedDepositsGyd: 0,
   batchId: null,
   resetByName: "Luis",
   reason: "ajuste acordado",
@@ -35,10 +40,15 @@ const newer: ResellerPeriod = {
   resetId: "r2",
   start: "2026-11-10T12:00:00Z",
   end: "2026-11-20T12:00:00Z",
-  operationsGyd: 2000,
+  depositsGyd: 1500,
+  depositsCount: 1,
+  operationsGyd: 500,
+  historicalOperationsGyd: 500,
+  countedGyd: 2000,
   adjustmentsGyd: 0,
   totalGyd: 2000,
   closedTotalGyd: 2000,
+  closedDepositsGyd: 1200,
   batchId: "b1",
   resetByName: null,
   reason: null,
@@ -69,6 +79,17 @@ describe("ResellerHistory", () => {
     const body = text();
     expect(body).toContain(copy.closedSnapshot.replace("{amount}", "900 GYD"));
     expect(body).not.toContain(copy.closedSnapshot.replace("{amount}", "2,000 GYD"));
+    await unmount();
+  });
+
+  it("shows the deposits line and the confirmed deposit snapshot", async () => {
+    const { text, unmount } = await renderWithIntl(
+      <ResellerHistory periods={[older, newer]} current={null} />,
+    );
+
+    const body = text();
+    expect(body).toContain(copy.deposits.replace("{amount}", "1,500 GYD"));
+    expect(body).toContain(copy.closedDeposits.replace("{amount}", "1,200 GYD"));
     await unmount();
   });
 

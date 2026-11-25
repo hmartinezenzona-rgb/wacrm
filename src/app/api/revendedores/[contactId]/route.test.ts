@@ -36,14 +36,18 @@ const DETAIL = {
   name: "Ana",
   phone: "+584120000000",
   is_reseller: true,
+  pending_claims: 2,
   current: {
     period_start: "2026-11-01T10:00:00Z",
+    deposits_gyd: "5000",
+    deposits_count: 2,
     operations_gyd: "9000",
     operations_count: 2,
     operations_missing_amount: 0,
     adjustments_gyd: "-1000",
     adjustments_count: 1,
-    total_gyd: "8000",
+    counted_gyd: "14000",
+    total_gyd: "13000",
     adjustments: [
       {
         id: "adj-1",
@@ -94,7 +98,14 @@ describe("GET /api/revendedores/[contactId]", () => {
     expect(body.reseller).toMatchObject({
       contactId: CONTACT_ID,
       isReseller: true,
-      current: { totalGyd: 8000, adjustmentsGyd: -1000 },
+      pendingClaims: 2,
+      current: {
+        depositsGyd: 5000,
+        depositsCount: 2,
+        countedGyd: 14000,
+        totalGyd: 13000,
+        adjustmentsGyd: -1000,
+      },
     });
     expect(body.reseller.current.adjustments[0]).toMatchObject({ id: "adj-1", reason: null });
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");

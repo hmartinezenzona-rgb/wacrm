@@ -43,7 +43,13 @@ const RESET = {
   reset_id: "reset-1",
   contact_id: CONTACT_ID,
   reset_at: "2026-11-24T10:00:00Z",
-  closed: { operations_gyd: "2100", adjustments_gyd: "0", total_gyd: "2100" },
+  closed: {
+    deposits_gyd: "1600",
+    operations_gyd: "500",
+    adjustments_gyd: "0",
+    counted_gyd: "2100",
+    total_gyd: "2100",
+  },
 };
 
 beforeEach(() => {
@@ -109,7 +115,14 @@ describe("POST /api/revendedores/[contactId]/reiniciar", () => {
       resetId: "reset-1",
       contactId: CONTACT_ID,
       resetAt: "2026-11-24T10:00:00Z",
-      closed: { operationsGyd: 2100, adjustmentsGyd: 0, totalGyd: 2100 },
+      closed: {
+        depositsGyd: 1600,
+        operationsGyd: 500,
+        historicalOperationsGyd: 500,
+        adjustmentsGyd: 0,
+        countedGyd: 2100,
+        totalGyd: 2100,
+      },
     });
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
   });

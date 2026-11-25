@@ -19,7 +19,7 @@ import {
   resetAllResellers,
   resetReseller,
 } from "@/lib/resellers/client";
-import { formatGyd } from "@/lib/resellers/format";
+import { formatGyd, formatSignedGyd } from "@/lib/resellers/format";
 
 type ResetMode = "single" | "all";
 
@@ -32,6 +32,12 @@ export interface ResellerResetDialogProps {
   resellerName?: string | null;
   /** The amount being closed (single total or grand total). */
   amountGyd: number;
+  /** Optional breakdown of that amount: deposits + historical operations + adjustments. */
+  breakdown?: {
+    depositsGyd: number;
+    historicalOperationsGyd: number;
+    adjustmentsGyd: number;
+  } | null;
   /** All mode: every reseller-tagged contact, to derive the skipped ones. */
   resellerIds?: string[];
   onClose: () => void;
@@ -56,11 +62,13 @@ export function ResellerResetDialog({
   contactId,
   resellerName,
   amountGyd,
+  breakdown = null,
   resellerIds = [],
   onClose,
   onDone,
 }: ResellerResetDialogProps) {
   const t = useTranslations("Resellers.resetDialog");
+  const tRoot = useTranslations("Resellers");
   const [reason, setReason] = useState("");
   const [displayAmount, setDisplayAmount] = useState(amountGyd);
   const [conflictAmount, setConflictAmount] = useState<number | null>(null);
@@ -155,6 +163,30 @@ export function ResellerResetDialog({
                   {formatGyd(displayAmount)}
                 </p>
               </div>
+              {breakdown ? (
+                <dl className="grid grid-cols-2 gap-1 text-xs">
+                  <div>
+                    <dt className="text-muted-foreground">{tRoot("deposits")}</dt>
+                    <dd className="font-medium tabular-nums text-foreground">
+                      {formatGyd(breakdown.depositsGyd)}
+                    </dd>
+                  </div>
+                  {breakdown.historicalOperationsGyd !== 0 ? (
+                    <div>
+                      <dt className="text-muted-foreground">{tRoot("historicalOperations")}</dt>
+                      <dd className="font-medium tabular-nums text-foreground">
+                        {formatGyd(breakdown.historicalOperationsGyd)}
+                      </dd>
+                    </div>
+                  ) : null}
+                  <div>
+                    <dt className="text-muted-foreground">{tRoot("adjustments")}</dt>
+                    <dd className="font-medium tabular-nums text-foreground">
+                      {formatSignedGyd(breakdown.adjustmentsGyd)}
+                    </dd>
+                  </div>
+                </dl>
+              ) : null}
               {conflictAmount !== null ? (
                 <p role="status" className="text-sm text-amber-600 dark:text-amber-400">
                   {t("conflict", { amount: formatGyd(conflictAmount) })}

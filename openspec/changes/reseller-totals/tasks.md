@@ -415,12 +415,14 @@ Owner decision: a reseller deposit creates no operation; the bot verifies it aga
 - [ ] 3B.5 Apply the Decisor route to staging n8n and run the staging E2E with a PRUEBA reseller.
   - Verify: backup → update staging Decisor → PRUEBA reseller sends a receipt matching a PRUEBA `depositos_mmg` row: fixed confirmation, no operation, total increases in Finanzas; resend → "already registered"; unknown reference → "not verified yet" and claim pending. Clean up fixtures. Owner login needed for the panel part (`wacrm-probar-staging`).
   - Depends: 3B.2, 3B.4.
+  - Progress 2026-11-24 (slice 7c): NOT RUN — slice 7c only covers the panel read model/UI (3B.6) and the prompt forbids n8n writes. Still requires publishing the 3B.4 Decisor to staging n8n plus the owner's staging login; no fixtures were created and no staging workflow was touched.
 
-- [ ] 3B.6 (RED→GREEN) Read model and UI deposit line.
+- [x] 3B.6 (RED→GREEN) Read model and UI deposit line.
   - Files: `src/lib/resellers/read-model.ts` (+ test); route tests' fixtures under `src/app/api/revendedores/**`; `src/components/resellers/*` and `src/components/finanzas/revendedores-tab.tsx` (+ tests); `messages/es.json`, `messages/en.json`.
   - RED: mappers read `deposits_gyd`, `deposits_count`, `counted_gyd`, `pending_claims`, period `deposits_gyd` (absent keys → 0 so the 397 payload still maps); UI shows "Depositado" (= counted) with the breakdown, the pending-claims note in the detail and the deposit column in history; reset dialog amount unchanged (`total`).
   - Verify: `npx vitest run src/lib/resellers src/app/api/revendedores src/components/resellers src/components/finanzas src/components/inbox/contact-sidebar.test.tsx --maxWorkers=4`, `npx vitest run src/i18n/messages-parity.test.ts --maxWorkers=4`, `npx tsc --noEmit`.
   - Depends: 3B.2 (contract). Parallel with 3B.4.
+  - Progress 2026-11-24: RED `npx vitest run src/lib/resellers/read-model.test.ts src/app/api/revendedores src/components/resellers src/components/finanzas/revendedores-tab.test.tsx src/components/inbox/contact-sidebar.test.tsx --maxWorkers=4` → `Test Files 8 failed | 4 passed (12)`, `Tests 19 failed | 67 passed (86)` (missing deposit keys, `pendingClaims`, period deposit fields, reset `closed` keys, and the new UI lines). GREEN: read model adds `depositsGyd`/`depositsCount`/`historicalOperationsGyd`/`countedGyd` (additive, `operationsGyd` kept as the historical alias), detail `pendingClaims`, period `depositsGyd`/`depositsCount`/`countedGyd`/`closedDepositsGyd`, reset `closed` deposits/counted; Finanzas grand and rows show Depositado/deposits/historical (non-zero only)/adjustments/total; detail and sidebar add the pending-claims note; history shows deposits and the confirmed deposit snapshot; reset dialog shows the breakdown. Full slice: `Test Files 24 passed (24) | Tests 376 passed (376)`; locale parity included; `npx tsc --noEmit` exit 0; eslint exit 0.
 
 ## Phase 4 — Production rollout (owner go-ahead required at every step)
 

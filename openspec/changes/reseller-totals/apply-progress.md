@@ -1,9 +1,9 @@
-# Apply Progress: reseller-totals — slices 1–6, 7a, 7b
+# Apply Progress: reseller-totals — slices 1–6, 7a, 7b, 7c
 
 Change: `reseller-totals`. This artifact is cumulative: slice 1 (S1 identity DB), slice 2 (S1 remainder:
 396 tag guard + panel tag controls), slice 3 (S2 reports), slice 4 (S3 totals DB), slice 5 (S3 totals
-API), slice 6 (S3 totals UI), slice 7a (S7 reseller deposits, 398 DB) and slice 7b (S7 Decisor reseller
-confirmation route) are all reflected here.
+API), slice 6 (S3 totals UI), slice 7a (S7 reseller deposits, 398 DB), slice 7b (S7 Decisor reseller
+confirmation route) and slice 7c (S7 panel read model/UI deposit line) are all reflected here.
 
 ## Slice 1 (S1 identity DB) — tasks 1.1–1.3
 
@@ -857,3 +857,102 @@ This executor did not publish anything (task constraint: repo source and tests o
 ### Commit (slice 7b)
 
 - `7e4396db` — `feat(sdd): add Decisor reseller deposit reply route`
+
+---
+
+## Slice 7c (S7 panel deposit line) — task 3B.6
+
+Scope: `src/lib/resellers/read-model.ts` (+ test), the route tests' fixtures under
+`src/app/api/revendedores/**` (route implementations untouched), `src/components/resellers/*`,
+`src/components/finanzas/revendedores-tab.tsx` (+ test), `src/components/inbox/contact-sidebar.test.tsx`
+(fixture only) and `messages/es.json` / `messages/en.json`. No migration, no database write, no n8n
+change, no production access.
+
+### Task Status
+
+| Task | Status | Evidence |
+|------|--------|----------|
+| 3B.6 Read model and UI deposit line | done | RED: 8 files / 19 tests failing; GREEN: 24 files / 376 tests passing; `tsc` and `eslint` exit 0 |
+| 3B.5 Decisor staging publish + staging E2E | pending, owner-gated | Not part of slice 7c; requires publishing the 3B.4 Decisor to staging n8n and the owner's staging login. No n8n write and no fixture created |
+
+### What the slice does
+
+- `read-model.ts` maps the 398 additive keys: `depositsGyd`, `depositsCount`, `countedGyd`
+  (deposits + historical operations) and `historicalOperationsGyd` (explicit alias of the RPC's
+  `operations_gyd`; `operationsGyd` is kept for the slice-5 contract). Detail adds `pendingClaims`;
+  periods add `depositsGyd`, `depositsCount`, `countedGyd`, `closedDepositsGyd`; the reset `closed`
+  snapshot adds `depositsGyd`/`historicalOperationsGyd`/`countedGyd`.
+- Finanzas: the grand block shows Depositado (counted), verified deposits, adjustments, reseller
+  count and historical operations (only when non-zero); rows replace the operations column with
+  Depositado + a small deposits line and, only when non-zero, historical operations; the total stays
+  `totalGyd`.
+- Detail drawer: Depositado, verified deposits, adjustments and total; historical operations only
+  when non-zero; a pending-claims badge with a short explanation (`pendingClaimsHint`).
+- History: each closed period shows its deposits and, when it differs, the confirmed deposit snapshot.
+- Sidebar: total, Depositado/deposits/historical (non-zero)/adjustments split and the pending-claims
+  count.
+- Reset dialog: shows the amount being closed (still `totalGyd`) plus the breakdown (deposits,
+  historical operations only when non-zero, adjustments). The breakdown is informational; the
+  request still sends only the expected total.
+- Locales: new `Resellers.deposited`, `deposits`, `historicalOperations`, `adjustments`,
+  `pendingClaims`, `pendingClaimsHint`; `columns.deposited`; `sidebar.*` additions; `history.deposits`,
+  `history.closedDeposits` — neutral professional Spanish, ICU signatures mirrored.
+
+### Work Unit Evidence
+
+| Evidence | Required value |
+|---|---|
+| Focused test command and exact result | `npx vitest run src/lib/resellers src/app/api/revendedores src/components/resellers src/components/finanzas src/components/inbox/contact-sidebar.test.tsx src/i18n/messages-parity.test.ts --maxWorkers=4` → `Test Files 24 passed (24) │ Tests 376 passed (376)`; `npx tsc --noEmit` → exit 0; `npx eslint src/components/resellers src/components/finanzas/revendedores-tab.tsx src/lib/resellers src/app/api/revendedores` → exit 0 |
+| Runtime harness command/scenario and exact result | Component tests run the real components in jsdom under a real `NextIntlClientProvider` with the Spanish catalog, a mocked auth role and a stubbed `fetch`; they exercise the rendered Depositado/deposits/historical lines, the non-zero-only historical label, the pending-claims note, the history deposit/snapshot lines and the reset-dialog breakdown. Route tests drive the real handlers in-process with 398-shaped jsonb fixtures (no live HTTP server; sibling pattern). `npx vitest run src/lib/finanzas 'src/app/(dashboard)/finanzas/page.test.tsx' --maxWorkers=4` → 8 files / 84 tests |
+| Rollback boundary | Revert `3bac34ae`: the new read-model keys, UI lines and locale keys disappear; the additive keys leave the 397 contract and the migrations untouched. No database or n8n change |
+
+### TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| 3B.6 (read model) | `src/lib/resellers/read-model.test.ts` | Unit | 397 contract from slice 4; 398 jsonb shapes read from the migration | missing `depositsGyd`/`countedGyd`/`historicalOperationsGyd`/`pendingClaims`/period deposit keys | maps numbers and decimal strings; absent 398 keys default to 0 | summary+grand, detail+periods, reset closed, 397-shaped payload | none needed |
+| 3B.6 (routes) | `src/app/api/revendedores/**/route.test.ts` | Route | Real handlers, mocked session/RPC | old expected shapes lacked the new keys (`toEqual` mismatches) | 398 fixtures map to the new wire shape | summary grand/row, detail `pendingClaims`, reset `closed` | none needed |
+| 3B.6 (tab) | `src/components/finanzas/revendedores-tab.test.tsx` | Component (jsdom) | Slice-5 wire model; real `next-intl` | new lines and texts absent | 8/8 | grand vs row breakdown, historical non-zero only, pending note, reset breakdown | none needed |
+| 3B.6 (sidebar/history/reset) | `reseller-sidebar-block.test.tsx`, `reseller-history.test.tsx`, `reseller-reset-dialog.test.tsx` | Component | Existing component suites | deposit lines, pending count and breakdown prop absent | sidebar 5/5, history 5/5, dialog 5/5 | counted vs deposits vs historical, zero-suppression, confirmed snapshot, 409 unchanged | none needed |
+
+### Deviations from Design
+
+- **`historicalOperationsGyd` is an explicit alias of `operationsGyd`.** Both map the RPC's
+  `operations_gyd`, which after 398 is historical operations only. Keeping `operationsGyd` preserves
+  the slice-5 wire contract; the UI reads the clearer name.
+- **Pending claims are not shown per row in the Finanzas list.** `crm_revendedores_resumen` does not
+  return `pending_claims` (only `crm_revendedor_detalle` does). Surfacing it per list row would need
+  a new RPC key (a 398 amendment, out of this slice) or an N+1 detail fetch. The count is shown in
+  the detail drawer and the contact sidebar, which read the detail RPC.
+- **Absent 398 keys default to 0**, as the task requires. A 397-only payload therefore maps
+  `countedGyd` to 0 even though `totalGyd` is non-zero; the panel ships after 398 (Phase 4.7), so no
+  production payload reaches that branch.
+- **Depositado = `counted_gyd`** (verified deposits + historical operations), matching the spec's
+  deposited line; deposits and historical operations stay separate lines and the total is
+  `counted + adjustments`.
+- **Reset dialog breakdown is informational.** It is derived from the already-loaded summary/detail;
+  the reset request still carries only `expectedTotalGyd`, so the RPC contract is unchanged.
+- Authored size is 557 insertions / 63 deletions (620 lines, tests included), above the ~400
+  advisory. It is delivered as one work unit under the accepted `feature-branch-chain` strategy
+  (no PR flow); nothing was compressed or omitted to fit the number.
+
+### Related checks
+
+- `npx vitest run src/i18n/messages-parity.test.ts --maxWorkers=4` included in the full slice run:
+  4/4, no missing/extra keys and matching ICU signatures.
+- `src/components/inbox/contact-sidebar.test.tsx` reseller fixture updated to the new camelCase
+  shape; the block still renders for a tagged contact and makes exactly one request, and an untagged
+  contact renders nothing.
+- Route implementations were not edited: the read model stays the single snake_case -> camelCase
+  mapping point, so only their fixtures/expectations changed.
+
+### Open Questions
+
+- Owner wording for the new Spanish labels ("Depositado", "Operaciones históricas", pending-claims
+  note) is neutral professional Spanish; confirm it in the staging E2E (3B.5).
+- A per-row pending-claims badge in the Finanzas list needs `pending_claims` in
+  `crm_revendedores_resumen` (398 amendment) or a batched detail call; left out of this slice.
+
+### Commits (slice 7c)
+
+- `3bac34ae` — `feat(sdd): show deposits-based reseller totals in the panel`

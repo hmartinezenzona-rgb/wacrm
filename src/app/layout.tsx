@@ -14,6 +14,7 @@ import {
   STORAGE_KEY,
   THEME_IDS,
 } from "@/lib/themes";
+import { NEGOCIO_VISTA_KEY, TEMAS } from "@/lib/negocio/config";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -72,6 +73,11 @@ const THEME_BOOT_SCRIPT = `
     var MODES = ${JSON.stringify(MODES)};
     var savedMode = localStorage.getItem(MODE_KEY);
     d.dataset.mode = MODES.indexOf(savedMode) !== -1 ? savedMode : MODE_DEFAULT;
+
+    // Tema y vista sencilla del negocio (los pone NegocioProvider).
+    var vista = JSON.parse(localStorage.getItem(${JSON.stringify(NEGOCIO_VISTA_KEY)}) || "null");
+    if (vista && ${JSON.stringify(TEMAS)}.indexOf(vista.tema) !== -1) d.dataset.tema = vista.tema;
+    if (vista && vista.sencillo === true) d.dataset.sencillo = "";
   } catch (_e) {
     d.dataset.theme = ${JSON.stringify(DEFAULT_THEME)};
     d.dataset.mode = ${JSON.stringify(DEFAULT_MODE)};

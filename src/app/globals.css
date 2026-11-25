@@ -48,6 +48,12 @@
   --color-primary-hover: var(--primary-hover);
   --color-primary-soft: var(--primary-soft);
   --color-primary-soft-2: var(--primary-soft-2);
+  /* «Hay» / «ya pagó» (verde) y «pendiente» (ámbar) de la vista sencilla. */
+  --color-ok: var(--ok);
+  --color-ok-foreground: var(--ok-foreground);
+  --color-ok-soft: var(--ok-soft);
+  --color-pendiente: var(--pendiente);
+  --color-pendiente-soft: var(--pendiente-soft);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -217,6 +223,170 @@ html[data-theme="rose"] {
   --sidebar-ring: oklch(0.645 0.22 16);
 }
 
+/* ---- Verde y ámbar por defecto (cualquier modo) ---- */
+:root {
+  --ok: oklch(0.52 0.12 152);
+  --ok-foreground: oklch(0.99 0 0);
+  --ok-soft: oklch(0.52 0.12 152 / 0.14);
+  --pendiente: oklch(0.55 0.12 70);
+  --pendiente-soft: oklch(0.8 0.12 85 / 0.25);
+}
+
+/* ============================================================
+ * TEMA DEL NEGOCIO (negocio_config.tema) — una paleta completa y clara
+ * que pone el administrador para toda la cuenta. Gana sobre el modo y
+ * el acento de cada usuario porque va después y tiene la misma
+ * especificidad. Lo aplica NegocioProvider en <html data-tema="…">.
+ * Contraste de texto revisado a 4.5:1 sobre fondo y tarjeta.
+ * ============================================================ */
+html[data-tema] {
+  --card: #ffffff;
+  --popover: #ffffff;
+  --destructive: #b3261e;
+  --radius: 0.9rem;
+  color-scheme: light;
+}
+
+html[data-tema="cubano"] {
+  --background: #fbf5ea;
+  --foreground: #2b1a12;
+  --card-2: #f6eddd;
+  --card-foreground: #2b1a12;
+  --popover-foreground: #2b1a12;
+  --secondary: #f1e7d6;
+  --secondary-foreground: #2b1a12;
+  --muted: #f1e7d6;
+  --muted-foreground: #6b5547;
+  --accent: #f1e7d6;
+  --accent-foreground: #2b1a12;
+  --border: #e6d9c2;
+  --input: #d9cbb3;
+  --primary: #b3122b;
+  --primary-foreground: #ffffff;
+  --primary-hover: #970f24;
+  --primary-soft: rgb(179 18 43 / 0.1);
+  --primary-soft-2: rgb(179 18 43 / 0.18);
+  --ring: #b3122b;
+  --chart-1: #b3122b;
+  --sidebar: #fffaf1;
+  --sidebar-foreground: #2b1a12;
+  --sidebar-accent: #f1e7d6;
+  --sidebar-accent-foreground: #2b1a12;
+  --sidebar-border: #e6d9c2;
+  --sidebar-primary: #b3122b;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-ring: #b3122b;
+  --ok: #1f7a45;
+  --ok-soft: #e7f3ec;
+  --pendiente: #8a5a00;
+  --pendiente-soft: #fff1c9;
+}
+
+html[data-tema="industrial"] {
+  --background: #eef1f6;
+  --foreground: #111317;
+  --card-2: #f5f7fa;
+  --card-foreground: #111317;
+  --popover-foreground: #111317;
+  --secondary: #e3e8f0;
+  --secondary-foreground: #111317;
+  --muted: #e3e8f0;
+  --muted-foreground: #4d5566;
+  --accent: #e3e8f0;
+  --accent-foreground: #111317;
+  --border: #d5dbe5;
+  --input: #c3cad6;
+  --primary: #1f5fe0;
+  --primary-foreground: #ffffff;
+  --primary-hover: #194dba;
+  --primary-soft: rgb(31 95 224 / 0.1);
+  --primary-soft-2: rgb(31 95 224 / 0.18);
+  --ring: #1f5fe0;
+  --chart-1: #1f5fe0;
+  --sidebar: #f7f9fc;
+  --sidebar-foreground: #111317;
+  --sidebar-accent: #e3e8f0;
+  --sidebar-accent-foreground: #111317;
+  --sidebar-border: #d5dbe5;
+  --sidebar-primary: #1f5fe0;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-ring: #1f5fe0;
+  --ok: #1f7a45;
+  --ok-soft: #e7f3ec;
+  --pendiente: #8a5a00;
+  --pendiente-soft: #fff1c9;
+}
+
+html[data-tema="verde"] {
+  --background: #f1f6f1;
+  --foreground: #17251c;
+  --card-2: #f6faf6;
+  --card-foreground: #17251c;
+  --popover-foreground: #17251c;
+  --secondary: #e2ede3;
+  --secondary-foreground: #17251c;
+  --muted: #e2ede3;
+  --muted-foreground: #4b5e51;
+  --accent: #e2ede3;
+  --accent-foreground: #17251c;
+  --border: #d3e2d5;
+  --input: #bfd2c2;
+  --primary: #2e7d4f;
+  --primary-foreground: #ffffff;
+  --primary-hover: #256841;
+  --primary-soft: rgb(46 125 79 / 0.1);
+  --primary-soft-2: rgb(46 125 79 / 0.18);
+  --ring: #2e7d4f;
+  --chart-1: #2e7d4f;
+  --sidebar: #f8fbf8;
+  --sidebar-foreground: #17251c;
+  --sidebar-accent: #e2ede3;
+  --sidebar-accent-foreground: #17251c;
+  --sidebar-border: #d3e2d5;
+  --sidebar-primary: #2e7d4f;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-ring: #2e7d4f;
+  --ok: #1f6fb2;
+  --ok-soft: #e4eff8;
+  --pendiente: #8a5a00;
+  --pendiente-soft: #fff1c9;
+}
+
+html[data-tema="taqueria"] {
+  --background: #fff7ec;
+  --foreground: #2a1a0e;
+  --card-2: #fff1de;
+  --card-foreground: #2a1a0e;
+  --popover-foreground: #2a1a0e;
+  --secondary: #fbe8d0;
+  --secondary-foreground: #2a1a0e;
+  --muted: #fbe8d0;
+  --muted-foreground: #6e5240;
+  --accent: #fbe8d0;
+  --accent-foreground: #2a1a0e;
+  --border: #f0dcc0;
+  --input: #e4cba8;
+  --primary: #c2410c;
+  --primary-foreground: #ffffff;
+  --primary-hover: #a3370a;
+  --primary-soft: rgb(194 65 12 / 0.1);
+  --primary-soft-2: rgb(194 65 12 / 0.18);
+  --ring: #c2410c;
+  --chart-1: #c2410c;
+  --sidebar: #fffbf5;
+  --sidebar-foreground: #2a1a0e;
+  --sidebar-accent: #fbe8d0;
+  --sidebar-accent-foreground: #2a1a0e;
+  --sidebar-border: #f0dcc0;
+  --sidebar-primary: #c2410c;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-ring: #c2410c;
+  --ok: #1f7a45;
+  --ok-soft: #e7f3ec;
+  --pendiente: #8a5a00;
+  --pendiente-soft: #fff1c9;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -233,5 +403,9 @@ html[data-theme="rose"] {
 @media (max-width: 1023px) {
   html {
     font-size: 106.25%;
+  }
+  /* Vista sencilla (negocio_config.sencillo): aún más grande en el celular. */
+  html[data-sencillo] {
+    font-size: 112.5%;
   }
 }

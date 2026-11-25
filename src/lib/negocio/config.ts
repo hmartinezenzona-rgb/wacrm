@@ -27,8 +27,39 @@ export interface DestacarConfig {
   etiqueta: string;
 }
 
+/** Paletas de color por negocio (bloques html[data-tema=…] en globals.css). */
+export const TEMAS = ["cubano", "industrial", "verde", "taqueria"] as const;
+export type Tema = (typeof TEMAS)[number];
+
+/** localStorage: {tema, sencillo} de la última cuenta, para pintarlos antes de cargar. */
+export const NEGOCIO_VISTA_KEY = "wacrm.negocio.vista";
+
+export type TipoGrupo = "uno" | "opcional" | "extra";
+
+export interface GrupoPedido {
+  /** Clave corta que se guarda en menu_items.grupo («arroz»). */
+  id: string;
+  /** Cómo lo ve el dueño («Arroz»). */
+  nombre: string;
+  /** uno = escoge 1 (obligatorio) · opcional = 1 o nada · extra = se cobra aparte. */
+  tipo: TipoGrupo;
+}
+
+export interface PedidoConfig {
+  /** Lo que vende, en singular y plural («charola» / «charolas»). */
+  uno: string;
+  varios: string;
+  /** Partes de cada unidad, en orden. */
+  grupos: GrupoPedido[];
+}
+
 export interface NegocioConfig {
   nombre: string;
+  /** Paleta del negocio; null = la que elija cada usuario en Apariencia. */
+  tema: Tema | null;
+  /** Vista sencilla para celular: menú de abajo, letra grande, pedidos en pestañas. */
+  sencillo: boolean;
+  pedido: PedidoConfig;
   logo: { src: string; ancho: number; alto: number };
   menu: Seccion[];
   /** Textos que reemplazan a los de messages/es.json, con la misma forma ({ Sidebar: { pipelines: "Ventas" } }). */
@@ -47,8 +78,20 @@ export interface NegocioConfig {
   };
 }
 
+/** Grupos de Doña Miriam: los mismos que usa la base si no hay otros (migración 336). */
+export const GRUPOS_INICIALES: GrupoPedido[] = [
+  { id: "arroz", nombre: "Arroz", tipo: "uno" },
+  { id: "carne", nombre: "Carne", tipo: "uno" },
+  { id: "vianda", nombre: "Vianda", tipo: "uno" },
+  { id: "potaje", nombre: "Potaje", tipo: "opcional" },
+  { id: "extra", nombre: "Extras", tipo: "extra" },
+];
+
 export const DEFAULT_NEGOCIO: NegocioConfig = {
   nombre: "Onlinefreedom",
+  tema: null,
+  sencillo: false,
+  pedido: { uno: "charola", varios: "charolas", grupos: GRUPOS_INICIALES },
   logo: { src: "/logo-onlinefreedom.svg", ancho: 262, alto: 64 },
   menu: ["pipelines", "inbox", "contacts"],
   textos: {},
@@ -109,8 +152,30 @@ export function leerNegocio(raw: unknown): NegocioConfig {
         }))
     : [];
 
+  const pedido = esObjeto(raw.pedido) ? raw.pedido : {};
+  const textoO = (x: unknown, def: string) => (typeof x === "string" && x.trim() ? x.trim() : def);
+  const vistos = new Set<string>();
+  const grupos: GrupoPedido[] = Array.isArray(pedido.grupos)
+    ? pedido.grupos
+        .filter(esObjeto)
+        .map((g) => {
+          const nombre = textoO(g.nombre, "");
+          const id = claveGrupo(typeof g.id === "string" && g.id.trim() ? g.id : nombre);
+          const tipo: TipoGrupo = g.tipo === "opcional" || g.tipo === "extra" ? g.tipo : "uno";
+          return { id, nombre: nombre || id, tipo };
+        })
+        .filter((g) => g.id && !vistos.has(g.id) && vistos.add(g.id))
+    : [];
+
   return {
     nombre: typeof raw.nombre === "string" && raw.nombre.trim() ? raw.nombre.trim() : d.nombre,
+    tema: (TEMAS as readonly unknown[]).includes(raw.tema) ? (raw.tema as Tema) : null,
+    sencillo: raw.sencillo === true,
+    pedido: {
+      uno: textoO(pedido.uno, d.pedido.uno),
+      varios: textoO(pedido.varios, d.pedido.varios),
+      grupos: grupos.length ? grupos : d.pedido.grupos,
+    },
     logo: {
       src: typeof logo.src === "string" && logo.src.trim() ? logo.src.trim() : d.logo.src,
       ancho: typeof logo.ancho === "number" ? logo.ancho : d.logo.ancho,
@@ -136,6 +201,24 @@ export function leerNegocio(raw: unknown): NegocioConfig {
           : null,
     },
   };
+}
+
+/** Clave de grupo que acepta la base: minúsculas, sin acentos, a-z 0-9 _ («Guarnición» → «guarnicion»). */
+export function claveGrupo(s: string): string {
+  return normalizar(s)
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 30);
+}
+
+/** Primera letra en mayúscula («charola» → «Charola»). */
+export function capital(s: string): string {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+}
+
+/** «1 charola», «3 charolas». */
+export function cuantas(cfg: NegocioConfig, n: number): string {
+  return `${n} ${n === 1 ? cfg.pedido.uno : cfg.pedido.varios}`;
 }
 
 /** Configuración de una columna por su nombre (o vacía). */

@@ -18,8 +18,8 @@
 
 import { leerBloques, type BloqueEncargo } from "@/lib/encargos/leer";
 
-export function leerEncargo(notes: string | null | undefined): BloqueEncargo[] | null {
-  const bloques = leerBloques(notes);
+export function leerEncargo(notes: string | null | undefined, uno?: string): BloqueEncargo[] | null {
+  const bloques = leerBloques(notes, uno);
   return bloques.some((b) => b.tipo === "charola") ? bloques : null;
 }
 

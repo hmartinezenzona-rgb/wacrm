@@ -16,7 +16,17 @@ import { ArrowDown, ArrowUp, Loader2, Plus, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useNegocio } from "@/hooks/use-negocio";
-import { SECCIONES, leerNegocio, normalizar, type NegocioConfig, type Seccion } from "@/lib/negocio/config";
+import {
+  SECCIONES,
+  TEMAS,
+  leerNegocio,
+  normalizar,
+  type GrupoPedido,
+  type NegocioConfig,
+  type Seccion,
+  type Tema,
+  type TipoGrupo,
+} from "@/lib/negocio/config";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -151,6 +161,215 @@ function useFila(tabla: "negocio_config" | "bot_config" | "bot_entrevista", acco
 }
 
 // ============================================================
+// Apariencia y palabras: colores, vista sencilla, lo que vende y
+// cómo se llama cada sección. Ninguna palabra que vea el dueño vive
+// en el código.
+// ============================================================
+
+const NOMBRE_TEMA: Record<Tema, { nombre: string; colores: string[] }> = {
+  cubano: { nombre: "Cubano", colores: ["#FBF5EA", "#B3122B", "#1F7A45", "#2B1A12"] },
+  industrial: { nombre: "Industrial azul", colores: ["#EEF1F6", "#1F5FE0", "#1F7A45", "#111317"] },
+  verde: { nombre: "Verde fresco", colores: ["#F1F6F1", "#2E7D4F", "#1F6FB2", "#17251C"] },
+  taqueria: { nombre: "Taquería", colores: ["#FFF7EC", "#C2410C", "#1F7A45", "#2A1A0E"] },
+};
+
+const IDEAS_UNIDAD: [string, string][] = [
+  ["charola", "charolas"],
+  ["orden", "órdenes"],
+  ["pedido", "pedidos"],
+  ["vianda", "viandas"],
+  ["pastel", "pasteles"],
+  ["cotización", "cotizaciones"],
+  ["cita", "citas"],
+];
+
+const NOMBRE_TIPO: Record<TipoGrupo, string> = {
+  uno: "Escoge 1",
+  opcional: "Opcional",
+  extra: "Extra, con precio",
+};
+
+function TarjetaAparienciaYPalabras({ raw, cfg, set }: { raw: Obj; cfg: NegocioConfig; set: (c: Obj) => void }) {
+  const pedidoRaw = (raw.pedido as Obj) ?? {};
+  const setPedido = (cambio: Obj) => set({ pedido: { ...pedidoRaw, ...cambio } });
+  const grupos = cfg.pedido.grupos;
+  const setGrupos = (gs: GrupoPedido[]) => setPedido({ grupos: gs });
+  const textos = (raw.textos as Obj) ?? {};
+  const sidebar = (textos.Sidebar as Obj) ?? {};
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Apariencia y palabras</CardTitle>
+        <CardDescription>
+          Colores, cómo le dice el negocio a lo que vende y el nombre de cada sección. Todo se escribe libre.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <Campo label="Colores" ayuda="Si eliges una paleta, todos en esta cuenta la ven igual.">
+          <div className="grid gap-2 pt-1 sm:grid-cols-5">
+            <button
+              type="button"
+              onClick={() => set({ tema: null })}
+              aria-pressed={cfg.tema === null}
+              className={`rounded-lg border p-2 text-left text-sm ${cfg.tema === null ? "border-primary ring-1 ring-primary" : "border-border"}`}
+            >
+              <span className="mb-2 flex h-6 items-center justify-center rounded bg-muted text-xs text-muted-foreground">Libre</span>
+              El que elija cada quien
+            </button>
+            {TEMAS.map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => set({ tema: t })}
+                aria-pressed={cfg.tema === t}
+                className={`rounded-lg border p-2 text-left text-sm ${cfg.tema === t ? "border-primary ring-1 ring-primary" : "border-border"}`}
+              >
+                <span className="mb-2 flex h-6 overflow-hidden rounded">
+                  {NOMBRE_TEMA[t].colores.map((c) => (
+                    <span key={c} className="flex-1" style={{ background: c }} />
+                  ))}
+                </span>
+                {NOMBRE_TEMA[t].nombre}
+              </button>
+            ))}
+          </div>
+        </Campo>
+
+        <label className="flex items-start gap-3 rounded-lg border border-border p-3">
+          <Checkbox checked={cfg.sencillo} onCheckedChange={(v) => set({ sencillo: v === true })} className="mt-0.5" />
+          <span>
+            <span className="block text-sm font-medium">Vista sencilla en el celular</span>
+            <span className="block text-xs text-muted-foreground">
+              Menú abajo como app, letra grande y los pedidos en pestañas con un botón grande. Para dueños que no
+              son de computadora.
+            </span>
+          </span>
+        </label>
+
+        <div className="space-y-2">
+          <Label>Lo que vende</Label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Campo label="Uno" ayuda={`Ej.: «1 ${cfg.pedido.uno}»`}>
+              <Input value={typeof pedidoRaw.uno === "string" ? pedidoRaw.uno : cfg.pedido.uno} onChange={(e) => setPedido({ uno: e.target.value })} />
+            </Campo>
+            <Campo label="Varios" ayuda={`Ej.: «6 ${cfg.pedido.varios} para mañana»`}>
+              <Input
+                value={typeof pedidoRaw.varios === "string" ? pedidoRaw.varios : cfg.pedido.varios}
+                onChange={(e) => setPedido({ varios: e.target.value })}
+              />
+            </Campo>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Ideas:</span>
+            {IDEAS_UNIDAD.map(([u, us]) => (
+              <button
+                key={u}
+                type="button"
+                onClick={() => setPedido({ uno: u, varios: us })}
+                className="rounded-full border border-border px-2.5 py-1 text-xs hover:bg-muted"
+              >
+                {u}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Partes de cada {cfg.pedido.uno}</Label>
+          <p className="text-xs text-muted-foreground">
+            Son los grupos del menú. Cambiar el nombre no mueve los platillos que ya tiene.
+          </p>
+          <div className="divide-y divide-border rounded-lg border border-border">
+            {grupos.map((g, i) => (
+              <div key={g.id} className="flex flex-wrap items-center gap-2 p-2">
+                <Input
+                  className="min-w-0 flex-1"
+                  value={g.nombre}
+                  aria-label="Nombre de la parte"
+                  onChange={(e) => setGrupos(grupos.map((x, j) => (j === i ? { ...x, nombre: e.target.value } : x)))}
+                />
+                <select
+                  className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+                  value={g.tipo}
+                  aria-label={`Tipo de ${g.nombre}`}
+                  onChange={(e) =>
+                    setGrupos(grupos.map((x, j) => (j === i ? { ...x, tipo: e.target.value as TipoGrupo } : x)))
+                  }
+                >
+                  {(Object.keys(NOMBRE_TIPO) as TipoGrupo[]).map((tp) => (
+                    <option key={tp} value={tp}>
+                      {NOMBRE_TIPO[tp]}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Subir"
+                  disabled={i === 0}
+                  onClick={() => setGrupos(grupos.map((x, j) => (j === i - 1 ? grupos[i] : j === i ? grupos[i - 1] : x)))}
+                >
+                  <ArrowUp className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Bajar"
+                  disabled={i === grupos.length - 1}
+                  onClick={() => setGrupos(grupos.map((x, j) => (j === i + 1 ? grupos[i] : j === i ? grupos[i + 1] : x)))}
+                >
+                  <ArrowDown className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Quitar ${g.nombre}`}
+                  disabled={grupos.length === 1}
+                  onClick={() => setGrupos(grupos.filter((_, j) => j !== i))}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              let n = grupos.length + 1;
+              while (grupos.some((g) => g.id === `parte_${n}`)) n++;
+              setGrupos([...grupos, { id: `parte_${n}`, nombre: "Nueva parte", tipo: "uno" }]);
+            }}
+          >
+            <Plus className="mr-1 h-4 w-4" /> Agregar parte
+          </Button>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Nombre de cada sección</Label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {cfg.menu.map((s) => (
+              <Campo key={s} label={NOMBRE_SECCION[s]}>
+                <Input
+                  value={texto(sidebar[s])}
+                  placeholder={NOMBRE_SECCION[s]}
+                  onChange={(e) => {
+                    const nuevo: Obj = { ...sidebar, [s]: e.target.value };
+                    if (!e.target.value.trim()) delete nuevo[s];
+                    set({ textos: { ...textos, Sidebar: nuevo } });
+                  }}
+                />
+              </Campo>
+            ))}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ============================================================
 // CRM
 // ============================================================
 
@@ -248,6 +467,8 @@ function PestanaCrm({ accountId, puede }: { accountId: string; puede: boolean })
               </Campo>
             </CardContent>
           </Card>
+
+          <TarjetaAparienciaYPalabras raw={raw} cfg={cfg} set={set} />
 
           <Card>
             <CardHeader>

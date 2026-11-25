@@ -7,6 +7,8 @@ import { PipelineBoard } from "@/components/pipelines/pipeline-board";
 import { PipelineSettings } from "@/components/pipelines/pipeline-settings";
 import { DealForm } from "@/components/pipelines/deal-form";
 import { PipelineAnalytics } from "@/components/pipelines/pipeline-analytics";
+import { PedidosSencillo } from "@/components/pipelines/pedidos-sencillo";
+import { useNegocio } from "@/hooks/use-negocio";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -78,6 +80,8 @@ const SPEC_DEFAULT_STAGES = [
 ];
 
 export default function PipelinesPage() {
+  // Vista sencilla (negocio_config.sencillo): en el celular, pedidos en pestañas.
+  const { negocio } = useNegocio();
   const t = useTranslations("Pipelines.page");
   const tProof = useTranslations("Pipelines.deliveryProof");
   const tConfirm = useTranslations("Pipelines.deliveryConfirm");
@@ -916,7 +920,7 @@ export default function PipelinesPage() {
             canAct={canEditSettings}
             gateReason="create pipelines"
             onClick={() => setNewPipelineOpen(true)}
-            className="border-border bg-card text-foreground hover:bg-muted"
+            className={`border-border bg-card text-foreground hover:bg-muted ${negocio.sencillo ? "hidden lg:inline-flex" : ""}`}
           >
             <Plus className="mr-1 h-4 w-4" />
             {t("addPipeline")}
@@ -956,15 +960,27 @@ export default function PipelinesPage() {
         </div>
       ) : (
         <>
-          <PipelineAnalytics stages={stages} deals={deals} />
-          <PipelineBoard
-            stages={stages}
-            deals={deals}
-            onDealMoved={handleDealMoved}
-            onAddDeal={handleAddDeal}
-            onEditDeal={handleEditDeal}
-            dealsWithProof={proofDealIds}
-          />
+          {negocio.sencillo && (
+            <div className="lg:hidden">
+              <PedidosSencillo
+                stages={stages}
+                deals={deals}
+                onDealMoved={handleDealMoved}
+                onEditDeal={handleEditDeal}
+              />
+            </div>
+          )}
+          <div className={negocio.sencillo ? "hidden space-y-6 lg:block" : "space-y-6"}>
+            <PipelineAnalytics stages={stages} deals={deals} />
+            <PipelineBoard
+              stages={stages}
+              deals={deals}
+              onDealMoved={handleDealMoved}
+              onAddDeal={handleAddDeal}
+              onEditDeal={handleEditDeal}
+              dealsWithProof={proofDealIds}
+            />
+          </div>
         </>
       )}
 

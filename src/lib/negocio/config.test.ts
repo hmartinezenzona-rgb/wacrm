@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_NEGOCIO,
+  claveGrupo,
+  cuantas,
   columna,
   datoDeNotas,
   leerNegocio,
@@ -62,5 +64,52 @@ describe("mezclarTextos", () => {
     const r = mezclarTextos(base, { Sidebar: { pipelines: "Encargos" } });
     expect(r).toEqual({ Sidebar: { pipelines: "Encargos", inbox: "Mensajes" }, Otro: { a: "1" } });
     expect(base.Sidebar.pipelines).toBe("Ventas");
+  });
+});
+
+describe("pedido, tema y vista sencilla", () => {
+  it("sin datos usa los grupos de Doña Miriam y la palabra charola", () => {
+    const c = leerNegocio({});
+    expect(c.pedido.uno).toBe("charola");
+    expect(c.pedido.grupos.map((g) => g.id)).toEqual(["arroz", "carne", "vianda", "potaje", "extra"]);
+    expect(c.tema).toBeNull();
+    expect(c.sencillo).toBe(false);
+  });
+
+  it("lee palabras y grupos libres, con clave sin acentos y sin repetidos", () => {
+    const c = leerNegocio({
+      tema: "cubano",
+      sencillo: true,
+      pedido: {
+        uno: "orden",
+        varios: "órdenes",
+        grupos: [
+          { nombre: "Guarnición" },
+          { id: "salsa", nombre: "Salsas", tipo: "opcional" },
+          { id: "salsa", nombre: "Otra", tipo: "uno" },
+          { nombre: "Bebidas", tipo: "extra" },
+          { nombre: "" },
+        ],
+      },
+    });
+    expect(c.tema).toBe("cubano");
+    expect(c.sencillo).toBe(true);
+    expect(c.pedido.varios).toBe("órdenes");
+    expect(c.pedido.grupos).toEqual([
+      { id: "guarnicion", nombre: "Guarnición", tipo: "uno" },
+      { id: "salsa", nombre: "Salsas", tipo: "opcional" },
+      { id: "bebidas", nombre: "Bebidas", tipo: "extra" },
+    ]);
+  });
+
+  it("ignora un tema que no existe", () => {
+    expect(leerNegocio({ tema: "neon" }).tema).toBeNull();
+  });
+
+  it("claveGrupo y cuantas", () => {
+    expect(claveGrupo("Plato fuerte (día)")).toBe("plato_fuerte_dia");
+    const c = leerNegocio({ pedido: { uno: "orden", varios: "órdenes" } });
+    expect(cuantas(c, 1)).toBe("1 orden");
+    expect(cuantas(c, 3)).toBe("3 órdenes");
   });
 });

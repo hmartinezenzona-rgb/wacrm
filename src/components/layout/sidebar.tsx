@@ -91,7 +91,7 @@ interface NavItem {
 // Secciones que puede tener el menú. Cada negocio elige cuáles se ven y en
 // qué orden (negocio_config.menu). Las demás páginas siguen existiendo
 // (para Julio) pero no salen en el menú.
-const SECCIONES_MENU: Record<Seccion, NavItem> = {
+export const SECCIONES_MENU: Record<Seccion, NavItem> = {
   pipelines: { href: "/pipelines", labelKey: "pipelines", icon: GitBranch },
   inbox: { href: "/inbox", labelKey: "inbox", icon: MessageSquare },
   catalogo: { href: "/catalogo", labelKey: "catalogo", icon: Package },

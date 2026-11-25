@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { DeliveryProofPanel } from "./delivery-proof";
 import { EncargoDetalle, leerEncargo } from "./encargo-detalle";
+import { useNegocio } from "@/hooks/use-negocio";
 import { WhatsappContacto, folioDeNotas } from "./whatsapp-contacto";
 import { acceptsDeliveryProof } from "@/lib/pipelines/delivery-stages";
 import type {
@@ -104,7 +105,8 @@ export function DealForm({
   const [, setProfiles] = useState<Profile[]>([]);
   // «Lo que lleva» se muestra en limpio; «Editar» enseña el texto tal cual.
   const [editandoNotas, setEditandoNotas] = useState(false);
-  const encargoLeido = useMemo(() => leerEncargo(notes), [notes]);
+  const { negocio } = useNegocio();
+  const encargoLeido = useMemo(() => leerEncargo(notes, negocio.pedido.uno), [notes, negocio.pedido.uno]);
   const [linkedConversation, setLinkedConversation] =
     useState<Conversation | null>(null);
 

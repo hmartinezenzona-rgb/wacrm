@@ -1,25 +1,27 @@
 "use client";
 
 // ============================================================
-// Qué cocinar — edición Doña Miriam.
+// Qué cocinar — CRM base, configurable por negocio.
 //
-// Suma lo que hay que preparar un día a partir de los encargos del
-// tablero. Cada encargo es un deal; n8n lo crea desde la página web con
-// la entrega en `expected_close_date` y el detalle en `notes`, una línea
-// por cosa:
+// Suma lo que hay que preparar un día a partir de los pedidos del
+// tablero (deals con la entrega en `expected_close_date` y el detalle en
+// `notes`, una línea por unidad: «Charola 1: Congrí, Ropa vieja»). Las
+// partes (Arroz, Carne…) y la palabra («charola», «orden») salen de
+// negocio_config.pedido; cada platillo se acomoda en su parte según
+// menu_items. Las etapas con «cancel» no cuentan.
 //
-//   Charola 1: Congrí, Fricasé de pollo, Tostones, Frijoles negros
-//   Extra: Ración extra de arroz
-//   Nota: sin cebolla
-//
-// Las etapas cuyo nombre contiene "cancel" no cuentan. No toca nada:
-// solo lee.
+// Cada renglón se puede tachar al tenerlo listo. Lo tachado se guarda
+// solo en este celular (es una ayuda de cocina, no un dato del negocio).
 // ============================================================
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Check, ChefHat, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { ChefHat, Loader2 } from "lucide-react";
+import { useNegocio } from "@/hooks/use-negocio";
+import { cuantas } from "@/lib/negocio/config";
+import { diaCorto, diaLargo, isoLocal } from "@/lib/negocio/dias";
 import { sumarEncargo } from "@/lib/encargos/leer";
+import { cn } from "@/lib/utils";
 
 interface Fila {
   id: string;
@@ -27,57 +29,55 @@ interface Fila {
   notes: string | null;
   expected_close_date: string | null;
   stage: { name: string } | null;
+  contact: { name: string | null } | null;
 }
 
-const GRUPOS: [string, string[]][] = [
-  ["Arroz", ["Congrí", "Arroz blanco", "Arroz amarillo"]],
-  ["Carne", ["Fricasé de puerco", "Fricasé de pollo", "Bistec de puerco", "Ropa vieja", "Picadillo de res", "Chuleta de puerco"]],
-  ["Vianda", ["Papa con mojo", "Boniato", "Platanito maduro frito", "Tostones"]],
-  ["Potaje", ["Frijoles negros", "Frijoles colorados", "Chícharo"]],
-];
-const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
-const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+const LISTO_KEY = "wacrm.cocinar.listo";
 
-function isoLocal(d: Date) {
-  const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
-  return z.toISOString().slice(0, 10);
-}
-function etiqueta(iso: string, hoy: string, manana: string) {
-  if (iso === hoy) return "Hoy";
-  if (iso === manana) return "Mañana";
-  const d = new Date(iso + "T12:00:00");
-  return `${DIAS[d.getDay()].slice(0, 3)} ${d.getDate()}`;
-}
-function largo(iso: string) {
-  const d = new Date(iso + "T12:00:00");
-  return `${DIAS[d.getDay()]} ${d.getDate()} de ${MESES[d.getMonth()]}`;
+function leerListos(): Record<string, string[]> {
+  try {
+    return JSON.parse(localStorage.getItem(LISTO_KEY) || "{}");
+  } catch {
+    return {};
+  }
 }
 
 export default function CocinarPage() {
   const supabase = useMemo(() => createClient(), []);
-  // Hoy y mañana se fijan al abrir la pantalla.
+  const { negocio } = useNegocio();
+  const { uno, grupos } = negocio.pedido;
   const [{ hoy, manana }] = useState(() => {
     const ahora = new Date();
     return { hoy: isoLocal(ahora), manana: isoLocal(new Date(ahora.getTime() + 86400000)) };
   });
   const [filas, setFilas] = useState<Fila[]>([]);
+  const [grupoDe, setGrupoDe] = useState<Record<string, string>>({});
   const [cargando, setCargando] = useState(true);
   const [dia, setDia] = useState(hoy);
+  const [listos, setListos] = useState<Record<string, string[]>>({});
 
   const cargar = useCallback(async () => {
-    const { data } = await supabase
-      .from("deals")
-      .select("id,title,notes,expected_close_date,stage:pipeline_stages(name)")
-      .gte("expected_close_date", hoy)
-      .order("expected_close_date");
-    setFilas(((data as unknown as Fila[]) || []).filter((f) => !/cancel/i.test(f.stage?.name || "")));
+    const [d, m] = await Promise.all([
+      supabase
+        .from("deals")
+        .select("id,title,notes,expected_close_date,stage:pipeline_stages(name),contact:contacts(name)")
+        .gte("expected_close_date", hoy)
+        .order("expected_close_date"),
+      supabase.from("menu_items").select("nombre,grupo"),
+    ]);
+    setFilas(((d.data as unknown as Fila[]) || []).filter((f) => !/cancel/i.test(f.stage?.name || "")));
+    const mapa: Record<string, string> = {};
+    for (const x of (m.data as { nombre: string; grupo: string }[]) || []) mapa[x.nombre] = x.grupo;
+    setGrupoDe(mapa);
     setCargando(false);
   }, [supabase, hoy]);
 
   useEffect(() => {
     // Carga inicial desde Supabase (asíncrona); mismo patrón que el resto del CRM.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setListos(leerListos());
     cargar();
+    /* eslint-enable react-hooks/set-state-in-effect */
     const ch = supabase
       .channel("cocinar-deals")
       .on("postgres_changes", { event: "*", schema: "public", table: "deals" }, () => cargar())
@@ -87,31 +87,61 @@ export default function CocinarPage() {
     };
   }, [supabase, cargar]);
 
-  const dias = useMemo(() => {
-    const s = new Set<string>([hoy, manana]);
-    filas.forEach((f) => f.expected_close_date && s.add(f.expected_close_date));
+  const otrosDias = useMemo(() => {
+    const s = new Set<string>();
+    filas.forEach((f) => f.expected_close_date && f.expected_close_date > manana && s.add(f.expected_close_date));
     return [...s].sort();
-  }, [filas, hoy, manana]);
+  }, [filas, manana]);
 
-  const { charolas, cuenta, extras, notas } = useMemo(() => {
+  const { total, partes, notas } = useMemo(() => {
     const cuenta: Record<string, number> = {};
     const extras: Record<string, number> = {};
     const notas: { quien: string; t: string }[] = [];
-    let charolas = 0;
-    filas
-      .filter((f) => f.expected_close_date === dia)
-      .forEach((f) => {
-        const e = sumarEncargo(f.notes);
-        charolas += e.charolas;
-        for (const [k, v] of Object.entries(e.platos)) cuenta[k] = (cuenta[k] || 0) + v;
-        for (const [k, v] of Object.entries(e.extras)) extras[k] = (extras[k] || 0) + v;
-        for (const t of e.notas) notas.push({ quien: f.title, t });
-      });
-    return { charolas, cuenta, extras, notas };
-  }, [filas, dia]);
+    let total = 0;
+    for (const f of filas.filter((x) => x.expected_close_date === dia)) {
+      const e = sumarEncargo(f.notes, uno);
+      total += e.charolas;
+      for (const [k, v] of Object.entries(e.platos)) cuenta[k] = (cuenta[k] || 0) + v;
+      for (const [k, v] of Object.entries(e.extras)) extras[k] = (extras[k] || 0) + v;
+      const quien = f.contact?.name || f.title.replace(/^\d+\s+\S+\s+·\s+/, "");
+      for (const t of e.notas) notas.push({ quien, t });
+    }
+    // Acomoda cada platillo en su parte; lo que no está en el menú va a «Otros».
+    const idsExtra = new Set(grupos.filter((g) => g.tipo === "extra").map((g) => g.id));
+    const partes = grupos
+      .map((g) => ({
+        id: g.id,
+        nombre: g.nombre,
+        items: Object.entries(g.tipo === "extra" ? extras : cuenta)
+          .filter(([k]) => (g.tipo === "extra" ? grupoDe[k] === g.id || (!grupoDe[k] && idsExtra.size === 1) : grupoDe[k] === g.id))
+          .sort((a, b) => b[1] - a[1]),
+      }))
+      .filter((g) => g.items.length);
+    const usados = new Set(partes.flatMap((g) => g.items.map(([k]) => k)));
+    const sueltos = [...Object.entries(cuenta), ...Object.entries(extras)].filter(([k]) => !usados.has(k));
+    if (sueltos.length) partes.push({ id: "__otros", nombre: "Otros", items: sueltos });
+    return { total, partes, notas };
+  }, [filas, dia, uno, grupos, grupoDe]);
 
-  const conocidos = new Set(GRUPOS.flatMap(([, o]) => o));
-  const otros = Object.keys(cuenta).filter((k) => !conocidos.has(k));
+  const renglones = partes.reduce((n, g) => n + g.items.length, 0);
+  const tachados = new Set(listos[dia] ?? []);
+  const hechos = partes.reduce((n, g) => n + g.items.filter(([k]) => tachados.has(`${g.id}:${k}`)).length, 0);
+
+  function tachar(clave: string) {
+    setListos((prev) => {
+      const del = new Set(prev[dia] ?? []);
+      if (del.has(clave)) del.delete(clave);
+      else del.add(clave);
+      // Solo se guardan los días que vienen, para no llenar el celular.
+      const nuevo = Object.fromEntries(Object.entries({ ...prev, [dia]: [...del] }).filter(([d]) => d >= hoy));
+      try {
+        localStorage.setItem(LISTO_KEY, JSON.stringify(nuevo));
+      } catch {
+        // Sin localStorage el tachado dura hasta cerrar la pantalla.
+      }
+      return nuevo;
+    });
+  }
 
   if (cargando) {
     return (
@@ -121,80 +151,125 @@ export default function CocinarPage() {
     );
   }
 
+  const pestana = (iso: string, titulo: string) => (
+    <button
+      key={iso}
+      type="button"
+      role="tab"
+      aria-selected={dia === iso}
+      onClick={() => setDia(iso)}
+      className={cn(
+        "flex min-h-16 flex-col items-center justify-center rounded-2xl px-3 leading-tight",
+        dia === iso ? "bg-card text-foreground shadow-sm" : "text-muted-foreground",
+      )}
+    >
+      <span className="text-lg font-extrabold">{titulo}</span>
+      <span className="text-sm font-semibold">{diaCorto(iso)}</span>
+    </button>
+  );
+
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {dias.map((d) => (
-          <button
-            key={d}
-            type="button"
-            onClick={() => setDia(d)}
-            className={
-              "shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition-colors " +
-              (d === dia
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-card text-foreground hover:bg-muted")
-            }
-          >
-            {etiqueta(d, hoy, manana)}
-          </button>
-        ))}
+      <div role="tablist" aria-label="Día" className="grid grid-cols-2 gap-1.5 rounded-3xl bg-muted p-1.5">
+        {pestana(hoy, "Hoy")}
+        {pestana(manana, "Mañana")}
       </div>
-
-      <p className="text-base text-muted-foreground">
-        <span className="font-bold text-foreground">
-          {charolas} {charolas === 1 ? "charola" : "charolas"}
-        </span>{" "}
-        para el {largo(dia)}
-      </p>
-
-      {charolas === 0 && Object.keys(extras).length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border p-10 text-center text-muted-foreground">
-          <ChefHat className="h-8 w-8" />
-          No hay nada que cocinar ese día
-        </div>
-      ) : (
-        <div className="rounded-xl border border-border bg-card px-4 pb-2">
-          {[...GRUPOS, ["Otros", otros] as [string, string[]]].map(([titulo, ops]) => {
-            const f = ops.filter((o) => cuenta[o]);
-            if (!f.length) return null;
-            return (
-              <div key={titulo}>
-                <h3 className="mt-4 mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{titulo}</h3>
-                {f.map((o) => (
-                  <div key={o} className="flex items-center justify-between border-b border-border py-2.5 text-base last:border-0">
-                    <span>{o}</span>
-                    <b className="text-xl tabular-nums text-primary">{cuenta[o]}</b>
-                  </div>
-                ))}
-              </div>
-            );
-          })}
-          {Object.keys(extras).length > 0 && (
-            <div>
-              <h3 className="mt-4 mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Extras</h3>
-              {Object.entries(extras).map(([k, v]) => (
-                <div key={k} className="flex items-center justify-between border-b border-border py-2.5 text-base last:border-0">
-                  <span>{k}</span>
-                  <b className="text-xl tabular-nums text-primary">{v}</b>
-                </div>
-              ))}
-            </div>
-          )}
+      {otrosDias.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          <span className="shrink-0 self-center text-base font-semibold text-muted-foreground">Después:</span>
+          {otrosDias.map((d) => (
+            <button
+              key={d}
+              type="button"
+              onClick={() => setDia(d)}
+              className={cn(
+                "min-h-11 shrink-0 rounded-full border-2 px-4 text-base font-bold",
+                d === dia ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card",
+              )}
+            >
+              {diaCorto(d)}
+            </button>
+          ))}
         </div>
       )}
 
-      {notas.length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-4">
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Notas de los clientes</h3>
-          <ul className="flex flex-col gap-1.5 text-base">
-            {notas.map((n, i) => (
-              <li key={i}>
-                <b>{n.quien}:</b> {n.t}
-              </li>
-            ))}
-          </ul>
+      <section className="flex items-center justify-between gap-3 rounded-3xl bg-primary p-5 text-primary-foreground">
+        <div className="flex flex-col">
+          <span className="text-base font-bold">Para el {diaLargo(dia)}</span>
+          <span className="text-4xl font-extrabold leading-tight">{cuantas(negocio, total)}</span>
         </div>
+        {renglones > 0 && (
+          <div className="flex flex-col items-end">
+            <span className="text-sm font-bold">Ya listo</span>
+            <span className="text-2xl font-extrabold tabular-nums">
+              {hechos} de {renglones}
+            </span>
+          </div>
+        )}
+      </section>
+
+      {renglones === 0 ? (
+        <div className="flex flex-col items-center gap-3 rounded-3xl border-2 border-dashed border-border p-10 text-center text-lg text-muted-foreground">
+          <ChefHat className="h-9 w-9" aria-hidden />
+          No hay nada que preparar ese día
+        </div>
+      ) : (
+        <>
+          <p className="px-1 text-base text-muted-foreground">Toca cada cosa cuando ya esté lista.</p>
+          {partes.map((g) => (
+            <section key={g.id} className="flex flex-col gap-2">
+              <h2 className="px-1 text-2xl font-extrabold">{g.nombre}</h2>
+              <div className="overflow-hidden rounded-3xl border-2 border-border bg-card">
+                {g.items.map(([nombre, n]) => {
+                  const clave = `${g.id}:${nombre}`;
+                  const listo = tachados.has(clave);
+                  return (
+                    <button
+                      key={nombre}
+                      type="button"
+                      aria-pressed={listo}
+                      onClick={() => tachar(clave)}
+                      className={cn(
+                        "flex min-h-16 w-full items-center gap-4 border-t-2 border-border/60 px-4 py-2 text-left first:border-t-0",
+                        listo && "bg-ok-soft",
+                      )}
+                    >
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border-[3px]",
+                          listo ? "border-ok bg-ok text-ok-foreground" : "border-input",
+                        )}
+                      >
+                        {listo && <Check className="h-6 w-6" strokeWidth={3.2} />}
+                      </span>
+                      <span className={cn("flex-1 text-xl font-extrabold", listo && "text-muted-foreground line-through")}>
+                        {nombre}
+                      </span>
+                      <span className={cn("text-3xl font-extrabold tabular-nums", listo ? "text-ok" : "text-primary")}>
+                        ×{n}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+        </>
+      )}
+
+      {notas.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <h2 className="px-1 text-2xl font-extrabold">Ojo con esto</h2>
+          <div className="rounded-3xl border-2 border-pendiente/30 bg-pendiente-soft px-4">
+            {notas.map((n, i) => (
+              <div key={i} className="flex flex-col border-t-2 border-pendiente/20 py-3 first:border-t-0">
+                <span className="text-base font-extrabold text-pendiente">{n.quien}</span>
+                <span className="text-lg font-bold">{n.t}</span>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );

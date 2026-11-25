@@ -19,8 +19,16 @@ export type BloqueEncargo =
   | { tipo: "linea"; etiqueta: string; texto: string }
   | { tipo: "dato"; texto: string };
 
-export function leerBloques(notes: string | null | undefined): BloqueEncargo[] {
+const escapar = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * `uno` es la palabra del negocio («charola», «orden»): las líneas
+ * «Orden 1: …» se leen como un bloque. «Charola» se entiende siempre.
+ */
+export function leerBloques(notes: string | null | undefined, uno = "charola"): BloqueEncargo[] {
   const bloques: BloqueEncargo[] = [];
+  const palabras = [...new Set([uno.trim() || "charola", "charola"])].map(escapar).join("|");
+  const reUnidad = new RegExp(`^((?:${palabras})[^:]*):\\s*(.*)$`, "i");
   let actual: Extract<BloqueEncargo, { tipo: "charola" }> | null = null;
   for (const cruda of (notes || "").split("\n")) {
     const linea = cruda.trim();
@@ -29,7 +37,7 @@ export function leerBloques(notes: string | null | undefined): BloqueEncargo[] {
       continue;
     }
     let m: RegExpMatchArray | null;
-    if ((m = linea.match(/^(charola[^:]*):\s*(.*)$/i))) {
+    if ((m = linea.match(reUnidad))) {
       actual = {
         tipo: "charola",
         titulo: m[1].trim(),
@@ -59,12 +67,12 @@ export function leerBloques(notes: string | null | undefined): BloqueEncargo[] {
 }
 
 /** Totales para la cocina: charolas, cuántas veces cada plato, extras y notas. */
-export function sumarEncargo(notes: string | null | undefined) {
+export function sumarEncargo(notes: string | null | undefined, uno = "charola") {
   let charolas = 0;
   const platos: Record<string, number> = {};
   const extras: Record<string, number> = {};
   const notas: string[] = [];
-  for (const b of leerBloques(notes)) {
+  for (const b of leerBloques(notes, uno)) {
     if (b.tipo === "charola") {
       charolas++;
       for (const p of b.platos) platos[p] = (platos[p] || 0) + 1;

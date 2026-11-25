@@ -8,7 +8,13 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { NextIntlClientProvider, useLocale, useMessages } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { DEFAULT_NEGOCIO, leerNegocio, mezclarTextos, type NegocioConfig } from "@/lib/negocio/config";
+import {
+  DEFAULT_NEGOCIO,
+  NEGOCIO_VISTA_KEY,
+  leerNegocio,
+  mezclarTextos,
+  type NegocioConfig,
+} from "@/lib/negocio/config";
 
 interface NegocioContextValue {
   negocio: NegocioConfig;
@@ -52,6 +58,23 @@ export function NegocioProvider({ children }: { children: ReactNode }) {
 
   const cargando = profileLoading || (!!accountId && estado?.cuenta !== accountId);
   const negocio = accountId && estado?.cuenta === accountId ? estado.negocio : DEFAULT_NEGOCIO;
+
+  // Tema y vista sencilla van en <html> para que el CSS los vea en todas
+  // partes (también en diálogos). Se guardan para que el script de
+  // arranque los ponga antes de pintar la próxima vez (sin parpadeo).
+  useEffect(() => {
+    if (cargando) return;
+    const d = document.documentElement;
+    if (negocio.tema) d.dataset.tema = negocio.tema;
+    else delete d.dataset.tema;
+    if (negocio.sencillo) d.dataset.sencillo = "";
+    else delete d.dataset.sencillo;
+    try {
+      localStorage.setItem(NEGOCIO_VISTA_KEY, JSON.stringify({ tema: negocio.tema, sencillo: negocio.sencillo }));
+    } catch {
+      // Sin localStorage solo hay un parpadeo al abrir; no pasa nada más.
+    }
+  }, [cargando, negocio.tema, negocio.sencillo]);
 
   const messages = useMessages();
   const locale = useLocale();

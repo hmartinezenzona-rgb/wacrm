@@ -1,8 +1,8 @@
-# Apply Progress: reseller-totals — slices 1–5
+# Apply Progress: reseller-totals — slices 1–6
 
 Change: `reseller-totals`. This artifact is cumulative: slice 1 (S1 identity DB), slice 2 (S1 remainder:
-396 tag guard + panel tag controls), slice 3 (S2 reports), slice 4 (S3 totals DB) and slice 5 (S3 totals
-API) are all reflected here.
+396 tag guard + panel tag controls), slice 3 (S2 reports), slice 4 (S3 totals DB), slice 5 (S3 totals
+API) and slice 6 (S3 totals UI) are all reflected here.
 
 ## Slice 1 (S1 identity DB) — tasks 1.1–1.3
 
@@ -489,3 +489,106 @@ server error" }`. Unknown body keys are rejected, not ignored.
 ### Commits (slice 5)
 
 - `b01ad489` — `feat(sdd): add reseller totals API routes`
+
+---
+
+## Slice 6 (S3 totals UI) — tasks 3.11–3.20
+
+Scope: the reseller UI (`src/components/resellers/`), the Finanzas "Revendedores" tab, the third
+Finanzas tab wiring, the inbox sidebar block, the locale keys and the API client. No migration, no
+database write, no production access.
+
+### Task Status
+
+| Task | Status | Evidence |
+|------|--------|----------|
+| 3.11 Reset dialog | done | RED missing module; GREEN 4/4 |
+| 3.12 Adjust dialog | done | RED missing module; GREEN 3/3 |
+| 3.13 Period history | done | RED missing module; GREEN 4/4 |
+| 3.14 Sidebar block | done | RED missing module; GREEN 4/4 |
+| 3.15 Contact-sidebar wiring | done | RED no block/no request; GREEN `contact-sidebar.test.tsx` 9/9 |
+| 3.16 Revendedores tab | done | RED missing module; GREEN 6/6 |
+| 3.17 Third Finanzas tab | done | RED tab expectations; GREEN tabs 10/10, view 8/8, page 5/5 |
+| 3.18 Locale keys | done | Locale parity 4/4; `tsc --noEmit` exit 0 |
+| 3.19 Staging E2E with PRUEBA fixtures | pending, owner-gated | Not run: needs the staging panel plus the owner's login/browser interaction (`wacrm-probar-staging`). No fixtures created, no staging data touched |
+| 3.20 Full slice verification | done (3.19 pending) | `Test Files 31 passed (31) | Tests 450 passed (450)`; `tsc --noEmit` exit 0 |
+
+### What the UI slice does
+
+- `src/lib/resellers/client.ts` — session-only client for the five routes. Reads the camelCase wire
+  model the routes already produce, unwraps `{ reseller }`, `{ reset }`, `{ batch }`, `{ adjustment }`,
+  and maps a 409 to `ResellerConflictError` with `currentTotalGyd`/`currentGrandTotalGyd` from the body.
+- `src/lib/resellers/format.ts` — `formatGyd`, `formatSignedGyd`, `formatResellerDate`, all on the
+  existing Finanzas figure style (`num` from `src/lib/finanzas/number-format.ts`, comma thousands).
+- `reseller-reset-dialog.tsx` — single and all modes; shows the amount being closed and the
+  counter-only copy, optional reason, sends the expected total, and on 409 reloads the shown amount
+  from the response body, keeping the dialog open for a second confirmation. All mode shows a summary
+  after success and derives skipped resellers as tagged ids absent from `resets`.
+- `reseller-adjust-dialog.tsx` — signed non-zero GYD amount, optional reason, live new-total preview;
+  zero/blank/out-of-range disables submit.
+- `reseller-history.tsx` — open period labelled first, closed periods newest first, confirmed snapshot
+  only when it differs from the live total, actor and reason only when present.
+- `reseller-detail.tsx` — current-period breakdown with operations/adjustments/total, the
+  missing-amount note, the adjustment history and the period history. Used by the tab's drawer.
+- `reseller-sidebar-block.tsx` — rendered by `contact-sidebar.tsx` only when the already-loaded tags
+  carry `isResellerTagName`; current total with the split, period start, detail link
+  (`/finanzas?tab=revendedores`) and admin-only reset/adjust.
+- `revendedores-tab.tsx` — grand total + split, per-reseller rows, empty state, admin-only
+  reset/reset-all/adjust, detail for every member, and a Sheet drawer with the detail view.
+- `FinanzasView`/`FINANZAS_TABS` — third tab `revendedores`, same lazy mount and `?tab=` behaviour;
+  the panel receives `active` so it refetches when visited.
+- Locales — `Finanzas.tabs.revendedores` and the full `Resellers.*` namespace in `messages/es.json`
+  and `messages/en.json` (neutral professional Spanish; ICU signatures mirrored).
+
+### Work Unit Evidence
+
+| Evidence | Required value |
+|---|---|
+| Focused test command and exact result | `npx vitest run src/lib/resellers src/app/api/revendedores src/components/resellers src/components/finanzas src/components/inbox/contact-sidebar.test.tsx src/lib/finanzas 'src/app/(dashboard)/finanzas/page.test.tsx' --maxWorkers=4` → `Test Files 31 passed (31) │ Tests 450 passed (450)` |
+| Runtime harness command/scenario and exact result | Component tests run the real components in jsdom under a real `NextIntlClientProvider` with the Spanish catalog, a mocked auth role and a stubbed `fetch`; they exercise the actual URLs, POST bodies, the 409 reload, the reset-all skipped derivation, the admin/agent split and the detail drawer. `npx vitest run src/i18n/messages-parity.test.ts --maxWorkers=4` → 4/4. `npx tsc --noEmit` → exit 0. `npx eslint src/components/resellers src/components/finanzas/revendedores-tab.tsx src/lib/resellers` → exit 0 |
+| Rollback boundary | Revert `6cc4926`: the new components, the client/format helpers, the third tab wiring and the locale keys disappear; the rest of Finanzas and the inbox are unaffected. No database change |
+
+### TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| 3.11 | `src/components/resellers/reseller-reset-dialog.test.tsx` | Component (jsdom) | Slice 5 API contract; dialog pattern from `balance-dialog.tsx` | `Cannot find module './reseller-reset-dialog'` | 4/4 | single/all amount, counter-only copy, trimmed reason, expected total, 409 reload + second submit, skipped derivation | none needed |
+| 3.12 | `src/components/resellers/reseller-adjust-dialog.test.tsx` | Component | Slice 5 adjust route | missing module | 3/3 | signed preview, zero rejected, null reason | none needed |
+| 3.13 | `src/components/resellers/reseller-history.test.tsx` | Component | Slice 5 wire shapes | missing module | 4/4 | open first, newest first, snapshot difference, actor/reason absence, empty | none needed |
+| 3.14 | `src/components/resellers/reseller-sidebar-block.test.tsx` | Component | `useAuth`, `canManageResellers` | missing module | 4/4 | total/split/period/missing note, admin actions, reset amount, agent read-only | effect rewritten to a cancelled promise to satisfy `react-hooks/set-state-in-effect` |
+| 3.15 | `src/components/inbox/contact-sidebar.test.tsx` | Component | Existing sidebar suite | reseller tests failed (no block, no request) | 9/9 | reseller tag renders + one request, untagged renders nothing and requests nothing | none needed |
+| 3.16 | `src/components/finanzas/revendedores-tab.test.tsx` | Component | Slice 5 summary/detail routes | missing module | 6/6 | grand total, rows, empty, admin vs agent actions, reset amount, detail drawer | none needed |
+| 3.17 | `src/lib/finanzas/tabs.test.ts`, `finanzas-view.test.tsx`, `page.test.tsx` | Unit + component | Existing tab shell | array/redirect/tab-list expectations | 10/10, 8/8, 5/5 | known tabs, fallback, lazy mount, `active` flag | none needed |
+| 3.18 | `src/i18n/messages-parity.test.ts` | Catalog | Existing parity test | N/A (new keys, not behavior) | 4/4 | key paths, ICU signatures, no empty strings | none needed |
+
+### Deviations from Design
+
+- Added `src/lib/resellers/client.ts` and `src/lib/resellers/format.ts` (not in the design file table):
+  all five UI entry points share the fetch/409 handling and the GYD/date formatting instead of
+  duplicating it.
+- Added `src/components/resellers/reseller-detail.tsx` (design describes the detail view but lists no
+  file): the tab's drawer and any future detail surface share one rendering of the current period,
+  adjustments and history.
+- The client consumes the **camelCase wire model** produced by slice 5 routes; it does not re-map the
+  397 RPC snake_case (the API layer owns that mapping).
+- On a 409 the dialog reloads the amount from the 409 body instead of issuing an extra GET; the API
+  contract carries `currentTotalGyd`/`currentGrandTotalGyd` precisely for this.
+- Reset-all does not add a skipped list to the API: the UI derives skipped as tagged ids absent from
+  `resets`, as slice 5 left open.
+- "History" in Finanzas opens the detail drawer (current period + adjustments + `ResellerHistory`)
+  rather than a separate history-only surface; the sidebar links to the Finanzas tab.
+- Authored size for the code commit is 2,106 insertions / 15 deletions (tests included), above the
+  ~400 advisory. It is one work unit under the accepted `feature-branch-chain` strategy (no PR flow);
+  nothing was compressed or omitted to fit the number.
+
+### Related checks
+
+- `npx vitest run src/i18n/messages-parity.test.ts --maxWorkers=4` → `Test Files 1 passed (1) │ Tests 4 passed (4)`.
+- `npx tsc --noEmit` → exit 0.
+- `npx eslint src/components/resellers src/components/finanzas/revendedores-tab.tsx src/lib/resellers` → exit 0.
+- `src/components/inbox/contact-sidebar.tsx` keeps its pre-existing lint warnings (`User` unused, an
+  unused disable directive) untouched.
+
+### Commits (slice 6)
+
+- `6cc4926` — `feat(sdd): add reseller totals UI and Finanzas tab`

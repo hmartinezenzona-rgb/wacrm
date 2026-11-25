@@ -288,79 +288,89 @@ Strict TDD: every task writes its failing test and records the RED result before
   - Depends: `3.4`, `3.5`. Parallel.
   - Progress 2026-11-24: RED `Cannot find module './route'`. GREEN: admin gate, UUID + `parseAdjustBody` (signed non-zero, reason optional), RPC args, `{ adjustment }`, `no-store`; `22023` → 400 with the RPC message, `42501` → 403, `P0002` → 404. 10 route tests pass.
 
-- [ ] 3.11 (RED→GREEN) Create `src/components/resellers/reseller-reset-dialog.tsx`.
+- [x] 3.11 (RED→GREEN) Create `src/components/resellers/reseller-reset-dialog.tsx`.
   - Files: create the component and `src/components/resellers/reseller-reset-dialog.test.tsx`.
   - Spec: `reseller-totals/spec.md` — Confirmation shows the amount being closed; Reason is optional; Reset copy clarity.
   - RED: shows the amount being closed for single and all modes; states "counter only, no money change"; optional reason; sends `expectedTotalGyd`/`expectedGrandTotalGyd`; on 409 refetches and shows the new amount without resetting.
   - GREEN: implement the dialog.
   - Verify: `npx vitest run src/components/resellers/reseller-reset-dialog.test.tsx --maxWorkers=4` and `npx tsc --noEmit`.
   - Depends: `3.7`, `3.9`. Parallel with `3.12`–`3.16`.
+  - Progress 2026-11-24: RED `npx vitest run src/components/resellers/reseller-reset-dialog.test.tsx --maxWorkers=4` → `Cannot find module './reseller-reset-dialog'`; GREEN 4/4. Shows the amount being closed in single and all modes, states the counter-only semantics, sends `expectedTotalGyd`/`expectedGrandTotalGyd` with the trimmed-or-null reason, and on 409 reloads the shown amount from the response body (no second GET) without closing or resetting. Reset-all derives skipped resellers as tagged ids absent from `resets` and shows the closed/skipped counts.
 
-- [ ] 3.12 (RED→GREEN) Create `src/components/resellers/reseller-adjust-dialog.tsx`.
+- [x] 3.12 (RED→GREEN) Create `src/components/resellers/reseller-adjust-dialog.tsx`.
   - Files: create the component and its test.
   - Spec: `reseller-totals/spec.md` — Manual adjustments (signed amount, optional reason, separate line).
   - RED: signed non-zero amount; optional reason; previews the new total; rejects zero; submits `{ amountGyd, reason }`.
   - GREEN: implement.
   - Verify: `npx vitest run src/components/resellers/reseller-adjust-dialog.test.tsx --maxWorkers=4` and `npx tsc --noEmit`.
   - Depends: `3.10`. Parallel.
+  - Progress 2026-11-24: RED `Cannot find module './reseller-adjust-dialog'`; GREEN 3/3. Signed non-zero amount, optional reason (null when empty), live new-total preview; zero disables submit and never calls the API.
 
-- [ ] 3.13 (RED→GREEN) Create `src/components/resellers/reseller-history.tsx`.
+- [x] 3.13 (RED→GREEN) Create `src/components/resellers/reseller-history.tsx`.
   - Files: create the component and its test.
   - Spec: `reseller-totals/spec.md` — Period history per reseller; History survives untag and retag.
   - RED: renders start, end, live total, closed snapshot when different, actor and reason (absent when null); newest first; open period distinguishable.
   - GREEN: implement.
   - Verify: `npx vitest run src/components/resellers/reseller-history.test.tsx --maxWorkers=4` and `npx tsc --noEmit`.
   - Depends: `3.8`. Parallel.
+  - Progress 2026-11-24: RED `Cannot find module './reseller-history'`; GREEN 4/4. Open period first and labelled, closed periods newest first, confirmed snapshot only when it differs from the live total, actor and reason only when present, empty state.
 
-- [ ] 3.14 (RED→GREEN) Create `src/components/resellers/reseller-sidebar-block.tsx`.
+- [x] 3.14 (RED→GREEN) Create `src/components/resellers/reseller-sidebar-block.tsx`.
   - Files: create the component and `reseller-sidebar-block.test.tsx`.
   - Spec: `reseller-totals/spec.md` — Contact sidebar visibility.
   - RED: total with operations/adjustments split; admins see adjust/reset; agents/viewers see the total only; no requests when not a reseller (the parent gates).
   - GREEN: implement using `canManageResellers`.
   - Verify: `npx vitest run src/components/resellers/reseller-sidebar-block.test.tsx --maxWorkers=4` and `npx tsc --noEmit`.
   - Depends: `3.8`, `1.7`. Parallel.
+  - Progress 2026-11-24: RED `Cannot find module './reseller-sidebar-block'`; GREEN 4/4. Current total with operations/adjustments split, period start, missing-amount note, detail link (`/finanzas?tab=revendedores`) and reset/adjust actions for admins only; agents keep the read-only total.
 
-- [ ] 3.15 (RED→GREEN) Wire the reseller block into `src/components/inbox/contact-sidebar.tsx`.
+- [x] 3.15 (RED→GREEN) Wire the reseller block into `src/components/inbox/contact-sidebar.tsx`.
   - Files: modify `src/components/inbox/contact-sidebar.tsx` and `src/components/inbox/contact-sidebar.test.tsx`.
   - Spec: `reseller-totals/spec.md` — Reseller sees the block; Non-reseller sees no total; Untagging hides the block.
   - RED: block rendered only when `tags.some(t => isResellerTagName(t.name))`; absent for non-resellers; disappears after refresh when untagged.
   - GREEN: add the conditional render using the existing loaded tags; no extra request for non-resellers.
   - Verify: `npx vitest run src/components/inbox/contact-sidebar.test.tsx --maxWorkers=4` and `npx tsc --noEmit`.
   - Depends: `3.14`. Parallel with `3.16`.
+  - Progress 2026-11-24: RED — the new sidebar tests failed (no block rendered, no request); GREEN 9/9 in `src/components/inbox/contact-sidebar.test.tsx`. The block renders only when the already-loaded tags carry `isResellerTagName`; an untagged contact triggers no reseller request.
 
-- [ ] 3.16 (RED→GREEN) Create `src/components/finanzas/revendedores-tab.tsx`.
+- [x] 3.16 (RED→GREEN) Create `src/components/finanzas/revendedores-tab.tsx`.
   - Files: create the component and `revendedores-tab.test.tsx`.
   - Spec: `reseller-totals/spec.md` — Finanzas reseller list; Reset copy clarity.
   - RED: list with per-reseller totals, grand total, empty state; admins see reset/reset-all/adjust/history; agents see the list and totals without write actions; reset dialog shows the amount.
   - GREEN: implement; use `canManageResellers`.
   - Verify: `npx vitest run src/components/finanzas/revendedores-tab.test.tsx --maxWorkers=4` and `npx tsc --noEmit`.
   - Depends: `3.6`, `3.7`, `3.11`, `3.12`, `3.13`. Parallel with `3.15`.
+  - Progress 2026-11-24: RED `Cannot find module './revendedores-tab'`; GREEN 6/6. Grand total with operations/adjustments split, per-reseller rows, empty state, admin-only reset/reset-all/adjust plus detail for every member, reset dialog with the row amount, detail drawer with current period, adjustments and history.
 
-- [ ] 3.17 (RED→GREEN) Add the third Finanzas tab.
+- [x] 3.17 (RED→GREEN) Add the third Finanzas tab.
   - Files: modify `src/lib/finanzas/tabs.ts`, `src/lib/finanzas/tabs.test.ts` (create if absent), `src/components/finanzas/finanzas-view.tsx`, `src/app/(dashboard)/finanzas/page.test.tsx`.
   - Spec: `reseller-totals/spec.md` — Finanzas reseller list.
   - RED: `FINANZAS_TABS = ["semana", "cierres", "revendedores"]`; `?tab=revendedores` opens the new tab; unknown/missing still defaults to `semana`; existing redirects unchanged.
   - GREEN: wire the tab and lazy mount.
   - Verify: `npx vitest run src/lib/finanzas src/app/(dashboard)/finanzas/page.test.tsx --maxWorkers=4` and `npx tsc --noEmit`.
   - Depends: `3.16`. Sequential.
+  - Progress 2026-11-24: RED — `FINANZAS_TABS`, the page tab expectation and the view tab list failed; GREEN `src/lib/finanzas/tabs.test.ts` 10/10, `finanzas-view.test.tsx` 8/8, `page.test.tsx` 5/5. Lazy mount and `?tab=` scrolling are unchanged; the third panel receives `active` to refetch.
 
-- [ ] 3.18 Finalize locale keys for the totals slice.
+- [x] 3.18 Finalize locale keys for the totals slice.
   - Files: modify `messages/es.json`, `messages/en.json`; test `src/i18n/messages-parity.test.ts` (read-only unless it needs a new key list).
   - Spec: `reseller-totals/spec.md` — Reset copy clarity; Finanzas reseller list.
   - Test: add every `Resellers.*` key used by `3.11`–`3.17`; no missing or extra keys; ICU parse passes; reset copy states "counter only, no money change" in both locales.
   - Verify: `npx vitest run src/i18n/messages-parity.test.ts --maxWorkers=4`.
   - Depends: `3.11`–`3.17`. Sequential; coordinate with `1.7`.
+  - Progress 2026-11-24: added `Finanzas.tabs.revendedores` and the full `Resellers.*` namespace to both catalogs (neutral professional Spanish); `npx vitest run src/i18n/messages-parity.test.ts --maxWorkers=4` → 4/4 and `npx tsc --noEmit` exit 0.
 
 - [ ] 3.19 Run the staging end-to-end flow with PRUEBA fixtures.
   - Files: `.claude/skills/wacrm-probar-staging/SKILL.md` (read-only); staging data only.
   - Spec: `reseller-totals/spec.md` — success criteria in `proposal.md` (list, grand total, reset, adjust, history, sidebar).
   - Test/Verify: create PRUEBA resellers with qualifying/cancelled/non-GYD operations, open Finanzas as admin and as agent, reset one, reset all (confirm zero-total resellers are skipped), add ± adjustments, open history, open a contact sidebar; clean up the fixtures.
   - Depends: `3.18`. Sequential before Phase 4.
+  - Progress 2026-11-24: NOT RUN — requires the staging panel (`panel-local-staging.sh`) plus the owner's login and browser interaction per `wacrm-probar-staging`; this executor cannot complete it unattended. No PRUEBA fixtures were created and no staging data was touched.
 
-- [ ] 3.20 Full slice verification.
+- [x] 3.20 Full slice verification.
   - Files: all Phase 3 files.
   - Verify: `npx vitest run src/lib/resellers src/app/api/revendedores src/components/resellers src/components/finanzas src/components/inbox/contact-sidebar.test.tsx --maxWorkers=4` and `npx tsc --noEmit`. Record any skipped or failing check honestly.
   - Depends: `3.19`. Last in Phase 3.
+  - Progress 2026-11-24: `npx vitest run src/lib/resellers src/app/api/revendedores src/components/resellers src/components/finanzas src/components/inbox/contact-sidebar.test.tsx src/lib/finanzas 'src/app/(dashboard)/finanzas/page.test.tsx' --maxWorkers=4` → `Test Files 31 passed (31) | Tests 450 passed (450)`; `npx tsc --noEmit` exit 0. 3.19 remains pending.
 
 ## Phase 4 — Production rollout (owner go-ahead required at every step)
 

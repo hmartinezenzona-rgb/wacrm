@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Conversation } from "@/types";
 
@@ -18,6 +18,10 @@ export function useTotalUnread(): number {
   // Keep a live local mirror of {id: unread_count} so INSERT/UPDATE/DELETE
   // events can adjust the total in O(1) without refetching.
   const countsRef = useRef<Map<string, number>>(new Map());
+  // Un canal por cada uso del hook: el menú de la izquierda y el menú de
+  // abajo (vista sencilla) lo usan a la vez, y Supabase no deja agregar
+  // escuchas a un canal con el mismo nombre que ya está suscrito.
+  const id = useId();
 
   useEffect(() => {
     const supabase = createClient();
@@ -43,7 +47,7 @@ export function useTotalUnread(): number {
     })();
 
     const channel = supabase
-      .channel("total-unread-realtime")
+      .channel(`total-unread-realtime-${id}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "conversations" },
@@ -68,7 +72,7 @@ export function useTotalUnread(): number {
       cancelled = true;
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [id]);
 
   return total;
 }

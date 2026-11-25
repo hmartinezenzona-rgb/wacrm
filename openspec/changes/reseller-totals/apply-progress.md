@@ -72,8 +72,12 @@ this slice's authorization — Phase 4 `previa` refuses with `RECORDED` if it is
   `TOTAL 1 | SAME 1 | DIFF 0`.
 - `relacionadas 395 cerebro_registrar_deposito <skip own assertion> --ya-aplicada ROLLBACK-395` →
   `TOTAL 44 | SAME 44 | DIFF 0`; failing bases are pre-existing and therefore SAME.
-- Broad summary requested by the orchestrator (`'revendedor|reseller|beneficiar|audit'`) is recorded in
-  the final report; its only expected DIFF is this migration's own assertion (base lacks the helpers).
+- Broad summary `relacionadas 395 'revendedor|reseller|beneficiar|audit' '' --ya-aplicada ROLLBACK-395` →
+  `TOTAL 182 | SAME 180 | DIFF 2`. The two DIFFs: this migration's own assertion (base lacks the
+  helpers, expected) and `delivery-feed-evidence` (pre-existing fixture failure: both sides fail with
+  `fixture setup failed — no operation created for deal <uuid>`; identical after full UUID normalization,
+  but the tool compares only the first 90 characters, so the random UUID made it look different). No
+  regression DIFF.
 
 ### Commit
 

@@ -40,6 +40,14 @@ if (ctx.oculta) { return [{ json: { ruta: 'silencio', motivo: 'chat oculto por e
 // se calla 5 minutos para no pisarle la conversacion ni contradecirla.
 // Pasada la ventana retoma solo, sin que nadie tenga que liberar nada.
 if (ctx.humano_reciente) { return [{ json: { ruta: 'silencio', motivo: 'un humano del equipo acaba de escribir' } }]; }
+// DEPOSITO DE REVENDEDOR (398, Decision 20). Un revendedor deposita dinero que se
+// suma a su total: no se abre operacion ni se pide beneficiario. La rama es
+// determinista —el texto sale del veredicto del cruce, no del modelo— y por eso
+// va antes de todo lo que arma el guion de cliente. `Contexto conversacion` marca
+// `es_revendedor` desde la etiqueta Revendedor. Va despues de las guardas y del
+// comando de admin, y antes del silencio de admin: el admin tiene precedencia.
+const accionRevendedor = rutaRevendedorDeposito(ctx, s, tel);
+if (accionRevendedor) { return accionRevendedor; }
 // UN ADMIN SIN ACCION RECONOCIDA NO ES UN CLIENTE (18-ago-2026, doc 44).
 // Va ANTES de la rama de cortesia a proposito: hasta hoy, un admin que escribia
 // 'hola' en un chat asignado con cortesia pendiente entraba en la rama del
@@ -109,6 +117,37 @@ function notaIdioma(muestra, texto) {
   return null;
 }
 
+
+function rutaRevendedorDeposito(ctx, s, tel) {
+  // Devuelve la respuesta fija de un deposito de revendedor, o null. Solo actua
+  // con un comprobante de ESTE turno: una conversacion normal de un revendedor
+  // sigue su curso. El admin manda: su rama ya salio arriba y aqui se descarta.
+  if (!ctx.es_revendedor || ctx.es_admin) { return null; }
+  if (!s.comprobante && !s.comprobante_duplicado) { return null; }
+  let texto;
+  if (s.comprobante_duplicado) {
+    // Ya se registro antes: no se cuenta dos veces y no hay nada que verificar.
+    texto = 'Ese depósito ya lo tenía registrado.';
+  } else {
+    let cruce = null;
+    try { cruce = $('Cruzar deposito con MMG').first().json ?? null; } catch (e) {}
+    const veredicto = String((cruce && cruce.resultado) || '');
+    if (veredicto === 'verificado' || veredicto === 'verificado_incompleto' || veredicto === 'verificado_de_mas') {
+      texto = 'Depósito verificado. Ya lo sumé a tu total.';
+    } else if (veredicto === 'ya_reclamado') {
+      texto = 'Ese depósito ya lo tenía registrado.';
+    } else if (veredicto === 'sin_correo' || veredicto === 'sin_referencia') {
+      texto = 'Todavía no aparece en el banco. En cuanto lo vea te lo confirmo.';
+    } else {
+      // monto_no_coincide, deposito_antiguo, deposito_anulado, no_aplica o sin cruce.
+      texto = 'Reviso ese comprobante y te confirmo.';
+    }
+  }
+  // `comando`/`verificar` es la respuesta fija que ya usa el admin: el nodo SQL
+  // devuelve `objetivo` y el envio no vuelve a comprobar `es_admin` (leido en el
+  // snapshot del workflow). Asi no hace falta un nodo ni una ruta nuevos.
+  return [{ json: { ruta: 'comando', comando: 'verificar', objetivo: texto, valor: null, telefono_e164: tel } }];
+}
 
 function rutaAdminAccion(ctx, texto, tel) {
   // Devuelve una ACCION ADMINISTRATIVA RECONOCIDA, o null. El `silencio` de

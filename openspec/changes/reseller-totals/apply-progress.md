@@ -1,8 +1,9 @@
-# Apply Progress: reseller-totals — slices 1–6
+# Apply Progress: reseller-totals — slices 1–6, 7a, 7b
 
 Change: `reseller-totals`. This artifact is cumulative: slice 1 (S1 identity DB), slice 2 (S1 remainder:
 396 tag guard + panel tag controls), slice 3 (S2 reports), slice 4 (S3 totals DB), slice 5 (S3 totals
-API) and slice 6 (S3 totals UI) are all reflected here.
+API), slice 6 (S3 totals UI), slice 7a (S7 reseller deposits, 398 DB) and slice 7b (S7 Decisor reseller
+confirmation route) are all reflected here.
 
 ## Slice 1 (S1 identity DB) — tasks 1.1–1.3
 
@@ -731,3 +732,128 @@ cerebro_registrar_deposito_si_cliente(p_conv uuid, p_monto numeric, p_moneda tex
 
 - `8446fbeb` — `feat(sdd): add reseller deposits without operations (398)`
 
+
+---
+
+## Slice 7b (S7 Decisor reseller route) — task 3B.4
+
+Scope: `pruebas/decisor/decisor.jscode` (one deterministic route), the md5 pin in
+`pruebas/decisor/correr.ts`, and the new harness suite `pruebas/decisor/decisor-revendedor.test.ts`.
+No migration, no panel change, no n8n write, no production access. The production lineage
+(`pruebas/decisor/produccion/`) was not touched; its baseline suite still passes.
+
+### Task Status
+
+| Task | Status | Evidence |
+|------|--------|----------|
+| 3B.4 Decisor reseller confirmation route | done | RED 18 failed / 7 passed on the new suite; GREEN 25/25; whole Decisor suite `3 files / 263 tests` pass; md5 pin updated |
+
+### What the route does
+
+`rutaRevendedorDeposito(ctx, s, tel)` sits after the admin-action route and the pause / hidden /
+assigned / human-recent guards, and before the admin silence. It fires only when:
+
+1. `ctx.es_revendedor === true` (new `Contexto conversacion` field), and
+2. this turn carries a receipt: `$('Snapshot final').json.comprobante` is present (or
+   `comprobante_duplicado` is true), and
+3. the sender is not an admin (`ctx.es_admin` false; the admin route already wins upstream).
+
+It maps the `Cruzar deposito con MMG` verdict to fixed Spanish text and returns the existing
+fixed-reply route `{ ruta: 'comando', comando: 'verificar', objetivo: <texto>, valor: null,
+telefono_e164: tel }`. That route is the same one the admin cross verdict uses: the workflow's
+`Es comando admin?` gate only checks `ruta === 'comando'`, and `Liberar chat` (SQL, returns
+`$1 = objetivo` for `verificar`) plus `Confirmar al admin` (HTTP, sends to
+`Decisor.telefono_e164`) do not re-check `es_admin` — verified read-only in
+`infra/n8n/snapshots/produccion-cerebro-bb175eda-20261028.json`. Therefore the route sends the
+fixed text to the reseller's own chat, never reaches the agent, opens no operation and asks for
+no beneficiary, and needs no new n8n node or route type.
+
+### Reply copy (owner wording, neutral professional Spanish)
+
+| Cross verdict | Reply |
+|---|---|
+| `verificado`, `verificado_incompleto`, `verificado_de_mas` | `Depósito verificado. Ya lo sumé a tu total.` |
+| `ya_reclamado`, or `comprobante_duplicado` | `Ese depósito ya lo tenía registrado.` |
+| `sin_correo`, `sin_referencia` | `Todavía no aparece en el banco. En cuanto lo vea te lo confirmo.` |
+| `monto_no_coincide`, `deposito_antiguo`, `deposito_anulado`, `no_aplica`, no cross | `Reviso ese comprobante y te confirmo.` |
+
+The texts intentionally carry no amount and no TransID (the task's approved copy); the spec's
+richer variant remains an owner option. No emojis; one or two short lines.
+
+### Signal contract for n8n (rollout, not done here)
+
+The Decisor source now expects one new context field:
+
+- `es_revendedor` (boolean) on `Contexto conversacion`, computed from the contact's tags with the
+  same rule as `reseller_tag_name_matches` but **inline** so it works before 395 is applied:
+  `EXISTS (SELECT 1 FROM contact_tags ct JOIN tags t ON t.id = ct.tag_id
+   WHERE ct.contact_id = v.contact_id AND lower(btrim(t.name)) = 'revendedor') AS es_revendedor`.
+  Do NOT call `cerebro_es_revendedor` here: that function only exists after 395, and the Decisor
+  route is published inert before 398 (4.5).
+
+Rollout still needs, in the same environment and with the skill's backup + `--esperado` procedure:
+
+1. Add `es_revendedor` to the `Contexto conversacion` node (staging first, then production).
+2. Publish the Decisor code to n8n (`publicar-decisor`) and confirm `versionId == activeVersionId`.
+3. Staging E2E with a PRUEBA reseller (3B.5) and the production go-ahead (4.5).
+
+This executor did not publish anything (task constraint: repo source and tests only).
+
+### Work Unit Evidence
+
+| Evidence | Required value |
+|---|---|
+| Focused test command and exact result | `npx vitest run pruebas/decisor/decisor-revendedor.test.ts --maxWorkers=4` → RED `Tests 18 failed | 7 passed (25)`; after the route → `Tests 25 passed (25)` |
+| Runtime harness command/scenario and exact result | Same suite runs the REAL node through `correrDecisor` (the node's `jsCode` wrapped with `new Function` and a stub of `$()`): reseller + receipt + each cross verdict, duplicate receipt, paused/hidden/assigned/human-recent guards, admin precedence, non-reseller customer branch, reseller without receipt, old context without the field. Whole suite `npx vitest run pruebas/decisor --maxWorkers=4` → `Test Files 3 passed (3) | Tests 263 passed (263)` |
+| Rollback boundary | Revert this commit: the route, the harness suite and the md5 pin go away; the Decisor returns to its prior behaviour. The route is inert in any environment whose `Contexto conversacion` does not yet supply `es_revendedor`, so it can ship before the context change. No n8n state was changed |
+
+### TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| 3B.4 | `pruebas/decisor/decisor-revendedor.test.ts` | Node harness (real `.jscode`) | Existing `decisor-notas.test.ts` (staging copy) and `produccion/decisor-produccion.test.ts` (production lineage) | `expected 'agente' to be 'comando'` across the four verdicts, the duplicate case and the "never reaches the agent" cases (18 failed / 7 passed) | `25/25` pass; md5 test passes after the pin update; whole suite `263/263` | Four verdict families, duplicate, each guard (pause/hidden/assigned/human-recent), admin precedence, non-reseller branch, no-receipt reseller, missing context field | None needed; the route is the minimum that passes; the production lineage file was not reformatted or edited |
+
+### Deviations from Design
+
+- **Trigger signal.** Design Decision 20 read `$('Registrar deposito auto')` directly. The slice
+  instruction preferred an incoming-context signal; the wrapper node does not run on a duplicate
+  receipt (`Comprobante nuevo?` is false), so the node output alone could never answer "already
+  registered". The route therefore uses the new `ctx.es_revendedor` identity field plus the
+  snapshot receipt, and reads the verdict from `$('Cruzar deposito con MMG')` (already read by the
+  admin route). This also matches the existing per-turn context pattern (`ctx.dup_etapa`,
+  `ctx.es_admin`). Consequence: the n8n `Contexto conversacion` node must add `es_revendedor`.
+- **Reply route.** Reused `comando`/`verificar` instead of adding `ruta: 'respuesta_fija'`,
+  because the read-only workflow snapshot proves the downstream path does not re-check
+  `es_admin`. No n8n node change beyond publishing the Decisor.
+- **Copy.** Used the task's short approved copy (no amount, no TransID) instead of the spec's
+  richer sentence. The owner may still swap in the richer wording; it is a one-line change in
+  `rutaRevendedorDeposito`.
+- **Duplicate replies.** A resent reseller receipt replies "already registered" deterministically.
+  The generic duplicate branch (`ctx.dup_etapa`) cannot see reseller claims: they live in
+  `reseller_deposits`, not `remittance_operation_receipts`.
+
+### Related checks
+
+- `npx vitest run pruebas/decisor --maxWorkers=4` → `Test Files 3 passed (3) | Tests 263 passed (263)`
+  (staging copy, production lineage and the new reseller suite).
+- No file outside `pruebas/decisor/` was changed; no formatter was run on the `.jscode` (diff is
+  +39 lines, no reflow).
+- Read-only workflow check: `Es comando admin?` condition = `ruta === 'comando'`; `Liberar chat`
+  for `verificar` returns `$1`; `Confirmar al admin` sends `$json.resultado` to
+  `Decisor.telefono_e164`. No `es_admin` re-check downstream.
+
+### Open Questions
+
+- `Contexto conversacion` field name: `es_revendedor` is the minimal choice. If the owner prefers
+  the deposit signal explicit, the same route can read `ctx.deposito_revendedor` instead; only
+  the condition line changes.
+- The task copy omits amount and TransID although the spec mentions them. Confirm the short wording
+  with the owner before the production publish (4.5).
+- `comprobante_duplicado` is treated as "already registered". For a reseller whose first claim is
+  still pending, a resend also answers "already registered"; this is accurate (it was recorded) but
+  the owner may prefer "still checking" for pending claims. Not observable from the Decisor today
+  without a new context field.
+
+### Commit (slice 7b)
+
+- Pending at the time of writing this section; recorded in the final report.

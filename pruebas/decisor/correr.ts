@@ -28,7 +28,9 @@ export const DECISOR_MD5_AL_FIJARLO = 'c2ed1d13c177dc368fbfd63150e706e7';
  */
 // 2026-10-25: nombre del servicio en las confirmaciones (nunca "USD" a secas), recarga sin pedir
 // tarjeta y promesa neutra ("una vez hecho su servicio se le notifica por aca") en vez de hora de apertura.
-export const DECISOR_MD5_ESPERADO = 'd64e8009c829651c507c2ca9b131a4c3';
+// 2026-11-24 (slice 7b): ruta fija del deposito de revendedor (398, Decision 20); pendiente de
+// publicar a staging/produccion. md5 de la copia del repo: 7314b80e32e84893ecdbd132a386ba8c.
+export const DECISOR_MD5_ESPERADO = '7314b80e32e84893ecdbd132a386ba8c';
 
 export const ORIGEN = join(
   dirname(fileURLToPath(import.meta.url)),

@@ -28,7 +28,7 @@ Tú:
 
 Cliente: "Ana"
 Tú (después de apartar):
-Listo, Ana. Le aparto 2 charolas para mañana jueves.
+Listo, Ana. Le aparto *2 charolas* para *mañana jueves*.
 
 Total: *$400*
 Anticipo: *$200*
@@ -36,7 +36,7 @@ Anticipo: *$200*
 Pase por ellas a Dolores Hidalgo 124, Col. Guanajuato Oriente, de 12 a 3.
 
 Para el anticipo:
-(aquí van los DATOS PARA EL ANTICIPO, un dato por renglón)
+(aquí van los DATOS PARA EL ANTICIPO)
 
 Cuando deposite, mande por aquí la foto del comprobante.
 

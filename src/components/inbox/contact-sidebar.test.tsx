@@ -21,6 +21,7 @@ import { contactAvatarDataUri } from "@/lib/avatars/contact-avatar";
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const queriedTables: string[] = [];
+let contactTags: unknown[] = [];
 
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
@@ -30,7 +31,8 @@ vi.mock("@/lib/supabase/client", () => ({
         select: () => builder,
         eq: () => builder,
         order: () => builder,
-        then: (resolve: (value: { data: unknown[] }) => unknown) => resolve({ data: [] }),
+        then: (resolve: (value: { data: unknown[] }) => unknown) =>
+          resolve({ data: table === "contact_tags" ? contactTags : [] }),
       };
       return builder;
     },
@@ -42,6 +44,7 @@ vi.mock("@/hooks/use-auth", () => ({
 }));
 
 vi.mock("next-intl", () => ({
+  useLocale: () => "en",
   useTranslations: (namespace: string) => {
     const node = namespace
       .split(".")
@@ -59,6 +62,8 @@ vi.mock("@/components/inbox/operations/operations-panel-container", () => ({
 afterEach(() => {
   document.body.replaceChildren();
   queriedTables.length = 0;
+  contactTags = [];
+  vi.unstubAllGlobals();
 });
 
 const contact = {
@@ -188,6 +193,70 @@ describe("ContactSidebar", () => {
       expect(node.textContent).toContain(en.Inbox.sidebar.botPausedHint);
       await act(async () => toggle.click());
       expect(calls[0].body).toEqual({ paused: false });
+      await act(async () => root.unmount());
+    });
+  });
+
+  describe("reseller block", () => {
+    const resellerTag = {
+      id: "ct-reseller",
+      tag_id: "tag-reseller",
+      tags: { id: "tag-reseller", name: "Revendedor", color: "#22c55e" },
+    };
+
+    const resellerDetail = {
+      reseller: {
+        contactId: "contact-1",
+        name: "Test Contact",
+        phone: "5219622896918",
+        isReseller: true,
+        current: {
+          periodStart: "2026-11-21T12:00:00Z",
+          operationsGyd: 12000,
+          operationsCount: 2,
+          operationsMissingAmount: 0,
+          adjustmentsGyd: 0,
+          adjustmentsCount: 0,
+          totalGyd: 12000,
+          adjustments: [],
+        },
+        periods: [],
+      },
+    };
+
+    async function settle() {
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+    }
+
+    it("renders the block for a tagged contact and fetches only that contact's total", async () => {
+      contactTags = [resellerTag];
+      const fetchMock = vi.fn(async () =>
+        new Response(JSON.stringify(resellerDetail), { status: 200 }),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+
+      const { node, root } = await render();
+      await settle();
+
+      expect(fetchMock).toHaveBeenCalledWith("/api/revendedores/contact-1", { cache: "no-store" });
+      expect(node.textContent).toContain(en.Resellers.sidebar.title);
+      expect(node.textContent).toContain("12,000 GYD");
+      await act(async () => root.unmount());
+    });
+
+    it("does not request or render the block for an untagged contact", async () => {
+      contactTags = [];
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+
+      const { node, root } = await render();
+      await settle();
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(node.textContent).not.toContain(en.Resellers.sidebar.title);
       await act(async () => root.unmount());
     });
   });

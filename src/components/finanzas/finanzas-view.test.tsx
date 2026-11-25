@@ -14,8 +14,9 @@ vi.mock("next-intl", () => ({
   useTranslations: (namespace: string) => (key: string) =>
     key.split(".").reduce((acc: unknown, part) => (acc as Record<string, unknown>)?.[part], (es as unknown as Record<string, unknown>)[namespace]) as string,
 }));
-const mounts = vi.hoisted(() => ({ semana: 0, cierres: 0, operaciones: 0 }));
+const mounts = vi.hoisted(() => ({ semana: 0, cierres: 0, revendedores: 0, operaciones: 0 }));
 const cierresActive = vi.hoisted(() => ({ values: [] as boolean[] }));
+const revendedoresActive = vi.hoisted(() => ({ values: [] as boolean[] }));
 vi.mock("./semana-tab", () => ({
   SemanaTab: () => {
     React.useEffect(() => { mounts.semana += 1; }, []);
@@ -27,6 +28,13 @@ vi.mock("./cierres-tab", () => ({
     React.useEffect(() => { mounts.cierres += 1; }, []);
     cierresActive.values.push(active);
     return <div data-testid="cierres-content" />;
+  },
+}));
+vi.mock("./revendedores-tab", () => ({
+  RevendedoresTab: ({ active }: { active: boolean }) => {
+    React.useEffect(() => { mounts.revendedores += 1; }, []);
+    revendedoresActive.values.push(active);
+    return <div data-testid="revendedores-content" />;
   },
 }));
 
@@ -44,16 +52,17 @@ async function renderView(tab: FinanzasTab) {
 afterEach(() => {
   document.body.replaceChildren();
   replace.mockClear();
-  Object.assign(mounts, { semana: 0, cierres: 0, operaciones: 0 });
+  Object.assign(mounts, { semana: 0, cierres: 0, revendedores: 0, operaciones: 0 });
   cierresActive.values.length = 0;
+  revendedoresActive.values.length = 0;
 });
 
 describe("FinanzasView", () => {
-  it("renders the title and the two tabs in order with the Spanish labels", async () => {
+  it("renders the title and the three tabs in order with the Spanish labels", async () => {
     const { node, root } = await renderView("semana");
     expect(node.querySelector("h1")?.textContent).toBe("Finanzas");
     const tabs = [...node.querySelectorAll("[role=tab]")];
-    expect(tabs.map((t) => t.textContent)).toEqual(["Semana", "Cierres"]);
+    expect(tabs.map((t) => t.textContent)).toEqual(["Semana", "Cierres", "Revendedores"]);
     expect(node.querySelectorAll("[role=tablist]")).toHaveLength(1);
     await act(async () => root.unmount());
   });
@@ -61,6 +70,7 @@ describe("FinanzasView", () => {
   it.each([
     ["semana", 0],
     ["cierres", 1],
+    ["revendedores", 2],
   ] as const)("opens on the %s tab: its tab is selected and only its panel is visible", async (tab, index) => {
     const { node, root } = await renderView(tab);
     const tabs = [...node.querySelectorAll("[role=tab]")];
@@ -104,12 +114,12 @@ describe("FinanzasView", () => {
     document.body.appendChild(node);
     const root = createRoot(node);
     await act(async () => root.render(<FinanzasView tab="semana" />));
-    expect(mounts).toEqual({ semana: 1, cierres: 0, operaciones: 0 });
+    expect(mounts).toEqual({ semana: 1, cierres: 0, revendedores: 0, operaciones: 0 });
 
     await act(async () => root.render(<FinanzasView tab="cierres" />));
     await act(async () => root.render(<FinanzasView tab="semana" />));
     await act(async () => root.render(<FinanzasView tab="cierres" />));
-    expect(mounts).toEqual({ semana: 1, cierres: 1, operaciones: 0 });
+    expect(mounts).toEqual({ semana: 1, cierres: 1, revendedores: 0, operaciones: 0 });
     expect(cierresActive.values.at(-1)).toBe(true);
     await act(async () => root.render(<FinanzasView tab="semana" />));
     expect(cierresActive.values.at(-1)).toBe(false);

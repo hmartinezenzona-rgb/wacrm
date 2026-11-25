@@ -7,7 +7,7 @@ describe("parseFinanzasTab", () => {
   });
 
   it("lists the tabs in reading order", () => {
-    expect(FINANZAS_TABS).toEqual(["semana", "cierres"]);
+    expect(FINANZAS_TABS).toEqual(["semana", "cierres", "revendedores"]);
   });
 
   it.each(FINANZAS_TABS)("keeps the known tab %s", (tab) => {

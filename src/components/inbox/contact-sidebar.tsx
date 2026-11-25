@@ -24,6 +24,8 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { OperationsPanelContainer } from "@/components/inbox/operations/operations-panel-container";
+import { ResellerSidebarBlock } from "@/components/resellers/reseller-sidebar-block";
+import { isResellerTagName } from "@/lib/resellers/tag-rule";
 
 interface ContactSidebarProps {
   contact: Contact | null;
@@ -185,6 +187,9 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
   }
 
   const displayName = contact.name || contact.phone;
+  // The contact's tags are already loaded above, so gating on them costs no
+  // extra request for non-resellers. The block itself fetches the total.
+  const isReseller = tags.some((tag) => isResellerTagName(tag.name));
 
   return (
     <div className={cn("flex h-full w-70 flex-col border-l border-border bg-card", className)}>
@@ -289,6 +294,14 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
               )}
             </div>
           </div>
+
+          {/* Reseller totals (S3): only for a contact carrying the reseller tag. */}
+          {isReseller && (
+            <>
+              <div className="my-4 border-t border-border" />
+              <ResellerSidebarBlock contactId={contact.id} />
+            </>
+          )}
 
           {/* Remittance operations panel (Slice 5, read-only) — beta flag
               gated (design decision 8). `conversation` must be present:

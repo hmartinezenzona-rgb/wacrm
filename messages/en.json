@@ -2356,7 +2356,8 @@
     "tablistLabel": "Finance sections",
     "tabs": {
       "semana": "Week",
-      "cierres": "Closes"
+      "cierres": "Closes",
+      "revendedores": "Resellers"
     },
     "graficos": {
       "gananciaServicio": {
@@ -2599,6 +2600,103 @@
         "title": "Search the history",
         "subtitle": "Every operation by client, phone or ID, with filters and CSV"
       }
+    }
+  },
+  "Resellers": {
+    "title": "Resellers",
+    "description": "Accumulated GYD total for each reseller since its last reset.",
+    "loading": "Loading resellers…",
+    "error": "Could not read the resellers.",
+    "retry": "Retry",
+    "emptyTitle": "No resellers yet",
+    "emptyHint": "Tag a contact with the “Revendedor” tag to see it here.",
+    "grandTotal": "Grand total",
+    "grandOperations": "Operations",
+    "grandAdjustments": "Adjustments",
+    "resellerCount": "{count, plural, one {# reseller} other {# resellers}}",
+    "periodFrom": "Period since {date}",
+    "periodAllTime": "Since the beginning",
+    "columns": {
+      "reseller": "Reseller",
+      "period": "Period",
+      "operations": "Operations",
+      "adjustments": "Adjustments",
+      "total": "Total",
+      "actions": "Actions"
+    },
+    "actions": {
+      "detail": "View detail",
+      "adjust": "Adjust",
+      "reset": "Reset",
+      "resetAll": "Reset all",
+      "close": "Close"
+    },
+    "sidebar": {
+      "title": "Reseller",
+      "currentTotal": "Period total",
+      "operations": "Operations",
+      "adjustments": "Adjustments",
+      "missingAmount": "{count, plural, one {# operation without an amount} other {# operations without an amount}}",
+      "detail": "View detail",
+      "adjust": "Adjust",
+      "reset": "Reset counter",
+      "error": "Could not read the reseller total."
+    },
+    "detail": {
+      "title": "Reseller detail",
+      "current": "Current period",
+      "operations": "Operations",
+      "adjustments": "Adjustments",
+      "total": "Total",
+      "missingAmount": "{count, plural, one {# operation without an amount} other {# operations without an amount}}",
+      "adjustmentHistory": "Adjustments this period",
+      "noAdjustments": "No adjustments in this period.",
+      "notReseller": "This contact no longer has the reseller tag.",
+      "loading": "Loading the detail…",
+      "error": "Could not read the reseller detail."
+    },
+    "history": {
+      "title": "Previous periods",
+      "open": "Open period",
+      "from": "From {date}",
+      "to": "To {date}",
+      "total": "Total {amount}",
+      "closedSnapshot": "Confirmed close: {amount}",
+      "by": "Reset by {name}",
+      "unknownActor": "Unknown actor",
+      "reason": "Reason: {reason}",
+      "empty": "No closed periods yet."
+    },
+    "resetDialog": {
+      "titleSingle": "Reset {name}'s counter",
+      "titleAll": "Reset every reseller's counter",
+      "amountLabel": "Amount being closed",
+      "counterOnly": "Only the counter restarts: no amount, deposit or operation changes.",
+      "reason": "Reason (optional)",
+      "reasonPlaceholder": "E.g. close agreed with the reseller",
+      "confirmSingle": "Reset counter",
+      "confirmAll": "Reset all counters",
+      "cancel": "Cancel",
+      "conflict": "The total changed while you were reviewing it: it is now {amount}. Confirm again.",
+      "error": "Could not reset the counter.",
+      "summaryTitle": "Counters reset",
+      "summaryCount": "{count, plural, one {# period was closed} other {# periods were closed}}",
+      "summarySkipped": "{count, plural, one {# reseller with no balance was skipped} other {# resellers with no balance were skipped}}",
+      "done": "Done"
+    },
+    "adjustDialog": {
+      "title": "Adjust {name}'s total",
+      "current": "Current total",
+      "amount": "Adjustment amount (GYD)",
+      "amountHint": "A positive number adds and a negative one subtracts. It cannot be zero.",
+      "invalidAmount": "Enter an amount other than zero.",
+      "preview": "New total",
+      "reason": "Reason (optional)",
+      "reasonPlaceholder": "E.g. agreed correction",
+      "submit": "Save adjustment",
+      "cancel": "Cancel",
+      "error": "Could not save the adjustment.",
+      "done": "Adjustment saved."
     }
   },
   "Resumen": {

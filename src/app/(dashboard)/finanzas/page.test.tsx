@@ -14,7 +14,7 @@ async function tabFor(searchParams: Record<string, string | string[] | undefined
 }
 
 describe("/finanzas", () => {
-  it.each(["semana", "cierres"])("opens the %s tab", async (tab) => {
+  it.each(["semana", "cierres", "revendedores"])("opens the %s tab", async (tab) => {
     expect(await tabFor({ tab })).toBe(tab);
   });
 

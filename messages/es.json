@@ -2356,7 +2356,8 @@
     "tablistLabel": "Secciones de Finanzas",
     "tabs": {
       "semana": "Semana",
-      "cierres": "Cierres"
+      "cierres": "Cierres",
+      "revendedores": "Revendedores"
     },
     "graficos": {
       "gananciaServicio": {
@@ -2599,6 +2600,103 @@
         "title": "Buscar en el historial",
         "subtitle": "Todas las operaciones por cliente, teléfono o ID, con filtros y CSV"
       }
+    }
+  },
+  "Resellers": {
+    "title": "Revendedores",
+    "description": "Total acumulado en GYD de cada revendedor desde su último reinicio.",
+    "loading": "Cargando los revendedores…",
+    "error": "No se pudieron leer los revendedores.",
+    "retry": "Reintentar",
+    "emptyTitle": "Aún no hay revendedores",
+    "emptyHint": "Marca un contacto con la etiqueta «Revendedor» para verlo aquí.",
+    "grandTotal": "Total general",
+    "grandOperations": "Operaciones",
+    "grandAdjustments": "Ajustes",
+    "resellerCount": "{count, plural, one {# revendedor} other {# revendedores}}",
+    "periodFrom": "Periodo desde {date}",
+    "periodAllTime": "Desde el inicio",
+    "columns": {
+      "reseller": "Revendedor",
+      "period": "Periodo",
+      "operations": "Operaciones",
+      "adjustments": "Ajustes",
+      "total": "Total",
+      "actions": "Acciones"
+    },
+    "actions": {
+      "detail": "Ver detalle",
+      "adjust": "Ajustar",
+      "reset": "Reiniciar",
+      "resetAll": "Reiniciar todos",
+      "close": "Cerrar"
+    },
+    "sidebar": {
+      "title": "Revendedor",
+      "currentTotal": "Total del periodo",
+      "operations": "Operaciones",
+      "adjustments": "Ajustes",
+      "missingAmount": "{count, plural, one {# operación sin monto} other {# operaciones sin monto}}",
+      "detail": "Ver detalle",
+      "adjust": "Ajustar",
+      "reset": "Reiniciar contador",
+      "error": "No se pudo leer el total del revendedor."
+    },
+    "detail": {
+      "title": "Detalle del revendedor",
+      "current": "Periodo actual",
+      "operations": "Operaciones",
+      "adjustments": "Ajustes",
+      "total": "Total",
+      "missingAmount": "{count, plural, one {# operación sin monto} other {# operaciones sin monto}}",
+      "adjustmentHistory": "Ajustes del periodo",
+      "noAdjustments": "Sin ajustes en este periodo.",
+      "notReseller": "Este contacto ya no tiene la etiqueta de revendedor.",
+      "loading": "Cargando el detalle…",
+      "error": "No se pudo leer el detalle del revendedor."
+    },
+    "history": {
+      "title": "Periodos anteriores",
+      "open": "Periodo abierto",
+      "from": "Desde {date}",
+      "to": "Hasta {date}",
+      "total": "Total {amount}",
+      "closedSnapshot": "Cierre confirmado: {amount}",
+      "by": "Reiniciado por {name}",
+      "unknownActor": "Actor desconocido",
+      "reason": "Motivo: {reason}",
+      "empty": "Aún no hay periodos cerrados."
+    },
+    "resetDialog": {
+      "titleSingle": "Reiniciar el contador de {name}",
+      "titleAll": "Reiniciar el contador de todos los revendedores",
+      "amountLabel": "Monto que se cierra",
+      "counterOnly": "Solo se reinicia el contador: no cambia ningún monto, depósito ni operación.",
+      "reason": "Motivo (opcional)",
+      "reasonPlaceholder": "Ej. cierre acordado con el revendedor",
+      "confirmSingle": "Reiniciar contador",
+      "confirmAll": "Reiniciar todos los contadores",
+      "cancel": "Cancelar",
+      "conflict": "El total cambió mientras revisabas: ahora es {amount}. Confirma otra vez.",
+      "error": "No se pudo reiniciar el contador.",
+      "summaryTitle": "Contadores reiniciados",
+      "summaryCount": "{count, plural, one {Se cerró # periodo} other {Se cerraron # periodos}}",
+      "summarySkipped": "{count, plural, one {# revendedor sin saldo no se reinició} other {# revendedores sin saldo no se reiniciaron}}",
+      "done": "Listo"
+    },
+    "adjustDialog": {
+      "title": "Ajustar el total de {name}",
+      "current": "Total actual",
+      "amount": "Monto del ajuste (GYD)",
+      "amountHint": "Un número positivo suma y uno negativo resta. No puede ser cero.",
+      "invalidAmount": "Escribe un monto distinto de cero.",
+      "preview": "Nuevo total",
+      "reason": "Motivo (opcional)",
+      "reasonPlaceholder": "Ej. corrección acordada",
+      "submit": "Guardar ajuste",
+      "cancel": "Cancelar",
+      "error": "No se pudo guardar el ajuste.",
+      "done": "Ajuste guardado."
     }
   },
   "Resumen": {

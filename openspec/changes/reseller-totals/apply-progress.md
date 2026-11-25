@@ -867,6 +867,8 @@ This executor did not publish anything (task constraint: repo source and tests o
 ### Commit (slice 7b)
 
 - `7e4396db` — `feat(sdd): add Decisor reseller deposit reply route`
+- `6a5ccc15` — `docs(sdd): record slice 7b Decisor reseller route`
+- `3c89d76d` — `feat(sdd): include reseller deposit amount in Decisor replies` (owner amendment)
 
 ---
 

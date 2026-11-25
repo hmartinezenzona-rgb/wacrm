@@ -18,6 +18,7 @@ import {
   resolveImportTagIds,
   type ContactTagAssignment,
 } from '@/lib/contacts/resolve-import-tags';
+import { isResellerTagName } from '@/lib/resellers/tag-rule';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
@@ -260,6 +261,9 @@ export function ImportModal({
           userId: user.id,
           tagNames: allTagNames,
           canCreateTags: canEditSettings,
+          // 396: only owner/admin may assign the reseller tag. A non-admin
+          // import skips it instead of failing a whole 100-row batch.
+          canAssignResellerTag: canEditSettings,
         }));
       }
 
@@ -351,12 +355,19 @@ export function ImportModal({
         toast.success(t('toastTagsAssigned', { count: tagsAssigned }));
       }
       if (skippedNames.length > 0) {
-        const sample = skippedNames.slice(0, 3).join(', ');
-        const more =
-          skippedNames.length > 3
-            ? t('toastTagsSkippedMore', { count: skippedNames.length - 3 })
-            : '';
-        toast.info(t('toastTagsSkipped', { sample, more }));
+        const skippedReseller = skippedNames.filter((name) => isResellerTagName(name));
+        const skippedOther = skippedNames.filter((name) => !isResellerTagName(name));
+        if (skippedOther.length > 0) {
+          const sample = skippedOther.slice(0, 3).join(', ');
+          const more =
+            skippedOther.length > 3
+              ? t('toastTagsSkippedMore', { count: skippedOther.length - 3 })
+              : '';
+          toast.info(t('toastTagsSkipped', { sample, more }));
+        }
+        if (skippedReseller.length > 0) {
+          toast.info(t('toastResellerTagSkipped'));
+        }
       }
       if (skipped > 0) {
         toast.info(t('toastSkipped', { count: skipped }));

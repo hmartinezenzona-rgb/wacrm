@@ -5,6 +5,7 @@ import {
   canDeleteAccount,
   canExportContacts,
   canManageCupInventory,
+  canManageResellers,
   canEditSettings,
   canForceVerify,
   canManageMembers,
@@ -150,5 +151,18 @@ describe("capability predicates", () => {
     expect(canExportContacts("admin")).toBe(true);
     expect(canExportContacts("agent")).toBe(false);
     expect(canExportContacts("viewer")).toBe(false);
+  });
+
+  it("canManageResellers: admin+ only (adding/removing the Revendedor tag)", () => {
+    expect(canManageResellers("owner")).toBe(true);
+    expect(canManageResellers("admin")).toBe(true);
+    expect(canManageResellers("agent")).toBe(false);
+    expect(canManageResellers("viewer")).toBe(false);
+  });
+
+  it("canManageResellers matches the database is_account_member(account, 'admin') boundary", () => {
+    for (const role of ACCOUNT_ROLES) {
+      expect(canManageResellers(role)).toBe(hasMinRole(role, "admin"));
+    }
   });
 });

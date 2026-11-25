@@ -13,6 +13,12 @@ import {
   phoneForStorage,
   type ExistingContact,
 } from '@/lib/contacts/dedupe';
+import { canManageResellers } from '@/lib/auth/roles';
+import {
+  isResellerTagName,
+  isResellerTagRefusal,
+  type PostgrestLikeError,
+} from '@/lib/resellers/tag-rule';
 import {
   Dialog,
   DialogContent,
@@ -49,7 +55,7 @@ export function ContactForm({
 }: ContactFormProps) {
   const t = useTranslations('Contacts.form');
   const supabase = createClient();
-  const { accountId } = useAuth();
+  const { accountId, accountRole } = useAuth();
   const isEdit = !!contact;
 
   const [name, setName] = useState('');
@@ -183,22 +189,32 @@ export function ContactForm({
         contactId = data.id;
       }
 
-      // Sync tags
+      // Sync tags: write only the difference. A full delete-all + re-insert
+      // would make an agent's save of a reseller contact fail — the 396
+      // guard refuses the DELETE of the reseller tag and the re-insert then
+      // trips UNIQUE(contact_id, tag_id), which the form reported as a
+      // duplicate phone.
       if (contactId) {
-        await supabase
-          .from('contact_tags')
-          .delete()
-          .eq('contact_id', contactId);
+        const currentTagIds = isEdit ? contactTags.map((ct) => ct.tag_id) : [];
+        const toAdd = selectedTagIds.filter((id) => !currentTagIds.includes(id));
+        const toRemove = currentTagIds.filter((id) => !selectedTagIds.includes(id));
 
-        if (selectedTagIds.length > 0) {
-          const tagRows = selectedTagIds.map((tag_id) => ({
-            contact_id: contactId!,
-            tag_id,
-          }));
-          const { error: tagError } = await supabase
+        for (const tagId of toRemove) {
+          const { error: removeError } = await supabase
             .from('contact_tags')
-            .insert(tagRows);
-          if (tagError) throw tagError;
+            .delete()
+            .eq('contact_id', contactId)
+            .eq('tag_id', tagId);
+          if (removeError) throw removeError;
+        }
+
+        if (toAdd.length > 0) {
+          const { error: addError } = await supabase
+            .from('contact_tags')
+            .insert(
+              toAdd.map((tag_id) => ({ contact_id: contactId!, tag_id })),
+            );
+          if (addError) throw addError;
         }
       }
 
@@ -206,6 +222,16 @@ export function ContactForm({
       onOpenChange(false);
       onSaved();
     } catch (err: unknown) {
+      // 396: an agent (or a stale client role) adding/removing the reseller
+      // tag is refused with 42501; show the readable Spanish message.
+      if (
+        typeof err === 'object' &&
+        err !== null &&
+        isResellerTagRefusal(err as PostgrestLikeError)
+      ) {
+        toast.error(t('resellerTagRefused'));
+        return;
+      }
       // The unique index (migration 022) rejects a duplicate phone that
       // slipped past the on-blur check (race, or a format that
       // normalizes equal). Surface it as the friendly duplicate notice
@@ -222,7 +248,14 @@ export function ContactForm({
         }
         return;
       }
-      const message = err instanceof Error ? err.message : t('toastError');
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === 'object' &&
+              err !== null &&
+              typeof (err as { message?: unknown }).message === 'string'
+            ? (err as { message: string }).message
+            : t('toastError');
       toast.error(message);
     } finally {
       setSaving(false);
@@ -347,12 +380,31 @@ export function ContactForm({
               <div className="flex flex-wrap gap-1.5">
                 {tags.map((tag) => {
                   const selected = selectedTagIds.includes(tag.id);
+                  // 396: only owner/admin may edit the reseller tag. Keep
+                  // the chip visible but disabled for agents; other tags
+                  // keep today's behaviour.
+                  const isReseller = isResellerTagName(tag.name);
+                  const locked =
+                    isReseller &&
+                    !(accountRole && canManageResellers(accountRole));
+                  const hint = isReseller
+                    ? locked
+                      ? t('resellerTagAdminOnly')
+                      : t('resellerTagBotHint')
+                    : undefined;
                   return (
                     <button
                       key={tag.id}
                       type="button"
                       onClick={() => toggleTag(tag.id)}
-                      className={`pastilla-color inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors cursor-pointer ${
+                      disabled={locked}
+                      title={hint}
+                      aria-disabled={locked || undefined}
+                      className={`pastilla-color inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                        locked
+                          ? 'cursor-not-allowed opacity-50'
+                          : 'cursor-pointer'
+                      } ${
                         selected
                           ? 'ring-2 ring-primary ring-offset-1 ring-offset-border'
                           : 'opacity-60 hover:opacity-100'

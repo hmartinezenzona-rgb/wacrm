@@ -704,7 +704,10 @@
       "noTagsAvailable": "No hay etiquetas disponibles. Crea etiquetas en Configuración.",
       "phoneRequired": "El número de teléfono es obligatorio",
       "notAuthenticated": "No has iniciado sesión",
-      "noAccountLinked": "Tu perfil no está vinculado a una cuenta."
+      "noAccountLinked": "Tu perfil no está vinculado a una cuenta.",
+      "resellerTagAdminOnly": "Solo un propietario o administrador puede añadir o quitar la etiqueta Revendedor.",
+      "resellerTagBotHint": "Esta etiqueta cambia cómo el bot registra los depósitos de este contacto.",
+      "resellerTagRefused": "Solo un propietario o administrador puede añadir o quitar la etiqueta Revendedor."
     },
     "detailView": {
       "tabs": {
@@ -744,7 +747,10 @@
       },
       "tagsTab": {
         "clickTagDesc": "Haz clic en una etiqueta para agregarla o quitarla de este contacto.",
-        "noTagsAvailable": "No hay etiquetas disponibles. Crea etiquetas en Configuración."
+        "noTagsAvailable": "No hay etiquetas disponibles. Crea etiquetas en Configuración.",
+        "resellerTagAdminOnly": "Solo un propietario o administrador puede añadir o quitar la etiqueta Revendedor.",
+        "resellerTagBotHint": "Esta etiqueta cambia cómo el bot registra los depósitos de este contacto.",
+        "resellerTagRefused": "Solo un propietario o administrador puede añadir o quitar la etiqueta Revendedor."
       },
       "sendTemplateBtn": "Enviar plantilla",
       "saveChangesBtn": "Guardar cambios",
@@ -808,7 +814,8 @@
       "toastError": "La importación falló",
       "notAuthenticated": "No has iniciado sesión",
       "noAccountLinked": "Tu perfil no está vinculado a una cuenta.",
-      "toastTagsSkippedMore": " (+{count} más)"
+      "toastTagsSkippedMore": " (+{count} más)",
+      "toastResellerTagSkipped": "Se omitió la etiqueta Revendedor: solo un propietario o administrador puede asignarla."
     },
     "customFields": {
       "title": "Campos personalizados",

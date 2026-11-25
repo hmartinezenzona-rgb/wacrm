@@ -24,6 +24,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ContactAvatar } from '@/components/contacts/contact-avatar';
 import { phoneForStorage } from '@/lib/contacts/dedupe';
+import { canManageResellers } from '@/lib/auth/roles';
+import { isResellerTagName, isResellerTagRefusal } from '@/lib/resellers/tag-rule';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -56,7 +58,7 @@ export function ContactDetailView({
 }: ContactDetailViewProps) {
   const t = useTranslations('Contacts.detailView');
   const supabase = createClient();
-  const { accountId } = useAuth();
+  const { accountId, accountRole } = useAuth();
 
   const [contact, setContact] = useState<Contact | null>(null);
   const [loading, setLoading] = useState(false);
@@ -213,24 +215,30 @@ export function ContactDetailView({
 
     const isSelected = contactTagIds.includes(tagId);
 
-    if (isSelected) {
-      const { error } = await supabase
-        .from('contact_tags')
-        .delete()
-        .eq('contact_id', contactId)
-        .eq('tag_id', tagId);
-      if (!error) {
-        setContactTagIds((prev) => prev.filter((id) => id !== tagId));
-        onUpdated();
-      }
+    // The 396 database guard refuses an agent's reseller-tag edit with
+    // SQLSTATE 42501; surface every failure instead of ignoring it, and
+    // keep the optimistic state only when the write actually succeeded.
+    const { error } = isSelected
+      ? await supabase
+          .from('contact_tags')
+          .delete()
+          .eq('contact_id', contactId)
+          .eq('tag_id', tagId)
+      : await supabase
+          .from('contact_tags')
+          .insert({ contact_id: contactId, tag_id: tagId });
+
+    if (error) {
+      toast.error(
+        isResellerTagRefusal(error)
+          ? t('tagsTab.resellerTagRefused')
+          : error.message || t('toastUpdateFailed'),
+      );
     } else {
-      const { error } = await supabase
-        .from('contact_tags')
-        .insert({ contact_id: contactId, tag_id: tagId });
-      if (!error) {
-        setContactTagIds((prev) => [...prev, tagId]);
-        onUpdated();
-      }
+      setContactTagIds((prev) =>
+        isSelected ? prev.filter((id) => id !== tagId) : [...prev, tagId],
+      );
+      onUpdated();
     }
     setSavingTags(false);
   }
@@ -538,12 +546,30 @@ export function ContactDetailView({
                     <div className="flex flex-wrap gap-2">
                       {allTags.map((tag) => {
                         const selected = contactTagIds.includes(tag.id);
+                        // 396: only owner/admin may edit the reseller tag.
+                        // The chip stays visible for agents, disabled, and
+                        // explains why; other tags keep today's behaviour.
+                        const isReseller = isResellerTagName(tag.name);
+                        const locked =
+                          isReseller &&
+                          !(accountRole && canManageResellers(accountRole));
+                        const hint = isReseller
+                          ? locked
+                            ? t('tagsTab.resellerTagAdminOnly')
+                            : t('tagsTab.resellerTagBotHint')
+                          : undefined;
                         return (
                           <button
                             key={tag.id}
                             onClick={() => toggleTag(tag.id)}
-                            disabled={savingTags}
-                            className={`pastilla-color inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition-all cursor-pointer ${
+                            disabled={savingTags || locked}
+                            title={hint}
+                            aria-disabled={locked || undefined}
+                            className={`pastilla-color inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition-all ${
+                              locked
+                                ? 'cursor-not-allowed opacity-50'
+                                : 'cursor-pointer'
+                            } ${
                               selected
                                 ? 'ring-2 ring-primary ring-offset-1 ring-offset-border'
                                 : 'opacity-50 hover:opacity-80'

@@ -118,6 +118,29 @@ function notaIdioma(muestra, texto) {
 }
 
 
+function montoDepositoRevendedor(cruce, s) {
+  // Monto del deposito para el aviso. Un deposito de revendedor no tiene
+  // operacion, pero `Cruzar deposito con MMG` SI trae `total_verificado` (la
+  // suma que el cruce dio por buena). Si no, la suma leida de la rafaga o el
+  // monto leido del comprobante, que es lo unico que hay en un reclamado o en
+  // un duplicado. Devuelve null si no hay un numero positivo: nunca se imprime
+  // undefined, NaN ni un monto cero.
+  const valido = (x) => { const v = Number(x); return Number.isFinite(v) && v > 0 ? v : null; };
+  return valido(cruce && cruce.total_verificado)
+    || valido(s.comprobantes_total)
+    || valido(s.comprobante && s.comprobante.monto);
+}
+
+function formatoMontoDeposito(m) {
+  // GYD en formato espanol determinista: punto de miles, coma decimal y sin
+  // decimales cuando el monto es entero. No depende del ICU del runtime (el
+  // agrupado de es-ES varia para numeros de cuatro cifras entre versiones).
+  const redondeado = Math.round(m * 100) / 100;
+  const partes = String(redondeado).split('.');
+  const entero = partes[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return partes[1] ? (entero + ',' + partes[1]) : entero;
+}
+
 function rutaRevendedorDeposito(ctx, s, tel) {
   // Devuelve la respuesta fija de un deposito de revendedor, o null. Solo actua
   // con un comprobante de ESTE turno: una conversacion normal de un revendedor
@@ -127,15 +150,23 @@ function rutaRevendedorDeposito(ctx, s, tel) {
   let texto;
   if (s.comprobante_duplicado) {
     // Ya se registro antes: no se cuenta dos veces y no hay nada que verificar.
-    texto = 'Ese depósito ya lo tenía registrado.';
+    const montoDup = montoDepositoRevendedor(null, s);
+    texto = montoDup
+      ? ('Ese depósito ya lo tenía registrado por ' + formatoMontoDeposito(montoDup) + ' GYD.')
+      : 'Ese depósito ya lo tenía registrado.';
   } else {
     let cruce = null;
     try { cruce = $('Cruzar deposito con MMG').first().json ?? null; } catch (e) {}
     const veredicto = String((cruce && cruce.resultado) || '');
+    const monto = montoDepositoRevendedor(cruce, s);
     if (veredicto === 'verificado' || veredicto === 'verificado_incompleto' || veredicto === 'verificado_de_mas') {
-      texto = 'Depósito verificado. Ya lo sumé a tu total.';
+      texto = monto
+        ? ('Depósito verificado por ' + formatoMontoDeposito(monto) + ' GYD. Ya lo sumé a tu total.')
+        : 'Depósito verificado. Ya lo sumé a tu total.';
     } else if (veredicto === 'ya_reclamado') {
-      texto = 'Ese depósito ya lo tenía registrado.';
+      texto = monto
+        ? ('Ese depósito ya lo tenía registrado por ' + formatoMontoDeposito(monto) + ' GYD.')
+        : 'Ese depósito ya lo tenía registrado.';
     } else if (veredicto === 'sin_correo' || veredicto === 'sin_referencia') {
       texto = 'Todavía no aparece en el banco. En cuanto lo vea te lo confirmo.';
     } else {

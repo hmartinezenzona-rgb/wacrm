@@ -10,9 +10,13 @@ import { describe, expect, it } from 'vitest';
 import { correrDecisor, type Entradas } from './correr';
 
 const TEXTO_VERIFICADO = 'Depósito verificado. Ya lo sumé a tu total.';
+const TEXTO_VERIFICADO_MONTO =
+  'Depósito verificado por 26.000 GYD. Ya lo sumé a tu total.';
 const TEXTO_NO_ENCONTRADO =
   'Todavía no aparece en el banco. En cuanto lo vea te lo confirmo.';
 const TEXTO_YA_REGISTRADO = 'Ese depósito ya lo tenía registrado.';
+const TEXTO_YA_REGISTRADO_MONTO =
+  'Ese depósito ya lo tenía registrado por 26.000 GYD.';
 const TEXTO_REVISION = 'Reviso ese comprobante y te confirmo.';
 
 const COMPROBANTE = {
@@ -58,12 +62,22 @@ describe('revendedor: el veredicto del cruce decide el texto, sin llegar al agen
     ['verificado aproximado', { resultado: 'verificado', trans_id: '20404215436141', metodo: 'aproximado' }],
     ['verificado incompleto', { resultado: 'verificado_incompleto' }],
     ['verificado de mas', { resultado: 'verificado_de_mas' }],
-  ])('%s: confirma que se sumo al total', (_caso, mmg) => {
+  ])('%s: confirma que se sumo al total con el monto del deposito', (_caso, mmg) => {
     const out = turnoRevendedor(mmg);
     expect(out.ruta).toBe('comando');
     expect(out.comando).toBe('verificar');
-    expect(out.objetivo).toBe(TEXTO_VERIFICADO);
+    expect(out.objetivo).toBe(TEXTO_VERIFICADO_MONTO);
     expect(out.telefono_e164).toBe('+5920000000');
+  });
+
+  it('el monto verificado del cruce manda sobre el leido del comprobante', () => {
+    const out = turnoRevendedor({
+      resultado: 'verificado',
+      total_verificado: 45000,
+    });
+    expect(out.objetivo).toBe(
+      'Depósito verificado por 45.000 GYD. Ya lo sumé a tu total.'
+    );
   });
 
   it.each([
@@ -76,11 +90,11 @@ describe('revendedor: el veredicto del cruce decide el texto, sin llegar al agen
     expect(out.objetivo).toBe(TEXTO_NO_ENCONTRADO);
   });
 
-  it('ya reclamado: dice que ya lo tenia registrado', () => {
+  it('ya reclamado: dice que ya lo tenia registrado y por cuanto', () => {
     const out = turnoRevendedor({ resultado: 'ya_reclamado' });
     expect(out.ruta).toBe('comando');
     expect(out.comando).toBe('verificar');
-    expect(out.objetivo).toBe(TEXTO_YA_REGISTRADO);
+    expect(out.objetivo).toBe(TEXTO_YA_REGISTRADO_MONTO);
   });
 
   it.each([
@@ -101,7 +115,65 @@ describe('revendedor: el veredicto del cruce decide el texto, sin llegar al agen
       snapshot: { comprobante_duplicado: true },
     });
     expect(out.ruta).toBe('comando');
+    expect(out.objetivo).toBe(TEXTO_YA_REGISTRADO_MONTO);
+  });
+});
+
+describe('revendedor: monto del deposito (formato espanol y repliegue seguro)', () => {
+  it('una rafaga sin total verificado usa la suma leida de los comprobantes', () => {
+    const out = turnoRevendedor(
+      { resultado: 'ya_reclamado' },
+      { snapshot: { comprobantes_total: 45000 } }
+    );
+    expect(out.objetivo).toBe(
+      'Ese depósito ya lo tenía registrado por 45.000 GYD.'
+    );
+  });
+
+  it('formatea los miles con punto y sin decimales cuando el monto es entero', () => {
+    const out = turnoRevendedor({
+      resultado: 'verificado',
+      total_verificado: 1234567,
+    });
+    expect(out.objetivo).toBe(
+      'Depósito verificado por 1.234.567 GYD. Ya lo sumé a tu total.'
+    );
+  });
+
+  it('conserva los decimales cuando el monto no es entero', () => {
+    const out = turnoRevendedor({
+      resultado: 'verificado',
+      total_verificado: 1234.5,
+    });
+    expect(out.objetivo).toBe(
+      'Depósito verificado por 1.234,5 GYD. Ya lo sumé a tu total.'
+    );
+  });
+
+  it('sin monto disponible usa el texto sin monto y no imprime basura', () => {
+    const out = turnoRevendedor(
+      { resultado: 'verificado', total_verificado: null },
+      { snapshot: { comprobante: { ...COMPROBANTE, monto: undefined } } }
+    );
+    expect(out.objetivo).toBe(TEXTO_VERIFICADO);
+    expect(out.objetivo ?? '').not.toMatch(/undefined|NaN|null/i);
+  });
+
+  it('con un monto no numerico usa el texto sin monto', () => {
+    const out = turnoRevendedor(
+      { resultado: 'ya_reclamado' },
+      { snapshot: { comprobante: { ...COMPROBANTE, monto: 'no legible' } } }
+    );
     expect(out.objetivo).toBe(TEXTO_YA_REGISTRADO);
+    expect(out.objetivo ?? '').not.toMatch(/undefined|NaN|null/i);
+  });
+
+  it('un monto cero no se imprime como si fuera un deposito', () => {
+    const out = turnoRevendedor(
+      { resultado: 'verificado', total_verificado: 0 },
+      { snapshot: { comprobante: { ...COMPROBANTE, monto: 0 } } }
+    );
+    expect(out.objetivo).toBe(TEXTO_VERIFICADO);
   });
 });
 
@@ -116,7 +188,7 @@ describe('revendedor: nunca llega al agente ni pide beneficiario', () => {
     expect(out.ruta).not.toBe('agente');
     expect(out.mensaje).toBeUndefined();
     expect(out.objetivo ?? '').not.toMatch(/beneficiar|quien recibe|tarjeta|celular/i);
-    expect(out.objetivo ?? '').not.toMatch(/GYD|TransID/i);
+    expect(out.objetivo ?? '').not.toMatch(/TransID/i);
   });
 });
 

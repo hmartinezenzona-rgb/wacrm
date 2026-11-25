@@ -746,7 +746,7 @@ No migration, no panel change, no n8n write, no production access. The productio
 
 | Task | Status | Evidence |
 |------|--------|----------|
-| 3B.4 Decisor reseller confirmation route | done | RED 18 failed / 7 passed on the new suite; GREEN 25/25; whole Decisor suite `3 files / 263 tests` pass; md5 pin updated |
+| 3B.4 Decisor reseller confirmation route | done | RED 18 failed / 7 passed on the new suite; GREEN 25/25; owner amendment (amount in the reply) RED 10 failed / 22 passed → GREEN 32/32; whole Decisor suite `3 files / 270 tests` pass; md5 pin `df39af349e48e210ffe5c4aabbd084c2` |
 
 ### What the route does
 
@@ -772,13 +772,20 @@ no beneficiary, and needs no new n8n node or route type.
 
 | Cross verdict | Reply |
 |---|---|
-| `verificado`, `verificado_incompleto`, `verificado_de_mas` | `Depósito verificado. Ya lo sumé a tu total.` |
-| `ya_reclamado`, or `comprobante_duplicado` | `Ese depósito ya lo tenía registrado.` |
+| `verificado`, `verificado_incompleto`, `verificado_de_mas` | `Depósito verificado por <monto> GYD. Ya lo sumé a tu total.` (without the amount when unavailable) |
+| `ya_reclamado`, or `comprobante_duplicado` | `Ese depósito ya lo tenía registrado por <monto> GYD.` (without the amount when unavailable) |
 | `sin_correo`, `sin_referencia` | `Todavía no aparece en el banco. En cuanto lo vea te lo confirmo.` |
 | `monto_no_coincide`, `deposito_antiguo`, `deposito_anulado`, `no_aplica`, no cross | `Reviso ese comprobante y te confirmo.` |
 
-The texts intentionally carry no amount and no TransID (the task's approved copy); the spec's
-richer variant remains an owner option. No emojis; one or two short lines.
+The amount is the DEPOSIT amount only, never the running total (owner decision 2026-11-24).
+Source, in order: `Cruzar deposito con MMG.total_verificado` (the cross's verified sum; it works
+for reseller deposits because it does not need an operation), then
+`Snapshot final.comprobantes_total` (burst), then `Snapshot final.comprobante.monto` (the receipt
+read). `ya_reclamado` returns 0 in `total_verificado`, so it falls to the receipt amount.
+Formatting is deterministic Spanish: dot thousands separators, comma decimals, no decimals when
+whole (manual formatter, not ICU-dependent). Missing, non-numeric, zero or negative amounts fall
+back to the text without amount; the route never prints `undefined`, `NaN` or `null`. No TransID
+(owner decision), no emojis, one or two short lines.
 
 ### Signal contract for n8n (rollout, not done here)
 
@@ -804,14 +811,14 @@ This executor did not publish anything (task constraint: repo source and tests o
 | Evidence | Required value |
 |---|---|
 | Focused test command and exact result | `npx vitest run pruebas/decisor/decisor-revendedor.test.ts --maxWorkers=4` → RED `Tests 18 failed | 7 passed (25)`; after the route → `Tests 25 passed (25)` |
-| Runtime harness command/scenario and exact result | Same suite runs the REAL node through `correrDecisor` (the node's `jsCode` wrapped with `new Function` and a stub of `$()`): reseller + receipt + each cross verdict, duplicate receipt, paused/hidden/assigned/human-recent guards, admin precedence, non-reseller customer branch, reseller without receipt, old context without the field. Whole suite `npx vitest run pruebas/decisor --maxWorkers=4` → `Test Files 3 passed (3) | Tests 263 passed (263)` |
+| Runtime harness command/scenario and exact result | Same suite runs the REAL node through `correrDecisor` (the node's `jsCode` wrapped with `new Function` and a stub of `$()`): reseller + receipt + each cross verdict, duplicate receipt, paused/hidden/assigned/human-recent guards, admin precedence, non-reseller customer branch, reseller without receipt, old context without the field. Whole suite `npx vitest run pruebas/decisor --maxWorkers=4` → `Test Files 3 passed (3) | Tests 270 passed (270)` |
 | Rollback boundary | Revert this commit: the route, the harness suite and the md5 pin go away; the Decisor returns to its prior behaviour. The route is inert in any environment whose `Contexto conversacion` does not yet supply `es_revendedor`, so it can ship before the context change. No n8n state was changed |
 
 ### TDD Cycle Evidence
 
 | Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
 |------|-----------|-------|------------|-----|-------|-------------|----------|
-| 3B.4 | `pruebas/decisor/decisor-revendedor.test.ts` | Node harness (real `.jscode`) | Existing `decisor-notas.test.ts` (staging copy) and `produccion/decisor-produccion.test.ts` (production lineage) | `expected 'agente' to be 'comando'` across the four verdicts, the duplicate case and the "never reaches the agent" cases (18 failed / 7 passed) | `25/25` pass; md5 test passes after the pin update; whole suite `263/263` | Four verdict families, duplicate, each guard (pause/hidden/assigned/human-recent), admin precedence, non-reseller branch, no-receipt reseller, missing context field | None needed; the route is the minimum that passes; the production lineage file was not reformatted or edited |
+| 3B.4 | `pruebas/decisor/decisor-revendedor.test.ts` | Node harness (real `.jscode`) | Existing `decisor-notas.test.ts` (staging copy) and `produccion/decisor-produccion.test.ts` (production lineage) | `expected 'agente' to be 'comando'` across the four verdicts, the duplicate case and the "never reaches the agent" cases (18 failed / 7 passed); amount amendment RED `expected 'Depósito verificado. Ya lo sumé a tu …' to be 'Depósito verificado por 1.234.567 GYD…'` (10 failed / 22 passed) | `32/32` pass; md5 test passes after the pin update; whole suite `270/270` | Four verdict families, duplicate, each guard (pause/hidden/assigned/human-recent), admin precedence, non-reseller branch, no-receipt reseller, missing context field; amount source priority, Spanish grouping, whole vs decimal, missing/non-numeric/zero fallback | Manual formatter replaced `toLocaleString('es-ES')` because the runtime did not group four-digit amounts consistently; production lineage untouched |
 
 ### Deviations from Design
 
@@ -825,16 +832,18 @@ This executor did not publish anything (task constraint: repo source and tests o
 - **Reply route.** Reused `comando`/`verificar` instead of adding `ruta: 'respuesta_fija'`,
   because the read-only workflow snapshot proves the downstream path does not re-check
   `es_admin`. No n8n node change beyond publishing the Decisor.
-- **Copy.** Used the task's short approved copy (no amount, no TransID) instead of the spec's
-  richer sentence. The owner may still swap in the richer wording; it is a one-line change in
-  `rutaRevendedorDeposito`.
+- **Copy (owner amendment 2026-11-24).** The verified and already-claimed replies include the
+  deposit amount only, never the running total: `Depósito verificado por <monto> GYD. Ya lo sumé a
+  tu total.` and `Ese depósito ya lo tenía registrado por <monto> GYD.` The not-found and review
+  texts are unchanged. No TransID, per the same owner decision. Missing/non-numeric/zero amounts
+  fall back to the text without amount.
 - **Duplicate replies.** A resent reseller receipt replies "already registered" deterministically.
   The generic duplicate branch (`ctx.dup_etapa`) cannot see reseller claims: they live in
   `reseller_deposits`, not `remittance_operation_receipts`.
 
 ### Related checks
 
-- `npx vitest run pruebas/decisor --maxWorkers=4` → `Test Files 3 passed (3) | Tests 263 passed (263)`
+- `npx vitest run pruebas/decisor --maxWorkers=4` → `Test Files 3 passed (3) | Tests 270 passed (270)`
   (staging copy, production lineage and the new reseller suite).
 - No file outside `pruebas/decisor/` was changed; no formatter was run on the `.jscode` (diff is
   +39 lines, no reflow).
@@ -847,8 +856,9 @@ This executor did not publish anything (task constraint: repo source and tests o
 - `Contexto conversacion` field name: `es_revendedor` is the minimal choice. If the owner prefers
   the deposit signal explicit, the same route can read `ctx.deposito_revendedor` instead; only
   the condition line changes.
-- The task copy omits amount and TransID although the spec mentions them. Confirm the short wording
-  with the owner before the production publish (4.5).
+- The owner decided amount only (no running total) and no TransID. The spec's richer variant
+  (TransID) is deliberately not used; confirm nothing else is desired before the production
+  publish (4.5).
 - `comprobante_duplicado` is treated as "already registered". For a reseller whose first claim is
   still pending, a resend also answers "already registered"; this is accurate (it was recorded) but
   the owner may prefer "still checking" for pending claims. Not observable from the Decisor today

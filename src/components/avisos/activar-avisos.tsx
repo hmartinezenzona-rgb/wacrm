@@ -139,13 +139,15 @@ export function ActivarAvisos() {
         </div>
       </div>
 
-      <div className="flex shrink-0 gap-2 sm:gap-1">
+      {/* En celular cada botón va en su renglón a lo ancho: lado a lado no
+          caben con la letra grande y «Activar avisos» se partía en dos. */}
+      <div className="flex shrink-0 flex-col gap-1.5 sm:flex-row sm:gap-1">
         {(pidiendo || estado === "error") && (
           <button
             type="button"
             onClick={activar}
             disabled={estado === "activando"}
-            className="flex h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-base font-bold text-primary-foreground transition-colors hover:bg-primary-hover active:scale-[0.98] disabled:opacity-60 sm:flex-none"
+            className="flex h-12 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-primary px-5 text-base font-bold text-primary-foreground transition-colors hover:bg-primary-hover active:scale-[0.98] disabled:opacity-60 sm:w-auto"
           >
             {estado === "activando" ? (
               <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
@@ -158,7 +160,7 @@ export function ActivarAvisos() {
         <button
           type="button"
           onClick={cerrar}
-          className="h-12 rounded-xl px-4 text-base font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="h-11 w-full whitespace-nowrap rounded-xl px-4 text-base font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:h-12 sm:w-auto"
         >
           {pidiendo || estado === "error" ? "Ahora no" : "Cerrar"}
         </button>

@@ -79,6 +79,15 @@ BEGIN
   PERFORM set_config('request.jwt.claims', '', true);
   v_t0 := clock_timestamp();
 
+  -- 398+: the historical-operation line stops at
+  -- reseller_deposit_cutover.cutover_at. This 397 fixture predates that marker
+  -- (and creates operations after the real apply time), so it pins the cutover
+  -- to +infinity inside its own rolled-back transaction to keep measuring the
+  -- 397 contract unchanged. The 398 assertion overrides the marker separately.
+  IF to_regclass('public.reseller_deposit_cutover') IS NOT NULL THEN
+    EXECUTE 'UPDATE public.reseller_deposit_cutover SET cutover_at = ''infinity''::timestamptz';
+  END IF;
+
   -- ---- fixtures ----
   INSERT INTO auth.users (id, instance_id, aud, role, email, encrypted_password,
                           email_confirmed_at, created_at, updated_at,

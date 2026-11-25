@@ -41,9 +41,9 @@ Mode: strict, on (global CLAUDE.md). Runner: `npx vitest run pruebas/decisor`.
 
 ## Tasks
 
-- [ ] T1 Decisor: silence for a reseller turn without a receipt + tests (RED then GREEN) + md5 pin.
-- [ ] T2 Publish the Decisor to staging and verify md5/versionId.
-- [ ] T3 Production: publish the Decisor (owner go-ahead) and remove the Admin tag from the three resellers, audited.
+- [x] T1 Decisor: silence for a reseller turn without a receipt + tests (RED then GREEN) + md5 pin.
+- [x] T2 Publish the Decisor to staging and verify md5/versionId.
+- [x] T3 Production: publish the Decisor (owner go-ahead) and remove the Admin tag from the three resellers, audited.
 - [ ] T4 Verify in production: a reseller's non-receipt message silences, a receipt creates a claim and sums.
 
 ## Acceptance criteria
@@ -60,6 +60,21 @@ Forecast ~120 authored lines (code + tests + data block). Below the 400 heuristi
 ## Progress
 
 - 2026-11-25: production diagnosis (execution 846913) and owner decision recorded.
+- 2026-11-25 T1 (cb041cb7): RED `npx vitest run pruebas/decisor/decisor-revendedor.test.ts` 1 failed
+  (reseller without receipt returned `agente`), GREEN 33 passed; full `npx vitest run pruebas/decisor`
+  271 passed. Decisor md5 df39af34 -> d6cf190e1403583607fbeb395850a393; pin updated.
+- 2026-11-25 T2: staging backup not needed for a code-only publish; `publicar-decisor staging
+  --esperado df39af34` -> versionId dd120b4f-8403-49c1-8cfa-5986a4cee186, activeVersionId equal,
+  133 nodes, md5 d6cf190e, repo_md5_match yes. Workflow never executed.
+- 2026-11-25 T3 (owner go-ahead): production backup
+  `cerebro-fase1/respaldos-n8n/produccion-jEzlVLCLUaJhVwzs-67395da1-...-20261125-102847.json`;
+  `publicar-decisor produccion --esperado df39af34` -> versionId
+  f05eabd8-55bb-4410-9877-b06fc65394d8, activeVersionId equal, 126 nodes, md5 d6cf190e, repo match.
+  Tag removal via `correccion-produccion.sh` (atomic block): 3 contact_tags rows deleted and 3
+  `human_correction` audit rows written (e33c1c3a, f81e8ad1, f1edfcd3). Verified: Emilio and Brayan
+  keep only Revendedor, Osmany Services keeps Nuevo + Revendedor; Admin tag usage drops 6 -> 3.
+- T4 pending: needs a real reseller receipt in production (claim + total) and a non-receipt message
+  (silence, no customer reply).
 
 ## Next step
 

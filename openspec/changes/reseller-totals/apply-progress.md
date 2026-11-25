@@ -1007,3 +1007,39 @@ touched, no workflow was executed, and the API key was never printed.
 2. Production 4.5, only after an explicit owner go-ahead: add the same field to production's OWN
    `Contexto conversacion` (staging and production queries differ; never copy the staging node),
    back up, publish the Decisor and confirm versionId == activeVersionId.
+
+## Production n8n rollout (4.5 n8n half, 2026-11-24)
+
+Applied to production workflow `jEzlVLCLUaJhVwzs` only, after the owner's explicit go-ahead for
+this change. Staging `U52y1kSNvhgxvWeb` was not touched, no workflow was executed, and the API key
+was never printed.
+
+### What changed
+
+- `Contexto conversacion` (Postgres) returns the same one new inline boolean field, placed right
+  after its own `es_recurrente` and written against production's own row alias and columns
+  (`v.contact_id`, `v.account_id`); the staging node was not copied:
+  `EXISTS (SELECT 1 FROM contact_tags ct JOIN tags t ON t.id = ct.tag_id WHERE ct.contact_id = v.contact_id AND t.account_id = v.account_id AND lower(btrim(t.name)) = 'revendedor') AS es_revendedor`.
+  The rest of the query is byte-identical (rest md5 `5bd5c0567cc36374a7fb23a8c131c010` before and
+  after), `options.queryReplacement` is untouched and no other node, connection or setting changed.
+- Decisor published from `pruebas/decisor/decisor.jscode` with
+  `publicar-decisor produccion --esperado d64e8009`.
+
+### Evidence
+
+| Item | Value |
+|---|---|
+| Backup before any write | `/home/onlinefreedom/cerebro-fase1/respaldos-n8n/produccion-jEzlVLCLUaJhVwzs-a3d439e9-380f-41fe-bdb2-832e48e84e82-20261124-211217.json` (pre-Decisor-publish backup at `...-ba541518-...-20261124-211336.json`) |
+| versionId before | `a3d439e9-380f-41fe-bdb2-832e48e84e82` |
+| versionId after Contexto | `ba541518-bc7f-47b1-a909-742dbfd92e04` |
+| versionId / activeVersionId after Decisor | `67395da1-90c3-41cf-ab83-60ca6388eb5c` (equal), active true |
+| Node count | 126 before and after |
+| `Contexto conversacion` query md5 | `5bd5c0567cc36374a7fb23a8c131c010` → `84f461c6f40a54c64428b7ad5f36f2c1`; rest (field removed) `5bd5c0567cc36374a7fb23a8c131c010` |
+| Decisor md5 | `d64e8009` → `df39af34` live = `df39af34` repo (`repo_md5_match: yes`) |
+| `comparar` | Decisor no longer differs between staging and production; `Contexto conversacion` still differs by design |
+| versionId trap | Not needed; every step ended with versionId == activeVersionId |
+
+### Remaining
+
+1. Post-deploy smoke check (4.4) and the first real reseller receipt after 398 is applied
+   (4.6–4.7).

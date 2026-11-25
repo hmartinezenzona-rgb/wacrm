@@ -31,6 +31,14 @@ export interface DestacarConfig {
 export const TEMAS = ["cubano", "industrial", "verde", "taqueria"] as const;
 export type Tema = (typeof TEMAS)[number];
 
+/** Fondo y color principal de cada paleta (para la app instalada). */
+export const COLORES_TEMA: Record<Tema, { fondo: string; principal: string }> = {
+  cubano: { fondo: "#FBF5EA", principal: "#B3122B" },
+  industrial: { fondo: "#EEF1F6", principal: "#1F5FE0" },
+  verde: { fondo: "#F1F6F1", principal: "#2E7D4F" },
+  taqueria: { fondo: "#FFF7EC", principal: "#C2410C" },
+};
+
 /** localStorage: {tema, sencillo} de la última cuenta, para pintarlos antes de cargar. */
 export const NEGOCIO_VISTA_KEY = "wacrm.negocio.vista";
 
@@ -61,6 +69,13 @@ export interface NegocioConfig {
   sencillo: boolean;
   pedido: PedidoConfig;
   logo: { src: string; ancho: number; alto: number };
+  /**
+   * Ícono cuadrado de la app (pestaña, app instalada, avisos): imagen
+   * cuadrada, de preferencia SVG en data URI o dirección https. Para que
+   * Android no lo recorte, lo importante debe ir dentro del 80 % central.
+   * null = el de Onlinefreedom.
+   */
+  icono: string | null;
   menu: Seccion[];
   /** Textos que reemplazan a los de messages/es.json, con la misma forma ({ Sidebar: { pipelines: "Ventas" } }). */
   textos: Record<string, unknown>;
@@ -93,6 +108,7 @@ export const DEFAULT_NEGOCIO: NegocioConfig = {
   sencillo: false,
   pedido: { uno: "charola", varios: "charolas", grupos: GRUPOS_INICIALES },
   logo: { src: "/logo-onlinefreedom.svg", ancho: 262, alto: 64 },
+  icono: null,
   menu: ["pipelines", "inbox", "contacts"],
   textos: {},
   tarjeta: { resumen: [], destacar: [] },
@@ -176,6 +192,8 @@ export function leerNegocio(raw: unknown): NegocioConfig {
       varios: textoO(pedido.varios, d.pedido.varios),
       grupos: grupos.length ? grupos : d.pedido.grupos,
     },
+    icono:
+      typeof raw.icono === "string" && /^(data:image\/|https:\/\/)/.test(raw.icono.trim()) ? raw.icono.trim() : null,
     logo: {
       src: typeof logo.src === "string" && logo.src.trim() ? logo.src.trim() : d.logo.src,
       ancho: typeof logo.ancho === "number" ? logo.ancho : d.logo.ancho,

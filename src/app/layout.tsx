@@ -31,11 +31,12 @@ export const metadata: Metadata = {
     index: false,
     follow: false,
   },
+  // Ícono y app instalada con la marca de cada negocio (negocio_config).
   icons: {
-    icon: [{ url: "/icon" }],
-    apple: [{ url: "/icon-192.png" }],
+    icon: [{ url: "/api/marca/icono?size=64", type: "image/png" }],
+    apple: [{ url: "/api/marca/icono?size=180" }],
   },
-  manifest: "/manifest.webmanifest",
+  manifest: "/api/marca/manifest",
   formatDetection: {
     email: false,
     address: false,

@@ -1,4 +1,4 @@
-// Service worker de Doña Miriam: solo recibe avisos push y abre el CRM al tocarlos.
+// Service worker del CRM: solo recibe avisos push y abre el CRM al tocarlos.
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
 
@@ -6,10 +6,10 @@ self.addEventListener("push", (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (err) { d = { body: e.data ? e.data.text() : "" }; }
   e.waitUntil(
-    self.registration.showNotification(d.title || "Doña Miriam", {
+    self.registration.showNotification(d.title || "Aviso", {
       body: d.body || "",
-      icon: "/icon-192.png",
-      badge: "/icon-192.png",
+      icon: "/api/marca/icono?size=192",
+      badge: "/api/marca/icono?size=96",
       tag: d.tag,
       renotify: !!d.tag,
       vibrate: [200, 100, 200],

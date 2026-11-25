@@ -191,7 +191,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           <Link
             href="/pipelines"
             aria-label={t("title")}
-            className="flex flex-1 items-center justify-center"
+            className="flex min-w-0 flex-1 items-center justify-center"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -199,7 +199,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               alt={t("title")}
               width={negocio.logo.ancho}
               height={negocio.logo.alto}
-              className="h-10 w-auto"
+              className="h-10 w-auto max-w-full object-contain"
             />
           </Link>
           <button

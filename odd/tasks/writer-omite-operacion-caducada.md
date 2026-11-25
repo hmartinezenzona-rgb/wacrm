@@ -35,7 +35,7 @@ Mode: strict, on. Runner: `infra/db/staging-migracion.sh aplicar <mig> <assertio
 
 - [x] T1 Migration 399 + ROLLBACK + assertion `writer-skips-stale-operation.sql` (cases A-F), staging cycle green.
 - [x] T2 Related staging assertions: no regressions.
-- [ ] T3 Production: `previa`, owner go-ahead, `aplicar`, `verificar`.
+- [x] T3 Production: `previa` SEGURO, `aplicar` 20261125201052, `verificar` 2/2 iguales.
 
 ## Acceptance criteria
 
@@ -56,6 +56,20 @@ Forecast ~354 authored lines (migration 140 + rollback 82 + assertion 132). Belo
 - 2026-11-25 T2: `relacionadas 399 ... --ya-aplicada ROLLBACK-399` TOTAL 220, SAME 219, DIFF 1 (uuid-only differences in
   the known fixture setup errors; no semantic change).
 
+## Progress (production)
+
+- 2026-11-25 T3: `previa` VEREDICTO SEGURO (writer EQUAL, helper NEW); `aplicar` OK 20261125201052;
+  `verificar` 2/2 iguales (bda5dc05 / 78c1cd4f).
+
+## Stray operations closed (owner request, no customer notice)
+
+Correction block `correccion-produccion.sh` (3 audit rows + 1 beneficiary row):
+- `9fb86ab2` (Yais): cancelled (no money; its data had moved to 5b0ff90e).
+- `5b0ff90e` (Yais): Zelle recipient Robert Meana 50 USD added (admin_correction), delivery_method zelle, destination
+  50 USD, completed with delivery_mode closed_manually and customer_notice_muted_for completed.
+- `fc654540` (Ili): delivery_method zelle, completed, closed_manually, muted.
+- Verified: calculator lines ZELLE 50 USD / 55 USD; no message after 20:05 UTC in either conversation.
+
 ## Next step
 
-T3 (production), with the owner's go-ahead.
+Done.

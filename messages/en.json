@@ -1793,6 +1793,7 @@
     }
   },
   "Avisos": {
+    "titulo": "Notifications on this phone",
     "pedir": "Get a notification on this phone whenever something new arrives"
   }
 }

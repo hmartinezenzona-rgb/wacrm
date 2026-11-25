@@ -9,7 +9,7 @@
 // ============================================================
 
 import { useEffect, useState } from "react";
-import { BellRing, X } from "lucide-react";
+import { Bell, BellRing, Check, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 type Estado = "oculto" | "pedir" | "activando" | "listo" | "bloqueado" | "error";
@@ -93,46 +93,76 @@ export function ActivarAvisos() {
 
   if (estado === "oculto") return null;
 
+  const pidiendo = estado === "pedir" || estado === "activando";
+
   return (
-    <div className="mb-4 flex items-start gap-3 rounded-xl border border-primary/40 bg-primary/10 p-4">
-      <BellRing className="mt-0.5 h-6 w-6 shrink-0 text-primary" />
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
-        {estado === "pedir" || estado === "activando" ? (
-          <>
-            <p className="text-base font-semibold">{t("pedir")}</p>
-            <button
-              type="button"
-              onClick={activar}
-              disabled={estado === "activando"}
-              className="h-12 self-start rounded-lg bg-primary px-5 text-base font-bold text-primary-foreground disabled:opacity-60"
-            >
-              {estado === "activando" ? "Activando…" : "Activar avisos"}
-            </button>
-          </>
-        ) : estado === "listo" ? (
-          <p className="text-base font-semibold">¡Listo! Te mandé un aviso de prueba. Así te van a llegar las solicitudes.</p>
-        ) : estado === "bloqueado" ? (
-          <p className="text-base">
-            Los avisos están bloqueados en este navegador. Toca el candado junto a la dirección, entra a{" "}
-            <b>Permisos → Notificaciones</b>, elige <b>Permitir</b> y vuelve a abrir esta página.
-          </p>
-        ) : (
-          <p className="text-base">
-            No se pudieron activar los avisos.{" "}
-            <button type="button" onClick={activar} className="font-semibold text-primary underline">
-              Intentar otra vez
-            </button>
-          </p>
-        )}
+    <section
+      aria-label={t("titulo")}
+      className="mb-5 flex flex-col gap-4 rounded-2xl border-2 border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:p-5"
+    >
+      <div className="flex min-w-0 flex-1 items-start gap-3.5 sm:items-center">
+        <span
+          aria-hidden
+          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
+            estado === "listo" ? "bg-ok-soft text-ok" : "bg-primary-soft text-primary"
+          }`}
+        >
+          {estado === "listo" ? <Check className="h-6 w-6" strokeWidth={2.6} /> : <BellRing className="h-6 w-6" />}
+        </span>
+        <div className="flex min-w-0 flex-col gap-0.5">
+          {pidiendo ? (
+            <>
+              <p className="text-base font-bold leading-snug">{t("titulo")}</p>
+              <p className="text-[15px] leading-snug text-muted-foreground">{t("pedir")}</p>
+            </>
+          ) : estado === "listo" ? (
+            <>
+              <p className="text-base font-bold leading-snug">Avisos activados</p>
+              <p className="text-[15px] leading-snug text-muted-foreground">
+                Te mandé un aviso de prueba. Así te van a llegar.
+              </p>
+            </>
+          ) : estado === "bloqueado" ? (
+            <>
+              <p className="text-base font-bold leading-snug">Los avisos están bloqueados</p>
+              <p className="text-[15px] leading-snug text-muted-foreground">
+                Toca el candado junto a la dirección, entra a <b>Permisos → Notificaciones</b>, elige{" "}
+                <b>Permitir</b> y vuelve a abrir esta página.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-base font-bold leading-snug">No se pudieron activar los avisos</p>
+              <p className="text-[15px] leading-snug text-muted-foreground">Revisa el internet e inténtalo otra vez.</p>
+            </>
+          )}
+        </div>
       </div>
-      <button
-        type="button"
-        onClick={cerrar}
-        aria-label="Cerrar"
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
-      >
-        <X className="h-5 w-5" />
-      </button>
-    </div>
+
+      <div className="flex shrink-0 gap-2 sm:gap-1">
+        {(pidiendo || estado === "error") && (
+          <button
+            type="button"
+            onClick={activar}
+            disabled={estado === "activando"}
+            className="flex h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-base font-bold text-primary-foreground transition-colors hover:bg-primary-hover active:scale-[0.98] disabled:opacity-60 sm:flex-none"
+          >
+            {estado === "activando" ? (
+              <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+            ) : (
+              <Bell className="h-5 w-5" aria-hidden />
+            )}
+            {estado === "activando" ? "Activando…" : estado === "error" ? "Intentar otra vez" : "Activar avisos"}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={cerrar}
+          className="h-12 rounded-xl px-4 text-base font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          {pidiendo || estado === "error" ? "Ahora no" : "Cerrar"}
+        </button>
+      </div>
+    </section>
   );
 }

@@ -1269,8 +1269,8 @@
     }
   },
   "Settings": {
-    "pageTitle": "Settings",
-    "pageDesc": "Everything in one place — your account and your workspace. Pick a section to manage it.",
+    "pageTitle": "Configuración",
+    "pageDesc": "Todo en un solo lugar: tu cuenta y tu negocio. Elige una sección para cambiarla.",
     "overview": {
       "notSetup": "Not set up yet",
       "connected": "Connected",
@@ -1795,6 +1795,7 @@
     }
   },
   "Avisos": {
+    "titulo": "Avisos en este celular",
     "pedir": "Recibe un aviso en este celular cada vez que llegue algo nuevo"
   }
 }

@@ -968,3 +968,42 @@ change, no production access.
 ### Commits (slice 7c)
 
 - `3bac34ae` — `feat(sdd): show deposits-based reseller totals in the panel`
+
+## Staging n8n rollout (3B.5 n8n half, 2026-11-24)
+
+Applied to staging workflow `U52y1kSNvhgxvWeb` only; production `jEzlVLCLUaJhVwzs` was not
+touched, no workflow was executed, and the API key was never printed.
+
+### What changed
+
+- `Contexto conversacion` (Postgres) returns one new inline boolean field, placed right after
+  `es_recurrente`, so the node keeps its single-row flat-column shape and the Decisor reads it as
+  `ctx.es_revendedor`:
+  `EXISTS (SELECT 1 FROM contact_tags ct JOIN tags t ON t.id = ct.tag_id WHERE ct.contact_id = v.contact_id AND t.account_id = v.account_id AND lower(btrim(t.name)) = 'revendedor') AS es_revendedor`.
+  It does not call `cerebro_es_revendedor`, so it works regardless of migration order. The rest of
+  the query is byte-identical (`query_md5` `89084f7b`), `options.queryReplacement` is untouched and
+  no other node, connection or setting changed.
+- Decisor published from `pruebas/decisor/decisor.jscode` with
+  `publicar-decisor staging --esperado d64e8009`.
+
+### Evidence
+
+| Item | Value |
+|---|---|
+| Backup before any write | `/home/onlinefreedom/cerebro-fase1/respaldos-n8n/staging-U52y1kSNvhgxvWeb-f0c0051d-b6e3-4a07-91d1-f303ef142b3a-20261124-210456.json` (a second pre-write backup, same versionId, at `...-20261124-210606.json`) |
+| versionId before | `f0c0051d-b6e3-4a07-91d1-f303ef142b3a` |
+| versionId after Contexto | `4fda4d70-7757-4791-94a2-65416c2e7f30` |
+| versionId / activeVersionId after Decisor | `baaf643b-32be-4709-a229-f1bf241bf49f` (equal), active true |
+| Node count | 133 before and after |
+| Decisor md5 | `df39af34` live = `df39af34` repo (`repo_md5_match: yes`) |
+| versionId trap | Not needed; every step ended with versionId == activeVersionId |
+
+### Remaining
+
+1. Staging E2E with a PRUEBA reseller (3B.5): receipt matching a PRUEBA `depositos_mmg` row →
+   fixed confirmation with the deposit amount, no operation, total increases in Finanzas; resend →
+   "already registered"; unknown reference → "not verified yet" and claim pending. Clean up
+   fixtures. Needs the owner's staging login for the panel part (`wacrm-probar-staging`).
+2. Production 4.5, only after an explicit owner go-ahead: add the same field to production's OWN
+   `Contexto conversacion` (staging and production queries differ; never copy the staging node),
+   back up, publish the Decisor and confirm versionId == activeVersionId.

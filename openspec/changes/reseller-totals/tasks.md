@@ -74,15 +74,16 @@ Strict TDD: every task writes its failing test and records the RED result before
   - Progress 2026-11-24: `relacionadas 395 cerebro_es_revendedor supabase/staging/assertions/reseller-identity.sql --ya-aplicada ROLLBACK-395-reseller-identity.sql` → `TOTAL 1 | SAME 1 | DIFF 0`; `relacionadas 395 cerebro_registrar_deposito <same skip/flag>` → `TOTAL 44 | SAME 44 | DIFF 0` (the failing bases are pre-existing and SAME).
   - Commit: `a976dd7d`.
 
-- [ ] 1.4 (RED) Write the failing tag-guard assertion `supabase/staging/assertions/reseller-tag-guard.sql`.
+- [x] 1.4 (RED) Write the failing tag-guard assertion `supabase/staging/assertions/reseller-tag-guard.sql`.
   - Files: create `supabase/staging/assertions/reseller-tag-guard.sql`; reference `supabase/staging/assertions/agent-service-change-guards.sql` (read-only) for the `request.jwt.claims` fixture pattern.
   - Spec: `reseller-identity/spec.md` — Admin-only editing of the reseller tag.
   - Cases: agent INSERT of the reseller tag → 42501 with `reseller_tag_admin_only`; agent DELETE → 42501 and the row remains; admin and owner succeed; agent insert/delete of another tag succeeds; no user session (`auth.uid()` NULL) succeeds; agent re-insert of an existing `(contact_id, tag_id)` pair succeeds; agent deleting the contact cascades without a guard failure (owner-accepted default: agents may delete a reseller contact); agent UPDATE moving a reseller tag → 42501; add/remove writes a `human_reseller_tag_added`/`human_reseller_tag_removed` audit row.
   - Test/RED: run the assertion alone on staging and record the expected failure (the agent attempt succeeds today, so the expected 42501 does not occur).
   - Verify RED: `source infra/db/lib-migracion.sh && psql_staging < supabase/staging/assertions/reseller-tag-guard.sql` fails before `ALL PASS`.
   - Depends: none (authoring). Parallel: with `1.2`/`1.3`.
+  - Progress 2026-11-24: RED recorded on staging — `bash -c 'source infra/db/lib-migracion.sh && psql_staging < supabase/staging/assertions/reseller-tag-guard.sql'` → `ERROR: case 2: an agent INSERT of the reseller tag must be refused` (the insert succeeded before 396). GREEN after 1.5 → all 12 cases PASS, ending `ALL PASS (rolled back on purpose)`.
 
-- [ ] 1.5 (GREEN) Create `supabase/migrations/396_reseller_tag_guard.sql` and `supabase/migrations/ROLLBACK-396-reseller-tag-guard.sql`.
+- [x] 1.5 (GREEN) Create `supabase/migrations/396_reseller_tag_guard.sql` and `supabase/migrations/ROLLBACK-396-reseller-tag-guard.sql`.
   - Files: create both migrations.
   - Spec: `reseller-identity/spec.md` — Admin-only editing of the reseller tag; Service path without a user session is not blocked; Panel reflects the tag guard (DB side).
   - Content: `contact_tags_reseller_guard()` (`plpgsql SECURITY DEFINER SET search_path public`) and a `BEFORE INSERT OR UPDATE OR DELETE` row trigger on `contact_tags`. Allow when `auth.uid()` is NULL; allow existing-pair INSERT, no-op UPDATE, and cascade DELETE; otherwise require `is_account_member(t.account_id, 'admin')`, else `RAISE EXCEPTION ... ERRCODE '42501' HINT 'reseller_tag_admin_only'`. Write the owner-accepted audit rows for reseller-tag add/remove using `wacrm_current_actor()`. Do not change permissions for other tags.
@@ -90,56 +91,64 @@ Strict TDD: every task writes its failing test and records the RED result before
   - Test: the assertion from `1.4` must reach `ALL PASS (rolled back on purpose)`.
   - Verify: `DRY_ONLY=1 infra/db/staging-migracion.sh aplicar supabase/migrations/396_reseller_tag_guard.sql supabase/staging/assertions/reseller-tag-guard.sql supabase/migrations/ROLLBACK-396-reseller-tag-guard.sql`, then without `DRY_ONLY`; all four steps OK.
   - Depends: `1.4`; the `human_reseller_tag_*` actions must already exist from `1.2`. Sequential.
+  - Progress 2026-11-24: created 396 (`contact_tags_reseller_guard()` — `plpgsql SECURITY DEFINER`, BEFORE INSERT/UPDATE/DELETE, trusts `auth.uid()` NULL, allows existing-pair INSERT / no-op UPDATE / contact-delete cascade, requires `is_account_member(account,'admin')`, raises 42501 HINT `reseller_tag_admin_only`, audits real human add/remove with `human_reseller_tag_added`/`human_reseller_tag_removed`) and ROLLBACK-396 (drops trigger and function only). Full cycle: `dry-run OK / apply OK / assertion OK / rollback OK (sin funciones que comparar)`.
 
-- [ ] 1.6 Verify the 395+396 production bundle on staging.
+- [x] 1.6 Verify the 395+396 production bundle on staging.
   - Files: `supabase/migrations/395_reseller_identity.sql`, `supabase/migrations/396_reseller_tag_guard.sql`.
   - Test/Verify: with 396 applied on staging, run `DRY_ONLY=1 infra/db/staging-migracion.sh aplicar supabase/migrations/395_reseller_identity.sql supabase/staging/assertions/reseller-identity.sql supabase/migrations/ROLLBACK-395-reseller-identity.sql cerebro_es_revendedor` and confirm the 395 assertion still passes with the guard present (the backfill runs with no user session, so the guard must not block it). Record this as the bundle proof and note the production rule: 395 and 396 are applied in one `aplicar` call.
   - Depends: `1.3`, `1.5`. Sequential before Phase 4.
+  - Progress 2026-11-24: with 396 applied on staging, `DRY_ONLY=1 infra/db/staging-migracion.sh aplicar supabase/migrations/395_reseller_identity.sql supabase/staging/assertions/reseller-identity.sql supabase/migrations/ROLLBACK-395-reseller-identity.sql cerebro_es_revendedor` → `dry-run OK`. The 395 backfill runs with no session, so the guard does not block it. Production rule stands: 395 and 396 in one `aplicar` call.
 
-- [ ] 1.7 (RED→GREEN) Add the TypeScript rule mirror, the admin capability predicate and the shared i18n keys.
+- [x] 1.7 (RED→GREEN) Add the TypeScript rule mirror, the admin capability predicate and the shared i18n keys.
   - Files: create `src/lib/resellers/tag-rule.ts` and `src/lib/resellers/tag-rule.test.ts`; modify `src/lib/auth/roles.ts` and `src/lib/auth/roles.test.ts`; modify `messages/es.json` and `messages/en.json`.
   - Spec: `reseller-identity/spec.md` — Tag-based reseller identity; Panel reflects the tag guard; `reseller-totals/spec.md` — Contact sidebar visibility; Finanzas reseller list.
   - RED: write table-driven `isResellerTagName` tests (case, surrounding spaces, plural/accent variants, null/empty) and a `canManageResellers("admin"|"owner")` true / `"agent"|"viewer"` false test; run them and record the failure.
   - GREEN: `isResellerTagName(name)` mirrors `lower(btrim(name)) = 'revendedor'` and is UI gating only; `canManageResellers(role) = hasMinRole(role, "admin")`; add `Contacts.*.resellerTagAdminOnly`, `Contacts.*.resellerTagBotHint`, `Finanzas.tabs.revendedores`, and the `Resellers.*` key namespace used by Phase 3.
   - Verify: `npx vitest run src/lib/resellers/tag-rule.test.ts src/lib/auth/roles.test.ts src/i18n/messages-parity.test.ts --maxWorkers=4` and `npx tsc --noEmit`.
   - Depends: none for tests; can start in parallel with `1.2`. Feeds `1.8`–`1.11` and Phase 3.
+  - Progress 2026-11-24: RED `npx vitest run src/lib/resellers/tag-rule.test.ts src/lib/auth/roles.test.ts --maxWorkers=4` → `Cannot find module './tag-rule'` and `TypeError: canManageResellers is not a function`. GREEN: `isResellerTagName` mirrors `lower(btrim(name)) = 'revendedor'`, `isResellerTagRefusal` recognises the 42501 guard, `canManageResellers = hasMinRole(role, 'admin')`; added `Contacts.detailView.tagsTab.*`, `Contacts.form.*` and `Contacts.importModal.toastResellerTagSkipped` to both locales. 3 files / 52 tests pass, locale parity included.
 
-- [ ] 1.8 (RED→GREEN) Gate the reseller tag chip in the contact detail view.
+- [x] 1.8 (RED→GREEN) Gate the reseller tag chip in the contact detail view.
   - Files: modify `src/components/contacts/contact-detail-view.tsx`; create `src/components/contacts/contact-detail-view.reseller-tag.test.tsx`; consume `src/lib/resellers/tag-rule.ts` and `src/hooks/use-auth.ts` (read-only) for `accountRole`.
   - Spec: `reseller-identity/spec.md` — Panel reflects the tag guard; `reseller-totals/spec.md` — Reset copy clarity (bot-effect hint context).
   - RED: agent sees the reseller chip disabled with the `resellerTagAdminOnly` explanation; admin sees it enabled with the `resellerTagBotHint`; agent can still toggle other chips.
   - GREEN: render the reseller chip disabled with `title`/hint for non-admins, keep other chips unchanged, show the bot-effect hint for admins.
   - Verify: `npx vitest run src/components/contacts/contact-detail-view.reseller-tag.test.tsx --maxWorkers=4` and `npx tsc --noEmit`.
   - Depends: `1.7`. Parallel with `1.9`–`1.11` if `messages/*.json` changes are coordinated.
+  - Progress 2026-11-24: RED — agent chip was enabled and had no title (`expected false to be true`, `expected null to be 'Esta etiqueta…'`). GREEN: the reseller chip is disabled with `resellerTagAdminOnly` for agents and carries `resellerTagBotHint` for admins; other chips unchanged. `npx vitest run src/components/contacts/contact-detail-view.reseller-tag.test.tsx --maxWorkers=4` → 4/4 pass.
 
-- [ ] 1.9 (RED→GREEN) Surface `toggleTag` errors in a toast instead of failing silently.
+- [x] 1.9 (RED→GREEN) Surface `toggleTag` errors in a toast instead of failing silently.
   - Files: modify `src/components/contacts/contact-detail-view.tsx`; extend `src/components/contacts/contact-detail-view.reseller-tag.test.tsx`.
   - Spec: `reseller-identity/spec.md` — Agent is refused when adding/removing the reseller tag; "clear, readable error and MUST NOT change contact tags".
   - RED: a mocked `contact_tags` insert/delete error shows an error toast and leaves the chip state unchanged; the 42501 message is readable (no generic error).
   - GREEN: check the Supabase error on both insert and delete paths and call `toast.error` with the message; keep optimistic state only on success.
   - Verify: `npx vitest run src/components/contacts/contact-detail-view.reseller-tag.test.tsx --maxWorkers=4` and `npx tsc --noEmit`.
   - Depends: `1.8` (same file; sequential to avoid conflicting edits).
+  - Progress 2026-11-24: RED — no toast on a 42501 (`expected "vi.fn()" to be called`). GREEN: both insert and delete check the Supabase error, show `tagsTab.resellerTagRefused` for the 396 refusal (readable Spanish), and keep the optimistic chip state only on success. Covered by the same 4/4 component tests (insert and delete refusal cases).
 
-- [ ] 1.10 (RED→GREEN) Replace contact-form tag delete-all + insert-all with a diff sync.
+- [x] 1.10 (RED→GREEN) Replace contact-form tag delete-all + insert-all with a diff sync.
   - Files: modify `src/components/contacts/contact-form.tsx`; create `src/components/contacts/contact-form.tag-diff.test.tsx`.
   - Spec: `reseller-identity/spec.md` — Admin-only editing of the reseller tag (agents must keep editing a reseller contact's other fields); `reseller-identity/spec.md` — Agent keeps permissions on other tags.
   - RED: saving an edited reseller contact as an agent issues only the needed tag operations: no DELETE of an unchanged reseller tag; add/remove only changed ids; a removed non-reseller tag is deleted; an added tag is inserted; no duplicate `UNIQUE(contact_id, tag_id)` violation.
   - GREEN: compute `toAdd = selected - current` and `toRemove = current - selected`, issue only those statements, and surface errors. Do not touch tags when the selection is unchanged.
   - Verify: `npx vitest run src/components/contacts/contact-form.tag-diff.test.tsx --maxWorkers=4` and `npx tsc --noEmit`.
   - Depends: `1.7`. Parallel with `1.8`, `1.9`, `1.11` if component files do not overlap.
+  - Progress 2026-11-24: RED — delete-all + insert-all issued insertions of the unchanged reseller tag and no per-id delete. GREEN: `toAdd = selected − current` and `toRemove = current − selected`, one delete per removed id and one insert of the added ids, errors surfaced (reseller 42501 → Spanish message). `npx vitest run src/components/contacts/contact-form.tag-diff.test.tsx --maxWorkers=4` → 5/5 pass.
 
-- [ ] 1.11 (RED→GREEN) Gate reseller-tag assignment during import for non-admins.
+- [x] 1.11 (RED→GREEN) Gate reseller-tag assignment during import for non-admins.
   - Files: modify `src/lib/contacts/resolve-import-tags.ts`, `src/lib/contacts/resolve-import-tags.test.ts`, `src/components/contacts/import-modal.tsx`; add a test in `src/components/contacts/import-modal.reseller-tag.test.tsx`.
   - Spec: `reseller-identity/spec.md` — Admin-only editing of the reseller tag; Panel reflects the tag guard.
   - RED: with `canAssignResellerTag = false`, an imported "Revendedor" tag is skipped and reported like an unknown tag name; non-reseller tags are assigned; with `true` (admin default), the reseller tag is assigned.
   - GREEN: add the optional `canAssignResellerTag` flag (default `true`), pass `canManageResellers(role)` from the modal, and report skipped reseller tags in the import result.
   - Verify: `npx vitest run src/lib/contacts/resolve-import-tags.test.ts src/components/contacts/import-modal.reseller-tag.test.tsx --maxWorkers=4` and `npx tsc --noEmit`.
   - Depends: `1.7`. Parallel with `1.8`–`1.10`.
+  - Progress 2026-11-24: RED — the resolver matched/created the reseller tag for a non-admin (`expected true to be false`, case-insensitive skip failed). GREEN: optional `canAssignResellerTag` (default true) excludes the reseller tag from the map and from creation and reports it in `skippedNames`; the modal passes `canEditSettings` and splits the skipped list, showing `toastResellerTagSkipped` for the reseller tag. Resolver 6/6 and modal 2/2 tests pass; no 100-row batch can hit the 42501.
 
-- [ ] 1.12 Verify the whole S1 panel slice and locale parity.
+- [x] 1.12 Verify the whole S1 panel slice and locale parity.
   - Files: all Phase 1 panel files.
   - Verify: `npx vitest run src/lib/resellers src/lib/auth/roles.test.ts src/components/contacts --maxWorkers=4`, `npx vitest run src/i18n/messages-parity.test.ts --maxWorkers=4`, and `npx tsc --noEmit`. Record RED/GREEN evidence from `1.7`–`1.11`.
   - Depends: `1.7`–`1.11`. Sequential, last in Phase 1.
+  - Progress 2026-11-24: `npx vitest run src/lib/resellers src/lib/auth/roles.test.ts src/components/contacts src/lib/contacts/resolve-import-tags.test.ts src/i18n/messages-parity.test.ts --maxWorkers=4` → `Test Files 8 passed (8) | Tests 74 passed (74)`; `npx tsc --noEmit` → exit 0. RED/GREEN evidence recorded in 1.7–1.11.
 
 ## Phase 2 — S2: Pre-apply reports and owner decisions
 

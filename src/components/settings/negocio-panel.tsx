@@ -161,6 +161,112 @@ function useFila(tabla: "negocio_config" | "bot_config" | "bot_entrevista", acco
 }
 
 // ============================================================
+// Subir logo o ícono: se guarda como imagen dentro de la configuración
+// (data URI), sin depender de otro servicio. Un SVG se guarda tal cual;
+// una foto o PNG se achica en el navegador (logo hasta 160 px de alto,
+// ícono recortado al centro a 512 × 512).
+// ============================================================
+
+type Imagen = { src: string; ancho: number; alto: number };
+
+function leerArchivo(archivo: File, forma: "ancha" | "cuadrada"): Promise<Imagen> {
+  return new Promise((resolve, reject) => {
+    const lector = new FileReader();
+    lector.onerror = () => reject(new Error("No se pudo leer el archivo"));
+    lector.onload = () => {
+      const url = String(lector.result);
+      const img = new Image();
+      img.onerror = () => reject(new Error("Ese archivo no es una imagen que se pueda usar"));
+      img.onload = () => {
+        const w = img.naturalWidth || 512;
+        const h = img.naturalHeight || 512;
+        if (archivo.type === "image/svg+xml") return resolve({ src: url, ancho: w, alto: h });
+        const lienzo = document.createElement("canvas");
+        const ctx = lienzo.getContext("2d");
+        if (!ctx) return reject(new Error("El navegador no pudo procesar la imagen"));
+        if (forma === "cuadrada") {
+          const lado = Math.min(w, h);
+          lienzo.width = lienzo.height = 512;
+          ctx.drawImage(img, (w - lado) / 2, (h - lado) / 2, lado, lado, 0, 0, 512, 512);
+          return resolve({ src: lienzo.toDataURL("image/png"), ancho: 512, alto: 512 });
+        }
+        const escala = Math.min(1, 160 / h);
+        lienzo.width = Math.round(w * escala);
+        lienzo.height = Math.round(h * escala);
+        ctx.drawImage(img, 0, 0, lienzo.width, lienzo.height);
+        resolve({ src: lienzo.toDataURL("image/png"), ancho: lienzo.width, alto: lienzo.height });
+      };
+      img.src = url;
+    };
+    lector.readAsDataURL(archivo);
+  });
+}
+
+function SubirImagen({
+  titulo,
+  ayuda,
+  src,
+  forma,
+  onCambio,
+}: {
+  titulo: string;
+  ayuda: string;
+  src: string | null;
+  forma: "ancha" | "cuadrada";
+  onCambio: (img: Imagen | null) => void;
+}) {
+  const id = `subir-${forma}`;
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{titulo}</Label>
+      <div className="flex items-center gap-3 rounded-lg border border-border p-3">
+        <div
+          className={`flex shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted ${forma === "cuadrada" ? "h-16 w-16" : "h-16 w-40"}`}
+        >
+          {src ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={src} alt="" className="max-h-full max-w-full object-contain" />
+          ) : (
+            <span className="text-xs text-muted-foreground">Sin imagen</span>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <label
+            htmlFor={id}
+            className="inline-flex h-9 cursor-pointer items-center rounded-md border border-input px-3 text-sm font-medium hover:bg-muted"
+          >
+            Subir imagen
+          </label>
+          <input
+            id={id}
+            type="file"
+            accept="image/svg+xml,image/png,image/jpeg,image/webp"
+            className="sr-only"
+            onChange={async (e) => {
+              const archivo = e.target.files?.[0];
+              e.target.value = "";
+              if (!archivo) return;
+              if (archivo.size > 2_000_000) return toast.error("La imagen pesa más de 2 MB; usa una más ligera");
+              try {
+                onCambio(await leerArchivo(archivo, forma));
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : "No se pudo usar la imagen");
+              }
+            }}
+          />
+          {src && (
+            <Button variant="ghost" size="sm" onClick={() => onCambio(null)}>
+              Quitar
+            </Button>
+          )}
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">{ayuda}</p>
+    </div>
+  );
+}
+
+// ============================================================
 // Apariencia y palabras: colores, vista sencilla, lo que vende y
 // cómo se llama cada sección. Ninguna palabra que vea el dueño vive
 // en el código.
@@ -441,12 +547,22 @@ function PestanaCrm({ accountId, puede }: { accountId: string; puede: boolean })
                 <Campo label="Nombre del negocio">
                   <Input value={texto(raw.nombre)} onChange={(e) => set({ nombre: e.target.value })} />
                 </Campo>
-                <Campo label="Logo (dirección de la imagen)" ayuda="Ej. /logo-onlinefreedom.svg o https://…/logo.png">
-                  <Input
-                    value={texto((raw.logo as Obj)?.src)}
-                    onChange={(e) => set({ logo: { ...cfg.logo, ...((raw.logo as Obj) ?? {}), src: e.target.value } })}
-                  />
-                </Campo>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <SubirImagen
+                  titulo="Logo"
+                  ayuda="Va arriba del menú. Mejor ancho y sin fondo (SVG o PNG)."
+                  src={texto((raw.logo as Obj)?.src) || null}
+                  forma="ancha"
+                  onCambio={(img) => set({ logo: img ? { src: img.src, ancho: img.ancho, alto: img.alto } : undefined })}
+                />
+                <SubirImagen
+                  titulo="Ícono de la app"
+                  ayuda="Cuadrado. Sale en la pestaña, en la app instalada y en los avisos. Deja aire alrededor: Android lo recorta en círculo."
+                  src={cfg.icono}
+                  forma="cuadrada"
+                  onCambio={(img) => set({ icono: img ? img.src : null })}
+                />
               </div>
               <Campo label="Secciones del menú" ayuda="Las que no marques siguen existiendo, pero no salen en el menú.">
                 <div className="flex flex-wrap gap-x-5 gap-y-2 pt-1">

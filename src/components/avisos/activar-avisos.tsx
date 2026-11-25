@@ -10,6 +10,7 @@
 
 import { useEffect, useState } from "react";
 import { BellRing, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 type Estado = "oculto" | "pedir" | "activando" | "listo" | "bloqueado" | "error";
 const CLAVE_CERRADO = "avisos-cerrado-hasta";
@@ -32,6 +33,8 @@ async function guardar(sub: PushSubscription) {
 }
 
 export function ActivarAvisos() {
+  // El texto se puede cambiar por negocio en Ajustes (textos.Avisos.pedir).
+  const t = useTranslations("Avisos");
   const [estado, setEstado] = useState<Estado>("oculto");
 
   useEffect(() => {
@@ -96,7 +99,7 @@ export function ActivarAvisos() {
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         {estado === "pedir" || estado === "activando" ? (
           <>
-            <p className="text-base font-semibold">Recibe un aviso en este celular cada vez que llegue un prospecto nuevo o un cliente pida hablar contigo</p>
+            <p className="text-base font-semibold">{t("pedir")}</p>
             <button
               type="button"
               onClick={activar}

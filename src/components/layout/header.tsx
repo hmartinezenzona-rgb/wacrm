@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ModeToggle } from "@/components/layout/mode-toggle";
+import { SECCIONES } from "@/lib/negocio/config";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "dashboard",
@@ -25,6 +26,8 @@ const pageTitles: Record<string, string> = {
   "/contacts": "contacts",
   "/pipelines": "pipelines",
   "/catalogo": "catalogo",
+  "/menu": "menu",
+  "/cocinar": "cocinar",
   "/resumen": "resumen",
   "/broadcasts": "broadcasts",
   "/automations": "automations",
@@ -49,6 +52,9 @@ import { useTranslations } from "next-intl";
 
 export function Header({ onOpenSidebar }: HeaderProps) {
   const t = useTranslations("Header");
+  // Las secciones del negocio usan el nombre que se les puso en Ajustes
+  // (textos.Sidebar), igual que en el menú.
+  const tSidebar = useTranslations("Sidebar");
   const pathname = usePathname();
   const { profile, signOut } = useAuth();
   const titleKey = getPageTitleKey(pathname);
@@ -71,7 +77,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
           <Menu className="h-5 w-5" />
         </button>
         <h1 className="truncate text-base font-semibold text-foreground sm:text-lg">
-          {t(titleKey as string)}
+          {(SECCIONES as readonly string[]).includes(titleKey) ? tSidebar(titleKey) : t(titleKey as string)}
         </h1>
       </div>
 

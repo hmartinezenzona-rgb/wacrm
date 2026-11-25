@@ -1791,5 +1791,8 @@
       },
       "error": "No se pudo cargar: {msg}"
     }
+  },
+  "Avisos": {
+    "pedir": "Get a notification on this phone whenever something new arrives"
   }
 }

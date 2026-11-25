@@ -19,7 +19,8 @@ import { Check, Globe, MessageCircle, Paperclip, X } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
 import { useTranslations } from "next-intl";
 import { useNegocio } from "@/hooks/use-negocio";
-import { columna, datoDeNotas, resumenDeNotas } from "@/lib/negocio/config";
+import { columna, cuantas, datoDeNotas, resumenDeNotas, type NegocioConfig } from "@/lib/negocio/config";
+import { leerBloques } from "@/lib/encargos/leer";
 
 interface DealCardProps {
   deal: Deal;
@@ -38,8 +39,13 @@ interface DealCardProps {
 
 const URGENTE = /\s*·\s*URGENTE\s*$/i;
 
-/** Lee las notas que escribe cotizacion_solicitar (migración 310). */
-function resumenNotas(notes?: string | null) {
+/**
+ * Qué piden, según las notas. Pedidos por unidad («Charola 1: Congrí,
+ * Ropa vieja», migraciones 301/336) se cuentan con la palabra del negocio;
+ * si no hay, se leen las líneas «- …» de cotizacion_solicitar (migración 310).
+ */
+function resumenNotas(notes: string | null | undefined, negocio: NegocioConfig) {
+  const unidades = leerBloques(notes, negocio.pedido.uno).filter((b) => b.tipo === "charola");
   const lineas = (notes ?? "").split("\n").map((l) => l.trim());
   const productos = lineas.filter((l) => l.startsWith("- ")).map((l) => l.slice(2));
   // "- 10 pz · Válvulas: bola 1in · marca X" → "Válvulas"
@@ -56,7 +62,12 @@ function resumenNotas(notes?: string | null) {
     : /p[aá]gina/i.test(origenTxt)
       ? "web"
       : null;
-  return { cuantos: productos.length, lineas: unicas, origen };
+  if (unidades.length > 0) {
+    const platos = [...new Set(unidades.flatMap((b) => (b.tipo === "charola" ? b.platos : [])))];
+    return { cuantos: unidades.length, etiqueta: cuantas(negocio, unidades.length), lineas: platos, origen };
+  }
+  const etiqueta = `${productos.length} ${productos.length === 1 ? "producto" : "productos"}`;
+  return { cuantos: productos.length, etiqueta, lineas: unicas, origen };
 }
 
 function diasDesde(iso?: string | null) {
@@ -88,7 +99,7 @@ export function DealCard({
   const contacto = deal.contact?.name || deal.contact?.phone || t("noContact");
   const mostrarContacto = contacto !== titulo;
   const { negocio } = useNegocio();
-  const { cuantos, lineas, origen } = resumenNotas(deal.notes);
+  const { cuantos, etiqueta, lineas, origen } = resumenNotas(deal.notes, negocio);
   // Lo que cada negocio quiere ver en la tarjeta (negocio_config.tarjeta).
   const perfil = resumenDeNotas(deal.notes, negocio.tarjeta.resumen);
   const destacados = negocio.tarjeta.destacar
@@ -162,7 +173,7 @@ export function DealCard({
       {cuantos > 0 && (
         <p className="mt-1 truncate text-xs text-muted-foreground/90">
           <span className="font-medium text-foreground/80">
-            {cuantos} {cuantos === 1 ? "producto" : "productos"}
+            {etiqueta}
           </span>
           {lineas.length > 0 && <> · {lineas.slice(0, 2).join(", ")}{lineas.length > 2 ? "…" : ""}</>}
         </p>

@@ -6,6 +6,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { NextIntlClientProvider, useLocale, useMessages } from "next-intl";
+import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import {
@@ -31,6 +32,7 @@ const NegocioContext = createContext<NegocioContextValue>({
 });
 
 export function NegocioProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const { profile, profileLoading } = useAuth();
   const accountId = profile?.account_id ?? null;
   const [estado, setEstado] = useState<{ cuenta: string | null; negocio: NegocioConfig } | null>(null);
@@ -75,6 +77,11 @@ export function NegocioProvider({ children }: { children: ReactNode }) {
       // Sin localStorage solo hay un parpadeo al abrir; no pasa nada más.
     }
   }, [cargando, negocio.tema, negocio.sencillo]);
+
+  // Pestaña del navegador y app instalada con el nombre del negocio.
+  useEffect(() => {
+    if (!cargando) document.title = negocio.nombre;
+  }, [cargando, negocio.nombre, pathname]);
 
   const messages = useMessages();
   const locale = useLocale();

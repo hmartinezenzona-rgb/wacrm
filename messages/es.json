@@ -1793,5 +1793,8 @@
       },
       "error": "No se pudo cargar: {msg}"
     }
+  },
+  "Avisos": {
+    "pedir": "Recibe un aviso en este celular cada vez que llegue algo nuevo"
   }
 }

@@ -16,6 +16,9 @@
 --     menú de ese día y aparta con encargo_web a nombre del teléfono del chat.
 -- ============================================================
 
+-- El webhook de WhatsApp no pisa un nombre que se puso a mano (como en 317).
+ALTER TABLE public.contacts ADD COLUMN IF NOT EXISTS name_source TEXT;
+
 ALTER TABLE public.conversations
   ADD COLUMN IF NOT EXISTS humano_pedido_en   timestamptz,
   ADD COLUMN IF NOT EXISTS humano_avisado_en  timestamptz,

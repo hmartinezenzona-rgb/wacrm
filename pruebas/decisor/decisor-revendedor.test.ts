@@ -230,13 +230,23 @@ describe('revendedor: no cambia a los demas clientes', () => {
     expect(out.mensaje).toMatch(/Comprobante leido y YA REGISTRADO/);
   });
 
-  it('un revendedor sin comprobante en este turno sigue la conversacion normal', () => {
+  it('un revendedor sin comprobante no recibe el guion de cliente: silencio', () => {
     const out = correrDecisor({
       ctx: { es_revendedor: true },
       snapshot: { texto_completo: 'hola, cuanto es el minimo?' },
-    }) as unknown as SalidaComando;
-    expect(out.ruta).toBe('agente');
-    expect(out.comando).toBeUndefined();
+    }) as unknown as SalidaComando & { motivo?: string };
+    expect(out.ruta).toBe('silencio');
+    expect(out.motivo).toBe('mensaje de revendedor sin comprobante');
+    expect(out.mensaje).toBeUndefined();
+  });
+
+  it('un admin que tambien es revendedor conserva el silencio de admin', () => {
+    const out = correrDecisor({
+      ctx: { es_revendedor: true, es_admin: true },
+      snapshot: { texto_completo: 'hola' },
+    }) as unknown as SalidaComando & { motivo?: string };
+    expect(out.ruta).toBe('silencio');
+    expect(out.motivo).toBe('mensaje del admin');
   });
 
   it('sin el campo es_revendedor no se activa (contexto viejo)', () => {

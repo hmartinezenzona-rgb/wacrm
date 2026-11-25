@@ -54,6 +54,12 @@ if (accionRevendedor) { return accionRevendedor; }
 // modelo (comprobado: CTRL-06 y CTRL-12 daban `agente`). El plano de control no
 // se conversa: si no es una orden reconocida, silencio.
 if (ctx.es_admin) { return [{ json: { ruta: 'silencio', motivo: 'mensaje del admin' } }]; }
+// REVENDEDOR SIN COMPROBANTE (25-nov-2026, decision del dueno). Los revendedores ya no llevan
+// la etiqueta Admin: sin ese silencio, un mensaje suyo caia en el guion de cliente —cotizar,
+// pedir tarjeta o beneficiario—, que no aplica a quien solo manda comprobantes para sumar su
+// total. La rama de revendedor de arriba ya atendio el comprobante; lo que no es comprobante
+// no se conversa. Las guardas de arriba y el admin siguen mandando.
+if (ctx.es_revendedor) { return [{ json: { ruta: 'silencio', motivo: 'mensaje de revendedor sin comprobante' } }]; }
 // EL BOT CIERRA EL AGRADECIMIENTO (086, idea de Osmany).
 // Hasta hoy, en un chat que llevaba una persona el bot callaba SIEMPRE. Inelvis
 // escribio "Gracia" con su remesa ya entregada, nadie contesto, y el vigilante

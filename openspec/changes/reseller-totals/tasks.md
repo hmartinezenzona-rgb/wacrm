@@ -137,7 +137,7 @@ Strict TDD: every task writes its failing test and records the RED result before
 
 ## Phase 2 — S2: Pre-apply reports and owner decisions
 
-- [ ] 2.1 Create the read-only identity report script `supabase/staging/check-reseller-identity.sql`.
+- [x] 2.1 Create the read-only identity report script `supabase/staging/check-reseller-identity.sql`.
   - Files: create `supabase/staging/check-reseller-identity.sql`; use `supabase/staging/check-production-clean.sql` (read-only) as the structural pattern.
   - Spec: `reseller-identity/spec.md` — Pre-apply reports; `design.md` Decision 6.
   - Content: `BEGIN READ ONLY` … four labelled result sets … `ROLLBACK`:
@@ -148,6 +148,7 @@ Strict TDD: every task writes its failing test and records the RED result before
   - Critical: use the inline predicate `lower(btrim(name)) = 'revendedor'` (and an inline account-scoped join), not the 395 helpers, so the file runs read-only on production BEFORE 395 exists.
   - Verify: `source infra/db/lib-migracion.sh && psql_staging < supabase/staging/check-reseller-identity.sql` prints four result sets and ends without error (read-only rollback).
   - Depends: none. Parallel with Phase 1 authoring.
+  - Progress (2026-11-24): created the script with four labelled result sets (`A_count`/`A_phone`, `B_count`/`B_phone`, `C_contact_count`/`C_contact_phone`/`C_account_count`/`C_account`, `D_count`/`D_tag_name`), the inline `lower(btrim(t.name)) = 'revendedor'` predicate and account-scoped joins, inside `BEGIN; SET TRANSACTION READ ONLY;` / `ROLLBACK;`. Validated on staging with `bash -c 'source infra/db/lib-migracion.sh && psql_staging < supabase/staging/check-reseller-identity.sql'` (the lib needs bash) → exit 0: `A_count: 0`, `B_count: 0`, `C_contact_count: 0`, `C_account_count: 0`, `D_count: 0`. Staging baseline: 0 allow-list rows (0 active), 3 contacts, 3 contact_tags, 4 tags, none matching `%revend%`, so the zeros are genuine. Commit `dc5b4297`.
 
 - [ ] 2.2 Run the reports on staging and reconcile them with the 395 backfill.
   - Files: `supabase/staging/check-reseller-identity.sql`; staging DB (read-only).
@@ -155,6 +156,7 @@ Strict TDD: every task writes its failing test and records the RED result before
   - Test: run the script on staging after `1.2`; confirm A/B/D lists match the fixture expectation, and C matches the contacts actually tagged by the 395 assertion (no allow-list phone with a contact is missing the tag).
   - Verify: capture the four result sets as evidence and compare C against the `migration_reseller_tag_added` audit rows. Any mismatch blocks production.
   - Depends: `1.2`. Parallel with `1.5` authoring.
+  - Prepared command (not run; blocked on `1.2` = 395 applied on staging): `bash -c 'source infra/db/lib-migracion.sh && psql_staging < supabase/staging/check-reseller-identity.sql'`. Reconcile `C_contact_count` with `SELECT count(*) FROM remittance_admin_audit WHERE action = 'migration_reseller_tag_added' AND table_name = 'contact_tags'` through the same read-only helper; any mismatch blocks production.
 
 - [ ] 2.3 Produce the production report and obtain the owner's tag decision.
   - Files: `supabase/staging/check-reseller-identity.sql`; production DB accessed read-only through the authorized read-only path chosen by the owner.
@@ -162,12 +164,15 @@ Strict TDD: every task writes its failing test and records the RED result before
   - Owner go-ahead required: yes, before reading production and before any tag edit.
   - Test/Verify: show the owner lists A–D (privacy-scrubbed counts plus the rows the owner needs), record the decision for every unmatched phone and every newly-reseller contact, and stop if any list is ambiguous.
   - Depends: `2.1`, `2.2`. Sequential before Phase 4.
+  - Prepared command (do NOT run without owner go-ahead): `docker run --rm --network host -i --env-file ~/.config/wacrm/prod-db.env postgres:17 sh -c 'psql -X -q -A -t "$PROD_DATABASE_URL" -v ON_ERROR_STOP=1 -f -' < supabase/staging/check-reseller-identity.sql` (owner may instead paste the file into the production SQL editor).
+  - Prepared report template: `A: count=<n> | phones=<…> -> owner decision: keep as reseller / accept loss`; `B: count=<n> | phones=<…> -> owner decision: keep tag / remove tag before apply`; `C: contacts=<n> | accounts creating tag=<n>`; `D: count=<n> | names=<…> -> owner decision: ignore / rename`. Record one decision per row and stop if any list is ambiguous.
 
-- [ ] 2.4 Verify that no automation adds or removes the "Revendedor" tag.
+- [x] 2.4 Verify that no automation adds or removes the "Revendedor" tag.
   - Files: n8n workflows via `.claude/skills/wacrm-cerebro-n8n/SKILL.md` (read-only) and the panel automations/flows configuration (read-only); `src/app/api/v1/` (read-only) for API-key tag writers.
   - Spec: `reseller-identity/spec.md` — Service path without a user session is not blocked; owner-accepted default 6.
   - Test/Verify: inspect read-only exports and search for `contact_tags`, `tags`, `Revendedor` writes; document every match. If an automation can change the tag, stop and report to the owner before the production apply, because no-session callers bypass the guard by design.
   - Depends: none; complete before `2.3` sign-off. Read-only.
+  - Progress (2026-11-24, read-only): n8n production `jEzlVLCLUaJhVwzs` (126 nodes, versionId `a3d439e9-380f-41fe-bdb2-832e48e84e82`, Decisor md5 `d64e8009` = repo) has no `contact_tags`/`tags` writes; only reads in "Contexto conversacion" (admin/assignee) and `es_revendedor` returned by the RPC in "Registrar deposito auto". Decisor `pruebas/decisor/decisor.jscode`: 0 `revend`/`es_revendedor`/`tags` references. `infra/ia/`: read-only tag reads only (`colectar_dia.py`, `mejora_nocturna.py` prompt text), no writes. Production configuration read-only: `automation_steps` add_tag/remove_tag = 0, `flow_nodes` set_tag = 0, reseller-tag hits = 0. DB functions: `sync_tags_cliente` writes only nuevo/cliente/recurrentes; `merge_duplicate_contacts()` can move/drop `contact_tags` during dedup. Residual by-design exposure: `/api/v1/contacts` POST/PATCH with `contacts:write` uses a service-role client (`auth.uid()` NULL) and can set arbitrary tag names, including "Revendedor"; no n8n node calls it today. Verdict: no automation adds or removes the "Revendedor" tag today.
 
 - [ ] 2.5 Apply the owner-approved tag edits in the panel before the production apply.
   - Files: panel contact tag UI (no code change); production data via admin panel actions.

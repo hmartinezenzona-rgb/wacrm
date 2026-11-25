@@ -45,15 +45,17 @@ Chain strategy: feature-branch-chain, six slices in order (owner 2026-11-24). Sl
 
 Strict TDD: every task writes its failing test and records the RED result before implementation.
 
-- [ ] 1.1 (RED) Write the failing identity assertion `supabase/staging/assertions/reseller-identity.sql` covering the tag rule, backfill and bot parity.
+- [x] 1.1 (RED) Write the failing identity assertion `supabase/staging/assertions/reseller-identity.sql` covering the tag rule, backfill and bot parity.
   - Files: create `supabase/staging/assertions/reseller-identity.sql`; reference `supabase/migrations/109_*.sql` (read-only) for the current `cerebro_es_revendedor` body and `supabase/migrations/383_*.sql` (read-only) for the audit action list.
   - Spec: `reseller-identity/spec.md` — Tag-based reseller identity; Single shared definition for panel and bot; Allow-list to tag migration; Untag and retag preserve contact history.
   - Cases: "Revendedor", "  revendedor  ", "REVENDEDOR"; "Revendedores"/"Revendedór"/untagged do not match; a tag from another account does not count; duplicate matching tags yield one reseller; bot boolean before/after for allow-list contacts; inactive allow-list row tags nothing; existing account tag reused; already-tagged contact idempotent; backfill writes `migration_reseller_tag_added` audit rows.
   - Test/RED: run the assertion alone against staging through the shared helper and record the expected failure (missing helper function/objects). Then keep the file as the GREEN target.
   - Verify RED: `source infra/db/lib-migracion.sh && psql_staging < supabase/staging/assertions/reseller-identity.sql` fails with a missing `reseller_tag_name_matches`/`reseller_contact_is_tagged` error, not `ALL PASS`.
   - Depends: none. Parallel: with `1.4`, `1.7`, `2.1`, `3.1`.
+  - Progress 2026-11-24: RED recorded on staging — `bash -c 'source infra/db/lib-migracion.sh && psql_staging < supabase/staging/assertions/reseller-identity.sql'` → `ERROR: function reseller_tag_name_matches(unknown) does not exist`. GREEN after 395 → `ALL PASS (rolled back on purpose)`.
+  - Commit: `a976dd7d`.
 
-- [ ] 1.2 (GREEN) Create `supabase/migrations/395_reseller_identity.sql` and `supabase/migrations/ROLLBACK-395-reseller-identity.sql`.
+- [x] 1.2 (GREEN) Create `supabase/migrations/395_reseller_identity.sql` and `supabase/migrations/ROLLBACK-395-reseller-identity.sql`.
   - Files: create both migrations; read live objects first with `pg_get_functiondef` and the live `remittance_admin_audit_action_chk` (do not trust the 383 list blindly).
   - Spec: `reseller-identity/spec.md` — all identity, migration, deprecation and history requirements.
   - Content: `reseller_tag_name_matches(text)` and `reseller_contact_is_tagged(uuid)` helpers; extend the audit action list with `migration_reseller_tag_added`, `human_reseller_counter_reset`, `human_reseller_adjustment`, and the owner-accepted tag audit actions `human_reseller_tag_added`/`human_reseller_tag_removed`; reuse-or-create the "Revendedor" tag per account and tag active allow-list phones only, audited row by row; rewrite `cerebro_es_revendedor(conv)` to the tag rule with the same signature/ACL (restate the 109 REVOKE/GRANT); run the "no current reseller is lost" `DO` check before commit; `COMMENT ON TABLE public.cerebro_revendedores` marks it deprecated/read-only; `NOTIFY pgrst`.
@@ -61,12 +63,16 @@ Strict TDD: every task writes its failing test and records the RED result before
   - Test: the assertion from `1.1` must flip from RED to `ALL PASS (rolled back on purpose)`.
   - Verify: `DRY_ONLY=1 infra/db/staging-migracion.sh aplicar supabase/migrations/395_reseller_identity.sql supabase/staging/assertions/reseller-identity.sql supabase/migrations/ROLLBACK-395-reseller-identity.sql cerebro_es_revendedor`, then the same command without `DRY_ONLY` (dry-run OK, apply OK, assertion OK, rollback md5 equal).
   - Depends: `1.1`. Sequential.
+  - Progress 2026-11-24: live `pg_get_functiondef('public.cerebro_es_revendedor(uuid)')` matched 109 and the live `remittance_admin_audit_action_chk` matched the 383 list (40 actions); 395 adds 5. `DRY_ONLY=1 infra/db/staging-migracion.sh aplicar ...` → `dry-run OK`; full cycle → `dry-run OK / apply OK / assertion OK / rollback OK (md5 igual al previo)`, function md5 `1b67d2f4ceb2`, ACL `{postgres=X/postgres,service_role=X/postgres}`. The backfill lives in private `_reseller_backfill_allow_list()` so the assertion runs the same code (deviation recorded in apply-progress).
+  - Commit: `a976dd7d`.
 
-- [ ] 1.3 Verify no deposit-path regression after 395.
+- [x] 1.3 Verify no deposit-path regression after 395.
   - Files: `supabase/migrations/395_reseller_identity.sql`; assertion corpus under `supabase/staging/assertions/` (read-only).
   - Spec: `reseller-identity/spec.md` — Existing reseller deposit behavior is preserved; Bot parity after migration.
   - Test/Verify: `infra/db/staging-migracion.sh relacionadas supabase/migrations/395_reseller_identity.sql cerebro_es_revendedor` shows `TOTAL n | SAME n | DIFF 0`. Repeat with the pattern `cerebro_registrar_deposito`; any new DIFF blocks the slice.
   - Depends: `1.2`. Sequential before 396 verification.
+  - Progress 2026-11-24: `relacionadas 395 cerebro_es_revendedor supabase/staging/assertions/reseller-identity.sql --ya-aplicada ROLLBACK-395-reseller-identity.sql` → `TOTAL 1 | SAME 1 | DIFF 0`; `relacionadas 395 cerebro_registrar_deposito <same skip/flag>` → `TOTAL 44 | SAME 44 | DIFF 0` (the failing bases are pre-existing and SAME).
+  - Commit: `a976dd7d`.
 
 - [ ] 1.4 (RED) Write the failing tag-guard assertion `supabase/staging/assertions/reseller-tag-guard.sql`.
   - Files: create `supabase/staging/assertions/reseller-tag-guard.sql`; reference `supabase/staging/assertions/agent-service-change-guards.sql` (read-only) for the `request.jwt.claims` fixture pattern.

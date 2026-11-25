@@ -10,16 +10,16 @@ Execution mode: interactive. Delivery strategy: `ask-on-risk`. Artifacts in Engl
 
 | Field | Value |
 |-------|-------|
-| Estimated changed lines | ~2,150–2,650 authored lines (S1 ~850–1,000; S2 ~130–160; S3 ~1,150–1,450) |
+| Estimated changed lines | ~2,150–2,650 authored lines (S1 ~850–1,000; S2 ~130–160; S3 ~1,150–1,450) + amendment S7 ~700–900 (398 + assertion ~450–550; Decisor ~80–120; read-model/UI rework ~200–250) |
 | 400-line budget risk | High |
 | Chained PRs recommended | Yes |
-| Suggested split | PR 1 (395) → PR 2 (396 + panel tag controls) → PR 3 (reports + automation check) → PR 4 (397) → PR 5 (totals API) → PR 6 (totals UI) |
+| Suggested split | PR 1 (395) → PR 2 (396 + panel tag controls) → PR 3 (reports + automation check) → PR 4 (397) → PR 5 (totals API) → PR 6 (totals UI) → **slice 7 (amendment): 7a 398 DB, 7b Decisor route, 7c read-model/UI deposit line** → Phase 4 production rollout |
 | Delivery strategy | ask-on-risk |
 | Chain strategy | feature-branch-chain (owner 2026-11-24): six slices delivered in order on feat/port-chat-operations-calculator; no PR flow in this repo, so each slice is a set of work-unit commits verified in staging before the next; production bundles per slice with owner go-ahead |
 
 Decision needed before apply: Yes
 Chained PRs recommended: Yes
-Chain strategy: feature-branch-chain, six slices in order (owner 2026-11-24). Slices with disjoint files may be built in parallel; dependent slices stay sequential.
+Chain strategy: feature-branch-chain, six slices in order (owner 2026-11-24). Slices with disjoint files may be built in parallel; dependent slices stay sequential. Amendment 2026-11-24: the six-slice delivery stands; a seventh slice (Phase 3B, reseller deposits without operations) sits after slice 6 and BEFORE the remaining production rollout (Phase 4).
 400-line budget risk: High
 
 ### Suggested Work Units
@@ -32,6 +32,9 @@ Chain strategy: feature-branch-chain, six slices in order (owner 2026-11-24). Sl
 | 4 | 397 totals schema + helper + five RPCs | PR 4 | `infra/db/staging-migracion.sh aplicar supabase/migrations/397_reseller_totals.sql supabase/staging/assertions/reseller-totals.sql supabase/migrations/ROLLBACK-397-reseller-totals.sql` | staging fixture assertion incl. md5 of untouched operation rows | `ROLLBACK-397-reseller-totals.sql` drops RPCs, helper, tables and index (export history first) |
 | 5 | Totals API: payload parsers, read model, five routes | PR 5 | `npx vitest run src/lib/resellers src/app/api/revendedores --maxWorkers=4` | route tests with mocked auth + staging RPC smoke from the panel | Revert routes/libs; DB read RPCs remain harmless |
 | 6 | Totals UI: sidebar block, dialogs, history, Finanzas tab | PR 6 | `npx vitest run src/components/resellers src/components/finanzas src/components/inbox/contact-sidebar.test.tsx --maxWorkers=4` | `wacrm-probar-staging` full flow with PRUEBA fixtures | Revert components/tab wiring; the feature disappears from the UI |
+| 7a | 398 reseller deposits: table, cutover, wrapper reseller branch, attribution trigger, re-pointed read model | slice 7 | `infra/db/staging-migracion.sh aplicar supabase/migrations/398_reseller_deposits.sql supabase/staging/assertions/reseller-deposits.sql supabase/migrations/ROLLBACK-398-reseller-deposits.sql cerebro_registrar_deposito_si_cliente crm_revendedores_resumen crm_revendedor_detalle crm_revendedor_ajustar crm_revendedor_reiniciar crm_revendedores_reiniciar_todos` | staging assertion with `depositos_mmg` fixtures + `relacionadas` on registrar/cross | `ROLLBACK-398-reseller-deposits.sql` restores the 310 wrapper and 397 RPC bodies (md5 equal) and drops the new objects |
+| 7b | Decisor reseller confirmation route | slice 7 | Decisor harness under `pruebas/decisor` | staging n8n with a PRUEBA reseller | revert the Decisor code (inert without 398) |
+| 7c | Read model / UI deposit line | slice 7 | `npx vitest run src/lib/resellers src/app/api/revendedores src/components/resellers src/components/finanzas --maxWorkers=4` | component tests + staging panel | revert the commit; additive keys stay harmless |
 
 ## Dependency and Parallelism Map
 
@@ -372,7 +375,55 @@ Strict TDD: every task writes its failing test and records the RED result before
   - Depends: `3.19`. Last in Phase 3.
   - Progress 2026-11-24: `npx vitest run src/lib/resellers src/app/api/revendedores src/components/resellers src/components/finanzas src/components/inbox/contact-sidebar.test.tsx src/lib/finanzas 'src/app/(dashboard)/finanzas/page.test.tsx' --maxWorkers=4` → `Test Files 31 passed (31) | Tests 450 passed (450)`; `npx tsc --noEmit` exit 0. 3.19 remains pending.
 
+## Phase 3B — S7 (amendment 2026-11-24): reseller deposits without operations (migration 398, Decisor, deposit line)
+
+Owner decision: a reseller deposit creates no operation; the bot verifies it against MMG, confirms it in the chat and records it for the contact; totals = verified deposits + historical operations before the cutover + adjustments. Design: Decisions 14–21. This slice reworks the totals read model delivered by 3.2 (helper/RPC bodies), 3.5 (mappers) and 3.13/3.14/3.16 (UI lines); those tasks stay checked because their delivered behaviour is still valid for the 397 contract, and the rework is tracked here.
+
+- [x] 3B.0 Read-only preconditions.
+  - Files: n8n production and staging workflows via `.claude/skills/wacrm-cerebro-n8n/SKILL.md` (read-only); live staging bodies via `pg_get_functiondef` for `cerebro_registrar_deposito_si_cliente`, `cerebro_cruzar_deposito`, `cerebro_cruzar_depositos`, `cerebro_verificar_transid`, and the five 397 RPCs.
+  - Verify: "Registrar deposito auto" calls `cerebro_registrar_deposito_si_cliente` and selects `deal_id AS id, accion, es_revendedor, sumado`; only "Cruzar deposito con MMG" (and the Decisor) read its output; the live wrapper equals 310 and the live cross bodies equal 253/331 (any drift blocks 398 until the design is re-checked). Record whether the n8n "comando" route re-checks `ctx.es_admin` (design open question). Record the `depositos_mmg` columns used (`trans_id`, `monto`, `recibido_en`, `consumido_en`, `anulado_en`, `operation_id`).
+  - Depends: none. Read-only; production read requires the owner-authorized read-only path.
+  - Progress 2026-11-24: LIVE staging bodies read with `pg_get_functiondef`: `cerebro_registrar_deposito_si_cliente` equals 310 (admin precedence, then delegate), `cerebro_cruzar_deposito` equals 311/331, `cerebro_cruzar_depositos` equals 253, `cerebro_verificar_transid` equals 312, and the five 397 RPCs equal 397. The in-repo production snapshot `infra/n8n/snapshots/produccion-cerebro-bb175eda-20261028.json` calls `cerebro_registrar_deposito_si_cliente` and selects `deal_id AS id, accion, es_revendedor, sumado`; no other node reads its output. Decisor `rutaAdminAccion` re-checks `ctx.es_admin` (line 118), so the "comando" route is admin-authorized. `depositos_mmg` uses `trans_id` (PK), `monto`, `recibido_en`, `consumido_en`, `anulado_en`, `operation_id`; no new column is added. The live production workflow re-check stays in Phase 4.6 (no production access in this slice).
+
+- [x] 3B.1 (RED) Write the failing assertion `supabase/staging/assertions/reseller-deposits.sql`.
+  - Spec: `reseller-totals/spec.md` — Reseller deposit registration without an operation; Counted verified deposits; Derived, correction-safe total; Per-reseller total with separate lines; Reset all (skip zeros).
+  - Cases: reseller wrapper call returns `(NULL,'deposito_revendedor',true,false)` and creates zero rows in `remittance_operations`, `remittance_operation_receipts`, `cerebro_objetivo_envio` and reparto tables; one pending claim per receipt block; retried call idempotent; admin+reseller contact → admin result, no claim; customer call delegates unchanged (operation created); `cerebro_cruzar_depositos(NULL, ...)` consumes a PRUEBA `depositos_mmg` row with `operation_id` NULL and verifies the claim (exact); single approximate candidate verified as `aproximado`; two approximate candidates → none verified; `sin_correo` → pending, then later exact consumption with no operation (simulating 312) verifies it; resend → `ya_reclamado`, counted once; amount mismatch / annulled / old → not counted; admin consumption with no claim → nobody; forced attribution failure → consumption still succeeds; guard refuses any UPDATE other than pending→verified and any DELETE by API roles; totals = verified deposits + ops created before the cutover + adjustments; op after the cutover excluded; deposit with `operation_id` set excluded; freed deposit (`consumido_en` NULL again) drops out; reset snapshot `closed_total − closed_operations − closed_adjustments` = deposits; reset-all skips zeros; viewer reads, agent writes refused.
+  - Test/RED: run alone on staging; expected failure on the missing `reseller_deposits`/wrapper behaviour.
+  - Depends: 3B.0.
+  - Progress 2026-11-24: RED recorded on staging — `bash -c 'source infra/db/lib-migracion.sh && psql_staging < supabase/staging/assertions/reseller-deposits.sql'` → `ERROR: relation "reseller_deposit_cutover" does not exist`. GREEN after 3B.2 → 16 numbered PASS cases (plus the 1b fallback case) ending `ALL PASS (rolled back on purpose)`. Cases: reseller wrapper result and zero operation/receipt/objective/reparto rows; one claim per block, retry idempotent, fallback claim; admin precedence; customer delegation; exact / single approximate / ambiguous / late (312) attribution; resend counted once; admin consumption attributes nobody; forced unique_violation stays fail-open; amount mismatch/annulled/old stay pending; guard, grants and RLS; totals math with linked/annulled/freed exclusions; reset snapshot; reset-all skips zeros; viewer reads and agent writes.
+
+- [x] 3B.2 (GREEN) Create `supabase/migrations/398_reseller_deposits.sql` and `supabase/migrations/ROLLBACK-398-reseller-deposits.sql`.
+  - Content (design Decisions 14, 16–19): `reseller_deposits` + indexes + `reseller_deposits_guard()` + RLS/grants; `reseller_deposit_cutover` + row `(true, now(), '398_reseller_deposits')`; wrapper `CREATE OR REPLACE` (admin → reseller → delegate; per-conversation advisory lock; claims from `cerebro_parsear_comprobantes(p_nota)`; 310 REVOKE/GRANT restated); `reseller_deposits_attribute()` + `AFTER UPDATE OF consumido_en` trigger on `depositos_mmg` (fail-open); `_reseller_period_counts`; the five RPCs re-pointed with additive keys (`deposits_gyd`, `deposits_count`, `counted_gyd`, `pending_claims`, history `deposits_gyd`); `NOTIFY pgrst`. Do NOT redefine `cerebro_registrar_deposito`, `cerebro_cruzar_deposito(s)` or the 397 tables.
+  - ROLLBACK: restore the 310 wrapper body and the five 397 RPC bodies verbatim (md5 must equal the pre-398 values), drop trigger, functions, helper and both tables; header says export `reseller_deposits` first and that consumed deposits stay consumed with `operation_id` NULL.
+  - Verify: `DRY_ONLY=1 infra/db/staging-migracion.sh aplicar supabase/migrations/398_reseller_deposits.sql supabase/staging/assertions/reseller-deposits.sql supabase/migrations/ROLLBACK-398-reseller-deposits.sql cerebro_registrar_deposito_si_cliente crm_revendedores_resumen crm_revendedor_detalle crm_revendedor_ajustar crm_revendedor_reiniciar crm_revendedores_reiniciar_todos`, then without `DRY_ONLY`: dry-run OK / apply OK / assertion OK / rollback md5 equal.
+  - Depends: 3B.1. Sequential.
+  - Progress 2026-11-24: created 398 (`reseller_deposits` + guard/RLS/grants, `reseller_deposit_cutover` row, wrapper reseller branch, fail-open attribution trigger, `_reseller_period_counts`, the five RPCs re-pointed, `closed_deposits_gyd` column, `revendedor_reclamo_horas=72` default) and ROLLBACK-398 (restores the 310 wrapper and the five 397 RPC bodies verbatim, drops the trigger/functions/tables/column/config key). Full cycle: `dry-run OK / apply OK / assertion OK / rollback OK (md5 igual al previo)`. Applied md5: wrapper `da18b5ece6a0`, resumen `a4dd557b3255`, detalle `697f4117b167`, ajustar `48de8487e115`, reiniciar `fe2a4473f7c6`, reiniciar_todos `3551eb58b27f`; ACLs unchanged (wrapper service_role only; RPCs authenticated).
+
+- [x] 3B.3 Verify no regression on the deposit path and the existing totals.
+  - Verify: `relacionadas` for 398 with patterns `cerebro_registrar_deposito_si_cliente`, `cerebro_cruzar_deposito`, `registrar_deposito` and `revendedor|reseller` (own assertion skipped, `--ya-aplicada ROLLBACK-398`) → no new DIFF beyond the known `delivery-feed-evidence` flake; `registrar-deposito-admin.sql` and `reseller-totals.sql` still `ALL PASS`. Any new DIFF blocks the slice.
+  - Depends: 3B.2.
+  - Progress 2026-11-24: broad `relacionadas 398 'revendedor|reseller|deposito|cruzar|verificar|registrar_deposito' supabase/staging/assertions/reseller-deposits.sql --ya-aplicada ROLLBACK-398` → `TOTAL 100 | SAME 99 | DIFF 1` (only the known `delivery-feed-evidence` flake). Before the 397 shim it was `TOTAL 100 | SAME 98 | DIFF 2` (the extra DIFF was `reseller-totals` failing at case 5 because 398's cutover excluded its post-reset fixtures; the shim pins the cutover inside that rolled-back assertion). Targeted patterns: `cerebro_registrar_deposito_si_cliente` → `TOTAL 1 | SAME 1 | DIFF 0`; `cerebro_cruzar_deposito` → `TOTAL 20 | SAME 20 | DIFF 0`; `registrar_deposito` → `TOTAL 45 | SAME 45 | DIFF 0`. `registrar-deposito-admin`, `verificar-transid`, `cruce-sin-operacion`, `free-deposits` and `deposit-skips-stale-or-misfit-operation` reach `ALL PASS (rolled back on purpose)`; `deposit-path-without-deals` and `n8n-repoint` keep their pre-existing fixture failure on both sides (SAME).
+
+- [ ] 3B.4 (RED→GREEN) Decisor reseller confirmation route.
+  - Files: `pruebas/decisor/decisor.jscode`, its tests/harness and md5 record (read `.claude/skills/wacrm-cerebro-n8n/SKILL.md` first).
+  - Spec: `reseller-totals/spec.md` — Bot confirms the verified receipt in the chat without asking for a beneficiary; Unknown receipt; Duplicate receipt.
+  - RED: harness cases with `Registrar deposito auto` = `{id:null, accion:'deposito_revendedor', es_revendedor:true}` and each cross verdict expect the fixed-reply route (no `agente`); paused/assigned guards still win; `verificacion_admin` and customer outputs unchanged.
+  - GREEN: implement design Decision 20 with the owner-approved texts (placeholder texts until approved; mark pending).
+  - Depends: 3B.0 (route mechanism). Parallel with 3B.1–3B.3.
+
+- [ ] 3B.5 Apply the Decisor route to staging n8n and run the staging E2E with a PRUEBA reseller.
+  - Verify: backup → update staging Decisor → PRUEBA reseller sends a receipt matching a PRUEBA `depositos_mmg` row: fixed confirmation, no operation, total increases in Finanzas; resend → "already registered"; unknown reference → "not verified yet" and claim pending. Clean up fixtures. Owner login needed for the panel part (`wacrm-probar-staging`).
+  - Depends: 3B.2, 3B.4.
+
+- [ ] 3B.6 (RED→GREEN) Read model and UI deposit line.
+  - Files: `src/lib/resellers/read-model.ts` (+ test); route tests' fixtures under `src/app/api/revendedores/**`; `src/components/resellers/*` and `src/components/finanzas/revendedores-tab.tsx` (+ tests); `messages/es.json`, `messages/en.json`.
+  - RED: mappers read `deposits_gyd`, `deposits_count`, `counted_gyd`, `pending_claims`, period `deposits_gyd` (absent keys → 0 so the 397 payload still maps); UI shows "Depositado" (= counted) with the breakdown, the pending-claims note in the detail and the deposit column in history; reset dialog amount unchanged (`total`).
+  - Verify: `npx vitest run src/lib/resellers src/app/api/revendedores src/components/resellers src/components/finanzas src/components/inbox/contact-sidebar.test.tsx --maxWorkers=4`, `npx vitest run src/i18n/messages-parity.test.ts --maxWorkers=4`, `npx tsc --noEmit`.
+  - Depends: 3B.2 (contract). Parallel with 3B.4.
+
 ## Phase 4 — Production rollout (owner go-ahead required at every step)
+
+Amendment: 4.1–4.4 cover 395–397 and the panel as before; 4.5–4.7 cover slice 7. If 395–397 are still unapplied when slice 7 is ready, 398 may join the same bundle as the last file, but only after 4.5 (Decisor route) is live.
 
 - [ ] 4.1 Run `previa` for the production bundle and obtain the owner's go-ahead.
   - Files: `supabase/migrations/395_reseller_identity.sql`, `supabase/migrations/396_reseller_tag_guard.sql`, `supabase/migrations/397_reseller_totals.sql`; `infra/db/produccion-migracion.sh` (read-only execution).
@@ -399,7 +450,21 @@ Strict TDD: every task writes its failing test and records the RED result before
   - Files: production panel (read-only), production DB read-only.
   - Spec: `proposal.md` — Success criteria; `reseller-totals/spec.md` — Finanzas reseller list; Contact sidebar visibility.
   - Test/Verify: owner opens Finanzas → Revendedores (list + grand total), a tagged contact sidebar, and one history drawer; re-run `supabase/staging/check-reseller-identity.sql` read-only on production and confirm no unintended identity change; confirm `cerebro_es_revendedor` still returns true for every contact that was a reseller on the day of the switch.
-  - Depends: `4.3`. Sequential, last.
+  - Depends: `4.3`. Sequential.
+
+- [ ] 4.5 Apply the Decisor reseller route to production n8n (inert until 398).
+  - Owner go-ahead required: yes. Backup the live workflow first (`wacrm-cerebro-n8n`); record the new versionId and Decisor md5.
+  - Depends: 3B.5.
+
+- [ ] 4.6 `previa` and `aplicar` 398 in production.
+  - Test/Verify: 3B.0 production precondition re-checked; `infra/db/produccion-migracion.sh previa supabase/migrations/398_reseller_deposits.sql` → `VEREDICTO: SEGURO`; owner go-ahead; `aplicar`; `verificar` → `VERIFICADO: 1/1`. Record the cutover timestamp (`SELECT cutover_at FROM reseller_deposit_cutover`).
+  - Owner go-ahead required: yes.
+  - Depends: 4.2 (395–397 applied) or the combined bundle, and 4.5.
+
+- [ ] 4.7 Publish the panel with the deposit line and smoke-check the first real reseller receipt.
+  - Test/Verify: `wacrm-publicar-panel` flow as in 4.3; after the first real reseller receipt, read-only: no new `remittance_operations` row for that contact after the cutover, one verified `reseller_deposits` row, the `depositos_mmg` row consumed with `operation_id` NULL, and the Finanzas total increased by its amount.
+  - Owner go-ahead required: yes.
+  - Depends: 4.6, 3B.6. Last.
 
 ## Strict TDD Note
 
@@ -419,6 +484,7 @@ Strict TDD: every task writes its failing test and records the RED result before
 4. Viewer role can read totals (3.1, 3.6, 3.8).
 5. "Reset all" skips resellers whose current total is 0 (3.1, 3.2).
 6. Automation tag writes are verified during implementation (2.4).
+7. Amendment 2026-11-24: a reseller deposit creates no operation; verified deposits attributed to the contact plus historical operations before the cutover plus adjustments form the total (Phase 3B, 4.5–4.7).
 
 ## Threat Matrix
 

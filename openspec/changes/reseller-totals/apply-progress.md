@@ -592,3 +592,142 @@ database write, no production access.
 ### Commits (slice 6)
 
 - `6cc4926` — `feat(sdd): add reseller totals UI and Finanzas tab`
+
+---
+
+## Slice 7a (S7 reseller deposits, 398 DB) — tasks 3B.0–3B.3
+
+Scope: `supabase/migrations/398_reseller_deposits.sql`,
+`supabase/migrations/ROLLBACK-398-reseller-deposits.sql`,
+`supabase/staging/assertions/reseller-deposits.sql`, plus a 398-only cutover shim in
+`supabase/staging/assertions/reseller-totals.sql`. Migration number 398 (across every
+branch/worktree the highest was 397; 398 was free). No n8n or Decisor change (slice 7b), no
+panel change (slice 7c), no production access.
+
+### Task Status
+
+| Task | Status | Evidence |
+|------|--------|----------|
+| 3B.0 Read-only preconditions | done | Live staging bodies read with `pg_get_functiondef`; in-repo production snapshot confirms the wrapper call; Decisor `rutaAdminAccion` re-checks `ctx.es_admin` |
+| 3B.1 Failing assertion | done | RED: `ERROR: relation "reseller_deposit_cutover" does not exist`; GREEN: 16 numbered PASS cases (plus the 1b fallback case) ending `ALL PASS (rolled back on purpose)` |
+| 3B.2 Migration 398 + ROLLBACK-398 | done | `dry-run OK / apply OK / assertion OK / rollback OK (md5 igual al previo)` |
+| 3B.3 Deposit-path regression + existing totals | done | Broad `relacionadas`: `TOTAL 100 | SAME 99 | DIFF 1` (only the known `delivery-feed-evidence` flake); `reseller-totals` and `registrar-deposito-admin` pass |
+| 3B.4–3B.6 Decisor route, staging E2E, read model/UI | pending | Slice 7b/7c; not part of this SQL work unit |
+
+### What 398 does
+
+1. `reseller_deposits`: one row per receipt block read by the bot, pending until the
+   MMG cross consumes the matching deposit. `reference_digits` is a generated column;
+   unique `(account_id, trans_id)` and `(conversation_id, comp_id)` indexes make
+   verification and retries idempotent. `reseller_deposits_guard()` allows only the
+   pending -> verified transition and makes verified rows immutable. RLS SELECT for
+   members; no write/delete grants.
+2. `reseller_deposit_cutover`: one typed row `(true, now(), '398_reseller_deposits')`
+   written in the same transaction as the wrapper switch.
+3. `cerebro_registrar_deposito_si_cliente`: admin precedence unchanged (310); a reseller
+   records pending claims under the per-conversation advisory lock
+   (`hashtextextended('cerebro_servicio:'||conv, 0)`) from
+   `cerebro_parsear_comprobantes(p_nota)` and returns
+   `(NULL, 'deposito_revendedor', true, false)`; customers keep delegating to
+   `cerebro_registrar_deposito` unchanged.
+4. `reseller_deposits_attribute()`: `AFTER UPDATE OF consumido_en` trigger on
+   `depositos_mmg` when the new row is consumed and `operation_id IS NULL`. Exact TransID
+   match (oldest pending claim within `revendedor_reclamo_horas`, default 72 h), else a
+   single approximate candidate within `cruce_ventana_horas` (default 6 h). Fail-open:
+   any error is a `WARNING` and the consumption still succeeds.
+5. `_reseller_period_counts()`: verified deposits (consumed, not annulled, not linked to
+   an operation) + qualifying GYD operations created before the cutover + adjustments,
+   half-open `[from, to)`.
+6. The five 397 RPCs re-pointed with additive keys: `deposits_gyd`, `deposits_count`,
+   `counted_gyd`, detail `pending_claims`, history `deposits_gyd`/`closed_deposits_gyd`.
+   Reset snapshots store `closed_deposits_gyd` and the reset responses expose it in
+   `closed`. All locks, error codes, audit actions and reset-all skip-zero behaviour are
+   unchanged.
+
+### Wrapper return contract (for n8n / slice 7b)
+
+```sql
+cerebro_registrar_deposito_si_cliente(p_conv uuid, p_monto numeric, p_moneda text,
+                                      p_stage uuid, p_nota text, p_comp_id text)
+  RETURNS TABLE(deal_id uuid, accion text, es_revendedor boolean, sumado boolean)
+-- admin    -> (NULL, 'verificacion_admin', false, false)
+-- reseller -> (NULL, 'deposito_revendedor', true,  false)  + pending claims
+-- customer -> cerebro_registrar_deposito(...) unchanged
+```
+
+### Work Unit Evidence
+
+| Evidence | Required value |
+|---|---|
+| Focused test command and exact result | `infra/db/staging-migracion.sh aplicar supabase/migrations/398_reseller_deposits.sql supabase/staging/assertions/reseller-deposits.sql supabase/migrations/ROLLBACK-398-reseller-deposits.sql cerebro_registrar_deposito_si_cliente,crm_revendedores_resumen,crm_revendedor_detalle,crm_revendedor_ajustar,crm_revendedor_reiniciar,crm_revendedores_reiniciar_todos` → `dry-run OK / apply OK / assertion OK / rollback OK (md5 igual al previo)` |
+| Runtime harness command/scenario and exact result | Same staging apply with the self-reverting assertion: real users/accounts/profiles, contacts/conversations, `depositos_mmg` PRUEBA rows and wrapper calls. It exercises no-operation reseller registration, claims per block, retry idempotence, admin precedence, customer delegation, exact/approximate/ambiguous/late attribution, resend, no-claim consumption, forced unique_violation fail-open, mismatch/annulled/old receipts, guard/grants/RLS, totals math with linked/annulled/freed exclusions, reset snapshot and reset-all |
+| Rollback boundary | `ROLLBACK-398-reseller-deposits.sql` restores the 310 wrapper and the five 397 RPC bodies verbatim (md5 equal), drops the attribution trigger/function, `_reseller_period_counts`, the guard and both new tables, drops `closed_deposits_gyd` and the config key. Consumed deposits stay consumed with `operation_id` NULL; export `reseller_deposits` first |
+| Applied function md5 | wrapper `da18b5ece6a0`, resumen `a4dd557b3255`, detalle `697f4117b167`, ajustar `48de8487e115`, reiniciar `fe2a4473f7c6`, reiniciar_todos `3551eb58b27f`; ACLs unchanged |
+
+### TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| 3B.0 | live `pg_get_functiondef` reads + snapshot | DB / static | 310/311/312/253/397 applied on staging | N/A (read-only) | Bodies equal the design assumptions | N/A | N/A |
+| 3B.1 / 3B.2 | `supabase/staging/assertions/reseller-deposits.sql` | DB assertion | Staging with 395/396/397 applied; no 398 objects | `relation "reseller_deposit_cutover" does not exist` | 16 numbered PASS (plus 1b) -> `ALL PASS (rolled back on purpose)` | reseller/admin/customer; pending/verified/exact/approximate/ambiguous/late; resend; mismatch/annulled/old; fail-open; guard/grants/RLS; totals; reset; roles | SQL kept minimal; assertion kept as the GREEN target |
+| 3B.3 | `staging-migracion.sh relacionadas` | DB regression | `--ya-aplicada ROLLBACK-398` on applied staging | N/A (verification) | Broad `TOTAL 100 | SAME 99 | DIFF 1` (only `delivery-feed-evidence`) | Targeted patterns on registrar/cross/deposit | The 397 assertion gained a 398-only cutover shim |
+
+### Deviations from Design
+
+- **`closed_deposits_gyd` column (prompt instruction).** Design Decision 18 preferred deriving
+  the closed deposit part as `closed_total_gyd - closed_operations_gyd - closed_adjustments_gyd`
+  and listed a `closed_deposits_gyd` column as a rejected alternative. The slice prompt
+  explicitly requires `closed_deposits_gyd` in the reset snapshot, so 398 adds the column
+  (additive, `NOT NULL DEFAULT 0`) and the reset RPCs write it. 397's migration is not edited;
+  ROLLBACK-398 drops only the column. The derived value remains available if the owner prefers
+  it.
+- **`EXISTS` instead of `JOIN` in the deposit line.** `_reseller_period_counts` checks the
+  consumed/not-annulled/not-linked state of the MMG deposit with `EXISTS`. `depositos_mmg.trans_id`
+  is the primary key, so this equals the design's `JOIN`, without any risk of row multiplication.
+- **Zero-reseller summary.** `crm_revendedores_resumen` builds `grand` from the `agg` CTE in a
+  scalar subquery, so an account with no resellers returns `grand` zeros and `resellers: []`
+  instead of NULL. Keys and ordering are otherwise unchanged.
+- **Additive reset/detail keys.** The reset `closed` object also carries `counted_gyd`; the detail
+  `current` and history periods expose `deposits_count`, `counted_gyd`, and the history period
+  `closed_deposits_gyd`. All additive; the slice-5 API and slice-6 UI keep working.
+- **397 assertion cutover shim.** `supabase/staging/assertions/reseller-totals.sql` now pins
+  `reseller_deposit_cutover.cutover_at` to `+infinity` inside its own rolled-back transaction when
+  the table exists (the 398-only branch). Its fixtures were written before the marker and create
+  operations after the real apply time; without the shim, 398's cutover correctly excluded them
+  and the 397 assertion failed at case 5. The base run with 398 rolled back skips the shim.
+- **Fallback claim dedupe.** A note with no parsable block records one claim from `p_monto`/
+  `p_moneda`/`p_comp_id`; when `p_comp_id` is NULL a retried call can add a second pending claim.
+  Such a claim has no reference and can never be attributed, so it is harmless history; the design
+  only guarantees idempotence through `comp_id`.
+
+### Related checks
+
+- Broad `relacionadas 398 'revendedor|reseller|deposito|cruzar|verificar|registrar_deposito' supabase/staging/assertions/reseller-deposits.sql --ya-aplicada ROLLBACK-398`:
+  `TOTAL 100 | SAME 99 | DIFF 1`. The single DIFF is the known `delivery-feed-evidence` fixture
+  flake (`fixture setup failed — no operation created for deal <uuid>`, both sides fail identically;
+  the tool compares only the first 90 characters and the random UUID differs).
+  Before the 397 shim the same run reported `TOTAL 100 | SAME 98 | DIFF 2`: the extra DIFF was
+  `reseller-totals` failing at case 5 because 398's cutover excluded its post-reset fixtures.
+- Targeted `relacionadas` for `cerebro_registrar_deposito_si_cliente` → `TOTAL 1 | SAME 1 | DIFF 0`;
+  `cerebro_cruzar_deposito` → `TOTAL 20 | SAME 20 | DIFF 0`; `registrar_deposito` →
+  `TOTAL 45 | SAME 45 | DIFF 0` (own assertion skipped, `--ya-aplicada ROLLBACK-398`).
+  `registrar-deposito-admin`, `verificar-transid`, `cruce-sin-operacion`, `free-deposits`,
+  `deposit-skips-stale-or-misfit-operation` all reach `ALL PASS (rolled back on purpose)`;
+  `deposit-path-without-deals` and `n8n-repoint` keep their pre-existing fixture failure on both
+  sides (SAME, not a new DIFF).
+- `supabase/staging/assertions/reseller-totals.sql` with 398 applied and the shim:
+  `ALL PASS (rolled back on purpose)`.
+
+### Open Questions
+
+- Design Decision 18 vs. the prompt on `closed_deposits_gyd`: implemented per the prompt; the
+  derived alternative is still possible if the owner prefers it.
+- No-comp-id fallback claims are not deduplicated on retry (see Deviations); harmless pending rows.
+- Slice 7b must decide the Decisor reply route. `rutaAdminAccion` re-checks `ctx.es_admin`, so the
+  existing `comando` path is admin-authorized; the reseller route needs a non-admin fixed reply.
+- The live production n8n workflow re-check (newer than the 2026-10-28 snapshot) stays in Phase 4.6.
+
+### Commits (slice 7a)
+
+- `8446fbeb` — `feat(sdd): add reseller deposits without operations (398)`
+

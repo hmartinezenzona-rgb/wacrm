@@ -277,3 +277,109 @@ the reseller tag and reports it (`toastResellerTagSkipped`) instead of failing a
 - `2e0d3429` — `feat(sdd): guard the reseller tag against agent edits`
 - `3e39189f` — `feat(sdd): gate reseller tag controls and sync contact tags by diff`
 - docs commit — `docs(sdd): record slice 2 of the reseller tag guard` (this file + `tasks.md`)
+
+---
+
+## Slice 4 (S3 totals DB) — tasks 3.1–3.3
+
+Scope: migration 397 (`reseller_counter_resets`, `reseller_total_adjustments`, the
+`remittance_operations` index, `_reseller_period_totals`, five RPCs),
+`ROLLBACK-397-reseller-totals.sql` and `supabase/staging/assertions/reseller-totals.sql`.
+Migration number 397 (free in every local branch; staging had none of its objects; 33
+operation rows at cycle time).
+
+### Task Status
+
+| Task | Status | Evidence |
+|------|--------|----------|
+| 3.1 Failing totals assertion | done | RED: `function crm_revendedores_resumen(uuid) does not exist`; GREEN: 13 PASS cases ending `ALL PASS (rolled back on purpose)` |
+| 3.2 Migration 397 + ROLLBACK-397 | done | `dry-run OK / apply OK / assertion OK / rollback OK (md5 igual al previo)` |
+| 3.3 Staging behavior + related base | done | Targeted `relacionadas 397 crm_revendedor` → `TOTAL 0 SAME 0 DIFF 0` (only this slice's assertion names the new RPCs and it is skipped); broad pattern result recorded below |
+
+### What 397 does
+
+1. `reseller_counter_resets`: one append-only marker per reset with `reset_at`, optional
+   `batch_id` (shared by a "reset all"), optional `reason` (1..500), the confirmed snapshot
+   (`closed_operations_gyd`, `closed_adjustments_gyd`, `closed_total_gyd`), `created_by`,
+   `actor`, `created_at`; `UNIQUE(contact_id, reset_at)` and an account/contact/date index.
+2. `reseller_total_adjustments`: signed `amount_gyd` non-zero and under 1e12, optional reason,
+   `created_by`, `actor`, `created_at`; contact/date index.
+3. Both tables: RLS SELECT for `is_account_member(account_id)`, no write policy,
+   `REVOKE ALL FROM anon, authenticated` then `GRANT SELECT TO authenticated`, and a
+   `BEFORE UPDATE` trigger (`reseller_ledger_no_update()`) so even the service role cannot edit
+   a ledger row (DELETE has no grant; only the contact/account cascade removes rows).
+4. `remittance_operations_contact_created_idx (contact_id, created_at) WHERE contact_id IS NOT NULL`.
+   Header documents the production SHARE-lock risk and says to record `count(*)` before apply.
+5. `_reseller_period_totals(account, contact, from, to)`: one half-open `[from, to)` period
+   definition on `created_at`; counted statuses `deposit_received`, `deposit_verification`,
+   `ready_to_transfer`, `transferring`, `completed`, `incident`; GYD only, never converted;
+   returns operations/adjustments sums, counts, missing-amount count and the net.
+6. Read RPCs `crm_revendedores_resumen(account)` and `crm_revendedor_detalle(contact)`
+   (`STABLE SECURITY DEFINER`, `is_account_member`, viewer+); write RPCs
+   `crm_revendedor_ajustar(contact, amount, reason)`,
+   `crm_revendedor_reiniciar(contact, reason, expected)` and
+   `crm_revendedores_reiniciar_todos(account, reason, expected)` (admin+). Every write takes
+   `pg_advisory_xact_lock(hashtextextended('reseller-totals:' || account, 0))`, stamps
+   `clock_timestamp()`, and writes one `remittance_admin_audit` row
+   (`human_reseller_counter_reset` / `human_reseller_adjustment`). An expected amount that
+   differs from the recomputed total raises `40001` and writes nothing. "Reset all" compares the
+   expected amount with the grand total over all tagged resellers, then writes one marker per
+   reseller whose total is non-zero (zeros skipped, owner-accepted default) under one batch id.
+
+### RPC signatures and error contract (for the API slice)
+
+```sql
+crm_revendedores_resumen(p_account_id uuid) RETURNS jsonb
+crm_revendedor_detalle(p_contact_id uuid) RETURNS jsonb
+crm_revendedor_ajustar(p_contact_id uuid, p_monto_gyd numeric, p_motivo text DEFAULT NULL) RETURNS jsonb
+crm_revendedor_reiniciar(p_contact_id uuid, p_motivo text DEFAULT NULL, p_total_esperado_gyd numeric DEFAULT NULL) RETURNS jsonb
+crm_revendedores_reiniciar_todos(p_account_id uuid, p_motivo text DEFAULT NULL, p_total_esperado_gyd numeric DEFAULT NULL) RETURNS jsonb
+```
+`P0002` contact not found → 404; `42501` not a member / not admin → 403; `22023` not a
+reseller, zero/NULL/out-of-range amount, reason > 500 → 400; `40001` expected total differs →
+409. Return keys match `design.md` Interfaces (snake_case jsonb).
+
+### Work Unit Evidence
+
+| Evidence | Required value |
+|---|---|
+| Focused test command and exact result | `infra/db/staging-migracion.sh aplicar supabase/migrations/397_reseller_totals.sql supabase/staging/assertions/reseller-totals.sql supabase/migrations/ROLLBACK-397-reseller-totals.sql <7 function names>` → `dry-run OK / apply OK / assertion OK / rollback OK (md5 igual al previo)` |
+| Runtime harness command/scenario and exact result | Same staging apply with the self-reverting assertion: fixture account A (owner/admin/agent/viewer/stranger) plus account B, real operations with explicit `created_at` around the reset marker, and RPC calls with `request.jwt.claims` per role. It exercises counted statuses, exclusions, empty period, ordering, viewer/agent reads, stranger refusal, half-open boundaries, ± adjustments and zero refusal, append-only + grants + RLS, reset-all skip-zero/one batch, stale `40001`, md5 of operation rows, untag/retag history |
+| Rollback boundary | `ROLLBACK-397-reseller-totals.sql` drops the five RPCs, the helper, the no-update function, both tables and the index. Every `remittance_operations` row is untouched; audit rows stay |
+
+### TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| 3.1 / 3.2 | `supabase/staging/assertions/reseller-totals.sql` | DB assertion | Staging with 395/396 applied; no 397 objects | `function crm_revendedores_resumen(uuid) does not exist` | 13 PASS → `ALL PASS (rolled back on purpose)` | Every qualifying status, each exclusion, two accounts, two resellers (one zero), boundary before/at/after the marker, ± adjustments, stale amount, untag/retag, agent/viewer roles | SQL kept minimal; assertion kept as the GREEN target |
+| 3.3 | `staging-migracion.sh relacionadas` | DB regression | `--ya-aplicada ROLLBACK-397` (397 is applied) | N/A (verification) | `TOTAL 0 SAME 0 DIFF 0` for `crm_revendedor`; broad pattern recorded below | N/A | N/A |
+
+### Deviations from Design
+
+- The reset snapshot uses the three design columns (`closed_operations_gyd`,
+  `closed_adjustments_gyd`, `closed_total_gyd` plus `created_by`, `actor`, `batch_id`) instead of
+  the single `closed_amount_gyd` shorthand in the slice prompt.
+- "Reset all" compares `p_total_esperado_gyd` with the grand total over all tagged resellers
+  (including zeros) before writing, then skips zero-total resellers when writing markers.
+- `reason` is trimmed; an empty string becomes NULL. The transaction-level advisory lock plus
+  `clock_timestamp()` keeps markers and adjustments totally ordered, so a concurrent reset never
+  lands on the wrong side of an adjustment.
+- The assertion's "before the marker" operation (99999) is intentionally part of the closed
+  period history, so case 7 proves the live closed total (107099) differs from the closed
+  snapshot (2100) instead of assuming they are equal.
+
+### Related checks
+
+- `infra/db/staging-migracion.sh relacionadas supabase/migrations/397_reseller_totals.sql crm_revendedor supabase/staging/assertions/reseller-totals.sql --ya-aplicada supabase/migrations/ROLLBACK-397-reseller-totals.sql`
+  → `TOTAL 0 | SAME 0 | DIFF 0`. No pre-existing assertion calls the new RPCs, so this is
+  vacuously clean; the broad pattern below is the meaningful regression proof.
+- Broad pattern `'revendedor|reseller|saldo|calculadora|audit|operacion'` (own assertion
+  skipped, `--ya-aplicada ROLLBACK-397`): `TOTAL 156 | SAME 155 | DIFF 1`. The single DIFF is
+  `delivery-feed-evidence`, the known pre-existing fixture flake: both sides fail identically
+  (`fixture setup failed — no operation created for deal <uuid>`) but `relacionadas` compares
+  only the first 90 characters and the random fixture UUID differs. No new DIFF from 397.
+
+### Commits (slice 4)
+
+- `0b01d9b8` — `feat(sdd): add reseller totals schema and RPCs`
+

@@ -198,15 +198,16 @@ Strict TDD: every task writes its failing test and records the RED result before
 
 ## Phase 3 — S3: Reseller totals (migration 397, RPCs, API, sidebar, Finanzas)
 
-- [ ] 3.1 (RED) Write the failing totals assertion `supabase/staging/assertions/reseller-totals.sql`.
+- [x] 3.1 (RED) Write the failing totals assertion `supabase/staging/assertions/reseller-totals.sql`.
   - Files: create `supabase/staging/assertions/reseller-totals.sql`; reference `supabase/staging/assertions/resumen-from-ledger.sql` (read-only) for fixture style.
   - Spec: `reseller-totals/spec.md` — all requirements.
   - Cases: every qualifying status included, `incident` included; `cancelled`, pre-deposit and non-GYD excluded; another contact's operations excluded; empty period = 0; operations and adjustments returned separately with total = sum; grand total over tagged contacts only; adjustments +/−, zero rejected, optional reason, append-only; reset single; reset all atomic with one batch id; **reset all skips resellers whose current total is 0 (owner-accepted default, overriding the proposal's "one marker per tagged reseller")**; closed period appears in history, ordered, open period distinguishable; expected-amount mismatch → 40001; viewer reads; agent writes refused; untag/retag keeps history; md5 of `remittance_operations` rows unchanged before/after resets and adjustments.
   - Test/RED: run the assertion alone and record the expected failure on missing tables/RPCs.
   - Verify RED: `source infra/db/lib-migracion.sh && psql_staging < supabase/staging/assertions/reseller-totals.sql` fails before `ALL PASS`.
   - Depends: `1.2` for the tag helpers (parallel authoring is possible but the fixture joins rely on the identity rule).
+  - Progress 2026-11-24: RED recorded on staging — `bash -c 'source infra/db/lib-migracion.sh && { echo "BEGIN;"; quitar_tx supabase/staging/assertions/reseller-totals.sql; echo "ROLLBACK;"; } | psql_staging'` → `ERROR: function crm_revendedores_resumen(uuid) does not exist`. GREEN after 3.2 → 13 PASS cases ending `ALL PASS (rolled back on purpose)`. 13 cases cover qualifying statuses, cancelled/pre-deposit/non-GYD/other-contact/other-account exclusion, empty period, ordering, viewer/agent read, stranger refused, half-open boundary around the marker, ± adjustments and zero refused, append-only + grants + RLS, reset-all skip-zero/one batch, stale 40001, md5 of operation rows unchanged, untag/retag, agent/viewer writes refused.
 
-- [ ] 3.2 (GREEN) Create `supabase/migrations/397_reseller_totals.sql` and `supabase/migrations/ROLLBACK-397-reseller-totals.sql`.
+- [x] 3.2 (GREEN) Create `supabase/migrations/397_reseller_totals.sql` and `supabase/migrations/ROLLBACK-397-reseller-totals.sql`.
   - Files: create both migrations.
   - Spec: `reseller-totals/spec.md` — all requirements; `design.md` Decisions 8–12.
   - Content: `reseller_counter_resets` and `reseller_total_adjustments` tables with constraints/indexes; RLS SELECT for members, no write policy, REVOKE anon/authenticated then GRANT SELECT; `reseller_ledger_no_update()` BEFORE UPDATE trigger on both; `CREATE INDEX IF NOT EXISTS remittance_operations_contact_created_idx ON public.remittance_operations (contact_id, created_at) WHERE contact_id IS NOT NULL`; `_reseller_period_totals(...)` helper; the five RPCs `crm_revendedores_resumen`, `crm_revendedor_detalle`, `crm_revendedor_ajustar`, `crm_revendedor_reiniciar`, `crm_revendedores_reiniciar_todos`; per-account advisory lock `hashtextextended('reseller-totals:' || account_id::text, 0)`; expected-amount check raising `40001`; reset all reads totals under the lock and writes markers only for resellers whose total is non-zero; audit rows with the actions from `1.2`; REVOKE PUBLIC/anon and GRANT authenticated on every RPC.
@@ -215,12 +216,14 @@ Strict TDD: every task writes its failing test and records the RED result before
   - Test: the assertion from `3.1` reaches `ALL PASS (rolled back on purpose)`.
   - Verify: `DRY_ONLY=1 infra/db/staging-migracion.sh aplicar supabase/migrations/397_reseller_totals.sql supabase/staging/assertions/reseller-totals.sql supabase/migrations/ROLLBACK-397-reseller-totals.sql`, then without `DRY_ONLY`; all steps OK.
   - Depends: `3.1`; `1.2` applied on staging. Sequential.
+  - Progress 2026-11-24: created 397 (tables `reseller_counter_resets`/`reseller_total_adjustments`, no-update triggers, `remittance_operations_contact_created_idx`, `_reseller_period_totals`, five RPCs with `REVOKE PUBLIC/anon` + `GRANT authenticated`) and ROLLBACK-397. Full cycle: `dry-run OK / apply OK / assertion OK / rollback OK (md5 igual al previo)`. RPC ACL `{postgres, service_role, authenticated}`; helper and ledger trigger function not executable by API roles. The append-only snapshot columns follow design Decision 8 (`closed_operations_gyd`/`closed_adjustments_gyd`/`closed_total_gyd`, `created_by`, `actor`, `batch_id`), not the one-column shorthand in the slice prompt. Index production-lock risk noted in the migration header (record `count(*)` before apply; staging had 33 operation rows).
 
-- [ ] 3.3 Verify 397 staging behavior and related-base regression.
+- [x] 3.3 Verify 397 staging behavior and related-base regression.
   - Files: `supabase/migrations/397_reseller_totals.sql`; assertion corpus (read-only).
   - Spec: `reseller-totals/spec.md` — Derived, correction-safe total; Concurrent writes remain consistent.
   - Test/Verify: `infra/db/staging-migracion.sh relacionadas supabase/migrations/397_reseller_totals.sql crm_revendedor` → `DIFF 0`; re-run the totals assertion; confirm no `remittance_operations`, deposit or calculator row changed (md5 assertion).
   - Depends: `3.2`. Sequential.
+  - Progress 2026-11-24: targeted `relacionadas 397 crm_revendedor <own assertion skipped> --ya-aplicada ROLLBACK-397` → `TOTAL 0 | SAME 0 | DIFF 0` (no pre-existing assertion calls the new RPCs). Broad pattern `'revendedor|reseller|saldo|calculadora|audit|operacion'` (own assertion skipped) → `TOTAL 156 | SAME 155 | DIFF 1`; the single DIFF is the pre-existing `delivery-feed-evidence` fixture flake (both sides fail identically; the 90-char comparison truncates its random deal UUID), already documented in slices 1–2. The totals assertion re-ran clean (`ALL PASS (rolled back on purpose)`) and its md5 case proves no `remittance_operations` row changed. Clean cycle after a real staging rollback: `dry-run OK / apply OK / assertion OK / rollback OK (md5 igual al previo)`.
 
 - [ ] 3.4 (RED→GREEN) Add request payload parsers `src/lib/resellers/payloads.ts`.
   - Files: create `src/lib/resellers/payloads.ts` and `src/lib/resellers/payloads.test.ts`.

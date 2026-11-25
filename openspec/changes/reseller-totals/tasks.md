@@ -225,61 +225,68 @@ Strict TDD: every task writes its failing test and records the RED result before
   - Depends: `3.2`. Sequential.
   - Progress 2026-11-24: targeted `relacionadas 397 crm_revendedor <own assertion skipped> --ya-aplicada ROLLBACK-397` → `TOTAL 0 | SAME 0 | DIFF 0` (no pre-existing assertion calls the new RPCs). Broad pattern `'revendedor|reseller|saldo|calculadora|audit|operacion'` (own assertion skipped) → `TOTAL 156 | SAME 155 | DIFF 1`; the single DIFF is the pre-existing `delivery-feed-evidence` fixture flake (both sides fail identically; the 90-char comparison truncates its random deal UUID), already documented in slices 1–2. The totals assertion re-ran clean (`ALL PASS (rolled back on purpose)`) and its md5 case proves no `remittance_operations` row changed. Clean cycle after a real staging rollback: `dry-run OK / apply OK / assertion OK / rollback OK (md5 igual al previo)`.
 
-- [ ] 3.4 (RED→GREEN) Add request payload parsers `src/lib/resellers/payloads.ts`.
+- [x] 3.4 (RED→GREEN) Add request payload parsers `src/lib/resellers/payloads.ts`.
   - Files: create `src/lib/resellers/payloads.ts` and `src/lib/resellers/payloads.test.ts`.
   - Spec: `reseller-totals/spec.md` — Manual adjustments; Reset a reseller; Reset all resellers; `design.md` API contract.
   - RED: table-driven tests for `parseResetBody`, `parseResetAllBody`, `parseAdjustBody`: reason trimmed, nullable, max 500; amount finite, non-zero; expected totals optional finite; non-object and invalid JSON rejected.
   - GREEN: implement the parsers with no I/O, returning typed results or a 400-shaped error.
   - Verify: `npx vitest run src/lib/resellers/payloads.test.ts --maxWorkers=4` and `npx tsc --noEmit`.
   - Depends: `3.2` (contract). Parallel with `3.5`.
+  - Progress 2026-11-24: RED `npx vitest run src/lib/resellers/payloads.test.ts --maxWorkers=4` → `Cannot find module './payloads'`. GREEN: strict known-keys parsers; reason trimmed, blank/null → null, max 500; expected totals optional finite; `amountGyd` finite, signed non-zero, `abs < 1e12`; non-object bodies rejected. 3 test files / 16 payload tests pass.
 
-- [ ] 3.5 (RED→GREEN) Add the RPC read-model mappers `src/lib/resellers/read-model.ts`.
+- [x] 3.5 (RED→GREEN) Add the RPC read-model mappers `src/lib/resellers/read-model.ts`.
   - Files: create `src/lib/resellers/read-model.ts` and `src/lib/resellers/read-model.test.ts`.
   - Spec: `reseller-totals/spec.md` — Per-reseller total with separate lines; Grand total; Period history per reseller; `design.md` Interfaces.
   - RED: map snake_case jsonb to `ResellerSummary`, `ResellerDetail`, `ResellerAdjustment`, `ResellerPeriod`; assert totals, counts, null handling, `is_reseller: false`, empty lists, ordering passthrough.
   - GREEN: implement the pure mappers.
   - Verify: `npx vitest run src/lib/resellers/read-model.test.ts --maxWorkers=4` and `npx tsc --noEmit`.
   - Depends: `3.2`. Parallel with `3.4`.
+  - Progress 2026-11-24: RED `Cannot find module './read-model'`. GREEN: five mappers (summary+grand, detail+current+periods, adjustment, reset, batch); numeric numbers and decimal strings both coerce; null payload → zeros/empty; malformed entries collapse to safe defaults; order passthrough. 9 read-model tests pass.
 
-- [ ] 3.6 (RED→GREEN) Create `GET /api/revendedores`.
+- [x] 3.6 (RED→GREEN) Create `GET /api/revendedores`.
   - Files: create `src/app/api/revendedores/route.ts` and `src/app/api/revendedores/route.test.ts`.
   - Spec: `reseller-totals/spec.md` — Read access for members; Grand total; `design.md` Panel API.
   - RED: member allowed (viewer/agent/admin/owner); calls `crm_revendedores_resumen` with the current account; maps via `read-model`; sets `Cache-Control: private, no-store`; 401 from the auth helper; RPC error mapped by `rpcErrorResponse`.
   - GREEN: implement with `getCurrentAccount()`.
   - Verify: `npx vitest run src/app/api/revendedores/route.test.ts --maxWorkers=4` and `npx tsc --noEmit`.
   - Depends: `3.4`, `3.5`. Parallel with `3.7`–`3.10`.
+  - Progress 2026-11-24: RED `Cannot find module './route'`. GREEN: `requireRole("viewer")` (lowest role = any member; sibling pattern instead of `getCurrentAccount`, equivalent authorization, recorded as a deviation), RPC `crm_revendedores_resumen` with `p_account_id`, read-model mapping, `private, no-store`, 401/403/500 mapping, empty payload → zeros. 6 route tests pass.
 
-- [ ] 3.7 (RED→GREEN) Create `POST /api/revendedores/reiniciar` (reset all).
+- [x] 3.7 (RED→GREEN) Create `POST /api/revendedores/reiniciar` (reset all).
   - Files: create `src/app/api/revendedores/reiniciar/route.ts` and `route.test.ts`.
   - Spec: `reseller-totals/spec.md` — Reset all resellers; Read access for members, writes admin-only.
   - RED: `requireRole("admin")` (agent/viewer → 403); body parsing; calls `crm_revendedores_reiniciar_todos` with `p_account_id`, `p_motivo`, `p_total_esperado_gyd`; 409 on `40001`; response `{ batch }`; `no-store`.
   - GREEN: implement.
   - Verify: `npx vitest run src/app/api/revendedores/reiniciar/route.test.ts --maxWorkers=4` and `npx tsc --noEmit`.
   - Depends: `3.4`, `3.5`. Parallel with `3.6`, `3.8`–`3.10`.
+  - Progress 2026-11-24: RED `Cannot find module './route'`. GREEN: admin gate, `parseResetAllBody`, RPC args, `{ batch }` mapped, `no-store`; `40001` → 409 with `currentGrandTotalGyd` parsed from the RPC hint (null when absent), `22023` → 400, `42501` → 403. 9 route tests pass. The RPC lists the closed markers (`resets`); skipped zero-total resellers are derivable by the caller from the list — the RPC does not return them (open question).
 
-- [ ] 3.8 (RED→GREEN) Create `GET /api/revendedores/[contactId]`.
+- [x] 3.8 (RED→GREEN) Create `GET /api/revendedores/[contactId]`.
   - Files: create `src/app/api/revendedores/[contactId]/route.ts` and `route.test.ts`.
   - Spec: `reseller-totals/spec.md` — Per-reseller total; Period history; Read access for members.
   - RED: member allowed; non-UUID → 400; calls `crm_revendedor_detalle`; 404 on `P0002`; `{ reseller }`; `no-store`.
   - GREEN: implement.
   - Verify: `npx vitest run src/app/api/revendedores/[contactId]/route.test.ts --maxWorkers=4` and `npx tsc --noEmit`.
   - Depends: `3.4`, `3.5`. Parallel.
+  - Progress 2026-11-24: RED `Cannot find module './route'`. GREEN: member read, UUID validation, `crm_revendedor_detalle` with `p_contact_id`, `{ reseller }`, `no-store`, `P0002` → 404, `42501` → 403. 5 route tests pass.
 
-- [ ] 3.9 (RED→GREEN) Create `POST /api/revendedores/[contactId]/reiniciar`.
+- [x] 3.9 (RED→GREEN) Create `POST /api/revendedores/[contactId]/reiniciar`.
   - Files: create `src/app/api/revendedores/[contactId]/reiniciar/route.ts` and `route.test.ts`.
   - Spec: `reseller-totals/spec.md` — Reset a reseller; Read access for members, writes admin-only.
   - RED: admin-only; non-UUID → 400; calls `crm_revendedor_reiniciar` with `p_contact_id`, `p_motivo`, `p_total_esperado_gyd`; 409 on `40001`; 400 on `22023`; 404 on `P0002`; `{ reset }`.
   - GREEN: implement.
   - Verify: `npx vitest run src/app/api/revendedores/[contactId]/reiniciar/route.test.ts --maxWorkers=4` and `npx tsc --noEmit`.
   - Depends: `3.4`, `3.5`. Parallel.
+  - Progress 2026-11-24: RED `Cannot find module './route'`. GREEN: admin gate, UUID + `parseResetBody`, RPC args, `{ reset }` mapped, `no-store`; `40001` → 409 with `currentTotalGyd` from the hint; `22023` → 400; `P0002` → 404; `42501` → 403. 8 route tests pass.
 
-- [ ] 3.10 (RED→GREEN) Create `POST /api/revendedores/[contactId]/ajustes`.
+- [x] 3.10 (RED→GREEN) Create `POST /api/revendedores/[contactId]/ajustes`.
   - Files: create `src/app/api/revendedores/[contactId]/ajustes/route.ts` and `route.test.ts`.
   - Spec: `reseller-totals/spec.md` — Manual adjustments; Read access for members, writes admin-only.
   - RED: admin-only; non-UUID/invalid payload → 400; calls `crm_revendedor_ajustar` with `p_contact_id`, `p_monto_gyd`, `p_motivo`; maps `22023`/`42501`/`P0002`; response `{ adjustment }`.
   - GREEN: implement.
   - Verify: `npx vitest run src/app/api/revendedores/[contactId]/ajustes/route.test.ts --maxWorkers=4` and `npx tsc --noEmit`.
   - Depends: `3.4`, `3.5`. Parallel.
+  - Progress 2026-11-24: RED `Cannot find module './route'`. GREEN: admin gate, UUID + `parseAdjustBody` (signed non-zero, reason optional), RPC args, `{ adjustment }`, `no-store`; `22023` → 400 with the RPC message, `42501` → 403, `P0002` → 404. 10 route tests pass.
 
 - [ ] 3.11 (RED→GREEN) Create `src/components/resellers/reseller-reset-dialog.tsx`.
   - Files: create the component and `src/components/resellers/reseller-reset-dialog.test.tsx`.

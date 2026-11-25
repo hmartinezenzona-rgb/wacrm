@@ -1,8 +1,8 @@
-# Apply Progress: reseller-totals — slices 1, 2 and 3
+# Apply Progress: reseller-totals — slices 1–5
 
 Change: `reseller-totals`. This artifact is cumulative: slice 1 (S1 identity DB), slice 2 (S1 remainder:
-396 tag guard + panel tag controls) and slice 3 (S2 reports, recorded by an earlier attempt) are all
-reflected here.
+396 tag guard + panel tag controls), slice 3 (S2 reports), slice 4 (S3 totals DB) and slice 5 (S3 totals
+API) are all reflected here.
 
 ## Slice 1 (S1 identity DB) — tasks 1.1–1.3
 
@@ -383,3 +383,109 @@ reseller, zero/NULL/out-of-range amount, reason > 500 → 400; `40001` expected 
 
 - `0b01d9b8` — `feat(sdd): add reseller totals schema and RPCs`
 
+
+---
+
+## Slice 5 (S3 totals API) — tasks 3.4–3.10
+
+Scope: `src/lib/resellers/payloads.ts`, `src/lib/resellers/read-model.ts`,
+`src/lib/resellers/rpc-errors.ts` and the five routes under `src/app/api/revendedores/`, each with its
+test. No UI (slice 6), no migration, no database write. The DB contract is the 397 RPCs from slice 4.
+
+### Task Status
+
+| Task | Status | Evidence |
+|------|--------|----------|
+| 3.4 Payload parsers | done | RED: `Cannot find module './payloads'`; GREEN: 16 payload tests |
+| 3.5 Read-model mappers | done | RED: `Cannot find module './read-model'`; GREEN: 9 read-model tests |
+| 3.6 `GET /api/revendedores` | done | RED: module missing; GREEN: 6 route tests |
+| 3.7 `POST /api/revendedores/reiniciar` | done | RED: module missing; GREEN: 9 route tests |
+| 3.8 `GET /api/revendedores/[contactId]` | done | RED: module missing; GREEN: 5 route tests |
+| 3.9 `POST /api/revendedores/[contactId]/reiniciar` | done | RED: module missing; GREEN: 8 route tests |
+| 3.10 `POST /api/revendedores/[contactId]/ajustes` | done | RED: module missing; GREEN: 10 route tests |
+
+### What the API slice does
+
+- `payloads.ts` — strict body parsers (`parseResetBody`, `parseResetAllBody`, `parseAdjustBody`).
+  Known keys only; `reason` trimmed, blank/null → `null`, max 500; expected totals optional finite;
+  `amountGyd` signed, finite, non-zero, `abs < 1e12`. No I/O.
+- `read-model.ts` — pure snake_case → camelCase mappers for all five RPC payloads. Numeric values may
+  arrive as JSON numbers or decimal strings; both coerce. Null payloads return zeros/empty lists.
+- `rpc-errors.ts` — `resellerRpcErrorResponse(error, totalField)`: `42501` → 403, `P0002` → 404,
+  `22023` → 400 with the RPC message, `40001` → 409 carrying the current total parsed from the RPC
+  `HINT` (`currentTotalGyd`, or `currentGrandTotalGyd` for reset-all); `null` for anything else.
+- Routes use the caller's SESSION client (never service role), so the RPC sees `auth.uid()` and enforces
+  membership/admin itself. Reads `requireRole("viewer")` (all member roles); writes
+  `requireRole("admin")`. Every 200 sets `Cache-Control: private, no-store`.
+
+### Request / response shapes exposed (slice 6 contract)
+
+| Route | Auth | Request body | 200 |
+|---|---|---|---|
+| `GET /api/revendedores` | any member | — | `{ grand: { operationsGyd, adjustmentsGyd, totalGyd, resellers }, resellers: ResellerSummary[] }` |
+| `GET /api/revendedores/{contactId}` | any member | — | `{ reseller: ResellerDetail }` |
+| `POST /api/revendedores/{contactId}/reiniciar` | admin | `{ reason?: string \| null, expectedTotalGyd?: number \| null }` | `{ reset: { resetId, contactId, resetAt, closed: { operationsGyd, adjustmentsGyd, totalGyd } } }` |
+| `POST /api/revendedores/reiniciar` | admin | `{ reason?: string \| null, expectedGrandTotalGyd?: number \| null }` | `{ batch: { batchId, resetAt, count, grandTotalGyd, resets: [{ resetId, contactId, totalGyd }] } }` |
+| `POST /api/revendedores/{contactId}/ajustes` | admin | `{ amountGyd: number, reason?: string \| null }` | `{ adjustment: { adjustmentId, contactId, amountGyd, createdAt, totalBeforeGyd, totalAfterGyd } }` |
+
+```
+ResellerSummary = { contactId, name, phone, periodStart, operationsGyd, operationsCount,
+                    operationsMissingAmount, adjustmentsGyd, adjustmentsCount, totalGyd }
+ResellerDetail  = { contactId, name, phone, isReseller,
+                    current: ResellerSummaryTotals & { periodStart, adjustmentsCount,
+                              adjustments: [{ id, amountGyd, reason, actorName, createdAt }] },
+                    periods: [{ resetId, start, end, operationsGyd, adjustmentsGyd, totalGyd,
+                                closedTotalGyd, batchId, resetByName, reason }] }  // newest first, max 100
+```
+
+Errors: `400 { error }` (non-UUID `contactId`, invalid JSON, invalid/unknown body field); `401`/`403`
+from the auth helpers; `403 { error: "Forbidden" }` (RPC 42501); `404 { error: "Not found" }` (P0002);
+`400 { error }` with the RPC message (22023); `409 { error, currentTotalGyd | currentGrandTotalGyd }`
+(40001, current total from the HINT; `null` when the hint is not numeric); `500 { error: "Internal
+server error" }`. Unknown body keys are rejected, not ignored.
+
+### Work Unit Evidence
+
+| Evidence | Required value |
+|---|---|
+| Focused test command and exact result | `npx vitest run src/lib/resellers/payloads.test.ts src/lib/resellers/read-model.test.ts src/app/api/revendedores --maxWorkers=4` → `Test Files 7 passed (7) │ Tests 81 passed (81)`; full resellers slice `npx vitest run src/lib/resellers src/app/api/revendedores --maxWorkers=4` → `Test Files 8 passed (8) │ Tests 96 passed (96)` |
+| Runtime harness command/scenario and exact result | Route tests drive the real route handlers with a mocked session context and mocked RPC results, covering role gating, UUID/body validation, exact RPC name/argument names, all SQLSTATE mappings and the wire shapes. N/A for a live HTTP server: route handlers are unit-tested in-process (sibling pattern) |
+| Rollback boundary | Delete the five route folders and `payloads.ts`/`read-model.ts`/`rpc-errors.ts`; the 397 read RPCs remain harmless. No database or migration change |
+
+### TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| 3.4 | `src/lib/resellers/payloads.test.ts` | Unit | New module (397 contract fixed) | `Cannot find module './payloads'` | 16 tests pass | Every field: reason trim/blank/null/500/501/non-string; expected totals finite/null/0/negative; amount 0/null/∞/string/1e12; non-object/array/null/unknown key | none needed |
+| 3.5 | `src/lib/resellers/read-model.test.ts` | Unit | New module (397 jsonb shapes from slice 4) | `Cannot find module './read-model'` | 9 tests pass | numeric numbers and decimal strings; null payload; `is_reseller: false`; empty adjustments/periods; order passthrough; empty batch | none needed |
+| 3.6 | `src/app/api/revendedores/route.test.ts` | Route | 397 applied on staging; read RPC exists | `Cannot find module './route'` | 6 tests pass | 401, success mapping+header, empty payload, 42501→403, unexpected→500 | none needed |
+| 3.7 | `src/app/api/revendedores/reiniciar/route.test.ts` | Route | 397 write RPC exists | `Cannot find module './route'` | 9 tests pass | admin gate, invalid JSON/payload, args, omitted nulls, 40001 hint present/absent, 22023, 42501 | none needed |
+| 3.8 | `src/app/api/revendedores/[contactId]/route.test.ts` | Route | 397 read RPC exists | `Cannot find module './route'` | 5 tests pass | 401, non-UUID, success+header, P0002, 42501 | none needed |
+| 3.9 | `src/app/api/revendedores/[contactId]/reiniciar/route.test.ts` | Route | 397 write RPC exists | `Cannot find module './route'` | 8 tests pass | admin gate, non-UUID, invalid JSON/payload, args, omitted nulls, 40001→409 with total, 22023, P0002 | none needed |
+| 3.10 | `src/app/api/revendedores/[contactId]/ajustes/route.test.ts` | Route | 397 write RPC exists | `Cannot find module './route'` | 10 tests pass | admin gate, non-UUID, invalid JSON, five invalid payloads, args, omitted reason, 22023, 42501, P0002 | none needed |
+
+### Deviations from Design
+
+- Read routes use `requireRole("viewer")` instead of `getCurrentAccount()` (task 3.6/3.8 GREEN text).
+  Behavior is identical for every valid role (`viewer` is the minimum member role) and it matches the
+  sibling `remittance-operations` / `calculator` read routes; the database remains the boundary.
+- `resellerRpcErrorResponse` replaces the generic `rpcErrorResponse` so the `40001` 409 body can carry
+  the current total from the RPC `HINT` (design says "existing mapping", but the dialog must reload the
+  amount; the generic helper discards `hint`).
+- `ResellerDetail.current` also exposes `adjustmentsCount` (the RPC returns it and the summary exposes
+  it); the design interface omitted it.
+- Reset-all `{ batch }` lists the markers actually written (`resets`) and their `count`. The RPC skips
+  zero-total resellers and does not return a "skipped" list; the client derives skipped resellers as
+  tagged resellers absent from `resets`. Adding a skipped list would need an extra pre-reset read
+  outside the advisory lock and could race, so it was not added (open question for slice 6).
+- Error bodies are English, like every sibling API route; user-facing Spanish copy belongs to the UI
+  slice (`messages/es.json`), which has no server-route i18n mechanism today.
+
+### Related checks
+
+- `npx tsc --noEmit` → exit 0 (project-wide, after all five routes and three libs).
+- Existing `src/lib/resellers/tag-rule.test.ts` still passes in the full slice run (96 tests / 8 files).
+
+### Commits (slice 5)
+
+- pending — `feat(sdd): add reseller totals API routes`

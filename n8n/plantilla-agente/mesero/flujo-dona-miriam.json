@@ -1353,7 +1353,7 @@
     },
     "sendBody": true,
     "specifyBody": "json",
-    "jsonBody": "={{ JSON.stringify({ p_account: $('Configuración').first().json.cuenta, p_conversation: $('Datos del mensaje').item.json.conversation_id, p: { fecha: $fromAI('fecha', 'Fecha del día de entrega en formato AAAA-MM-DD, tal como la da ver_menu', 'string'), cantidad: $fromAI('cantidad', 'Cuántas charolas', 'number'), nombre: $fromAI('nombre', 'A nombre de quién va el encargo', 'string'), extras: $fromAI('extras', 'Lista de extras que pidió para todo el encargo, ej. [{\"nombre\":\"Ración extra de arroz\",\"cantidad\":1}]. Lista vacía [] si no pidió', 'json'), notas: $fromAI('notas', 'Algo que el cliente pidió anotar (ej. paso a las 2). Vacío si nada', 'string') } }) }}",
+    "jsonBody": "={{ JSON.stringify({ p_account: $('Configuración').first().json.cuenta, p_conversation: $('Datos del mensaje').item.json.conversation_id, p: { fecha: $fromAI('fecha', 'Fecha del día de entrega en formato AAAA-MM-DD, tal como la da ver_menu', 'string'), cantidad: $fromAI('cantidad', 'Cuántas charolas', 'number'), nombre: $fromAI('nombre', 'A nombre de quién va el encargo', 'string'), extras: $fromAI('extras', 'Extras que pidió para todo el encargo, con el nombre tal cual de ver_menu y la cantidad, separados por coma. Ej: Ración extra de arroz:1, Ración extra de potaje:2. Vacío si no pidió extras', 'string'), notas: $fromAI('notas', 'Algo que el cliente pidió anotar (ej. paso a las 2). Vacío si nada', 'string') } }) }}",
     "options": {}
    }
   }

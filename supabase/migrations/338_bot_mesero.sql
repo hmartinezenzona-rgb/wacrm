@@ -386,7 +386,16 @@ BEGIN
 
   -- Extras repartidos entre las charolas (1 a la 1ª, 1 a la 2ª…).
   v_i := 0;
-  FOR v_ex IN SELECT * FROM jsonb_array_elements(COALESCE(p->'extras', '[]'::jsonb)) LOOP
+  -- extras puede venir como lista [{nombre, cantidad}] o como texto «Ración extra de arroz:1, Ración extra de potaje:2».
+  IF jsonb_typeof(p->'extras') = 'string' THEN
+    p := p || jsonb_build_object('extras', COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+               'nombre', btrim(split_part(x, ':', 1)),
+               'cantidad', COALESCE(NULLIF(regexp_replace(split_part(x, ':', 2), '\D', '', 'g'), '')::int, 1)))
+        FROM unnest(string_to_array(p->>'extras', ',')) x
+       WHERE btrim(split_part(x, ':', 1)) <> ''), '[]'::jsonb));
+  END IF;
+  FOR v_ex IN SELECT * FROM jsonb_array_elements(CASE WHEN jsonb_typeof(p->'extras') = 'array' THEN p->'extras' ELSE '[]'::jsonb END) LOOP
     v_n := LEAST(GREATEST(COALESCE(NULLIF(v_ex->>'cantidad', '')::int, 1), 0), 20);
     FOR k IN 1..v_n LOOP
       v_charolas := jsonb_set(v_charolas, ARRAY[(v_i % v_cant)::text, 'extras'],

@@ -6,10 +6,11 @@
 // identity, and the only anchor change is `firstItemIndex` dropping by the
 // number of prepended messages.
 //
-// The index space is react-virtuoso's absolute one: virt-4x gives each item
-// `index = dataPosition + firstItemIndex` and expects the same space in
-// `scrollToIndex`/`itemContent`/`computeItemKey`. `indexOfMessage` therefore
-// returns `firstItemIndex + position`, never the bare array position.
+// `firstItemIndex` shifts the anchor and the item keys; it does NOT change
+// the index space of the public index props. Virtuoso clamps
+// `scrollToIndex`/`initialTopMostItemIndex` to `totalCount - 1`, which in the
+// data-driven list is `data.length - 1`, so those props take the array
+// position. `indexOfMessage` returns that position.
 
 import { format, isSameDay, subDays } from 'date-fns';
 import type { Message } from '@/types';
@@ -230,15 +231,16 @@ export function nextFirstItemIndex(prev: number, prependedCount: number): number
 }
 
 /**
- * Absolute Virtuoso index of a loaded message, or null when it is not loaded.
- * Use with `scrollToIndex` and `computeItemKey`.
+ * Position of a loaded message in the `data` array, or null when it is not
+ * loaded. Use with `scrollToIndex`.
+ *
+ * The position is NOT offset by `firstItemIndex`: that prop only shifts the
+ * anchor and the keys, while React Virtuoso's public index props live in data
+ * space and are clamped to `data.length - 1` (`Qn`/`Qe` in the installed
+ * build). An absolute index near 1,000,000 is therefore clamped to the last
+ * item — the scroll would land on the newest message instead of the target.
  */
-export function indexOfMessage(
-  items: ThreadItem[],
-  id: string,
-  firstItemIndex: number,
-): number | null {
+export function indexOfMessage(items: ThreadItem[], id: string): number | null {
   const position = items.findIndex((item) => item.id === id);
-  if (position < 0) return null;
-  return firstItemIndex + position;
+  return position < 0 ? null : position;
 }

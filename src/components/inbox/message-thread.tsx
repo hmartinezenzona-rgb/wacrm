@@ -39,7 +39,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageComposer, CHAT_MEDIA_BUCKET, type SendMediaPayload } from "./message-composer";
 import { ThreadRow } from "./thread-row";
 import { deleteAccountMedia } from "@/lib/storage/upload-media";
@@ -578,12 +577,19 @@ export function MessageThread({
   useEffect(() => {
     firstItemIndexRef.current = firstItemIndex;
   }, [firstItemIndex]);
+  const conversationIdRef = useRef(conversationId);
+  useEffect(() => {
+    conversationIdRef.current = conversationId;
+  }, [conversationId]);
 
   /** Trae el bloque anterior al más viejo cargado (Virtuoso re-anchors it). */
   const loadOlderMessages = useCallback(async () => {
     if (loadingOlder || !hasMoreHistory || !conversationId) return;
     const oldest = displayMessages[0];
     if (!oldest) return;
+    // The page may land after the user switched threads; its rows belong to
+    // the thread it was requested for, not to the one on screen now.
+    const requestedFor = conversationId;
 
     setLoadingOlder(true);
 
@@ -591,6 +597,7 @@ export function MessageThread({
       // Clave (created_at, id): no se salta mensajes con la misma marca de tiempo.
       // The raw timestamp travels untouched so the keyset keeps microseconds.
       const page = await fetchThreadPage(conversationId, cursorFromMessage(oldest), MESSAGE_PAGE);
+      if (conversationIdRef.current !== requestedFor) return;
       seedSignedMedia(page.signed, page.expiresIn);
       setHasMoreHistory(page.hasMore);
       if (page.messages.length > 0) {
@@ -608,7 +615,7 @@ export function MessageThread({
 
   /** Scrolls to a loaded message and flashes a ring around it, for quotes. */
   const jumpToMessage = useCallback((messageId: string) => {
-    const index = indexOfMessage(itemsRef.current, messageId, firstItemIndexRef.current);
+    const index = indexOfMessage(itemsRef.current, messageId);
     if (index === null) return;
     virtuosoRef.current?.scrollToIndex({ index, align: "center", behavior: "smooth" });
     setHighlightId(messageId);

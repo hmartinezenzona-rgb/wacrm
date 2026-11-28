@@ -474,7 +474,7 @@ describe('MessageThread thread page', () => {
     await act(async () => root.unmount());
   });
 
-  it('jumps by absolute Virtuoso index and highlights the target', async () => {
+  it('jumps by data-space index and highlights the target', async () => {
     const target = {
       ...pageMessage,
       id: 'A',
@@ -506,9 +506,11 @@ describe('MessageThread thread page', () => {
     });
     await flush();
 
-    // A is at data position 0, so its absolute index is the anchor base.
+    // A is at data position 0. Virtuoso clamps `scrollToIndex` to
+    // `data.length - 1`, so the data position is the index it expects — an
+    // absolute index would clamp to the newest message.
     expect(hoisted.scrollToIndex).toHaveBeenCalledWith({
-      index: BASE_INDEX,
+      index: 0,
       align: 'center',
       behavior: 'smooth',
     });

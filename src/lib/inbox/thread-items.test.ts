@@ -128,20 +128,20 @@ describe('nextFirstItemIndex', () => {
 });
 
 describe('indexOfMessage', () => {
-  // react-virtuoso indexes items in the absolute space: the index it hands to
-  // itemContent/computeItemKey/scrollToIndex is the data position plus
-  // firstItemIndex (verified against node_modules/react-virtuoso/dist, where
-  // items get `index: relativeIndex + firstItemIndex`).
-  it('returns the absolute index the library uses, not the array position', () => {
+  // react-virtuoso clamps every public index prop to `totalCount - 1`
+  // (Qn/Qe in node_modules/react-virtuoso/dist). In the data-driven list
+  // totalCount is data.length, so `scrollToIndex` takes the DATA position and
+  // an absolute index near 1,000,000 would be clamped to the last item.
+  it('returns the data position, not the absolute index', () => {
     const { items } = buildThreadItems([msg('a', DAY1), msg('b', DAY1B), msg('c', DAY2)]);
-    expect(indexOfMessage(items, 'a', THREAD_FIRST_ITEM_INDEX_BASE)).toBe(1_000_000);
-    expect(indexOfMessage(items, 'b', THREAD_FIRST_ITEM_INDEX_BASE)).toBe(1_000_001);
-    expect(indexOfMessage(items, 'c', 999_998)).toBe(1_000_000);
+    expect(indexOfMessage(items, 'a')).toBe(0);
+    expect(indexOfMessage(items, 'b')).toBe(1);
+    expect(indexOfMessage(items, 'c')).toBe(2);
   });
 
   it('returns null for a message that is not loaded', () => {
     const { items } = buildThreadItems([msg('a', DAY1)]);
-    expect(indexOfMessage(items, 'missing', THREAD_FIRST_ITEM_INDEX_BASE)).toBeNull();
+    expect(indexOfMessage(items, 'missing')).toBeNull();
   });
 });
 

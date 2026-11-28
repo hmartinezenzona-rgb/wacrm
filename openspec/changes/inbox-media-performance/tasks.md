@@ -617,3 +617,9 @@ Spec gap: **no requirement in the four delta specs covers retention or purged me
 ## Completion criteria per slice
 
 Every slice PR closes only when: its named tests are green, `npx tsc --noEmit` is clean, the slice's runtime harness line has an observed result (or an explicit "not run" reason), and the slice's own rollback boundary is stated in the PR.
+
+## Delivery decisions (owner, 2026-11-27)
+
+- **PR target:** `feat/port-chat-operations-calculator`, never `master` (master is 1,751 commits behind and lacks the chat-media modules).
+- **Size policy:** `size:exception` accepted for slices that exceed the 400-line budget as one cohesive unit. Observed: slice 1 = 1,191 authored lines, slice 2 = ~578. Splitting was rejected because required test surface would be separated from the implementation it proves.
+- **Base:** `feat/inbox-media-performance` branched from `275bec1b`.

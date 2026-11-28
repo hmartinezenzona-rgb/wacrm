@@ -293,11 +293,37 @@ Filed under slice 4 because they repair slice-4 behaviour; no new PR slice. T4.4
 
 ## Measurement 2 — after slice 4 (own task)
 
-- [ ] **TM2** Re-run the baseline method. Requirement: `inbox-thread-read` → "First-page performance budget", "Measurement record"; `inbox-realtime` → "Only visible messages are mounted".
+- [x] **TM2** Re-run the baseline method. Requirement: `inbox-thread-read` → "First-page performance budget", "Measurement record"; `inbox-realtime` → "Only visible messages are mounted".
   - Goal: same method as TM1; also record the mounted-message count on open and the proxy request count.
   - Files: `openspec/changes/inbox-media-performance/measurements.md`
   - Test: none.
   - Verify: numbers recorded with a date, or reported unmeasured. This is the last measurement before the schema slices; gate G5 reads it.
+  - **Done 2026-11-27**: cold open messages 632 ms / first media 786 ms; repeats 372–552 ms / 501–675 ms; 4 media objects, 0 proxy, 684 KB. Recorded in `measurements.md`.
+
+## Slice 4c — Remove round trips from the thread page (no schema)
+
+Evidence: after TM2 the endpoint's 372–632 ms decomposed into a chain of four serial network stages — profile, accounts, (membership ∥ page), signing. Profiling against staging showed the signing call costs a fixed ~100–160 ms whether it carries 10 or 55 paths, and splitting it into parallel chunks is worse, so the batch size was never the problem.
+
+- [x] **T4c.1** GATE — locate the cost before changing anything. Requirement: `inbox-thread-read` → "First-page performance budget".
+  - Goal: separate page query, signing and auth in a standalone read-only profile; refuse any fix that does not follow from it.
+  - Files: none in the repo (scratch script only).
+  - Test: none (measurement task).
+  - Verify: recorded numbers. Result: page 99–213 ms, sign 92–157 ms for both 10 and 55 paths, auth residual ~180 ms (two point queries).
+- [x] **T4c.2** Context without the `accounts` lookup. Requirement: `inbox-thread-read` → "First-page performance budget".
+  - Goal: `requireScopedRole(min)` resolves identity, account id and role from `profiles` alone; the thread route uses it. `requireRole` keeps its full contract for every existing caller.
+  - Files: `src/lib/auth/account.ts`, `src/app/api/inbox/messages/route.ts`, `src/lib/auth/account.test.ts`
+  - Test: profile-only table access; role gate; unauthorized; unlinked profile.
+  - Verify: RED observed (`requireScopedRole is not a function`), then GREEN; `tsc --noEmit` clean.
+- [x] **T4c.3** Reuse still-valid signatures. Requirement: `chat-media-delivery` → "Signed media map".
+  - Goal: cache issued signatures by account + path; reuse only while the remaining life covers the requested TTL; never cache a failure; bound the map.
+  - Files: `src/lib/storage/chat-media-server.ts`, `src/lib/storage/chat-media-server.test.ts`
+  - Test: reuse without a Storage call; partial miss signs only what is missing; expiry re-signs; failure is not cached.
+  - Verify: RED observed (`__resetSignCache is not a function`), then GREEN.
+- [x] **T4c.4** Re-measure after 4c. Requirement: `inbox-thread-read` → "Measurement record".
+  - Goal: same method and fixture as TM2.
+  - Files: `openspec/changes/inbox-media-performance/measurements.md`
+  - Test: none.
+  - Verify: repeat endpoint median 469 → 295 ms, first media median 595 → 415 ms; cold open unchanged (632 → 696 ms, within noise).
 
 ## Slice 4b — Pre-fetch fix, conditional (no schema)
 

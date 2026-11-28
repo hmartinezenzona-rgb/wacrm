@@ -74,6 +74,71 @@ export interface SignedChatMediaBatch {
 const DEFAULT_SIGNED_TTL_SECONDS = 3600;
 
 /**
+ * Signatures already issued, keyed by account + object path.
+ *
+ * One Storage signing call costs a fixed ~100–160 ms of network no matter
+ * how many paths it carries (`createSignedUrls` does the work server-side
+ * in one round trip), so the win is not a smaller batch — it is not
+ * paying the round trip again. Reopening a thread, or paging back into
+ * history, re-signs almost nothing: entries are reused while they are
+ * still comfortably valid.
+ *
+ * A signature is only reused when its remaining life covers the TTL the
+ * caller asked for, so `expiresIn` in the response stays truthful.
+ */
+interface SignCacheEntry {
+  signedUrl: string;
+  expiresAt: number;
+}
+
+const SIGN_CACHE = new Map<string, SignCacheEntry>();
+
+/** Bound the map so a long-lived server cannot grow it without limit. */
+const SIGN_CACHE_MAX_ENTRIES = 5000;
+
+/** Test-only: the cache is module state and must not leak between tests. */
+export function __resetSignCache(): void {
+  SIGN_CACHE.clear();
+}
+
+function cacheKey(accountId: string, path: string): string {
+  return `${accountId}\u0000${path}`;
+}
+
+function readCachedSignature(
+  accountId: string,
+  path: string,
+  ttlSeconds: number,
+  now: number,
+): string | null {
+  const key = cacheKey(accountId, path);
+  const entry = SIGN_CACHE.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt - now < ttlSeconds * 1000) {
+    SIGN_CACHE.delete(key);
+    return null;
+  }
+  return entry.signedUrl;
+}
+
+function writeCachedSignature(
+  accountId: string,
+  path: string,
+  signedUrl: string,
+  ttlSeconds: number,
+  now: number,
+): void {
+  if (SIGN_CACHE.size >= SIGN_CACHE_MAX_ENTRIES) {
+    const oldest = SIGN_CACHE.keys().next();
+    if (!oldest.done) SIGN_CACHE.delete(oldest.value);
+  }
+  SIGN_CACHE.set(cacheKey(accountId, path), {
+    signedUrl,
+    expiresAt: now + ttlSeconds * 1000,
+  });
+}
+
+/**
  * Sign a page's chat-media URLs in ONE Storage call. Paths of another
  * account and URLs that are not chat-media are skipped, never signed —
  * the same gate the sign route has always used, minus its fail-hard
@@ -97,22 +162,39 @@ export async function signChatMediaUrls(
 
   if (byPath.size === 0) return { signed: {}, expiresIn: ttlSeconds, ok: true };
 
+  const now = Date.now();
+  const missing: string[] = [];
+  const reusable = new Map<string, string>();
+  for (const path of byPath.keys()) {
+    const cached = readCachedSignature(accountId, path, ttlSeconds, now);
+    if (cached) reusable.set(path, cached);
+    else missing.push(path);
+  }
+
+  const signed: Record<string, string> = {};
+  const fill = (path: string, signedUrl: string): void => {
+    for (const original of byPath.get(path) ?? []) signed[original] = signedUrl;
+  };
+
+  for (const [path, url] of reusable) fill(path, url);
+
+  // Everything asked for was still valid: no Storage round trip at all.
+  if (missing.length === 0) return { signed, expiresIn: ttlSeconds, ok: true };
+
   try {
     const { data, error } = await supabaseAdmin()
       .storage.from(CHAT_MEDIA_BUCKET)
-      .createSignedUrls([...byPath.keys()], ttlSeconds);
+      .createSignedUrls(missing, ttlSeconds);
 
     if (error || !data) {
       console.error('[chat-media] could not sign batch:', error?.message ?? 'no data');
-      return { signed: {}, expiresIn: ttlSeconds, ok: false };
+      return { signed: reusable.size ? signed : {}, expiresIn: ttlSeconds, ok: reusable.size > 0 };
     }
 
-    const signed: Record<string, string> = {};
     for (const row of data) {
       if (!row.signedUrl || !row.path) continue;
-      for (const original of byPath.get(row.path) ?? []) {
-        signed[original] = row.signedUrl;
-      }
+      fill(row.path, row.signedUrl);
+      writeCachedSignature(accountId, row.path, row.signedUrl, ttlSeconds, now);
     }
 
     return { signed, expiresIn: ttlSeconds, ok: true };
@@ -124,6 +206,6 @@ export async function signChatMediaUrls(
       '[chat-media] could not sign batch:',
       thrown instanceof Error ? thrown.message : String(thrown),
     );
-    return { signed: {}, expiresIn: ttlSeconds, ok: false };
+    return { signed: reusable.size ? signed : {}, expiresIn: ttlSeconds, ok: reusable.size > 0 };
   }
 }

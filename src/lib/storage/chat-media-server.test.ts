@@ -8,7 +8,12 @@ vi.mock('@/lib/flows/admin-client', () => ({
   supabaseAdmin: () => ({ storage: { from } }),
 }));
 
-import { downloadChatMedia, signChatMediaUrl, signChatMediaUrls } from './chat-media-server';
+import {
+  __resetSignCache,
+  downloadChatMedia,
+  signChatMediaUrl,
+  signChatMediaUrls,
+} from './chat-media-server';
 
 const OTHER = '9a8b7c6d-1111-4222-8333-444455556666';
 const ACCT = '3f2b1c7e-8a41-4c55-9d0e-6b7a1f2e3d4c';
@@ -17,6 +22,7 @@ const PUBLIC = `https://abc.supabase.co/storage/v1/object/public/chat-media/${PA
 
 beforeEach(() => {
   vi.clearAllMocks();
+  __resetSignCache();
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
@@ -129,6 +135,83 @@ describe('signChatMediaUrls', () => {
     expect(result.expiresIn).toBe(3600);
     expect(result.ok).toBe(false);
     expect(console.error).toHaveBeenCalled();
+  });
+
+  it('reuses a still-valid signature instead of paying Storage again', async () => {
+    createSignedUrls.mockResolvedValue({
+      data: [{ path: PATH, signedUrl: 'https://signed/1', error: null }],
+      error: null,
+    });
+
+    const first = await signChatMediaUrls([PUBLIC], ACCT);
+    const second = await signChatMediaUrls([PUBLIC, PROXY], ACCT);
+
+    expect(createSignedUrls).toHaveBeenCalledTimes(1);
+    expect(first.signed).toEqual({ [PUBLIC]: 'https://signed/1' });
+    expect(second.signed).toEqual({ [PUBLIC]: 'https://signed/1', [PROXY]: 'https://signed/1' });
+    expect(second.ok).toBe(true);
+    expect(second.expiresIn).toBe(3600);
+  });
+
+  it('signs only the paths it does not have yet', async () => {
+    createSignedUrls.mockResolvedValue({
+      data: [{ path: PATH, signedUrl: 'https://signed/1', error: null }],
+      error: null,
+    });
+    const SECOND = `account-${ACCT}/1700000000001-wa-456.jpg`;
+    const SECOND_PUBLIC = `https://abc.supabase.co/storage/v1/object/public/chat-media/${SECOND}`;
+
+    await signChatMediaUrls([PUBLIC], ACCT);
+    createSignedUrls.mockResolvedValue({
+      data: [{ path: SECOND, signedUrl: 'https://signed/2', error: null }],
+      error: null,
+    });
+    const result = await signChatMediaUrls([PUBLIC, SECOND_PUBLIC], ACCT);
+
+    expect(createSignedUrls).toHaveBeenCalledTimes(2);
+    expect(createSignedUrls).toHaveBeenLastCalledWith([SECOND], 3600);
+    expect(result.signed).toEqual({
+      [PUBLIC]: 'https://signed/1',
+      [SECOND_PUBLIC]: 'https://signed/2',
+    });
+  });
+
+  it('re-signs once the cached signature is too close to expiry', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-27T00:00:00Z'));
+    try {
+      createSignedUrls.mockResolvedValue({
+        data: [{ path: PATH, signedUrl: 'https://signed/1', error: null }],
+        error: null,
+      });
+      await signChatMediaUrls([PUBLIC], ACCT, 600);
+
+      // 401 s of the 600 s spent: 199 s left, less than a fresh 600 s request.
+      vi.setSystemTime(new Date('2026-11-27T00:06:41Z'));
+      createSignedUrls.mockResolvedValue({
+        data: [{ path: PATH, signedUrl: 'https://signed/2', error: null }],
+        error: null,
+      });
+      const result = await signChatMediaUrls([PUBLIC], ACCT, 600);
+
+      expect(createSignedUrls).toHaveBeenCalledTimes(2);
+      expect(result.signed).toEqual({ [PUBLIC]: 'https://signed/2' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('never caches a failed batch', async () => {
+    createSignedUrls.mockResolvedValue({ data: null, error: { message: 'boom' } });
+    await signChatMediaUrls([PUBLIC], ACCT);
+    createSignedUrls.mockResolvedValue({
+      data: [{ path: PATH, signedUrl: 'https://signed/1', error: null }],
+      error: null,
+    });
+    const result = await signChatMediaUrls([PUBLIC], ACCT);
+
+    expect(createSignedUrls).toHaveBeenCalledTimes(2);
+    expect(result.ok).toBe(true);
   });
 
   it('maps a per-row failure to no entry but keeps the rest', async () => {

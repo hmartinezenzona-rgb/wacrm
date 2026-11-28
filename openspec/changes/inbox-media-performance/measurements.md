@@ -44,8 +44,67 @@ Slice 1 code landed 2026-11-27 (commit for `feat(inbox): serve thread page with 
 - The 1,920 ms pre-fetch window is **not** addressed by slice 1. The T1.0 record already classified it as zero network activity, and the client PostgREST page call is replaced by the route call without changing when the fetch is issued.
 - `/api/chat-media/...` byte-proxy requests for first-page media should drop to zero unless signing fails; that claim is unmeasured until the staging run.
 
-**Status: unmeasured.** The staging browser check (T1.8) and the TM1 numbers have not been produced in this run. No success criterion is claimed as met.
+**Status: measured after slice 4** — see the section below. The separate sign round-trip is gone and the byte proxy is unused.
 
-## After slice 4
+## After slice 4 (staging, production build, 2026-11-27)
 
-To be recorded when the slice ships.
+Environment: branch `feat/inbox-media-performance` at `8aefd168`, `next build` + `next start` on `localhost:3101`, Supabase staging. Fixture: one `PRUEBA Rendimiento` conversation, 160 messages, 55 images averaging 171 KB (9,418 KB total in storage). Browser: cold navigation to `/inbox`, then click on the thread row; resource timings read from `PerformanceResourceTiming` relative to that click.
+
+| Run | `/api/inbox/messages` start | duration | first media start | media objects | proxy requests | same-origin JSON |
+| --- | --- | --- | --- | --- | --- | --- |
+| cold open | 19 ms | 632 ms | 786 ms | 4 | 0 | 5 KB |
+| repeat 1 | 4 ms | 372 ms | 501 ms | 4 | 0 | 5 KB |
+| repeat 2 | 7 ms | 469 ms | 595 ms | 4 | 0 | 5 KB |
+| repeat 3 | 4 ms | 552 ms | 675 ms | 4 | 0 | 5 KB |
+
+First-paint media bytes measured on the four rendered `<img>` elements: 173,996 / 176,061 / 175,989 / 174,078 B = **684 KB**, against 55 objects (9,418 KB) stored for the thread. Virtualized DOM held 4 rows and 10 `<img>` elements.
+
+What the numbers support:
+
+- The separate signing round-trip is gone from the open path: no `/api/chat-media/sign` request appears, and the page no longer issues one.
+- The byte proxy is unused: zero `/api/media` requests; every media load goes to the signed Storage URL returned by the thread page.
+- Bytes per open drop from page-size (5.3 MB in the production baseline) to 684 KB, bounded by what is visible, not by thread size.
+- No console error or warning, and no React error boundary during repeated opens, after `8aefd168`.
+
+What these numbers do **not** support:
+
+- They are not comparable millisecond-for-millisecond with the production baseline. The baseline was measured in production (browser → Supabase cloud, real network); this run is a local production build against staging.
+- The 501–675 ms repeat figures benefit from warm connections established by the cold open (786 ms). Use the cold number for a first-visit estimate.
+- T4.4 (visual check of virtualization while scrolling) still needs a human pass.
+- The dominant remaining cost is server-side in `/api/inbox/messages`: 372–632 ms for one page of 50 messages, of which the signing of 50 Storage paths is the known large term. Not yet profiled (slice 4b is gated on a Performance trace).
+
+## After slice 4c (staging, production build, 2026-11-27)
+
+Profiling first, on the same staging fixture, standalone against the same Supabase project:
+
+| Stage | 10 paths | 51–55 paths | chunks of 13 / 26 |
+| --- | --- | --- | --- |
+| `createSignedUrls` | 92–121 ms | 110–614 ms (median ~140) | 107–273 ms |
+| messages page query | — | 99–213 ms | — |
+
+Two conclusions, one of them the opposite of the working assumption:
+
+- Signing is **fixed latency, not per-path work**. A batch of 55 costs the same as a batch of 10; splitting it into parallel chunks does not help and can hurt. Capping the batch or parallelizing it would have been wasted work.
+- The endpoint's real cost is a chain of **four serial network stages**: profile → accounts → (membership ∥ page) → signing. The `accounts` lookup supplies only `account.name`, which the thread route never reads.
+
+Two changes, then the same measurement method:
+
+1. `requireScopedRole(min)` resolves identity, account id and role from `profiles` alone; the thread route uses it. One round trip removed.
+2. Issued signatures are reused by account + path while the remaining life covers the requested TTL. Reopening a thread or paging back into history no longer pays Storage at all.
+
+| Run | before: endpoint | after: endpoint | before: first media | after: first media |
+| --- | --- | --- | --- | --- |
+| cold open | 632 ms | 696 ms | 786 ms | 843 ms |
+| repeat 1 | 372 ms | 278 ms | 501 ms | 399 ms |
+| repeat 2 | 469 ms | 271 ms | 595 ms | 400 ms |
+| repeat 3 | 552 ms | 351 ms | 675 ms | 481 ms |
+| repeat 4–7 | — | 295 / 389 / 299 / 268 ms | — | 415 / 516 / 427 / 393 ms |
+
+**Median on a repeat open: endpoint 469 → 295 ms, first media 595 → 415 ms.** Proxy requests stayed at 0 and media objects stayed at 4.
+
+What these numbers do not support:
+
+- The cold open did not improve measurably (632 → 696 ms, one sample each). It is dominated by connection setup to Supabase, which neither change touches.
+- The signature cache is per server process. A second instance, a restart, or a serverless cold start pays the signing round trip again; the win is per-instance, not global.
+- Neither change makes the first paint faster by itself: messages and signatures still arrive in the same response. Removing the signing stage from the critical path is a separate design change and is not claimed here.
+

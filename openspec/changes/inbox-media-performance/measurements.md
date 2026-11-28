@@ -143,7 +143,7 @@ What they do not support:
 
 - The conversation measured is not the same one as the baseline's heaviest thread, and the message count differs; the comparison is structural and order-of-magnitude, not an A/B on identical data.
 - These are single-day measurements on one connection; a slow mobile network will shift every number.
-- The quote-jump behaviour (data-space index) was exercised only by unit tests: no visual confirmation in a browser yet.
+- The quote-jump behaviour was confirmed in production on 2026-11-28 (conversation `LEAND`, reply `4a09321a` -> quoted `73681f28`): the ring appeared within 100 ms, the quoted row was fully in the viewport and the thread scrolled up 2,685 -> 2,425 px instead of clamping to the newest message.
 
 
 

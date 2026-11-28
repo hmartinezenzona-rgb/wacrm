@@ -19,19 +19,16 @@ export interface ThreadItem {
   id: string;
   message: Message;
   /**
-   * ISO day (`yyyy-MM-dd`) of the NEXT message when it falls on another day.
-   * Grouping only: never parse this back into a Date, because a date-only
-   * string reads as UTC midnight and shifts a day back in western zones.
+   * Original instant of the NEXT message when it falls on another day; the
+   * separator label source. Carried as the instant, never as a `yyyy-MM-dd`
+   * key, so the label can never be re-parsed as UTC midnight and shifted a
+   * day back in western zones.
    */
-  separatorBelow: string | null;
-  /** Original instant of the NEXT message when it falls on another day; the label source. */
   separatorBelowAt: string | null;
 }
 
 export interface ThreadItems {
   items: ThreadItem[];
-  /** `yyyy-MM-dd` of the oldest loaded message. Grouping only. */
-  headerDay: string | null;
   /** Original instant of the oldest loaded message; the header label source. */
   headerDayAt: string | null;
 }
@@ -69,65 +66,114 @@ function dayKey(message: Message): string {
   return format(new Date(message.created_at), 'yyyy-MM-dd');
 }
 
-/** Build the thread item list and the oldest-day header key. */
+/** Build the thread item list and the oldest-day header source. */
 export function buildThreadItems(messages: Message[]): ThreadItems {
-  if (messages.length === 0) return { items: [], headerDay: null, headerDayAt: null };
+  if (messages.length === 0) return { items: [], headerDayAt: null };
 
   const items: ThreadItem[] = messages.map((message, index) => {
     const day = dayKey(message);
     const next = messages[index + 1];
-    const nextDay = next ? dayKey(next) : null;
-    const boundary = !!(next && nextDay !== day);
+    // The next day key is only compared for the boundary; it is never stored,
+    // so no caller can label a separator from a `yyyy-MM-dd` key.
+    const boundary = !!(next && dayKey(next) !== day);
     return {
       id: message.id,
       message,
-      separatorBelow: boundary ? nextDay : null,
       separatorBelowAt: boundary ? next!.created_at : null,
     };
   });
 
   return {
     items,
-    headerDay: dayKey(messages[0]),
     headerDayAt: messages[0].created_at,
   };
 }
 
 /**
+ * Splits a server timestamp into the whole-second epoch and the exact
+ * fractional digits. Postgres keeps microseconds, and the keyset contract
+ * deliberately round-trips the raw string to preserve them; `new Date(...)`
+ * would truncate to milliseconds and let the sub-millisecond order decide the
+ * tie-break instead of the timestamp.
+ */
+const SERVER_TIMESTAMP =
+  /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:?\d{2})$/;
+
+function parseServerTimestamp(raw: string): { secondsMs: number; fraction: string } | null {
+  const match = SERVER_TIMESTAMP.exec(raw);
+  if (!match) return null;
+  const secondsMs = Date.parse(`${match[1]}${match[3]}`);
+  if (Number.isNaN(secondsMs)) return null;
+  return { secondsMs, fraction: match[2] ?? '' };
+}
+
+/**
  * Orders two rows exactly as the server's `(created_at, id)` keyset does, so a
  * gap check agrees with the page the route actually returned.
+ *
+ * Compares microsecond precision instead of round-tripping through `Date`
+ * (which truncates to milliseconds). Fractional digits are compared as padded
+ * strings: fractional digits are positional, so "5" and "500000" both mean
+ * `.5` and must compare equal. Timestamps outside the server's ISO-with-offset
+ * shape fall back to `Date` milliseconds, then the raw string, so ordering
+ * stays deterministic instead of silently collapsing.
  */
 function compareThreadOrder(a: Pick<Message, 'id' | 'created_at'>, b: Pick<Message, 'id' | 'created_at'>): number {
+  const parsedA = parseServerTimestamp(a.created_at);
+  const parsedB = parseServerTimestamp(b.created_at);
+  if (parsedA && parsedB) {
+    if (parsedA.secondsMs !== parsedB.secondsMs) return parsedA.secondsMs - parsedB.secondsMs;
+    const fractionA = parsedA.fraction.padEnd(9, '0');
+    const fractionB = parsedB.fraction.padEnd(9, '0');
+    if (fractionA !== fractionB) return fractionA < fractionB ? -1 : 1;
+    return a.id.localeCompare(b.id);
+  }
   const at = new Date(a.created_at).getTime();
   const bt = new Date(b.created_at).getTime();
   if (at !== bt) return at - bt;
+  if (a.created_at !== b.created_at) return a.created_at < b.created_at ? -1 : 1;
   return a.id.localeCompare(b.id);
 }
 
 /**
- * True when a resynced newest page cannot be joined to the previously loaded
- * newest page: it starts strictly after that page's newest message, so anything
- * between them was never fetched. `loadOlderMessages` only pages before the
- * FIRST displayed message, so such a hole would be unreachable; callers must
- * drop the retained history and refetch from the resynced page's boundary.
+ * Rows from the previously loaded newest page that the resynced page no longer
+ * contains and that must stay displayed.
+ *
+ * `handleMessagesLoaded` REPLACES the parent's newest page, and that page can
+ * be LONGER than a server page because `handleNewMessage` appends realtime
+ * rows. So after a disconnect a resync can jump the page's oldest row forward
+ * by as many messages as arrived while the socket was down: those rows fall
+ * out of the new page. Dropping them would make them unreachable, because
+ * `loadOlderMessages` only pages before `displayMessages[0]` (which is the
+ * retained history, above them). Every previous-page row strictly older than
+ * the resynced page's oldest row fills the hole. Callers merge these rows into
+ * the retained history, deduplicated by id and kept in server order, so the
+ * displayed list stays contiguous and the Virtuoso anchor is preserved
+ * (drop `firstItemIndex` by the number of rows actually added).
  */
-export function newestPageLeavesGap(
-  previousPage: Pick<Message, 'id' | 'created_at'>[],
+export function resyncTailRows<T extends Pick<Message, 'id' | 'created_at'>>(
+  previousPage: T[],
   resyncedPage: Pick<Message, 'id' | 'created_at'>[],
-): boolean {
-  if (previousPage.length === 0 || resyncedPage.length === 0) return false;
-
-  let previousNewest = previousPage[0];
-  for (const message of previousPage) {
-    if (compareThreadOrder(message, previousNewest) > 0) previousNewest = message;
-  }
+): T[] {
+  if (previousPage.length === 0 || resyncedPage.length === 0) return [];
 
   let resyncedOldest = resyncedPage[0];
   for (const message of resyncedPage) {
     if (compareThreadOrder(message, resyncedOldest) < 0) resyncedOldest = message;
   }
 
-  return compareThreadOrder(resyncedOldest, previousNewest) > 0;
+  const seen = new Set<string>(resyncedPage.map((m) => m.id));
+  const tail = previousPage
+    .filter((message) => compareThreadOrder(message, resyncedOldest) < 0)
+    .sort(compareThreadOrder);
+
+  const carried: T[] = [];
+  for (const message of tail) {
+    if (seen.has(message.id)) continue;
+    seen.add(message.id);
+    carried.push(message);
+  }
+  return carried;
 }
 
 /** The `firstItemIndex` after prepending `prependedCount` messages. */

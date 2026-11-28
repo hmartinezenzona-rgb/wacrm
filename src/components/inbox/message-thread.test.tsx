@@ -566,17 +566,18 @@ describe('MessageThread thread page', () => {
     await act(async () => root.unmount());
   });
 
-  // Slice-4 review (BLOCKER): a resync that skipped past the retained history
-  // leaves a hole that `loadOlderMessages` can never fetch, because it only
-  // pages before the FIRST displayed message. History must be dropped so the
-  // backfill starts at the new page's boundary.
-  it('drops retained history when a resync does not overlap it, so the gap stays fetchable', async () => {
+  // Slice-4 review (BLOCKER, round 2): a resync that skips past the retained
+  // history must NOT drop rows the client already received — `loadOlderMessages`
+  // only pages before the FIRST displayed message, so dropping them loses them
+  // forever. The rows that fall out of the resynced page are carried into the
+  // retained history, the list stays contiguous, and the anchor only moves by
+  // the number of rows actually added.
+  it('carries the previous page tail into history when a resync skips past it', async () => {
     const at = (id: string, createdAt: string) =>
       ({ ...pageMessage, id, content_type: 'text', media_url: undefined, created_at: createdAt }) as Message;
     const retained = at('r1', '2026-11-27T09:00:00.000000+00:00');
     const previousNewest = at('r2', '2026-11-27T10:00:00.000000+00:00');
     const resynced = at('r9', '2026-11-27T20:00:00.000000+00:00');
-    const belowResynced = at('r8', '2026-11-27T18:00:00.000000+00:00');
 
     hoisted.fetchThreadPage
       .mockResolvedValueOnce({
@@ -597,13 +598,6 @@ describe('MessageThread thread page', () => {
         messages: [resynced],
         hasMore: true,
         nextCursor: { createdAt: resynced.created_at, id: 'r9' },
-        signed: {},
-        expiresIn: 3600,
-      })
-      .mockResolvedValueOnce({
-        messages: [belowResynced],
-        hasMore: false,
-        nextCursor: null,
         signed: {},
         expiresIn: 3600,
       });
@@ -637,22 +631,12 @@ describe('MessageThread thread page', () => {
     });
     await flush();
 
-    // The unreachable history is dropped, leaving no hole in the list.
-    expect(hoisted.virtuosoProps).toMatchObject({ firstItemIndex: BASE_INDEX, count: 1 });
-
-    // And the next backfill starts from the resynced page's oldest message,
-    // which is what makes the skipped messages reachable again.
-    await act(async () => {
-      node
-        .querySelector<HTMLDivElement>('[data-testid="virtuoso"]')!
-        .dispatchEvent(new Event('scroll', { bubbles: true }));
-    });
-    await flush();
-    expect(hoisted.fetchThreadPage).toHaveBeenLastCalledWith(
-      CONV,
-      { createdAt: resynced.created_at, id: 'r9' },
-      50,
-    );
+    // r2 fell out of the resynced page and was folded above it: nothing the
+    // client received is lost, and the anchor moved by exactly that one row.
+    expect(hoisted.virtuosoProps).toMatchObject({ firstItemIndex: BASE_INDEX - 2, count: 3 });
+    expect(hoisted.rowIds).toContain('r1');
+    expect(hoisted.rowIds).toContain('r2');
+    expect(hoisted.rowIds).toContain('r9');
 
     await act(async () => root.unmount());
   });

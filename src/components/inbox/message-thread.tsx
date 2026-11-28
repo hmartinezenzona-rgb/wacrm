@@ -52,8 +52,8 @@ import {
   buildThreadItems,
   formatThreadDayLabel,
   indexOfMessage,
-  newestPageLeavesGap,
   nextFirstItemIndex,
+  resyncTailRows,
   THREAD_FIRST_ITEM_INDEX_BASE,
   type ThreadItem,
 } from "@/lib/inbox/thread-items";
@@ -367,18 +367,24 @@ export function MessageThread({
           setOlderMessages([]);
           setFirstItemIndex(THREAD_FIRST_ITEM_INDEX_BASE);
           setHasMoreHistory(page.hasMore);
-        } else if (
-          olderMessagesRef.current.length > 0 &&
-          newestPageLeavesGap(previousPage, page.messages)
-        ) {
-          // More than a page arrived while disconnected: the resynced page
-          // starts after everything we retained, and `loadOlderMessages` only
-          // pages before the first displayed message, so that hole would never
-          // be fetched. Drop the retained history and let the next top-reach
-          // backfill contiguously from the new page's oldest message.
-          setOlderMessages([]);
-          setFirstItemIndex(THREAD_FIRST_ITEM_INDEX_BASE);
-          setHasMoreHistory(page.hasMore);
+        } else {
+          // The parent's newest page can be longer than a server page (realtime
+          // appends), so the resynced page may start AFTER rows we already had.
+          // Carry those rows into the retained history instead of dropping
+          // them: `loadOlderMessages` only pages before the oldest displayed
+          // message, so any row we drop here would be unreachable forever.
+          // Dedupe by id and keep server order; the merge stays contiguous.
+          const carried = resyncTailRows(previousPage, page.messages);
+          if (carried.length > 0) {
+            const known = new Set(olderMessagesRef.current.map((m) => m.id));
+            const added = carried.filter((m) => !known.has(m.id));
+            if (added.length > 0) {
+              // Prepend at the top: drop the anchor by exactly what was added
+              // so already-measured items keep their absolute index.
+              setFirstItemIndex((prev) => nextFirstItemIndex(prev, added.length));
+              setOlderMessages((prev) => [...added, ...prev]);
+            }
+          }
         }
         onMessagesLoadedRef.current(page.messages);
       } catch (error) {

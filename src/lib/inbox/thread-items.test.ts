@@ -12,6 +12,7 @@ import {
   buildThreadItems,
   indexOfMessage,
   nextFirstItemIndex,
+  resyncKeepsHistory,
   resyncTailRows,
 } from './thread-items';
 
@@ -167,7 +168,7 @@ describe('resyncTailRows', () => {
 
   const PAGE = 50;
 
-  for (const M of [1, 49, 50, 120]) {
+  for (const M of [1, 49, 50]) {
     it(`keeps every received message when ${M} message${M === 1 ? '' : 's'} arrived while disconnected`, () => {
       // Retained history ends at o0; the previous newest page is o1..o50 plus
       // M realtime appends; the resync returns only the newest 50.
@@ -180,6 +181,8 @@ describe('resyncTailRows', () => {
       // The pathological shape: the resynced page's oldest row is later than
       // the previous page's oldest row, so rows fell out of the page.
       expect(resyncedPage[0].id).not.toBe(previousPage[0].id);
+      // ...but it still overlaps what we hold, so the fold keeps history.
+      expect(resyncKeepsHistory(previousPage, resyncedPage)).toBe(true);
 
       const carried = resyncTailRows(previousPage, resyncedPage);
       const displayed = [...retainedHistory, ...carried, ...resyncedPage];
@@ -194,6 +197,50 @@ describe('resyncTailRows', () => {
       ]);
     });
   }
+
+  // Complete non-overlap: more than a page arrived while disconnected, so the
+  // resynced page starts strictly AFTER the newest row we hold. The range in
+  // between was never received, and folding the held rows above the resynced
+  // page would strand that hole forever: `loadOlderMessages` only pages below
+  // the OLDEST displayed row (the carried one), never into the hole. The only
+  // contiguous outcome is to drop the retained history and reset the anchor, so
+  // the top-reached path refills from the resynced page's own oldest row.
+  it('drops retained history and stays contiguous when the resynced page does not overlap', () => {
+    const retainedHistory = chain(-3, 0);
+    const previousPage = chain(1, PAGE); // 50 rows held
+    const resyncedPage = chain(101, 160); // 60 rows, all newer; 51..100 never received
+
+    expect(resyncKeepsHistory(previousPage, resyncedPage)).toBe(false);
+
+    // Component decision: no overlap -> discard retained history, reset the
+    // anchor, keep only the resynced page.
+    const keptHistory = resyncKeepsHistory(previousPage, resyncedPage)
+      ? [...retainedHistory, ...resyncTailRows(previousPage, resyncedPage)]
+      : [];
+    const displayed = [...keptHistory, ...resyncedPage];
+
+    // Contiguous: one ascending run with no internal hole.
+    const ordinals = displayed.map((m) => Number(m.id.slice(1)));
+    for (let i = 1; i < ordinals.length; i += 1) {
+      expect(ordinals[i]).toBe(ordinals[i - 1] + 1);
+    }
+    // Nothing held is stranded above an unreachable gap.
+    expect(displayed.map((m) => m.id)).toEqual(chain(101, 160).map((m) => m.id));
+    // The refill boundary is the resynced page's oldest row.
+    expect(displayed[0].id).toBe('o101');
+    // Document the bug this replaces: the old fold would carry o1..o50 and
+    // leave 51..100 unreachable above the resynced page.
+    expect(resyncTailRows(previousPage, resyncedPage).map((m) => m.id)).toEqual(
+      chain(1, PAGE).map((m) => m.id),
+    );
+  });
+
+  // A resync that brings no new messages is a no-op.
+  it('carries nothing and keeps history when the resync has no new messages (M = 0)', () => {
+    const page = chain(1, PAGE);
+    expect(resyncKeepsHistory(page, page)).toBe(true);
+    expect(resyncTailRows(page, page)).toEqual([]);
+  });
 
   it('keeps the older row a resynced page still overlaps, preserving the anchor', () => {
     // Genuine overlap: the new page shares o50 with the previous page, and the

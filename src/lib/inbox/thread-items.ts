@@ -135,6 +135,54 @@ function compareThreadOrder(a: Pick<Message, 'id' | 'created_at'>, b: Pick<Messa
   return a.id.localeCompare(b.id);
 }
 
+/** The oldest row of a page, by the same `(created_at, id)` order the server uses. */
+function oldestRow<T extends Pick<Message, 'id' | 'created_at'>>(rows: T[]): T | null {
+  if (rows.length === 0) return null;
+  let oldest = rows[0];
+  for (const row of rows) {
+    if (compareThreadOrder(row, oldest) < 0) oldest = row;
+  }
+  return oldest;
+}
+
+/** The newest row of a page, by the same `(created_at, id)` order the server uses. */
+function newestRow<T extends Pick<Message, 'id' | 'created_at'>>(rows: T[]): T | null {
+  if (rows.length === 0) return null;
+  let newest = rows[0];
+  for (const row of rows) {
+    if (compareThreadOrder(row, newest) > 0) newest = row;
+  }
+  return newest;
+}
+
+/**
+ * Whether a resync still overlaps the rows the client already holds.
+ *
+ * Overlap means the resynced page's oldest row is at or before the newest row we
+ * hold: the resync reaches down into (or past) the held range, so the rows that
+ * fall out of the replaced page can be folded into the retained history and the
+ * displayed list stays contiguous.
+ *
+ * Complete non-overlap means the resynced page starts strictly AFTER everything
+ * we hold — more than a page arrived while disconnected. The range in between
+ * was never received, so folding the held rows above the resynced page would
+ * strand that hole forever: `loadOlderMessages` only pages below the OLDEST
+ * displayed row. Callers must drop the retained history and reset the prepend
+ * anchor, so the top-reached path refills from the resynced boundary.
+ *
+ * An empty side counts as overlap: there is nothing to fold against, so callers
+ * keep their existing behaviour.
+ */
+export function resyncKeepsHistory<T extends Pick<Message, 'id' | 'created_at'>>(
+  previousPage: T[],
+  resyncedPage: Pick<Message, 'id' | 'created_at'>[],
+): boolean {
+  const previousNewest = newestRow(previousPage);
+  const resyncedOldest = oldestRow(resyncedPage);
+  if (!previousNewest || !resyncedOldest) return true;
+  return compareThreadOrder(resyncedOldest, previousNewest) <= 0;
+}
+
 /**
  * Rows from the previously loaded newest page that the resynced page no longer
  * contains and that must stay displayed.

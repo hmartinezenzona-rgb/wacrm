@@ -566,18 +566,102 @@ describe('MessageThread thread page', () => {
     await act(async () => root.unmount());
   });
 
-  // Slice-4 review (BLOCKER, round 2): a resync that skips past the retained
-  // history must NOT drop rows the client already received — `loadOlderMessages`
-  // only pages before the FIRST displayed message, so dropping them loses them
-  // forever. The rows that fall out of the resynced page are carried into the
-  // retained history, the list stays contiguous, and the anchor only moves by
-  // the number of rows actually added.
-  it('carries the previous page tail into history when a resync skips past it', async () => {
+  // Slice-4 review (BLOCKER, corrected round 3): a resync that still overlaps
+  // the displayed page is a repartition, not a prepend. Every carried row was
+  // already on screen (it lived in the parent's page), so folding it into the
+  // retained history must NOT move `firstItemIndex` — Virtuoso treats a decrease
+  // as a prepend and compensates scroll, jumping a user who is scrolled up.
+  it('folds the previous page tail without moving the anchor when a resync overlaps', async () => {
+    const at = (id: string, createdAt: string) =>
+      ({ ...pageMessage, id, content_type: 'text', media_url: undefined, created_at: createdAt }) as Message;
+    const retained = at('r1', '2026-11-27T09:00:00.000000+00:00');
+    const previousOlder = at('r2', '2026-11-27T10:00:00.000000+00:00');
+    const previousNewest = at('r3', '2026-11-27T11:00:00.000000+00:00');
+    const resynced = at('r9', '2026-11-27T20:00:00.000000+00:00');
+
+    hoisted.fetchThreadPage
+      .mockResolvedValueOnce({
+        messages: [previousOlder, previousNewest],
+        hasMore: true,
+        nextCursor: { createdAt: previousNewest.created_at, id: 'r3' },
+        signed: {},
+        expiresIn: 3600,
+      })
+      .mockResolvedValueOnce({
+        messages: [retained],
+        hasMore: false,
+        nextCursor: null,
+        signed: {},
+        expiresIn: 3600,
+      })
+      .mockResolvedValueOnce({
+        messages: [previousNewest, resynced],
+        hasMore: true,
+        nextCursor: { createdAt: resynced.created_at, id: 'r9' },
+        signed: {},
+        expiresIn: 3600,
+      });
+
+    const node = document.createElement('div');
+    const root = createRoot(node);
+    await act(async () => {
+      renderThread(node, root, {
+        messages: [previousOlder, previousNewest] as Message[],
+      });
+    });
+    await flush();
+
+    // Load the retained older page.
+    await act(async () => {
+      node
+        .querySelector<HTMLDivElement>('[data-testid="virtuoso"]')!
+        .dispatchEvent(new Event('scroll', { bubbles: true }));
+    });
+    await flush();
+    expect(hoisted.virtuosoProps).toMatchObject({ firstItemIndex: BASE_INDEX - 1, count: 3 });
+
+    // Resync returns [r3, r9]: it still shares r3 with the held page, so r2 is
+    // carried into history while the displayed set grows by the one new tail.
+    await act(async () => {
+      renderThread(node, root, {
+        messages: [previousOlder, previousNewest] as Message[],
+        resyncToken: 1,
+      });
+    });
+    await flush();
+    // Now the parent applies the resynced page (what onMessagesLoaded does).
+    await act(async () => {
+      renderThread(node, root, {
+        messages: [previousNewest, resynced] as Message[],
+        resyncToken: 1,
+      });
+    });
+    await flush();
+
+    // The fold moved r2 from the page top to the history bottom: a repartition,
+    // so the anchor is unchanged and every held row still renders.
+    expect(hoisted.virtuosoProps).toMatchObject({ firstItemIndex: BASE_INDEX - 1, count: 4 });
+    const ids = Array.from(node.querySelectorAll('[data-message-id]')).map((el) =>
+      el.getAttribute('data-message-id'),
+    );
+    expect(ids).toEqual(['r1', 'r2', 'r3', 'r9']);
+
+    await act(async () => root.unmount());
+  });
+
+  // Slice-4 review (BLOCKER, round 3): when the resync has NO overlap (more than
+  // a page arrived while disconnected) the held rows cannot be folded. The gap
+  // between them and the resynced page was never received, and
+  // `loadOlderMessages` cannot reach it from below the carried rows. Drop the
+  // retained history and reset the anchor so the thread stays contiguous and the
+  // top-reached path refills from the resynced boundary.
+  it('drops retained history and resets the anchor when a resync has no overlap', async () => {
     const at = (id: string, createdAt: string) =>
       ({ ...pageMessage, id, content_type: 'text', media_url: undefined, created_at: createdAt }) as Message;
     const retained = at('r1', '2026-11-27T09:00:00.000000+00:00');
     const previousNewest = at('r2', '2026-11-27T10:00:00.000000+00:00');
-    const resynced = at('r9', '2026-11-27T20:00:00.000000+00:00');
+    const resyncedOlder = at('r9', '2026-11-27T20:00:00.000000+00:00');
+    const resyncedNewer = at('r10', '2026-11-27T21:00:00.000000+00:00');
 
     hoisted.fetchThreadPage
       .mockResolvedValueOnce({
@@ -595,9 +679,9 @@ describe('MessageThread thread page', () => {
         expiresIn: 3600,
       })
       .mockResolvedValueOnce({
-        messages: [resynced],
+        messages: [resyncedOlder, resyncedNewer],
         hasMore: true,
-        nextCursor: { createdAt: resynced.created_at, id: 'r9' },
+        nextCursor: { createdAt: resyncedNewer.created_at, id: 'r10' },
         signed: {},
         expiresIn: 3600,
       });
@@ -609,7 +693,6 @@ describe('MessageThread thread page', () => {
     });
     await flush();
 
-    // Load the retained older page.
     await act(async () => {
       node
         .querySelector<HTMLDivElement>('[data-testid="virtuoso"]')!
@@ -618,25 +701,26 @@ describe('MessageThread thread page', () => {
     await flush();
     expect(hoisted.virtuosoProps).toMatchObject({ firstItemIndex: BASE_INDEX - 1, count: 2 });
 
-    // Resync returns a page that starts AFTER the previous newest message, so
-    // more than a page arrived while disconnected. The parent's messages prop
-    // is still the old page at this point — that is the real sequence.
+    // Resync starts at r9, strictly newer than the held r2: complete non-overlap.
     await act(async () => {
       renderThread(node, root, { messages: [previousNewest] as Message[], resyncToken: 1 });
     });
     await flush();
-    // Now the parent applies the resynced page (what onMessagesLoaded does).
     await act(async () => {
-      renderThread(node, root, { messages: [resynced] as Message[], resyncToken: 1 });
+      renderThread(node, root, {
+        messages: [resyncedOlder, resyncedNewer] as Message[],
+        resyncToken: 1,
+      });
     });
     await flush();
 
-    // r2 fell out of the resynced page and was folded above it: nothing the
-    // client received is lost, and the anchor moved by exactly that one row.
-    expect(hoisted.virtuosoProps).toMatchObject({ firstItemIndex: BASE_INDEX - 2, count: 3 });
-    expect(hoisted.rowIds).toContain('r1');
-    expect(hoisted.rowIds).toContain('r2');
-    expect(hoisted.rowIds).toContain('r9');
+    // The retained history is gone, the anchor is back at the base, and only the
+    // resynced page renders — contiguous, with the refill boundary at r9.
+    expect(hoisted.virtuosoProps).toMatchObject({ firstItemIndex: BASE_INDEX, count: 2 });
+    const ids = Array.from(node.querySelectorAll('[data-message-id]')).map((el) =>
+      el.getAttribute('data-message-id'),
+    );
+    expect(ids).toEqual(['r9', 'r10']);
 
     await act(async () => root.unmount());
   });

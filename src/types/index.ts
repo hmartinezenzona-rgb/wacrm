@@ -244,6 +244,21 @@ export interface Message {
   content_type: ContentType;
   content_text?: string;
   media_url?: string;
+  /**
+   * Migration 400 media metadata. Set when the inbound object was stored
+   * (and, later, when the backfill or the sweeper processed it).
+   * `media_status` is null on legacy rows and on messages that are not media.
+   */
+  media_status?: 'pending' | 'ready' | 'failed' | null;
+  media_path?: string | null;
+  media_thumb_path?: string | null;
+  media_mime?: string | null;
+  media_bytes?: number | null;
+  media_width?: number | null;
+  media_height?: number | null;
+  media_error?: string | null;
+  media_claimed_at?: string | null;
+  media_attempts?: number | null;
   template_name?: string;
   message_id?: string;
   status: MessageStatus;

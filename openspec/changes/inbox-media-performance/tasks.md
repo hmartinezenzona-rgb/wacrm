@@ -375,17 +375,19 @@ Spec: `media-ingest` → "Additive media metadata columns"; `chat-media-delivery
   - Verify: `infra/db/staging-migracion.sh aplicar supabase/migrations/400_messages_media_metadata.sql supabase/staging/assertions/messages-media-metadata.sql supabase/migrations/ROLLBACK-400-messages-media-metadata.sql` (read-only runner), then `infra/db/staging-migracion.sh relacionadas 400_messages_media_metadata.sql media_url` (read-only runner): report OK/FAIL, `VEREDICTO`, and the DIFF result.
   - **Done 2026-11-28**: `relacionadas` with `--ya-aplicada` (base = pre-400): 6 assertions, 5 SAME, 1 DIFF — the DIFF is this migration's own assertion (fails without 400, passes with it). No other reader changed.
 
-- [ ] **T5a.6** GATE — production go-ahead for migration 400. Requirement: `media-ingest` → "Additive media metadata columns".
+- [x] **T5a.6** GATE — production go-ahead for migration 400. Requirement: `media-ingest` → "Additive media metadata columns".
   - Goal: run `produccion-migracion.sh previa` for all pending files in order, show the owner the verdict and any `DIFFERENT`/`MISSING-IN-PROD`/`EXTRA-IN-PROD` diff, and wait for an **explicit, per-apply** go-ahead. Earlier approvals do not carry over.
   - Files: none.
   - Test: none.
   - Verify: `infra/db/produccion-migracion.sh previa supabase/migrations/400_messages_media_metadata.sql` (read-only runner) reports `SEGURO` or `RECORDED`, and the owner's answer is recorded in the PR.
+  - **Done 2026-11-28**: `VEREDICTO: SEGURO`. Owner gave the explicit go-ahead in this session after seeing the verdict.
 
-- [ ] **T5a.7** GATE-blocked — apply and verify in production (only after T5a.6).
+- [x] **T5a.7** GATE-blocked — apply and verify in production (only after T5a.6).
   - Goal: `aplicar` then `verificar` the same file list; report `OK <name> <version>` lines and `VERIFICADO: n/n`. On any mismatch, stop and report; never roll back on your own.
   - Files: none.
   - Test: none.
   - Verify: `infra/db/produccion-migracion.sh aplicar supabase/migrations/400_messages_media_metadata.sql` then `infra/db/produccion-migracion.sh verificar supabase/migrations/400_messages_media_metadata.sql` (read-only runners).
+  - **Done 2026-11-28**: `OK 400_messages_media_metadata 20261128073035`; `VERIFICADO: 1/1 iguales` (crm_media_reclamar md5 prod = staging).
 
 ## Slice 5b — Thumbnails at ingest and readers prefer them
 

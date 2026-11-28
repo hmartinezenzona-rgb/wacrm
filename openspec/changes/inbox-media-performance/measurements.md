@@ -120,6 +120,32 @@ So the improvement measured above came from removing the `accounts` round trip, 
 
 What did not change: the cold first open is dominated by connection setup and stays in the 380–700 ms band depending on the run; the cache cannot help a request that has nothing cached yet.
 
+## TM2 in production (2026-11-28, release fb3a8299)
+
+Slices 1–4c published to production: served BUILD_ID `-7DudTEVohhunlO9V5SgY`, commit `fb3a8299`, previous served `5e934e11` kept for rollback. Measured on the live panel with an owner-approved temporary admin, deleted afterwards; browser cache bypassed for the cold run.
+
+| Run | conversation | endpoint | first media | media objects | proxy requests | payload |
+| --- | --- | --- | --- | --- | --- | --- |
+| cold (cache bypassed) | Osmany Services (13 days) | 211 ms | 417 ms | 6 | 0 | 7 KB |
+| warm | Osmany Services | 241 / 265 ms | 407 / 418 ms | 6 | 0 | — |
+| warm | Adrismira | 296 / 185 ms | 459 / 360 ms | 2 | 0 | — |
+| warm | Leydy Mary | 267 / 161 ms | 407 ms | 2 | 0 | — |
+
+Against the production baseline measured before any change on the heaviest conversation: **first media 5,610 → 417 ms**, **proxy requests 29 → 0**, **media objects ~50 → 6**, **bytes 5.3 MB → 417 ms of visible media only**.
+
+What these numbers support:
+
+- The thread page is served by the route, with media signed inside the same response: no separate sign call appears in the timeline.
+- Only visible media is downloaded. The byte proxy is not used at all in any conversation measured.
+- Users scroll and switch threads in production without the React #310 crash that an earlier build had.
+
+What they do not support:
+
+- The conversation measured is not the same one as the baseline's heaviest thread, and the message count differs; the comparison is structural and order-of-magnitude, not an A/B on identical data.
+- These are single-day measurements on one connection; a slow mobile network will shift every number.
+- The quote-jump behaviour (data-space index) was exercised only by unit tests: no visual confirmation in a browser yet.
+
+
 
 What these numbers do not support:
 

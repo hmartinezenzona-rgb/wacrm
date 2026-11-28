@@ -298,7 +298,8 @@ Filed under slice 4 because they repair slice-4 behaviour; no new PR slice. T4.4
   - Files: `openspec/changes/inbox-media-performance/measurements.md`
   - Test: none.
   - Verify: numbers recorded with a date, or reported unmeasured. This is the last measurement before the schema slices; gate G5 reads it.
-  - **Done 2026-11-27**: cold open messages 632 ms / first media 786 ms; repeats 372–552 ms / 501–675 ms; 4 media objects, 0 proxy, 684 KB. Recorded in `measurements.md`.
+  - **Done 2026-11-27 (staging)**: cold open messages 632 ms / first media 786 ms; repeats 372–552 ms / 501–675 ms; 4 media objects, 0 proxy, 684 KB. Recorded in `measurements.md`.
+  - **Done 2026-11-28 (production)**: release `fb3a8299`, served BUILD_ID `-7DudTEVohhunlO9V5SgY`. Cold open endpoint 211 ms, first media 417 ms, 6 media objects, 0 proxy; baseline was 5,610 ms first media with 29 proxy requests. Recorded in `measurements.md`.
 
 ## Slice 4c — Remove round trips from the thread page (no schema)
 
@@ -346,12 +347,12 @@ Spec: `media-ingest` → "Additive media metadata columns"; `chat-media-delivery
   - Verify: `git for-each-ref --format='%(refname)' refs/heads | while read r; do git ls-tree --name-only "$r" supabase/migrations/; done | grep -oE '[0-9]{3}_' | sort -u | tail -5` — 400 absent.
   - **Done 2026-11-27**: highest number across every local branch and in `supabase/migrations/` is `399_`. 400 is free.
 
-- [ ] **T5a.2** GATE — slice order and production measurement. Requirement: `inbox-thread-read` → "Measurement record".
+- [x] **T5a.2** GATE — slice order and production measurement. Requirement: `inbox-thread-read` → "Measurement record".
   - Goal: confirm slices 1-4 are shipped and measured in production (TM1, TM2 with numbers recorded) before any schema work starts, per the approved order. If the measurement is missing, stop and report it as unmeasured.
   - Files: none.
   - Test: none.
   - Verify: `openspec/changes/inbox-media-performance/measurements.md` holds TM1 and TM2 with dates.
-  - **BLOCKED 2026-11-27**: TM2 numbers are staging-only. Slices 1-4 live on `feat/inbox-media-performance` and are not deployed, so there is no post-change production measurement. Per this gate, no schema work starts until the branch is published and TM1/TM2 are re-run in production.
+  - **Unblocked 2026-11-28**: slices 1-4c are live in production (`fb3a8299`) and TM2 was re-run there with a temporary admin that was deleted after the run.
 
 - [ ] **T5a.3** RED — self-reverting assertion (the failing test comes first). Requirement: `media-ingest` → "Additive media metadata columns".
   - Goal: write the eight ADR-6 cases (legacy insert gets NULL + `media_attempts = 0`; `'bogus'` rejected; claimed-10-minutes-ago returned as `reintentar` with attempts +1; claimed-1-minute-ago not returned; attempts ≥ 3 → `failed`/`fallida`; older than 7 days → `failed` with `meta window expired`; `ready` and NULL rows untouched; `authenticated` has no EXECUTE), ending `RAISE EXCEPTION 'ALL PASS (rolled back on purpose)'`.

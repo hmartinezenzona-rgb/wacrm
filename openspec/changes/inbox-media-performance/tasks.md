@@ -354,23 +354,26 @@ Spec: `media-ingest` → "Additive media metadata columns"; `chat-media-delivery
   - Verify: `openspec/changes/inbox-media-performance/measurements.md` holds TM1 and TM2 with dates.
   - **Unblocked 2026-11-28**: slices 1-4c are live in production (`fb3a8299`) and TM2 was re-run there with a temporary admin that was deleted after the run.
 
-- [ ] **T5a.3** RED — self-reverting assertion (the failing test comes first). Requirement: `media-ingest` → "Additive media metadata columns".
+- [x] **T5a.3** RED — self-reverting assertion (the failing test comes first). Requirement: `media-ingest` → "Additive media metadata columns".
   - Goal: write the eight ADR-6 cases (legacy insert gets NULL + `media_attempts = 0`; `'bogus'` rejected; claimed-10-minutes-ago returned as `reintentar` with attempts +1; claimed-1-minute-ago not returned; attempts ≥ 3 → `failed`/`fallida`; older than 7 days → `failed` with `meta window expired`; `ready` and NULL rows untouched; `authenticated` has no EXECUTE), ending `RAISE EXCEPTION 'ALL PASS (rolled back on purpose)'`.
   - Files: `supabase/staging/assertions/messages-media-metadata.sql` (new)
   - Test: itself (run against staging before the migration: it must FAIL because no column or function exists).
   - Verify: `infra/db/staging-migracion.sh` with the assertion, expected FAIL.
+  - **Done 2026-11-28**: RED observed — `column "media_status" does not exist`.
 
-- [ ] **T5a.4** GREEN — the migration. Requirement: `media-ingest` → "Additive media metadata columns"; `chat-media-delivery` → "Media metadata compatibility".
+- [x] **T5a.4** GREEN — the migration. Requirement: `media-ingest` → "Additive media metadata columns"; `chat-media-delivery` → "Media metadata compatibility".
   - Goal: add the ten nullable/defaulted columns from ADR-6 (no `BEGIN/COMMIT`), the `messages_media_status_check` constraint `NOT VALID` then `VALIDATE`, `idx_messages_media_pending`, and `public.crm_media_reclamar(p_limit int DEFAULT 5, p_stale interval DEFAULT '5 minutes')` as `SECURITY DEFINER SET search_path = public` with `REVOKE ALL … FROM PUBLIC, anon, authenticated; GRANT EXECUTE … TO service_role`. Keep text + CHECK (no enum).
   - Files: `supabase/migrations/400_messages_media_metadata.sql` (new; final number from T5a.1)
   - Test: the assertion from T5a.3.
   - Verify: staging cycle step in T5a.5.
+  - **Done 2026-11-28**: cycle green — dry-run OK, apply OK, assertion OK.
 
-- [ ] **T5a.5** GREEN — rollback script and staging cycle. Requirement: `media-ingest` → "Rollback is clean", "Existing readers show no new diff".
+- [x] **T5a.5** GREEN — rollback script and staging cycle. Requirement: `media-ingest` → "Rollback is clean", "Existing readers show no new diff".
   - Goal: write `supabase/migrations/ROLLBACK-400-messages-media-metadata.sql` (drop function, index, constraint and all ten columns), then run `staging-migracion.sh aplicar` with no function list (none redefined), then `relacionadas 400_messages_media_metadata.sql media_url` (must show **no new DIFF**), then the assertion (must end `ALL PASS (rolled back on purpose)`).
   - Files: `supabase/migrations/ROLLBACK-400-messages-media-metadata.sql` (new)
   - Test: `supabase/staging/assertions/messages-media-metadata.sql`
   - Verify: `infra/db/staging-migracion.sh aplicar supabase/migrations/400_messages_media_metadata.sql supabase/staging/assertions/messages-media-metadata.sql supabase/migrations/ROLLBACK-400-messages-media-metadata.sql` (read-only runner), then `infra/db/staging-migracion.sh relacionadas 400_messages_media_metadata.sql media_url` (read-only runner): report OK/FAIL, `VEREDICTO`, and the DIFF result.
+  - **Done 2026-11-28**: `relacionadas` with `--ya-aplicada` (base = pre-400): 6 assertions, 5 SAME, 1 DIFF — the DIFF is this migration's own assertion (fails without 400, passes with it). No other reader changed.
 
 - [ ] **T5a.6** GATE — production go-ahead for migration 400. Requirement: `media-ingest` → "Additive media metadata columns".
   - Goal: run `produccion-migracion.sh previa` for all pending files in order, show the owner the verdict and any `DIFFERENT`/`MISSING-IN-PROD`/`EXTRA-IN-PROD` diff, and wait for an **explicit, per-apply** go-ahead. Earlier approvals do not carry over.

@@ -166,6 +166,31 @@ describe('runBackfillBatch', () => {
     expect(result.counters).toEqual({ ...emptyCounters(), would_ready_no_thumb: 1 });
     expect(ready[0]!.values.media_thumb_path).toBeNull();
   });
+
+  it('processes rows in parallel without changing the result', async () => {
+    const bytes = await jpeg(120, 90);
+    const rows = Array.from({ length: 8 }, (_, i) => row({ id: `p${i}` }));
+    const objects: Record<string, Buffer> = {};
+    for (const r of rows) objects[`account-acct1/${r.id}.jpg`] = bytes;
+
+    const serial = makeDb(rows);
+    const serialStorage = makeStorage(objects);
+    const serialResult = await runBackfillBatch(
+      { db: serial.db, storage: serialStorage.storage, dryRun: false },
+      { after: null, limit: 10 },
+    );
+
+    const parallel = makeDb(rows);
+    const parallelStorage = makeStorage(objects);
+    const parallelResult = await runBackfillBatch(
+      { db: parallel.db, storage: parallelStorage.storage, dryRun: false },
+      { after: null, limit: 10, concurrency: 4 },
+    );
+
+    expect(parallelResult.counters).toEqual(serialResult.counters);
+    expect(parallel.ready).toHaveLength(serial.ready.length);
+    expect(parallelStorage.uploads).toHaveLength(serialStorage.uploads.length);
+  });
 });
 
 describe('dry run', () => {

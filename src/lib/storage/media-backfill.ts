@@ -79,6 +79,27 @@ export interface BackfillCounters {
   legacy_meta: number;
 }
 
+/** Run `fn` over `items` with at most `limit` in flight. */
+async function mapWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<void>,
+): Promise<void> {
+  if (limit <= 1) {
+    for (const item of items) await fn(item);
+    return;
+  }
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    for (;;) {
+      const index = next++;
+      if (index >= items.length) return;
+      await fn(items[index]!);
+    }
+  });
+  await Promise.all(workers);
+}
+
 export interface BackfillRunResult {
   counters: BackfillCounters;
   /** Cursor to resume from, or null when the selection is exhausted. */
@@ -244,7 +265,7 @@ async function processRow(
  */
 export async function runBackfillBatch(
   deps: { db: BackfillDb; storage: BackfillStorage; dryRun: boolean },
-  options: { after: Cursor | null; limit: number },
+  options: { after: Cursor | null; limit: number; concurrency?: number },
 ): Promise<BackfillRunResult> {
   const counters = emptyCounters();
   const rows = await deps.db.selectBatch(options.after, options.limit);
@@ -272,9 +293,10 @@ export async function runBackfillBatch(
       console.error(`[media-backfill] could not list ${account}`);
       continue;
     }
-    for (const row of accountRows) {
-      await processRow(row, objects, deps, counters);
-    }
+    // Serial by default; the CLI raises this to trade politeness for time.
+    await mapWithConcurrency(accountRows, options.concurrency ?? 1, (row) =>
+      processRow(row, objects, deps, counters),
+    );
   }
 
   const last = rows[rows.length - 1];
@@ -287,6 +309,8 @@ export async function runBackfillBatch(
 
 export interface BackfillRunOptions {
   batchSize?: number;
+  /** Rows processed in parallel inside a batch (default 1). */
+  concurrency?: number;
   limit?: number;
   sleepMs?: number;
   after?: Cursor | null;
@@ -311,7 +335,11 @@ export async function runBackfill(
     const remaining =
       options.limit === undefined ? batchSize : Math.min(batchSize, options.limit - processed);
 
-    const result = await runBackfillBatch(deps, { after: cursor, limit: remaining });
+    const result = await runBackfillBatch(deps, {
+      after: cursor,
+      limit: remaining,
+      concurrency: options.concurrency,
+    });
     batches++;
     for (const key of Object.keys(total) as (keyof BackfillCounters)[]) {
       total[key] += result.counters[key];

@@ -11,6 +11,7 @@
 //   --dry-run        count only, write nothing
 //   --batch <n>      rows per batch (default 200)
 //   --sleep-ms <n>   pause between batches (default 0)
+//   --concurrency <n> images processed in parallel (default 1)
 //   --limit <n>      stop after n rows
 //   --after <id>     resume after this message id (created_at is read from
 //                    the row, so a resume never re-processes a batch)
@@ -52,10 +53,11 @@ interface Args {
   sleepMs: number;
   limit?: number;
   after?: string;
+  concurrency: number;
 }
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { env: '', dryRun: false, batch: 200, sleepMs: 0 };
+  const args: Args = { env: '', dryRun: false, batch: 200, sleepMs: 0, concurrency: 1 };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const next = () => {
@@ -72,10 +74,11 @@ function parseArgs(argv: string[]): Args {
       case '--batch': args.batch = Number(next()); break;
       case '--sleep-ms': args.sleepMs = Number(next()); break;
       case '--limit': args.limit = Number(next()); break;
+      case '--concurrency': args.concurrency = Number(next()); break;
       case '--after': args.after = next(); break;
       case '--help':
         console.log(
-          'uso: backfill-media.mts --env <file> [--dry-run] [--batch n] [--sleep-ms n] [--limit n] [--after <message id>]',
+          'uso: backfill-media.mts --env <file> [--dry-run] [--batch n] [--sleep-ms n] [--limit n] [--after <message id>] [--concurrency n]',
         );
         process.exit(0);
         break;
@@ -215,6 +218,7 @@ async function main(): Promise<void> {
     { db, storage, dryRun: args.dryRun },
     {
       batchSize: args.batch,
+      concurrency: args.concurrency,
       sleepMs: args.sleepMs,
       limit: args.limit,
       after,

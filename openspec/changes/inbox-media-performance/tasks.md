@@ -227,7 +227,7 @@ Spec: `inbox-realtime` → "Per-conversation message subscription", "Row-level c
   - Goal: keep `messages` on `event: 'INSERT'` only and leave `conversations` on `'*'`.
   - Files: `src/hooks/use-realtime.ts`
   - Test: `src/hooks/use-realtime.test.ts`
-  - Verify: `npx vitest run src/hooks/use-realtime.test.ts src/hooks/use-chat-message-sound.test.tsx src/hooks/use-total-unread.test.ts` (existing behaviour must stay green)
+  - Verify: `npx vitest run src/hooks/use-realtime.test.ts src/hooks/use-chat-message-sound.test.tsx src/lib/inbox/chat-sound-gate.test.ts "src/app/(dashboard)/inbox/page.test.tsx"` (existing sound behaviour and the page wiring must stay green)
 
 - [x] **T3.4** GREEN — wire the inbox page. Requirement: `inbox-realtime` → "Row-level conversation list patching", "Unread counts and last message stay live".
   - Goal: use `patchById` for message UPDATE, conversation UPDATE, the INSERT preview patch and the status/assign/not-business handlers; wire `useThreadRealtime` for the open conversation; memoize grouping with `useMemo` on `displayMessages`.

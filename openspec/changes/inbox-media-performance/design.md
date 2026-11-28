@@ -132,6 +132,8 @@ Mapping to current thread behaviour:
 
 **Deviation and rationale**: the proposal scopes all `messages` changes per conversation. The INSERT stream cannot be scoped without regressing the chat sound and the list preview, which only exist for non-active conversations and read from message INSERTs. The volume problem is UPDATEs: status ladder events for every outbound message, and from slice 6 the media settle updates. Those are now filtered server-side. INSERTs for non-active conversations cost one `patchById` on the list and no thread work.
 
+**Ordering note (accepted)**: splitting INSERT and UPDATE across two channels (`inbox-realtime` and `thread:<id>`) removes any ordering guarantee between them; the browser may deliver an UPDATE for a row before its INSERT, or may never deliver the UPDATE at all if the channel is momentarily down. This is accepted. A dropped UPDATE for a row that is not in the open thread's state yet is self-healing: the INSERT (or the next UPDATE for that row) patches it, and a reconnect or tab-visible resync refetches the newest page and merges by id. No cross-channel sequencing, ack or buffer is added for this; the resync path plus per-row id patches are the recovery. Realtime remains best-effort, as it already was.
+
 **Alternatives**: deriving the sound from `conversations` UPDATE (`unread_count` rising) was rejected as a semantic change to the B1.5 gate without its tests. Broadcast was rejected (out of scope).
 
 ### ADR-6: Migration 400, media metadata

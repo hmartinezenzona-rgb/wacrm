@@ -275,14 +275,10 @@ export default function InboxPage() {
           hydrateConversation(newMsg.conversation_id);
         }
       }
-
-      if (event.eventType === "UPDATE") {
-        // Message UPDATEs no longer arrive on this account-wide channel
-        // (INSERT only, ADR-5); the open conversation's UPDATEs come from
-        // `useThreadRealtime`. Kept as a patch-by-id fallback for callers
-        // that still forward mutation events.
-        setMessages((prev) => patchById(prev, newMsg.id, newMsg));
-      }
+      // No UPDATE branch: `useRealtime` subscribes this channel to message
+      // INSERTs only (ADR-5). The open thread's row changes arrive on the
+      // filtered channel from `useThreadRealtime`, so an UPDATE cannot reach
+      // this handler and there is no second delivery path to maintain here.
     },
     [activeConversation, hydrateConversation, playChatSound]
   );

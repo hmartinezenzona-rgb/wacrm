@@ -2,31 +2,43 @@
 
 ## Purpose
 
-Define how the inbox stays current and stays cheap to render: message changes are subscribed per open conversation, the conversation list patches the affected row instead of remapping the whole array, message bubbles are memoized, grouping is recomputed only when the message list changes, and the thread is virtualized while keeping scroll-to-bottom, older-page loading and jump-to-message behaviour.
+Define how the inbox stays current and stays cheap to render: message UPDATEs are subscribed per open conversation while message INSERTs stay account-wide for the sound, list preview and unknown-conversation hydration, the conversation list patches the affected row instead of remapping the whole array, message bubbles are memoized, grouping is recomputed only when the message list changes, and the thread is virtualized while keeping scroll-to-bottom, older-page loading and jump-to-message behaviour.
 
 ## Requirements
 
 ### Requirement: Per-conversation message subscription
 
-While a conversation is open, `messages` changes MUST be subscribed with a server-side filter scoped to that conversation (`conversation_id=eq.<id>`). The inbox MUST NOT maintain an account-wide unfiltered subscription to all `messages` changes for rendering the open thread. An inserted message of the open conversation MUST be applied to that thread; a change of another conversation MUST NOT be delivered to it.
+Message **UPDATEs** MUST be subscribed with a server-side filter scoped to the open conversation (`conversation_id=eq.<id>`), so row changes (delivery status, and later media settlement) reach the open thread without any other conversation's UPDATEs being delivered to it. Message **INSERTs** MUST stay subscribed account-wide, by design: the chat sound, the conversation-list preview and the hydration of unknown conversations all depend on new messages from conversations that are not open, so the INSERT stream cannot be scoped to one conversation without regressing those behaviours. An inserted message of the open conversation MUST be applied to that thread; an INSERT from another conversation MUST NOT be appended to the open thread, but it MUST still update the conversation list (and ring the sound when the gate allows). No UPDATE from another conversation MUST reach the open thread's subscription.
 
-#### Scenario: Only the open conversation's messages arrive
+#### Scenario: Only the open conversation's updates arrive
 
-- GIVEN an open conversation and another conversation receiving new messages
-- WHEN other conversations change
-- THEN no `messages` change from those conversations reaches the open thread's subscription
+- GIVEN an open conversation and another conversation whose rows change
+- WHEN those conversations' message rows are updated
+- THEN no `messages` UPDATE from the other conversation reaches the open thread's filtered subscription
 
 #### Scenario: Insert of the open conversation appears
 
 - GIVEN an open conversation
 - WHEN a new message for it is inserted
-- THEN the open thread receives it through the filtered subscription and appends it
+- THEN the open thread receives it through the account-wide INSERT subscription and appends it
+
+#### Scenario: Insert from another conversation leaves the open thread untouched
+
+- GIVEN an open conversation and another conversation receiving a new message
+- WHEN that INSERT arrives on the account-wide subscription
+- THEN the open thread does not append it, while the conversation list patches its row and the sound gate may ring
+
+#### Scenario: Insert for an unknown conversation hydrates the list
+
+- GIVEN a conversation that is not yet in the list
+- WHEN its first message INSERT arrives
+- THEN the inbox fetches that conversation so it surfaces with its contact joined
 
 #### Scenario: Subscription is released on close
 
-- GIVEN an open conversation with an active filtered subscription
+- GIVEN an open conversation with an active filtered UPDATE subscription
 - WHEN the agent opens a different conversation or leaves the inbox
-- THEN the previous subscription is released and a new one is scoped to the newly opened conversation
+- THEN the previous filtered subscription is released and a new one is scoped to the newly opened conversation, while the account-wide INSERT subscription continues
 
 ### Requirement: Row-level conversation list patching
 

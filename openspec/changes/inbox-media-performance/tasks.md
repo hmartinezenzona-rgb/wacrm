@@ -393,62 +393,63 @@ Spec: `media-ingest` → "Additive media metadata columns"; `chat-media-delivery
 
 Spec: `media-ingest` → "Thumbnails generated at ingest", "Originals are never re-encoded"; `chat-media-delivery` → "Thumbnails with reserved dimensions and lazy loading", "Pending and failed media states are visible", "No Storage transformations, no re-encoding".
 
-- [ ] **T5b.1** RED — thumbnail module. Requirement: `media-ingest` → "Thumbnails generated at ingest"; `chat-media-delivery` → "No Storage transformations, no re-encoding".
+- [x] **T5b.1** RED — thumbnail module. Requirement: `media-ingest` → "Thumbnails generated at ingest"; `chat-media-delivery` → "No Storage transformations, no re-encoding".
   - Goal: failing tests for the path convention `account-<uuid>/thumbs/<base>.webp`, rejection of unsafe paths, a real `sharp` run on a tiny PNG fixture producing WebP with longest side ≤ 360 and the original dimensions, non-images returning `null`, corrupt bytes returning `{ error }`, and the original buffer being unchanged after thumbnailing.
   - Files: `src/lib/storage/media-thumbnail.test.ts` (new)
   - Test: itself.
   - Verify: `npx vitest run src/lib/storage/media-thumbnail.test.ts` — FAIL.
 
-- [ ] **T5b.2** RED — ingest writes metadata and `ready`. Requirement: `media-ingest` → "Ready or failed transition", "Successful ingestion becomes ready".
+- [x] **T5b.2** RED — ingest writes metadata and `ready`. Requirement: `media-ingest` → "Ready or failed transition", "Successful ingestion becomes ready".
   - Goal: failing tests that a persisted image writes `media_*` plus `ready`, and that a thumbnail failure still yields `ready` with `media_error` and no thumbnail path.
   - Files: `src/app/api/whatsapp/webhook/route.test.ts`
   - Test: itself.
   - Verify: `npx vitest run src/app/api/whatsapp/webhook/route.test.ts` — new cases FAIL.
 
-- [ ] **T5b.3** RED — bubble prefers the thumbnail and renders pending/failed. Requirement: `chat-media-delivery` → "Thumbnail first, full object on open", "Missing thumbnail falls back", "Pending media shows a downloading state", "Failed media shows a failure state".
+- [x] **T5b.3** RED — bubble prefers the thumbnail and renders pending/failed. Requirement: `chat-media-delivery` → "Thumbnail first, full object on open", "Missing thumbnail falls back", "Pending media shows a downloading state", "Failed media shows a failure state".
   - Goal: failing tests for the thumbnail `src` preferred with explicit `width`/`height`, the original resolved only on zoom, the fallback chain when there is no thumbnail, and the pending and failed copy (the Spanish strings are gate G2).
   - Files: `src/components/inbox/message-bubble.test.tsx`
   - Test: itself.
   - Verify: `npx vitest run src/components/inbox/message-bubble.test.tsx` — new cases FAIL.
 
-- [ ] **T5b.4** GREEN — explicit `sharp` dependency and a build proof. Requirement: `media-ingest` → "Thumbnail generation MUST use `sharp` as an explicit dependency".
+- [x] **T5b.4** GREEN — explicit `sharp` dependency and a build proof. Requirement: `media-ingest` → "Thumbnail generation MUST use `sharp` as an explicit dependency".
   - Goal: add `sharp` to `dependencies`, then verify it loads inside the standalone build on the production host before 5b ships; if it cannot load, stop and report (thumbnail failure degrades, but the dependency must be deliberate).
   - Files: `package.json`, `package-lock.json`
   - Test: `src/lib/storage/media-thumbnail.test.ts` exercises the real `sharp`.
   - Verify: `npx vitest run src/lib/storage/media-thumbnail.test.ts && npm run build`
 
-- [ ] **T5b.5** GREEN — `thumbnailPathFor` and `makeThumbnail`. Requirement: `media-ingest` → "Thumbnail is a sibling in the same prefix", "Stickers get thumbnails too", "Thumbnail failure is non-fatal".
+- [x] **T5b.5** GREEN — `thumbnailPathFor` and `makeThumbnail`. Requirement: `media-ingest` → "Thumbnail is a sibling in the same prefix", "Stickers get thumbnails too", "Thumbnail failure is non-fatal".
   - Goal: implement the deterministic sibling naming, dynamic `import('sharp')`, `.rotate()`, WebP q65, longest side 360, first frame only; return `null` for non-images and `{ error }` on failure. Never touch the original bytes.
   - Files: `src/lib/storage/media-thumbnail.ts` (new)
   - Test: `src/lib/storage/media-thumbnail.test.ts`
   - Verify: `npx vitest run src/lib/storage/media-thumbnail.test.ts`
 
-- [ ] **T5b.6** GREEN — message type fields. Requirement: `chat-media-delivery` → "Media metadata compatibility".
+- [x] **T5b.6** GREEN — message type fields. Requirement: `chat-media-delivery` → "Media metadata compatibility".
   - Goal: add the optional `media_*` fields from the interfaces block to `Message`.
   - Files: `src/types/index.ts`
   - Test: `npx tsc --noEmit` plus the bubble tests.
   - Verify: `npx tsc --noEmit`
 
-- [ ] **T5b.7** GREEN — ingest writes the metadata (order unchanged in this slice). Requirement: `media-ingest` → "Ready or failed transition", "Originals are never re-encoded"; `chat-media-delivery` → "Media metadata compatibility".
+- [x] **T5b.7** GREEN — ingest writes the metadata (order unchanged in this slice). Requirement: `media-ingest` → "Ready or failed transition", "Originals are never re-encoded"; `chat-media-delivery` → "Media metadata compatibility".
   - Goal: extend `persistMedia` so the stored image writes `media_path`, `media_thumb_path`, `media_mime`, `media_bytes`, `media_width`, `media_height`, `media_status = 'ready'` and `media_error`; the older proxy `media_url` write stays exactly as today and the original upload stays byte-identical.
   - Files: `src/app/api/whatsapp/webhook/route.ts`
   - Test: `src/app/api/whatsapp/webhook/route.test.ts`
   - Verify: `npx vitest run src/app/api/whatsapp/webhook/route.test.ts`
 
-- [ ] **T5b.8** GREEN — the route also signs thumbnail proxy URLs. Requirement: `chat-media-delivery` → "Thumbnail first, full object on open"; `inbox-thread-read` → "Signature lifetime and refresh path".
+- [x] **T5b.8** GREEN — the route also signs thumbnail proxy URLs. Requirement: `chat-media-delivery` → "Thumbnail first, full object on open"; `inbox-thread-read` → "Signature lifetime and refresh path".
   - Goal: include `chatMediaProxyUrl(media_thumb_path)` values in the same single `signChatMediaUrls` call, keyed exactly as the client resolves them.
   - Files: `src/app/api/inbox/messages/route.ts`
   - Test: `src/app/api/inbox/messages/route.test.ts` (extend with the thumbnail key case)
   - Verify: `npx vitest run src/app/api/inbox/messages/route.test.ts`
 
-- [ ] **T5b.9** GREEN — bubble renders thumbnails, dimensions and states. Requirement: `chat-media-delivery` → "Thumbnail first, full object on open", "Missing thumbnail falls back", "Pending media shows a downloading state", "Failed media shows a failure state".
+- [x] **T5b.9** GREEN — bubble renders thumbnails, dimensions and states. Requirement: `chat-media-delivery` → "Thumbnail first, full object on open", "Missing thumbnail falls back", "Pending media shows a downloading state", "Failed media shows a failure state".
   - Goal: implement ADR-3 rule 1 and the image branch of rule 2: thumbnail first with `width`/`height` from `media_width`/`media_height` and `h-auto max-h-64 max-w-60 object-cover`; fixed `h-40 w-60` when null; pending placeholder; failed state keeping the legacy proxy URL as the last fallback; zoom resolves the original only on open.
   - Files: `src/components/inbox/message-bubble.tsx`
   - Test: `src/components/inbox/message-bubble.test.tsx`
   - Verify: `npx vitest run src/components/inbox/message-bubble.test.tsx`
 
-- [ ] **T5b.10** GATE-blocked — Spanish copy keys (only after G2). Requirement: `chat-media-delivery` → "Pending media shows a downloading state", "Failed media shows a failure state".
+- [x] **T5b.10** GATE-blocked — Spanish copy keys (only after G2). Requirement: `chat-media-delivery` → "Pending media shows a downloading state", "Failed media shows a failure state".
   - Goal: add `Inbox.bubble.mediaPending` and `Inbox.bubble.mediaFailed` to both locales with the owner-confirmed Spanish strings. Do not invent copy.
+  - **Done 2026-11-28**: owner confirmed `Descargando archivo…` / `No se pudo descargar el archivo` (EN: `Downloading file…` / `The file could not be downloaded`). Asked and answered what those texts are for and who sees them: staff, in the panel bubble only.
   - Files: `messages/es.json`, `messages/en.json`
   - Test: `src/components/inbox/message-bubble.test.tsx` (asserts the keys render)
   - Verify: `npx vitest run src/components/inbox/message-bubble.test.tsx && npx tsc --noEmit`

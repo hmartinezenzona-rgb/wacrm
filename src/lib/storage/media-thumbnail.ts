@@ -17,7 +17,9 @@ export const THUMBNAIL_MAX_SIDE = 360;
 /** WebP quality. 65 is visually clean at this size and about a tenth of the original. */
 const THUMBNAIL_QUALITY = 65;
 
-const ACCOUNT_OBJECT_PATH = /^(account-[0-9a-fA-F-]{36})\/([^/]+)$/;
+// Deliberately not a uuid check: the point is the shape (one account prefix,
+// one file name, no extra segments), not the account id format.
+const ACCOUNT_OBJECT_PATH = /^(account-[A-Za-z0-9_-]+)\/([^/]+)$/;
 
 export interface MediaThumbnail {
   /** Object path of the WebP sibling inside the chat-media bucket. */

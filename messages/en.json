@@ -235,7 +235,9 @@
       "unsupported": "[Unsupported message type]",
       "aiBadge": "AI",
       "aiBadgeTitle": "Sent automatically by the AI assistant",
-      "sharedImageAlt": "Shared image"
+      "sharedImageAlt": "Shared image",
+      "mediaPending": "Downloading file…",
+      "mediaFailed": "The file could not be downloaded"
     },
     "actions": {
       "reply": "Reply",

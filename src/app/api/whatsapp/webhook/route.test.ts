@@ -146,12 +146,49 @@ function makeBuilder(table: string) {
   return builder;
 }
 
+// --- Storage + Meta media fakes --------------------------------------------
+// Ingest uploads the original and its thumbnail; `failThumbUpload` makes the
+// thumbnail upload fail so the "ready with media_error" path is covered.
+const uploads: Array<{ bucket: string; path: string; contentType: string }> = [];
+let failThumbUpload = false;
+
+vi.mock("@/lib/whatsapp/meta-api", () => ({
+  getMediaUrl: vi.fn(async () => ({
+    url: "https://meta.test/media",
+    mimeType: "image/jpeg",
+  })),
+  downloadMedia: vi.fn(async () => ({
+    buffer: mediaBytes,
+    contentType: "image/jpeg",
+  })),
+}));
+
+let mediaBytes: Buffer = Buffer.from("");
+
 const builders: Record<string, ReturnType<typeof makeBuilder>> = {};
 
 vi.mock("@supabase/supabase-js", () => ({
   createClient: vi.fn(() => ({
     from: (table: string) =>
       builders[table] ?? (builders[table] = makeBuilder(table)),
+    storage: {
+      from: (bucket: string) => ({
+        upload: async (
+          path: string,
+          _data: unknown,
+          opts: { contentType: string },
+        ) => {
+          if (failThumbUpload && path.includes("/thumbs/")) {
+            return { error: { message: "thumb upload refused" } };
+          }
+          uploads.push({ bucket, path, contentType: opts.contentType });
+          return { error: null };
+        },
+        getPublicUrl: (path: string) => ({
+          data: { publicUrl: `https://cdn.test/${bucket}/${path}` },
+        }),
+      }),
+    },
   })),
 }));
 
@@ -381,5 +418,68 @@ describe("webhook route — mensaje no guardado deja motivo en el log", () => {
     const updatesLog = logUpdatesOf();
     expect(updatesLog.some((u) => u.payload.procesado === true)).toBe(true);
     expect(updatesLog.some((u) => "error" in u.payload)).toBe(false);
+  });
+});
+
+// --- Slice 5b: media metadata on ingest -------------------------------------
+describe("ingest de media (migración 400)", () => {
+  const ACCOUNT = "acc1";
+
+  function imageMessage(from: string, id: string): Record<string, unknown> {
+    return {
+      from,
+      id,
+      timestamp: "1754300000",
+      type: "image",
+      image: { id: "meta-media-1", mime_type: "image/jpeg", caption: "foto" },
+    };
+  }
+
+  it("guarda el objeto, su miniatura y las dimensiones con media_status ready", async () => {
+    const sharp = (await import("sharp")).default;
+    mediaBytes = await sharp({
+      create: { width: 300, height: 200, channels: 3, background: { r: 20, g: 90, b: 200 } },
+    })
+      .jpeg()
+      .toBuffer();
+    uploads.length = 0;
+    failThumbUpload = false;
+
+    await post(webhookBody([imageMessage("5926731280", "wamid.MEDIA1")], []));
+
+    const row = (inserts.messages ?? []).at(-1) as Record<string, unknown>;
+    expect(row.media_status).toBe("ready");
+    expect(String(row.media_path)).toMatch(/^account-acc1\/\d+-wa-meta-media-1\.jpg$/);
+    expect(String(row.media_thumb_path)).toMatch(/^account-acc1\/thumbs\/\d+-wa-meta-media-1\.webp$/);
+    expect(row.media_mime).toBe("image/jpeg");
+    expect(row.media_bytes).toBe(mediaBytes.byteLength);
+    expect(row.media_width).toBe(300);
+    expect(row.media_height).toBe(200);
+    expect(row.media_error).toBeNull();
+
+    // Two objects: the original and the thumbnail, both in chat-media.
+    expect(uploads.map((u) => u.contentType).sort()).toEqual(["image/jpeg", "image/webp"]);
+    expect(uploads.every((u) => u.bucket === "chat-media")).toBe(true);
+  });
+
+  it("si la miniatura falla, el mensaje queda ready con el motivo y sin miniatura", async () => {
+    const sharp = (await import("sharp")).default;
+    mediaBytes = await sharp({
+      create: { width: 300, height: 200, channels: 3, background: { r: 20, g: 90, b: 200 } },
+    })
+      .jpeg()
+      .toBuffer();
+    uploads.length = 0;
+    failThumbUpload = true;
+
+    await post(webhookBody([imageMessage("5926731281", "wamid.MEDIA2")], []));
+
+    const row = (inserts.messages ?? []).at(-1) as Record<string, unknown>;
+    failThumbUpload = false;
+
+    expect(row.media_status).toBe("ready");
+    expect(row.media_thumb_path).toBeNull();
+    expect(String(row.media_error)).toContain("thumbnail:");
+    expect(row.media_width).toBe(300);
   });
 });

@@ -108,6 +108,36 @@ export async function resolveMediaSrc(url: string | null | undefined): Promise<s
   return signed && isFresh(signed, Date.now()) ? signed.signed : toChatMediaSrc(url);
 }
 
+/**
+ * Seed the cache from the server-issued map of a thread page, so the very
+ * first render can paint its media without a signing round-trip. The
+ * receive time is used instead of a server timestamp: it is later than the
+ * moment the server signed, so the refresh margin absorbs the difference.
+ */
+export function seedSignedMedia(
+  signed: Record<string, string>,
+  expiresInSeconds: number,
+  receivedAt: number = Date.now(),
+): void {
+  const expiresAt = receivedAt + expiresInSeconds * 1000;
+  for (const [original, url] of Object.entries(signed)) {
+    if (!isChatMediaUrl(original)) continue;
+    cache.set(original, { signed: url, expiresAt });
+  }
+}
+
+/** The fresh signed URL for `url` if the cache holds one, else null. */
+export function peekSignedMediaSrc(url: string | null | undefined): string | null {
+  if (!url || !isChatMediaUrl(url)) return null;
+  const entry = cache.get(url);
+  return isFresh(entry, Date.now()) ? entry.signed : null;
+}
+
+/** Drop one cached URL so the next resolve signs it again. */
+export function invalidateSignedMedia(url: string | null | undefined): void {
+  if (url) cache.delete(url);
+}
+
 /** Test seam: forget cached URLs and any queued work. */
 export function resetSignedMediaCache(): void {
   cache.clear();

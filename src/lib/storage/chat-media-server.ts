@@ -13,6 +13,8 @@ import {
   CHAT_MEDIA_BUCKET,
   assertChatMediaAccount,
   chatMediaProxyUrl,
+  isChatMediaPathOfAccount,
+  parseChatMediaPath,
 } from '@/lib/storage/chat-media';
 
 export interface DownloadedChatMedia {
@@ -59,4 +61,58 @@ export async function signChatMediaUrl<T extends string | null | undefined>(
     return url;
   }
   return data.signedUrl;
+}
+
+/** One page's worth of signed URLs, keyed by the stored `media_url` string. */
+export interface SignedChatMediaBatch {
+  signed: Record<string, string>;
+  expiresIn: number;
+  /** False when Storage refused the batch; `signed` is empty in that case. */
+  ok: boolean;
+}
+
+const DEFAULT_SIGNED_TTL_SECONDS = 3600;
+
+/**
+ * Sign a page's chat-media URLs in ONE Storage call. Paths of another
+ * account and URLs that are not chat-media are skipped, never signed —
+ * the same gate the sign route has always used, minus its fail-hard
+ * behaviour: one corrupt row must not discard the whole page.
+ */
+export async function signChatMediaUrls(
+  urls: string[],
+  accountId: string,
+  ttlSeconds: number = DEFAULT_SIGNED_TTL_SECONDS,
+): Promise<SignedChatMediaBatch> {
+  // Path per original URL, so two stored shapes of one object share a call.
+  const byPath = new Map<string, string[]>();
+  for (const url of urls) {
+    if (!url) continue;
+    const path = parseChatMediaPath(url);
+    if (!path || !isChatMediaPathOfAccount(path, accountId)) continue;
+    const originals = byPath.get(path) ?? [];
+    if (!originals.includes(url)) originals.push(url);
+    byPath.set(path, originals);
+  }
+
+  if (byPath.size === 0) return { signed: {}, expiresIn: ttlSeconds, ok: true };
+
+  const { data, error } = await supabaseAdmin()
+    .storage.from(CHAT_MEDIA_BUCKET)
+    .createSignedUrls([...byPath.keys()], ttlSeconds);
+
+  if (error || !data) {
+    console.error('[chat-media] could not sign batch:', error?.message ?? 'no data');
+    return { signed: {}, expiresIn: ttlSeconds, ok: false };
+  }
+
+  const signed: Record<string, string> = {};
+  for (const row of data) {
+    if (!row.signedUrl || !row.path) continue;
+    for (const original of byPath.get(row.path) ?? []) {
+      signed[original] = row.signedUrl;
+    }
+  }
+
+  return { signed, expiresIn: ttlSeconds, ok: true };
 }

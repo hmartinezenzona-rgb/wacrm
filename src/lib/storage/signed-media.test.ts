@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { resetSignedMediaCache, resolveMediaSrc } from './signed-media';
+import {
+  invalidateSignedMedia,
+  peekSignedMediaSrc,
+  seedSignedMedia,
+} from './signed-media';
 
 const ACCOUNT = 'account-465fb4ce-33b6-4473-ad2c-42818772f587';
 const A = `https://x.supabase.co/storage/v1/object/public/chat-media/${ACCOUNT}/a.jpg`;
@@ -71,5 +76,59 @@ describe('resolveMediaSrc', () => {
 
     await expect(resolveMediaSrc('https://example.com/x.jpg')).resolves.toBe('https://example.com/x.jpg');
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('seedSignedMedia / peekSignedMediaSrc / invalidateSignedMedia', () => {
+  it('returns a seeded URL synchronously on the peek', () => {
+    seedSignedMedia({ [A]: 'https://signed/a' }, 3600);
+    expect(peekSignedMediaSrc(A)).toBe('https://signed/a');
+  });
+
+  it('expires from the receive time plus the server lifetime', () => {
+    const receivedAt = Date.now();
+    seedSignedMedia({ [A]: 'https://signed/a' }, 3600, receivedAt);
+    expect(peekSignedMediaSrc(A)).toBe('https://signed/a');
+    // Inside the existing 5-minute refresh margin, so the peek refuses it.
+    vi.advanceTimersByTime((3600 - 300) * 1000 + 1);
+    expect(peekSignedMediaSrc(A)).toBeNull();
+  });
+
+  it('does not hand out an expired entry', () => {
+    seedSignedMedia({ [A]: 'https://signed/a' }, 600);
+    vi.advanceTimersByTime(601_000);
+    expect(peekSignedMediaSrc(A)).toBeNull();
+  });
+
+  it('ignores non chat-media keys and nullish input', () => {
+    seedSignedMedia({ 'https://example.com/x.jpg': 'https://signed/x' }, 3600);
+    expect(peekSignedMediaSrc('https://example.com/x.jpg')).toBeNull();
+    expect(peekSignedMediaSrc(null)).toBeNull();
+    expect(peekSignedMediaSrc(undefined)).toBeNull();
+  });
+
+  it('resolveMediaSrc uses a fresh seeded URL without signing again', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    seedSignedMedia({ [A]: 'https://signed/a' }, 3600);
+
+    await expect(resolveMediaSrc(A)).resolves.toBe('https://signed/a');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('invalidateSignedMedia forces a re-sign', async () => {
+    const fetchMock = vi.fn().mockImplementation(() =>
+      jsonResponse({ signed: { [A]: 'https://signed/a2' }, expiresIn: 3600 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    seedSignedMedia({ [A]: 'https://signed/a' }, 3600);
+
+    invalidateSignedMedia(A);
+    expect(peekSignedMediaSrc(A)).toBeNull();
+
+    const result = resolveMediaSrc(A);
+    await vi.advanceTimersByTimeAsync(50);
+    await expect(result).resolves.toBe('https://signed/a2');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

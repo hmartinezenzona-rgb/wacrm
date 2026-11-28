@@ -18,8 +18,7 @@
 import { NextResponse } from 'next/server';
 
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { isChatMediaPathOfAccount, parseChatMediaPath } from '@/lib/storage/chat-media';
-import { supabaseAdmin } from '@/lib/flows/admin-client';
+import { signChatMediaUrls } from '@/lib/storage/chat-media-server';
 
 /** Long enough for a long chat session; the client re-signs with a margin. */
 const SIGNED_URL_TTL_SECONDS = 3600;
@@ -49,39 +48,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'urls must be a non-empty array of strings' }, { status: 400 });
     }
 
-    // Path per original URL, skipping anything outside this account.
-    const byPath = new Map<string, string[]>();
-    for (const url of urls as string[]) {
-      const path = parseChatMediaPath(url);
-      if (!path || !isChatMediaPathOfAccount(path, accountId)) continue;
-      const originals = byPath.get(path) ?? [];
-      originals.push(url);
-      byPath.set(path, originals);
-    }
+    // One Storage call for the whole batch; foreign and non chat-media
+    // URLs are skipped by the shared helper (never signed).
+    const { signed, expiresIn, ok } = await signChatMediaUrls(
+      urls as string[],
+      accountId,
+      SIGNED_URL_TTL_SECONDS,
+    );
 
-    if (byPath.size === 0) {
-      return NextResponse.json({ signed: {}, expiresIn: SIGNED_URL_TTL_SECONDS });
-    }
-
-    const { data, error } = await supabaseAdmin()
-      .storage.from('chat-media')
-      .createSignedUrls([...byPath.keys()], SIGNED_URL_TTL_SECONDS);
-
-    if (error || !data) {
-      console.error('[chat-media sign] could not sign batch:', error?.message ?? 'no data');
+    if (!ok) {
       return NextResponse.json({ error: 'Could not sign media' }, { status: 502 });
     }
 
-    const signed: Record<string, string> = {};
-    for (const row of data) {
-      if (!row.signedUrl || !row.path) continue;
-      for (const original of byPath.get(row.path) ?? []) {
-        signed[original] = row.signedUrl;
-      }
-    }
-
     return NextResponse.json(
-      { signed, expiresIn: SIGNED_URL_TTL_SECONDS },
+      { signed, expiresIn },
       { headers: { 'Cache-Control': 'private, no-store' } },
     );
   } catch (error) {

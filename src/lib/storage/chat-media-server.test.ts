@@ -2,12 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const download = vi.fn();
 const createSignedUrl = vi.fn();
-const from = vi.fn(() => ({ download, createSignedUrl }));
+const createSignedUrls = vi.fn();
+const from = vi.fn(() => ({ download, createSignedUrl, createSignedUrls }));
 vi.mock('@/lib/flows/admin-client', () => ({
   supabaseAdmin: () => ({ storage: { from } }),
 }));
 
-import { downloadChatMedia, signChatMediaUrl } from './chat-media-server';
+import { downloadChatMedia, signChatMediaUrl, signChatMediaUrls } from './chat-media-server';
 
 const OTHER = '9a8b7c6d-1111-4222-8333-444455556666';
 const ACCT = '3f2b1c7e-8a41-4c55-9d0e-6b7a1f2e3d4c';
@@ -75,5 +76,71 @@ describe('account scoping', () => {
   it("refuses to sign another account's object", async () => {
     await expect(signChatMediaUrl(PUBLIC, 60, OTHER)).rejects.toThrow(/another account/);
     expect(createSignedUrl).not.toHaveBeenCalled();
+  });
+});
+
+const PROXY = `/api/chat-media/${PATH}`;
+
+describe('signChatMediaUrls', () => {
+  it('dedupes paths and signs the batch once with the 3,600 s TTL', async () => {
+    createSignedUrls.mockResolvedValue({
+      data: [{ path: PATH, signedUrl: 'https://signed/1', error: null }],
+      error: null,
+    });
+
+    const result = await signChatMediaUrls([PUBLIC, PROXY, PUBLIC], ACCT);
+
+    expect(from).toHaveBeenCalledWith('chat-media');
+    expect(createSignedUrls).toHaveBeenCalledTimes(1);
+    expect(createSignedUrls).toHaveBeenCalledWith([PATH], 3600);
+    expect(result.signed).toEqual({ [PUBLIC]: 'https://signed/1', [PROXY]: 'https://signed/1' });
+    expect(result.expiresIn).toBe(3600);
+    expect(result.ok).toBe(true);
+  });
+
+  it('honours an explicit TTL', async () => {
+    createSignedUrls.mockResolvedValue({
+      data: [{ path: PATH, signedUrl: 'https://signed/1', error: null }],
+      error: null,
+    });
+    const result = await signChatMediaUrls([PUBLIC], ACCT, 60);
+    expect(createSignedUrls).toHaveBeenCalledWith([PATH], 60);
+    expect(result.expiresIn).toBe(60);
+  });
+
+  it("never signs another account's object and never touches Storage", async () => {
+    const foreign = `https://abc.supabase.co/storage/v1/object/public/chat-media/account-${OTHER}/x.jpg`;
+    const result = await signChatMediaUrls([foreign], ACCT);
+    expect(result.signed).toEqual({});
+    expect(createSignedUrls).not.toHaveBeenCalled();
+    expect(result.ok).toBe(true);
+  });
+
+  it('skips non chat-media URLs', async () => {
+    const result = await signChatMediaUrls(['https://example.com/x.png'], ACCT);
+    expect(result.signed).toEqual({});
+    expect(createSignedUrls).not.toHaveBeenCalled();
+  });
+
+  it('reports a signing failure without throwing', async () => {
+    createSignedUrls.mockResolvedValue({ data: null, error: { message: 'boom' } });
+    const result = await signChatMediaUrls([PUBLIC], ACCT);
+    expect(result.signed).toEqual({});
+    expect(result.expiresIn).toBe(3600);
+    expect(result.ok).toBe(false);
+    expect(console.error).toHaveBeenCalled();
+  });
+
+  it('maps a per-row failure to no entry but keeps the rest', async () => {
+    createSignedUrls.mockResolvedValue({
+      data: [
+        { path: PATH, signedUrl: 'https://signed/1', error: null },
+        { path: `account-${ACCT}/broken.jpg`, signedUrl: null, error: 'not found' },
+      ],
+      error: null,
+    });
+    const broken = `https://abc.supabase.co/storage/v1/object/public/chat-media/account-${ACCT}/broken.jpg`;
+    const result = await signChatMediaUrls([PUBLIC, broken], ACCT);
+    expect(result.signed).toEqual({ [PUBLIC]: 'https://signed/1' });
   });
 });

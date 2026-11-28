@@ -52,6 +52,8 @@ import {
   lastCustomerMessageAt,
   sessionWindowFromMessages,
 } from "@/lib/inbox/session-window";
+import { cursorFromMessage, fetchThreadPage } from "@/lib/inbox/thread-page";
+import { seedSignedMedia } from "@/lib/storage/signed-media";
 import { TemplatePicker } from "./template-picker";
 import { AiThreadBanner } from "./ai-thread-banner";
 import { NotBusinessBanner, NotBusinessButton, type NotBusinessPatch } from "./not-business-control";
@@ -291,34 +293,31 @@ export function MessageThread({
   // separate from the unread-reset effect so that incoming messages
   // arriving while the thread is open don't trigger a full refetch —
   // they only flip hasUnread, which only the reset effect listens to.
+  //
+  // The page comes from `/api/inbox/messages`, which returns the messages
+  // AND their signed media URLs in one response. The seed runs before the
+  // rows reach the parent, so the first render paints media directly.
   useEffect(() => {
     if (!conversationId) return;
 
-    const supabase = createClient();
     let cancelled = false;
 
     (async () => {
       setLoading(true);
 
-      const { data, error } = await supabase
-        .from("messages")
-        .select("*")
-        .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: false })
-        .limit(MESSAGE_PAGE);
+      try {
+        const page = await fetchThreadPage(conversationId, undefined, MESSAGE_PAGE);
+        if (cancelled) return;
 
-      if (cancelled) return;
-
-      if (error) {
-        console.error("Failed to fetch messages:", error);
-      } else {
-        const rows = (data ?? []).slice().reverse();
+        seedSignedMedia(page.signed, page.expiresIn);
         setOlderMessages([]);
-        setHasMoreHistory(rows.length === MESSAGE_PAGE);
-        onMessagesLoadedRef.current(rows);
+        setHasMoreHistory(page.hasMore);
+        onMessagesLoadedRef.current(page.messages);
+      } catch (error) {
+        if (!cancelled) console.error("Failed to fetch messages:", error);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-
-      if (!cancelled) setLoading(false);
     })();
 
     return () => {
@@ -513,25 +512,19 @@ export function MessageThread({
     if (el) prependAnchorRef.current = { height: el.scrollHeight, top: el.scrollTop };
     setLoadingOlder(true);
 
-    const supabase = createClient();
-    // Clave (created_at, id): no se salta mensajes con la misma marca de tiempo.
-    const { data, error } = await supabase
-      .from("messages")
-      .select("*")
-      .eq("conversation_id", conversationId)
-      .or(`created_at.lt.${oldest.created_at},and(created_at.eq.${oldest.created_at},id.lt.${oldest.id})`)
-      .order("created_at", { ascending: false })
-      .limit(MESSAGE_PAGE);
-
-    setLoadingOlder(false);
-    if (error) {
+    try {
+      // Clave (created_at, id): no se salta mensajes con la misma marca de tiempo.
+      // The raw timestamp travels untouched so the keyset keeps microseconds.
+      const page = await fetchThreadPage(conversationId, cursorFromMessage(oldest), MESSAGE_PAGE);
+      seedSignedMedia(page.signed, page.expiresIn);
+      setHasMoreHistory(page.hasMore);
+      if (page.messages.length > 0) setOlderMessages((prev) => [...page.messages, ...prev]);
+    } catch (error) {
       console.error("Failed to fetch older messages:", error);
       prependAnchorRef.current = null;
-      return;
+    } finally {
+      setLoadingOlder(false);
     }
-    const rows = (data ?? []).slice().reverse();
-    setHasMoreHistory(rows.length === MESSAGE_PAGE);
-    if (rows.length > 0) setOlderMessages((prev) => [...rows, ...prev]);
   }, [conversationId, displayMessages, hasMoreHistory, loadingOlder]);
 
   const handleThreadScroll = useCallback(() => {

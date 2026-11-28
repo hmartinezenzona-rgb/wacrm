@@ -116,6 +116,15 @@ describe('GET /api/inbox/messages authorisation', () => {
     expect(res.headers.get('Cache-Control')).toBe('private, no-store');
     expect(createSignedUrls).not.toHaveBeenCalled();
   });
+
+  it('answers 500 when the membership query errors, not 404', async () => {
+    conversationResult = { data: null, error: { message: 'membership query failed' } };
+    pageResult = { data: [], error: null };
+    const res = await GET(request({ conversationId: CONV }));
+    expect(res.status).toBe(500);
+    expect(res.headers.get('Cache-Control')).toBe('private, no-store');
+    expect(console.error).toHaveBeenCalled();
+  });
 });
 
 describe('GET /api/inbox/messages validation', () => {
@@ -248,6 +257,20 @@ describe('GET /api/inbox/messages signed media map', () => {
     const body = await res.json();
     expect(body.signed).toEqual({});
     expect(body.expiresIn).toBe(3600);
+  });
+
+  it('answers 200 with an empty signed map when Storage rejects the signing promise', async () => {
+    pageResult = {
+      data: [row('m1', '2026-11-27T10:00:01.000000+00:00', { media_url: chatMediaUrl(ACCT, 'a.jpg') })],
+      error: null,
+    };
+    createSignedUrls.mockRejectedValueOnce(new Error('storage unreachable'));
+    const res = await GET(request({ conversationId: CONV }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.signed).toEqual({});
+    expect(body.expiresIn).toBe(3600);
+    expect(res.headers.get('Cache-Control')).toBe('private, no-store');
   });
 
   it('does not touch Storage when the page has no media', async () => {

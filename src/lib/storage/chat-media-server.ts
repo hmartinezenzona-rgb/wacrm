@@ -97,22 +97,33 @@ export async function signChatMediaUrls(
 
   if (byPath.size === 0) return { signed: {}, expiresIn: ttlSeconds, ok: true };
 
-  const { data, error } = await supabaseAdmin()
-    .storage.from(CHAT_MEDIA_BUCKET)
-    .createSignedUrls([...byPath.keys()], ttlSeconds);
+  try {
+    const { data, error } = await supabaseAdmin()
+      .storage.from(CHAT_MEDIA_BUCKET)
+      .createSignedUrls([...byPath.keys()], ttlSeconds);
 
-  if (error || !data) {
-    console.error('[chat-media] could not sign batch:', error?.message ?? 'no data');
+    if (error || !data) {
+      console.error('[chat-media] could not sign batch:', error?.message ?? 'no data');
+      return { signed: {}, expiresIn: ttlSeconds, ok: false };
+    }
+
+    const signed: Record<string, string> = {};
+    for (const row of data) {
+      if (!row.signedUrl || !row.path) continue;
+      for (const original of byPath.get(row.path) ?? []) {
+        signed[original] = row.signedUrl;
+      }
+    }
+
+    return { signed, expiresIn: ttlSeconds, ok: true };
+  } catch (thrown) {
+    // A rejected Storage/PostgREST promise is a signing failure, not a
+    // route failure: the caller must still answer with its documented
+    // fail-safe shape instead of letting the rejection escape.
+    console.error(
+      '[chat-media] could not sign batch:',
+      thrown instanceof Error ? thrown.message : String(thrown),
+    );
     return { signed: {}, expiresIn: ttlSeconds, ok: false };
   }
-
-  const signed: Record<string, string> = {};
-  for (const row of data) {
-    if (!row.signedUrl || !row.path) continue;
-    for (const original of byPath.get(row.path) ?? []) {
-      signed[original] = row.signedUrl;
-    }
-  }
-
-  return { signed, expiresIn: ttlSeconds, ok: true };
 }

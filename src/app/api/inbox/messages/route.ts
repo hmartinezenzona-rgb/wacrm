@@ -22,9 +22,9 @@ import { NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { signChatMediaUrls } from '@/lib/storage/chat-media-server';
 import {
-  THREAD_CURSOR_CREATED_AT_RE,
   THREAD_PAGE_MAX_LIMIT,
   THREAD_UUID_RE,
+  isValidThreadCursor,
   parseThreadLimit,
   type ThreadCursor,
   type ThreadPageResponse,
@@ -67,13 +67,13 @@ export async function GET(request: Request) {
 
   let cursor: ThreadCursor | null = null;
   if (rawCreatedAt !== null && rawId !== null) {
-    if (!THREAD_UUID_RE.test(rawId)) {
-      return json({ error: 'beforeId must be a uuid' }, 400);
+    const candidate: ThreadCursor = { createdAt: rawCreatedAt, id: rawId };
+    // Single source of truth: the client helper's contract decides what a
+    // safe cursor is, so the route cannot drift from it.
+    if (!isValidThreadCursor(candidate)) {
+      return json({ error: 'invalid cursor' }, 400);
     }
-    if (!THREAD_CURSOR_CREATED_AT_RE.test(rawCreatedAt)) {
-      return json({ error: 'beforeCreatedAt is not a valid cursor' }, 400);
-    }
-    cursor = { createdAt: rawCreatedAt, id: rawId };
+    cursor = candidate;
   }
 
   let pageQuery = ctx.supabase
@@ -102,6 +102,10 @@ export async function GET(request: Request) {
     pageQuery,
   ]);
 
+  if (membership.error) {
+    console.error('[inbox messages] membership query failed', membership.error);
+    return json({ error: 'Could not verify conversation access' }, 500);
+  }
   if (!membership.data) {
     return json({ error: 'Conversation not found' }, 404);
   }

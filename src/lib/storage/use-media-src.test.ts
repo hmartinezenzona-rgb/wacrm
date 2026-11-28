@@ -15,6 +15,7 @@ import { useMediaSrc } from './use-media-src';
 
 const ACCOUNT = 'account-465fb4ce-33b6-4473-ad2c-42818772f587';
 const STORED = `https://x.supabase.co/storage/v1/object/public/chat-media/${ACCOUNT}/a.jpg`;
+const STORED_B = `https://x.supabase.co/storage/v1/object/public/chat-media/${ACCOUNT}/b.jpg`;
 
 function Harness({ url, onValue }: { url: string; onValue: (value: string | null) => void }) {
   onValue(useMediaSrc(url));
@@ -76,5 +77,31 @@ describe('useMediaSrc', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(values.at(-1)).toBe('https://signed/a');
     await unmount();
+  });
+
+  it('peeks the new seeded url synchronously when the media_url changes', async () => {
+    seedSignedMedia({ [STORED]: 'https://signed/a', [STORED_B]: 'https://signed/b' }, 3600);
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const first: (string | null)[] = [];
+    const node = document.createElement('div');
+    const root = createRoot(node);
+    await act(async () => {
+      root.render(React.createElement(Harness, { url: STORED, onValue: (v) => first.push(v) }));
+    });
+    expect(first.at(-1)).toBe('https://signed/a');
+
+    const second: (string | null)[] = [];
+    await act(async () => {
+      root.render(React.createElement(Harness, { url: STORED_B, onValue: (v) => second.push(v) }));
+    });
+
+    // No null frame between the two urls, and no sign request.
+    expect(second[0]).toBe('https://signed/b');
+    expect(second).not.toContain(null);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await act(async () => root.unmount());
   });
 });

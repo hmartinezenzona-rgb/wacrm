@@ -153,3 +153,18 @@ What these numbers do not support:
 - The signature cache is per server process. A second instance, a restart, or a serverless cold start pays the signing round trip again; the win is per-instance, not global.
 - Neither change makes the first paint faster by itself: messages and signatures still arrive in the same response. Removing the signing stage from the critical path is a separate design change and is not claimed here.
 
+
+## Storage quota before the backfill (T7.4, 2026-11-28)
+
+Read-only query against production (`storage.objects`, bucket `chat-media`):
+
+| Measure | Value |
+| --- | --- |
+| Bucket size | 875 MB (6,842 objects) |
+| Backfill candidates (rows with `media_status IS NULL` and a chat-media URL) | 3,617 image, 3,038 audio, 54 document, 10 video |
+| Estimated thumbnail growth | ~72 MB (3,617 images at ~20 KB) |
+| Free-plan file-storage cap | 1 GB |
+
+**Headroom after a full backfill: roughly 77 MB**, while inbound media keeps arriving. That is the gate's question, not a number to wave through: the backfill by itself would leave the bucket close to the cap until the retention job (slice 8) brings steady state down to ~650 MB.
+
+The panel slices (5b, 6a, 6b) do not depend on the backfill and can ship without it; the backfill is a manual CLI.

@@ -14,6 +14,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
 import { flushWebhookOutbox } from '@/lib/webhooks/outbox';
+import { sweepPendingMedia } from '@/lib/whatsapp/media-sweeper';
 
 export const maxDuration = 60;
 
@@ -51,7 +52,11 @@ async function handle(request: Request): Promise<Response> {
 
   try {
     const result = await flushWebhookOutbox(db);
-    return NextResponse.json(result);
+    // Inbound media that never settled rides the SAME tick, after the
+    // outbox: no new cron job, route or secret. It is best-effort — the
+    // outbox result is what this worker is responsible for.
+    const media = await sweepPendingMedia();
+    return NextResponse.json({ ...result, media });
   } catch (err) {
     console.error('[webhook outbox] worker failed:', err);
     return NextResponse.json({ error: 'worker failed' }, { status: 500 });

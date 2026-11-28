@@ -519,25 +519,25 @@ Spec: `media-ingest` → "Insert first, process media after", "Ready or failed t
 
 Spec: `media-ingest` → "Sweeper settles stale pending rows" (all three scenarios); `inbox-realtime` → "Realtime media resolves without reload" (the transition the UI observes).
 
-- [ ] **T6b.1** RED — sweeper. Requirement: `media-ingest` → "Stale pending row is retried and settles ready", "Expired media id settles failed", "Sweeper is safe to re-run".
+- [x] **T6b.1** RED — sweeper. Requirement: `media-ingest` → "Stale pending row is retried and settles ready", "Expired media id settles failed", "Sweeper is safe to re-run".
   - Goal: failing tests that `reintentar` rows settle before the tail runs, `fallida` rows run the tail only, rows older than 24 h settle without a tail, the budget stops the loop, and a second run changes nothing.
   - Files: `src/lib/whatsapp/media-sweeper.test.ts` (new)
   - Test: itself.
   - Verify: `npx vitest run src/lib/whatsapp/media-sweeper.test.ts` — FAIL.
 
-- [ ] **T6b.2** RED — cron wiring. Requirement: `media-ingest` → "Sweeper settles stale pending rows".
+- [x] **T6b.2** RED — cron wiring. Requirement: `media-ingest` → "Sweeper settles stale pending rows".
   - Goal: failing tests that the sweeper is called **after** `flushWebhookOutbox`, that an unauthorized secret runs neither, and that the JSON gains `media: { retried, settledReady, settledFailed, dispatched, skippedStale }`.
   - Files: `src/app/api/cron/webhook-outbox/route.test.ts`
   - Test: itself.
   - Verify: `npx vitest run src/app/api/cron/webhook-outbox/route.test.ts` — new cases FAIL.
 
-- [ ] **T6b.3** GREEN — `sweepPendingMedia`. Requirement: `media-ingest` → "Sweeper settles stale pending rows".
+- [x] **T6b.3** GREEN — `sweepPendingMedia`. Requirement: `media-ingest` → "Sweeper settles stale pending rows".
   - Goal: implement ADR-7's sweeper: `rpc('crm_media_reclamar', { p_limit: 5 })`, parse the media id from `media_url`, resolve the account token via `conversations.account_id` and `whatsapp_config`, settle `reintentar`, run the tail only when `created_at > now() - 24 h` with the documented rebuilt arguments, and stop at `budgetMs`.
   - Files: `src/lib/whatsapp/media-sweeper.ts` (new)
   - Test: `src/lib/whatsapp/media-sweeper.test.ts`
   - Verify: `npx vitest run src/lib/whatsapp/media-sweeper.test.ts`
 
-- [ ] **T6b.4** GREEN — call it from the existing worker. Requirement: `media-ingest` → "Sweeper settles stale pending rows".
+- [x] **T6b.4** GREEN — call it from the existing worker. Requirement: `media-ingest` → "Sweeper settles stale pending rows".
   - Goal: call the sweeper after the flush in `/api/cron/webhook-outbox`; add no new cron job, route or secret.
   - Files: `src/app/api/cron/webhook-outbox/route.ts`
   - Test: `src/app/api/cron/webhook-outbox/route.test.ts`

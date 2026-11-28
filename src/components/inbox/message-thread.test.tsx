@@ -7,8 +7,10 @@
 // itself is replaced by a thin double that renders every item and surfaces
 // `startReached` on scroll. That double proves OUR wiring — first-page fetch,
 // seeding before prepend, the anchor delta, the item model memo, jump-to-index
-// and highlight. The real mount/measure/scroll behaviour is the staging
-// browser check (T4.4), not something a zero-height jsdom can assert.
+// and highlight. It cannot prove the real layout conditions: top-reached
+// detection, open-at-bottom, prepend re-anchoring without a visual jump,
+// follow-the-tail while at the bottom, and resync keeping the scroll position.
+// Those remain the staging browser check (T4.4).
 
 import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -24,8 +26,15 @@ const hoisted = vi.hoisted(() => ({
   // Counts buildThreadItems runs. Slice 4 memoizes the item model on the
   // merged message list, so an unrelated render must not rebuild it.
   buildCalls: 0,
-  // Last props Virtuoso received (anchor + item count).
-  virtuosoProps: { firstItemIndex: 0, count: 0 },
+  // Last props Virtuoso received (anchor, item count, follow policy).
+  virtuosoProps: {
+    firstItemIndex: 0,
+    count: 0,
+    followOutput: undefined as ((isAtBottom: boolean) => unknown) | undefined,
+  },
+  // One entry per Virtuoso render, so a test can prove `itemContent` keeps its
+  // identity across unrelated re-renders.
+  itemContentRefs: [] as unknown[],
   scrollToIndex: vi.fn(),
 }));
 
@@ -64,6 +73,7 @@ vi.mock('react-virtuoso', async () => {
       components,
       startReached,
       firstItemIndex = 0,
+      followOutput,
       context,
     } = props as {
       data?: { id: string }[];
@@ -72,15 +82,20 @@ vi.mock('react-virtuoso', async () => {
       components?: { Header?: React.ComponentType<{ context?: unknown }> };
       startReached?: () => void;
       firstItemIndex?: number;
+      followOutput?: (isAtBottom: boolean) => unknown;
       context?: unknown;
     };
-    hoisted.virtuosoProps = { firstItemIndex, count: data.length };
+    hoisted.virtuosoProps = { firstItemIndex, count: data.length, followOutput };
+    hoisted.itemContentRefs.push(itemContent);
     ReactModule.useImperativeHandle(ref, () => ({ scrollToIndex: hoisted.scrollToIndex }), []);
     const Header = components?.Header;
     return ReactModule.createElement(
       'div',
       {
         'data-testid': 'virtuoso',
+        // HONESTY NOTE: this double calls `startReached` on ANY scroll. It
+        // proves our wiring (a scroll asks for the older page), NOT the real
+        // "reached the top" condition Virtuoso computes from measured layout.
         onScroll: () => {
           void startReached?.();
         },
@@ -223,7 +238,8 @@ beforeEach(() => {
   hoisted.peekAtRender = {};
   hoisted.renderCount = {};
   hoisted.buildCalls = 0;
-  hoisted.virtuosoProps = { firstItemIndex: 0, count: 0 };
+  hoisted.virtuosoProps = { firstItemIndex: 0, count: 0, followOutput: undefined };
+  hoisted.itemContentRefs.length = 0;
   hoisted.supabase = {
     from: vi.fn(() => chainable({ data: [], error: null })),
     channel: vi.fn(() => {
@@ -295,7 +311,12 @@ describe('MessageThread thread page', () => {
     await act(async () => root.unmount());
   });
 
-  it('seeds the older page, prepends it above, and drops the anchor by exactly its size', async () => {
+  // HONESTY (slice-4 review): the double fires `startReached` on any scroll, so
+  // this test proves the wiring — fetch-before-prepend, seeding, and the anchor
+  // delta — not the real layout condition "the surface actually reached the
+  // top". Open-at-bottom, the true top-reached trigger, the no-jump re-anchor
+  // and jump centring stay staging-only (T4.4).
+  it('wires a scroll to fetch and prepend a seeded older page (layout condition not exercised)', async () => {
     const olderMessage = {
       ...pageMessage,
       id: 'm0',
@@ -326,7 +347,7 @@ describe('MessageThread thread page', () => {
     });
     await flush();
 
-    expect(hoisted.virtuosoProps).toEqual({ firstItemIndex: BASE_INDEX, count: 1 });
+    expect(hoisted.virtuosoProps).toMatchObject({ firstItemIndex: BASE_INDEX, count: 1 });
 
     // Reaching the top asks for the page before the oldest loaded message.
     const surface = node.querySelector<HTMLDivElement>('[data-testid="virtuoso"]');
@@ -351,7 +372,7 @@ describe('MessageThread thread page', () => {
       el.getAttribute('data-message-id'),
     );
     expect(order).toEqual(['m0', 'm1']);
-    expect(hoisted.virtuosoProps).toEqual({ firstItemIndex: BASE_INDEX - 1, count: 2 });
+    expect(hoisted.virtuosoProps).toMatchObject({ firstItemIndex: BASE_INDEX - 1, count: 2 });
 
     await act(async () => root.unmount());
   });
@@ -495,5 +516,244 @@ describe('MessageThread thread page', () => {
     expect(rowA?.className).toContain('ring-2');
 
     await act(async () => root.unmount());
+  });
+
+  // Slice-4 review (should-fix): the spec says the view stays anchored unless
+  // the agent was already at the bottom. This asserts the policy we hand
+  // Virtuoso; the real scroll behaviour on a measured list is staging-only.
+  it('follows the tail only when the agent is already at the bottom', async () => {
+    hoisted.fetchThreadPage.mockResolvedValue(emptyPage);
+    const node = document.createElement('div');
+    const root = createRoot(node);
+    await act(async () => {
+      renderThread(node, root, { messages: [pageMessage] as Message[] });
+    });
+    await flush();
+
+    const follow = hoisted.virtuosoProps.followOutput;
+    expect(typeof follow).toBe('function');
+    expect(follow!(true)).toBe('auto');
+    expect(follow!(false)).toBe(false);
+
+    await act(async () => root.unmount());
+  });
+
+  // Slice-4 review (should-fix): a fresh inline arrow per render defeats
+  // Virtuoso's item memoization.
+  it('keeps itemContent identity-stable across unrelated re-renders', async () => {
+    hoisted.fetchThreadPage.mockResolvedValue(emptyPage);
+    const onRefresh = vi.fn();
+    const node = document.createElement('div');
+    const root = createRoot(node);
+    await act(async () => {
+      renderThread(node, root, { messages: [pageMessage] as Message[], onRefresh });
+    });
+    await flush();
+    const before = hoisted.itemContentRefs[hoisted.itemContentRefs.length - 1];
+    expect(before).toBeTypeOf('function');
+
+    const refresh = node.querySelector<HTMLButtonElement>(
+      'button[aria-label="refreshConversation"]',
+    );
+    await act(async () => {
+      refresh!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await flush();
+
+    const after = hoisted.itemContentRefs[hoisted.itemContentRefs.length - 1];
+    expect(after).toBe(before);
+
+    await act(async () => root.unmount());
+  });
+
+  // Slice-4 review (BLOCKER): a resync that skipped past the retained history
+  // leaves a hole that `loadOlderMessages` can never fetch, because it only
+  // pages before the FIRST displayed message. History must be dropped so the
+  // backfill starts at the new page's boundary.
+  it('drops retained history when a resync does not overlap it, so the gap stays fetchable', async () => {
+    const at = (id: string, createdAt: string) =>
+      ({ ...pageMessage, id, content_type: 'text', media_url: undefined, created_at: createdAt }) as Message;
+    const retained = at('r1', '2026-11-27T09:00:00.000000+00:00');
+    const previousNewest = at('r2', '2026-11-27T10:00:00.000000+00:00');
+    const resynced = at('r9', '2026-11-27T20:00:00.000000+00:00');
+    const belowResynced = at('r8', '2026-11-27T18:00:00.000000+00:00');
+
+    hoisted.fetchThreadPage
+      .mockResolvedValueOnce({
+        messages: [previousNewest],
+        hasMore: true,
+        nextCursor: { createdAt: previousNewest.created_at, id: 'r2' },
+        signed: {},
+        expiresIn: 3600,
+      })
+      .mockResolvedValueOnce({
+        messages: [retained],
+        hasMore: false,
+        nextCursor: null,
+        signed: {},
+        expiresIn: 3600,
+      })
+      .mockResolvedValueOnce({
+        messages: [resynced],
+        hasMore: true,
+        nextCursor: { createdAt: resynced.created_at, id: 'r9' },
+        signed: {},
+        expiresIn: 3600,
+      })
+      .mockResolvedValueOnce({
+        messages: [belowResynced],
+        hasMore: false,
+        nextCursor: null,
+        signed: {},
+        expiresIn: 3600,
+      });
+
+    const node = document.createElement('div');
+    const root = createRoot(node);
+    await act(async () => {
+      renderThread(node, root, { messages: [previousNewest] as Message[] });
+    });
+    await flush();
+
+    // Load the retained older page.
+    await act(async () => {
+      node
+        .querySelector<HTMLDivElement>('[data-testid="virtuoso"]')!
+        .dispatchEvent(new Event('scroll', { bubbles: true }));
+    });
+    await flush();
+    expect(hoisted.virtuosoProps).toMatchObject({ firstItemIndex: BASE_INDEX - 1, count: 2 });
+
+    // Resync returns a page that starts AFTER the previous newest message, so
+    // more than a page arrived while disconnected. The parent's messages prop
+    // is still the old page at this point — that is the real sequence.
+    await act(async () => {
+      renderThread(node, root, { messages: [previousNewest] as Message[], resyncToken: 1 });
+    });
+    await flush();
+    // Now the parent applies the resynced page (what onMessagesLoaded does).
+    await act(async () => {
+      renderThread(node, root, { messages: [resynced] as Message[], resyncToken: 1 });
+    });
+    await flush();
+
+    // The unreachable history is dropped, leaving no hole in the list.
+    expect(hoisted.virtuosoProps).toMatchObject({ firstItemIndex: BASE_INDEX, count: 1 });
+
+    // And the next backfill starts from the resynced page's oldest message,
+    // which is what makes the skipped messages reachable again.
+    await act(async () => {
+      node
+        .querySelector<HTMLDivElement>('[data-testid="virtuoso"]')!
+        .dispatchEvent(new Event('scroll', { bubbles: true }));
+    });
+    await flush();
+    expect(hoisted.fetchThreadPage).toHaveBeenLastCalledWith(
+      CONV,
+      { createdAt: resynced.created_at, id: 'r9' },
+      50,
+    );
+
+    await act(async () => root.unmount());
+  });
+
+  it('keeps retained history when the resynced page still overlaps it', async () => {
+    const at = (id: string, createdAt: string) =>
+      ({ ...pageMessage, id, content_type: 'text', media_url: undefined, created_at: createdAt }) as Message;
+    const retained = at('o1', '2026-11-27T09:00:00.000000+00:00');
+    const previousNewest = at('o2', '2026-11-27T10:00:00.000000+00:00');
+    const overlapNewest = at('o3', '2026-11-27T11:00:00.000000+00:00');
+
+    hoisted.fetchThreadPage
+      .mockResolvedValueOnce({
+        messages: [previousNewest],
+        hasMore: true,
+        nextCursor: { createdAt: previousNewest.created_at, id: 'o2' },
+        signed: {},
+        expiresIn: 3600,
+      })
+      .mockResolvedValueOnce({
+        messages: [retained],
+        hasMore: false,
+        nextCursor: null,
+        signed: {},
+        expiresIn: 3600,
+      })
+      .mockResolvedValueOnce({
+        messages: [previousNewest, overlapNewest],
+        hasMore: false,
+        nextCursor: null,
+        signed: {},
+        expiresIn: 3600,
+      });
+
+    const node = document.createElement('div');
+    const root = createRoot(node);
+    await act(async () => {
+      renderThread(node, root, { messages: [previousNewest] as Message[] });
+    });
+    await flush();
+    await act(async () => {
+      node
+        .querySelector<HTMLDivElement>('[data-testid="virtuoso"]')!
+        .dispatchEvent(new Event('scroll', { bubbles: true }));
+    });
+    await flush();
+    expect(hoisted.virtuosoProps).toMatchObject({ firstItemIndex: BASE_INDEX - 1, count: 2 });
+
+    await act(async () => {
+      renderThread(node, root, { messages: [previousNewest] as Message[], resyncToken: 1 });
+    });
+    await flush();
+    await act(async () => {
+      renderThread(node, root, {
+        messages: [previousNewest, overlapNewest] as Message[],
+        resyncToken: 1,
+      });
+    });
+    await flush();
+
+    // Overlap means no hole: the retained page stays and the new one joins it.
+    expect(hoisted.virtuosoProps).toMatchObject({ firstItemIndex: BASE_INDEX - 1, count: 3 });
+
+    await act(async () => root.unmount());
+  });
+
+  // Slice-4 review (BLOCKER): under a UTC-negative zone the old path parsed
+  // the local day key as UTC midnight and rendered every label one day early.
+  // The header and the in-flow separator must both come from the instant.
+  it('labels the header and separators by local day in a UTC-negative zone', async () => {
+    const previousTz = process.env.TZ;
+    process.env.TZ = 'America/Havana';
+    try {
+      const now = new Date();
+      const m1 = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 1, 0, 0);
+      const m2 = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 1, 0, 0);
+      const asMessage = (id: string, date: Date) =>
+        ({ ...pageMessage, id, content_type: 'text', media_url: undefined, created_at: date.toISOString() }) as Message;
+
+      hoisted.fetchThreadPage.mockResolvedValue(emptyPage);
+      const node = document.createElement('div');
+      const root = createRoot(node);
+      await act(async () => {
+        renderThread(node, root, { messages: [asMessage('t1', m1), asMessage('t2', m2)] });
+      });
+      await flush();
+
+      const labels = Array.from(node.querySelectorAll('span.rounded-full')).map(
+        (el) => el.textContent,
+      );
+      // Header = oldest message's local day (today); separator below t1 = the
+      // next message's local day. Pre-fix these read "yesterday" and "today".
+      expect(labels[0]).toBe('today');
+      expect(labels[1]).toBe(
+        new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(m2),
+      );
+
+      await act(async () => root.unmount());
+    } finally {
+      if (previousTz === undefined) delete process.env.TZ;
+      else process.env.TZ = previousTz;
+    }
   });
 });

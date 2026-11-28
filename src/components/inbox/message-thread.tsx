@@ -30,7 +30,6 @@ import {
   PanelRightOpen,
   PanelRightClose,
 } from "lucide-react";
-import { format, isToday, isYesterday } from "date-fns";
 import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -51,7 +50,9 @@ import {
 import { cursorFromMessage, fetchThreadPage } from "@/lib/inbox/thread-page";
 import {
   buildThreadItems,
+  formatThreadDayLabel,
   indexOfMessage,
+  newestPageLeavesGap,
   nextFirstItemIndex,
   THREAD_FIRST_ITEM_INDEX_BASE,
   type ThreadItem,
@@ -120,17 +121,19 @@ interface MessageThreadProps {
   onOpenMobileContactPanel?: () => void;
 }
 
-function formatDateSeparator(dateStr: string, t: ReturnType<typeof useTranslations>): string {
-  const date = new Date(dateStr);
-  if (isToday(date)) return t("today");
-  if (isYesterday(date)) return t("yesterday");
-  return format(date, "MMMM d, yyyy");
+/**
+ * Label a day from the original message instant. Never pass a `yyyy-MM-dd`
+ * key here: `new Date("yyyy-MM-dd")` is UTC midnight, which is the previous
+ * local day in UTC-negative zones and labelled every separator a day early.
+ */
+function formatDateSeparator(instant: string, t: ReturnType<typeof useTranslations>): string {
+  return formatThreadDayLabel(instant, new Date(), (key) => t(key));
 }
 
 interface ThreadHeaderContext {
-  headerDay: string | null;
+  headerDayAt: string | null;
   loadingOlder: boolean;
-  label: (day: string) => string;
+  label: (instant: string) => string;
   loadingLabel: string;
 }
 
@@ -152,10 +155,10 @@ function DaySeparator({ label }: { label: string }) {
  */
 function ThreadHeader({ context }: { context?: ThreadHeaderContext }) {
   if (!context) return null;
-  const { headerDay, loadingOlder, label, loadingLabel } = context;
+  const { headerDayAt, loadingOlder, label, loadingLabel } = context;
   return (
     <div className="relative pb-4">
-      {headerDay && <DaySeparator label={label(headerDay)} />}
+      {headerDayAt && <DaySeparator label={label(headerDayAt)} />}
       {loadingOlder && (
         <p className="pointer-events-none absolute inset-x-0 top-0 text-center text-xs text-muted-foreground">
           {loadingLabel}
@@ -232,6 +235,16 @@ export function MessageThread({
   // Which conversation the loaded history belongs to. Only a real
   // conversation change resets history; a resync must keep it (ADR-4).
   const loadedConversationRef = useRef<string | null>(null);
+  // Previous page/history for the resync gap check. Mirrored in effects so the
+  // fetch effect does not depend on them (a dependency would refire the fetch).
+  const messagesRef = useRef(messages);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+  const olderMessagesRef = useRef(olderMessages);
+  useEffect(() => {
+    olderMessagesRef.current = olderMessages;
+  }, [olderMessages]);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [reactions, setReactions] = useState<MessageReaction[]>([]);
@@ -335,6 +348,8 @@ export function MessageThread({
     if (!conversationId) return;
 
     let cancelled = false;
+    // Snapshot the newest page this resync is replacing, before the request.
+    const previousPage = messagesRef.current;
 
     (async () => {
       setLoading(true);
@@ -349,6 +364,18 @@ export function MessageThread({
         // resync can never shrink history from the top (which used to jump).
         if (loadedConversationRef.current !== conversationId) {
           loadedConversationRef.current = conversationId;
+          setOlderMessages([]);
+          setFirstItemIndex(THREAD_FIRST_ITEM_INDEX_BASE);
+          setHasMoreHistory(page.hasMore);
+        } else if (
+          olderMessagesRef.current.length > 0 &&
+          newestPageLeavesGap(previousPage, page.messages)
+        ) {
+          // More than a page arrived while disconnected: the resynced page
+          // starts after everything we retained, and `loadOlderMessages` only
+          // pages before the first displayed message, so that hole would never
+          // be fetched. Drop the retained history and let the next top-reach
+          // backfill contiguously from the new page's oldest message.
           setOlderMessages([]);
           setFirstItemIndex(THREAD_FIRST_ITEM_INDEX_BASE);
           setHasMoreHistory(page.hasMore);
@@ -517,17 +544,24 @@ export function MessageThread({
 
   // Prepend-safe item model. Building it is O(messages) and must run only
   // when the merged list changes, never on an unrelated render.
-  const { items, headerDay } = useMemo(
+  const { items, headerDayAt } = useMemo(
     () => buildThreadItems(displayMessages),
     [displayMessages],
   );
 
   // Stable reads for the jump callback: it must not change identity when the
   // list or the anchor grows, or every row's `onJump` prop would too.
+  // Written in effects, never during render (React 19 refs rule), matching the
+  // `onMessagesLoadedRef` convention above; consumers read `.current` from
+  // callbacks that run after the commit.
   const itemsRef = useRef<ThreadItem[]>(items);
-  itemsRef.current = items;
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
   const firstItemIndexRef = useRef(firstItemIndex);
-  firstItemIndexRef.current = firstItemIndex;
+  useEffect(() => {
+    firstItemIndexRef.current = firstItemIndex;
+  }, [firstItemIndex]);
 
   /** Trae el bloque anterior al más viejo cargado (Virtuoso re-anchors it). */
   const loadOlderMessages = useCallback(async () => {
@@ -944,7 +978,9 @@ export function MessageThread({
   // Keep the live reactions list readable from stable row callbacks: the row
   // must receive identities that do not change when any reaction changes.
   const reactionsRef = useRef<MessageReaction[]>(reactions);
-  reactionsRef.current = reactions;
+  useEffect(() => {
+    reactionsRef.current = reactions;
+  }, [reactions]);
 
   const handleReact = useCallback(
     (messageId: string, emoji: string) => {
@@ -1035,8 +1071,8 @@ export function MessageThread({
             onTogglePill={handleTogglePill}
             onJump={jumpToMessage}
           />
-          {item.separatorBelow && (
-            <DaySeparator label={formatDateSeparator(item.separatorBelow, t)} />
+          {item.separatorBelowAt && (
+            <DaySeparator label={formatDateSeparator(item.separatorBelowAt, t)} />
           )}
         </div>
       );
@@ -1055,14 +1091,26 @@ export function MessageThread({
     ],
   );
 
+  // Identity-stable callbacks: Virtuoso memoizes items by `itemContent` and
+  // re-evaluates its follow policy on every render, so a fresh arrow each
+  // render would defeat both.
+  const renderItemContent = useCallback(
+    (_index: number, item: ThreadItem) => renderItem(item),
+    [renderItem],
+  );
+  const followOutput = useCallback(
+    (isAtBottom: boolean) => (isAtBottom ? ("auto" as const) : (false as const)),
+    [],
+  );
+
   const headerContext = useMemo<ThreadHeaderContext>(
     () => ({
-      headerDay,
+      headerDayAt,
       loadingOlder,
-      label: (day: string) => formatDateSeparator(day, t),
+      label: (instant: string) => formatDateSeparator(instant, t),
       loadingLabel: t("loadingOlder"),
     }),
-    [headerDay, loadingOlder, t],
+    [headerDayAt, loadingOlder, t],
   );
   const virtuosoComponents = useMemo(() => ({ Header: ThreadHeader }), []);
 
@@ -1324,10 +1372,10 @@ export function MessageThread({
             data={items}
             firstItemIndex={firstItemIndex}
             initialTopMostItemIndex={{ index: "LAST", align: "end" }}
-            followOutput={() => "auto"}
+            followOutput={followOutput}
             startReached={loadOlderMessages}
             computeItemKey={(_index, item: ThreadItem) => item.id}
-            itemContent={(_index, item: ThreadItem) => renderItem(item)}
+            itemContent={renderItemContent}
             components={virtuosoComponents}
             context={headerContext}
           />

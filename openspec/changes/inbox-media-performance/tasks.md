@@ -278,6 +278,18 @@ Spec: `inbox-realtime` → "Virtualized thread" (all five scenarios).
   - Test: slice-4 files.
   - Verify: `npx vitest run src/lib/inbox/thread-items.test.ts src/components/inbox/message-thread.test.tsx src/components/inbox/thread-row.test.tsx && npx tsc --noEmit`
 
+### Slice 4 review corrections (2026-11-27)
+
+Filed under slice 4 because they repair slice-4 behaviour; no new PR slice. T4.4 (staging browser check) still covers the layout behaviours that jsdom cannot measure.
+
+- [x] **T4.6** BLOCKER — day labels come from the original instant. `buildThreadItems` now exposes `headerDayAt` / `separatorBelowAt`; `formatThreadDayLabel` evaluates `today`/`yesterday` in the viewer's local calendar instead of re-parsing the `yyyy-MM-dd` grouping key as UTC midnight. Regression test runs under `America/Havana` (component header + separator) and as a pure function in `thread-items.tz.test.ts`; both failed pre-fix.
+- [x] **T4.7** BLOCKER — resync cannot leave an unreachable hole. `newestPageLeavesGap` compares the resynced page's oldest message with the newest message of the page being replaced; on a non-overlap the retained `olderMessages` (and the anchor) are dropped so the next top-reach backfills from the new boundary. Overlapping resyncs keep history. Tests cover both branches and the backfill cursor.
+- [x] **T4.8** should-fix — `followOutput` follows the tail only when the agent is already at the bottom (`isAtBottom ? "auto" : false`). Unit test asserts the policy passed to Virtuoso; the real scroll behaviour remains T4.4.
+- [x] **T4.9** should-fix — `itemContent` (and `followOutput`) are `useCallback`-stable, so Virtuoso item memoization is not defeated by a fresh arrow per render. Test asserts reference identity across an unrelated re-render.
+- [x] **T4.10** nit — `itemsRef`, `firstItemIndexRef` and `reactionsRef` are written in effects, never during render, matching the file's React 19 convention.
+- [x] **T4.11** test-double honesty — the Virtuoso double fires `startReached` on any scroll. The test that relied on it is renamed and annotated as wiring-only, and the file header lists the layout behaviours that stay staging-only.
+- Verify: `npx vitest run src/lib/inbox/thread-items.test.ts src/components/inbox/message-thread.test.tsx && npx tsc --noEmit`; `thread-items.tz.test.ts` is also run (non-UTC regression, not in the original focused list).
+
 ## Measurement 2 — after slice 4 (own task)
 
 - [ ] **TM2** Re-run the baseline method. Requirement: `inbox-thread-read` → "First-page performance budget", "Measurement record"; `inbox-realtime` → "Only visible messages are mounted".

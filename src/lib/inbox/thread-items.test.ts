@@ -11,6 +11,7 @@ import {
   THREAD_FIRST_ITEM_INDEX_BASE,
   buildThreadItems,
   indexOfMessage,
+  newestPageLeavesGap,
   nextFirstItemIndex,
 } from './thread-items';
 
@@ -34,7 +35,7 @@ const DAY3 = '2026-11-29T09:00:00.000000+00:00';
 
 describe('buildThreadItems', () => {
   it('returns no items and no header for an empty thread', () => {
-    expect(buildThreadItems([])).toEqual({ items: [], headerDay: null });
+    expect(buildThreadItems([])).toEqual({ items: [], headerDay: null, headerDayAt: null });
   });
 
   it('emits one item per message and uses the oldest message as the header day', () => {
@@ -45,6 +46,25 @@ describe('buildThreadItems', () => {
     ]);
     expect(items.map((i) => i.id)).toEqual(['a', 'b', 'c']);
     expect(headerDay).toBe('2026-11-27');
+  });
+
+  // Slice-4 review: the label must be rendered from the original instant, not
+  // from re-parsing the local `yyyy-MM-dd` key as UTC midnight (which shifts
+  // the label one day back in UTC-negative zones). The day key stays for
+  // grouping only; these fields carry the instant the label needs.
+  it('exposes the oldest message instant for the header label', () => {
+    const { headerDayAt } = buildThreadItems([msg('a', DAY1), msg('b', DAY1B), msg('c', DAY2)]);
+    expect(headerDayAt).toBe(DAY1);
+  });
+
+  it('exposes the next-day instant for each separator label', () => {
+    const { items } = buildThreadItems([msg('a', DAY1), msg('b', DAY2), msg('c', DAY3)]);
+    expect(items.map((i) => i.separatorBelowAt)).toEqual([DAY2, DAY3, null]);
+  });
+
+  it('leaves separatorBelowAt null when the next message is on the same day', () => {
+    const { items } = buildThreadItems([msg('a', DAY1), msg('b', DAY1B)]);
+    expect(items.map((i) => i.separatorBelowAt)).toEqual([null, null]);
   });
 
   it('renders the separator below the last message of a day, at every day boundary', () => {
@@ -121,5 +141,40 @@ describe('indexOfMessage', () => {
   it('returns null for a message that is not loaded', () => {
     const { items } = buildThreadItems([msg('a', DAY1)]);
     expect(indexOfMessage(items, 'missing', THREAD_FIRST_ITEM_INDEX_BASE)).toBeNull();
+  });
+});
+
+describe('newestPageLeavesGap', () => {
+  // Slice-4 review: a resync replaces the newest page but keeps the retained
+  // older history. If more than a page arrived while disconnected, the new
+  // page starts after the previous page's newest message and the two blocks
+  // cannot be stitched — that gap must be detected so history is refetched.
+  it('reports a gap when the resynced page starts after the previous newest message', () => {
+    const previous = [msg('b', DAY2), msg('c', DAY2B)];
+    const resynced = [msg('z', DAY3)]; // strictly newer than c
+    expect(newestPageLeavesGap(previous, resynced)).toBe(true);
+  });
+
+  it('reports no gap when the resynced page still overlaps the previous page', () => {
+    const previous = [msg('b', DAY2), msg('c', DAY2B)];
+    const resynced = [msg('c', DAY2B), msg('z', DAY3)]; // shares c
+    expect(newestPageLeavesGap(previous, resynced)).toBe(false);
+  });
+
+  it('reports no gap when the resynced page reaches back before the previous newest', () => {
+    const previous = [msg('c', DAY2B)];
+    const resynced = [msg('b', DAY2), msg('c', DAY2B), msg('z', DAY3)];
+    expect(newestPageLeavesGap(previous, resynced)).toBe(false);
+  });
+
+  it('reports no gap when either side is empty', () => {
+    expect(newestPageLeavesGap([], [msg('a', DAY1)])).toBe(false);
+    expect(newestPageLeavesGap([msg('a', DAY1)], [])).toBe(false);
+  });
+
+  it('orders equal timestamps by id, matching the server keyset', () => {
+    const sameInstant = '2026-11-27T10:00:00.000000+00:00';
+    expect(newestPageLeavesGap([msg('a', sameInstant)], [msg('b', sameInstant)])).toBe(true);
+    expect(newestPageLeavesGap([msg('b', sameInstant)], [msg('a', sameInstant)])).toBe(false);
   });
 });

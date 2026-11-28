@@ -470,17 +470,19 @@ Spec: `media-ingest` → "Insert first, process media after", "Ready or failed t
   - Test: itself.
   - Verify: `npx vitest run src/app/api/whatsapp/webhook/route.test.ts` — new cases FAIL.
 
-- [ ] **T6a.2** RED — settlement module. Requirement: `media-ingest` → "Ready or failed transition", "Unrecoverable failure becomes failed".
+- [x] **T6a.2** RED — settlement module. Requirement: `media-ingest` → "Ready or failed transition", "Unrecoverable failure becomes failed".
   - Goal: failing tests for the 10 s/25 s/20 s timeouts aborting, one retry with 1 s backoff, the 16 MiB cap producing `failed`, and every update carrying the `AND media_status='pending'` guard.
   - Files: `src/lib/whatsapp/inbound-media.test.ts` (new)
   - Test: itself.
   - Verify: `npx vitest run src/lib/whatsapp/inbound-media.test.ts` — FAIL.
+  - **Done 2026-11-28**: nine cases green (guarded writes, both abort signals, one retry, two-failure settle, 16 MiB cap, thumbnail-only failures, no thumbnail for audio).
 
-- [ ] **T6a.3** GREEN — abortable Meta calls. Requirement: `media-ingest` → "Insert first, process media after".
+- [x] **T6a.3** GREEN — abortable Meta calls. Requirement: `media-ingest` → "Insert first, process media after".
   - Goal: add an optional `signal` to `getMediaUrl` and `downloadMedia` without changing existing callers.
   - Files: `src/lib/whatsapp/meta-api.ts`
   - Test: `src/lib/whatsapp/meta-api.test.ts`, `src/lib/whatsapp/meta-api.media.test.ts`, `src/lib/whatsapp/meta-api.resumable.test.ts` (existing, must stay green)
   - Verify: `npx vitest run src/lib/whatsapp/meta-api.test.ts src/lib/whatsapp/meta-api.media.test.ts src/lib/whatsapp/meta-api.resumable.test.ts`
+  - **Done 2026-11-28**: optional `signal` on both calls; existing callers untouched.
 
 - [ ] **T6a.4** GREEN — extract the tail verbatim. Requirement: `media-ingest` → "Bot-facing dispatch only after media settles"; `chat-media-delivery` → "Existing media_url readers are unaffected".
   - Goal: move `dispatchInboundToFlows` → `runAutomationsForTrigger` → `dispatchInboundToAiReply` → `dispatchEventDurably('message.received')` into `runInboundTail(args)` in the same order and content; no behaviour change yet.
@@ -488,11 +490,12 @@ Spec: `media-ingest` → "Insert first, process media after", "Ready or failed t
   - Test: `src/app/api/whatsapp/webhook/route.test.ts` (existing non-media cases must stay green)
   - Verify: `npx vitest run src/app/api/whatsapp/webhook/route.test.ts`
 
-- [ ] **T6a.5** GREEN — `settleInboundMedia`. Requirement: `media-ingest` → "Ready or failed transition", "Thumbnail failure does not lose the message", "Unrecoverable failure becomes failed".
+- [x] **T6a.5** GREEN — `settleInboundMedia`. Requirement: `media-ingest` → "Ready or failed transition", "Thumbnail failure does not lose the message", "Unrecoverable failure becomes failed".
   - Goal: implement ADR-7 step 7: download, 16 MiB check, original upload at today's path, thumbnail for images and stickers with `upsert: true`, one retry with backoff, then the guarded `ready` update (thumbnail failure is non-fatal, reason in `media_error`) or the `failed` update that leaves `media_url` byte-identical to the legacy proxy value.
   - Files: `src/lib/whatsapp/inbound-media.ts` (new)
   - Test: `src/lib/whatsapp/inbound-media.test.ts`
   - Verify: `npx vitest run src/lib/whatsapp/inbound-media.test.ts`
+  - **Done 2026-11-28**: module written, not yet wired into the webhook (that is T6a.6).
 
 - [ ] **T6a.6** GREEN — reorder the webhook and add the dedupe guard. Requirement: `media-ingest` → "Insert first, process media after", "Duplicate delivery inserts once", "Media update is idempotent per message", "Bot-facing dispatch only after media settles".
   - Goal: implement ADR-7 steps 2-8 exactly: `parseMessageContent` stops downloading and returns `mediaRef` with the proxy placeholder; the pre-insert dedupe query on `(conversation_id, message_id, sender_type='customer')` returns early with `[webhook] duplicate wamid skipped`; insert with `media_status: 'pending'`, proxy `media_url`, `media_claimed_at`, `media_attempts: 1`, then `.select('id').single()`; conversation UPDATE, invite callback and broadcast-reply flag after the insert; `settleInboundMedia`; then `runInboundTail` strictly after it settles. Non-media messages call the tail directly after step 6, unchanged.

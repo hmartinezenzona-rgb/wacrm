@@ -9,6 +9,8 @@ import {
 } from "@/lib/inbox/conversations";
 import type { Conversation, Message, Contact, ConversationStatus } from "@/types";
 import { useRealtime } from "@/hooks/use-realtime";
+import { useThreadRealtime } from "@/hooks/use-thread-realtime";
+import { patchById } from "@/lib/inbox/patch-by-id";
 import { useChatMessageSound } from "@/hooks/use-chat-message-sound";
 import { createChatSoundGate } from "@/lib/inbox/chat-sound-gate";
 import { takeInboxOpenTarget } from "@/lib/inbox/open-target";
@@ -249,21 +251,21 @@ export default function InboxPage() {
         // knownConvIdsRef for why a closure flag inside the updater would
         // always read false here.
         if (knownConvIdsRef.current.has(newMsg.conversation_id)) {
-          setConversations((prev) =>
-            prev.map((c) =>
-              c.id === newMsg.conversation_id
-                ? {
-                    ...c,
-                    last_message_text: newMsg.content_text ?? "",
-                    last_message_at: newMsg.created_at,
-                    unread_count:
-                      activeConversation?.id === newMsg.conversation_id
-                        ? 0
-                        : c.unread_count + 1,
-                  }
-                : c,
-            ),
-          );
+          setConversations((prev) => {
+            const current = prev.find(
+              (c) => c.id === newMsg.conversation_id,
+            );
+            if (!current) return prev;
+            // Identity-preserving patch: every other row keeps its reference.
+            return patchById(prev, newMsg.conversation_id, {
+              last_message_text: newMsg.content_text ?? "",
+              last_message_at: newMsg.created_at,
+              unread_count:
+                activeConversation?.id === newMsg.conversation_id
+                  ? 0
+                  : current.unread_count + 1,
+            });
+          });
         } else {
           // First time we're seeing this conv: the conv-INSERT event
           // hasn't landed yet, or was missed. Hydrate from the DB so
@@ -275,10 +277,11 @@ export default function InboxPage() {
       }
 
       if (event.eventType === "UPDATE") {
-        // Update message status
-        setMessages((prev) =>
-          prev.map((m) => (m.id === newMsg.id ? { ...m, ...newMsg } : m))
-        );
+        // Message UPDATEs no longer arrive on this account-wide channel
+        // (INSERT only, ADR-5); the open conversation's UPDATEs come from
+        // `useThreadRealtime`. Kept as a patch-by-id fallback for callers
+        // that still forward mutation events.
+        setMessages((prev) => patchById(prev, newMsg.id, newMsg));
       }
     },
     [activeConversation, hydrateConversation, playChatSound]
@@ -317,15 +320,10 @@ export default function InboxPage() {
           // UPDATE to round-trip. Non-active convs take the value as-is.
           const isActive = activeConversation?.id === conv.id;
           setConversations((prev) =>
-            prev.map((c) =>
-              c.id === conv.id
-                ? {
-                    ...c,
-                    ...conv,
-                    unread_count: isActive ? 0 : conv.unread_count,
-                  }
-                : c,
-            ),
+            patchById(prev, conv.id, {
+              ...conv,
+              unread_count: isActive ? 0 : conv.unread_count,
+            }),
           );
         } else {
           // UPDATE arrived before the INSERT (or after a missed INSERT)
@@ -356,6 +354,17 @@ export default function InboxPage() {
     onConversationEvent: handleConversationEvent,
     enabled: true,
   });
+
+  // The open thread's UPDATE stream is scoped server-side to that
+  // conversation (ADR-5), so the account-wide channel above never has to
+  // carry it. Applying the row by id keeps every other message reference.
+  const handleThreadMessageUpdate = useCallback((row: Message) => {
+    setMessages((prev) => patchById(prev, row.id, row));
+  }, []);
+  useThreadRealtime(
+    activeConversation?.id ?? null,
+    handleThreadMessageUpdate,
+  );
 
   /**
    * Bump `resyncToken` whenever the realtime channel transitions from
@@ -543,9 +552,7 @@ export default function InboxPage() {
 
   const handleStatusChange = useCallback(
     (conversationId: string, status: ConversationStatus) => {
-      setConversations((prev) =>
-        prev.map((c) => (c.id === conversationId ? { ...c, status } : c))
-      );
+      setConversations((prev) => patchById(prev, conversationId, { status }));
       if (activeConversation?.id === conversationId) {
         setActiveConversation((prev) => (prev ? { ...prev, status } : prev));
       }
@@ -556,11 +563,9 @@ export default function InboxPage() {
   const handleAssignChange = useCallback(
     (conversationId: string, assignedAgentId: string | null) => {
       setConversations((prev) =>
-        prev.map((c) =>
-          c.id === conversationId
-            ? { ...c, assigned_agent_id: assignedAgentId ?? undefined }
-            : c
-        )
+        patchById(prev, conversationId, {
+          assigned_agent_id: assignedAgentId ?? undefined,
+        })
       );
       if (activeConversation?.id === conversationId) {
         setActiveConversation((prev) =>
@@ -576,7 +581,7 @@ export default function InboxPage() {
   const handleNotBusinessChange = useCallback(
     (conversationId: string, patch: NotBusinessPatch) => {
       setConversations((prev) =>
-        prev.map((c) => (c.id === conversationId ? { ...c, ...patch } : c))
+        patchById(prev, conversationId, patch)
       );
       if (activeConversation?.id === conversationId) {
         setActiveConversation((prev) => (prev ? { ...prev, ...patch } : prev));

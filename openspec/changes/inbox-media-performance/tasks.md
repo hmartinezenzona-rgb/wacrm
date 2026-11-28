@@ -211,31 +211,32 @@ Filed under slice 2 because they repair slice-2 behaviour; no new PR slice.
 
 Spec: `inbox-realtime` → "Per-conversation message subscription", "Row-level conversation list patching", "Memoized bubbles and scoped grouping" (grouping part).
 
-- [ ] **T3.1** RED — `patchById` and subscription shapes. Requirement: `inbox-realtime` → "Per-conversation message subscription", "Row-level conversation list patching".
+- [x] **T3.1** RED — `patchById` and subscription shapes. Requirement: `inbox-realtime` → "Per-conversation message subscription", "Row-level conversation list patching".
   - Goal: failing tests for `patchById` returning the same reference when the id is absent or the patch is equal, and a single-element replacement otherwise; for `useRealtime` subscribing `messages` with `event: 'INSERT'` only and `conversations` with `'*'`; for the new thread channel using `filter: 'conversation_id=eq.<id>'` with `event: 'UPDATE'` and being torn down on id change and unmount; and for grouping reused when the message list did not change.
   - Files: `src/lib/inbox/patch-by-id.test.ts` (new), `src/hooks/use-realtime.test.ts` (new), `src/hooks/use-thread-realtime.test.ts` (new), `src/components/inbox/message-thread.test.tsx` (extend)
   - Test: those four.
   - Verify: `npx vitest run src/lib/inbox/patch-by-id.test.ts src/hooks/use-realtime.test.ts src/hooks/use-thread-realtime.test.ts src/components/inbox/message-thread.test.tsx` — FAIL.
 
-- [ ] **T3.2** GREEN — `patchById` and `useThreadRealtime`. Requirement: `inbox-realtime` → "Per-conversation message subscription", "Row-level conversation list patching".
+- [x] **T3.2** GREEN — `patchById` and `useThreadRealtime`. Requirement: `inbox-realtime` → "Per-conversation message subscription", "Row-level conversation list patching".
   - Goal: implement the identity-preserving patch and the filtered per-conversation UPDATE channel exactly as ADR-5.
   - Files: `src/lib/inbox/patch-by-id.ts` (new), `src/hooks/use-thread-realtime.ts` (new)
   - Test: `src/lib/inbox/patch-by-id.test.ts`, `src/hooks/use-thread-realtime.test.ts`
   - Verify: `npx vitest run src/lib/inbox/patch-by-id.test.ts src/hooks/use-thread-realtime.test.ts`
 
-- [ ] **T3.3** GREEN — narrow `useRealtime` to INSERTs. Requirement: `inbox-realtime` → "Per-conversation message subscription" (deviation note in ADR-5: INSERTs stay account-wide for the chat sound and list preview).
+- [x] **T3.3** GREEN — narrow `useRealtime` to INSERTs. Requirement: `inbox-realtime` → "Per-conversation message subscription" (deviation note in ADR-5: INSERTs stay account-wide for the chat sound and list preview).
   - Goal: keep `messages` on `event: 'INSERT'` only and leave `conversations` on `'*'`.
   - Files: `src/hooks/use-realtime.ts`
   - Test: `src/hooks/use-realtime.test.ts`
   - Verify: `npx vitest run src/hooks/use-realtime.test.ts src/hooks/use-chat-message-sound.test.tsx src/hooks/use-total-unread.test.ts` (existing behaviour must stay green)
 
-- [ ] **T3.4** GREEN — wire the inbox page. Requirement: `inbox-realtime` → "Row-level conversation list patching", "Unread counts and last message stay live".
+- [x] **T3.4** GREEN — wire the inbox page. Requirement: `inbox-realtime` → "Row-level conversation list patching", "Unread counts and last message stay live".
   - Goal: use `patchById` for message UPDATE, conversation UPDATE, the INSERT preview patch and the status/assign/not-business handlers; wire `useThreadRealtime` for the open conversation; memoize grouping with `useMemo` on `displayMessages`.
   - Files: `src/app/(dashboard)/inbox/page.tsx`, `src/components/inbox/message-thread.tsx`
   - Test: `src/components/inbox/message-thread.test.tsx`, `src/lib/inbox/patch-by-id.test.ts`
   - Verify: `npx vitest run src/components/inbox/message-thread.test.tsx src/lib/inbox/patch-by-id.test.ts src/lib/inbox/chat-sound-gate.test.ts`
 
-- [ ] **T3.5** Verification and staging check.
+- [x] **T3.5** Verification and staging check.
+  - Status 2026-11-27: slice-3 tests, full suite and `tsc` green (see `apply-progress`). The staging browser check is **not run** — it was explicitly out of scope for the apply run and stays pending for the orchestrator's staging pass.
   - Goal: suite and `tsc`, then staging with two conversations: the closed one produces no UPDATE delivery to the open thread, and the list patches one row while unread counts stay live.
   - Files: none.
   - Test: slice-3 files.

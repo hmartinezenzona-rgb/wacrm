@@ -15,7 +15,21 @@ const hoisted = vi.hoisted(() => ({
   peekAtRender: {} as Record<string, string | null>,
   renderCount: {} as Record<string, number>,
   translate: (key: string) => key,
+  // Counts the day-key formatting `groupMessagesByDate` runs. Slice 3 memoizes
+  // the grouping on the message list, so an unrelated render must not add any.
+  groupingFormats: 0,
 }));
+
+vi.mock('date-fns', async () => {
+  const actual = await vi.importActual<typeof import('date-fns')>('date-fns');
+  return {
+    ...actual,
+    format: (date: Date | number, pattern: string) => {
+      if (pattern === 'yyyy-MM-dd') hoisted.groupingFormats += 1;
+      return actual.format(date, pattern);
+    },
+  };
+});
 
 // One stable translator: a fresh function per render would make the thread's
 // `useCallback` chains (and therefore every row's props) change identity, and
@@ -317,6 +331,78 @@ describe('MessageThread thread page', () => {
     expect(onRefresh).toHaveBeenCalledTimes(1);
     // Neither row's props changed, so neither row may re-render.
     expect(hoisted.renderCount).toEqual({ m1: 1, m2: 1 });
+
+    await act(async () => root.unmount());
+  });
+
+  it('reuses the day grouping when the message list did not change', async () => {
+    const g1 = {
+      ...pageMessage,
+      id: 'g1',
+      content_type: 'text',
+      media_url: undefined,
+      created_at: '2020-01-01T10:00:00.000000+00:00',
+    } as Message;
+    const g2 = {
+      ...pageMessage,
+      id: 'g2',
+      content_type: 'text',
+      media_url: undefined,
+      created_at: '2020-01-02T10:00:00.000000+00:00',
+    } as Message;
+    const g3 = {
+      ...pageMessage,
+      id: 'g3',
+      content_type: 'text',
+      media_url: undefined,
+      created_at: '2020-01-02T11:00:00.000000+00:00',
+    } as Message;
+    hoisted.fetchThreadPage.mockResolvedValue({
+      messages: [],
+      hasMore: false,
+      nextCursor: null,
+      signed: {},
+      expiresIn: 3600,
+    });
+    hoisted.groupingFormats = 0;
+
+    const onRefresh = vi.fn();
+    const node = document.createElement('div');
+    const root = createRoot(node);
+    const render = (rows: Message[]) =>
+      root.render(
+        React.createElement(MessageThread, {
+          conversation,
+          contact,
+          messages: rows,
+          onMessagesLoaded: vi.fn(),
+          onNewMessage: vi.fn(),
+          onUpdateMessage: vi.fn(),
+          onStatusChange: vi.fn(),
+          onAssignChange: vi.fn(),
+          onRefresh,
+        }),
+      );
+
+    await act(async () => render([g1, g2] as Message[]));
+    await flush();
+    // One grouping pass for the two rows.
+    expect(hoisted.groupingFormats).toBe(2);
+
+    // An unrelated state change (the refresh spinner) must not regroup.
+    const refresh = node.querySelector<HTMLButtonElement>(
+      'button[aria-label="refreshConversation"]',
+    );
+    await act(async () => {
+      refresh!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await flush();
+    expect(hoisted.groupingFormats).toBe(2);
+
+    // A real list change does regroup, once, for every row.
+    await act(async () => render([g1, g2, g3] as Message[]));
+    await flush();
+    expect(hoisted.groupingFormats).toBe(5);
 
     await act(async () => root.unmount());
   });

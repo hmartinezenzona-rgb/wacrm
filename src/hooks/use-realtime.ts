@@ -48,7 +48,12 @@ export function useRealtime({
       .channel(channelName)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "messages" },
+        // INSERTs stay account-wide on purpose (ADR-5): the chat sound, the
+        // conversation-list preview and unknown-conversation hydration all
+        // depend on new messages from conversations that are not open. The
+        // open thread's UPDATEs are filtered per conversation by
+        // `useThreadRealtime` instead.
+        { event: "INSERT", schema: "public", table: "messages" },
         (payload) => {
           onMessageRef.current?.({
             eventType: payload.eventType as RealtimeEvent<Message>["eventType"],

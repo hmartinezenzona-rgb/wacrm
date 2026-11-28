@@ -497,6 +497,14 @@ export function MessageThread({
     );
   }, [olderMessages, messages]);
 
+  // Day grouping is O(messages) and used to run on every render (including
+  // renders caused by unrelated thread state such as the refresh spinner).
+  // It depends only on the merged message list, so memoize on that.
+  const messageGroups = useMemo(
+    () => groupMessagesByDate(displayMessages),
+    [displayMessages],
+  );
+
   /** Trae el bloque anterior al más viejo cargado y conserva la posición. */
   const loadOlderMessages = useCallback(async () => {
     if (loadingOlder || !hasMoreHistory || !conversationId) return;
@@ -990,7 +998,6 @@ export function MessageThread({
   }
 
   const displayName = contact.name || contact.phone;
-  const messageGroups = groupMessagesByDate(displayMessages);
   const currentStatus = STATUS_OPTIONS.find(
     (s) => s.value === conversation.status
   );

@@ -102,6 +102,25 @@ Two changes, then the same measurement method:
 
 **Median on a repeat open: endpoint 469 → 295 ms, first media 595 → 415 ms.** Proxy requests stayed at 0 and media objects stayed at 4.
 
+## Correction to slice 4c (2026-11-28)
+
+The numbers above were produced by a build whose signature cache **never reused an entry**: it stored `expiresAt = now + ttl` and only reused while `expiresAt - now >= ttl`, which holds only inside the same millisecond. Every page after the first re-signed everything, and the unit tests passed because both calls landed in that same millisecond.
+
+So the improvement measured above came from removing the `accounts` round trip, not from the cache. Re-running after the cache was fixed:
+
+| Run | endpoint | first media | media objects | proxy |
+| --- | --- | --- | --- | --- |
+| first open after page load | 378 ms | 526 ms | 4 | 0 |
+| repeat 1 | 191 ms | not requested (HTTP cache) | 0 | 0 |
+| repeat 2 | 177 ms | not requested (HTTP cache) | 0 | 0 |
+| repeat 3 | 192 ms | not requested (HTTP cache) | 0 | 0 |
+| repeat 4 | 195 ms | 325 ms | 4 | 0 |
+
+**Repeat-open endpoint median: 469 ms before 4c → ~192 ms after.** The repeats show zero media requests because the reused signature is the same URL the browser already holds, so the HTTP cache answers. That is the intended behaviour of reusing a signature, not a saving in bytes.
+
+What did not change: the cold first open is dominated by connection setup and stays in the 380–700 ms band depending on the run; the cache cannot help a request that has nothing cached yet.
+
+
 What these numbers do not support:
 
 - The cold open did not improve measurably (632 → 696 ms, one sample each). It is dominated by connection setup to Supabase, which neither change touches.

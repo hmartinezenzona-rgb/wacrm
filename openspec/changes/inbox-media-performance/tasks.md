@@ -246,31 +246,33 @@ Spec: `inbox-realtime` → "Per-conversation message subscription", "Row-level c
 
 Spec: `inbox-realtime` → "Virtualized thread" (all five scenarios).
 
-- [ ] **T4.1** RED — prepend-safe item model. Requirement: `inbox-realtime` → "Only visible messages are mounted", "Older page loads at the top", "Jump to message works".
+- [x] **T4.1** RED — prepend-safe item model. Requirement: `inbox-realtime` → "Only visible messages are mounted", "Older page loads at the top", "Jump to message works".
   - Goal: failing tests for separators rendered **below** the last message of a day at day boundaries, existing items staying deep-equal after prepending N same-day or other-day messages, `nextFirstItemIndex(prev, n)`, and `indexOfMessage` in the index space the installed `react-virtuoso` actually uses.
   - Files: `src/lib/inbox/thread-items.test.ts` (new)
   - Test: itself.
   - Verify: `npx vitest run src/lib/inbox/thread-items.test.ts` — FAIL.
 
-- [ ] **T4.2** GREEN — item model and the dependency. Requirement: `inbox-realtime` → "Virtualized thread".
+- [x] **T4.2** GREEN — item model and the dependency. Requirement: `inbox-realtime` → "Virtualized thread".
   - Goal: add `react-virtuoso` 4.x (MIT `Virtuoso` only, never `@virtuoso.dev/message-list`), confirm its React 19.2 peer range and the `scrollToIndex` index space against `node_modules/react-virtuoso/README.md` (read-only), and implement `ThreadItem`, `buildThreadItems`, `nextFirstItemIndex` and `indexOfMessage`.
   - Files: `src/lib/inbox/thread-items.ts` (new), `package.json`
   - Test: `src/lib/inbox/thread-items.test.ts`
   - Verify: `npx vitest run src/lib/inbox/thread-items.test.ts`
 
-- [ ] **T4.3** GREEN — Virtuoso thread. Requirement: `inbox-realtime` → "Virtualized thread", "Scroll-to-bottom on open", "New message keeps the view anchored".
+- [x] **T4.3** GREEN — Virtuoso thread. Requirement: `inbox-realtime` → "Virtualized thread", "Scroll-to-bottom on open", "New message keeps the view anchored".
   - Goal: map the current behaviours per ADR-4 (`initialTopMostItemIndex` LAST + `key={conversationId}`, `followOutput`, `startReached`, `firstItemIndex` decrease on prepend, `scrollToIndex` + `highlightId` for 1,600 ms, `computeItemKey`); render the oldest day's separator in `components.Header`; make the "loading older" indicator an absolute overlay; make resync merge by id and no longer clear `olderMessages`.
   - Files: `src/components/inbox/message-thread.tsx`
   - Test: `src/components/inbox/message-thread.test.tsx`, `src/lib/inbox/thread-items.test.ts`
   - Verify: `npx vitest run src/components/inbox/message-thread.test.tsx src/lib/inbox/thread-items.test.ts`
 
 - [ ] **T4.4** Browser check on staging (behaviour is the acceptance criterion).
+  - Status 2026-11-27: **not run** — explicitly out of scope for this apply run; stays pending for the orchestrator's staging pass. jsdom cannot measure items, so open-at-bottom, prepend-anchor, jump centring, resync position and follow-tail are NOT asserted by unit tests; they are this task.
   - Goal: long PRUEBA thread: opens at the bottom; scrolling to the top loads the next older page without a jump; jump-to-quote mounts and centres the target; a resync keeps position and does not shrink loaded history; a new message follows the tail. Any regression is a defect, not a trade-off.
   - Files: none.
   - Test: manual, per `.claude/skills/wacrm-probar-staging/SKILL.md` (read-only).
   - Verify: record the four observed behaviours in the PR description; `npx tsc --noEmit`.
 
-- [ ] **T4.5** Verification.
+- [x] **T4.5** Verification.
+  - Status 2026-11-27: slice-4 focused tests, full suite and `tsc` green (see `apply-progress`). The "only visible rows mounted on open" check needs a real layout and is deferred to T4.4.
   - Goal: full suite and `tsc`; confirm only the visible rows are mounted on open.
   - Files: none.
   - Test: slice-4 files.

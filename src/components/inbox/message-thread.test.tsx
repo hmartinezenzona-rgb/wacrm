@@ -1,8 +1,14 @@
 // @vitest-environment jsdom
 //
 // Slice 1: the thread reads each page from GET /api/inbox/messages and seeds the
-// signed media map before handing the rows to the parent, so the first render
-// can paint media without a second signing round-trip.
+// signed media map before handing the rows to the parent.
+// Slice 3: the day grouping/items memoize on the merged message list.
+// Slice 4: the thread is virtualized. jsdom cannot measure items, so Virtuoso
+// itself is replaced by a thin double that renders every item and surfaces
+// `startReached` on scroll. That double proves OUR wiring — first-page fetch,
+// seeding before prepend, the anchor delta, the item model memo, jump-to-index
+// and highlight. The real mount/measure/scroll behaviour is the staging
+// browser check (T4.4), not something a zero-height jsdom can assert.
 
 import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -15,21 +21,13 @@ const hoisted = vi.hoisted(() => ({
   peekAtRender: {} as Record<string, string | null>,
   renderCount: {} as Record<string, number>,
   translate: (key: string) => key,
-  // Counts the day-key formatting `groupMessagesByDate` runs. Slice 3 memoizes
-  // the grouping on the message list, so an unrelated render must not add any.
-  groupingFormats: 0,
+  // Counts buildThreadItems runs. Slice 4 memoizes the item model on the
+  // merged message list, so an unrelated render must not rebuild it.
+  buildCalls: 0,
+  // Last props Virtuoso received (anchor + item count).
+  virtuosoProps: { firstItemIndex: 0, count: 0 },
+  scrollToIndex: vi.fn(),
 }));
-
-vi.mock('date-fns', async () => {
-  const actual = await vi.importActual<typeof import('date-fns')>('date-fns');
-  return {
-    ...actual,
-    format: (date: Date | number, pattern: string) => {
-      if (pattern === 'yyyy-MM-dd') hoisted.groupingFormats += 1;
-      return actual.format(date, pattern);
-    },
-  };
-});
 
 // One stable translator: a fresh function per render would make the thread's
 // `useCallback` chains (and therefore every row's props) change identity, and
@@ -40,6 +38,65 @@ vi.mock('@/lib/inbox/thread-page', async () => {
     '@/lib/inbox/thread-page',
   );
   return { ...actual, fetchThreadPage: hoisted.fetchThreadPage };
+});
+vi.mock('@/lib/inbox/thread-items', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/inbox/thread-items')>(
+    '@/lib/inbox/thread-items',
+  );
+  return {
+    ...actual,
+    buildThreadItems: (messages: Parameters<typeof actual.buildThreadItems>[0]) => {
+      hoisted.buildCalls += 1;
+      return actual.buildThreadItems(messages);
+    },
+  };
+});
+// Virtuoso double: renders every item, records the anchor, and calls
+// `startReached` when the test scrolls its surface.
+vi.mock('react-virtuoso', async () => {
+  const ReactModule = await import('react');
+  type AnyProps = Record<string, unknown> & { context?: unknown };
+  const Virtuoso = ReactModule.forwardRef(function VirtuosoMock(props: AnyProps, ref: React.ForwardedRef<unknown>) {
+    const {
+      data = [],
+      itemContent,
+      computeItemKey,
+      components,
+      startReached,
+      firstItemIndex = 0,
+      context,
+    } = props as {
+      data?: { id: string }[];
+      itemContent?: (index: number, item: { id: string }) => React.ReactNode;
+      computeItemKey?: (index: number, item: { id: string }) => React.Key;
+      components?: { Header?: React.ComponentType<{ context?: unknown }> };
+      startReached?: () => void;
+      firstItemIndex?: number;
+      context?: unknown;
+    };
+    hoisted.virtuosoProps = { firstItemIndex, count: data.length };
+    ReactModule.useImperativeHandle(ref, () => ({ scrollToIndex: hoisted.scrollToIndex }), []);
+    const Header = components?.Header;
+    return ReactModule.createElement(
+      'div',
+      {
+        'data-testid': 'virtuoso',
+        onScroll: () => {
+          void startReached?.();
+        },
+      },
+      Header ? ReactModule.createElement(Header, { context }) : null,
+      data.map((item, i) => {
+        const key = computeItemKey ? computeItemKey(firstItemIndex + i, item) : i;
+        return ReactModule.createElement(
+          ReactModule.Fragment,
+          { key },
+          itemContent?.(firstItemIndex + i, item),
+        );
+      }),
+    );
+  });
+  return { Virtuoso };
 });
 vi.mock('@/lib/supabase/client', () => ({ createClient: () => hoisted.supabase }));
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }));
@@ -61,18 +118,29 @@ vi.mock('@/components/ui/scroll-area', () => ({
   ScrollArea: ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children),
 }));
 // The real ThreadRow is rendered (no mock), so its memo contract is what the
-// integration assertion observes. The bubble probe records every render and
-// the signed src it can read at that moment.
+// integration assertion observes. The bubble probe records every render, the
+// signed src it can read at that moment, and exposes the quote-jump click.
 vi.mock('./message-bubble', async () => {
+  const ReactModule = await import('react');
   const { peekSignedMediaSrc } = await vi.importActual<typeof import('@/lib/storage/signed-media')>(
     '@/lib/storage/signed-media',
   );
   return {
-    MessageBubble: ({ message }: { message: Message }) => {
+    MessageBubble: ({ message, onJumpToReply }: {
+      message: { id: string; media_url?: string | null };
+      onJumpToReply?: () => void;
+    }) => {
       hoisted.rowIds.push(message.id);
       hoisted.renderCount[message.id] = (hoisted.renderCount[message.id] ?? 0) + 1;
       hoisted.peekAtRender[message.id] = peekSignedMediaSrc(message.media_url);
-      return null;
+      return ReactModule.createElement(
+        'button',
+        {
+          'data-testid': `jump-${message.id}`,
+          onClick: onJumpToReply,
+        },
+        message.id,
+      );
     },
   };
 });
@@ -101,6 +169,7 @@ const ACCT = '3f2b1c7e-8a41-4c55-9d0e-6b7a1f2e3d4c';
 const CONV = '6d1f0b8e-2a34-4c55-8f60-1b2c3d4e5f70';
 const STORED = `https://abc.supabase.co/storage/v1/object/public/chat-media/account-${ACCT}/a.jpg`;
 const STORED_OLDER = `https://abc.supabase.co/storage/v1/object/public/chat-media/account-${ACCT}/b.jpg`;
+const BASE_INDEX = 1_000_000;
 
 function chainable(result: unknown) {
   const query: Record<string, unknown> = {};
@@ -138,12 +207,23 @@ const contact = {
   avatar_seq: null,
 } as unknown as Contact;
 
+const emptyPage = {
+  messages: [] as Message[],
+  hasMore: false,
+  nextCursor: null,
+  signed: {},
+  expiresIn: 3600,
+};
+
 beforeEach(() => {
   resetSignedMediaCache();
   hoisted.fetchThreadPage.mockReset();
+  hoisted.scrollToIndex.mockReset();
   hoisted.rowIds.length = 0;
   hoisted.peekAtRender = {};
   hoisted.renderCount = {};
+  hoisted.buildCalls = 0;
+  hoisted.virtuosoProps = { firstItemIndex: 0, count: 0 };
   hoisted.supabase = {
     from: vi.fn(() => chainable({ data: [], error: null })),
     channel: vi.fn(() => {
@@ -167,6 +247,22 @@ async function flush() {
   });
 }
 
+function renderThread(node: HTMLElement, root: ReturnType<typeof createRoot>, props: Record<string, unknown>) {
+  return root.render(
+    React.createElement(MessageThread, {
+      conversation,
+      contact,
+      messages: [] as Message[],
+      onMessagesLoaded: vi.fn(),
+      onNewMessage: vi.fn(),
+      onUpdateMessage: vi.fn(),
+      onStatusChange: vi.fn(),
+      onAssignChange: vi.fn(),
+      ...props,
+    } as never),
+  );
+}
+
 describe('MessageThread thread page', () => {
   it('requests the first page once and seeds the signed map before loading rows', async () => {
     hoisted.fetchThreadPage.mockResolvedValue({
@@ -185,18 +281,7 @@ describe('MessageThread thread page', () => {
     const node = document.createElement('div');
     const root = createRoot(node);
     await act(async () => {
-      root.render(
-        React.createElement(MessageThread, {
-          conversation,
-          contact: null,
-          messages: [] as Message[],
-          onMessagesLoaded,
-          onNewMessage: vi.fn(),
-          onUpdateMessage: vi.fn(),
-          onStatusChange: vi.fn(),
-          onAssignChange: vi.fn(),
-        }),
-      );
+      renderThread(node, root, { contact: null, onMessagesLoaded });
     });
     await flush();
 
@@ -210,7 +295,7 @@ describe('MessageThread thread page', () => {
     await act(async () => root.unmount());
   });
 
-  it('seeds the older page before prepending its rows', async () => {
+  it('seeds the older page, prepends it above, and drops the anchor by exactly its size', async () => {
     const olderMessage = {
       ...pageMessage,
       id: 'm0',
@@ -237,25 +322,17 @@ describe('MessageThread thread page', () => {
     const node = document.createElement('div');
     const root = createRoot(node);
     await act(async () => {
-      root.render(
-        React.createElement(MessageThread, {
-          conversation,
-          contact,
-          messages: [pageMessage] as Message[],
-          onMessagesLoaded: vi.fn(),
-          onNewMessage: vi.fn(),
-          onUpdateMessage: vi.fn(),
-          onStatusChange: vi.fn(),
-          onAssignChange: vi.fn(),
-        }),
-      );
+      renderThread(node, root, { messages: [pageMessage] as Message[] });
     });
     await flush();
 
-    const scroller = node.querySelector<HTMLDivElement>('.overflow-y-auto');
-    expect(scroller).not.toBeNull();
+    expect(hoisted.virtuosoProps).toEqual({ firstItemIndex: BASE_INDEX, count: 1 });
+
+    // Reaching the top asks for the page before the oldest loaded message.
+    const surface = node.querySelector<HTMLDivElement>('[data-testid="virtuoso"]');
+    expect(surface).not.toBeNull();
     await act(async () => {
-      scroller!.dispatchEvent(new Event('scroll', { bubbles: true }));
+      surface!.dispatchEvent(new Event('scroll', { bubbles: true }));
     });
     await flush();
 
@@ -267,9 +344,14 @@ describe('MessageThread thread page', () => {
     );
     // The signed map arrived and was cached before the parent could prepend.
     expect(peekSignedMediaSrc(STORED_OLDER)).toBe('https://signed/b');
-    // And the older row could read its signed src on its own first render.
-    expect(hoisted.rowIds).toContain('m0');
+    // The older row rendered with its own signed src on its first render.
     expect(hoisted.peekAtRender.m0).toBe('https://signed/b');
+    // Older item first, and no jump: the anchor dropped by exactly one.
+    const order = Array.from(node.querySelectorAll('[data-message-id]')).map((el) =>
+      el.getAttribute('data-message-id'),
+    );
+    expect(order).toEqual(['m0', 'm1']);
+    expect(hoisted.virtuosoProps).toEqual({ firstItemIndex: BASE_INDEX - 1, count: 2 });
 
     await act(async () => root.unmount());
   });
@@ -289,31 +371,13 @@ describe('MessageThread thread page', () => {
       media_url: undefined,
       created_at: '2026-11-27T10:00:02.000000+00:00',
     } as Message;
-    hoisted.fetchThreadPage.mockResolvedValue({
-      messages: [],
-      hasMore: false,
-      nextCursor: null,
-      signed: {},
-      expiresIn: 3600,
-    });
+    hoisted.fetchThreadPage.mockResolvedValue(emptyPage);
 
     const onRefresh = vi.fn();
     const node = document.createElement('div');
     const root = createRoot(node);
     await act(async () => {
-      root.render(
-        React.createElement(MessageThread, {
-          conversation,
-          contact,
-          messages: [m1, m2] as Message[],
-          onMessagesLoaded: vi.fn(),
-          onNewMessage: vi.fn(),
-          onUpdateMessage: vi.fn(),
-          onStatusChange: vi.fn(),
-          onAssignChange: vi.fn(),
-          onRefresh,
-        }),
-      );
+      renderThread(node, root, { messages: [m1, m2] as Message[], onRefresh });
     });
     await flush();
     expect(hoisted.renderCount).toEqual({ m1: 1, m2: 1 });
@@ -335,7 +399,7 @@ describe('MessageThread thread page', () => {
     await act(async () => root.unmount());
   });
 
-  it('reuses the day grouping when the message list did not change', async () => {
+  it('reuses the item model when the message list did not change', async () => {
     const g1 = {
       ...pageMessage,
       id: 'g1',
@@ -357,39 +421,19 @@ describe('MessageThread thread page', () => {
       media_url: undefined,
       created_at: '2020-01-02T11:00:00.000000+00:00',
     } as Message;
-    hoisted.fetchThreadPage.mockResolvedValue({
-      messages: [],
-      hasMore: false,
-      nextCursor: null,
-      signed: {},
-      expiresIn: 3600,
-    });
-    hoisted.groupingFormats = 0;
+    hoisted.fetchThreadPage.mockResolvedValue(emptyPage);
 
     const onRefresh = vi.fn();
     const node = document.createElement('div');
     const root = createRoot(node);
-    const render = (rows: Message[]) =>
-      root.render(
-        React.createElement(MessageThread, {
-          conversation,
-          contact,
-          messages: rows,
-          onMessagesLoaded: vi.fn(),
-          onNewMessage: vi.fn(),
-          onUpdateMessage: vi.fn(),
-          onStatusChange: vi.fn(),
-          onAssignChange: vi.fn(),
-          onRefresh,
-        }),
-      );
-
-    await act(async () => render([g1, g2] as Message[]));
+    await act(async () => {
+      renderThread(node, root, { messages: [g1, g2] as Message[], onRefresh });
+    });
     await flush();
-    // One grouping pass for the two rows.
-    expect(hoisted.groupingFormats).toBe(2);
+    const buildsAfterMount = hoisted.buildCalls;
+    expect(buildsAfterMount).toBeGreaterThan(0);
 
-    // An unrelated state change (the refresh spinner) must not regroup.
+    // An unrelated state change (the refresh spinner) must not rebuild items.
     const refresh = node.querySelector<HTMLButtonElement>(
       'button[aria-label="refreshConversation"]',
     );
@@ -397,12 +441,58 @@ describe('MessageThread thread page', () => {
       refresh!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     await flush();
-    expect(hoisted.groupingFormats).toBe(2);
+    expect(hoisted.buildCalls).toBe(buildsAfterMount);
 
-    // A real list change does regroup, once, for every row.
-    await act(async () => render([g1, g2, g3] as Message[]));
+    // A real list change rebuilds it once.
+    await act(async () => {
+      renderThread(node, root, { messages: [g1, g2, g3] as Message[], onRefresh });
+    });
     await flush();
-    expect(hoisted.groupingFormats).toBe(5);
+    expect(hoisted.buildCalls).toBe(buildsAfterMount + 1);
+
+    await act(async () => root.unmount());
+  });
+
+  it('jumps by absolute Virtuoso index and highlights the target', async () => {
+    const target = {
+      ...pageMessage,
+      id: 'A',
+      content_type: 'text',
+      media_url: undefined,
+      created_at: '2026-11-27T10:00:00.000000+00:00',
+    } as Message;
+    const reply = {
+      ...pageMessage,
+      id: 'B',
+      content_type: 'text',
+      media_url: undefined,
+      created_at: '2026-11-27T10:00:05.000000+00:00',
+      reply_to_message_id: 'A',
+    } as Message;
+    hoisted.fetchThreadPage.mockResolvedValue(emptyPage);
+
+    const node = document.createElement('div');
+    const root = createRoot(node);
+    await act(async () => {
+      renderThread(node, root, { messages: [target, reply] as Message[] });
+    });
+    await flush();
+
+    const jump = node.querySelector<HTMLButtonElement>('[data-testid="jump-B"]');
+    expect(jump).not.toBeNull();
+    await act(async () => {
+      jump!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await flush();
+
+    // A is at data position 0, so its absolute index is the anchor base.
+    expect(hoisted.scrollToIndex).toHaveBeenCalledWith({
+      index: BASE_INDEX,
+      align: 'center',
+      behavior: 'smooth',
+    });
+    const rowA = node.querySelector('[data-message-id="A"]');
+    expect(rowA?.className).toContain('ring-2');
 
     await act(async () => root.unmount());
   });

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { usePresence } from "@/hooks/use-presence";
@@ -48,6 +49,13 @@ import {
   sessionWindowFromMessages,
 } from "@/lib/inbox/session-window";
 import { cursorFromMessage, fetchThreadPage } from "@/lib/inbox/thread-page";
+import {
+  buildThreadItems,
+  indexOfMessage,
+  nextFirstItemIndex,
+  THREAD_FIRST_ITEM_INDEX_BASE,
+  type ThreadItem,
+} from "@/lib/inbox/thread-items";
 import { seedSignedMedia } from "@/lib/storage/signed-media";
 import { TemplatePicker } from "./template-picker";
 import { AiThreadBanner } from "./ai-thread-banner";
@@ -119,21 +127,42 @@ function formatDateSeparator(dateStr: string, t: ReturnType<typeof useTranslatio
   return format(date, "MMMM d, yyyy");
 }
 
-function groupMessagesByDate(messages: Message[]) {
-  const groups: { date: string; messages: Message[] }[] = [];
-  let currentDate = "";
+interface ThreadHeaderContext {
+  headerDay: string | null;
+  loadingOlder: boolean;
+  label: (day: string) => string;
+  loadingLabel: string;
+}
 
-  for (const msg of messages) {
-    const day = format(new Date(msg.created_at), "yyyy-MM-dd");
-    if (day !== currentDate) {
-      currentDate = day;
-      groups.push({ date: msg.created_at, messages: [msg] });
-    } else {
-      groups[groups.length - 1].messages.push(msg);
-    }
-  }
+/** The pill used both for the oldest day and for in-flow day boundaries. */
+function DaySeparator({ label }: { label: string }) {
+  return (
+    <div className="mb-4 flex items-center justify-center">
+      <span className="rounded-full bg-muted px-3 py-1 text-[10px] font-medium text-muted-foreground">
+        {label}
+      </span>
+    </div>
+  );
+}
 
-  return groups;
+/**
+ * Virtuoso's Header: the oldest loaded day's separator, plus the "loading
+ * older" hint as an absolutely positioned overlay so it never changes the
+ * header height (a variable header would defeat the prepend anchor).
+ */
+function ThreadHeader({ context }: { context?: ThreadHeaderContext }) {
+  if (!context) return null;
+  const { headerDay, loadingOlder, label, loadingLabel } = context;
+  return (
+    <div className="relative pb-4">
+      {headerDay && <DaySeparator label={label(headerDay)} />}
+      {loadingOlder && (
+        <p className="pointer-events-none absolute inset-x-0 top-0 text-center text-xs text-muted-foreground">
+          {loadingLabel}
+        </p>
+      )}
+    </div>
+  );
 }
 
 const STATUS_OPTIONS: { label: string; value: ConversationStatus; color: string }[] = [
@@ -182,17 +211,27 @@ export function MessageThread({
   const { user } = useAuth();
   const { getPresence, getRow, now } = usePresence();
   const [loading, setLoading] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
   // Historial paginado: al abrir se cargan los ultimos PAGE mensajes y, al
   // llegar arriba, los anteriores. Sin esto un chat con meses de historial
   // descargaba y montaba todos los mensajes de golpe.
   const [olderMessages, setOlderMessages] = useState<Message[]>([]);
   const [hasMoreHistory, setHasMoreHistory] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
-  const prependAnchorRef = useRef<{ height: number; top: number } | null>(null);
-  // Tracks conversationId:lastMessageId:count for the last time the
-  // auto-scroll effect actually scrolled — see that effect for why.
-  const lastScrolledKeyRef = useRef<string | null>(null);
+  // Virtuoso's prepend anchor: it drops by exactly the number of prepended
+  // messages so the already-measured items keep their absolute index.
+  const [firstItemIndex, setFirstItemIndex] = useState(THREAD_FIRST_ITEM_INDEX_BASE);
+  // Message flashed after a jump-to-quote; cleared after 1,600 ms.
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (highlightTimerRef.current !== null) clearTimeout(highlightTimerRef.current);
+    };
+  }, []);
+  // Which conversation the loaded history belongs to. Only a real
+  // conversation change resets history; a resync must keep it (ADR-4).
+  const loadedConversationRef = useRef<string | null>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [reactions, setReactions] = useState<MessageReaction[]>([]);
@@ -305,8 +344,15 @@ export function MessageThread({
         if (cancelled) return;
 
         seedSignedMedia(page.signed, page.expiresIn);
-        setOlderMessages([]);
-        setHasMoreHistory(page.hasMore);
+        // A resync of the same conversation keeps the loaded history and the
+        // Virtuoso anchor; only a genuine conversation change resets them, so
+        // resync can never shrink history from the top (which used to jump).
+        if (loadedConversationRef.current !== conversationId) {
+          loadedConversationRef.current = conversationId;
+          setOlderMessages([]);
+          setFirstItemIndex(THREAD_FIRST_ITEM_INDEX_BASE);
+          setHasMoreHistory(page.hasMore);
+        }
         onMessagesLoadedRef.current(page.messages);
       } catch (error) {
         if (!cancelled) console.error("Failed to fetch messages:", error);
@@ -454,34 +500,6 @@ export function MessageThread({
       });
   }, [conversationId, hasUnread]);
 
-  // Auto-scroll to bottom — but only when the tail of the thread
-  // actually changed (a new message arrived, or we switched to a
-  // different conversation), not on every `messages` array reference
-  // change. `resyncToken` (tab regains visibility, realtime
-  // reconnect) refetches the full message list on a timer/visibility
-  // effect above, and that refetch — even when it returns the exact
-  // same messages — produced a brand new array, which this effect
-  // used to treat as "content changed" and yanked the scroll position
-  // back to the bottom. That's what made switching away to look at
-  // something else and coming back reset wherever you'd scrolled to
-  // read an earlier message or image.
-  // Al volver a la MISMA conversación el ref conservaba la clave anterior
-  // (mismo último mensaje, mismo conteo) y el auto-scroll se saltaba: el hilo
-  // se quedaba en el mensaje más viejo de la página en vez de en el último.
-  useEffect(() => {
-    lastScrolledKeyRef.current = null;
-  }, [conversationId]);
-
-  useEffect(() => {
-    if (!scrollRef.current || messages.length === 0) return;
-    const lastMessage = messages[messages.length - 1];
-    const key = `${conversationId ?? ""}:${lastMessage.id}:${messages.length}`;
-    if (key === lastScrolledKeyRef.current) return;
-    lastScrolledKeyRef.current = key;
-    const el = scrollRef.current;
-    el.scrollTop = el.scrollHeight;
-  }, [messages, conversationId]);
-
   // Older pages + the live window, deduplicated by id and in chronological
   // order. The parent owns the newest page (realtime inserts land there);
   // the thread owns everything loaded above it.
@@ -497,22 +515,26 @@ export function MessageThread({
     );
   }, [olderMessages, messages]);
 
-  // Day grouping is O(messages) and used to run on every render (including
-  // renders caused by unrelated thread state such as the refresh spinner).
-  // It depends only on the merged message list, so memoize on that.
-  const messageGroups = useMemo(
-    () => groupMessagesByDate(displayMessages),
+  // Prepend-safe item model. Building it is O(messages) and must run only
+  // when the merged list changes, never on an unrelated render.
+  const { items, headerDay } = useMemo(
+    () => buildThreadItems(displayMessages),
     [displayMessages],
   );
 
-  /** Trae el bloque anterior al más viejo cargado y conserva la posición. */
+  // Stable reads for the jump callback: it must not change identity when the
+  // list or the anchor grows, or every row's `onJump` prop would too.
+  const itemsRef = useRef<ThreadItem[]>(items);
+  itemsRef.current = items;
+  const firstItemIndexRef = useRef(firstItemIndex);
+  firstItemIndexRef.current = firstItemIndex;
+
+  /** Trae el bloque anterior al más viejo cargado (Virtuoso re-anchors it). */
   const loadOlderMessages = useCallback(async () => {
     if (loadingOlder || !hasMoreHistory || !conversationId) return;
     const oldest = displayMessages[0];
     if (!oldest) return;
 
-    const el = scrollRef.current;
-    if (el) prependAnchorRef.current = { height: el.scrollHeight, top: el.scrollTop };
     setLoadingOlder(true);
 
     try {
@@ -521,39 +543,29 @@ export function MessageThread({
       const page = await fetchThreadPage(conversationId, cursorFromMessage(oldest), MESSAGE_PAGE);
       seedSignedMedia(page.signed, page.expiresIn);
       setHasMoreHistory(page.hasMore);
-      if (page.messages.length > 0) setOlderMessages((prev) => [...page.messages, ...prev]);
+      if (page.messages.length > 0) {
+        // Drop the anchor by exactly what was prepended so measured items keep
+        // their absolute index and the view does not jump.
+        setFirstItemIndex((prev) => nextFirstItemIndex(prev, page.messages.length));
+        setOlderMessages((prev) => [...page.messages, ...prev]);
+      }
     } catch (error) {
       console.error("Failed to fetch older messages:", error);
-      prependAnchorRef.current = null;
     } finally {
       setLoadingOlder(false);
     }
   }, [conversationId, displayMessages, hasMoreHistory, loadingOlder]);
 
-  const handleThreadScroll = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el || el.scrollTop > 40) return;
-    void loadOlderMessages();
-  }, [loadOlderMessages]);
-
-  // Después de anteponer, mantener la vista donde el usuario estaba leyendo.
-  useLayoutEffect(() => {
-    const anchor = prependAnchorRef.current;
-    const el = scrollRef.current;
-    if (anchor && el) {
-      el.scrollTop = el.scrollHeight - anchor.height + anchor.top;
-      prependAnchorRef.current = null;
-    }
-  }, [olderMessages]);
-
-  /** Scrolls to a message and flashes a ring around it, for reply quotes. */
+  /** Scrolls to a loaded message and flashes a ring around it, for quotes. */
   const jumpToMessage = useCallback((messageId: string) => {
-    const el = document.querySelector<HTMLElement>(`[data-message-id="${messageId}"]`);
-    if (!el) return;
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
-    el.classList.add("ring-2", "ring-primary", "ring-offset-2", "ring-offset-background");
-    window.setTimeout(() => {
-      el.classList.remove("ring-2", "ring-primary", "ring-offset-2", "ring-offset-background");
+    const index = indexOfMessage(itemsRef.current, messageId, firstItemIndexRef.current);
+    if (index === null) return;
+    virtuosoRef.current?.scrollToIndex({ index, align: "center", behavior: "smooth" });
+    setHighlightId(messageId);
+    if (highlightTimerRef.current !== null) clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = setTimeout(() => {
+      setHighlightId(null);
+      highlightTimerRef.current = null;
     }, 1600);
   }, []);
 
@@ -998,6 +1010,62 @@ export function MessageThread({
   }
 
   const displayName = contact.name || contact.phone;
+
+  // One virtual row: the memoized ThreadRow plus the day separator that
+  // belongs below the last message of a day (never above, so prepends stay
+  // exact).
+  const renderItem = useCallback(
+    (item: ThreadItem) => {
+      const msg = item.message;
+      const parent = msg.reply_to_message_id
+        ? messagesById.get(msg.reply_to_message_id)
+        : null;
+      const msgReactions = reactionsByMessageId.get(msg.id);
+      return (
+        <div className="pb-2">
+          <ThreadRow
+            message={msg}
+            replyParent={parent}
+            reactions={msgReactions}
+            currentUserId={user?.id}
+            contactDisplayName={contactDisplayName}
+            highlighted={highlightId === msg.id}
+            onReply={handleStartReply}
+            onReact={handleReact}
+            onTogglePill={handleTogglePill}
+            onJump={jumpToMessage}
+          />
+          {item.separatorBelow && (
+            <DaySeparator label={formatDateSeparator(item.separatorBelow, t)} />
+          )}
+        </div>
+      );
+    },
+    [
+      messagesById,
+      reactionsByMessageId,
+      highlightId,
+      user?.id,
+      contactDisplayName,
+      handleStartReply,
+      handleReact,
+      handleTogglePill,
+      jumpToMessage,
+      t,
+    ],
+  );
+
+  const headerContext = useMemo<ThreadHeaderContext>(
+    () => ({
+      headerDay,
+      loadingOlder,
+      label: (day: string) => formatDateSeparator(day, t),
+      loadingLabel: t("loadingOlder"),
+    }),
+    [headerDay, loadingOlder, t],
+  );
+  const virtuosoComponents = useMemo(() => ({ Header: ThreadHeader }), []);
+
   const currentStatus = STATUS_OPTIONS.find(
     (s) => s.value === conversation.status
   );
@@ -1230,21 +1298,13 @@ export function MessageThread({
       />
 
       {/* Messages Area */}
-      {/* `loading` alone used to gate this — true on every resync too
-          (tab regains visibility, realtime reconnect), which swapped
-          the whole message list for a few-pixel-tall spinner on
-          every one, collapsing `scrollRef`'s scrollHeight and letting
-          the browser clamp scrollTop toward 0. The list then grew
-          back once the fetch resolved, but the clamped position was
-          already lost — a flicker, and the real reason a resync could
-          still land somewhere other than where you'd scrolled to even
-          after the auto-scroll effect above stopped forcing the
-          bottom. Gating on `messages.length === 0` too means a resync
-          of an already-loaded thread keeps showing what's already on
-          screen, undisturbed, while it fetches in the background; the
-          spinner is now only for a conversation's genuine first
-          load. */}
-      <div ref={scrollRef} onScroll={handleThreadScroll} className="flex-1 overflow-y-auto px-4 py-4">
+      {/* Virtualized: only the rows near the viewport are mounted. Virtuoso
+          owns the scroll container, opens at the newest message, follows a
+          new tail, fetches older pages when the top is reached, and
+          re-anchors a prepend through `firstItemIndex`. The spinner/empty
+          states stay outside it, so a resync of an already-loaded thread
+          keeps showing what is on screen. */}
+      <div className="flex-1 min-h-0">
         {loading && messages.length === 0 ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -1257,47 +1317,20 @@ export function MessageThread({
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {loadingOlder && (
-              <p className="text-center text-xs text-muted-foreground">{t("loadingOlder")}</p>
-            )}
-            {messageGroups.map((group) => (
-              <div key={group.date}>
-                {/* Date separator */}
-                <div className="mb-4 flex items-center justify-center">
-                  <span className="rounded-full bg-muted px-3 py-1 text-[10px] font-medium text-muted-foreground">
-                    {formatDateSeparator(group.date, t)}
-                  </span>
-                </div>
-                {/* Messages */}
-                <div className="space-y-2">
-                  {group.messages.map((msg) => {
-                    const parent = msg.reply_to_message_id
-                      ? messagesById.get(msg.reply_to_message_id)
-                      : null;
-                    const msgReactions = reactionsByMessageId.get(msg.id);
-                    // The row is memoized: every prop below is either a
-                    // stable reference (message, reactions, callbacks) or a
-                    // primitive, so an unrelated state change bails out.
-                    return (
-                      <ThreadRow
-                        key={msg.id}
-                        message={msg}
-                        replyParent={parent}
-                        reactions={msgReactions}
-                        currentUserId={user?.id}
-                        contactDisplayName={contactDisplayName}
-                        onReply={handleStartReply}
-                        onReact={handleReact}
-                        onTogglePill={handleTogglePill}
-                        onJump={jumpToMessage}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
+          <Virtuoso
+            key={conversation.id}
+            ref={virtuosoRef}
+            className="h-full px-4 py-4"
+            data={items}
+            firstItemIndex={firstItemIndex}
+            initialTopMostItemIndex={{ index: "LAST", align: "end" }}
+            followOutput={() => "auto"}
+            startReached={loadOlderMessages}
+            computeItemKey={(_index, item: ThreadItem) => item.id}
+            itemContent={(_index, item: ThreadItem) => renderItem(item)}
+            components={virtuosoComponents}
+            context={headerContext}
+          />
         )}
       </div>
 

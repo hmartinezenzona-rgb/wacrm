@@ -40,13 +40,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageBubble } from "./message-bubble";
-import { MessageActions } from "./message-actions";
-import {
-  MessageComposer,
-  CHAT_MEDIA_BUCKET,
-  type SendMediaPayload,
-} from "./message-composer";
+import { MessageComposer, CHAT_MEDIA_BUCKET, type SendMediaPayload } from "./message-composer";
+import { ThreadRow } from "./thread-row";
 import { deleteAccountMedia } from "@/lib/storage/upload-media";
 import {
   lastCustomerMessageAt,
@@ -926,6 +921,34 @@ export function MessageThread({
     [conversation, user?.id, t],
   );
 
+  // Keep the live reactions list readable from stable row callbacks: the row
+  // must receive identities that do not change when any reaction changes.
+  const reactionsRef = useRef<MessageReaction[]>(reactions);
+  reactionsRef.current = reactions;
+
+  const handleReact = useCallback(
+    (messageId: string, emoji: string) => {
+      if (emoji) void postReaction(messageId, emoji);
+    },
+    [postReaction],
+  );
+
+  // The toggle semantics stay here, where the current own reaction is known,
+  // so the row only reports "this pill was clicked".
+  const handleTogglePill = useCallback(
+    (messageId: string, emoji: string) => {
+      const own = reactionsRef.current.find(
+        (r) =>
+          r.message_id === messageId &&
+          r.actor_type === "agent" &&
+          r.actor_id === user?.id,
+      );
+      const next = own?.emoji === emoji ? "" : emoji;
+      void postReaction(messageId, next);
+    },
+    [postReaction, user?.id],
+  );
+
   const handleAssignChange = useCallback(
     async (agentId: string | null) => {
       if (!conversation) return;
@@ -1245,54 +1268,23 @@ export function MessageThread({
                     const parent = msg.reply_to_message_id
                       ? messagesById.get(msg.reply_to_message_id)
                       : null;
-                    const reply = parent
-                      ? {
-                          authorLabel:
-                            parent.sender_type === "agent" || parent.sender_type === "bot"
-                              ? t("me") 
-                              : contact?.name || contact?.phone || t("unknownContact"),
-                          preview: buildReplyPreview(parent, tQuote),
-                        }
-                      : null;
                     const msgReactions = reactionsByMessageId.get(msg.id);
-                    // Toggle is computed at the call site — `msgReactions`
-                    // and `user?.id` are already in scope, no extra hook.
-                    const handlePillToggle = (emoji: string) => {
-                      const own = msgReactions?.find(
-                        (r) =>
-                          r.actor_type === "agent" &&
-                          r.actor_id === user?.id,
-                      );
-                      const next = own?.emoji === emoji ? "" : emoji;
-                      void postReaction(msg.id, next);
-                    };
+                    // The row is memoized: every prop below is either a
+                    // stable reference (message, reactions, callbacks) or a
+                    // primitive, so an unrelated state change bails out.
                     return (
-                      <div
+                      <ThreadRow
                         key={msg.id}
-                        data-message-id={msg.id}
-                        className="scroll-mt-24 rounded-xl transition-shadow duration-300"
-                      >
-                        <MessageActions
-                          message={msg}
-                          onReply={() => handleStartReply(msg)}
-                          onReact={(emoji) => {
-                            if (emoji) void postReaction(msg.id, emoji);
-                          }}
-                        >
-                          <MessageBubble
-                            message={msg}
-                            reply={reply}
-                            reactions={msgReactions}
-                            currentUserId={user?.id}
-                            onToggleReaction={handlePillToggle}
-                            onJumpToReply={
-                              msg.reply_to_message_id
-                                ? () => jumpToMessage(msg.reply_to_message_id!)
-                                : undefined
-                            }
-                          />
-                        </MessageActions>
-                      </div>
+                        message={msg}
+                        replyParent={parent}
+                        reactions={msgReactions}
+                        currentUserId={user?.id}
+                        contactDisplayName={contactDisplayName}
+                        onReply={handleStartReply}
+                        onReact={handleReact}
+                        onTogglePill={handleTogglePill}
+                        onJump={jumpToMessage}
+                      />
                     );
                   })}
                 </div>

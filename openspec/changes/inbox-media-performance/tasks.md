@@ -153,37 +153,38 @@ Spec: `inbox-thread-read` (all six requirements), plus `chat-media-delivery` →
 
 Spec: `chat-media-delivery` → "Direct signed delivery", "One download per media item", "Proxy is fallback only", "Play-on-demand audio and video", "Thumbnails with reserved dimensions and lazy loading" (lazy + reserved box part, before thumbnails exist), "No Storage transformations, no re-encoding" (originals untouched); `inbox-realtime` → "Memoized bubbles and scoped grouping" (memoized part).
 
-- [ ] **T2.1** RED — bubble delivery and failure cases. Requirement: as above.
+- [x] **T2.1** RED — bubble delivery and failure cases. Requirement: as above.
   - Goal: failing tests that a seeded image renders the signed `src` on the first render; video, audio and document never render a `/api/chat-media/` source before resolution; `preload="none"`; `loading="lazy"` plus the reserved `h-40 w-60` box; a media `error` re-signs exactly once and then falls back; legacy `/api/whatsapp/media/<id>` behaviour is unchanged.
   - Files: `src/components/inbox/message-bubble.test.tsx`
   - Test: itself.
   - Verify: `npx vitest run src/components/inbox/message-bubble.test.tsx` — new cases FAIL.
 
-- [ ] **T2.2** RED — row memoization. Requirement: `inbox-realtime` → "Unrelated state change does not re-render bubbles".
+- [x] **T2.2** RED — row memoization. Requirement: `inbox-realtime` → "Unrelated state change does not re-render bubbles".
   - Goal: failing `React.Profiler` render-count assertions: equal props do not re-render the row; a changed message re-renders only that row.
   - Files: `src/components/inbox/thread-row.test.tsx` (new)
   - Test: itself.
   - Verify: `npx vitest run src/components/inbox/thread-row.test.tsx` — FAIL.
 
-- [ ] **T2.3** GREEN — `ThreadRow`. Requirement: `inbox-realtime` → "Unrelated state change does not re-render bubbles".
+- [x] **T2.3** GREEN — `ThreadRow`. Requirement: `inbox-realtime` → "Unrelated state change does not re-render bubbles".
   - Goal: create the memoized row taking `message`, `replyParent?`, `reactions?`, `currentUserId`, `highlighted` and **stable id-based** callbacks `onReply(message)`, `onReact(messageId, emoji)`, `onTogglePill(messageId, emoji)`, `onJump(messageId)`; compute the reply label and preview inside the row.
   - Files: `src/components/inbox/thread-row.tsx` (new)
   - Test: `src/components/inbox/thread-row.test.tsx`
   - Verify: `npx vitest run src/components/inbox/thread-row.test.tsx`
 
-- [ ] **T2.4** GREEN — bubble source selection. Requirement: `chat-media-delivery` → "Direct signed delivery", "One download per media item", "Proxy is fallback only", "Play-on-demand audio and video".
+- [x] **T2.4** GREEN — bubble source selection. Requirement: `chat-media-delivery` → "Direct signed delivery", "One download per media item", "Proxy is fallback only", "Play-on-demand audio and video".
   - Goal: implement ADR-3 rules 2-4: remove `resolvedMedia ?? toChatMediaSrc(media_url)` as a first source for video, audio and documents; render sized placeholders while unresolved; `preload="none"` for audio and video; images lazy with `decoding="async"` and the reserved box; `error` → `invalidateSignedMedia` and one re-resolve, then the proxy; export the component wrapped in `React.memo`.
   - Files: `src/components/inbox/message-bubble.tsx`
   - Test: `src/components/inbox/message-bubble.test.tsx`
   - Verify: `npx vitest run src/components/inbox/message-bubble.test.tsx`
 
-- [ ] **T2.5** GREEN — thread renders `ThreadRow` with stable callbacks. Requirement: `inbox-realtime` → "Memoized bubbles and scoped grouping".
+- [x] **T2.5** GREEN — thread renders `ThreadRow` with stable callbacks. Requirement: `inbox-realtime` → "Memoized bubbles and scoped grouping".
   - Goal: replace the inline bubble rendering with `ThreadRow` and hoist the callbacks so their identity does not change per render.
   - Files: `src/components/inbox/message-thread.tsx`
   - Test: `src/components/inbox/message-thread.test.tsx`, `src/components/inbox/thread-row.test.tsx`
   - Verify: `npx vitest run src/components/inbox/message-thread.test.tsx src/components/inbox/thread-row.test.tsx`
 
-- [ ] **T2.6** Verification and staging check.
+- [x] **T2.6** Verification and staging check.
+  - Status 2026-11-27: slice-2 tests, full suite and `tsc` green (see `apply-progress`). The staging browser check is **not run** — it was explicitly out of scope for the apply run and stays pending for the orchestrator's staging pass.
   - Goal: full suite, `tsc`, then a staging heavy PRUEBA thread with DevTools: zero `/api/chat-media/...` requests for chat-media items, no duplicate downloads, audio/video transferring nothing before play.
   - Files: none.
   - Test: slice-2 files.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, memo } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import type { Message, MessageReaction } from "@/types";
@@ -21,8 +21,11 @@ import { ReplyQuote } from "./reply-quote";
 import { MessageReactions } from "./message-reactions";
 import { InteractivePreview } from "@/components/interactive/interactive-preview";
 import { useTranslations } from "next-intl";
-import { toChatMediaSrc } from "@/lib/storage/chat-media";
 import { WhatsAppText } from "@/lib/whatsapp/format";
+import {
+  invalidateSignedMedia,
+  resolveMediaSrc,
+} from "@/lib/storage/signed-media";
 import { useMediaSrc } from "@/lib/storage/use-media-src";
 
 interface MessageBubbleProps {
@@ -62,15 +65,32 @@ function MediaUnavailable({ label, t }: { label: string, t: ReturnType<typeof us
   );
 }
 
+/** Sized placeholder so a lazy media box reserves layout before it loads. */
+function MediaLoadingBox({ className }: { className?: string }) {
+  return (
+    <div
+      className={
+        className ??
+        "flex h-40 w-60 items-center justify-center rounded-lg bg-muted"
+      }
+    >
+      <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    </div>
+  );
+}
+
 function MediaImage({ url, alt }: { url: string; alt: string }) {
   // Meta's media proxy needs the session cookie, so it is fetched as a blob.
   // chat-media objects get a signed CDN URL and never touch this server.
   const isMetaMedia = url.startsWith("/api/whatsapp/media/");
   const signedSrc = useMediaSrc(isMetaMedia ? null : url);
   const [src, setSrc] = useState<string | null>(null);
+  // Set after one failed load: the re-signed URL, or the proxy fallback.
+  const [override, setOverride] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(!isMetaMedia);
   const [zoom, setZoom] = useState(false);
+  const resignedRef = useRef(false);
 
   useEffect(() => {
     if (!isMetaMedia) {
@@ -115,6 +135,20 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [zoom]);
 
+  const displaySrc = isMetaMedia ? src : (override ?? signedSrc);
+
+  // A stale signature (opened past its TTL) fires `error`. Drop it and ask for
+  // a new one exactly once; a second failure leaves the unavailable state.
+  const handleMediaError = useCallback(() => {
+    if (isMetaMedia || resignedRef.current) {
+      setError(true);
+      return;
+    }
+    resignedRef.current = true;
+    invalidateSignedMedia(url);
+    void resolveMediaSrc(url).then((next) => setOverride(next || null));
+  }, [isMetaMedia, url]);
+
   if (error) {
     return (
       <div className="flex h-40 w-60 items-center justify-center rounded-lg bg-muted">
@@ -123,12 +157,8 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
     );
   }
 
-  if (loading) {
-    return (
-      <div className="flex h-40 w-60 items-center justify-center rounded-lg bg-muted">
-        <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-      </div>
-    );
+  if (loading || displaySrc === null) {
+    return <MediaLoadingBox />;
   }
 
   return (
@@ -140,10 +170,12 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
         className="block cursor-zoom-in"
       >
         <img
-          src={(isMetaMedia ? src : signedSrc) ?? ""}
+          src={displaySrc ?? ""}
           alt={alt}
-          className="max-h-64 max-w-60 rounded-lg object-cover"
-          onError={() => setError(true)}
+          loading="lazy"
+          decoding="async"
+          className="h-40 w-60 rounded-lg object-cover"
+          onError={handleMediaError}
         />
       </button>
 
@@ -161,7 +193,7 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
             className="fixed inset-0 z-[100] flex cursor-zoom-out items-center justify-center bg-black/80 p-4"
           >
             <img
-              src={(isMetaMedia ? src : signedSrc) ?? ""}
+              src={displaySrc ?? ""}
               alt={alt}
               className="max-h-full max-w-full rounded-lg object-contain"
             />
@@ -173,8 +205,9 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
 }
 
 function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof useTranslations> }) {
-  // Video, audio and the document link also read chat-media; the signed URL
-  // keeps them off this server, and the proxy stays as the fallback.
+  // Video, audio and the document link also read chat-media. The signed URL is
+  // the only first source; while it is unresolved a sized placeholder is
+  // rendered, and the proxy appears only as `resolveMediaSrc`'s fallback.
   const resolvedMedia = useMediaSrc(message.media_url ?? null);
   switch (message.content_type) {
     case "text":
@@ -204,11 +237,16 @@ function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof
       return (
         <div>
           {message.media_url ? (
-            <video
-              src={resolvedMedia ?? toChatMediaSrc(message.media_url)}
-              controls
-              className="max-h-64 max-w-60 rounded-lg"
-            />
+            resolvedMedia ? (
+              <video
+                src={resolvedMedia}
+                controls
+                preload="none"
+                className="max-h-64 max-w-60 rounded-lg"
+              />
+            ) : (
+              <MediaLoadingBox />
+            )
           ) : (
             <MediaUnavailable label={t("video")} t={t} />
           )}
@@ -224,7 +262,16 @@ function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof
       return (
         <div>
           {message.media_url ? (
-            <audio src={resolvedMedia ?? toChatMediaSrc(message.media_url)} controls className="max-w-60" />
+            resolvedMedia ? (
+              <audio
+                src={resolvedMedia}
+                controls
+                preload="none"
+                className="max-w-60"
+              />
+            ) : (
+              <MediaLoadingBox />
+            )
           ) : (
             <MediaUnavailable label={t("audio")} t={t} />
           )}
@@ -237,7 +284,7 @@ function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof
       }
       return (
         <a
-          href={resolvedMedia ?? toChatMediaSrc(message.media_url)}
+          href={resolvedMedia ?? undefined}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm hover:bg-muted"
@@ -314,7 +361,7 @@ function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof
   }
 }
 
-export function MessageBubble({
+function MessageBubbleBase({
   message,
   reply,
   reactions,
@@ -402,3 +449,9 @@ export function MessageBubble({
     </div>
   );
 }
+
+/**
+ * Pure presenter, memoized so a parent state change never re-renders a bubble
+ * whose props did not change. Callers must pass stable callbacks.
+ */
+export const MessageBubble = memo(MessageBubbleBase);

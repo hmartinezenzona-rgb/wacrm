@@ -138,19 +138,27 @@ describe('signChatMediaUrls', () => {
   });
 
   it('reuses a still-valid signature instead of paying Storage again', async () => {
-    createSignedUrls.mockResolvedValue({
-      data: [{ path: PATH, signedUrl: 'https://signed/1', error: null }],
-      error: null,
-    });
+    // Pinned clock: with a real one a millisecond can pass between the two
+    // calls and the honest `expiresIn` reports 3599, failing on timing alone.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-27T00:00:00Z'));
+    try {
+      createSignedUrls.mockResolvedValue({
+        data: [{ path: PATH, signedUrl: 'https://signed/1', error: null }],
+        error: null,
+      });
 
-    const first = await signChatMediaUrls([PUBLIC], ACCT);
-    const second = await signChatMediaUrls([PUBLIC, PROXY], ACCT);
+      const first = await signChatMediaUrls([PUBLIC], ACCT);
+      const second = await signChatMediaUrls([PUBLIC, PROXY], ACCT);
 
-    expect(createSignedUrls).toHaveBeenCalledTimes(1);
-    expect(first.signed).toEqual({ [PUBLIC]: 'https://signed/1' });
-    expect(second.signed).toEqual({ [PUBLIC]: 'https://signed/1', [PROXY]: 'https://signed/1' });
-    expect(second.ok).toBe(true);
-    expect(second.expiresIn).toBe(3600);
+      expect(createSignedUrls).toHaveBeenCalledTimes(1);
+      expect(first.signed).toEqual({ [PUBLIC]: 'https://signed/1' });
+      expect(second.signed).toEqual({ [PUBLIC]: 'https://signed/1', [PROXY]: 'https://signed/1' });
+      expect(second.ok).toBe(true);
+      expect(second.expiresIn).toBe(3600);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('signs only the paths it does not have yet', async () => {

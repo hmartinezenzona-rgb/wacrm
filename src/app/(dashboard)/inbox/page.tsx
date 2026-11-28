@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -10,8 +9,14 @@ import {
 } from "@/lib/inbox/conversations";
 import type { Conversation, Message, Contact, ConversationStatus } from "@/types";
 import { useRealtime } from "@/hooks/use-realtime";
+import { useThreadRealtime } from "@/hooks/use-thread-realtime";
+import { patchById } from "@/lib/inbox/patch-by-id";
+import { useChatMessageSound } from "@/hooks/use-chat-message-sound";
+import { createChatSoundGate } from "@/lib/inbox/chat-sound-gate";
+import { takeInboxOpenTarget } from "@/lib/inbox/open-target";
 import { ConversationList } from "@/components/inbox/conversation-list";
 import { MessageThread } from "@/components/inbox/message-thread";
+import type { NotBusinessPatch } from "@/components/inbox/not-business-control";
 import { ContactSidebar } from "@/components/inbox/contact-sidebar";
 import { toast } from "sonner";
 import { WifiOff } from "lucide-react";
@@ -28,14 +33,6 @@ const CONTACT_PANEL_STORAGE_KEY = "wacrm:inbox:contact-panel-open";
 
 export default function InboxPage() {
   const t = useTranslations("Inbox.page");
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  /**
-   * `?c=<id>` deep-link support. Used when landing here from the
-   * dashboard's recent-conversations list so the right thread opens
-   * automatically instead of showing the empty center panel.
-   */
-  const deepLinkConvId = searchParams.get("c");
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversation, setActiveConversation] =
@@ -89,7 +86,6 @@ export default function InboxPage() {
   // list refreshes (realtime, manual refetch) must not snap the user
   // back to the deep-linked conversation if they've already clicked
   // elsewhere.
-  const autoSelectedForDeepLinkRef = useRef<string | null>(null);
 
   // Tracks conversations whose hydrate fetch is currently in flight. The
   // conv-INSERT and the first-message-INSERT events both call into
@@ -114,6 +110,14 @@ export default function InboxPage() {
     for (const c of conversations) next.add(c.id);
     knownConvIdsRef.current = next;
   }, [conversations]);
+
+  // B1.5: WhatsApp-like sound on incoming chat messages, plus the gate
+  // that stops it ringing again for anything already covered by a
+  // "marcar todas como leídas". Logic split out into pure
+  // `chat-sound-gate.ts` (unit-tested) + a thin `<audio>` hook, wired
+  // together only here where the realtime message events already live.
+  const { play: playChatSound, stop: stopChatSound } = useChatMessageSound();
+  const chatSoundGateRef = useRef(createChatSoundGate());
 
   // Pull the conversation row with its `contact` joined and merge it
   // into state. Needed because Supabase Realtime payloads only carry the
@@ -213,6 +217,18 @@ export default function InboxPage() {
       const newMsg = event.new;
 
       if (event.eventType === "INSERT") {
+        // B1.5a: ring for a genuinely new inbound customer message, same
+        // gate rule the "mark all as read" flow below relies on to stay
+        // silent for anything already covered.
+        if (
+          chatSoundGateRef.current.shouldRing(
+            newMsg,
+            activeConversation?.id ?? null,
+          )
+        ) {
+          playChatSound();
+        }
+
         // Add to messages if it belongs to active conversation
         if (
           activeConversation &&
@@ -235,21 +251,21 @@ export default function InboxPage() {
         // knownConvIdsRef for why a closure flag inside the updater would
         // always read false here.
         if (knownConvIdsRef.current.has(newMsg.conversation_id)) {
-          setConversations((prev) =>
-            prev.map((c) =>
-              c.id === newMsg.conversation_id
-                ? {
-                    ...c,
-                    last_message_text: newMsg.content_text ?? "",
-                    last_message_at: newMsg.created_at,
-                    unread_count:
-                      activeConversation?.id === newMsg.conversation_id
-                        ? 0
-                        : c.unread_count + 1,
-                  }
-                : c,
-            ),
-          );
+          setConversations((prev) => {
+            const current = prev.find(
+              (c) => c.id === newMsg.conversation_id,
+            );
+            if (!current) return prev;
+            // Identity-preserving patch: every other row keeps its reference.
+            return patchById(prev, newMsg.conversation_id, {
+              last_message_text: newMsg.content_text ?? "",
+              last_message_at: newMsg.created_at,
+              unread_count:
+                activeConversation?.id === newMsg.conversation_id
+                  ? 0
+                  : current.unread_count + 1,
+            });
+          });
         } else {
           // First time we're seeing this conv: the conv-INSERT event
           // hasn't landed yet, or was missed. Hydrate from the DB so
@@ -259,15 +275,12 @@ export default function InboxPage() {
           hydrateConversation(newMsg.conversation_id);
         }
       }
-
-      if (event.eventType === "UPDATE") {
-        // Update message status
-        setMessages((prev) =>
-          prev.map((m) => (m.id === newMsg.id ? { ...m, ...newMsg } : m))
-        );
-      }
+      // No UPDATE branch: `useRealtime` subscribes this channel to message
+      // INSERTs only (ADR-5). The open thread's row changes arrive on the
+      // filtered channel from `useThreadRealtime`, so an UPDATE cannot reach
+      // this handler and there is no second delivery path to maintain here.
     },
-    [activeConversation, hydrateConversation]
+    [activeConversation, hydrateConversation, playChatSound]
   );
 
   // Handle realtime conversation events
@@ -303,15 +316,10 @@ export default function InboxPage() {
           // UPDATE to round-trip. Non-active convs take the value as-is.
           const isActive = activeConversation?.id === conv.id;
           setConversations((prev) =>
-            prev.map((c) =>
-              c.id === conv.id
-                ? {
-                    ...c,
-                    ...conv,
-                    unread_count: isActive ? 0 : conv.unread_count,
-                  }
-                : c,
-            ),
+            patchById(prev, conv.id, {
+              ...conv,
+              unread_count: isActive ? 0 : conv.unread_count,
+            }),
           );
         } else {
           // UPDATE arrived before the INSERT (or after a missed INSERT)
@@ -342,6 +350,17 @@ export default function InboxPage() {
     onConversationEvent: handleConversationEvent,
     enabled: true,
   });
+
+  // The open thread's UPDATE stream is scoped server-side to that
+  // conversation (ADR-5), so the account-wide channel above never has to
+  // carry it. Applying the row by id keeps every other message reference.
+  const handleThreadMessageUpdate = useCallback((row: Message) => {
+    setMessages((prev) => patchById(prev, row.id, row));
+  }, []);
+  useThreadRealtime(
+    activeConversation?.id ?? null,
+    handleThreadMessageUpdate,
+  );
 
   /**
    * Bump `resyncToken` whenever the realtime channel transitions from
@@ -395,51 +414,63 @@ export default function InboxPage() {
     setResyncToken((n) => n + 1);
   }, []);
 
+  /**
+   * B1.5(b): "marcar todas como leídas". Optimistically zeroes every
+   * conversation's unread badge, persists it, and — the part that
+   * belongs here rather than in ConversationList — stops any
+   * in-flight chime and moves the sound gate's watermark forward so
+   * none of the messages just marked read can ring again later (e.g.
+   * if a stale realtime event for one of them is replayed).
+   */
+  const handleMarkAllRead = useCallback(() => {
+    chatSoundGateRef.current.muteUntilNow();
+    stopChatSound();
+    setConversations((prev) =>
+      prev.map((c) => (c.unread_count > 0 ? { ...c, unread_count: 0 } : c)),
+    );
+    void (async () => {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("conversations")
+        .update({ unread_count: 0 })
+        .gt("unread_count", 0);
+      if (error) {
+        console.error("Failed to mark all conversations as read:", {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+        });
+      }
+    })();
+  }, [stopChatSound]);
+
   const handleConversationsLoaded = useCallback(
     (loaded: Conversation[]) => {
       setConversations(loaded);
-      // Resolve a pending deep-link here rather than in an effect — this
-      // is an event handler, so the setState calls below are allowed by
-      // react-hooks/set-state-in-effect. Runs once per ?c=<id> URL value
-      // via the ref, so realtime refreshes of the list can't snap the
-      // user back to the deep-linked thread after they've navigated.
-      if (
-        deepLinkConvId &&
-        autoSelectedForDeepLinkRef.current !== deepLinkConvId &&
-        loaded.length > 0
-      ) {
-        autoSelectedForDeepLinkRef.current = deepLinkConvId;
-        // If the deep-linked conversation is already the active one
-        // (e.g. because the user clicked it in the list and we
-        // router.replace()'d the URL, which made the ConversationList
-        // refetch and land us back here), do NOT re-apply it. Doing so
-        // would setMessages([]) on a thread whose messages have
-        // already been loaded by MessageThread — and because
-        // conversationId didn't change, MessageThread wouldn't
-        // refetch. The thread would read "No messages yet" until a
-        // full page reload rehydrated state from scratch.
-      if (activeConversation?.id === deepLinkConvId) return;
-        const match = loaded.find((c) => c.id === deepLinkConvId);
-        if (match) {
-          setMobileContactPanelOpen(false);
-          setActiveConversation(match);
-          setActiveContact(match.contact ?? null);
-          setMessages([]);
-          // Mirror the optimistic unread reset that handleSelectConversation
-          // does — the user just deep-linked into this conv, treat that the
-          // same as a click. Leaves activeConversation.unread_count alone so
-          // the MessageThread reset effect still fires the server UPDATE.
-          if (match.unread_count > 0) {
-            setConversations((prev) =>
-              prev.map((c) =>
-                c.id === match.id ? { ...c, unread_count: 0 } : c,
-              ),
-            );
-          }
-        }
+      // Handoff from a notification, the dashboard or the operations board:
+      // the id arrives in sessionStorage, never in the URL. Read once and
+      // drop it, so a later list refresh cannot reopen the thread.
+      if (loaded.length === 0) return;
+      const target = takeInboxOpenTarget();
+      if (!target) return;
+      const match = loaded.find((c) => c.id === target);
+      if (!match) return;
+
+      setMobileContactPanelOpen(false);
+      setActiveConversation(match);
+      setActiveContact(match.contact ?? null);
+      setMessages([]);
+      // Mirror the optimistic unread reset of a real click.
+      if (match.unread_count > 0) {
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === match.id ? { ...c, unread_count: 0 } : c,
+          ),
+        );
       }
     },
-    [deepLinkConvId, activeConversation?.id]
+    []
   );
 
   const handleSelectConversation = useCallback(
@@ -469,20 +500,8 @@ export default function InboxPage() {
             : c,
         ),
       );
-      // Record the selection on the deep-link ref BEFORE we change the
-      // URL. The router.replace below flips `deepLinkConvId`, which can
-      // in turn cause ConversationList to refetch and eventually call
-      // handleConversationsLoaded again. Without this line, the ref
-      // still points at the previous value, the auto-select block
-      // sees `ref !== deepLinkConvId`, fires a second time, and
-      // clobbers the messages MessageThread just fetched.
-      autoSelectedForDeepLinkRef.current = conv.id;
-      // Reflect the selection in the URL so a refresh lands the user
-      // back in the same thread, and so copy-paste links work. Use
-      // replace() to avoid polluting browser history with every click.
-      router.replace(`/inbox?c=${conv.id}`, { scroll: false });
     },
-    [activeConversation?.id, router]
+    [activeConversation?.id]
   );
 
   // Mobile "back" — deselect the conversation so the list pane comes
@@ -493,12 +512,19 @@ export default function InboxPage() {
     setActiveConversation(null);
     setActiveContact(null);
     setMessages([]);
-    // Clearing the ref lets the deep-link auto-selector fire again if
-    // the user later visits /inbox?c=<same-id> — desirable UX.
-    autoSelectedForDeepLinkRef.current = null;
-    router.replace("/inbox", { scroll: false });
-  }, [router]);
+  }, []);
 
+  /**
+   * Se dispara cuando quitar-del-inbox (en bloque o individual) se lleva la
+   * conversación que estaba abierta. Sin esto el panel de la derecha se
+   * quedaría enseñando un hilo que ya no está en la lista.
+   */
+  const handleConversationsHidden = useCallback(() => {
+    setMobileContactPanelOpen(false);
+    setActiveConversation(null);
+    setActiveContact(null);
+    setMessages([]);
+  }, []);
 
   const handleMessagesLoaded = useCallback((loaded: Message[]) => {
     setMessages(loaded);
@@ -522,9 +548,7 @@ export default function InboxPage() {
 
   const handleStatusChange = useCallback(
     (conversationId: string, status: ConversationStatus) => {
-      setConversations((prev) =>
-        prev.map((c) => (c.id === conversationId ? { ...c, status } : c))
-      );
+      setConversations((prev) => patchById(prev, conversationId, { status }));
       if (activeConversation?.id === conversationId) {
         setActiveConversation((prev) => (prev ? { ...prev, status } : prev));
       }
@@ -535,11 +559,9 @@ export default function InboxPage() {
   const handleAssignChange = useCallback(
     (conversationId: string, assignedAgentId: string | null) => {
       setConversations((prev) =>
-        prev.map((c) =>
-          c.id === conversationId
-            ? { ...c, assigned_agent_id: assignedAgentId ?? undefined }
-            : c
-        )
+        patchById(prev, conversationId, {
+          assigned_agent_id: assignedAgentId ?? undefined,
+        })
       );
       if (activeConversation?.id === conversationId) {
         setActiveConversation((prev) =>
@@ -547,6 +569,18 @@ export default function InboxPage() {
             ? { ...prev, assigned_agent_id: assignedAgentId ?? undefined }
             : prev
         );
+      }
+    },
+    [activeConversation]
+  );
+
+  const handleNotBusinessChange = useCallback(
+    (conversationId: string, patch: NotBusinessPatch) => {
+      setConversations((prev) =>
+        patchById(prev, conversationId, patch)
+      );
+      if (activeConversation?.id === conversationId) {
+        setActiveConversation((prev) => (prev ? { ...prev, ...patch } : prev));
       }
     },
     [activeConversation]
@@ -560,7 +594,7 @@ export default function InboxPage() {
   const hasActiveConv = !!activeConversation;
 
   return (
-    <div className="-m-4 flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden sm:-m-6">
+    <div className="-m-4 flex h-[calc(100dvh-3.5rem)] flex-col overflow-hidden sm:-m-6">
       {/* WhatsApp connection banner — in the flex column, not absolute,
           so it pushes the panels down instead of overlapping them. */}
       {whatsappConnected === false && (
@@ -575,10 +609,17 @@ export default function InboxPage() {
       <div className="flex flex-1 overflow-hidden">
         {/* Left panel: Conversation list.
             Hidden on mobile when a conversation is selected so the
-            thread can occupy the full width. Always visible on lg+. */}
+            thread can occupy the full width. Always visible on lg+.
+
+            `min-w-0` is load-bearing here too (same lesson as the center
+            panel, issue #165): without it the flex item grows to the
+            list's min-content width — the filter chips row does not wrap
+            below that — and the root's overflow-hidden clips the right
+            edge: the search box and every row lose their right side on a
+            phone. */}
         <div
           className={cn(
-            "flex h-full flex-1 lg:flex-none",
+            "flex h-full min-w-0 flex-1 lg:flex-none",
             hasActiveConv ? "hidden lg:flex" : "flex",
           )}
         >
@@ -588,6 +629,8 @@ export default function InboxPage() {
             conversations={conversations}
             onConversationsLoaded={handleConversationsLoaded}
             resyncToken={resyncToken}
+            onConversationsHidden={handleConversationsHidden}
+            onMarkAllRead={handleMarkAllRead}
           />
         </div>
 
@@ -616,6 +659,7 @@ export default function InboxPage() {
             onUpdateMessage={handleUpdateMessage}
             onStatusChange={handleStatusChange}
             onAssignChange={handleAssignChange}
+            onNotBusinessChange={handleNotBusinessChange}
             onBack={handleCloseConversation}
             resyncToken={resyncToken}
             onRefresh={handleManualRefresh}
@@ -628,9 +672,17 @@ export default function InboxPage() {
         {/* Right panel: Contact sidebar — desktop only, and only when the
             agent hasn't collapsed it via the thread-header toggle (#258).
             On mobile it's always hidden (the `lg:block` below), so the
-            toggle — which is itself desktop-only — never affects it. */}
-        {contactPanelOpen && (
-          <div className="hidden lg:block">
+            toggle — which is itself desktop-only — never affects it.
+
+            Also gated on there being a conversation at all. With none
+            selected the panel had nothing to show, so it fell back to
+            its own "Select a conversation" placeholder — the same
+            sentence the empty thread was already showing 550px to its
+            left, twice on one screen. Hiding it also lets the empty
+            state sit in the true centre of the space instead of being
+            pushed off it by a 280px column of nothing. */}
+        {contactPanelOpen && hasActiveConv && (
+          <div className="hidden h-full min-h-0 lg:block">
             <ContactSidebar
               contact={activeContact}
               conversation={activeConversation}

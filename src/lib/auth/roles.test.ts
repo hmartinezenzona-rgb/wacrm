@@ -3,7 +3,11 @@ import {
   ACCOUNT_ROLES,
   type AccountRole,
   canDeleteAccount,
+  canExportContacts,
+  canManageCupInventory,
+  canManageResellers,
   canEditSettings,
+  canForceVerify,
   canManageMembers,
   canSendMessages,
   canTransferOwnership,
@@ -126,5 +130,39 @@ describe("capability predicates", () => {
     expect(canTransferOwnership("admin")).toBe(false);
     expect(canTransferOwnership("agent")).toBe(false);
     expect(canTransferOwnership("viewer")).toBe(false);
+  });
+
+  it("canForceVerify: admin+ only", () => {
+    expect(canForceVerify("owner")).toBe(true);
+    expect(canForceVerify("admin")).toBe(true);
+    expect(canForceVerify("agent")).toBe(false);
+    expect(canForceVerify("viewer")).toBe(false);
+  });
+
+  it("canManageCupInventory: admin+ only", () => {
+    expect(canManageCupInventory("owner")).toBe(true);
+    expect(canManageCupInventory("admin")).toBe(true);
+    expect(canManageCupInventory("agent")).toBe(false);
+    expect(canManageCupInventory("viewer")).toBe(false);
+  });
+
+  it("canExportContacts: admin+ only", () => {
+    expect(canExportContacts("owner")).toBe(true);
+    expect(canExportContacts("admin")).toBe(true);
+    expect(canExportContacts("agent")).toBe(false);
+    expect(canExportContacts("viewer")).toBe(false);
+  });
+
+  it("canManageResellers: admin+ only (adding/removing the Revendedor tag)", () => {
+    expect(canManageResellers("owner")).toBe(true);
+    expect(canManageResellers("admin")).toBe(true);
+    expect(canManageResellers("agent")).toBe(false);
+    expect(canManageResellers("viewer")).toBe(false);
+  });
+
+  it("canManageResellers matches the database is_account_member(account, 'admin') boundary", () => {
+    for (const role of ACCOUNT_ROLES) {
+      expect(canManageResellers(role)).toBe(hasMinRole(role, "admin"));
+    }
   });
 });

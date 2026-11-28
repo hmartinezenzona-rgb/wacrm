@@ -108,6 +108,10 @@ export interface Contact {
   email?: string;
   company?: string;
   avatar_url?: string;
+  /** Gender group of the name for the default illustration (migration 263). */
+  avatar_gender?: "f" | "m" | "n" | null;
+  /** 1-based number inside the (account, gender) group (migration 263). */
+  avatar_seq?: number | null;
   created_at: string;
   updated_at: string;
   /** Hydrated by queries that embed `contact_tags(tags(*))` (e.g. the
@@ -187,6 +191,9 @@ export interface Conversation {
   /** Internal source/timestamp for an automatic Cerebro handoff (093). */
   ai_handoff_reason?: string | null;
   ai_handoff_at?: string | null;
+  /** Marked "not business" by a team member (364); cleared when the customer writes again. */
+  not_business_at?: string | null;
+  not_business_by?: string | null;
 }
 
 // ============================================================
@@ -197,7 +204,8 @@ export type NotificationType =
   | 'conversation_assigned'
   | 'deal_incidencia'
   | 'mensaje_fallido'
-  | 'promo_etecsa';
+  | 'promo_etecsa'
+  | 'resumen_diario';
 
 export interface Notification {
   id: string;
@@ -460,7 +468,6 @@ export type AutomationStepType =
   | 'remove_tag'
   | 'assign_conversation'
   | 'update_contact_field'
-  | 'create_deal'
   | 'wait'
   | 'condition'
   | 'send_webhook'
@@ -537,13 +544,6 @@ export interface UpdateContactFieldStepConfig {
   value: string;
 }
 
-export interface CreateDealStepConfig {
-  pipeline_id: string;
-  stage_id: string;
-  title: string;
-  value?: number;
-}
-
 export interface WaitStepConfig {
   amount: number;
   unit: 'minutes' | 'hours' | 'days';
@@ -577,7 +577,6 @@ export type AutomationStepConfig =
   | TagStepConfig
   | AssignConversationStepConfig
   | UpdateContactFieldStepConfig
-  | CreateDealStepConfig
   | WaitStepConfig
   | ConditionStepConfig
   | SendWebhookStepConfig

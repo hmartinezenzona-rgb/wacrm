@@ -1,0 +1,1592 @@
+# Eliminate the `deals` dependency (product-wide)
+
+## Objective
+Remove `deals`/`pipelines`/`pipeline_stages` from the product entirely: the remittance bot must
+create operations, register beneficiaries, and compute deposit balances without ever touching
+`deals`; the generic CRM's "Deals" tab (Contacts) and the "create_deal" automation action are
+removed too. End state: `deals`/`pipelines`/`pipeline_stages` tables dropped.
+
+## Why
+User (2026-09-29): the operations panel/RPCs (114's cutover) were built specifically to stop
+depending on `deals`, but the remittance flow still creates operations and registers beneficiaries
+through it. Wants it eliminated completely — confirmed this includes the generic CRM "Deals" tab
+and "create_deal" automation action too, not just the remittance path (a scoping fork's first
+exploration wrongly claimed deals had no non-remittance use; corrected after finding
+`contact-detail-view.tsx`'s Deals tab and `automations/engine.ts`'s `create_deal` step both live and
+wired).
+
+## Constraints
+- Staging first, same as every other task in this project. Production only with explicit
+  per-migration go-ahead, same discipline as migration 144 today.
+- The final `DROP TABLE deals/pipelines/pipeline_stages` needs one more explicit confirmation right
+  before it runs, even though the user already authorized full elimination — it's irreversible and
+  this plan spans many separate work sessions.
+- Strict TDD: RED before GREEN, real command output, never fabricated.
+- No FK exists from any table to `deals(id)` (confirmed) — so a missed dependency fails SILENTLY
+  (a remesa just never reaches the panel), not with a constraint error. Every phase below must be
+  verified by actually exercising the behavior, not just "the migration applied cleanly."
+
+## What's actually left (confirmed by exploration, 2026-09-29)
+1. **Operation creation** — the only path to a `remittance_operations` row is a `deals` INSERT
+   (trigger `trg_sync_operacion_al_crear_deal`, 125). Six n8n nodes insert into `deals` for this:
+   `Registrar beneficiario auto`, `Registrar zelle auto`, `gestionar_beneficiario`,
+   `registrar_beneficiario_zelle`, `registrar_reparto_multiple`, `marcar_destino_usd`.
+2. **Beneficiary registration** — the main path, not a legacy leftover: `trg_sync_z_benef_desde_deal`
+   (043) parses `deals.notes` with regex (`cerebro_parsear_beneficiarios`, 042).
+3. **Deposit balance** — `cerebro_saldo_envio(p_deal)` (109) feeds the objetivo/depositado/saldo
+   numbers the deposit-review panel (touched today in B4.3) shows, indexed by `deal_id`.
+4. **Audit notes** — `crm_forzar_verificacion`, `crm_corregir_operacion`,
+   `crm_corregir_entrada_calculadora`, `cerebro_cruzar_deposito` etc. still write human-readable
+   text into `deals.notes`, duplicating what `remittance_admin_audit` already captures structured.
+5. **Admin locks** (096) still reference `deals.stage_id`.
+6. **Generic CRM (non-remittance)**: `src/components/contacts/contact-detail-view.tsx`'s "Deals" tab
+   (`.from('deals').select('*, stage:pipeline_stages(*)')`), `src/lib/automations/engine.ts`'s
+   `create_deal` step type (needs `pipeline_id`+`stage_id`).
+
+## Tasks
+
+### Phase 1 — Readers first, then writers stop creating via `deals` (DB + n8n)
+Reordered 2026-09-30 (user-approved): the staging Cerebro keeps bot state in `deals.notes` and two
+nodes read it every turn, so switching writers first would silently drop history, duplicate-receipt
+detection, deposit way and recarga-in-progress for new operations. Map: Engram
+`discovery/eliminate-deals-n8n-map`.
+- [ ] 1.0a — Field-by-field map of every `deals`-derived output of `Contexto conversacion` and
+  `Historial contacto` to a structured source (`remittance_operations`, `remittance_beneficiaries`,
+  deposits, audit), or "no structured source" (then a structured column/table must come first).
+- [x] 1.0a' — Structured receipts: migration 156 adds `remittance_operation_receipts` + parser
+  `cerebro_parsear_comprobantes`, backfills receipts from `deals.notes`, and makes all three write
+  branches of `cerebro_registrar_deposito` dual-write the receipt against its operation. Commit
+  41ab02d (written by OpenCode; currency capture-group bug fixed by me). Evidence on staging: RED
+  (parser missing) → GREEN 5/5 in a rolled-back transaction; rollback proven (function md5 back to
+  a0251d99…, table and parser gone); `registrar-deposito-creado` still ALL PASS; applied to staging
+  2026-09-30 (backfill 24 rows, 1 with COMP id). Before production: measure the parser on
+  production notes read-only (lesson: fresh data hides old formats).
+  Other notes readers still to repoint later: `crm_comprobantes_de_operacion` (099, deposit panel),
+  `cerebro_registrar_deposito`'s own idempotency/branch checks on notes.
+- [x] 1.0b — Rewrite `Contexto conversacion` to read structured sources only. Parity check on
+  staging: old vs new query output on the same conversations must match. Byte-exact draft diff
+  before publish.
+- [x] 1.0c — Same for `Historial contacto`.
+- Work units for 1.1/1.2 (2026-09-30, from my own inventory: 31 latest SQL functions still
+  reference deals/stage/notes — workers' design/inventory reports were too shallow to rely on).
+  Each unit small, staging-first, old (deal) and new (no deal) operations must both keep working:
+  - [x] WU1 operation-keyed money helpers: cerebro_saldo_envio / cerebro_objetivo_atar /
+    cerebro_objetivo_cerrar get operation-id variants; deal-id versions delegate to them (absorbs
+    Phase 3).
+  - [x] WU2 receipt readers off notes: cerebro_cruzar_deposito(s), crm_verificar_deposito,
+    crm_forzar_verificacion, crm_comprobantes_de_operacion read remittance_operation_receipts
+    (+ add block_index to receipts first).
+  - [x] WU3 cerebro_registrar_deposito without deals (movido/sumado/creado on operations,
+    idempotency by receipts.comp_id); `id` returned = what 'Cruzar deposito con MMG' consumes,
+    rewired together.
+    - correction pass 1 done 2026-10-01: 160 fixed (D1 `v_ex` + the NULL-saldo hole, D2 `v_suma`,
+      D3 `deal_id` mirror, and the `v_ya` prefix regression), applied to staging, committed
+      `4039674` on `agent/hermes-work`. Evidence: `.briefs/WU3-hermes-fix1-report.md`.
+  - [ ] WU4 beneficiary writer RPCs (card auto/tool, zelle auto/tool, reparto, marcar_destino_usd)
+    on operations + beneficiaries, same inputs/outputs as today's node SQL.
+    Recon 2026-10-01 (two read-only maps, both verified against live): the structured writers
+    ALREADY EXIST and are already operation-keyed — `crm_agregar_beneficiario(p_operation_id,
+    p_datos jsonb)` (123), `cerebro_aplicar_reparto(p_operation_id, p_reparto jsonb)`
+    (127, redefined 129/130), `cerebro_aplicar_nombre_confirmado` (135),
+    `cerebro_registrar_destino(p_conv, p_texto)` (157, with `cerebro_destino_pendiente` plus a
+    BEFORE INSERT trigger that re-types the card rail), `cerebro_objetivo_atar_op(p_conv, p_op)`
+    (158). So WU4 is NOT six RPCs from scratch: it is a deal-free operation creator plus thin
+    node-contract adapters that resolve the operation, replace the notes-based update-vs-create
+    decision with a structured one, delegate to those writers, and return the nodes' exact
+    `accion` strings. Split:
+    - [x] WU4a operation creator, deal-free: `cerebro_crear_operacion(p_conversation_id uuid,
+      p_amount numeric DEFAULT 0, p_currency text DEFAULT 'GYD', p_stage_id uuid DEFAULT
+      '96cd4fec-…') RETURNS uuid` (migration 161). Verified 2026-10-01: field-by-field parity
+      against `INSERT INTO deals` + `trg_sync_operacion_al_crear_deal` (125) on the trigger's own
+      columns — a minimal deal differs only in `id` and `deal_id`. Independent checks (not the
+      writer's own test): `deals` 35→35 delta 0, new row `deal_id NULL / collecting_information /
+      remesa / GYD / 0 / version 1`, account and conversation both matching the source, ACL
+      `postgres=X | service_role=X` with no PUBLIC/anon/authenticated; `md5(live) == md5(file)` =
+      `58b31f0025e73dbb7e0603cb0472a265`. Commit `bcc6cd7`.
+      Honest gaps, measured not hidden: a *second* deal-keyed trigger,
+      `trg_sync_z_benef_desde_deal` → `cerebro_sync_benef_trigger` (042/151), parses notes into
+      beneficiaries and then `UPDATE remittance_operations SET delivery_method … WHERE deal_id =
+      NEW.id`. A deal-free creator cannot reproduce that cascade — `delivery_method` NULL vs
+      `cuban_card`, `version` 1 vs 2, `admin_locked_fields` {} vs populated, and 0 vs 1
+      beneficiaries. That is exactly WU4b/WU4c's job (write the beneficiary rows structurally),
+      and the assertion labels it `KNOWN GAP` rather than asserting it away. Also untested:
+      the `completed`/`cancelled` arms, the NULL-contact guard, and concurrency (two creators on
+      one conversation both write).
+    - [x] WU4b card + zelle adapters (migration 162): `cerebro_registrar_beneficiario_auto`,
+      `cerebro_gestionar_beneficiario`, `cerebro_registrar_zelle_auto`,
+      `cerebro_registrar_beneficiario_zelle` — node argument order, `TABLE(id uuid, accion text)`.
+      Verified 2026-10-01 on staging: 27 branches across the four nodes matched the old node SQL as
+      sorted multisets of raw text, with accents, punctuation and trailing spaces significant
+      (ins/upd/sin_cambio/ambigua for both card nodes; falta_nombre, falta_cuenta and the
+      `+1 (469) 512-1137 → 4695121137` normalization for both zelle nodes). Beneficiary rows matched
+      column by column, and every non-NULL id was confirmed to be a real operation of its own
+      conversation. Independent parent checks: assertion re-run 27 PASS / 0 FAIL, and
+      `md5(live) == md5(file)` for all four functions
+      (`cerebro_gestionar_beneficiario ca234e9def…`, `cerebro_registrar_beneficiario_auto
+      6d97a2bbe4…`, `cerebro_registrar_beneficiario_zelle 6a0139d6f4…`, `cerebro_registrar_zelle_auto
+      379021dc04…`). Commit `af07d9d`. The RED/GREEN harness has a negative control: a stubbed wrong
+      `accion` made it fail, so it is not vacuous.
+      `crm_agregar_beneficiario` (123) could NOT be reused, verified in its body rather than from
+      memory: it requires `amount > 0` plus a currency (else `22023`), enforces an `agent` caller,
+      takes the admin lock, writes a `human_beneficiary_added` audit row and inserts
+      `source='admin_addition'`. Node writes carry no amount and must stay `source='notes_parse'`, so
+      reuse would raise on every call.
+      Two divergences, named not hidden:
+      1. `block_index` on the four `upd_no_tiene` cases: old `{2}` vs new `{1}`. Old was the block's
+         index inside `deals.notes`; the new writers use the codebase's
+         `coalesce(max(block_index),0)+1`. The rationale given in the writer's report ("no reader
+         groups by it") is WRONG and I am recording the correct one: `042:166-175` and `098:211+` do
+         read `block_index`, and `rb_unico_por_bloque(operation_id, block_index, position)` is a
+         UNIQUE constraint. It is benign only because those readers belong to the notes-parse
+         mechanism, which is deal-keyed and never fires for a deal-free operation, and because no
+         `src/` code reads the column (grep: zero hits in `src/`). The rule is preserved, only the
+         absolute starting value differs, and every comparison downstream is relative.
+      2. `remittance_operations.delivery_method`: old `{cuban_card|zelle}`, new `{NULL}` in 23 cases.
+         Investigated as WU4d and closed without a change — see below.
+    - [x] WU4c reparto + destino adapters: `registrar_reparto_multiple` (11 args) and
+      `marcar_destino_usd` (3). Delivered `15e956d`, rebased and ff-merged as **`10bbd38`**.
+      Files: `163_reparto_destino_node_adapters.sql`, its ROLLBACK, and
+      `assertions/reparto-destino-node-adapters.sql`.
+      `marcar_destino_usd` had to be migrated even though `Registrar destino auto` superseded it on
+      the deterministic rail: it survives as an `ai_tool` on `Agente Remesas`, so leaving it meant a
+      live path still INSERTing `deals` and Phase 6 could never drop the table.
+      Functions: `cerebro_registrar_reparto_multiple(uuid, 10×text)` and
+      `cerebro_marcar_destino_usd(uuid, text, text)`, both `TABLE(id uuid, accion text)`, params in
+      the node's exact `$1..$n` order. `marcar` is written procedurally, not as a chain of CTEs: in
+      a `WITH` every sub-statement shares one snapshot, so the `UPDATE` cannot see the row
+      `cerebro_crear_operacion()` just inserted. The harness caught that as `ins_clasica`
+      (old `{clasica}` / new `{<NULL>}`) — a good example of the harness earning its cost.
+      Parent verification, independent of the writer's run: harness re-run **22 PASS / 0 FAIL**
+      plus the one intentional FAIL from the negative control; `md5(live) == md5(file)` for both
+      functions (`cerebro_marcar_destino_usd 9f779e60d4…`,
+      `cerebro_registrar_reparto_multiple f6ba198eec…`).
+      **A failure mode worth recording, because it nearly produced a false pass:** my first md5 run
+      passed the HOST path (`/tmp/…`) to psql running inside the container, where that path is not
+      mounted, and I had redirected stderr to `/dev/null`. Both sides came back empty and `diff`
+      dutifully printed "IDÉNTICO". An empty diff is not proof — assert the evidence is non-empty
+      before comparing it. Same shape as the vacuous-harness problem the negative control exists to
+      prevent, one level up.
+      Harness honesty check (I read the comparison function, not just its output): it has exactly
+      two carve-outs, each used by exactly one case — `p_allow_block_diff` on `upd_no_tiene` and
+      `p_allow_accion_diff` on `divergencia_ya_tipado` — and each still requires the NULL pattern,
+      the operation counts, the beneficiary rows and `delivery_method` to match exactly. The
+      `p_stub` negative control proves the comparison is not vacuous. So 22 PASS is a real 22.
+      **OPEN USER DECISION — the only user-visible divergence in the feature.**
+      `marcar / divergencia_ya_tipado`: when the rail was already typed by 157 with no notes marker,
+      the old node replies `destino marcado: entrega en USD por Clasica` and the new function
+      replies `sin cambios: ese destino ya estaba marcado`. Database state is identical; the text
+      the customer sees is not. The new text is arguably the more truthful of the two. Reverting it
+      is a one-line change in 163. This must be settled before the **production** rewire (WU5b), not
+      before WU5a — staging is where we find out whether it matters.
+      Reuse decisions: `cerebro_aplicar_reparto` (127/129/130) NOT reused — its contract is stricter
+      (exact sum, mobile regex, row type, beneficiary lock, jsonb). `cerebro_registrar_destino`
+      (157) NOT reused — the node has its own rail rules, no lock check of its own, and creates a
+      new remesa where 157 applies nothing. `cerebro_crear_operacion` (161) and
+      `cerebro_registrar_derivacion` were reused. The 157-vs-node contradiction was resolved by
+      reproducing the NODE (WU5 depends on the node's observable output), and the 096 admin guard
+      was measured with a real human-written lock: it suppresses the old trigger's write, the new
+      function's write and 157's write identically.
+      "this turn" resolves to one n8n execution (`$execution.id`) through
+      `tool_execution_log.idempotency_key` UNIQUE (044:15); the key the function builds is identical
+      to the node's, so the dedupe scope does not change. The notes never participated in it.
+      Writer self-corrected mid-unit: a draft asserted Efectivo was "no rail", but `151:65/77` maps
+      `ENTREGA EN USD: Efectivo` to the literal `'efectivo_usd'`, not `'efectivo'`. Now covered by
+      `ins_efectivo`, `upd_efectivo` and `sin_cambio_efectivo`.
+      Writer's honest "not verified": no real n8n execution (node SQL copied from the frozen
+      contract), no PostgREST HTTP call, no concurrency test, no human-actor path through the
+      function, no statuses outside the 4-filter except `awaiting_deposit`, no re-run of the earlier
+      units' assertions, and no real rewire. WU5a owns the first and the last of those.
+    - [x] WU4d `remittance_operations.delivery_method` — INVESTIGATED 2026-10-01 AND CLOSED WITH NO
+      CODE CHANGE. It does not need a deal-free home. The gap opened by WU4b is real as a
+      *difference* (old `{cuban_card|zelle}`, new `{NULL}` in 23 cases) but it is not a defect: the
+      column is already stale-or-NULL on live deal-based operations today, and two earlier
+      migrations were written specifically to route around that.
+      Evidence, each claim verified by the parent against the file, not taken from a report:
+      - `141:94-110` — `calculator_resolve_operation_service(p_operation_id, p_delivery_method)`
+        reads the beneficiaries FIRST and consults the column only when there are ZERO `vigente`
+        beneficiaries; one shared `beneficiary_type` maps through it, mixed types resolve to NULL.
+        Its own `COMMENT` at `141:113-120` states the intent outright: "so the stale
+        delivery_method column can never override a real current beneficiary." The calculator is
+        already independent of the column.
+      - `remittance-operation-card.tsx:196-206` — the front-end comment says the column "is set
+        only by the legacy notes trigger with an arbitrary `LIMIT 1` and is never touched by the
+        reparto/add-beneficiary RPCs, so it can be stale or null even for a live Zelle operation".
+        That is the panel already treating it as unreliable ON THE DEAL PATH, before we touched
+        anything. `isZelleOperation` (`:207-212`) branches on `beneficiaries.length > 0` and falls
+        back to the column only for the legacy shape with no beneficiaries yet. Tests pin both
+        shapes (`:813-857`, legacy shape at `:604-611`).
+      - `120:53` → `aged-operations-queue.tsx:52-55` falls back to `destination_currency`; `153:110`
+        degrades to a coarser quote rather than a wrong one.
+      - The only hard SQL reads are `150:191` and `151:148`, which filter
+        `delivery_method = 'efectivo_usd'` — PREEXISTING and unrelated to this feature: no deal-free
+        writer produces that value (`162` writes only `cuban_card`/`zelle`), so deal-free cash
+        delivery was already unhandled before WU4b. Not WU4d's to fix and not caused by it.
+      - `157:208-212` still writes the column and survives the deals removal (it is keyed by
+        conversation, not by deal), so the destino flow keeps populating it.
+      - Question F, answered: the column's only non-derivable information was the rail during the
+        notes window (`clasica`/`tropical` while the beneficiary still read `cuban_card`), and
+        `157:202-206` already moves that into `beneficiary_type`.
+      CORRECTION OF AN EARLIER CLAIM IN THIS DOCUMENT: I first recorded this as "not cosmetic:
+      `097:175` reads `o.delivery_method`, so the panel and the bot would see a different value".
+      That was wrong. `097:175` does read the column and does carry it to the client, but the
+      client does not trust it — the card branches on beneficiaries first and only consults it for
+      the legacy no-beneficiary shape. Reading the column is not depending on it; I conflated the
+      two. Residual exposure is therefore limited to an operation with NO beneficiaries yet whose
+      rail was set by deal-path notes — a transient shape that 157 still covers for the rail it
+      owns.
+      Consequence for the plan: WU5 carries no delivery_method obligation, and no unit between here
+      and Phase 6 does either. Recorded so nobody re-opens it from the WU4b report alone.
+    Constraints found by recon (2026-10-01) — these are load-bearing, not commentary:
+    - `cerebro_resolver_operacion(uuid, text[] DEFAULT NULL)` is LIVE-ONLY: absent from the
+      working tree and from all reachable git history, with the drift documented at
+      `097_operaciones_de_conversacion_rpc.sql:38-53`. The new RPCs must NOT depend on it —
+      inline the `status` filter instead, or a repo-built environment breaks. The repo-visible
+      1-arg form is `040_remittance_operations.sql:178`;
+      `cerebro_resolver_operacion_beneficiario(uuid, text[], text)` is repo-visible at 133:23.
+      MEASURED on staging 2026-10-01: the 1-arg form is not merely shadowed, it ERRORS —
+      `42725 function public.cerebro_resolver_operacion(uuid) is not unique`, because the live
+      2-arg overload carries one default and both are then admissible. The 2-arg and the
+      `_beneficiario` forms both resolve fine. Nothing is broken today only because no live node
+      calls the 1-arg form (the two rail nodes use `_beneficiario`, the four ai_tool nodes use the
+      2-arg). Any new call written from the repo against `040:178` will fail at runtime, so treat
+      that function as unusable and inline the filter.
+    - `remittance_operations_status_chk` (verbatim): collecting_information, awaiting_deposit,
+      deposit_received, deposit_verification, ready_to_transfer, transferring, completed,
+      incident, cancelled.
+    - `remittance_beneficiaries`: 20 columns; NOT NULL is only operation_id, beneficiary_type,
+      position (default 1), status (default 'vigente'), source (default 'notes_parse'),
+      created_at. UNIQUE `rb_unico_por_bloque(operation_id, block_index, position)`.
+      `rb_type_chk`: cuban_card|zelle|clasica|tropical|multiple_distribution|efectivo_usd.
+      `rb_status_chk`: vigente|reemplazado. FK operation_id → remittance_operations ON DELETE
+      CASCADE.
+    - `ENTREGA EN USD: …` is a delivery-method marker, never a beneficiary row — the 042 parser
+      only ever emits cuban_card, zelle and multiple_distribution.
+    - `remittance_operations` has NO FK on deal_id, account_id or conversation_id. A wrong id
+      therefore does not raise: it writes a row nothing reads. Every adapter needs its own
+      "did I actually land on an operation" check; a constraint will not save us.
+    - Node wiring (live graph, entry `Webhook WaCRM`): only `Registrar beneficiario auto` and
+      `Registrar zelle auto` are on a deterministic rail (`Beneficiario completo?`, `Zelle
+      completo?`). `gestionar_beneficiario`, `registrar_beneficiario_zelle`,
+      `registrar_reparto_multiple` and `marcar_destino_usd` have no inbound `main` edge at all —
+      they fire only when the model calls them as `ai_tool`s on `Agente Remesas`.
+      `Registrar destino auto` is the already-migrated template for the target shape:
+      `SELECT cerebro_registrar_destino($1::uuid, $2::text) AS destino`.
+    - Full per-node contract (verbatim SQL, argument bindings, notes markers, complete `accion`
+      value sets) and the DB contract: `agent-shared/reports/wu4-n8n-writers.md` and
+      `agent-shared/reports/wu4-db-side.md`.
+  - [x] WU5a rewire the n8n nodes on the **STAGING twin** — DONE `9a9d23e`. **SIX nodes, not seven**
+    (correction from the unit itself): only `Registrar beneficiario auto`, `Registrar zelle auto`,
+    `gestionar_beneficiario`, `registrar_beneficiario_zelle`, `registrar_reparto_multiple` and
+    `marcar_destino_usd` still wrote `deals`. `Registrar deposito auto` never did — it was already
+    deal-free and was not touched. Also corrected: `cerebro_registrar_deposito` returns
+    `TABLE(deal_id, accion, es_revendedor, sumado)`, NOT `TABLE(id, accion)` like the other six.
+    Target: `[STAGING] Cerebro v2 — LEGACY OPTIMIZED V1` (`U52y1kSNvhgxvWeb`), `versionId`
+    `cbbd5642-…` → `06d3e4bf-…`. Production `jEzlVLCLUaJhVwzs` never received a single request.
+    Parent verification, run directly against the live n8n API, not taken from the report:
+    - A canonical per-node diff (before/after, `jq -S` so keys are order-independent) shows
+      **exactly 6 nodes** changed, all six expected ones, and nothing else.
+    - `connections`, `settings`, and the node name/order/type/position list are all byte-identical.
+      `active` stayed `true`.
+    - Production's `updatedAt` is still `2026-09-30T21:58:52` (yesterday) while staging's moved to
+      today — independent confirmation that the forbidden workflow was untouched.
+    - **The load-bearing safety fact:** no expression anywhere in the workflow reads the output of
+      any of the six (`$('Nodo')` inventory returns NONE of them). That is what makes it safe that
+      the returned `id` changes meaning from `deals.id` to `remittance_operations.id`. Contrast
+      `Cruzar deposito con MMG`, which does read `$('Registrar deposito auto')…id` — an untouched
+      node.
+    - `deals` count in staging: 35 before and after. Exercised end-to-end through the real webhook
+      (executions 294201 and 294209) for the two rail nodes; the other four are pure `ai_tool`s with
+      no inbound `main` edge and were exercised only by direct node execution, correctly labelled as
+      such.
+    - A method note, mine again: my first blast-radius diff reported 119 changed nodes. That was an
+      artifact — `tojson` does not honour `-S`, so I was comparing key order, not content. The
+      canonical diff gives 6. Same family as the empty-md5-diff trap above: check that the
+      comparison method is sound before believing its number, in either direction.
+    One operational hiccup, correctly handled: the first PUT via `python-urllib` was rejected by
+    Cloudflare (403 `error 1010 browser_signature_banned`) **before** reaching n8n — the workflow
+    was still on the old SQL, so nothing partial landed. The identical body was re-sent with
+    `curl`. No blind retries, no second target.
+  - [x] WU5b rewire the **production** workflow `jEzlVLCLUaJhVwzs`. **USER-GATED (done 2026-10-02, see the log) — do not start
+    without an explicit go-ahead.** Requires deploying 160/161/162/163 to the production database
+    first; rewiring before that makes seven live paths call functions that do not exist there. Two
+    open decisions ride with it: the production go-ahead itself, and the `divergencia_ya_tipado`
+    reply text recorded under WU4c above.
+  - [ ] WU6 the **live staging catalog** was audited on 2026-10-01 and the real remaining scope is
+    **3 views + 13 functions**, not the earlier guess of "090, 114 notify_*, 136 avisos, 052, 096".
+    Reconciled against `pg_depend` / `pg_proc.prosrc` / `pg_get_viewdef`, not against migration text:
+    - **Views (hard DDL blockers — Postgres refuses `DROP TABLE deals` while they exist):**
+      `cerebro_historial_operaciones`, `cerebro_volumen_diario` (both `LEFT JOIN deals d ON d.id =
+      o.deal_id`) and `cerebro_conciliacion_operaciones`, which is worse — it has `deals` as its
+      **primary `FROM`**, not merely a join. All three are defined in `114`.
+    - **Functions (live body references `deals`; authoritative = highest migration that defines it):**
+      `cerebro_avisar_envios_incompletos`, `cerebro_avisar_envios_sin_beneficiario`,
+      `cerebro_avisar_remesas_abiertas_viejas` (`136`); `cerebro_sync_beneficiarios` (`098`);
+      `merge_duplicate_contacts` (`022`); `crm_comprobantes_de_operacion` (`159`);
+      `crm_verificar_deposito`, `crm_forzar_verificacion`, `notify_operation_incidencia` (`114`);
+      `crm_entregar_operacion` (`143`); `cerebro_aplicar_nombre_confirmado` (`135`);
+      `cerebro_saldo_envio` (`158`, and it is `LANGUAGE sql`, so unlike the plpgsql ones it **does**
+      create a parse-time dependency and blocks the DROP by itself).
+    - **`sync_tags_cliente(uuid)` has NO defining migration** — the identifier appears in exactly one
+      file, `065_revoke_rpc_wacrm_tanda_c.sql`, and only inside a `REVOKE` list. Its live body exists
+      in the database with no migration behind it, so it cannot be "edited in place": its body has to
+      be captured from the catalog first. Unaccounted-for objects like this are exactly why the
+      scope is now taken from the catalog rather than from the repo.
+    - **`notify_deal_incidencia` exists live but no trigger references it** (`pg_trigger` returns
+      zero rows for it) — the 090 question resolves to a dead function; only an optional
+      `DROP FUNCTION` remains, and it is a casualty of the table drop, not work.
+    - **Method note (a trap already sprung twice this feature):** a first pass at this same query
+      returned *empty* for both "views referencing deals" and "functions referencing deals", because
+      a regex (`~* '\mdeals\M'`) did not survive nested heredoc quoting. Taken at face value that
+      empty result would have said "WU6 is already clean" — the opposite of the truth. The query was
+      re-run from a file with `LIKE` and every result set asserted non-empty before being believed.
+      An empty diff is not proof.
+    - **Per-object disposition** (read-only mapper, repository evidence; live-shape claims
+      re-verified by the orchestrator against the catalog where they were load-bearing):
+      - `cerebro_historial_operaciones` / `cerebro_volumen_diario` — used only for
+        `coalesce(o.quoted_source_amount, d.value, 0)`. Drop the LEFT JOIN; the partial UNIQUE index
+        `remittance_operations_deal_uk` (`040:78-79`) makes it at most 1:1, so rows and columns are
+        unchanged. Only NULL-`quoted_source_amount` rows lose a legacy fallback.
+      - `cerebro_conciliacion_operaciones` — **no clean deal-free equivalent**: `deals` is the
+        driving `FROM` of branch 1 and every row of all three branches touches it. It is an internal
+        drift-audit over the deal↔operation bridge; that bridge ceases to exist. **Product decision.**
+        Nothing in `src/` or any DB object consumes it **by DDL**; the only DDL-dependent object of
+        the three views is `cerebro_resumen_volumen` reading `cerebro_volumen_diario` (verified in
+        the catalog). Other readers are plpgsql RPCs, invisible to `pg_depend` — hence the grep.
+      - `crm_comprobantes_de_operacion` (`159`) — `v_stage_id` is assigned and **never read again**;
+        pure deletion. The `cerebro_saldo_envio`/`depositos_mmg.deal_id` swaps go to
+        `cerebro_saldo_operacion`/`.operation_id` (verified: **identical return shape**
+        `TABLE(objetivo, depositado, saldo, moneda)`, exactly one row, on the live catalog).
+      - `crm_entregar_operacion` (`143`) — the deal lock is already `IF v_deal_id IS NOT NULL`; delete
+        the block. No observable change.
+      - `merge_duplicate_contacts` (`022`) — delete the `UPDATE deals` line. Flagged separately,
+        **pre-existing and not caused by this feature**: the function re-points many tables to the
+        surviving contact but never `remittance_operations.contact_id`, and it `DELETE`s the absorbed
+        contacts (`022:100`).
+      - `cerebro_avisar_remesas_abiertas_viejas` (`136`) — already operation-driven; drop both LEFT
+        JOINs. Only the stage label and the legacy amount fallback in the message text disappear.
+      - `cerebro_avisar_envios_incompletos` / `cerebro_avisar_envios_sin_beneficiario` (`136`) —
+        re-key onto `remittance_operations`. **These change behaviour**: the `cerebro_alertas.clave`
+        dedup key is `'envio_incompleto:'||d.id` / `'sin_beneficiario:'||d.id` and must be re-keyed to
+        the operation id, or alert dedup breaks. `sin_beneficiario` already INNER JOINs
+        `remittance_operations ON o.deal_id = d.id`, so its row set is essentially preserved.
+      - `cerebro_saldo_envio` (`158`) — `LANGUAGE sql`, hence a hard DDL blocker by itself. Its
+        deal-free twin `cerebro_saldo_operacion` already exists in the same migration.
+      - `cerebro_aplicar_nombre_confirmado` (`135`) — the `deals.notes` append is the *transport* the
+        sync trigger parsed; it must repoint to the 162 structured writers. `accion` strings must stay
+        byte-identical.
+      - `cerebro_sync_beneficiarios` (`098`) — signature is `(p_deal_id uuid)`: the whole input key
+        disappears. It cannot be "made deal-free", only **retired** once its two callers
+        (`trg_sync_z_benef_desde_deal` `043:89`, `trg_sync_operacion_al_crear_deal` `125:61`) are gone.
+      - `notify_operation_incidencia` (`114`) — **named gap.** `remittance_operations` has no
+        free-text reason column; the read supplies the MOTIVO line and otherwise falls back to a
+        generic string. The alert already fires deal-free. **Product decision.**
+      - `sync_tags_cliente` — **cannot be analysed from the repository**: no migration defines it, so
+        its body exists only in the database. **CORRECTION OF AN EARLIER CLAIM IN THIS DOCUMENT:** an
+        earlier draft here said its `deals` mention was probably a comment false-positive, like the
+        ones that put the 163 functions on the sweep list. That was wrong, and the catalog disproves
+        it directly — its live body contains the real statement line
+        `from deals d` (verified by extracting its non-comment lines). It genuinely queries `deals`,
+        and it has two active n8n callers (`Reconciliar etiquetas` in both the production and staging
+        `Remesas - Cierre automatico de solicitudes zombis`). So it is neither dead nor a false
+        positive; it is real work whose body must be captured from the catalog first.
+        *Method note:* the catalog, not the grep count, is what settled this — and it settled it in
+        the opposite direction from the guess. Distrust the guess in both directions, not just the
+        flattering one.
+    - **The strongest functional finding, and it is latent rather than reproducing:** both
+      `crm_verificar_deposito` (`114:1153-1155`) and `crm_forzar_verificacion` (`114:1308-1310`) do
+      `IF v_deal_id IS NULL THEN RAISE EXCEPTION 'operation has no linked deal' USING ERRCODE =
+      '22023'` — verified verbatim in the file. So a deal-free operation **cannot be deposit-verified
+      or force-verified from the panel**. It does not reproduce today because staging currently holds
+      **0** operations with `deal_id IS NULL` (all 34 are legacy, deal-linked) — every WU4 assertion
+      ran inside a rolled-back transaction. It will fire the first time a deal-free operation
+      persists, which is exactly what the cutover produces. Report it as reachable-and-pending, not as
+      an observed failure.
+    - **n8n sweep — all 151 workflows fetched individually and grepped (0 failures, GET-only).**
+      Twelve of the seventeen identifiers had **zero hits** across every workflow, node parameter,
+      node name, note, `pinData`, `staticData`, `connections`, workflow name and description —
+      including partial-name probes (`verificar_deposito`, `volumen_diario`, …). The three views are
+      in that zero set, so **no live workflow reads them**: redefining them cannot break a node, and
+      the only DDL-side consumer to respect is the one view found above (`cerebro_resumen_volumen`).
+    - **But n8n does call six of the functions, from ACTIVE workflows — so they are behaviourally
+      live, not dead code:**
+      - `cerebro_avisar_envios_incompletos()` ← `Vigilante - envios incompletos` (`O1TqpAJXgRfKCiW6`)
+      - `cerebro_avisar_envios_sin_beneficiario()` ← `Vigilante - envios sin beneficiario`
+        (`I2qKK76f8Tp9eo16`)
+      - `cerebro_avisar_remesas_abiertas_viejas()` ← `Vigilante - remesas abiertas viejas`
+        (`4ptJpwWnjkyiAjvc`)
+      - `cerebro_cruzar_depositos(...)` ← `Cruzar deposito con MMG` in **both** `jEzlVLCLUaJhVwzs`
+        (production) and `U52y1kSNvhgxvWeb` (staging)
+      - `sync_tags_cliente(c.id)` ← `Reconciliar etiquetas` in `Remesas - Cierre automatico de
+        solicitudes zombis`, **both** `K6EpIX4lSJLGMJN7` (production) and `2CECGodU0oj85hMJ`
+        (staging). **This is the caller that was missing:** `sync_tags_cliente` is not dead, it is
+        called by two active workflows, so its body must be captured from the catalog before it can be
+        touched. `cerebro_sync_beneficiarios` and `notify_operation_incidencia`, by contrast, have
+        **zero call-form hits** — n8n only names them in comments.
+    - **New scope this sweep surfaced — active n8n workflows that still run `deals` SQL, beyond the
+      six nodes WU5a rewired.** These are Phase 6 blockers and were not on any earlier list:
+      - `bTwsEJsmoAzsuOxm` `Vigilante - depositos sin cruzar` — `FROM deals d JOIN conversations …`
+      - `K6EpIX4lSJLGMJN7` (prod) + `2CECGodU0oj85hMJ` (staging) `Remesas - Cierre automatico de
+        solicitudes zombis` — `UPDATE deals SET status = 'lost', notes = …`
+      - `wGud0KGR6eMqqfMQ` (prod) + `OCdJoHTkV6S0aAdk` (staging) `WaCRM - Notificar cliente por etapa
+        del deal` — `Leer secreto` reads `(SELECT d.notes … JOIN deals d ON d.id = o.deal_id)`, and
+        its code node branches on `b.table === 'deals'`. The workflow is literally named for the deal
+        stage it notifies on.
+      - Confirms WU5a landed as intended: `U52y1kSNvhgxvWeb` now has **zero** real `deals` SQL — the
+        only hits are a CTE alias named `deals_cli` (×3) and one comment. `deals_cli` is the
+        false-positive that would make a naive count look wrong in both directions.
+    - **Counts worth distrusting:** the sweep found 151 workflows, not the ~143 an earlier listing
+      suggested, and it classified `deals` hits by form (`FROM`/`UPDATE`/`INSERT` vs CTE alias vs
+      prose) rather than by raw count — the same discipline the md5 and 119-node errors taught.
+    - **USER DECISION 2026-10-01: `cerebro_conciliacion_operaciones` is DROPPED, not rewritten.** It
+      audited drift across a bridge the feature is deliberately removing; keeping it would mean
+      auditing something that should no longer exist, and nothing consumes it. Recorded as a decision,
+      and it is reversible only by writing new work — there is no port to fall back to.
+  - [ ] **WU6 is 16 objects, so it is split. Slice plan, in dependency order:**
+    - [x] **WU6a DONE `31cc878`** (staging; parent-verified against the live catalog, not taken on the
+      writer's word). The views and the no-observable-change edits: `cerebro_historial_operaciones` and
+      `cerebro_volumen_diario` (drop the LEFT JOIN → `coalesce(o.quoted_source_amount, 0)`),
+      `cerebro_conciliacion_operaciones` (DROP, per the decision above), `merge_duplicate_contacts`
+      (delete the `UPDATE deals` line), `crm_entregar_operacion` (delete the guarded lock),
+      `cerebro_avisar_remesas_abiertas_viejas` (drop both LEFT JOINs), `cerebro_saldo_envio` (DDL
+      replace — `LANGUAGE sql`, so it must become a **wrapper** over `cerebro_saldo_operacion`, not
+      be deleted: its other caller in `136` does not move until WU6c). Property that makes this slice
+      safe: **every object in it either changes nothing observable or is dropped with no consumer.**
+      Must be verified, not assumed — especially that `cerebro_resumen_volumen` still compiles and
+      returns the same columns, and that the `cerebro_saldo_envio` wrapper returns the same values as
+      the body it replaces for every deal-linked operation.
+      - **Verification evidence (re-run by the parent, not quoted from the report):** the unit's own
+        assertion harness, executed by the orchestrator inside `BEGIN; … ROLLBACK;`, prints
+        `ALL PASS` — 21 PASS / 2 NOTE / 0 FAIL. Independently re-derived by the orchestrator from the
+        catalog: **0** views still reference `deals`; **12** functions have a live (non-comment) line
+        touching `deals`, of which **3** are the deal-trigger functions that die with the table, so
+        exactly **9** real ones remain — matching the writer's claim and the harness's own
+        `exactly nine functions still reference deals`. `cerebro_resumen_volumen` compiles and
+        returns 5 rows. `cerebro_saldo_envio` is still `LANGUAGE sql`, no longer mentions `deals`, and
+        delegates to `cerebro_saldo_operacion`. Commit carries no AI attribution.
+      - **One declared deviation, and it was the right call:** the writer did **not** apply the
+        brief's `REVOKE … FROM authenticated` template to `crm_entregar_operacion`, because the live
+        ACL grants EXECUTE to `authenticated` (the panel calls it) — templating it verbatim would have
+        been a real permission regression. The parent verified the live ACL is preserved
+        (`postgres`, `service_role`, `authenticated`). The brief was wrong to template it; the unit
+        caught it, which is exactly the behaviour §5 asked for.
+      - **One user-visible text change, expected and shown:** the `Vigilante - remesas abiertas
+        viejas` alert message loses its `(etapa)` label — observed before `…abierta hace 0 dias (Por
+        verificar)`, after `…abierta hace 0 dias`. Rows, `cerebro_alertas.clave` and `avisos_creados`
+        are unchanged. Unlike `divergencia_ya_tipado` this is an internal admin alert, not
+        customer-facing, but it is the second visible-text change in the feature and is recorded here
+        rather than left in the report.
+      - **Honest gaps, carried forward rather than buried:** (a) `crm_entregar_operacion`'s
+        `FOR UPDATE` on the deal now only runs for deal-linked rows — the lock existed to order
+        against legacy n8n writes to `deals.notes`/`deals.value`. Removing it is safe **only if
+        nothing concurrent writes the same deal row**, and that assumption was *not* verified: n8n was
+        out of scope for this unit, and the earlier sweep shows active workflows **do** still write
+        `deals`. The safety is argued, not measured. (b) No real duplicate-contact merge was executed
+        (unreachable: 0 duplicate groups + the partial UNIQUE index). (c) The alert was re-run on a
+        fixture, not the full live population, and the consumer that renders the alert text was not
+        checked for tolerance of the missing label.
+    - **WU6b — enable deal-free operations.** `crm_comprobantes_de_operacion` (delete the dead
+      `v_stage_id` read, then repoint `cerebro_saldo_envio`→`cerebro_saldo_operacion` and
+      `depositos_mmg.deal_id`→`.operation_id` — its `IF v_deal_id IS NOT NULL` guard currently makes a
+      deal-free operation return NULLs, so this slice **does** change observable output, for the
+      better), plus `crm_verificar_deposito` and `crm_forzar_verificacion` (remove the
+      `operation has no linked deal` guard). This is the highest-value slice — it is the fix for the
+      latent blocker above — and its acceptance test is the first genuine exercise of a deal-free
+      operation end-to-end. `crm_comprobantes_de_operacion` is here rather than in WU6a precisely
+      because it does not satisfy WU6a's no-observable-change property.
+      - **Scope correction before the first write (orchestrator error, third of the feature).** The
+        first WU6b brief carried a self-contradiction: §3 orders every `UPDATE deals SET notes …`
+        write kept (live n8n workflows read `deals.notes`), while the exit criterion demanded the
+        deals-referencing set shrink 9 → 6 — which requires those very writes to be gone. The writer
+        stopped before writing anything and measured it. Confirmed independently on the live catalog:
+        `crm_verificar_deposito` holds 3 live deals lines (one being the notes write) and
+        `crm_forzar_verificacion` 2, so under §3 both **cannot** leave the set.
+      - **Resolution — §3 wins; exit criterion corrected to 9 → 8.** Only
+        `crm_comprobantes_de_operacion` leaves the set. `crm_verificar_deposito` and
+        `crm_forzar_verificacion` keep their deal-linked writes untouched and *remain* deals-referencing
+        for now; that is the correct outcome, not a shortfall. They become fully deal-free only after
+        the live n8n readers of `deals.notes` are retired (`Leer secreto` in `WaCRM - Notificar cliente
+        por etapa del deal`; `Historial contacto` and `Contexto conversacion` in production `Cerebro
+        v2`) — a **carried dependency**, deliberately sequenced later, not a gap in this slice.
+      - **DONE and parent-verified** — commit `1039546` (3 files, +1319), branch
+        `feat/port-chat-operations-calculator`. The latent blocker is closed: a genuinely deal-free
+        operation (built by the `161` path, `deal_id IS NULL`) now verifies from the panel end to end —
+        `crm_verificar_deposito` returns `verificado`/`ready_to_transfer`, `crm_forzar_verificacion`
+        returns `{"new_status":"ready_to_transfer"}`, both write their `remittance_admin_audit` row,
+        and the panel read gives `can_verify:true` with one consumed deposit. RED was captured first
+        (both RPCs raised `22023 operation has no linked deal`). Deal-linked equality held across all
+        12 captured values with **zero diff**, including the `deals.notes` text. No `deals` row created
+        by any path (35 → 35).
+      - **Verification of record.** Native `assess` over the writer's diff: `risk: medium`
+        (`executable_change`). RDD is off, the writer ran on sonnet (not a mini profile), so writer
+        self-verification suffices and no separate verifier was required; the parent spot check ran
+        anyway. The parent re-ran the assertion harness wrapped in `BEGIN; … ROLLBACK;` → **ALL PASS,
+        15 assertions**. The catalog exit criterion was then re-derived **independently** of the
+        writer's query: exactly 8 functions still reference `deals`, `crm_comprobantes_de_operacion`
+        absent, `crm_verificar_deposito` and `crm_forzar_verificacion` present, 0 views — `9 → 8`
+        confirmed.
+      - **A parent error, recorded rather than hidden.** The first spot-check run omitted the
+        `BEGIN; … ROLLBACK;` wrapper the assertion file explicitly requires. Its `SAVEPOINT` failed in
+        autocommit, so the fixture **committed** to staging: 5 fixture operations (3 of them deal-free),
+        2 `deals`, plus receipts/audit/`depositos_mmg` rows. Detected by comparing staging against the
+        known baseline, then removed precisely by the fixture's fixed `bbbbbbbb-…` UUIDs in a single
+        transaction. Staging is back to its baseline: **34 operations, 0 deal-free, 35 `deals`** — the
+        exact condition the slice started from. The wrapped re-run then passed and left nothing behind.
+      - **Second self-inflicted trap in the same check.** The first independent catalog count returned
+        **0** functions, which looked like a finding; it was a bad regex — in PostgreSQL ARE `\b` is
+        not a word boundary (it is `\m`/`\M`/`\y`). Re-run with `\M`, the count was 8. Same lesson as
+        the earlier empty-catalog incident: an empty result is not evidence until the query is proven
+        able to produce a non-empty one.
+      - **Not verified, carried:** the `UPDATE deals SET updated_at` ELSIF branch was not exercised
+        behaviourally (needs an objective plus an overpaid deposit the fixture does not build) —
+        source-level check only; the deal `FOR UPDATE` lock leaves no artefact, so its conditionality
+        is asserted at source level and not observed; the `cerebro_saldo_envio` `viejo` branch (deal
+        with no operation) is unreachable here. No n8n work; the `deals.notes` readers were not touched.
+    - **WU6c — re-key the avisos.** `cerebro_avisar_envios_incompletos`,
+      `cerebro_avisar_envios_sin_beneficiario`. Changes row sets and the `cerebro_alertas.clave`
+      dedup keys; needs its own alert-dedup proof.
+      - **Brief corrected before the first write — orchestrator error, fourth of the feature.** The
+        first WU6c brief presented a *simplified reconstruction* of both predicates as though it had
+        been measured against the live functions. The writer measured the real ones and stopped:
+        `cerebro_avisar_envios_sin_beneficiario()` returns 0, not the 4 the brief claimed, and the
+        brief had missed the second stage in `d.stage_id IN ('3cf01654','f5cf87f8')` and the
+        `AND b.status='vigente'` condition. The brief's `4 = 4` had actually compared the *incompletos*
+        scope against a wrong partner.
+      - **The corrected mapping is read off the real bodies with the stage→status translation taken
+        from the repo's own `cerebro_estado_desde_etapa` (`041:38-45`), not invented:**
+        incompletos `d.stage_id='3cf01654'` → `o.status='deposit_verification'`; sin_beneficiario
+        `d.stage_id IN ('3cf01654','f5cf87f8')` → `o.status IN ('deposit_verification',
+        'ready_to_transfer')`; pipeline scope → `COALESCE(o.service_type,'remesa') <> 'recarga'`;
+        `d.value`/`d.currency` → `o.quoted_source_amount`/`o.source_currency`; `cerebro_saldo_envio` →
+        `cerebro_saldo_operacion`; `depositos_mmg.deal_id` → `.operation_id`. The `b.status='vigente'`
+        condition and the `messages` silence check stay.
+      - **One deliberate behaviour change, named not hidden:** migration `114` dropped
+        `trg_sync_operacion_desde_deal` (`114:359`), so deal stage and operation status now diverge.
+        Two open deals sit at `f5cf87f8` whose operation is `cancelled`; the deal-keyed predicate
+        included them, the operation-keyed one excludes them. Intended — a cancelled shipment should
+        not raise a "money inside, no recipient" alert — and latent today.
+      - **Two measurement traps recorded for reuse:** (a) both avisos `RETURN QUERY SELECT 0,0` when
+        called outside their hours window, so a bare zero is a *guard*, not an empty row set — the
+        orchestrator's own first read of `0` was inconclusive for exactly this reason, while the
+        writer's `1` came from an in-window run; (b) two catalog counts are both correct under
+        different definitions — `deals` in a real position gives **8** functions, any bare mention
+        gives **11** (the extra three are the `deals` trigger functions, casualties of the drop). The
+        exit criterion is the positional set: **8 → 6**.
+      - **ACL correction:** both functions read `{postgres, service_role}` — **no `authenticated`, no
+        `PUBLIC`**. The brief's earlier claim that the panel calls them was wrong; n8n calls them as
+        `service_role`. The writer's measurement is the authority.
+      - **DONE and parent-verified** — commit `24a28ae` (3 files, +1065). Both avisos left the
+        `deals` set: positional **8 → 6**, bare mentions 11 → 9, and neither names `deals`,
+        `pipelines` or `pipeline_stages` any more. Row sets matched on live data (incompletos 1 = 1,
+        sin_beneficiario 0 = 0) with a non-empty control (20 operations in the same scope once the
+        deposit filters are lifted); under fixtures the only extra row old→new is the deal-free `161`
+        operation, which is exactly the divergence sought. The dedup `clave` is byte-identical for a
+        deal-linked operation, and a repeat call updated rather than duplicated. RED observed first
+        (7 failures) and GREEN after with the *same* assertion file; `ROLLBACK-166` verified against a
+        pre-166 dump. ACL unchanged, no new GRANT/REVOKE.
+      - **Verification of record.** `assess` over the diff: `risk: medium`. RDD off; writer on sonnet,
+        so self-verification suffices and no separate verifier was required. Parent spot check ran
+        anyway: the assertion, wrapped in `BEGIN; … ROLLBACK;`, gave **ALL PASS**, and staging came
+        back to baseline (34 / 0 / 35 / 3 alerts) with nothing committed. The catalog delta was then
+        re-derived **independently** of the writer's query → 6.
+      - **A third behaviour change the writer made deliberately, beyond the brief's two.** It dropped
+        the legacy `d.notes NOT LIKE '%BENEFICIARIO%'` gate rather than carrying it forward — the
+        `deals` read has to go, and the structured `remittance_beneficiaries` row (with
+        `status='vigente'`) is the real source of truth, with the notes transport slated for
+        retirement in WU6d. The brief's §3 row for this was ambiguous and the writer resolved it
+        correctly and declared it. Measured impact of the dropped gate on live staging: **0 rows** —
+        latent. The other two named changes are also latent: the `cancelled` operations and the
+        notes-marked deals have no consumed deposit inside the window, and there is no `recarga`
+        operation in it.
+      - **Two operator-visible strings changed, both asserted:** `sin_beneficiario` no longer claims a
+        pipeline stage (`Esta en "Lista para transferir" y ahi se queda` → `El envio sigue abierto y
+        ahi se queda`), and its closing instruction now points at the structured `162` route instead
+        of the `deals.notes` block. Title, amounts and the bot warning are unchanged and asserted.
+      - **Not verified, carried:** n8n was not executed — only the `service_role` ACL path was
+        exercised, not a real call; the three named behaviour changes stay latent on staging; the
+        Sunday branch of the hours guard is hard-coded and could not be forced (the assertion aborts
+        with an explicit message rather than passing silently); the rollback's orphan-alert path was
+        not exercised.
+    - **WU6d — retire the notes transport.** `cerebro_aplicar_nombre_confirmado` (repoint to the 162
+      structured writers) and `cerebro_sync_beneficiarios` (retire). **Sequenced last**: it is only
+      correct once the deal-keyed triggers `trg_sync_z_benef_desde_deal` and
+      `trg_sync_operacion_al_crear_deal` are gone, which is Phase 2/4 work.
+    - **WU6e — give an operation an incident reason.** `notify_operation_incidencia` (live body =
+      `114:272-331`, verified live by exploration, no later redefinition). It is the **last `deals`
+      read on the incident path**: it builds the notification's `MOTIVO:` line out of the **entire
+      last line** of `deals.notes`, prefix not stripped, with the fallback
+      `'Un envío necesita revisión manual.'` (`114:298-302`, `:320-321`).
+      **User decision (2026-10-01): add a free-text reason column** to `remittance_operations` and
+      repoint the trigger at it (the other options were the generic fallback and deferring).
+      Not blocked by WU6d: the two `deals` triggers WU6d waits on are irrelevant here.
+      - **Why this is a real defect and not only a port — HYPOTHESIS, not yet measured.** After `160`
+        nothing writes an incident motive into `deals.notes` any more (`160:51` says so; `v_nota` is
+        consumed only by `cerebro_parsear_comprobantes`). So the "last line" the trigger reads is
+        whatever unrelated thing was written last — potentially WU6b's kept
+        `VERIFICADO EN PANEL por un operador del CRM`. If it holds, the operator sees a **stale, wrong
+        motive** rendered as confidently as a right one, which is worse than the fallback. The brief
+        requires the writer to measure it and report the verdict either way.
+      - **Live writer inventory (exploration, to be re-established by the writer):**
+        `cerebro_registrar_deposito` (`REFERENCIA IMPOSIBLE`, `160:143-148`), `cerebro_cruzar_deposito`
+        (`160:459-482`), `cerebro_cruzar_depositos` (`v_fallo`, `160:614-615`),
+        `remittance_operations_completion_guard` (`096:352`, BEFORE trigger), and possibly
+        `crm_verificar_deposito`. Sites that know no reason stay NULL — the fallback is correct there;
+        placeholder text is forbidden.
+      - **The two traps:** the reason and the status must land in the **same `SET`** (the notify
+        trigger is `AFTER … UPDATE OF status` and fires once per statement; a second statement
+        silently produces a NULL-reason notification), and the 096 guard is **BEFORE**, so its
+        `NEW.incident_reason` is visible to the AFTER trigger in the same row version.
+      - **LATERAL FINDING, 2026-10-01, independent of WU6e — two inventory assertions are stale and
+        red.** Measured live: the positional `deals`-referencing set is **6**, the any-mention set is
+        **9**. But `deal-free-panel-verification.sql:118-130` (WU6b) still expects **8** and
+        `deals-free-views-and-inert-edits.sql:604-616` (WU6a) still expects **9**. WU6c moved the set
+        8 → 6 in `5f8e0f8` and updated neither file, so running either assertion today fails. WU6e
+        fixes both arrays to the measured value (5 after its own change), reporting both measurements
+        so the edit is derived from the catalog and not from what makes the assertion green.
+        **Lesson, same shape as the 090 false positive:** an absolute inventory assertion is a
+        standing claim about the catalog, and nothing in the workflow re-evaluates it when a later
+        slice legitimately moves the catalog. Whoever moves the count owns the array.
+      - **WU6e DONE `94e4d7e`** (167 + ROLLBACK-167 + assertion; staging; parent-verified against the
+        live catalog). **The §3 hypothesis was measured and HELD.** Pre-167, a deal-linked operation
+        driven to `incident` through the real `160` path rendered
+        `MOTIVO:` / `VERIFICADO EN PANEL por un operador del CRM` — the raw last line of
+        `deals.notes`, prefix unstripped, in the same confident format a real motive uses, while the
+        true `REFERENCIA IMPOSIBLE` text appeared nowhere. Empty notes fell back to the generic
+        string, which is why the defect stayed invisible: the fallback path looked correct. **This
+        was not a port, it was an operator being shown a false motive.**
+      - **Independently re-measured by me, not taken from the writer:** positional `deals` set
+        **6 → 5**; any-mention (comment-stripped) 9 → 8; ACLs identical before and after, including
+        the `PUBLIC EXECUTE` on the two trigger functions that the brief forbade "fixing"; column is
+        `incident_reason text` nullable with no default; all four writes put the reason in the
+        **same `SET`** as the status, with `ELSE NULL` when the new status is not `incident`, which
+        satisfies the stale-reason invariant without having been asked. Staging left at baseline
+        (34 ops / 0 deal-free / 35 deals). I re-ran the new assertion and the WU6b one myself: both
+        `ALL PASS`.
+      - **Declared and sanctioned deviations:** the one `deals` string still inside
+        `notify_operation_incidencia` is a **comment** explaining the invariant — no dependency, and
+        the drop does not see it. The writer's report claimed the raw and comment-stripped sets were
+        identical; they are not (raw keeps that comment). Corrected for the record; the conclusion is
+        unaffected.
+      - **Not verified, carried:** `crm_verificar_deposito`'s panel path was never driven (it
+        reaches incident through `verificado_de_mas` and stays NULL → fallback, established by
+        reading its body); the out-of-incident movers outside the redefined set were classified by
+        catalog query only; `cerebro_sync_operacion_desde_deal` likewise.
+    - **Assertion debt reconciled `982d993`** (its own commit, deliberately not folded into WU6e).
+      Three assertions from WU6a/b/c were asserting the pre-move catalog and are now green:
+      the two inventory arrays (8 and 9 expected, 6 measured, 5 after WU6e), and **`cutover.sql`
+      case 4b, which was not latent but impossible** — it queried `cerebro_conciliacion_operaciones`,
+      which 164 dropped by product decision, so it aborted the whole file before its own summary and
+      could never pass again. Verified by me before authorising the removal: the view is absent from
+      the catalog, no live function names it, and `pg_depend` has no consumers. `cutover.sql` now
+      runs to completion, `ALL PASS` over cases 1, 2, 3, 3b, 4a, 4c (reproduced by me, not taken from
+      the writer). Remaining, deliberately out of scope and listed rather than touched: `v_divergent`
+      is now declared and unused, and three **comment-only** stale count references survive at
+      `deals-free-views-and-inert-edits.sql:19`, `:599` and `deal-free-panel-verification.sql:7-8`.
+      **The pattern is now three-for-three:** every slice that legitimately moves the catalog leaves
+      an assertion behind claiming the old world, and nothing re-evaluates it. Whoever moves the
+      count owns the array — and, it turns out, the neighbouring strings that describe it.
+    - **Not yet sliced, blocked on a capture:** `sync_tags_cliente` (**capture its live body from the
+      catalog first** — it cannot be planned from the repository, and it has two active n8n callers,
+      `K6EpIX4lSJLGMJN7` production and `2CECGodU0oj85hMJ` staging, in
+      `Remesas - Cierre automatico de solicitudes zombis`).
+- [ ] 1.1 — New RPC that creates a `remittance_operations` row directly (whatever
+  `trg_sync_operacion_al_crear_deal` currently derives: account/contact/currency/status), with NO
+  `deals` row involved, writing structured beneficiary / USD-destination data up front (Phase 2
+  folds in here).
+- [ ] 1.2 — Rewire the 7 writers to the new RPC(s), one at a time, each verified individually
+  (byte-exact draft verification before publish): `Registrar beneficiario auto`,
+  `Registrar zelle auto`, `gestionar_beneficiario`, `registrar_beneficiario_zelle`,
+  `registrar_reparto_multiple`, `marcar_destino_usd`, and `Registrar deposito auto`
+  (`cerebro_registrar_deposito`, which also INSERTs `deals`; missed by the first exploration).
+
+### Phase 2 — Beneficiaries stop being parsed from `deals.notes`
+- [ ] 2.1 — The Phase 1 RPC(s) write `remittance_beneficiaries` rows directly and structured
+  (mirroring exactly what `cerebro_parsear_beneficiarios` derives today), so `trg_sync_z_benef_desde_
+  deal` is never needed for a NEW operation created after this phase ships.
+- [ ] 2.2 — Confirm (read-only) no other path still depends on the notes-parse trigger before
+  touching it further.
+
+### Phase 3 — Deposit balance reindexed by operation, not deal
+- [ ] 3.1 — New `cerebro_saldo_envio_operacion(p_operation)` (or an overload), reading
+  `remittance_operations`/`remittance_beneficiaries`/`depositos_mmg` by `operation_id`.
+- [ ] 3.2 — Repoint every caller (099's deposit-review RPC, the panel) to the new function.
+
+### Phase 4 — Stop writing to `deals` from remittance functions
+- [ ] 4.1 — Remove the `UPDATE deals SET notes = ...` lines from `crm_forzar_verificacion`,
+  `crm_verificar_deposito`, `crm_corregir_operacion`, `crm_corregir_entrada_calculadora`,
+  `cerebro_cruzar_deposito` (and any other remittance function still found writing `deals`) — this
+  info already lives in `remittance_admin_audit`, confirmed nothing in the UI reads `deals.notes`.
+- [ ] 4.2 — Remove 096's admin locks on `deals.stage_id` for the remittance path.
+
+### Phase 5 — Verify zero remittance-path dependency on `deals`
+- [ ] 5.1 — Grep the full remittance SQL + n8n surface for any remaining `deals`/`deal_id`
+  reference; confirm none remain for the remittance flow. `remittance_operations.deal_id` can be
+  dropped or left nullable-and-unused for a safety window.
+
+### Phase 6 — Remove `deals` from the generic CRM, then drop the tables
+- [ ] 6.1 — Remove the "Deals" tab from `contact-detail-view.tsx` (and its `fetchDeals`/`Deal` type).
+- [ ] 6.2 — Remove the `create_deal` step type from `automations/engine.ts` and any automation-step
+  config UI that offers it.
+- [ ] 6.3 — Confirm (grep) nothing anywhere in the repo references `deals`/`pipelines`/
+  `pipeline_stages` any more.
+- [ ] 6.4 — **STOP and get one more explicit go-ahead from the user before this step.** Drop
+  `deals`, `pipelines`, `pipeline_stages` and their triggers/functions. Irreversible.
+  - **READINESS MEASURED against the live staging catalog, 2026-10-01 (later). This item is NOT one
+    confirmation away.** Two hard blockers stand between here and a `DROP TABLE`:
+    - **An FK the plan never counted.** `depositos_mmg_deal_id_fkey` — a 258-row live table
+      (`depositos_mmg`) still references `deals`. The DROP fails until that constraint is retired or
+      repointed.
+    - **Nine triggers on `deals`, not two.** `deals_insert_notify`, `deals_sync_tags`, `set_updated_at`,
+      `trg_admin_guard_deals_stage`, `trg_cancel_operacion_on_deal_delete`, `trg_cerrar_deal_entregado`,
+      `trg_liberar_depositos_al_borrar_deal`, `trg_sync_operacion_al_crear_deal`,
+      `trg_sync_z_benef_desde_deal`. The document only ever named three (WU6d's two prerequisites plus
+      the `trg_cerrar_deal_entregado` casualty); the other six were never assigned to any work unit.
+    - **Good news, also measured:** **zero views** reference `deals` or `pipelines` any more. WU6's
+      original scope read "3 views + 13 functions"; the views are gone.
+  - **Row counts to be destroyed (staging):** `deals` 35, `pipelines` 1, `pipeline_stages` 5.
+  - Open decisions for the user, recorded here so they survive compaction: (a) dump those rows to
+    `odd/backups/` before the drop, or accept true irreversibility; (b) 5.1's open question — drop
+    `remittance_operations.deal_id`/`depositos_mmg.deal_id` in the same pass, or leave them
+    nullable-and-unused for a safety window; (c) staging first, with production as a separate step and
+    its own go-ahead, since production is still behind on 160-169.
+- [ ] 6.5 — **NEW 2026-10-01, measured against the staging catalog — without this the panel goes
+  silent.** `src/components/inbox/operations/operations-panel-container.tsx:221` keeps a live
+  realtime subscription to `deals` (filtered by `conversation_id`), and its own comment at `:196-200`
+  explains why: the panel's live refresh exists *because* `deals` is in the `supabase_realtime`
+  publication while `remittance_operations`/`remittance_beneficiaries` are not. **Re-measured today,
+  not taken from the comment:** the publication holds `conversations, deals, flow_runs,
+  member_presence, message_reactions, messages, notifications, remittance_calculator_entries` —
+  there is **no `remittance_*` table in it**. So the `DROP TABLE` kills the panel's live refresh
+  silently unless the publication gains `remittance_operations` (a DB change) or the subscription
+  moves. Pinned by `operations-panel-container.test.tsx:592-606`. **Deliberately not in WU7**: it is
+  a publication decision, and nothing breaks until 6.4. **→ sliced as WU8 (2026-10-01).**
+- [ ] 6.6 — **NEW 2026-10-01.** Decide the fate of the `/settings?tab=deals` tab
+  (`src/components/settings/deals-settings.tsx`, mounted at `settings/page.tsx:18,83,97`). It is
+  **not** a table dependency — it writes only `accounts.default_currency` — and that column is still
+  load-bearing outside deals: `dashboard/page.tsx:230,274` formats the operations-in-progress value
+  with it and `settings-overview.tsx:150,203` displays it. So the **setting stays**; only the tab's
+  name and placement are open. Product/naming decision, not work.
+
+#### WU7 — Fase 6.1 + 6.2 (the `src/` half of Phase 6), sliced 2026-10-01
+Authorised by the user ("arrancá por la Fase 6"). Scope is the generic-CRM removal only: **no DB, no
+n8n, no production.** The runtime surface in `src/` is **four query sites plus one realtime
+subscription**, measured by grep rather than read off this document:
+`contact-detail-view.tsx:175` (`.from('deals')`), `automation-builder.tsx:266,268`
+(`.from("pipelines")` / `.from("pipeline_stages")`), `engine.ts:539` (`db.from('deals').insert`), and
+the `deals` realtime subscription of 6.5. Everything else that matches the word `deals` in `src/` is
+a comment or an i18n key — with the one substantive exception of `defaultCurrency` (see 6.6).
+- [x] WU7.1 `contact-detail-view.tsx` — remove the Deals tab: the `deals` state `:97`, `fetchDeals`
+  `:171-193` (query at `:175-176`), the `TabsTrigger value="deals"` `:487-490`, the
+  `TabsContent value="deals"` `:696-…`, the `Deal` type, and the `deal.currency || defaultCurrency`
+  use at `:731`. Drop i18n `tabs.deals` (`messages/en.json:561`) and the `dealsTab` object (`:592`).
+- [x] WU7.2 `automations/engine.ts` — delete the `create_deal` case `:526-552` and the
+  `CreateDealStepConfig` type. **Measured, and this is why the removal is graceful:** the switch's
+  `default:` at `:589-590` **returns** `unknown step: <type>` instead of throwing, so an automation
+  row still carrying a `create_deal` step degrades to a logged no-op message rather than a crash.
+  Staging `automation_steps` holds **0 rows**, so no configured step exists there today.
+  **Production was not read** (needs its own authorization) — carried as an open risk, not assumed
+  clean.
+- [x] WU7.3 `automations/validate.ts` — delete the `create_deal` case `:99-109`.
+- [x] WU7.4 `automations/validate.test.ts` — the removal must be **driven**, not assumed: replace
+  "flags create_deal when required fields are missing" `:112-114` with an assertion that the step
+  type is no longer accepted.
+- [x] WU7.5 `types/index.ts` — drop `'create_deal'` from the step-type union `:463` and the
+  `CreateDealStepConfig` interface.
+- [x] WU7.6 `automation-builder.tsx` — drop the registry entry `:109`, the ordering list `:125`, the
+  config-panel case `:181`, the `pipelines`/`pipeline_stages` fetch `:266-268`, the render case
+  `:1377`, and the stale comment `:447`. Drop i18n `:1089`.
+- [x] WU7.7 — the 6.3 partial: re-grep `src/` and record what legitimately remains (comments,
+  `defaultCurrency`, 6.5's subscription, 6.6's tab) rather than claiming a clean sweep.
+Checks: `npx tsc --noEmit`, `npm test` (vitest), `npm run lint`. TDD **enabled** (user's global
+config); runner `npm test` → `vitest run`; RED must precede GREEN and be observed, not asserted.
+
+**WU7 DONE — commit `9565f25`, 7 files, +17 / -310.** Verified by the parent, not taken from the
+writer's report: `npx tsc --noEmit` exit 0; `npm test` **141 files / 1659 tests passed** (the
+writer's number, reproduced by me); the targeted `validate.test.ts` 21/21; `npm run lint` **45
+warnings / 0 errors**, identical to baseline; `messages/en.json` parses and the intended keys
+survive (`Settings.sections.deals` and the `Settings.deals` object both intact); and the re-grep
+returns **only** the 6.5 subscription plus its own test mock — no runtime query against `deals`,
+`pipelines` or `pipeline_stages` remains anywhere in `src/`.
+- **RED is genuine and I checked its shape, not just its exit code:** the report's "received" branch
+  is `pipeline is required` / `stage is required` / `title is required` at `steps[0].*` — which is
+  exactly what the deleted `validate.ts:99-109` arm produced. The new test asserts the *runtime*
+  refusal, `{path: steps[0], message: 'unknown step type: create_deal'}`, so it documents the
+  legacy-row degradation rather than merely claiming a type is gone.
+- **Two line ranges in my brief were WRONG, and the writer caught both.** `fetchDeals` is
+  `171-181`, not `171-193`: `183-191` is the **shared** `useEffect` that also loads contacts, tags,
+  notes and custom fields — the literal range would have deleted four other tab loaders. And the
+  pipelines fetch is `266-270`, not `266-268`, which would have left a dangling `.select().order()`
+  chain. I confirmed the shared `useEffect` is intact in the committed tree, still calling all four
+  fetchers. This is the **fifth** brief defect of the feature, and again it was the writer's
+  measurement that caught it — the pattern is now five-for-five, and the brief's stop-condition
+  clause is what made the catch possible.
+- **A false alarm of mine, recorded so it is not repeated:** my first probe reported
+  `Settings.tabs.deals = undefined` and looked like the writer had deleted a key it claimed to keep.
+  The key is `Settings.sections.deals` (line 1746) — my probe assumed the wrong path. **Sixth
+  instance of the same family: a wrong probe produces a confident false finding in either
+  direction.** The writer was right; my query was wrong.
+- Follow-ups this unit created or surfaced, **recorded rather than swept**, so the work unit stays
+  clean (the `982d993` / `3aa13de` pattern):
+  1. `messages/en.json` — `Automations.builder.pipelines` (~10 keys) and
+     `Automations.builder.config.titleLabel` are now orphaned: their only consumers were
+     `DealPipelineFields` and the `create_deal` render case. Dead strings, no runtime effect.
+  2. `Contacts.detailView.tabs.noDeals` was **already** orphaned before this unit — pre-existing.
+  3. `src/middleware.ts:73` still lists `'/pipelines'` in `protectedPaths` — a dead route guard for a
+     route that no longer exists. **Pre-existing, not caused by WU7**, and it is exactly what 6.3's
+     sweep will match, so it is recorded here rather than left to surprise that sweep.
+- **A naming trap for 6.3, and it would produce a false positive there:** `src/lib/pipelines/*` and
+  `src/components/pipelines/*` are the **WhatsApp proof-delivery modules**, unrelated to the CRM
+  `pipelines` table — they never query it. And `src/lib/pipelines/proof-drafts.ts` takes a parameter
+  literally named `deals` (a TS type, not a query); its `pruneStaleDrafts` has no caller in `src/`,
+  so it is dead code, not a live dependency. A grep-based sweep will match all of this.
+- **Not verified, carried:** neither the Contacts sheet nor the automation builder was exercised in a
+  browser; `contact-detail-view.tsx` has no component test, so the tab removal rests on the
+  typecheck plus the shared suite. Production `automation_steps` was **not read** — "0 rows" is a
+  staging measurement, and whether any production automation carries a `create_deal` step is an open
+  assumption. It is benign by measurement of the code path (the `default:` arm returns rather than
+  throws), not by measurement of production data.
+
+#### WU8 — Fase 6.5 (realtime: the panel stops depending on `deals`), sliced 2026-10-01
+Authorised by the user, who chose this approach from three explained options. Scope: **one migration
++ the subscription's table name + its pinned test.** No n8n, no production.
+
+**Chosen approach: subscribe directly to `remittance_operations`.** Rationale, all measured against
+the staging catalog in this session rather than read off this document:
+
+- The panel's data comes from `GET /api/remittance-operations` → RPCs `crm_operaciones_de_conversacion`
+  and `crm_comprobantes_de_operacion`, which read `remittance_operations`, `remittance_beneficiaries`,
+  `remittance_operation_receipts`, `depositos_mmg`, `messages`, `conversations`.
+- `remittance_operations` **has `conversation_id`**, so the existing `conversation_id=eq.<id>` filter
+  survives the move unchanged. (`remittance_beneficiaries` does **not** have it — only `operation_id`
+  — which is why it is *not* part of this unit.)
+- One table is sufficient because **every command that changes what the panel renders updates the
+  operation row**: `crm_agregar_beneficiario`, `crm_corregir_beneficiario`, `crm_reasignar_beneficiario`,
+  `crm_verificar_deposito`, `cerebro_registrar_deposito` all do a literal `UPDATE remittance_operations`,
+  and `cerebro_crear_operacion` a literal `INSERT INTO remittance_operations`. The only measured gap is
+  a raw write to `remittance_beneficiaries` (its recalc trigger does not touch the operation) — a case
+  that does not reach the panel today either, so this unit is a strict improvement, not a regression.
+- RLS on `remittance_operations` is tenant-scoped (`remittance_operations_select` → `is_account_member
+  (account_id)`), so publishing it creates **no** cross-tenant exposure.
+- `supabase_realtime` is owned by `postgres`, so a normal migration can `ALTER PUBLICATION` it.
+  The brief said the next free number was **170**; **it shipped as 171** — see the renumber note below.
+  (`168` is also used twice — pre-existing collision, `168_late_mmg_email_recross.sql` and
+  `168_tags_off_delivered_operations.sql`, unrelated to this unit.)
+
+**The finding that reframed this item — the panel's live refresh is ALREADY broken, not merely
+at risk.** `deals` is written today by exactly three functions: `cerebro_aplicar_nombre_confirmado`
+(called by `trg_nombre_confirmado_zelle` on `messages`), `crm_verificar_deposito` and
+`crm_forzar_verificacion` (both called by the panel's own `/verify` and `/force-verify` RPC routes).
+**No trigger on `remittance_operations` or its child tables writes `deals`**, and none of the
+n8n-path functions (`cerebro_crear_operacion`, `cerebro_registrar_deposito`, the 162/163 adapters)
+appears in the writers list. So the bot's operation changes have not reached the panel since WU5a/WU3
+moved the flow onto `remittance_operations` — the panel refreshes today only for human panel actions
+and the Zelle-name message path. That is why the comment at `operations-panel-container.tsx:196-202`,
+which asserts the sync-trigger mechanism ("every automation write ... happens inside the same
+transaction as an UPDATE/INSERT on `deals`"), is **factually false today** and must be rewritten, not
+merely re-pointed.
+
+- [x] WU8.1 — new migration `supabase/migrations/170_operations_in_realtime_publication.sql`:
+  `ALTER PUBLICATION supabase_realtime ADD TABLE public.remittance_operations;`, plus its matching
+  `ROLLBACK-170-*.sql` (`DROP TABLE ... FROM ...`), following the 163-169 pattern.
+  **Not** included: `REPLICA IDENTITY FULL`. Today `deals` is also `relreplident='d'`, so DELETE events
+  behave exactly as they do now — carried as a follow-up, not a regression.
+- [x] WU8.2 — `operations-panel-container.tsx:221`: `table: "deals"` → `table: "remittance_operations"`,
+  filter unchanged.
+- [x] WU8.3 — same file, rewrite the three stale comments that document the `deals`-as-proxy mechanism:
+  `:14-17` (the debounce's stated reason), `:149-153` (`silentLoad`'s "realtime `deals` changes"),
+  `:196-202` (the false sync-trigger claim). They describe a mechanism that no longer exists.
+- [x] WU8.4 — `operations-panel-container.test.tsx`: the pinned assertion at `:606` moves to
+  `remittance_operations`, and the comments at `:576-579` (which call the fixture flip an "n8n-driven
+  sync trigger on `deals`") are corrected to match.
+- [x] WU8.5 — apply migration 170 to **staging** and assert the publication gained the table
+  (`pg_publication_tables`), because a correct `src/` change against an unpublished table is a silent
+  no-op — exactly the failure mode this unit exists to remove.
+Checks: `npx tsc --noEmit`, `npm test` (vitest), `npm run lint`. TDD **enabled** (user's global
+config); runner `npm test` → `vitest run`. RED = WU8.4's assertion fails against the unmodified tree.
+
+**WU8 DONE — Fase 6.5 closed, 6 files, uncommitted at report time; verified by the parent, not taken
+from the writer's report.**
+
+- **The migration renumbered 170 → 171, and the cause is worth recording: a CONCURRENT SESSION was
+  committing to this very worktree and branch.** Opening the tree, the writer found
+  `170_split_deposit_minimums.sql` already present, and mid-session another session committed it as
+  `369eff6` (and `0b4fcab` for the 168 re-cross). Both are authored by the same git identity, so this
+  is a second Claude session on the same worktree, not an intruder. Shipping a duplicate `170` would
+  have been the real defect, so the writer renumbered to the verified-free **171** and documented the
+  renumber in each header. **This is a live hazard for the rest of the feature**: two sessions share
+  one working tree, one index, and one branch. Nothing of ours was lost, but `odd/` writes and
+  migration numbers must be treated as shared mutable state from here on.
+- **RED and GREEN were both measured by the parent against staging, which is the part the writer
+  could not do.** RED, before applying 171:
+  `WARNING: FAIL: remittance_operations is not in the supabase_realtime publication` /
+  `NOTICE: PASS: remittance_operations_select SELECT policy is still present (RLS unchanged)` /
+  `ERROR: operations-realtime: 1 check(s) FAILED`. After `psql -f 171_...`: `ALL PASS`. The
+  publication now reads `conversations, deals, flow_runs, member_presence, message_reactions,
+  messages, notifications, remittance_calculator_entries, remittance_operations` — 9 tables, up from 8.
+- **The test's RED is live, and I proved it rather than trusting the report.** Backing up the
+  container, forcing `table: "remittance_operations"` back to `"deals"` and re-running produced exactly
+  `- "table": "remittance_operations" / + "table": "deals"`, 1 failed / 20 passed; the file was then
+  restored and its `numstat` (14/15) re-checked. A green test alone would not have shown the assertion
+  was live.
+- **The new comment's claim was checked and it holds — and my first check of it was wrong.** The old
+  comment asserted a sync-trigger mechanism that no longer existed; the new one asserts that the
+  recalc/touch triggers can fire several UPDATEs on one operation row. My static probe
+  (`prosrc ~* 'update remittance_operations'`) returned `f` for every trigger function, which would
+  have made the new comment a *second* false one. It was the probe that was wrong: `trg_zz_recalc_destino_operations`
+  (`AFTER INSERT OR UPDATE OF quoted_source_amount, source_currency, status`, `100_destination_amount_calc.sql:264`)
+  calls `crm_calcular_monto_destino(NEW.id)`, which *does* issue its own `UPDATE remittance_operations`
+  — an indirect write the regex cannot see. **Seventh instance of the same family** (a probe that
+  measures literal patterns and misses indirect calls), and the second time in this unit alone.
+- Checks, all reproduced by the parent and all baseline-identical: `npx tsc --noEmit` exit 0;
+  full `npm test` **141 files / 1659 tests passed**; targeted `operations-panel-container.test.tsx`
+  21/21; `npm run lint` **45 problems (0 errors, 45 warnings)** — no new warning.
+- Deltas: `operations-panel-container.tsx` +14/-15, its test +4/-4, plus three new files. The three
+  stale comments were rewritten to describe what is actually true, not re-pointed at a new noun.
+- **Committed as `3b5f5dc`** `refactor(realtime): keep the operations panel live without deals (171)`,
+  no attribution lines.
+- **Carried, not done:** `REPLICA IDENTITY FULL` is deliberately unset, so DELETE events behave exactly
+  as they did on `deals` (which is also `relreplident='d'`). If a deleted operation should refresh the
+  panel, that is a separate `ALTER TABLE`.
+
+**WU8 E2E VERIFICATION — the round trip the unit above left unproven, now observed (2026-10-01).**
+WU8.4's test proved the *subscription shape*; it did not prove a real Realtime event arrives over the
+wire. That gap is now closed, with a negative control.
+
+- **GREEN.** A probe user holding `operations_panel` in account `472917ed` signed in and got a real
+  GoTrue JWT. `GET /rest/v1/remittance_operations?conversation_id=eq.<id>` returned **200 with rows** —
+  RLS passes for that subscriber, which is the predicate Realtime evaluates per subscriber. A
+  `@supabase/supabase-js` client then subscribed with **exactly** the panel's descriptor
+  (`{ event: "*", schema: "public", table: "remittance_operations", filter: "conversation_id=eq.<id>" }`),
+  reported `SUBSCRIBED`, and a plain SQL `UPDATE` on that conversation produced
+  `EVENT RECEIVED: {"eventType":"UPDATE","id":"31113e41-…"}`. **PASS.**
+- **RED, and it is the important half.** With the table removed from the publication
+  (`ALTER PUBLICATION supabase_realtime DROP TABLE remittance_operations`), the channel **still reported
+  `SUBSCRIBED`** and then delivered **no event within 25 s**. That is precisely the silent no-op the
+  migration header describes: a *correct* client subscription against an *unpublished* table fails with
+  no error anywhere. The publication was restored immediately (`count = 1` re-verified).
+- **The subscriber is not the human's account.** The only profile carrying `operations_panel` belongs to
+  the human; it was deliberately left untouched. A throwaway probe user was created instead, and
+  **deleted afterwards** — `auth.users`, `auth.identities` and `public.profiles` all verified at 0 rows
+  of residue, with the publication back at 1. Staging is at baseline.
+- **One staging row was touched:** `remittance_operations.updated_at` on the probe conversation
+  `13bb5a3b` was set to `now()`. No other column changed and no trigger fired (the recalc trigger only
+  watches `quoted_source_amount`, `source_currency`, `status`). Recorded rather than silently reverted,
+  because the original value was not captured.
+- **Earlier claim in this unit was WRONG and is corrected here:** staging is the **hosted** project
+  `kolppplawzdsjfydwejr.supabase.co`, *not* the local `wacrm-ensayo` Docker container. The offer to build
+  this test said otherwise; the test was built against the hosted project, which is the one carrying 171.
+- **A GoTrue quirk cost most of the time, and is worth recording.** A user inserted straight into
+  `auth.users` can never log in: password grant returns **HTTP 500** `unexpected_failure` /
+  "Database error querying schema", while a nonexistent email correctly returns 400 `invalid_credentials`.
+  Cause: GoTrue scans `email_change`, `confirmation_token`, `email_change_token_new` and `recovery_token`
+  into plain Go strings, so a NULL in any of them fails the row scan. API-created users carry `''` there.
+  Also, `confirmed_at` is a GENERATED column. Verbose SQL signup fixtures in this repo have therefore
+  never been loginnable.
+- **Second migration-number collision, same cause.** The concurrent session on this branch committed
+  `2c20505` with a *second* `171_requested_amount_target.sql`, so **two migrations now share 171** — and
+  two already share `168`. Lexical ordering still applies both, so this is hygiene, not breakage, but
+  "next free number" cannot be trusted while another session shares the branch.
+- **Unchanged by this:** `REPLICA IDENTITY FULL` remains unset, so DELETE events still carry no full old
+  row. The board idea discussed below is the first thing that would actually need it.
+
+### WU9 — retire the `deals` foreign key and the inert triggers (2026-10-01, authorized by the user
+### as "empieza por la limpieza", immediately before a cross-session handoff)
+
+**Authorized scope.** Exactly one migration plus its rollback, applied to **staging only**: retire
+`depositos_mmg_deal_id_fkey` and the provably inert triggers on `deals`. **Not** authorized and **not**
+attempted: `DROP TABLE` (6.4), dropping `deal_id` columns, changing RLS, touching n8n, or production.
+
+**Why the trigger list shrank from nine to seven.** Every trigger on a table dies with the table, so
+none of them is a `DROP TABLE` blocker — the FK is. What matters is which are still *live*. Measured
+from the catalog, not inferred:
+
+- Nothing `INSERT`s into `deals` and nothing `DELETE`s from it. Only **three** functions update it —
+  `cerebro_aplicar_nombre_confirmado` (reached *indirectly* through `trg_zz_nombre_confirmado_zelle` on
+  `messages`), `crm_forzar_verificacion`, `crm_verificar_deposito` — and all three write **only
+  `notes` and `updated_at`**. No writer touches `stage_id` or `contact_id`.
+- Therefore the INSERT-keyed, DELETE-keyed and `UPDATE OF stage_id` triggers can no longer fire:
+  `deals_insert_notify`, `trg_sync_operacion_al_crear_deal`, `trg_cancel_operacion_on_deal_delete`,
+  `trg_liberar_depositos_al_borrar_deal`, `deals_sync_tags`, `trg_admin_guard_deals_stage`,
+  `trg_cerrar_deal_entregado` — **seven inert**.
+- **One is live and harmless:** `set_updated_at` (BEFORE UPDATE, any column). Retiring it earns nothing
+  and it is shared across 12 other tables, so its *trigger* stays. Only the trigger — never the
+  function `update_updated_at_column`, which is attached to `accounts`, `automations`, `broadcasts`,
+  `contacts`, `conversations`, `flows`, `message_templates`, `objects`, `profiles`, `quick_replies`,
+  `whatsapp_config`.
+- **One is live and behavioral, and must NOT be touched:** `trg_sync_z_benef_desde_deal`
+  (AFTER INSERT OR UPDATE OF notes) → `cerebro_sync_benef_trigger`, which reads `NEW.notes` for
+  `ENTREGA EN USD: Clasica|Tropical|Efectivo` and **writes `remittance_operations.delivery_method`**.
+  That is an indirect write into the operation, exactly the family of trap this feature has hit seven
+  times. It stays until WU6d repoints the writer to the 162 structured path. **This is the one real
+  blocker left behind, and it is WU6d's.**
+
+**A second finding, outside this slice's scope but decisive for 6.4.** Eleven public functions still
+reference `deals` and are *not* trigger functions: `cerebro_aplicar_nombre_confirmado`,
+`cerebro_cruzar_depositos`, `cerebro_marcar_destino_usd`, `cerebro_registrar_deposito`,
+`cerebro_registrar_reparto_multiple`, `cerebro_sync_beneficiarios`, `crm_comprobantes_de_operacion`,
+`crm_forzar_verificacion`, `crm_verificar_deposito`, `notify_deal_stage_change`, `redeem_invitation`.
+`DROP TABLE` will not fail on these — PostgreSQL does not validate plpgsql bodies — but they break **at
+runtime**. The concurrent session's handoff adds that `cerebro_cruzar_pendientes` and
+`cerebro_recruzar_depositos_tardios` still read `deals.notes` too. **6.4 is therefore further away than
+the FK alone suggested.**
+
+**Tasks**
+- [x] WU9.1 — Retire `depositos_mmg_deal_id_fkey` (**the constraint only**, keeping the `deal_id`
+  column: `cerebro_objetivo_envio`/`cerebro_saldo_envio` are still keyed by it, and 255 of 259 rows have
+  it NULL).
+- [x] WU9.2 — Drop the seven inert triggers on `deals`.
+- [x] WU9.3 — Leave `set_updated_at` and `trg_sync_z_benef_desde_deal` in place, with the reason in the
+  migration header.
+- [ ] WU9.4 — Do **not** drop the eight now-orphan trigger functions in this slice: no caller check has
+  been run yet, and an orphaned function is harmless whereas a wrongly dropped one is not. **Carried.**
+
+**Checks**
+- Migration and rollback both idempotent and existence-guarded. ✅ re-running 172 reports `dropped 0 of 7`
+  and skips the missing constraint.
+- ✅ Applied to staging; catalog re-read: **2 triggers remain** (`set_updated_at`,
+  `trg_sync_z_benef_desde_deal`), **0 foreign keys** reference `deals`, `depositos_mmg.deal_id` still
+  present, and `update_updated_at_column` still attached to **12** tables.
+- ✅ Rollback rehearsed inside a transaction ending in `ROLLBACK`, and the assertion was proved **live**
+  the same way: restoring the pre-172 state made it report
+  `FAIL: 9 triggers remain on deals, expected 2` and `FAIL: 1 foreign key(s) still reference deals`,
+  then the transaction was discarded. Staging confirmed back at 2 triggers afterwards.
+- ✅ `supabase/staging/assertions/retire-deals-triggers.sql` → **ALL PASS** (5 checks).
+- TDD mode does not apply: this is DB DDL with no test runner. Verification is catalog read-back.
+
+**WU9 DONE — staging, `supabase/migrations/172_retire_deals_triggers_and_fk.sql` + its rollback +
+`supabase/staging/assertions/retire-deals-triggers.sql`.**
+
+- **What this buys 6.4:** the only true DDL blocker is gone. The remaining triggers never needed
+  removing for the drop — they die with the table.
+- **What it does NOT buy:** 6.4 is still not runnable. `trg_sync_z_benef_desde_deal` is live and writes
+  `remittance_operations.delivery_method` off `deals.notes`, and eleven public functions plus the two
+  the concurrent session named still read `deals`. Those break at *runtime*, not at DDL time, which is
+  what makes them easy to miss.
+- **Naming hazard recorded:** the file is `172`, not `171`, because the concurrent session's own handoff
+  (`odd/tasks/HANDOFF-production-registrar-168-170-171.md`) asks that the migrations **not in
+  production** be the ones renumbered — and this one is not in production. `181_operations_realtime_publication`
+  falls under the same rule and is still awaiting that renumber.
+
+## Progress
+- 2026-10-01 (**handoff to this session**): `171_operations_realtime_publication` renumbered to
+  **`181_operations_realtime_publication`** (+ rollback, + assertion reference), user decision. Rule from
+  the registrar handoff: the migration NOT in production is the one renumbered; `171_requested_amount_target`
+  is in production, this one is only on staging (applied there as 171), and 172-180 were taken. Content
+  unchanged. Still duplicated: 168 (`168_late_mmg_email_recross` in production /
+  `168_tags_off_delivered_operations` staging only) — same rule applies if it is ever renumbered.
+- 2026-10-01 (**later, same day**): **WU9 done — the `deals` FK is retired and 7 of the 9 triggers are
+  gone; staging verified.** Migration `172` + rollback + assertion. The headline is a *correction to
+  the plan*: the nine triggers were never a `DROP TABLE` blocker (they die with the table) and seven of
+  them were already dead — nothing inserts into or deletes from `deals`, and the only three writers
+  touch `notes`/`updated_at` alone. **One trigger is genuinely live** (`trg_sync_z_benef_desde_deal`
+  writes `remittance_operations.delivery_method`) and is left alone as WU6d's. **6.4 is still not
+  runnable**: eleven functions plus the concurrent session's two still read `deals` and would break at
+  runtime, not at DDL time.
+- 2026-10-01 (**later, same day**): **WU8's end-to-end gap closed.** A real WebSocket subscriber
+  holding `operations_panel` received a `postgres_changes` UPDATE for a row of its conversation, and the
+  negative control — table removed from the publication — reported `SUBSCRIBED` yet delivered nothing,
+  reproducing the silent no-op this unit exists to remove. Committed as **`3b5f5dc`**. Staging is back at
+  baseline (probe fixture deleted, 0 rows of residue, publication membership restored to 1). Two new
+  carried items: a **second migration-number collision** (two files now numbered 171, and two numbered
+  168 — the concurrent-session hazard already recorded above has now produced a duplicate), and the
+  **GoTrue NULL-scan quirk** that blocks password login for any SQL-created `auth.users` row.
+- 2026-10-01: **WU8 DONE — Fase 6.5 closed. The panel no longer depends on `deals` for its live
+  refresh.** Full detail in the WU8 block. In one line: the subscription moved to
+  `remittance_operations`, migration **171** puts that table in `supabase_realtime` (RED/GREEN measured
+  against staging by the parent), and the item turned out to be a *present* silent defect rather than
+  the future `DROP TABLE` risk this document originally recorded. Two things to carry forward: a
+  **concurrent session is committing to this worktree and branch** (it forced the 170 → 171 renumber),
+  and the feature's brief-defect pattern gained a seventh instance whose culprit was a *probe* that
+  missed indirect writes, not a line number.
+- 2026-09-29: document created. Scoping fork's exploration (see task doc
+  production-feedback-2026-09-29.md, "seventh/eighth touch-point") found items 1-6 above. A second
+  pass by me (not delegated) found the two non-remittance dependencies (item 6) the fork missed,
+  corrected the scope with the user before starting any implementation.
+
+- 2026-09-30: read-only map by Hermes (DB) + OpenCode (n8n), verified by me: 9 nodes touch
+  `deals` (7 writers, 2 readers). Phase 1 reordered to readers-first with the user's approval.
+
+- 2026-09-30: 1.0a mapping done (Hermes: Contexto, OpenCode: Historial, verified by me). Gap: the
+  receipt→operation link lived only in `deals.notes` → 156. `corregido` (Historial) has no writer
+  in SQL (only 042's parser skips it); decide during 1.0c.
+
+- 2026-09-30: 1.0b query written by OpenCode (ordering fixed by me: by operation created_at,
+  because backfilled receipts carry the migration time). Staging parity old vs new over all 9
+  (conversation, comp_id) pairs: 1 diff, dup_etapa 'Por verificar' → 'Lista para transferir' for an
+  operation that is ready_to_transfer while its deal stage is stale since 114 (new is right).
+  Draft diff: only Contexto conversacion.parameters.query changed. Published on staging:
+  88dbbcb1 (previous eb85f86b for restore). Query copy: odd/backups/n8n-staging-contexto-conversacion-1.0b.sql.
+  Behavior change accepted as a fix: recarga_en_curso's 24 h window now moves on real deliveries.
+- 2026-09-30: 1.0b live WhatsApp test on staging (executions 287507-287513, all success): the
+  receipt was dual-written by the bot (receipts row source='bot', COMP-47202fc9…, Agente MMG);
+  Contexto output dup_etapa='Por verificar', dup_valor=40000, via_deposito_ya_usada='Agente MMG',
+  recarga_en_curso=false. The user did not resend the same screenshot (step 3), so the Decisor's
+  duplicate branch was not exercised live; its inputs were.
+
+- 2026-09-30: 1.0c query by OpenCode (session wacrm-worker). Staging parity over 8 conversations:
+  every diff explained and judged correct or harmless — stale deal stages ('Lista para transferir'
+  on cancelled ops, 'Solicitada' on a deposit_verification op), envios_abiertos 9→8 (deal open,
+  op closed), amounts '40000.00'→'40000' (text only), and beneficiarios now include reparto cards
+  (old regex only read the last notes block): accepted behavior change. corregido =
+  admin_audit human_correction OR a 'reemplazado' beneficiary. Draft diff: only Historial
+  contacto.query. Published on staging e8ef4342 (previous 88dbbcb1). Copy:
+  odd/backups/n8n-staging-historial-contacto-1.0c.sql. Pending: live test.
+  Follow-up: add block_index to remittance_operation_receipts (backfilled multi-receipt ops lost
+  their order; created_at = migration time).
+- 2026-09-30: new bug found in the live test: the LLM skipped marcar_destino_usd, Clasica shown as
+  CUP (Engram bug/clasica-shown-as-cup; 3 likely cases in production in 60 days). User: fix it
+  right after 1.0c, as a deterministic step that writes operations directly (first 1.2 writer).
+
+- 2026-09-30: 1.0c live test on staging (exec 287783): second request after a delivered remesa →
+  Historial envios_previos=1, ultimo_estado='Entregada' (the old query would have shown the stale
+  deal stage), beneficiarios=[the card used], envios_abiertos=0. The tester then resent the SAME
+  receipt for the second remesa; the bot answered "Ese envio ya fue entregado": correct, that
+  COMP id belongs to the delivered first remesa (dup_etapa now reads the real status).
+  Two-remesa tests need two different receipts.
+
+- 2026-09-30: Clasica fix. Two defects confirmed (LLM-only mark; calculator quoted CUP for any
+  card type; production: 6 clasica ops quoted in CUP). Migration 157 (commit 8d9ba3e, OpenCode;
+  fixture fixed by me: tasas is a view): cerebro_destino_pendiente + cerebro_detectar_destino +
+  cerebro_registrar_destino + BEFORE INSERT re-type trigger + USD branch for clasica/tropical in
+  crm_calcular_monto_destino + pending cleared on close. Staging: RED→GREEN 5/5, rollback restores
+  live md5s, related assertions unchanged with/without. Applied to staging. n8n: new node
+  "Registrar destino auto" (dead-end branch from Snapshot final, top position so it runs first,
+  onError continue). Published cbbd5642 (previous e8ef4342). Pending: live test.
+  Not covered: backfill of the 6 production clasica ops quoted in CUP (decide before prod).
+
+- 2026-09-30: Clasica live test on staging PASSED (exec 287988): "Seria en clasica" →
+  Registrar destino auto returned 'clasica'; the LLM did NOT call marcar_destino_usd, yet the
+  operation ended delivery_method=clasica, 153 USD, beneficiary clasica 153 USD, closing message
+  "153 Clasica", pending row cleared on completion.
+
+- 2026-09-30: Clasica fix DEPLOYED TO PRODUCTION with the user's explicit go-ahead. Pre-checks:
+  production md5s of crm_calcular_monto_destino (29efa6e6…) and
+  cerebro_reset_beneficiario_parcial_al_cerrar (564a943c…) equal staging's pre-157 ones; rb_type_chk
+  already allows clasica/tropical. Applied 157 via apply_migration; all 5 function md5s equal
+  staging's (verified independently). Production Cerebro jEzlVLCLUaJhVwzs: node "Registrar destino
+  auto" added (credential Supabase Account), draft diff PASS (Hermes, spot-checked), published
+  ada843d2 (previous 3b40ee12 for restore). The 6 older CUP-quoted clasica ops: corrected (see below).
+
+- 2026-09-30: the 6 production clasica ops quoted in CUP were corrected with the user's go-ahead
+  ("calculalos clasica"). All completed (2026-08-10..09-19), no calculator entries, deposits exact
+  multiples of 260 GYD/USD (no USD rate existed in the system before 09-27): 80, 50, 110, 100, 40,
+  90 USD. Operations: quoted_destination_amount/destination_currency USD; vigente beneficiaries
+  re-typed cuban_card → clasica with the USD amount. Done inside one DO block with
+  set_config('wacrm.origin','admin',true) (without it the 096 guard suppresses writes to locked
+  fields); dry-run first via RAISE. Backup = the before-row JSON in remittance_admin_audit
+  (action human_correction, reason mentions pre-157, 12 rows). Production now has 0 clasica ops in CUP.
+
+- 2026-09-30: WU1 done on staging: migration 158 (commit a7cf4b8; written by OpenCode, fixtures
+  fixed by me). operation_id on depositos_mmg and cerebro_objetivo_envio (trigger on deal_id +
+  backfill); cerebro_saldo_operacion / cerebro_objetivo_atar_op / cerebro_objetivo_cerrar_op; deal
+  versions delegate. Evidence: RED (column missing) -> GREEN 5/5; rollback restores the 3 live md5s;
+  related assertions identical with/without (deposit-review fails both ways, pre-existing); saldo of
+  all 24 staging deals identical before/after. Applied to staging. Production: not yet.
+
+- 2026-09-30: WU2 done on staging: migration 159 (commit dd3fc56; written by Hermes, assertion bugs
+  fixed by me). Hermes found that only crm_comprobantes_de_operacion READS receipts from notes;
+  cerebro_cruzar_deposito(s), crm_verificar_deposito and crm_forzar_verificacion only WRITE notes
+  (Phase 4). 159 adds block_index to receipts (backfilled) and makes the panel RPC read
+  remittance_operation_receipts, the operation status and depositos_mmg.operation_id. Evidence: RED
+  -> GREEN 2/2; rollback restores the live md5 and grants; panel RPC output identical for all 24
+  staging operations (per-account auth); deposit-review back to its 2 pre-existing failures after its
+  fixture writes the receipt row like the bot. Note: can_verify still requires a deal (verification
+  RPCs are deal-bound until WU3/Phase 4). Applied to staging. Production: not yet.
+
+- 2026-09-30: **WU3 started, interface frozen before any code** (my decision; workers implement
+  it). `cerebro_registrar_deposito` keeps its signature, its OUT column names
+  (`deal_id, accion, es_revendedor, sumado`) and its four `accion` strings byte for byte, but the
+  first column now carries the **operation id**; `cerebro_cruzar_deposito(s)` accept **either** an
+  operation id or a legacy deal id through a small resolver. Reason: `cerebro_cruzar_deposito`
+  takes `p_deal` and looks the operation up by `deal_id`, so changing what
+  `cerebro_registrar_deposito` returns without migrating its consumer in the same unit is exactly
+  the silent-failure trap this plan warns about (no FK to `deals` anywhere). With the pair
+  migrated together the n8n node needs **no edit** in this unit — which matters because this
+  session has no n8n MCP connected.
+  Blast radius confirmed before delegating: **only n8n calls `cerebro_registrar_deposito`**; there
+  is no SQL caller outside the staging assertions.
+  Delegation: Hermes (heavy) = migration 160 + assertion + ROLLBACK + the (a)-(g) mapping;
+  OpenCode (light) = read-only caller/contract map. Briefs kept outside the repo at
+  `/home/onlinefreedom/wacrm-worktrees/.briefs/WU3-{hermes,opencode}.md`; working copies
+  `agent-hermes` / `agent-opencode`; I verify, commit and ff-merge.
+
+- 2026-10-01: **WU3 correction pass 1 verified by me** (Hermes died twice on provider quota, so I
+  closed it myself). Staging was never mutated — every check ran in `BEGIN; … ROLLBACK;`. Method:
+  one fixture set driven against three bodies in the same transaction (live 156, the rejected 160
+  from `odd/backups/wu3-staging-160-defectuosa-20260930-214930.sql`, and the corrected 160).
+  Verified: D1 (`v_ex` beneficiary guard), D2 (`v_suma` genuinely unreachable in the rejected body —
+  `creado` on the exact fixture where the fixed body returns `sumado al envio abierto`), D3
+  (`deposit-review` case 4 red on the rejected body, green now), and **two defects the brief did not
+  list**: (1) `v_ex`'s `NOT (beneficiary AND saldo>0)` evaluated to NULL when the operation had no
+  objetivo, re-creating the phantom second remesa — fixed with `COALESCE(…, 0)`, witnessed by
+  `ops_after=2 → 1`; (2) `v_ya` compared the receipt's `comp_id` (`'COMP-'||comp`) against the bare
+  `p_comp_id`, so idempotency never matched on the real flow while 156's `notes LIKE` did — fixed by
+  keeping the substring arm. Sweep: `deposit-path-without-deals` 6/6, `registrar-deposito-creado`
+  3/3, `operation-receipts` 6/6 (was 3 FAIL on 156, 2 on the rejected body),
+  `deal-insert-creates-operation` 1–4 all pass, `deposit-review` back to its **2 pre-existing
+  failures** (cases 3 and 8d, identical on 156 — they assert a `deals` UPDATE notify payload that a
+  deal-free path must not emit; they belong to WU5/WU6, not weakened here). `ROLLBACK-160` re-proven
+  byte-exact: restores `1b095ebe…`, `565a6adc…`, `2a30bb22…` and drops `cerebro_resolve_op_id`.
+  Hermes' config was also repaired this session (`model.default` was `auto` advertising a 1048576
+  window while the router served 262144, plus `compression.enabled: false`).
+  **Delivered**: corrected 160 applied to staging in one transaction (`ON_ERROR_STOP`, `-1`), and
+  proven byte-for-byte live — LIVE and FILE md5s agree on all four functions
+  (`cerebro_registrar_deposito = 314abaa05f78f4c48ad141ee38c772ed`, `cruzar_deposito =
+  5c70475480f24b46e1bab0945be21a1d`, `cruzar_depositos = 694875ca67f75b889eb19bce31aa1519`,
+  `resolve_op_id = 49ede272ed6708e43352024b9093984a`). Pre-160 staging backed up to
+  `odd/backups/wu3-staging-pre-160-20261001-055820.sql`. Regression sweep re-run against live
+  staging: `deposit-path-without-deals` 6/6, `registrar-deposito-creado` 3/3, `operation-receipts`
+  5/5, `deal-insert-creates-operation` 1–4, `deposit-review` 2 pre-existing failures (cases 3, 8d).
+  Committed `4039674` on `agent/hermes-work`. **ff-merge into
+  `feat/port-chat-operations-calculator` done — rebased onto 8daf4e0 first so it was a true fast-forward (SHA moved 8eb227a → 4039674).**
+
+- 2026-10-01: **WU6e sliced and delegated.** User decision taken for the incident reason: **add a
+  free-text column** to `remittance_operations` (alternatives were the generic fallback and
+  deferring). Read-only exploration established the live surface: `notify_operation_incidencia` is
+  byte-identical to `114:272-331` with no later redefinition; the trigger is
+  `AFTER INSERT OR UPDATE OF status` with **no `WHEN` clause** (filtering is inside the function);
+  the motive is the **whole last line** of `deals.notes` with no prefix stripped; there is **no**
+  `text`/`jsonb` reason column today (`admin_locked_fields` is the only jsonb); there are **no
+  positional `INSERT`s, no `SELECT *` and no `RETURNS remittance_operations`** anywhere, so adding a
+  column is safe — the only composite use, `calculator_operation_parts(p_op remittance_operations, …)`,
+  reads fields by name. The one live `deals`-notes reader other than the trigger: none.
+  **Correction to an explorer claim I had to check myself:** the explorer reported the ACL of
+  `notify_operation_incidencia` as matching the `160` functions. Measured: it is
+  `{=X/postgres,postgres=X/postgres,service_role=X/postgres}` — **PUBLIC holds EXECUTE** — while the
+  three `160` functions read `{postgres=X/postgres,service_role=X/postgres}`. The brief now says
+  preserve each ACL exactly and do not "fix" the PUBLIC grant.
+  **Lateral finding, measured by me, not by the writer:** the positional `deals` set is **6** live,
+  the any-mention set is **9**. WU6b's assertion expects 8 and WU6a's expects 9, so **both are red
+  today** — WU6c (`5f8e0f8`) moved the count and updated neither file. Folded into WU6e's scope with
+  a narrow authorisation and a measurement requirement rather than left silently standing.
+  Brief: `.briefs/WU6e-operation-incident-reason.md`.
+
+- 2026-10-01: **WU6e DONE and parent-verified — `94e4d7e` (167) + `982d993` (assertion debt).**
+  `notify_operation_incidencia` no longer reads `deals`; an operation carries its own
+  `incident_reason`. The §3 hypothesis **held under measurement**: an operator was being shown
+  `MOTIVO: VERIFICADO EN PANEL por un operador del CRM` — a stale, wrong motive in the same
+  confident format a real one uses — for a deal-linked incident raised after `160` stopped writing
+  motives into `deals.notes`. Positional `deals` set **6 → 5**, re-measured by me. I re-ran both the
+  new assertion and the WU6b one: `ALL PASS`. Staging at baseline.
+  **The one deviation was mine, not the writer's:** I authorised only the two array literals, which
+  left four count strings announcing eight and nine on a passing run; corrected in a separate commit
+  rather than folded in, so the WU6e work unit stays clean.
+  **Third instance of the same failure, found while verifying:** `cutover.sql` case 4b queried
+  `cerebro_conciliacion_operaciones`, dropped by 164 by product decision — an impossible check, not a
+  latent one, and it aborted the file before its own summary. Removed after I confirmed the view is
+  absent, unnamed by any live function, and has no `pg_depend` consumers. `cutover.sql` now passes
+  all six of its cases.
+  Carried, listed not touched: `v_divergent` unused; three comment-only stale counts at
+  `deals-free-views-and-inert-edits.sql:19`, `:599`, `deal-free-panel-verification.sql:7-8`.
+
+- 2026-10-01: **WU6f sliced and delegated — `sync_tags_cliente`, the last un-sliced object.**
+  Brief: `.briefs/WU6f-tags-off-delivered-operations.md`. Migration `168` + rollback + assertion, and
+  a **second** commit reconciling three stale inventory arrays (5 → 4).
+  **It has no defining migration — measured, not assumed.** The only repo references are
+  `065:17,47,61` (a REVOKE/GRANT that *assumes* it exists) and three assertion arrays; the live body
+  is out-of-band drift, `md5(prosrc) = d0a05822c5116cd69e97c58721846724`, length 1351. **Consequence
+  recorded, not fixed: a from-zero migration replay already fails at `065`**, because nothing creates
+  the function before it. That predates this feature and is out of scope.
+  Six live measurements shaped the slice:
+  1. the `pipeline_id` filter in the old count is **vacuous** — `pipelines` holds exactly one row and
+     all 35 deals are in it, so it drops cleanly;
+  2. stage `1b36b34c-…` is named **`Entregada`**, which `cerebro_estado_desde_etapa` (`041:38-45`) maps
+     to `completed` — the re-key uses the repo's own canonical map, not an invention;
+  3. the old count has **no `d.status` and no `service_type` filter**, so the new side gets
+     `status = 'completed'` and nothing more — adding `<> 'recarga'` would subtract the one `recarga`
+     operation that exists, an unauthorised change, so fidelity wins and it is flagged to the user as
+     an open product question instead;
+  4. the deal → operation mapping is **injective** (`remittance_operations_deal_uk` is a UNIQUE index
+     on `deal_id WHERE deal_id IS NOT NULL`; 34 deals, 1 operation each), so the count cannot inflate;
+  5. two **legitimate divergences** the writer must drive and print — a deal at `Entregada` whose op
+     is not `completed` (old 1 / new 0), and a deal-free op at `completed` (old 0 / new 1);
+  6. on staging **both sides are 0**, so a naive old-vs-new comparison is `0 = 0` and proves nothing —
+     every equivalence claim must rest on constructed fixtures with a non-empty control.
+  **Two measurement traps hit while slicing, both corrected:** a probe for triggers naming
+  `sync_tags_cliente` returned empty because `pg_get_triggerdef` names the *trigger function*
+  (`trg_sync_tags_contact`), not the function it calls — an empty result from a wrong probe, not a
+  real absence; and the first `service_type` query matched comparisons rather than assignments, so the
+  "who sets `completed`" reading was narrowed before being used. This is the **fourth** instance of
+  the stale-inventory pattern and the first one authorised **up front**, in the same brief, so it does
+  not need a follow-up commit — the three arrays *and* their six count strings are named explicitly in
+  §5.
+  **Does `completed` survive the drop? Measured by reading the live bodies, 2026-10-01 — yes.** The
+  question mattered because the tag is keyed on delivered shipments: if nothing could reach
+  `completed` after the drop, every contact would be frozen at whatever tag it held. The setters that
+  actually touch `remittance_operations` are `crm_entregar_operacion(uuid, jsonb)` — the operator
+  panel action, ACL `{postgres, service_role, authenticated}`, not attached to `deals` — and
+  `cerebro_crear_operacion` (`161`), which inserts with
+  `CASE WHEN v_status = 'completed' THEN now() END` off `cerebro_estado_desde_etapa`. The three
+  look-alikes are false positives and update other tables: `cerebro_completar_lote` →
+  `cerebro_ejecuciones`; `crm_corregir_entrada_calculadora` and `crm_resolve_pending_entry` →
+  `remittance_calculator_entries`. The deal-driven route
+  (`cerebro_crear_operacion_al_crear_deal`, `cerebro_sync_operacion_desde_deal`) does disappear with
+  the table — but that route is precisely what is being removed. **Honest limit: this is a reading of
+  the literal bodies, not a driven execution.** Carried to the drop checklist as a verification item.
+
+- 2026-10-01: **WU6f DONE and parent-verified — `902a789` (168) + `3aa13de` (assertion reconciliation).**
+  `sync_tags_cliente` now counts delivered **operations**; the positional `deals` set is **4**.
+  Its body was ported from the captured live text (no migration defined it) into the repository for
+  the first time. Applied `md5(prosrc) = 4c79ab4579d24a55b85418d78347e6c1`, length 1278 — measured by
+  me, not taken from the writer's report.
+  **Parent verification, independent of the writer's claims:** positional set re-measured as exactly
+  `{cerebro_aplicar_nombre_confirmado, cerebro_sync_beneficiarios, crm_forzar_verificacion,
+  crm_verificar_deposito}` (5 → 4); loose set 7; signature `(p_contact_id uuid) → void`, `v`, secdef,
+  owner `postgres`, ACL `{postgres, service_role}` with **no `=X/` entry**; `contacts_sync_tags` alive
+  and `deals_sync_tags` still present as a drop casualty; staging at the exact baseline
+  34 / 0 / 35 / 18 / 18. I re-ran **all four** assertions myself — the new one reports its four
+  fixtures with measured values and `every check passed`, and the three reconciled ones all report
+  ALL PASS.
+  **The four fixtures** (old / new): 1 deal + completed op → **1 / 1** → Cliente; 3 + 3 → **3 / 3** →
+  Recurrentes (and the stale `Cliente` row is deleted); a deal at `Entregada` whose op is not
+  completed → **1 / 0** → Nuevo (divergence A); a deal-free op at completed → **0 / 1** → Cliente
+  (divergence B). Both divergences are behaviour, not defects, and nothing was done to equalise them.
+  **A false alarm in my own verification, recorded so it is not repeated:** my first pass looked like
+  the new assertion had no summary line and skipped check `[1.2]`. Both were artefacts of my grep —
+  the summary reads `OK … every check passed`, not `ALL PASS`, and `[1.2]` announces itself as a
+  `FIXTURE 2 … old=3 new=3` notice rather than a PASS line. The assertion was correct; my filter was
+  wrong. Same trap as the `pg_get_triggerdef` probe during slicing.
+  **Carried, honest gaps:** n8n's real call was not executed (only direct SQL; the ACL is the
+  evidence that `service_role` still binds); no from-zero replay, so the `065` hole stays reasoned
+  rather than reproduced; the `tag_id IN (...)` NULL-swallow was preserved, not exercised; no
+  concurrency testing.
+  **NEW, AND NOT MINE — a migration-number collision on `feat/port-chat-operations-calculator`.**
+  A commit appeared on the branch during this session, `526310c` *"fix(db): store a Clasica/Tropical
+  reparto share in USD on its own rail (167)"*, adding `167_reparto_usd_card_rail.sql` (+ rollback +
+  assertion). That is **the second migration numbered 167**: WU6e's `167_operation_incident_reason.sql`
+  already occupies it. Both live on the branch, so migration order depends on filesystem sort
+  order. The two are independent — I grepped the reparto file and it mentions nothing in the WU6f
+  set, and it redefines only `cerebro_aplicar_reparto` and `cerebro_destino_pendiente_antes_insert` —
+  so nothing was broken, but the numbering needed a decision. **Reported to the user; not
+  renumbered unilaterally, because it is the user's commit.**
+
+  **RESOLVED 2026-10-01, on the user's explicit instruction ("si muevela"): the reparto migration is
+  now `169`.** Renamed `167_reparto_usd_card_rail.sql` → `169_reparto_usd_card_rail.sql` and
+  `ROLLBACK-167-reparto-usd-card-rail.sql` → `ROLLBACK-169-reparto-usd-card-rail.sql`, plus three
+  self-referencing header lines (the migration, its rollback, and
+  `assertions/reparto-usd-card-rail.sql:2`). WU6e keeps `167`, so the two are now distinct and
+  ordered; `169` was free.
+  **Order-safety was measured before moving, not assumed.** The reparto file is the *last* definer of
+  both functions it touches — the earlier definers are 127, 129, 130, 150, 157 and 163, and nothing
+  after it redefines them. Neither `167_operation_incident_reason` (`notify_operation_incidencia`,
+  `cerebro_registrar_deposito`, `cerebro_cruzar_deposito(s)`) nor `168_tags_off_delivered_operations`
+  (`sync_tags_cliente`) touches those two functions, so applying 169 after 168 yields the
+  byte-identical final state.
+  **The rename changed no database.** The migration was already not applied on staging —
+  `cerebro_aplicar_reparto` does not contain `clasica` (md5 `3fea2dace04bbef07619f6b3b73d31a2`) — and
+  the `supabase_migrations.schema_migrations` ledger stops at `122`, everything after being applied
+  by hand, so no ledger entry carries the old number. **Production was not inspected:** reading it
+  needs a per-session authorization that a file rename does not require.
+  One lateral observation, **not acted on**: `ROLLBACK-169`'s header says it restores "130's
+  `cerebro_aplicar_reparto`", but `163_reparto_destino_node_adapters.sql` (WU4c) also mentions that
+  function — though it does **not** redefine it, checked. So the claim may be merely imprecise rather
+  than wrong; it is the user's file and outside this rename's scope.
+
+- 2026-10-01: **resumed in a fresh session; WU7 sliced (Fase 6.1 + 6.2, the `src/` half).** Before
+  slicing I re-measured the `src/` surface by grep rather than trusting this document's Phase 6 list,
+  and it was **incomplete in both directions** — the same lesson the catalog taught WU6. The doc
+  named two items; the real runtime surface is **four query sites plus one realtime subscription**.
+  - **Found and verified, and it is a real silent-failure risk (now 6.5):** the operations panel
+    refreshes live off a realtime subscription to `deals`
+    (`operations-panel-container.tsx:221`), because `deals` is in `supabase_realtime` and the
+    `remittance_*` tables are not. Confirmed against the staging catalog, not just the code comment:
+    the publication holds eight tables and **none of them is `remittance_operations` or
+    `remittance_beneficiaries`**. Dropping `deals` therefore kills the panel's live refresh with no
+    error anywhere. Not fixed in WU7 (it needs a publication decision) and not lost: it is item 6.5.
+  - **Found (now 6.6):** a `/settings?tab=deals` tab (`deals-settings.tsx`) that this document never
+    listed. It is **not** a `deals`-table dependency — it writes `accounts.default_currency`, which
+    `dashboard/page.tsx:230,274` still uses to format operations-in-progress. The setting stays; only
+    the naming is open. Recorded as a product decision rather than deleted by reflex.
+  - **Two facts that make WU7.2 safe, both measured:** the engine's `default:` arm **returns**
+    `unknown step: <type>` rather than throwing (`engine.ts:589-590`), so a surviving `create_deal`
+    row degrades to a no-op message; and staging `automation_steps` holds **0 rows**, so no
+    configured step exists there. **Production was not read** — that needs its own authorization, so
+    "no production automation carries `create_deal`" is an assumption carried openly, not a finding.
+  - Scope of WU7 is generic-CRM only: no DB, no n8n, no production. TDD is enabled (user's global
+    config), runner `npm test` → `vitest run`.
+
+- 2026-10-01: **WU7 DONE — `9565f25` (7 files, +17 / -310).** The generic CRM is off `deals`. All
+  four checks re-run by the parent: `tsc` exit 0, `npm test` 141 files / 1659 tests, `lint` 45
+  warnings / 0 errors (baseline-identical), and the re-grep leaves only the 6.5 subscription. Two
+  line ranges in my brief were wrong and the writer caught both by measuring before writing —
+  `fetchDeals` was `171-181` inside a **shared** `useEffect` (the literal range would have deleted
+  the contacts/tags/notes/custom-fields loaders), and the pipelines fetch was `266-270` (the literal
+  range would have left a dangling chain). Fifth brief defect of the feature, fifth time the writer's
+  measurement caught it. My own verification then produced a **false finding** — I probed
+  `Settings.tabs.deals`, got `undefined`, and nearly reported a key the writer had correctly kept;
+  the real path is `Settings.sections.deals`. Recorded because it is the sixth instance of this
+  family: a wrong probe is not evidence, in either direction.
+
+## Next step
+0. **WU7 — DONE 2026-10-01, commit `9565f25` (Fase 6.1 + 6.2, `src/` only).** The generic CRM no
+   longer touches `deals`/`pipelines`/`pipeline_stages`; evidence and the two brief defects it
+   caught are in the WU7 block under Phase 6. **What is left in Phase 6, and each has a different
+   owner:** 6.3 the sweep (now cheaper — its two known false-positive sources are named in the WU7
+   block), 6.4 the `DROP TABLE` (needs your explicit go-ahead), 6.5 the operations-panel realtime
+   dependency (**DB/publication work, and the only remaining silent-failure risk in this phase — it
+   must be settled before the drop, not after**), 6.6 the Settings tab naming (product call). Plus
+   three follow-ups WU7 deliberately did not sweep, listed in its block.
+1. WU4 — DONE. WU4a `bcc6cd7` (161), WU4b `af07d9d` (162), WU4d closed as unnecessary with no code
+   change (`8edac6f`). WU4c (163, reparto + destino) queued to land next.
+   **Correction (2026-10-01): the n8n-access caveat previously recorded here was stale.** n8n IS
+   reachable from this session through its REST API (credentials at
+   `/home/onlinefreedom/.config/wacrm/n8n-api.env`); the MCP connector is simply not the channel we
+   use. WU5 and WU6 are therefore NOT blocked on access — see the real blocker below.
+2. WU5 — rewire the n8n nodes one by one (byte-exact draft diff, live test each).
+   **WU5a DONE on the staging twin (`9a9d23e`) — SIX nodes, not seven**: `Registrar beneficiario
+   auto`, `Registrar zelle auto`, `gestionar_beneficiario`, `registrar_beneficiario_zelle` (← 162);
+   `registrar_reparto_multiple` and `marcar_destino_usd` (← 163). `Registrar deposito auto` was
+   already deal-free and needed no rewire — that is the seventh node this plan carried, now retired.
+   **WU5b (production) is USER-GATED and not started.**
+   **BLOCKER — ANSWERED 2026-10-01, and the answer changes the plan.** There is no workflow named
+   `Webhook WaCRM`: that is the *node*. The real flows, established by read-only API recon and
+   then re-verified by me directly against the API:
+   - PRODUCTION: `Cerebro v2 — LEGACY OPTIMIZED V1`, id `jEzlVLCLUaJhVwzs`, webhook
+     `wacrm-cerebro-green-v1`, **`active: true`**. All 44 of its Postgres nodes share ONE credential,
+     `Supabase Account` (`S2CallLPSjzbVXN4`, type `postgres`).
+   - STAGING TWIN: `[STAGING] Cerebro v2 — LEGACY OPTIMIZED V1`, id `U52y1kSNvhgxvWeb`,
+     **also `active: true`**, using `Supabase STAGING` (`np3egGrAcrWkOWd4`).
+   - The split is clean across the whole instance: 30 unprefixed workflows → `Supabase Account`;
+     the 10 `[STAGING]` ones → `Supabase STAGING`. Nothing crosses.
+   Consequence: **the live production workflow is active and does NOT point at the database where
+   our functions exist.** Rewiring it directly is the failure mode this check existed to prevent.
+   So WU5 proceeds against the `[STAGING]` twin `U52y1kSNvhgxvWeb` end-to-end first, and the
+   production rewire becomes a separate, explicitly user-gated step that also requires deploying
+   160/161/162/163 to production first. Nothing in WU5 may touch `jEzlVLCLUaJhVwzs` without the
+   user's explicit go-ahead for production.
+   Honest limit on the evidence: the n8n public API returns credential metadata only
+   (`id`/`name`/`type`), never the connection string, so the *host* behind `Supabase Account` is
+   confirmed by naming and by its isolation from the staging credential — not by reading a host.
+   Reading the actual host needs the n8n UI or `n8n export:credentials --decrypted`, which is out
+   of scope and was not attempted. The conclusion is not weakened by this: whether that credential
+   is production or merely unpinned, treating an active workflow on an unlabelled credential as
+   production is the only safe reading, and the staging twin gives us a path that needs no such
+   assumption.
+   LATERAL FINDING, reported, not acted on: `PRUEBA OpenAI - copia del Cerebro (NO es produccion)`
+   (`lpl76uti9nup5ekm`) points at the SAME `Supabase Account` as production, despite a name that
+   says otherwise. Anyone treating that workflow as a safe sandbox would be writing to production.
+   Its `active` is `false`.
+   Wiring map: `agent-shared/reports/wu5-n8n-wiring-map.md`.
+   Also note the rail asymmetry: only `Registrar beneficiario auto` and `Registrar zelle auto` sit
+   on the deterministic rail; the other five have no inbound `main` edge and fire only as `ai_tool`s
+   (see the WU4 constraints block above). A rewire that is safe for a rail node is not automatically
+   safe for an `ai_tool` one.
+3. WU6 — **scope re-settled 2026-10-01 from the live staging catalog** (see the WU6 block in Phase 1
+   for the full object list and the raw evidence). The earlier grep-based scoping — superseded:
+   - `090_notificacion_incidencia_nombre_y_formato.sql` — SETTLED. It contains zero `deals`
+     references, and the object it created, `notify_deal_incidencia`, **exists live but has no
+     trigger** (`pg_trigger` returns zero rows for its `tgfoid`). Dead function; the only residue
+     is an optional `DROP FUNCTION`, and it is a casualty of the table drop rather than work.
+   - `114_cutover_retire_sync_pipeline.sql` — **was mis-assessed as "mostly header commentary".**
+     It is the single biggest WU6 item: it defines all three blocking views (one of which has
+     `deals` as its primary `FROM`) and three of the thirteen functions.
+   - `136_business_hours.sql` — three live `cerebro_avisar_*` bodies, still real.
+   - `052_cerrar_deal_entregado.sql` / `096_admin_locks_audit_sync.sql` — these own
+     `trg_cerrar_deal_entregado` and `deals_admin_completion_guard()`, both trigger functions **on**
+     `deals`. They are casualties that must be dropped before the table, not porting work. They are
+     **not** in the thirteen.
+   - The lesson worth keeping: scoping from migration text produced both a false positive (090, a
+     dead function) and a false negative (114's real weight). Only the catalog is authoritative.
+   - **Where WU6 stands after WU6f is sliced:** WU6a, WU6b, WU6c, WU6e DONE; **WU6f** (tags,
+     `sync_tags_cliente`) delegated; **WU6d BLOCKED** — its precondition triggers
+     `trg_sync_z_benef_desde_deal` and `trg_sync_operacion_al_crear_deal` are still live on `deals`.
+     `crm_verificar_deposito` and `crm_forzar_verificacion` stay by design. After WU6f the positional
+     `deals` set is **4**: `cerebro_aplicar_nombre_confirmado`, `cerebro_sync_beneficiarios` (both
+     WU6d's), `crm_forzar_verificacion`, `crm_verificar_deposito` (both intentional).
+- 2026-10-02: **staging app updated to `e3fff52`** (owner go-ahead; oracle2, pm2 `wacrm-staging`). It brings the WU7
+  removal of the Deals tab / `create_deal` (`9565f25`) and the WU8 operations-panel realtime on
+  `remittance_operations` (`3b5f5dc`; staging DB has the publication, applied as 171 = file 181). Built in
+  `prod-build` with Node 20 docker + `~/.config/wacrm/staging-build.env` (NEXT_PUBLIC values identical to the
+  server's): manifest environment=staging, 114 money-path tests passed, bundle 0 production refs / 32 staging refs,
+  no .env inside, sha256 OK. Served cwd = `~/wacrm-releases/e3fff52…`, `anterior` -> `516ebda…` (rollback: relink
+  current to anterior + `pm2 restart wacrm-staging --update-env`), `/login` 200 and the domain serves BUILD_ID
+  `eRJxKEGVFzNdTyQjSen4m`; no crash after restart. **Production app is still behind** (`1fede6c`): it lacks
+  `9565f25` and `3b5f5dc`, and `3b5f5dc` needs migration 181 on the production DB first (not applied there).
+- 2026-10-02: **production app updated to `bf89693`** (app code = `e3fff52`: Deals tab / create_deal removed, panel
+  realtime on `remittance_operations`), after applying 181 and 186 to the production DB
+  (odd/tasks/panel-realtime-beneficiaries.md). The only production automation with a `create_deal` step ("Recurrente
+  manda datos") is inactive since 2026-07-10, no pending executions. Staging and production apps now run the same code.
+- 2026-10-02: **WU5b scope MEASURED (catalog diff staging vs production, md5 of every function body; n8n node scan).**
+  - Still reading/writing `deals`: production DB 20 functions, production Cerebro 3 nodes (`Contexto conversacion`,
+    `Historial contacto`, `marcar_destino_usd`) plus the indirect path (tools -> cerebro_guardar_* ->
+    cerebro_escribir_bloque_beneficiario -> deals.notes -> `trg_sync_operacion_al_crear_deal` /
+    `trg_sync_z_benef_desde_deal`). Staging: 4 functions (cerebro_aplicar_nombre_confirmado, cerebro_sync_beneficiarios
+    = WU6d; crm_forzar_verificacion, crm_verificar_deposito = by design), 0 nodes.
+  - Functions that differ (23): cerebro_aplicar_cotizacion, cerebro_avisar_envios_incompletos,
+    cerebro_avisar_envios_sin_beneficiario, cerebro_avisar_remesas_abiertas_viejas, cerebro_cruzar_deposito,
+    cerebro_cruzar_depositos, cerebro_cruzar_pendientes, cerebro_escribir_bloque_beneficiario, cerebro_objetivo_atar,
+    cerebro_objetivo_cerrar, cerebro_objetivo_minimo, cerebro_recruzar_depositos_tardios, cerebro_registrar_deposito,
+    cerebro_rescatar_dsml, cerebro_saldo_envio, crm_comprobantes_de_operacion, crm_corregir_entrada_calculadora (comments
+    only), crm_entregar_operacion, crm_forzar_verificacion, crm_verificar_deposito, merge_duplicate_contacts,
+    notify_operation_incidencia, sync_tags_cliente.
+  - Only on staging (17): cerebro_atar_operation_por_deal, cerebro_catalogo_servicios, cerebro_crear_operacion,
+    cerebro_gestionar_beneficiario, cerebro_marcar_destino_usd, cerebro_monto_recibe, cerebro_objetivo_atar_op,
+    cerebro_objetivo_cerrar_op, cerebro_parsear_comprobantes, cerebro_registrar_beneficiario_auto,
+    cerebro_registrar_beneficiario_zelle, cerebro_registrar_cotizacion(5 args), cerebro_registrar_reparto_multiple,
+    cerebro_registrar_zelle_auto, cerebro_resolve_op_id, cerebro_saldo_operacion, crm_limpiar_calculadora.
+    Only on production: none.
+  - Tables only on staging: remittance_operation_receipts (156, needs a backfill from deals.notes for open operations),
+    cerebro_ultima_cotizacion (153), remittance_calculator_clearances, eval_memoria_replay (test). Triggers only on
+    staging: depositos_mmg.trg_depositos_mmg_atar_operation, cerebro_objetivo_envio.trg_objetivo_envio_atar_operation;
+    only on production: the 8 deals triggers (retired on staging by 172/WU9).
+  - Not all of it is deals work (cerebro_rescatar_dsml, cerebro_catalogo_servicios, crm_limpiar_calculadora are other
+    staging-only features): the port list must be filtered, not copied wholesale.
+- 2026-10-02: **WU5b step 2 — DB REHEARSAL on a production copy: PASSED.** Read-only dump (owner go-ahead, user
+  `respaldo_lectura`): `~/wacrm-respaldos/produccion-20261002T171652Z.dump` (106 tables with data, 243 functions),
+  restored into a NEW container `wacrm-ensayo-wu5b` (supabase/postgres 17.6.1.167, 127.0.0.1:55433; the older
+  `wacrm-ensayo` untouched) with the ensayar-cutover.sh recipe (only "already exists"/duplicate-key errors of the second
+  pass). Bundle applied in order, every file exit 0: 153, 156, 158, 159, 160, 161, 162, 163, 164, 165, 166,
+  167_operation_incident_reason, 168_tags_off_delivered_operations, 172, 182, 183 (repo 169 is already production's
+  "167_reparto_usd_card_rail"). Result vs staging (md5 of every function): identical except the known unrelated items
+  (cerebro_rescatar_dsml, crm_corregir_entrada_calculadora comments, staging-only cerebro_catalogo_servicios,
+  crm_limpiar_calculadora, tables eval_memoria_replay, remittance_calculator_clearances; production-only table
+  cutover_legacy_backfill_2026_09_27). Assertions on the rehearsed copy ALL PASS: partial-beneficiary-tools, -auto,
+  reparto-guards, beneficiary-touches-operation, deal-free-money-rules, cup-excess-equivalent, deposit-path-without-deals,
+  panel-quote, operation-receipts (inside BEGIN ... ROLLBACK). operations-realtime FAILS only because a restore does not
+  carry the publication membership (0 tables published in the copy; production has remittance_operations, 181).
+  Real data: 442 receipts backfilled for 431 operations; the 7 open production operations read through the panel
+  (crm_operaciones_de_conversacion, crm_comprobantes_de_operacion `receipts` with the matched MMG deposit, saldo); dashboards,
+  crm_cierre_financiero, the alerts and cerebro_recruzar_depositos_tardios run. `deals` keeps 2 triggers by design
+  (set_updated_at, trg_sync_z_benef_desde_deal; WU9.3). Side finding: deposit-path-without-deals.sql run without BEGIN
+  left 3 fixture operations in the rehearsal copy (copy only) -> all 47 SAVEPOINT-style assertions now start with
+  `\set ON_ERROR_STOP on`.
+  Next: the n8n side (production Cerebro nodes vs staging), then the production window with go-ahead.
+- 2026-10-02: **WU5b — n8n side prepared (gate 84, NOT deployed).** Node diff production vs staging Cerebro (connections
+  identical): environment-only nodes kept (Avisar espera al cliente, Confirmar al admin, Despertar al enviador,
+  Responder por WaCRM, Validar evento, Webhook WaCRM); prompt kept (its only difference is staging's 138 services
+  catalog, not deals); consultar_servicio and the community DeepSeek node kept. Eight nodes to port, script
+  `~/cerebro-fase1/pruebas/gate84-wu5b.py` (construir|desplegar): Contexto conversacion = production query with ONLY its 3
+  deals hunks replaced by staging's (dup_etapa/dup_valor from remittance_operation_receipts, via_deposito_ya_usada from
+  receipts, last closed remesa from operations; staging's catalogo_servicios not ported); Historial contacto, Cruzar
+  deposito con MMG (objetivo by operation), marcar_destino_usd (cerebro_marcar_destino_usd), calcular_envio,
+  calcular_inverso, calcular_usd, calcular_usd_desde_gyd (also register the quote, 153) = staging parameters,
+  production credentials/ids kept. Candidate built on live production 712e779d: exactly those 8 nodes change; no
+  `deals` read left in them. All 8 queries PREPARE on the migrated production copy. Old vs candidate Contexto EXECUTED
+  on 11 real conversations (8 open, 3 completed) of the copy: 27/27 columns identical except one
+  via_deposito_ya_usada '' -> 'Agente MMG' (the receipt carries the way the deal note lacked).
+  ORDER for the production window: the current `marcar_destino_usd` INSERTs into deals, which after 172 no longer
+  creates an operation, so the n8n PUT must follow the DB bundle immediately (minutes), never precede it.
+- 2026-10-02 17:49 UTC: **WU5b IN PRODUCTION (owner go-ahead "hazlo ahora").**
+  - Fresh backup before: `~/wacrm-respaldos/produccion-20261002T173301Z.dump`. 153 applied first through the Supabase
+    MCP (additive). No write connection string was available (owner does not know the DB password), so the rest went
+    through a temporary n8n workflow using the bot's production Postgres credential (role `postgres`; owner chose this
+    fallback): `~/cerebro-fase1/pruebas/gate84-aplicar-db.py`. Lessons: n8n's Postgres node rewrites `$` in query text
+    and splits queryReplacement on commas, so the bundle travels base64 inside the query and a temporary
+    `public.zz_wu5b_exec(text)` EXECUTEs it in one call (one transaction); `168_tags_off_delivered_operations.sql` ends
+    without `;` (fine for psql at end of file, fatal when chained) -> the bundler closes unterminated files.
+  - Dry run on production (bundle + forced exception): `functions=319 receipts=438 deals_triggers=2 open_ops=8`, nothing
+    kept (verified). Real run 17:49:31 (1.6 s, one transaction, bundle md5 02877a3e...): 156, 158-168 (167 incident
+    reason, 168 tags), 172, 182, 183, registered in supabase_migrations.schema_migrations (created_by gate84-aplicar-db).
+    Bot: `gate84-wu5b.py desplegar` at 17:49:39, exactly the 8 nodes, byte-verified, active version
+    43568e65-8633-480c-8228-4bc5484b7b8f, rollback `ROLLBACK-84-prod-20261002-114939.json`.
+  - After: every deals/money function md5 = staging (only rescatar_dsml and corregir_entrada_calculadora differ, as
+    planned); receipts 438; deals triggers: set_updated_at, trg_sync_z_benef_desde_deal (by design); realtime still
+    publishes remittance_operations. Assertions ON PRODUCTION (self-reverting, forced rollback): partial-beneficiary-tools,
+    -auto, reparto-guards, beneficiary-touches-operation, panel-quote, deal-free-money-rules, cup-excess-equivalent,
+    deposit-path-without-deals, operation-receipts ALL PASS. No fixture residue; helper dropped.
+  - First real traffic (conv 4814cdfe): 18:19 a 29,000 GYD receipt landed on the customer's OLD deal-linked open
+    operation 972718ea, matched the MMG email, verified -> ready_to_transfer (new code handles legacy operations);
+    18:20 a second receipt (28,000, ref 20321203276682, no MMG email) opened a new deal-free operation 591262ba ->
+    incident `sin_correo` (the normal rule; the ref prefix 2032 is unusual: a human should check it). 0 deals created
+    after the cutover.
+  Next: owner live test in production; then WU6d (cerebro_aplicar_nombre_confirmado, cerebro_sync_beneficiarios),
+  WU9.4, 6.4 (drop deals/pipelines/pipeline_stages, extra confirmation).

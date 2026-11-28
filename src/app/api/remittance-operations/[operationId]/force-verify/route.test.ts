@@ -1,0 +1,263 @@
+// Route-level tests for POST /api/remittance-operations/{operationId}/force-verify.
+// Covers admin-only role gating (requireRole("admin") itself rejects lower
+// roles by throwing, so we assert on requireRole's rejection like the
+// pattern routes), operationId validation, the beta-flag 404, reason
+// validation, RPC error-code mapping (42501/40001), and the happy-path
+// response shape.
+
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const requireRole = vi.fn();
+
+const toErrorResponse = (error: unknown) => {
+  const status = (error as { status?: number }).status ?? 500;
+  const message = status >= 500 ? "Internal server error" : (error as Error).message;
+  return new Response(JSON.stringify({ error: message }), { status });
+};
+
+vi.mock("@/lib/auth/account", () => ({ requireRole, toErrorResponse }));
+
+const USER_ID = "user-a";
+const OPERATION_ID = "11111111-1111-1111-1111-111111111111";
+
+const ENABLED_PROFILE = { data: { beta_features: ["operations_panel"] }, error: null };
+const DISABLED_PROFILE = { data: { beta_features: [] }, error: null };
+
+function profileBuilder(result: { data: unknown; error: unknown }) {
+  const builder = {
+    select: vi.fn(() => builder),
+    eq: vi.fn(() => builder),
+    maybeSingle: vi.fn(() => Promise.resolve(result)),
+  };
+  return builder;
+}
+
+function ctx(
+  profileResult: { data: unknown; error: unknown },
+  rpcResult: { data: unknown; error: unknown },
+) {
+  const rpc = vi.fn(() => Promise.resolve(rpcResult));
+  const from = vi.fn(() => profileBuilder(profileResult));
+  return {
+    supabase: { from, rpc },
+    userId: USER_ID,
+    accountId: "account-a",
+    role: "admin" as const,
+    account: { id: "account-a", name: "A" },
+  };
+}
+
+function request(body?: unknown, rawBody?: string) {
+  return new Request(
+    `http://local/api/remittance-operations/${OPERATION_ID}/force-verify`,
+    {
+      method: "POST",
+      body: rawBody ?? (body === undefined ? undefined : JSON.stringify(body)),
+    },
+  );
+}
+
+function paramsFor(operationId: string) {
+  return { params: Promise.resolve({ operationId }) };
+}
+
+const VALID_REASON = "Deposit confirmed by phone with the sender";
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+describe("POST /api/remittance-operations/[operationId]/force-verify", () => {
+  it("caller below admin -> role rejected by requireRole", async () => {
+    const { POST } = await import("./route");
+    requireRole.mockRejectedValueOnce({ message: "Forbidden", status: 403 });
+
+    const response = await POST(
+      request({ reason: VALID_REASON }),
+      paramsFor(OPERATION_ID),
+    );
+
+    expect(response.status).toBe(403);
+    expect(requireRole).toHaveBeenCalledWith("admin");
+  });
+
+  it("unauthenticated request -> 401", async () => {
+    const { POST } = await import("./route");
+    requireRole.mockRejectedValueOnce({ message: "Unauthorized", status: 401 });
+
+    const response = await POST(
+      request({ reason: VALID_REASON }),
+      paramsFor(OPERATION_ID),
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  it("malformed operationId -> 400", async () => {
+    const { POST } = await import("./route");
+    requireRole.mockResolvedValueOnce(ctx(ENABLED_PROFILE, { data: null, error: null }));
+
+    const response = await POST(
+      request({ reason: VALID_REASON }),
+      paramsFor("not-a-uuid"),
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it("caller without the operations_panel beta flag -> 404, RPC never called", async () => {
+    const { POST } = await import("./route");
+    const callCtx = ctx(DISABLED_PROFILE, { data: null, error: null });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await POST(
+      request({ reason: VALID_REASON }),
+      paramsFor(OPERATION_ID),
+    );
+
+    expect(response.status).toBe(404);
+    expect(callCtx.supabase.rpc).not.toHaveBeenCalled();
+  });
+
+  it("invalid JSON body -> 400", async () => {
+    const { POST } = await import("./route");
+    requireRole.mockResolvedValueOnce(ctx(ENABLED_PROFILE, { data: null, error: null }));
+
+    const response = await POST(
+      request(undefined, "{not-json"),
+      paramsFor(OPERATION_ID),
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it.each([
+    ["reason not a string", { reason: 12345 }],
+    ["reason over 500 characters", { reason: "x".repeat(501) }],
+  ])("%s -> 400, RPC never called", async (_label, body) => {
+    const { POST } = await import("./route");
+    const callCtx = ctx(ENABLED_PROFILE, { data: null, error: null });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await POST(request(body), paramsFor(OPERATION_ID));
+
+    expect(response.status).toBe(400);
+    expect(callCtx.supabase.rpc).not.toHaveBeenCalled();
+  });
+
+  it("RPC insufficient_privilege (42501) -> 403", async () => {
+    const { POST } = await import("./route");
+    requireRole.mockResolvedValueOnce(
+      ctx(ENABLED_PROFILE, {
+        data: null,
+        error: { code: "42501", message: "insufficient_privilege" },
+      }),
+    );
+
+    const response = await POST(
+      request({ reason: VALID_REASON }),
+      paramsFor(OPERATION_ID),
+    );
+
+    expect(response.status).toBe(403);
+  });
+
+  it("RPC serialization failure (40001) -> 409", async () => {
+    const { POST } = await import("./route");
+    requireRole.mockResolvedValueOnce(
+      ctx(ENABLED_PROFILE, {
+        data: null,
+        error: { code: "40001", message: "could not serialize access" },
+      }),
+    );
+
+    const response = await POST(
+      request({ reason: VALID_REASON }),
+      paramsFor(OPERATION_ID),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body.error).toBe("Operation changed concurrently, retry");
+  });
+
+  it.each([
+    ["empty body", {}],
+    ["blank reason", { reason: "    " }],
+  ])("%s -> 200 and the RPC gets p_reason null", async (_label, body) => {
+    const { POST } = await import("./route");
+    const callCtx = ctx(ENABLED_PROFILE, {
+      data: { new_status: "ready_to_transfer" },
+      error: null,
+    });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await POST(request(body), paramsFor(OPERATION_ID));
+
+    expect(response.status).toBe(200);
+    expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_forzar_verificacion", {
+      p_operation_id: OPERATION_ID,
+      p_reason: null,
+      p_notify: true,
+    });
+  });
+
+  it("success -> 200 { ok: true, newStatus } and trims reason before calling RPC", async () => {
+    const { POST } = await import("./route");
+    const callCtx = ctx(ENABLED_PROFILE, {
+      data: { new_status: "ready_to_transfer" },
+      error: null,
+    });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await POST(
+      request({ reason: `  ${VALID_REASON}  ` }),
+      paramsFor(OPERATION_ID),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_forzar_verificacion", {
+      p_operation_id: OPERATION_ID,
+      p_reason: VALID_REASON,
+      p_notify: true,
+    });
+    expect(body).toEqual({ ok: true, newStatus: "ready_to_transfer" });
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+  });
+
+  it("notify:false in the body -> RPC gets p_notify false", async () => {
+    const { POST } = await import("./route");
+    const callCtx = ctx(ENABLED_PROFILE, {
+      data: { new_status: "ready_to_transfer" },
+      error: null,
+    });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await POST(
+      request({ reason: VALID_REASON, notify: false }),
+      paramsFor(OPERATION_ID),
+    );
+
+    expect(response.status).toBe(200);
+    expect(callCtx.supabase.rpc).toHaveBeenCalledWith("crm_forzar_verificacion", {
+      p_operation_id: OPERATION_ID,
+      p_reason: VALID_REASON,
+      p_notify: false,
+    });
+  });
+
+  it("notify not a boolean -> 400, RPC never called", async () => {
+    const { POST } = await import("./route");
+    const callCtx = ctx(ENABLED_PROFILE, { data: null, error: null });
+    requireRole.mockResolvedValueOnce(callCtx);
+
+    const response = await POST(
+      request({ reason: VALID_REASON, notify: 1 }),
+      paramsFor(OPERATION_ID),
+    );
+
+    expect(response.status).toBe(400);
+    expect(callCtx.supabase.rpc).not.toHaveBeenCalled();
+  });
+});

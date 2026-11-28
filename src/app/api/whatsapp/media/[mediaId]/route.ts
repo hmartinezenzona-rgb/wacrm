@@ -3,6 +3,35 @@ import { createClient } from '@/lib/supabase/server'
 import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
 
+// Meta media ids are numeric; anything else cannot be one of ours.
+const MEDIA_ID_RE = /^[A-Za-z0-9]{1,64}$/
+
+/**
+ * True when a message of one of the account's conversations references
+ * this Meta media id: either the legacy proxy URL
+ * (`/api/whatsapp/media/<id>`) or a stored object named `...-wa-<id>.<ext>`.
+ * Without this any logged-in user could pull any media their WhatsApp
+ * business token can see, whichever account it belongs to.
+ */
+async function accountOwnsMedia(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  accountId: string,
+  mediaId: string,
+): Promise<boolean> {
+  const base = () =>
+    supabase
+      .from('messages')
+      .select('id, conversations!inner(account_id)')
+      .eq('conversations.account_id', accountId)
+      .limit(1)
+
+  const byProxyUrl = await base().eq('media_url', `/api/whatsapp/media/${mediaId}`)
+  if (byProxyUrl.data?.length) return true
+
+  const byFileName = await base().like('media_url', `%wa-${mediaId}.%`)
+  return !!byFileName.data?.length
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ mediaId: string }> }
@@ -48,6 +77,10 @@ export async function GET(
       )
     }
 
+    if (!MEDIA_ID_RE.test(mediaId) || !(await accountOwnsMedia(supabase, accountId, mediaId))) {
+      return NextResponse.json({ error: 'Media not found' }, { status: 404 })
+    }
+
     // Fetch and decrypt WhatsApp config
     const { data: config, error: configError } = await supabase
       .from('whatsapp_config')
@@ -77,7 +110,7 @@ export async function GET(
       status: 200,
       headers: {
         'Content-Type': contentType || mediaInfo.mimeType || 'application/octet-stream',
-        'Cache-Control': 'public, max-age=86400',
+        'Cache-Control': 'private, max-age=3600',
       },
     })
   } catch (error) {

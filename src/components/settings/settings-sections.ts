@@ -1,4 +1,5 @@
 import {
+  CalendarOff,
   Coins,
   FileText,
   KeyRound,
@@ -33,6 +34,7 @@ export const SETTINGS_SECTIONS = [
   'deals',
   'members',
   'api',
+  'closed-days',
 ] as const;
 
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
@@ -45,6 +47,7 @@ export interface SectionMeta {
   label: string;
   icon: LucideIcon;
   group: 'top' | 'account' | 'workspace';
+  adminOnly?: boolean;
 }
 
 export const SECTION_META: Record<SettingsSection, SectionMeta> = {
@@ -59,6 +62,13 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   deals: { id: 'deals', label: 'Deals & currency', icon: Coins, group: 'workspace' },
   members: { id: 'members', label: 'Team members', icon: UsersRound, group: 'workspace' },
   api: { id: 'api', label: 'API keys', icon: KeyRound, group: 'workspace' },
+  'closed-days': {
+    id: 'closed-days',
+    label: 'Closed days',
+    icon: CalendarOff,
+    group: 'workspace',
+    adminOnly: true,
+  },
 };
 
 export const RAIL_GROUPS: { label: string | null; group: SectionMeta['group'] }[] = [
@@ -71,14 +81,19 @@ function isSection(value: string | null): value is SettingsSection {
   return !!value && (SETTINGS_SECTIONS as readonly string[]).includes(value);
 }
 
+/** Sections the viewer may see: `adminOnly` ones are dropped for non-admins. */
+export function visibleSections(isAdmin: boolean): SettingsSection[] {
+  return SETTINGS_SECTIONS.filter((s) => isAdmin || !SECTION_META[s].adminOnly);
+}
+
 /**
  * Resolve a raw `?tab=` value to a section. Legacy tabs from the old
  * flat layout collapse onto their new home (Tags + Custom fields → the
- * merged "Fields & tags" section). Anything unknown falls back to the
- * Overview landing.
+ * merged "Fields & tags" section). Anything unknown, or an admin-only
+ * section for a non-admin, falls back to the Overview landing.
  */
-export function resolveSection(raw: string | null): SettingsSection {
+export function resolveSection(raw: string | null, isAdmin: boolean): SettingsSection {
   if (raw === 'tags' || raw === 'custom-fields') return 'fields';
-  if (isSection(raw)) return raw;
+  if (isSection(raw) && visibleSections(isAdmin).includes(raw)) return raw;
   return DEFAULT_SECTION;
 }

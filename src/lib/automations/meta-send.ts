@@ -91,6 +91,11 @@ export async function engineSendInteractive(
       buttons: payload.buttons,
     })
   }
+  if (payload.kind === 'cta_url') {
+    // The automation builder only creates buttons/lists; the group-invite
+    // CTA is sent from the webhook, not from an automation.
+    throw new Error('cta_url interactive messages are not supported in automations')
+  }
   return engineSendInteractiveList({
     ...common,
     bodyText: payload.body,

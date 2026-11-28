@@ -1,5 +1,6 @@
 "use client";
 
+import { setInboxOpenTarget } from "@/lib/inbox/open-target";
 import { useEffect } from "react";
 import type { Notification } from "@/types";
 
@@ -101,9 +102,8 @@ export function useNotificationAlerts() {
           n.onclick = () => {
             try {
               window.focus();
-              window.location.href = row.conversation_id
-                ? `/inbox?conversation=${row.conversation_id}`
-                : "/notifications";
+              if (row.conversation_id) setInboxOpenTarget(row.conversation_id);
+              window.location.href = row.conversation_id ? "/inbox" : "/notifications";
               n.close();
             } catch {
               /* noop */

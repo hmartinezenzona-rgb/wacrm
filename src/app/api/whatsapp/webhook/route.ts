@@ -3,13 +3,16 @@ import { createClient } from '@supabase/supabase-js'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
 import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
+import { enviarInvitacionTrasRespuesta } from '@/lib/whatsapp/group-invite'
 import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe'
 import { findConversationForContact } from '@/lib/whatsapp/find-conversation'
 import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
-import { dispatchWebhookEvent } from '@/lib/webhooks/deliver'
+
+
+import { dispatchEventDurably } from '@/lib/webhooks/outbox'
 import {
   handleTemplateWebhookChange,
   isTemplateWebhookField,
@@ -240,7 +243,7 @@ export async function POST(request: Request) {
   // maxDuration).
   after(async () => {
     try {
-      await processWebhook(body)
+      await processWebhook(body, new URL(request.url).origin)
     } catch (error) {
       console.error('Error processing webhook:', error)
     }
@@ -249,7 +252,7 @@ export async function POST(request: Request) {
   return NextResponse.json({ status: 'received' }, { status: 200 })
 }
 
-async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
+async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }, origin: string) {
   if (!body.entry) return
 
   for (const entry of body.entry) {
@@ -370,6 +373,13 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
 
       const decryptedAccessToken = decrypt(config.access_token)
 
+      const invitaciones: Array<{
+        accountId: string
+        conversationId: string
+        contactId: string
+        desde: string
+      }> = []
+
       for (let i = 0; i < value.messages.length; i++) {
         const message = value.messages[i]
         const contact = value.contacts?.[i] ?? value.contacts?.[0]
@@ -394,16 +404,31 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
             // inserts that need it for NOT NULL FK compliance. Always
             // the admin who saved the WhatsApp config.
             config.user_id,
-            decryptedAccessToken
+            decryptedAccessToken,
+            (conversationId, contactId, desde) => {
+              invitaciones.push({
+                accountId: config.account_id,
+                conversationId,
+                contactId,
+                desde,
+              })
+            }
           )
           // procesado=true SOLO cuando el mensaje quedó guardado en
           // `messages` (o se manejó deliberadamente, p.ej. reacción).
           // Nunca al entrar al try — si processMessage lanza, este
           // update no se ejecuta, que es exactamente lo que queremos.
-          if (logId && guardado) {
+          if (logId && guardado.guardado) {
             await supabaseAdmin()
               .from('whatsapp_webhook_log')
               .update({ procesado: true })
+              .eq('id', logId)
+          } else if (logId && !guardado.guardado) {
+            // No se guardó y no lanzó: sin esto la fila quedaba con
+            // procesado=false y error=null y el vigilante no la veía.
+            await supabaseAdmin()
+              .from('whatsapp_webhook_log')
+              .update({ error: guardado.motivo })
               .eq('id', logId)
           }
         } catch (err) {
@@ -423,6 +448,24 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
               error: err instanceof Error ? err.message : String(err),
             })
           )
+        }
+      }
+
+      // La invitacion al grupo espera la primera respuesta del bot:
+      // mandarla antes hacia que el mensaje interactivo se adelantara
+      // a la respuesta que el cliente acababa de recibir.
+      for (const inv of invitaciones) {
+        try {
+          await enviarInvitacionTrasRespuesta(
+            supabaseAdmin(),
+            inv.accountId,
+            inv.conversationId,
+            inv.contactId,
+            origin,
+            inv.desde,
+          )
+        } catch (inviteErr) {
+          console.error('[webhook] group invite failed:', inviteErr)
         }
       }
     }
@@ -545,7 +588,7 @@ async function handleStatusUpdate(status: {
     const conv = msgRow.conversations as { account_id: string } | null
     const accountId = conv?.account_id
     if (accountId) {
-      await dispatchWebhookEvent(
+      await dispatchEventDurably(
         supabaseAdmin(),
         accountId,
         'message.status_updated',
@@ -679,6 +722,10 @@ async function handleReaction(
   }
 }
 
+type ProcesoMensaje =
+  | { guardado: true }
+  | { guardado: false; motivo: string }
+
 async function processMessage(
   message: WhatsAppMessage,
   contact: { profile?: { name?: string }; wa_id?: string } | undefined,
@@ -690,16 +737,24 @@ async function processMessage(
   // (contacts, conversations). Always the admin who saved the
   // WhatsApp config; the choice is arbitrary post-017 but stable.
   configOwnerUserId: string,
-  accessToken: string
-): Promise<boolean> {
-  // Devuelve true SOLO si el mensaje quedó guardado en `messages` (o
-  // se manejó deliberadamente, como una reacción). El false alimenta
-  // el contrato de whatsapp_webhook_log: procesado=true únicamente
-  // cuando esto es true — nunca antes del INSERT de messages.
+  accessToken: string,
+  onFirstInbound?: (
+    conversationId: string,
+    contactId: string,
+    desde: string,
+  ) => void
+): Promise<ProcesoMensaje> {
+  // Devuelve guardado=true SOLO si el mensaje quedó guardado en
+  // `messages` (o se manejó deliberadamente, como una reacción). El
+  // guardado=false trae el motivo y alimenta el contrato de
+  // whatsapp_webhook_log: procesado=true únicamente cuando guardado es
+  // true; si no, el motivo va a `error` para que suene en el vigilante.
   const senderPhone = normalizePhone(message.from)
-  // El nombre es prescindible: si el remitente llega sin perfil, el
-  // teléfono hace de nombre (findOrCreateContact ya hace name || phone).
-  const contactName = contact?.profile?.name || senderPhone
+  // El nombre es prescindible. Sin perfil de WhatsApp se guarda NULL, no el
+  // teléfono: escribirlo como nombre dejaba 16 contactos llamados "5927…" y
+  // cualquier vista que muestra el nombre caía en un número. El panel ya
+  // recurre al teléfono cuando no hay nombre.
+  const contactName = contact?.profile?.name?.trim() || null
 
   // Find or create contact
   const contactOutcome = await findOrCreateContact(
@@ -708,7 +763,7 @@ async function processMessage(
     senderPhone,
     contactName
   )
-  if (!contactOutcome) return false
+  if (!contactOutcome) return { guardado: false, motivo: 'no guardado: contacto' }
   const contactRecord = contactOutcome.contact
 
   // Find or create conversation
@@ -717,7 +772,7 @@ async function processMessage(
     configOwnerUserId,
     contactRecord.id
   )
-  if (!convResult) return false
+  if (!convResult) return { guardado: false, motivo: 'no guardado: conversacion' }
   const conversation = convResult.conversation
 
   // Emit conversation.created as soon as the thread is opened — BEFORE
@@ -725,7 +780,7 @@ async function processMessage(
   // a reaction still fires the event, and a subscriber always sees the
   // thread open before its first message.received.
   if (convResult.created) {
-    await dispatchWebhookEvent(supabaseAdmin(), accountId, 'conversation.created', {
+    await dispatchEventDurably(supabaseAdmin(), accountId, 'conversation.created', {
       conversation_id: conversation.id,
       contact_id: contactRecord.id,
     })
@@ -738,7 +793,7 @@ async function processMessage(
     await handleReaction(message, conversation.id, contactRecord.id)
     // Deliberado: la reacción no es un mensaje, se manejó y se
     // registró como reacción. Para el contrato del log, procesado.
-    return true
+    return { guardado: true }
   }
 
   // Parse message content based on type
@@ -814,7 +869,14 @@ async function processMessage(
 
   if (msgError) {
     console.error('Error inserting message:', msgError)
-    return false
+    return { guardado: false, motivo: 'no guardado: mensaje' }
+  }
+
+  // New client: the caller sends the group invitation as an interactive
+  // CTA URL, AFTER the bot's first reply so it never preempts it. The
+  // flag defaults off; the Decisor text invitation is already removed.
+  if (isFirstInboundMessage) {
+    onFirstInbound?.(conversation.id, contactRecord.id, new Date().toISOString())
   }
 
   // Update conversation
@@ -946,11 +1008,12 @@ async function processMessage(
   // message.received webhook (public API). Awaited — not fire-and-forget
   // — because we're inside the route's `after()` block, which only keeps
   // the function alive for promises it can see; a detached promise could
-  // be frozen before it delivers. `dispatchWebhookEvent` early-exits
-  // when the account has no matching endpoint and never throws.
+  // be frozen before it delivers. Durable for message.received (migration
+  // 301): the event is stored before the attempt, a failure stays pending
+  // for the cron worker, and a retry skips a wamid the Cerebro already saw.
   // (conversation.created is emitted earlier, right after the thread is
   // opened.)
-  await dispatchWebhookEvent(supabaseAdmin(), accountId, 'message.received', {
+  await dispatchEventDurably(supabaseAdmin(), accountId, 'message.received', {
     conversation_id: conversation.id,
     contact_id: contactRecord.id,
     whatsapp_message_id: message.id,
@@ -958,7 +1021,7 @@ async function processMessage(
     text: contentText,
   })
   // El mensaje está guardado en `messages` — el único true legítimo.
-  return true
+  return { guardado: true }
 }
 
 async function parseMessageContent(
@@ -1167,7 +1230,7 @@ async function findOrCreateContact(
   accountId: string,
   configOwnerUserId: string,
   phone: string,
-  name: string
+  name: string | null
 ): Promise<ContactOutcome | null> {
   // Find an existing contact for this account by phone. The shared
   // helper pre-filters in SQL by the last-8-digit suffix (so we don't
@@ -1210,7 +1273,8 @@ async function findOrCreateContact(
       account_id: accountId,
       user_id: configOwnerUserId,
       phone,
-      name: name || phone,
+      // NULL cuando WhatsApp no trae nombre: el panel muestra el teléfono.
+      name: name || null,
     })
     .select()
     .single()

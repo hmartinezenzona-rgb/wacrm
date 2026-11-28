@@ -7,6 +7,7 @@ import {
   dedupeByPhone,
   isUniqueViolation,
   normalizeKey,
+  phoneForStorage,
 } from '@/lib/contacts/dedupe';
 import {
   parseContactCsv,
@@ -17,6 +18,7 @@ import {
   resolveImportTagIds,
   type ContactTagAssignment,
 } from '@/lib/contacts/resolve-import-tags';
+import { isResellerTagName } from '@/lib/resellers/tag-rule';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
@@ -214,9 +216,9 @@ export function ImportModal({
         data: { session },
       } = await supabase.auth.getSession();
       const user = session?.user;
-      if (!user) throw new Error('Not authenticated');
+      if (!user) throw new Error(t('notAuthenticated'));
       if (!accountId)
-        throw new Error('Your profile is not linked to an account.');
+        throw new Error(t('noAccountLinked'));
 
       let imported = 0;
       let skipped = 0;
@@ -259,6 +261,9 @@ export function ImportModal({
           userId: user.id,
           tagNames: allTagNames,
           canCreateTags: canEditSettings,
+          // 396: only owner/admin may assign the reseller tag. A non-admin
+          // import skips it instead of failing a whole 100-row batch.
+          canAssignResellerTag: canEditSettings,
         }));
       }
 
@@ -274,7 +279,7 @@ export function ImportModal({
         const rows = chunk.map((row) => ({
           user_id: user.id,
           account_id: accountId,
-          phone: row.phone,
+          phone: phoneForStorage(row.phone),
           name: row.name || null,
           email: row.email || null,
           company: row.company || null,
@@ -350,10 +355,19 @@ export function ImportModal({
         toast.success(t('toastTagsAssigned', { count: tagsAssigned }));
       }
       if (skippedNames.length > 0) {
-        const sample = skippedNames.slice(0, 3).join(', ');
-        const more =
-          skippedNames.length > 3 ? ` (+${skippedNames.length - 3} more)` : '';
-        toast.info(t('toastTagsSkipped', { sample, more }));
+        const skippedReseller = skippedNames.filter((name) => isResellerTagName(name));
+        const skippedOther = skippedNames.filter((name) => !isResellerTagName(name));
+        if (skippedOther.length > 0) {
+          const sample = skippedOther.slice(0, 3).join(', ');
+          const more =
+            skippedOther.length > 3
+              ? t('toastTagsSkippedMore', { count: skippedOther.length - 3 })
+              : '';
+          toast.info(t('toastTagsSkipped', { sample, more }));
+        }
+        if (skippedReseller.length > 0) {
+          toast.info(t('toastResellerTagSkipped'));
+        }
       }
       if (skipped > 0) {
         toast.info(t('toastSkipped', { count: skipped }));

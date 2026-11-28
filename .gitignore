@@ -43,3 +43,17 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .bak
+
+# Deployment artifacts: build output, never the repository. The build also
+# requires a clean tree, and an unignored `dist/` would dirty it.
+dist/
+
+# Build/deploy environment: carries keys. Never in the repository.
+infra/deployment/*.env
+!infra/deployment/*.env.example
+
+# Python bytecode from infra/ scripts and tests
+__pycache__/
+
+# graphify knowledge graph output
+graphify-out/

@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag } from '@/types';
 import { Button } from '@/components/ui/button';
+import { PageHeader, PageShell } from '@/components/layout/page-header';
+import { formatPhoneForDisplay } from '@/lib/whatsapp/phone-utils';
 import { Input } from '@/components/ui/input';
 import {
   Table,
@@ -39,6 +41,7 @@ import {
   Search,
   Plus,
   Upload,
+  Download,
   MoreHorizontal,
   Pencil,
   Trash2,
@@ -56,6 +59,13 @@ import { ImportModal } from '@/components/contacts/import-modal';
 import { CustomFieldsManager } from '@/components/contacts/custom-fields-manager';
 import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
+import { Label } from '@/components/ui/label';
+import {
+  buildVCard,
+  defaultPrefix,
+  exportFileName,
+  fetchAllInBatches,
+} from '@/lib/contacts/export-contacts';
 import { useTranslations } from 'next-intl';
 
 const PAGE_SIZE = 25;
@@ -69,6 +79,7 @@ export default function ContactsPage() {
   const supabase = createClient();
   const canEdit = useCan('send-messages');
   const canEditSettings = useCan('edit-settings');
+  const canExport = useCan('export-contacts');
 
   const [contacts, setContacts] = useState<ContactWithTags[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,6 +97,9 @@ export default function ContactsPage() {
   const [detailContactId, setDetailContactId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [customFieldsOpen, setCustomFieldsOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportPrefix, setExportPrefix] = useState('');
+  const [exporting, setExporting] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -334,23 +348,89 @@ export default function ContactsPage() {
     setPage(0);
   }
 
+  function openExport() {
+    setExportPrefix(
+      defaultPrefix(
+        selectedTagIds.map((id) => tagsMap[id]?.name).filter(Boolean) as string[]
+      )
+    );
+    setExportOpen(true);
+  }
+
+  // Exports EVERY contact matching the current filter (not just the page),
+  // mirroring the two branches of fetchContacts, in PostgREST-sized batches.
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const term = search.trim();
+      const rows = await fetchAllInBatches<Contact>(async (offset, limit) => {
+        if (selectedTagIds.length > 0) {
+          const { data, error } = await supabase.rpc('filter_contacts_by_tags', {
+            p_tag_ids: selectedTagIds,
+            p_search: term || null,
+            p_limit: limit,
+            p_offset: offset,
+          });
+          if (error) throw error;
+          const r = (data ?? []) as { contact: Contact }[];
+          return { rows: r.map((x) => x.contact) };
+        }
+        let query = supabase
+          .from('contacts')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(offset, offset + limit - 1);
+        if (term) {
+          const like = `%${term}%`;
+          query = query.or(`name.ilike.${like},phone.ilike.${like},email.ilike.${like}`);
+        }
+        const { data, error } = await query;
+        if (error) throw error;
+        return { rows: (data ?? []) as Contact[] };
+      });
+
+      const { vcf, exported, skipped } = buildVCard(rows, { prefix: exportPrefix });
+      if (exported === 0) {
+        toast.error(t('toastExportEmpty'));
+        return;
+      }
+      const blob = new Blob([vcf], { type: 'text/vcard;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = exportFileName(exportPrefix);
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success(
+        skipped > 0
+          ? t('toastExportedSkipped', { count: exported, skipped })
+          : t('toastExported', { count: exported })
+      );
+      setExportOpen(false);
+    } catch {
+      toast.error(t('toastExportFailed'));
+    } finally {
+      setExporting(false);
+    }
+  }
+
   function clearTagFilters() {
     setSelectedTagIds([]);
     setPage(0);
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {totalCount > 0 ? t('subtitle', { count: totalCount }) : t('subtitleZero')}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {canEditSettings && (
+    <PageShell>
+      <PageHeader
+        title={t('title')}
+        description={
+          totalCount > 0 ? t('subtitle', { count: totalCount }) : t('subtitleZero')
+        }
+        actions={
+          <>
+            {canEditSettings && (
             <Button
               variant="outline"
               onClick={() => setCustomFieldsOpen(true)}
@@ -358,6 +438,16 @@ export default function ContactsPage() {
             >
               <SlidersHorizontal className="size-4" />
               {t('customFieldsBtn')}
+            </Button>
+          )}
+          {canExport && (
+            <Button
+              variant="outline"
+              onClick={openExport}
+              className="border-border text-muted-foreground hover:bg-muted"
+            >
+              <Download className="size-4" />
+              {t('exportBtn')}
             </Button>
           )}
           <GatedButton
@@ -376,11 +466,12 @@ export default function ContactsPage() {
             onClick={openAddForm}
             className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
-            <Plus className="size-4" />
-            {t('addContactBtn')}
-          </GatedButton>
-        </div>
-      </div>
+              <Plus className="size-4" />
+              {t('addContactBtn')}
+            </GatedButton>
+          </>
+        }
+      />
 
       {/* Search + tag filter */}
       <div className="space-y-2">
@@ -538,7 +629,7 @@ export default function ContactsPage() {
                   indeterminate={!allOnPageSelected && someOnPageSelected}
                   onCheckedChange={toggleSelectAll}
                   disabled={contacts.length === 0}
-                  aria-label="Select all contacts on this page"
+                  aria-label={t('selectAllAria')}
                 />
               </TableHead>
               <TableHead className="text-muted-foreground">{t('tableColumns.name')}</TableHead>
@@ -603,8 +694,10 @@ export default function ContactsPage() {
                   <TableCell className="text-foreground font-medium">
                     {contact.name || <span className="text-muted-foreground italic">{t('unnamed')}</span>}
                   </TableCell>
-                  <TableCell className="text-muted-foreground font-mono text-xs">
-                    {contact.phone}
+                  {/* tabular-nums para que las columnas de digitos queden
+                      alineadas fila a fila en vez de bailar. */}
+                  <TableCell className="text-muted-foreground font-mono text-xs tabular-nums">
+                    {formatPhoneForDisplay(contact.phone)}
                   </TableCell>
                   <TableCell className="text-muted-foreground hidden md:table-cell text-sm">
                     {contact.email || <span className="text-muted-foreground">-</span>}
@@ -768,6 +861,57 @@ export default function ContactsPage() {
         />
       )}
 
+      {/* Export vCard (admin+) */}
+      {canExport && (
+        <Dialog open={exportOpen} onOpenChange={(o) => !exporting && setExportOpen(o)}>
+          <DialogContent className="bg-popover border-border text-popover-foreground sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="text-popover-foreground">{t('exportTitle')}</DialogTitle>
+              <DialogDescription className="text-muted-foreground">
+                {t('exportDescription')}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label htmlFor="export-prefix">{t('exportPrefixLabel')}</Label>
+              <Input
+                id="export-prefix"
+                value={exportPrefix}
+                onChange={(e) => setExportPrefix(e.target.value)}
+                className="bg-card border-border text-foreground"
+              />
+              <p className="text-xs text-muted-foreground">{t('exportPrefixHelp')}</p>
+              <p className="text-sm text-foreground">
+                {t('exportCount', { count: totalCount })}
+              </p>
+            </div>
+            <DialogFooter className="bg-popover border-border">
+              <Button
+                variant="outline"
+                onClick={() => setExportOpen(false)}
+                disabled={exporting}
+                className="border-border text-muted-foreground hover:bg-muted"
+              >
+                {t('exportCancel')}
+              </Button>
+              <Button
+                onClick={handleExport}
+                disabled={exporting || totalCount === 0}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
+              >
+                {exporting ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    {t('exporting')}
+                  </>
+                ) : (
+                  t('exportBtn')
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* Delete Confirmation */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <DialogContent className="bg-popover border-border text-popover-foreground sm:max-w-sm">
@@ -827,6 +971,6 @@ export default function ContactsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

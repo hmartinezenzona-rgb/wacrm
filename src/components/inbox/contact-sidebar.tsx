@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
-import type { Contact, Conversation, Deal, ContactNote, Tag } from "@/types";
+import type { Contact, Conversation, ContactNote, Tag } from "@/types";
 import {
   Phone,
   Mail,
@@ -12,18 +12,20 @@ import {
   Check,
   User,
   Tag as TagIcon,
-  DollarSign,
   StickyNote,
   Plus,
   Bot,
-  Pause,
-  Play,
 } from "lucide-react";
+import { ContactAvatar } from "@/components/contacts/contact-avatar";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
+import { OperationsPanelContainer } from "@/components/inbox/operations/operations-panel-container";
+import { ResellerSidebarBlock } from "@/components/resellers/reseller-sidebar-block";
+import { isResellerTagName } from "@/lib/resellers/tag-rule";
 
 interface ContactSidebarProps {
   contact: Contact | null;
@@ -37,9 +39,13 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
   const tSidebar = useTranslations("Inbox.sidebar");
   const tThread = useTranslations("Inbox.messageThread");
 
-  const { accountId } = useAuth();
+  const { accountId, profile } = useAuth();
+  // Design decision 8 (port-chat-operations-calculator): the read-only
+  // remesa operations panel (Slice 5) is visible ONLY behind this beta
+  // flag; the API route enforces the same gate server-side (404 when
+  // absent), so this is a UI convenience, not the security boundary.
+  const operationsPanelEnabled = profile?.beta_features?.includes("operations_panel") ?? false;
   const [copied, setCopied] = useState(false);
-  const [deals, setDeals] = useState<Deal[]>([]);
   const [notes, setNotes] = useState<ContactNote[]>([]);
   const [tags, setTags] = useState<(Tag & { contact_tag_id: string })[]>([]);
   const [newNote, setNewNote] = useState("");
@@ -50,13 +56,27 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
   // servidor por realtime.
   const [botPaused, setBotPaused] = useState(false);
   const [botBusy, setBotBusy] = useState(false);
+  // Dos pausas distintas, decision del dueno (21-nov-2026):
+  //  - AUTOMATICA: una persona escribio desde el panel (`agent_replied`). El
+  //    bot vuelve solo 5 min despues del ultimo mensaje humano.
+  //  - MANUAL: alguien activo este interruptor. No caduca nunca; solo vuelve
+  //    con el interruptor.
+  // El interruptor representa SOLO la manual. Antes una pausa automatica lo
+  // pintaba encendido y al tocarlo para "pausar" se reanudaba el bot (21-nov,
+  // el bot contesto encima de un admin 13 s despues de su ultimo mensaje).
+  const [botAutoPausa, setBotAutoPausa] = useState(false);
   useEffect(() => {
-    setBotPaused(conversation?.ai_autoreply_disabled ?? false);
-  }, [conversation?.id, conversation?.ai_autoreply_disabled]);
+    const pausado = conversation?.ai_autoreply_disabled ?? false;
+    setBotPaused(pausado);
+    setBotAutoPausa(pausado && conversation?.ai_handoff_reason === "agent_replied");
+  }, [conversation?.id, conversation?.ai_autoreply_disabled, conversation?.ai_handoff_reason]);
+  const botPausaManual = botPaused && !botAutoPausa;
 
   const toggleBot = useCallback(async () => {
     if (!conversation) return;
-    const next = !botPaused;
+    // Con pausa automatica, tocar el interruptor la vuelve manual (sigue
+    // pausado, ya sin caducar). Solo se reanuda desde una pausa manual.
+    const next = !botPausaManual;
     setBotBusy(true);
     try {
       // Se reusa el endpoint que ya existia. `assign_to_me` se OMITE a
@@ -73,26 +93,22 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
         return;
       }
       setBotPaused(next);
+      setBotAutoPausa(false);
       toast.success(next ? tSidebar("botPaused") : tSidebar("botResumed"));
     } catch {
       toast.error(tSidebar("botError"));
     } finally {
       setBotBusy(false);
     }
-  }, [conversation, botPaused, tSidebar]);
+  }, [conversation, botPausaManual, tSidebar]);
 
   const fetchContactData = useCallback(async () => {
     if (!contact) return;
 
     const supabase = createClient();
 
-    // Fetch deals, notes, and tags in parallel
-    const [dealsRes, notesRes, tagsRes] = await Promise.all([
-      supabase
-        .from("deals")
-        .select("*, stage:pipeline_stages(*)")
-        .eq("contact_id", contact.id)
-        .order("created_at", { ascending: false }),
+    // Fetch notes and tags in parallel
+    const [notesRes, tagsRes] = await Promise.all([
       supabase
         .from("contact_notes")
         .select("*")
@@ -104,7 +120,6 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
         .eq("contact_id", contact.id),
     ]);
 
-    if (dealsRes.data) setDeals(dealsRes.data);
     if (notesRes.data) setNotes(notesRes.data);
     if (tagsRes.data) {
       const mapped = tagsRes.data
@@ -172,26 +187,25 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
   }
 
   const displayName = contact.name || contact.phone;
-  const initials = displayName.charAt(0).toUpperCase();
+  // The contact's tags are already loaded above, so gating on them costs no
+  // extra request for non-resellers. The block itself fetches the total.
+  const isReseller = tags.some((tag) => isResellerTagName(tag.name));
 
   return (
     <div className={cn("flex h-full w-70 flex-col border-l border-border bg-card", className)}>
-      <ScrollArea className="flex-1">
+      <ScrollArea className="min-h-0 flex-1">
         <div className="p-4">
           {/* Contact Info */}
           <div className="flex flex-col items-center text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted text-lg font-semibold text-foreground">
-              {contact.avatar_url ? (
-                <img
-                  src={contact.avatar_url}
-                  alt={displayName}
-                  className="h-16 w-16 rounded-full object-cover"
-                />
-              ) : (
-                initials
-              )}
-            </div>
-            <h3 className="mt-3 text-sm font-semibold text-foreground">
+            <ContactAvatar
+              seed={contact.id || conversation?.id || displayName}
+              name={displayName}
+              gender={contact.avatar_gender}
+              seq={contact.avatar_seq}
+              imageUrl={contact.avatar_url}
+              className="h-16 w-16 bg-primary-soft text-lg font-bold text-primary"
+            />
+            <h3 className="mt-3 font-heading text-base font-bold text-foreground">
               {displayName}
             </h3>
             {contact.company && (
@@ -206,7 +220,7 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted"
             >
               <Phone className="h-4 w-4 text-muted-foreground" />
-              <span className="flex-1 text-left">{contact.phone}</span>
+              <span className="flex-1 text-left font-mono tabular-nums">{contact.phone}</span>
               {copied ? (
                 <Check className="h-3 w-3 text-primary" />
               ) : (
@@ -222,6 +236,36 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
             )}
           </div>
 
+          {/* Bot — pausar / reanudar en este hilo. Existe aparte del banner
+              de IA de WaCRM (`AiThreadBanner`) a proposito: aquel solo se
+              dibuja si esta encendida la IA PROPIA de WaCRM, y aqui el bot
+              es el Cerebro en n8n, asi que nunca aparecia. */}
+          {conversation && (
+            <>
+              <div className="my-4 border-t border-border" />
+              <div>
+                <div className="flex items-center justify-between gap-2 px-1">
+                  <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    <Bot className="h-3 w-3" />
+                    {tSidebar("bot")}
+                  </div>
+                  <Switch
+                    checked={botPausaManual}
+                    onCheckedChange={toggleBot}
+                    disabled={botBusy}
+                    aria-label={botPausaManual ? tSidebar("resumeBot") : tSidebar("pauseBot")}
+                  />
+                </div>
+                <p className="mt-1.5 px-1 text-[10px] leading-snug text-muted-foreground">
+                  {botPausaManual
+                    ? tSidebar("botPausedHint")
+                    : botAutoPausa
+                      ? tSidebar("botAutoPausedHint")
+                      : tSidebar("botActiveHint")}
+                </p>
+              </div>
+            </>
+          )}
           {/* Divider */}
           <div className="my-4 border-t border-border" />
 
@@ -251,49 +295,23 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
             </div>
           </div>
 
-          {/* Divider */}
-          <div className="my-4 border-t border-border" />
+          {/* Reseller totals (S3): only for a contact carrying the reseller tag. */}
+          {isReseller && (
+            <>
+              <div className="my-4 border-t border-border" />
+              <ResellerSidebarBlock contactId={contact.id} />
+            </>
+          )}
 
-          {/* Active Deals */}
-          <div>
-            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              <DollarSign className="h-3 w-3" />
-              {tSidebar("deals")}
-            </div>
-            <div className="mt-2 space-y-2">
-              {deals.length === 0 ? (
-                <p className="px-1 text-xs text-muted-foreground">{tSidebar("noDeals")}</p>
-              ) : (
-                deals.map((deal) => (
-                  <div
-                    key={deal.id}
-                    className="rounded-lg bg-muted px-3 py-2"
-                  >
-                    <p className="text-sm font-medium text-foreground">
-                      {deal.title}
-                    </p>
-                    <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-                      <span>
-                        {deal.currency ?? "$"}
-                        {deal.value.toLocaleString()}
-                      </span>
-                      {deal.stage && (
-                        <span
-                          className="rounded-full px-1.5 py-0.5 text-[10px]"
-                          style={{
-                            backgroundColor: `${deal.stage.color}20`,
-                            color: deal.stage.color,
-                          }}
-                        >
-                          {deal.stage.name}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+          {/* Remittance operations panel (Slice 5, read-only) — beta flag
+              gated (design decision 8). `conversation` must be present:
+              the panel reads per-conversation, not per-contact. */}
+          {operationsPanelEnabled && conversation && (
+            <>
+              <div className="my-4 border-t border-border" />
+              <OperationsPanelContainer conversationId={conversation.id} />
+            </>
+          )}
 
           {/* Divider */}
           <div className="my-4 border-t border-border" />
@@ -341,40 +359,6 @@ export function ContactSidebar({ contact, conversation, className }: ContactSide
             </div>
           </div>
 
-          {/* Bot — pausar / reanudar en este hilo. Existe aparte del banner
-              de IA de WaCRM (`AiThreadBanner`) a proposito: aquel solo se
-              dibuja si esta encendida la IA PROPIA de WaCRM, y aqui el bot
-              es el Cerebro en n8n, asi que nunca aparecia. */}
-          {conversation && (
-            <>
-              <div className="my-4 border-t border-border" />
-              <div>
-                <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  <Bot className="h-3 w-3" />
-                  {tSidebar("bot")}
-                </div>
-                <div className="mt-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={toggleBot}
-                    disabled={botBusy}
-                    className="w-full justify-start border-border bg-transparent text-xs text-foreground hover:bg-muted"
-                  >
-                    {botPaused ? (
-                      <Play className="mr-2 h-3 w-3 text-primary" />
-                    ) : (
-                      <Pause className="mr-2 h-3 w-3 text-muted-foreground" />
-                    )}
-                    {botPaused ? tSidebar("resumeBot") : tSidebar("pauseBot")}
-                  </Button>
-                  <p className="mt-1.5 px-1 text-[10px] leading-snug text-muted-foreground">
-                    {botPaused ? tSidebar("botPausedHint") : tSidebar("botActiveHint")}
-                  </p>
-                </div>
-              </div>
-            </>
-          )}
         </div>
       </ScrollArea>
     </div>

@@ -98,6 +98,35 @@ export function canViewOnly(role: AccountRole): boolean {
   return role === "viewer";
 }
 
+/**
+ * Owner / admin: force a deposit-verification stage transition without
+ * a matched deposit (the "forced verify" escalation path).
+ */
+export function canForceVerify(role: AccountRole): boolean {
+  return hasMinRole(role, "admin");
+}
+
+/** Owner / admin: export the contact list (vCard download). */
+export function canExportContacts(role: AccountRole): boolean {
+  return hasMinRole(role, "admin");
+}
+
+/** Owner / admin: manage the CUP inventory (sending cards and the lots loaded on them). */
+export function canManageCupInventory(role: AccountRole): boolean {
+  return hasMinRole(role, "admin");
+}
+
+/**
+ * Owner / admin: add or remove the "Revendedor" reseller tag. Mirrors the
+ * 396 `contact_tags_reseller_guard` boundary
+ * (`is_account_member(tag.account_id, 'admin')`); agents keep their
+ * permissions on every other tag. UI gating only — the database refuses
+ * with SQLSTATE 42501.
+ */
+export function canManageResellers(role: AccountRole): boolean {
+  return hasMinRole(role, "admin");
+}
+
 /** Owner only: irreversible destructive operations. */
 export function canDeleteAccount(role: AccountRole): boolean {
   return role === "owner";

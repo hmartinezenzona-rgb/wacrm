@@ -48,6 +48,7 @@ import type {
   TemplateSampleValues,
 } from '@/types';
 import { templateStatusConfig } from '@/lib/template-status';
+import { toChatMediaSrc } from '@/lib/storage/chat-media';
 import {
   extractVariableIndices,
   TEMPLATE_LIMITS,
@@ -274,8 +275,16 @@ export function TemplateManager() {
       });
       const data = await res.json();
       if (!res.ok) {
+        // Surface the server's reason: the old ternary parsed as
+        // `(data.error || isEdit) ? editFailed : submitFailed`, so any
+        // 4xx with a message showed the generic edit/send text and the
+        // real cause never reached the user.
         throw new Error(
-          data?.error || `${isEdit ? 'Edit' : 'Submit'} failed (HTTP ${res.status})`,
+          data?.error
+            ? data.error
+            : isEdit
+              ? t('editFailedHttp', { status: res.status })
+              : t('submitFailedHttp', { status: res.status }),
         );
       }
       // Refresh first, then close — re-opening the dialog
@@ -308,7 +317,7 @@ export function TemplateManager() {
       const res = await fetch('/api/whatsapp/templates/sync', { method: 'POST' });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data?.error || `Sync failed (HTTP ${res.status})`);
+        throw new Error(data?.error || t('syncFailedHttp', { status: res.status }));
       }
       toast.success(
         t('toastSyncCount', { total: data.total }) +
@@ -322,7 +331,7 @@ export function TemplateManager() {
             `${e.name} (${e.language})`,
         );
         const suffix =
-          data.errors.length > 3 ? `, +${data.errors.length - 3} more` : '';
+          data.errors.length > 3 ? t('syncMore', { count: data.errors.length - 3 }) : '';
         toast.error(t('toastSyncFailed', { preview: preview.join(', ') + suffix }));
       }
       if (data.truncated) {
@@ -356,7 +365,7 @@ export function TemplateManager() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data?.error || `Delete failed (HTTP ${res.status})`);
+        throw new Error(data?.error || t('deleteFailedHttp', { status: res.status }));
       }
       toast.success(t('toastDeleteSuccess'));
       setTemplates((prev) => prev.filter((t) => t.id !== target.id));
@@ -528,10 +537,10 @@ export function TemplateManager() {
                       <Badge
                         className={`text-xs border ${categoryColors[template.category] || ''}`}
                       >
-                        {template.category}
+                        {t.has(`categories.${template.category}`) ? t(`categories.${template.category}`) : template.category}
                       </Badge>
                       <Badge className={`text-xs border ${status.classes}`}>
-                        {status.label}
+                        {t.has(`status.${statusKey}`) ? t(`status.${statusKey}`) : status.label}
                       </Badge>
                       {template.language && (
                         <span className="text-xs text-muted-foreground uppercase">
@@ -547,7 +556,7 @@ export function TemplateManager() {
                                 ? 'text-yellow-400'
                                 : 'text-red-400'
                           }`}
-                          title="Meta quality score"
+                          title={t('qualityScoreTitle')}
                         >
                           {template.quality_score}
                         </span>
@@ -696,7 +705,7 @@ export function TemplateManager() {
                         value={cat}
                         className="text-popover-foreground focus:bg-muted focus:text-popover-foreground"
                       >
-                        {cat}
+                        {t(`categories.${cat}`)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -775,7 +784,7 @@ export function TemplateManager() {
                 <div className="space-y-2 mt-2">
                   <Input
                     id="template-header-text"
-                    aria-label="Header text"
+                    aria-label={t('headerTextAria')}
                     placeholder={t('headerTextPlaceholder')}
                     value={form.header_content}
                     onChange={(e) =>
@@ -844,8 +853,8 @@ export function TemplateManager() {
                   {form.header_format === 'image' && form.header_media_url && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={form.header_media_url}
-                      alt="Header sample"
+                      src={toChatMediaSrc(form.header_media_url)}
+                      alt={t('headerSampleAlt')}
                       className="max-h-28 rounded-md border border-border object-contain"
                     />
                   )}

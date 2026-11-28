@@ -1,8 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+const { signChatMediaUrl } = vi.hoisted(() => ({ signChatMediaUrl: vi.fn() }));
+vi.mock("@/lib/storage/chat-media-server", () => ({ signChatMediaUrl }));
+
 import {
   INTERACTIVE_LIMITS,
+  sendTemplateMessage,
   sendInteractiveButtons,
   sendInteractiveList,
+  sendInteractiveCtaUrl,
 } from "./meta-api";
 
 // All assertions in this file run BEFORE the network call. We stub fetch
@@ -263,6 +268,143 @@ describe("sendInteractiveList — validation", () => {
             },
           ],
         },
+      },
+    });
+  });
+});
+
+describe("sendTemplateMessage — chat-media header", () => {
+  const ACCT = "3f2b1c7e-8a41-4c55-9d0e-6b7a1f2e3d4c";
+  const STORED = `https://abc.supabase.co/storage/v1/object/public/chat-media/account-${ACCT}/1-header.png`;
+  const template = {
+    id: "t1",
+    name: "promo",
+    language: "es",
+    header_type: "image",
+    header_media_url: STORED,
+    body_text: "hola",
+  } as unknown as Parameters<typeof sendTemplateMessage>[0]["template"];
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    signChatMediaUrl.mockReset();
+  });
+
+  function okFetch() {
+    return vi.fn(async () =>
+      ({ ok: true, status: 200, json: async () => ({ messages: [{ id: "wamid.1" }] }) }) as Response,
+    );
+  }
+  const sentHeaderLink = (fetchMock: ReturnType<typeof okFetch>) => {
+    const call = fetchMock.mock.calls[0] as unknown as [string, { body: string }];
+    const body = JSON.parse(call[1].body);
+    return body.template.components[0].parameters[0].image.link;
+  };
+
+  it("sends a freshly signed URL (24 h) instead of the stored one", async () => {
+    signChatMediaUrl.mockResolvedValue("https://signed.example/h.png?token=t");
+    const fetchMock = okFetch();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await sendTemplateMessage({
+      phoneNumberId: "p", accessToken: "a", to: "1", templateName: "promo", template, accountId: ACCT,
+    });
+
+    expect(signChatMediaUrl).toHaveBeenCalledWith(STORED, 24 * 60 * 60, ACCT);
+    expect(sentHeaderLink(fetchMock)).toBe("https://signed.example/h.png?token=t");
+  });
+
+  it("signs an explicit headerMediaUrl override too", async () => {
+    signChatMediaUrl.mockResolvedValue("https://signed.example/o.png?token=t");
+    const fetchMock = okFetch();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await sendTemplateMessage({
+      phoneNumberId: "p", accessToken: "a", to: "1", templateName: "promo", template, accountId: ACCT,
+      messageParams: { headerMediaUrl: STORED },
+    });
+
+    expect(sentHeaderLink(fetchMock)).toBe("https://signed.example/o.png?token=t");
+  });
+
+  it("leaves a non-chat-media header link alone", async () => {
+    const fetchMock = okFetch();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await sendTemplateMessage({
+      phoneNumberId: "p", accessToken: "a", to: "1", templateName: "promo",
+      template: { ...template!, header_media_url: "https://cdn.example.com/h.png" },
+    });
+
+    expect(signChatMediaUrl).not.toHaveBeenCalled();
+    expect(sentHeaderLink(fetchMock)).toBe("https://cdn.example.com/h.png");
+  });
+
+  it("refuses to sign another account's header (no signing, nothing sent)", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetchMock = okFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    const OTHER = "9a8b7c6d-1111-4222-8333-444455556666";
+
+    await expect(
+      sendTemplateMessage({
+        phoneNumberId: "p", accessToken: "a", to: "1", templateName: "promo", template, accountId: OTHER,
+      }),
+    ).rejects.toThrow(/another account/);
+    await expect(
+      sendTemplateMessage({
+        phoneNumberId: "p", accessToken: "a", to: "1", templateName: "promo", template,
+      }),
+    ).rejects.toThrow(/another account/);
+    expect(signChatMediaUrl).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("sendInteractiveCtaUrl — validation and payload", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn(neverFetch));
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("rejects an empty label", async () => {
+    await expect(
+      sendInteractiveCtaUrl({ ...BASE_ARGS, buttonLabel: "", url: "https://example.com/grupo" }),
+    ).rejects.toThrow(/label/);
+  });
+
+  it("rejects a label longer than 20 chars", async () => {
+    await expect(
+      sendInteractiveCtaUrl({ ...BASE_ARGS, buttonLabel: "x".repeat(21), url: "https://example.com" }),
+    ).rejects.toThrow(/20/);
+  });
+
+  it("rejects a non-http URL", async () => {
+    await expect(
+      sendInteractiveCtaUrl({ ...BASE_ARGS, buttonLabel: "Join", url: "javascript:alert(1)" }),
+    ).rejects.toThrow(/http/);
+  });
+
+  it("sends the cta_url payload", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ messages: [{ id: "wamid.cta" }] }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const res = await sendInteractiveCtaUrl({
+      ...BASE_ARGS,
+      buttonLabel: "Join group",
+      url: "https://wacrm.onlinefreedom.site/grupo",
+    });
+    expect(res.messageId).toBe("wamid.cta");
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.interactive.type).toBe("cta_url");
+    expect(body.interactive.action).toEqual({
+      name: "cta_url",
+      parameters: {
+        display_text: "Join group",
+        url: "https://wacrm.onlinefreedom.site/grupo",
       },
     });
   });

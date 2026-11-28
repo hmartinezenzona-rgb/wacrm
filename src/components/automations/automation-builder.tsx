@@ -22,7 +22,6 @@ import {
   TagIcon,
   UserCheck,
   PencilLine,
-  Briefcase,
   Hourglass,
   GitBranch,
   Webhook,
@@ -106,7 +105,6 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
   remove_tag: { label: "remove_tag", icon: TagIcon, border: "border-l-primary" },
   assign_conversation: { label: "assign_conversation", icon: UserCheck, border: "border-l-primary" },
   update_contact_field: { label: "update_contact_field", icon: PencilLine, border: "border-l-primary" },
-  create_deal: { label: "create_deal", icon: Briefcase, border: "border-l-primary" },
   wait: { label: "wait", icon: Hourglass, border: "border-l-border" },
   condition: { label: "condition", icon: GitBranch, border: "border-l-amber-500" },
   send_webhook: { label: "send_webhook", icon: Webhook, border: "border-l-primary" },
@@ -122,7 +120,6 @@ const ADDABLE_STEPS: AutomationStepType[] = [
   "remove_tag",
   "assign_conversation",
   "update_contact_field",
-  "create_deal",
   "wait",
   "condition",
   "send_webhook",
@@ -178,8 +175,6 @@ function blankConfig(type: AutomationStepType): Record<string, unknown> {
       return { mode: "round_robin" }
     case "update_contact_field":
       return { field: "name", value: "" }
-    case "create_deal":
-      return { pipeline_id: "", stage_id: "", title: "", value: 0 }
     case "wait":
       return { amount: 1, unit: "hours" }
     case "condition":
@@ -194,7 +189,7 @@ function blankConfig(type: AutomationStepType): Record<string, unknown> {
 }
 
 // ------------------------------------------------------------
-// Account resources (tags, members, approved templates, pipelines)
+// Account resources (tags, members, approved templates, custom fields)
 //
 // Loaded once at the builder root and shared via context so the
 // tag / agent / template pickers below can offer existing resources
@@ -208,20 +203,6 @@ interface AutomationResources {
   members: AccountMember[]
   templates: MessageTemplate[]
   customFields: CustomField[]
-  pipelines: PipelineOption[]
-  stages: PipelineStageOption[]
-}
-
-interface PipelineOption {
-  id: string
-  name: string
-}
-
-interface PipelineStageOption {
-  id: string
-  name: string
-  pipeline_id: string
-  position: number
 }
 
 const ResourcesContext = createContext<AutomationResources>({
@@ -229,8 +210,6 @@ const ResourcesContext = createContext<AutomationResources>({
   members: [],
   templates: [],
   customFields: [],
-  pipelines: [],
-  stages: [],
 })
 
 function useResources(): AutomationResources {
@@ -242,8 +221,6 @@ function ResourcesProvider({ children }: { children: ReactNode }) {
   const [members, setMembers] = useState<AccountMember[]>([])
   const [templates, setTemplates] = useState<MessageTemplate[]>([])
   const [customFields, setCustomFields] = useState<CustomField[]>([])
-  const [pipelines, setPipelines] = useState<PipelineOption[]>([])
-  const [stages, setStages] = useState<PipelineStageOption[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -254,27 +231,19 @@ function ResourcesProvider({ children }: { children: ReactNode }) {
     // actually be sent (anything else 400s at send time), matching the
     // broadcast picker.
     void (async () => {
-      const [tagsRes, templatesRes, customFieldsRes, pipelinesRes, stagesRes] =
-        await Promise.all([
-          supabase.from("tags").select("*").order("name"),
-          supabase
-            .from("message_templates")
-            .select("*")
-            .eq("status", "APPROVED")
-            .order("name"),
-          supabase.from("custom_fields").select("*").order("field_name"),
-          supabase.from("pipelines").select("id, name").order("name"),
-          supabase
-            .from("pipeline_stages")
-            .select("id, name, pipeline_id, position")
-            .order("position"),
-        ])
+      const [tagsRes, templatesRes, customFieldsRes] = await Promise.all([
+        supabase.from("tags").select("*").order("name"),
+        supabase
+          .from("message_templates")
+          .select("*")
+          .eq("status", "APPROVED")
+          .order("name"),
+        supabase.from("custom_fields").select("*").order("field_name"),
+      ])
       if (cancelled) return
       setTags((tagsRes.data as TagRecord[] | null) ?? [])
       setTemplates((templatesRes.data as MessageTemplate[] | null) ?? [])
       setCustomFields((customFieldsRes.data as CustomField[] | null) ?? [])
-      setPipelines((pipelinesRes.data as PipelineOption[] | null) ?? [])
-      setStages((stagesRes.data as PipelineStageOption[] | null) ?? [])
     })()
 
     // Members go through the API so we inherit its email-visibility
@@ -298,7 +267,7 @@ function ResourcesProvider({ children }: { children: ReactNode }) {
 
   return (
     <ResourcesContext.Provider
-      value={{ tags, members, templates, customFields, pipelines, stages }}
+      value={{ tags, members, templates, customFields }}
     >
       {children}
     </ResourcesContext.Provider>
@@ -443,104 +412,6 @@ function AgentSelect({
   )
 }
 
-/** Pipeline + stage picker for Create Deal. The automation stores ids because
- *  the engine writes directly to deals, but authors should choose by name. */
-function DealPipelineFields({
-  pipelineId,
-  stageId,
-  onChange,
-  t,
-}: {
-  pipelineId: string
-  stageId: string
-  onChange: (patch: { pipeline_id: string; stage_id: string }) => void
-  t: ReturnType<typeof useTranslations>
-}) {
-  const { pipelines, stages } = useResources()
-
-  if (pipelines.length === 0) {
-    return (
-      <>
-        <FieldBlock label={t("pipelines.pipelineIdLabel")}>
-          <Input
-            value={pipelineId}
-            onChange={(e) =>
-              onChange({ pipeline_id: e.target.value, stage_id: stageId })
-            }
-            className="bg-muted text-foreground"
-          />
-        </FieldBlock>
-        <FieldBlock label={t("pipelines.stageIdLabel")}>
-          <Input
-            value={stageId}
-            onChange={(e) =>
-              onChange({ pipeline_id: pipelineId, stage_id: e.target.value })
-            }
-            className="bg-muted text-foreground"
-          />
-        </FieldBlock>
-      </>
-    )
-  }
-
-  const selectedPipeline = pipelines.find((p) => p.id === pipelineId)
-  const stageOptions = stages.filter((s) => s.pipeline_id === pipelineId)
-  const selectedStage = stageOptions.find((s) => s.id === stageId)
-
-  return (
-    <>
-      <FieldBlock label={t("pipelines.pipelineLabel")}>
-        <select
-          value={pipelineId}
-          onChange={(e) => {
-            const nextPipelineId = e.target.value
-            const firstStage = stages.find(
-              (s) => s.pipeline_id === nextPipelineId
-            )
-            onChange({
-              pipeline_id: nextPipelineId,
-              stage_id: firstStage?.id ?? "",
-            })
-          }}
-          className={SELECT_CLASS}
-        >
-          <option value="">{t("pipelines.selectPipeline")}</option>
-          {pipelines.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-          {pipelineId && !selectedPipeline && (
-            <option value={pipelineId}>{t("pipelines.unknownPipeline", { id: pipelineId })}</option>
-          )}
-        </select>
-      </FieldBlock>
-      <FieldBlock label={t("pipelines.stageLabel")}>
-        <select
-          value={stageId}
-          onChange={(e) =>
-            onChange({ pipeline_id: pipelineId, stage_id: e.target.value })
-          }
-          className={SELECT_CLASS}
-          disabled={!pipelineId || stageOptions.length === 0}
-        >
-          <option value="">
-            {pipelineId ? t("pipelines.selectStage") : t("pipelines.selectPipelineFirst")}
-          </option>
-          {stageOptions.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-          {stageId && pipelineId && !selectedStage && (
-            <option value={stageId}>{t("pipelines.unknownStage", { id: stageId })}</option>
-          )}
-        </select>
-      </FieldBlock>
-    </>
-  )
-}
-
 /** Template dropdown showing approved templates by name + language,
  *  storing both template_name and language. Falls back to manual name +
  *  language inputs when no approved templates are synced yet. */
@@ -664,7 +535,7 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
     setSaving(true)
     try {
       const payload = {
-        name: state.name || "Untitled automation",
+        name: state.name || t("untitled"),
         description: state.description || null,
         trigger_type: state.trigger_type,
         trigger_config: state.trigger_config,
@@ -851,7 +722,7 @@ function TriggerCard({
             {type === "tag_added" && (
               <div>
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                  Tag
+                  {t("config.tagLabel")}
                 </label>
                 <TagSelect
                   value={(config.tag_id as string) ?? ""}
@@ -866,7 +737,7 @@ function TriggerCard({
                   {t("schedule")}
                 </label>
                 <Input
-                  placeholder="Cron expression or HH:mm"
+                  placeholder={t("schedulePlaceholder")}
                   value={(config.schedule as string) ?? ""}
                   onChange={(e) =>
                     onConfigChange({ ...config, schedule: e.target.value })
@@ -1118,7 +989,7 @@ function StepRenderer({
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                {isCondition ? "Condition" : step.step_type === "wait" ? "Wait" : "Action"}
+                {isCondition ? t("stepKind.condition") : step.step_type === "wait" ? t("stepKind.wait") : t("stepKind.action")}
               </div>
               <div className="truncate text-sm font-medium text-foreground">{t(`steps.${meta.label}`)}</div>
               <div className="truncate text-[11px] text-muted-foreground">{previewFor(step)}</div>
@@ -1139,7 +1010,7 @@ function StepRenderer({
                     variant="ghost"
                     size="icon"
                     disabled={index === 0}
-                    aria-label="Move up"
+                    aria-label={t("moveUp")}
                     onClick={() => props.moveStepAt(path, -1)}
                   >
                     <ArrowUp className="h-4 w-4" />
@@ -1148,7 +1019,7 @@ function StepRenderer({
                     variant="ghost"
                     size="icon"
                     disabled={index === total - 1}
-                    aria-label="Move down"
+                    aria-label={t("moveDown")}
                     onClick={() => props.moveStepAt(path, 1)}
                   >
                     <ArrowDown className="h-4 w-4" />
@@ -1374,32 +1245,6 @@ function StepEditor({
           </FieldBlock>
         </>
       )
-    case "create_deal":
-      return (
-        <>
-          <DealPipelineFields
-            pipelineId={(cfg.pipeline_id as string) ?? ""}
-            stageId={(cfg.stage_id as string) ?? ""}
-            onChange={(patch) => set(patch)}
-            t={t}
-          />
-          <FieldBlock label={t("config.titleLabel")}>
-            <Input
-              value={(cfg.title as string) ?? ""}
-              onChange={(e) => set({ title: e.target.value })}
-              className="bg-muted text-foreground"
-            />
-          </FieldBlock>
-          <FieldBlock label={t("config.valueLabel")}>
-            <Input
-              type="number"
-              value={(cfg.value as number) ?? 0}
-              onChange={(e) => set({ value: Number(e.target.value) })}
-              className="bg-muted text-foreground"
-            />
-          </FieldBlock>
-        </>
-      )
     case "wait":
       return (
         <div className="grid grid-cols-2 gap-2">
@@ -1463,7 +1308,7 @@ function StepEditor({
             )}
           </FieldBlock>
           {(cfg.subject === "contact_field" || cfg.subject === "message_content") && (
-            <FieldBlock label="Value">
+            <FieldBlock label={t("config.valueLabel")}>
               <Input
                 value={(cfg.value as string) ?? ""}
                 onChange={(e) => set({ value: e.target.value })}

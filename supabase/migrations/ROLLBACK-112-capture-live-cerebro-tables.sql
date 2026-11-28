@@ -1,0 +1,42 @@
+-- =====================================================================
+-- ROLLBACK-112 — "reverts" 112_capture_live_cerebro_tables.sql
+--
+-- 112 is a structural capture of three cerebro_* tables
+-- (cerebro_objetivo_envio, cerebro_revendedores, cerebro_servicios) that
+-- were ALREADY LIVE on staging and production before it existed. Applying
+-- 112 to an environment that already has these three tables is a plain
+-- `CREATE TABLE IF NOT EXISTS` no-op: Postgres sees each name is already
+-- taken and skips the CREATE entirely, so no column, constraint, index,
+-- RLS setting or privilege changes. There is therefore nothing for a
+-- rollback to undo on staging or production: the tables look exactly the
+-- same, with or without 112 applied.
+--
+-- What rollback does NOT mean here: DROPping any of these three tables.
+-- They hold live data the bot depends on right now —
+-- cerebro_objetivo_envio tracks every open partial-payment target,
+-- cerebro_revendedores is the reseller allow-list consulted on every
+-- deposit, and cerebro_servicios carries the per-service script data the
+-- agent recites to customers. Dropping any of them would destroy that
+-- live data and immediately break the Cerebro pipeline — the opposite of
+-- what a rollback is for, and worse than the function case in
+-- ROLLBACK-109 (a dropped function can at least be recreated with no data
+-- loss; a dropped table cannot). This file does not do that, and no other
+-- action against these three tables is a correct interpretation of
+-- "revert 112" either.
+--
+-- If 112 is ever found to need a real change (a genuinely different
+-- column, constraint, or privilege), the correct move is a NEW forward
+-- migration that ALTERs the table again with the intended change —
+-- exactly as every other table in this repo is modified — not a rollback
+-- of this capture.
+--
+-- The only environment where 112 is not a no-op is a FRESH database built
+-- from this migration history from scratch, which would not have these
+-- three tables at all before 112 runs. There, "rolling back" 112 would
+-- mean dropping tables that no other environment can survive without,
+-- which is the same reason above not to do it even there.
+--
+-- This file is intentionally a documented no-op.
+-- =====================================================================
+
+-- (nothing to do — see header)

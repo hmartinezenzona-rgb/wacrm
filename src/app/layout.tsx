@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
-import { Inter } from "next/font/google";
+import { Bricolage_Grotesque, Figtree, Instrument_Serif, JetBrains_Mono } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import { ThemeProvider } from "@/hooks/use-theme";
@@ -15,8 +15,27 @@ import {
   THEME_IDS,
 } from "@/lib/themes";
 
-const inter = Inter({
+const figtree = Figtree({
   variable: "--font-sans",
+  subsets: ["latin"],
+});
+
+// Headings and money amounts.
+const bricolage = Bricolage_Grotesque({
+  variable: "--font-heading",
+  subsets: ["latin"],
+});
+
+// Greetings and empty states: one editorial line, never body text.
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-serif",
+  weight: "400",
+  subsets: ["latin"],
+});
+
+// Card numbers, phones and transaction ids.
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-mono",
   subsets: ["latin"],
 });
 
@@ -30,9 +49,11 @@ export const metadata: Metadata = {
     index: false,
     follow: false,
   },
-  icons: {
-    icon: [{ url: "/icon" }],
-  },
+  // Sin `icons` a mano: la convencion de fichero de Next detecta
+  // `src/app/icon.png` y emite el <link> sola. Antes habia aqui un
+  // `{ url: "/icon" }` fijo que apuntaba al icono generado por codigo
+  // (`icon.tsx`); al sustituirlo por la marca del negocio, esa ruta
+  // dejo de existir y el <head> seguia pidiendo un 404.
   formatDetection: {
     email: false,
     address: false,
@@ -90,7 +111,7 @@ export default async function RootLayout({
       lang={locale}
       data-theme={DEFAULT_THEME}
       data-mode={DEFAULT_MODE}
-      className={`${inter.variable} h-full antialiased`}
+      className={`${figtree.variable} ${bricolage.variable} ${jetbrainsMono.variable} ${instrumentSerif.variable} h-full antialiased`}
       // The `theme-boot` script below rewrites `data-theme` and
       // `data-mode` on <html> from localStorage before React hydrates,
       // so for any non-default choice the client DOM intentionally

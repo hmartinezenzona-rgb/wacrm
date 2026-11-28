@@ -1,0 +1,103 @@
+/* The calculator was ported from hermes with its own palette and its own
+ * dark switch, so it rendered white while the CRM sat on whatever theme
+ * the operator had chosen. Every colour below now reads a design-system
+ * token from globals.css instead of a literal, which is what makes the
+ * page follow light/dark AND each accent theme (violet, emerald, cobalt,
+ * amber, rose) without knowing they exist. There is deliberately no
+ * `.dark` block any more: the tokens already carry that, and a second
+ * switch is what let the two drift apart in the first place.
+ *
+ * Only colour changed. Spacing, radii, sizes and the responsive rules are
+ * the hermes original, untouched. */
+:global(.legacyCalc) {
+  min-height: 100vh;
+  background: var(--background);
+  color: var(--foreground);
+  padding: 15px;
+  font-family: inherit;
+}
+
+:global(.legacyCalc *) { box-sizing: border-box; }
+:global(.legacyCalc h1), :global(.legacyCalc h2), :global(.legacyCalc h3) { color: var(--foreground); margin-top: 0; }
+:global(.legacyCalc .legacyContainer) { max-width: 1100px; margin: auto; }
+:global(.legacyCalc .legacyCard) { background: var(--card); color: var(--card-foreground); padding: 18px; margin-bottom: 15px; border-radius: 10px; border: 1px solid var(--border); box-shadow: 0 4px 6px rgb(0 0 0 / 0.04); position: relative; }
+:global(.legacyCalc label) { display: block; font-weight: bold; font-size: 13px; margin-bottom: 5px; }
+:global(.legacyCalc input), :global(.legacyCalc textarea), :global(.legacyCalc select) { width: 100%; padding: 12px; background: var(--card); color: var(--foreground); border: 1px solid var(--input); border-radius: 6px; box-sizing: border-box; font-family: inherit; font-size: 15px; outline: none; }
+:global(.legacyCalc input:focus), :global(.legacyCalc textarea:focus), :global(.legacyCalc select:focus) { border-color: var(--ring); }
+:global(.legacyCalc textarea) { height: 260px; font-family: monospace; line-height: 1.5; resize: vertical; }
+:global(.legacyCalc button) { width: 100%; padding: 12px 15px; background: var(--primary); color: var(--primary-foreground); border: none; cursor: pointer; border-radius: 6px; font-weight: bold; font-size: 14px; min-height: 44px; }
+:global(.legacyCalc button:hover) { background: var(--primary-hover); }
+:global(.legacyCalc button.legacySecondary) { background: var(--secondary); color: var(--secondary-foreground); }
+:global(.legacyCalc button.legacySecondary:hover) { background: var(--accent); }
+/* Row action that only needs an icon (e.g. Editar): overrides the full-width primary button. */
+:global(.legacyCalc button.legacyIconButton) { width: 32px; min-height: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: var(--muted-foreground); border: 1px solid var(--border); border-radius: 6px; }
+:global(.legacyCalc button.legacyIconButton:hover) { background: var(--accent); color: var(--foreground); }
+:global(.legacyCalc .legacyFlex) { display: flex; gap: 12px; flex-wrap: wrap; }
+:global(.legacyCalc .legacyFlex > div) { flex: 1; min-width: 150px; }
+/* Tarifas Globales: one-rate editor (select + value + button) that wraps on narrow screens, then a read-only label/value list. */
+:global(.legacyCalc .legacyRateEditor) { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+:global(.legacyCalc .legacyRateEditor > div) { flex: 1 1 200px; min-width: 0; }
+:global(.legacyCalc .legacyRateEditor button) { flex: 0 0 auto; }
+:global(.legacyCalc .legacyNotice) { margin-top: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--muted); color: var(--foreground); }
+:global(.legacyCalc .legacyRatesTitle) { margin: 16px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted-foreground); }
+:global(.legacyCalc .legacyRateList) { display: grid; grid-template-columns: 1fr; margin: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: var(--card-foreground); overflow: hidden; }
+:global(.legacyCalc .legacyRateRow) { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding: 8px 12px; border-top: 1px solid var(--border); }
+:global(.legacyCalc .legacyRateRow:first-child) { border-top: 0; }
+:global(.legacyCalc .legacyRateRow dt) { margin: 0; color: var(--muted-foreground); overflow-wrap: anywhere; }
+:global(.legacyCalc .legacyRateRow dd) { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+/* The read-only ARQ rate keeps its provenance under the figure (ask, age, ARQ's own time). */
+:global(.legacyCalc .legacyRateNote) { display: block; margin-top: 2px; font-size: 11px; font-weight: 400; color: var(--muted-foreground); }
+:global(.legacyCalc .legacyRateNoteStale) { display: block; width: fit-content; margin: 6px 0 0 auto; padding: 2px 8px; border-radius: 4px; line-height: 1.4; color: var(--foreground); background: color-mix(in oklch, oklch(0.75 0.15 80) 16%, var(--card)); border: 1px solid color-mix(in oklch, oklch(0.75 0.15 80) 45%, var(--border)); }
+:global(.legacyCalc .legacyTotals) { display: flex; gap: 12px; margin-bottom: 15px; flex-wrap: wrap; }
+:global(.legacyCalc .legacyTotalBox) { flex: 1; min-width: 140px; background: var(--card); color: var(--card-foreground); padding: 12px; border-radius: 10px; text-align: center; border: 1px solid var(--border); }
+:global(.legacyCalc .legacyTopBar) { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; gap: 12px; }
+:global(.legacyCalc .legacySmall) { font-size: 12px; color: var(--muted-foreground); display: block; margin-bottom: 8px; }
+:global(.legacyCalc .legacyParsedTable) { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+:global(.legacyCalc .legacyParsedTable th), :global(.legacyCalc .legacyParsedTable td) { border: 1px solid var(--border); padding: 8px; text-align: left; }
+:global(.legacyCalc .legacyParsedTable th) { background: var(--muted); color: var(--foreground); }
+/* Actions column: as narrow as its content (the icon button), not an equal share of the table. */
+:global(.legacyCalc .legacyParsedTable .legacyActionsCell) { width: 1%; white-space: nowrap; text-align: center; }
+:global(.legacyCalc .legacyBadge) { background: var(--muted); padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 11px; color: var(--foreground); display: inline-block; }
+:global(.legacyCalc .legacyDayHeader) { background: var(--primary); color: var(--primary-foreground); padding: 8px 12px; font-weight: bold; border-radius: 4px; margin-top: 15px; font-size: 13px; }
+:global(.legacyCalc details) { background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin-bottom: 15px; font-size: 13px; }
+:global(.legacyCalc summary) { font-weight: bold; cursor: pointer; color: var(--primary); user-select: none; }
+:global(.legacyCalc .legacyHelpTable) { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+:global(.legacyCalc .legacyHelpTable th), :global(.legacyCalc .legacyHelpTable td) { border: 1px solid var(--border); padding: 6px 8px; text-align: left; }
+:global(.legacyCalc .legacyHelpTable th) { background: var(--muted); color: var(--foreground); }
+:global(.legacyCalc code) { background: var(--muted); color: var(--foreground); padding: 2px 5px; border-radius: 4px; }
+:global(.legacyCalc .legacyBlockRow) { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+:global(.legacyCalc .legacyBulletButton) { position: absolute; right: 25px; bottom: 25px; background: var(--primary); color: var(--primary-foreground); border: none; border-radius: 20px; padding: 6px 14px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 6px rgb(0 0 0 / 0.2); z-index: 10; min-height: auto; width: auto; }
+:global(.legacyCalc .legacyFullscreen) { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 999999 !important; margin: 0 !important; border-radius: 0 !important; display: flex !important; flex-direction: column !important; padding: 20px !important; }
+:global(.legacyCalc .legacyFullscreen textarea) { flex: 1 !important; height: 100% !important; resize: none !important; }
+
+/* Error and warning tint the ground rather than repainting the text. The
+ * system has a `--destructive` token but none for "warning", and a fixed
+ * amber that reads on one ground fails on the other. Mixing the accent
+ * into the current background keeps the tint proportional in both modes,
+ * and leaving the copy on `--foreground` keeps it legible whatever the
+ * theme does. */
+:global(.legacyCalc .legacyError) { color: var(--foreground); background: color-mix(in oklch, var(--destructive) 14%, var(--card)); border: 1px solid color-mix(in oklch, var(--destructive) 40%, var(--border)); border-radius: 6px; padding: 10px; margin-bottom: 15px; font-size: 13px; }
+:global(.legacyCalc .legacyWarning) { color: var(--foreground); background: color-mix(in oklch, oklch(0.75 0.15 80) 16%, var(--card)); border: 1px solid color-mix(in oklch, oklch(0.75 0.15 80) 45%, var(--border)); border-radius: 6px; padding: 10px 14px; margin-bottom: 15px; font-size: 13px; }
+
+@media (max-width: 650px) {
+  :global(.legacyCalc) { padding: 10px; }
+  :global(.legacyCalc h1) { font-size: 1.4em; }
+  :global(.legacyCalc .legacyFlex > div) { min-width: 100%; }
+  :global(.legacyCalc .legacyTotals) { flex-direction: column; gap: 10px; }
+  :global(.legacyCalc .legacyTotalBox) { min-width: 100%; padding: 10px; }
+  :global(.legacyCalc .legacyTopBar) { align-items: flex-start; }
+  :global(.legacyCalc .legacyHelpTable), :global(.legacyCalc .legacyHelpTable thead), :global(.legacyCalc .legacyHelpTable tbody), :global(.legacyCalc .legacyHelpTable th), :global(.legacyCalc .legacyHelpTable td), :global(.legacyCalc .legacyHelpTable tr) { display: block; }
+  :global(.legacyCalc .legacyHelpTable thead) { display: none; }
+  :global(.legacyCalc .legacyHelpTable tr) { margin-bottom: 10px; border-bottom: 2px solid var(--border); padding-bottom: 8px; }
+  :global(.legacyCalc .legacyHelpTable td) { border: none; padding: 4px 0; }
+  :global(.legacyCalc .legacyParsedTable), :global(.legacyCalc .legacyParsedTable thead), :global(.legacyCalc .legacyParsedTable tbody), :global(.legacyCalc .legacyParsedTable th), :global(.legacyCalc .legacyParsedTable td), :global(.legacyCalc .legacyParsedTable tr) { display: block; }
+  :global(.legacyCalc .legacyParsedTable thead) { display: none; }
+  :global(.legacyCalc .legacyParsedTable tr) { margin-bottom: 12px; background: var(--card-2); border: 1px solid var(--border); border-radius: 6px; padding: 10px; }
+  :global(.legacyCalc .legacyParsedTable td) { border: none; padding: 3px 0; display: flex; justify-content: space-between; align-items: center; }
+  :global(.legacyCalc .legacyParsedTable td[data-label]::before) { content: attr(data-label); font-weight: bold; color: var(--muted-foreground); margin-right: 10px; }
+  :global(.legacyCalc .legacyParsedTable .legacyActionsCell) { width: auto; }
+  :global(.legacyCalc .legacyBlockRow) { flex-direction: column; align-items: flex-start; }
+}
+
+/* Inside a tab of Finanzas the page shell already gives the padding and the height. */
+:global(.legacyCalc.legacyEmbedded) { min-height: 0; padding: 0; }

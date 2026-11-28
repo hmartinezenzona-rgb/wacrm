@@ -66,6 +66,12 @@ export async function POST(request: Request, { params }: Params) {
 
     if (paused) {
       if (assignToMe) update.assigned_agent_id = userId
+      // Pausa MANUAL: no caduca. Si el chat ya estaba en pausa automatica
+      // (`agent_replied`, la que deja un envio desde el panel y que el cron
+      // libera a los 5 min), se borra esa razon; si no, el cron soltaria
+      // tambien esta pausa y el bot volveria a hablar solo.
+      update.ai_handoff_reason = null
+      update.ai_handoff_at = new Date().toISOString()
     } else {
       // Resuming hands the thread *back to the bot*. Clear the pause and
       // the handoff note, and — crucially — release ANY assignment, not

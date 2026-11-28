@@ -27,6 +27,7 @@ import {
   sendMediaMessage,
   sendInteractiveButtons,
   sendInteractiveList,
+  sendInteractiveCtaUrl,
   uploadMediaToMeta,
   type MediaKind,
 } from '@/lib/whatsapp/meta-api';
@@ -46,6 +47,14 @@ import {
 import type { MessageTemplate } from '@/types';
 import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard';
 import { renderTemplateBody } from '@/lib/whatsapp/template-send-builder';
+import {
+  ForeignChatMediaError,
+  assertChatMediaAccount,
+} from '@/lib/storage/chat-media';
+import {
+  downloadChatMedia,
+  signChatMediaUrl,
+} from '@/lib/storage/chat-media-server';
 
 export const MEDIA_KINDS = ['image', 'video', 'document', 'audio'] as const;
 export const VALID_MESSAGE_TYPES = [
@@ -112,6 +121,19 @@ export interface SendMessageParams {
    * dashboard send (human) leaves it false.
    */
   aiGenerated?: boolean;
+  /** Who wrote it, when a person is behind it. Only the dashboard send route
+   *  passes it; the bot and the public API leave it unset (NULL). */
+  senderId?: string | null;
+  /**
+   * True when this send is a system/panel action (a delivery proof
+   * image, e.g.) rather than a person typing in the chat — B2.2. Stored
+   * on the row so the Cerebro workflow's `humano_reciente` check can
+   * ignore it too; the dashboard route also reads this same flag to
+   * decide whether to yield the conversation to a human, since doing
+   * that for the panel's own automated delivery would be exactly the
+   * bug this exists to avoid.
+   */
+  isPanelAction?: boolean;
 }
 
 export interface SendMessageResult {
@@ -216,25 +238,49 @@ export function validateSendMessageParams(params: {
  */
 const MAX_META_UPLOAD_BYTES = 16 * 1024 * 1024;
 
+/** Lifetime of the signed `link` fallback for private chat-media. */
+const MEDIA_LINK_TTL_SECONDS = 24 * 60 * 60;
+
 /**
- * Fetch the media we are about to send and hand the bytes to Meta,
- * returning the `media_id`. Returns `undefined` when that could not be
- * done — the caller then falls back to sending the public link.
- *
- * Never throws: a failure here must degrade to today's behaviour, not
- * take down a send. Every give-up path logs, so a systematic failure
- * shows up in the pm2 log instead of silently costing us the upload.
- *
- * Exported as a test seam — the fallback is the whole reason this can
- * be deployed onto a live business, so it is worth pinning directly.
+ * The URL Meta should pull when the upload path is not used. A stored
+ * chat-media URL stops working anonymously once the bucket is private, so
+ * it is swapped for a signed one; every other URL is sent as-is.
  */
-export async function uploadMediaForSend(
+export async function mediaLinkForSend(
   mediaUrl: string,
-  phoneNumberId: string,
-  accessToken: string,
-  filename?: string,
-): Promise<string | undefined> {
-  try {
+  accountId?: string,
+): Promise<string> {
+  // Throws for another account's object: no signed link may be minted.
+  if (!assertChatMediaAccount(mediaUrl, accountId)) return mediaUrl;
+  return signChatMediaUrl(mediaUrl, MEDIA_LINK_TTL_SECONDS, accountId!);
+}
+
+/**
+ * Get the bytes + content-type of the media to send, or `undefined` (after
+ * logging why) when the caller should fall back to the link. chat-media
+ * objects are read with the service role; any other URL is fetched
+ * anonymously, exactly as before.
+ */
+async function fetchMediaBytes(
+  mediaUrl: string,
+  accountId?: string,
+): Promise<{ bytes: ArrayBuffer; mimeType: string } | undefined> {
+  const chatMediaPath = assertChatMediaAccount(mediaUrl, accountId);
+  let bytes: ArrayBuffer;
+  let mimeType: string;
+
+  if (chatMediaPath) {
+    const media = await downloadChatMedia(chatMediaPath, accountId!);
+    if (!media) {
+      console.error(
+        '[send-message] could not read chat-media object to upload; sending as link'
+      );
+      return undefined;
+    }
+    mimeType = media.contentType.split(';')[0].trim();
+    if (!hasUsableMimeType(mimeType)) return undefined;
+    bytes = media.bytes;
+  } else {
     const res = await fetch(mediaUrl);
     if (!res.ok) {
       console.error(
@@ -253,26 +299,56 @@ export async function uploadMediaForSend(
       return undefined;
     }
 
-    // Meta rejects a generic content-type, and guessing one from the
-    // extension is how you send a .png labelled as a .jpeg. If the
-    // object cannot tell us what it is, the link path can still work.
-    const mimeType = (res.headers.get('content-type') ?? '')
-      .split(';')[0]
-      .trim();
-    if (!mimeType || mimeType === 'application/octet-stream') {
-      console.warn(
-        `[send-message] media has no usable content-type ("${mimeType}"); sending as link`
-      );
-      return undefined;
-    }
+    mimeType = (res.headers.get('content-type') ?? '').split(';')[0].trim();
+    if (!hasUsableMimeType(mimeType)) return undefined;
+    bytes = await res.arrayBuffer();
+  }
 
-    const bytes = await res.arrayBuffer();
-    if (bytes.byteLength > MAX_META_UPLOAD_BYTES) {
-      console.warn(
-        `[send-message] media is ${bytes.byteLength} bytes, over the upload cap; sending as link`
-      );
-      return undefined;
-    }
+  if (bytes.byteLength > MAX_META_UPLOAD_BYTES) {
+    console.warn(
+      `[send-message] media is ${bytes.byteLength} bytes, over the upload cap; sending as link`
+    );
+    return undefined;
+  }
+  return { bytes, mimeType };
+}
+
+/**
+ * Meta rejects a generic content-type, and guessing one from the
+ * extension is how you send a .png labelled as a .jpeg. If the object
+ * cannot tell us what it is, the link path can still work.
+ */
+function hasUsableMimeType(mimeType: string): boolean {
+  if (mimeType && mimeType !== 'application/octet-stream') return true;
+  console.warn(
+    `[send-message] media has no usable content-type ("${mimeType}"); sending as link`
+  );
+  return false;
+}
+
+/**
+ * Fetch the media we are about to send and hand the bytes to Meta,
+ * returning the `media_id`. Returns `undefined` when that could not be
+ * done — the caller then falls back to sending the public link.
+ *
+ * Never throws: a failure here must degrade to today's behaviour, not
+ * take down a send. Every give-up path logs, so a systematic failure
+ * shows up in the pm2 log instead of silently costing us the upload.
+ *
+ * Exported as a test seam — the fallback is the whole reason this can
+ * be deployed onto a live business, so it is worth pinning directly.
+ */
+export async function uploadMediaForSend(
+  mediaUrl: string,
+  phoneNumberId: string,
+  accessToken: string,
+  filename?: string,
+  accountId?: string,
+): Promise<string | undefined> {
+  try {
+    const fetched = await fetchMediaBytes(mediaUrl, accountId);
+    if (!fetched) return undefined;
+    const { bytes, mimeType } = fetched;
 
     const { mediaId } = await uploadMediaToMeta({
       phoneNumberId,
@@ -309,6 +385,8 @@ export async function sendMessageToConversation(
     interactivePayload,
     replyToMessageId,
     aiGenerated,
+    senderId,
+    isPanelAction,
   } = params;
 
   if (!conversationId) {
@@ -328,6 +406,24 @@ export async function sendMessageToConversation(
   });
 
   const isMediaKind = (MEDIA_KINDS as readonly string[]).includes(messageType);
+
+  // The server reads/signs chat-media with the service role, so a URL
+  // pointing at another account's object must be refused up front — before
+  // any DB, storage or Meta call.
+  if (isMediaKind) {
+    try {
+      assertChatMediaAccount(mediaUrl, accountId);
+    } catch (err) {
+      if (err instanceof ForeignChatMediaError) {
+        throw new SendMessageError(
+          'bad_request',
+          'media_url does not belong to this account',
+          400
+        );
+      }
+      throw err;
+    }
+  }
 
   // Conversation + contact, account-scoped.
   const { data: conversation, error: convError } = await db
@@ -479,6 +575,7 @@ export async function sendMessageToConversation(
       config.phone_number_id,
       accessToken,
       filename || undefined,
+      accountId,
     );
   }
 
@@ -494,6 +591,7 @@ export async function sendMessageToConversation(
         messageParams: templateMessageParams ?? undefined,
         params: templateParams || [],
         contextMessageId,
+        accountId,
       });
       return result.messageId;
     }
@@ -503,7 +601,7 @@ export async function sendMessageToConversation(
         accessToken,
         to: phone,
         kind: messageType as MediaKind,
-        link: mediaUrl!,
+        link: metaMediaId ? mediaUrl! : await mediaLinkForSend(mediaUrl!, accountId),
         mediaId: metaMediaId,
         caption: contentText || undefined,
         filename: filename || undefined,
@@ -522,6 +620,20 @@ export async function sendMessageToConversation(
           headerText: p.header || undefined,
           footerText: p.footer || undefined,
           buttons: p.buttons,
+          contextMessageId,
+        });
+        return result.messageId;
+      }
+      if (p.kind === 'cta_url') {
+        const result = await sendInteractiveCtaUrl({
+          phoneNumberId: config.phone_number_id,
+          accessToken,
+          to: phone,
+          bodyText: p.body,
+          buttonLabel: p.button_label,
+          url: p.url,
+          headerText: p.header || undefined,
+          footerText: p.footer || undefined,
           contextMessageId,
         });
         return result.messageId;
@@ -617,6 +729,13 @@ export async function sendMessageToConversation(
       status: 'sent',
       reply_to_message_id: replyToMessageId || null,
       ai_generated: aiGenerated ?? false,
+      // Forward attribution (production's phase 3C): which PERSON wrote it.
+      // Only the dashboard route, the one with a verified user session, sets
+      // it; the bot and the public API stay NULL on purpose — their identity
+      // is `ai_generated`. History is not rewritten.
+      sender_id: senderId ?? null,
+      // B2.2: a system/panel action, not a human typing (147).
+      is_panel_action: isPanelAction ?? false,
     })
     .select()
     .single();

@@ -1,0 +1,13 @@
+[Unit]
+Description=WaCRM nightly Cerebro review and low-risk apply
+Documentation=file:%h/wacrm-worktrees/mejora-legacy/odd/tasks/mejora-nocturna-cerebro.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/wacrm-worktrees/mejora-legacy/infra/ia/mejora_nocturna.sh
+TimeoutStartSec=3h
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

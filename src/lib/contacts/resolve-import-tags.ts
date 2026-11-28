@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { isResellerTagName } from '@/lib/resellers/tag-rule';
 
 const DEFAULT_TAG_COLOR = '#3b82f6';
 
@@ -25,10 +26,17 @@ export async function resolveImportTagIds(
     userId: string;
     tagNames: string[];
     canCreateTags: boolean;
+    /**
+     * Admin+ only (396): when false, the reseller tag is never matched,
+     * created or assigned, and is reported in `skippedNames`. Defaults to
+     * true so existing callers keep working.
+     */
+    canAssignResellerTag?: boolean;
     defaultColor?: string;
   }
 ): Promise<ResolveImportTagsResult> {
   const { accountId, userId, tagNames, canCreateTags } = params;
+  const canAssignResellerTag = params.canAssignResellerTag !== false;
   const defaultColor = params.defaultColor ?? DEFAULT_TAG_COLOR;
 
   const uniqueNames: string[] = [];
@@ -56,6 +64,7 @@ export async function resolveImportTagIds(
   const tagIdByKey = new Map<string, string>();
   for (const tag of existing ?? []) {
     const key = tag.name.trim().toLowerCase();
+    if (!canAssignResellerTag && isResellerTagName(tag.name)) continue;
     if (!tagIdByKey.has(key)) tagIdByKey.set(key, tag.id);
   }
 
@@ -63,6 +72,12 @@ export async function resolveImportTagIds(
   const toCreate: string[] = [];
 
   for (const name of uniqueNames) {
+    // 396: a non-admin import must not even resolve the reseller tag; the
+    // database would refuse the link and fail a whole 100-row batch.
+    if (!canAssignResellerTag && isResellerTagName(name)) {
+      skippedNames.push(name);
+      continue;
+    }
     const key = name.toLowerCase();
     if (tagIdByKey.has(key)) continue;
     if (canCreateTags) toCreate.push(name);

@@ -130,6 +130,38 @@ describe("phoneVariants", () => {
     expect(new Set(out).size).toBe(out.length);
   });
 
+  it("drops Mexico's trunk 1, which is what Meta expects in E.164", () => {
+    // +52 1 962 289 6918 is how the WhatsApp webhook reports a Mexican
+    // mobile; Meta's allowed list holds +52 962 289 6918.
+    const out = phoneVariants("5219622896918");
+    expect(out).toContain("529622896918");
+  });
+
+  it("adds Mexico's trunk 1 when the stored number lacks it", () => {
+    const out = phoneVariants("529622896918");
+    expect(out).toContain("5219622896918");
+  });
+
+  it("drops Argentina's trunk 9", () => {
+    const out = phoneVariants("5491122334455");
+    expect(out).toContain("541122334455");
+  });
+
+  it("adds Argentina's trunk 9 when the stored number lacks it", () => {
+    const out = phoneVariants("541122334455");
+    expect(out).toContain("5491122334455");
+  });
+
+  it("never strips a leading 1 or 9 from a country that does not use it as a trunk", () => {
+    // 1 and 9 are ordinary subscriber digits almost everywhere. Stripping
+    // them blindly would build a different person's real number, and in a
+    // sandbox that number could well BE on the allowed list — a wrong
+    // send is far worse than a failed one.
+    expect(phoneVariants("19622896918")).not.toContain("9622896918");
+    expect(phoneVariants("5519622896918")).not.toContain("559622896918");
+    expect(phoneVariants("34912345678")).not.toContain("3412345678");
+  });
+
   it("returns just the original when the number is too short for any CC slice", () => {
     // 1-char input is shorter than all ccLen values; both loops skip.
     expect(phoneVariants("1")).toEqual(["1"]);

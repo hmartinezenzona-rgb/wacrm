@@ -24,14 +24,35 @@ export interface MetaPhoneInfo {
 }
 
 interface MetaErrorResponse {
-  error?: { message?: string; code?: number; type?: string }
+  error?: {
+    message?: string
+    code?: number
+    type?: string
+    error_subcode?: number
+    error_user_title?: string
+    error_user_msg?: string
+    error_data?: { details?: string }
+  }
 }
 
 async function throwMetaError(response: Response, fallback: string): Promise<never> {
   let message = fallback
   try {
     const data = (await response.json()) as MetaErrorResponse
-    if (data.error?.message) message = data.error.message
+    // "Invalid parameter" alone is useless: Meta puts the actionable reason
+    // in error_user_msg / error_data.details, and the numeric subcode names
+    // the exact rule. Keep the whole thing short enough for a toast.
+    const parts = [
+      data.error?.message,
+      data.error?.error_user_msg,
+      data.error?.error_data?.details,
+    ].filter((p): p is string => Boolean(p && p.trim()))
+    if (parts.length > 0) {
+      const codes = [data.error?.code, data.error?.error_subcode]
+        .filter((n): n is number => typeof n === 'number')
+        .join('/')
+      message = parts.join(' — ') + (codes ? ` (code ${codes})` : '')
+    }
   } catch {
     // response body wasn't JSON — keep the fallback
   }
@@ -387,6 +408,8 @@ export async function sendMediaMessage(
 }
 
 import type { MessageTemplate } from '@/types'
+import { assertChatMediaAccount } from '@/lib/storage/chat-media'
+import { signChatMediaUrl } from '@/lib/storage/chat-media-server'
 import {
   buildSendComponents,
   type SendTimeParams,
@@ -421,6 +444,11 @@ export interface SendTemplateMessageArgs {
   messageParams?: SendTimeParams
   /** Meta's message_id of the message being replied to. */
   contextMessageId?: string
+  /**
+   * Account that owns the template. Required to sign a chat-media header:
+   * the sign is a service-role read, scoped to this account.
+   */
+  accountId?: string
 }
 
 /**
@@ -447,6 +475,7 @@ export async function sendTemplateMessage(
     template,
     messageParams,
     contextMessageId,
+    accountId,
   } = args
   const url = `${META_API_BASE}/${phoneNumberId}/messages`
 
@@ -456,12 +485,19 @@ export async function sendTemplateMessage(
   }
 
   if (template) {
+    // A stored chat-media header URL stops working anonymously once the
+    // bucket is private, so Meta gets a freshly signed one at send time.
+    let headerMediaUrl = messageParams?.headerMediaUrl
+    const headerLink = headerMediaUrl ?? template.header_media_url
+    if (headerLink && assertChatMediaAccount(headerLink, accountId)) {
+      headerMediaUrl = await signChatMediaUrl(headerLink, 24 * 60 * 60, accountId!)
+    }
     const components = buildSendComponents(template, {
       // Legacy callers pass body values in `params`; fold them into
       // `messageParams.body` so the new path covers them too.
       body: messageParams?.body ?? params,
       headerText: messageParams?.headerText,
-      headerMediaUrl: messageParams?.headerMediaUrl,
+      headerMediaUrl,
       headerMediaId: messageParams?.headerMediaId,
       buttonParams: messageParams?.buttonParams,
     })
@@ -1012,6 +1048,86 @@ export async function sendInteractiveList(
 
   const url = `${META_API_BASE}/${phoneNumberId}/messages`
   const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) {
+    await throwMetaError(response, `Meta API error: ${response.status}`)
+  }
+  const data = await response.json()
+  return { messageId: data.messages[0].id }
+}
+
+export interface SendInteractiveCtaUrlArgs {
+  phoneNumberId: string
+  accessToken: string
+  to: string
+  bodyText: string
+  /** Visible label on the URL button (≤ 20 chars). */
+  buttonLabel: string
+  /** http(s) URL the button opens. */
+  url: string
+  headerText?: string
+  footerText?: string
+  contextMessageId?: string
+}
+
+/**
+ * Send an interactive message with one call-to-action URL button. No
+ * template approval is needed; Meta requires the button to be inside the
+ * 24-hour customer-service window (a new client's first message opens it).
+ */
+export async function sendInteractiveCtaUrl(
+  args: SendInteractiveCtaUrlArgs
+): Promise<MetaSendResult> {
+  const {
+    phoneNumberId, accessToken, to,
+    bodyText, buttonLabel, url, headerText, footerText, contextMessageId,
+  } = args
+  validateInteractiveBody(bodyText)
+  validateInteractiveHeaderFooter(headerText, footerText)
+  if (!buttonLabel) throw new Error('Interactive CTA requires a button label.')
+  if (buttonLabel.length > INTERACTIVE_LIMITS.buttonTitleMaxLength) {
+    throw new Error(
+      `Interactive CTA button label "${buttonLabel}" exceeds ${INTERACTIVE_LIMITS.buttonTitleMaxLength} chars.`
+    )
+  }
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    throw new Error('Interactive CTA URL is invalid.')
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('Interactive CTA URL must be http(s).')
+  }
+
+  const interactive: Record<string, unknown> = {
+    type: 'cta_url',
+    body: { text: bodyText },
+    action: {
+      name: 'cta_url',
+      parameters: { display_text: buttonLabel, url },
+    },
+  }
+  if (headerText) interactive.header = { type: 'text', text: headerText }
+  if (footerText) interactive.footer = { text: footerText }
+
+  const body: Record<string, unknown> = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: 'interactive',
+    interactive,
+  }
+  if (contextMessageId) body.context = { message_id: contextMessageId }
+
+  const apiUrl = `${META_API_BASE}/${phoneNumberId}/messages`
+  const response = await fetch(apiUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

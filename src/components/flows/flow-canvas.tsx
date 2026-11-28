@@ -141,6 +141,8 @@ function FlowNodeCard({ data, selected }: NodeProps) {
   const tSummary = useTranslations('Flows.summary');
   const summary = summarizeNode(node, tSummary);
   const slots = outgoingSlots(node);
+  const slotLabel = (slot: { id: string; label: string }) =>
+    slot.id === 'true' ? t('branchTrue') : slot.id === 'false' ? t('branchFalse') : slot.label;
   // Start nodes are entry-only; nothing ever targets them, so they
   // don't need an incoming Handle. Every other node type accepts
   // incoming edges (including terminal handoff / end — they're the
@@ -219,8 +221,8 @@ function FlowNodeCard({ data, selected }: NodeProps) {
               key={slot.id}
               className="text-muted-foreground relative flex items-center justify-between gap-2 rounded px-1 py-0.5 text-[11px]"
             >
-              <span className="truncate" title={slot.label}>
-                {slot.label}
+              <span className="truncate" title={slotLabel(slot)}>
+                {slotLabel(slot)}
               </span>
               <Handle
                 type="source"
@@ -369,7 +371,12 @@ function FlowCanvasInner() {
       source: e.source,
       target: e.target,
       sourceHandle: e.sourceHandle,
-      label: e.label,
+      label:
+        e.sourceHandle === "true"
+          ? t("branchTrue")
+          : e.sourceHandle === "false"
+            ? t("branchFalse")
+            : e.label,
       // Mode-aware via CSS tokens so edge chrome flips with light/dark.
       labelStyle: { fill: 'var(--muted-foreground)', fontSize: 11 },
       labelBgStyle: { fill: 'var(--card)' },
@@ -379,7 +386,7 @@ function FlowCanvasInner() {
     }));
 
     return rfEdges;
-  }, [builderNodes]);
+  }, [builderNodes, t]);
 
   const handleNodesChange = useCallback(
     (changes: NodeChange<RfNode<NodeData>>[]) => {

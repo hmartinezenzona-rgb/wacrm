@@ -39,7 +39,12 @@ import {
   validateSendMessageParams,
   SendMessageError,
 } from '@/lib/whatsapp/send-message';
-import type { InteractiveMessagePayload } from '@/lib/whatsapp/interactive';
+import type { InteractiveMessagePayload } from '@/lib/whatsapp/interactive'
+import {
+  construirInvitacionGrupoConTexto,
+  esPrimeraRespuestaAgente,
+  puedeInvitarGrupo,
+} from '@/lib/whatsapp/group-invite';
 
 export async function POST(request: Request) {
   try {
@@ -59,6 +64,8 @@ export async function POST(request: Request) {
     }
 
     const type = typeof body.type === 'string' ? body.type : 'text';
+    const contentText = typeof body.text === 'string' ? body.text : null;
+    const groupInvite = body.group_invite === true;
 
     // Unpack the optional `template` object into the flat params the
     // send core expects. `params` as an array → legacy positional body
@@ -89,7 +96,7 @@ export async function POST(request: Request) {
 
     validateSendMessageParams({
       messageType: type,
-      contentText: typeof body.text === 'string' ? body.text : null,
+      contentText,
       mediaUrl: typeof body.media_url === 'string' ? body.media_url : null,
       templateName: typeof template?.name === 'string' ? template.name : null,
       interactivePayload,
@@ -105,13 +112,63 @@ export async function POST(request: Request) {
       typeof body.name === 'string' ? body.name : null
     );
 
+    // One message for a new client: the bot's answer plus the group
+    // invitation and button in a single cta_url. The workflow opts in
+    // with `group_invite: true`; admins, the disabled flag, a previous
+    // CTA or a body over Meta's 1024-char cap fall back to the normal
+    // text send and the webhook's separate invitation.
+    if (type === 'text' && contentText && groupInvite) {
+      const invitacion =
+        (await puedeInvitarGrupo(
+          ctx.supabase,
+          resolved.conversationId,
+          resolved.contactId
+        )) &&
+        (await esPrimeraRespuestaAgente(
+          ctx.supabase,
+          resolved.conversationId
+        ))
+          ? construirInvitacionGrupoConTexto(
+              contentText,
+              new URL(request.url).origin
+            )
+          : null;
+
+      if (invitacion) {
+        validateSendMessageParams({
+          messageType: 'interactive',
+          interactivePayload: invitacion,
+        });
+        const result = await sendMessageToConversation(
+          ctx.supabase,
+          ctx.accountId,
+          {
+            conversationId: resolved.conversationId,
+            messageType: 'interactive',
+            interactivePayload: invitacion,
+            aiGenerated: true,
+          }
+        );
+        return ok(
+          {
+            message_id: result.messageId,
+            whatsapp_message_id: result.whatsappMessageId,
+            conversation_id: resolved.conversationId,
+            contact_id: resolved.contactId,
+            contact_created: resolved.contactCreated,
+          },
+          201
+        );
+      }
+    }
+
     const result = await sendMessageToConversation(
       ctx.supabase,
       ctx.accountId,
       {
         conversationId: resolved.conversationId,
         messageType: type,
-        contentText: typeof body.text === 'string' ? body.text : null,
+        contentText,
         mediaUrl: typeof body.media_url === 'string' ? body.media_url : null,
         filename: typeof body.filename === 'string' ? body.filename : null,
         templateName: typeof template?.name === 'string' ? template.name : null,

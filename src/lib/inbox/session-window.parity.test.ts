@@ -19,7 +19,7 @@
 // be deleted, deliberately, in the same commit.
 // ============================================================
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { differenceInHours } from "date-fns";
 import {
   lastCustomerMessageAt,
@@ -84,6 +84,25 @@ const ago = (minutes: number) =>
   new Date(Date.now() - minutes * 60_000).toISOString();
 
 describe("inbox session timer — PRE vs POST", () => {
+  // The clock is frozen for every case below, and it has to be. Both
+  // implementations sample `new Date()` themselves, and `ago()` samples
+  // `Date.now()` again when it builds the fixture — three reads of a
+  // moving clock per assertion. `differenceInHours` truncates, so a
+  // fixture sitting exactly on an hour boundary lands on one side for
+  // one read and the other side for the next, and the two
+  // implementations disagree over a millisecond rather than over their
+  // arithmetic. The clock-skewed case (a message an hour in the FUTURE)
+  // is exactly on such a boundary by construction: with no time elapsed
+  // the difference is -1 h, and one millisecond later it is -0, which
+  // moves the answer between 25h and 24h. Observed failing that way.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-15T12:00:00.000Z"));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("agrees on every minute of the window and well past it", () => {
     const disagreements: string[] = [];
     // 0 → 26 h in one-minute steps: covers the whole open window, the
@@ -142,6 +161,11 @@ describe("inbox session timer — PRE vs POST", () => {
       },
     ];
     expect(POST(future)).toEqual(PRE(future));
+    // Pinned, not just compared: agreement alone would still pass if both
+    // sides tipped across the boundary together, which is precisely what a
+    // moving clock made them do. This is the value a frozen clock must
+    // produce — an hour in the future reads as -1 h elapsed, so 25 h left.
+    expect(POST(future).remaining).toBe('xhRemaining:{"hours":25}');
   });
 
   it("still reads one hour generous, exactly as it always has", () => {

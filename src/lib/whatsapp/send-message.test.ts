@@ -1,7 +1,18 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+const { downloadChatMedia, signChatMediaUrl } = vi.hoisted(() => ({
+  downloadChatMedia: vi.fn(),
+  signChatMediaUrl: vi.fn(),
+}));
+vi.mock('@/lib/storage/chat-media-server', () => ({
+  downloadChatMedia,
+  signChatMediaUrl,
+}));
+
+import { ForeignChatMediaError } from '@/lib/storage/chat-media';
 import {
+  mediaLinkForSend,
   sendMessageToConversation,
   uploadMediaForSend,
   SendMessageError,
@@ -259,5 +270,151 @@ describe('uploadMediaForSend', () => {
     );
 
     expect(await uploadMediaForSend(MEDIA, 'phone-1', 'token-1')).toBeUndefined();
+  });
+});
+
+// ============================================================
+// chat-media URLs: the bucket is going private, so an anonymous
+// fetch(publicUrl) would 4xx. Those URLs are read server-side with the
+// service role; the `link` fallback is a signed URL.
+// ============================================================
+
+describe('uploadMediaForSend — chat-media URLs', () => {
+  const ACCT = '3f2b1c7e-8a41-4c55-9d0e-6b7a1f2e3d4c';
+  const CHAT_MEDIA = `https://abc.supabase.co/storage/v1/object/public/chat-media/account-${ACCT}/1-wa-9.png`;
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    downloadChatMedia.mockReset();
+    signChatMediaUrl.mockReset();
+  });
+
+  /** Only the Meta upload goes through fetch — the media itself must not. */
+  function uploadOnlyFetch(body: unknown = { id: 'media-xyz' }) {
+    return vi.fn(
+      async (url: unknown) => ({ ok: true, status: 200, json: async () => body, url }) as unknown as Response,
+    );
+  }
+
+  it('reads the object with the service role instead of fetching the URL', async () => {
+    downloadChatMedia.mockResolvedValue({
+      bytes: new Uint8Array(4).buffer,
+      contentType: 'image/png',
+    });
+    const fetchMock = uploadOnlyFetch();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const id = await uploadMediaForSend(CHAT_MEDIA, 'phone-1', 'token-1', undefined, ACCT);
+
+    expect(id).toBe('media-xyz');
+    expect(downloadChatMedia).toHaveBeenCalledWith(`account-${ACCT}/1-wa-9.png`, ACCT);
+    // Exactly one fetch: the upload to Meta, not the anonymous media GET.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/phone-1/media');
+  });
+
+  it('falls back to the link when the object cannot be read', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    downloadChatMedia.mockResolvedValue(null);
+    const fetchMock = uploadOnlyFetch();
+    vi.stubGlobal('fetch', fetchMock);
+
+    expect(await uploadMediaForSend(CHAT_MEDIA, 'phone-1', 'token-1', undefined, ACCT)).toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps the content-type and size guards', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const fetchMock = uploadOnlyFetch();
+    vi.stubGlobal('fetch', fetchMock);
+
+    downloadChatMedia.mockResolvedValueOnce({
+      bytes: new Uint8Array(4).buffer,
+      contentType: 'application/octet-stream',
+    });
+    expect(await uploadMediaForSend(CHAT_MEDIA, 'phone-1', 'token-1', undefined, ACCT)).toBeUndefined();
+
+    downloadChatMedia.mockResolvedValueOnce({
+      bytes: new ArrayBuffer(17 * 1024 * 1024),
+      contentType: 'video/mp4',
+    });
+    expect(await uploadMediaForSend(CHAT_MEDIA, 'phone-1', 'token-1', undefined, ACCT)).toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('mediaLinkForSend', () => {
+  const ACCT = '3f2b1c7e-8a41-4c55-9d0e-6b7a1f2e3d4c';
+  const CHAT_MEDIA = `https://abc.supabase.co/storage/v1/object/public/chat-media/account-${ACCT}/1-wa-9.png`;
+
+  afterEach(() => {
+    signChatMediaUrl.mockReset();
+  });
+
+  it('signs chat-media URLs for 24 h', async () => {
+    signChatMediaUrl.mockResolvedValue('https://signed.example/x?token=t');
+    expect(await mediaLinkForSend(CHAT_MEDIA, ACCT)).toBe('https://signed.example/x?token=t');
+    expect(signChatMediaUrl).toHaveBeenCalledWith(CHAT_MEDIA, 24 * 60 * 60, ACCT);
+  });
+
+  it('leaves other URLs untouched', async () => {
+    expect(await mediaLinkForSend('https://cdn.example.com/a.png', ACCT)).toBe(
+      'https://cdn.example.com/a.png',
+    );
+    expect(signChatMediaUrl).not.toHaveBeenCalled();
+  });
+});
+
+describe('chat-media account scoping on send', () => {
+  const ACCT = '3f2b1c7e-8a41-4c55-9d0e-6b7a1f2e3d4c';
+  const OTHER = '9a8b7c6d-1111-4222-8333-444455556666';
+  const FOREIGN = `https://abc.supabase.co/storage/v1/object/public/chat-media/account-${OTHER}/1-wa-9.png`;
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    downloadChatMedia.mockReset();
+    signChatMediaUrl.mockReset();
+  });
+
+  it("does not download or upload another account's object", async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    expect(await uploadMediaForSend(FOREIGN, 'phone-1', 'token-1', undefined, ACCT)).toBeUndefined();
+    expect(downloadChatMedia).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the account is unknown', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(await uploadMediaForSend(FOREIGN, 'phone-1', 'token-1')).toBeUndefined();
+    expect(downloadChatMedia).not.toHaveBeenCalled();
+  });
+
+  it("does not sign a link for another account's object", async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    await expect(mediaLinkForSend(FOREIGN, ACCT)).rejects.toBeInstanceOf(ForeignChatMediaError);
+    expect(signChatMediaUrl).not.toHaveBeenCalled();
+  });
+
+  it('a send with a foreign chat-media URL fails cleanly as bad_request, before Meta', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+        const err = await sendMessageToConversation(noDb(), ACCT, {
+      conversationId: 'cv-1',
+      messageType: 'image',
+      mediaUrl: FOREIGN,
+    }).catch((e) => e);
+
+    expect(err).toBeInstanceOf(SendMessageError);
+    expect(err.status).toBe(400);
+    expect(err.code).toBe('bad_request');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(downloadChatMedia).not.toHaveBeenCalled();
+    expect(signChatMediaUrl).not.toHaveBeenCalled();
   });
 });

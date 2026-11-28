@@ -1,5 +1,7 @@
 import { uploadResumableMedia } from '@/lib/whatsapp/meta-api'
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators'
+import { assertChatMediaAccount } from '@/lib/storage/chat-media'
+import { downloadChatMedia } from '@/lib/storage/chat-media-server'
 
 /**
  * Meta requires an `example.header_handle` (from the Resumable Upload
@@ -21,6 +23,7 @@ const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png']
 export async function ensureImageHeaderHandle(
   payload: TemplatePayload,
   accessToken: string,
+  accountId?: string,
 ): Promise<void> {
   if (payload.header_type !== 'image') return
   if (payload.header_handle) return // already have one
@@ -33,24 +36,36 @@ export async function ensureImageHeaderHandle(
     )
   }
 
-  // Fetch the sample image bytes (works for our uploaded chat-media URL
-  // and for a manually-pasted public link).
-  let res: Response
-  try {
-    res = await fetch(payload.header_media_url)
-  } catch {
-    throw new Error('Could not fetch the header image URL. Make sure it is publicly reachable.')
-  }
-  if (!res.ok) {
-    throw new Error(`Header image URL returned ${res.status}. It must be publicly reachable.`)
+  // Fetch the sample image bytes. Our own chat-media objects are read
+  // with the service role (the bucket may be private); a manually-pasted
+  // public link is fetched as before.
+  let contentType: string
+  let bytes: Uint8Array
+  const chatMediaPath = assertChatMediaAccount(payload.header_media_url, accountId)
+  if (chatMediaPath) {
+    const media = await downloadChatMedia(chatMediaPath, accountId!)
+    if (!media) {
+      throw new Error('Could not read the header image from storage.')
+    }
+    contentType = media.contentType.split(';')[0].trim().toLowerCase()
+    bytes = new Uint8Array(media.bytes)
+  } else {
+    let res: Response
+    try {
+      res = await fetch(payload.header_media_url)
+    } catch {
+      throw new Error('Could not fetch the header image URL. Make sure it is publicly reachable.')
+    }
+    if (!res.ok) {
+      throw new Error(`Header image URL returned ${res.status}. It must be publicly reachable.`)
+    }
+    contentType = (res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()
+    bytes = new Uint8Array(await res.arrayBuffer())
   }
 
-  const contentType = (res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()
   if (contentType && !ALLOWED_IMAGE_TYPES.includes(contentType)) {
     throw new Error(`Header image must be JPEG or PNG (got ${contentType}).`)
   }
-
-  const bytes = new Uint8Array(await res.arrayBuffer())
   if (bytes.byteLength === 0) {
     throw new Error('Header image is empty.')
   }

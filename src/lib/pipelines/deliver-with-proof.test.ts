@@ -85,7 +85,10 @@ describe("a deal without a proof", () => {
 
     expect(result).toEqual({ status: "delivered", proofSent: false });
     expect(d.moveToDelivered).toHaveBeenCalledTimes(1);
-    expect(d.moveToDelivered).toHaveBeenCalledWith("deal-1");
+    expect(d.moveToDelivered).toHaveBeenCalledWith("deal-1", {
+      proofSent: false,
+      skipProof: false,
+    });
     expect(d.uploadProof).not.toHaveBeenCalled();
     expect(d.sendProof).not.toHaveBeenCalled();
     // Not even the cheap probes run — a deal with no proof must not
@@ -102,6 +105,10 @@ describe("a deal without a proof", () => {
     );
     expect(result).toEqual({ status: "delivered", proofSent: false });
     expect(d.moveToDelivered).toHaveBeenCalledTimes(1);
+    expect(d.moveToDelivered).toHaveBeenCalledWith("deal-1", {
+      proofSent: false,
+      skipProof: false,
+    });
   });
 
   it("reports a failed stage update without claiming a proof was sent", async () => {
@@ -157,6 +164,12 @@ describe("a deal with a proof and an open window", () => {
       wamid: "wamid.ABC",
     });
     expect(order).toEqual(["upload", "send", "move"]);
+    expect(d.moveToDelivered).toHaveBeenCalledWith("deal-1", {
+      proofSent: true,
+      skipProof: false,
+      wamid: "wamid.ABC",
+      path: "account-1/x.png",
+    });
   });
 
   it("uploads under the generic name, not the customer's screenshot name", async () => {
@@ -337,10 +350,33 @@ describe("when the proof arrives but the stage update fails", () => {
       wamid: "wamid.ABC",
     });
     expect(d.moveToDelivered).toHaveBeenCalledTimes(1);
+    expect(d.moveToDelivered).toHaveBeenCalledWith("deal-1", {
+      proofSent: true,
+      skipProof: false,
+      wamid: "wamid.ABC",
+    });
     expect(d.uploadProof).not.toHaveBeenCalled();
     expect(d.sendProof).not.toHaveBeenCalled();
     // Not re-probed either: the send already happened.
     expect(d.isWindowOpen).not.toHaveBeenCalled();
+  });
+
+  it("carries the path along on a stage-only retry when the draft has one (multi-beneficiary flow)", async () => {
+    const d = deps();
+    const sent = draftFor("deal-1", { sentWamid: "wamid.ABC", sentPath: "account-1/x.png" });
+
+    const result = await deliverDeal(
+      { dealId: "deal-1", conversationId: "conv-1", draft: sent },
+      d,
+    );
+
+    expect(result).toEqual({ status: "delivered", proofSent: true, wamid: "wamid.ABC" });
+    expect(d.moveToDelivered).toHaveBeenCalledWith("deal-1", {
+      proofSent: true,
+      skipProof: false,
+      wamid: "wamid.ABC",
+      path: "account-1/x.png",
+    });
   });
 
   it("keeps offering the retry when it fails again", async () => {
@@ -397,6 +433,10 @@ describe("when the 24-hour window is closed", () => {
     // window; only the free-form image cannot.
     expect(result).toEqual({ status: "delivered", proofSent: false });
     expect(d.moveToDelivered).toHaveBeenCalledTimes(1);
+    expect(d.moveToDelivered).toHaveBeenCalledWith("deal-1", {
+      proofSent: false,
+      skipProof: true,
+    });
     expect(d.uploadProof).not.toHaveBeenCalled();
     expect(d.sendProof).not.toHaveBeenCalled();
   });
@@ -636,6 +676,11 @@ describe("when Meta accepted but WaCRM could not record it", () => {
     expect(result).toMatchObject({ status: "delivered", proofSent: true });
     expect(d.sendProof).not.toHaveBeenCalled();
     expect(d.uploadProof).not.toHaveBeenCalled();
+    expect(d.moveToDelivered).toHaveBeenCalledWith("deal-1", {
+      proofSent: true,
+      skipProof: false,
+      wamid: "wamid.SENT",
+    });
   });
 
   it("is not confused with a plain send failure", async () => {
@@ -865,6 +910,10 @@ describe("a confirmation that was shown a proof", () => {
     expect(result).toEqual({ status: "delivered", proofSent: false });
     expect(d.sendProof).not.toHaveBeenCalled();
     expect(d.moveToDelivered).toHaveBeenCalledTimes(1);
+    expect(d.moveToDelivered).toHaveBeenCalledWith("deal-1", {
+      proofSent: false,
+      skipProof: true,
+    });
   });
 
   it("leaves the ordinary no-proof delivery untouched", async () => {
@@ -877,5 +926,9 @@ describe("a confirmation that was shown a proof", () => {
     );
     expect(result).toEqual({ status: "delivered", proofSent: false });
     expect(d.moveToDelivered).toHaveBeenCalledTimes(1);
+    expect(d.moveToDelivered).toHaveBeenCalledWith("deal-1", {
+      proofSent: false,
+      skipProof: false,
+    });
   });
 });

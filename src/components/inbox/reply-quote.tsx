@@ -19,6 +19,8 @@ interface ReplyQuoteProps {
    *  quote must read against the primary surface rather than the neutral
    *  foreground — otherwise it goes low-contrast in light mode. */
   onPrimary?: boolean;
+  /** Present → the quote scrolls to the message it quotes when clicked. */
+  onActivate?: () => void;
 }
 
 export function ReplyQuote({
@@ -26,13 +28,28 @@ export function ReplyQuote({
   preview,
   onDismiss,
   onPrimary = false,
+  onActivate,
 }: ReplyQuoteProps) {
   const t = useTranslations("Inbox.replyQuote");
   const isChip = !!onDismiss;
   return (
     <div
+      role={onActivate ? "button" : undefined}
+      tabIndex={onActivate ? 0 : undefined}
+      onClick={onActivate}
+      onKeyDown={
+        onActivate
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onActivate();
+              }
+            }
+          : undefined
+      }
       className={cn(
         "flex items-start gap-2 border-l-2 px-2 py-1",
+        onActivate && "cursor-pointer rounded-sm transition-colors hover:bg-foreground/5",
         onPrimary ? "border-primary-foreground/50" : "border-primary",
         isChip
           ? "rounded-md bg-muted/80"
@@ -57,7 +74,14 @@ export function ReplyQuote({
          *  layout wider, shoving the contact sidebar off-screen.
          *  `break-words` also wraps long URLs that have no whitespace
          *  to break on. Issue #165. */}
-        <div className="whitespace-pre-wrap break-words text-xs text-foreground/80">
+        {/* The composer chip is capped at two lines so a long quoted
+         *  message cannot grow the input box. */}
+        <div
+          className={cn(
+            "whitespace-pre-wrap break-words text-xs text-foreground/80",
+            isChip && "line-clamp-2 overflow-hidden",
+          )}
+        >
           {preview}
         </div>
       </div>

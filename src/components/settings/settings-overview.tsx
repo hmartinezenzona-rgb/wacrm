@@ -40,8 +40,11 @@ export function SettingsOverview({
     useAuth();
   const { mode, theme } = useTheme();
   const t = useTranslations('Settings.overview');
-  const tRoles = useTranslations('roles');
+  const tRoles = useTranslations('Settings.roles');
   const tSections = useTranslations('Settings.sections');
+  const tCur = useTranslations('Common.currencies');
+  const tModes = useTranslations('Common.modes');
+  const tTheme = useTranslations('Settings.appearance');
 
   const [counts, setCounts] = useState<OverviewCounts | null>(null);
   const [countsLoading, setCountsLoading] = useState(true);
@@ -146,10 +149,12 @@ export function SettingsOverview({
   const roleMeta = accountRole ? ROLE_META[accountRole] : null;
   const RoleIcon = roleMeta?.icon;
 
-  const currencyLabel =
-    CURRENCIES.find((c) => c.code === defaultCurrency)?.label ?? defaultCurrency;
-  const themeName = THEMES.find((t) => t.id === theme)?.name ?? theme;
-  const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+  const currencyLabel = CURRENCIES.some((c) => c.code === defaultCurrency)
+    ? tCur(defaultCurrency)
+    : defaultCurrency;
+  const themeName = THEMES.some((th) => th.id === theme)
+    ? tTheme(`themes.${theme}.name`)
+    : theme;
 
   // Per-tile loading + subtitle. `null` counts render as a graceful
   // fallback so a single failed query never blanks a tile.
@@ -215,7 +220,7 @@ export function SettingsOverview({
     {
       section: 'appearance',
       loading: false,
-      subtitle: t('appearance', { mode: cap(mode), theme: themeName }),
+      subtitle: t('appearance', { mode: tModes(mode), theme: themeName }),
     },
   ];
 

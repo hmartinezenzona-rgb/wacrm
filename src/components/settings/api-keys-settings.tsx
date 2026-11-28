@@ -17,7 +17,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Copy, KeyRound, Loader2, Plus, Trash2 } from 'lucide-react';
+import { ChevronRight, Copy, KeyRound, Loader2, Plus, Trash2 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RequireRole } from '@/components/auth/require-role';
 import { useAuth } from '@/hooks/use-auth';
+import { keyStatus, partitionKeys } from '@/lib/api-keys/roster';
 import {
   API_SCOPES,
   SCOPE_DESCRIPTIONS,
@@ -62,12 +63,6 @@ function fmtDate(iso: string): string {
   });
 }
 
-function keyStatus(k: ApiKey): 'active' | 'revoked' | 'expired' {
-  if (k.revoked_at) return 'revoked';
-  if (k.expires_at && new Date(k.expires_at).getTime() <= Date.now())
-    return 'expired';
-  return 'active';
-}
 
 export function ApiKeysSettings() {
   const { canEditSettings } = useAuth();
@@ -77,6 +72,14 @@ export function ApiKeysSettings() {
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null);
+  // Confirmacion en dos pasos: el primer clic arma, el segundo revoca. Revocar
+  // una clave rompe integraciones ajenas y no hay deshacer, asi que no puede
+  // pasar por un solo clic despistado.
+  const [confirmando, setConfirmando] = useState<string | null>(null);
+  // Las revocadas se conservan (son el historial de que la clave existio, con
+  // que permisos y cuando se uso), pero apilarlas con las vivas convertia la
+  // lista en ruido. Se pliegan; no se borran.
+  const [revocadasVisibles, setRevocadasVisibles] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -123,8 +126,114 @@ export function ApiKeysSettings() {
       toast.error(t('networkError'));
     } finally {
       setRevoking(null);
+      setConfirmando(null);
     }
   }
+
+  // Una fila de clave. Se usa en las dos listas —activas y revocadas—,
+  // asi que una revocada se ve EXACTAMENTE igual que antes; solo cambia
+  // donde vive.
+  const filaClave = (k: ApiKey) => {
+    const status = keyStatus(k);
+    const inactive = status !== 'active';
+    return (
+      <li
+        key={k.id}
+        className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:gap-4"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span
+              className={`truncate text-sm font-medium ${
+                inactive
+                  ? 'text-muted-foreground line-through'
+                  : 'text-foreground'
+              }`}
+            >
+              {k.name}
+            </span>
+            {status === 'revoked' && (
+              <Badge className="border-border bg-muted text-muted-foreground text-[10px] tracking-wide uppercase">
+                {t('revoked')}
+              </Badge>
+            )}
+            {status === 'expired' && (
+              <Badge className="border-border bg-muted text-muted-foreground text-[10px] tracking-wide uppercase">
+                {t('expired')}
+              </Badge>
+            )}
+          </div>
+          <p className="text-muted-foreground mt-0.5 font-mono text-xs">
+            {k.key_prefix}…
+          </p>
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {k.scopes.length === 0 ? (
+              <span className="text-muted-foreground text-xs">
+                {t('noScopes')}
+              </span>
+            ) : (
+              k.scopes.map((s) => (
+                <Badge
+                  key={s}
+                  className="border-border bg-muted text-muted-foreground text-[10px]"
+                >
+                  {s}
+                </Badge>
+              ))
+            )}
+          </div>
+          <p className="text-muted-foreground mt-1.5 text-xs">
+            {t('created', { date: fmtDate(k.created_at) })}
+            {' · '}
+            {k.last_used_at
+              ? t('lastUsed', { date: fmtDate(k.last_used_at) })
+              : t('neverUsed')}
+            {k.expires_at && status !== 'expired'
+              ? ` · ${t('expires', { date: fmtDate(k.expires_at) })}`
+              : ''}
+          </p>
+        </div>
+
+        {status === 'active' && (
+          <RequireRole min="admin">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                // Primer clic: arma. Segundo: revoca. La clave deja de
+                // autenticar en la peticion siguiente y no hay deshacer.
+                if (confirmando === k.id) {
+                  void handleRevoke(k);
+                } else {
+                  setConfirmando(k.id);
+                }
+              }}
+              onBlur={() => setConfirmando((c) => (c === k.id ? null : c))}
+              disabled={revoking === k.id}
+              aria-label={
+                confirmando === k.id ? t('revokeConfirm') : t('revoke')
+              }
+              // `text-red-300` sobre un fondo claro da 1.9:1. El tono del
+              // texto tiene que seguir al modo, como el resto de la interfaz.
+              className="self-start border-red-500/40 bg-red-500/10 text-red-600 hover:border-red-500/60 hover:bg-red-500/20 hover:text-red-700 sm:self-auto dark:text-red-300 dark:hover:text-red-200"
+            >
+              {revoking === k.id ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Trash2 className="size-4" />
+              )}
+              {confirmando === k.id ? t('revokeConfirm') : t('revoke')}
+            </Button>
+          </RequireRole>
+        )}
+      </li>
+    );
+  };
+
+  // Una clave caducada no es lo mismo que una revocada: sigue en la lista
+  // principal porque su estado puede cambiar solo (renovando la fecha), y
+  // esconderla seria esconder algo que el operador quiza tenga que arreglar.
+  const { activas, revocadas } = partitionKeys(keys);
 
   if (loading) {
     return (
@@ -179,90 +288,45 @@ export function ApiKeysSettings() {
       ) : (
         <Card>
           <CardContent className="p-0">
-            <ul className="divide-border divide-y">
-              {keys.map((k) => {
-                const status = keyStatus(k);
-                const inactive = status !== 'active';
-                return (
-                  <li
-                    key={k.id}
-                    className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:gap-4"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`truncate text-sm font-medium ${
-                            inactive
-                              ? 'text-muted-foreground line-through'
-                              : 'text-foreground'
-                          }`}
-                        >
-                          {k.name}
-                        </span>
-                        {status === 'revoked' && (
-                          <Badge className="border-border bg-muted text-muted-foreground text-[10px] tracking-wide uppercase">
-                            {t('revoked')}
-                          </Badge>
-                        )}
-                        {status === 'expired' && (
-                          <Badge className="border-border bg-muted text-muted-foreground text-[10px] tracking-wide uppercase">
-                            {t('expired')}
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="text-muted-foreground mt-0.5 font-mono text-xs">
-                        {k.key_prefix}…
-                      </p>
-                      <div className="mt-1.5 flex flex-wrap gap-1">
-                        {k.scopes.length === 0 ? (
-                          <span className="text-muted-foreground text-xs">
-                            {t('noScopes')}
-                          </span>
-                        ) : (
-                          k.scopes.map((s) => (
-                            <Badge
-                              key={s}
-                              className="border-border bg-muted text-muted-foreground text-[10px]"
-                            >
-                              {s}
-                            </Badge>
-                          ))
-                        )}
-                      </div>
-                      <p className="text-muted-foreground mt-1.5 text-xs">
-                        {t('created', { date: fmtDate(k.created_at) })}
-                        {' · '}
-                        {k.last_used_at
-                          ? t('lastUsed', { date: fmtDate(k.last_used_at) })
-                          : t('neverUsed')}
-                        {k.expires_at && status !== 'expired'
-                          ? ` · ${t('expires', { date: fmtDate(k.expires_at) })}`
-                          : ''}
-                      </p>
-                    </div>
+            {activas.length === 0 ? (
+              <p className="text-muted-foreground px-4 py-6 text-center text-sm">
+                {t('noActiveKeys')}
+              </p>
+            ) : (
+              <ul className="divide-border divide-y">
+                {activas.map(filaClave)}
+              </ul>
+            )}
 
-                    {status === 'active' && (
-                      <RequireRole min="admin">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleRevoke(k)}
-                          disabled={revoking === k.id}
-                          className="self-start border-red-500/40 bg-red-500/10 text-red-300 hover:border-red-500/60 hover:bg-red-500/20 hover:text-red-200 sm:self-auto"
-                        >
-                          {revoking === k.id ? (
-                            <Loader2 className="size-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="size-4" />
-                          )}
-                          {t('revoke')}
-                        </Button>
-                      </RequireRole>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
+            {/* Las revocadas no se borran: la fila es el unico registro de que
+                la clave existio, con que permisos y cuando se uso por ultima
+                vez. Pero apiladas con las vivas convertian la lista en ruido,
+                que es lo que motivo el cambio. Se pliegan. */}
+            {revocadas.length > 0 && (
+              <div className="border-border border-t">
+                <button
+                  type="button"
+                  onClick={() => setRevocadasVisibles((v) => !v)}
+                  aria-expanded={revocadasVisibles}
+                  className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex w-full items-center gap-1.5 px-4 py-2.5 text-xs font-medium focus-visible:ring-2 focus-visible:outline-none"
+                >
+                  <ChevronRight
+                    className={`size-3.5 transition-transform ${
+                      revocadasVisibles ? 'rotate-90' : ''
+                    }`}
+                    aria-hidden
+                  />
+                  {revocadasVisibles
+                    ? t('revokedSectionHide')
+                    : t('revokedSectionShow', { count: revocadas.length })}
+                </button>
+                {revocadasVisibles && (
+                  <ul className="divide-border border-border divide-y border-t">
+                    {revocadas.map(filaClave)}
+                  </ul>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

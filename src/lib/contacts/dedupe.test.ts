@@ -6,6 +6,7 @@ import {
   isExactMatch,
   isUniqueViolation,
   normalizeKey,
+  phoneForStorage,
 } from "./dedupe";
 
 describe("normalizeKey", () => {
@@ -93,5 +94,72 @@ describe("findExistingContact", () => {
   it("returns null for an empty phone without querying", async () => {
     const db = stubDb([{ id: "c1", phone: "15551234567" }]);
     expect(await findExistingContact(db, "acct", "   ")).toBeNull();
+  });
+});
+
+describe("findExistingContact prefilter (formatted stored phones)", () => {
+  // Fake that applies the SQL LIKE to the column it is asked about, the way
+  // PostgREST would. `phone_normalized` mirrors the generated column of
+  // migration 022 (digits-only); `phone` is the raw stored text.
+  function likeDb(stored: string[]): SupabaseClient {
+    const rows = stored.map((phone, i) => ({
+      id: `c${i}`,
+      phone,
+      phone_normalized: phone.replace(/\D/g, ""),
+    }));
+    const builder = {
+      select: () => builder,
+      eq: () => builder,
+      like: (column: string, pattern: string) => {
+        const suffix = pattern.replace(/^%/, "");
+        const hits = rows.filter((r) =>
+          String((r as Record<string, string>)[column]).endsWith(suffix),
+        );
+        return Promise.resolve({ data: hits, error: null });
+      },
+    };
+    return { from: () => builder } as unknown as SupabaseClient;
+  }
+
+  it.each([
+    "+1 (555) 010-1234",
+    "1 555 010 1234",
+    "1.555.010.1234",
+    "1-555-010-1234",
+    "15550101234",
+  ])("finds stored %s for an incoming digits-only phone", async (stored) => {
+    const hit = await findExistingContact(likeDb([stored]), "acct", "15550101234");
+    expect(hit?.phone).toBe(stored);
+  });
+
+  it("finds a digits-only stored phone for a formatted incoming phone", async () => {
+    const hit = await findExistingContact(
+      likeDb(["15550101234"]),
+      "acct",
+      "+1 (555) 010-1234",
+    );
+    expect(hit?.id).toBe("c0");
+  });
+
+  it("still returns null for a different number", async () => {
+    const hit = await findExistingContact(
+      likeDb(["+1 (620) 430-9999"]),
+      "acct",
+      "15550101234",
+    );
+    expect(hit).toBeNull();
+  });
+});
+
+describe("phoneForStorage", () => {
+  it("stores digits only, dropping +, spaces, brackets, dashes and dots", () => {
+    expect(phoneForStorage("+1 (555) 010-1234")).toBe("15550101234");
+    expect(phoneForStorage(" 1.555.010.1234 ")).toBe("15550101234");
+    expect(phoneForStorage("15550101234")).toBe("15550101234");
+  });
+
+  it("returns an empty string when there are no digits", () => {
+    expect(phoneForStorage("  ")).toBe("");
+    expect(phoneForStorage("n/a")).toBe("");
   });
 });

@@ -1,0 +1,39 @@
+-- =====================================================================
+-- ROLLBACK-109 — "reverts" 109_capture_live_cerebro_functions.sql
+--
+-- 109 is a byte-for-byte capture of seven cerebro_* functions that were
+-- ALREADY LIVE on staging and production before it existed. Applying 109
+-- to an environment that already has these seven functions is a
+-- byte-identical `CREATE OR REPLACE FUNCTION` no-op — it changes not one
+-- byte of any of their bodies and, per 109's own PRIVILEGES section,
+-- reproduces (not changes) their current ACL. There is therefore nothing
+-- for a rollback to undo on staging or production: the functions look
+-- exactly the same, with or without 109 applied.
+--
+-- What rollback does NOT mean here: DROPping any of these seven functions.
+-- They are the live brain n8n calls on every WhatsApp deposit, cross-
+-- reference and reseller check that runs through the Cerebro pipeline.
+-- Dropping cerebro_registrar_deposito, cerebro_cruzar_deposito,
+-- cerebro_cruzar_depositos, cerebro_saldo_envio, cerebro_objetivo_atar,
+-- cerebro_objetivo_cerrar or cerebro_es_revendedor would immediately break
+-- live deposit registration and verification in production — the opposite
+-- of what a rollback is for. This file does not do that, and no other
+-- action against these functions is a correct interpretation of "revert
+-- 109" either.
+--
+-- If 109 is ever found to need a real change (a genuinely different body,
+-- or different privileges), the correct move is a NEW forward migration
+-- that CREATE OR REPLACEs the function again with the intended change —
+-- exactly as every other function in this repo is modified — not a
+-- rollback of this capture.
+--
+-- The only environment where 109 is not a no-op is a FRESH database built
+-- from this migration history from scratch, which would not have these
+-- seven functions at all before 109 runs. There, "rolling back" 109 would
+-- mean dropping functions that no other environment can survive without,
+-- which is the same reason above not to do it even there.
+--
+-- This file is intentionally a documented no-op.
+-- =====================================================================
+
+-- (nothing to do — see header)

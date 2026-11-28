@@ -207,6 +207,7 @@ export async function POST(request: Request) {
             templateName: template_name,
             language: template_language || 'en_US',
             template: templateRow ?? undefined,
+            accountId,
             messageParams: recipient.messageParams,
             params: recipient.params ?? [],
           })

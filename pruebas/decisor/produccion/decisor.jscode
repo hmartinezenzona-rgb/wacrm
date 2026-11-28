@@ -1,0 +1,1412 @@
+const NOMBRE_NEGOCIO = JSON.parse($('Datos del negocio').params.jsonOutput).negocio.nombre; // fuente unica (T5): el nombre del negocio vive en 'Datos del negocio'
+const ctx = $('Contexto conversacion').first().json;
+// HORARIO (136): apertura y cierre salen de cerebro_config via `Contexto conversacion`.
+const HORA_ABRE_MIN = ctx.horario_abre_min, HORA_CIERRA_MIN = ctx.horario_cierra_min;
+const HORA_ABRE_TXT = ctx.horario_abre_texto, HORA_CIERRA_TXT = ctx.horario_cierra_texto;
+const h = $('Historial contacto').first().json;
+const s = { ...$('Snapshot final').first().json }; // shallow copy: the team-data guard below may blank fields
+const texto = (s.texto_completo || '').trim();
+// (368) Facts about the bot's own earlier messages, from `Historial contacto.repeticion`. An old node without the field
+// gives null, and everything below behaves exactly as before.
+const repeticion = (h && h.repeticion && typeof h.repeticion === 'object') ? h.repeticion : null;
+// The hours line is said ONCE per conversation per Guyana day: later turns (deposits included) do not repeat it.
+const horarioYaDicho = !!(repeticion && repeticion.horario_ya_dicho_hoy === true);
+// El 11-ago el bot le pidio los datos del beneficiario CUATRO veces en cinco
+// minutos a 5926299943, que habia dicho TRES veces que estaba esperando a que
+// se los mandaran. No es sordera del modelo: nadie se lo estaba diciendo.
+const esperaTercero = /\b(estoy esperando|estoy en espera|espero que me (manden|envien|den|pasen)|en cuanto me (lo|los)? ?(manden|envien|den|pasen)|cuando me (lo|los)? ?(manden|envien|den|pasen)|me (lo|los) van a (mandar|enviar|dar|pasar)|(todavia|aun) no me (lo|los)? ?(han )?(mandado|enviado|dado|pasado)|no me (lo|los)? ?(han )?(mandado|enviado|dado|pasado) (todavia|aun))\b/i.test(texto);
+let tel = (s.telefono || '').toString();
+if (tel && !tel.startsWith('+')) { tel = '+' + tel; }
+// PAUSA MANUAL del bot en este chat (`conversations.ai_autoreply_disabled`, que
+// escribe el boton de "tomar el control" del hilo en WaCRM).
+// Va ANTES que la asignacion a proposito: ese mismo boton tambien ASIGNA el
+// chat, y hasta hoy el bot se callaba solo por eso. No bastaba, porque las
+// asignaciones manuales CADUCAN solas y la pausa no: pasados los minutos sin
+// actividad humana el chat se liberaba y el bot volvia a hablar con la pausa
+// todavia puesta. Ahora la pausa manda por si misma y dura hasta que alguien
+// pulse "devolver al bot".
+// PLANO DE CONTROL (18-ago-2026, doc 44). Un comando administrativo RECONOCIDO no
+// es una conversacion: es una orden al sistema. Va ANTES de todas las guardas
+// porque un estado creado para que el bot no pise a una persona no debe
+// desactivar el control del propio sistema. Que `liberar` dejara de funcionar
+// justo cuando el bot esta pausado era, ademas, el caso mas absurdo: se pausa
+// el bot y ya no se puede despausar por WhatsApp.
+// SOLO la accion reconocida salta. Un mensaje normal de admin NO salta nada:
+// sigue cayendo en las guardas de abajo, y si no cae, en la guarda de admin.
+// `ctx.es_admin` sigue siendo la autorizacion, dentro de la funcion.
+// La funcion se declara mas abajo; las declaraciones `function` se elevan, asi
+// que llamarla aqui es valido y evita mover 60 lineas de sitio.
+const accionAdmin = rutaAdminAccion(ctx, texto, tel);
+if (accionAdmin) { return accionAdmin; }
+// CAPTURE MODE (375, owner 2026-11-15): while a person of the team attends the chat the bot does not answer, but the data
+// the customer sends must still be stored, for EVERY kind of send, so the operations panel is filled when the person finishes
+// and nobody asks the customer again. When the chat is human-attended AND this batch carries data, the turn goes to the agent
+// with `captura: true`: the agent only calls its registration tools and the workflow never sends its answer (the IF node
+// "Respuesta valida?" refuses any answer of a capture turn; the model is not trusted for that). A batch without data, a hidden
+// chat and an admin's own messages stay silent exactly as before.
+const g375Humano = ctx.bot_pausado ? 'bot pausado a mano en esta conversacion'
+  : ((ctx.asignado && !ctx.cierra_cortesia) ? 'chat asignado a humano'
+  : (ctx.humano_reciente ? 'un humano del equipo acaba de escribir' : null));
+const g375TraeDatos = (() => {
+  const dig = texto.replace(/(?<=\d)[ \t\-_.()  ]+(?=\d)/g, '');
+  return /\d{6,}/.test(dig) || /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/.test(texto)
+    || !!s.tarjeta || !!s.celular || !!s.datos_zelle || !!s.foto_carnet_wamid
+    || /\b(calle|entre|esquina|edificio|apto|apartamento|reparto|municipio|provincia|direcci[oó]n|a nombre de|titular|se llama)\b/i.test(texto);
+})();
+const g375Captura = !!g375Humano && !ctx.oculta && !ctx.es_admin && g375TraeDatos;
+if (ctx.bot_pausado && !g375Captura) { return [{ json: { ruta: 'silencio', motivo: 'bot pausado a mano en esta conversacion' } }]; }
+if (ctx.oculta) { return [{ json: { ruta: 'silencio', motivo: 'chat oculto por el operador' } }]; }
+  if (ctx.asignado && !ctx.cierra_cortesia && !g375Captura) { return [{ json: { ruta: 'silencio', motivo: 'chat asignado a humano' } }]; }
+// Ventana de silencio: si una persona del equipo acaba de escribir, el bot
+// se calla 5 minutos para no pisarle la conversacion ni contradecirla.
+// Pasada la ventana retoma solo, sin que nadie tenga que liberar nada.
+if (ctx.humano_reciente && !g375Captura) { return [{ json: { ruta: 'silencio', motivo: 'un humano del equipo acaba de escribir' } }]; }
+// UN ADMIN SIN ACCION RECONOCIDA NO ES UN CLIENTE (18-ago-2026, doc 44).
+// Va ANTES de la rama de cortesia a proposito: hasta hoy, un admin que escribia
+// 'hola' en un chat asignado con cortesia pendiente entraba en la rama del
+// modelo (comprobado: CTRL-06 y CTRL-12 daban `agente`). El plano de control no
+// se conversa: si no es una orden reconocida, silencio.
+if (ctx.es_admin) { return [{ json: { ruta: 'silencio', motivo: 'mensaje del admin' } }]; }
+// EL BOT CIERRA EL AGRADECIMIENTO (086, idea de Osmany).
+// Hasta hoy, en un chat que llevaba una persona el bot callaba SIEMPRE. Inelvis
+// escribio "Gracia" con su remesa ya entregada, nadie contesto, y el vigilante
+// aviso 8 veces en 8 horas. El filtro del vigilante tapaba el sintoma; esto
+// quita la causa: si nadie deja el mensaje sin responder, no hay chat atascado
+// —en cualquier redaccion y en cualquier idioma—.
+// POR QUE LO CONTESTA EL MODELO Y NO UN TEXTO FIJO: no hace falta recablear el
+// workflow, y ademas responde en el idioma del cliente (hay clientes en ingles).
+// El riesgo de que diga de mas esta acotado por `cerebro_es_cortesia`, la MISMA
+// regla del vigilante: sin pregunta, sin cifras y sin nada pendiente. El modelo
+// no tiene numeros que equivocar.
+// VA DESPUES de la ventana de silencio a proposito: si una persona acaba de
+// escribir, manda ella.
+// Se corta aqui y no se sigue armando contexto: en un chat que lleva una
+// persona, el modelo no debe recibir depositos, beneficiarios ni tools.
+if (ctx.asignado && ctx.cierra_cortesia) {
+  return [{ json: { ruta: 'agente', telefono_e164: tel, conversation_id: s.conversation_id,
+    mensaje: (texto || '(gracias)') + String.fromCharCode(10) + String.fromCharCode(10)
+      + '[CONTEXTO DEL SISTEMA - el cliente NO ve esto]' + String.fromCharCode(10)
+      + '- ESTE CHAT LO LLEVA UNA PERSONA DEL EQUIPO, y el cliente solo ha dado las gracias o se ha despedido.'
+      + ' Devuelvele la cortesia en UNA sola linea corta y natural, en SU MISMO IDIOMA, y NADA MAS.'
+      + ' PROHIBIDO cotizar, decir tasas o cifras, pedir datos, ofrecer servicios, hacer preguntas'
+      + ' o llamar a ninguna herramienta. No te presentes ni repitas nada de la conversacion.' } }];
+}
+// COMANDOS DE ADMIN — PRIMERA FRONTERA INTERNA DEL DECISOR (17-ago-2026, doc 38).
+// Extraccion PURAMENTE ESTRUCTURAL: el cuerpo de abajo es byte a byte el mismo
+// que estaba aqui suelto; lo unico que cambia es que ahora tiene nombre y borde.
+// Se eligio este bloque el primero porque es el unico cerrado del nodo: tiene
+// sus propios `return`, no toca `notas[]` y no participa en la precedencia
+// posicional de las notas.
+// LA FIRMA NO LLEVA `cruce` A PROPOSITO: el bloque lo resuelve el mismo, dentro
+// de un try/catch, y SOLO si no ha salido antes por liberar/tasa/ver_tasas/
+// dup_etapa. Pasarlo por parametro obligaria a consultar el nodo SIEMPRE —
+// tambien para un `liberar`— y eso ya seria cambiar el comportamiento. `$` sale
+// del ambito de fuera, igual que antes.
+// YA NO VA DESPUES DE LAS GUARDAS (18-ago-2026, doc 44). Hasta hoy este comentario
+// decia lo contrario, y era cierto: un admin en un chat pausado, oculto, asignado o
+// con un humano recien escribiendo perdia su comando en silencio. Eso se corrigio en
+// esta microfase — la ACCION reconocida se evalua arriba del todo—, asi que la frase
+// se actualiza en vez de dejarla mintiendo. El FALLBACK de admin sin accion si sigue
+// despues de las guardas.
+// IDIOMA DE LA CONVERSACION — extraido a funcion el 19-ago-2026 (doc 57).
+// EXTRACCION PURAMENTE ESTRUCTURAL: condicion, umbrales, los dos vocabularios
+// y el texto de la nota son byte a byte los de antes. Lo unico que cambia es
+// que vive en una funcion en vez de en cuatro `const` sueltos a mitad del
+// Decisor. Se declara aqui, como `rutaAdminAccion`, y se llama arriba: las
+// declaraciones `function` se elevan.
+//
+// Devuelve la NOTA (string) o null. No decide rutas, no toca la base, no llama
+// a herramientas y no depende de nada mas que sus dos argumentos.
+function notaIdioma(muestra, texto) {
+  const muestraIdioma = ((muestra || '') + ' ' + texto).toLowerCase();
+  const cuentaIdioma = re => (muestraIdioma.match(re) || []).length;
+  // Palabras sin ambiguedad entre los dos idiomas: nada de "no", "me", "son",
+  // "es" ni "si", que existen en ambos y ensucian el recuento.
+  const nEn = cuentaIdioma(/\b(the|you|your|and|are|is|was|were|how|what|when|where|which|can|could|would|should|please|thanks|thank|hello|good|morning|afternoon|evening|night|account|send|money|number|need|want|have|has|will|from|with|for|that|this|there|here|about|more|only|yes|does|been|they|but|just|okay|sorry|friend|check|transfer|deposit|card|phone|today|tomorrow|much|know|tell|something|understand|receive|receiver|name|first|last|then|also|still|again)\b/g);
+  const nEs = cuentaIdioma(/\b(que|qué|para|por|con|una|unas|unos|del|las|los|como|cómo|dónde|donde|cuánto|cuanto|gracias|hola|buenas|buenos|días|dias|tardes|noches|cuenta|dinero|tarjeta|celular|número|numero|envío|envio|enviar|depósito|deposito|depositar|puedo|quiero|necesito|está|esta|estoy|hacer|manda|mandar|cuándo|cuando|quién|quien|porque|también|tambien|pero|muy|bien|señor|usted|mi|su|le|ya|todavía|todavia|ahora|dime|dígame|digame|mismo|otra|nada)\b/g);
+  if (nEn >= 3 && nEn > nEs * 2) {
+    return 'IDIOMA DE ESTA CONVERSACION: INGLES. El cliente viene escribiendo en ingles. TU RESPUESTA VA ENTERA EN INGLES — saludo, datos, preguntas y cierre — aunque el mensaje de ESTE lote sea corto, sea solo un numero, o no se le note el idioma. Y aunque TODAS estas notas esten escritas en español: son instrucciones para ti, NO un modelo del idioma en el que tienes que contestar. El idioma lo fija la CONVERSACION, no el ultimo mensaje.';
+  }
+  return null;
+}
+
+
+function rutaAdminAccion(ctx, texto, tel) {
+  // Devuelve una ACCION ADMINISTRATIVA RECONOCIDA, o null. El `silencio` de
+  // 'mensaje del admin' YA NO vive aqui: se movio fuera (18-ago-2026, doc 44).
+  // Separarlos es lo que permite que la accion salte las guardas sin que el
+  // fallback se las salte tambien.
+  if (!ctx.es_admin) { return null; }
+  // Comandos de admin por WhatsApp:
+  //   liberar <numero>       -> devuelve el chat al bot
+  //   tasa <moneda> <valor>  -> actualiza la tasa del dia (ej: "tasa gyd 2.1")
+  const cmd = texto.match(/^\s*liberar\s+\+?([0-9]{8,15})\s*$/i);
+  if (cmd) { return [{ json: { ruta: 'comando', comando: 'liberar', objetivo: cmd[1], valor: null, telefono_e164: tel } }]; }
+  // Acepta coma o punto decimal: "tasa gyd 2,1" y "tasa gyd 2.1" valen igual.
+  const cmdTasa = texto.match(/^\s*tasa\s+(gyd|mxn|usd)\s+([0-9]+(?:[.,][0-9]+)?)\s*$/i);
+  if (cmdTasa) { return [{ json: { ruta: 'comando', comando: 'tasa', objetivo: cmdTasa[1].toLowerCase(), valor: cmdTasa[2].replace(',', '.'), telefono_e164: tel } }]; }
+  // "tasa" o "tasas" a secas: solo consulta, no escribe nada.
+  if (/^\s*tasas?\s*$/i.test(texto)) { return [{ json: { ruta: 'comando', comando: 'ver_tasas', objetivo: '', valor: null, telefono_e164: tel } }]; }
+  // VERIFICAR COMPROBANTE (11-ago): el admin reenvia un comprobante y recibe
+  // el veredicto del SQL en seco, sin guion de cliente. Deterministico: el
+  // texto sale de cerebro_cruzar_deposito, el modelo no interviene.
+  // Comprobante REPETIDO (11-ago): el dedup ya evito el deal duplicado rio
+  // arriba; aqui solo se le informa al admin del estado real, en seco.
+  if (ctx.dup_etapa) {
+    const dupTxt = 'YA REGISTRADO: ese comprobante ya tiene su deal.' + String.fromCharCode(10)
+      + 'Etapa: ' + ctx.dup_etapa
+      + (ctx.dup_valor ? (String.fromCharCode(10) + 'Importe: ' + ctx.dup_valor + ' GYD') : '')
+      + String.fromCharCode(10) + 'No se creo nada nuevo.';
+    return [{ json: { ruta: 'comando', comando: 'verificar', objetivo: dupTxt, valor: null, telefono_e164: tel } }];
+  }
+  let cruceAdm = null;
+  try { cruceAdm = $('Cruzar deposito con MMG').first().json ?? null; } catch (e) {}
+  if (cruceAdm && cruceAdm.resultado) {
+    let montoAdm = null, refAdm = null;
+    try { const snAdm = $('Snapshot final').first().json.comprobante || {}; montoAdm = snAdm.monto ?? null; refAdm = snAdm.referencia ?? null; } catch (e) {}
+    const vAdm = String(cruceAdm.resultado);
+    const nlAdm = String.fromCharCode(10);
+    let tAdm;
+    if (vAdm === 'verificado') {
+      tAdm = 'VERIFICADO: casa con el correo de MMG.' + nlAdm
+        + 'TransID: ' + (cruceAdm.trans_id || refAdm || '?') + nlAdm
+        + (montoAdm ? ('Importe: ' + montoAdm + ' GYD' + nlAdm) : '')
+        + 'Metodo: ' + (cruceAdm.metodo || 'exacto') + nlAdm
+        + 'El deposito queda consumido.';
+    } else if (vAdm === 'ya_reclamado') {
+      tAdm = 'YA RECLAMADO: ese deposito ya se uso en otro envio.' + nlAdm
+        + 'TransID: ' + (cruceAdm.trans_id || refAdm || '?');
+    } else if (vAdm === 'verificado_incompleto' || vAdm === 'verificado_de_mas') {
+      // El deposito SI cruzo; lo que pasa es que no cuadra con el objetivo del
+      // envio. Sin esto caeria en el `else` y le diria a Osmany "no casa con
+      // ningun correo de MMG", que es falso.
+      tAdm = (vAdm === 'verificado_incompleto' ? 'VERIFICADO PERO INCOMPLETO' : 'VERIFICADO Y SOBRA DINERO')
+        + ': casa con el correo de MMG.' + nlAdm
+        + 'TransID: ' + (cruceAdm.trans_id || refAdm || '?') + nlAdm
+        + 'Objetivo: ' + (cruceAdm.objetivo ?? '?') + ' GYD' + nlAdm
+        + 'Lleva depositado: ' + (cruceAdm.depositado ?? '?') + ' GYD' + nlAdm
+        + (Number(cruceAdm.saldo) > 0
+             ? ('FALTAN ' + cruceAdm.saldo + ' GYD. El envio sigue esperando.')
+             : ('SOBRAN ' + Math.abs(Number(cruceAdm.saldo)) + ' GYD. Lo mira una persona.'));
+    } else if (vAdm === 'deposito_antiguo') {
+      tAdm = 'DEPOSITO ANTIGUO: mas de 72 horas. NO se consumio; hay que mirarlo a mano.' + nlAdm
+        + 'Ref leida: ' + (refAdm || '?');
+    } else {
+      tAdm = 'SIN CRUCE (' + vAdm + '): no casa con ningun correo de MMG.' + nlAdm
+        + 'Ref leida: ' + (refAdm || 'no se pudo leer')
+        + (montoAdm ? (nlAdm + 'Importe leido: ' + montoAdm + ' GYD') : '');
+    }
+    return [{ json: { ruta: 'comando', comando: 'verificar', objetivo: tAdm, valor: null, telefono_e164: tel } }];
+  }
+  // TRANSID ESCRITO (312): el admin manda solo el numero, o "verifica 123...", o "transid: 123...".
+  // El cruce con el correo de MMG lo hace cerebro_verificar_transid; aqui solo se enruta.
+  const mTrans = texto.match(/\b(?:transid|transaccion|verifica(?:me|r)?|comprobante)\b[^0-9]{0,12}(\d{10,20})\b/i)
+    || texto.trim().match(/^(\d{10,20})$/);
+  if (mTrans) {
+    return [{ json: { ruta: 'comando', comando: 'verificar_transid', objetivo: mTrans[1], valor: null, telefono_e164: tel } }];
+  }
+  return null;   // admin sin accion reconocida: lo resuelve la guarda de mas arriba
+}
+// Datos del beneficiario ACUMULADOS a lo largo de la conversacion (no solo de este lote).
+// La tarjeta puede haber llegado en una imagen hace 3 mensajes y el celular ahora.
+// Cash send (USD in hand in Cuba): the card notes do not apply; one cash note is emitted instead.
+const rielEfectivo = String(ctx.riel_operacion || '') === 'efectivo_usd';
+let tarjetaCtx = s.tarjeta, celularCtx = s.celular, veniaDeAntes = false;
+let zelleNomCtx = s.zelle_nombre, zelleCtaCtx = (s.zelle_nombre_cuenta || s.zelle_correo || s.zelle_celular);
+try {
+  const mb = $('Merge beneficiario').first().json;
+  if (mb) {
+    if (mb.tarjeta_final) { if (!s.tarjeta) veniaDeAntes = true; tarjetaCtx = mb.tarjeta_final; }
+    if (mb.celular_final) { if (!s.celular) veniaDeAntes = true; celularCtx = mb.celular_final; }
+    // Lo de Zelle tambien se acumula entre lotes desde la 077. Sin esto, con la
+    // cuenta ya dada en un mensaje anterior el sistema pedia OTRA VEZ las dos
+    // cosas — le paso a Katalella el 12-ago, tres veces en 90 segundos.
+    if (mb.zelle_nombre_final) zelleNomCtx = mb.zelle_nombre_final;
+    if (mb.zelle_cuenta_final) zelleCtaCtx = mb.zelle_cuenta_final;
+  }
+} catch (e) {}
+// TEAM-GIVEN DATA IS NEVER THE CUSTOMER'S RECIPIENT (2026-11-06). On 2026-11-05 a team member wrote the Zelle account where an
+// overpayment had to be returned; the customer then sent an image with that same account, the Decisor ordered the registration and
+// a Zelle send was opened. `ctx.conversacion_no_vista` carries what the team said ("Companero del equipo: ..." / "Cliente: ..."
+// lines; an unlabelled line continues the previous speaker). Any detected datum that also appears in a TEAM line is dropped here,
+// so no later note orders a registration tool for it; one note (emitted next to the team note) forbids using it.
+const claveDato = (x) => {
+  const t = String(x ?? '').trim().toLowerCase();
+  if (!t) return '';
+  if (t.includes('@')) return t;
+  let d = t.replace(/\D/g, '');
+  if (d.length === 11 && d.startsWith('1')) d = d.slice(1);
+  if (d.length === 10 && d.startsWith('53')) d = d.slice(2);
+  return d;
+};
+const datosDelEquipo = (() => {
+  const claves = new Set();
+  let esEquipo = false;
+  for (const linea of String(ctx.conversacion_no_vista || '').split(/\r?\n/)) {
+    const m = linea.match(/^\s*(compa[nñ]ero(?: del equipo)?|equipo|cliente|bot|asistente|agente)\s*:/i);
+    if (m) esEquipo = /^(compa|equipo)/i.test(m[1]);
+    if (!esEquipo) continue;
+    for (const c of (linea.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi) || [])) claves.add(claveDato(c));
+    for (const c of (linea.match(/\d[\d\s().-]*\d/g) || [])) { const k = claveDato(c); if (k.length >= 8) claves.add(k); }
+  }
+  return claves;
+})();
+const esDelEquipo = (x) => !!x && datosDelEquipo.has(claveDato(x));
+let datoDelEquipo = false;
+if (datosDelEquipo.size) {
+  const quita = (x) => { if (esDelEquipo(x)) { datoDelEquipo = true; return true; } return false; };
+  const lista = (a) => (Array.isArray(a) ? a.filter((x) => !quita(x)) : a);
+  const ctaCtxEquipo = quita(zelleCtaCtx);
+  const celularZelleEquipo = quita(s.zelle_celular), correoZelleEquipo = quita(s.zelle_correo);
+  s.zelle_celulares = lista(s.zelle_celulares); s.zelle_correos = lista(s.zelle_correos);
+  if (celularZelleEquipo) s.zelle_celular = null;
+  if (correoZelleEquipo) s.zelle_correo = null;
+  if (ctaCtxEquipo || quita(s.zelle_nombre_cuenta)) { zelleCtaCtx = null; s.zelle_nombre_cuenta = null; }
+  if (!zelleCtaCtx && !s.zelle_celular && !s.zelle_correo && !(s.zelle_celulares || []).length && !(s.zelle_correos || []).length && (ctaCtxEquipo || celularZelleEquipo || correoZelleEquipo)) {
+    s.datos_zelle = false; s.zelle_varios = false; s.zelle_nombre = null; zelleNomCtx = null;
+  }
+  if (quita(tarjetaCtx)) { tarjetaCtx = null; s.tarjeta = null; } else if (quita(s.tarjeta)) s.tarjeta = null;
+  if (quita(celularCtx)) { celularCtx = null; s.celular = null; } else if (quita(s.celular)) s.celular = null;
+  if (Array.isArray(s.tarjetas)) { s.tarjetas = lista(s.tarjetas); if (s.tarjetas.length < 2) s.multi_beneficiario = false; }
+  if (Array.isArray(s.celulares)) s.celulares = lista(s.celulares);
+}
+// SEVERAL ZELLE ACCOUNTS (ported 2026-11-05): never pick a name-account pair blindly. On 26-Oct the Snapshot carried one
+// account's name and two numbers; the first number belonged to the other account and the tool was forced with a mixed pair.
+// With more than one account nothing is registered until each pair is confirmed with the customer.
+const zelleCuentas = Array.from(new Set([...(s.zelle_correos || []), ...(s.zelle_celulares || [])]));
+const zelleVarios = !!s.zelle_varios || zelleCuentas.length > 1;
+if (zelleVarios) { zelleNomCtx = null; zelleCtaCtx = null; }
+// Resolver state (optional): the planned split of one deposit between services, when the context node supplies it.
+const R = (ctx.servicio_resuelto && typeof ctx.servicio_resuelto === 'object') ? ctx.servicio_resuelto : null;
+// RECARGA EN CURSO (13-ago-2026): hoy la recarga de la promo de Etecsa entro
+// como "Remesa" y el bot pidio LA TARJETA (Yilian, +5926595697). La senal
+// persistente la trae `Contexto conversacion` (recarga_en_curso): el cliente
+// escribio recarga/etecsa/cubacel en esta conversacion despues de su ultimo
+// envio cerrado. Una tarjeta la APAGA (tarjeta = remesa), y Zelle tambien.
+// El destino de una recarga es UN NUMERO de telefono, no una tarjeta.
+// (gate 78, 2026-10-01) "YA ESTA REGISTRADO" only for the datum detected in this turn.
+// `Contexto conversacion` lists the vigente beneficiaries of the open operations; the old flag
+// (tiene_beneficiario: ANY complete beneficiary) told the model a new Zelle was registered when
+// another one was, and the model obeyed and wrote nothing (gate 77: 0/30 -> 25/30 once the
+// sentence is true). Without the list (an older Contexto) the Cuban branch keeps its old
+// behaviour (the old flag) in both branches.
+const regBenDisponible = Array.isArray(ctx.beneficiarios_registrados);
+const regBen = regBenDisponible ? ctx.beneficiarios_registrados : [];
+const normCta = (x) => { const t = String(x ?? '').trim().toLowerCase(); if (t.includes('@')) return t;
+  const d = t.replace(/\D/g, ''); return (d.length === 11 && d[0] === '1') ? d.slice(1) : d; };
+const normNom = (x) => String(x ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+const soloDig = (x) => String(x ?? '').replace(/\D/g, '');
+const zelleRegistrado = regBenDisponible
+  ? (!!zelleCtaCtx && regBen.some((b) => b.t === 'zelle'
+      && normCta(b.cuenta) === normCta(zelleCtaCtx) && (!zelleNomCtx || normNom(b.nombre) === normNom(zelleNomCtx))))
+  : !!ctx.tiene_beneficiario;
+const cubanoRegistrado = !!(tarjetaCtx && celularCtx) && regBen.some((b) => b.t !== 'zelle'
+  && soloDig(b.tarjeta) === soloDig(tarjetaCtx) && soloDig(b.celular).slice(-8) === soloDig(celularCtx).slice(-8));
+// (gate 82, 2026-10-02) REPARTO EN CURSO, MONTO EN GYD DE UN REPARTO Y MINIMOS DE DEPOSITO.
+// Staging test 2 (2026-10-02 03:36 UTC): two cards, one phone, "5 mil a cada una". With the reparto
+// saved, the later bursts are not multi_beneficiario, and the accumulated card + phone (Merge
+// beneficiario) sent the model to gestionar_beneficiario, which replaced the reparto by one card.
+// Migration 184 refuses that in the DB; this note keeps the model on registrar_reparto_multiple.
+// The amount "5 mil a cada una" was ignored: the deposit minimums were not in the context, so the
+// model could not tell that 5,000 GYD per card only fits a CUP remesa (Clasica/Tropical start at
+// 13,000). The minimums come from cerebro_config through `Contexto conversacion` (ctx.minimos).
+const g82TiposReparto = ['multiple_distribution', 'clasica', 'tropical'];
+const g82Slots = regBen.filter((b) => g82TiposReparto.includes(b.t) && Number(b.posicion) >= 1 && Number(b.posicion) <= 3)
+  .sort((a, b) => Number(a.posicion) - Number(b.posicion));
+const g82RepartoVigente = g82Slots.length >= 2;
+const g82N = (x) => Number(x).toLocaleString('en-US');
+const g82Recibe = (b) => (b.monto == null ? null
+  : (b.t === 'multiple_distribution' ? g82N(b.monto) + ' CUP' : g82N(b.monto) + ' USD ' + (b.t === 'clasica' ? 'Clasica' : 'Tropical')));
+const g82NotaReparto = () => {
+  const faltas = [];
+  const lineas = g82Slots.map((b) => {
+    const k = b.posicion;
+    if (!b.tarjeta) faltas.push('la tarjeta ' + k);
+    if (!b.celular) faltas.push('el celular de la tarjeta ' + k);
+    if (b.monto == null) faltas.push('cuanto recibe la tarjeta ' + k);
+    return k + ') tarjeta ' + (b.tarjeta || '(falta)') + ', celular ' + (b.celular || '(falta)') + ', recibe ' + (g82Recibe(b) || '(falta)');
+  });
+  return 'REPARTO EN CURSO entre ' + g82Slots.length + ' tarjetas. Guardado ahora: ' + lineas.join('; ') + '. '
+    + (faltas.length ? 'FALTA: ' + faltas.join(', ') + '. Pidelo con naturalidad, UNA pregunta por mensaje. '
+                     : 'Esta COMPLETO: confirmaselo al cliente con todos los datos, uno por linea (Etiqueta: valor), sin negrita. ')
+    + 'Cualquier dato de estas tarjetas (celular, monto) se guarda con registrar_reparto_multiple, por posicion,'
+    + ' con cadena vacia en lo que no cambia. PROHIBIDO llamar gestionar_beneficiario mientras haya un reparto: no'
+    + ' completa el reparto. Si el cliente dice que un dato vale para todas ("el celular es el mismo para las dos"),'
+    + ' ponlo en TODAS las posiciones. Si da una tarjeta que no esta en el reparto o parece cambiar de idea, PREGUNTALE'
+    + ' antes de guardar nada.'
+    + ((zelleNomCtx || zelleCtaCtx || s.datos_zelle)
+        ? ' ADEMAS este envio lleva ZELLE: registrar_reparto_multiple solo guarda las tarjetas del servicio CUP y NO reparte el deposito. Si el deposito ya esta registrado, llama TAMBIEN a repartir_envio con TODAS las partes en GYD (por ejemplo "cup 13000, zelle 13000"); las partes deben sumar lo depositado.'
+        : '');
+};
+const g82Min = (() => {
+  const m = ctx.minimos || {};
+  const n = (k) => { const v = Number(m[k]); return Number.isFinite(v) && v > 0 ? v : null; };
+  return { cup: n('minimo_gyd_cup'), usd: n('minimo_gyd_usd'), zelle: n('zelle_minimo_gyd'), efectivo: n('minimo_gyd_efectivo_usd'),
+           recarga: n('minimo_gyd_recarga'), recargaHasta: n('minimo_gyd_recarga_hasta'), tramite: n('minimo_gyd_tramite') };
+})();
+const g82MinimosTxt = (g82Min.cup && g82Min.usd)
+  ? ('MINIMOS DE DEPOSITO (en GYD, lo que deposita el cliente; salen de la base): remesa en CUP ' + g82N(g82Min.cup)
+     + '; tarjeta Clasica o Tropical (USD) ' + g82N(g82Min.usd)
+     + (g82Min.zelle ? '; Zelle ' + g82N(g82Min.zelle) : '')
+     + (g82Min.efectivo ? '; entrega de efectivo en USD ' + g82N(g82Min.efectivo) : '')
+     + (g82Min.recarga ? '; recargas ' + g82N(g82Min.recarga)
+        + (g82Min.recargaHasta && g82Min.recargaHasta !== g82Min.recarga ? ' a ' + g82N(g82Min.recargaHasta) + ' segun la promocion' : '') : '')
+     + (g82Min.tramite ? '; traducciones y extensiones de visa ' + g82N(g82Min.tramite) : '')
+     + '. Por debajo del minimo de su servicio NO se hace: dilo tal cual. Si un monto encaja en mas de un servicio y el'
+     + ' cliente no dijo cual, PREGUNTA, una sola pregunta.')
+  : '';
+// Amounts the customer wrote in this burst. Cards (16 digits, also in groups of 4) and Cuban phones
+// are removed first, so their digit groups are never read as amounts.
+const g82Montos = (() => {
+  const limpio = texto.replace(/\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g, ' ')
+    .replace(/(\+?53[\s-]?)?\b[56]\d{7}\b/g, ' ').replace(/\b\d{7,}\b/g, ' ');
+  const out = [];
+  for (const m of limpio.matchAll(/(\d+(?:[.,]\d+)*)\s*(mil\b|k\b)?/gi)) {
+    let v;
+    if (m[2]) v = Math.round(parseFloat(m[1].replace(/,/g, '.')) * 1000);
+    else if (/^\d{1,3}([.,]\d{3})+$/.test(m[1])) v = Number(m[1].replace(/[.,]/g, ''));
+    else if (/^\d{4,6}$/.test(m[1])) v = Number(m[1]);
+    if (v >= 1000 && v <= 999999) out.push(v);
+  }
+  return out;
+})();
+const g82MonedaDicha = /\b(cup|usd|d[oó]lar(es)?|pesos|mlc|cl[aá]sica|tropical|zelle)\b/i.test(texto);
+const g82EnReparto = g82RepartoVigente || !!s.multi_beneficiario;
+let g82NotaMonto = '';
+if (g82EnReparto && g82Montos.length && !g82MonedaDicha) {
+  const nT = g82RepartoVigente ? g82Slots.length : (s.tarjetas || []).length;
+  const cada = /\bcada\s+(una|uno|tarjeta|persona)\b|\bpor\s+(tarjeta|persona|cabeza)\b/i.test(texto);
+  const total = /\ben\s+total\b|\bentre\s+(las|los)\s+(dos|tres|2|3)\b|\btodo\s+junto\b/i.test(texto);
+  let porTarjeta = null;
+  if (g82Montos.length >= 2 && g82Montos.length === nT) porTarjeta = g82Montos;
+  else if (g82Montos.length === 1 && cada && nT >= 2) porTarjeta = Array(nT).fill(g82Montos[0]);
+  const base = 'MONTO EN GYD PARA EL REPARTO: el cliente escribio montos sin moneda (' + g82Montos.map(g82N).join(', ')
+    + '). Por la regla 4 son GYD, lo que deposita. ';
+  if (!porTarjeta) {
+    g82NotaMonto = base + (g82Montos.length === 1
+      ? 'No esta claro si son ' + g82N(g82Montos[0]) + ' GYD en total o para cada tarjeta' + (total ? ' (dijo "en total" o "entre", confirmalo)' : '')
+        + ': PREGUNTALO en una linea antes de guardar ningun monto.'
+      : 'No cuadran con las ' + nT + ' tarjetas: PREGUNTA cuanto va a cada una antes de guardar ningun monto.');
+  } else if (!(g82Min.cup && g82Min.usd)) {
+    g82NotaMonto = base + 'Por tarjeta: ' + porTarjeta.map((v, i) => (i + 1) + ') ' + g82N(v) + ' GYD').join('; ')
+      + '. Si no sabes si es CUP o USD (Clasica/Tropical), PREGUNTALO; si es CUP, conviertelo con calcular_envio, guardalo con'
+      + ' registrar_reparto_multiple y confirmaselo.';
+  } else {
+    // Final owner rule (2026-10-02): VALIDITY is per deposit, CURRENCY is per card. The whole reparto is
+    // one deposit, so only a TOTAL below the CUP minimum is refused ("3 mil a cada una" = 6,000 GYD is a
+    // valid CUP remesa, split as the customer says). Each card's amount is then read on its own: below the
+    // Clasica/Tropical minimum it fits no other service, so it is CUP ("10 mil a la primera y 5 mil a la
+    // segunda" is CUP for both); an amount that reaches it is asked about (CUP or USD).
+    const totalGyd = porTarjeta.reduce((a, v) => a + v, 0);
+    const lista = porTarjeta.map((v, i) => (i + 1) + ') ' + g82N(v) + ' GYD').join('; ')
+      + ' (' + g82N(totalGyd) + ' GYD en total, lo que deposita)';
+    const cup = [], duda = [];
+    porTarjeta.forEach((v, i) => (v < g82Min.usd ? cup : duda).push(i + 1));
+    const pos = (a) => (a.length === 1 ? 'la tarjeta ' + a[0] : 'las tarjetas ' + a.join(' y '));
+    const partes = [];
+    if (totalGyd < g82Min.cup) partes.push('El deposito total (' + g82N(totalGyd) + ' GYD) no llega al minimo de remesa en CUP ('
+      + g82N(g82Min.cup) + ' GYD): diselo al cliente con esa cifra y NO guardes ningun monto.');
+    else {
+      partes.push('El minimo es por deposito, no por tarjeta: el total llega al minimo de remesa en CUP (' + g82N(g82Min.cup)
+        + ' GYD), asi que se reparte tal como lo pide el cliente aunque una tarjeta reciba menos de esa cifra.');
+      if (cup.length) partes.push('Para ' + pos(cup) + ' el monto no llega al minimo de ningun otro servicio (Clasica/Tropical '
+        + g82N(g82Min.usd) + ' GYD), asi que es remesa en CUP: conviertelo a CUP con calcular_envio, guarda los CUP en su'
+        + ' posicion con registrar_reparto_multiple (m1, m2...) y confirmaselo al cliente: GYD que deposita y CUP que recibe.'
+        + ' PROHIBIDO dejar el monto sin guardar y sin decir nada.');
+      if (duda.length) partes.push('Para ' + pos(duda) + ' el monto puede ser remesa en CUP o tarjeta Clasica/Tropical en USD'
+        + ' (minimo ' + g82N(g82Min.usd) + ' GYD): PREGUNTA en una linea si lo quiere en CUP o en USD antes de guardar ese monto.');
+    }
+    g82NotaMonto = base + 'Por tarjeta: ' + lista + '. ' + partes.join(' ');
+  }
+}
+// (359, 2026-11-07) REPARTO VS DEPOSITO VERIFICADO. ctx.reparto_cuadre comes from the database (cerebro_reparto_cuadre): present only
+// when the open operation has a reparto AND a verified deposit. Then the Decisor does NOT guess per-card amounts from the customer's
+// words (96d81952: "10.000 mas para ponerle 5 a cada tarjeta" became 10,000 GYD per card; f80a33a0: "15mil a cada una" became 45,000
+// GYD): it states what the database knows. Flat estado -> instruction mapping, nothing for the model to weigh (DeepSeek thinking
+// mode, see the deliberative-language notes below). Without the field (older Contexto, deposit not verified) nothing changes.
+const g359 = (ctx && ctx.reparto_cuadre && typeof ctx.reparto_cuadre === 'object') ? ctx.reparto_cuadre : null;
+const g359Valido = !!g359 && Number.isFinite(Number(g359.total_cup)) && Number(g359.total_cup) > 0 && Number(g359.tarjetas) >= 2;
+let g359Nota = '';
+if (g359Valido) {
+  const dif = Math.abs(Number(g359.diferencia_cup) || 0);
+  g359Nota = 'REPARTO Y DEPOSITO: el deposito verificado es ' + g82N(g359.base_gyd) + ' GYD = ' + g82N(g359.total_cup) + ' CUP (o '
+    + g82N(g359.total_usd) + ' USD en tarjeta Clasica/Tropical). Entre ' + Number(g359.tarjetas) + ' tarjetas a partes iguales serian '
+    + g82N(g359.por_tarjeta_igual_cup) + ' CUP cada una.'
+    + ({
+      excede: ' Los montos guardados suman mas que el deposito: PREGUNTA al cliente como repartir ese total; no confirmes montos.',
+      sobra: ' Sobran ' + g82N(dif) + ' CUP: pide al cliente que reparta todo el deposito o que diga que hacer con ese monto.',
+      faltan_montos: ' Quedan ' + g82N(dif) + ' CUP por asignar.',
+    }[String(g359.estado)] || '')
+    + (g82Montos.length
+      ? ' El cliente escribio montos: un monto sin moneda tiene que caber en el total del deposito (' + g82N(g359.total_cup)
+        + ' CUP) y registrar_reparto_multiple rechaza lo que pase de ahi. Si no te dice cuanto va a cada tarjeta, PREGUNTA, no inventes montos por tarjeta en GYD.'
+      : '');
+}
+const recargaEnCurso = !!ctx.recarga_en_curso && !tarjetaCtx && !s.datos_zelle && !s.multi_beneficiario;
+// (207/104, 4-oct-2026) RECARGA ANOTADA: taken ahead of a confirmed promo ('DD/MM' of its start), done that day.
+const anotadaPara = ctx.recarga_anotada_para || null;
+// (209/106, 4-oct-2026) COMBO DE COMIDA en curso: open combo or asked for one. A recharge in progress wins, as in the DB.
+const comboEnCurso = !!ctx.combo_en_curso && !recargaEnCurso && !tarjetaCtx && !s.datos_zelle;
+const comboCompleto = !!ctx.combo_completo;
+// (213/112, 4-oct-2026) EXTENSION DE VISA en curso: needs no destination data; the customer fills the form.
+const visaEnCurso = !!ctx.visa_en_curso && !recargaEnCurso && !comboEnCurso && !tarjetaCtx && !s.datos_zelle;
+const notas = [];
+// IDIOMA DE LA CONVERSACION (14-ago-2026). El 14-ago, a mitad de una
+// conversacion entera en ingles, el bot contesto en español. El lote era
+// "Mmm interesting / 53821203 / There": un numero, que no esta en ningun
+// idioma, y dos interjecciones. Contra esa señal tan floja, un contexto
+// escrito ENTERO en español arrastro la respuesta. El cliente tuvo que
+// escribir "I don't understand you" para recuperar el ingles.
+//
+// La regla del prompt ("mensaje en ingles -> TODA la respuesta en ingles") ya
+// existia y es tajante. No le faltaba fuerza: le faltaba ANCLA. El idioma se
+// re-deducia del lote de turno en vez de ser una propiedad de la conversacion.
+// `muestra_idioma` trae lo que el cliente ESCRIBIO antes (lo sirve Contexto
+// conversacion; aqui se decide, que es donde hay banco).
+//
+// SOLO SE AVISA DEL INGLES, a proposito. El fallo es el español colandose en
+// una conversacion inglesa; al reves casi no pasa, porque el prompt ya es
+// español. Poner una nota de "esto va en español" en cada turno de cada
+// cliente cubano seria ruido en el 95% de las conversaciones.
+const avisoIdioma = notaIdioma(ctx.muestra_idioma, texto);
+if (avisoIdioma) { notas.push(avisoIdioma); }
+// LA TASA VIGENTE, DICHA POR EL SISTEMA (12-ago-2026).
+// El 11-ago a las 20:20 el bot le cotizo a un cliente real *8,000 GYD ->
+// 24,000 CUP* SIN llamar a `calcular_envio`: la multiplicacion la hizo el
+// modelo con una tasa que se sabia de memoria. Salio bien porque la tasa no
+// habia cambiado. Pasa porque, cuando el modelo devuelve DSML, el reintento
+// contesta sin llamar a NINGUNA herramienta — se midio: 0 tools en 60 turnos.
+//
+// Esto NO sustituye a las tools, es la red: si el modelo va a calcular de todas
+// formas, que al menos lo haga con el numero que hay hoy en `tasas` y no con
+// uno recordado. La cifra sale del SQL, como el veredicto del cruce.
+try {
+  const t = $('Ultima cotizacion').first().json;
+  const partes = [];
+  if (t?.tasa_gyd_cup) partes.push('1 GYD = ' + t.tasa_gyd_cup + ' CUP');
+  // (115) Zelle is priced by tiers of USD; the single rate stays for the cards, Mexico and USDT.
+  if (t?.zelle_tramos_texto) partes.push(t.zelle_tramos_texto.replace('ZELLE POR TRAMOS DE USD: ', 'Zelle por tramos, GYD por USD: '));
+  if (t?.tasa_usd_gyd) partes.push((t?.zelle_tramos_texto ? 'Clasica, Tropical, Mexico y USDT (tasa unica): ' : '') + '1 USD = ' + t.tasa_usd_gyd + ' GYD');
+  if (partes.length) {
+    notas.push('TASAS DE HOY, leidas de la base en este mismo momento: ' + partes.join(', ')
+      + '. Son las UNICAS validas. PROHIBIDO usar ninguna otra tasa, aunque la recuerdes o'
+      + ' aparezca en un mensaje anterior de esta conversacion. Para cotizar sigue llamando'
+      + ' a las herramientas de calculo, igual que siempre.');
+  }
+} catch (e) {}
+// RECARGAS Y PROMO, DICHAS POR EL SISTEMA (13-ago-2026).
+// Hoy 12:51 el bot le INVENTO un precio de recarga a una clienta real ("500
+// CUP por 2,500 GYD", que no existe en ninguna tabla) y luego confundio la
+// moneda. Causa conocida: el reintento tras un DSML contesta sin llamar a
+// NINGUNA herramienta (medido: 0 tools en 60 turnos). Misma red que TASAS DE
+// HOY: si va a hablar de recargas, que sea con los numeros de la base.
+try {
+  if (/recarga|promo|etecsa|cubacel/i.test(texto)) {
+    const t = $('Ultima cotizacion').first().json;
+    const partes = [];
+    if (t?.precios_recarga_texto) partes.push(t.precios_recarga_texto);
+    if (t?.promo_recarga_texto) partes.push(t.promo_recarga_texto);
+    if (partes.length) {
+      notas.push('RECARGAS, PRECIOS Y PROMO leidos de la base en este mismo momento: '
+        + partes.join('. ')
+        + '. Son los UNICOS validos. PROHIBIDO decir otro precio o condicion de recarga,'
+        + ' aunque lo recuerdes de esta conversacion. El precio se dice en GYD (lo que'
+        + ' paga el cliente) y lo recargado en CUP. Para los detalles sigue llamando a'
+        + ' consultar_servicio, igual que siempre.');
+    }
+  }
+} catch (e) {}
+if (g82MinimosTxt && (/m[ií]nimo/i.test(texto) || g82Montos.length)) notas.push(g82MinimosTxt);
+if (g359Nota) notas.push(g359Nota);
+else if (g82NotaMonto) notas.push(g82NotaMonto);
+// MINIMO DE ZELLE, DICHO POR EL SISTEMA (14-ago-2026, Osmany).
+// El UNICO minimo que conocia el bot era el de las recargas, asi que ante un
+// "cuanto es lo minimo?" o ante alguien pidiendo menos de la cuenta se lo
+// inventaba o lo omitia. Misma red que TASAS DE HOY y que las recargas: el
+// numero sale de la base (cerebro_config.zelle_minimo_gyd, hoy 13.000 GYD) y se
+// cambia sin desplegar nada. El equivalente en USD lo calcula el SQL con la
+// tasa viva, asi que no se queda viejo.
+// Se inyecta SOLO si el mensaje viene a cuento, igual que las recargas: el
+// contexto se mantiene corto.
+try {
+  if (/zelle|usd|d[oó]lar|d[oó]lares|m[ií]nimo/i.test(texto)) {
+    const tz = $('Ultima cotizacion').first().json;
+    if (tz?.zelle_minimo_texto) notas.push(tz.zelle_minimo_texto);
+  }
+} catch (e) {}
+// Tools que el flujo sabe que HAY que llamar en este turno. Se emiten al final
+// del contexto, las ultimas, para que ninguna nota anterior las anule: el 11-ago
+// un 'NO hay tool que llamar' del bloque del comprobante se llevo por delante la
+// orden de registrar el beneficiario Zelle y el deal quedo sin destinatario.
+const toolsPendientes = [];
+// La memoria del agente solo guarda lo que el propio agente contesto. Si un
+// companero atendio a mano, o si el bot callo por la ventana de silencio, todo
+// eso le es invisible y al retomar repetiria preguntas o contradiria acuerdos.
+// Va lo PRIMERO del contexto: manda sobre el resto de notas.
+if (ctx.conversacion_no_vista) {
+  notas.push('UN COMPANERO DEL EQUIPO ATENDIO ESTA CONVERSACION Y TU NO LO VISTE. Esto es lo que se dijo mientras tanto, en orden:'
+    + String.fromCharCode(10) + ctx.conversacion_no_vista + String.fromCharCode(10)
+    + 'CONTINUA DESDE AHI. PROHIBIDO repetir algo que ya se pregunto o se respondio ahi. PROHIBIDO contradecir lo que tu companero le dijo al cliente: si el prometio o descarto algo, eso manda sobre lo que tu creas. PROHIBIDO presentarte otra vez. Si lo que dijo tu companero te deja dudas sobre como seguir, es mejor ofrecer pasarlo con un operador que inventar.');
+}
+if (datoDelEquipo) {
+  notas.push('ESOS DATOS LOS DIO EL EQUIPO (un companero los escribio en este chat): no son de un beneficiario del cliente. PROHIBIDO registrarlos, PROHIBIDO abrir un envio con ellos y PROHIBIDO preguntar por ellos. Responde solo a lo que dice el cliente.');
+}
+const hora = new Date().toLocaleString('es-ES', { timeZone: 'America/Guyana', weekday: 'long', hour: '2-digit', minute: '2-digit' });
+// (2026-11-07) The LAST greeting wins: "Buenos dias ... buenas tardes ya" is a self-correction.
+// (2026-11-10) The singular counts too: "buen dia", "buena tarde", "buena noche".
+const saludoCliente = (texto.match(/buen[oa]?s?\s+(d[ií]as?|tardes?|noches?)/gi) || [null]).slice(-1)[0];
+const salu2 = /\b(hola|buenas|hey|que tal|qué tal)\b/i.test(texto);
+// PRESENTACION: una vez al dia. SALUDO: siempre que el cliente salude.
+const franja = saludoCliente ? ('la MISMA franja que uso el cliente ("' + saludoCliente + '"), aunque la hora del negocio sea otra') : ('la franja que corresponda a la hora del negocio (' + hora + ')');
+if (h && h.primer_del_dia) {
+  notas.push('PRIMER CONTACTO DEL DIA con este cliente (da igual si es nuevo o de toda la vida): tu respuesta DEBE empezar presentandote, con ' + franja + '. Formato: "Buenos dias, le atiende el asistente virtual de ' + NOMBRE_NEGOCIO + '." (o tardes / noches segun corresponda). Y EN EL MISMO MENSAJE, justo despues, respondes lo que el cliente pidio. Es UN SOLO mensaje, no dos.');
+} else if (saludoCliente || salu2) {
+  notas.push('YA te presentaste hoy con este cliente: NO repitas la presentacion ("le atiende el asistente virtual de ' + NOMBRE_NEGOCIO + '"). PERO el cliente acaba de saludar, asi que DEVUELVELE EL SALUDO, corto y natural, con ' + franja + ' — ignorar un saludo es descortes. Ejemplo: "Buenas tardes." y sigues con lo que pide, en el mismo mensaje.');
+} else {
+  notas.push('YA te presentaste hoy con este cliente y ahora no te ha saludado: ve DIRECTO a lo que pide, sin saludo ni presentacion. Hora del negocio por si la necesitas: ' + hora + '.');
+}
+// (style) FOLLOW-UP TURN: the customer already received a quote, so the answer must not re-list it. Production
+// has no message counter, so the signal is the node `Ultima cotizacion` (last agent message of the last 6 hours
+// carrying a quoted amount). Not fired when the customer asks for a new quote.
+let cotizacionPrevia = null;
+try { cotizacionPrevia = $('Ultima cotizacion').first().json.ultima_cotizacion || null; } catch (e) {}
+const pideCotizacion = /(cuanto|cuánto|que|qué)\s+(le\s+)?(llega|llegan|llegaria|llegaría|llegarian|llegarían|recibe|reciben|recibiria|recibiría)/i.test(texto) || /(cuanto|cuánto)\s+(tengo que |debo |debe |deberia |debería |tendria |tendría |seria |sería |hay que |necesito )*(depositar|enviar|mandar|poner|dar)/i.test(texto);
+// The customer only acknowledges (ok/perfecto/gracias): do not repeat what was already confirmed.
+const soloAcuse = /^(ok|okay|perfecto|gracias|listo|de acuerdo|bien|dale|👍)[.! ]*$/i.test(texto);
+// (368) NO RE-ASK: the bot already asked for a datum less than 30 minutes ago and the customer only acknowledged it
+// ("ok", "aa ok", "gracias", "en un momento"...) or wrote something that does not touch it. Asking again is the repetition
+// measured on 2026-10-30..11-13 (conv 9ea48754: "Ok" and "Aa ok" were each answered with another ask).
+const ultimoPedido = (repeticion && repeticion.ultimo_pedido_bot && typeof repeticion.ultimo_pedido_bot === 'object') ? repeticion.ultimo_pedido_bot : null;
+const lineasCliente = texto.split(/\n+/).map(l => l.trim()).filter(Boolean);
+const ACUSE_LINEA = /^(?:(?:a+h*\s+)?(?:ok(?:ey|ay)?|dale|gracias|muchas gracias|listo|vale|bien|perfecto|si|sí|ya|de acuerdo|en un momento|un momento|ahorita|ya te (?:lo|los|la|las) (?:paso|mando|envio|envío)|👍)[\s.,!]*)+$/i;
+const soloAcuseLote = lineasCliente.length > 0 && lineasCliente.every(l => ACUSE_LINEA.test(l));
+const TEMAS_PEDIDO = /tarjeta|celular|tel[eé]fono|n[uú]mero|nombre|direcci[oó]n|carnet|foto|cuenta|beneficiari/i;
+const datoNuevo = !!(s.tarjeta || s.celular || s.comprobante || (s.tarjetas || []).length || (s.celulares || []).length);
+const tocaElDato = datoNuevo || /\d{6,}/.test(texto) || /^\[/m.test(texto) || TEMAS_PEDIDO.test(texto);
+const pedidoReciente = !!(ultimoPedido && typeof ultimoPedido.texto === 'string' && ultimoPedido.texto && typeof ultimoPedido.hace_min === 'number' && ultimoPedido.hace_min < 30);
+const noRepetirPedido = pedidoReciente && !datoNuevo && (soloAcuseLote || (TEMAS_PEDIDO.test(ultimoPedido.texto) && !tocaElDato));
+if (noRepetirPedido) {
+  notas.push('NO REPITAS LA PETICION: hace ' + ultimoPedido.hace_min + ' min ya le pediste esto al cliente ("' + ultimoPedido.texto.slice(0, 160) + '") y ' + (soloAcuseLote ? 'ahora solo acuso recibo' : 'ahora escribe de otra cosa') + '. PROHIBIDO pedirselo otra vez en este mensaje, ni con otras palabras. ' + (soloAcuseLote ? 'Si no hay nada nuevo que responder, contesta con un acuse muy corto (una frase) o no anadas nada.' : 'Responde solo a lo que pregunta ahora, en 1-2 frases.') + ' Si mas adelante manda el dato, lo confirmas como siempre.');
+}
+if (cotizacionPrevia && !pideCotizacion) {
+  notas.push('TURNO DE SEGUIMIENTO (BREVEDAD): NO re-listes la cotizacion, las tasas, los minimos ni la tabla; NO repitas el desglose ni la pregunta anterior. Responde solo a lo nuevo en 1-2 frases, sin tabla. ' + (noRepetirPedido ? 'NO pidas ningun dato en este mensaje (ya se pidio hace poco; ver la nota NO REPITAS LA PETICION).' : 'Pide SOLO el dato que falta, por ejemplo "la tarjeta" o "el celular"; PROHIBIDO "los datos de quien recibe" o pedir el paquete entero. Si el cliente pide confirmacion, di el total y el dato que falta, sin "Total a depositar".') + '');
+}
+// (T5, 2026-11-13) DECLARACION PENDIENTE. ctx.declaracion_pendiente comes from the database (cerebro_declaracion_pendiente): the customer asked
+// for servicio_actual and a DIFFERENT service was quoted in the same turn, but it is unclear whether he wants both. The bot asks once; this
+// question wins over re-asking pending data. Not shown when the batch already answers it: it names the pending service (data or yes/no about it)
+// or is a bare "no". A bare "si" gets the confirm variant. Without the field (or with an incomplete one) nothing changes.
+const gDecl = (ctx && ctx.declaracion_pendiente && typeof ctx.declaracion_pendiente === 'object') ? ctx.declaracion_pendiente : null;
+if (gDecl && gDecl.servicio && gDecl.servicio_actual && Number(gDecl.monto_gyd) > 0 && Number(gDecl.monto_actual_gyd) > 0) {
+  const dSrv = String(gDecl.servicio), dAct = String(gDecl.servicio_actual);
+  const dEsc = dSrv.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const dNombra = new RegExp('(^|[^a-z0-9])' + dEsc + '([^a-z0-9]|$)', 'i').test(texto);
+  const dNo = /^\s*(no|nop|nel|no gracias|no, gracias)[\s.!]*$/i.test(texto);
+  const dSi = /^\s*(si|sí|sii+|claro|dale|ok si|si por favor|sí por favor)[\s.!]*$/i.test(texto);
+  const dPartes = dAct + ' ' + g82N(gDecl.monto_actual_gyd) + ', ' + dSrv + ' ' + g82N(gDecl.monto_gyd);
+  if (!dNombra && !dNo) {
+    notas.push('DECLARACION PENDIENTE: el cliente pidio ' + dAct + ' (' + g82N(gDecl.monto_actual_gyd) + ' GYD) y se cotizo ' + dSrv + ' (' + g82N(gDecl.monto_gyd) + ' GYD), pero no esta claro que quiera ambos. '
+      + (dSi
+        ? 'El cliente acaba de decir que si: llama repartir_envio con ambas partes ("' + dPartes + '") y confirmaselo; NO vuelvas a preguntar.'
+        : 'PREGUNTA al cliente si tambien quiere ' + dSrv + '. Esta pregunta tiene prioridad sobre pedir datos pendientes: en este mensaje haz UNA sola pregunta, esta, y no pidas ningun otro dato. Si dice que si, llama repartir_envio con ambas partes ("' + dPartes + '"); si dice que no, no registres nada de ' + dSrv + '.'));
+  }
+}
+// (gate 83, 2026-10-02) MONTO DE DESTINO: an amount with the destination currency attached is what the
+// beneficiary RECEIVES, whatever the verb (owner: "si el cliente dice que quiere recibir X en una moneda, eso
+// lleva calculo inverso"). Production test 2026-10-02 13:03 UTC (exec 304592): "quiero enviar 15 mil CUP" was
+// quoted as 15,000 GYD, because the prompt rule 'enviar + monto + CUP dicho -> calcular_envio' (2026-08-12)
+// read the CUP as the destination currency only. CUP -> calcular_inverso; USD by Zelle, Clasica or Tropical ->
+// calcular_usd (one rate for the three); cash USD has its own rate -> consultar_servicio('efectivo_usd').
+// GYD amounts and bare numbers stay deposits (rule 4). Not in a reparto (its notes own the amounts) and not
+// for a recarga ("recarga de 500 CUP" is the top-up size).
+const g83Destinos = (() => {
+  if (/recarga|combo|visa|inmigraci/i.test(texto) || recargaEnCurso || comboEnCurso || visaEnCurso || g82EnReparto) return [];
+  const limpio = texto.toLowerCase()
+    .replace(/\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g, ' ')
+    .replace(/(\+?53[\s-]?)?\b[56]\d{7}\b/g, ' ')
+    .replace(/(\d)[ .,](?=\d{3}\b)/g, '$1');
+  const out = [];
+  const re = /(\d+(?:[.,]\d+)?)\s*(mil\b|k\b)?\s*(?:de\s+|en\s+)?(cup\b|pesos?\s+cubanos?|moneda\s+nacional|usd\b|d[oó]lares?\b)/gi;
+  for (const m of limpio.matchAll(re)) {
+    let v = parseFloat(m[1].replace(',', '.'));
+    if (m[2]) v = Math.round(v * 1000);
+    if (v > 0) out.push({ monto: v, moneda: /cup|cubano|nacional/.test(m[3]) ? 'CUP' : 'USD' });
+  }
+  return out;
+})();
+if (g83Destinos.length === 1) {
+  const { monto, moneda } = g83Destinos[0];
+  const n = monto.toLocaleString('en-US');
+  const base = 'MONTO DE DESTINO (ya resuelto por el sistema, no lo replantees): el cliente dijo *' + n + ' ' + moneda
+    + '*: es lo que RECIBE quien recibe, NO lo que deposita, aunque diga "enviar", "mandar" o "poner". ';
+  if (moneda === 'CUP') {
+    notas.push(base + 'Usa calcular_inverso(' + monto + ', gyd) y responde: "Para que lleguen *' + n + ' CUP* necesita depositar *Y GYD*."'
+      + ' PROHIBIDO calcular_envio con ese numero.');
+  } else if (/efectivo|cash|en mano|f[ií]sico/i.test(texto)) {
+    notas.push(base + 'Son dolares EN EFECTIVO, que tienen su propia tasa: llama consultar_servicio(\'efectivo_usd\') y usa SOLO lo que'
+      + ' devuelva. PROHIBIDO calcular_usd ni calcular_usd_desde_gyd para efectivo.');
+  } else {
+    const riel = /zelle/i.test(texto) ? 'por Zelle' : /cl[aá]sica/i.test(texto) ? 'en la tarjeta Clasica'
+      : /tropical/i.test(texto) ? 'en la tarjeta Tropical' : '';
+    const via115 = /zelle/i.test(texto) ? 'zelle' : /cl[aá]sica/i.test(texto) ? 'clasica' : /tropical/i.test(texto) ? 'tropical' : '';
+    notas.push(base + 'Usa calcular_usd(' + monto + (via115 ? ', via=' + via115 : '') + ') y responde: "Para que lleguen *' + n + ' USD*' + (riel ? ' ' + riel : '')
+      + ' necesita depositar *Y GYD*."' + (riel ? '' : ' No dijo la via: sin via la cifra es la de Zelle (por tramos); Clasica y Tropical cuestan igual por debajo de 1,000 USD y'
+      + ' desde 1,000 USD tienen otra tarifa (llama de nuevo con via=clasica o via=tropical si la elige). Dila y pregunta por cual lo quiere (en efectivo la tasa es otra).') + ' PROHIBIDO calcular_usd_desde_gyd con ese numero.');
+  }
+}
+// DIRECCION DEL CALCULO: la decide el CODIGO leyendo lo que pregunta el cliente,
+// para no pedirle al modelo que delibere sobre que tool usar.
+// Origen SIEMPRE es GYD (o MXN/USD); destino SIEMPRE CUP. Nadie envia CUP.
+try {
+  const t = texto.toLowerCase();
+  const pideLlegada = /(cuanto|cuánto|que|qué)\s+(le\s+)?(llega|llegan|llegaria|llegaría|llegarian|llegarían|recibe|reciben|recibiria|recibiría)/.test(t) || /(llega|llegan|recibe)\s+(a\s+cuba|alla|allá)/.test(t);
+  const pideDeposito = /(cuanto|cuánto)\s+(tengo que |debo |debe |deberia |debería |tendria |tendría |seria |sería |hay que |necesito )*(depositar|enviar|mandar|poner|dar)/.test(t) || /para que (le )?(lleguen|llegue|reciba|reciban)/.test(t) || /quiero que (le )?(lleguen|llegue|reciba)/.test(t);
+  const numeros = (texto.replace(/(?<=\d)[ ,.](?=\d)/g, '').match(/\b\d{3,7}\b/g) || []);
+  const mil = /(\d+)\s*(mil|k)\b/i.test(t);
+  const pesosSinApellido = /\b\d+(?:[.,]\d+)?\s*(mil|k)?\s*pesos\b/i.test(texto) && !/pesos\s+cubanos?/i.test(texto) && !/pesos\s+(guyaneses|gy|gyd)/i.test(texto);
+  const PESOS_GYD = ' El cliente dijo "X pesos" sin apellido: son GYD que DEPOSITA (minimo 5,000 GYD); NO preguntes CUP vs GYD ni uses calcular_inverso.';
+  if (!g83Destinos.length && (pideLlegada || pideDeposito) && (numeros.length || mil)) {
+    if (pideDeposito && !pideLlegada) {
+      notas.push('CALCULO A HACER (ya resuelto por el sistema, no lo replantees): el cliente pide que LLEGUEN ese monto a Cuba, o sea es el monto de DESTINO en CUP. Usa calcular_inverso con ese numero. Al responder di: "Para que lleguen *X CUP* necesita depositar *Y GYD*."');
+    } else if (pideLlegada) {
+      notas.push('CALCULO A HACER (ya resuelto por el sistema, no lo replantees): el cliente pregunta CUANTO LLEGA, o sea el monto que dijo es lo que EL DEPOSITA, en GYD, aunque la transcripcion diga otra moneda. Usa calcular_envio con ese numero. Al responder di: "Por *X GYD* llegan *Y CUP* a Cuba."' + (pesosSinApellido ? PESOS_GYD : ''));
+    }
+  } else if (!g83Destinos.length && pesosSinApellido && !pideDeposito && (!ctx.riel_operacion || String(ctx.riel_operacion) === 'cuban_card')) {
+    // "X pesos" sin apellido en una sola remesa: GYD que DEPOSITA, por la via de la tarjeta en CUP.
+    notas.push('CALCULO A HACER (ya resuelto por el sistema, no lo replantees): la via es CUP (tarjeta en pesos) y el monto que dijo es lo que EL DEPOSITA, en GYD. Usa calcular_envio con ese numero. Al responder di: "Por *X GYD* llegan *Y CUP* a Cuba."' + PESOS_GYD);
+  }
+} catch (e) {}
+
+// Horario de atencion: lunes a sabado, apertura y cierre de cerebro_config (136). Domingo CERRADO
+// todo el dia. Se calcula en America/Guyana, igual que el resto del Cerebro.
+// Fuera de horario NO se deja de atender: solo se avisa en una linea.
+const ahoraGy = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guyana' }));
+const diaGy = ahoraGy.getDay(); // 0 = domingo
+const minGy = ahoraGy.getHours() * 60 + ahoraGy.getMinutes();
+// DIAS CERRADOS (205/101, 3-oct-2026, aniversario del lunes 5): un dia de 'dias_cerrados' es FUERA DE HORARIO todo
+// el dia, con su motivo; y si antes del proximo dia habil cae un dia cerrado, se promete ese proximo dia habil.
+const ce = (ctx.cierre_especial && typeof ctx.cierre_especial === 'object') ? ctx.cierre_especial : {};
+const hoyCerrado = ce.hoy_motivo || null;
+const proximoHabil = ce.proximo_habil || null;
+const avisoCierre = ce.proximo_cierre || null;
+// Turno con deposito o transferencia: comprobante, envio por verificar o listo para transferir, o el cliente los nombra.
+const turnoConDeposito = !!s.comprobante || !!(h && (h.etapa_envio_abierto === 'Por verificar' || h.etapa_envio_abierto === 'Lista para transferir')) || /deposit|transfer|comprobante|transid/i.test(texto);
+const LINEA_HORARIO_OBLIGATORIA = turnoConDeposito && !horarioYaDicho ? ' OBLIGATORIO: este turno trata de un deposito o una transferencia, asi que tu respuesta DEBE incluir la linea del horario: "queda registrado y se procesa a partir de las ' + HORA_ABRE_TXT + ' (hora de Guyana)". Sin esa linea la respuesta esta incompleta.' : '';
+const abierto = diaGy !== 0 && minGy >= HORA_ABRE_MIN && minGy < HORA_CIERRA_MIN && !hoyCerrado;
+// PROXIMO A CERRAR va PRIMERO y NO depende de `abierto`: lo calcula el SQL de
+// `Contexto conversacion` con el reloj de la BASE y la clave de configuracion
+// `cierre_aviso_minutos` (30 hoy; 0 lo apaga). Dos motivos: el reloj de Postgres
+// es mas fiable que el del contenedor, y asi la rama se puede PROBAR en el banco
+// a cualquier hora — con el reloj del proceso solo se podria probar entre las
+// 16:30 y las 17:00, que es como no probarla.
+// Si por desfase de relojes llegaran los dos a la vez, gana este: los dos dicen
+// "sigue atendiendo pero no prometas la transferencia", asi que el fallo es benigno.
+if (ctx.por_cerrar && !hoyCerrado) {
+  notas.push('PROXIMO A CERRAR: hoy ya vamos cerrando (' + hora + ' en Guyana; se cierra a las ' + HORA_CIERRA_TXT + '). SIGUE ATENDIENDO CON NORMALIDAD: cotiza, pide los datos, registra el deposito y confirma que esta verificado, igual que siempre. Lo UNICO que cambia es la promesa de la TRANSFERENCIA: PROHIBIDO decir "en breve" o "enseguida", porque hoy ya no sale. Di en UNA sola linea natural que su envio queda registrado y se procesa a partir de las ' + HORA_ABRE_TXT + ' (hora de Guyana) del siguiente dia habil.' + (proximoHabil ? ' El siguiente dia habil es ' + proximoHabil + (avisoCierre ? ' (' + avisoCierre + '): dilo asi y avisale de ese cierre en la misma linea.' : '.') : ' Si hoy es sabado, el siguiente dia habil es el LUNES, porque el domingo esta cerrado.'));
+} else if ((hoyCerrado || !abierto) && horarioYaDicho) {
+  notas.push('FUERA DE HORARIO (YA AVISADO HOY): NO repitas que estamos fuera de horario, ni la hora de apertura, ni "queda registrado y se procesa a partir de las ' + HORA_ABRE_TXT + '": ya se lo dijiste hoy en esta conversacion. Atiende normal: cotiza, registra y responde igual que siempre. Solo si el cliente pregunta cuando se hace la transferencia, contestale en una frase. PROHIBIDO decir "en breve" o "enseguida" para la transferencia, porque no se va a hacer hasta que abran.');
+} else if (hoyCerrado) {
+  const diaHoyTxt = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'][diaGy];
+  notas.push('FUERA DE HORARIO: HOY NO SE TRABAJA EN TODO EL DIA (' + hoyCerrado + '; ' + hora + ' en Guyana). Agrega UNA sola linea natural avisandolo y SIGUE ATENDIENDO NORMAL: cotiza, registra y responde igual que siempre. Dilo asi o casi igual (frase del dueno): "Hoy ' + diaHoyTxt + ' no estamos trabajando ' + hoyCerrado + '; por aqui le atendemos igual y lo pendiente queda registrado y se procesa ' + (proximoHabil || 'el proximo dia habil') + ' a partir de las ' + HORA_ABRE_TXT + ' (hora de Guyana)." PROHIBIDO decir que no puedes atender. PROHIBIDO decir "en breve" o "enseguida".' + LINEA_HORARIO_OBLIGATORIA);
+} else if (!abierto) {
+  notas.push('FUERA DE HORARIO: ahora mismo el negocio esta cerrado (' + hora + ' en Guyana). Agrega UNA sola linea natural avisando de que estamos fuera de horario y SIGUE ATENDIENDO NORMAL: cotiza, registra y responde igual que siempre. El horario real es de lunes a sabado de ' + HORA_ABRE_TXT + ' a ' + HORA_CIERRA_TXT + ' hora de Guyana, y los domingos cerrado. PROHIBIDO inventarse otros horarios o decir que no se puede atender. Y OJO CON LO QUE PROMETES: PROHIBIDO decir "en breve" o "enseguida" para la transferencia, porque no se va a hacer hasta que abran. Di que queda registrado y se procesa a partir de las ' + HORA_ABRE_TXT + ' (hora de Guyana).' + (avisoCierre ? ' OJO: ' + avisoCierre + ', asi que abrimos ' + proximoHabil + ': di que queda registrado y se procesa ' + proximoHabil + ' a partir de las ' + HORA_ABRE_TXT + ' (hora de Guyana) y avisale de ese cierre en la misma linea.' : '') + LINEA_HORARIO_OBLIGATORIA);
+} else {
+  // ANCLA POSITIVA DE HORARIO (14-ago-2026). Hasta hoy este if/else-if no tenia
+  // rama para "abierto": cuando el negocio estaba abierto el contexto NO decia
+  // NADA del horario. Y contra ese silencio empujaban dos cosas:
+  //   1. Los unicos ejemplos que trae el prompt de la confirmacion "comprobante
+  //      verificado + beneficiario registrado" son de FUERA DE HORARIO, y los
+  //      dos acaban en "En cuanto abramos, a partir de las 9:00am". No hay ni
+  //      un ejemplo EN horario de ese mismo mensaje.
+  //   2. La memoria de la conversacion, que puede traer turnos reales de un dia
+  //      anterior en los que si estaba cerrado.
+  // Resultado: Adrismir el 14-ago a las 14:33 y Javier el 13-ago a las 11:56,
+  // los dos con el negocio ABIERTO, oyeron "se la hacemos en cuanto abramos".
+  // Es el mismo patron que el idioma: la regla solo hablaba en un sentido.
+  //
+  // LA ULTIMA FRASE NO SOBRA. Sin ella esta nota choca de frente con la guarda
+  // de "no prometas la transferencia sin beneficiario", y dos notas que se
+  // contradicen es como se perdieron 27 minutos el 10-ago.
+  notas.push('EL NEGOCIO ESTA ABIERTO AHORA MISMO (' + hora + ' en Guyana). PROHIBIDO decir "en cuanto abramos", "cuando abramos", "a partir de las ' + HORA_ABRE_TXT + '", "queda para manana" ni ninguna formula que aplace algo a otro dia o a la hora de apertura: hoy se esta trabajando. PROHIBIDO decir o dar a entender que estamos cerrados o fuera de horario. OJO: esto NO te obliga a prometer nada. Si otra nota te prohibe prometer la transferencia, esa manda.');
+}
+// AUSENCIA TEMPORAL (away mode, 264): the owner is out for a while. Only while the business is open: out of
+// hours or on a closed day the note above already says when work resumes. Defensive on every field.
+const aus = (ce.ausencia && typeof ce.ausencia === 'object') ? ce.ausencia : null;
+if (aus && aus.motivo && aus.hasta_texto && abierto) {
+  if (h && h.primer_del_dia) {
+    notas.push('AUSENCIA TEMPORAL: ahora mismo los encargados no estan disponibles (' + aus.motivo + '); regresan ' + aus.hasta_texto + ' hora de Guyana. Los ausentes son LOS ENCARGADOS, no tu: tu sigues aqui. Agrega UNA sola linea natural avisandolo y SIGUE ATENDIENDO NORMAL: cotiza, pide los datos, registra y responde igual que siempre. Dilo asi o casi igual: "Ahora mismo los encargados no estan disponibles ' + aus.motivo + '; regresan ' + aus.hasta_texto + '. Por aqui le seguimos atendiendo y lo suyo queda registrado y se procesa a partir de que regresen." PROHIBIDO decir que no puedes atender. PROHIBIDO decir "en breve" o "enseguida" para la transferencia antes de que regresen.');
+  } else {
+    // The full notice was already given today; only the guard remains. This is the root fix for
+    // the repeated away notice measured on 2026-10-25/26.
+    notas.push('AUSENCIA YA AVISADA HOY: NO repitas que los encargados no estan disponibles, ni el motivo, ni la hora de regreso. Si el cliente pregunta si hay posibilidad hoy, di en UNA frase "Hoy no se lo puedo prometer" o "no depende de mi", sin repetir el motivo. Si el deposito ya esta verificado, dilo; no prometas una hora exacta. Si no pregunta, atiende normal y no menciones la ausencia.');
+  }
+}
+if (s.multi_beneficiario) {
+  const nt = (s.tarjetas || []).length;
+  // PAIRS BY ARRIVAL ORDER (2026-11-14, exec 739599; any order since 2026-11-15, owner: the bot must take the data in whatever
+  // order it comes). The raw batch (`Armar snapshot`) and the vision readings (`Parsear vision`) keep the arrival order.
+  //   * all the cards and then all the phones (or the reverse), same count: paired by position;
+  //   * any other order: a phone belongs to the card right before it, or else to the card right after it;
+  //   * what cannot be paired that way is NAMED, so the bot asks only about that card or that phone.
+  // A workflow without those nodes, or a batch whose order cannot be read, keeps the old note, which asks for everything.
+  const g375Orden = (() => {
+    try {
+      const tj = s.tarjetas || [], ce = s.celulares || [];
+      if (tj.length < 2 || tj.length > 3) return null;
+      const eventos = $('Armar snapshot').first().json.eventos || [];
+      let vis = [];
+      try { vis = $('Parsear vision').all().map((i) => i.json); } catch (e) {}
+      const sec = [], vistos = new Set();
+      const anota = (tipo, v) => { if (v && !vistos.has(v)) { vistos.add(v); sec.push({ tipo, v, par: null }); } };
+      for (const ev of eventos) {
+        if (ev.tipo === 'text') {
+          const dig = String(ev.contenido ?? '').replace(/(?<=\d)[ \t\-_.  ]+(?=\d)/g, '');
+          for (const m of dig.matchAll(/\d+/g)) {
+            const r = m[0];
+            const t16 = tj.find((x) => r === x);
+            const c8 = ce.find((x) => r === x || ((r.length === 10 || r.length === 11) && /^(53|053)/.test(r) && r.endsWith(x)));
+            if (t16) anota('T', t16); else if (c8) anota('C', c8);
+          }
+        } else {
+          const v = vis.find((x) => x && x.wamid && x.wamid === ev.whatsapp_message_id);
+          if (!v) continue;
+          const t16 = String(v.numero_tarjeta ?? '').replace(/\D/g, '');
+          if (tj.includes(t16)) anota('T', t16);
+          const c8 = String(v.celular ?? '').replace(/\D/g, '').slice(-8);
+          if (ce.includes(c8)) anota('C', c8);
+        }
+      }
+      const T = sec.filter((x) => x.tipo === 'T'), C = sec.filter((x) => x.tipo === 'C');
+      if (T.length !== tj.length || C.length !== ce.length) return null;   // the order of some datum could not be read
+      const forma = sec.map((x) => x.tipo).join('');
+      if (/^T+C+$/.test(forma) || /^C+T+$/.test(forma)) {
+        if (T.length === C.length) T.forEach((x, k) => { x.par = C[k].v; C[k].par = x.v; });
+      } else {
+        sec.forEach((x, k) => {
+          if (x.tipo !== 'C') return;
+          const ant = sec[k - 1], sig = sec[k + 1];
+          const libre = (y) => y && y.tipo === 'T' && !y.par;
+          const due = libre(ant) ? ant : (libre(sig) ? sig : null);
+          if (due) { due.par = x.v; x.par = due.v; }
+        });
+      }
+      return {
+        pares: T.filter((x) => x.par).map((x) => ({ tarjeta: x.v, celular: x.par })),
+        sinCelular: T.filter((x) => !x.par).map((x) => x.v),
+        sinDueno: C.filter((x) => !x.par).map((x) => x.v),
+      };
+    } catch (e) { return null; }
+  })();
+  if (g375Orden && g375Orden.pares.length) {
+    const lista = g375Orden.pares.map((p, k) => (k + 1) + ') tarjeta ' + p.tarjeta + ' con celular ' + p.celular).join('; ');
+    const resto = (g375Orden.sinCelular.length ? ' Sin celular todavia: tarjeta ' + g375Orden.sinCelular.join(', ') + (g375Orden.sinDueno.length ? '' : '; pide SOLO ese celular.') : '')
+      + (g375Orden.sinDueno.length ? ' Celular sin dueno claro: ' + g375Orden.sinDueno.join(', ') + '; pregunta SOLO de cual tarjeta es ese celular.' : '');
+    notas.push('ENVIO A VARIOS BENEFICIARIOS: el cliente dio ' + nt + ' tarjetas y, por el orden en que llegaron, ya se sabe de quien es cada celular: ' + lista + '.' + resto + ' PROHIBIDO preguntar o volver a pedir un celular que ya esta emparejado en esta lista. NO se registro nada automaticamente. ESTO LO ATIENDES TU: NO llames derivar_humano. Llama registrar_reparto_multiple YA con cada tarjeta Y su celular (cadena vacia en lo que falte) y otra vez con cada dato nuevo; pide SOLO lo que la herramienta diga que FALTA, UNA pregunta por mensaje. Al confirmar muestra cada persona con su Tarjeta y su Celular, para que el cliente lo corrija si alguno no es asi. Si el cliente quiere repartir entre MAS DE 3 personas, ahi si llama derivar_humano.');
+  } else if (g375Orden && g375Orden.sinDueno.length) {
+    notas.push('ENVIO A VARIOS BENEFICIARIOS: el cliente dio ' + nt + ' tarjetas (' + (s.tarjetas || []).join(', ') + ') y este celular sin decir de cual es (' + g375Orden.sinDueno.join(', ') + '). NO se registro nada automaticamente. ESTO LO ATIENDES TU: NO llames derivar_humano. Pregunta SOLO de cual tarjeta es ese celular (no lo vuelvas a pedir) y CUANTOS CUP recibe cada persona, UNA pregunta por mensaje. Llama registrar_reparto_multiple YA con las tarjetas (cadena vacia en lo que falte) y otra vez con cada dato nuevo; pide lo que la herramienta diga que FALTA. Si el cliente quiere repartir entre MAS DE 3 personas, ahi si llama derivar_humano.');
+  } else {
+    notas.push('ENVIO A VARIOS BENEFICIARIOS: el cliente dio ' + nt + ' tarjetas (' + (s.tarjetas || []).join(', ') + ')' + ((s.celulares || []).length ? ' y estos celulares (' + s.celulares.join(', ') + ')' : ' y ningun celular todavia') + '. NO se registro nada automaticamente. ESTO LO ATIENDES TU: NO llames derivar_humano. Faltan dos cosas y las pides con naturalidad, UNA pregunta por mensaje: el celular que corresponde a cada tarjeta, y CUANTOS CUP recibe cada persona. Llama registrar_reparto_multiple YA con lo que tengas (cadena vacia en lo que falte) y otra vez con cada dato nuevo; pide lo que la herramienta diga que FALTA. Si el cliente quiere repartir entre MAS DE 3 personas, ahi si llama derivar_humano.');
+  }
+  if (g82RepartoVigente) notas.push(g82NotaReparto());
+} else if (g82RepartoVigente) {
+  notas.push(g82NotaReparto());
+} else if (tarjetaCtx && celularCtx && regBenDisponible && !cubanoRegistrado) {
+  notas.push('TARJETA Y CELULAR DETECTADOS PERO NO REGISTRADOS: tarjeta ' + tarjetaCtx + ' y celular ' + celularCtx + '. Todavia NO estan guardados en el envio. Llama gestionar_beneficiario EN ESTE MISMO TURNO con esos datos y confirmaselos al cliente con la tarjeta y el celular COMPLETOS, uno por linea (Tarjeta: ... / Celular: ...), sin negrita. PROHIBIDO decir anotado sin haber llamado la herramienta.' + ' Muestra EXACTAMENTE estas lineas:' + String.fromCharCode(10) + 'Tarjeta: ' + tarjetaCtx + String.fromCharCode(10) + 'Celular: ' + celularCtx);
+} else if (tarjetaCtx && celularCtx) {
+  if (soloAcuse) {
+    notas.push('Beneficiario YA REGISTRADO automaticamente en el tablero: tarjeta ' + tarjetaCtx + ' y celular ' + celularCtx + '. El cliente solo acusa recibo: responde en UNA frase corta confirmando que quedo registrado; NO repitas tarjeta ni celular si ya se confirmaron en el turno anterior.');
+  } else if (veniaDeAntes && !s.tarjeta && !s.celular) {
+    // Both came in earlier batches, so the pair was already confirmed. If one arrives in THIS batch the pair is
+    // complete for the first time and still owes the full confirmation below.
+    notas.push('Beneficiario YA REGISTRADO automaticamente en el tablero: tarjeta ' + tarjetaCtx + ' y celular ' + celularCtx + ' (uno de los dos lo dio antes en esta misma conversacion; el sistema los junto). El beneficiario YA se confirmo en un turno anterior: NO repitas tarjeta ni celular; confirma solo lo nuevo (el deposito y/o el reparto).');
+  } else {
+    notas.push('Beneficiario YA REGISTRADO automaticamente en el tablero: tarjeta ' + tarjetaCtx + ' y celular ' + celularCtx + (veniaDeAntes ? ' (uno de los dos lo dio antes en esta misma conversacion; el sistema los junto)' : '') + '. NO llames gestionar_beneficiario (ya esta hecho, igual que el deposito). OBLIGATORIO: tu respuesta a ESTE lote DEBE incluir la confirmacion de estos datos con palabras, tarjeta y celular COMPLETOS, uno por linea (Tarjeta: ... / Celular: ...), sin negrita — aunque el lote traiga ademas un audio o texto hablando de otra cosa, la confirmacion va en el mismo mensaje. Responder solo al resto (un "aqui estoy pendiente" pelado) es un ERROR GRAVE. PROHIBIDO pedirle los datos del beneficiario: ya los dio.' + ' Muestra EXACTAMENTE estas lineas:' + String.fromCharCode(10) + 'Tarjeta: ' + tarjetaCtx + String.fromCharCode(10) + 'Celular: ' + celularCtx);
+  }
+} else if (visaEnCurso) {
+  notas.push('OPERACION EN CURSO: EXTENSION DE VISA, no remesa. NO hace falta ningun dato de destino: PROHIBIDO pedir tarjeta, celular, cuenta o datos de quien recibe. El cliente llena el formulario de la extension (https://acortar.link/extension_de_visa) y paga 5,000 GYD por persona por MMG, todo por adelantado; la captura del deposito la manda por aqui. Si confirma que quiere hacerla, llama abrir_extension_visa con cuantas personas. Despues de pagar, el equipo sube la aplicacion y le avisa.');
+} else if (comboEnCurso) {
+  notas.push('OPERACION EN CURSO: COMBO DE COMIDA, no remesa. Por CADA combo hacen falta, del destinatario: nombre completo, telefono, direccion lo mas completa posible CON LA PROVINCIA (si la provincia llega aparte, guardala junto a la direccion), una referencia de como llegar o como es el lugar, y el monto de ESE combo en GYD (minimo 25,000 por combo; con varios combos, pregunta cuanto es para cada uno). Cada dato que de el cliente, escrito o por AUDIO, guardalo con registrar_destinatario_combo (una llamada por destinatario, con el numero de ese combo: 1, 2, 3... en el orden en que el cliente los dijo) y pide lo que te diga que falta. Pide en UN SOLO mensaje con TODO lo que falta de TODOS los combos (una linea corta por destinatario), nunca dato por dato. Si el cliente dice que un dato vale para varios combos (misma direccion, "sirve para ambos"), guardalo en CADA uno de esos combos: una llamada por numero de combo. PROHIBIDO pedir un telefono de contacto extra: solo el del destinatario. PROHIBIDO volver a pedir un dato que el cliente ya dio: si la herramienta no lo lista como falta, ya esta. PROHIBIDO pedir tarjeta. PROHIBIDO elegir o prometer productos: los elige una persona del equipo en una llamada DESPUES del pago.' + (comboCompleto ? ' Los datos del combo YA ESTAN COMPLETOS: no pidas mas datos de destino; si no ha pagado, pide el pago por MMG, todo por adelantado.' : ''));
+} else if (recargaEnCurso) {
+  notas.push('OPERACION EN CURSO: RECARGA DE SALDO, no remesa. El unico dato de destino que hace falta es el NUMERO de telefono cubano a recargar. PROHIBIDO pedir tarjeta. PROHIBIDO pedir los datos de quien recibe. ' + (celularCtx ? ('El numero a recargar YA LO DIO: *' + celularCtx + '*. NO pidas mas datos de destino.') : 'Falta el NUMERO a recargar: pideselo.'));
+} else {
+  // ESPERA A UN TERCERO, TAMBIEN CON DATOS A MEDIAS (17-ago-2026).
+  // `esperaTercero` se calcula arriba pero solo se consultaba en DOS de los tres
+  // caminos: con comprobante (dentro de `if (s.comprobante && !sabeDestino)`) y
+  // sin ningun dato (dentro de `viaSinDefinir`, que exige que no exista NINGUNO).
+  // Faltaba el de en medio -sin comprobante pero con la tarjeta o el celular ya
+  // dados-, que es justo el caso del 11-ago con 5926299943: habia dado la tarjeta
+  // y recibio la peticion del celular CUATRO veces en cinco minutos mientras
+  // decia TRES veces que se lo estaban mandando.
+  // Se reutiliza LA MISMA nota que los otros dos caminos a proposito: un solo
+  // concepto de espera, no dos. Y sustituye a la peticion en vez de sumarse a
+  // ella: dos notas opuestas en el mismo contexto es como se perdieron 27
+  // minutos el 10-ago.
+  // Con `esperaTercero` en false no cambia absolutamente nada.
+  if (esperaTercero && (tarjetaCtx || celularCtx)) {
+    notas.push('EL CLIENTE DICE QUE ESTA ESPERANDO LOS DATOS DE QUIEN RECIBE: se los tiene que mandar otra persona. PROHIBIDO volver a pedirselos en este turno. PROHIBIDO preguntarle cuando se los mandan. Acusale recibo en UNA linea corta y dile que quedas pendiente. Nada mas.');
+  } else {
+  if (tarjetaCtx) { notas.push('Tarjeta cubana detectada: ' + tarjetaCtx + '. Falta el celular ESCRITO. OJO: si el cliente lo dicto en nota de voz, NO se lo pidas de nuevo — muestraselo por escrito y pide confirmacion (regla de numeros dictados). Solo si no lo ha dado de ninguna forma, pideselo.'); }
+  if (celularCtx && !rielEfectivo) { notas.push('Celular cubano detectado: ' + celularCtx + '. Falta la tarjeta ESCRITA. OJO: si el cliente la dicto en nota de voz, NO se la pidas de nuevo — muestrasela por escrito y pide confirmacion. Solo si no la ha dado de ninguna forma, pidesela.'); }
+  }
+
+// ZELLE: el beneficiario no recibe CUP en una tarjeta, recibe DOLARES.
+if (zelleVarios) {
+  notas.push('VARIAS CUENTAS ZELLE DETECTADAS: ' + zelleCuentas.join(', ') + '. NO registres ninguna todavía ni mezcles un nombre con un número. Confirma con el cliente, UNA por UNA, qué nombre va con cada cuenta y cuánto va a cada una; después registra cada cuenta por separado con registrar_beneficiario_zelle (posicion/agregar/monto). PROHIBIDO asumir que el primer nombre va con el primer número.');
+}
+if (s.datos_zelle && !zelleVarios) {
+  const cuenta = [s.zelle_nombre ? 'nombre ' + s.zelle_nombre : null,
+                  s.zelle_celular ? 'celular de EEUU ' + s.zelle_celular : null,
+                  s.zelle_correo ? 'correo ' + s.zelle_correo : null].filter(Boolean).join(' y ');
+  // Zelle plus CUP in the same send: the Zelle note must not forbid the CUP part.
+  const zelleMixto = /(resto|restante|rest|tarjeta|cup|moneda nacional|supervielle)/i.test(texto);
+  // LO ACUMULADO, NO SOLO ESTE LOTE (17-ago-2026). Esta guarda preguntaba por
+  // `s.tarjeta || s.celular` -el lote- mientras todo el bloque que la rodea usa
+  // `tarjetaCtx / celularCtx` -lo acumulado entre lotes-. Con la tarjeta dada en
+  // un lote ANTERIOR y el Zelle ahora, la mezcla no se detectaba y el contexto
+  // salia con dos ordenes opuestas: 'Falta el celular ESCRITO ... pideselo' y
+  // 'PROHIBIDO pedirle tarjeta ni celular cubano', mas la tool de registro.
+  // Ahora la misma mezcla se comporta igual venga del lote o de antes.
+  if (tarjetaCtx || celularCtx) {
+    notas.push('MEZCLA DE VIAS EN EL MISMO ENVIO: llegaron datos de Zelle (' + cuenta + ') y TAMBIEN datos cubanos (tarjeta o celular). Eso lo atiende una persona: llama derivar_humano y no intentes resolverlo tu.');
+  } else {
+    // Desde la 077 el beneficiario de Zelle lo registra un NODO, igual que el
+    // cubano, y ese nodo corre ANTES que esto. Si ya esta registrado, ordenar la
+    // tool no sirve de nada y encima es una llamada mas que intentar — o sea, una
+    // oportunidad mas de que salga el DSML. Solo se pide cuando no cuajo.
+    if (!zelleRegistrado && zelleNomCtx && zelleCtaCtx) {
+      toolsPendientes.push('registrar_beneficiario_zelle con nombre "' + zelleNomCtx + '" y cuenta LITERAL "' + zelleCtaCtx + '"');
+    }
+    // (2026-10-28) Show the data as exact lines, and never talk about the transfer while a datum is missing.
+    const lineasZelle = ['Cuenta Zelle anotada:']
+      .concat(zelleNomCtx ? ['Nombre: ' + zelleNomCtx] : [])
+      .concat(s.zelle_celular ? ['Celular: ' + s.zelle_celular] : [])
+      .concat(s.zelle_correo ? ['Correo: ' + s.zelle_correo] : [])
+      .concat(!s.zelle_celular && !s.zelle_correo && zelleCtaCtx ? ['Cuenta: ' + zelleCtaCtx] : [])
+      .join(String.fromCharCode(10));
+    const faltaZelle = !zelleNomCtx ? 'FALTA EL NOMBRE del titular' : (!zelleCtaCtx ? 'FALTA LA CUENTA (correo o celular de EEUU)' : '');
+    const zelleYaConfirmada = zelleRegistrado && !faltaZelle;
+    notas.push('DATOS DE ZELLE DETECTADOS: ' + cuenta + '. ' + (zelleMixto ? 'El cliente quiere ZELLE y ADEMAS el resto en CUP/tarjeta: NO le digas que no hay CUP ni le prohibas pedir la tarjeta; confirma la cuenta Zelle y pide la tarjeta y el celular de la parte CUP.' : 'Este cliente quiere ZELLE (no CUP ni tarjeta Clasica/Tropical). PROHIBIDO pedirle tarjeta ni celular cubano.')
+      // (2026-11-07) Registered in an earlier turn = already shown to the customer: a resent contact card must
+      // not repeat the "Cuenta Zelle anotada" block.
+      + (zelleYaConfirmada
+        ? ' ESA CUENTA YA ESTABA ANOTADA en el tablero y ya se la confirmaste antes: NO hay ninguna tool que llamar y NO repitas las lineas de la cuenta. Si hace falta, di solo "Esa cuenta ya la tengo anotada." y responde lo nuevo que diga el cliente.'
+        : ' Confirmaselos COPIADOS TAL CUAL, sin cambiar ni un caracter, uno por linea (Etiqueta: valor), sin negrita. El NOMBRE de la cuenta es OBLIGATORIO: si no lo ha dado, pideselo.' + (zelleRegistrado ? ' YA ESTA REGISTRADO EN EL TABLERO: NO hay ninguna tool que llamar para esto, solo confirmaselo con palabras.' : ' NO ESTA REGISTRADO TODAVIA. Llama registrar_beneficiario_zelle EN ESTE MISMO TURNO con lo que haya (el nombre y/o la cuenta, la cuenta LITERAL tal como esta aqui arriba) y pide lo que falte.') + (faltaZelle ? ' ' + faltaZelle + ': PROHIBIDO decir "una vez hecha su remesa", "le notificamos" ni hablar de cuando se hace: sin ese dato no se puede hacer. Termina con UNA sola pregunta, la de ese dato.' : '') + ' Muestra al cliente EXACTAMENTE estas lineas, cada una en su linea:' + String.fromCharCode(10) + lineasZelle));
+  }
+}
+}
+// B1.2 (2026-09-29): marca si ESTE MISMO turno acaba de verificar el
+// deposito via `Cruzar deposito con MMG` (veredicto === 'verificado' o
+// alguna de sus variantes de la MISMA familia). Se usa mas abajo para no
+// pisar la nota de esa rama con la nota de "ya estaba verificado desde
+// antes" (ctx.deposito_ya_verificado) cuando las dos aplicarian a la vez.
+let esteTurnoVerificado = false;
+if (s.comprobante && !s.comprobante_duplicado) {
+  // LO QUE SE LE DICE AL CLIENTE DEPENDE DE LO QUE DIJO EL SQL, NO DEL MODELO.
+  //
+  // Hasta el 10-ago aqui se ordenaba SIEMPRE "solo confirmalo al cliente",
+  // pasara lo que pasara con la verificacion. Por eso ese mismo dia el bot le
+  // dijo a un cliente "Recibimos su deposito de 6,762,167 GYD" cuando la propia
+  // lectura venia marcada "importe no esta claro" y el envio ya estaba en
+  // Incidencia. El SQL acertaba; la frase que leia el modelo, no.
+  // Regla del proyecto: si algo tiene que pasar si o si, pasa en el SQL o en el
+  // dato, nunca en una frase que el modelo puede ignorar.
+  //
+  // OJO AL REDACTAR: esto va como MAPEO PLANO estado -> instruccion. Nada de
+  // pedirle al modelo que valore, compare o decida, que eso enciende el modo
+  // pensamiento de DeepSeek y rompe la conversacion en el turno siguiente
+  // (paso el 1, el 5 y el 9 de agosto). Ver 11-lenguaje-deliberativo-*.md
+  let cruce = null;
+  try { cruce = $('Cruzar deposito con MMG').first().json ?? null; } catch (e) {}
+  const veredicto = String(cruce?.resultado ?? 'desconocido');
+  // EL SALDO DEL ENVIO (072/074). `saldo` es null cuando el cliente no dijo
+  // cuanto iba a enviar, y entonces todo se comporta como antes de existir esto.
+  // Las tres cifras vienen YA CALCULADAS del SQL: al agente solo se le pide que
+  // las diga. Ver 11-lenguaje-deliberativo-rompe-deepseek.md.
+  const saldo      = (cruce && cruce.saldo      !== null && cruce.saldo      !== undefined) ? Number(cruce.saldo)      : null;
+  const objetivoEnvio = (cruce && cruce.objetivo   !== null && cruce.objetivo   !== undefined) ? Number(cruce.objetivo)   : null;
+  const depositado    = (cruce && cruce.depositado !== null && cruce.depositado !== undefined) ? Number(cruce.depositado) : null;
+  // 'verificado', 'verificado_incompleto' y 'verificado_de_mas' son la misma
+  // familia: el dinero SI casa con el libro. Lo que cambia es si cubre o no.
+  const cruceOK = veredicto === 'verificado' || veredicto === 'verificado_incompleto' || veredicto === 'verificado_de_mas';
+  const fmtG = (n) => Number(n ?? 0).toLocaleString('en-US');
+
+  // Si la lectura vino dudosa, no se menciona NINGUNA cifra.
+  const estadoV = String(s.comprobante.estado ?? '').toUpperCase();
+  const alertasV = (s.comprobante.alertas ?? []).join(' ').toLowerCase();
+  // VARIOS COMPROBANTES EN LA MISMA RAFAGA.
+  // El 11-ago Melih (5926131647) mando 27.000 + 300 juntos y el bot le confirmo
+  // *300 GYD*: `Snapshot final` se quedaba con el ULTIMO y el otro se perdia.
+  // Esa noche se puso el parche de callar; esto es el arreglo de verdad. Ahora
+  // la rafaga llega ENTERA y YA SUMADA, y `cerebro_cruzar_depositos` ha cruzado
+  // los N contra el libro TODO O NADA. Tres ramas, mapeo plano:
+  //   uno                          -> exactamente lo de siempre, sin tocar
+  //   varios, los N verificados    -> se le confirma EL TOTAL
+  //   varios, alguno falla         -> no se dice ninguna cifra (la rama de callar)
+  // LA SUMA YA VIENE HECHA. Al agente no se le pide que sume ni que compruebe si
+  // cuadra: eso es lenguaje deliberativo, enciende el modo pensamiento de
+  // DeepSeek y rompe la conversacion en el turno siguiente. Ver
+  // 11-lenguaje-deliberativo-rompe-deepseek.md.
+  const nComp = Number(s.comprobantes_n ?? (s.comprobante ? 1 : 0));
+  const varios = nComp > 1;
+  const sumables = !!s.comprobantes_sumables;
+  const totalRafaga = Number(s.comprobantes_total ?? 0);
+  const monedaRafaga = String(s.comprobante.moneda ?? 'GYD');
+  const splitDeMas = !!(R && R.reparto_pendiente && Array.isArray(R.reparto_pendiente.partes) && R.reparto_pendiente.partes.length >= 2);
+  const nomDeMas = (sv) => ({ cuban_card: 'cup', efectivo_usd: 'efectivo' }[String(sv)] || String(sv));
+  const listaDeMas = splitDeMas ? R.reparto_pendiente.partes.map((p) => nomDeMas(p.servicio) + ' ' + Number(p.monto_gyd)).join(', ') : '';
+  const importeDudoso = estadoV === 'DESCONOCIDO' || alertasV.includes('no esta claro');
+  // `datos` NO cambia: es el comprobante unico, igual que siempre. Meter aqui
+  // la rafaga entera alteraba el texto de ramas que no tienen nada que ver
+  // (ILEGIBLE, ya_reclamado...) y el banco lo saco en rojo. La rafaga solo la
+  // necesita la rama del TOTAL, y se pone alli.
+  const datos = JSON.stringify(s.comprobante);
+
+  if (varios && !(sumables && cruceOK)) {
+    notas.push('EL CLIENTE MANDO VARIOS COMPROBANTES EN LA MISMA RAFAGA y el sistema NO ha podido sumarlos y verificarlos automaticamente. No se ha dado por bueno ni uno solo. PROHIBIDO decir ninguna cifra. PROHIBIDO decir que el deposito fue recibido, verificado o confirmado. PROHIBIDO pedirle que los reenvie. Dile solo esto: que recibiste sus comprobantes, que una persona esta sumando el total y le confirma por aqui. El envio ya esta en Incidencia.');
+  } else if (importeDudoso) {
+    notas.push('COMPROBANTE ILEGIBLE. El importe NO se pudo leer con seguridad y el envio ya esta en Incidencia para que lo mire una persona. PROHIBIDO decir ninguna cifra. PROHIBIDO decir que el deposito fue recibido, verificado o confirmado. Dile solo esto: que recibiste su imagen, que no se lee bien, y que una persona la esta revisando. Si lo que mando no era un comprobante, pidele la captura del comprobante. Datos leidos, NO se los repitas al cliente: ' + datos);
+  } else if (veredicto === 'verificado_incompleto') {
+    notas.push('RECIBIDO Y VERIFICADO CONTRA EL BANCO, PERO EL ENVIO TODAVIA NO ESTA COMPLETO. El cliente dijo que iba a enviar *'
+      + fmtG(objetivoEnvio) + ' ' + monedaRafaga + '* y hasta ahora lleva *' + fmtG(depositado) + ' ' + monedaRafaga
+      + '*: FALTAN *' + fmtG(saldo) + ' ' + monedaRafaga + '*. Confirmale que recibiste lo que mando, DILE CUANTO LLEVA Y CUANTO FALTA con esas tres cifras exactas, y dile que quedas esperando el resto para completar el envio. PROHIBIDO sumar ni restar tu nada: las cifras ya vienen calculadas. PROHIBIDO decir que ya se le va a transferir. PROHIBIDO decir que el envio esta completo. PROHIBIDO pedirle que reenvie lo que ya mando.');
+  } else if (veredicto === 'verificado_de_mas' && splitDeMas) {
+    notas.push('EL CLIENTE DEPOSITO *' + fmtG(depositado) + ' ' + monedaRafaga + '* y ese dinero ES EXACTAMENTE el reparto ya calculado (' + listaDeMas + '). NO es un deposito de mas ni una incidencia: NO le digas que mando mas, que se equivoco o que un companero lo revisa. Llama repartir_envio con TODAS las partes ya calculadas y confirma solo lo que devuelva la tool; PROHIBIDO decir completo o que la transferencia sale antes de la tool.');
+  } else if (veredicto === 'verificado_de_mas') {
+    notas.push('EL CLIENTE DEPOSITO MAS DE LO QUE DIJO QUE IBA A ENVIAR: dijo *'
+      + fmtG(objetivoEnvio) + ' ' + monedaRafaga + '* y lleva *' + fmtG(depositado) + ' ' + monedaRafaga
+      + '*, o sea ' + fmtG(Math.abs(saldo)) + ' de mas. El envio esta en Incidencia y lo revisa una persona. PROHIBIDO decirle que se le va a transferir. PROHIBIDO decidir tu que se hace con el dinero de mas. Dile solo que recibiste su deposito, que ves que mando mas de lo que habiais hablado, y que una persona le confirma por aqui como lo resuelve.');
+  } else if (veredicto === 'verificado' && varios) {
+    notas.push('EL CLIENTE MANDO ' + nComp + ' COMPROBANTES EN LA MISMA RAFAGA. El sistema los ha SUMADO y ha verificado los ' + nComp + ' contra el libro del banco, uno por uno, y se han dado por buenos los ' + nComp + '. EL TOTAL ES *' + totalRafaga.toLocaleString('en-US') + ' ' + monedaRafaga + '* y esa es la UNICA cifra que le puedes decir. PROHIBIDO decirle los importes por separado. PROHIBIDO sumar tu ninguna cantidad y PROHIBIDO comprobar si cuadra: la suma ya viene hecha y ya esta verificada. NO hay ninguna tool que llamar PARA LOS COMPROBANTES: solo confirmale ese TOTAL al cliente con palabras. Datos de los ' + nComp + ' comprobantes, NO se los repitas al cliente: ' + JSON.stringify(s.comprobantes));
+  } else if (veredicto === 'verificado') {
+    notas.push('Comprobante leido y YA REGISTRADO automaticamente en el tablero. NO hay ninguna tool que llamar PARA EL COMPROBANTE: solo confirmalo al cliente con palabras. Datos: ' + datos);
+  } else if (veredicto === 'ya_reclamado') {
+    notas.push('ESE DEPOSITO YA SE USO EN OTRO ENVIO. El envio esta en Incidencia y lo revisa una persona. PROHIBIDO confirmarle el deposito. PROHIBIDO decirle que se le va a transferir. Dile solo que recibiste su comprobante y que una persona lo esta revisando y le confirma por aqui. NO le digas que esta repetido ni le eches la culpa. Datos: ' + datos);
+  } else if (veredicto === 'deposito_antiguo') {
+    notas.push('EL DEPOSITO ES DEMASIADO ANTIGUO y el envio esta en Incidencia para que lo mire una persona. PROHIBIDO confirmarle el deposito. PROHIBIDO decirle que se le va a transferir. Dile solo que recibiste su comprobante y que una persona lo revisa y le confirma por aqui. Datos: ' + datos);
+  } else {
+    notas.push('Comprobante leido y REGISTRADO en el tablero, pero TODAVIA NO esta verificado. Acusale recibo de su comprobante y dile que una persona lo revisa y le confirma por aqui. PROHIBIDO decir que ya esta verificado o confirmado. PROHIBIDO decirle que el dinero ya se le va a transferir. Datos: ' + datos);
+  }
+  if (veredicto === 'verificado') { esteTurnoVerificado = true; }
+
+  // Comparacion deterministica: monto del comprobante vs ultima cotizacion del
+  // agente. Solo cuando el deposito quedo VERIFICADO: en los demas casos la
+  // frase "se le transfiere el equivalente" seria una confirmacion encubierta.
+  // `saldo === null` a proposito: cuando el cliente SI dijo cuanto iba a enviar,
+  // la cifra buena es el objetivo, no lo que se rasque del texto de la ultima
+  // cotizacion — que se midio y falla en la mitad de los mensajes.
+  if (veredicto === 'verificado' && (!varios || sumables) && saldo === null) {
+    try {
+      const moneda = (s.comprobante.moneda || 'GYD');
+      const cm = ($('Ultima cotizacion').first().json.ultima_cotizacion || '');
+      const re = new RegExp('\\*([0-9][0-9,\\.]*) ' + moneda + '\\*');
+      const m2 = cm.match(re);
+      const cotizado = m2 ? Number(m2[1].replace(/,/g, '')) : null;
+      // Con varios, lo que se compara con la cotizacion es EL TOTAL de la
+      // rafaga. Comparar solo el primero diria "distinto a lo cotizado" en
+      // una rafaga que cuadra perfectamente al sumarla.
+      const depositado = varios ? totalRafaga : Number(s.comprobante.monto);
+      if (cotizado && depositado && cotizado !== depositado) {
+        notas.push('MONTO DISTINTO AL COTIZADO (OBLIGATORIO senalarlo): antes se hablo de *' + cotizado.toLocaleString('en-US') + ' ' + moneda + '* y el comprobante llego por *' + depositado.toLocaleString('en-US') + ' ' + moneda + '*. En tu confirmacion di con naturalidad que fue distinto a lo hablado y que no hay problema, se le transfiere el equivalente de lo depositado. En la MISMA frase de confirmacion, sin drama, sin pedir explicaciones.');
+      }
+    } catch (e) {}
+  }
+}
+// B1.2 (2026-09-29): el deposito de la operacion en curso ya estaba
+// verificado DESDE ANTES de este turno (verificado a mano desde el panel,
+// o un turno anterior sin comprobante nuevo). `Contexto conversacion` lo
+// expone en ctx.deposito_ya_verificado. Si la rama de arriba (ESTE mismo
+// turno) ya disparo su propia nota, esta NO debe pisarla: de ahi el
+// !esteTurnoVerificado. Tampoco dispara sobre un comprobante duplicado:
+// esa rama (mas abajo, dupEtapa) ya tiene su propia redaccion para el caso
+// 'Lista para transferir' y no se toca aqui.
+// Solo en el turno en que llegan los datos de quien recibe (algo de este lote
+// + tarjeta y celular completos): es el cierre de ESA confirmacion. Sin esta
+// guarda la frase salia en cualquier mensaje de una conversacion con la
+// remesa ya verificada.
+if (ctx.deposito_ya_verificado && (s.tarjeta || s.celular) && tarjetaCtx && celularCtx
+    && !s.multi_beneficiario && !esteTurnoVerificado && !s.comprobante_duplicado) {
+  notas.push('EL DEPOSITO DE ESTE ENVIO YA ESTABA VERIFICADO DESDE ANTES DE ESTE TURNO. PROHIBIDO decir "apenas lo verifiquemos", "apenas se confirme su deposito" ni ninguna promesa de verificarlo a futuro: eso YA paso. Al confirmar estos datos, cierra con EXACTAMENTE esta frase, sin cambiarla: "Una vez realizada su remesa le notificaremos por acá."');
+}
+// EL CLIENTE MANDO UNA IMAGEN QUE NO ES UN COMPROBANTE.
+// El 10-ago mando una captura de un chat de WhatsApp. La vision la clasifico
+// bien (tipo 'otro'), no se creo ningun deal y no hubo ninguna cifra en ningun
+// punto del sistema. Y el agente contesto "Recibimos su deposito de 8,000 GYD",
+// invendandoselo entero. Sin una instruccion explicita el modelo rellena el
+// hueco con lo mas frecuente del negocio, que es confirmar un deposito.
+// Va como mapeo plano, sin pedirle que valore nada.
+if (!s.comprobante && (s.alertas || []).some(a => String(a).startsWith('Imagen no reconocida'))) {
+  const desc = (s.alertas || [])
+    .filter(a => String(a).startsWith('Imagen no reconocida'))
+    .map(a => String(a).replace('Imagen no reconocida: ', '').trim())
+    .filter(Boolean).join('; ');
+  notas.push('LA IMAGEN QUE MANDO NO ES UN COMPROBANTE DE DEPOSITO. Lo que se ve en ella es: ' + (desc || 'no identificable') + '. No se ha registrado nada y NO HAY NINGUN IMPORTE. PROHIBIDO decir que recibiste un deposito. PROHIBIDO decir ninguna cifra. PROHIBIDO decir que lo estas verificando o que se lo confirmas en breve. PROHIBIDO pedirle el comprobante: el cliente NO ha dicho que haya depositado. Sigue la conversacion por donde iba y responde a lo que te dice en el texto de este mismo mensaje.');
+}
+// YA HAY DEPOSITO: NO SE PREGUNTA POR DONDE VA A DEPOSITAR.
+if (ctx.via_deposito_ya_usada) {
+  notas.push('EL DEPOSITO YA ESTA HECHO Y REGISTRADO, y entro por *' + String(ctx.via_deposito_ya_usada).trim() + '*. PROHIBIDO preguntarle desde donde va a depositar. PROHIBIDO preguntarle si es por la app o con un agente. PROHIBIDO darle datos de cuenta para depositar. Eso ya paso. Si te pregunta por la cuenta, dile la que ya uso.');
+}
+// NO SABEMOS A QUIEN TRANSFERIRLE.
+// El 10-ago un cliente mando su comprobante, el deposito se verifico y el bot le
+// dijo "en breve le hacemos la transferencia" SIN tener tarjeta, celular ni
+// cuenta Zelle. Osmany le habia pedido los datos 30 segundos antes.
+// Se mira lo acumulado de TODA la conversacion, no solo este lote.
+// Para Zelle hacen falta NOMBRE Y CUENTA, igual que tarjeta Y celular. Con
+// s.datos_zelle a secas, un Zelle a medias marcaba el destino como sabido y
+// se saltaba la guarda entera: la rama de 'Zelle incompleto' era codigo
+// muerto. Lo encontro una prueba end-to-end el 10-ago.
+// Lo ACUMULADO, no solo lo de este lote: el nombre pudo llegar en un mensaje
+// y la cuenta en otro, y el registro determinista ya los junto.
+// Partly assigned Zelle (e.g. 50 of 100 USD): say how much is still unassigned; never treat it as complete.
+const montoRecibeZelle = Number(ctx.monto_recibe_valor);
+const monedaRecibeZelle = String(ctx.monto_recibe_moneda || '').toUpperCase();
+const zelleAsignado = regBen.filter(b => b.t === 'zelle' && b.monto != null).reduce((a,b) => a + Number(b.monto || 0), 0);
+const esZelle = !!(s.datos_zelle || zelleVarios || regBen.some(b => b.t === 'zelle') || (R && String(R.en_curso || '') === 'zelle'));
+const zellePorAsignar = (esZelle && monedaRecibeZelle === 'USD' && Number.isFinite(montoRecibeZelle) && montoRecibeZelle > 0) ? Math.max(0, montoRecibeZelle - zelleAsignado) : 0;
+const zelleCompleto = !!(zelleNomCtx && zelleCtaCtx) && zellePorAsignar <= 0.009;
+if (zellePorAsignar > 0.009) {
+  notas.push('FALTAN *' + zellePorAsignar.toLocaleString('en-US') + ' USD* POR ASIGNAR: el deposito cubre *' + montoRecibeZelle.toLocaleString('en-US') + ' USD* por Zelle y ya hay *' + zelleAsignado.toLocaleString('en-US') + ' USD* asignados. NO digas que esta completo ni que la transferencia sale; pide el nombre y la cuenta de los *' + zellePorAsignar.toLocaleString('en-US') + ' USD* que faltan. Si en ESTE mismo turno registras la cuenta que cubre el resto, entonces si puedes confirmar completo.');
+}
+// Para una RECARGA el destino queda sabido con el numero a recargar, sin
+// tarjeta: es la naturaleza del servicio, no una excepcion de la guarda.
+// EFECTIVO (10-nov-2026, exec 700098): la entrega en efectivo no deja `tiene_beneficiario`; lo que dice si falta
+// algo es `entrega_efectivo_falta` del Contexto (telefono, direccion, carnet). En curso y sin faltantes el destino
+// ya esta completo, carnet incluido. Un contexto sin el campo (version vieja) deja el comportamiento de siempre.
+const faltaEfectivo = (rielEfectivo && ctx.entrega_efectivo_en_curso && Array.isArray(ctx.entrega_efectivo_falta)) ? ctx.entrega_efectivo_falta.map(String) : null;
+const efectivoCompleto = !!(faltaEfectivo && faltaEfectivo.length === 0);
+const sabeDestino = !!((tarjetaCtx && celularCtx) || zelleCompleto || ctx.tiene_beneficiario || (recargaEnCurso && celularCtx) || (comboEnCurso && comboCompleto) || visaEnCurso || efectivoCompleto);
+// EL "ANOTADO" QUE NO ANOTA (14-ago-2026). Tres casos en cuatro dias en los
+// que el sistema no registro NINGUN beneficiario y el modelo le dijo al
+// cliente que si. Gardy dio "674 2713" — siete digitos, no es un celular
+// cubano — y el extractor no lo vio; el modelo lo leyo en el texto crudo,
+// se lo enseño, el cliente dijo "Si", y de ahi solo: "Anotado. Queda
+// confirmado quien recibe en Cuba". No habia nada confirmado, y el envio se
+// quedo con 5.000 GYD dentro y sin destinatario.
+//
+// POR QUE NO BASTABA LA GUARDA QUE YA HABIA: `sabeDestino` solo se mira
+// dentro de `if (s.comprobante && !sabeDestino)`, o sea unicamente en el lote
+// que trae el comprobante. En los tres casos el comprobante habia llegado
+// lotes antes y la guarda ni se evaluaba.
+//
+// Va solo cuando hay datos A MEDIAS, que es cuando el modelo puede creerse
+// que algo se guardo. Sin ningun dato no se pone: el cliente que solo saluda
+// no necesita que le prohiban confirmar nada, y una nota de mas es ruido.
+//
+// LA REGLA DEL FORMATO VA AQUI DENTRO, no pegada a la nota de "Tarjeta cubana
+// detectada". Dos motivos: su sitio logico es justo al lado de "el sistema
+// rechazo ese dato", y ampliar la nota de al lado obligaba a permitir que
+// desapareciera en el banco, que es debilitar la prueba para que pase.
+const datosAMedias = !!(tarjetaCtx || celularCtx || zelleNomCtx || zelleCtaCtx);
+if (efectivoCompleto && !s.multi_beneficiario) {
+  notas.push('ENTREGA EN EFECTIVO (USD en mano en Cuba): los datos de entrega de quien recibe ya estan completos y guardados, incluido el carnet. PROHIBIDO pedir datos de entrega (nombre, telefono, direccion, carnet, tarjeta) otra vez ni decir que falta alguno. Si el cliente solo pregunta o espera, respondele sobre el estado del envio.');
+} else if (!sabeDestino && !s.multi_beneficiario && rielEfectivo && faltaEfectivo && faltaEfectivo.length > 0) {
+  const pideEf = faltaEfectivo.map((x) => ({ telefono: 'telefono de quien recibe', direccion: 'direccion exacta', carnet: 'foto del carnet' }[x] || x)).join(', ');
+  notas.push('ENTREGA EN EFECTIVO (USD en mano en Cuba): PROHIBIDO pedir tarjeta. Falta SOLO: ' + pideEf + '. Pide unicamente eso; NO pidas nada mas ni repitas lo que el cliente ya dio.');
+} else if (!sabeDestino && !s.multi_beneficiario && datosAMedias && rielEfectivo) {
+  notas.push('ENTREGA EN EFECTIVO (USD en mano en Cuba): PROHIBIDO pedir tarjeta. Pide SOLO lo que falte de quien recibe: nombre completo, direccion exacta o foto del carnet. No repitas lo que el cliente ya dio.');
+} else if (!sabeDestino && !s.multi_beneficiario && datosAMedias) {
+  const formato = (tarjetaCtx && !celularCtx)
+    ? ' UN CELULAR CUBANO SON 8 DIGITOS Y EMPIEZA POR 5 O POR 63: si el numero que te dio no cumple eso, NO lo des por bueno aunque el cliente te lo confirme — dile que ese numero no es un celular cubano valido y pideselo otra vez.'
+    : '';
+  // (gate 83) The tools take partial data since gate 79: the note tells the model to save what it has NOW
+  // (exec 304592: card alone, the old 'hasta que no esten los dos NO se registra nada' kept it from calling).
+  // A customer waiting for a third party's data is not asked again (esperaTercero note): save, ask nothing.
+  const g83Pide = esperaTercero ? ', sin pedirle nada mas: espera los datos de otra persona. ' : ' y pide lo que te responda que FALTA. ';
+  const g83Guardar = tarjetaCtx
+    ? 'Las herramientas aceptan datos a medias: llama gestionar_beneficiario EN ESTE MISMO TURNO con la tarjeta ' + tarjetaCtx
+      + (celularCtx ? ' y el celular ' + celularCtx : ' (celular vacio)') + g83Pide
+    : (zelleNomCtx || zelleCtaCtx)
+      ? 'Las herramientas aceptan datos a medias: llama registrar_beneficiario_zelle EN ESTE MISMO TURNO con lo que haya' + g83Pide
+      : 'Si es para una remesa (no una recarga), llama gestionar_beneficiario con el celular y pide la tarjeta. ';
+  notas.push('TODAVIA NO HAY BENEFICIARIO REGISTRADO: el sistema NO ha guardado a quien recibe. ' + g83Guardar + 'Hasta que la herramienta responda que quedo guardado, PROHIBIDO decir "anotado", "queda confirmado", "ya quedo registrado", "lo tengo guardado" ni ninguna formula que suene a que los datos de quien recibe ya estan en el sistema. Puedes repetirle un dato PREGUNTANDO para que te lo confirme, pero nunca afirmando que lo guardaste. Y si el cliente YA te lo confirmo y aun asi ves esta nota, no es un despiste: es que el dato que dio NO es valido y el sistema lo rechazo.' + formato);
+}
+if (s.comprobante && !sabeDestino) {
+  // QUE SE LE PIDE DEPENDE DE LO QUE YA SE SEPA DE LA VIA DE ENTREGA.
+  // Si no se sabe si recibe en CUP (tarjeta cubana) o por Zelle, PEDIRLO EN
+  // GENERICO. El 10-ago el bot pidio "la tarjeta y el celular de quien recibe en
+  // Cuba" a un cliente que iba a recibir por Zelle: ahi esa pregunta no aplica.
+  // Solo cuando ya hay una via clara se pide el dato concreto que falta.
+  if (esperaTercero) {
+    notas.push('EL CLIENTE DICE QUE ESTA ESPERANDO LOS DATOS DE QUIEN RECIBE: se los tiene que mandar otra persona. PROHIBIDO volver a pedirselos en este turno. PROHIBIDO preguntarle cuando se los mandan. Acusale recibo en UNA linea corta y dile que quedas pendiente. Nada mas.');
+  } else {
+  let falta = null;
+  if (recargaEnCurso) { falta = 'el NUMERO de telefono cubano a recargar'; }
+  else if (comboEnCurso) { falta = 'los datos del destinatario del combo (nombre, telefono, direccion con la provincia, referencia y monto)'; }
+  else if (tarjetaCtx && !celularCtx) { falta = 'el CELULAR de quien recibe en Cuba'; }
+  else if (celularCtx && !tarjetaCtx) { falta = 'la TARJETA de quien recibe en Cuba'; }
+  else if (zelleCtaCtx && !zelleNomCtx) { falta = 'el NOMBRE del titular de la cuenta Zelle (la cuenta ya la dio: ' + zelleCtaCtx + ')'; }
+  else if (zelleNomCtx && !zelleCtaCtx) { falta = 'la CUENTA Zelle (el correo o el celular de EEUU). El nombre ya lo dio: ' + zelleNomCtx; }
+  else if (zelleVarios) { falta = 'confirmar qué nombre va con cada cuenta Zelle y cuánto va a cada una'; }
+  else if (s.datos_zelle) { falta = 'lo que falte de la cuenta Zelle (nombre del titular o numero)'; }
+  if (falta) {
+    notas.push('FALTAN DATOS DE QUIEN RECIBE: falta ' + falta + '. PROHIBIDO decir que le vas a hacer la transferencia. PROHIBIDO decir "en breve le hacemos la transferencia" ni "apenas lo verifiquemos le transferimos". Acusa recibo del deposito y PIDE ' + falta + '.');
+  } else {
+    notas.push('NO SABEMOS A QUIEN HAY QUE TRANSFERIRLE NI POR QUE VIA: no hay tarjeta, ni celular, ni cuenta Zelle en toda la conversacion, y el cliente TAMPOCO ha dicho si quiere recibir en CUP o por Zelle. PROHIBIDO decir que le vas a hacer la transferencia. PROHIBIDO decir "en breve le hacemos la transferencia". PROHIBIDO pedirle "la tarjeta y el celular": todavia no sabes si va a recibir en Cuba. PROHIBIDO pedirle "la cuenta Zelle". Acusa recibo del deposito y pideselo EN GENERICO, con esta frase: "¿Me pasa los datos de quien recibe?"');
+  }
+}
+}
+
+
+if (s.comprobante_duplicado) {
+  // EL MISMO COMPROBANTE OTRA VEZ. Lo que se le dice depende del ESTADO REAL
+  // del envio al que pertenece, no de una frase fija.
+  //
+  // Hasta el 10-ago esta rama no preguntaba NADA: ordenaba siempre "acusa
+  // recibo y dile que lo estan revisando", aunque el envio ya estuviera
+  // entregado o el deposito ya se hubiera usado en otro envio. El cliente se
+  // quedaba esperando una segunda transferencia que no existia.
+  // `Contexto conversacion` trae ahora dup_etapa/dup_valor buscando por comp_id.
+  //
+  // Lo que NO cambia: no se registra nada dos veces, el importe no se duplica,
+  // y NUNCA se le echa la culpa al cliente ni se le pide otra foto.
+  const dupEtapa = String(ctx.dup_etapa ?? '');
+  const base = 'ESTE COMPROBANTE YA ESTABA REGISTRADO: no se ha vuelto a registrar, o sea el importe NO se duplica. PROHIBIDO pedirle un deposito nuevo. PROHIBIDO pedirle otra foto. PROHIBIDO decirle que la imagen esta duplicada o que ya fue procesada: no es culpa suya y solo lo confunde.';
+  if (dupEtapa === 'Entregada') {
+    notas.push(base + ' ESE ENVIO YA SE ENTREGO. PROHIBIDO decir que lo estas revisando, verificando o confirmando. Dile que ese envio ya fue entregado.');
+  } else if (dupEtapa === 'Lista para transferir') {
+    notas.push(base + ' ESE DEPOSITO YA ESTA VERIFICADO y la transferencia esta pendiente de hacerse. PROHIBIDO decir que lo estas verificando. Dile que ya esta verificado' + (sabeDestino ? ' y que una vez hecha su remesa le notificamos por aca. ' : ' y pidele el dato de quien recibe que falte. PROHIBIDO decir "una vez hecha su remesa" o "le notificamos" mientras falten datos de quien recibe. ') + 'PROHIBIDO decir "en breve", "enseguida" o dar un plazo, y PROHIBIDO repetirle la tarjeta o el celular.');
+  } else if (dupEtapa === 'Incidencia') {
+    notas.push(base + ' ESE ENVIO ESTA EN REVISION POR UNA PERSONA. PROHIBIDO confirmarle el deposito. Dile que una persona lo revisa y le confirma por aqui.');
+  } else if (dupEtapa) {
+    notas.push(base + ' Ese deposito esta registrado y TODAVIA en verificacion. Acusale recibo y dile que una persona lo revisa y le confirma por aqui.');
+  } else {
+    notas.push(base + ' Acusale recibo de su comprobante y dile que una persona lo revisa y le confirma por aqui.');
+  }
+}
+(s.alertas || []).forEach(a => notas.push('Alerta: ' + a));
+if (h && Number(h.envios_previos) > 0) {
+  let hn = 'HISTORIAL de este cliente: ' + h.envios_previos + ' envio(s) previo(s), ultimo el ' + h.ultimo_envio + ' por ' + h.ultimo_monto + '. Es cliente CONOCIDO.';
+  if (h.beneficiarios && h.beneficiarios.length) {
+    hn += ' Beneficiario(s) usados: ' + h.beneficiarios.map(b => 'tarjeta ' + b.tarjeta + ' / celular ' + (b.celular || 'desconocido') + ' (ultimo uso ' + b.ultimo_uso + ')').join('; ') + '.';
+  }
+  if (h.cuenta_negocio_habitual) {
+    hn += ' CUENTA DONDE SUELE DEPOSITAR (confirmado en ' + h.veces_cuenta_habitual + ' de sus envios): ' + h.cuenta_negocio_habitual + '. Si pregunta "al mismo numero de siempre", esta es.';
+  } else {
+    hn += ' NO hay una cuenta de deposito habitual clara para este cliente (no repite lo suficiente, o deposita por vias distintas). Si pregunta "al mismo numero de siempre" o similar, PROHIBIDO adivinar una cuenta: preguntale desde donde va a depositar, con naturalidad, como harias con cualquiera.';
+  }
+  hn += ' COMO USAR ESTE HISTORIAL (regla estricta): es material de CONSULTA, no una sugerencia que ofrecer. PROHIBIDO mencionar, proponer o preguntar por la tarjeta del historial por iniciativa propia. Solo usala si el CLIENTE pide el destino habitual ("a donde mismo", "la de siempre", "la misma", "tu sabes a quien"): ahi confirmas con la tarjeta COMPLETA y, cuando confirme, llamas gestionar_beneficiario. Si el cliente dice que te va a dar la tarjeta o esta por darla, ESPERA a que la de: no le propongas la vieja. Quien decide a que tarjeta va el dinero es el cliente, siempre.';
+  notas.push(hn);
+}
+// INVITACION AL GRUPO (fase 2, 2026-10-28, decision del dueno): UNA sola vez a un cliente NUEVO. `ctx.grupo_enviado` es true
+// si algun mensaje anterior del agente a este contacto ya trajo el enlace; si el campo falta NO se envia (falla cerrado).
+// Cliente nuevo = sin envios previos. Un admin no la recibe. El texto y el enlace van LITERALES.
+if (!ctx.es_admin && ctx.grupo_enviado === false && !(h && Number(h.envios_previos) > 0)) {
+  notas.push('INVITACION AL GRUPO (cliente nuevo, todavia no se le ha enviado): al FINAL de tu respuesta, UNA sola vez, separada por una linea en blanco, anade estas dos lineas COPIADAS LITERALMENTE, sin cambiar ni una palabra ni el enlace de la ultima linea:'
+    + String.fromCharCode(10) + 'Tenemos un grupo de WhatsApp de *Remesas Ya* donde compartimos tasas, promociones y avisos. Puede unirse aquí:'
+    + String.fromCharCode(10) + 'https://chat.whatsapp.com/GFznWMcrlHa5RSBo76Vw81'
+    + String.fromCharCode(10) + 'Si el cliente solo saluda, despues de la invitacion preguntele en que puede ayudarle. No la repitas en los mensajes siguientes.');
+}
+// Estado del ciclo: decide como tratar un gracias/acuse.
+// El SKIP es SOLO para acuses puros: si el mensaje trae saludo, pregunta o intencion nueva, SIEMPRE se responde.
+const abiertos = Number((h && h.envios_abiertos) ?? 0);
+// 10-nov-2026 (exec 700098): solo cuenta lo que trae ESTE lote. El celular o la tarjeta guardados en el contexto
+// (tarjetaCtx / celularCtx) no son datos nuevos: contarlos forzaba responder a un audio sin datos.
+const hayOperacionNueva = !!(s.comprobante || s.tarjeta || s.celular);
+const esSaludo = !!saludoCliente || salu2 || /\boig[ae]\b/i.test(texto);
+const esPregunta = /[?¿]/.test(texto) || /\b(cuanto|cuánto|como|cómo|cuando|cuándo|donde|dónde|quiero|necesito|puede|pueden|estan|están|hay|tasa|cambio|enviar|mandar)\b/i.test(texto);
+// ORDEN IMPORTANTE: si el lote trae datos, el SKIP queda PROHIBIDO aunque el texto parezca un acuse.
+if (hayOperacionNueva) {
+  notas.push('ESTE LOTE TRAE DATOS NUEVOS (comprobante y/o datos de quien recibe). PROHIBIDO RESPONDER SKIP. Aunque el texto del cliente sea corto o parezca un acuse ("listo", "ya", "ok", "ahi va"), lo que manda es lo que llego: confirmalo. El SKIP es SOLO para mensajes que no traen absolutamente nada.');
+} else if (esSaludo || esPregunta) {
+  notas.push('EL CLIENTE ABRE CONVERSACION (saluda, pregunta o pide algo): RESPONDELE SIEMPRE. Aqui NO aplica ningun SKIP — el SKIP es solo para acuses puros tipo "ok" o "gracias" sin nada mas.');
+} else if (abiertos === 0 && h && h.ultimo_estado === 'Entregada') {
+  notas.push('ULTIMO ENVIO ENTREGADO: la transferencia ya se completo y el cliente ya fue notificado por el sistema. NO hay ninguna operacion pendiente. Si el cliente agradece o se despide, RESPONDELE calido y BREVE, variando la forma ("De nada, un placer.", "A usted, estamos en contacto.", "Un placer servirle."): aqui NO aplica el SKIP de operacion abierta.');
+} else if (abiertos > 0) {
+  notas.push('Hay operacion EN CURSO y este mensaje NO trae datos nuevos: un gracias o acuse PURO del cliente aqui es SKIP, y nada de despedidas. Pero si el mensaje trae una pregunta o pide algo, RESPONDELE.');
+}
+// PRE-DEPOSITO. La regla del doc 19 -pedir EN GENERICO hasta saber la via- vivia
+// dentro de `if (s.comprobante ...)`, o sea que solo actuaba con el comprobante ya
+// en la mano. El 11-ago un cliente que aun no habia depositado recibio "la tarjeta
+// y el celular de quien recibe en Cuba" y tuvo que corregir: "Es por zell".
+// De 9 beneficiarios reales medidos, 4 eran Zelle.
+const rielOp = ctx.riel_operacion ? String(ctx.riel_operacion) : null;
+const viaSinDefinir = !rielOp && !ctx.servicio_pendiente && !sabeDestino && !tarjetaCtx && !celularCtx && !s.datos_zelle && !recargaEnCurso && !comboEnCurso && !visaEnCurso;
+if (!s.comprobante && viaSinDefinir && (abiertos > 0 || esPregunta)) {
+  if (esperaTercero) {
+    notas.push('EL CLIENTE DICE QUE ESTA ESPERANDO LOS DATOS DE QUIEN RECIBE: se los tiene que mandar otra persona. PROHIBIDO volver a pedirselos en este turno. PROHIBIDO preguntarle cuando se los mandan. Acusale recibo en UNA linea corta y dile que quedas pendiente. Nada mas.');
+  } else {
+    notas.push('TODAVIA NO SE SABE POR QUE VIA RECIBE: no hay tarjeta, ni celular, ni cuenta Zelle en toda la conversacion. PROHIBIDO pedirle "la tarjeta y el celular": todavia no sabes si va a recibir en Cuba o por Zelle. PROHIBIDO pedirle "la cuenta Zelle". Si necesitas los datos de quien recibe, pideselos EN GENERICO, con esta frase: "¿Me pasa los datos de quien recibe?"');
+  }
+}
+if (rielOp) { notas.push('VIA ACTUAL DE LA OPERACION: ' + ({zelle:'Zelle',clasica:'tarjeta Clasica',tropical:'tarjeta Tropical',cuban_card:'CUP (tarjeta en pesos)',efectivo_usd:'efectivo en USD',recarga:'recarga',combo:'combo',visa:'visa',saldo:'saldo movil'}[rielOp] || rielOp) + '. Si el cliente DECIDE otra, llama cambiar_servicio; una pregunta de precio o hablar de otra persona NO es un cambio.'); }
+if (ctx.servicio_pendiente) { notas.push('EL CLIENTE YA ELIGIO ' + ctx.servicio_pendiente + ' (anotado, todavia no hay envio abierto): se aplica solo cuando se registre el envio.'); }
+// Estado exacto del envio abierto: para responder con precision a "como va lo mio"
+if (h && h.etapa_envio_abierto) {
+  const et = h.etapa_envio_abierto;
+  const monto = h.monto_envio_abierto ? (' (' + h.monto_envio_abierto + ')') : '';
+  let est = null;
+  if (et === 'Solicitada') { est = 'ESTADO REAL DEL ENVIO EN CURSO: anotado, pero su deposito TODAVIA NO HA LLEGADO. Si el cliente pregunta como va lo suyo, dile que estan pendientes de recibir el deposito. NO digas que se esta verificando: no hay nada que verificar aun.'; }
+  else if (et === 'Por verificar') { est = 'ESTADO REAL DEL ENVIO EN CURSO' + monto + ': el deposito YA LLEGO y esta EN VERIFICACION. Si el cliente pregunta como va lo suyo, dile que una persona lo revisa y le confirma por aqui.'; }
+  else if (et === 'Lista para transferir') { est = 'ESTADO REAL DEL ENVIO EN CURSO' + monto + ': el deposito YA FUE VERIFICADO y la transferencia esta por hacerse. Si el cliente pregunta como va lo suyo, dile que ya quedo verificado y que el equipo esta procesando la transferencia y le avisamos por aqui cuando este hecha. SIGUE sin poder confirmar que ya se envio: eso lo confirma el operador.'; }
+  else if (et === 'Incidencia') { est = 'ESTADO REAL DEL ENVIO EN CURSO' + monto + ': hay una INCIDENCIA y un operador la esta revisando. Si el cliente pregunta como va lo suyo, dile con calma que una persona lo revisa y le confirma por aqui. NO inventes el motivo ni prometas tiempos.'; }
+  // NO CONTRADECIR LA GUARDA DE BENEFICIARIO.
+  // El 10-ago esta nota decia "la transferencia sale enseguida" mientras la
+  // guarda de mas arriba decia "PROHIBIDO decir que le vas a hacer la
+  // transferencia". Dos ordenes opuestas en el mismo contexto: el modelo se
+  // quedo con la que prometia. El fallo era del contexto, no del modelo.
+  if (est && !sabeDestino) {
+    est = est
+      .replace(' Si el cliente pregunta como va lo suyo, dile que una persona lo revisa y le confirma por aqui.',
+               ' Si el cliente pregunta como va lo suyo, dile que lo estan verificando.')
+      .replace(' y la transferencia esta por hacerse.', '.')
+      .replace(' Si el cliente pregunta como va lo suyo, dile que ya quedo verificado y que el equipo esta procesando la transferencia y le avisamos por aqui cuando este hecha.',
+               ' Si el cliente pregunta como va lo suyo, dile que ya quedo verificado.')
+      + ' OJO: TODAVIA NO SE SABE A QUIEN TRANSFERIRLE, asi que PROHIBIDO decir que la transferencia sale enseguida, que se hace en breve o que se hara apenas se verifique. Primero pidele los datos de quien recibe.';
+  }
+  // RECARGA: el mismo estado, dicho con la palabra del servicio. Para el
+  // cliente una "transferencia" es dinero a una tarjeta; lo suyo es una recarga.
+  if (est && recargaEnCurso) {
+    est = est.replace(/la transferencia/g, 'la recarga')
+             .replace('A QUIEN TRANSFERIRLE', 'EL NUMERO A RECARGAR')
+             .replace('Primero pidele los datos de quien recibe.', 'Primero pide el numero a recargar.');
+  }
+  // COMBO: the same state, said with the service's words; a combo is never sent 'enseguida': a person calls first.
+  if (est && comboEnCurso) {
+    est = est.replace('el equipo esta procesando la transferencia y le avisamos por aqui cuando este hecha', 'una persona del equipo le llama para elegir los productos y despues se envia su combo')
+             .replace(/la transferencia/g, 'el envio del combo')
+             .replace('A QUIEN TRANSFERIRLE', 'LOS DATOS DEL DESTINATARIO DEL COMBO')
+             .replace('Primero pidele los datos de quien recibe.', 'Primero pide los datos del destinatario del combo.');
+  }
+  // VISA: the state said with the service's words; nothing is transferred, the team uploads the application.
+  if (est && visaEnCurso) {
+    est = est.replace('el equipo esta procesando la transferencia y le avisamos por aqui cuando este hecha', 'el equipo sube su aplicacion de extension de visa y le avisamos por aca')
+             .replace(/la transferencia/g, 'la aplicacion de la visa');
+  }
+  if (est && anotadaPara) { est = est.replace('el equipo esta procesando la recarga y le avisamos por aqui cuando este hecha', 'la recarga se hace el ' + anotadaPara + ', cuando empieza la promocion de Etecsa'); }
+  // Closed: nobody is processing it right now. Owner wording (2026-10-28): registered, processed from opening time.
+  if (est && !abierto) { est = est.replace(/el equipo esta procesando la (transferencia|recarga) y le avisamos/, (m, que) => 'la ' + que + ' queda registrada y se procesa a partir de las ' + HORA_ABRE_TXT + ' (hora de Guyana) y le avisamos'); }
+  if (est) { notas.push(est + ' Menciona el estado SOLO si el cliente pregunta por el; no lo sueltes por iniciativa propia.'); }
+}
+if (anotadaPara) {
+  notas.push('RECARGA ANOTADA PARA EL ' + anotadaPara + ': la promocion de Etecsa empieza ese dia y la recarga se hace ese dia. PROHIBIDO decir que se hace hoy, enseguida, en breve, en minutos o en cuanto abramos. Si el cliente ya pago, confirmale el deposito como siempre y dile que su recarga se hace el ' + anotadaPara + '. Si no ha pagado, puede pagar ahora o ese dia, como prefiera: no se lo exijas.');
+}
+if (toolsPendientes.length) {
+  notas.push('TOOL OBLIGATORIA EN ESTE TURNO: ' + toolsPendientes.join('. TOOL OBLIGATORIA EN ESTE TURNO: ') + '. Llamala UNA sola vez en este mismo turno. Ademas, respondele al cliente.');
+}
+// MLC: NO SE COTIZA (084). El MLC no esta en `cerebro_servicios` ni tiene tasa
+// en `tasas`, asi que preguntado por el, el modelo caia en la del DOLAR: el
+// 12-ago cotizo 13 MLC y el 13-ago 40 MLC, las dos a 260 GYD por unidad.
+// Va la ULTIMA de las notas A PROPOSITO: es la que tiene que ganar si choca con
+// cualquier otra instruccion de cotizar (25-la-colision-de-instrucciones).
+// Y el aviso al admin NO depende de esta nota: lo dispara `Control de abuso` en
+// SQL, antes del modelo, asi que sale aunque el modelo desobedezca.
+if (ctx.pide_mlc) {
+  notas.push('EL CLIENTE PREGUNTA POR MLC. PROHIBIDO darle ninguna cifra, tasa o equivalencia de MLC, y PROHIBIDO tratarlo como si fuera dolar: esa tasa cambia a diario y NO la tienes. NO llames a ninguna herramienta de calculo para esto. Di UNA sola linea natural: que para el MLC una persona del equipo le confirma la tasa por aqui, porque esa tasa cambia a diario. Si en el mismo mensaje pide ademas algo que SI sabes hacer (remesa en CUP, recarga, Zelle), esa parte la atiendes con normalidad.');
+}
+// REFERENCIA IMPOSIBLE: NO SE CONFIRMA NADA (087).
+// El 13-ago sanzjuanpastor mando una CAPTURA de otro chat que dentro tenia la
+// FOTO de un comprobante. La vision se invento las dos cifras: 5.000 GYD con
+// ref 10319372234891, cuando el comprobante decia 26.000 y 10395727229361.
+// El SQL ya manda ese deal a Incidencia (cerebro_registrar_deposito), pero eso
+// el cliente no lo ve: sin esta nota el modelo le seguia diciendo "recibimos su
+// deposito de 5,000 GYD", que era falso.
+// La regla es la misma de `cerebro_transid_plausible`: el contador de MMG solo
+// crece, asi que por debajo del suelo historico no puede existir. El suelo lo
+// sirve `Contexto conversacion` desde cerebro_config.
+// Va la ULTIMA para ganar cualquier colision con las notas de confirmacion.
+try {
+  const piso = Number(ctx.transid_minimo || 0);
+  const refs = (s.comprobantes || []).map(c => String(c?.referencia || '').replace(/[^0-9]/g, ''))
+                 .filter(x => x.length > 0);
+  const imposible = piso > 0 && refs.length > 0 && refs.some(x => Number(x) < piso);
+  if (imposible) {
+    notas.push('LA REFERENCIA DEL COMPROBANTE ES IMPOSIBLE: ese numero no puede ser un TransID de MMG, casi seguro se leyo mal de una CAPTURA de pantalla o de una foto de otra pantalla. PROHIBIDO decir que se recibio el deposito, PROHIBIDO repetir el importe y PROHIBIDO dar ninguna cifra de este comprobante. Di en UNA linea que la imagen no se ve con claridad y pidele que mande el comprobante ORIGINAL de MMG, no una captura de otro chat. Ya esta avisado el equipo.');
+  }
+} catch (e) {}
+let mensaje = texto || '(el cliente envio solo imagenes, sin texto)';
+// NO OPEN SEND AND NO NEW REQUEST (2026-11-06): detected recipient data does not order a registration tool; the model asks first.
+// "Open operation" = any of: Historial.envios_abiertos > 0, an open stage, ctx.riel_operacion, a registered beneficiary of an open
+// operation, ctx.tiene_beneficiario, a recarga/combo/visa in progress. "New request" = a receipt in this turn, ctx.servicio_pendiente
+// or a send verb in the customer's text.
+const hayEnvioAbierto = abiertos > 0 || !!(h && h.etapa_envio_abierto) || !!ctx.riel_operacion || regBen.length > 0 || !!ctx.tiene_beneficiario || recargaEnCurso || comboEnCurso || visaEnCurso;
+const pideEnvioNuevo = !!s.comprobante || !!ctx.servicio_pendiente || /\b(quiero|quisiera|necesito|voy a|vamos a|puedo)\b|\b(enviar|enviarle|enviarles|mandar|mandarle|envio|remesa|transferir|depositar|recarga|recargar)\b/i.test(texto);
+// (375) Capture mode never opens a send out of loose data: with no open send and no new request the chat stays silent, as before.
+if (g375Captura && !hayEnvioAbierto && !pideEnvioNuevo) { return [{ json: { ruta: 'silencio', motivo: g375Humano } }]; }
+if (!hayEnvioAbierto && !pideEnvioNuevo) {
+  const ordenaRegistro = (n) => /^(TARJETA Y CELULAR DETECTADOS PERO NO REGISTRADOS|DATOS DE ZELLE DETECTADOS|TODAVIA NO HAY BENEFICIARIO REGISTRADO|TOOL OBLIGATORIA EN ESTE TURNO: registrar_beneficiario_zelle|VARIAS CUENTAS ZELLE DETECTADAS|ENVIO A VARIOS BENEFICIARIOS)/.test(n);
+  if (notas.some(ordenaRegistro)) {
+    for (let i = notas.length - 1; i >= 0; i--) if (ordenaRegistro(notas[i])) notas.splice(i, 1);
+    notas.push('No hay ningun envio abierto: antes de registrar estos datos pregunta si son para un envio nuevo.');
+  }
+}
+if (g375Captura) {
+  // The capture order goes FIRST and LAST; notes that order an answer are dropped (they would fight it for nothing).
+  const g375Nota = 'MODO CAPTURA (MANDA sobre todas las demas notas): un companero del equipo esta atendiendo este chat ahora mismo. NO le respondas al cliente: tu respuesta final debe ser exactamente SKIP, sin nada mas. Tu UNICO trabajo en este turno es GUARDAR, con las herramientas de registro, los datos que el cliente escribio en este mensaje: tarjeta y celular, cuenta y titular de Zelle, numeros a recargar, datos de entrega en efectivo, destinatario de Mexico o de combo, o el reparto entre varias personas. Usa solo lo que el cliente escribio, tal cual; no inventes ni completes nada. PROHIBIDO llamar derivar_humano, cambiar_servicio, repartir_envio o las herramientas de calculo: eso lo decide el companero. Si en el mensaje no hay ningun dato que guardar, no llames ninguna herramienta. Termina con SKIP.';
+  for (let i = notas.length - 1; i >= 0; i--) if (/^(ESTE LOTE TRAE DATOS NUEVOS|No hay ningun envio abierto)/.test(notas[i])) notas.splice(i, 1);
+  notas.unshift(g375Nota);
+  notas.push('RECUERDA: MODO CAPTURA. Guarda los datos con las herramientas y responde solo SKIP.');
+}
+if (notas.length) { mensaje += '\n\n[CONTEXTO DEL SISTEMA - el cliente NO ve esto]\n- ' + notas.join('\n- ');
+}
+// ---------------------------------------------------------------------------
+// PLAN SEMANTICO (fase 4C). ADITIVO: no cambia ni una decision del Decisor.
+// El texto de `mensaje` sale exactamente igual que en BLUE; esto es una lectura
+// en forma de datos de lo que el Decisor YA decidio, para que el renderer pueda
+// comprobar cifras y repeticiones sin leer prosa. Si algo falla aqui, `plan`
+// vale null y el renderer se aparta.
+// ---------------------------------------------------------------------------
+let plan = null;
+try {
+  let cruceP = null;
+  try { cruceP = $('Cruzar deposito con MMG').first().json ?? null; } catch (e) {}
+  const veredicto = String(cruceP?.resultado ?? '');
+  const comp = s.comprobante || null;
+
+  const hechos = {};
+  if (cruceP && cruceP.depositado !== null && cruceP.depositado !== undefined) {
+    hechos.deposito = { valor: Number(cruceP.depositado), moneda: 'GYD', fuente: 'libro' };
+  } else if (comp && Number(comp.monto) > 0) {
+    hechos.deposito = { valor: Number(comp.monto), moneda: String(comp.moneda || 'GYD'), fuente: 'vision' };
+  }
+  if (tarjetaCtx) { hechos.beneficiario_tarjeta = { termina_en: String(tarjetaCtx).slice(-4), fuente: 'registrado' }; }
+  if (celularCtx) { hechos.beneficiario_celular = { fuente: 'registrado' }; }
+  if (zelleCompleto) { hechos.zelle = { titular: !!zelleNomCtx, cuenta: !!zelleCtaCtx, fuente: 'registrado' }; }
+  hechos.horario = abierto ? (ctx.por_cerrar ? 'proximo_a_cerrar' : 'abierto') : 'cerrado';
+  hechos.presentacion = h.primer_del_dia ? 'primer_contacto_del_dia' : 'ya_presentado';
+  hechos.deposito_estado = veredicto.startsWith('verificado') ? 'verificado'
+                          : (comp ? 'registrado' : (ctx.via_deposito_ya_usada ? 'hecho' : null));
+
+  const intents = [];
+  if (h.primer_del_dia) { intents.push('greet'); }
+  if (comp && !s.comprobante_duplicado) { intents.push('confirm_deposit'); }
+  if (sabeDestino && (tarjetaCtx || zelleCompleto)) { intents.push('confirm_beneficiary'); }
+  if (!sabeDestino) { intents.push('request_beneficiary'); }
+  else if (!comp && !ctx.via_deposito_ya_usada) { intents.push('request_receipt'); }
+  if (esperaTercero) { intents.push('acknowledge_waiting'); }
+  if (ctx.pide_mlc) { intents.push('handoff'); }
+
+  const estado = ctx.pide_mlc ? 'handoff'
+               : (!sabeDestino ? 'collection'
+               : (comp ? 'instruction' : 'collection'));
+
+  const siguiente = !sabeDestino ? 'dar_beneficiario'
+                  : (!comp && !ctx.via_deposito_ya_usada ? 'mandar_comprobante'
+                  : (esperaTercero ? 'esperar' : 'ninguna'));
+
+  const riesgo = (!sabeDestino && comp) ? 'confirmar_beneficiario'
+               : (comp && !veredicto.startsWith('verificado') ? 'confirmar_importe'
+               : (ctx.pide_mlc ? 'persona_pendiente' : 'ninguno'));
+
+  const prohibido = [];
+  if (!sabeDestino) { prohibido.push('prometer_transferencia'); }
+  if (ctx.pide_mlc) { prohibido.push('dar_cifras_de_mlc'); }
+  prohibido.push('explicar_formatos', 'narrar_sistemas_internos', 'tutear');
+
+  plan = {
+    version: 1,
+    estado,
+    idioma: (String(ctx.muestra_idioma || '').length && avisoIdioma) ? 'en' : 'es',
+    trato: 'usted',
+    intents,
+    hechos,
+    siguiente_accion: siguiente,
+    riesgo,
+    paquetes_atomicos: [['deposito.valor', 'deposito.moneda'],
+                        ['beneficiario_tarjeta.termina_en', 'beneficiario_celular']],
+    prohibido,
+    verbosidad: estado === 'instruction' ? 'estructurada' : 'concreta',
+    contexto_chars: notas.length ? mensaje.length - texto.length : 0,
+  };
+} catch (e) { plan = null; }
+
+return [{ json: { ruta: 'agente', mensaje, telefono_e164: tel,
+                  conversation_id: s.conversation_id, plan,
+                  ...(g375Captura ? { captura: true, motivo_captura: g375Humano } : {}) } }];

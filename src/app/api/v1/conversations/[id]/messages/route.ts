@@ -13,7 +13,7 @@ import {
   keysetFilter,
   buildPage,
 } from '@/lib/api/v1/pagination';
-import { serializeMessage } from '@/lib/api/v1/conversations';
+import { serializeMessage, withSignedMedia } from '@/lib/api/v1/conversations';
 import type { Message } from '@/types';
 
 export async function GET(
@@ -55,10 +55,10 @@ export async function GET(
       (data ?? []) as Array<{ created_at: string; id: string }>,
       limit
     );
-    return okList(
-      items.map((m) => serializeMessage(m as unknown as Message)),
-      nextCursor
+    const messages = await Promise.all(
+      items.map((m) => withSignedMedia(serializeMessage(m as unknown as Message), ctx.accountId))
     );
+    return okList(messages, nextCursor);
   } catch (err) {
     return toApiErrorResponse(err);
   }

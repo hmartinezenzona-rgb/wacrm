@@ -68,9 +68,24 @@ export interface InteractiveListPayload {
   sections: InteractiveListSection[]
 }
 
+export interface InteractiveCtaUrlPayload {
+  kind: 'cta_url'
+  /** Body text shown above the URL button (≤ 1024 chars). */
+  body: string
+  /** Optional plain-text header (≤ 60 chars). */
+  header?: string
+  /** Optional grey footer line (≤ 60 chars). */
+  footer?: string
+  /** Visible label on the URL button (≤ 20 chars per Meta). */
+  button_label: string
+  /** http(s) URL the button opens (the panel's /grupo redirect). */
+  url: string
+}
+
 export type InteractiveMessagePayload =
   | InteractiveButtonsPayload
   | InteractiveListPayload
+  | InteractiveCtaUrlPayload
 
 export type InteractiveValidation =
   | { ok: true }
@@ -223,7 +238,32 @@ export function validateInteractivePayload(
     return ok()
   }
 
-  return fail('Interactive message must be reply buttons or a list.')
+  if (p.kind === 'cta_url') {
+    const cta = p as InteractiveCtaUrlPayload
+    if (typeof cta.button_label !== 'string' || cta.button_label.trim() === '') {
+      return fail('The CTA button needs a label.')
+    }
+    if (cta.button_label.length > INTERACTIVE_LIMITS.buttonTitleMaxLength) {
+      return fail(
+        `CTA button label exceeds the ${INTERACTIVE_LIMITS.buttonTitleMaxLength}-character limit.`,
+      )
+    }
+    if (typeof cta.url !== 'string' || cta.url.trim() === '') {
+      return fail('The CTA button needs a URL.')
+    }
+    let parsed: URL
+    try {
+      parsed = new URL(cta.url)
+    } catch {
+      return fail('The CTA URL is invalid.')
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return fail('The CTA URL must be http(s).')
+    }
+    return ok()
+  }
+
+  return fail('Interactive message must be reply buttons, a list or a CTA URL.')
 }
 
 /**
@@ -235,5 +275,7 @@ export function interactivePayloadPreviewText(
 ): string {
   const body = payload.body?.trim()
   if (body) return body
-  return payload.kind === 'buttons' ? '[buttons]' : '[list]'
+  if (payload.kind === 'buttons') return '[buttons]'
+  if (payload.kind === 'list') return '[list]'
+  return '[cta_url]'
 }

@@ -218,6 +218,15 @@ export interface DeliveryProofDraft {
    * update only writes `stage_id`.
    */
   sentWamid?: string;
+  /**
+   * The storage path `sentWamid`'s image was uploaded to. Only ever set
+   * alongside `sentWamid`, by the per-beneficiary delivery-proof flow
+   * (`send-beneficiary-proofs.ts`), so the final `deliverDeal` call can
+   * still report it on the operation-level `delivery_proof_path`. Absent
+   * on an ordinary single-proof stage-failure retry — that one only ever
+   * carried `wamid` forward, unchanged from before this field existed.
+   */
+  sentPath?: string;
 }
 
 /**

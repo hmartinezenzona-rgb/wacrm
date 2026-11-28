@@ -1,0 +1,535 @@
+# Production cutover — Sunday 2026-09-27
+
+Everything built so far on `feat/port-chat-operations-calculator` must be live in production
+on Sunday. The business is closed on Sundays; Monday 2026-09-28 starts on the new system.
+Who executes: the user (production writes are human-run), the assistant prepares and checks.
+
+## State of production (verified read-only 2026-09-26)
+
+Already live:
+- Migration 119/120 (aged operations RPC) — applied 2026-09-24.
+- Migration 122 (promo validity by Guyana day) — applied 2026-09-26.
+- ETECSA monitor filter fix (n8n `vk6aEa4bOZtl5xSz`, version ca7d5557…) — applied 2026-09-26.
+
+Missing (none of these objects exist in production yet):
+- Migrations 095–118 (calculator ledger, operations panel RPCs, deposit review, delivery,
+  rates, ledger feed, retire of the sync pipeline 114, dashboard RPCs 116–118).
+- Migration 121 (financial close on /resumen).
+- The application code of this branch (production still runs the old build).
+- The repointed customer notifier (n8n `wGud0KGR6eMqqfMQ`).
+
+Note: production's `supabase_migrations` also holds the Cerebro series (`102_pausa_humana_caduca`,
+`108_reintento_avisado`, …). Same numbers, different migrations — check by object, not by name.
+
+## Checklist, in order
+
+1. [ ] Pre-checks (read-only, production SQL editor):
+   `supabase/staging/check-production-clean.sql`, `supabase/staging/check-shared-fingerprint.sql`.
+   Stop if anything FAILs.
+2. [x] Backup of the production database before any write. Supabase Free plan: NO automatic
+   backups and no point-in-time recovery (Supabase docs recommend exporting yourself).
+   `bash supabase/cutover/respaldar-base.sh produccion` → `~/wacrm-respaldos/produccion-<UTC>.dump`
+   (pg_dump 17 in the postgres:17 image, schemas public/auth/storage, custom format) + .list +
+   .sha256. Needs `~/.config/wacrm/prod-db.env` with `PROD_DATABASE_URL=` (session pooler URI,
+   created by the user; the script refuses a URL of the other project). Tested 2026-09-26 on
+   staging: 101 tables with data, 187 functions; test-restore into an empty Postgres 17 gave
+   identical counts (messages 23, conversations 1, operations 4, auth.users 2); only errors were
+   `ai_knowledge_chunks` needing pgvector (present on Supabase) and "schema public exists".
+   Take one on Saturday as well, so there are two.
+   - 2026-09-26 (user OK): production read-only backup user `respaldo_lectura` (LOGIN, INHERIT,
+     BYPASSRLS, member of pg_read_all_data, default_transaction_read_only=on, connection limit 3;
+     only a SCRAM verifier was sent; password generated locally, lives only in
+     `~/.config/wacrm/prod-db.env`, host aws-0-us-east-1.pooler.supabase.com). Chosen instead of
+     resetting the `postgres` password, which n8n uses (Cerebro, notifier, vigilantes, outbox).
+     Verified: reads (15,633 messages, 562 operations, 6 users), writes refused.
+     Remove with `DROP ROLE respaldo_lectura;`.
+   - SATURDAY BACKUP TAKEN: `~/wacrm-respaldos/produccion-20260926T162600Z.dump` (5.8 MB, 96
+     tables with data, 133 functions). Test restore: messages 15,633, operations 562, users 6 —
+     identical to production. Take the Sunday one right before step 3.
+3. [x] Legacy open operations — DECIDED (user, 2026-09-26): start from zero, not carried over.
+   Must run BEFORE migrations 095+ (at the latest before 104, the ledger feed).
+   - 3a `supabase/cutover/2026-09-27-01-revisar-operaciones-legado.sql` (read-only): totals and the
+     ones touched in the last 48 h. On 2026-09-26: 98 open (55 ready_to_transfer → completed,
+     43 others → cancelled), 10 touched in the last 48 h — review those with the team.
+   - 3b `supabase/cutover/2026-09-27-02-cerrar-operaciones-legado.sql` (write): put live
+     customers' ids in `v_keep`, run once. Deals are not touched (they carry notification
+     triggers). Keeps a record in `cutover_legacy_ops_2026_09_27`; refuses if 104 is applied;
+     aborts if any row does not reach its new status. Tested on staging (rolled back): completed,
+     cancelled and kept cases correct; the 104 guard refuses.
+   - CHANGED (user, 2026-09-27): NOT from zero. Many legacy open operations are still to be
+     done, so they STAY OPEN and move to the new panel. Only the ones the user confirms, one by
+     one, as already done in the chat are closed, without any customer message:
+     before the migrations → `status = 'completed'` on remittance_operations only (deals are not
+     touched: their stage trigger notifies customers; ops only have the timestamp trigger);
+     ALSO move the deal, because the legacy CRM shows DEALS ("Lista para transferir"): in ONE DO
+     block, `ALTER TABLE deals DISABLE TRIGGER deals_stage_notify` → `UPDATE deals SET stage_id =
+     Entregada (1b36b34c…)` guarded by id + stage + status (the remaining triggers mark it won,
+     stamp entregado_en and keep the op completed) → `ENABLE TRIGGER` → RAISE if the
+     net.http_request_queue count changed or if the row count is not 1. The MCP role (postgres,
+     table owner) CAN do this; it CANNOT `SET session_replication_role` in production (42501).
+     After the cutover (114 applied) → same pattern on remittance_operations: disable
+     `trg_notify_operation_status_change` and `zzz_remittance_operations_calculator_feed`, set
+     completed, re-enable, check the queue (and that no ledger row was added). Always completed
+     (user, 2026-09-27), never cancelled. Step 3b is NOT run.
+   - Manual closes log:
+     - 2026-09-27 07:54 GY — `feecb06d-4e08-4503-9b48-f3e6561dc162`, Carlos +5926731279,
+       6,200 GYD (a recarga, recorded as remesa), ready_to_transfer → completed; its deal
+       4a0a5a0a… moved silently to Entregada/won at 08:01 GY (pg_net queue unchanged).
+     - 2026-09-27 08:06 GY — `602282f3-7286-435e-90b4-397bca4d526d`, Carlos +5926731279,
+       55,000 GYD, deposit_verification → completed; deal c3cb8ec8… Por verificar → Entregada/won
+       (done in the chat by an admin; pg_net queue unchanged).
+     - 2026-09-27 ~08:15 GY — Yilian Barbara Hernandez +5926595697, 4 ops ready_to_transfer →
+       completed, deals Lista para transferir → Entregada/won (26,000 · 80,600 · 26,000 · 56,000
+       GYD; ops 8d73bd48…, 751eeeb1…, fab2bd87…, 824ae732…). No other open ops; queue unchanged.
+     - Same client: recarga 6,200 GYD d50d7fc7… was ALREADY completed/Entregada since 2026-09-22.
+     - 2026-09-27 — Yusmila +5927212465, recarga 6,200 GYD (op 77369f06…) → completed, deal
+       f2ceac94… → Entregada/won; queue unchanged. KEPT OPEN (not done yet): recarga 15,500 GYD
+       (op 12510beb…).
+     - 2026-09-27 — Josefa +5926176300: one 25,400 GYD deposit (Ref MMG 10401353010941,
+       2026-09-23) was really Zelle 50 USD + 2 recargas × 6,200. SPLIT (silently: deals_insert_notify
+       and deals_stage_notify disabled inside the DO block, queue unchanged): deal 2cd9a053… / op
+       487564e6… → "Remesa Zelle +5926176300", 13,000 GYD, USD 50 (keeps the receipt and the
+       THETANDEM TEAM LLC beneficiary); new deals dbe7a7e8… and 650f6a87… "Recarga (1|2 de 2)",
+       6,200 each, their ops created by the bridge and set to recarga. Sum checked = 25,400. All
+       three then completed silently (ops completed, deals Entregada/won; queue unchanged). No
+       other open ops for this client.
+     - 2026-09-27 — Yaquelin +5927414004, remesa 13,000 GYD (op 2a4fde65…) → completed, deal
+       c94018b2… → Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Yohandi +5926132064, remesa 5,000 GYD (op b4a75197…) → completed, deal
+       fb96a1c8… → Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Jose +5926328415, remesa 68,400 GYD (op a8fcb7f2…) → completed, deal
+       e6a236c1… → Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Kirenia +5927511485, remesa 5,000 GYD (op 7afa23fc…) → completed, deal
+       e64b1b2b… → Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Norma +5926800266, 2 remesas: 14,300 GYD (op 0f476cb9…, deal 7c9d1671…) and
+       27,560 GYD (op 6b19e3eb…, deal 1aae3065…) → completed, Entregada/won; queue unchanged. No
+       other open ops.
+     - 2026-09-27 — Juan Carlos Marrero +5927657827: remesa Zelle 26,000 GYD (op 3f0fec82…, deal
+       80fe201c…, deposit verified with MMG) → completed, Entregada/won; and 39,000 GYD (op
+       dc2d7139…, deal d08598ef…, was "Por verificar", deposit not crossed with MMG) → completed,
+       Entregada/won after the user's rule below; queue unchanged. No other open ops.
+     - RULE (user, 2026-09-27): whatever the user pastes here was already done and checked
+       visually by the user in the chat, so it is completed REGARDLESS of its current status.
+       Do not ask about the status again.
+     - 2026-09-27 — zuleika7610 +5927221885, 4 ops of 2026-09-21: remesa 12,400 (35176e5d…) and
+       recargas 6,200 (088429f1…), 12,400 (184f4627…) — all three "Por verificar" — plus recarga
+       12,520 (9769c783…, Lista para transferir) → completed, Entregada/won; queue unchanged. No
+       other open ops.
+     - 2026-09-27 — Frexi +5927567438, 3 remesas: 15,000 (6f15978b…), 20,000 (cd5266d4…),
+       100,000 GYD (254415ab…) → completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Rubislandi +5926338345: remesa 28,600 (dab0ad10…), recarga 14,400 (e6f4bc83…),
+       remesa 10,000 GYD (58cab916…) → completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Michel Pérez +5926538679, remesa 52,000 GYD (op 969a7627…, deal 42aab435…) →
+       completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Suleidy +5927030476, remesa 24,700 GYD (op f8a0441d…, deal 677033ce…) →
+       completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Onelsi Suriel Gamboa +5927570987, remesa 13,000 GYD (op 5ff8d00c…, deal
+       bc21b770…) → completed, Entregada/won; queue unchanged. Leftover op 712d5b2d…
+       (collecting_information, 0 GYD, 2026-09-12, deal d4ecb01c… already LOST) → CANCELLED on the
+       user's OK (op only; the deal was left lost); queue unchanged.
+     - 2026-09-27 — bladimir +5926095231, 3 remesas: 15,000 (20d3a23b…), 5,000 (c28a1618…),
+       15,000 GYD (5f89d983…) → completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Idalmis +5927641874, remesa 13,000 GYD (op 7844b27d…, deal 7e143741…) →
+       completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Luis Enrique +5927661903: remesa 52,000 GYD (op 4433d370…, deal 35b635b7…) →
+       completed, Entregada/won. DUPLICATE verified: the "Incidencia" 15,000 (op 0c8b2e2e…, deal
+       71c62953…, 2026-09-26 18:22) carries the SAME MMG Ref 20401623619989 as the open 15,000
+       (op d034cc51…, deal 27b05adb…, 17:37, verified) — the bot itself flagged "TransID ya fue
+       usado". Duplicate deal → lost (stage kept, note added; NOT deleted, since deleting a deal
+       frees its deposits), op → cancelled; deals_stage_notify and trg_notify_deal_incidencia
+       disabled only inside the block; queue unchanged. KEPT OPEN: the verified 15,000.
+       Then, on the user's request ("solo ensucia"), the duplicate op and deal were DELETED (op
+       first, 0 beneficiaries; the deal had no deposit attached, and the MMG deposit stays attached
+       to the good deal 27b05adb…, checked inside the block; queue unchanged). Row backup:
+       `~/cerebro-fase1/BORRADO-duplicado-luis-enrique-2026-09-27.json`.
+     - 2026-09-27 — Katia +5926432832, 2 remesas: 120,000 (97bdadb3…) and 52,000 GYD (91a605f9…)
+       → completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Eliandro +5927604004, remesa 41,600 GYD (op b0f3237c…, deal 96608ff3…) →
+       completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — zulemysd +5926412028, 2 remesas of 5,000 GYD — NOT duplicates (different MMG
+       refs 20400924714357 / 20400995214519, 18-sep and 19-sep, both verified): ops 27ece136…,
+       0cd781ce… → completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Nesty +5926047103, remesa 26,000 GYD (op 5c10a23d…, deal d2e27791…) →
+       completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Wander +5926669732, remesa 52,000 GYD (op 38885a02…, deal e7138fc0…) →
+       completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — "Osmany Services" +5926762167 (the business's own MMG agent number; admin test
+       sends, per the user): 114,000 (c7c8d5cc…, Lista), 5,000 (fc30e135…, Por verificar), 5,000
+       GYD (f254d0ea…, Por verificar) → completed, Entregada/won; queue unchanged. No other open ops.
+       MMG email check: the 114,000 (Ref 10400751412195) IS in depositos_mmg and attached to its
+       deal. The two 5,000 (Refs 20400749845117, 20401268979551) are NOT in the MMG emails, neither
+       exact nor any nearby 5,000 email. The user decided to leave them completed anyway.
+     - 2026-09-27 — Suset +5926142690, remesa 5,000 GYD (op a1b31bd5…, deal 5f330d08…) →
+       completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Yuni +5926508036, remesa 5,000 GYD (op 18308748…, deal 5fdaa71e…) →
+       completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Carlos Mora +5927410946: remesa 13,000 GYD (op 0543a69f…, deal 59a81cc4…,
+       verified) → completed, Entregada/won. PHANTOM 4,000 in Incidencia (op d7b62e3c…, deal
+       a2a577d8…, 2026-09-15, Ref 20400641076995): no MMG email with that ref, no similar ref, and
+       no 4,000 GYD email at all from 14 to 16-sep → a vision misread, confirmed. DELETED on the
+       user's request (op first; its Zelle beneficiary Yamile Dominguez 6023173696 cascaded — it
+       was the only beneficiary record in this chat). The 13,000's MMG deposit stayed attached
+       (checked in the block); queue unchanged. Backup:
+       `~/cerebro-fase1/BORRADO-lectura-falsa-carlos-mora-2026-09-27.json`. No other open ops.
+     - 2026-09-27 — Gerardo Perez +5927672634, remesa 52,000 GYD (op 2eb89569…, deal 0a6e36c6…) →
+       completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Yeny Victor +5926457239, remesa 5,000 GYD (op 12778d31…, deal 455f38c6…) →
+       completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Daney Ruiz Ferrer +5927661933: remesa 42,900 GYD (op d97f3533…, deal 29b2f3bd…,
+       2026-09-14, verified) → completed, Entregada/won; queue unchanged. KEPT OPEN (checked in the
+       chat, not done yet): 23,400 GYD (op 53d4e1f0…, deal a363f0d7…, 2026-09-26 16:50, MMG Ref
+       10401620838334 verified). Chat after it: the customer asked to split it 40 USD to Zelle
+       Prime Store LLC 7024061317 + 50 USD to Marlen Comendeiro 13059880166 (90 USD = 23,400 at 260).
+       No beneficiary is recorded on the operation yet.
+     - 2026-09-27 — Raúl Cliente +5926755451, remesa 52,000 GYD (op ac2638c5…, deal 176e9201…) →
+       completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Yosvany Reyes +584124952619, remesa 7,800 GYD (op b7876115…, deal 214c2a5a…) →
+       completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — yankiermartinez4 +5926190193, remesa 27,300 GYD (op abf090a9…, deal 4f44c82a…) →
+       completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Yerani +5926723370, remesa 7,340 GYD (op 1e43b287…, deal 368f65bf…) →
+       completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Jeoendri +5927027342, remesa 13,120 GYD (op 27bed593…, deal 59f09f1f…) →
+       completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Yoandy cruz +5926597626: remesa 10,000 (op 6837ee78…, verified), remesa 26,000
+       (op 14c7740f…, Incidencia: "imagen no reconocida", Mercado Pago card) and recarga 5,200 →
+       CORRECTED to 6,200 GYD (op 2e8b96a6…, deal e1ea7a22…, Incidencia: vision misread flagged as
+       "referencia imposible"; deal value + op amount fixed, note "CORREGIDO a mano" added) → all
+       three completed, Entregada/won; deals_stage_notify + trg_notify_deal_incidencia disabled
+       only inside the block; queue unchanged. No other open ops.
+     - 2026-09-27 — Yordan +5927463380, remesa 13,500 GYD (op eb6f76fc…, deal 413c1f81…) →
+       completed, Entregada/won; queue unchanged. Leftover 66ba1e21… (collecting_information, 0 GYD,
+       2026-08-17, deal bcccd429… already LOST) → CANCELLED on the user's OK (op only); queue
+       unchanged. No other open ops.
+     - 2026-09-27 — adrianjerezperez4 +5926930995, remesa 26,000 GYD (op e1401727…, deal ae81c960…) →
+       completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — JoseM +5927674896, remesa 26,000 GYD (op 4d0c828d…, deal 207337df…) →
+       completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Javier +5927662165, remesa 13,000 GYD (op 5ac0620d…, deal d31c42bf…) →
+       completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Osmany Martinez leyva +5927142471, empty request (0 GYD, Solicitada, 2026-09-24;
+       op de56ea57…, deal 8708e5dd… still OPEN) → CANCELLED on the user's request: deal first →
+       lost (stage kept; deals_stage_notify disabled only inside the block, because the bridge
+       re-derives the op status from the stage on every deal update), then op → cancelled; queue
+       unchanged. No other open ops.
+     - 2026-09-27 — LEAH +5927216685, empty request (0 GYD, Solicitada, 2026-09-22; op 9013b9ae…,
+       deal 02877b98…) → CANCELLED the same way (deal lost, then op cancelled); queue unchanged.
+       No other open ops.
+     - 2026-09-27 — Miguel +5927678574, 2 remesas "Por verificar": 32,500 (op 9276e528…) and
+       52,000 GYD (op fba44f2e…) → completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Shenille +5926845438, 2 remesas "Por verificar": 14,300 (op a89e120a…) and
+       22,100 GYD (op eb59bf86…) → completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Danier Ramon Zaldivar +5927607414, remesa 52,000 GYD "Por verificar" (op
+       2e27ebe9…, deal c9d4c832…) → completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Laritza +5927496855, remesa 30,000 GYD "Por verificar" (op d8513022…, deal
+       8521c2e2…) → completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Adriadni +5926439566: the 5,000 complement is already inside the Zelle 78,000
+       (op df4e9d65…, deal 9331ecd7…, Entregada; MMG 73,000 deposit attached). It was registered 3
+       extra times: 2 in Adriadni's chat ("Por verificar", ops 38f7dd2b… and d79f7bce…, misread
+       refs) and 1 in the admin contact "Osmany Services" (op f254d0ea…, deal 1695451a…, completed
+       earlier today as an "admin test") with the SAME Ref 20401268979551 — the admin had
+       forwarded Adriadni's receipt. All three ops + deals DELETED on the user's OK (no
+       beneficiaries, no deposits attached; the 78,000 and its deposit checked unchanged inside
+       the block; queue unchanged). Backup:
+       `~/cerebro-fase1/BORRADO-complemento-5000-adriadni-2026-09-27.json`. This corrects the
+       earlier "Osmany Services" entry: only its 114,000 and one 5,000 remain completed.
+     - 2026-09-27 — Liseth +5927250236, remesa 13,000 GYD "Por verificar" (op 184fbdc6…, deal
+       0c3d2676…; its ref appears in no other op) → completed, Entregada/won; queue unchanged. No
+       other open ops.
+     - 2026-09-27 — Enrrique +5927622595, remesa 15,000 GYD "Por verificar" (op f841b689…, deal
+       a668ce5a…, ref unique) → completed, Entregada/won; queue unchanged. Leftover 5c2be9eb…
+       (collecting_information, 0 GYD, 2026-08-17, deal da85a046… already LOST) → CANCELLED on the
+       user's OK (op only); queue unchanged. No other open ops.
+     - 2026-09-27 — BULK, on the user's OK: the remaining 6 leftovers of the same kind (open op,
+       collecting_information, 0 GYD, deal already LOST) → CANCELLED by exact id (op only; deals
+       untouched; queue unchanged). marlene Diaz 5927337802 (4f9a4eae…, 2026-08-22), Surany
+       5927559217 (244f707a…, 08-29), Adrismir 5926396623 (a9ce95db…, 09-01), Dannier Zaldibar
+       5927114087 (325bf8f7…, 09-01), Jaila 5926804067 (509f47cd…, 09-14), Librada 5926456891
+       (ba056b93…, 09-23). Afterwards: 0 leftovers of this kind remain in production.
+     - 2026-09-27 — Luis Peres +5927317368, remesa 5,000 GYD "Por verificar" (op 9cda02f0…, deal
+       69fe9b24…, ref unique) → completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Onaisy Avilas Torres +5926392831, recarga 5,200 → CORRECTED to 6,200 GYD (op
+       bf93c90a…, deal 9b3f3605…, "Por verificar", vision misread; note "CORREGIDO a mano") →
+       completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — Jisckly +5926284148, 2 ops in Incidencia ("TransID existe en MMG pero el monto
+       no coincide"); the MMG emails confirmed the user's amounts: remesa 55,000 → 65,000 (op
+       4b60f25b…, deal 7e55ce07…, TransID 10400648768012) and 69,200 → recarga 6,200 (op 4fc6bd54…,
+       deal 4a7dcc20…, retitled "Recarga", service_type recarga, TransID 20401536969020). Amounts
+       fixed with "CORREGIDO a mano" notes, both MMG deposits attached (deal_id + consumido_en; no
+       triggers on depositos_mmg), both completed, Entregada/won; deals_stage_notify +
+       trg_notify_deal_incidencia disabled only inside the block; queue unchanged. No other open ops.
+     - 2026-09-27 — Katalella +5926967250, Incidencia 0 GYD (op 6bb504a4…, deal f24092be…, App MMG /
+       Pay Merchant, no legible TransID; Zelle beneficiary LAMREY EXPRESS LLC) → CORRECTED per the
+       user to 13,000 GYD / 50 USD Zelle (note "CORREGIDO a mano"), completed, Entregada/won; queue
+       unchanged. NOT attached: the only 13,000 MMG email that day (10401528883918, 15:17 GY) came
+       30 min AFTER the op (14:47) and may belong to another client. No other open ops.
+     - 2026-09-27 — Yaimary +5927137352, 2 Incidencia ops where the bot SUMMED the same receipt sent
+       twice: 104,000 → 52,000 / 200 USD Zelle (op cbb61abd…, deal 2b836fed…, same TransID
+       10401249664068 twice) and 26,000 → 13,000 / 50 USD Zelle (op 22ef3cf1…, deal 5d980d65…;
+       20401508816636 + misread copy 20410508816636). Amounts fixed with notes, MMG deposits
+       attached (52,000 on 22-sep and 13,000 on 25-sep, both confirmed by email), both completed,
+       Entregada/won; notify triggers disabled only inside the block; queue unchanged. No other
+       open ops.
+     - 2026-09-27 — Cutié +5926750011, Incidencia 13,000 GYD (op a83aa92c…, deal c1ffd3d8…): the receipt
+       was paid to Jorfan Agreda, NOT to Osmany ("Destino correcto: NO") → op + deal DELETED on the
+       user's request (no deposit, no beneficiary; queue unchanged). Backup:
+       `~/cerebro-fase1/BORRADO-destino-incorrecto-cutie-2026-09-27.json`. No other open ops.
+     - 2026-09-27 — Julio +5927639246, 2 Incidencia ops: 40,000 → 20,000 GYD (op a3b77070…, deal
+       404a8dd7…, same TransID 10401007444522 summed twice; MMG email says 20,000) and 5,000 GYD
+       as is (op e82cb3fd…, deal d45c932a…, TransID 10401181718250 confirmed by email; it was in
+       Incidencia only for "importe no claro"). Fix note added, both MMG deposits attached, both
+       completed, Entregada/won; notify triggers disabled only inside the block; queue unchanged.
+       No other open ops.
+     - 2026-09-27 — Jaila +5926804067. MY MISTAKE, CORRECTED: the bulk cancel had hit op 509f47cd…
+       (0 GYD, deal 95a7255f… auto-closed "sin deposito por mas de 72 horas", Zelle beneficiary DTZ
+       SOLUTION LLC). Per the user it was a REAL 39,000 GYD remesa done by an admin → op back to
+       completed at 39,000 (cancelled_at cleared), deal → won / Entregada / 39,000 with a note; no
+       39,000 MMG email found 13–20 Sep, so no deposit attached. Also the 26,200 in Incidencia
+       (op a5c7240f…, deal 7e36dc33…, verified with MMG, 200 GYD over target) → completed,
+       Entregada/won. Queue unchanged. No other open ops.
+     - LESSON: the "0 GYD + deal lost" leftovers are auto-closed requests that may still hide real
+       remittances done off-system. The other 5 bulk-cancelled ones all carry a beneficiary and no
+       deposit; Adrismir and Dannier Zaldibar each have a completed op within 3 days (likely the
+       real one), marlene Diaz, Surany and Librada have none → the user should check those 3 in
+       the chat. Cancelled is reversible.
+     - 2026-09-27 — On the user's request those 3 were RESTORED to their previous state (ops back to
+       collecting_information, cancelled_at cleared; deals untouched, still lost): marlene Diaz
+       4f9a4eae…, Surany 244f707a…, Librada ba056b93…. The user will check them in the chat.
+     - 2026-09-27 — Yanier Ramos Sablon +5927487384, 13,000 GYD in Incidencia (op ab02bfc4…, deal
+       8d5dba3b…, MMG 20400834508055 verified and attached; flagged only because the bot's target was
+       3,380) → completed, Entregada/won; queue unchanged. No other open ops.
+     - 2026-09-27 — The user checked the 3 restored ones in the chat:
+       Surany 5927559217 → REAL remesa, 80 USD Zelle = 20,800 GYD: op 244f707a… completed (20,800 /
+       USD 80), deal 10f41562… → won / Entregada / 20,800 with a note, MMG deposit 10399188148868
+       (20,800, 29-ago 13:05, 23 min after the request) attached. marlene Diaz 5927337802 →
+       CANCELLED (op 4f9a4eae…; unclear which of her many requests, no money lost). Librada
+       5926456891 → never deposited, LEFT AS IS (op ba056b93… collecting_information, deal lost).
+       Queue unchanged. Note: a first attempt rolled back because the deal→Entregada update makes
+       the bridge trigger complete the op before the op UPDATE runs; the guard now accepts it.
+     - 2026-09-27 — Juan +5927669918, Incidencia 36,000 → 26,000 GYD (op cd575955…, deal 7c88d83e…,
+       "TransID existe en MMG pero el monto no coincide"; email 10400578068368 = 26,000, attached)
+       → completed, Entregada/won with a note; queue unchanged. Other open op REPORTED, not
+       touched at first: 4250ecfd… deposit_verification 5,000 GYD, 2026-08-13, deal 856db1d1… already
+       LOST, Ref 10319372234891 not in the MMG emails. The user found no 5,000 deposit in the chat →
+       op CANCELLED (deal left lost); queue unchanged. No other open ops.
+     - 2026-09-27 — Keila +5927009732: Incidencia 26,000 (op ee54dcf2…, deal 3df32f89…, 13-sep 11:35)
+       was a DUPLICATE of her deal bba98b51… (10:21, same MMG Ref 10400474236305, already completed
+       and holding the deposit) → op + deal DELETED on the user's OK (no deposit, no beneficiary;
+       the original and its deposit checked unchanged inside the block; queue unchanged). Backup:
+       `~/cerebro-fase1/BORRADO-duplicado-keila-2026-09-27.json`. No other open ops.
+4. [x] Migrations 095 → 118 in numeric order, one file at a time, checking each ends without
+   error. REHEARSED 2026-09-27 on a local restore of that day's production dump
+   (`supabase/cutover/ensayar-cutover.sh`, feature `odd/tasks/cutover-rates-and-legacy-parity.md`):
+   the whole chain 095→118 (skip 112), 121, 123 applied with ZERO errors on real production data;
+   row counts of messages/conversations/contacts/deals/operations/beneficiaries/deposits identical.
+   - 4a. RIGHT AFTER 103 and BEFORE 104: run
+     `supabase/cutover/2026-09-27-04-tasas-calculadora.sql` (seeds the calculator for account
+     465fb4ce… with 260 / 3 / 240 / 975, user-confirmed). After 113: `SELECT * FROM tasas` must
+     return usd 260 and gyd 3 (rehearsal: RED empty without the seed, GREEN with it). Do NOT re-run 119 (superseded by 120, already live).
+   - 109: verified 2026-09-26 — the 7 production functions are byte-identical (md5 of
+     pg_get_functiondef) to 109's bodies: a true no-op. Apply.
+   - 110: builds on those same bodies (adds the remittance_operations dual-write). Apply.
+   - 114: FIXED 2026-09-26. As first written, its `cerebro_registrar_deposito` creado path
+     raised `column reference "deal_id" is ambiguous` on EVERY new receipt (found by a live
+     staging smoke). The file now carries `#variable_conflict use_column`. Apply the file from
+     the final commit, never an older copy. Right after applying it, run
+     `supabase/staging/assertions/registrar-deposito-creado.sql` against STAGING (BEGIN …
+     ROLLBACK) for reference, and in production check that
+     `pg_get_functiondef('public.cerebro_registrar_deposito(uuid,numeric,text,uuid,text,text)'::regprocedure)`
+     contains `#variable_conflict use_column`.
+   - 113 RISK (found 2026-09-27): 113 copies `tasas` into `tasas_historico`, DROPS the table and
+     re-creates `tasas` as a VIEW over `calculator_rate_versions`. In production that table is born
+     EMPTY by 095, so after 113 the bot would find NO rate. Seed the calculator rates for the
+     production account after 103 and BEFORE 113 (via `crm_set_calculator_rates` or an equivalent
+     insert), then check `SELECT * FROM tasas` returns usd and gyd rows. Production today: usd 260,
+     gyd 3. Staging calculator: usdt_sell_gyd 260, cup_global_rate 3, usdt_buy_gyd 240,
+     usdt_sell_cup 975 — the two cost rates need the user's confirmation.
+   - No migration 095–121 contains DELETE / TRUNCATE / DROP TABLE / DROP COLUMN except 113's
+     `DROP TABLE tasas` (rows preserved first). Data-changing blocks at apply time: 107/111
+     recompute open USD-rail quotes only; 113 archives tasas.
+   - BLOCKER FOUND 2026-09-27 (legacy parity review): `crm_entregar_operacion` (114, line ~1062)
+     refuses delivery unless `crm_beneficiarios_completos`, and the panel can only EDIT or REASSIGN
+     an existing beneficiary (098: crm_corregir_beneficiario / crm_reasignar_beneficiario) — there
+     is NO way to ADD one. In production the bot records a beneficiary for only part of the remesas
+     (last week 29 of 68; whenever the notes have it, the 042 sync puts it in
+     remittance_beneficiaries — 1 miss in 7 weeks). So remesas whose beneficiary was handled by a
+     human in the chat could not be completed from the panel. Also 3 of the 5 open legacy ones.
+     Pending the user's decision.
+   - Legacy parity backfill (user OK 2026-09-27): fill only EMPTY structured fields
+     (quoted_destination_amount/currency from the rate of that date; delivery_method from the
+     beneficiary type), never overwrite, log every change; test on a restore of the prod backup
+     first. Beneficiary backfill from notes adds ~1 case only.
+   - 112: SKIP in production. Its tables already exist with the same columns and RLS; its only
+     effective statement would be `GRANT ALL ... TO anon, authenticated`, which production
+     does not have today (hardened by 064). Skipping loses nothing.
+5. [x] Right after 114: repoint the customer notifier —
+   `~/cerebro-fase1/PASOS-notificador-produccion-114.md` (pre-check SQL, `n8n.py put`, verify).
+   Between 114 and this step no customer notification is sent.
+6. [x] Migration 121 (`crm_cierre_financiero`, financial close on /resumen).
+6c. [x] Migration 123 (`crm_agregar_beneficiario`, panel "Add beneficiary"; feature
+   `odd/tasks/panel-add-beneficiary.md`). Apply after 118/121 (it restates the full
+   `remittance_admin_audit_action_chk` vocabulary through 104, so it must run after 104). Check:
+   `SELECT to_regprocedure('public.crm_agregar_beneficiario(uuid,jsonb)') IS NOT NULL`. Without it,
+   remesas whose beneficiary the bot did not capture cannot be completed from the panel.
+6d. [x] After 123: `supabase/cutover/2026-09-27-06-relleno-remesas-legado.sql` — legacy parity
+   backfill (only NULL fields, COMPLETED remesas only, logged in `cutover_legacy_backfill_2026_09_27`,
+   no notifications, no ledger entries; tested two-pass UNDO in its footer). Rehearsal: 228 completed
+   remesas get their destination amount/currency (rate of their Guyana day), 149 left empty on
+   purpose (no beneficiary and no delivery method to infer the currency), 0 open operations locked,
+   idempotent. Independent review verdict after fixes: safe.
+7. [x] Deploy the application code of `feat/port-chat-operations-calculator` to production with
+   production's own tooling (brought into this branch, commit 6343014; self-test passes):
+   ```bash
+   export PATH=~/.local/node-v20.20.2-linux-x64/bin:$PATH        # Node 20 = the servers' version
+   cd ~/wacrm-worktrees/mejora-legacy && git status --short        # must be empty
+   WACRM_BUILD_ENV=$PWD/infra/deployment/wacrm.produccion.build.env bash infra/deployment/build-wacrm.sh
+   bash infra/deployment/desplegar-wacrm-produccion.sh <sha printed by the build>
+   # rollback: bash infra/deployment/rollback-wacrm-produccion.sh
+   ```
+   - `infra/deployment/wacrm.produccion.build.env` exists locally (git-ignored): production's
+     NEXT_PUBLIC_* + WACRM_ENVIRONMENT=production.
+   - The deploy script checks artifact sha256, environment and Supabase project ref, uploads to a
+     `.parcial` dir, links `.env.local -> /home/ubuntu/wacrm.env`, switches `current`, restarts
+     pm2 `wacrm`, smoke-tests and rolls back by itself on failure.
+   - REHEARSED 2026-09-26 (build only, nothing deployed): Node 20.20.2, money-path tests 101/101,
+     manifest environment=production, project hqztotshnlzaiziwjyzh, bundle 32 prod refs / 0
+     staging refs, no .env inside. Rebuild on Sunday from the final commit.
+   - Confirmed on `oracle`: pm2 `wacrm` serves `/home/ubuntu/wacrm-releases/current` (SHA dirs,
+     `anterior` link); `/home/ubuntu/wacrm-deploy` is unused; prod currently serves `83422d9`
+     (not an ancestor of this branch; file-by-file review done, see 6b).
+6b. [x] Before building: port what production has and this branch lacks:
+   - `messages.sender_id` on agent sends (production records it on 611/611 human messages in
+     the last 7 days; this branch would stop): `senderId` in `send-message.ts` + `route.ts`.
+     DONE 2026-09-26, commit `73c4841` (TDD: route test RED → GREEN), deployed to staging.
+   - Minor, optional: `ai_generated` in `/api/v1` conversations (n8n does not use it — the
+     Cerebro reads it from the DB), inbox "undo" after hiding chats, pin rail alignment.
+7b. [x] Enable the operations panel: `supabase/cutover/2026-09-27-03-activar-panel-operaciones.sql`.
+   Gated per user by `profiles.beta_features` containing `operations_panel`; production's 5
+   profiles all have it empty. Idempotent; tested on staging (rolled back). Per-user off switch
+   in the file's comment.
+8. [ ] Smoke test on production: login, inbox + operations panel, /resumen (financial close,
+   history with Destino column), /dashboard (no money widgets, no quick actions), /calculadora.
+
+9. [x] FINAL STEP (user, 2026-09-27): Cerebro single source for accounts/holders (T4 of
+   `odd/tasks/cerebro-context-prompt.md`) to the PRODUCTION Cerebro `jEzlVLCLUaJhVwzs`.
+   Prepared and proven read-only on 2026-09-27: `python3 ~/cerebro-fase1/pruebas/banco-datos-negocio.py
+   --entorno produccion --rojo` → ROJO (literals in 8 nodes) and `--entorno produccion` → VERDE
+   (8 fields in 8 nodes, 7 text fields rendered byte-identical, 16 deposit cases identical; candidate
+   `~/cerebro-fase1/candidato-cerebro-produccion-datos-negocio.json`). Execute:
+   `python3 ~/cerebro-fase1/pruebas/banco-datos-negocio.py --entorno produccion --desplegar --confirmo-produccion`
+   (refuses without --confirmo-produccion and if not VERDE; saves
+   `~/cerebro-fase1/ROLLBACK-cerebro-produccion-antes-datos-negocio.json` first and re-verifies the
+   deployed workflow). Rollback: PUT that ROLLBACK json back. Then a live check from the test contact
+   (ask for the account → Osmany Pozo 6762167; "por la app" → Osmany Services 6990225).
+
+## Execution log — production cutover 2026-09-27 (UTC)
+- Step 1: the pre-check scripts ran ALL PASS against the local restore of that day's production
+  dump (rehearsal R3); they were not re-run against live production.
+- Step 2: `~/wacrm-respaldos/produccion-20260927T182157Z.dump` taken right before the first write.
+- 095 → 107 applied, and R1 seeded the rates (`calculator_rates_vigentes`: 3 / 240 / 260 / 975).
+- 108 applied.
+- 109: not re-sent. All 7 production bodies and ACLs are byte-identical to the file
+  (md5 of prosrc + proacl, 7/7), so applying it would be a no-op.
+- 110: not applied (deviation from the plan). 114 fully replaces all three of its functions and
+  110 has no other objects. The final fingerprint (below) proves the end state is identical.
+- 111 applied. The two open USD operations recomputed with floor (15,000 GYD → 57 USD).
+- 113 applied: `tasas` is now a view returning usd 260 and gyd 3. `tasas_historico` keeps the 4
+  archived rows.
+- 114 applied in one atomic call. Notifier pre-check 5/5 true, and the `#variable_conflict
+  use_column` fix is present.
+- Step 5 done right after: `n8n.py put wGud0KGR6eMqqfMQ`, verifier `RESULT: OK - live equals the
+  tested candidate`.
+- 115, 116, 117, 118, 121 and 123 applied, with each check true.
+- Fingerprint compared with `wacrm-ensayo` (same search_path, ACL excluded because the rehearsal
+  restore has no ACLs): all 256 public functions, every trigger, table column set and constraint
+  are identical.
+  - The only extra object in the rehearsal is `cutover_legacy_backfill_2026_09_27`, which R2 had
+    not created in prod yet at that point.
+  - The only other difference is the deparse of the `cerebro_resumen_volumen` view: implicit
+    `AS text` aliases re-written by dump/restore. Cosmetic, and the view is not touched by the
+    cutover.
+- Step 6d (R2) applied. It filled 228 operations (919 log rows), left 149 undecided, locked 0 open
+  operations, and left the ledger at 0 rows. All figures are identical to the rehearsal.
+  - History counts are unchanged: messages 15,853, conversations 216, contacts 218, deals 404,
+    operations 569, beneficiaries 411, deposits 1,398.
+- Step 7: artifact 854ad65 built. Manifest: production, project hqztotshnlzaiziwjyzh; bundle has
+  32 prod refs, 0 staging refs and no .env.
+  - Deployed to oracle: `current` → 854ad65, `anterior` → 83422d9.
+  - wacrm.onlinefreedom.site serves BUILD_ID `_6LyDPGEN58kAlnfOmsDW`.
+- Step 7b: all 5 profiles have `operations_panel`.
+- Step 8, automated part:
+  - Pages: /login 200; /inbox and /dashboard 307 → /login; /resumen and /calculadora 200 (same as
+    staging).
+  - The new beneficiaries API route answers 401 without a session.
+  - Run as a real member (claims + role authenticated, rolled back): `crm_operaciones_de_conversacion`
+    resolves open remesas, and legacy completed ones now show their amount.
+  - Also as that member: `crm_cierre_financiero`, `cerebro_dashboard_embudo_operaciones` (1
+    collecting + 5 ready) and `calculator_rates_vigentes` answer.
+  - The visual browser check with a login is pending, and it is the user's to do.
+- Step 9: bench GREEN before and after deploying to production Cerebro `jEzlVLCLUaJhVwzs` (115
+  nodes, active). Rollback copy: `~/cerebro-fase1/ROLLBACK-cerebro-produccion-antes-datos-negocio.json`.
+  The live check from the test contact is pending, and it is the user's to do.
+- Found, NOT changed (needs the user's OK): `cerebro_dashboard_embudo_operaciones`,
+  `_operaciones_en_curso`, `_volumen_por_servicio` (116–118) and the older
+  `_operaciones_envejecidas` are executable by `anon`.
+  - Cause: those migrations GRANT to authenticated without revoking PUBLIC.
+  - Staging is the same, so this is not a cutover regression.
+  - FIXED 2026-09-27 with the user's OK: migration 124 applied to production; anon gets
+    42501 through the REST API, authenticated still reads all four. Also applied to staging
+    (psql with STAGING_DATABASE_URL; the staging MCP connection is read-only), same result.
+- Live test from the test chat "humbe (pruebas)" (operation df82a142), all OK: account answer, receipt
+  → operation created → incident (TransID already used) → admin alert → bot captured the Zelle
+  beneficiary (153 USD, floor) → forced verification notice → completion with proof → ledger ZELLE 153
+  (39,780 / 36,720 / 3,060). The operation was then cancelled as admin; its ledger entry is void.
+  - Incident during the test: the admin chat (5219622896918) was emptied by mistake instead of the
+    test chat. It was restored identically from `~/cerebro-fase1/BORRADO-chat-pruebas-humbe-2026-09-27.json`.
+- Notifier change (user, 2026-09-27): templates only when the 24 h window is closed. "Buscar
+  telefono" returns `ventana_abierta` (customer message in the last 23 h). With the window open the
+  customer gets a normal text with bold, and the admin gets its alert as text in the same shape.
+  With the window closed, templates are used, now with the amount in bold inside `{{1}}`
+  (`*153 Zelle*`, accepted by Meta in a live send).
+  - Bench `banco-enviar.js`: RED, then GREEN 12/12. Deployed and verified live.
+  - Rollback: `~/cerebro-fase1/ROLLBACK-notificador-PRODUCCION-antes-ventana-24h.json`.
+
+## What arrives with the code deploy (step 7)
+- Operations panel (receipts, verify/force, complete transfer), History collapsed to "History (N)".
+- /resumen financial close (day/week/month/range by Guyana day, per service, per day, detail,
+  voided/pending apart, CSV) + history "Destino" column.
+- /dashboard without the money widgets duplicated by /resumen and without quick actions.
+
+## Monday 2026-09-28 checks
+- First manual deposit verification and first completion → customer notifier executions reach
+  "Enviar por WaCRM" (template `remesa_completada` with what the client receives).
+- The ledger starts at zero by design: /resumen and the calculator show only operations
+  completed from the feed onward.
+- ETECSA monitor: new promos land as `detectada` and the CRM asks for confirmation.
+
+## Related documents
+- `odd/tasks/notify-workflow-repoint-114.md`, `odd/tasks/financial-close-resumen.md`,
+  `odd/tasks/etecsa-monitor-detection.md`.
+- `~/cerebro-fase1/PASOS-notificador-produccion-114.md`, `~/cerebro-fase1/PASOS-vigilante-etecsa-deteccion.md`
+  (local only, by the user's choice).
+
+## After the cutover (decided by the user 2026-09-26)
+- Cerebro observability T1–T3 (silence reason, token collector, G3 scoped to USD) to production:
+  `~/cerebro-fase1/PASOS-cerebro-observabilidad-produccion.md`. Candidates built and benched
+  (16/16, 7/7); production snapshot taken; production DB function and columns verified.
+
+- NEXT IMPROVEMENTS, in this order (user, 2026-09-27):
+  1. Cerebro beneficiary capture: the bot recorded a beneficiary for only 29 of 68 remesas in the
+     week of 2026-09-21; the rest were handled by humans. Find why (image-only data, human already
+     attending, split payments…) and raise the capture rate. The panel's "Add beneficiary"
+     (migration 123) is the stopgap.
+  2. One source for service tariffs and procedures. Today they are spread over: `cerebro_servicios`
+     (5 free-text fact sheets: combos, traduccion, recargas, mexico, visa — e.g. Mexico says
+     "260 GYD por 1 USD, minimo 13,000" as TEXT, so it will not follow a calculator rate change),
+     `precio_recarga` (500 CUP = 5,200 GYD; 600 CUP = 6,200 GYD), `promo_etecsa`, `tasas` (the
+     calculator after 113), `cerebro_config` (zelle_minimo_gyd…) and the 38,581-char agent prompt
+     (remesa CUP, Zelle, Clásica and Tropical rules live ONLY there). Same approach as the accounts
+     single source: each tariff in one place, everything else reads it, bench proves the bot's
+     answers do not change unless intended.
+
+## Deferred (not for Sunday)
+Calculator manual lines into the ledger, period lock and expenses, Zelle/Clásica type in the
+history, caption on the delivery proof, moving account numbers out of the agent prompt,
+Cerebro flow review.

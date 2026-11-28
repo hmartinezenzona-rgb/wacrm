@@ -132,6 +132,7 @@ export async function POST(request: Request) {
     try {
       validateTemplatePayload(payload)
     } catch (e) {
+      console.error('[templates submit] validation failed:', e)
       return NextResponse.json(
         { error: e instanceof Error ? e.message : 'Validation failed.' },
         { status: 400 },
@@ -180,7 +181,7 @@ export async function POST(request: Request) {
       // building the payload. Surfaces a 400 with an actionable message
       // (missing META_APP_ID, unreachable URL, wrong type/size).
       try {
-        await ensureImageHeaderHandle(payload, accessToken)
+        await ensureImageHeaderHandle(payload, accessToken, accountId)
       } catch (e) {
         return NextResponse.json(
           { error: e instanceof Error ? e.message : 'Header image upload failed.' },
@@ -199,6 +200,7 @@ export async function POST(request: Request) {
         metaStatus = meta.status
       } catch (e) {
         const message = e instanceof Error ? e.message : 'Meta submit failed.'
+        console.error('[templates submit] Meta rejected the template:', message)
         // Persist the failure so the user can retry; row stays DRAFT
         // until they fix and re-submit.
         await upsertTemplateRow(

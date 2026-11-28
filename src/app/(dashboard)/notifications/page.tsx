@@ -1,9 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { setInboxOpenTarget } from "@/lib/inbox/open-target";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { usePromoPendiente } from "@/hooks/use-promo-pendiente";
 import type { Notification } from "@/types";
 import {
   AlertTriangle,
@@ -12,13 +15,26 @@ import {
   Loader2,
   MessageSquareX,
   Percent,
+  ClipboardList,
+  Trash2,
+  X,
   XCircle,
   UserPlus,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { PageHeader, PageShell } from "@/components/layout/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // Icon per notification type. Only one type existed at first
 // (conversation_assigned) but this keeps future types a one-line add.
@@ -27,39 +43,27 @@ const TYPE_ICON: Record<Notification["type"], typeof Bell> = {
   deal_incidencia: AlertTriangle,
   mensaje_fallido: MessageSquareX,
   promo_etecsa: Percent,
+  resumen_diario: ClipboardList,
 };
-
-/** Fila de la ruta autenticada de promociones Etecsa. */
-interface PromoPendiente {
-  id: string;
-  min_cup: number;
-  max_cup: number | null;
-  multiplicador: number | null;
-  precio_gyd: number | null;
-  vigente_desde: string;
-  vigente_hasta: string;
-  /** Texto ya formateado para pintar tal cual. */
-  resumen: string;
-  /** Si false, confirmar no sirve: falta poner precio al negocio. */
-  hay_precio: boolean;
-}
 
 export default function NotificationsPage() {
   const router = useRouter();
-  const { accountId } = useAuth();
+  const t = useTranslations("Notifications");
+  const { accountId, user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[] | null>(
     null,
   );
   const [error, setError] = useState<string | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
-  const [promoPendiente, setPromoPendiente] = useState<PromoPendiente | null>(
-    null,
-  );
-  // Distingue "ya cargó y no hay" de "aún cargando" (evita parpadeos).
-  const [promoChecked, setPromoChecked] = useState(false);
-  const [promoAction, setPromoAction] = useState<"confirm" | "discard" | null>(
-    null,
-  );
+  const [confirmAllOpen, setConfirmAllOpen] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
+  const {
+    promo: promoPendiente,
+    checked: promoChecked,
+    action: promoAction,
+    confirm: confirmPromo,
+    discard: discardPromo,
+  } = usePromoPendiente();
 
   const load = useCallback(async () => {
     if (!accountId) return;
@@ -78,38 +82,11 @@ export default function NotificationsPage() {
   }, [accountId]);
 
   useEffect(() => {
+    // load() only sets state after awaiting the query; the compiler cannot
+    // follow that boundary and flags the synchronous call.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
-
-  // Promoción Etecsa pendiente de decidir (si la hay). La ruta autentica
-  // la sesión y usa el cliente de servidor, con fallback para instalaciones
-  // donde el grant/RPC de PostgREST aún no se haya refrescado.
-  const loadPromoPendiente = useCallback(async () => {
-    try {
-      const response = await fetch("/api/promotions/etecsa", {
-        cache: "no-store",
-      });
-      const payload = (await response.json().catch(() => null)) as {
-        promo?: PromoPendiente | null;
-        error?: string;
-      } | null;
-      if (!response.ok) {
-        throw new Error(payload?.error || "No se pudo cargar la promoción");
-      }
-      setPromoPendiente(payload?.promo ?? null);
-    } catch (err) {
-      console.warn(
-        "[notifications] promo pendiente:",
-        err instanceof Error ? err.message : err,
-      );
-    } finally {
-      setPromoChecked(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadPromoPendiente();
-  }, [loadPromoPendiente]);
 
   // Realtime — new assignments appear without a refresh, and a
   // "mark all read" fired from another tab/device stays in sync here.
@@ -128,12 +105,6 @@ export default function NotificationsPage() {
               if (prev.some((n) => n.id === row.id)) return prev;
               return [row, ...prev];
             });
-            // Entró una promo nueva: recargar la RPC para que la franja
-            // del botón aparezca sin recargar la página (el caso real:
-            // el operador tiene el CRM abierto todo el día).
-            if (row.type === "promo_etecsa") {
-              void loadPromoPendiente();
-            }
           } else if (payload.eventType === "UPDATE") {
             const row = payload.new as Notification;
             setNotifications((prev) =>
@@ -153,7 +124,7 @@ export default function NotificationsPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [loadPromoPendiente]);
+  }, []);
 
   const markRead = useCallback(
     async (id: string) => {
@@ -174,18 +145,19 @@ export default function NotificationsPage() {
         .eq("id", id)
         .is("read_at", null);
       if (updateErr) {
-        toast.error("Failed to mark notification as read");
+        toast.error(t("markReadError"));
         load();
       }
     },
-    [load],
+    [load, t],
   );
 
   const handleClick = useCallback(
     (n: Notification) => {
       if (!n.read_at) markRead(n.id);
       if (n.conversation_id) {
-        router.push(`/inbox?c=${n.conversation_id}`);
+        setInboxOpenTarget(n.conversation_id);
+        router.push("/inbox");
       }
     },
     [markRead, router],
@@ -207,65 +179,54 @@ export default function NotificationsPage() {
       .is("read_at", null);
     setMarkingAll(false);
     if (updateErr) {
-      toast.error("Failed to mark all as read");
+      toast.error(t("markAllError"));
       load();
     }
-  }, [unreadIds.length, load]);
+  }, [unreadIds.length, load, t]);
 
-  const runPromoAction = useCallback(
-    async (action: "confirm" | "discard") => {
-      if (promoAction || !promoPendiente) return;
-      setPromoAction(action);
-      try {
-        const response = await fetch("/api/promotions/etecsa", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action, id: promoPendiente.id }),
-        });
-        const payload = (await response.json().catch(() => null)) as {
-          result?: "confirmada" | "descartada";
-          error?: string;
-        } | null;
-        if (!response.ok) {
-          throw new Error(payload?.error || "No se pudo actualizar la promoción");
-        }
-        toast.success(
-          payload?.result === "confirmada"
-            ? "Promoción confirmada para el bot"
-            : "Promoción descartada; el bot no la usará",
-        );
-        await loadPromoPendiente();
-      } catch (err) {
-        console.error(
-          `[notifications] ${action} promo:`,
-          err instanceof Error ? err.message : err,
-        );
-        toast.error(
-          action === "confirm"
-            ? "No se pudo confirmar la promoción"
-            : "No se pudo descartar la promoción",
-        );
-      } finally {
-        setPromoAction(null);
+  const deleteOne = useCallback(
+    async (id: string) => {
+      // Optimistic, like markRead: the row is gone before the request lands.
+      setNotifications((prev) => prev?.filter((n) => n.id !== id) ?? prev);
+      const supabase = createClient();
+      const { error: deleteErr } = await supabase
+        .from("notifications")
+        .delete()
+        .eq("id", id);
+      if (deleteErr) {
+        toast.error(t("deleteError"));
+        load();
       }
     },
-    [loadPromoPendiente, promoAction, promoPendiente],
+    [load, t],
   );
 
-  const confirmPromo = useCallback(() => {
-    void runPromoAction("confirm");
-  }, [runPromoAction]);
-
-  const discardPromo = useCallback(() => {
-    void runPromoAction("discard");
-  }, [runPromoAction]);
+  const deleteAll = useCallback(async () => {
+    if (!user) return;
+    setDeletingAll(true);
+    setNotifications([]);
+    const supabase = createClient();
+    // RLS already limits a delete to the caller's rows; the filter states it.
+    const { error: deleteErr } = await supabase
+      .from("notifications")
+      .delete()
+      .eq("user_id", user.id);
+    setDeletingAll(false);
+    setConfirmAllOpen(false);
+    if (deleteErr) {
+      toast.error(t("deleteAllError"));
+      load();
+      return;
+    }
+    toast.success(t("deleteAllDone"));
+  }, [user, load, t]);
 
   if (error) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-2">
         <p className="text-sm text-destructive">{error}</p>
         <Button variant="outline" onClick={() => window.location.reload()}>
-          Retry
+          {t("retry")}
         </Button>
       </div>
     );
@@ -280,42 +241,44 @@ export default function NotificationsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Notifications</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Conversations other teammates assign to you show up here.
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={unreadIds.length === 0 || markingAll}
-          onClick={markAllRead}
-        >
-          {markingAll ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <CheckCheck className="h-4 w-4" />
-          )}
-          Mark all as read
-        </Button>
-      </div>
+    <PageShell>
+      <PageHeader
+        title={t("title")}
+        description={t("description")}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={unreadIds.length === 0 || markingAll}
+              onClick={markAllRead}
+            >
+              {markingAll ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCheck className="h-4 w-4" />
+              )}
+              {t("markAllRead")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={notifications.length === 0 || !user}
+              onClick={() => setConfirmAllOpen(true)}
+            >
+              <Trash2 className="h-4 w-4" />
+              {t("deleteAll")}
+            </Button>
+          </div>
+        }
+      />
 
       {notifications.length === 0 ? (
-        <div className="flex h-48 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/40">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-            <Bell className="h-6 w-6 text-primary" />
-          </div>
-          <p className="mt-3 text-sm font-medium text-foreground">
-            No notifications yet
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            You&apos;ll see an alert here when someone assigns you a
-            conversation.
-          </p>
-        </div>
+        <EmptyState
+          icon={Bell}
+          title={t("emptyTitle")}
+          description={t("emptyDescription")}
+        />
       ) : (
         <ul className="space-y-2">
           {notifications.map((n) => {
@@ -325,7 +288,7 @@ export default function NotificationsPage() {
               <li key={n.id}>
                 <div
                   className={cn(
-                    "rounded-xl border transition-colors",
+                    "relative rounded-xl border transition-colors",
                     isUnread
                       ? "border-primary/30 bg-primary/5 hover:border-primary/50"
                       : "border-border bg-card hover:border-border/70",
@@ -337,7 +300,7 @@ export default function NotificationsPage() {
                   <button
                     type="button"
                     onClick={() => handleClick(n)}
-                    className="flex w-full items-start gap-3 p-4 text-left"
+                    className="flex w-full items-start gap-3 p-4 pr-12 text-left"
                   >
                     <div
                       className={cn(
@@ -365,9 +328,14 @@ export default function NotificationsPage() {
                         >
                           {n.title}
                         </span>
+                        {n.type === "resumen_diario" && (
+                          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                            {t("digestBadge")}
+                          </span>
+                        )}
                         {isUnread && (
                           <span
-                            aria-label="Unread"
+                            aria-label={t("unread")}
                             className="h-2 w-2 flex-shrink-0 rounded-full bg-primary"
                           />
                         )}
@@ -383,6 +351,20 @@ export default function NotificationsPage() {
                         })}
                       </p>
                     </div>
+                  </button>
+                  {/* Borrar: fuera del botón de la tarjeta (HTML válido) y
+                      sin marcar como leída ni navegar. */}
+                  <button
+                    type="button"
+                    aria-label={t("deleteOne")}
+                    title={t("deleteOne")}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteOne(n.id);
+                    }}
+                    className="absolute right-2 top-2 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" aria-hidden />
                   </button>
                   {/* Acción para la promoción Etecsa pendiente. */}
                   {n.type === "promo_etecsa" &&
@@ -445,6 +427,39 @@ export default function NotificationsPage() {
           })}
         </ul>
       )}
-    </div>
+
+      <Dialog
+        open={confirmAllOpen}
+        onOpenChange={(open) => !deletingAll && setConfirmAllOpen(open)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("deleteAllTitle")}</DialogTitle>
+            <DialogDescription>{t("deleteAllDescription")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setConfirmAllOpen(false)}
+              disabled={deletingAll}
+            >
+              {t("cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={deleteAll}
+              disabled={deletingAll}
+            >
+              {deletingAll ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              {t("deleteAllConfirm")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </PageShell>
   );
 }

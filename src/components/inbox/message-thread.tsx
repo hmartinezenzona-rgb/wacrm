@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { usePresence } from "@/hooks/use-presence";
+import { ContactAvatar } from "@/components/contacts/contact-avatar";
 import { PresenceDot } from "@/components/presence/presence-dot";
 import { presenceLabel } from "@/lib/presence";
 import { cn } from "@/lib/utils";
@@ -28,7 +30,6 @@ import {
   PanelRightOpen,
   PanelRightClose,
 } from "lucide-react";
-import { format, isToday, isYesterday } from "date-fns";
 import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -38,21 +39,28 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageBubble } from "./message-bubble";
-import { MessageActions } from "./message-actions";
-import {
-  MessageComposer,
-  CHAT_MEDIA_BUCKET,
-  type SendMediaPayload,
-} from "./message-composer";
+import { MessageComposer, CHAT_MEDIA_BUCKET, type SendMediaPayload } from "./message-composer";
+import { ThreadRow } from "./thread-row";
 import { deleteAccountMedia } from "@/lib/storage/upload-media";
 import {
   lastCustomerMessageAt,
   sessionWindowFromMessages,
 } from "@/lib/inbox/session-window";
+import { cursorFromMessage, fetchThreadPage } from "@/lib/inbox/thread-page";
+import {
+  buildThreadItems,
+  formatThreadDayLabel,
+  indexOfMessage,
+  nextFirstItemIndex,
+  resyncTailRows,
+  resyncKeepsHistory,
+  THREAD_FIRST_ITEM_INDEX_BASE,
+  type ThreadItem,
+} from "@/lib/inbox/thread-items";
+import { seedSignedMedia } from "@/lib/storage/signed-media";
 import { TemplatePicker } from "./template-picker";
 import { AiThreadBanner } from "./ai-thread-banner";
+import { NotBusinessBanner, NotBusinessButton, type NotBusinessPatch } from "./not-business-control";
 import { buildReplyPreview } from "./reply-quote";
 import { toast } from "sonner";
 import { renderTemplateBody } from "@/lib/whatsapp/template-send-builder";
@@ -82,6 +90,8 @@ interface MessageThreadProps {
    * mobile only.
    */
   onBack?: () => void;
+  /** Patch the parent's copy of the conversation after the "not business" mark changes. */
+  onNotBusinessChange?: (conversationId: string, patch: NotBusinessPatch) => void;
   /**
    * Increment to force the messages + reactions fetch effects to refire.
    * Parent bumps this on realtime reconnect / tab visibility → visible
@@ -111,28 +121,51 @@ interface MessageThreadProps {
   onOpenMobileContactPanel?: () => void;
 }
 
-function formatDateSeparator(dateStr: string, t: ReturnType<typeof useTranslations>): string {
-  const date = new Date(dateStr);
-  if (isToday(date)) return t("today");
-  if (isYesterday(date)) return t("yesterday");
-  return format(date, "MMMM d, yyyy");
+/**
+ * Label a day from the original message instant. Never pass a `yyyy-MM-dd`
+ * key here: `new Date("yyyy-MM-dd")` is UTC midnight, which is the previous
+ * local day in UTC-negative zones and labelled every separator a day early.
+ */
+function formatDateSeparator(instant: string, t: ReturnType<typeof useTranslations>): string {
+  return formatThreadDayLabel(instant, new Date(), (key) => t(key));
 }
 
-function groupMessagesByDate(messages: Message[]) {
-  const groups: { date: string; messages: Message[] }[] = [];
-  let currentDate = "";
+interface ThreadHeaderContext {
+  headerDayAt: string | null;
+  loadingOlder: boolean;
+  label: (instant: string) => string;
+  loadingLabel: string;
+}
 
-  for (const msg of messages) {
-    const day = format(new Date(msg.created_at), "yyyy-MM-dd");
-    if (day !== currentDate) {
-      currentDate = day;
-      groups.push({ date: msg.created_at, messages: [msg] });
-    } else {
-      groups[groups.length - 1].messages.push(msg);
-    }
-  }
+/** The pill used both for the oldest day and for in-flow day boundaries. */
+function DaySeparator({ label }: { label: string }) {
+  return (
+    <div className="mb-4 flex items-center justify-center">
+      <span className="rounded-full bg-muted px-3 py-1 text-[10px] font-medium text-muted-foreground">
+        {label}
+      </span>
+    </div>
+  );
+}
 
-  return groups;
+/**
+ * Virtuoso's Header: the oldest loaded day's separator, plus the "loading
+ * older" hint as an absolutely positioned overlay so it never changes the
+ * header height (a variable header would defeat the prepend anchor).
+ */
+function ThreadHeader({ context }: { context?: ThreadHeaderContext }) {
+  if (!context) return null;
+  const { headerDayAt, loadingOlder, label, loadingLabel } = context;
+  return (
+    <div className="relative pb-4">
+      {headerDayAt && <DaySeparator label={label(headerDayAt)} />}
+      {loadingOlder && (
+        <p className="pointer-events-none absolute inset-x-0 top-0 text-center text-xs text-muted-foreground">
+          {loadingLabel}
+        </p>
+      )}
+    </div>
+  );
 }
 
 const STATUS_OPTIONS: { label: string; value: ConversationStatus; color: string }[] = [
@@ -150,8 +183,11 @@ const STATUS_OPTIONS: { label: string; value: ConversationStatus; color: string 
  * Defined once at module scope so the two render paths can't drift —
  * if we ever switch the asset, both spots update together.
  */
+/** Mensajes por bloque del historial paginado. */
+const MESSAGE_PAGE = 50;
+
 const DOODLE_BG_CLASSES =
-  "bg-background bg-[url('/inbox-doodle.svg')] bg-repeat";
+  "bg-muted bg-[url('/inbox-doodle.svg')] bg-repeat";
 
 export function MessageThread({
   conversation,
@@ -162,6 +198,7 @@ export function MessageThread({
   onUpdateMessage,
   onStatusChange,
   onAssignChange,
+  onNotBusinessChange,
   onBack,
   resyncToken = 0,
   onRefresh,
@@ -172,11 +209,42 @@ export function MessageThread({
   const t = useTranslations("Inbox.messageThread");
   const tTimer = useTranslations("Inbox.sessionTimer");
   const tQuote = useTranslations("Inbox.replyQuote");
+  const tPresence = useTranslations("Common.presence");
 
   const { user } = useAuth();
   const { getPresence, getRow, now } = usePresence();
   const [loading, setLoading] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
+  // Historial paginado: al abrir se cargan los ultimos PAGE mensajes y, al
+  // llegar arriba, los anteriores. Sin esto un chat con meses de historial
+  // descargaba y montaba todos los mensajes de golpe.
+  const [olderMessages, setOlderMessages] = useState<Message[]>([]);
+  const [hasMoreHistory, setHasMoreHistory] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  // Virtuoso's prepend anchor: it drops by exactly the number of prepended
+  // messages so the already-measured items keep their absolute index.
+  const [firstItemIndex, setFirstItemIndex] = useState(THREAD_FIRST_ITEM_INDEX_BASE);
+  // Message flashed after a jump-to-quote; cleared after 1,600 ms.
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (highlightTimerRef.current !== null) clearTimeout(highlightTimerRef.current);
+    };
+  }, []);
+  // Which conversation the loaded history belongs to. Only a real
+  // conversation change resets history; a resync must keep it (ADR-4).
+  const loadedConversationRef = useRef<string | null>(null);
+  // Previous page/history for the resync gap check. Mirrored in effects so the
+  // fetch effect does not depend on them (a dependency would refire the fetch).
+  const messagesRef = useRef(messages);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+  const olderMessagesRef = useRef(olderMessages);
+  useEffect(() => {
+    olderMessagesRef.current = olderMessages;
+  }, [olderMessages]);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [reactions, setReactions] = useState<MessageReaction[]>([]);
@@ -241,7 +309,7 @@ export function MessageThread({
       const everWrote = lastCustomerMessageAt(messages) !== null;
       return {
         expired: true,
-        remaining: everWrote ? tTimer("expired") : "No customer messages",
+        remaining: everWrote ? tTimer("expired") : tTimer("noCustomerMessages"),
       };
     }
 
@@ -272,30 +340,67 @@ export function MessageThread({
   // separate from the unread-reset effect so that incoming messages
   // arriving while the thread is open don't trigger a full refetch —
   // they only flip hasUnread, which only the reset effect listens to.
+  //
+  // The page comes from `/api/inbox/messages`, which returns the messages
+  // AND their signed media URLs in one response. The seed runs before the
+  // rows reach the parent, so the first render paints media directly.
   useEffect(() => {
     if (!conversationId) return;
 
-    const supabase = createClient();
     let cancelled = false;
+    // Snapshot the newest page this resync is replacing, before the request.
+    const previousPage = messagesRef.current;
 
     (async () => {
       setLoading(true);
 
-      const { data, error } = await supabase
-        .from("messages")
-        .select("*")
-        .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: true });
+      try {
+        const page = await fetchThreadPage(conversationId, undefined, MESSAGE_PAGE);
+        if (cancelled) return;
 
-      if (cancelled) return;
-
-      if (error) {
-        console.error("Failed to fetch messages:", error);
-      } else {
-        onMessagesLoadedRef.current(data ?? []);
+        seedSignedMedia(page.signed, page.expiresIn);
+        // A resync of the same conversation keeps the loaded history and the
+        // Virtuoso anchor; only a genuine conversation change resets them, so
+        // resync can never shrink history from the top (which used to jump).
+        if (loadedConversationRef.current !== conversationId) {
+          loadedConversationRef.current = conversationId;
+          setOlderMessages([]);
+          setFirstItemIndex(THREAD_FIRST_ITEM_INDEX_BASE);
+          setHasMoreHistory(page.hasMore);
+        } else if (!resyncKeepsHistory(previousPage, page.messages)) {
+          // Complete non-overlap: the resynced page starts strictly after
+          // everything we hold, so the range in between was never received.
+          // Folding would strand it above the resynced page, and
+          // `loadOlderMessages` only pages below the oldest displayed row, so no
+          // fetch path would reach it. Drop the retained history and reset the
+          // anchor; the next top-reach refills from the resynced boundary.
+          setOlderMessages([]);
+          setFirstItemIndex(THREAD_FIRST_ITEM_INDEX_BASE);
+          setHasMoreHistory(page.hasMore);
+        } else {
+          // Partial overlap: the parent's newest page can be longer than a
+          // server page (realtime appends), so the resynced page may start AFTER
+          // rows we already had. Every carried row was already displayed (it
+          // lived in this page), so folding it into the retained history is a
+          // repartition, not a prepend: the display set, order and first item are
+          // unchanged, and `firstItemIndex` must NOT move — Virtuoso treats a
+          // decrease as a prepend and compensates scroll, jumping a user who is
+          // scrolled up during a reconnect resync.
+          const carried = resyncTailRows(previousPage, page.messages);
+          if (carried.length > 0) {
+            const known = new Set(olderMessagesRef.current.map((m) => m.id));
+            const added = carried.filter((m) => !known.has(m.id));
+            if (added.length > 0) {
+              setOlderMessages((prev) => [...added, ...prev]);
+            }
+          }
+        }
+        onMessagesLoadedRef.current(page.messages);
+      } catch (error) {
+        if (!cancelled) console.error("Failed to fetch messages:", error);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-
-      if (!cancelled) setLoading(false);
     })();
 
     return () => {
@@ -437,13 +542,89 @@ export function MessageThread({
       });
   }, [conversationId, hasUnread]);
 
-  // Auto-scroll to bottom on new messages
+  // Older pages + the live window, deduplicated by id and in chronological
+  // order. The parent owns the newest page (realtime inserts land there);
+  // the thread owns everything loaded above it.
+  const displayMessages = useMemo(() => {
+    if (olderMessages.length === 0) return messages;
+    const byId = new Map<string, Message>();
+    for (const m of olderMessages) byId.set(m.id, m);
+    for (const m of messages) byId.set(m.id, m);
+    return [...byId.values()].sort((a, b) =>
+      a.created_at === b.created_at
+        ? a.id.localeCompare(b.id)
+        : a.created_at.localeCompare(b.created_at),
+    );
+  }, [olderMessages, messages]);
+
+  // Prepend-safe item model. Building it is O(messages) and must run only
+  // when the merged list changes, never on an unrelated render.
+  const { items, headerDayAt } = useMemo(
+    () => buildThreadItems(displayMessages),
+    [displayMessages],
+  );
+
+  // Stable reads for the jump callback: it must not change identity when the
+  // list or the anchor grows, or every row's `onJump` prop would too.
+  // Written in effects, never during render (React 19 refs rule), matching the
+  // `onMessagesLoadedRef` convention above; consumers read `.current` from
+  // callbacks that run after the commit.
+  const itemsRef = useRef<ThreadItem[]>(items);
   useEffect(() => {
-    if (scrollRef.current) {
-      const el = scrollRef.current;
-      el.scrollTop = el.scrollHeight;
+    itemsRef.current = items;
+  }, [items]);
+  const firstItemIndexRef = useRef(firstItemIndex);
+  useEffect(() => {
+    firstItemIndexRef.current = firstItemIndex;
+  }, [firstItemIndex]);
+  const conversationIdRef = useRef(conversationId);
+  useEffect(() => {
+    conversationIdRef.current = conversationId;
+  }, [conversationId]);
+
+  /** Trae el bloque anterior al más viejo cargado (Virtuoso re-anchors it). */
+  const loadOlderMessages = useCallback(async () => {
+    if (loadingOlder || !hasMoreHistory || !conversationId) return;
+    const oldest = displayMessages[0];
+    if (!oldest) return;
+    // The page may land after the user switched threads; its rows belong to
+    // the thread it was requested for, not to the one on screen now.
+    const requestedFor = conversationId;
+
+    setLoadingOlder(true);
+
+    try {
+      // Clave (created_at, id): no se salta mensajes con la misma marca de tiempo.
+      // The raw timestamp travels untouched so the keyset keeps microseconds.
+      const page = await fetchThreadPage(conversationId, cursorFromMessage(oldest), MESSAGE_PAGE);
+      if (conversationIdRef.current !== requestedFor) return;
+      seedSignedMedia(page.signed, page.expiresIn);
+      setHasMoreHistory(page.hasMore);
+      if (page.messages.length > 0) {
+        // Drop the anchor by exactly what was prepended so measured items keep
+        // their absolute index and the view does not jump.
+        setFirstItemIndex((prev) => nextFirstItemIndex(prev, page.messages.length));
+        setOlderMessages((prev) => [...page.messages, ...prev]);
+      }
+    } catch (error) {
+      console.error("Failed to fetch older messages:", error);
+    } finally {
+      setLoadingOlder(false);
     }
-  }, [messages]);
+  }, [conversationId, displayMessages, hasMoreHistory, loadingOlder]);
+
+  /** Scrolls to a loaded message and flashes a ring around it, for quotes. */
+  const jumpToMessage = useCallback((messageId: string) => {
+    const index = indexOfMessage(itemsRef.current, messageId);
+    if (index === null) return;
+    virtuosoRef.current?.scrollToIndex({ index, align: "center", behavior: "smooth" });
+    setHighlightId(messageId);
+    if (highlightTimerRef.current !== null) clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = setTimeout(() => {
+      setHighlightId(null);
+      highlightTimerRef.current = null;
+    }, 1600);
+  }, []);
 
   const handleSend = useCallback(
     async (text: string, replyToId?: string) => {
@@ -482,7 +663,7 @@ export function MessageThread({
         if (!res.ok) {
           const reason = payload?.error || `HTTP ${res.status}`;
           console.error("Failed to send message:", reason);
-          toast.error(`Failed to send: ${reason}`);
+          toast.error(t("sendFailed", { reason }));
           // Mark the optimistic bubble as failed so the user sees what happened
           onUpdateMessage(tempId, { status: "failed" });
           return;
@@ -494,12 +675,12 @@ export function MessageThread({
         onUpdateMessage(tempId, { status: "sent" });
       } catch (err) {
         console.error("Failed to send message:", err);
-        const reason = err instanceof Error ? err.message : "network error";
-        toast.error(`Failed to send: ${reason}`);
+        const reason = err instanceof Error ? err.message : t("networkError");
+        toast.error(t("sendFailed", { reason }));
         onUpdateMessage(tempId, { status: "failed" });
       }
     },
-    [conversation, onNewMessage, onUpdateMessage]
+    [conversation, onNewMessage, onUpdateMessage, t]
   );
 
   const handleSendMedia = useCallback(
@@ -548,7 +729,7 @@ export function MessageThread({
         if (!res.ok) {
           const reason = data?.error || `HTTP ${res.status}`;
           console.error("Failed to send media:", reason);
-          toast.error(`Failed to send: ${reason}`);
+          toast.error(t("sendFailed", { reason }));
           onUpdateMessage(tempId, { status: "failed" });
           // The upload never reached the recipient — GC the orphaned
           // object rather than leaving it in the public bucket forever.
@@ -559,13 +740,13 @@ export function MessageThread({
         onUpdateMessage(tempId, { status: "sent" });
       } catch (err) {
         console.error("Failed to send media:", err);
-        const reason = err instanceof Error ? err.message : "network error";
-        toast.error(`Failed to send: ${reason}`);
+        const reason = err instanceof Error ? err.message : t("networkError");
+        toast.error(t("sendFailed", { reason }));
         onUpdateMessage(tempId, { status: "failed" });
         void deleteAccountMedia(CHAT_MEDIA_BUCKET, payload.path).catch(() => {});
       }
     },
-    [conversation, onNewMessage, onUpdateMessage],
+    [conversation, onNewMessage, onUpdateMessage, t],
   );
 
   const handleSendInteractive = useCallback(
@@ -605,7 +786,7 @@ export function MessageThread({
         if (!res.ok) {
           const reason = data?.error || `HTTP ${res.status}`;
           console.error("Failed to send interactive message:", reason);
-          toast.error(`Failed to send: ${reason}`);
+          toast.error(t("sendFailed", { reason }));
           onUpdateMessage(tempId, { status: "failed" });
           return;
         }
@@ -613,12 +794,12 @@ export function MessageThread({
         onUpdateMessage(tempId, { status: "sent" });
       } catch (err) {
         console.error("Failed to send interactive message:", err);
-        const reason = err instanceof Error ? err.message : "network error";
-        toast.error(`Failed to send: ${reason}`);
+        const reason = err instanceof Error ? err.message : t("networkError");
+        toast.error(t("sendFailed", { reason }));
         onUpdateMessage(tempId, { status: "failed" });
       }
     },
-    [conversation, onNewMessage, onUpdateMessage],
+    [conversation, onNewMessage, onUpdateMessage, t],
   );
 
   const handleStatusChange = useCallback(
@@ -694,7 +875,7 @@ export function MessageThread({
         if (!res.ok) {
           const reason = payload?.error || `HTTP ${res.status}`;
           console.error("Failed to send template:", reason);
-          toast.error(`Failed to send template: ${reason}`);
+          toast.error(t("sendTemplateFailed", { reason }));
           onUpdateMessage(tempId, { status: "failed" });
           return;
         }
@@ -702,21 +883,21 @@ export function MessageThread({
         onUpdateMessage(tempId, { status: "sent" });
       } catch (err) {
         console.error("Failed to send template:", err);
-        const reason = err instanceof Error ? err.message : "network error";
-        toast.error(`Failed to send template: ${reason}`);
+        const reason = err instanceof Error ? err.message : t("networkError");
+        toast.error(t("sendTemplateFailed", { reason }));
         onUpdateMessage(tempId, { status: "failed" });
       }
     },
-    [conversation, onNewMessage, onUpdateMessage],
+    [conversation, onNewMessage, onUpdateMessage, t],
   );
 
   // Build a quick id → Message map so reply quotes can be rendered without
-  // an extra fetch — the thread already holds the full conversation.
+  // an extra fetch — the thread already holds the loaded conversation.
   const messagesById = useMemo(() => {
     const map = new Map<string, Message>();
-    for (const m of messages) map.set(m.id, m);
+    for (const m of displayMessages) map.set(m.id, m);
     return map;
-  }, [messages]);
+  }, [displayMessages]);
 
   // Bucket reactions by their target message_id for O(1) per-bubble lookup.
   const reactionsByMessageId = useMemo(() => {
@@ -729,7 +910,7 @@ export function MessageThread({
     return map;
   }, [reactions]);
 
-  const contactDisplayName = contact?.name || contact?.phone || "Customer";
+  const contactDisplayName = contact?.name || contact?.phone || t("customer");
 
   // Author label for a quoted message: "You" when we sent the parent,
   // contact name when the customer sent it.
@@ -737,9 +918,9 @@ export function MessageThread({
     (m: Message): string => {
       const isAgentMsg =
         m.sender_type === "agent" || m.sender_type === "bot";
-      return isAgentMsg ? "You" : contactDisplayName;
+      return isAgentMsg ? t("you") : contactDisplayName;
     },
-    [contactDisplayName],
+    [contactDisplayName, t],
   );
 
   const handleStartReply = useCallback(
@@ -764,7 +945,7 @@ export function MessageThread({
         return;
       }
       if (messageId.startsWith("temp-")) {
-        toast.error("Wait for the message to finish sending");
+        toast.error(t("waitForSending"));
         return;
       }
 
@@ -809,12 +990,42 @@ export function MessageThread({
           throw new Error(payload?.error || `HTTP ${res.status}`);
         }
       } catch (err) {
-        const reason = err instanceof Error ? err.message : "network error";
-        toast.error(`Reaction failed: ${reason}`);
+        const reason = err instanceof Error ? err.message : t("networkError");
+        toast.error(t("reactionFailed", { reason }));
         setReactions(snapshot);
       }
     },
-    [conversation, user?.id],
+    [conversation, user?.id, t],
+  );
+
+  // Keep the live reactions list readable from stable row callbacks: the row
+  // must receive identities that do not change when any reaction changes.
+  const reactionsRef = useRef<MessageReaction[]>(reactions);
+  useEffect(() => {
+    reactionsRef.current = reactions;
+  }, [reactions]);
+
+  const handleReact = useCallback(
+    (messageId: string, emoji: string) => {
+      if (emoji) void postReaction(messageId, emoji);
+    },
+    [postReaction],
+  );
+
+  // The toggle semantics stay here, where the current own reaction is known,
+  // so the row only reports "this pill was clicked".
+  const handleTogglePill = useCallback(
+    (messageId: string, emoji: string) => {
+      const own = reactionsRef.current.find(
+        (r) =>
+          r.message_id === messageId &&
+          r.actor_type === "agent" &&
+          r.actor_id === user?.id,
+      );
+      const next = own?.emoji === emoji ? "" : emoji;
+      void postReaction(messageId, next);
+    },
+    [postReaction, user?.id],
   );
 
   const handleAssignChange = useCallback(
@@ -829,18 +1040,103 @@ export function MessageThread({
 
       if (error) {
         console.error("Failed to update assignment:", error);
-        toast.error("Failed to update assignment");
+        toast.error(t("assignmentFailed"));
         return;
       }
 
       onAssignChange(conversation.id, agentId);
     },
-    [conversation, onAssignChange],
+    [conversation, onAssignChange, t],
   );
+
+  // Derived unconditionally so it is safe before the empty-state guard is
+  // applied below the hooks. After the guard `contact` is non-null, so this
+  // still resolves to the contact's name or phone.
+  const displayName = contact?.name || contact?.phone || "";
+
+  // One virtual row: the memoized ThreadRow plus the day separator that
+  // belongs below the last message of a day (never above, so prepends stay
+  // exact).
+  const renderItem = useCallback(
+    (item: ThreadItem) => {
+      const msg = item.message;
+      const parent = msg.reply_to_message_id
+        ? messagesById.get(msg.reply_to_message_id)
+        : null;
+      const msgReactions = reactionsByMessageId.get(msg.id);
+      return (
+        <div className="pb-2">
+          <ThreadRow
+            message={msg}
+            replyParent={parent}
+            reactions={msgReactions}
+            currentUserId={user?.id}
+            contactDisplayName={contactDisplayName}
+            highlighted={highlightId === msg.id}
+            onReply={handleStartReply}
+            onReact={handleReact}
+            onTogglePill={handleTogglePill}
+            onJump={jumpToMessage}
+          />
+          {item.separatorBelowAt && (
+            <DaySeparator label={formatDateSeparator(item.separatorBelowAt, t)} />
+          )}
+        </div>
+      );
+    },
+    [
+      messagesById,
+      reactionsByMessageId,
+      highlightId,
+      user?.id,
+      contactDisplayName,
+      handleStartReply,
+      handleReact,
+      handleTogglePill,
+      jumpToMessage,
+      t,
+    ],
+  );
+
+  // Identity-stable callbacks: Virtuoso memoizes items by `itemContent` and
+  // re-evaluates its follow policy on every render, so a fresh arrow each
+  // render would defeat both.
+  const renderItemContent = useCallback(
+    (_index: number, item: ThreadItem) => renderItem(item),
+    [renderItem],
+  );
+  const followOutput = useCallback(
+    (isAtBottom: boolean) => (isAtBottom ? ("auto" as const) : (false as const)),
+    [],
+  );
+
+  const headerContext = useMemo<ThreadHeaderContext>(
+    () => ({
+      headerDayAt,
+      loadingOlder,
+      label: (instant: string) => formatDateSeparator(instant, t),
+      loadingLabel: t("loadingOlder"),
+    }),
+    [headerDayAt, loadingOlder, t],
+  );
+  const virtuosoComponents = useMemo(() => ({ Header: ThreadHeader }), []);
+
+  const currentStatus = STATUS_OPTIONS.find(
+    (s) => s.value === conversation?.status
+  );
+  const assignedAgentId = conversation?.assigned_agent_id ?? null;
+  const currentAssignee = profiles.find((p) => p.user_id === assignedAgentId);
+  const assignLabel = assignedAgentId
+    ? (currentAssignee?.full_name ?? t("assigned"))
+    : t("assign");
 
   // Empty state — same WhatsApp-style doodle background as the active
   // thread below, so swapping between empty/selected doesn't change the
-  // pattern under the user's eye.
+  // pattern under the user's eye. It MUST sit after every hook: a return
+  // before the thread-only hooks (item renderer, follow policy, header
+  // context) made the first render run fewer hooks than the next one and
+  // React threw #310 ("Rendered more hooks than during the previous
+  // render") when the first conversation was opened.
   if (!conversation || !contact) {
     return (
       <div className={cn("flex flex-1 flex-col items-center justify-center", DOODLE_BG_CLASSES)}>
@@ -856,17 +1152,6 @@ export function MessageThread({
       </div>
     );
   }
-
-  const displayName = contact.name || contact.phone;
-  const messageGroups = groupMessagesByDate(messages);
-  const currentStatus = STATUS_OPTIONS.find(
-    (s) => s.value === conversation.status
-  );
-  const assignedAgentId = conversation.assigned_agent_id ?? null;
-  const currentAssignee = profiles.find((p) => p.user_id === assignedAgentId);
-  const assignLabel = assignedAgentId
-    ? (currentAssignee?.full_name ?? t("assigned"))
-    : t("assign");
 
   return (
     // `min-w-0` is load-bearing: the page already puts min-w-0 on the
@@ -894,12 +1179,17 @@ export function MessageThread({
               <ArrowLeft className="h-5 w-5" />
             </button>
           )}
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
-            {displayName.charAt(0).toUpperCase()}
-          </div>
+          <ContactAvatar
+            seed={contact.id || conversation.id || displayName}
+            name={displayName}
+            gender={contact.avatar_gender}
+            seq={contact.avatar_seq}
+            imageUrl={contact.avatar_url}
+            className="h-9 w-9 bg-primary-soft text-sm font-bold text-primary"
+          />
           <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold text-foreground">{displayName}</h2>
-            <p className="truncate text-xs text-muted-foreground">{contact.phone}</p>
+            <h2 className="truncate text-sm font-bold text-foreground">{displayName}</h2>
+            <p className="truncate font-mono text-xs tabular-nums text-muted-foreground">{contact.phone}</p>
           </div>
           {/* Session timer badge — hidden on the narrowest phones so
               the name + back arrow keep their room. */}
@@ -979,6 +1269,13 @@ export function MessageThread({
             </button>
           )}
 
+          {/* "Not business": silences the unanswered-chat alert until the customer writes again */}
+          <NotBusinessButton
+            conversationId={conversation.id}
+            notBusinessAt={conversation.not_business_at}
+            onChange={(patch) => onNotBusinessChange?.(conversation.id, patch)}
+          />
+
           {/* Status dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger className={cn(
@@ -1042,7 +1339,8 @@ export function MessageThread({
                         label={presenceLabel(
                           presence,
                           getRow(p.user_id)?.last_seen_at ?? null,
-                          now
+                          now,
+                          tPresence
                         )}
                         className="mr-2"
                       />
@@ -1071,9 +1369,21 @@ export function MessageThread({
         </div>
       </div>
 
+      <NotBusinessBanner
+        conversationId={conversation.id}
+        notBusinessAt={conversation.not_business_at}
+        onChange={(patch) => onNotBusinessChange?.(conversation.id, patch)}
+      />
+
       {/* Messages Area */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
-        {loading ? (
+      {/* Virtualized: only the rows near the viewport are mounted. Virtuoso
+          owns the scroll container, opens at the newest message, follows a
+          new tail, fetches older pages when the top is reached, and
+          re-anchors a prepend through `firstItemIndex`. The spinner/empty
+          states stay outside it, so a resync of an already-loaded thread
+          keeps showing what is on screen. */}
+      <div className="flex-1 min-h-0">
+        {loading && messages.length === 0 ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>
@@ -1085,65 +1395,20 @@ export function MessageThread({
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {messageGroups.map((group) => (
-              <div key={group.date}>
-                {/* Date separator */}
-                <div className="mb-4 flex items-center justify-center">
-                  <span className="rounded-full bg-muted px-3 py-1 text-[10px] font-medium text-muted-foreground">
-                    {formatDateSeparator(group.date, t)}
-                  </span>
-                </div>
-                {/* Messages */}
-                <div className="space-y-2">
-                  {group.messages.map((msg) => {
-                    const parent = msg.reply_to_message_id
-                      ? messagesById.get(msg.reply_to_message_id)
-                      : null;
-                    const reply = parent
-                      ? {
-                          authorLabel:
-                            parent.sender_type === "agent" || parent.sender_type === "bot"
-                              ? t("me") 
-                              : contact?.name || contact?.phone || "Unknown",
-                          preview: buildReplyPreview(parent, tQuote),
-                        }
-                      : null;
-                    const msgReactions = reactionsByMessageId.get(msg.id);
-                    // Toggle is computed at the call site — `msgReactions`
-                    // and `user?.id` are already in scope, no extra hook.
-                    const handlePillToggle = (emoji: string) => {
-                      const own = msgReactions?.find(
-                        (r) =>
-                          r.actor_type === "agent" &&
-                          r.actor_id === user?.id,
-                      );
-                      const next = own?.emoji === emoji ? "" : emoji;
-                      void postReaction(msg.id, next);
-                    };
-                    return (
-                      <MessageActions
-                        key={msg.id}
-                        message={msg}
-                        onReply={() => handleStartReply(msg)}
-                        onReact={(emoji) => {
-                          if (emoji) void postReaction(msg.id, emoji);
-                        }}
-                      >
-                        <MessageBubble
-                          message={msg}
-                          reply={reply}
-                          reactions={msgReactions}
-                          currentUserId={user?.id}
-                          onToggleReaction={handlePillToggle}
-                        />
-                      </MessageActions>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
+          <Virtuoso
+            key={conversation.id}
+            ref={virtuosoRef}
+            className="h-full px-4 py-4"
+            data={items}
+            firstItemIndex={firstItemIndex}
+            initialTopMostItemIndex={{ index: "LAST", align: "end" }}
+            followOutput={followOutput}
+            startReached={loadOlderMessages}
+            computeItemKey={(_index, item: ThreadItem) => item.id}
+            itemContent={renderItemContent}
+            components={virtuosoComponents}
+            context={headerContext}
+          />
         )}
       </div>
 

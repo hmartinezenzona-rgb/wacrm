@@ -1,0 +1,390 @@
+const crypto = require('crypto');
+const req = $('Webhook cambio de deal').first().json;
+const cfg = $input.first().json || {};
+
+// Ni el secreto ni la URL viven ya en este workflow: salen de cerebro_config.
+const iguales = (a, b) => {
+  const A = Buffer.from((a || '').toString(), 'utf8');
+  const B = Buffer.from((b || '').toString(), 'utf8');
+  if (!A.length || A.length !== B.length) { return false; }
+  return crypto.timingSafeEqual(A, B);
+};
+
+const h = req.headers || {};
+const recibido = (h['x-cerebro-secret'] || (req.query || {}).secret || '').toString();
+
+// El legacy es TRANSITORIO: al borrar su fila de cerebro_config deja de aceptarse
+// automaticamente, sin tocar este workflow.
+const ok = iguales(recibido, cfg.secreto) || (cfg.secreto_legacy && iguales(recibido, cfg.secreto_legacy));
+if (!ok) { return []; }
+
+// ---------------------------------------------------------------------------
+// AVISOS AL ADMIN EN CUATRO BLOQUES (19-ago-2026)
+//
+// Hasta hoy el aviso viajaba como UN solo texto que el nodo de envio aplanaba
+// entero —`replace(/[\r\n\t*_]+/g,' ')`— porque Meta NO admite saltos de
+// linea dentro de una variable de plantilla. Resultado: 580 caracteres de
+// corrido, sin titular ni separacion, imposibles de leer en el movil.
+//
+// La salida es que el CUERPO de la plantilla si puede llevar saltos: es texto
+// fijo aprobado por Meta. Asi que se parte el aviso en cuatro variables cortas
+// —titular, que paso, datos, que hacer— y la plantilla los coloca separados.
+//
+// `mensaje` se sigue emitiendo IGUAL que antes: si `alerta` falta o la
+// plantilla nueva no esta aprobada, el nodo de envio cae al camino de siempre.
+// ---------------------------------------------------------------------------
+const unaLinea = (s, max) => {
+  let t = String(s === null || s === undefined ? '' : s)
+    .replace(/[*_]/g, '')
+    .replace(/[\r\n\t]+/g, ' | ')
+    .replace(/(\s*\|\s*)+/g, ' | ')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^\s*\|\s*|\s*\|\s*$/g, '')
+    .trim();
+  if (t.length > max) { t = t.slice(0, max - 3).trim() + '...'; }
+  return t || '-';
+};
+const alerta = (titular, cuerpo, detalle, accion) => ({
+  titular: unaLinea(titular, 60),
+  cuerpo:  unaLinea(cuerpo, 420),
+  detalle: unaLinea(detalle, 380),
+  accion:  unaLinea(accion, 280),
+});
+
+const inp = req;
+const b = inp.body || {};
+// DERIVACION: el bot derivo un cliente a un humano. Avisar al admin. No trae pipeline ni stage.
+if (b.type === 'DERIVACION') {
+  const nom = (b.cliente_nombre || '(sin nombre)').toString();
+  const tel = (b.cliente_phone || '?').toString();
+  const mensaje = 'CLIENTE DERIVADO A HUMANO\n\nEl bot dejo de responderle y necesita atencion personal.\n\n*Cliente:* ' + nom + '\n*Telefono:* ' + tel + '\n\nAbra el chat en el CRM para atenderlo.';
+  return [{ json: { conversation_id: null, mensaje, destino: 'admin',
+    alerta: alerta('Cliente derivado a humano',
+      'El bot dejo de responderle y necesita atencion personal.',
+      'Cliente ' + nom + ' | Telefono ' + tel,
+      'Abra el chat en el CRM para atenderlo.') } }];
+}
+// LIMITE: una conversacion supero el tope de mensajes por hora. Se derivo a humano por seguridad.
+if (b.type === 'LIMITE') {
+  const tel = (b.cliente_phone || '?').toString();
+  const n = (b.eventos || '?').toString();
+  const mensaje = 'LIMITE DE MENSAJES SUPERADO\n\nUn numero mando *' + n + '* mensajes en la ultima hora y el bot dejo de atenderlo.\n\n*Telefono:* ' + tel + '\n\nRevise si es un cliente con prisa o un abuso. Para reactivar el bot, quite la asignacion del chat en el CRM.';
+  return [{ json: { conversation_id: null, mensaje, destino: 'admin',
+    alerta: alerta('Limite de mensajes superado',
+      'Un numero mando ' + n + ' mensajes en la ultima hora y el bot dejo de atenderlo.',
+      'Telefono ' + tel + ' | Mensajes ' + n,
+      'Revise si es un cliente con prisa o un abuso. Para reactivar el bot, quite la asignacion del chat en el CRM.') } }];
+}
+// CRUCE_APROXIMADO: el TransID del comprobante no cuadro exacto con ningun correo de MMG.
+if (b.type === 'CRUCE_APROXIMADO') {
+  const tel = (b.cliente_phone || '?').toString();
+  const monto = Number(b.monto || 0).toLocaleString('en-US');
+  let mensaje;
+  let av;
+  if (b.metodo === 'aproximado') {
+    mensaje = 'CONFIRMAR A OJO UN DEPOSITO\n\nEl TransID del comprobante no cuadraba con ningun correo, pero hay un deposito que encaja en todo lo demas (importe, hora, longitud, principio y final del numero) y era el unico posible. Se dio por bueno y al cliente ya se le confirmo.\n\n*Cliente:* ' + tel + '\n*Importe:* ' + monto + ' GYD\n*Dice el comprobante:* ' + b.ref_leida + '\n*Dice el correo:* ' + b.ref_hallada + '\n\nAbra el comprobante en el chat y compruebe que el numero del correo es el bueno. Casi siempre es que la lectura automatica se equivoco en algun digito.';
+    av = alerta('Deposito por confirmar',
+      'El TransID del comprobante no cuadraba con ningun correo, pero hay un deposito que encaja en todo lo demas (importe, hora, longitud, principio y final del numero) y era el unico posible. Se dio por bueno y al cliente ya se le confirmo.',
+      'Cliente ' + tel + ' | Importe ' + monto + ' GYD | Comprobante ' + b.ref_leida + ' | Correo ' + b.ref_hallada,
+      'Abra el comprobante en el chat y compruebe que el numero del correo es el bueno. Casi siempre la lectura automatica se equivoco en algun digito.');
+  } else {
+    mensaje = 'DEPOSITO SIN VERIFICAR - HAY QUE MIRARLO\n\nEl TransID del comprobante no cuadra con ningun correo y hay *' + (b.candidatos || '?') + '* depositos que podrian ser. No se dio nada por bueno para no equivocarse de cliente.\n\n*Cliente:* ' + tel + '\n*Importe:* ' + monto + ' GYD\n*Dice el comprobante:* ' + b.ref_leida + '\n\nHay que verificarlo a mano en el CRM.';
+    av = alerta('Deposito sin verificar',
+      'El TransID del comprobante no cuadra con ningun correo y hay ' + (b.candidatos || '?') + ' depositos que podrian ser. No se dio nada por bueno para no equivocarse de cliente.',
+      'Cliente ' + tel + ' | Importe ' + monto + ' GYD | Comprobante ' + b.ref_leida,
+      'Hay que verificarlo a mano en el CRM.');
+  }
+  return [{ json: { conversation_id: null, mensaje, destino: 'admin', alerta: av } }];
+}
+// ---------------------------------------------------------------------------
+// CAMBIOS DE ESTADO DE UNA OPERACION (migracion 114, 25-sep-2026)
+//
+// Antes este tramo reaccionaba a mover un deal de etapa en el pipeline. La 114
+// retiro ese trigger (deals_stage_notify): ahora llega CUALQUIER cambio de
+// remittance_operations.status, con la fila de la operacion en record/old_record.
+// Lo que la fila no trae lo lee 'Leer secreto' de la base, en la misma pasada:
+//   verificacion_manual -> si la verifico una persona (remittance_admin_audit)
+//   beneficiarios       -> los vigentes de remittance_beneficiaries
+//   notas_deal          -> la cola de deals.notes (el motivo de una incidencia)
+// ---------------------------------------------------------------------------
+const rec = b.record || {};
+const old = b.old_record || {};
+const fmt = (n) => Number(n || 0).toLocaleString('en-US');
+// AVISO AL CLIENTE APAGADO DESDE EL PANEL (191, 3-oct-2026, criterio de Humberto): cada accion del panel que le
+// escribe al cliente (verificar, forzar verificacion, entregar, cerrar a mano) trae una campanita. Si se apago, la
+// operacion llega con customer_notice_muted_for = el estado al que se paso, y ESE aviso al cliente no sale. Los
+// avisos al admin no cambian. Cerrar a mano viene apagado por defecto (antes era la regla closed_manually, 190).
+// RECARGA (94, 3-oct-2026): una recarga no es una remesa: el aviso dice 'recarga' y nunca pide tarjeta.
+const esRecarga = String(rec.service_type || '') === 'recarga';
+// SALDO MOVIL (28-oct-2026, criterio de Humberto: "cuando sea saldo o recarga no diga remesa sino su servicio"):
+// saldo para un numero de Cuba, todo el ano, sin promo. Su beneficiario es de tipo 'recarga' (solo el numero).
+const esSaldo = String(rec.service_type || '') === 'saldo';
+// COMBO (107, 4-oct-2026): a food combo. Complete with name, phone, address, reference, contact phone and amount
+// per recipient (crm_beneficiarios_completos, 208); a person calls to pick the products; 'completed' = sent.
+const esCombo = String(rec.service_type || '') === 'combo';
+// VISA (112, 4-oct-2026): an extension needs no recipient; 'completed' = the application was uploaded.
+const esVisa = String(rec.service_type || '') === 'visa';
+const PLAZOS_COMBO = [
+  [/habana|artemisa|mayabeque/i, 'en 3 a 5 días'],
+  [/pinar|matanzas/i, 'en 5 a 7 días'],
+  [/cienfuegos|villa\s*clara/i, 'en 7 a 10 días'],
+  [/sancti|ciego|camag[uü]ey|tunas|holgu[ií]n|granma|santiago|guant[aá]namo|isla de la juventud/i, 'en 10 a 15 días'],
+];
+const plazoCombo = (bs) => {
+  const rs = (bs || []).filter((x) => x && x.beneficiary_type === 'combo').map((x) => {
+    const a = String(x.address || '');
+    for (const [re, t] of PLAZOS_COMBO) { if (re.test(a)) { return t; } }
+    return null;
+  });
+  const u = [...new Set(rs)];
+  return (rs.length && u.length === 1 && u[0]) ? u[0] : 'entre 3 y 15 días, según la provincia';
+};
+const avisoClienteApagado = !!rec.customer_notice_muted_for && rec.customer_notice_muted_for === rec.status;
+
+// DEAL CREADO DIRECTAMENTE EN INCIDENCIA (p.ej. referencia imposible, 087):
+// cerebro_registrar_deposito crea deal Y operacion ya en incidencia con un
+// INSERT, asi que el relay de la 114 (solo AFTER UPDATE) no se entera. La unica
+// senal es deals_insert_notify, que la 114 NO retiro: alerta al ADMIN, como
+// hacia la rama de Incidencia de antes. La campana del CRM ya lo cubre sola.
+if (b.type === 'INSERT' && b.table === 'deals') {
+  if (rec.pipeline_id !== '78220927-0745-45a8-ba08-a1b33734dbf1') { return []; }
+  if (rec.stage_id !== 'da7b3e24-9222-4150-8be8-d7f7378e16aa') { return []; }
+  if (!rec.conversation_id) { return []; }
+  const notasDeal = (rec.notes || '').toString();
+  const colaDeal = notasDeal.length > 400 ? '...' + notasDeal.slice(-400) : notasDeal;
+  const tituloDeal = (rec.title || 'Remesa') + ' - ' + fmt(rec.value) + ' ' + (rec.currency || 'GYD');
+  const mensajeDeal = 'ALERTA Remesas - operacion en INCIDENCIA\n' + tituloDeal + '\n\n' + colaDeal + '\n\nRevise el chat en el CRM.';
+  return [{ json: { conversation_id: rec.conversation_id, destino: 'admin', mensaje: mensajeDeal,
+    alerta: alerta('Operacion en incidencia',
+      tituloDeal + ' necesita revision manual.',
+      colaDeal,
+      'Abra el chat en el CRM: la operacion esta parada en Incidencia.') } }];
+}
+
+if (b.type !== 'UPDATE' || b.table !== 'remittance_operations') { return []; }
+if (!rec.status || rec.status === old.status) { return []; }
+if (!rec.conversation_id) { return []; }
+const importe = Number(rec.quoted_source_amount) > 0
+  ? fmt(rec.quoted_source_amount) + ' ' + (rec.source_currency || 'GYD')
+  : null;
+const base = { conversation_id: rec.conversation_id, operation_id: rec.id };
+
+if (rec.status === 'incident') {
+  // Alerta al ADMIN, nunca al cliente. La campana del CRM ya la pone
+  // notify_operation_incidencia; esto es el aviso por WhatsApp.
+  // EL MOTIVO (28-oct-2026): desde la 114 el motivo vive en remittance_operations.incident_reason; las notas del
+  // deal llegaban vacias y el admin veia "Detalle: -". Los codigos internos se dicen en palabras.
+  const MOTIVOS = {
+    sin_correo: 'El TransID del comprobante no aparece en ningun correo de MMG.',
+    no_aplica: 'El comprobante no se aplico: la operacion no estaba esperando un deposito.',
+    ya_reclamado: 'Ese deposito ya estaba usado en otro envio.',
+    verificado_incompleto: 'Deposito verificado, pero faltan datos de quien recibe.',
+  };
+  const motivo = String(rec.incident_reason || '').trim();
+  const notas = (cfg.notas_deal || '').toString();
+  const colaNotas = notas.length > 400 ? '...' + notas.slice(-400) : notas;
+  const cola = (motivo && (MOTIVOS[motivo] || motivo)) || colaNotas.trim()
+    || 'El sistema no guardo el motivo: revise el chat.';
+  const titulo = 'Remesa' + (importe ? ' - ' + importe : '');
+  const mensaje = 'ALERTA Remesas - operacion en INCIDENCIA\n' + titulo + '\n\n' + cola + '\n\nRevise el chat en el CRM.';
+  return [{ json: Object.assign({}, base, { destino: 'admin', mensaje,
+    alerta: alerta('Operacion en incidencia',
+      titulo + ' necesita revision manual.',
+      cola,
+      'Abra el chat en el CRM: la operacion esta parada en Incidencia.') }) }];
+}
+
+if (rec.status === 'ready_to_transfer') {
+  // Deposito verificado. Si lo verifico el cruce AUTOMATICO con el correo de
+  // MMG, el propio agente ya se lo confirmo al cliente en ese turno: avisar
+  // aqui seria un segundo mensaje seguido. Solo se habla cuando lo verifico una
+  // persona desde el panel, que deja fila en remittance_admin_audit.
+  if (!cfg.verificacion_manual) { return []; }
+  if (avisoClienteApagado) { return []; }
+  // NO PROMETER LA TRANSFERENCIA SI FALTA ALGUN DATO DE QUIEN RECIBE (10-ago).
+  // Misma regla que crm_beneficiarios_completos: Zelle pide nombre y cuenta;
+  // lo demas, tarjeta y celular. Con varios beneficiarios se pide el primero
+  // que falte.
+  const lleno = (v) => String(v === null || v === undefined ? '' : v).trim() !== '';
+  const bens = Array.isArray(cfg.beneficiarios) ? cfg.beneficiarios : [];
+  // LA VIA SE DECIDE EN LA BASE (cerebro_riel_op, 173): la de la operacion, la del beneficiario, la
+  // que dijo el cliente ("clasica") o la de un beneficiario a medio dar. Sin via conocida NO se
+  // supone Cuba: el 01-oct a Alejandro (Zelle) se le pidio "tarjeta y celular" porque su operacion
+  // aun no tenia via.
+  const riel = String(cfg.riel || rec.delivery_method || '').toLowerCase();
+  const esTarjeta = ['cuban_card', 'clasica', 'tropical', 'multiple_distribution'].includes(riel);
+  // MEXICO (M7, 2026-10-24): cuenta = CLABE + banco + titular; retiro = solo el banco (Bancoppel o BBVA).
+  const esMexico = ['mexico', 'mexico_cuenta', 'mexico_retiro'].includes(riel);
+  let falta = '';
+  if (bens.length === 0 && esRecarga) {
+    falta = 'el numero a recargar';
+  } else if (bens.length === 0 && esSaldo) {
+    falta = 'el numero de Cuba';
+  } else if (bens.length === 0 && esVisa) {
+    falta = '';
+  } else if (bens.length === 0 && esCombo) {
+    falta = 'los datos del destinatario del combo';
+  } else if (bens.length === 0 && esMexico) {
+    falta = 'los datos del destinatario en Mexico: la CLABE, el banco y el titular, o solo el banco para el retiro (Bancoppel o BBVA)';
+  } else if (bens.length === 0) {
+    falta = riel === 'zelle'
+      ? 'el nombre y la cuenta Zelle de quien recibe'
+      : (esTarjeta
+        ? 'la tarjeta y el celular de quien recibe en Cuba'
+        : (riel === 'efectivo_usd'
+          ? 'los datos de quien recibe el efectivo en Cuba'
+          : 'los datos de quien recibe: la cuenta Zelle, o la tarjeta y el celular en Cuba'));
+  } else {
+    for (const ben of bens) {
+      if (ben.beneficiary_type === 'combo') {
+        const fc = [];
+        if (!lleno(ben.name)) { fc.push('el nombre completo'); }
+        if (!lleno(ben.phone)) { fc.push('el telefono'); }
+        if (!lleno(ben.address)) { fc.push('la direccion con la provincia'); }
+        else if (!PLAZOS_COMBO.some(([re]) => re.test(String(ben.address)))) { fc.push('la provincia de la direccion'); }
+        if (!lleno(ben.reference)) { fc.push('una referencia de como llegar'); }
+        const quien = lleno(ben.name) ? ben.name : 'quien recibe el combo';
+        const lista = fc.length > 1 ? fc.slice(0, -1).join(', ') + ' y ' + fc[fc.length - 1] : fc[0];
+        if (fc.length) { falta = fc.length > 1 ? 'los datos de ' + quien + ': ' + lista : lista + ' de ' + quien; break; }
+      } else if (ben.beneficiary_type === 'recarga') {
+        if (!lleno(ben.phone)) { falta = 'el numero a recargar'; }
+      } else if (ben.beneficiary_type === 'efectivo_usd') {
+        // EFECTIVO (191): sin tarjeta. Completo con celular, direccion y foto del carnet (crm_beneficiarios_completos, 188).
+        const faltan = [];
+        if (!lleno(ben.phone)) { faltan.push('el celular'); }
+        if (!lleno(ben.address)) { faltan.push('la direccion'); }
+        if (!lleno(ben.id_photo_wamid)) { faltan.push('una foto del carnet'); }
+        if (faltan.length) {
+          const lista = faltan.length === 1 ? faltan[0] : faltan.slice(0, -1).join(', ') + ' y ' + faltan[faltan.length - 1];
+          falta = lista + ' de quien recibe el efectivo';
+        }
+      } else if (ben.beneficiary_type === 'zelle') {
+        const hayCuenta = lleno(ben.zelle_account);
+        const hayNombre = lleno(ben.name);
+        if (!hayCuenta && !hayNombre) { falta = 'el nombre y la cuenta Zelle de quien recibe'; }
+        else if (!hayCuenta) { falta = 'la cuenta Zelle de quien recibe'; }
+        else if (!hayNombre) { falta = 'el nombre del titular de la cuenta Zelle'; }
+      } else if (ben.beneficiary_type === 'mexico_cuenta') {
+        const fm = [];
+        if (!lleno(ben.name)) { fm.push('el nombre del titular'); }
+        if (!/^[0-9]{18}$/.test(String(ben.clabe || ''))) { fm.push('la CLABE de 18 digitos'); }
+        if (!lleno(ben.bank_name)) { fm.push('el banco de la cuenta'); }
+        if (fm.length) {
+          const lista = fm.length > 1 ? fm.slice(0, -1).join(', ') + ' y ' + fm[fm.length - 1] : fm[0];
+          falta = lista + ' de la cuenta en Mexico';
+        }
+      } else if (ben.beneficiary_type === 'mexico_retiro') {
+        if (!lleno(ben.bank_name)) { falta = 'el banco para el retiro en Mexico (Bancoppel o BBVA)'; }
+      } else {
+        const hayTarjeta = lleno(ben.card_number);
+        const hayCelular = lleno(ben.phone);
+        if (!hayTarjeta && !hayCelular) { falta = 'la tarjeta y el celular de quien recibe en Cuba'; }
+        else if (!hayTarjeta) { falta = 'la tarjeta de quien recibe en Cuba'; }
+        else if (!hayCelular) { falta = 'el celular de quien recibe en Cuba'; }
+      }
+      if (falta) { break; }
+    }
+  }
+  const frase = importe
+    ? 'Su deposito de *' + importe + '* ya fue verificado.'
+    : 'Su deposito ya fue verificado.';
+  // Salto de parrafo a mano: este workflow NO pasa por 'Normalizar formato'.
+  const NL = String.fromCharCode(10) + String.fromCharCode(10);
+  // A PERSON ATTENDS THE CHAT (375, 2026-11-15, owner "si hazlo"): production conversation 5a4c0ab8 (2026-11-14) - an admin chatted
+  // with the customer, forced the verification from the panel and this notice asked for data the customer had just sent. While a
+  // person attends (cfg.humano_atendiendo, from cerebro_humano_atendiendo, same definition as the Decisor's) the question is
+  // dropped and only the fact stays: the deposit is verified. Without the fact (old query) or when nobody attends: as before.
+  const personaAtiende = cfg.humano_atendiendo === true;
+  const plural = falta.startsWith('los ');
+  const mensaje = (falta && personaAtiende) ? frase : falta
+    ? frase + NL + (esCombo ? 'Para poder enviar su combo nos ' : esSaldo ? 'Para poder enviar su saldo móvil nos ' : 'Para poder hacer ' + (esRecarga ? 'la recarga' : 'la transferencia') + ' nos ') + (plural ? 'faltan ' : 'falta ') + falta + '. ' + (plural ? '¿Me los pasa?' : '¿Me lo pasa?')
+    : frase + NL + (() => {
+        // SIN PROMETER TIEMPOS NI REPETIR DATOS (85b, 3-oct-2026, criterio de Humberto): casi nunca sale al momento, y
+        // la tarjeta/celular ya los vio el cliente cuando los dio. Se promete lo que si pasa: avisarle al completar.
+        // {RECIBE} lo rellena 'Enviar por WaCRM' con el monto de la remesa (vacio si va en varias monedas).
+        const hecha = String(rec.delivery_method || '').toLowerCase() === 'efectivo_usd' ? 'entregada' : 'hecha';
+        if (esVisa) { return 'El equipo sube su aplicación de extensión de visa y, una vez subida, le avisamos por acá.'; }
+        if (esCombo) { return 'Una persona del equipo le llama para elegir los productos de su combo y, una vez enviado, le avisamos por acá.'; }
+        // MEXICO (M7): el aviso habla de un envio, no de una remesa generica.
+        if (esMexico) {
+          const esRetiroMx = bens.some((b) => String(b.beneficiary_type || '').toLowerCase() === 'mexico_retiro');
+          if (esRetiroMx) {
+            return 'Estamos preparando su retiro en Mexico; en cuanto generemos el codigo se lo mandamos por aqui y desde ese momento ya puede ir a cobrarlo en Bancoppel/BBVA.';
+          }
+          const formasMx = [
+            'En cuanto quede hecho su envio a Mexico le avisamos por aqui.',
+            'Le escribimos por aca apenas su envio a Mexico quede hecho.',
+          ];
+          return formasMx[Math.floor(Math.random() * formasMx.length)];
+        }
+        if (esSaldo) {
+          const formasSaldo = [
+            'Una vez enviado su saldo móvil{RECIBE} le notificamos por acá.',
+            'En cuanto quede enviado su saldo móvil{RECIBE} le avisamos por aquí.',
+            'Le escribimos por acá apenas su saldo móvil{RECIBE} quede enviado.',
+          ];
+          return formasSaldo[Math.floor(Math.random() * formasSaldo.length)];
+        }
+        const que = esRecarga ? 'recarga' : 'remesa';
+        const formas = [
+          'Una vez ' + hecha + ' su ' + que + '{RECIBE} le notificamos por acá.',
+          'En cuanto quede ' + hecha + ' su ' + que + '{RECIBE} le avisamos por aquí.',
+          'Le escribimos por acá apenas su ' + que + '{RECIBE} quede ' + hecha + '.',
+        ];
+        return formas[Math.floor(Math.random() * formas.length)];
+      })();
+  return [{ json: Object.assign({}, base, { destino: 'cliente', mensaje }) }];
+}
+
+if (rec.status === 'completed') {
+  // DESDE INCIDENCIA, SILENCIO (11-ago, criterio de Humberto): esa la cerro una
+  // persona en el chat; avisar otra vez seria redundante.
+  if (old.status === 'incident') { return []; }
+  if (avisoClienteApagado) { return []; }
+  // ENVIO MIXTO (un deposito pagando varios servicios, migracion 253; criterio de Humberto, 5-nov-2026): un solo aviso
+  // al cliente, cuando se completa la ULTIMA parte, sin nombrar servicio. 'Leer secreto' trae grupo_pendientes: los
+  // OTROS miembros del grupo que no estan completados ni cancelados, contados al correr el notificador. Si quedan, esta
+  // parte no avisa. Si no se sabe (la consulta aun no lo trae), se avisa como siempre. No hay plantilla de Meta que diga
+  // 'su envio', asi que fuera de la ventana de 24 h este aviso no puede salir hasta que se apruebe una.
+  if (rec.mixed_group_id && cfg.grupo_pendientes !== undefined && cfg.grupo_pendientes !== null) {
+    if (Number(cfg.grupo_pendientes) > 0) { return []; }
+    return [{ json: Object.assign({}, base, { destino: 'cliente',
+      mensaje: 'Listo, su envío ya fue completado. Gracias por confiar en *Remesas Ya*.' }) }];
+  }
+  // CON O SIN CAPTURA SE AVISA (decision 25-sep-2026, revisada en la prueba en
+  // vivo): la captura que manda el panel va sin texto, asi que el cliente no
+  // tendria confirmacion escrita. Mismo criterio que el notificador anterior.
+  // LO QUE RECIBE EL CLIENTE (15-sep-2026, criterio de Humberto): '{RECIBE}' lo
+  // rellena 'Enviar por WaCRM' con lo que 'Buscar telefono' saca de la operacion.
+  // PRODUCCION: va como PLANTILLA de Meta (remesa_completada), que cruza la
+  // ventana de 24 h (el 10-ago este aviso se perdio con un cliente real por ir
+  // como texto). Texto fijo de la plantilla: 'Listo, su remesa de {{1}} ya fue
+  // completada. Gracias por confiar en Remesas Ya.' 'Enviar por WaCRM' cambia
+  // '{RECIBE}' por lo que recibe el cliente; 'mensaje' queda solo como registro.
+  // MEXICO (M7): transferencia = captura con los MXN depositados; retiro = codigo de Bancoppel/BBVA.
+  const tiposMx = (Array.isArray(cfg.beneficiarios) ? cfg.beneficiarios : [])
+    .map((b) => String(b.beneficiary_type || '').toLowerCase());
+  const esMexicoCompletado = ['mexico', 'mexico_cuenta', 'mexico_retiro'].includes(String(rec.delivery_method || '').toLowerCase())
+    || tiposMx.some((t) => t === 'mexico_cuenta' || t === 'mexico_retiro');
+  const esRetiroMx = tiposMx.includes('mexico_retiro');
+  const mensaje = esMexicoCompletado
+    ? (esRetiroMx
+      ? 'Listo, su retiro en Mexico ya esta disponible. Le mandamos el codigo para retirar en Bancoppel/BBVA; es valido aproximadamente una semana y en el cajero solo le piden el codigo. El retiro se entrega en multiplos de 100. Una vez que tenga el codigo ya puede ir a cobrarlo; de ahi en adelante es cosa suya. Gracias por confiar en Remesas Ya.'
+      : 'Listo, su envio a Mexico ya fue hecho. Le mandamos la captura con los MXN depositados. Gracias por confiar en Remesas Ya.')
+    : esVisa
+    ? 'Listo, su aplicación de extensión de visa ya fue subida. Inmigración le enviará un PDF por correo; cuando llegue se lo reenviamos con los pasos a seguir.'
+    : esCombo
+    ? 'Listo, su combo ya fue enviado. Suele llegar ' + plazoCombo(cfg.beneficiarios) + '. Gracias por confiar en *Remesas Ya*.'
+    : esRecarga
+    ? 'Listo, su recarga{RECIBE} ya fue realizada. Gracias por confiar en *Remesas Ya*.'
+    : esSaldo
+    ? 'Listo, su saldo móvil{RECIBE} ya fue enviado. Gracias por confiar en *Remesas Ya*.'
+    : 'Listo, su remesa{RECIBE} ya fue completada. Gracias por confiar en *Remesas Ya*.';
+  // La plantilla aprobada dice 'su remesa de {{1}}': solo para una remesa (28-oct-2026). Otro servicio fuera de la
+  // ventana de 24 h va sin plantilla hasta que Meta apruebe una que diga el servicio.
+  const esRemesa = !esMexicoCompletado && !esVisa && !esCombo && !esRecarga && !esSaldo;
+  const plantilla = esRemesa ? { name: 'remesa_completada', language: 'es', params: ['{RECIBE}'] } : undefined;
+  return [{ json: Object.assign({}, base, { destino: 'cliente', mensaje }, plantilla ? { plantilla } : {}) }];
+}
+
+return [];

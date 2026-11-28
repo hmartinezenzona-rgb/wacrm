@@ -17,6 +17,8 @@ import { encrypt } from "@/lib/whatsapp/encryption";
 const inserts: Record<string, unknown[]> = {};
 const updates: Record<string, { payload: unknown; eqs: string[] }[]> = {};
 let logSeq = 0;
+// Tablas cuyo INSERT debe fallar (error de Postgres simulado).
+const failInserts: Record<string, unknown> = {};
 
 const CONFIG_ROW = {
   id: "cfg1",
@@ -67,6 +69,9 @@ vi.mock("@/lib/automations/engine", () => ({
 vi.mock("@/lib/webhooks/deliver", () => ({
   dispatchWebhookEvent: vi.fn(async () => undefined),
 }));
+vi.mock("@/lib/webhooks/outbox", () => ({
+  dispatchEventDurably: vi.fn(async () => undefined),
+}));
 vi.mock("@/lib/whatsapp/template-webhook", () => ({
   handleTemplateWebhookChange: vi.fn(async () => undefined),
   isTemplateWebhookField: vi.fn(() => false),
@@ -108,6 +113,7 @@ function makeBuilder(table: string) {
     Promise.resolve({ data: result.data, error: result.error }),
   );
   builder.insert = vi.fn((payload: unknown) => {
+    result.error = failInserts[table] ?? null;
     let row = payload;
     if (table === "whatsapp_webhook_log") {
       // La tabla del log devuelve su id — el contrato depende de él.
@@ -214,10 +220,11 @@ describe("webhook route — mensajes sin perfil de remitente", () => {
     vi.clearAllMocks();
     Object.keys(inserts).forEach((k) => delete inserts[k]);
     Object.keys(updates).forEach((k) => delete updates[k]);
+    Object.keys(failInserts).forEach((k) => delete failInserts[k]);
     logSeq = 0;
   });
 
-  it("1. contacts vacio: crea el contacto con el telefono como nombre y guarda el mensaje", async () => {
+  it("1. contacts vacio: crea el contacto sin nombre (el panel muestra el telefono) y guarda el mensaje", async () => {
     const res = await post(webhookBody([textMessage("5926731279", "wamid.A")], []));
 
     expect(res.status).toBe(200);
@@ -226,12 +233,14 @@ describe("webhook route — mensajes sin perfil de remitente", () => {
     expect(contactInserts[0]).toMatchObject({
       account_id: "acc1",
       phone: "5926731279",
-      name: "5926731279", // teléfono como nombre
+      // Sin perfil de WhatsApp no se inventa un nombre: guardar el teléfono
+      // como nombre dejaba contactos llamados "5927…" (16 en producción).
+      name: null,
     });
     expect(insertPayloads("messages")).toHaveLength(1);
   });
 
-  it("2. contacts sin profile: mismo resultado", async () => {
+  it("2. contacts sin profile: mismo resultado, sin nombre", async () => {
     const res = await post(
       webhookBody([textMessage("5926731279", "wamid.B")], [{ wa_id: "5926731279" }]),
     );
@@ -240,7 +249,7 @@ describe("webhook route — mensajes sin perfil de remitente", () => {
     expect(insertPayloads("contacts")).toHaveLength(1);
     expect(insertPayloads("contacts")[0]).toMatchObject({
       phone: "5926731279",
-      name: "5926731279",
+      name: null,
     });
     expect(insertPayloads("messages")).toHaveLength(1);
   });
@@ -331,5 +340,46 @@ describe("webhook route — mensajes sin perfil de remitente", () => {
         (u) => (u.payload as { procesado?: boolean }).procesado === true,
       ),
     ).toBe(false);
+  });
+});
+
+describe("webhook route — mensaje no guardado deja motivo en el log", () => {
+  beforeEach(() => {
+    // El fake arrastra result.data entre tests: builders limpios por caso.
+    Object.keys(builders).forEach((k) => delete builders[k]);
+    vi.clearAllMocks();
+    Object.keys(inserts).forEach((k) => delete inserts[k]);
+    Object.keys(updates).forEach((k) => delete updates[k]);
+    Object.keys(failInserts).forEach((k) => delete failInserts[k]);
+    logSeq = 0;
+  });
+
+  function logUpdatesOf(): { payload: Record<string, unknown>; eqs: string[] }[] {
+    return (updates["whatsapp_webhook_log"] ?? []) as {
+      payload: Record<string, unknown>;
+      eqs: string[];
+    }[];
+  }
+
+  it.each([
+    ["contacts", "no guardado: contacto"],
+    ["conversations", "no guardado: conversacion"],
+    ["messages", "no guardado: mensaje"],
+  ])("falla el INSERT de %s: error=%s y sin procesado", async (table, motivo) => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    failInserts[table] = { code: "XX000", message: "simulado" };
+    await post(webhookBody([textMessage("5926731279", "wamid.F")], []));
+    errorSpy.mockRestore();
+
+    const updatesLog = logUpdatesOf();
+    expect(updatesLog.some((u) => u.payload.error === motivo)).toBe(true);
+    expect(updatesLog.some((u) => u.payload.procesado === true)).toBe(false);
+  });
+
+  it("un mensaje guardado no escribe error", async () => {
+    await post(webhookBody([textMessage("5926731279", "wamid.OK")], []));
+    const updatesLog = logUpdatesOf();
+    expect(updatesLog.some((u) => u.payload.procesado === true)).toBe(true);
+    expect(updatesLog.some((u) => "error" in u.payload)).toBe(false);
   });
 });

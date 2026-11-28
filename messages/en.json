@@ -1,4 +1,55 @@
 {
+  "Hermes": {
+    "title": "Hermes",
+    "desc": "The business assistant. Ask about conversations, operations, the calculator, alerts or rates: it reads the CRM read-only.",
+    "placeholder": "Type your question…",
+    "send": "Send",
+    "newChat": "New conversation",
+    "thinking": "Hermes is looking…",
+    "failed": "Could not get an answer from Hermes.",
+    "attach": "Attach image",
+    "attachFailed": "The image could not be prepared.",
+    "removeAttachment": "Remove image",
+    "attachedImage": "Attached image",
+    "intro": {
+      "eyebrowFallback": "Business assistant · read-only",
+      "greeting": "What are we reviewing today?",
+      "greetingNamed": "What are we reviewing today, {name}?",
+      "subtitle": "Ask me about conversations, operations, finance or the weekly control. Everything comes from the CRM."
+    },
+    "hint": {
+      "text": "Hermes never writes to the CRM or messages customers. If something is missing, it says so.",
+      "dismiss": "Hide notice"
+    },
+    "ideas": {
+      "heading": "What Hermes can do",
+      "lead": "One example per card. Pick one and the question writes itself.",
+      "cuadre": {
+        "title": "Reconcile the day",
+        "desc": "Cross-checks completed operations against the finance ledger and the weekly control, and flags what doesn't add up.",
+        "cta": "Reconcile today",
+        "prompt": "Reconcile today: completed operations against finance and the weekly control."
+      },
+      "sinResponder": {
+        "title": "What went unanswered",
+        "desc": "Finds customer messages nobody replied to, with the time and the name.",
+        "cta": "See pending",
+        "prompt": "Which customer messages went unanswered today?"
+      },
+      "incidencia": {
+        "title": "Operations on incident",
+        "desc": "Lists what is stuck, the amount and what is missing to resolve it.",
+        "cta": "Review incidents",
+        "prompt": "Which operations are on incident right now, and why?"
+      },
+      "semana": {
+        "title": "Week summary",
+        "desc": "Billed, invested and return per service, with the busiest days.",
+        "cta": "See the week",
+        "prompt": "Weekly summary: billed, invested and return per service."
+      }
+    }
+  },
   "LoginPage": {
     "titleAccept": "Sign in to accept",
     "titleWelcome": "Welcome back",
@@ -16,7 +67,9 @@
   },
   "Sidebar": {
     "title": "Remesas YA",
-    "dashboard": "Dashboard",
+    "groupOperation": "Operations",
+    "groupMoney": "Money",
+    "groupTools": "Tools",
     "inbox": "Inbox",
     "notifications": "Notifications",
     "contacts": "Contacts",
@@ -24,7 +77,7 @@
     "broadcasts": "Broadcasts",
     "automations": "Automations",
     "flows": "Flows",
-    "aiAgents": "AI Agents",
+    "aiAgents": "Hermes",
     "settings": "Settings",
     "beta": "Beta",
     "unreadConversations": "{count} unread {count, plural, =1 {conversation} other {conversations}}",
@@ -39,17 +92,22 @@
     "menuProfile": "Profile",
     "menuSettings": "Settings",
     "menuSignOut": "Sign out",
-    "resumen": "Resumen"
+    "finanzas": "Finances",
+    "cupInventory": "Card inventory",
+    "tablero": "Operations board",
+    "primaryNavLabel": "Primary"
   },
   "Header": {
-    "dashboard": "Dashboard",
     "inbox": "Inbox",
     "notifications": "Notifications",
     "contacts": "Contacts",
     "pipelines": "Pipelines",
     "broadcasts": "Broadcasts",
     "automations": "Automations",
+    "flows": "Flows",
+    "aiAgents": "Hermes",
     "settings": "Settings",
+    "breadcrumb": "Breadcrumb",
     "openMenu": "Open menu",
     "openAccountMenu": "Open account menu",
     "defaultUser": "User",
@@ -57,75 +115,10 @@
     "menuProfile": "Profile",
     "menuSettings": "Settings",
     "menuSignOut": "Sign out",
-    "resumen": "Resumen"
+    "finanzas": "Finances"
   },
   "ModeToggle": {
     "switchMode": "Switch to {mode} mode"
-  },
-  "Dashboard": {
-    "page": {
-      "title": "Dashboard",
-      "description": "Live analytics across conversations, contacts, deals, broadcasts, and automations.",
-      "activeConversations": "Active Conversations",
-      "newContactsToday": "New Contacts Today",
-      "openDealsValue": "Open Deals Value",
-      "messagesSentToday": "Messages Sent Today",
-      "newTodayVsYesterday": "new today vs yesterday",
-      "vsYesterday": "vs yesterday",
-      "openDeals": "{count} open {count, plural, =1 {deal} other {deals}}",
-      "noChange": "No change {suffix}"
-    },
-    "quickActions": {
-      "newContact": "New Contact",
-      "newDeal": "New Deal",
-      "newBroadcast": "New Broadcast",
-      "newAutomation": "New Automation"
-    },
-    "activityFeed": {
-      "title": "Recent Activity",
-      "viewAll": "View all →",
-      "noActivity": "No activity yet",
-      "noActivityHint": "Activity from messages, deals, broadcasts, and automations will appear here.",
-      "showingOf": "Showing {visible} of {totalLoaded}{plus}",
-      "show": "Show",
-      "timeS": "{sec}s ago",
-      "timeM": "{min}m ago",
-      "timeH": "{hr}h ago",
-      "timeD": "{day}d ago"
-    },
-    "conversationsChart": {
-      "title": "Conversations Over Time",
-      "description": "Daily message volume by direction",
-      "days": "{count} days",
-      "noActivity": "No message activity in this range",
-      "noActivityHint": "Send or receive messages to start populating this chart.",
-      "incoming": "Incoming",
-      "outgoing": "Outgoing",
-      "tooltipIncoming": "{count} incoming",
-      "tooltipOutgoing": "{count} outgoing",
-      "ariaLabel": "Conversations per day"
-    },
-    "pipelineDonut": {
-      "title": "Pipeline Value",
-      "description": "Open deals by stage",
-      "noOpenDeals": "No open deals yet",
-      "noOpenDealsHint": "Create deals in Pipelines to see stage breakdowns here.",
-      "dealCount": "{count} {count, plural, =1 {deal} other {deals}}",
-      "total": "Total",
-      "ariaLabel": "Pipeline value by stage"
-    },
-    "responseTimeChart": {
-      "title": "Average First Response Time",
-      "description": "Minutes to reply to a customer's first unreplied message, by weekday",
-      "target": "target {minutes}m",
-      "thisWeek": "This week:",
-      "lastWeek": "Last week:",
-      "noReplies": "No replies recorded yet",
-      "noRepliesHint": "This chart fills in as you reply to customer messages."
-    },
-    "emptyState": {
-      "title": "Not enough data yet"
-    }
   },
   "Inbox": {
     "page": {
@@ -145,7 +138,9 @@
       "clearAll": "Clear all",
       "noConversations": "No conversations found",
       "noMessagesYet": "No messages yet",
-      "unknown": "Unknown"
+      "unknown": "Unknown",
+      "showAll": "Show all conversations",
+      "showRecentOnly": "Show recent only"
     },
     "messageThread": {
       "backToConversations": "Back to conversations",
@@ -169,7 +164,24 @@
       "selectConversation": "Select a conversation",
       "selectConversationHint": "Choose a conversation from the left to start messaging",
       "today": "Today",
-      "yesterday": "Yesterday"
+      "yesterday": "Yesterday",
+      "networkError": "network error",
+      "sendFailed": "Failed to send: {reason}",
+      "sendTemplateFailed": "Failed to send template: {reason}",
+      "waitForSending": "Wait for the message to finish sending",
+      "reactionFailed": "Reaction failed: {reason}",
+      "assignmentFailed": "Failed to update assignment",
+      "you": "You",
+      "customer": "Customer",
+      "unknownContact": "Unknown",
+      "loadingOlder": "Loading earlier messages…"
+    },
+    "notBusiness": {
+      "mark": "Not business",
+      "markHint": "Mark this chat as not business: it stops raising unanswered-chat alerts until the customer writes again",
+      "banner": "Chat marked as not business. It raises no unanswered-chat alerts until the customer writes again.",
+      "reactivate": "Reactivate",
+      "failed": "Could not change the chat mark"
     },
     "sessionTimer": {
       "expired": "Expired",
@@ -178,12 +190,11 @@
       "noCustomerMessages": "No customer messages"
     },
     "composer": {
-      "draftHint": "Tap the ✨ to draft a reply with AI — you can edit it before sending",
-      "sessionExpiredHint": "24-hour session expired. Use a template to re-engage.",
+      "sessionExpiredHint": "The 24 h window closed",
       "templates": "Templates",
       "readOnlyPlaceholder": "Read-only — viewers can browse but not reply",
-      "sessionExpiredPlaceholder": "Session expired - use a template",
-      "typeMessagePlaceholder": "Type a message... (Shift+Enter for new line)",
+      "sessionExpiredPlaceholder": "Session expired",
+      "typeMessagePlaceholder": "Message",
       "readOnlyTitle": "Read-only — your role can't send messages",
       "recording": "Recording… {current} / {max}",
       "cancel": "Cancel",
@@ -194,7 +205,6 @@
       "document": "Document",
       "voiceNote": "Voice note",
       "sendTemplate": "Send template",
-      "draftWithAI": "Draft a reply with AI",
       "addCaption": "Add a caption…",
       "removeAttachment": "Remove attachment",
       "moreActions": "More",
@@ -205,7 +215,12 @@
       "send": "Send",
       "quickReplyNamePrompt": "Name this quick reply:",
       "quickReplySaved": "Saved as a quick reply.",
-      "quickReplySaveError": "Couldn't save the quick reply."
+      "quickReplySaveError": "Couldn't save the quick reply.",
+      "fileTooLarge": "File is {size} MB — {kind, select, image {image} video {video} audio {audio} other {document}} limit is {limit} MB.",
+      "uploadFailed": "Upload failed.",
+      "recordingTooLong": "Recording is too long (over 16 MB).",
+      "recordingUnsupported": "Voice recording isn't supported in this browser.",
+      "micDenied": "Microphone access denied or unavailable."
     },
     "bubble": {
       "photo": "Photo",
@@ -219,7 +234,8 @@
       "interactiveReply": "[Interactive reply]",
       "unsupported": "[Unsupported message type]",
       "aiBadge": "AI",
-      "aiBadgeTitle": "Sent automatically by the AI assistant"
+      "aiBadgeTitle": "Sent automatically by the AI assistant",
+      "sharedImageAlt": "Shared image"
     },
     "actions": {
       "reply": "Reply",
@@ -270,6 +286,7 @@
       "resumeBot": "Resume bot",
       "botActiveHint": "The bot is answering this chat. Pause it to take over yourself.",
       "botPausedHint": "The bot is paused on this chat. It won't answer until you resume it.",
+      "botAutoPausedHint": "Paused because you replied. The bot comes back on its own 5 minutes after your last message. Turn this on to keep it paused until you resume it.",
       "botPaused": "Bot paused on this chat",
       "botResumed": "Bot back on this chat",
       "botError": "Couldn't change the bot state"
@@ -283,6 +300,318 @@
       "resumed": "AI resumed.",
       "updateError": "Couldn’t update the AI assistant.",
       "networkError": "Couldn’t reach the server."
+    },
+    "operationsPanel": {
+      "title": "Operations",
+      "historyTitle": "History",
+      "historyShowMore": "Show {count} more",
+      "loading": "Loading remittance operations…",
+      "loadError": "Couldn't load remittance operations.",
+      "noOpenOperations": "No open remittance operations for this conversation.",
+      "amountUnavailable": "Amount unavailable",
+      "quoted": "Quoted: {source}",
+      "quotedTo": "Quoted: {source} → {destination}",
+      "deliveryMethod": "Delivery method",
+      "beneficiaries": "Beneficiaries",
+      "noBeneficiaries": "No beneficiaries recorded yet",
+      "beneficiaryNameUnavailable": "Name unavailable",
+      "card": "Card",
+      "phone": "Phone",
+      "zelleAccount": "Zelle account",
+      "amount": "Amount",
+      "status": {
+        "collecting_information": "Collecting information",
+        "awaiting_deposit": "Awaiting deposit",
+        "deposit_received": "Deposit received",
+        "deposit_verification": "Deposit verification",
+        "ready_to_transfer": "Ready to transfer",
+        "transferring": "Transferring",
+        "incident": "Incident",
+        "awaiting_beneficiary": "Waiting for beneficiary",
+        "completed": "Completed"
+      },
+      "destinationCurrency": "Destination currency",
+      "depositMethod": "Deposit method",
+      "depositMethodValue": {
+        "mmg": "MMG"
+      },
+      "quotedSourceAmount": "Deposit (GYD)",
+      "quotedDestinationAmount": "Destination amount",
+      "recalculatedOnSave": "Recalculated on save",
+      "name": "Name",
+      "currency": "Currency",
+      "rechargeCountOne": "{count} recharge",
+      "rechargeCountMany": "{count} recharges",
+      "comboCountOne": "{count} combo",
+      "comboCountMany": "{count} combos",
+      "visaCountOne": "{count} extension",
+      "visaCountMany": "{count} extensions",
+      "saldoCountOne": "{count} package · {saldo} SM",
+      "saldoCountMany": "{count} packages · {saldo} SM",
+      "comboMinimumHint": "Minimum 25 000 GYD per combo",
+      "comboProvinceHint": "Include the Cuban province in the address",
+      "serviceChange": {
+        "label": "Service",
+        "choose": "Choose a service",
+        "saved": "Service changed",
+        "failed": "Could not change the service: {message}"
+      },
+      "completeMixedSend": {
+        "title": "Complete send",
+        "partDone": "Completed",
+        "missing": "{count} screenshots missing",
+        "confirm": "Send and complete the {count} parts",
+        "confirmRest": "Send and complete the {count} remaining parts",
+        "confirmSkip": "Complete the {count} parts",
+        "confirmSkipRest": "Complete the {count} remaining parts",
+        "customerMessageTitle": "Message to the customer",
+        "customerMessage": "Listo, su envío ya fue completado. Gracias por confiar en *Remesas Ya*."
+      },
+      "mixedSend": {
+        "title": "Mixed send",
+        "total": "{amount} GYD deposit",
+        "share": "{service} · {amount} GYD",
+        "verifiedDeposit": "1 verified deposit · TransID …{transId}",
+        "awaitingDeposit": "Waiting for the deposit",
+        "complete": "Complete send",
+        "closeConfirm": "Close the send",
+        "closeProgress": "Closed {done} of {total}"
+      },
+      "splitDeposit": {
+        "button": "Split deposit",
+        "title": "Split deposit",
+        "service": "Service",
+        "amount": "Amount (GYD)",
+        "addPart": "Add a service",
+        "removePart": "Remove this service",
+        "assigned": "Assigned {assigned} of {total} GYD",
+        "confirm": "Split",
+        "saved": "Deposit split",
+        "failed": "Could not split the deposit: {message}"
+      },
+      "editSplit": {
+        "button": "Edit split",
+        "type": "Type",
+        "name": "Name",
+        "card": "Card",
+        "phone": "Phone",
+        "amount": "Amount",
+        "addRow": "Add a share",
+        "removeRow": "Remove this share",
+        "confirm": "Save split",
+        "summary": "Sum {sum} / Total {total} — difference {difference}",
+        "noTotal": "The operation has no destination total: fix it first with Edit operation",
+        "saved": "Split saved",
+        "types": {
+          "cuban_card": "CUP card",
+          "clasica": "Clásica",
+          "tropical": "Tropical",
+          "multiple_distribution": "Split"
+        }
+      },
+      "comboCost": {
+        "label": "Combo cost (GYD)",
+        "clear": "Clear",
+        "missing": "Cost missing: the calculator waits for it",
+        "invalid": "Enter a cost from 0 up to 999 999 999",
+        "change": "Change",
+        "saved": "Combo cost saved"
+      },
+      "reference": "Reference",
+      "contactPhone": "Contact phone",
+      "invalidRechargePhone": "Enter a Cuban mobile number: 8 digits starting with 5 or 6",
+      "address": "Address",
+      "viewIdPhoto": "View ID",
+      "idPhotoMissing": "ID photo missing",
+      "idPhotoPick": "Choose from chat",
+      "idPhotoChange": "Change",
+      "idPhotoChosen": "ID photo chosen",
+      "idPhotoPickerTitle": "Chat photos",
+      "idPhotoPickerEmpty": "There are no images in this chat",
+      "idPhotoPickerLoadError": "Could not load the images",
+      "idPhotoImageAlt": "Chat image, {time}",
+      "idPhotoFromCustomer": "Customer",
+      "idPhotoFromTeam": "Team",
+      "idPhotoFromBot": "Bot",
+      "editOperation": "Edit operation",
+      "editBeneficiary": "Edit",
+      "moveBeneficiary": "Move",
+      "addBeneficiary": "Add beneficiary",
+      "beneficiaryTypeLabel": "Type",
+      "add": "Add",
+      "adding": "Adding…",
+      "copy": "Copy",
+      "copyValue": "Copy {label}",
+      "copied": "Copied ✓",
+      "save": "Save",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "confirmMove": "Confirm move",
+      "removeBeneficiary": "Remove",
+      "removeBeneficiaryWarning": "Remove this recipient from the send. It stays in the history and can be added again.",
+      "confirmRemoveBeneficiary": "Confirm removal",
+      "newOperation": "New operation",
+      "confirmNewOperation": "Create operation",
+      "optionalAmount": "Optional",
+      "changeStatus": "Change state",
+      "confirmChangeStatus": "Confirm the state change",
+      "attachReceipt": {
+        "label": "Attach a receipt from the chat",
+        "attachedPrefilled": "Receipt attached. The reference and the amount came from the image: check them and verify.",
+        "attached": "Receipt attached. Type the reference and the amount and verify.",
+        "attachedNeedsStage": "Receipt attached. Move it to deposit verification to verify it.",
+        "alreadyAttached": "That image is already a receipt of this operation."
+      },
+      "depositMove": {
+        "button": "Release or move this deposit",
+        "choose": "What to do with the deposit?",
+        "release": "Leave it without an owner",
+        "confirm": "Confirm",
+        "warning": "The deposit leaves this operation: the state changes and the customer is not notified."
+      },
+      "freeDeposits": {
+        "button": "Link a deposit without an owner",
+        "empty": "No deposits without an owner in the last 45 days",
+        "loadError": "Could not load the deposits",
+        "link": "Link this deposit",
+        "loading": "Loading deposits…"
+      },
+      "selectTarget": "Select target operation",
+      "noChanges": "No changes to save",
+      "cannotBeEmpty": "This can't be left empty",
+      "invalidAmount": "Amount must be greater than 0",
+      "amountUsd": "Amount (USD)",
+      "invalidCurrency": "Currency must be a 3-letter code (e.g. USD)",
+      "clabe": "CLABE",
+      "bank": "Bank",
+      "mexicoAccount": "Bank account",
+      "mexicoWithdrawal": "Cardless withdrawal",
+      "invalidClabe": "CLABE must be exactly 18 digits",
+      "invalidCard": "Card number must be exactly 16 digits",
+      "invalidPhone": "Phone number must be 8 to 15 digits",
+      "lockedByOperator": "Locked by an operator correction",
+      "deliverTo": "Deliver to",
+      "amountMissing": "Amount missing · add",
+      "shortfallRecipient": "{amount} {currency} missing",
+      "history": {
+        "completedAt": "{date}",
+        "proofSent": "with screenshot",
+        "noProof": "without screenshot",
+        "skipProof": "window closed, no screenshot",
+        "closedManually": "Closed manually"
+      },
+      "closedEdit": {
+        "title": "Editing a closed operation",
+        "body": "This change is logged in the audit trail. The calculator lines and the card inventories are not recalculated; edit them in the calculator."
+      },
+      "notify": {
+        "on": "The customer will be notified. Click to turn off.",
+        "off": "The customer will not be notified. Click to turn on."
+      },
+      "closing": {
+        "deleteButton": "Delete remesa",
+        "closeButton": "Close manually",
+        "closeConfirm": "Close remesa",
+        "deleteConfirm": "Delete remesa",
+        "deleted": "Operation deleted",
+        "deleteRefusal": {
+          "alreadyClosed": "This operation was already deleted or closed.",
+          "verifiedDeposit": "It cannot be deleted: it has a verified deposit.",
+          "notAdmin": "Only an admin can delete operations."
+        }
+      },
+      "completeTransfer": {
+        "title": "Complete transfer",
+        "button": "Complete transfer",
+        "sendAndComplete": "Send & complete",
+        "complete": "Complete",
+        "withoutScreenshot": "Complete without screenshot",
+        "delivered": "Transfer completed",
+        "windowClosed": "The 24-hour window is closed. Complete without the screenshot?",
+        "completeAnyway": "Complete without screenshot",
+        "retry": "Retry",
+        "failed": "Could not send the screenshot: {message}",
+        "stageFailed": "The screenshot was sent but the operation could not be completed. Retry to finish.",
+        "unconfirmed": "Could not confirm the screenshot was sent. Check the conversation before retrying.",
+        "stale": "This operation changed. Reload the panel.",
+        "blocked": "This action isn't available right now.",
+        "beneficiaryLabel": "Beneficiary {n}",
+        "missingProofs": "Attach a screenshot for every beneficiary, or complete without one.",
+        "refusal": {
+          "notReady": "The operation is no longer ready to transfer. Reload the panel.",
+          "beneficiariesIncomplete": "Recipient data is incomplete. Complete it before delivering.",
+          "fundingConflict": "The funding case has a conflict: {note}. Resolve it before delivering.",
+          "noSourceAmount": "The operation has no source amount to fund.",
+          "fundingMissing": "Deposit not verified yet: it has {deposited} of {required} GYD",
+          "recipientsMismatch": "The recipients add up to {sum} {currency} but the operation sends {sent} {currency}. Complete them before delivering.",
+          "proofsMissing": "Missing delivery proofs: {count}",
+          "usdInventoryInsufficient": "{missing} USD missing on {service}. Buy balance in the card inventory before completing."
+        },
+        "proof": {
+          "dropHint": "Paste (Ctrl+V), drop or choose a screenshot",
+          "dropFormats": "PNG · JPG · WEBP · max {mb} MB",
+          "removeAria": "Remove screenshot",
+          "previewAlt": "Attached screenshot"
+        }
+      },
+      "cupPlan": {
+        "planTitle": "Transfer from",
+        "usedTitle": "Left from",
+        "cardTotal": "{amount} CUP",
+        "missing": "{amount} CUP short · waits until tomorrow",
+        "sourceCardLabel": "Source card",
+        "sourceCardAuto": "Automatic (by priority)",
+        "sourceCardOption": "{name} ·{last4} · {amount} CUP",
+        "sourceCardOptionNoLast4": "{name} · {amount} CUP"
+      },
+      "usdPlan": {
+        "planTitle": "Leaves from (estimate)",
+        "usedTitle": "Left from",
+        "line": "{card} ···· {last4}: {amount} USD ({lot})",
+        "lineNoLast4": "{card}: {amount} USD ({lot})",
+        "lotAt": "{discount} lot",
+        "lot1x1": "1x1 lot",
+        "blocked": "{amount} USD missing on {service}: buy balance before completing",
+        "serviceCLASICA": "Clásica",
+        "serviceTROPICAL": "Tropical",
+        "cost": "Real cost: {usdt} USDT",
+        "shortfall": "There was no balance for {amount} USD: check the inventory"
+      },
+      "viewer": {
+        "zoomOut": "Zoom out",
+        "zoomIn": "Zoom in",
+        "reset": "Reset zoom",
+        "hint": "Receipt viewer: use wheel, drag or pinch to zoom"
+      },
+      "depositReview": {
+        "verified": "Deposit verified",
+        "receipt": "Receipt",
+        "receiptPosition": "{current}/{total}",
+        "amountDeposited": "Amount deposited",
+        "transId": "TransID",
+        "verify": "Verify deposit",
+        "moveToVerification": "Move to deposit verification",
+        "force": "Force verification (no email confirmation)…",
+        "forceConfirm": "Force",
+        "cancel": "Cancel",
+        "loading": "Loading receipts…",
+        "loadError": "Could not load receipts",
+        "conflict": "The operation changed, try again",
+        "forced": "Verification forced · ready to transfer",
+        "results": {
+          "verificado": "Verified · ready to transfer",
+          "verificado_incompleto": "Verified · still waiting for the rest",
+          "verificado_de_mas": "Deposit exceeds the target · moved to incident",
+          "monto_no_coincide": "The amount does not match MMG",
+          "ya_reclamado": "This TransID was already used in another transfer. If the deposit has no email confirmation, you can force the verification.",
+          "deposito_antiguo": "The deposit is too old to verify automatically",
+          "deposito_anulado": "The deposit is voided in MMG",
+          "sin_correo": "No MMG email found for this reference",
+          "sin_referencia": "Missing reference",
+          "no_aplica": "The operation is not awaiting verification",
+          "other": "Could not verify ({code})"
+        }
+      }
     }
   },
   "Contacts": {
@@ -292,6 +621,18 @@
       "subtitleZero": "Manage your contact list.",
       "customFieldsBtn": "Custom fields",
       "importBtn": "Import",
+      "exportBtn": "Export",
+      "exportTitle": "Export contacts",
+      "exportDescription": "Downloads a .vcf file to import on your phone so they show up in WhatsApp.",
+      "exportPrefixLabel": "Name label",
+      "exportPrefixHelp": "Names will read \"label - name\". Use it to find them and add them to a group.",
+      "exportCount": "{count} contacts will be exported",
+      "exportCancel": "Cancel",
+      "exporting": "Exporting...",
+      "toastExported": "Exported {count} contacts",
+      "toastExportedSkipped": "Exported {count} contacts ({skipped} skipped for missing phone)",
+      "toastExportFailed": "Failed to export contacts",
+      "toastExportEmpty": "No contacts to export",
       "addContactBtn": "Add Contact",
       "searchPlaceholder": "Search by name, phone, or email...",
       "filterByTags": "Filter by tags",
@@ -327,7 +668,8 @@
       "toastFailedDelete": "Failed to delete contact",
       "toastDeleted": "Contact deleted",
       "toastBulkFailedDelete": "Failed to delete contacts",
-      "toastBulkDeleted": "{count} contacts deleted"
+      "toastBulkDeleted": "{count} contacts deleted",
+      "selectAllAria": "Select all contacts on this page"
     },
     "form": {
       "addTitle": "Add Contact",
@@ -360,7 +702,12 @@
       "dupSimilar": "A contact with a very similar number already exists.",
       "loadingTags": "Loading tags...",
       "noTagsAvailable": "No tags available. Create tags in Settings.",
-      "phoneRequired": "Phone number is required"
+      "phoneRequired": "Phone number is required",
+      "notAuthenticated": "Not authenticated",
+      "noAccountLinked": "Your profile is not linked to an account.",
+      "resellerTagAdminOnly": "Only an owner or admin can add or remove the Revendedor tag.",
+      "resellerTagBotHint": "This tag changes how the bot registers this contact's deposits.",
+      "resellerTagRefused": "Only an owner or admin can add or remove the Revendedor tag."
     },
     "detailView": {
       "tabs": {
@@ -368,7 +715,6 @@
         "activity": "Activity",
         "notes": "Notes",
         "custom": "Custom Fields",
-        "deals": "Deals",
         "noTags": "No tags",
         "noDeals": "No deals",
         "addNotePlaceholder": "Add a note..."
@@ -399,12 +745,12 @@
         "save": "Add Note",
         "noNotes": "No notes yet."
       },
-      "dealsTab": {
-        "noDeals": "No deals yet"
-      },
       "tagsTab": {
         "clickTagDesc": "Click a tag to add or remove it from this contact.",
-        "noTagsAvailable": "No tags available. Create tags in Settings."
+        "noTagsAvailable": "No tags available. Create tags in Settings.",
+        "resellerTagAdminOnly": "Only an owner or admin can add or remove the Revendedor tag.",
+        "resellerTagBotHint": "This tag changes how the bot registers this contact's deposits.",
+        "resellerTagRefused": "Only an owner or admin can add or remove the Revendedor tag."
       },
       "sendTemplateBtn": "Send template",
       "saveChangesBtn": "Save Changes",
@@ -420,7 +766,9 @@
       "toastCustomFieldsSaved": "Custom fields saved",
       "toastCustomFieldsFailed": "Failed to save custom fields",
       "toastTemplateSent": "Template \"{name}\" sent",
-      "toastTemplateFailed": "Failed to send template: {reason}"
+      "toastTemplateFailed": "Failed to send template: {reason}",
+      "networkError": "network error",
+      "sendTemplateFailed": "Failed to send template: {reason}"
     },
     "importModal": {
       "title": "Import Contacts",
@@ -463,7 +811,11 @@
       "toastSkipped_plural": "{count} duplicates skipped",
       "toastFailed": "{count} contact failed to import",
       "toastFailed_plural": "{count} contacts failed to import",
-      "toastError": "Import failed"
+      "toastError": "Import failed",
+      "notAuthenticated": "Not authenticated",
+      "noAccountLinked": "Your profile is not linked to an account.",
+      "toastTagsSkippedMore": " (+{count} more)",
+      "toastResellerTagSkipped": "The Revendedor tag was skipped: only an owner or admin can assign it."
     },
     "customFields": {
       "title": "Custom fields",
@@ -667,7 +1019,8 @@
         "date": "Date"
       },
       "errorLoad": "Failed to load broadcasts",
-      "retry": "Retry"
+      "retry": "Retry",
+      "inProgressAria": "Broadcast in progress"
     },
     "status": {
       "draft": "Draft",
@@ -718,7 +1071,8 @@
         "failed": "Failed"
       },
       "toastFailedDelete": "Failed to delete: {error}",
-      "toastDeleted": "Broadcast deleted"
+      "toastDeleted": "Broadcast deleted",
+      "unknownContact": "Unknown"
     },
     "new": {
       "title": "New Broadcast",
@@ -733,7 +1087,8 @@
       "toastNotSignedIn": "Not signed in.",
       "toastNotLinked": "Your profile is not linked to an account.",
       "toastFailedDraft": "Failed to save draft: {error}",
-      "toastDraftSaved": "Draft saved"
+      "toastDraftSaved": "Draft saved",
+      "failed": "Broadcast failed"
     },
     "wizard": {
       "next": "Next",
@@ -828,7 +1183,23 @@
         "preparing": "Preparing...",
         "progressDesc": "Processing {current} of {total} recipients...",
         "toastFailedPreview": "Failed to load preview data"
-      }
+      },
+      "audienceSummary": "Audience Summary",
+      "calculating": "Calculating…",
+      "estimatedRecipients": "estimated recipients",
+      "selectAudienceHint": "Select an audience type to see the estimate.",
+      "headerPreviewAlt": "Header preview",
+      "mediaUrlRequired": "A media URL is required to send this template.",
+      "mediaUrlInvalid": "Enter a valid http(s) URL.",
+      "valuePlaceholder": "Enter value...",
+      "loadingFields": "Loading…",
+      "noCustomFields": "No custom fields",
+      "selectCustomField": "Select custom field…",
+      "estimatedReach": "Estimated Reach",
+      "language": "Language",
+      "confirmTitle": "Confirm Broadcast",
+      "confirmDesc": "You are about to send this broadcast to <b>{count}</b> contacts using the <b>{template}</b> template. This action cannot be undone.",
+      "unmappedWarning": "Map every placeholder before continuing — still missing <code>{keys}</code>. Otherwise those placeholders will ship to Meta as empty strings."
     }
   },
   "Automations": {
@@ -852,6 +1223,8 @@
       "cancel": "Cancel",
       "deleteTitle": "Delete automation",
       "deleteDesc": "This permanently removes {name} and its execution history. This cannot be undone.",
+      "activeChip": "Active",
+      "useTemplate": "Use template",
       "toasts": {
         "activated": "Automation activated",
         "paused": "Automation paused",
@@ -860,6 +1233,18 @@
         "updateError": "Failed to update",
         "duplicateError": "Failed to duplicate",
         "deleteError": "Failed to delete"
+      },
+      "loadFailed": "Failed to load automations",
+      "openMenuAria": "Open menu",
+      "triggerLabels": {
+        "new_message_received": "New Message",
+        "first_inbound_message": "First Message from Contact",
+        "keyword_match": "Keyword Match",
+        "new_contact_created": "New Contact",
+        "conversation_assigned": "Conversation Assigned",
+        "tag_added": "Tag Added",
+        "time_based": "Time-Based",
+        "interactive_reply": "Button / List Reply"
       }
     },
     "edit": {
@@ -894,7 +1279,6 @@
         "remove_tag": "Remove Tag",
         "assign_conversation": "Assign Conversation",
         "update_contact_field": "Update Contact Field",
-        "create_deal": "Create Deal",
         "wait": "Wait",
         "condition": "Condition (If/Else)",
         "send_webhook": "Send Webhook",
@@ -1037,7 +1421,15 @@
         "matchContains": "Contains",
         "matchExact": "Exact",
         "closeConversationHint": "Sets the conversation status to \"closed\". No configuration needed."
-      }
+      },
+      "stepKind": {
+        "condition": "Condition",
+        "wait": "Wait",
+        "action": "Action"
+      },
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "schedulePlaceholder": "Cron expression or HH:mm"
     }
   },
   "Flows": {
@@ -1072,7 +1464,8 @@
       "triggerKeywordNone": "Triggers on keyword (none set)",
       "triggerKeyword": "Triggers on: {keywords}",
       "triggerFirstInbound": "Triggers on a contact's first-ever inbound message",
-      "triggerManual": "Manual trigger"
+      "triggerManual": "Manual trigger",
+      "cloneFailedHttp": "Clone failed: {status}"
     },
     "edit": {
       "notFound": "Flow not found.",
@@ -1181,7 +1574,15 @@
         "filenamePlaceholder": "invoice.pdf",
         "advanceAfterSending": "After sending, advance to",
         "pickNextNode": "Pick a next node…",
-        "none": "— None —"
+        "none": "— None —",
+        "removeSection": "Remove section",
+        "fieldName": "name",
+        "fieldEmail": "email",
+        "fieldPhone": "phone",
+        "fieldCompany": "company",
+        "fileUploaded": "File uploaded.",
+        "uploadFailed": "Upload failed.",
+        "fileTooLarge": "File is {size} MB — limit is 16 MB."
       },
       "categories": {
         "messaging": "Messaging",
@@ -1229,19 +1630,85 @@
           "label": "End",
           "blurb": "Ends the flow"
         }
-      }
+      },
+      "editorViewAria": "Editor view",
+      "branchTrue": "true",
+      "branchFalse": "false"
     },
     "validation": {
       "noIssues": "No issues. Ready to activate.",
       "summary": "{errorCount} {errorCount, plural, =1 {error} other {errors}}, {warningCount} {warningCount, plural, =1 {warning} other {warnings}}",
-      "jumpToNode": "Jump to node {key}"
+      "jumpToNode": "Jump to node {key}",
+      "issues": {
+        "nameRequired": "Flow name is required.",
+        "entryRequired": "Pick an entry node before activating.",
+        "needsNode": "A flow needs at least one node before activation.",
+        "entryMissing": "Entry node \"{key}\" doesn't exist.",
+        "duplicateNodeKey": "Duplicate node_key \"{key}\".",
+        "unreachable": "Node \"{key}\" is unreachable from the entry node.",
+        "keywordsRequired": "Keyword triggers need at least one keyword.",
+        "blankKeywords": "{count, plural, one {# keyword is blank — it won't match anything.} other {# keywords are blank — they won't match anything.}}",
+        "startNext": "Start node must point to a next node.",
+        "startNextMissing": "Start points to non-existent node \"{key}\".",
+        "messageText": "Send-message node needs a text body.",
+        "messageNext": "Send-message node must point to a next node.",
+        "messageNextMissing": "Send-message points to non-existent node \"{key}\".",
+        "mediaType": "Send-media node needs a media type (image, video, or document).",
+        "mediaFile": "Send-media node needs a file (upload one before activating).",
+        "captionTooLong": "Caption exceeds {max} chars (WhatsApp limit).",
+        "mediaNext": "Send-media node must point to a next node.",
+        "mediaNextMissing": "Send-media points to non-existent node \"{key}\".",
+        "buttonsText": "Send-buttons node needs a text body.",
+        "buttonsMin": "Send-buttons needs at least one button.",
+        "buttonsMax": "WhatsApp allows at most {max} buttons per message.",
+        "buttonReplyId": "Button {n} needs a reply id.",
+        "buttonReplyIdDuplicate": "Duplicate button reply id \"{id}\".",
+        "buttonTitle": "Button {n} needs a title.",
+        "buttonTitleTooLong": "Button {n} title is over {max} chars (WhatsApp limit).",
+        "buttonNext": "Button {n} needs a next node.",
+        "buttonNextMissing": "Button {n} points to non-existent node \"{key}\".",
+        "listText": "Send-list node needs a text body.",
+        "listButtonLabel": "Send-list needs a button label (the tap-to-expand text).",
+        "listRowsMin": "Send-list needs at least one row.",
+        "listRowsMax": "Send-list allows at most {max} rows total across sections.",
+        "rowReplyId": "Row {row} in section {section} needs a reply id.",
+        "rowReplyIdDuplicate": "Duplicate list row id \"{id}\".",
+        "rowTitle": "Row {n} needs a title.",
+        "rowTitleTooLong": "Row {n} title exceeds {max} chars.",
+        "rowDescriptionTooLong": "Row {n} description exceeds {max} chars.",
+        "rowNext": "Row {n} needs a next node.",
+        "rowNextMissing": "Row {n} points to non-existent node \"{key}\".",
+        "collectPrompt": "Collect-input needs a prompt to send the customer.",
+        "collectVarKey": "Collect-input needs a var_key to store the answer under.",
+        "collectVarKeyFormat": "var_key \"{key}\" must be alphanumeric+underscore and start with a letter or underscore.",
+        "collectNext": "Collect-input must point to a next node.",
+        "collectNextMissing": "Collect-input points to non-existent node \"{key}\".",
+        "conditionSubject": "Condition needs a subject (var / tag / contact_field).",
+        "conditionSubjectKey": "Condition needs a subject_key (var name, tag id, or field name).",
+        "conditionOperator": "Condition needs an operator.",
+        "conditionValue": "Operator \"{operator}\" usually expects a comparison value — empty value will only match empty subjects.",
+        "conditionBranch": "Condition needs a node for the \"{branch}\" branch.",
+        "conditionBranchMissing": "Condition's \"{branch}\" points to non-existent node \"{key}\".",
+        "tagMode": "Set-tag needs a mode (add or remove).",
+        "tagTag": "Set-tag needs a tag to apply.",
+        "tagNext": "Set-tag must point to a next node.",
+        "tagNextMissing": "Set-tag points to non-existent node \"{key}\".",
+        "unknownNodeType": "Unknown node type \"{type}\"."
+      }
     },
     "editorState": {
       "saved": "Saved.",
       "fixIssues": "Fix the issues below before activating.",
       "statusActivated": "Flow activated.",
       "statusArchived": "Archived.",
-      "statusDraft": "Saved as draft."
+      "statusDraft": "Saved as draft.",
+      "saveFailedHttp": "Save failed: {status}",
+      "saveFailed": "Save failed",
+      "statusFailedHttp": "Status update failed: {status}",
+      "statusFailed": "Status update failed",
+      "deleteConfirm": "Delete \"{name}\"? Any active runs end immediately. This can't be undone.",
+      "deleteFailedHttp": "Delete failed: {status}",
+      "deleteFailed": "Delete failed"
     },
     "summary": {
       "options": "{count} {count, plural, =1 {option} other {options}}",
@@ -1260,6 +1727,23 @@
       "modeRemove": "Remove",
       "tagPicked": "{mode} tag {tag}…",
       "tagNone": "{mode} tag (none picked)"
+    },
+    "header": {
+      "back": "Back to Flows",
+      "namePlaceholder": "Flow name",
+      "unsaved": "Unsaved changes — hit Save to persist",
+      "edited": "Edited",
+      "runs": "Runs",
+      "delete": "Delete",
+      "pause": "Pause",
+      "activate": "Activate",
+      "fixIssues": "Fix the issues below before activating",
+      "save": "Save",
+      "descriptionPlaceholder": "Add a short description (internal — customers don't see this)",
+      "descriptionAria": "Flow description",
+      "statusDraft": "Draft",
+      "statusActive": "Active",
+      "statusArchived": "Archived"
     }
   },
   "Settings": {
@@ -1311,7 +1795,14 @@
       "removeDialogDesc": "Remove <bold>{name}</bold> from the account? They'll be signed out of this account and given a fresh personal account on their next sign-in. Their login isn't deleted.",
       "cancel": "Cancel",
       "removing": "Removing...",
-      "removeBtn": "Remove member"
+      "removeBtn": "Remove member",
+      "loadMembersFailed": "Failed to load members",
+      "loadInvitationsFailed": "Failed to load invitations",
+      "serverUnreachable": "Could not reach the server",
+      "updateRoleFailed": "Failed to update role",
+      "removeFailed": "Failed to remove member",
+      "revokeFailed": "Failed to revoke invitation",
+      "memberAvatarAlt": "Member"
     },
     "invite": {
       "inviteCreated": "Invite created",
@@ -1339,7 +1830,10 @@
       "labelTooLong": "Label must be {max} characters or fewer",
       "copied": "Invite link copied",
       "clipboardBlocked": "Clipboard blocked — copy the link manually",
-      "whatsappMessage": "Join {accountName} on wacrm using this link (valid for {expiresInDays} days): {url}"
+      "whatsappMessage": "Join {accountName} on wacrm using this link (valid for {expiresInDays} days): {url}",
+      "createFailed": "Failed to create invitation",
+      "serverUnreachableRetry": "Could not reach the server. Try again?",
+      "defaultAccountName": "our wacrm account"
     },
     "tagsAndFields": {
       "title": "Fields & tags",
@@ -1449,6 +1943,12 @@
       "submitting": "Submitting…",
       "saveResubmit": "Save & Resubmit",
       "submitApproval": "Submit for Approval",
+      "groupLinkTitle": "Group link",
+      "groupLinkDesc": "Destination of the /grupo route, the link the template button opens. Leave it empty to use the default link.",
+      "groupLinkSave": "Save",
+      "groupLinkSaved": "Group link saved",
+      "groupLinkFailed": "Could not save (HTTP {status})",
+      "groupLinkDefault": "Default: {url}",
       "deleteDialogTitle": "Delete template?",
       "deleteMetaDesc": "\"{name}\" will be deleted from Meta and from wacrm. Active broadcasts using this template will start failing on their next send. This can't be undone.",
       "deleteLocalDesc": "\"{name}\" will be deleted from wacrm. It was never submitted to Meta, so no remote cleanup is needed.",
@@ -1470,7 +1970,30 @@
       "toastInvalidImage": "Header image must be a JPEG or PNG.",
       "toastImageTooLarge": "Image is {size} MB — Meta's limit is 5 MB.",
       "toastUploadSuccess": "Image uploaded.",
-      "toastUploadFailed": "Upload failed."
+      "toastUploadFailed": "Upload failed.",
+      "editFailedHttp": "Edit failed (HTTP {status})",
+      "submitFailedHttp": "Submit failed (HTTP {status})",
+      "syncFailedHttp": "Sync failed (HTTP {status})",
+      "deleteFailedHttp": "Delete failed (HTTP {status})",
+      "syncMore": ", +{count} more",
+      "qualityScoreTitle": "Meta quality score",
+      "headerTextAria": "Header text",
+      "headerSampleAlt": "Header sample",
+      "status": {
+        "DRAFT": "Draft",
+        "PENDING": "Pending",
+        "APPROVED": "Approved",
+        "REJECTED": "Rejected",
+        "PAUSED": "Paused",
+        "DISABLED": "Disabled",
+        "IN_APPEAL": "In Appeal",
+        "PENDING_DELETION": "Pending Deletion"
+      },
+      "categories": {
+        "Marketing": "Marketing",
+        "Utility": "Utility",
+        "Authentication": "Authentication"
+      }
     },
     "roles": {
       "admin": "Admin",
@@ -1546,7 +2069,29 @@
       "step4_3": "Paste the <strong class=\"text-foreground\">Webhook Callback URL</strong> from above",
       "step4_4": "Enter the same <strong class=\"text-foreground\">Verify Token</strong> you set here",
       "step4_5": "Subscribe to \"messages\" webhook field",
-      "metaDocs": "Meta WhatsApp API Documentation"
+      "metaDocs": "Meta WhatsApp API Documentation",
+      "loadError": "Failed to load WhatsApp configuration",
+      "phoneIdRequired": "Phone Number ID is required",
+      "tokenRequiredInitial": "Access Token is required for initial setup",
+      "tokenReenter": "Please re-enter the Access Token to save changes",
+      "saveFailed": "Failed to save configuration",
+      "savedNotRegistered": "Saved, but Meta couldn't register the number: {error}",
+      "savedRegistrationSkipped": "Credentials saved and verified. Inbound registration was skipped (no PIN) — see Registration status below.",
+      "savedLive": "Live — {name} can now receive events.",
+      "savedConnected": "WhatsApp connected. Events will start flowing within a minute.",
+      "connectedTo": "Connected to {name}",
+      "apiConnectionOk": "API connection successful",
+      "apiConnectionFailed": "API connection failed",
+      "testFailed": "Connection test failed. Check network and try again.",
+      "fullyWired": "Number is fully wired — Meta is delivering events.",
+      "notFullyRegistered": "Number is not fully registered. See the checks below for which step failed.",
+      "verifyUnreachable": "Could not reach the verification endpoint.",
+      "resetConfirm": "This will delete the current WhatsApp config so you can re-enter it. Continue?",
+      "resetFailed": "Failed to reset configuration",
+      "resetDone": "Configuration cleared. You can now re-enter your credentials.",
+      "webhookCopied": "Webhook URL copied to clipboard",
+      "phoneNumberIdPlaceholder": "e.g. 100234567890123",
+      "wabaIdPlaceholder": "e.g. 100234567890456"
     },
     "sections": {
       "overview": "Overview",
@@ -1558,7 +2103,9 @@
       "fields": "Fields & tags",
       "deals": "Deals & currency",
       "members": "Team members",
-      "api": "API keys"
+      "api": "API keys",
+      "quick-replies": "Quick replies",
+      "closed-days": "Closed days"
     },
     "groups": {
       "account": "Account",
@@ -1613,7 +2160,9 @@
       "cancel": "Cancel",
       "signingOut": "Signing out…",
       "signOutEverywhere": "Sign out everywhere",
-      "signOutFailed": "Sign-out failed: {message}"
+      "signOutFailed": "Sign-out failed: {message}",
+      "unknownError": "Unknown error",
+      "avatarAlt": "Avatar"
     },
     "appearance": {
       "title": "Appearance",
@@ -1622,7 +2171,34 @@
       "useMode": "Use {mode} mode",
       "active": "Active",
       "accentColor": "Accent color",
-      "useTheme": "Use {name} theme"
+      "useTheme": "Use {name} theme",
+      "modeAria": "Color mode",
+      "themes": {
+        "teal": {
+          "name": "Teal",
+          "tagline": "The default — clean and calm."
+        },
+        "violet": {
+          "name": "Violet",
+          "tagline": "Confident, slightly playful."
+        },
+        "emerald": {
+          "name": "Emerald",
+          "tagline": "Growth-coded, nods at messaging without copying WhatsApp green."
+        },
+        "cobalt": {
+          "name": "Cobalt",
+          "tagline": "Clean B2B-SaaS blue — calm and product-y."
+        },
+        "amber": {
+          "name": "Amber",
+          "tagline": "Warm and friendly — feels good for SMB teams."
+        },
+        "rose": {
+          "name": "Rose",
+          "tagline": "Bold and modern — D2C, creator-economy, lifestyle."
+        }
+      }
     },
     "security": {
       "title": "Login & security",
@@ -1630,7 +2206,7 @@
     },
     "apiKeys": {
       "title": "API keys",
-      "description": "Keys authenticate the public REST API (<apiCode>/api/v1</apiCode>) so you can build your own automations. Send them as <headerCode>Authorization: Bearer &lt;key&gt;</headerCode>.",
+      "description": "Keys authenticate the public REST API (<apiCode>/api/v1</apiCode>) so you can build your own automations. Send them as <headerCode>Authorization: Bearer YOUR_KEY</headerCode>.",
       "newApiKey": "New API key",
       "noApiKeys": "No API keys yet.",
       "createOneHint": "Click <bold>New API key</bold> to create one.",
@@ -1664,7 +2240,11 @@
       "newKeyTitle": "New API key",
       "newKeyDesc": "Name it after the integration that will use it, and grant only the scopes it needs.",
       "done": "Done",
-      "networkError": "Could not reach the server"
+      "networkError": "Could not reach the server",
+      "revokeConfirm": "Confirm revoke",
+      "revokedSectionShow": "Show revoked ({count})",
+      "revokedSectionHide": "Hide revoked",
+      "noActiveKeys": "No active keys."
     },
     "deals": {
       "title": "Deals & currency",
@@ -1743,12 +2323,397 @@
       "addDoc": "Add document",
       "reindex": "Reindex",
       "reindexTooltip": "Re-embed all documents (e.g. after adding an embeddings key)",
-      "loading": "Loading…"
+      "loading": "Loading…",
+      "editTitle": "Edit",
+      "deleteTitle": "Delete"
+    },
+    "quickReplies": {
+      "nameRequired": "Give the quick reply a name.",
+      "saveFailed": "Couldn't save the quick reply.",
+      "updated": "Quick reply updated.",
+      "created": "Quick reply created.",
+      "deleteConfirm": "Delete this quick reply?",
+      "deleteFailed": "Couldn't delete the quick reply.",
+      "title": "Quick replies",
+      "description": "Reusable snippets — plain text or a saved interactive message — that agents can insert from the inbox composer.",
+      "newButton": "New quick reply",
+      "empty": "No quick replies yet. Create one to reuse it across conversations.",
+      "dialogEdit": "Edit quick reply",
+      "dialogNew": "New quick reply",
+      "nameLabel": "Name",
+      "namePlaceholder": "e.g. Business hours",
+      "kindText": "Text",
+      "kindInteractive": "Interactive",
+      "textPlaceholder": "The message text to insert",
+      "cancel": "Cancel",
+      "save": "Save"
+    },
+    "sectionsAria": "Settings sections"
+  },
+  "Finanzas": {
+    "title": "Finances",
+    "description": "The current week, closes and operations in one place.",
+    "tablistLabel": "Finance sections",
+    "tabs": {
+      "semana": "Week",
+      "cierres": "Closes",
+      "revendedores": "Resellers"
+    },
+    "graficos": {
+      "gananciaServicio": {
+        "title": "Profit by service",
+        "aria": "Horizontal bar chart: profit in GYD for each service, highest first"
+      },
+      "facturado": "Billed",
+      "invertido": "Invested",
+      "retorno": "Profit",
+      "margen": "Margin {pct}%"
+    },
+    "semana": {
+      "label": "Open week overview",
+      "subtitleCut": "Open week · since the cut of {date} · Guyana time",
+      "subtitleFirst": "Open week · since the first entry of {date} · Guyana time",
+      "registrar": "+ Add a line",
+      "cerrar": "Review and close the week",
+      "cargando": "Loading the week…",
+      "vacio": {
+        "title": "No operations in the open week yet",
+        "hint": "When the bot completes an operation or you add a line, the profit, days and clients show up here."
+      },
+      "kpi": {
+        "ganancia": "Profit this week",
+        "facturado": "Billed",
+        "invertido": "Invested",
+        "margen": "Margin",
+        "operaciones": "{count, plural, one {# operation} other {# operations}}",
+        "vsAnterior": "versus last week at the same point",
+        "sinAnterior": "no previous week to compare",
+        "sube": "Up",
+        "baja": "Down",
+        "igual": "No change",
+        "usdt": "{usdt} USDT · average cost {cost}",
+        "ticket": "Average ticket {amount}",
+        "cifras": "Figures in GYD"
+      },
+      "dia": {
+        "title": "Profit by day",
+        "subtitle": "GYD · the light bar is today, still adding up",
+        "aria": "Column chart: profit in GYD for each day of the open week, with its value above the bar",
+        "hoy": "today",
+        "ganancia": "Profit",
+        "ops": "{count, plural, one {# operation} other {# operations}}",
+        "dia": "Day",
+        "opsCol": "Operations",
+        "enCurso": "in progress",
+        "aunNo": "not yet"
+      },
+      "hoy": {
+        "title": "Today",
+        "ops": "Completed operations",
+        "facturado": "Billed today",
+        "ganancia": "Profit today",
+        "sinTasa": "{count} without a rate · not counted yet",
+        "pendientes": "{count, plural, one {# pending} other {# pending}}",
+        "verlas": "See them"
+      },
+      "servicio": {
+        "title": "Where does the profit come from?",
+        "subtitle": "By service",
+        "aria": "Profit and margin of each service, highest profit first",
+        "servicio": "Service",
+        "ganancia": "Profit",
+        "margen": "Margin"
+      },
+      "clientes": {
+        "title": "Top clients",
+        "subtitle": "By profit this week",
+        "ops": "{count, plural, one {# operation} other {# operations}}"
+      },
+      "tasas": {
+        "title": "Current rates",
+        "hint": "Press one to change it · they apply to new lines",
+        "nuevoValor": "New value for {rate}",
+        "guardar": "Save",
+        "cancelar": "Cancel",
+        "otras": "Other rates",
+        "arqAuto": "USD → MXN · auto, {age}",
+        "arqAutoSinEdad": "USD → MXN · auto"
+      },
+      "registros": {
+        "title": "Records of the week",
+        "subtitle": "The bot's and the typed ones",
+        "linea": "+ Line",
+        "lineaLabel": "Line in short format",
+        "placeholder": "Fran 50k CUP (235/980)",
+        "registrar": "Register",
+        "formato": "Format",
+        "formatoEjemplo": "Name amount service (rates)",
+        "todosFormatos": "All formats",
+        "guiaTitulo": "Guide to record formats",
+        "guiaBullets": "Type \"-\" and a space for a bullet; a line with a day (\"Wednesday 5\") dates the lines below it.",
+        "buscar": "Search",
+        "buscarPlaceholder": "Search client or ID",
+        "estados": "Status",
+        "todas": "All",
+        "completadas": "Completed",
+        "pendientes": "Pending",
+        "sinTasa": "No rate",
+        "aMano": "Typed",
+        "servicio": "Service",
+        "todosServicios": "All services",
+        "cliente": "Client: {name}",
+        "quitarCliente": "Remove the client filter",
+        "sinCoincidencias": "No line matches the filters",
+        "quitarFiltros": "Clear the filters",
+        "vacio": "There are no operations.",
+        "vistaPrevia": "Preview",
+        "alGuardar": "on save",
+        "aManoTag": "typed",
+        "ponerTasa": "Set rate",
+        "completada": "Completed",
+        "pendiente": "Pending",
+        "sinTasaPill": "No rate",
+        "totales": "Total of what is shown · {count, plural, one {# completed} other {# completed}}",
+        "noInterpretado": "Not understood: \"{raw}\"",
+        "tasaTitle": "USDT buy / USDT sale (CUP)",
+        "col": {
+          "dia": "Day",
+          "cliente": "Client",
+          "servicio": "Service",
+          "monto": "Amount",
+          "tasa": "Rate",
+          "facturado": "Billed",
+          "invertido": "Invested",
+          "ganancia": "Profit",
+          "estado": "Status",
+          "acciones": "Actions"
+        }
+      },
+      "cierre": {
+        "title": "Close the week",
+        "subtitle": "Archives the week in \"Cierres\" and opens a new one. What you see here is what gets archived.",
+        "facturado": "Billed",
+        "invertido": "Invested",
+        "ganancia": "Profit",
+        "operaciones": "Operations",
+        "ops": "{count, plural, one {# operation} other {# operations}}",
+        "sinTasa": "{count} without a rate · not archived, they stay on screen",
+        "pendientes": "{count, plural, one {# pending} other {# pending}} · not archived either, they stay on screen",
+        "verlas": "See them",
+        "nombre": "Name of the week",
+        "nombrePlaceholder": "E.g. WEEK 1 AUGUST",
+        "descargarTxt": "Download the .txt when archiving",
+        "exportar": "Export .txt",
+        "archivar": "Archive and start a new week",
+        "archivando": "Archiving…",
+        "dialogTitle": "Archive the week and start a new one?",
+        "dialogBody": "The current week is saved in \"Cierres\" and the history (Finanzas, panel) keeps counting. Chat operations waiting for a price stay on screen.",
+        "cancelar": "Cancel",
+        "confirmar": "Archive and start"
+      }
+    },
+    "cierres": {
+      "label": "Summary of the closed weeks",
+      "cargando": "Loading the closed weeks…",
+      "error": "The archived weeks could not be read.",
+      "reintentar": "Retry",
+      "periodo": {
+        "label": "Period",
+        "last12": "Last 12 weeks",
+        "thisMonth": "This month",
+        "lastMonth": "Last month",
+        "all": "All"
+      },
+      "subtitle": "Weeks closed with «Limpiar todo» · Guyana time",
+      "vacio": {
+        "title": "There are no archived weeks yet",
+        "hint": "Every «Limpiar todo» saves the week here, read only. Its operations keep counting in Finances and on the dashboard."
+      },
+      "sinPeriodo": "There are no archived weeks in this period.",
+      "kpi": {
+        "gananciaLast12": "Profit over {count, plural, one {# week} other {# weeks}}",
+        "gananciaThisMonth": "Profit this month",
+        "gananciaLastMonth": "Profit last month",
+        "gananciaAll": "Profit over all weeks",
+        "cambio": "{weeks, plural, one {the last week against the one before} other {the last # weeks against the # before}}",
+        "promedio": "Average per week",
+        "opsSemana": "{count, plural, one {# operation per week} other {# operations per week}}",
+        "mejorPeor": "Best and worst week",
+        "mejor": "{date}",
+        "peor": "weakest: {amount} GYD ({date})",
+        "margen": "Average margin",
+        "facturado": "Billed {amount} GYD",
+        "sube": "Up",
+        "baja": "Down",
+        "igual": "No change"
+      },
+      "grafico": {
+        "title": "Profit of each closed week",
+        "subtitle": "GYD · press a week to see its close",
+        "aria": "Column chart: profit in GYD of each closed week, oldest to newest, with the average. {count, plural, one {# week} other {# weeks}}.",
+        "media": "Average per week: {amount}",
+        "sola": "With a single week in the period there is no trend to show yet.",
+        "ganancia": "Profit",
+        "facturado": "Billed",
+        "ops": "{count, plural, one {# operation} other {# operations}}"
+      },
+      "sel": {
+        "eyebrow": "Selected week",
+        "sinFechas": "No operations recorded",
+        "vsAnterior": "against the previous week",
+        "facturado": "Billed",
+        "invertido": "Invested",
+        "margen": "Margin",
+        "ops": "Operations",
+        "mejorDia": "Best day",
+        "servicioLider": "Top service",
+        "verRegistros": "View the records",
+        "abrirError": "The week could not be opened."
+      },
+      "servicios": {
+        "title": "Where did the profit come from?",
+        "subtitle": "{count, plural, one {# week} other {# weeks}} · by service",
+        "aria": "Profit and share of each service in the period, highest first",
+        "servicio": "Service",
+        "ganancia": "Profit",
+        "parte": "Share",
+        "nota": "Profit in GYD.",
+        "vacio": "There are no archived operations in this period yet."
+      },
+      "tabla": {
+        "title": "Archived weeks",
+        "aria": "Archived weeks of the period, newest first",
+        "semana": "Week",
+        "ops": "Operations",
+        "facturado": "Billed",
+        "ganancia": "Profit",
+        "margen": "Margin",
+        "vsAnterior": "Against previous",
+        "verTodas": "Show all {count}",
+        "verMenos": "Show fewer"
+      },
+      "cuadrar": {
+        "title": "Reconcile a period",
+        "subtitle": "Billed, invested and return by day and by service, with the detail of every operation"
+      },
+      "historial": {
+        "title": "Search the history",
+        "subtitle": "Every operation by client, phone or ID, with filters and CSV"
+      }
+    }
+  },
+  "Resellers": {
+    "title": "Resellers",
+    "description": "Accumulated GYD total for each reseller since its last reset.",
+    "loading": "Loading resellers…",
+    "error": "Could not read the resellers.",
+    "retry": "Retry",
+    "emptyTitle": "No resellers yet",
+    "emptyHint": "Tag a contact with the “Revendedor” tag to see it here.",
+    "grandTotal": "Grand total",
+    "grandOperations": "Operations",
+    "grandAdjustments": "Adjustments",
+    "deposited": "Deposited",
+    "deposits": "Verified deposits",
+    "historicalOperations": "Historical operations",
+    "adjustments": "Adjustments",
+    "pendingClaims": "{count, plural, one {# pending receipt} other {# pending receipts}}",
+    "pendingClaimsHint": "Receipts received that are not verified in MMG yet. They are not counted in the total.",
+    "resellerCount": "{count, plural, one {# reseller} other {# resellers}}",
+    "periodFrom": "Period since {date}",
+    "periodAllTime": "Since the beginning",
+    "columns": {
+      "reseller": "Reseller",
+      "period": "Period",
+      "deposited": "Deposited",
+      "operations": "Operations",
+      "adjustments": "Adjustments",
+      "total": "Total",
+      "actions": "Actions"
+    },
+    "actions": {
+      "detail": "View detail",
+      "adjust": "Adjust",
+      "reset": "Reset",
+      "resetAll": "Reset all",
+      "close": "Close"
+    },
+    "sidebar": {
+      "title": "Reseller",
+      "currentTotal": "Period total",
+      "deposited": "Deposited",
+      "deposits": "Deposits",
+      "historicalOperations": "Historical operations",
+      "adjustments": "Adjustments",
+      "pendingClaims": "{count, plural, one {# pending receipt} other {# pending receipts}}",
+      "missingAmount": "{count, plural, one {# operation without an amount} other {# operations without an amount}}",
+      "detail": "View detail",
+      "adjust": "Adjust",
+      "reset": "Reset counter",
+      "error": "Could not read the reseller total."
+    },
+    "detail": {
+      "title": "Reseller detail",
+      "current": "Current period",
+      "operations": "Operations",
+      "adjustments": "Adjustments",
+      "total": "Total",
+      "missingAmount": "{count, plural, one {# operation without an amount} other {# operations without an amount}}",
+      "adjustmentHistory": "Adjustments this period",
+      "noAdjustments": "No adjustments in this period.",
+      "notReseller": "This contact no longer has the reseller tag.",
+      "loading": "Loading the detail…",
+      "error": "Could not read the reseller detail."
+    },
+    "history": {
+      "title": "Previous periods",
+      "open": "Open period",
+      "from": "From {date}",
+      "to": "To {date}",
+      "total": "Total {amount}",
+      "deposits": "Deposits {amount}",
+      "closedDeposits": "Confirmed deposits: {amount}",
+      "closedSnapshot": "Confirmed close: {amount}",
+      "by": "Reset by {name}",
+      "unknownActor": "Unknown actor",
+      "reason": "Reason: {reason}",
+      "empty": "No closed periods yet."
+    },
+    "resetDialog": {
+      "titleSingle": "Reset {name}'s counter",
+      "titleAll": "Reset every reseller's counter",
+      "amountLabel": "Amount being closed",
+      "counterOnly": "Only the counter restarts: no amount, deposit or operation changes.",
+      "reason": "Reason (optional)",
+      "reasonPlaceholder": "E.g. close agreed with the reseller",
+      "confirmSingle": "Reset counter",
+      "confirmAll": "Reset all counters",
+      "cancel": "Cancel",
+      "conflict": "The total changed while you were reviewing it: it is now {amount}. Confirm again.",
+      "error": "Could not reset the counter.",
+      "summaryTitle": "Counters reset",
+      "summaryCount": "{count, plural, one {# period was closed} other {# periods were closed}}",
+      "summarySkipped": "{count, plural, one {# reseller with no balance was skipped} other {# resellers with no balance were skipped}}",
+      "done": "Done"
+    },
+    "adjustDialog": {
+      "title": "Adjust {name}'s total",
+      "current": "Current total",
+      "amount": "Adjustment amount (GYD)",
+      "amountHint": "A positive number adds and a negative one subtracts. It cannot be zero.",
+      "invalidAmount": "Enter an amount other than zero.",
+      "preview": "New total",
+      "reason": "Reason (optional)",
+      "reasonPlaceholder": "E.g. agreed correction",
+      "submit": "Save adjustment",
+      "cancel": "Cancel",
+      "error": "Could not save the adjustment.",
+      "done": "Adjustment saved."
     }
   },
   "Resumen": {
     "page": {
-      "title": "Resumen e historial",
+      "title": "Finances and history",
       "subtitle": "Cuánto se movió en remesas: resumen por periodo e historial de operaciones.",
       "noteDesde": "Datos desde el 3 de agosto de 2026",
       "resumenTitle": "Resumen",
@@ -1768,22 +2733,635 @@
         "todos": "Todos",
         "desde": "Desde",
         "hasta": "Hasta",
-        "aplicar": "Aplicar",
-        "cargando": "Cargando…"
+        "buscar": "Search",
+        "buscarPlaceholder": "Client, phone or operation ID"
       },
       "tabla": {
-        "dia": "Fecha",
         "servicio": "Servicio",
         "status": "Estado",
         "cliente": "Cliente",
-        "telefono": "Teléfono",
         "monto": "Monto (GYD)",
-        "beneficiario": "Beneficiario",
-        "tarjeta": "Tarjeta",
-        "operation": "Operación",
-        "vacio": "Sin operaciones para esos filtros"
+        "destino": "Destino",
+        "vacio": "Sin operaciones para esos filtros",
+        "hora": "Time",
+        "acciones": "Actions"
       },
-      "error": "No se pudo cargar: {msg}"
+      "error": "No se pudo cargar: {msg}",
+      "retry": "Retry",
+      "periodoGrupo": "Period",
+      "estadoGrupo": "Status",
+      "copiarId": "Copy operation ID {id}",
+      "exportar": "Export CSV",
+      "exportando": "Exporting…",
+      "exportarTope": "The CSV has the first {max} rows of {total}: narrow the filter for the rest.",
+      "exportarError": "The CSV could not be exported.",
+      "errorHistorialFalta": "The history is unavailable: the crm_historial_operaciones function is missing in the database (migration 351).",
+      "estados": {
+        "all": "All",
+        "completed": "Completed",
+        "in_progress": "In progress",
+        "incident": "Incident",
+        "cancelled": "Cancelled"
+      }
+    },
+    "cierre": {
+      "title": "Cierre financiero",
+      "subtitle": "Lo facturado, invertido y ganado según la calculadora. Los días se cortan en hora de Guyana.",
+      "periodo": {
+        "day": "Día",
+        "week": "Semana",
+        "month": "Mes",
+        "range": "Rango"
+      },
+      "anterior": "Periodo anterior",
+      "siguiente": "Periodo siguiente",
+      "hoy": "Hoy",
+      "desde": "Desde",
+      "hasta": "Hasta",
+      "aplicar": "Aplicar",
+      "rangoError": {
+        "missing": "Elige las dos fechas.",
+        "invalid": "Fecha no válida.",
+        "reversed": "«Desde» no puede ser posterior a «Hasta».",
+        "too_long": "El rango máximo es de 366 días.",
+        "future": "No se pueden consultar fechas futuras."
+      },
+      "loadError": "No se pudo cargar el cierre.",
+      "reintentar": "Reintentar",
+      "totales": {
+        "facturado": "Facturado",
+        "invertido": "Invertido",
+        "retorno": "Retorno",
+        "operaciones": "Operaciones",
+        "margen": "Margen {pct}%"
+      },
+      "porDia": "Por día",
+      "porServicio": "Por servicio",
+      "sinDatos": "Sin operaciones completadas en este periodo.",
+      "detalle": "Detalle de operaciones",
+      "manual": "Manual",
+      "manualHint": "Línea escrita a mano en la Calculadora",
+      "cols": {
+        "dia": "Día",
+        "hora": "Hora",
+        "operacion": "Operación",
+        "cliente": "Cliente",
+        "servicio": "Servicio",
+        "monto": "Monto",
+        "tasa": "Tasa",
+        "facturado": "Facturado",
+        "invertido": "Invertido",
+        "retorno": "Retorno",
+        "entrega": "Entrega",
+        "entregadoPor": "Entregado por",
+        "operaciones": "Ops"
+      },
+      "entrega": {
+        "proof_sent": "Con captura",
+        "no_proof": "Sin captura",
+        "skip_proof": "Sin captura (ventana cerrada)"
+      },
+      "exportar": "Exportar CSV"
+    }
+  },
+  "Tablero": {
+    "title": "Operations board",
+    "description": "Live state of every chat's operations. Read-only: act from the chat.",
+    "filterLabel": "Service",
+    "filters": {
+      "all": "All"
+    },
+    "columns": {
+      "requested": "Requested",
+      "depositCheck": "Deposit check",
+      "readyToTransfer": "Ready to transfer",
+      "incident": "Incident",
+      "completed": "Completed (since opening)"
+    },
+    "unknownContact": "Unknown contact",
+    "missingBeneficiaries": "Recipient details missing",
+    "emptyColumn": "Nothing here",
+    "age": {
+      "lessThanMinute": "< 1 min",
+      "minutes": "{value} min",
+      "hours": "{value} h",
+      "days": "{value} d"
+    },
+    "late": {
+      "title": "Late",
+      "description": "In-flight operations stuck in their status the longest (24 h or more), oldest first.",
+      "openChat": "Open chat"
+    },
+    "inState": "In this state for {age}",
+    "openChat": "Open chat with {name}",
+    "loading": "Loading the board...",
+    "loadError": "Could not load the board. Retrying automatically.",
+    "forbidden": "You do not have access to this account's operations."
+  },
+  "Notifications": {
+    "deleteOne": "Delete notification",
+    "digestBadge": "Daily summary",
+    "deleteAll": "Delete all",
+    "deleteAllTitle": "Delete all notifications?",
+    "deleteAllDescription": "All your notifications will be deleted, including the unread ones. This cannot be undone.",
+    "deleteAllConfirm": "Delete all notifications",
+    "cancel": "Cancel",
+    "deleteError": "Failed to delete the notification",
+    "deleteAllError": "Failed to delete the notifications",
+    "deleteAllDone": "All notifications deleted",
+    "markReadError": "Failed to mark notification as read",
+    "markAllError": "Failed to mark all as read",
+    "retry": "Retry",
+    "title": "Notifications",
+    "description": "Conversations other teammates assign to you show up here.",
+    "markAllRead": "Mark all as read",
+    "emptyTitle": "No notifications yet",
+    "emptyDescription": "You'll see an alert here when someone assigns you a conversation.",
+    "unread": "Unread"
+  },
+  "Join": {
+    "roles": {
+      "admin": "Admin",
+      "agent": "Agent",
+      "viewer": "Viewer"
+    },
+    "fail": {
+      "not_found": {
+        "title": "Invite not found",
+        "body": "This link doesn’t match a valid invitation. Double-check the URL or ask the person who invited you to send a new one."
+      },
+      "used": {
+        "title": "Invite already used",
+        "body": "This invitation has already been accepted. If that wasn’t you, ask the account admin to send a fresh link."
+      },
+      "expired": {
+        "title": "Invite expired",
+        "body": "This invitation has expired. Ask the account admin to send a new one — they take a few seconds to generate."
+      },
+      "server_error": {
+        "title": "Something went wrong",
+        "body": "We couldn’t verify this invitation right now. Try refreshing the page in a moment."
+      }
+    },
+    "conflictFallback": "You are already in another account. Sign in with a different email to join this one.",
+    "acceptFailed": "Failed to accept invitation",
+    "welcomeToast": "Welcome to the team",
+    "serverUnreachable": "Could not reach the server",
+    "signOutFailed": "Could not sign out. Try refreshing the page.",
+    "verifying": "Verifying invitation…",
+    "tryAgain": "Try again",
+    "createAccountInstead": "Create a new account instead",
+    "signIn": "Sign in",
+    "invitedTo": "You're invited to <name>{account}</name>",
+    "joinAs": "You'll join as <badge>{role}</badge>. Link valid until {date}.",
+    "accepting": "Accepting…",
+    "accept": "Accept invitation",
+    "acceptNote": "Accepting moves your login into <name>{account}</name>. Your empty personal account from signup will be cleaned up.",
+    "conflictTitle": "Can't join {account} with this account",
+    "conflictHelp": "To join <name>{account}</name>, sign out and sign up again with a different email address. The invite link stays valid as long as it hasn't expired.",
+    "staySignedIn": "Stay signed in",
+    "signingOut": "Signing out…",
+    "signOutUseOther": "Sign out & use a different email",
+    "createAndJoin": "Create account & join",
+    "haveAccount": "I already have an account"
+  },
+  "Signup": {
+    "passwordsMismatch": "Passwords do not match",
+    "passwordTooShort": "Password must be at least 6 characters",
+    "checkEmailTitle": "Check your email",
+    "checkEmailDesc": "We've sent a confirmation link to <hl>{email}</hl>. Please check your inbox and click the link to verify your account.",
+    "backToSignIn": "Back to sign in",
+    "titleInvite": "Create account & join",
+    "title": "Create account",
+    "descInvite": "Verify your email, then accept the invitation to join your team.",
+    "desc": "Get started with Remesas YA",
+    "fullNameLabel": "Full name",
+    "fullNamePlaceholder": "John Doe",
+    "emailLabel": "Email",
+    "emailPlaceholder": "you@example.com",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "At least 6 characters",
+    "confirmLabel": "Confirm password",
+    "confirmPlaceholder": "Repeat your password",
+    "creating": "Creating account...",
+    "submit": "Create account",
+    "haveAccount": "Already have an account?",
+    "signIn": "Sign in"
+  },
+  "ForgotPassword": {
+    "checkEmailTitle": "Check your email",
+    "checkEmailDesc": "We've sent a password reset link to <hl>{email}</hl>. Please check your inbox.",
+    "backToSignIn": "Back to sign in",
+    "title": "Reset password",
+    "desc": "Enter your email and we'll send you a reset link",
+    "emailLabel": "Email",
+    "emailPlaceholder": "you@example.com",
+    "sending": "Sending...",
+    "submit": "Send reset link"
+  },
+  "Common": {
+    "close": "Close",
+    "loading": "Loading...",
+    "relative": {
+      "never": "never",
+      "justNow": "just now",
+      "minutesAgo": "{count}m ago",
+      "hoursAgo": "{count}h ago",
+      "daysAgo": "{count}d ago"
+    },
+    "presence": {
+      "online": "Online — active now",
+      "away": "Away — idle",
+      "offline": "Offline — last seen {when}",
+      "lastSeenUnknown": "a while ago",
+      "lastSeenJustNow": "just now",
+      "lastSeenMinutes": "{count, plural, one {# minute ago} other {# minutes ago}}",
+      "lastSeenHours": "{count, plural, one {# hour ago} other {# hours ago}}",
+      "lastSeenDays": "{count, plural, one {# day ago} other {# days ago}}"
+    },
+    "currencies": {
+      "GYD": "Guyanese Dollar",
+      "CUP": "Cuban Peso",
+      "USD": "US Dollar",
+      "EUR": "Euro",
+      "GBP": "British Pound",
+      "INR": "Indian Rupee",
+      "AUD": "Australian Dollar",
+      "CAD": "Canadian Dollar",
+      "BRL": "Brazilian Real",
+      "JPY": "Japanese Yen",
+      "CNY": "Chinese Yuan",
+      "AED": "UAE Dirham",
+      "ZAR": "South African Rand",
+      "NGN": "Nigerian Naira",
+      "SGD": "Singapore Dollar",
+      "MXN": "Mexican Peso"
+    },
+    "modes": {
+      "light": "light",
+      "dark": "dark"
+    }
+  },
+  "Agents": {
+    "page": {
+      "title": "AI Agents",
+      "description": "Your bring-your-own-key AI agent — set it up, then test it in the playground before it replies to customers in the inbox.",
+      "tabPlayground": "Playground",
+      "tabSetup": "Setup",
+      "tabUsage": "Usage"
+    },
+    "playground": {
+      "notConfigured": "No agent configured yet — finish Setup first.",
+      "replyFailed": "Couldn't get a reply.",
+      "unreachable": "Couldn't reach the agent.",
+      "title": "Playground",
+      "subtitle": "— test replies as if you were a customer",
+      "reset": "Reset",
+      "emptyTitle": "Send a message to see how your agent would reply.",
+      "emptyHint": "It uses your knowledge base and behaves exactly like the auto-reply bot — including handoff.",
+      "goToSetup": "Not set up yet? Go to Setup",
+      "handoff": "Would hand off to a human here",
+      "thinking": "Thinking…",
+      "placeholder": "Type a customer message…"
+    },
+    "usage": {
+      "loadFailed": "Failed to load usage",
+      "title": "Token usage",
+      "description": "Tokens spent on your provider key by drafts and the auto-reply bot. Counts only — no message content is stored here.",
+      "lastDays": "Last {days} days",
+      "empty": "No AI usage in the last {days} days yet.",
+      "emptyHint": "This fills in as the assistant drafts and auto-replies.",
+      "totalTokens": "Total tokens",
+      "llmCalls": "LLM calls",
+      "autoReply": "Auto-reply",
+      "drafts": "Drafts",
+      "tokensPerDay": "Tokens per day",
+      "byModel": "By model",
+      "modelRow": "{tokens} tok · {calls, plural, one {# call} other {# calls}}",
+      "truncated": "Showing a partial window — usage is high enough that only the most recent records are summarized here.",
+      "tokensSeries": "Tokens"
+    }
+  },
+  "InteractiveBuilder": {
+    "replyButtons": "Reply buttons",
+    "list": "List",
+    "body": "Body",
+    "bodyPlaceholder": "What the customer reads above the options",
+    "headerOptional": "Header (optional)",
+    "footerOptional": "Footer (optional)",
+    "showIds": "Show reply IDs (advanced)",
+    "preview": "Preview",
+    "buttonsCount": "Buttons ({count}/{max})",
+    "buttonLabel": "Button label",
+    "addButton": "Add button",
+    "listButtonLabel": "List button label",
+    "rowsCount": "Rows ({count}/{max})",
+    "sectionTitleOptional": "Section title (optional)",
+    "rowTitle": "Row title",
+    "descriptionOptional": "Description (optional)",
+    "addRow": "Add row",
+    "addSection": "Add section",
+    "previewBody": "Message body…",
+    "previewButton": "Button",
+    "previewMenu": "Menu"
+  },
+  "ServiceNames": {
+    "cup": "CUP",
+    "zelle": "Zelle",
+    "clasica": "Clásica",
+    "tropical": "Tropical",
+    "mlc": "MLC",
+    "usdt": "USDT",
+    "efectivo_usd": "Cash USD",
+    "recarga": "Top-up",
+    "saldo": "Mobile balance",
+    "combo": "Combo",
+    "visa": "Visa",
+    "tramites": "Paperwork",
+    "traduccion": "Translation",
+    "mexico": "Mexico",
+    "mixed": "Mixed remittance",
+    "remesa": "Remittance"
+  },
+  "CupInventory": {
+    "title": "Card inventory",
+    "description": "The balance of your CUP, Clásica and Tropical cards, what you bought and what is left. Admins only.",
+    "cubaDay": "Today in Cuba: {date}",
+    "cubaDayHint": "The daily limit resets at midnight Cuba time.",
+    "loading": "Loading inventory...",
+    "loadError": "Could not load the inventory.",
+    "forbidden": "Only admins can see the card inventory.",
+    "empty": "No cards yet",
+    "emptyHint": "Create the first card and buy the balance it holds.",
+    "newCard": "New card",
+    "showInactive": "Show inactive cards",
+    "card": {
+      "inactive": "Inactive",
+      "priority": "Priority {n}",
+      "balance": "Current balance",
+      "dailyLimit": "Daily limit",
+      "usedToday": "Used today",
+      "remainingToday": "Limit left today",
+      "moveUp": "Raise priority",
+      "moveDown": "Lower priority",
+      "edit": "Edit card",
+      "loadLot": "Load lot",
+      "adjustBalance": "Adjust balance"
+    },
+    "lots": {
+      "title": "Lot history (oldest is used first)",
+      "empty": "No lots yet",
+      "loadedAt": "Loaded",
+      "amount": "Amount (CUP)",
+      "remaining": "Remaining (CUP)",
+      "rate": "Rate (CUP per USDT)",
+      "note": "Note",
+      "consumed": "Partly used already: it cannot be edited",
+      "edit": "Edit lot",
+      "delete": "Delete lot",
+      "confirmDelete": "Delete this lot? This is only possible while nothing was used from it.",
+      "confirmDeleteTitle": "Delete lot from {card}",
+      "exhausted": "Used up"
+    },
+    "cardForm": {
+      "titleNew": "New card",
+      "titleEdit": "Edit card",
+      "name": "Name",
+      "last4": "Last 4 digits (optional)",
+      "dailyLimit": "Daily limit (CUP)",
+      "active": "Active card"
+    },
+    "lotForm": {
+      "titleNew": "Load a lot on {card}",
+      "titleEdit": "Edit a lot of {card}",
+      "amount": "Amount (CUP)",
+      "rate": "Rate (CUP per USDT)",
+      "note": "Note (optional)"
+    },
+    "movements": {
+      "title": "Today's movements",
+      "empty": "No movements today",
+      "time": "Time",
+      "amount": "Amount (CUP)",
+      "rate": "Lot rate",
+      "destination": "Used for",
+      "operation": "Operation",
+      "manual": "Manual line",
+      "adjustment": "Adjustment"
+    },
+    "actions": {
+      "save": "Save",
+      "cancel": "Cancel",
+      "saving": "Saving...",
+      "delete": "Delete"
+    },
+    "errors": {
+      "nameRequired": "Enter the card name.",
+      "nameTooLong": "The name allows up to 60 characters.",
+      "invalidLast4": "Enter exactly 4 digits or leave it empty.",
+      "invalidLimit": "Enter a daily limit greater than zero.",
+      "invalidAmount": "Enter an amount greater than zero.",
+      "invalidRate": "Enter a rate greater than zero.",
+      "noteTooLong": "The note allows up to 500 characters.",
+      "saveError": "Could not save.",
+      "invalidBalance": "Enter the balance as a number, zero or more.",
+      "balanceUnchanged": "That is already the current balance.",
+      "reasonTooLong": "The reason allows up to 500 characters.",
+      "invalidUsdtPaid": "Type the USDT paid or a discount.",
+      "invalidDiscount": "Type the discount as 5, 5% or 1x1.",
+      "invalidMonthlyLimit": "Type a monthly limit greater than zero."
+    },
+    "toasts": {
+      "cardSaved": "Card saved",
+      "lotSaved": "Lot saved",
+      "lotDeleted": "Lot deleted",
+      "balanceAdjusted": "Balance adjusted"
+    },
+    "balanceForm": {
+      "title": "Adjust balance of {card}",
+      "current": "Current balance",
+      "balance": "Real balance (CUP)",
+      "difference": "Difference",
+      "reason": "Reason (optional)",
+      "hint": "Lower: taken from the oldest lots first. Higher: returned to the newest lots, never above what was loaded.",
+      "submit": "Adjust"
+    },
+    "usdUnavailable": "The Clásica and Tropical inventory could not be loaded. Only the CUP cards are shown.",
+    "buyBalance": "Buy balance",
+    "filters": {
+      "label": "Filter by service",
+      "all": "All",
+      "CUP": "CUP",
+      "CLASICA": "Clásica",
+      "TROPICAL": "Tropical"
+    },
+    "services": {
+      "CUP": "CUP",
+      "CLASICA": "Clásica",
+      "TROPICAL": "Tropical"
+    },
+    "totals": {
+      "label": "Balance by service",
+      "cards": "Cards: {n}",
+      "noBalance": "No balance"
+    },
+    "row": {
+      "limitDay": "Today: {used} of {limit} CUP",
+      "limitMonth": "This month: {used} of {limit} USD",
+      "noBalance": "No balance: buy more to send",
+      "inactive": "Inactive"
+    },
+    "cardMonth": {
+      "monthlyLimit": "Monthly limit",
+      "usedMonth": "Used this month",
+      "remainingMonth": "Limit left this month"
+    },
+    "lotsTable": {
+      "date": "Date",
+      "bought": "Bought",
+      "paid": "Paid (USDT)",
+      "discount": "Discount",
+      "rate": "Rate (CUP/USDT)",
+      "left": "Left",
+      "costPerUsd": "Cost per USD",
+      "earns": "earns {amount}",
+      "loses": "loses {amount}",
+      "gyd": "GYD",
+      "footnote": "The cost per USD comes from the USDT you actually paid for each lot and today's buy rate. The gain compares that cost with today's selling price."
+    },
+    "movementsMonth": {
+      "title": "This month's movements",
+      "empty": "No movements this month"
+    },
+    "picker": {
+      "label": "Card",
+      "none": "There are no active cards. Create one first."
+    },
+    "newCardForm": {
+      "service": "Service",
+      "monthlyLimit": "Monthly limit (USD)",
+      "dailyLimit": "Daily limit (CUP)",
+      "monthlyHint": "The monthly limit is only a reference: it never blocks a send."
+    },
+    "usdLotForm": {
+      "titleNew": "Buy balance on {card}",
+      "titleEdit": "Edit lot of {card}",
+      "amount": "Amount (USD)",
+      "usdtPaid": "Paid (USDT)",
+      "discount": "Discount (optional)",
+      "discountHint": "Type 5, 5% or 1x1. If you type the USDT paid, that value wins.",
+      "preview": "USDT to pay: {usdt}"
+    },
+    "usdBalanceForm": {
+      "balance": "Real balance (USD)"
+    }
+  },
+  "AwayMode": {
+    "button": {
+      "available": "Available",
+      "untilToday": "Away until {time}",
+      "untilTomorrow": "Away until tomorrow {time}",
+      "untilOther": "Away until {weekday} {time}",
+      "adminOnly": "Only admins can change this notice"
+    },
+    "popover": {
+      "title": "Let customers know we are away",
+      "subtitle": "The bot keeps answering and explains to customers why we are slow.",
+      "untilLabel": "Until when?",
+      "presetRato": "A little while",
+      "presetRatoSub": "1 hour",
+      "presetHora": "Until a time",
+      "presetHoraSub": "pick the time",
+      "presetResto": "Rest of the day",
+      "presetRestoSub": "until tomorrow",
+      "timeLabel": "We are back at",
+      "motivoLabel": "Reason (the bot will say it)",
+      "motivoPrefix": "porque",
+      "defaultMotivo": "porque tuvieron que salir un momento",
+      "chips": {
+        "salir": "tuvieron que salir",
+        "personal": "tuvieron un asunto personal",
+        "diligencia": "están en una diligencia",
+        "festivo": "es día festivo",
+        "aniversario": "estamos de aniversario"
+      },
+      "previewTitle": "How the bot will answer",
+      "previewSentence": "Ahora mismo los encargados no están disponibles {motivo}; regresan {when}. Le seguimos atendiendo por aquí.",
+      "cancel": "Cancel",
+      "activate": "Turn notice on",
+      "update": "Change notice",
+      "saving": "Saving…",
+      "returned": "We are back"
+    },
+    "when": {
+      "today": "a las {time}",
+      "tomorrow": "mañana a las {time}",
+      "other": "el {weekday} a las {time}"
+    },
+    "weekdays": {
+      "0": "domingo",
+      "1": "lunes",
+      "2": "martes",
+      "3": "miércoles",
+      "4": "jueves",
+      "5": "viernes",
+      "6": "sábado"
+    },
+    "banner": {
+      "active": "Notice active: away {when}",
+      "by": "turned on by {name}",
+      "returned": "We are back"
+    },
+    "errors": {
+      "save": "Could not turn the notice on. Please try again.",
+      "clear": "Could not remove the notice. Please try again."
+    }
+  },
+  "ClosedDays": {
+    "title": "Closed days",
+    "description": "In addition to Sundays. On that day the bot keeps answering, gives the reason and the next business day.",
+    "listTitle": "Upcoming closed days",
+    "loading": "Loading…",
+    "empty": "No closed days yet.",
+    "botSays": "we are not working {motivo}",
+    "past": "past",
+    "remove": "Remove the day {date}",
+    "addTitle": "Add a closed day",
+    "dateLabel": "Date",
+    "motivoLabel": "Reason (the bot will say it)",
+    "motivoPlaceholder": "because it is our anniversary",
+    "add": "Add",
+    "saving": "Saving…",
+    "errorMissing": "Pick a date and write the reason.",
+    "errorPast": "A past date cannot be closed.",
+    "errorDuplicate": "There is already a closed day on that date.",
+    "errorGeneric": "Closed days could not be saved.",
+    "loadFailed": "Closed days could not be loaded.",
+    "savedToast": "Closed days updated",
+    "failedToast": "Could not save",
+    "dateFormat": "{weekday} {month} {day}",
+    "weekdays": {
+      "0": "Sunday",
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday",
+      "6": "Saturday"
+    },
+    "months": {
+      "0": "January",
+      "1": "February",
+      "2": "March",
+      "3": "April",
+      "4": "May",
+      "5": "June",
+      "6": "July",
+      "7": "August",
+      "8": "September",
+      "9": "October",
+      "10": "November",
+      "11": "December"
     }
   }
 }

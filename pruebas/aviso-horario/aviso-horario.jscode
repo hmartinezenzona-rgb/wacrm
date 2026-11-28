@@ -1,0 +1,14 @@
+// ==== AVISO DE HORARIO DETERMINISTA (2026-11-24) ====
+// The model often ignores the Decisor's out-of-hours note. When the business is
+// closed and this is the first contact of the day, append one fixed line unless
+// the reply already mentions it.
+const AVISO_FUERA_DE_HORARIO = 'Ahora mismo estamos fuera de horario, pero puede dejarnos su solicitud y se la atendemos.';
+function asegurarAvisoHorario(texto, hechos) {
+  if (!hechos || hechos.horario !== 'cerrado' || hechos.presentacion !== 'primer_contacto_del_dia') return texto;
+  if (typeof texto !== 'string' || !texto.trim() || texto.trim() === 'SKIP') return texto;
+  if (/fuera de horario|estamos cerrad|no estamos trabajando/i.test(texto)) return texto;
+  return texto.trimEnd() + '\n\n' + AVISO_FUERA_DE_HORARIO;
+}
+function hechosDelDecisor() {
+  try { return $('Decisor').first().json.plan.hechos || null; } catch (e) { return null; }
+}

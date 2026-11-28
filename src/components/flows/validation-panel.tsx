@@ -64,6 +64,20 @@ export function ValidationPanel() {
   );
 }
 
+/** Renders an issue in the active locale; falls back to the stored English message. */
+function issueText(
+  issue: ValidationIssue,
+  t?: ReturnType<typeof useTranslations>,
+): string {
+  if (t && issue.code && t.has(`issues.${issue.code}`)) {
+    const values = Object.fromEntries(
+      Object.entries(issue.params ?? {}).map(([k, v]) => [k, v ?? ""]),
+    );
+    return t(`issues.${issue.code}`, values);
+  }
+  return issue.message;
+}
+
 /**
  * Exported so the per-node card (list view) and the trigger panel
  * can render the same "icon + node key chip + message" formatting
@@ -92,7 +106,7 @@ export function IssueLine({
             {issue.node_key}
           </code>
         )}
-        {issue.message}
+        {issueText(issue, t)}
       </span>
     </>
   );

@@ -1,0 +1,81 @@
+// Partir respuesta: one customer reply becomes 1..4 WhatsApp messages, one per idea.
+// Cuts ONLY on the blank lines between blocks and never leaves an idea in halves:
+//   - a block that ends with ":" goes with the next block;
+//   - a list block (every line starts with "-", "*", "•", "1." or "1)") goes with the block before it;
+//   - a block (or group) shorter than MIN_CHARS that is not a question joins its next neighbour
+//     (the previous one if it is the last);
+//   - more than MAX_PARTES groups: the shortest adjacent pair is merged until the cap is met
+//     (the final question is kept alone while another pair can be merged).
+// Joined with a blank line the parts equal the reply, so no text is dropped or reordered.
+// Any doubt (flag off, one block, short text, unbalanced "*", SKIP, ends with ":", exception) -> ONE part.
+const MIN_CHARS = 40, MIN_TEXTO = 160, MAX_PARTES = 4;
+const MARCA_LISTA = /^\s*(?:[-*•]\s+|\d+[.)]\s+)/;
+
+function bloques(texto) {
+  return texto.replace(/\r\n/g, '\n').trim()
+    .split(/\n[ \t]*(?:\n[ \t]*)+/)
+    .map(b => b.trim()).filter(b => b !== '');
+}
+const esLista = b => b.split('\n').every(l => MARCA_LISTA.test(l));
+const terminaEnDosPuntos = b => /:[\s*_]*$/.test(b);
+const esPregunta = g => /\?[\s*_"')]*$/.test(g);
+function asteriscosBalanceados(b) {
+  // A "* " at the start of a line is a bullet, not bold.
+  const n = b.split('\n').map(l => l.replace(/^\s*\*\s+/, '')).join('\n').split('*').length - 1;
+  return n % 2 === 0;
+}
+const unir = (a, i) => { a.splice(i, 2, a[i] + '\n\n' + a[i + 1]); };
+
+function partirTexto(texto) {
+  if (typeof texto !== 'string') return [texto];
+  const b = bloques(texto);
+  if (b.length < 2 || texto.trim().length < MIN_TEXTO) return [texto];
+  if (/\bSKIP\b/.test(texto) || !b.every(asteriscosBalanceados)) return [texto];
+
+  // 1. Blocks that cannot be left alone: after ":" and lists.
+  const g = [];
+  const sinCerrar = [];   // sinCerrar[i]: group i ends with ":" and needs the next block
+  b.forEach((bloque, i) => {
+    const pegar = i > 0 && (sinCerrar[g.length - 1] || esLista(bloque));
+    if (pegar) {
+      g[g.length - 1] += '\n\n' + bloque;
+    } else {
+      g.push(bloque);
+    }
+    sinCerrar[g.length - 1] = terminaEnDosPuntos(bloque);
+  });
+  if (sinCerrar[g.length - 1]) return [texto];   // ends with ":" and nothing follows
+
+  // 2. Short loose sentences join a neighbour (a short question may stand alone).
+  let i;
+  while (g.length > 1 && (i = g.findIndex(x => x.length < MIN_CHARS && !esPregunta(x))) !== -1) {
+    unir(g, i === g.length - 1 ? i - 1 : i);
+  }
+
+  // 3. At most MAX_PARTES: merge the shortest adjacent pair.
+  while (g.length > MAX_PARTES) {
+    const hasta = esPregunta(g[g.length - 1]) && g.length > 2 ? g.length - 2 : g.length - 1;
+    let mejor = 0;
+    for (let k = 1; k < hasta; k++) {
+      if (g[k].length + g[k + 1].length < g[mejor].length + g[mejor + 1].length) mejor = k;
+    }
+    unir(g, mejor);
+  }
+
+  if (g.length < 2 || g.some(x => terminaEnDosPuntos(x))) return [texto];
+  return g;
+}
+
+const salida = [];
+for (const item of $input.all()) {
+  try {
+    const original = item.json.output;
+    if (typeof original !== 'string') { salida.push(item); continue; }
+    const activo = String(item.json.opt_partir_respuesta || 'no').trim().toLowerCase() === 'si';
+    const partes = activo ? partirTexto(original) : [original];
+    salida.push({ json: { ...item.json, partes, partes_n: partes.length } });
+  } catch (e) {
+    salida.push(item);   // ante la duda, el item original
+  }
+}
+return salida;

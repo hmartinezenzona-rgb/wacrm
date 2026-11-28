@@ -120,6 +120,9 @@ describe("SplitEditForm", () => {
     await type(inputs(none.node, E.card)[1]!, "9205000000000002");
     await type(inputs(none.node, E.amount)[1]!, "50");
     expect(saveButton(none.node).disabled).toBe(false);
+    // The mock needs a result: without one the submit handler dereferences
+    // undefined and the rejection escapes the test as an unhandled error.
+    editarReparto.mockResolvedValue({ ok: true, retired: [], created: [], kept: [], complete: true });
     await act(async () => saveButton(none.node).click());
     expect(editarReparto).toHaveBeenCalledWith("op-1", [
       expect.objectContaining({ id: null, card_number: "9205000000000001", amount: 100 }),

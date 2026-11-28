@@ -464,7 +464,7 @@ Spec: `media-ingest` → "Thumbnails generated at ingest", "Originals are never 
 
 Spec: `media-ingest` → "Insert first, process media after", "Ready or failed transition", "Bot-facing dispatch only after media settles", "Originals are never re-encoded"; `inbox-realtime` → "Realtime media resolves without reload" (rows become pending only from here).
 
-- [ ] **T6a.1** RED — ordering proof (ADR-8 tests 1-5). Requirement: `media-ingest` → "Bot-facing dispatch only after media settles", "Insert first, process media after".
+- [x] **T6a.1** RED — ordering proof (ADR-8 tests 1-5). Requirement: `media-ingest` → "Bot-facing dispatch only after media settles", "Insert first, process media after".
   - Goal: add an ordered global `calls` log to the existing fake builder and write: image success (insert `pending` + proxy `media_url`; first `ready` update index below every bot-facing call; `message.received` exactly once); image failing twice (`failed` before every bot-facing call; `media_url` never changes); the parameterised invariant over `image, video, document, audio, sticker` (at invocation time the row is `ready` or `failed`); text (no `media_status`, tail runs); duplicate wamid (nothing inserted, nothing dispatched).
   - Files: `src/app/api/whatsapp/webhook/route.test.ts`
   - Test: itself.
@@ -484,7 +484,7 @@ Spec: `media-ingest` → "Insert first, process media after", "Ready or failed t
   - Verify: `npx vitest run src/lib/whatsapp/meta-api.test.ts src/lib/whatsapp/meta-api.media.test.ts src/lib/whatsapp/meta-api.resumable.test.ts`
   - **Done 2026-11-28**: optional `signal` on both calls; existing callers untouched.
 
-- [ ] **T6a.4** GREEN — extract the tail verbatim. Requirement: `media-ingest` → "Bot-facing dispatch only after media settles"; `chat-media-delivery` → "Existing media_url readers are unaffected".
+- [x] **T6a.4** GREEN — extract the tail verbatim. Requirement: `media-ingest` → "Bot-facing dispatch only after media settles"; `chat-media-delivery` → "Existing media_url readers are unaffected".
   - Goal: move `dispatchInboundToFlows` → `runAutomationsForTrigger` → `dispatchInboundToAiReply` → `dispatchEventDurably('message.received')` into `runInboundTail(args)` in the same order and content; no behaviour change yet.
   - Files: `src/lib/whatsapp/inbound-tail.ts` (new), `src/app/api/whatsapp/webhook/route.ts`
   - Test: `src/app/api/whatsapp/webhook/route.test.ts` (existing non-media cases must stay green)
@@ -497,7 +497,7 @@ Spec: `media-ingest` → "Insert first, process media after", "Ready or failed t
   - Verify: `npx vitest run src/lib/whatsapp/inbound-media.test.ts`
   - **Done 2026-11-28**: module written, not yet wired into the webhook (that is T6a.6).
 
-- [ ] **T6a.6** GREEN — reorder the webhook and add the dedupe guard. Requirement: `media-ingest` → "Insert first, process media after", "Duplicate delivery inserts once", "Media update is idempotent per message", "Bot-facing dispatch only after media settles".
+- [x] **T6a.6** GREEN — reorder the webhook and add the dedupe guard. Requirement: `media-ingest` → "Insert first, process media after", "Duplicate delivery inserts once", "Media update is idempotent per message", "Bot-facing dispatch only after media settles".
   - Goal: implement ADR-7 steps 2-8 exactly: `parseMessageContent` stops downloading and returns `mediaRef` with the proxy placeholder; the pre-insert dedupe query on `(conversation_id, message_id, sender_type='customer')` returns early with `[webhook] duplicate wamid skipped`; insert with `media_status: 'pending'`, proxy `media_url`, `media_claimed_at`, `media_attempts: 1`, then `.select('id').single()`; conversation UPDATE, invite callback and broadcast-reply flag after the insert; `settleInboundMedia`; then `runInboundTail` strictly after it settles. Non-media messages call the tail directly after step 6, unchanged.
   - Files: `src/app/api/whatsapp/webhook/route.ts`
   - Test: `src/app/api/whatsapp/webhook/route.test.ts`
@@ -509,7 +509,7 @@ Spec: `media-ingest` → "Insert first, process media after", "Ready or failed t
   - Test: manual + read-only SQL.
   - Verify: record the observed transition and the DB row in the PR.
 
-- [ ] **T6a.8** Verification.
+- [x] **T6a.8** Verification.
   - Goal: suite and `tsc`; confirm `processMessage` still returns `{ guardado: true }` so `whatsapp_webhook_log.procesado` and the ingest watchdog keep their meaning.
   - Files: none.
   - Test: slice-6a files.

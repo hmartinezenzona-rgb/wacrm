@@ -9,11 +9,7 @@
 // Selection/ordering/filtering are out of scope here — this file only
 // covers the new prefetch wiring, and asserts selection behaviour is
 // unchanged as a guard against the wiring breaking it.
-//
-// The prefetch path is async (jsdom + a stubbed fetch); under the full
-// suite's parallel workers the default 5 s is not enough and the file
-// failed intermittently while passing alone. The assertions are unchanged.
-vi.setConfig({ testTimeout: 20_000 });
+
 
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";

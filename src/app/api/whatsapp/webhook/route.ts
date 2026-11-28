@@ -9,6 +9,7 @@ import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe'
 import { findConversationForContact } from '@/lib/whatsapp/find-conversation'
 import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
 import { runInboundTail } from '@/lib/whatsapp/inbound-tail'
+import { settleInboundMedia } from '@/lib/whatsapp/inbound-media'
 
 
 import { dispatchEventDurably } from '@/lib/webhooks/outbox'
@@ -796,7 +797,7 @@ async function processMessage(
   }
 
   // Parse message content based on type
-  const { contentText, mediaUrl, mediaType, interactiveReplyId, media } =
+  const { contentText, mediaUrl, mediaType, interactiveReplyId, mediaRef } =
     await parseMessageContent(message, accessToken, accountId)
 
   // Resolve swipe-reply context if present. A missing parent is fine —
@@ -850,7 +851,22 @@ async function processMessage(
     .eq('sender_type', 'customer')
   const isFirstInboundMessage = (priorCustomerMsgCount ?? 0) === 0
 
-  const { error: msgError } = await supabaseAdmin().from('messages').insert({
+  // Meta redelivers when it does not get an ACK in time. Growing from insert
+  // to settle, the processing window is longer, so a duplicate must be
+  // dropped BEFORE anything is written or dispatched.
+  const { data: duplicate } = await supabaseAdmin()
+    .from('messages')
+    .select('id')
+    .eq('conversation_id', conversation.id)
+    .eq('message_id', message.id)
+    .eq('sender_type', 'customer')
+    .maybeSingle()
+  if (duplicate) {
+    console.warn('[webhook] duplicate wamid skipped', message.id)
+    return { guardado: true }
+  }
+
+  const { data: insertedRow, error: msgError } = await supabaseAdmin().from('messages').insert({
     conversation_id: conversation.id,
     sender_type: 'customer',
     content_type: contentType,
@@ -864,10 +880,17 @@ async function processMessage(
     // the column; null for every other content_type so existing inserts
     // behave identically.
     interactive_reply_id: interactiveReplyId,
-    // Migration 400: NULL unless the object was stored, in which case the
-    // row records where it lives and how big it is.
-    ...(media ?? {}),
-  })
+    // Migration 400, insert-first: the row exists NOW and the file follows.
+    // `media_url` already holds the legacy proxy value, so a failed download
+    // leaves the panel doing exactly what it did before this change.
+    ...(mediaRef
+      ? {
+          media_status: 'pending',
+          media_claimed_at: new Date().toISOString(),
+          media_attempts: 1,
+        }
+      : {}),
+  }).select('id').single()
 
   if (msgError) {
     console.error('Error inserting message:', msgError)
@@ -923,6 +946,22 @@ async function processMessage(
   // no active flows take the runner's early-exit "no_match" path
   // basically for free (one indexed SELECT for the active run).
   // ============================================================
+  // Insert-first ingest: the file is fetched only now, and the bot-facing tail
+  // waits for it to settle. A flow or automation step may forward the image
+  // and must never find a `pending` row it cannot see.
+  if (mediaRef) {
+    const settled = await settleInboundMedia({
+      messageId: (insertedRow as { id: string } | null)?.id ?? '',
+      mediaId: mediaRef.mediaId,
+      accessToken,
+      accountId,
+      contentType: message.type,
+    })
+    if (settled === 'failed') {
+      console.warn(`[webhook] media ${mediaRef.mediaId} quedo failed`)
+    }
+  }
+
   await runInboundTail({
     accountId,
     configOwnerUserId,
@@ -959,8 +998,8 @@ async function parseMessageContent(
   contentText: string | null
   mediaUrl: string | null
   mediaType: string | null
-  /** Migration 400 metadata for a stored media object; null otherwise. */
-  media: StoredMedia | null
+  /** Meta media id to settle after the row exists; null for non-media. */
+  mediaRef: { mediaId: string } | null
   /**
    * For interactive button / list replies: the stable id of the tapped
    * option (whatever we put on the button when sending). Used by the
@@ -973,93 +1012,22 @@ async function parseMessageContent(
   // The stored object plus what the message row records about it. A null
   // `media` means the object was not stored (today's proxy URL is used), so
   // migration 400's columns stay NULL and the panel behaves exactly as before.
-  const persistMedia = async (
-    mediaId: string
-  ): Promise<{ mediaUrl: string | null; media: StoredMedia | null }> => {
-    // Si algo falla, caemos a la ruta proxy de siempre: el peor caso es
-    // el comportamiento actual, nunca una burbuja vacia.
-    const proxyUrl = `/api/whatsapp/media/${mediaId}`
-    try {
-      const { url, mimeType } = await getMediaUrl({ mediaId, accessToken })
-      const { buffer, contentType } = await downloadMedia({
-        downloadUrl: url,
-        accessToken,
-      })
-      if (buffer.byteLength > 16 * 1024 * 1024) {
-        console.warn(`[whatsapp] media ${mediaId} supera el tope del bucket`)
-        return { mediaUrl: proxyUrl, media: null }
-      }
-      const type = contentType || mimeType
-      const path =
-        `account-${accountId}/${Date.now()}-wa-${mediaId}.${extFromMime(type)}`
-      const { error } = await supabaseAdmin()
-        .storage.from('chat-media')
-        .upload(path, buffer, {
-          contentType: type,
-          cacheControl: '31536000',
-          upsert: false,
-        })
-      if (error) throw error
+  // The legacy proxy URL: workable today, and the value the row keeps even
+  // when the later download fails, so the panel behaves exactly as before.
+  const proxyMediaUrl = (mediaId: string) => `/api/whatsapp/media/${mediaId}`
 
-      // The thumbnail is a bonus, never a requirement: a failure here keeps
-      // the message `ready` and records why there is no small version.
-      const thumb = await makeThumbnail(path, buffer)
-      let thumbPath: string | null = null
-      let mediaError: string | null = null
-      if (thumb && 'error' in thumb) {
-        mediaError = `thumbnail: ${thumb.error}`
-      } else if (thumb) {
-        const { error: thumbError } = await supabaseAdmin()
-          .storage.from('chat-media')
-          .upload(thumb.path, thumb.data, {
-            contentType: thumb.mime,
-            cacheControl: '31536000',
-            upsert: true,
-          })
-        if (thumbError) mediaError = `thumbnail: ${thumbError.message}`
-        else thumbPath = thumb.path
-      }
-      const imageInfo = thumb && !('error' in thumb) ? thumb : null
-
-      const { data } = supabaseAdmin()
-        .storage.from('chat-media')
-        .getPublicUrl(path)
-      return {
-        mediaUrl: data.publicUrl,
-        media: {
-          media_status: 'ready',
-          media_path: path,
-          media_thumb_path: thumbPath,
-          media_mime: type,
-          media_bytes: buffer.byteLength,
-          media_width: imageInfo?.sourceWidth ?? null,
-          media_height: imageInfo?.sourceHeight ?? null,
-          media_error: mediaError,
-        },
-      }
-    } catch (error) {
-      console.error(
-        `[whatsapp] no se pudo persistir media ${mediaId}:`,
-        error instanceof Error ? error.message : error
-      )
-      return { mediaUrl: proxyUrl, media: null }
-    }
-  }
-
-  // Default shape — each case overrides only the fields it cares about.
-  // Keeps the new `interactiveReplyId` field DRY across every return site.
   const empty: {
     contentText: string | null
     mediaUrl: string | null
     mediaType: string | null
     interactiveReplyId: string | null
-    media: StoredMedia | null
+    mediaRef: { mediaId: string } | null
   } = {
     contentText: null,
     mediaUrl: null,
     mediaType: null,
     interactiveReplyId: null,
-    media: null,
+    mediaRef: null,
   }
 
   switch (message.type) {
@@ -1071,7 +1039,8 @@ async function parseMessageContent(
         return {
           ...empty,
           contentText: message.image.caption || null,
-          ...(await persistMedia(message.image.id)),
+          mediaUrl: proxyMediaUrl(message.image.id),
+          mediaRef: { mediaId: message.image.id },
           mediaType: message.image.mime_type,
         }
       }
@@ -1082,7 +1051,8 @@ async function parseMessageContent(
         return {
           ...empty,
           contentText: message.video.caption || null,
-          ...(await persistMedia(message.video.id)),
+          mediaUrl: proxyMediaUrl(message.video.id),
+          mediaRef: { mediaId: message.video.id },
           mediaType: message.video.mime_type,
         }
       }
@@ -1094,7 +1064,8 @@ async function parseMessageContent(
           ...empty,
           contentText:
             message.document.caption || message.document.filename || null,
-          ...(await persistMedia(message.document.id)),
+          mediaUrl: proxyMediaUrl(message.document.id),
+          mediaRef: { mediaId: message.document.id },
           mediaType: message.document.mime_type,
         }
       }
@@ -1104,7 +1075,8 @@ async function parseMessageContent(
       if (message.audio?.id) {
         return {
           ...empty,
-          ...(await persistMedia(message.audio.id)),
+          mediaUrl: proxyMediaUrl(message.audio.id),
+          mediaRef: { mediaId: message.audio.id },
           mediaType: message.audio.mime_type,
         }
       }
@@ -1117,7 +1089,8 @@ async function parseMessageContent(
       if (message.sticker?.id) {
         return {
           ...empty,
-          ...(await persistMedia(message.sticker.id)),
+          mediaUrl: proxyMediaUrl(message.sticker.id),
+          mediaRef: { mediaId: message.sticker.id },
           mediaType: message.sticker.mime_type,
         }
       }

@@ -13,9 +13,14 @@ const hoisted = vi.hoisted(() => ({
   supabase: {} as Record<string, unknown>,
   rowIds: [] as string[],
   peekAtRender: {} as Record<string, string | null>,
+  renderCount: {} as Record<string, number>,
+  translate: (key: string) => key,
 }));
 
-vi.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
+// One stable translator: a fresh function per render would make the thread's
+// `useCallback` chains (and therefore every row's props) change identity, and
+// the memoization assertion would test the mock instead of the wiring.
+vi.mock('next-intl', () => ({ useTranslations: () => hoisted.translate }));
 vi.mock('@/lib/inbox/thread-page', async () => {
   const actual = await vi.importActual<typeof import('@/lib/inbox/thread-page')>(
     '@/lib/inbox/thread-page',
@@ -41,8 +46,26 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
 vi.mock('@/components/ui/scroll-area', () => ({
   ScrollArea: ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children),
 }));
-vi.mock('./message-bubble', () => ({ MessageBubble: () => null }));
-vi.mock('./message-actions', () => ({ MessageActions: () => null }));
+// The real ThreadRow is rendered (no mock), so its memo contract is what the
+// integration assertion observes. The bubble probe records every render and
+// the signed src it can read at that moment.
+vi.mock('./message-bubble', async () => {
+  const { peekSignedMediaSrc } = await vi.importActual<typeof import('@/lib/storage/signed-media')>(
+    '@/lib/storage/signed-media',
+  );
+  return {
+    MessageBubble: ({ message }: { message: Message }) => {
+      hoisted.rowIds.push(message.id);
+      hoisted.renderCount[message.id] = (hoisted.renderCount[message.id] ?? 0) + 1;
+      hoisted.peekAtRender[message.id] = peekSignedMediaSrc(message.media_url);
+      return null;
+    },
+  };
+});
+vi.mock('./message-actions', () => ({
+  MessageActions: ({ children }: { children?: React.ReactNode }) =>
+    React.createElement(React.Fragment, null, children),
+}));
 vi.mock('./message-composer', () => ({ MessageComposer: () => null, CHAT_MEDIA_BUCKET: 'chat-media' }));
 vi.mock('./template-picker', () => ({ TemplatePicker: () => null }));
 vi.mock('./ai-thread-banner', () => ({ AiThreadBanner: () => null }));
@@ -52,20 +75,6 @@ vi.mock('./not-business-control', () => ({
 }));
 vi.mock('@/lib/storage/upload-media', () => ({ deleteAccountMedia: vi.fn() }));
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
-// A probe row: records the signed src it can read at render time, so the test
-// can prove the older page was seeded before its rows were prepended.
-vi.mock('./thread-row', async () => {
-  const { peekSignedMediaSrc } = await vi.importActual<typeof import('@/lib/storage/signed-media')>(
-    '@/lib/storage/signed-media',
-  );
-  return {
-    ThreadRow: ({ message }: { message: Message }) => {
-      hoisted.rowIds.push(message.id);
-      hoisted.peekAtRender[message.id] = peekSignedMediaSrc(message.media_url);
-      return null;
-    },
-  };
-});
 
 import type { Contact, Conversation, Message } from '@/types';
 import { peekSignedMediaSrc, resetSignedMediaCache } from '@/lib/storage/signed-media';
@@ -120,6 +129,7 @@ beforeEach(() => {
   hoisted.fetchThreadPage.mockReset();
   hoisted.rowIds.length = 0;
   hoisted.peekAtRender = {};
+  hoisted.renderCount = {};
   hoisted.supabase = {
     from: vi.fn(() => chainable({ data: [], error: null })),
     channel: vi.fn(() => {
@@ -246,6 +256,67 @@ describe('MessageThread thread page', () => {
     // And the older row could read its signed src on its own first render.
     expect(hoisted.rowIds).toContain('m0');
     expect(hoisted.peekAtRender.m0).toBe('https://signed/b');
+
+    await act(async () => root.unmount());
+  });
+
+  it('an unrelated parent state change leaves untouched rows unrendered', async () => {
+    const m1 = {
+      ...pageMessage,
+      id: 'm1',
+      content_type: 'text',
+      media_url: undefined,
+      created_at: '2026-11-27T10:00:01.000000+00:00',
+    } as Message;
+    const m2 = {
+      ...pageMessage,
+      id: 'm2',
+      content_type: 'text',
+      media_url: undefined,
+      created_at: '2026-11-27T10:00:02.000000+00:00',
+    } as Message;
+    hoisted.fetchThreadPage.mockResolvedValue({
+      messages: [],
+      hasMore: false,
+      nextCursor: null,
+      signed: {},
+      expiresIn: 3600,
+    });
+
+    const onRefresh = vi.fn();
+    const node = document.createElement('div');
+    const root = createRoot(node);
+    await act(async () => {
+      root.render(
+        React.createElement(MessageThread, {
+          conversation,
+          contact,
+          messages: [m1, m2] as Message[],
+          onMessagesLoaded: vi.fn(),
+          onNewMessage: vi.fn(),
+          onUpdateMessage: vi.fn(),
+          onStatusChange: vi.fn(),
+          onAssignChange: vi.fn(),
+          onRefresh,
+        }),
+      );
+    });
+    await flush();
+    expect(hoisted.renderCount).toEqual({ m1: 1, m2: 1 });
+
+    // The manual-refresh click flips `isRefreshing` in the thread only.
+    const refresh = node.querySelector<HTMLButtonElement>(
+      'button[aria-label="refreshConversation"]',
+    );
+    expect(refresh).not.toBeNull();
+    await act(async () => {
+      refresh!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await flush();
+
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+    // Neither row's props changed, so neither row may re-render.
+    expect(hoisted.renderCount).toEqual({ m1: 1, m2: 1 });
 
     await act(async () => root.unmount());
   });

@@ -190,6 +190,15 @@ Spec: `chat-media-delivery` → "Direct signed delivery", "One download per medi
   - Test: slice-2 files.
   - Verify: `npx vitest run src/components/inbox/message-bubble.test.tsx src/components/inbox/thread-row.test.tsx src/components/inbox/message-thread.test.tsx && npx tsc --noEmit`
 
+### Slice 2 review corrections (2026-11-27)
+
+Filed under slice 2 because they repair slice-2 behaviour; no new PR slice.
+
+- [x] **T2.7** Media error recovery for video, audio and the document link: on `error`, `invalidateSignedMedia(url)`, one re-resolve through `resolveMediaSrc`, then the proxy; a failing fallback renders the unavailable state. One re-sign per element per mount.
+- [x] **T2.8** One failure is enough to show the unavailable state: when the re-resolved URL equals the failing URL or the re-sign yields nothing, render `MediaUnavailable` immediately instead of waiting for an `error` React never re-fires. The image branch no longer dead-ends on a broken glyph.
+- [x] **T2.9** Seeded images paint on the true first render: `loading` initialises from `peekSignedMediaSrc` instead of from `!isMetaMedia`, so no `MediaLoadingBox` commit precedes a seeded `<img>`. The legacy Meta blob path keeps its async loading state.
+- [x] **T2.10** Integration-level memo proof: `message-thread.test.tsx` renders the real `MessageThread` and the real `ThreadRow`, and asserts an unrelated `isRefreshing` change does not re-render untouched rows.
+
 ## Measurement 1 — after slices 1-2 (own task)
 
 - [ ] **TM1** Re-run the baseline method and record the numbers. Requirement: `inbox-thread-read` → "First-page performance budget", "Measurement record"; `chat-media-delivery` → "One download per media item".

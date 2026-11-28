@@ -24,6 +24,7 @@ import { useTranslations } from "next-intl";
 import { WhatsAppText } from "@/lib/whatsapp/format";
 import {
   invalidateSignedMedia,
+  peekSignedMediaSrc,
   resolveMediaSrc,
 } from "@/lib/storage/signed-media";
 import { useMediaSrc } from "@/lib/storage/use-media-src";
@@ -79,7 +80,17 @@ function MediaLoadingBox({ className }: { className?: string }) {
   );
 }
 
-function MediaImage({ url, alt }: { url: string; alt: string }) {
+function MediaImage({
+  url,
+  alt,
+  label,
+  t,
+}: {
+  url: string;
+  alt: string;
+  label: string;
+  t: ReturnType<typeof useTranslations>;
+}) {
   // Meta's media proxy needs the session cookie, so it is fetched as a blob.
   // chat-media objects get a signed CDN URL and never touch this server.
   const isMetaMedia = url.startsWith("/api/whatsapp/media/");
@@ -88,7 +99,11 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
   // Set after one failed load: the re-signed URL, or the proxy fallback.
   const [override, setOverride] = useState<string | null>(null);
   const [error, setError] = useState(false);
-  const [loading, setLoading] = useState(!isMetaMedia);
+  // A URL the server already seeded is paintable on the very first render, so
+  // start settled instead of flashing the loading box for one commit.
+  const [loading, setLoading] = useState(
+    () => !isMetaMedia && peekSignedMediaSrc(url) === null,
+  );
   const [zoom, setZoom] = useState(false);
   const resignedRef = useRef(false);
 
@@ -136,9 +151,15 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
   }, [zoom]);
 
   const displaySrc = isMetaMedia ? src : (override ?? signedSrc);
+  // The error handler compares against the source that just failed without
+  // taking it as a dependency (which would rebuild the callback mid-flight).
+  const displaySrcRef = useRef<string | null>(displaySrc);
+  displaySrcRef.current = displaySrc;
 
   // A stale signature (opened past its TTL) fires `error`. Drop it and ask for
-  // a new one exactly once; a second failure leaves the unavailable state.
+  // a new one exactly once. One failure must be enough to show the unavailable
+  // state: React does not re-fire `error` when the `src` did not change, so if
+  // the re-sign yields nothing new there is nothing left to wait for.
   const handleMediaError = useCallback(() => {
     if (isMetaMedia || resignedRef.current) {
       setError(true);
@@ -146,15 +167,18 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
     }
     resignedRef.current = true;
     invalidateSignedMedia(url);
-    void resolveMediaSrc(url).then((next) => setOverride(next || null));
+    void resolveMediaSrc(url).then((next) => {
+      const fallback = next || null;
+      if (!fallback || fallback === displaySrcRef.current) {
+        setError(true);
+        return;
+      }
+      setOverride(fallback);
+    });
   }, [isMetaMedia, url]);
 
   if (error) {
-    return (
-      <div className="flex h-40 w-60 items-center justify-center rounded-lg bg-muted">
-        <ImageOff className="h-8 w-8 text-muted-foreground" />
-      </div>
-    );
+    return <MediaUnavailable label={label} t={t} />;
   }
 
   if (loading || displaySrc === null) {
@@ -204,11 +228,57 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
   );
 }
 
+/**
+ * A playable/openable chat-media source with the same recovery contract as
+ * images: one error drops the stale signature and asks for one new URL, then
+ * falls back to the proxy. When no different URL can be produced, the media is
+ * unavailable on that first failure — a second `error` never fires for an
+ * unchanged `src`.
+ */
+function useRecoverableMediaSrc(url: string | null | undefined) {
+  const resolved = useMediaSrc(url ?? null);
+  const [override, setOverride] = useState<string | null>(null);
+  const [unavailable, setUnavailable] = useState(false);
+  const resignedRef = useRef(false);
+  const src = override ?? resolved;
+  const srcRef = useRef<string | null>(src);
+  srcRef.current = src;
+
+  const onError = useCallback(() => {
+    if (!url || resignedRef.current) {
+      setUnavailable(true);
+      return;
+    }
+    // One re-sign per element per mount: the ref makes a loop impossible.
+    resignedRef.current = true;
+    invalidateSignedMedia(url);
+    void resolveMediaSrc(url).then((next) => {
+      const fallback = next || null;
+      if (!fallback || fallback === srcRef.current) {
+        setUnavailable(true);
+        return;
+      }
+      setOverride(fallback);
+    });
+  }, [url]);
+
+  return { src, unavailable, onError };
+}
+
 function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof useTranslations> }) {
-  // Video, audio and the document link also read chat-media. The signed URL is
-  // the only first source; while it is unresolved a sized placeholder is
-  // rendered, and the proxy appears only as `resolveMediaSrc`'s fallback.
-  const resolvedMedia = useMediaSrc(message.media_url ?? null);
+  // Video, audio and the document link read chat-media through the same
+  // recovery path as images: the signed URL is the only first source, a stale
+  // one re-signs once, and the proxy is the fallback.
+  const media = useRecoverableMediaSrc(message.media_url ?? null);
+  // An anchor never dispatches `error` through React's synthetic system, so the
+  // document link gets the same recovery handler through a native listener.
+  const documentRef = useRef<HTMLAnchorElement>(null);
+  useEffect(() => {
+    const el = documentRef.current;
+    if (!el) return;
+    el.addEventListener("error", media.onError);
+    return () => el.removeEventListener("error", media.onError);
+  }, [media.onError]);
   switch (message.content_type) {
     case "text":
       return (
@@ -221,7 +291,12 @@ function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof
       return (
         <div>
           {message.media_url ? (
-            <MediaImage url={message.media_url} alt={t("sharedImageAlt")} />
+            <MediaImage
+              url={message.media_url}
+              alt={t("sharedImageAlt")}
+              label={t("photo")}
+              t={t}
+            />
           ) : (
             <MediaUnavailable label={t("photo")} t={t} />
           )}
@@ -237,12 +312,15 @@ function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof
       return (
         <div>
           {message.media_url ? (
-            resolvedMedia ? (
+            media.unavailable ? (
+              <MediaUnavailable label={t("video")} t={t} />
+            ) : media.src ? (
               <video
-                src={resolvedMedia}
+                src={media.src}
                 controls
                 preload="none"
                 className="max-h-64 max-w-60 rounded-lg"
+                onError={media.onError}
               />
             ) : (
               <MediaLoadingBox />
@@ -262,12 +340,15 @@ function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof
       return (
         <div>
           {message.media_url ? (
-            resolvedMedia ? (
+            media.unavailable ? (
+              <MediaUnavailable label={t("audio")} t={t} />
+            ) : media.src ? (
               <audio
-                src={resolvedMedia}
+                src={media.src}
                 controls
                 preload="none"
                 className="max-w-60"
+                onError={media.onError}
               />
             ) : (
               <MediaLoadingBox />
@@ -279,12 +360,13 @@ function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof
       );
 
     case "document":
-      if (!message.media_url) {
+      if (!message.media_url || media.unavailable) {
         return <MediaUnavailable label={message.content_text || t("document")} t={t} />;
       }
       return (
         <a
-          href={resolvedMedia ?? undefined}
+          ref={documentRef}
+          href={media.src ?? undefined}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm hover:bg-muted"

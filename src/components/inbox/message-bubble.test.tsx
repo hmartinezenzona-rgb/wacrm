@@ -4,6 +4,7 @@
 // audio/video transfer nothing before play, and a load error re-signs once.
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
+import { flushSync } from "react-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Message } from "@/types";
 import { MessageBubble } from "./message-bubble";
@@ -215,6 +216,150 @@ describe("MessageBubble media sources", () => {
     await settle();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(node.querySelector("img")).toBeNull();
+    await unmount();
+  });
+
+  it("image: an already-seeded signed URL is committed on the very first paint, never the spinner", async () => {
+    seedSignedMedia({ [STORED("1-wa-1.jpg")]: "https://signed/seed.jpg" }, 3600);
+
+    const node = document.createElement("div");
+    document.body.appendChild(node);
+
+    const root = createRoot(node);
+    await act(async () => {
+      // `flushSync` commits the first render before passive effects run, so
+      // the assertions below observe the true first paint, not the paint
+      // after `useEffect` cleared the loading flag.
+      flushSync(() => {
+        root.render(
+          <MessageBubble
+            message={
+              {
+                id: "m1",
+                conversation_id: "c1",
+                sender_type: "customer",
+                status: "delivered",
+                created_at: "2026-01-01T10:00:00Z",
+                content_type: "image",
+                media_url: STORED("1-wa-1.jpg"),
+              } as unknown as Message
+            }
+          />,
+        );
+      });
+      expect(node.querySelector("img")).not.toBeNull();
+      expect(node.querySelector(".animate-spin")).toBeNull();
+    });
+
+    await act(async () => root.unmount());
+    node.remove();
+  });
+
+  it("image: a source that cannot be re-signed goes unavailable on the first error", async () => {
+    const fetchMock = vi.fn(async () => failingResponse());
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { node, unmount } = await render({
+      content_type: "image",
+      media_url: "https://cdn.example.com/photo.jpg",
+    });
+    await settle();
+    expect(node.querySelector("img")?.getAttribute("src")).toBe("https://cdn.example.com/photo.jpg");
+
+    // No alternative URL exists, so one failure must be enough: no broken
+    // glyph waiting for an `error` React will never fire again.
+    await act(async () => {
+      fireError(node, "img").dispatchEvent(new Event("error"));
+    });
+    await settle();
+
+    expect(node.querySelector("img")).toBeNull();
+    expect(node.textContent).toContain("unavailable");
+    expect(fetchMock).not.toHaveBeenCalled();
+    await unmount();
+  });
+
+  it("video: an expired signed source re-signs once, then falls back to the proxy", async () => {
+    const fetchMock = vi.fn(async () => failingResponse());
+    vi.stubGlobal("fetch", fetchMock);
+    seedSignedMedia({ [STORED("2.mp4")]: "https://signed/expired.mp4" }, 3600);
+
+    const { node, unmount } = await render({ content_type: "video", media_url: STORED("2.mp4") });
+    expect(node.querySelector("video")?.getAttribute("src")).toBe("https://signed/expired.mp4");
+
+    await act(async () => {
+      fireError(node, "video").dispatchEvent(new Event("error"));
+    });
+    await settle();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(node.querySelector("video")?.getAttribute("src")).toBe(PROXIED("2.mp4"));
+    await unmount();
+  });
+
+  it("audio: a failing fallback shows the unavailable state instead of looping", async () => {
+    const fetchMock = vi.fn(async () => failingResponse());
+    vi.stubGlobal("fetch", fetchMock);
+    seedSignedMedia({ [STORED("3.ogg")]: "https://signed/expired.ogg" }, 3600);
+
+    const { node, unmount } = await render({ content_type: "audio", media_url: STORED("3.ogg") });
+    expect(node.querySelector("audio")?.getAttribute("src")).toBe("https://signed/expired.ogg");
+
+    await act(async () => {
+      fireError(node, "audio").dispatchEvent(new Event("error"));
+    });
+    await settle();
+    expect(node.querySelector("audio")?.getAttribute("src")).toBe(PROXIED("3.ogg"));
+
+    // The proxy also fails: one re-sign per mount means no third request.
+    await act(async () => {
+      fireError(node, "audio").dispatchEvent(new Event("error"));
+    });
+    await settle();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(node.querySelector("audio")).toBeNull();
+    expect(node.textContent).toContain("unavailable");
+    await unmount();
+  });
+
+  it("document: an expired signed link re-signs once, then falls back to the proxy", async () => {
+    const fetchMock = vi.fn(async () => failingResponse());
+    vi.stubGlobal("fetch", fetchMock);
+    seedSignedMedia({ [STORED("4.pdf")]: "https://signed/expired.pdf" }, 3600);
+
+    const { node, unmount } = await render({ content_type: "document", media_url: STORED("4.pdf") });
+    expect(node.querySelector("a")?.getAttribute("href")).toBe("https://signed/expired.pdf");
+
+    await act(async () => {
+      fireError(node, "a").dispatchEvent(new Event("error"));
+    });
+    await settle();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(node.querySelector("a")?.getAttribute("href")).toBe(PROXIED("4.pdf"));
+    await unmount();
+  });
+
+  it("audio: a non-chat-media source goes unavailable on the first error, with no signing call", async () => {
+    const fetchMock = vi.fn(async () => failingResponse());
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { node, unmount } = await render({
+      content_type: "audio",
+      media_url: "https://cdn.example.com/a.ogg",
+    });
+    await settle();
+    expect(node.querySelector("audio")?.getAttribute("src")).toBe("https://cdn.example.com/a.ogg");
+
+    await act(async () => {
+      fireError(node, "audio").dispatchEvent(new Event("error"));
+    });
+    await settle();
+
+    expect(node.querySelector("audio")).toBeNull();
+    expect(node.textContent).toContain("unavailable");
+    expect(fetchMock).not.toHaveBeenCalled();
     await unmount();
   });
 

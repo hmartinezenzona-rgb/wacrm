@@ -206,3 +206,21 @@ Rate: ~100 objects per cron tick, exactly the cap. `messages` untouched: 6,749 r
 Thumbnails cost ~4 KB each in practice, not the ~20 KB estimated, so the bucket grew 11 MB instead of 72. Final headroom against the 1 GB cap: ~385 MB.
 
 Concurrency (6 in parallel) cut the run from an estimated 70 minutes to about 12, with no rate-limit errors and identical counters per row.
+
+## INCIDENTE 2026-11-28: retención y backfill en producción
+
+Se ejecutaron en producción la retención (slice 8) y el backfill (slice 7) el mismo día. El proyecto empezó a responder con picos de 13–18 s en las consultas, la bandeja dejó de cargar con normalidad y el owner reportó lentitud incluso en datos móviles.
+
+Secuencia:
+1. Panel desplegado `534f037d` con el cron de retención → carga alta (listado completo del bucket cada minuto).
+2. Backfill acelerado: ~600 MB de descarga + 2,831 miniaturas subidas en ~20 minutos.
+3. Rollback del panel a `63df4e3a` y luego a `5e934e11`.
+4. Diagnóstico: 6/6 servicios `ACTIVE_HEALTHY`, 0 locks, 0 tuplas muertas en `messages`, consultas autenticadas 56–183 ms desde el servidor. Sin bloqueo declarado.
+5. Rollback de datos: `media_*` a NULL y migración 400 eliminada de producción (columnas y función).
+6. Desplegado solo el panel (slices 1–4c) en `470b20bf`, servido `zdqBM0nWZntnV9bbrVbL9`. El owner confirma que va bien.
+
+**Irreversible:** la retención borró 1,645 objetos de más de 90 días (276 MB). No hay backup de esos archivos.
+
+**Estado del código:** slices 5a–8 están escritos y verdes en la rama, NO desplegados. La migración 400 debe volver a aplicarse antes de que cualquiera de ellos pueda publicarse, y el frontend que los usa ya no está en producción.
+
+**Queda en el bucket:** ~2,800 miniaturas huérfanas (~11 MB) sin ninguna fila que las referencie. Inofensivas; se pueden borrar cuando convenga.

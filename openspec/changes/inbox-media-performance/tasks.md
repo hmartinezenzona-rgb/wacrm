@@ -690,3 +690,13 @@ Every slice PR closes only when: its named tests are green, `npx tsc --noEmit` i
 - **PR target:** `feat/port-chat-operations-calculator`, never `master` (master is 1,751 commits behind and lacks the chat-media modules).
 - **Size policy:** `size:exception` accepted for slices that exceed the 400-line budget as one cohesive unit. Observed: slice 1 = 1,191 authored lines, slice 2 = ~578. Splitting was rejected because required test surface would be separated from the implementation it proves.
 - **Base:** `feat/inbox-media-performance` branched from `275bec1b`.
+
+---
+
+## Estado de despliegue (2026-11-28, tras el incidente)
+
+- **En producción:** slices 1–4c. Build `470b20bf`, servido `zdqBM0nWZntnV9bbrVbL9`.
+- **No en producción:** 5a (migración 400 aplicada y luego eliminada), 5b, 6a, 6b, 7, 8.
+- **Base de datos:** sin migración 400; columnas `media_*` y `crm_media_reclamar` eliminadas; marcas del backfill puestas a NULL.
+- **Pérdida irreversible:** 1,645 objetos de más de 90 días borrados por la retención.
+- Antes de reintentar 5a: staging primero, ventana acordada, lotes pequeños con vigilancia, y aprobación explícita por cada paso que borre o escriba en masa.

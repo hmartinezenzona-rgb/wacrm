@@ -191,6 +191,56 @@ describe("MessageBubble media sources", () => {
     await unmount();
   });
 
+  it("video: after the single re-sign fails, the bubble says unavailable", async () => {
+    seedSignedMedia({ [STORED("20-wa-20.mp4")]: "https://signed/expired.mp4" }, 3600);
+    const { node, unmount } = await render({
+      content_type: "video",
+      media_url: STORED("20-wa-20.mp4"),
+      media_status: "ready",
+    });
+    await settle();
+
+    // First error: it re-signs once and falls back to the proxy.
+    await act(async () => {
+      fireError(node, "video").dispatchEvent(new Event("error"));
+    });
+    await settle();
+    // Second error on the fallback: nothing left to try, so unavailable.
+    await act(async () => {
+      fireError(node, "video").dispatchEvent(new Event("error"));
+    });
+    await settle();
+
+    expect(node.querySelector("video")).toBeNull();
+    expect(node.textContent).toContain("unavailable");
+    await unmount();
+  });
+
+  it("audio: after the single re-sign fails, the bubble says unavailable", async () => {
+    seedSignedMedia({ [STORED("21-wa-21.ogg")]: "https://signed/expired.ogg" }, 3600);
+    const { node, unmount } = await render({
+      content_type: "audio",
+      media_url: STORED("21-wa-21.ogg"),
+      media_status: "ready",
+    });
+    await settle();
+
+    // First error: it re-signs once and falls back to the proxy.
+    await act(async () => {
+      fireError(node, "audio").dispatchEvent(new Event("error"));
+    });
+    await settle();
+    // Second error on the fallback: nothing left to try, so unavailable.
+    await act(async () => {
+      fireError(node, "audio").dispatchEvent(new Event("error"));
+    });
+    await settle();
+
+    expect(node.querySelector("audio")).toBeNull();
+    expect(node.textContent).toContain("unavailable");
+    await unmount();
+  });
+
   it("video, audio and document: never a /api/chat-media source before resolution", async () => {
     // A sign request that never settles: the bubble must stay on its placeholder.
     vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => {})));
@@ -428,6 +478,8 @@ describe("MessageBubble media sources", () => {
     await settle();
     expect(node.querySelector("audio")?.getAttribute("src")).toBe("https://cdn.example.com/a.ogg");
 
+    // A source that is not ours has nothing to re-sign: the first error is
+    // already the end of the road.
     await act(async () => {
       fireError(node, "audio").dispatchEvent(new Event("error"));
     });

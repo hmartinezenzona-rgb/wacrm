@@ -614,37 +614,38 @@ Spec gap: **no requirement in the four delta specs covers retention or purged me
   - Test: none.
   - Verify: the new requirement text exists in the change specs before T8.4 starts.
 
-- [ ] **T8.2** RED — retention core. Requirement: resolved by T8.1.
+- [x] **T8.2** RED — retention core. Requirement: resolved by T8.1.
   - Goal: failing tests for the 90-day age filter (deletion by object age, never by conversation), the per-run deletion cap, dry-run and real counts matching on the same fixture, thumbnails deleted together with their original, rows and `media_url` never touched, non-chat-media objects never selected, and batch/rate-limit behaviour.
   - Files: `src/lib/storage/media-retention.test.ts` (new)
   - Test: itself.
   - Verify: `npx vitest run src/lib/storage/media-retention.test.ts` — FAIL.
 
-- [ ] **T8.3** RED — purged media renders as unavailable. Requirement: `chat-media-delivery` → "Pending and failed media states are visible" (closest applicable; a purged object is a third state).
+- [x] **T8.3** RED — purged media renders as unavailable. Requirement: `chat-media-delivery` → "Pending and failed media states are visible" (closest applicable; a purged object is a third state).
   - Goal: failing test that an object that errors twice (after the single re-sign) renders the existing `MediaUnavailable` state — never a broken image element and never an infinite spinner — for image, video and audio.
   - Files: `src/components/inbox/message-bubble.test.tsx`
   - Test: itself.
   - Verify: `npx vitest run src/components/inbox/message-bubble.test.tsx` — FAIL.
 
-- [ ] **T8.4** GREEN — retention core. Requirement: resolved by T8.1.
+- [x] **T8.4** GREEN — retention core. Requirement: resolved by T8.1.
   - Goal: implement the core with injected `storage` and `db`: list per account prefix in pages, select by `created_at` older than the window, delete the original and its `thumbs/<base>.webp` sibling, honour the per-run cap, and return `{ scanned, deleted, deletedThumbs, capped, wouldDelete }` for the dry run. Never delete message rows.
   - Files: `src/lib/storage/media-retention.ts` (new)
   - Test: `src/lib/storage/media-retention.test.ts`
   - Verify: `npx vitest run src/lib/storage/media-retention.test.ts`
 
-- [ ] **T8.5** GREEN — CLI runner with a dry run. Requirement: resolved by T8.1.
+- [x] **T8.5** GREEN — CLI runner with a dry run. Requirement: resolved by T8.1.
   - Goal: implement `infra/media/retention-media.mts` with `--dry-run`, `--older-than-days 90`, `--batch`, `--cap`, `--sleep-ms`, `--env`; never print credentials.
   - Files: `infra/media/retention-media.mts` (new)
   - Test: `src/lib/storage/media-retention.test.ts` (core) + a staging dry run.
   - Verify: a staging `--dry-run` reports the object count it would delete and deletes nothing.
+  - **Done 2026-11-28**: staging dry run — 12 accounts, 87 objects scanned, 6 would be deleted, 0 thumbnails, nothing deleted.
 
-- [ ] **T8.6** GREEN — the cron worker runs a capped retention pass. Requirement: resolved by T8.1.
+- [x] **T8.6** GREEN — the cron worker runs a capped retention pass. Requirement: resolved by T8.1.
   - Goal: call the retention core from `/api/cron/webhook-outbox` **after** the sweeper, batched and rate-limited with the per-run cap, and extend the worker JSON with a `retention` field. Deletion must be safe to re-run.
   - Files: `src/app/api/cron/webhook-outbox/route.ts`
   - Test: `src/app/api/cron/webhook-outbox/route.test.ts` (extend)
   - Verify: `npx vitest run src/app/api/cron/webhook-outbox/route.test.ts`
 
-- [ ] **T8.7** GREEN — unavailable state in the bubble. Requirement: `chat-media-delivery` → "Pending and failed media states are visible".
+- [x] **T8.7** GREEN — unavailable state in the bubble. Requirement: `chat-media-delivery` → "Pending and failed media states are visible".
   - Goal: after one failed re-sign, render the existing `MediaUnavailable` component for every media type; reuse its current copy so no new Spanish string is invented.
   - Files: `src/components/inbox/message-bubble.tsx`
   - Test: `src/components/inbox/message-bubble.test.tsx`
@@ -656,7 +657,7 @@ Spec gap: **no requirement in the four delta specs covers retention or purged me
   - Test: none.
   - Verify: the approval and the dry-run numbers are recorded in the change.
 
-- [ ] **T8.9** Verification and staging check.
+- [x] **T8.9** Verification and staging check.
   - Goal: suite and `tsc`; on staging verify the dry-run count equals the real-run count, and that a purged conversation renders media as unavailable with no broken element and no spinner.
   - Files: none.
   - Test: slice-8 files.

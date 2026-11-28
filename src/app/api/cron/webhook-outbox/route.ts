@@ -15,6 +15,7 @@ import { NextResponse } from 'next/server';
 
 import { flushWebhookOutbox } from '@/lib/webhooks/outbox';
 import { sweepPendingMedia } from '@/lib/whatsapp/media-sweeper';
+import { runRetention } from '@/lib/storage/media-retention';
 
 export const maxDuration = 60;
 
@@ -24,6 +25,46 @@ function adminClient(): SupabaseClient {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { persistSession: false } },
   );
+}
+
+/** Objects deleted per cron tick: small on purpose, deletion is irreversible. */
+const RETENTION_CAP_PER_TICK = 100;
+const RETENTION_DAYS = 90;
+
+/**
+ * Retention adapters over the service client. Kept here, not in the core,
+ * so the core stays testable without a Supabase client.
+ */
+function retentionDeps(db: SupabaseClient) {
+  const bucket = db.storage.from('chat-media');
+  return {
+    storage: {
+      list: async (prefix: string, { limit, offset }: { limit: number; offset: number }) => {
+        const { data, error } = await bucket.list(prefix, { limit, offset });
+        if (error) return { entries: [], hasMore: false, error: error.message };
+        return {
+          entries: (data ?? [])
+            .filter((entry) => entry.id !== null)
+            .map((entry) => ({
+              name: entry.name,
+              createdAt: entry.created_at ?? entry.updated_at ?? null,
+            })),
+          hasMore: (data ?? []).length === limit,
+        };
+      },
+      remove: async (paths: string[]) => {
+        const { error } = await bucket.remove(paths);
+        return error ? { error: error.message } : {};
+      },
+    },
+    db: {
+      listAccountPrefixes: async () => {
+        const { data, error } = await db.from('accounts').select('id');
+        if (error) throw error;
+        return (data ?? []).map((row) => `account-${(row as { id: string }).id}`);
+      },
+    },
+  };
 }
 
 function sameSecret(given: string, expected: string): boolean {
@@ -56,7 +97,14 @@ async function handle(request: Request): Promise<Response> {
     // outbox: no new cron job, route or secret. It is best-effort — the
     // outbox result is what this worker is responsible for.
     const media = await sweepPendingMedia();
-    return NextResponse.json({ ...result, media });
+    // 90-day retention rides the same tick, after the sweeper, capped so a
+    // single run can never delete a large slice by surprise.
+    const { storage: retentionStorage, db: retentionDb } = retentionDeps(db);
+    const retention = await runRetention(retentionStorage, retentionDb, {
+      olderThanDays: RETENTION_DAYS,
+      cap: RETENTION_CAP_PER_TICK,
+    });
+    return NextResponse.json({ ...result, media, retention });
   } catch (err) {
     console.error('[webhook outbox] worker failed:', err);
     return NextResponse.json({ error: 'worker failed' }, { status: 500 });

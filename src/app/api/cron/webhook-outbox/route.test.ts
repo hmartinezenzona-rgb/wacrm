@@ -16,9 +16,16 @@ vi.mock('@/lib/whatsapp/media-sweeper', () => ({
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
-    from: () => ({
-      select: () => ({ eq: () => ({ maybeSingle: mocks.maybeSingle }) }),
-    }),
+    from: (table: string) =>
+      table === 'accounts'
+        ? { select: () => Promise.resolve({ data: [], error: null }) }
+        : { select: () => ({ eq: () => ({ maybeSingle: mocks.maybeSingle }) }) },
+    storage: {
+      from: () => ({
+        list: async () => ({ data: [], error: null }),
+        remove: async () => ({ error: null }),
+      }),
+    },
   }),
 }));
 
@@ -64,6 +71,14 @@ describe('POST /api/cron/webhook-outbox', () => {
     await expect(response.json()).resolves.toEqual({
       claimed: 2, sent: 1, skipped: 0, pending: 1, failed: 0,
       media: { retried: 0, settledReady: 0, settledFailed: 0, dispatched: 0, skippedStale: 0 },
+      retention: {
+        accounts: 0,
+        scanned: 0,
+        wouldDelete: 0,
+        wouldDeleteThumbs: 0,
+        capped: false,
+        dryRun: false,
+      },
     });
     expect(mocks.flush).toHaveBeenCalledTimes(1);
   });
@@ -84,6 +99,8 @@ describe('POST /api/cron/webhook-outbox', () => {
     expect(mocks.sweep.mock.invocationCallOrder[0]!).toBeGreaterThan(
       mocks.flush.mock.invocationCallOrder[0]!,
     );
+    // Retention rides the same tick and reports its own block.
+    expect(body.retention).toMatchObject({ dryRun: false, wouldDelete: 0 });
   });
 
   it('fails when the secret cannot be read', async () => {

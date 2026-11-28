@@ -180,3 +180,14 @@ Production, read-only: **1,645 objects older than 90 days = 276 MB**.
 | After the backfill (+72 MB of thumbnails) | ~671 MB |
 
 The quota gate (T7.4) closes with room: running retention BEFORE the backfill leaves ~330 MB of headroom instead of ~77 MB. That is the order the owner chose.
+
+### Retention running in production (2026-11-28)
+
+Release `534f037d` (served `GhJI12W0Ab0O7dAmGBFmW`). Observed on the live bucket:
+
+| Moment | Objects | Size |
+| --- | --- | --- |
+| Before the deploy | 6,863 | 875 MB |
+| After the first ticks | 6,565 | 846 MB |
+
+Rate: ~100 objects per cron tick, exactly the cap. `messages` untouched: 6,749 rows still carry `media_url`, which is what makes a purged photo render as "no disponible" instead of losing the message.

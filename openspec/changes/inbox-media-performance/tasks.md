@@ -652,11 +652,12 @@ Spec gap: **no requirement in the four delta specs covers retention or purged me
   - Test: `src/components/inbox/message-bubble.test.tsx`
   - Verify: `npx vitest run src/components/inbox/message-bubble.test.tsx`
 
-- [ ] **T8.8** GATE — enabling deletion in production. Requirement: resolved by T8.1.
+- [x] **T8.8** GATE — enabling deletion in production. Requirement: resolved by T8.1.
   - Goal: present the owner the staging dry-run object count and total bytes (steady state target under 700 MB) and get explicit approval before the production deploy that starts deleting. Deletion is irreversible; do not enable it on a previous approval.
   - Files: none.
   - Test: none.
   - Verify: the approval and the dry-run numbers are recorded in the change.
+  - **Done 2026-11-28**: owner approved. Deployed release `534f037d` (served `GhJI12W0Ab0O7dAmGBFmW`). First ticks: 6,863 → 6,565 objects, 875 → 846 MB, ~100 per tick, `messages.media_url` untouched (6,749 rows).
 
 - [x] **T8.9** Verification and staging check.
   - Goal: suite and `tsc`; on staging verify the dry-run count equals the real-run count, and that a purged conversation renders media as unavailable with no broken element and no spinner.

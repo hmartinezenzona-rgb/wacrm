@@ -191,3 +191,18 @@ Release `534f037d` (served `GhJI12W0Ab0O7dAmGBFmW`). Observed on the live bucket
 | After the first ticks | 6,565 | 846 MB |
 
 Rate: ~100 objects per cron tick, exactly the cap. `messages` untouched: 6,749 rows still carry `media_url`, which is what makes a purged photo render as "no disponible" instead of losing the message.
+
+### Backfill and retention finished in production (2026-11-28)
+
+| Measure | Value |
+| --- | --- |
+| Retention | 875 MB → 604 MB (1,645 objects older than 90 days removed, capped 100/tick) |
+| Backfill, accelerated run | 1,807 thumbnails, 1,340 rows ready without one, 1 object missing, 0 legacy |
+| Backfill, including the first serial pass | 2,831 messages with a thumbnail |
+| Rows with a chat-media `media_url` and no state | **0** |
+| Failed (object already purged) | 1,594 |
+| Bucket after everything | 8,046 objects, **615 MB** |
+
+Thumbnails cost ~4 KB each in practice, not the ~20 KB estimated, so the bucket grew 11 MB instead of 72. Final headroom against the 1 GB cap: ~385 MB.
+
+Concurrency (6 in parallel) cut the run from an estimated 70 minutes to about 12, with no rate-limit errors and identical counters per row.

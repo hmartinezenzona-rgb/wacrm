@@ -119,6 +119,128 @@ describe("MessageBubble media sources", () => {
     await unmount();
   });
 
+  it("image: paints the thumbnail with the stored dimensions, not the original", async () => {
+    const thumbProxy = "/api/chat-media/account-3f2b1c7e-8a41-4c55-9d0e-6b7a1f2e3d4c/thumbs/9-wa-9.webp";
+    seedSignedMedia({ [thumbProxy]: "https://signed/thumb.webp" }, 3600);
+
+    const { node, unmount } = await render({
+      content_type: "image",
+      media_url: STORED("9-wa-9.jpg"),
+      media_thumb_path: "account-3f2b1c7e-8a41-4c55-9d0e-6b7a1f2e3d4c/thumbs/9-wa-9.webp",
+      media_width: 800,
+      media_height: 600,
+      media_status: "ready",
+    });
+    await settle();
+
+    const img = node.querySelector("img");
+    expect(img?.getAttribute("src")).toBe("https://signed/thumb.webp");
+    expect(img?.getAttribute("width")).toBe("800");
+    expect(img?.getAttribute("height")).toBe("600");
+    expect(img?.className).toContain("max-h-64");
+    await unmount();
+  });
+
+  it("image: falls back to the original when there is no thumbnail", async () => {
+    seedSignedMedia({ [STORED("10-wa-10.jpg")]: "https://signed/full.jpg" }, 3600);
+
+    const { node, unmount } = await render({
+      content_type: "image",
+      media_url: STORED("10-wa-10.jpg"),
+      media_status: "ready",
+    });
+    await settle();
+
+    const img = node.querySelector("img");
+    expect(img?.getAttribute("src")).toBe("https://signed/full.jpg");
+    // No stored dimensions: the fixed box stays.
+    expect(img?.getAttribute("width")).toBeNull();
+    expect(img?.className).toContain("h-40");
+    await unmount();
+  });
+
+  it("image: a pending download says so instead of spinning silently", async () => {
+    const { node, unmount } = await render({
+      content_type: "image",
+      media_url: STORED("11-wa-11.jpg"),
+      media_status: "pending",
+    });
+    await settle();
+
+    // next-intl is mocked in this file: the key proves the copy is wired.
+    expect(node.textContent).toContain("mediaPending");
+    await unmount();
+  });
+
+  it("image: a failed download says so once the legacy URL also fails", async () => {
+    const { node, unmount } = await render({
+      content_type: "image",
+      media_url: STORED("12-wa-12.jpg"),
+      media_status: "failed",
+    });
+    await settle();
+
+    // The legacy URL is still tried first; only when it errors does the
+    // failure copy replace the generic "unavailable".
+    await act(async () => {
+      fireError(node, "img").dispatchEvent(new Event("error"));
+    });
+    await settle();
+
+    expect(node.textContent).toContain("mediaFailed");
+    await unmount();
+  });
+
+  it("video: after the single re-sign fails, the bubble says unavailable", async () => {
+    seedSignedMedia({ [STORED("20-wa-20.mp4")]: "https://signed/expired.mp4" }, 3600);
+    const { node, unmount } = await render({
+      content_type: "video",
+      media_url: STORED("20-wa-20.mp4"),
+      media_status: "ready",
+    });
+    await settle();
+
+    // First error: it re-signs once and falls back to the proxy.
+    await act(async () => {
+      fireError(node, "video").dispatchEvent(new Event("error"));
+    });
+    await settle();
+    // Second error on the fallback: nothing left to try, so unavailable.
+    await act(async () => {
+      fireError(node, "video").dispatchEvent(new Event("error"));
+    });
+    await settle();
+
+    expect(node.querySelector("video")).toBeNull();
+    expect(node.textContent).toContain("unavailable");
+    await unmount();
+  });
+
+  it("audio: after the single re-sign fails, the bubble says unavailable", async () => {
+    seedSignedMedia({ [STORED("21-wa-21.ogg")]: "https://signed/expired.ogg" }, 3600);
+    const { node, unmount } = await render({
+      content_type: "audio",
+      media_url: STORED("21-wa-21.ogg"),
+      media_status: "ready",
+    });
+    await settle();
+
+    // First error: it re-signs once and falls back to the proxy.
+    await act(async () => {
+      fireError(node, "audio").dispatchEvent(new Event("error"));
+    });
+    await settle();
+    // Second error on the fallback: nothing left to try, so unavailable.
+    await act(async () => {
+      fireError(node, "audio").dispatchEvent(new Event("error"));
+    });
+    await settle();
+
+    expect(node.querySelector("audio")).toBeNull();
+    expect(node.textContent).toContain("unavailable");
+    await unmount();
+  });
+
   it("video, audio and document: never a /api/chat-media source before resolution", async () => {
     // A sign request that never settles: the bubble must stay on its placeholder.
     vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => {})));
@@ -356,6 +478,8 @@ describe("MessageBubble media sources", () => {
     await settle();
     expect(node.querySelector("audio")?.getAttribute("src")).toBe("https://cdn.example.com/a.ogg");
 
+    // A source that is not ours has nothing to re-sign: the first error is
+    // already the end of the road.
     await act(async () => {
       fireError(node, "audio").dispatchEvent(new Event("error"));
     });

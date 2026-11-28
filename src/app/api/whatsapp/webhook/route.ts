@@ -1,15 +1,15 @@
 import { NextResponse, after } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
+import { makeThumbnail } from '@/lib/storage/media-thumbnail'
 import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
 import { enviarInvitacionTrasRespuesta } from '@/lib/whatsapp/group-invite'
 import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe'
 import { findConversationForContact } from '@/lib/whatsapp/find-conversation'
 import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
-import { runAutomationsForTrigger } from '@/lib/automations/engine'
-import { dispatchInboundToFlows } from '@/lib/flows/engine'
-import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
+import { runInboundTail } from '@/lib/whatsapp/inbound-tail'
+import { settleInboundMedia } from '@/lib/whatsapp/inbound-media'
 
 
 import { dispatchEventDurably } from '@/lib/webhooks/outbox'
@@ -797,7 +797,7 @@ async function processMessage(
   }
 
   // Parse message content based on type
-  const { contentText, mediaUrl, mediaType, interactiveReplyId } =
+  const { contentText, mediaUrl, mediaType, interactiveReplyId, mediaRef } =
     await parseMessageContent(message, accessToken, accountId)
 
   // Resolve swipe-reply context if present. A missing parent is fine —
@@ -851,7 +851,22 @@ async function processMessage(
     .eq('sender_type', 'customer')
   const isFirstInboundMessage = (priorCustomerMsgCount ?? 0) === 0
 
-  const { error: msgError } = await supabaseAdmin().from('messages').insert({
+  // Meta redelivers when it does not get an ACK in time. Growing from insert
+  // to settle, the processing window is longer, so a duplicate must be
+  // dropped BEFORE anything is written or dispatched.
+  const { data: duplicate } = await supabaseAdmin()
+    .from('messages')
+    .select('id')
+    .eq('conversation_id', conversation.id)
+    .eq('message_id', message.id)
+    .eq('sender_type', 'customer')
+    .maybeSingle()
+  if (duplicate) {
+    console.warn('[webhook] duplicate wamid skipped', message.id)
+    return { guardado: true }
+  }
+
+  const { data: insertedRow, error: msgError } = await supabaseAdmin().from('messages').insert({
     conversation_id: conversation.id,
     sender_type: 'customer',
     content_type: contentType,
@@ -865,7 +880,17 @@ async function processMessage(
     // the column; null for every other content_type so existing inserts
     // behave identically.
     interactive_reply_id: interactiveReplyId,
-  })
+    // Migration 400, insert-first: the row exists NOW and the file follows.
+    // `media_url` already holds the legacy proxy value, so a failed download
+    // leaves the panel doing exactly what it did before this change.
+    ...(mediaRef
+      ? {
+          media_status: 'pending',
+          media_claimed_at: new Date().toISOString(),
+          media_attempts: 1,
+        }
+      : {}),
+  }).select('id').single()
 
   if (msgError) {
     console.error('Error inserting message:', msgError)
@@ -921,107 +946,48 @@ async function processMessage(
   // no active flows take the runner's early-exit "no_match" path
   // basically for free (one indexed SELECT for the active run).
   // ============================================================
-  const flowResult = await dispatchInboundToFlows({
-    accountId,
-    userId: configOwnerUserId,
-    contactId: contactRecord.id,
-    conversationId: conversation.id,
-    message:
-      interactiveReplyId
-        ? {
-            kind: 'interactive_reply',
-            reply_id: interactiveReplyId,
-            reply_title: contentText ?? '',
-            meta_message_id: message.id,
-          }
-        : {
-            kind: 'text',
-            text: contentText ?? message.text?.body ?? '',
-            meta_message_id: message.id,
-          },
-    isFirstInboundMessage,
-  })
-  const flowConsumed = flowResult.consumed
-
-  // Fire any automations that react to this webhook event. All dispatches
-  // run here (not earlier) so the contact, conversation, and inbound
-  // message all exist before any step — including send_message — runs.
-  // Fire-and-forget: a slow or failing automation must not block the
-  // webhook's 200 OK response to Meta.
-  const inboundText = contentText ?? message.text?.body ?? ''
-  const automationTriggers: (
-    | 'new_contact_created'
-    | 'first_inbound_message'
-    | 'new_message_received'
-    | 'keyword_match'
-    | 'interactive_reply'
-  )[] = []
-  // Content-level triggers are suppressed when a flow consumed the
-  // message — see the comment block above.
-  if (!flowConsumed) {
-    automationTriggers.push('new_message_received', 'keyword_match')
-    // Interactive tap → fire the interactive_reply trigger too (only
-    // meaningful when a button/list reply actually arrived). Enables
-    // automation-only chained menus; when a Flow owns the menu it will
-    // have consumed the reply and this is skipped.
-    if (interactiveReplyId) {
-      automationTriggers.push('interactive_reply')
+  // Insert-first ingest: the file is fetched only now, and the bot-facing tail
+  // waits for it to settle. A flow or automation step may forward the image
+  // and must never find a `pending` row it cannot see.
+  if (mediaRef) {
+    const settled = await settleInboundMedia({
+      messageId: (insertedRow as { id: string } | null)?.id ?? '',
+      mediaId: mediaRef.mediaId,
+      accessToken,
+      accountId,
+      contentType: message.type,
+    })
+    if (settled === 'failed') {
+      console.warn(`[webhook] media ${mediaRef.mediaId} quedo failed`)
     }
   }
-  // new_contact_created fires only when the webhook just auto-created the
-  // contact row. first_inbound_message fires whenever this is the contact's
-  // first-ever customer-sent message — a superset that also catches
-  // manually-imported contacts sending for the first time. We dispatch both
-  // so users can pick whichever semantic they want; an automation that
-  // listens to only one trigger runs only when that trigger matches.
-  if (contactOutcome.wasCreated) automationTriggers.unshift('new_contact_created')
-  if (isFirstInboundMessage) automationTriggers.unshift('first_inbound_message')
-  for (const triggerType of automationTriggers) {
-    runAutomationsForTrigger({
-      accountId,
-      triggerType,
-      contactId: contactRecord.id,
-      context: {
-        message_text: inboundText,
-        conversation_id: conversation.id,
-        // Only set on interactive taps; drives the interactive_reply
-        // trigger's exact-id match.
-        interactive_reply_id: interactiveReplyId ?? undefined,
-      },
-    }).catch((err) => console.error('[automations] dispatch failed:', err))
-  }
 
-  // AI auto-reply. Runs only for plain-text inbound the deterministic
-  // flow runner did NOT consume (flows win over the LLM), and only when
-  // the account has enabled it. Awaited inside `after()` (same reason as
-  // the webhook dispatch below); `dispatchInboundToAiReply` owns its
-  // eligibility gates + try/catch and never throws.
-  if (!flowConsumed && !interactiveReplyId && inboundText.trim()) {
-    await dispatchInboundToAiReply({
-      accountId,
-      conversationId: conversation.id,
-      contactId: contactRecord.id,
-      configOwnerUserId,
-    })
-  }
-
-  // message.received webhook (public API). Awaited — not fire-and-forget
-  // — because we're inside the route's `after()` block, which only keeps
-  // the function alive for promises it can see; a detached promise could
-  // be frozen before it delivers. Durable for message.received (migration
-  // 301): the event is stored before the attempt, a failure stays pending
-  // for the cron worker, and a retry skips a wamid the Cerebro already saw.
-  // (conversation.created is emitted earlier, right after the thread is
-  // opened.)
-  await dispatchEventDurably(supabaseAdmin(), accountId, 'message.received', {
-    conversation_id: conversation.id,
-    contact_id: contactRecord.id,
-    whatsapp_message_id: message.id,
-    content_type: contentType,
-    text: contentText,
+  await runInboundTail({
+    accountId,
+    configOwnerUserId,
+    contactId: contactRecord.id,
+    conversationId: conversation.id,
+    message,
+    contentType,
+    contentText,
+    interactiveReplyId,
+    isFirstInboundMessage,
+    contactWasCreated: contactOutcome.wasCreated,
   })
   // El mensaje está guardado en `messages` — el único true legítimo.
   return { guardado: true }
+}
+
+/** What a stored inbound media object records on its message row (migration 400). */
+interface StoredMedia {
+  media_status: 'ready'
+  media_path: string
+  media_thumb_path: string | null
+  media_mime: string
+  media_bytes: number
+  media_width: number | null
+  media_height: number | null
+  media_error: string | null
 }
 
 async function parseMessageContent(
@@ -1032,6 +998,8 @@ async function parseMessageContent(
   contentText: string | null
   mediaUrl: string | null
   mediaType: string | null
+  /** Meta media id to settle after the row exists; null for non-media. */
+  mediaRef: { mediaId: string } | null
   /**
    * For interactive button / list replies: the stable id of the tapped
    * option (whatever we put on the button when sending). Used by the
@@ -1041,51 +1009,25 @@ async function parseMessageContent(
    */
   interactiveReplyId: string | null
 }> {
-  const persistMedia = async (mediaId: string): Promise<string | null> => {
-    // Si algo falla, caemos a la ruta proxy de siempre: el peor caso es
-    // el comportamiento actual, nunca una burbuja vacia.
-    const proxyUrl = `/api/whatsapp/media/${mediaId}`
-    try {
-      const { url, mimeType } = await getMediaUrl({ mediaId, accessToken })
-      const { buffer, contentType } = await downloadMedia({
-        downloadUrl: url,
-        accessToken,
-      })
-      if (buffer.byteLength > 16 * 1024 * 1024) {
-        console.warn(`[whatsapp] media ${mediaId} supera el tope del bucket`)
-        return proxyUrl
-      }
-      const type = contentType || mimeType
-      const path =
-        `account-${accountId}/${Date.now()}-wa-${mediaId}.${extFromMime(type)}`
-      const { error } = await supabaseAdmin()
-        .storage.from('chat-media')
-        .upload(path, buffer, {
-          contentType: type,
-          cacheControl: '31536000',
-          upsert: false,
-        })
-      if (error) throw error
-      const { data } = supabaseAdmin()
-        .storage.from('chat-media')
-        .getPublicUrl(path)
-      return data.publicUrl
-    } catch (error) {
-      console.error(
-        `[whatsapp] no se pudo persistir media ${mediaId}:`,
-        error instanceof Error ? error.message : error
-      )
-      return proxyUrl
-    }
-  }
+  // The stored object plus what the message row records about it. A null
+  // `media` means the object was not stored (today's proxy URL is used), so
+  // migration 400's columns stay NULL and the panel behaves exactly as before.
+  // The legacy proxy URL: workable today, and the value the row keeps even
+  // when the later download fails, so the panel behaves exactly as before.
+  const proxyMediaUrl = (mediaId: string) => `/api/whatsapp/media/${mediaId}`
 
-  // Default shape — each case overrides only the fields it cares about.
-  // Keeps the new `interactiveReplyId` field DRY across every return site.
-  const empty = {
+  const empty: {
+    contentText: string | null
+    mediaUrl: string | null
+    mediaType: string | null
+    interactiveReplyId: string | null
+    mediaRef: { mediaId: string } | null
+  } = {
     contentText: null,
     mediaUrl: null,
     mediaType: null,
     interactiveReplyId: null,
+    mediaRef: null,
   }
 
   switch (message.type) {
@@ -1097,7 +1039,8 @@ async function parseMessageContent(
         return {
           ...empty,
           contentText: message.image.caption || null,
-          mediaUrl: await persistMedia(message.image.id),
+          mediaUrl: proxyMediaUrl(message.image.id),
+          mediaRef: { mediaId: message.image.id },
           mediaType: message.image.mime_type,
         }
       }
@@ -1108,7 +1051,8 @@ async function parseMessageContent(
         return {
           ...empty,
           contentText: message.video.caption || null,
-          mediaUrl: await persistMedia(message.video.id),
+          mediaUrl: proxyMediaUrl(message.video.id),
+          mediaRef: { mediaId: message.video.id },
           mediaType: message.video.mime_type,
         }
       }
@@ -1120,7 +1064,8 @@ async function parseMessageContent(
           ...empty,
           contentText:
             message.document.caption || message.document.filename || null,
-          mediaUrl: await persistMedia(message.document.id),
+          mediaUrl: proxyMediaUrl(message.document.id),
+          mediaRef: { mediaId: message.document.id },
           mediaType: message.document.mime_type,
         }
       }
@@ -1130,7 +1075,8 @@ async function parseMessageContent(
       if (message.audio?.id) {
         return {
           ...empty,
-          mediaUrl: await persistMedia(message.audio.id),
+          mediaUrl: proxyMediaUrl(message.audio.id),
+          mediaRef: { mediaId: message.audio.id },
           mediaType: message.audio.mime_type,
         }
       }
@@ -1143,7 +1089,8 @@ async function parseMessageContent(
       if (message.sticker?.id) {
         return {
           ...empty,
-          mediaUrl: await persistMedia(message.sticker.id),
+          mediaUrl: proxyMediaUrl(message.sticker.id),
+          mediaRef: { mediaId: message.sticker.id },
           mediaType: message.sticker.mime_type,
         }
       }

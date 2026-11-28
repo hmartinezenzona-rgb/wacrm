@@ -235,7 +235,9 @@
       "unsupported": "[Tipo de mensaje no admitido]",
       "aiBadge": "IA",
       "aiBadgeTitle": "Enviado automáticamente por el asistente de IA",
-      "sharedImageAlt": "Imagen compartida"
+      "sharedImageAlt": "Imagen compartida",
+      "mediaPending": "Descargando archivo…",
+      "mediaFailed": "No se pudo descargar el archivo"
     },
     "actions": {
       "reply": "Responder",

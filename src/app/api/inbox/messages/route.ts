@@ -20,6 +20,7 @@
 import { NextResponse } from 'next/server';
 
 import { requireScopedRole, toErrorResponse } from '@/lib/auth/account';
+import { chatMediaProxyUrl } from '@/lib/storage/chat-media';
 import { signChatMediaUrls } from '@/lib/storage/chat-media-server';
 import {
   THREAD_PAGE_MAX_LIMIT,
@@ -122,9 +123,19 @@ export async function GET(request: Request) {
   const oldest = pageRows[pageRows.length - 1];
   const nextCursor = hasMore && oldest ? { createdAt: oldest.created_at, id: oldest.id } : null;
 
-  const mediaUrls = messages
-    .map((message) => message.media_url)
-    .filter((url): url is string => typeof url === 'string' && url.length > 0);
+  // Originals plus their thumbnail siblings, signed in the SAME batch: the
+  // bubble asks for the thumbnail by proxy URL, so that key has to be in the
+  // map it reads from, exactly as the client builds it.
+  const mediaUrls = messages.flatMap((message) => {
+    const urls: string[] = [];
+    if (typeof message.media_url === 'string' && message.media_url.length > 0) {
+      urls.push(message.media_url);
+    }
+    if (message.media_thumb_path) {
+      urls.push(chatMediaProxyUrl(message.media_thumb_path));
+    }
+    return urls;
+  });
 
   const { signed, expiresIn } = await signChatMediaUrls(mediaUrls, ctx.accountId);
 

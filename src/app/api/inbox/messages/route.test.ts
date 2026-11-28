@@ -248,6 +248,38 @@ describe('GET /api/inbox/messages signed media map', () => {
     expect(body.expiresIn).toBe(3600);
   });
 
+  it('signs the thumbnail sibling in the same batch, keyed by its proxy URL', async () => {
+    const own = chatMediaUrl(ACCT, 'a.jpg');
+    const thumbPath = `account-${ACCT}/thumbs/a.webp`;
+    pageResult = {
+      data: [
+        row('m1', '2026-11-27T10:00:01.000000+00:00', {
+          media_url: own,
+          media_thumb_path: thumbPath,
+        }),
+      ],
+      error: null,
+    };
+    createSignedUrls.mockResolvedValue({
+      data: [
+        { path: `account-${ACCT}/a.jpg`, signedUrl: 'https://signed/a', error: null },
+        { path: thumbPath, signedUrl: 'https://signed/a-thumb', error: null },
+      ],
+      error: null,
+    });
+
+    const res = await GET(request({ conversationId: CONV }));
+    const body = await res.json();
+
+    expect(createSignedUrls).toHaveBeenCalledTimes(1);
+    expect(createSignedUrls).toHaveBeenCalledWith(
+      [`account-${ACCT}/a.jpg`, thumbPath],
+      3600,
+    );
+    expect(body.signed[`/api/chat-media/${thumbPath}`]).toBe('https://signed/a-thumb');
+    expect(body.signed[own]).toBe('https://signed/a');
+  });
+
   it('answers 200 with an empty signed map when signing fails', async () => {
     pageResult = {
       data: [row('m1', '2026-11-27T10:00:01.000000+00:00', { media_url: chatMediaUrl(ACCT, 'a.jpg') })],

@@ -354,96 +354,102 @@ Spec: `media-ingest` → "Additive media metadata columns"; `chat-media-delivery
   - Verify: `openspec/changes/inbox-media-performance/measurements.md` holds TM1 and TM2 with dates.
   - **Unblocked 2026-11-28**: slices 1-4c are live in production (`fb3a8299`) and TM2 was re-run there with a temporary admin that was deleted after the run.
 
-- [ ] **T5a.3** RED — self-reverting assertion (the failing test comes first). Requirement: `media-ingest` → "Additive media metadata columns".
+- [x] **T5a.3** RED — self-reverting assertion (the failing test comes first). Requirement: `media-ingest` → "Additive media metadata columns".
   - Goal: write the eight ADR-6 cases (legacy insert gets NULL + `media_attempts = 0`; `'bogus'` rejected; claimed-10-minutes-ago returned as `reintentar` with attempts +1; claimed-1-minute-ago not returned; attempts ≥ 3 → `failed`/`fallida`; older than 7 days → `failed` with `meta window expired`; `ready` and NULL rows untouched; `authenticated` has no EXECUTE), ending `RAISE EXCEPTION 'ALL PASS (rolled back on purpose)'`.
   - Files: `supabase/staging/assertions/messages-media-metadata.sql` (new)
   - Test: itself (run against staging before the migration: it must FAIL because no column or function exists).
   - Verify: `infra/db/staging-migracion.sh` with the assertion, expected FAIL.
+  - **Done 2026-11-28**: RED observed — `column "media_status" does not exist`.
 
-- [ ] **T5a.4** GREEN — the migration. Requirement: `media-ingest` → "Additive media metadata columns"; `chat-media-delivery` → "Media metadata compatibility".
+- [x] **T5a.4** GREEN — the migration. Requirement: `media-ingest` → "Additive media metadata columns"; `chat-media-delivery` → "Media metadata compatibility".
   - Goal: add the ten nullable/defaulted columns from ADR-6 (no `BEGIN/COMMIT`), the `messages_media_status_check` constraint `NOT VALID` then `VALIDATE`, `idx_messages_media_pending`, and `public.crm_media_reclamar(p_limit int DEFAULT 5, p_stale interval DEFAULT '5 minutes')` as `SECURITY DEFINER SET search_path = public` with `REVOKE ALL … FROM PUBLIC, anon, authenticated; GRANT EXECUTE … TO service_role`. Keep text + CHECK (no enum).
   - Files: `supabase/migrations/400_messages_media_metadata.sql` (new; final number from T5a.1)
   - Test: the assertion from T5a.3.
   - Verify: staging cycle step in T5a.5.
+  - **Done 2026-11-28**: cycle green — dry-run OK, apply OK, assertion OK.
 
-- [ ] **T5a.5** GREEN — rollback script and staging cycle. Requirement: `media-ingest` → "Rollback is clean", "Existing readers show no new diff".
+- [x] **T5a.5** GREEN — rollback script and staging cycle. Requirement: `media-ingest` → "Rollback is clean", "Existing readers show no new diff".
   - Goal: write `supabase/migrations/ROLLBACK-400-messages-media-metadata.sql` (drop function, index, constraint and all ten columns), then run `staging-migracion.sh aplicar` with no function list (none redefined), then `relacionadas 400_messages_media_metadata.sql media_url` (must show **no new DIFF**), then the assertion (must end `ALL PASS (rolled back on purpose)`).
   - Files: `supabase/migrations/ROLLBACK-400-messages-media-metadata.sql` (new)
   - Test: `supabase/staging/assertions/messages-media-metadata.sql`
   - Verify: `infra/db/staging-migracion.sh aplicar supabase/migrations/400_messages_media_metadata.sql supabase/staging/assertions/messages-media-metadata.sql supabase/migrations/ROLLBACK-400-messages-media-metadata.sql` (read-only runner), then `infra/db/staging-migracion.sh relacionadas 400_messages_media_metadata.sql media_url` (read-only runner): report OK/FAIL, `VEREDICTO`, and the DIFF result.
+  - **Done 2026-11-28**: `relacionadas` with `--ya-aplicada` (base = pre-400): 6 assertions, 5 SAME, 1 DIFF — the DIFF is this migration's own assertion (fails without 400, passes with it). No other reader changed.
 
-- [ ] **T5a.6** GATE — production go-ahead for migration 400. Requirement: `media-ingest` → "Additive media metadata columns".
+- [x] **T5a.6** GATE — production go-ahead for migration 400. Requirement: `media-ingest` → "Additive media metadata columns".
   - Goal: run `produccion-migracion.sh previa` for all pending files in order, show the owner the verdict and any `DIFFERENT`/`MISSING-IN-PROD`/`EXTRA-IN-PROD` diff, and wait for an **explicit, per-apply** go-ahead. Earlier approvals do not carry over.
   - Files: none.
   - Test: none.
   - Verify: `infra/db/produccion-migracion.sh previa supabase/migrations/400_messages_media_metadata.sql` (read-only runner) reports `SEGURO` or `RECORDED`, and the owner's answer is recorded in the PR.
+  - **Done 2026-11-28**: `VEREDICTO: SEGURO`. Owner gave the explicit go-ahead in this session after seeing the verdict.
 
-- [ ] **T5a.7** GATE-blocked — apply and verify in production (only after T5a.6).
+- [x] **T5a.7** GATE-blocked — apply and verify in production (only after T5a.6).
   - Goal: `aplicar` then `verificar` the same file list; report `OK <name> <version>` lines and `VERIFICADO: n/n`. On any mismatch, stop and report; never roll back on your own.
   - Files: none.
   - Test: none.
   - Verify: `infra/db/produccion-migracion.sh aplicar supabase/migrations/400_messages_media_metadata.sql` then `infra/db/produccion-migracion.sh verificar supabase/migrations/400_messages_media_metadata.sql` (read-only runners).
+  - **Done 2026-11-28**: `OK 400_messages_media_metadata 20261128073035`; `VERIFICADO: 1/1 iguales` (crm_media_reclamar md5 prod = staging).
 
 ## Slice 5b — Thumbnails at ingest and readers prefer them
 
 Spec: `media-ingest` → "Thumbnails generated at ingest", "Originals are never re-encoded"; `chat-media-delivery` → "Thumbnails with reserved dimensions and lazy loading", "Pending and failed media states are visible", "No Storage transformations, no re-encoding".
 
-- [ ] **T5b.1** RED — thumbnail module. Requirement: `media-ingest` → "Thumbnails generated at ingest"; `chat-media-delivery` → "No Storage transformations, no re-encoding".
+- [x] **T5b.1** RED — thumbnail module. Requirement: `media-ingest` → "Thumbnails generated at ingest"; `chat-media-delivery` → "No Storage transformations, no re-encoding".
   - Goal: failing tests for the path convention `account-<uuid>/thumbs/<base>.webp`, rejection of unsafe paths, a real `sharp` run on a tiny PNG fixture producing WebP with longest side ≤ 360 and the original dimensions, non-images returning `null`, corrupt bytes returning `{ error }`, and the original buffer being unchanged after thumbnailing.
   - Files: `src/lib/storage/media-thumbnail.test.ts` (new)
   - Test: itself.
   - Verify: `npx vitest run src/lib/storage/media-thumbnail.test.ts` — FAIL.
 
-- [ ] **T5b.2** RED — ingest writes metadata and `ready`. Requirement: `media-ingest` → "Ready or failed transition", "Successful ingestion becomes ready".
+- [x] **T5b.2** RED — ingest writes metadata and `ready`. Requirement: `media-ingest` → "Ready or failed transition", "Successful ingestion becomes ready".
   - Goal: failing tests that a persisted image writes `media_*` plus `ready`, and that a thumbnail failure still yields `ready` with `media_error` and no thumbnail path.
   - Files: `src/app/api/whatsapp/webhook/route.test.ts`
   - Test: itself.
   - Verify: `npx vitest run src/app/api/whatsapp/webhook/route.test.ts` — new cases FAIL.
 
-- [ ] **T5b.3** RED — bubble prefers the thumbnail and renders pending/failed. Requirement: `chat-media-delivery` → "Thumbnail first, full object on open", "Missing thumbnail falls back", "Pending media shows a downloading state", "Failed media shows a failure state".
+- [x] **T5b.3** RED — bubble prefers the thumbnail and renders pending/failed. Requirement: `chat-media-delivery` → "Thumbnail first, full object on open", "Missing thumbnail falls back", "Pending media shows a downloading state", "Failed media shows a failure state".
   - Goal: failing tests for the thumbnail `src` preferred with explicit `width`/`height`, the original resolved only on zoom, the fallback chain when there is no thumbnail, and the pending and failed copy (the Spanish strings are gate G2).
   - Files: `src/components/inbox/message-bubble.test.tsx`
   - Test: itself.
   - Verify: `npx vitest run src/components/inbox/message-bubble.test.tsx` — new cases FAIL.
 
-- [ ] **T5b.4** GREEN — explicit `sharp` dependency and a build proof. Requirement: `media-ingest` → "Thumbnail generation MUST use `sharp` as an explicit dependency".
+- [x] **T5b.4** GREEN — explicit `sharp` dependency and a build proof. Requirement: `media-ingest` → "Thumbnail generation MUST use `sharp` as an explicit dependency".
   - Goal: add `sharp` to `dependencies`, then verify it loads inside the standalone build on the production host before 5b ships; if it cannot load, stop and report (thumbnail failure degrades, but the dependency must be deliberate).
   - Files: `package.json`, `package-lock.json`
   - Test: `src/lib/storage/media-thumbnail.test.ts` exercises the real `sharp`.
   - Verify: `npx vitest run src/lib/storage/media-thumbnail.test.ts && npm run build`
 
-- [ ] **T5b.5** GREEN — `thumbnailPathFor` and `makeThumbnail`. Requirement: `media-ingest` → "Thumbnail is a sibling in the same prefix", "Stickers get thumbnails too", "Thumbnail failure is non-fatal".
+- [x] **T5b.5** GREEN — `thumbnailPathFor` and `makeThumbnail`. Requirement: `media-ingest` → "Thumbnail is a sibling in the same prefix", "Stickers get thumbnails too", "Thumbnail failure is non-fatal".
   - Goal: implement the deterministic sibling naming, dynamic `import('sharp')`, `.rotate()`, WebP q65, longest side 360, first frame only; return `null` for non-images and `{ error }` on failure. Never touch the original bytes.
   - Files: `src/lib/storage/media-thumbnail.ts` (new)
   - Test: `src/lib/storage/media-thumbnail.test.ts`
   - Verify: `npx vitest run src/lib/storage/media-thumbnail.test.ts`
 
-- [ ] **T5b.6** GREEN — message type fields. Requirement: `chat-media-delivery` → "Media metadata compatibility".
+- [x] **T5b.6** GREEN — message type fields. Requirement: `chat-media-delivery` → "Media metadata compatibility".
   - Goal: add the optional `media_*` fields from the interfaces block to `Message`.
   - Files: `src/types/index.ts`
   - Test: `npx tsc --noEmit` plus the bubble tests.
   - Verify: `npx tsc --noEmit`
 
-- [ ] **T5b.7** GREEN — ingest writes the metadata (order unchanged in this slice). Requirement: `media-ingest` → "Ready or failed transition", "Originals are never re-encoded"; `chat-media-delivery` → "Media metadata compatibility".
+- [x] **T5b.7** GREEN — ingest writes the metadata (order unchanged in this slice). Requirement: `media-ingest` → "Ready or failed transition", "Originals are never re-encoded"; `chat-media-delivery` → "Media metadata compatibility".
   - Goal: extend `persistMedia` so the stored image writes `media_path`, `media_thumb_path`, `media_mime`, `media_bytes`, `media_width`, `media_height`, `media_status = 'ready'` and `media_error`; the older proxy `media_url` write stays exactly as today and the original upload stays byte-identical.
   - Files: `src/app/api/whatsapp/webhook/route.ts`
   - Test: `src/app/api/whatsapp/webhook/route.test.ts`
   - Verify: `npx vitest run src/app/api/whatsapp/webhook/route.test.ts`
 
-- [ ] **T5b.8** GREEN — the route also signs thumbnail proxy URLs. Requirement: `chat-media-delivery` → "Thumbnail first, full object on open"; `inbox-thread-read` → "Signature lifetime and refresh path".
+- [x] **T5b.8** GREEN — the route also signs thumbnail proxy URLs. Requirement: `chat-media-delivery` → "Thumbnail first, full object on open"; `inbox-thread-read` → "Signature lifetime and refresh path".
   - Goal: include `chatMediaProxyUrl(media_thumb_path)` values in the same single `signChatMediaUrls` call, keyed exactly as the client resolves them.
   - Files: `src/app/api/inbox/messages/route.ts`
   - Test: `src/app/api/inbox/messages/route.test.ts` (extend with the thumbnail key case)
   - Verify: `npx vitest run src/app/api/inbox/messages/route.test.ts`
 
-- [ ] **T5b.9** GREEN — bubble renders thumbnails, dimensions and states. Requirement: `chat-media-delivery` → "Thumbnail first, full object on open", "Missing thumbnail falls back", "Pending media shows a downloading state", "Failed media shows a failure state".
+- [x] **T5b.9** GREEN — bubble renders thumbnails, dimensions and states. Requirement: `chat-media-delivery` → "Thumbnail first, full object on open", "Missing thumbnail falls back", "Pending media shows a downloading state", "Failed media shows a failure state".
   - Goal: implement ADR-3 rule 1 and the image branch of rule 2: thumbnail first with `width`/`height` from `media_width`/`media_height` and `h-auto max-h-64 max-w-60 object-cover`; fixed `h-40 w-60` when null; pending placeholder; failed state keeping the legacy proxy URL as the last fallback; zoom resolves the original only on open.
   - Files: `src/components/inbox/message-bubble.tsx`
   - Test: `src/components/inbox/message-bubble.test.tsx`
   - Verify: `npx vitest run src/components/inbox/message-bubble.test.tsx`
 
-- [ ] **T5b.10** GATE-blocked — Spanish copy keys (only after G2). Requirement: `chat-media-delivery` → "Pending media shows a downloading state", "Failed media shows a failure state".
+- [x] **T5b.10** GATE-blocked — Spanish copy keys (only after G2). Requirement: `chat-media-delivery` → "Pending media shows a downloading state", "Failed media shows a failure state".
   - Goal: add `Inbox.bubble.mediaPending` and `Inbox.bubble.mediaFailed` to both locales with the owner-confirmed Spanish strings. Do not invent copy.
+  - **Done 2026-11-28**: owner confirmed `Descargando archivo…` / `No se pudo descargar el archivo` (EN: `Downloading file…` / `The file could not be downloaded`). Asked and answered what those texts are for and who sees them: staff, in the panel bubble only.
   - Files: `messages/es.json`, `messages/en.json`
   - Test: `src/components/inbox/message-bubble.test.tsx` (asserts the keys render)
   - Verify: `npx vitest run src/components/inbox/message-bubble.test.tsx && npx tsc --noEmit`
@@ -458,37 +464,40 @@ Spec: `media-ingest` → "Thumbnails generated at ingest", "Originals are never 
 
 Spec: `media-ingest` → "Insert first, process media after", "Ready or failed transition", "Bot-facing dispatch only after media settles", "Originals are never re-encoded"; `inbox-realtime` → "Realtime media resolves without reload" (rows become pending only from here).
 
-- [ ] **T6a.1** RED — ordering proof (ADR-8 tests 1-5). Requirement: `media-ingest` → "Bot-facing dispatch only after media settles", "Insert first, process media after".
+- [x] **T6a.1** RED — ordering proof (ADR-8 tests 1-5). Requirement: `media-ingest` → "Bot-facing dispatch only after media settles", "Insert first, process media after".
   - Goal: add an ordered global `calls` log to the existing fake builder and write: image success (insert `pending` + proxy `media_url`; first `ready` update index below every bot-facing call; `message.received` exactly once); image failing twice (`failed` before every bot-facing call; `media_url` never changes); the parameterised invariant over `image, video, document, audio, sticker` (at invocation time the row is `ready` or `failed`); text (no `media_status`, tail runs); duplicate wamid (nothing inserted, nothing dispatched).
   - Files: `src/app/api/whatsapp/webhook/route.test.ts`
   - Test: itself.
   - Verify: `npx vitest run src/app/api/whatsapp/webhook/route.test.ts` — new cases FAIL.
 
-- [ ] **T6a.2** RED — settlement module. Requirement: `media-ingest` → "Ready or failed transition", "Unrecoverable failure becomes failed".
+- [x] **T6a.2** RED — settlement module. Requirement: `media-ingest` → "Ready or failed transition", "Unrecoverable failure becomes failed".
   - Goal: failing tests for the 10 s/25 s/20 s timeouts aborting, one retry with 1 s backoff, the 16 MiB cap producing `failed`, and every update carrying the `AND media_status='pending'` guard.
   - Files: `src/lib/whatsapp/inbound-media.test.ts` (new)
   - Test: itself.
   - Verify: `npx vitest run src/lib/whatsapp/inbound-media.test.ts` — FAIL.
+  - **Done 2026-11-28**: nine cases green (guarded writes, both abort signals, one retry, two-failure settle, 16 MiB cap, thumbnail-only failures, no thumbnail for audio).
 
-- [ ] **T6a.3** GREEN — abortable Meta calls. Requirement: `media-ingest` → "Insert first, process media after".
+- [x] **T6a.3** GREEN — abortable Meta calls. Requirement: `media-ingest` → "Insert first, process media after".
   - Goal: add an optional `signal` to `getMediaUrl` and `downloadMedia` without changing existing callers.
   - Files: `src/lib/whatsapp/meta-api.ts`
   - Test: `src/lib/whatsapp/meta-api.test.ts`, `src/lib/whatsapp/meta-api.media.test.ts`, `src/lib/whatsapp/meta-api.resumable.test.ts` (existing, must stay green)
   - Verify: `npx vitest run src/lib/whatsapp/meta-api.test.ts src/lib/whatsapp/meta-api.media.test.ts src/lib/whatsapp/meta-api.resumable.test.ts`
+  - **Done 2026-11-28**: optional `signal` on both calls; existing callers untouched.
 
-- [ ] **T6a.4** GREEN — extract the tail verbatim. Requirement: `media-ingest` → "Bot-facing dispatch only after media settles"; `chat-media-delivery` → "Existing media_url readers are unaffected".
+- [x] **T6a.4** GREEN — extract the tail verbatim. Requirement: `media-ingest` → "Bot-facing dispatch only after media settles"; `chat-media-delivery` → "Existing media_url readers are unaffected".
   - Goal: move `dispatchInboundToFlows` → `runAutomationsForTrigger` → `dispatchInboundToAiReply` → `dispatchEventDurably('message.received')` into `runInboundTail(args)` in the same order and content; no behaviour change yet.
   - Files: `src/lib/whatsapp/inbound-tail.ts` (new), `src/app/api/whatsapp/webhook/route.ts`
   - Test: `src/app/api/whatsapp/webhook/route.test.ts` (existing non-media cases must stay green)
   - Verify: `npx vitest run src/app/api/whatsapp/webhook/route.test.ts`
 
-- [ ] **T6a.5** GREEN — `settleInboundMedia`. Requirement: `media-ingest` → "Ready or failed transition", "Thumbnail failure does not lose the message", "Unrecoverable failure becomes failed".
+- [x] **T6a.5** GREEN — `settleInboundMedia`. Requirement: `media-ingest` → "Ready or failed transition", "Thumbnail failure does not lose the message", "Unrecoverable failure becomes failed".
   - Goal: implement ADR-7 step 7: download, 16 MiB check, original upload at today's path, thumbnail for images and stickers with `upsert: true`, one retry with backoff, then the guarded `ready` update (thumbnail failure is non-fatal, reason in `media_error`) or the `failed` update that leaves `media_url` byte-identical to the legacy proxy value.
   - Files: `src/lib/whatsapp/inbound-media.ts` (new)
   - Test: `src/lib/whatsapp/inbound-media.test.ts`
   - Verify: `npx vitest run src/lib/whatsapp/inbound-media.test.ts`
+  - **Done 2026-11-28**: module written, not yet wired into the webhook (that is T6a.6).
 
-- [ ] **T6a.6** GREEN — reorder the webhook and add the dedupe guard. Requirement: `media-ingest` → "Insert first, process media after", "Duplicate delivery inserts once", "Media update is idempotent per message", "Bot-facing dispatch only after media settles".
+- [x] **T6a.6** GREEN — reorder the webhook and add the dedupe guard. Requirement: `media-ingest` → "Insert first, process media after", "Duplicate delivery inserts once", "Media update is idempotent per message", "Bot-facing dispatch only after media settles".
   - Goal: implement ADR-7 steps 2-8 exactly: `parseMessageContent` stops downloading and returns `mediaRef` with the proxy placeholder; the pre-insert dedupe query on `(conversation_id, message_id, sender_type='customer')` returns early with `[webhook] duplicate wamid skipped`; insert with `media_status: 'pending'`, proxy `media_url`, `media_claimed_at`, `media_attempts: 1`, then `.select('id').single()`; conversation UPDATE, invite callback and broadcast-reply flag after the insert; `settleInboundMedia`; then `runInboundTail` strictly after it settles. Non-media messages call the tail directly after step 6, unchanged.
   - Files: `src/app/api/whatsapp/webhook/route.ts`
   - Test: `src/app/api/whatsapp/webhook/route.test.ts`
@@ -500,7 +509,7 @@ Spec: `media-ingest` → "Insert first, process media after", "Ready or failed t
   - Test: manual + read-only SQL.
   - Verify: record the observed transition and the DB row in the PR.
 
-- [ ] **T6a.8** Verification.
+- [x] **T6a.8** Verification.
   - Goal: suite and `tsc`; confirm `processMessage` still returns `{ guardado: true }` so `whatsapp_webhook_log.procesado` and the ingest watchdog keep their meaning.
   - Files: none.
   - Test: slice-6a files.
@@ -510,25 +519,25 @@ Spec: `media-ingest` → "Insert first, process media after", "Ready or failed t
 
 Spec: `media-ingest` → "Sweeper settles stale pending rows" (all three scenarios); `inbox-realtime` → "Realtime media resolves without reload" (the transition the UI observes).
 
-- [ ] **T6b.1** RED — sweeper. Requirement: `media-ingest` → "Stale pending row is retried and settles ready", "Expired media id settles failed", "Sweeper is safe to re-run".
+- [x] **T6b.1** RED — sweeper. Requirement: `media-ingest` → "Stale pending row is retried and settles ready", "Expired media id settles failed", "Sweeper is safe to re-run".
   - Goal: failing tests that `reintentar` rows settle before the tail runs, `fallida` rows run the tail only, rows older than 24 h settle without a tail, the budget stops the loop, and a second run changes nothing.
   - Files: `src/lib/whatsapp/media-sweeper.test.ts` (new)
   - Test: itself.
   - Verify: `npx vitest run src/lib/whatsapp/media-sweeper.test.ts` — FAIL.
 
-- [ ] **T6b.2** RED — cron wiring. Requirement: `media-ingest` → "Sweeper settles stale pending rows".
+- [x] **T6b.2** RED — cron wiring. Requirement: `media-ingest` → "Sweeper settles stale pending rows".
   - Goal: failing tests that the sweeper is called **after** `flushWebhookOutbox`, that an unauthorized secret runs neither, and that the JSON gains `media: { retried, settledReady, settledFailed, dispatched, skippedStale }`.
   - Files: `src/app/api/cron/webhook-outbox/route.test.ts`
   - Test: itself.
   - Verify: `npx vitest run src/app/api/cron/webhook-outbox/route.test.ts` — new cases FAIL.
 
-- [ ] **T6b.3** GREEN — `sweepPendingMedia`. Requirement: `media-ingest` → "Sweeper settles stale pending rows".
+- [x] **T6b.3** GREEN — `sweepPendingMedia`. Requirement: `media-ingest` → "Sweeper settles stale pending rows".
   - Goal: implement ADR-7's sweeper: `rpc('crm_media_reclamar', { p_limit: 5 })`, parse the media id from `media_url`, resolve the account token via `conversations.account_id` and `whatsapp_config`, settle `reintentar`, run the tail only when `created_at > now() - 24 h` with the documented rebuilt arguments, and stop at `budgetMs`.
   - Files: `src/lib/whatsapp/media-sweeper.ts` (new)
   - Test: `src/lib/whatsapp/media-sweeper.test.ts`
   - Verify: `npx vitest run src/lib/whatsapp/media-sweeper.test.ts`
 
-- [ ] **T6b.4** GREEN — call it from the existing worker. Requirement: `media-ingest` → "Sweeper settles stale pending rows".
+- [x] **T6b.4** GREEN — call it from the existing worker. Requirement: `media-ingest` → "Sweeper settles stale pending rows".
   - Goal: call the sweeper after the flush in `/api/cron/webhook-outbox`; add no new cron job, route or secret.
   - Files: `src/app/api/cron/webhook-outbox/route.ts`
   - Test: `src/app/api/cron/webhook-outbox/route.test.ts`
@@ -544,29 +553,31 @@ Spec: `media-ingest` → "Sweeper settles stale pending rows" (all three scenari
 
 Spec: `media-ingest` → "History backfill" (all three scenarios); `chat-media-delivery` → "Original bytes are unchanged".
 
-- [ ] **T7.1** RED — backfill core. Requirement: `media-ingest` → "History backfill".
+- [x] **T7.1** RED — backfill core. Requirement: `media-ingest` → "History backfill".
   - Goal: failing tests for the keyset selection resuming, the dry run writing nothing while its counters equal the real run on the same fixture, a missing object producing `failed`, legacy `/api/whatsapp/media/` rows counted and untouched, and non-images never downloaded.
   - Files: `src/lib/storage/media-backfill.test.ts` (new)
   - Test: itself.
   - Verify: `npx vitest run src/lib/storage/media-backfill.test.ts` — FAIL.
 
-- [ ] **T7.2** GREEN — `planBatch`, `processRow`, `summarise`. Requirement: `media-ingest` → "History backfill", "Originals are never re-encoded".
+- [x] **T7.2** GREEN — `planBatch`, `processRow`, `summarise`. Requirement: `media-ingest` → "History backfill", "Originals are never re-encoded".
   - Goal: implement ADR-9: relative imports only with injected `db` and `storage`; selection on `media_status IS NULL` plus a chat-media `media_url`, ordered `(created_at, id)`; per-account paged `storage.list`; download only images and stickers; `upsert: true` thumbnails; the four per-row outcomes; the counters `would_ready_with_thumb`, `would_ready_no_thumb`, `would_fail_missing`, `legacy_meta`.
   - Files: `src/lib/storage/media-backfill.ts` (new)
   - Test: `src/lib/storage/media-backfill.test.ts`
   - Verify: `npx vitest run src/lib/storage/media-backfill.test.ts`
 
-- [ ] **T7.3** GREEN — CLI runner. Requirement: `media-ingest` → "History backfill" (batched, resumable, dry-run).
+- [x] **T7.3** GREEN — CLI runner. Requirement: `media-ingest` → "History backfill" (batched, resumable, dry-run).
   - Goal: implement `infra/media/backfill-media.mts` with `--dry-run`, `--batch`, `--sleep-ms`, `--limit`, `--after`, `--env`; read credentials from the env file only and never print them; confirm the host Node is ≥ 22.6 before `--experimental-strip-types`.
   - Files: `infra/media/backfill-media.mts` (new)
   - Test: `src/lib/storage/media-backfill.test.ts` (core) + a dry run against staging.
   - Verify: `node --version` ≥ 22.6, then a staging `--dry-run`.
+  - **Done 2026-11-28**: Node 26.13.1; staging dry run with `--batch 5 --limit 10` reported 1 `would_ready_with_thumb`, 4 `would_ready_no_thumb`, 0 missing, 0 legacy.
 
 - [ ] **T7.4** GATE — storage quota headroom. Requirement: `media-ingest` → "History backfill"; design open question on the Free-plan 1 GB cap.
   - Goal: check current Storage usage (875 MB on 2026-11-27) against the 1 GB Free-plan file-storage limit plus the 45-72 MB thumbnail estimate, and either confirm headroom or stop and report that the backfill cannot run in production yet (plan change or retention-first ordering is an owner decision).
   - Files: none.
   - Test: none.
   - Verify: the measured usage and the headroom decision are recorded in the PR and in `openspec/changes/inbox-media-performance/measurements.md`.
+  - **Resolved 2026-11-28**: retention first frees 276 MB (1,645 objects older than 90 days), so the backfill's ~72 MB lands on ~599 MB → ~671 MB. Owner chose this order.
 
 - [ ] **T7.5** Staging dry run then real run. Requirement: `media-ingest` → "Dry run matches the real run", "Backfill covers every historical image".
   - Goal: dry run, then the real run on staging; compare the counters; spot-check that every retained image has a thumbnail or a recorded reason, and that originals are unchanged.
@@ -604,49 +615,51 @@ Spec gap: **no requirement in the four delta specs covers retention or purged me
   - Test: none.
   - Verify: the new requirement text exists in the change specs before T8.4 starts.
 
-- [ ] **T8.2** RED — retention core. Requirement: resolved by T8.1.
+- [x] **T8.2** RED — retention core. Requirement: resolved by T8.1.
   - Goal: failing tests for the 90-day age filter (deletion by object age, never by conversation), the per-run deletion cap, dry-run and real counts matching on the same fixture, thumbnails deleted together with their original, rows and `media_url` never touched, non-chat-media objects never selected, and batch/rate-limit behaviour.
   - Files: `src/lib/storage/media-retention.test.ts` (new)
   - Test: itself.
   - Verify: `npx vitest run src/lib/storage/media-retention.test.ts` — FAIL.
 
-- [ ] **T8.3** RED — purged media renders as unavailable. Requirement: `chat-media-delivery` → "Pending and failed media states are visible" (closest applicable; a purged object is a third state).
+- [x] **T8.3** RED — purged media renders as unavailable. Requirement: `chat-media-delivery` → "Pending and failed media states are visible" (closest applicable; a purged object is a third state).
   - Goal: failing test that an object that errors twice (after the single re-sign) renders the existing `MediaUnavailable` state — never a broken image element and never an infinite spinner — for image, video and audio.
   - Files: `src/components/inbox/message-bubble.test.tsx`
   - Test: itself.
   - Verify: `npx vitest run src/components/inbox/message-bubble.test.tsx` — FAIL.
 
-- [ ] **T8.4** GREEN — retention core. Requirement: resolved by T8.1.
+- [x] **T8.4** GREEN — retention core. Requirement: resolved by T8.1.
   - Goal: implement the core with injected `storage` and `db`: list per account prefix in pages, select by `created_at` older than the window, delete the original and its `thumbs/<base>.webp` sibling, honour the per-run cap, and return `{ scanned, deleted, deletedThumbs, capped, wouldDelete }` for the dry run. Never delete message rows.
   - Files: `src/lib/storage/media-retention.ts` (new)
   - Test: `src/lib/storage/media-retention.test.ts`
   - Verify: `npx vitest run src/lib/storage/media-retention.test.ts`
 
-- [ ] **T8.5** GREEN — CLI runner with a dry run. Requirement: resolved by T8.1.
+- [x] **T8.5** GREEN — CLI runner with a dry run. Requirement: resolved by T8.1.
   - Goal: implement `infra/media/retention-media.mts` with `--dry-run`, `--older-than-days 90`, `--batch`, `--cap`, `--sleep-ms`, `--env`; never print credentials.
   - Files: `infra/media/retention-media.mts` (new)
   - Test: `src/lib/storage/media-retention.test.ts` (core) + a staging dry run.
   - Verify: a staging `--dry-run` reports the object count it would delete and deletes nothing.
+  - **Done 2026-11-28**: staging dry run — 12 accounts, 87 objects scanned, 6 would be deleted, 0 thumbnails, nothing deleted.
 
-- [ ] **T8.6** GREEN — the cron worker runs a capped retention pass. Requirement: resolved by T8.1.
+- [x] **T8.6** GREEN — the cron worker runs a capped retention pass. Requirement: resolved by T8.1.
   - Goal: call the retention core from `/api/cron/webhook-outbox` **after** the sweeper, batched and rate-limited with the per-run cap, and extend the worker JSON with a `retention` field. Deletion must be safe to re-run.
   - Files: `src/app/api/cron/webhook-outbox/route.ts`
   - Test: `src/app/api/cron/webhook-outbox/route.test.ts` (extend)
   - Verify: `npx vitest run src/app/api/cron/webhook-outbox/route.test.ts`
 
-- [ ] **T8.7** GREEN — unavailable state in the bubble. Requirement: `chat-media-delivery` → "Pending and failed media states are visible".
+- [x] **T8.7** GREEN — unavailable state in the bubble. Requirement: `chat-media-delivery` → "Pending and failed media states are visible".
   - Goal: after one failed re-sign, render the existing `MediaUnavailable` component for every media type; reuse its current copy so no new Spanish string is invented.
   - Files: `src/components/inbox/message-bubble.tsx`
   - Test: `src/components/inbox/message-bubble.test.tsx`
   - Verify: `npx vitest run src/components/inbox/message-bubble.test.tsx`
 
-- [ ] **T8.8** GATE — enabling deletion in production. Requirement: resolved by T8.1.
+- [x] **T8.8** GATE — enabling deletion in production. Requirement: resolved by T8.1.
   - Goal: present the owner the staging dry-run object count and total bytes (steady state target under 700 MB) and get explicit approval before the production deploy that starts deleting. Deletion is irreversible; do not enable it on a previous approval.
   - Files: none.
   - Test: none.
   - Verify: the approval and the dry-run numbers are recorded in the change.
+  - **Done 2026-11-28**: owner approved. Deployed release `534f037d` (served `GhJI12W0Ab0O7dAmGBFmW`). First ticks: 6,863 → 6,565 objects, 875 → 846 MB, ~100 per tick, `messages.media_url` untouched (6,749 rows).
 
-- [ ] **T8.9** Verification and staging check.
+- [x] **T8.9** Verification and staging check.
   - Goal: suite and `tsc`; on staging verify the dry-run count equals the real-run count, and that a purged conversation renders media as unavailable with no broken element and no spinner.
   - Files: none.
   - Test: slice-8 files.
@@ -677,3 +690,13 @@ Every slice PR closes only when: its named tests are green, `npx tsc --noEmit` i
 - **PR target:** `feat/port-chat-operations-calculator`, never `master` (master is 1,751 commits behind and lacks the chat-media modules).
 - **Size policy:** `size:exception` accepted for slices that exceed the 400-line budget as one cohesive unit. Observed: slice 1 = 1,191 authored lines, slice 2 = ~578. Splitting was rejected because required test surface would be separated from the implementation it proves.
 - **Base:** `feat/inbox-media-performance` branched from `275bec1b`.
+
+---
+
+## Estado de despliegue (2026-11-28, tras el incidente)
+
+- **En producción:** slices 1–4c. Build `470b20bf`, servido `zdqBM0nWZntnV9bbrVbL9`.
+- **No en producción:** 5a (migración 400 aplicada y luego eliminada), 5b, 6a, 6b, 7, 8.
+- **Base de datos:** sin migración 400; columnas `media_*` y `crm_media_reclamar` eliminadas; marcas del backfill puestas a NULL.
+- **Pérdida irreversible:** 1,645 objetos de más de 90 días borrados por la retención.
+- Antes de reintentar 5a: staging primero, ventana acordada, lotes pequeños con vigilancia, y aprobación explícita por cada paso que borre o escriba en masa.

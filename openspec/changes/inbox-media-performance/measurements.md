@@ -153,3 +153,74 @@ What these numbers do not support:
 - The signature cache is per server process. A second instance, a restart, or a serverless cold start pays the signing round trip again; the win is per-instance, not global.
 - Neither change makes the first paint faster by itself: messages and signatures still arrive in the same response. Removing the signing stage from the critical path is a separate design change and is not claimed here.
 
+
+## Storage quota before the backfill (T7.4, 2026-11-28)
+
+Read-only query against production (`storage.objects`, bucket `chat-media`):
+
+| Measure | Value |
+| --- | --- |
+| Bucket size | 875 MB (6,842 objects) |
+| Backfill candidates (rows with `media_status IS NULL` and a chat-media URL) | 3,617 image, 3,038 audio, 54 document, 10 video |
+| Estimated thumbnail growth | ~72 MB (3,617 images at ~20 KB) |
+| Free-plan file-storage cap | 1 GB |
+
+**Headroom after a full backfill: roughly 77 MB**, while inbound media keeps arriving. That is the gate's question, not a number to wave through: the backfill by itself would leave the bucket close to the cap until the retention job (slice 8) brings steady state down to ~650 MB.
+
+The panel slices (5b, 6a, 6b) do not depend on the backfill and can ship without it; the backfill is a manual CLI.
+
+### Retention first, then backfill (2026-11-28)
+
+Production, read-only: **1,645 objects older than 90 days = 276 MB**.
+
+| Order | Bucket size |
+| --- | --- |
+| Today | 875 MB |
+| After the retention pass | ~599 MB |
+| After the backfill (+72 MB of thumbnails) | ~671 MB |
+
+The quota gate (T7.4) closes with room: running retention BEFORE the backfill leaves ~330 MB of headroom instead of ~77 MB. That is the order the owner chose.
+
+### Retention running in production (2026-11-28)
+
+Release `534f037d` (served `GhJI12W0Ab0O7dAmGBFmW`). Observed on the live bucket:
+
+| Moment | Objects | Size |
+| --- | --- | --- |
+| Before the deploy | 6,863 | 875 MB |
+| After the first ticks | 6,565 | 846 MB |
+
+Rate: ~100 objects per cron tick, exactly the cap. `messages` untouched: 6,749 rows still carry `media_url`, which is what makes a purged photo render as "no disponible" instead of losing the message.
+
+### Backfill and retention finished in production (2026-11-28)
+
+| Measure | Value |
+| --- | --- |
+| Retention | 875 MB → 604 MB (1,645 objects older than 90 days removed, capped 100/tick) |
+| Backfill, accelerated run | 1,807 thumbnails, 1,340 rows ready without one, 1 object missing, 0 legacy |
+| Backfill, including the first serial pass | 2,831 messages with a thumbnail |
+| Rows with a chat-media `media_url` and no state | **0** |
+| Failed (object already purged) | 1,594 |
+| Bucket after everything | 8,046 objects, **615 MB** |
+
+Thumbnails cost ~4 KB each in practice, not the ~20 KB estimated, so the bucket grew 11 MB instead of 72. Final headroom against the 1 GB cap: ~385 MB.
+
+Concurrency (6 in parallel) cut the run from an estimated 70 minutes to about 12, with no rate-limit errors and identical counters per row.
+
+## INCIDENTE 2026-11-28: retención y backfill en producción
+
+Se ejecutaron en producción la retención (slice 8) y el backfill (slice 7) el mismo día. El proyecto empezó a responder con picos de 13–18 s en las consultas, la bandeja dejó de cargar con normalidad y el owner reportó lentitud incluso en datos móviles.
+
+Secuencia:
+1. Panel desplegado `534f037d` con el cron de retención → carga alta (listado completo del bucket cada minuto).
+2. Backfill acelerado: ~600 MB de descarga + 2,831 miniaturas subidas en ~20 minutos.
+3. Rollback del panel a `63df4e3a` y luego a `5e934e11`.
+4. Diagnóstico: 6/6 servicios `ACTIVE_HEALTHY`, 0 locks, 0 tuplas muertas en `messages`, consultas autenticadas 56–183 ms desde el servidor. Sin bloqueo declarado.
+5. Rollback de datos: `media_*` a NULL y migración 400 eliminada de producción (columnas y función).
+6. Desplegado solo el panel (slices 1–4c) en `470b20bf`, servido `zdqBM0nWZntnV9bbrVbL9`. El owner confirma que va bien.
+
+**Irreversible:** la retención borró 1,645 objetos de más de 90 días (276 MB). No hay backup de esos archivos.
+
+**Estado del código:** slices 5a–8 están escritos y verdes en la rama, NO desplegados. La migración 400 debe volver a aplicarse antes de que cualquiera de ellos pueda publicarse, y el frontend que los usa ya no está en producción.
+
+**Queda en el bucket:** ~2,800 miniaturas huérfanas (~11 MB) sin ninguna fila que las referencie. Inofensivas; se pueden borrar cuando convenga.

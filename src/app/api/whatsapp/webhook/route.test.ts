@@ -58,7 +58,10 @@ vi.mock("@/lib/contacts/dedupe", () => ({
 
 vi.mock("@/lib/flows/engine", () => ({
   // Contrato real: siempre { consumed: boolean } — nunca undefined.
-  dispatchInboundToFlows: vi.fn(async () => ({ consumed: false })),
+  dispatchInboundToFlows: vi.fn(async () => {
+    callLog.push("flows");
+    return { consumed: false };
+  }),
 }));
 vi.mock("@/lib/ai/auto-reply", () => ({
   dispatchInboundToAiReply: vi.fn(async () => undefined),
@@ -110,7 +113,9 @@ function makeBuilder(table: string) {
     });
   });
   builder.maybeSingle = vi.fn(() =>
-    Promise.resolve({ data: result.data, error: result.error }),
+    table === "messages"
+      ? Promise.resolve({ data: existingInboundRow, error: null })
+      : Promise.resolve({ data: result.data, error: result.error }),
   );
   builder.insert = vi.fn((payload: unknown) => {
     result.error = failInserts[table] ?? null;
@@ -141,17 +146,64 @@ function makeBuilder(table: string) {
     updates[table] = [...(updates[table] ?? []), { payload, eqs: [] }];
     return builder;
   });
-  builder.then = (resolve: (v: unknown) => unknown) =>
-    Promise.resolve({ data: result.data, error: result.error }).then(resolve);
+  builder.then = (resolve: (v: unknown) => unknown) => {
+    const status = (updates[table]?.at(-1)?.payload as Record<string, unknown> | undefined)
+      ?.media_status;
+    if (table === "messages" && typeof status === "string") {
+      callLog.push(`messages:${status}`);
+    }
+    return Promise.resolve({ data: result.data, error: result.error }).then(resolve);
+  };
   return builder;
 }
 
+// --- Storage + Meta media fakes --------------------------------------------
+// Ingest uploads the original and its thumbnail; `failThumbUpload` makes the
+// thumbnail upload fail so the "ready with media_error" path is covered.
+const uploads: Array<{ bucket: string; path: string; contentType: string }> = [];
+let failThumbUpload = false;
+
+vi.mock("@/lib/whatsapp/meta-api", () => ({
+  getMediaUrl: vi.fn(async () => ({
+    url: "https://meta.test/media",
+    mimeType: "image/jpeg",
+  })),
+  downloadMedia: vi.fn(async () => ({
+    buffer: mediaBytes,
+    contentType: "image/jpeg",
+  })),
+}));
+
+let mediaBytes: Buffer = Buffer.from("");
+
 const builders: Record<string, ReturnType<typeof makeBuilder>> = {};
+// Ordered log of the events the ordering test cares about.
+const callLog: string[] = [];
+// What the pre-insert "is this wamid already stored?" lookup finds.
+let existingInboundRow: { id: string } | null = null;
 
 vi.mock("@supabase/supabase-js", () => ({
   createClient: vi.fn(() => ({
     from: (table: string) =>
       builders[table] ?? (builders[table] = makeBuilder(table)),
+    storage: {
+      from: (bucket: string) => ({
+        upload: async (
+          path: string,
+          _data: unknown,
+          opts: { contentType: string },
+        ) => {
+          if (failThumbUpload && path.includes("/thumbs/")) {
+            return { error: { message: "thumb upload refused" } };
+          }
+          uploads.push({ bucket, path, contentType: opts.contentType });
+          return { error: null };
+        },
+        getPublicUrl: (path: string) => ({
+          data: { publicUrl: `https://cdn.test/${bucket}/${path}` },
+        }),
+      }),
+    },
   })),
 }));
 
@@ -382,4 +434,126 @@ describe("webhook route — mensaje no guardado deja motivo en el log", () => {
     expect(updatesLog.some((u) => u.payload.procesado === true)).toBe(true);
     expect(updatesLog.some((u) => "error" in u.payload)).toBe(false);
   });
+});
+
+// --- Slice 5b: media metadata on ingest -------------------------------------
+describe("orden de despacho (ADR-8)", () => {
+  it("la media se asienta antes de cualquier llamada al bot", async () => {
+    const sharp = (await import("sharp")).default;
+    mediaBytes = await sharp({
+      create: { width: 120, height: 80, channels: 3, background: { r: 1, g: 2, b: 3 } },
+    })
+      .jpeg()
+      .toBuffer();
+    callLog.length = 0;
+    failThumbUpload = false;
+
+    await post(
+      webhookBody([
+        {
+          from: "5926731290",
+          id: "wamid.ORDER1",
+          timestamp: "1754300000",
+          type: "image",
+          image: { id: "meta-order-1", mime_type: "image/jpeg" },
+        },
+      ], []),
+    );
+
+    const settledAt = callLog.indexOf("messages:ready");
+    const flowsAt = callLog.indexOf("flows");
+    expect(settledAt).toBeGreaterThanOrEqual(0);
+    expect(flowsAt).toBeGreaterThan(settledAt);
+  });
+});
+
+describe("ingest de media (migración 400)", () => {
+  const ACCOUNT = "acc1";
+
+  function imageMessage(from: string, id: string): Record<string, unknown> {
+    return {
+      from,
+      id,
+      timestamp: "1754300000",
+      type: "image",
+      image: { id: "meta-media-1", mime_type: "image/jpeg", caption: "foto" },
+    };
+  }
+
+  it("inserta el mensaje en pending y lo deja ready después de descargar", async () => {
+    const sharp = (await import("sharp")).default;
+    mediaBytes = await sharp({
+      create: { width: 300, height: 200, channels: 3, background: { r: 20, g: 90, b: 200 } },
+    })
+      .jpeg()
+      .toBuffer();
+    uploads.length = 0;
+    failThumbUpload = false;
+
+    await post(webhookBody([imageMessage("5926731280", "wamid.MEDIA1")], []));
+
+    // 1. The row exists first, pending, with the legacy proxy URL.
+    const inserted = (inserts.messages ?? []).at(-1) as Record<string, unknown>;
+    expect(inserted.media_status).toBe("pending");
+    expect(inserted.media_url).toBe("/api/whatsapp/media/meta-media-1");
+    expect(inserted.media_attempts).toBe(1);
+    expect(inserted.media_path).toBeUndefined();
+
+    // 2. The file follows, and the row is settled ready with the metadata.
+    const settled = (updates.messages ?? [])
+      .map((u) => u.payload as Record<string, unknown>)
+      .filter((p) => p.media_status === "ready")
+      .at(-1);
+    expect(settled).toBeDefined();
+    expect(String(settled!.media_path)).toMatch(/^account-acc1\/\d+-wa-meta-media-1\.jpg$/);
+    expect(String(settled!.media_thumb_path)).toMatch(/thumbs\/\d+-wa-meta-media-1\.webp$/);
+    expect(settled!.media_width).toBe(300);
+    expect(settled!.media_height).toBe(200);
+    expect(settled!.media_error).toBeNull();
+    expect(uploads.map((u) => u.contentType).sort()).toEqual(["image/jpeg", "image/webp"]);
+  });
+
+  it("si la miniatura falla, el mensaje queda ready con el motivo y sin miniatura", async () => {
+    const sharp = (await import("sharp")).default;
+    mediaBytes = await sharp({
+      create: { width: 300, height: 200, channels: 3, background: { r: 20, g: 90, b: 200 } },
+    })
+      .jpeg()
+      .toBuffer();
+    uploads.length = 0;
+    failThumbUpload = true;
+
+    await post(webhookBody([imageMessage("5926731281", "wamid.MEDIA2")], []));
+    failThumbUpload = false;
+
+    const settled = (updates.messages ?? [])
+      .map((u) => u.payload as Record<string, unknown>)
+      .filter((p) => p.media_status === "ready")
+      .at(-1);
+    expect(settled).toBeDefined();
+    expect(settled!.media_thumb_path).toBeNull();
+    expect(String(settled!.media_error)).toContain("thumbnail:");
+    expect(settled!.media_width).toBe(300);
+  });
+
+  it("un wamid ya guardado no se inserta ni se despacha otra vez", async () => {
+    existingInboundRow = { id: "ya-existe" };
+    const messagesBefore = (inserts.messages ?? []).length;
+    const { dispatchInboundToFlows: flowsBefore } = await import("@/lib/flows/engine");
+    const flowCallsBefore = (flowsBefore as unknown as { mock: { calls: unknown[] } }).mock.calls.length;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await post(webhookBody([imageMessage("5926731282", "wamid.DUP")], []));
+    existingInboundRow = null;
+    warn.mockRestore();
+
+    expect((inserts.messages ?? []).length).toBe(messagesBefore);
+
+    // Nothing bot-facing ran for the duplicate.
+    const { dispatchInboundToFlows } = await import("@/lib/flows/engine");
+    const flowCalls = (dispatchInboundToFlows as unknown as { mock: { calls: unknown[] } }).mock.calls.length;
+    expect(flowCalls).toBe(flowCallsBefore);
+  });
+
+
 });

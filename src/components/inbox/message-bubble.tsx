@@ -28,6 +28,7 @@ import {
   resolveMediaSrc,
 } from "@/lib/storage/signed-media";
 import { useMediaSrc } from "@/lib/storage/use-media-src";
+import { chatMediaProxyUrl } from "@/lib/storage/chat-media";
 
 interface MessageBubbleProps {
   message: Message;
@@ -67,6 +68,25 @@ function MediaUnavailable({ label, t }: { label: string, t: ReturnType<typeof us
 }
 
 /** Sized placeholder so a lazy media box reserves layout before it loads. */
+/**
+ * Copy for a media bubble that has no pixels yet: still downloading, or given
+ * up. Staff-facing only — nothing here is ever sent to the customer.
+ */
+function MediaStateBox({ label, tone }: { label: string; tone: "pending" | "failed" }) {
+  return (
+    <div
+      className={
+        tone === "failed"
+          ? "flex h-40 w-60 flex-col items-center justify-center gap-2 rounded-lg bg-muted/60 px-3 text-center text-xs text-muted-foreground"
+          : "flex h-40 w-60 flex-col items-center justify-center gap-2 rounded-lg bg-muted/40 px-3 text-center text-xs text-muted-foreground"
+      }
+    >
+      <ImageOff className="h-5 w-5 opacity-70" />
+      <span>{label}</span>
+    </div>
+  );
+}
+
 function MediaLoadingBox({ className }: { className?: string }) {
   return (
     <div
@@ -85,26 +105,41 @@ function MediaImage({
   alt,
   label,
   t,
+  thumbPath,
+  width,
+  height,
+  status,
 }: {
   url: string;
   alt: string;
   label: string;
   t: ReturnType<typeof useTranslations>;
+  /** Migration 400: the WebP sibling, the stored dimensions and the state. */
+  thumbPath?: string | null;
+  width?: number | null;
+  height?: number | null;
+  status?: "pending" | "ready" | "failed" | null;
 }) {
   // Meta's media proxy needs the session cookie, so it is fetched as a blob.
   // chat-media objects get a signed CDN URL and never touch this server.
   const isMetaMedia = url.startsWith("/api/whatsapp/media/");
-  const signedSrc = useMediaSrc(isMetaMedia ? null : url);
+  // The bubble paints the small WebP when ingest stored one; the original is
+  // only resolved when the user opens the full-size viewer.
+  const thumbUrl = thumbPath ? chatMediaProxyUrl(thumbPath) : null;
+  const [zoom, setZoom] = useState(false);
   const [src, setSrc] = useState<string | null>(null);
   // Set after one failed load: the re-signed URL, or the proxy fallback.
   const [override, setOverride] = useState<string | null>(null);
   const [error, setError] = useState(false);
+  const thumbSrc = useMediaSrc(isMetaMedia ? null : thumbUrl);
+  // Resolved only when the viewer opens: the bubble itself never pays for it.
+  const zoomSrc = useMediaSrc(zoom && !isMetaMedia ? url : null);
+  const signedSrc = useMediaSrc(isMetaMedia ? null : url);
   // A URL the server already seeded is paintable on the very first render, so
   // start settled instead of flashing the loading box for one commit.
   const [loading, setLoading] = useState(
     () => !isMetaMedia && peekSignedMediaSrc(url) === null,
   );
-  const [zoom, setZoom] = useState(false);
   const resignedRef = useRef(false);
 
   useEffect(() => {
@@ -150,7 +185,7 @@ function MediaImage({
     return () => window.removeEventListener("keydown", onKey);
   }, [zoom]);
 
-  const displaySrc = isMetaMedia ? src : (override ?? signedSrc);
+  const displaySrc = isMetaMedia ? src : (override ?? thumbSrc ?? signedSrc);
   // The error handler compares against the source that just failed without
   // taking it as a dependency (which would rebuild the callback mid-flight).
   const displaySrcRef = useRef<string | null>(displaySrc);
@@ -182,7 +217,16 @@ function MediaImage({
   }, [isMetaMedia, url]);
 
   if (error) {
-    return <MediaUnavailable label={label} t={t} />;
+    return status === "failed" ? (
+      <MediaStateBox label={t("mediaFailed")} tone="failed" />
+    ) : (
+      <MediaUnavailable label={label} t={t} />
+    );
+  }
+
+  // Nothing has been downloaded yet: say so, instead of an anonymous spinner.
+  if (status === "pending") {
+    return <MediaStateBox label={t("mediaPending")} tone="pending" />;
   }
 
   if (loading || displaySrc === null) {
@@ -200,9 +244,17 @@ function MediaImage({
         <img
           src={displaySrc ?? ""}
           alt={alt}
+          // Known dimensions reserve the exact box, so the thread does not
+          // reflow when the pixels land. Unknown ones keep the old fixed box.
+          width={width ?? undefined}
+          height={height ?? undefined}
           loading="lazy"
           decoding="async"
-          className="h-40 w-60 rounded-lg object-cover"
+          className={
+            width && height
+              ? "h-auto max-h-64 max-w-60 rounded-lg object-cover"
+              : "h-40 w-60 rounded-lg object-cover"
+          }
           onError={handleMediaError}
         />
       </button>
@@ -221,7 +273,7 @@ function MediaImage({
             className="fixed inset-0 z-[100] flex cursor-zoom-out items-center justify-center bg-black/80 p-4"
           >
             <img
-              src={displaySrc ?? ""}
+              src={zoomSrc ?? displaySrc ?? ""}
               alt={alt}
               className="max-h-full max-w-full rounded-lg object-contain"
             />
@@ -295,6 +347,10 @@ function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof
               alt={t("sharedImageAlt")}
               label={t("photo")}
               t={t}
+              thumbPath={message.media_thumb_path ?? null}
+              width={message.media_width ?? null}
+              height={message.media_height ?? null}
+              status={message.media_status ?? null}
             />
           ) : (
             <MediaUnavailable label={t("photo")} t={t} />

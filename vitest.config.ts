@@ -19,5 +19,10 @@ export default defineConfig({
       META_APP_SECRET: 'test-meta-app-secret',
     },
     clearMocks: true,
+    // The suite is large and jsdom-heavy; on a loaded machine the default 5 s
+    // is not enough for the async-render files and they failed only when the
+    // whole suite ran in parallel (they pass alone). This raises the ceiling,
+    // it does not weaken any assertion.
+    testTimeout: 20_000,
   },
 });

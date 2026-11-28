@@ -577,6 +577,7 @@ Spec: `media-ingest` → "History backfill" (all three scenarios); `chat-media-d
   - Files: none.
   - Test: none.
   - Verify: the measured usage and the headroom decision are recorded in the PR and in `openspec/changes/inbox-media-performance/measurements.md`.
+  - **Resolved 2026-11-28**: retention first frees 276 MB (1,645 objects older than 90 days), so the backfill's ~72 MB lands on ~599 MB → ~671 MB. Owner chose this order.
 
 - [ ] **T7.5** Staging dry run then real run. Requirement: `media-ingest` → "Dry run matches the real run", "Backfill covers every historical image".
   - Goal: dry run, then the real run on staging; compare the counters; spot-check that every retained image has a thumbnail or a recorded reason, and that originals are unchanged.

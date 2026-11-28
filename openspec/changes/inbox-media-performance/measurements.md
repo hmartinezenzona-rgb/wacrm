@@ -168,3 +168,15 @@ Read-only query against production (`storage.objects`, bucket `chat-media`):
 **Headroom after a full backfill: roughly 77 MB**, while inbound media keeps arriving. That is the gate's question, not a number to wave through: the backfill by itself would leave the bucket close to the cap until the retention job (slice 8) brings steady state down to ~650 MB.
 
 The panel slices (5b, 6a, 6b) do not depend on the backfill and can ship without it; the backfill is a manual CLI.
+
+### Retention first, then backfill (2026-11-28)
+
+Production, read-only: **1,645 objects older than 90 days = 276 MB**.
+
+| Order | Bucket size |
+| --- | --- |
+| Today | 875 MB |
+| After the retention pass | ~599 MB |
+| After the backfill (+72 MB of thumbnails) | ~671 MB |
+
+The quota gate (T7.4) closes with room: running retention BEFORE the backfill leaves ~330 MB of headroom instead of ~77 MB. That is the order the owner chose.

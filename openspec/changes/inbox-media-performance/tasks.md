@@ -553,23 +553,24 @@ Spec: `media-ingest` → "Sweeper settles stale pending rows" (all three scenari
 
 Spec: `media-ingest` → "History backfill" (all three scenarios); `chat-media-delivery` → "Original bytes are unchanged".
 
-- [ ] **T7.1** RED — backfill core. Requirement: `media-ingest` → "History backfill".
+- [x] **T7.1** RED — backfill core. Requirement: `media-ingest` → "History backfill".
   - Goal: failing tests for the keyset selection resuming, the dry run writing nothing while its counters equal the real run on the same fixture, a missing object producing `failed`, legacy `/api/whatsapp/media/` rows counted and untouched, and non-images never downloaded.
   - Files: `src/lib/storage/media-backfill.test.ts` (new)
   - Test: itself.
   - Verify: `npx vitest run src/lib/storage/media-backfill.test.ts` — FAIL.
 
-- [ ] **T7.2** GREEN — `planBatch`, `processRow`, `summarise`. Requirement: `media-ingest` → "History backfill", "Originals are never re-encoded".
+- [x] **T7.2** GREEN — `planBatch`, `processRow`, `summarise`. Requirement: `media-ingest` → "History backfill", "Originals are never re-encoded".
   - Goal: implement ADR-9: relative imports only with injected `db` and `storage`; selection on `media_status IS NULL` plus a chat-media `media_url`, ordered `(created_at, id)`; per-account paged `storage.list`; download only images and stickers; `upsert: true` thumbnails; the four per-row outcomes; the counters `would_ready_with_thumb`, `would_ready_no_thumb`, `would_fail_missing`, `legacy_meta`.
   - Files: `src/lib/storage/media-backfill.ts` (new)
   - Test: `src/lib/storage/media-backfill.test.ts`
   - Verify: `npx vitest run src/lib/storage/media-backfill.test.ts`
 
-- [ ] **T7.3** GREEN — CLI runner. Requirement: `media-ingest` → "History backfill" (batched, resumable, dry-run).
+- [x] **T7.3** GREEN — CLI runner. Requirement: `media-ingest` → "History backfill" (batched, resumable, dry-run).
   - Goal: implement `infra/media/backfill-media.mts` with `--dry-run`, `--batch`, `--sleep-ms`, `--limit`, `--after`, `--env`; read credentials from the env file only and never print them; confirm the host Node is ≥ 22.6 before `--experimental-strip-types`.
   - Files: `infra/media/backfill-media.mts` (new)
   - Test: `src/lib/storage/media-backfill.test.ts` (core) + a dry run against staging.
   - Verify: `node --version` ≥ 22.6, then a staging `--dry-run`.
+  - **Done 2026-11-28**: Node 26.13.1; staging dry run with `--batch 5 --limit 10` reported 1 `would_ready_with_thumb`, 4 `would_ready_no_thumb`, 0 missing, 0 legacy.
 
 - [ ] **T7.4** GATE — storage quota headroom. Requirement: `media-ingest` → "History backfill"; design open question on the Free-plan 1 GB cap.
   - Goal: check current Storage usage (875 MB on 2026-11-27) against the 1 GB Free-plan file-storage limit plus the 45-72 MB thumbnail estimate, and either confirm headroom or stop and report that the backfill cannot run in production yet (plan change or retention-first ordering is an owner decision).

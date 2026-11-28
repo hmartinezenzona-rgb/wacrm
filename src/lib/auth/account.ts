@@ -78,7 +78,20 @@ export function toErrorResponse(err: unknown): NextResponse {
 // Account context
 // ------------------------------------------------------------
 
-export interface AccountContext {
+export interface AccountContext extends AccountScopedContext {
+  /** Lightweight account meta — id + name. */
+  account: { id: string; name: string };
+}
+
+/**
+ * The part of the context that costs one round trip: identity, account
+ * id and role, all from the caller's own profile row.
+ *
+ * Routes that never read `account.name` should ask for this instead of
+ * the full context — the `accounts` lookup is a second serial round trip
+ * and, on the thread route, it was ~90 ms of the user's wait for nothing.
+ */
+export interface AccountScopedContext {
   /** Supabase SSR client, RLS scoped to the calling user. */
   supabase: SupabaseClient;
   /** `auth.uid()` for the caller. Always defined when this resolves. */
@@ -87,23 +100,13 @@ export interface AccountContext {
   accountId: string;
   /** Caller's role within their account. */
   role: AccountRole;
-  /** Lightweight account meta — id + name. */
-  account: { id: string; name: string };
 }
 
 /**
- * Resolve the caller's user + account + role in one round trip.
- *
- * Throws `UnauthorizedError` if there's no Supabase session.
- * Throws `ForbiddenError` if the profile is missing account
- * fields (shouldn't happen post-017 migration; defensive guard
- * against profile rows that pre-date the backfill or were
- * inserted by hand).
- *
- * Use `requireRole(min)` instead when the route also needs a
- * minimum-role check — it's a thin wrapper over this.
+ * Verify the JWT locally and read the caller's profile — the shared
+ * first half of both context helpers below.
  */
-export async function getCurrentAccount(): Promise<AccountContext> {
+async function resolveScopedContext(): Promise<AccountScopedContext> {
   const supabase = await createClient();
 
   // getClaims verifica el JWT localmente (JWKS ES256 cacheada): la identidad
@@ -137,6 +140,30 @@ export async function getCurrentAccount(): Promise<AccountContext> {
     throw new ForbiddenError(`Unknown account role: ${data.account_role}`);
   }
 
+  return {
+    supabase,
+    userId,
+    accountId: data.account_id,
+    role: data.account_role,
+  };
+}
+
+/**
+ * Resolve the caller's user + account + role in one round trip.
+ *
+ * Throws `UnauthorizedError` if there's no Supabase session.
+ * Throws `ForbiddenError` if the profile is missing account
+ * fields (shouldn't happen post-017 migration; defensive guard
+ * against profile rows that pre-date the backfill or were
+ * inserted by hand).
+ *
+ * Use `requireRole(min)` instead when the route also needs a
+ * minimum-role check — it's a thin wrapper over this.
+ */
+export async function getCurrentAccount(): Promise<AccountContext> {
+  const scoped = await resolveScopedContext();
+  const { supabase, accountId } = scoped;
+
   // Load the account with a plain point lookup by id rather than an
   // embedded FK join (`account:accounts!inner(...)`). The embed forces
   // PostgREST to resolve the profiles.account_id → accounts.id
@@ -150,7 +177,7 @@ export async function getCurrentAccount(): Promise<AccountContext> {
   const { data: account, error: accountErr } = await supabase
     .from("accounts")
     .select("id, name")
-    .eq("id", data.account_id)
+    .eq("id", accountId)
     .maybeSingle();
 
   if (accountErr) {
@@ -164,10 +191,7 @@ export async function getCurrentAccount(): Promise<AccountContext> {
   }
 
   return {
-    supabase,
-    userId,
-    accountId: data.account_id,
-    role: data.account_role,
+    ...scoped,
     account: { id: account.id, name: account.name },
   };
 }
@@ -181,6 +205,26 @@ export async function getCurrentAccount(): Promise<AccountContext> {
  */
 export async function requireRole(min: AccountRole): Promise<AccountContext> {
   const ctx = await getCurrentAccount();
+  if (!hasMinRole(ctx.role, min)) {
+    throw new ForbiddenError(
+      `This action requires the '${min}' role or higher`,
+    );
+  }
+  return ctx;
+}
+
+/**
+ * `requireRole` without the `accounts` lookup.
+ *
+ * Use it when the route only needs identity, account id and role: it
+ * saves one serial round trip to PostgREST. Anything that renders the
+ * account name, or needs `account` for any other reason, still uses
+ * `requireRole`.
+ */
+export async function requireScopedRole(
+  min: AccountRole,
+): Promise<AccountScopedContext> {
+  const ctx = await resolveScopedContext();
   if (!hasMinRole(ctx.role, min)) {
     throw new ForbiddenError(
       `This action requires the '${min}' role or higher`,

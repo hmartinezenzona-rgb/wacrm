@@ -67,9 +67,8 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: () => createClient(),
 }));
 
-const { getCurrentAccount, UnauthorizedError, ForbiddenError } = await import(
-  "./account"
-);
+const { getCurrentAccount, requireScopedRole, UnauthorizedError, ForbiddenError } =
+  await import("./account");
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -171,6 +170,67 @@ describe("getCurrentAccount", () => {
     });
     createClient.mockReturnValue(client);
     await expect(getCurrentAccount()).rejects.toThrow(
+      "Profile is not linked to an account",
+    );
+  });
+});
+
+describe("requireScopedRole", () => {
+  it("resolves id + role from the profile alone, with no accounts lookup", async () => {
+    const { client, calls } = makeClient({
+      user: { id: "user-1" },
+      byTable: {
+        profiles: {
+          data: { account_id: "acct-1", account_role: "owner" },
+          error: null,
+        },
+      },
+    });
+    createClient.mockReturnValue(client);
+
+    const ctx = await requireScopedRole("viewer");
+
+    expect(ctx.userId).toBe("user-1");
+    expect(ctx.accountId).toBe("acct-1");
+    expect(ctx.role).toBe("owner");
+    expect(ctx).not.toHaveProperty("account");
+    // One round trip: the accounts row is metadata this caller does not need.
+    expect(calls.map((c) => c.table)).toEqual(["profiles"]);
+  });
+
+  it("still refuses a role below the minimum", async () => {
+    const { client } = makeClient({
+      user: { id: "user-1" },
+      byTable: {
+        profiles: {
+          data: { account_id: "acct-1", account_role: "viewer" },
+          error: null,
+        },
+      },
+    });
+    createClient.mockReturnValue(client);
+    await expect(requireScopedRole("admin")).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
+  });
+
+  it("throws UnauthorizedError without a session", async () => {
+    const { client } = makeClient({ user: null, byTable: {} });
+    createClient.mockReturnValue(client);
+    await expect(requireScopedRole("viewer")).rejects.toBeInstanceOf(
+      UnauthorizedError,
+    );
+  });
+
+  it("refuses a profile with no account", async () => {
+    const { client } = makeClient({
+      user: { id: "user-1" },
+      byTable: {
+        profiles: { data: { account_id: null, account_role: null }, error: null },
+      },
+    });
+    createClient.mockReturnValue(client);
+    await expect(requireScopedRole("viewer")).rejects.toThrow(
       "Profile is not linked to an account",
     );
   });

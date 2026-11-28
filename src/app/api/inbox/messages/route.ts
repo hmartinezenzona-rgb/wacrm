@@ -5,7 +5,7 @@
 // signed URLs for the media that same page shows, so the browser paints
 // media from this response instead of waiting for `/api/chat-media/sign`.
 //
-// Auth is `requireRole('viewer')` and every read uses the caller's
+// Auth is `requireScopedRole('viewer')` and every read uses the caller's
 // RLS-scoped client — never the service role. The explicit account check
 // in the membership query is the same boundary the sign route has.
 //
@@ -19,7 +19,7 @@
 
 import { NextResponse } from 'next/server';
 
-import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import { requireScopedRole, toErrorResponse } from '@/lib/auth/account';
 import { signChatMediaUrls } from '@/lib/storage/chat-media-server';
 import {
   THREAD_PAGE_MAX_LIMIT,
@@ -38,9 +38,9 @@ function json(body: unknown, status = 200): NextResponse {
 }
 
 export async function GET(request: Request) {
-  let ctx: Awaited<ReturnType<typeof requireRole>>;
+  let ctx: Awaited<ReturnType<typeof requireScopedRole>>;
   try {
-    ctx = await requireRole('viewer');
+    ctx = await requireScopedRole('viewer');
   } catch (error) {
     const res = toErrorResponse(error);
     res.headers.set('Cache-Control', 'private, no-store');

@@ -22,6 +22,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
 
+// The two child components are mocked; these are the props the page must
+// hand them, narrowed to what the assertions read.
+interface CapturedListProps {
+  conversations: Conversation[];
+  onConversationsLoaded: (rows: Conversation[]) => void;
+  onSelect: (row: Conversation) => void;
+}
+
+interface CapturedThreadProps {
+  messages: Message[];
+  onMessagesLoaded: (rows: Message[]) => void;
+}
+
 interface Subscription {
   event: string;
   config: Record<string, unknown>;
@@ -36,8 +49,8 @@ interface FakeChannel {
 const hoisted = vi.hoisted(() => ({
   play: vi.fn(),
   stop: vi.fn(),
-  listProps: null as any,
-  threadProps: null as any,
+  listProps: null as CapturedListProps | null,
+  threadProps: null as CapturedThreadProps | null,
   channels: [] as FakeChannel[],
   removeChannel: vi.fn(),
   fromCalls: [] as Array<{ table: string; eqs: Array<[string, string]> }>,
@@ -51,13 +64,13 @@ vi.mock("next-intl", () => ({
 // the test observes the state the page computed from the realtime event.
 vi.mock("@/components/inbox/conversation-list", () => ({
   ConversationList: (props: unknown) => {
-    hoisted.listProps = props;
+    hoisted.listProps = props as CapturedListProps;
     return null;
   },
 }));
 vi.mock("@/components/inbox/message-thread", () => ({
   MessageThread: (props: unknown) => {
-    hoisted.threadProps = props;
+    hoisted.threadProps = props as CapturedThreadProps;
     return null;
   },
 }));
@@ -117,6 +130,7 @@ vi.mock("@/lib/supabase/client", () => ({
 }));
 
 import InboxPage from "./page";
+import type { Conversation, Message } from "@/types";
 
 const conversation = (id: string, over: Record<string, unknown> = {}) =>
   ({
@@ -127,7 +141,7 @@ const conversation = (id: string, over: Record<string, unknown> = {}) =>
     status: "open",
     contact: { id: `contact-${id}`, name: `Contact ${id}` },
     ...over,
-  }) as any;
+  }) as unknown as Conversation;
 
 const message = (
   id: string,
@@ -141,9 +155,9 @@ const message = (
     created_at: "2026-11-27T10:00:00.000Z",
     sender_type: "customer",
     ...over,
-  }) as any;
+  }) as unknown as Message;
 
-let mounted: Array<{ unmount: () => void }> = [];
+const mounted: Array<{ unmount: () => void }> = [];
 
 beforeEach(() => {
   hoisted.channels.length = 0;
@@ -180,7 +194,7 @@ function inboxInsertHandler(): (payload: unknown) => void {
   return subscription.handler;
 }
 
-async function dispatchInsert(row: Record<string, unknown>) {
+async function dispatchInsert(row: Message) {
   await act(async () => {
     inboxInsertHandler()({ eventType: "INSERT", new: row, old: {} });
     // Let any async hydration started by the handler settle.
@@ -188,15 +202,15 @@ async function dispatchInsert(row: Record<string, unknown>) {
   });
 }
 
-async function seedConversations(rows: unknown[]) {
+async function seedConversations(rows: Conversation[]) {
   await act(async () => {
-    hoisted.listProps.onConversationsLoaded(rows);
+    hoisted.listProps!.onConversationsLoaded(rows);
   });
 }
 
-async function selectConversation(row: unknown) {
+async function selectConversation(row: Conversation) {
   await act(async () => {
-    hoisted.listProps.onSelect(row);
+    hoisted.listProps!.onSelect(row);
   });
 }
 
@@ -209,14 +223,14 @@ describe("InboxPage realtime INSERT wiring", () => {
 
     const first = message("m0", "a", { sender_type: "agent" });
     await act(async () => {
-      hoisted.threadProps.onMessagesLoaded([first]);
+      hoisted.threadProps!.onMessagesLoaded([first]);
     });
 
     await dispatchInsert(
       message("m1", "a", { sender_type: "agent", content_text: "hello" }),
     );
 
-    expect(hoisted.threadProps.messages.map((row: any) => row.id)).toEqual([
+    expect(hoisted.threadProps!.messages.map((row) => row.id)).toEqual([
       "m0",
       "m1",
     ]);
@@ -230,7 +244,7 @@ describe("InboxPage realtime INSERT wiring", () => {
     const b = conversation("b", { unread_count: 1, last_message_text: "b-old" });
     const c = conversation("c", { unread_count: 2, last_message_text: "c-old" });
     await seedConversations([a, b, c]);
-    const before = hoisted.listProps.conversations as any[];
+    const before = hoisted.listProps!.conversations;
 
     await dispatchInsert(
       message("m1", "b", {
@@ -240,7 +254,7 @@ describe("InboxPage realtime INSERT wiring", () => {
       }),
     );
 
-    const after = hoisted.listProps.conversations as any[];
+    const after = hoisted.listProps!.conversations;
     expect(after).toHaveLength(3);
 
     const changed = after.filter((row, index) => row !== before[index]);
@@ -272,7 +286,7 @@ describe("InboxPage realtime INSERT wiring", () => {
     // The hydrate response is empty here, so the list is only touched later by
     // the conversation event; the important part is that it was requested.
     expect(
-      (hoisted.listProps.conversations as any[]).map((row) => row.id),
+      hoisted.listProps!.conversations.map((row) => row.id),
     ).toEqual(["a"]);
   });
 

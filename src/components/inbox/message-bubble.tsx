@@ -154,7 +154,11 @@ function MediaImage({
   // The error handler compares against the source that just failed without
   // taking it as a dependency (which would rebuild the callback mid-flight).
   const displaySrcRef = useRef<string | null>(displaySrc);
-  displaySrcRef.current = displaySrc;
+  // Written in an effect, never during render: the only reader is the async
+  // re-sign callback, which runs after effects flush.
+  useEffect(() => {
+    displaySrcRef.current = displaySrc;
+  }, [displaySrc]);
 
   // A stale signature (opened past its TTL) fires `error`. Drop it and ask for
   // a new one exactly once. One failure must be enough to show the unavailable
@@ -242,7 +246,11 @@ function useRecoverableMediaSrc(url: string | null | undefined) {
   const resignedRef = useRef(false);
   const src = override ?? resolved;
   const srcRef = useRef<string | null>(src);
-  srcRef.current = src;
+  // Written in an effect, never during render: the comparison only runs
+  // inside the async re-sign callback, which executes after effects flush.
+  useEffect(() => {
+    srcRef.current = src;
+  }, [src]);
 
   const onError = useCallback(() => {
     if (!url || resignedRef.current) {
@@ -270,15 +278,6 @@ function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof
   // recovery path as images: the signed URL is the only first source, a stale
   // one re-signs once, and the proxy is the fallback.
   const media = useRecoverableMediaSrc(message.media_url ?? null);
-  // An anchor never dispatches `error` through React's synthetic system, so the
-  // document link gets the same recovery handler through a native listener.
-  const documentRef = useRef<HTMLAnchorElement>(null);
-  useEffect(() => {
-    const el = documentRef.current;
-    if (!el) return;
-    el.addEventListener("error", media.onError);
-    return () => el.removeEventListener("error", media.onError);
-  }, [media.onError]);
   switch (message.content_type) {
     case "text":
       return (
@@ -365,7 +364,6 @@ function MessageContent({ message, t }: { message: Message, t: ReturnType<typeof
       }
       return (
         <a
-          ref={documentRef}
           href={media.src ?? undefined}
           target="_blank"
           rel="noopener noreferrer"

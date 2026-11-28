@@ -24,6 +24,26 @@ interface CacheEntry {
 
 const cache = new Map<string, CacheEntry>();
 
+/**
+ * Components that render a media source subscribe here. Reading the cache
+ * during render is not reactive, so mutations announce themselves and
+ * `useSyncExternalStore` re-renders the readers — that is what makes an
+ * invalidated signature fall back to a fresh one, or to the proxy.
+ */
+const listeners = new Set<() => void>();
+
+function notify(): void {
+  for (const listener of listeners) listener();
+}
+
+/** Subscribe to cache changes; returns the unsubscribe function. */
+export function subscribeMediaCache(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
 /** URLs waiting for the next flush, so one call signs them together. */
 let queued = new Set<string>();
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -52,6 +72,7 @@ async function signBatch(urls: string[]): Promise<void> {
     for (const [original, signed] of Object.entries(data.signed)) {
       cache.set(original, { signed, expiresAt });
     }
+    if (Object.keys(data.signed).length > 0) notify();
   } catch {
     // Offline or blocked: the caller falls back to the proxy.
   }
@@ -120,10 +141,13 @@ export function seedSignedMedia(
   receivedAt: number = Date.now(),
 ): void {
   const expiresAt = receivedAt + expiresInSeconds * 1000;
+  let changed = false;
   for (const [original, url] of Object.entries(signed)) {
     if (!isChatMediaUrl(original)) continue;
     cache.set(original, { signed: url, expiresAt });
+    changed = true;
   }
+  if (changed) notify();
 }
 
 /** The fresh signed URL for `url` if the cache holds one, else null. */
@@ -135,7 +159,7 @@ export function peekSignedMediaSrc(url: string | null | undefined): string | nul
 
 /** Drop one cached URL so the next resolve signs it again. */
 export function invalidateSignedMedia(url: string | null | undefined): void {
-  if (url) cache.delete(url);
+  if (url && cache.delete(url)) notify();
 }
 
 /** Test seam: forget cached URLs and any queued work. */

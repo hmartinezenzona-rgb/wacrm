@@ -323,7 +323,11 @@ describe("MessageBubble media sources", () => {
     await unmount();
   });
 
-  it("document: an expired signed link re-signs once, then falls back to the proxy", async () => {
+  it("document: an anchor gets no error event, so no recovery is attempted", async () => {
+    // Browsers do not dispatch `error` on <a>, so a document link cannot
+    // detect a stale signature. The link keeps the signed href and no signing
+    // request is made — this test guards against re-adding a dead listener
+    // that would look like recovery without ever firing.
     const fetchMock = vi.fn(async () => failingResponse());
     vi.stubGlobal("fetch", fetchMock);
     seedSignedMedia({ [STORED("4.pdf")]: "https://signed/expired.pdf" }, 3600);
@@ -336,8 +340,8 @@ describe("MessageBubble media sources", () => {
     });
     await settle();
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(node.querySelector("a")?.getAttribute("href")).toBe(PROXIED("4.pdf"));
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(node.querySelector("a")?.getAttribute("href")).toBe("https://signed/expired.pdf");
     await unmount();
   });
 

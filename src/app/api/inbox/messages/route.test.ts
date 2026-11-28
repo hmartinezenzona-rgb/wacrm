@@ -8,13 +8,14 @@ vi.mock('@/lib/flows/admin-client', () => ({
   supabaseAdmin: () => ({ storage: { from: () => ({ createSignedUrls }) } }),
 }));
 
-const requireRole = vi.fn();
+const requireScopedRole = vi.fn();
 vi.mock('@/lib/auth/account', async () => {
   const actual = await vi.importActual<typeof import('@/lib/auth/account')>('@/lib/auth/account');
-  return { ...actual, requireRole: (...args: unknown[]) => requireRole(...args) };
+  return { ...actual, requireScopedRole: (...args: unknown[]) => requireScopedRole(...args) };
 });
 
 import { ForbiddenError, UnauthorizedError } from '@/lib/auth/account';
+import { __resetSignCache } from '@/lib/storage/chat-media-server';
 import { GET } from './route';
 
 const ACCT = '3f2b1c7e-8a41-4c55-9d0e-6b7a1f2e3d4c';
@@ -71,6 +72,7 @@ function request(params: Record<string, string>): Request {
 }
 
 beforeEach(() => {
+  __resetSignCache();
   pageResult = { data: [], error: null };
   conversationResult = { data: { id: CONV }, error: null };
   messages = queryBuilder(() => pageResult);
@@ -78,7 +80,7 @@ beforeEach(() => {
   supabase = {
     from: vi.fn((table: string) => (table === 'conversations' ? conversations : messages)),
   };
-  requireRole.mockResolvedValue({ accountId: ACCT, supabase });
+  requireScopedRole.mockResolvedValue({ accountId: ACCT, supabase });
   vi.spyOn(console, 'error').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
@@ -91,18 +93,18 @@ describe('GET /api/inbox/messages authorisation', () => {
     };
     const res = await GET(request({ conversationId: CONV }));
     expect(res.status).toBe(200);
-    expect(requireRole).toHaveBeenCalledWith('viewer');
+    expect(requireScopedRole).toHaveBeenCalledWith('viewer');
   });
 
   it('passes a 401 through when there is no session', async () => {
-    requireRole.mockRejectedValue(new UnauthorizedError());
+    requireScopedRole.mockRejectedValue(new UnauthorizedError());
     const res = await GET(request({ conversationId: CONV }));
     expect(res.status).toBe(401);
     expect(res.headers.get('Cache-Control')).toBe('private, no-store');
   });
 
   it('passes a 403 through when the role is below viewer', async () => {
-    requireRole.mockRejectedValue(new ForbiddenError("This action requires the 'viewer' role or higher"));
+    requireScopedRole.mockRejectedValue(new ForbiddenError("This action requires the 'viewer' role or higher"));
     const res = await GET(request({ conversationId: CONV }));
     expect(res.status).toBe(403);
     expect(res.headers.get('Cache-Control')).toBe('private, no-store');

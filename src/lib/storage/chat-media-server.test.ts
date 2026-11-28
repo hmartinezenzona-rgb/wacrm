@@ -201,6 +201,33 @@ describe('signChatMediaUrls', () => {
     }
   });
 
+  it('reuses a signature issued a minute ago, not just in the same millisecond', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-27T00:00:00Z'));
+    try {
+      createSignedUrls.mockResolvedValue({
+        data: [{ path: PATH, signedUrl: 'https://signed/1', error: null }],
+        error: null,
+      });
+      await signChatMediaUrls([PUBLIC], ACCT);
+
+      // A page request one minute later must not pay Storage again.
+      vi.setSystemTime(new Date('2026-11-27T00:01:00Z'));
+      createSignedUrls.mockResolvedValue({
+        data: [{ path: PATH, signedUrl: 'https://signed/2', error: null }],
+        error: null,
+      });
+      const result = await signChatMediaUrls([PUBLIC], ACCT);
+
+      expect(createSignedUrls).toHaveBeenCalledTimes(1);
+      expect(result.signed).toEqual({ [PUBLIC]: 'https://signed/1' });
+      // The reported lifetime is what is actually left, not what was asked.
+      expect(result.expiresIn).toBe(3540);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('never caches a failed batch', async () => {
     createSignedUrls.mockResolvedValue({ data: null, error: { message: 'boom' } });
     await signChatMediaUrls([PUBLIC], ACCT);

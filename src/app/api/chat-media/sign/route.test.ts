@@ -6,6 +6,8 @@ vi.mock('@/lib/flows/admin-client', () => ({
   supabaseAdmin: () => ({ storage: { from } }),
 }));
 
+import { __resetSignCache } from '@/lib/storage/chat-media-server';
+
 const requireRole = vi.fn();
 vi.mock('@/lib/auth/account', async () => {
   const actual = await vi.importActual<typeof import('@/lib/auth/account')>('@/lib/auth/account');
@@ -32,6 +34,9 @@ function request(body: unknown): Request {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // The signature cache is module state: without a reset one test would be
+  // served by the previous test's cached URLs instead of calling Storage.
+  __resetSignCache();
   requireRole.mockResolvedValue({ accountId: ACCT });
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });

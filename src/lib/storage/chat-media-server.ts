@@ -96,6 +96,14 @@ const SIGN_CACHE = new Map<string, SignCacheEntry>();
 /** Bound the map so a long-lived server cannot grow it without limit. */
 const SIGN_CACHE_MAX_ENTRIES = 5000;
 
+/**
+ * How much life a cached signature must still have before it is handed
+ * out again. Seconds, not milliseconds of margin: a page opened right
+ * after another one must reuse, and a URL must not be delivered so close
+ * to expiry that the browser requests it as it dies.
+ */
+const SIGN_CACHE_MIN_REMAINING_MS = 5 * 60 * 1000;
+
 /** Test-only: the cache is module state and must not leak between tests. */
 export function __resetSignCache(): void {
   SIGN_CACHE.clear();
@@ -105,20 +113,26 @@ function cacheKey(accountId: string, path: string): string {
   return `${accountId}\u0000${path}`;
 }
 
+/**
+ * The cached entry for `path`, if it still has useful life left. An
+ * entry is reused while MORE than `SIGN_CACHE_MIN_REMAINING_MS` remains,
+ * regardless of the TTL the caller asked for: the URL works for exactly
+ * as long as Storage said, and the response reports what is left so the
+ * client refreshes on time.
+ */
 function readCachedSignature(
   accountId: string,
   path: string,
-  ttlSeconds: number,
   now: number,
-): string | null {
+): SignCacheEntry | null {
   const key = cacheKey(accountId, path);
   const entry = SIGN_CACHE.get(key);
   if (!entry) return null;
-  if (entry.expiresAt - now < ttlSeconds * 1000) {
+  if (entry.expiresAt - now <= SIGN_CACHE_MIN_REMAINING_MS) {
     SIGN_CACHE.delete(key);
     return null;
   }
-  return entry.signedUrl;
+  return entry;
 }
 
 function writeCachedSignature(
@@ -165,11 +179,19 @@ export async function signChatMediaUrls(
   const now = Date.now();
   const missing: string[] = [];
   const reusable = new Map<string, string>();
+  // The shortest life among the URLs being returned, in ms. Fresh ones
+  // start at the requested TTL; reused ones shorten it.
+  let shortestRemainingMs = ttlSeconds * 1000;
   for (const path of byPath.keys()) {
-    const cached = readCachedSignature(accountId, path, ttlSeconds, now);
-    if (cached) reusable.set(path, cached);
-    else missing.push(path);
+    const cached = readCachedSignature(accountId, path, now);
+    if (cached) {
+      reusable.set(path, cached.signedUrl);
+      shortestRemainingMs = Math.min(shortestRemainingMs, cached.expiresAt - now);
+    } else {
+      missing.push(path);
+    }
   }
+  const expiresIn = Math.max(1, Math.floor(shortestRemainingMs / 1000));
 
   const signed: Record<string, string> = {};
   const fill = (path: string, signedUrl: string): void => {
@@ -179,7 +201,7 @@ export async function signChatMediaUrls(
   for (const [path, url] of reusable) fill(path, url);
 
   // Everything asked for was still valid: no Storage round trip at all.
-  if (missing.length === 0) return { signed, expiresIn: ttlSeconds, ok: true };
+  if (missing.length === 0) return { signed, expiresIn, ok: true };
 
   try {
     const { data, error } = await supabaseAdmin()
@@ -188,7 +210,7 @@ export async function signChatMediaUrls(
 
     if (error || !data) {
       console.error('[chat-media] could not sign batch:', error?.message ?? 'no data');
-      return { signed: reusable.size ? signed : {}, expiresIn: ttlSeconds, ok: reusable.size > 0 };
+      return { signed: reusable.size ? signed : {}, expiresIn, ok: reusable.size > 0 };
     }
 
     for (const row of data) {
@@ -206,6 +228,6 @@ export async function signChatMediaUrls(
       '[chat-media] could not sign batch:',
       thrown instanceof Error ? thrown.message : String(thrown),
     );
-    return { signed: reusable.size ? signed : {}, expiresIn: ttlSeconds, ok: reusable.size > 0 };
+    return { signed: reusable.size ? signed : {}, expiresIn, ok: reusable.size > 0 };
   }
 }

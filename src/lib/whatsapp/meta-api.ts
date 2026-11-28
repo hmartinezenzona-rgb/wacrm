@@ -1174,6 +1174,8 @@ function validateInteractiveHeaderFooter(
 export interface GetMediaUrlArgs {
   mediaId: string
   accessToken: string
+  /** Aborts the request; the ingest path bounds every Meta call this way. */
+  signal?: AbortSignal
 }
 
 /**
@@ -1183,9 +1185,10 @@ export interface GetMediaUrlArgs {
 export async function getMediaUrl(
   args: GetMediaUrlArgs
 ): Promise<{ url: string; mimeType: string }> {
-  const { mediaId, accessToken } = args
+  const { mediaId, accessToken, signal } = args
   const response = await fetch(`${META_API_BASE}/${mediaId}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
+    signal,
   })
   if (!response.ok) {
     await throwMetaError(response, `Media fetch failed: ${response.status}`)
@@ -1198,6 +1201,8 @@ export async function getMediaUrl(
 export interface DownloadMediaArgs {
   downloadUrl: string
   accessToken: string
+  /** Aborts the download; the ingest path bounds every Meta call this way. */
+  signal?: AbortSignal
 }
 
 /**
@@ -1207,9 +1212,10 @@ export interface DownloadMediaArgs {
 export async function downloadMedia(
   args: DownloadMediaArgs
 ): Promise<{ buffer: Buffer; contentType: string }> {
-  const { downloadUrl, accessToken } = args
+  const { downloadUrl, accessToken, signal } = args
   const response = await fetch(downloadUrl, {
     headers: { Authorization: `Bearer ${accessToken}` },
+    signal,
   })
   if (!response.ok) {
     throw new Error(`Media download failed: ${response.status}`)

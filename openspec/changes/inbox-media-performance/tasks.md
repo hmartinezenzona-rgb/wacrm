@@ -339,17 +339,19 @@ Design: ADR-10 leaves 4b empty until the trace exists. This slice must not be in
 
 Spec: `media-ingest` → "Additive media metadata columns"; `chat-media-delivery` → "Media metadata compatibility", "Existing media_url readers are unaffected".
 
-- [ ] **T5a.1** Re-check the next free migration number before writing anything. Requirement: `media-ingest` → "Additive media metadata columns".
+- [x] **T5a.1** Re-check the next free migration number before writing anything. Requirement: `media-ingest` → "Additive media metadata columns".
   - Goal: run the multi-branch command from `.claude/skills/wacrm-migraciones/references/workflow.md` (read-only) plus production's `schema_migrations` names, and confirm 400 is free on every branch and in production. If it is taken, renumber the migration, rollback and assertion consistently, and record the number actually used in the PR.
   - Files: none.
   - Test: none.
   - Verify: `git for-each-ref --format='%(refname)' refs/heads | while read r; do git ls-tree --name-only "$r" supabase/migrations/; done | grep -oE '[0-9]{3}_' | sort -u | tail -5` — 400 absent.
+  - **Done 2026-11-27**: highest number across every local branch and in `supabase/migrations/` is `399_`. 400 is free.
 
 - [ ] **T5a.2** GATE — slice order and production measurement. Requirement: `inbox-thread-read` → "Measurement record".
   - Goal: confirm slices 1-4 are shipped and measured in production (TM1, TM2 with numbers recorded) before any schema work starts, per the approved order. If the measurement is missing, stop and report it as unmeasured.
   - Files: none.
   - Test: none.
   - Verify: `openspec/changes/inbox-media-performance/measurements.md` holds TM1 and TM2 with dates.
+  - **BLOCKED 2026-11-27**: TM2 numbers are staging-only. Slices 1-4 live on `feat/inbox-media-performance` and are not deployed, so there is no post-change production measurement. Per this gate, no schema work starts until the branch is published and TM1/TM2 are re-run in production.
 
 - [ ] **T5a.3** RED — self-reverting assertion (the failing test comes first). Requirement: `media-ingest` → "Additive media metadata columns".
   - Goal: write the eight ADR-6 cases (legacy insert gets NULL + `media_attempts = 0`; `'bogus'` rejected; claimed-10-minutes-ago returned as `reintentar` with attempts +1; claimed-1-minute-ago not returned; attempts ≥ 3 → `failed`/`fallida`; older than 7 days → `failed` with `meta window expired`; `ready` and NULL rows untouched; `authenticated` has no EXECUTE), ending `RAISE EXCEPTION 'ALL PASS (rolled back on purpose)'`.

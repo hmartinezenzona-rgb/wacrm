@@ -1042,26 +1042,10 @@ export function MessageThread({
     [conversation, onAssignChange, t],
   );
 
-  // Empty state — same WhatsApp-style doodle background as the active
-  // thread below, so swapping between empty/selected doesn't change the
-  // pattern under the user's eye.
-  if (!conversation || !contact) {
-    return (
-      <div className={cn("flex flex-1 flex-col items-center justify-center", DOODLE_BG_CLASSES)}>
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-          <MessageSquare className="h-8 w-8 text-muted-foreground" />
-        </div>
-        <h3 className="mt-4 text-sm font-medium text-muted-foreground">
-          {t("selectConversation")}
-        </h3>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {t("selectConversationHint")}
-        </p>
-      </div>
-    );
-  }
-
-  const displayName = contact.name || contact.phone;
+  // Derived unconditionally so it is safe before the empty-state guard is
+  // applied below the hooks. After the guard `contact` is non-null, so this
+  // still resolves to the contact's name or phone.
+  const displayName = contact?.name || contact?.phone || "";
 
   // One virtual row: the memoized ThreadRow plus the day separator that
   // belongs below the last message of a day (never above, so prepends stay
@@ -1131,13 +1115,36 @@ export function MessageThread({
   const virtuosoComponents = useMemo(() => ({ Header: ThreadHeader }), []);
 
   const currentStatus = STATUS_OPTIONS.find(
-    (s) => s.value === conversation.status
+    (s) => s.value === conversation?.status
   );
-  const assignedAgentId = conversation.assigned_agent_id ?? null;
+  const assignedAgentId = conversation?.assigned_agent_id ?? null;
   const currentAssignee = profiles.find((p) => p.user_id === assignedAgentId);
   const assignLabel = assignedAgentId
     ? (currentAssignee?.full_name ?? t("assigned"))
     : t("assign");
+
+  // Empty state — same WhatsApp-style doodle background as the active
+  // thread below, so swapping between empty/selected doesn't change the
+  // pattern under the user's eye. It MUST sit after every hook: a return
+  // before the thread-only hooks (item renderer, follow policy, header
+  // context) made the first render run fewer hooks than the next one and
+  // React threw #310 ("Rendered more hooks than during the previous
+  // render") when the first conversation was opened.
+  if (!conversation || !contact) {
+    return (
+      <div className={cn("flex flex-1 flex-col items-center justify-center", DOODLE_BG_CLASSES)}>
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+          <MessageSquare className="h-8 w-8 text-muted-foreground" />
+        </div>
+        <h3 className="mt-4 text-sm font-medium text-muted-foreground">
+          {t("selectConversation")}
+        </h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {t("selectConversationHint")}
+        </p>
+      </div>
+    );
+  }
 
   return (
     // `min-w-0` is load-bearing: the page already puts min-w-0 on the

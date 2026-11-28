@@ -787,6 +787,46 @@ describe('MessageThread thread page', () => {
     await act(async () => root.unmount());
   });
 
+  // Production-blocking crash (React #310): the empty state returned before
+  // five thread hooks. The first render (no conversation) ran fewer hooks than
+  // the next one, so opening the first conversation threw "Rendered more hooks
+  // than during the previous render" and fell to the error boundary. A single
+  // render cannot reproduce it — the SAME mounted component must re-render.
+  it('runs every hook before the empty-state return so the first conversation opens', async () => {
+    hoisted.fetchThreadPage.mockResolvedValue(emptyPage);
+
+    const node = document.createElement('div');
+    const root = createRoot(node);
+
+    // First render: no conversation or contact → the empty state, and every
+    // hook still runs so the hook count cannot change on the next render.
+    await act(async () => {
+      renderThread(node, root, { conversation: null, contact: null });
+    });
+    await flush();
+    expect(node.textContent).toContain('selectConversation');
+    expect(node.querySelector('[data-testid="virtuoso"]')).toBeNull();
+
+    // Same mounted component, now with a real conversation and contact. Before
+    // the fix this render ran more hooks and React rejected it with #310.
+    let renderError: unknown = null;
+    try {
+      await act(async () => {
+        renderThread(node, root, { messages: [pageMessage] as Message[] });
+      });
+      await flush();
+    } catch (error) {
+      renderError = error;
+    }
+
+    expect(renderError).toBeNull();
+    expect(node.textContent).not.toContain('selectConversation');
+    expect(node.querySelector('[data-testid="virtuoso"]')).not.toBeNull();
+    expect(hoisted.renderCount).toEqual({ m1: 1 });
+
+    await act(async () => root.unmount());
+  });
+
   // Slice-4 review (BLOCKER): under a UTC-negative zone the old path parsed
   // the local day key as UTC midnight and rendered every label one day early.
   // The header and the in-flow separator must both come from the instant.
